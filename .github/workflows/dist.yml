@@ -41,10 +41,10 @@ jobs:
           prerelease: true
           files: app-dist-${{ github.sha }}.tar.gz
 
-      - name: Limpia assets antiguos (conserva los 5 últimos)
+      - name: Limpia assets antiguos (conserva los 5 más recientes por fecha)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view dist-latest --json assets --jq '.assets[].name' \
-            | sort -r | tail -n +6 \
+          gh api repos/${{ github.repository }}/releases/tags/dist-latest \
+            --jq '.assets | sort_by(.created_at) | reverse | .[5:] | .[].name' \
             | while read -r a; do gh release delete-asset dist-latest "$a" -y; done
