@@ -173,6 +173,7 @@ export const EMPTY_EXTRAS: RouterExtras = {
 // ---------------------------------------------------------------------------
 
 function redirectLogin(): never {
+  window.dispatchEvent(new Event('netpulse-unauthorized'))
   window.location.assign('/login')
   throw new Error('unauthorized')
 }
@@ -401,6 +402,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     void (async () => {
+      // Modo demo local (flag del login): dataset simulado sin backend
+      if (sessionStorage.getItem('netpulse-demo') === '1') {
+        startDemo()
+        return
+      }
       const hasBackend = await probeBackend()
       if (disposed) return
       if (hasBackend) await startLive()

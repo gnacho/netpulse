@@ -35,7 +35,7 @@ describe('auth', () => {
     const me = await fetch(`${srv.base}/api/auth/me`, { headers: { cookie: `session=${cookie}` } })
     assert.equal(me.status, 200)
     const body = await me.json()
-    assert.deepEqual(body, { user: 'admin', role: 'admin', mode: 'demo' })
+    assert.deepEqual(body, { user: 'admin', role: 'admin', language: 'auto', mode: 'demo' })
   })
 
   it('protege /api/overview sin cookie (401) y la sirve con cookie (200)', async () => {

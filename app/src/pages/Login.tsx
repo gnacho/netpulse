@@ -67,6 +67,7 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       })
       if (res.status === 204) {
+        window.dispatchEvent(new Event('netpulse-authed'))
         window.location.assign('/')
         return
       }
@@ -240,6 +241,18 @@ export default function Login() {
             <ShieldCheck className="h-3.5 w-3.5 text-ok" strokeWidth={1.75} />
             {t('login.localSession')}
           </p>
+
+          {/* Entrar como demo: dataset simulado local, sin contraseña */}
+          <button
+            type="button"
+            onClick={() => {
+              sessionStorage.setItem('netpulse-demo', '1')
+              navigate('/', { replace: true })
+            }}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            {t('login.demoEnter')}
+          </button>
         </div>
       </motion.main>
     </div>

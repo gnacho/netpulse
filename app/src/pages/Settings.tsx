@@ -282,6 +282,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [type, setType] = useState<'glinet' | 'openwrt'>('openwrt')
   const [gateway, setGateway] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
   const [scanning, setScanning] = useState(false)
@@ -433,10 +434,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   }
 
   const remove = async (r: ConfigRouter) => {
-    if (!window.confirm(t('settings.routers.deleteConfirm', { name: r.name || r.host }))) return
     try {
       const res = await fetch(`/api/config/routers/${encodeURIComponent(r.id)}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
+      setConfirmDeleteFor(null)
       await load()
       refresh()
     } catch {
@@ -474,14 +475,33 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   {r.host} · {r.type === 'glinet' ? 'GL.iNet' : 'OpenWrt'}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void remove(r)}
-                aria-label={t('settings.routers.delete')}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
-              >
-                <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-              </button>
+              {confirmDeleteFor === r.id ? (
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void remove(r)}
+                    className="rounded-lg bg-danger px-2.5 py-1.5 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90"
+                  >
+                    {t('settings.users.confirmDelete')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteFor(null)}
+                    className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    {t('settings.users.cancel')}
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteFor(r.id)}
+                  aria-label={t('settings.routers.delete')}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+                >
+                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -641,6 +661,9 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
   const auth = useAuth()
   const [list, setList] = useState<ManagedUser[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [editingPassFor, setEditingPassFor] = useState<number | null>(null)
+  const [passDraft, setPassDraft] = useState('')
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState<number | null>(null)
   const [newUser, setNewUser] = useState('')
   const [newPass, setNewPass] = useState('')
   const [newAdmin, setNewAdmin] = useState(false)
@@ -704,7 +727,6 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
   }
 
   const remove = async (u: ManagedUser) => {
-    if (!window.confirm(t('settings.users.deleteConfirm', { name: u.username }))) return
     try {
       const res = await fetch(`/api/users/${u.id}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 204) {
@@ -732,18 +754,19 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
   }
 
   const changePassword = async (u: ManagedUser) => {
-    const pass = window.prompt(t('settings.users.passwordPrompt', { name: u.username }))
-    if (!pass) return
+    if (passDraft.length < 6) return
     try {
       const res = await fetch(`/api/users/${u.id}/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pass }),
+        body: JSON.stringify({ password: passDraft }),
       })
       if (!res.ok && res.status !== 204) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null
         throw new Error(body?.message ?? `HTTP ${res.status}`)
       }
+      setEditingPassFor(null)
+      setPassDraft('')
       onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.users.errorGeneric'))
@@ -754,44 +777,102 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
     <Card title={t('settings.users.title')} caption={t('settings.users.caption')} index={5} reduce={reduce}>
       <ul className="flex flex-col gap-2">
         {list.map((u) => (
-          <li key={u.id} className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
-            <UserCog className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium text-text-primary">{u.username}</span>
-                {auth?.user === u.username && (
-                  <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ok">
-                    {t('settings.users.you')}
-                  </span>
-                )}
+          <li key={u.id} className="rounded-xl border border-border bg-elevated px-3.5 py-2.5">
+            <div className="flex items-center gap-3">
+              <UserCog className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium text-text-primary">{u.username}</span>
+                  {auth?.user === u.username && (
+                    <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                      {t('settings.users.you')}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 text-caption text-text-secondary" title={t('settings.users.roleAdmin')}>
-              {t('settings.users.roleAdmin')}
-              <Switch
-                checked={u.role === 'admin'}
-                onCheckedChange={(v) => void changeRole(u, v)}
-                disabled={auth?.user === u.username}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => void changePassword(u)}
-              aria-label={t('settings.users.changePassword')}
-              title={t('settings.users.changePassword')}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-            >
-              <KeyRound className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-            {auth?.user !== u.username && (
+              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-caption text-text-secondary" title={t('settings.users.roleAdmin')}>
+                {t('settings.users.roleAdmin')}
+                <Switch
+                  checked={u.role === 'admin'}
+                  onCheckedChange={(v) => void changeRole(u, v)}
+                  disabled={auth?.user === u.username}
+                />
+              </label>
               <button
                 type="button"
-                onClick={() => void remove(u)}
-                aria-label={t('settings.users.delete')}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+                onClick={() => {
+                  setEditingPassFor(editingPassFor === u.id ? null : u.id)
+                  setPassDraft('')
+                  setConfirmDeleteFor(null)
+                }}
+                aria-label={t('settings.users.changePassword')}
+                title={t('settings.users.changePassword')}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150',
+                  editingPassFor === u.id ? 'border-accent/50 text-accent' : 'border-border text-text-muted hover:border-accent/40 hover:text-accent',
+                )}
               >
-                <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                <KeyRound className="h-4 w-4" strokeWidth={1.75} />
               </button>
+              {auth?.user !== u.username &&
+                (confirmDeleteFor === u.id ? (
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void remove(u)}
+                      className="rounded-lg bg-danger px-2.5 py-1.5 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90"
+                    >
+                      {t('settings.users.confirmDelete')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteFor(null)}
+                      className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                    >
+                      {t('settings.users.cancel')}
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmDeleteFor(u.id)
+                      setEditingPassFor(null)
+                    }}
+                    aria-label={t('settings.users.delete')}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                  </button>
+                ))}
+            </div>
+            {editingPassFor === u.id && (
+              <form
+                className="mt-2.5 flex items-center gap-2 border-t border-border pt-2.5"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void changePassword(u)
+                }}
+              >
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={passDraft}
+                  onChange={(e) => setPassDraft(e.target.value)}
+                  placeholder={t('settings.users.newPassword')}
+                  aria-label={t('settings.users.newPassword')}
+                  autoComplete="new-password"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-canvas px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={passDraft.length < 6}
+                  className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-40"
+                >
+                  {t('settings.users.savePassword')}
+                </button>
+              </form>
             )}
           </li>
         ))}
@@ -1011,7 +1092,15 @@ export default function Settings() {
     } else {
       void i18n.changeLanguage(v)
     }
-  }, [i18n])
+    // Fuente de verdad: users.language en el backend (modo live)
+    if (!isDemo) {
+      void fetch('/api/users/me/language', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: v }),
+      }).catch(() => undefined)
+    }
+  }, [i18n, isDemo])
 
   // ——— Toast "Preferencias guardadas" ———
   const [toastKey, setToastKey] = useState<number | null>(null)
@@ -1549,6 +1638,31 @@ export default function Settings() {
           </div>
         )}
 
+        {/* Salir del modo demo (flag local, sin sesión) */}
+        {isDemo && (
+          <div className="lg:col-span-12">
+            <Card title={t('settings.session.title')} index={5} reduce={reduce}>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">{t('settings.session.demoActive')}</p>
+                  <p className="mt-0.5 text-caption text-text-muted">{t('settings.session.demoCaption')}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionStorage.removeItem('netpulse-demo')
+                    window.location.assign('/login')
+                  }}
+                  className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
+                >
+                  <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                  {t('settings.session.exitDemo')}
+                </button>
+              </div>
+            </Card>
+          </div>
+        )}
+
         {/* Cerrar sesión — solo con backend (modo live), webapp-stack §Logout */}
         {!isDemo && (
           <div className="lg:col-span-12">
@@ -1565,7 +1679,10 @@ export default function Settings() {
                   onClick={() => {
                     void fetch('/api/auth/logout', { method: 'POST' })
                       .catch(() => undefined)
-                      .finally(() => window.location.assign('/login'))
+                      .finally(() => {
+                        window.dispatchEvent(new Event('netpulse-unauthorized'))
+                        window.location.assign('/login')
+                      })
                   }}
                   className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
                 >

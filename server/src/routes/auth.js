@@ -53,6 +53,7 @@ export function registerAuthRoutes(app, { db, config, secret, mode }) {
 
   app.get('/api/auth/me', (c) => {
     const user = c.get('user')
-    return c.json({ user: user.username, role: user.role, mode })
+    const row = db.prepare('SELECT language FROM users WHERE id = ?').get(user.id)
+    return c.json({ user: user.username, role: user.role, language: row?.language ?? 'auto', mode })
   })
 }

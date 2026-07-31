@@ -20,19 +20,36 @@ const createSchema = z.object({
   username: usernameSchema,
   password: z.string().min(6).max(128),
   role: z.enum(['admin', 'user']).default('user'),
+  language: z.enum(['auto', 'es', 'en']).default('auto'),
 })
 
 const passwordSchema = z.object({
   password: z.string().min(6).max(128),
 })
 
+const languageSchema = z.object({
+  language: z.enum(['auto', 'es', 'en']),
+})
+
 export function registerUserRoutes(app, { db }) {
+  // Idioma propio (cualquier usuario logueado; fuente de verdad del idioma UI)
+  app.put('/api/users/me/language', async (c) => {
+    const me = c.get('user')
+    const body = await c.req.json().catch(() => null)
+    const parsed = languageSchema.safeParse(body)
+    if (!parsed.success) {
+      return c.json({ error: 'invalid_input', message: 'language debe ser auto|es|en' }, 400)
+    }
+    db.prepare('UPDATE users SET language = ? WHERE id = ?').run(parsed.data.language, me.id)
+    return c.body(null, 204)
+  })
+
   app.use('/api/users', requireAdmin())
   app.use('/api/users/*', requireAdmin())
 
   app.get('/api/users', (c) => {
     const users = db
-      .prepare('SELECT id, username, role, created_at FROM users ORDER BY username')
+      .prepare('SELECT id, username, role, language, created_at FROM users ORDER BY username')
       .all()
     return c.json({ users })
   })
@@ -43,15 +60,15 @@ export function registerUserRoutes(app, { db }) {
     if (!parsed.success) {
       return c.json({ error: 'invalid_input', message: parsed.error.issues[0]?.message }, 400)
     }
-    const { username, password, role } = parsed.data
+    const { username, password, role, language } = parsed.data
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) {
       return c.json({ error: 'duplicate_user', message: `Ya existe el usuario ${username}` }, 409)
     }
     const hash = await bcrypt.hash(password, 10)
     const info = db
-      .prepare('INSERT INTO users (username, pass_hash, role, created_at) VALUES (?, ?, ?, ?)')
-      .run(username, hash, role, Date.now())
-    return c.json({ user: { id: info.lastInsertRowid, username, role } }, 201)
+      .prepare('INSERT INTO users (username, pass_hash, role, language, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(username, hash, role, language, Date.now())
+    return c.json({ user: { id: info.lastInsertRowid, username, role, language } }, 201)
   })
 
   app.put('/api/users/:id/password', async (c) => {

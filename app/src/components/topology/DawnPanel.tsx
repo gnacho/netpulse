@@ -19,9 +19,17 @@ interface DawnAp {
   iface: string
 }
 
+interface DawnMesh {
+  routerId: string
+  name: string
+  dawn: boolean
+  apsSeen: number
+}
+
 export function DawnPanel() {
   const { t } = useTranslation()
   const [aps, setAps] = useState<DawnAp[] | null>(null)
+  const [mesh, setMesh] = useState<DawnMesh[] | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -29,8 +37,11 @@ export function DawnPanel() {
       try {
         const res = await fetch('/api/dawn')
         if (!res.ok) return
-        const json = (await res.json()) as { aps: DawnAp[] }
-        if (!disposed) setAps(json.aps)
+        const json = (await res.json()) as { aps: DawnAp[]; mesh?: DawnMesh[] }
+        if (!disposed) {
+          setAps(json.aps)
+          setMesh(json.mesh ?? null)
+        }
       } catch {
         /* sin DAWN */
       }
@@ -44,11 +55,27 @@ export function DawnPanel() {
   }, [])
 
   if (!aps || aps.length === 0) return null
+  const active = mesh?.filter((m) => m.dawn).length ?? 0
+  const total = mesh?.length ?? 0
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
       <SectionHeader title={t('topology.dawn.title')} />
-      <p className="mt-1 text-caption text-text-muted">{t('topology.dawn.caption')}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-muted">
+        <span>{t('topology.dawn.caption')}</span>
+        {mesh && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className={cn('h-1.5 w-1.5 rounded-full', active === total ? 'bg-ok' : 'bg-warn')} />
+            DAWN {active}/{total}
+          </span>
+        )}
+        {mesh?.map((m) => (
+          <span key={m.routerId} className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 font-mono text-[10px]">
+            <span className={cn('h-1.5 w-1.5 rounded-full', m.dawn ? 'bg-ok' : 'bg-danger')} />
+            {m.name} · {m.apsSeen} APs
+          </span>
+        ))}
+      </div>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {aps.map((ap) => (
           <div

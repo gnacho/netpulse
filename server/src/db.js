@@ -87,6 +87,7 @@ export function openDb(dataDir) {
   // Migraciones tolerantes (añadir columnas si faltan en DBs antiguas)
   migrate(db, 'sessions', 'ua', 'ALTER TABLE sessions ADD COLUMN ua TEXT')
   migrate(db, 'sessions', 'user_id', 'ALTER TABLE sessions ADD COLUMN user_id INTEGER')
+  migrate(db, 'users', 'language', "ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'auto'")
 
   const stmts = {
     insertMetric: db.prepare(

@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import i18n from '@/i18n'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AuthProvider } from '@/data/AuthContext'
@@ -17,15 +18,17 @@ import type { AuthUser } from '@/data/AuthContext'
 type GateState = 'loading' | 'authed' | 'login' | 'demo'
 
 async function checkSession(): Promise<{ state: GateState; auth: AuthUser | null }> {
+  // Modo demo local (botón "Entrar como demo" del login): sin backend ni sesión
+  if (sessionStorage.getItem('netpulse-demo') === '1') return { state: 'demo', auth: null }
   try {
     const res = await fetch('/api/auth/me', { signal: AbortSignal.timeout(2500) })
     if (res.status === 401) return { state: 'login', auth: null }
     if (!res.ok) return { state: 'demo', auth: null }
     // La preview estática responde HTML con 200 (SPA fallback): no es sesión
     if (!(res.headers.get('content-type') ?? '').includes('application/json')) return { state: 'demo', auth: null }
-    const data = (await res.json()) as { user?: string; role?: 'admin' | 'user' }
+    const data = (await res.json()) as { user?: string; role?: 'admin' | 'user'; language?: 'auto' | 'es' | 'en' }
     if (!data?.user) return { state: 'demo', auth: null }
-    return { state: 'authed', auth: { user: data.user, role: data.role ?? 'user' } }
+    return { state: 'authed', auth: { user: data.user, role: data.role ?? 'user', language: data.language ?? 'auto' } }
   } catch {
     return { state: 'demo', auth: null }
   }
@@ -66,10 +69,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       setState(s)
       setAuth(a)
+      if (s === 'authed') window.dispatchEvent(new Event('netpulse-authed'))
+      // Idioma por usuario (BD) sobre la autodetección del navegador
+      if (a?.language && a.language !== 'auto') {
+        void i18n.changeLanguage(a.language)
+        localStorage.setItem('i18nextLng', a.language)
+      }
     })
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (state === 'loading') return <GateSkeleton />

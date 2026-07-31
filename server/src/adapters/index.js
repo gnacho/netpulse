@@ -502,7 +502,18 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     }
   }
 
+  let overviewInFlight = null
+  /** Single-flight: los llamantes concurrentes (poller + /api/overview + SSE)
+   *  comparten el mismo sondeo en curso (los SSH son lo caro). */
   async function getOverview() {
+    if (overviewInFlight) return overviewInFlight
+    overviewInFlight = buildOverview().finally(() => {
+      overviewInFlight = null
+    })
+    return overviewInFlight
+  }
+
+  async function buildOverview() {
     const polled = await pollAll()
     const routerList = routers.map((cfg) => {
       const p = polled.get(cfg.id)
@@ -691,6 +702,14 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     if (id === gatewayCfg?.id) {
       detail.adguard = await pollAdGuard()
       detail.wireguard = await pollWireGuard(detail.clients)
+    } else {
+      // Backhaul real del AP: boca que enlaza con otro router + latencia al gateway
+      const uplink = ports.find((p) => p.detail === 'enlace entre routers') ?? ports.find((p) => p.up)
+      detail.backhaul = {
+        kind: 'cable',
+        headline: `Cable · ${uplink?.speed ?? '—'} · full duplex`,
+        latencyMs: p?.latency?.latencyMs ?? 0,
+      }
     }
     return detail
   }
@@ -723,34 +742,40 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     return null // el poller usa el último overview (adguard del snapshot)
   }
 
-  /** Red DAWN (roaming/band-steering): la malla completa la tiene cualquier nodo. */
+  /** Red DAWN (roaming/band-steering): APs de la malla + salud por router. */
   async function getDawn() {
+    let firstData = null
+    const mesh = []
     for (const [routerId, p] of lastPolled) {
       try {
         const data = await p.client.sshJson('ubus call dawn get_network')
-        const aps = []
-        for (const [ssid, bssids] of Object.entries(data ?? {})) {
-          for (const [bssid, ap] of Object.entries(bssids)) {
-            aps.push({
-              ssid,
-              bssid,
-              hostname: ap.hostname ?? routerId,
-              band: (ap.freq ?? 0) >= 5000 ? '5 GHz' : '2.4 GHz',
-              channel: ap.channel ?? 0,
-              utilizationPct: ap.channel_utilization ?? 0,
-              clients: ap.num_sta ?? 0,
-              local: Boolean(ap.local),
-              iface: ap.iface ?? '',
-            })
-          }
-        }
-        aps.sort((a, b) => a.hostname.localeCompare(b.hostname) || a.band.localeCompare(b.band))
-        return { aps, from: routerId }
+        if (!firstData) firstData = data
+        let seen = 0
+        for (const bssids of Object.values(data ?? {})) seen += Object.keys(bssids).length
+        mesh.push({ routerId, name: p.cfg.name || routerId, dawn: true, apsSeen: seen })
       } catch {
-        // prueba el siguiente router de la malla
+        mesh.push({ routerId, name: p.cfg.name || routerId, dawn: false, apsSeen: 0 })
       }
     }
-    return null
+    if (!firstData) return null
+    const aps = []
+    for (const [ssid, bssids] of Object.entries(firstData)) {
+      for (const [bssid, ap] of Object.entries(bssids)) {
+        aps.push({
+          ssid,
+          bssid,
+          hostname: ap.hostname ?? '',
+          band: (ap.freq ?? 0) >= 5000 ? '5 GHz' : '2.4 GHz',
+          channel: ap.channel ?? 0,
+          utilizationPct: ap.channel_utilization ?? 0,
+          clients: ap.num_sta ?? 0,
+          local: Boolean(ap.local),
+          iface: ap.iface ?? '',
+        })
+      }
+    }
+    aps.sort((a, b) => a.hostname.localeCompare(b.hostname) || a.band.localeCompare(b.band))
+    return { aps, mesh }
   }
 
   /** Clientes AdGuard (solo si está configurado y responde). */

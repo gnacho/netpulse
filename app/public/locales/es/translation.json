@@ -246,7 +246,8 @@
     "tooManyAttempts": "Demasiados intentos — espera",
     "wrongPassword": "Usuario o contraseña incorrectos",
     "username": "Usuario",
-    "usernamePlaceholder": "tu usuario"
+    "usernamePlaceholder": "tu usuario",
+    "demoEnter": "Entrar como demo"
   },
   "nav": {
     "alerts": "Alertas",
@@ -521,7 +522,10 @@
       "active": "Sesión activa en este dispositivo",
       "activeCaption": "Tendrás que volver a introducir la contraseña para entrar.",
       "logout": "Cerrar sesión",
-      "title": "Sesión"
+      "title": "Sesión",
+      "demoActive": "Modo demo activo",
+      "demoCaption": "Datos simulados locales, sin conexión a tu red.",
+      "exitDemo": "Salir del modo demo"
     },
     "subtitle": "Preferencias locales de NetPulse — nada aquí modifica tu red",
     "themeDark": "Oscuro",
@@ -568,7 +572,11 @@
       "changePassword": "Cambiar contraseña",
       "passwordPrompt": "Nueva contraseña para {name} (mín. 6 caracteres):",
       "errorDuplicate": "Ese usuario ya existe",
-      "errorGeneric": "No se pudo completar la operación."
+      "errorGeneric": "No se pudo completar la operación.",
+      "confirmDelete": "Confirmar",
+      "cancel": "Cancelar",
+      "newPassword": "Nueva contraseña (mín. 6)",
+      "savePassword": "Guardar"
     },
     "adguard": {
       "title": "AdGuard Home",

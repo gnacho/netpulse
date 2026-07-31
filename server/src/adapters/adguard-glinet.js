@@ -13,6 +13,7 @@ import { sshBaseArgs } from '../sshkey.js'
 
 const SSH_TIMEOUT_MS = 8000
 const HTTP_TIMEOUT_MS = 4000
+const LOGIN_COOLDOWN_MS = 5 * 60 * 1000 // el GL bloquea logins tras N fallos
 
 export class AdGuardGlinetClient {
   /**
@@ -32,8 +33,9 @@ export class AdGuardGlinetClient {
         'ssh',
         [...sshBaseArgs(this.sshKeyPath), '-o', 'ControlMaster=no', `root@${this.host}`, cmd],
         { timeout: timeoutMs, maxBuffer: 1024 * 1024 },
-        (err, stdout, stderr) => {
-          if (err) return reject(new Error(`ssh ${this.host}: ${err.message} ${stderr || ''}`.trim()))
+        (err, stdout) => {
+          // NUNCA incluir el comando (lleva la contraseña embebida)
+          if (err) return reject(new Error(`ssh ${this.host}: exit ${err.code ?? err.message}`))
           resolve(stdout)
         },
       )
@@ -42,22 +44,35 @@ export class AdGuardGlinetClient {
 
   /** Login GL completo en el router → sid (cookie Admin-Token). */
   async login() {
-    const passB64 = Buffer.from(this.pass, 'utf8').toString('base64')
+    // Cooldown tras fallo: el GL bloquea logins tras N intentos (303 s)
+    if (this.loginFailUntil && Date.now() < this.loginFailUntil) {
+      throw new Error(`login GL en cooldown (${Math.ceil((this.loginFailUntil - Date.now()) / 1000)} s)`)
+    }
+    // Contraseña embebida con escaping de comillas simples (BusyBox del GL
+    // NO tiene base64). El resto del flujo va entre comillas dobles seguro.
+    const esc = this.pass.replace(/'/g, `'\\''`)
     const script = [
-      `PASS=$(echo ${passB64} | base64 -d)`,
+      `PASS='${esc}'`,
       `RESP=$(curl -s -m 5 -X POST http://127.0.0.1/rpc -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"challenge","params":{"username":"${this.user}"}}')`,
       'SALT=$(echo "$RESP" | jsonfilter -e @.result.salt)',
       'NONCE=$(echo "$RESP" | jsonfilter -e @.result.nonce)',
       'ALG=$(echo "$RESP" | jsonfilter -e @.result.alg)',
-      'CIPHER=$(openssl passwd -$ALG -salt "$SALT" "$PASS" 2>/dev/null || echo -n "$PASS" | openssl passwd -$ALG -salt "$SALT" -stdin)',
+      'CIPHER=$(openssl passwd -$ALG -salt "$SALT" "$PASS")',
       'HASH=$(echo -n "$CIPHER:$NONCE" | md5sum | cut -d" " -f1)',
       `RESP2=$(curl -s -m 5 -X POST http://127.0.0.1/rpc -H 'Content-Type: application/json' -d "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"login\\",\\"params\\":{\\"username\\":\\"${this.user}\\",\\"hash\\":\\"$HASH\\"}}")`,
       'SID=$(echo "$RESP2" | jsonfilter -e @.result.sid 2>/dev/null)',
       'echo "SID:$SID"',
     ].join(' && ')
-    const out = await this.ssh(script)
+    const out = await this.ssh(script).catch((err) => {
+      this.loginFailUntil = Date.now() + LOGIN_COOLDOWN_MS
+      throw err
+    })
     const m = /^SID:(\S+)$/m.exec(out)
-    if (!m) throw new Error('login GL falló (revisa usuario/contraseña de la UI)')
+    if (!m) {
+      this.loginFailUntil = Date.now() + LOGIN_COOLDOWN_MS
+      throw new Error('login GL falló (revisa usuario/contraseña de la UI)')
+    }
+    this.loginFailUntil = 0
     this.sid = m[1]
     return this.sid
   }

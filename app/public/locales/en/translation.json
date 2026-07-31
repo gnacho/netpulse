@@ -246,7 +246,8 @@
     "tooManyAttempts": "Too many attempts — wait",
     "wrongPassword": "Wrong username or password",
     "username": "Username",
-    "usernamePlaceholder": "your username"
+    "usernamePlaceholder": "your username",
+    "demoEnter": "Enter as demo"
   },
   "nav": {
     "alerts": "Alerts",
@@ -521,7 +522,10 @@
       "active": "Active session on this device",
       "activeCaption": "You will have to enter the password again to sign in.",
       "logout": "Sign out",
-      "title": "Session"
+      "title": "Session",
+      "demoActive": "Demo mode active",
+      "demoCaption": "Local simulated data, no connection to your network.",
+      "exitDemo": "Exit demo mode"
     },
     "subtitle": "NetPulse local preferences — nothing here modifies your network",
     "themeDark": "Dark",
@@ -568,7 +572,11 @@
       "changePassword": "Change password",
       "passwordPrompt": "New password for {name} (min. 6 chars):",
       "errorDuplicate": "That username already exists",
-      "errorGeneric": "Could not complete the operation."
+      "errorGeneric": "Could not complete the operation.",
+      "confirmDelete": "Confirm",
+      "cancel": "Cancel",
+      "newPassword": "New password (min. 6)",
+      "savePassword": "Save"
     },
     "adguard": {
       "title": "AdGuard Home",
