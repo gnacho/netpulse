@@ -9,6 +9,7 @@
  * - El estado se expone en GET /api/update/status (admin).
  */
 import { execFile, spawn } from 'node:child_process'
+import fs from 'node:fs'
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 h
 const HTTP_TIMEOUT_MS = 8000
@@ -86,7 +87,19 @@ export function createUpdater({ repoRoot, repo, token }) {
   function apply() {
     if (state.updating) return false
     state.updating = { step: 'start', log: '' }
-    const child = spawn('bash', [`${repoRoot}/deploy/update.sh`], {
+    // Copia el script a /tmp antes de ejecutarlo: el propio update hace
+    // `git reset --hard`, que reescribiría el script mientras bash lo lee
+    const tmpScript = `${process.env.TMPDIR || '/tmp'}/netpulse-update-${Date.now()}.sh`
+    try {
+      fs.copyFileSync(`${repoRoot}/deploy/update.sh`, tmpScript)
+      fs.chmodSync(tmpScript, 0o755)
+    } catch (err) {
+      state.updating = false
+      state.error = `update_copy_failed`
+      console.error('[netpulse] no se pudo copiar update.sh:', err.message)
+      return false
+    }
+    const child = spawn('bash', [tmpScript], {
       cwd: repoRoot,
       env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=400' },
     })
