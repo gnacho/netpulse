@@ -256,7 +256,9 @@ const NetPulseContext = createContext<NetPulseApi | null>(null)
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [bundle, setBundle] = useState<NetPulseData>(initialBundle)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('demo')
-  const [isDemo, setIsDemo] = useState(false)
+  // isDemo desde el primer render si hay flag de demo (evita que los managers
+  // de Ajustes disparen fetches antes del boot y fuercen redirect a /login)
+  const [isDemo, setIsDemo] = useState(() => sessionStorage.getItem('netpulse-demo') === '1')
 
   // Refs para closures estables (getters async con la misma firma en ambos modos)
   const bundleRef = useRef(bundle)
