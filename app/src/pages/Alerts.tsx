@@ -445,13 +445,34 @@ export default function Alerts() {
         </div>
       </div>
 
-      {/* ② Resumen — 3 chips-stats */}
+      {/* ② Resumen — 3 chips-stats (datos reales del feed) */}
+      {(() => {
+        const warns = alertFeed.filter((ev) => ev.severity === 'warn' && !isRead(ev))
+        const crits = alertFeed.filter((ev) => ev.severity === 'critical' && !isRead(ev))
+        const today = alertFeed.filter((ev) => ev.day === 'hoy')
+        const reasonOf = (id: string) =>
+          id.startsWith('alert-temp')
+            ? t('alerts.reason.temp')
+            : id.startsWith('alert-offline')
+              ? t('alerts.reason.offline')
+              : id.startsWith('alert-weak')
+                ? t('alerts.reason.weak')
+                : id.startsWith('alert-wg')
+                  ? 'WireGuard'
+                  : t('alerts.reason.other')
+        const summarize = (list: typeof alertFeed) => {
+          const counts = new Map<string, number>()
+          for (const a of list) counts.set(reasonOf(a.id), (counts.get(reasonOf(a.id)) ?? 0) + 1)
+          return [...counts].map(([k, n]) => `${n} ${k}`).join(' · ')
+        }
+        const chips = [
+          { icon: AlertTriangle, tone: 'bg-warn/10 text-warn', value: warns.length, label: t('alerts.chipWarnings'), caption: warns.length ? summarize(warns) : null, wiggle: false },
+          { icon: Info, tone: 'bg-info/10 text-info', value: today.length, label: t('alerts.chipToday'), caption: null, wiggle: false },
+          { icon: CheckCircle2, tone: crits.length ? 'bg-danger/10 text-danger' : 'bg-ok/10 text-ok', value: crits.length, label: t('alerts.chipCritical'), caption: crits.length ? summarize(crits) : t('alerts.chipCriticalCaption'), wiggle: crits.length === 0 },
+        ]
+        return (
       <div className="mt-5 grid grid-cols-3 gap-3 md:gap-4">
-        {[
-          { icon: AlertTriangle, tone: 'bg-warn/10 text-warn', value: 2, label: t('alerts.chipWarnings'), caption: t('alerts.chipWarningsCaption'), wiggle: false },
-          { icon: Info, tone: 'bg-info/10 text-info', value: 14, label: t('alerts.chipToday'), caption: null, wiggle: false },
-          { icon: CheckCircle2, tone: 'bg-ok/10 text-ok', value: 0, label: t('alerts.chipCritical'), caption: t('alerts.chipCriticalCaption'), wiggle: true },
-        ].map((chip, i) => (
+        {chips.map((chip, i) => (
           <motion.div
             key={chip.label}
             initial={reduce ? false : { opacity: 0, y: 12 }}
@@ -482,6 +503,8 @@ export default function Alerts() {
           </motion.div>
         ))}
       </div>
+        )
+      })()}
 
       {/* ③ Filtros */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5 md:gap-3">

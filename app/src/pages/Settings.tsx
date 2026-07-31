@@ -1173,137 +1173,6 @@ export default function Settings() {
       </motion.p>
 
       <div className="mt-5 grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
-        {/* ② Apariencia */}
-        <div className="lg:col-span-7">
-          <Card title={t('settings.appearance')} caption={t('settings.appearanceCaption')} index={0} reduce={reduce}>
-            {/* Tema: 3 cards visuales */}
-            <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label={t('nav.theme')}>
-              {THEME_OPTIONS.map((opt) => {
-                const active = mode === opt.value
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => {
-                      setMode(opt.value)
-                      notify()
-                    }}
-                    className={cn(
-                      'group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors duration-150',
-                      active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
-                    )}
-                  >
-                    <span className="relative block h-20 overflow-hidden rounded-lg sm:h-24">
-                      <ThemePreview variant={opt.value} />
-                      <AnimatePresence>
-                        {active && (
-                          <motion.span
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                            className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-canvas"
-                          >
-                            <Check className="h-3 w-3" strokeWidth={2.5} />
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-text-primary">
-                      <opt.icon className={cn('h-3.5 w-3.5', active ? 'text-accent' : 'text-text-muted')} strokeWidth={1.75} />
-                      {t(opt.labelKey)}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Acento */}
-            <div className="mt-5">
-              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
-              <div className="mt-2.5 flex items-center gap-3">
-                {ACCENTS.map((a) => {
-                  const active = accentId === a.id
-                  return (
-                    <motion.button
-                      key={a.id}
-                      type="button"
-                      aria-label={t('settings.accentAria', { label: t(a.labelKey) })}
-                      aria-pressed={active}
-                      whileTap={reduce ? undefined : { scale: 0.8 }}
-                      onClick={() => {
-                        setAccentId(a.id)
-                        notify()
-                      }}
-                      className={cn(
-                        'flex h-9 w-9 items-center justify-center rounded-full transition-shadow duration-150',
-                        active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-border-strong hover:ring-offset-2 hover:ring-offset-surface',
-                      )}
-                      style={{ backgroundColor: a.swatch }}
-                    >
-                      {active && <Check className="h-4 w-4 text-[#070B12]" strokeWidth={2.5} />}
-                    </motion.button>
-                  )
-                })}
-                <span className="ml-1 text-caption text-text-muted">{t('settings.accentCaption')}</span>
-              </div>
-            </div>
-
-            {/* Densidad + idioma + animaciones */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.density')}</div>
-                <div className="text-caption text-text-muted">{t('settings.densityCaption')}</div>
-              </div>
-              <SegmentedControl
-                options={[
-                  { value: 'comoda', label: t('settings.densityComfy') },
-                  { value: 'compacta', label: t('settings.densityCompact') },
-                ]}
-                value={density}
-                onChange={(v) => {
-                  setDensity(v)
-                  notify()
-                }}
-                ariaLabel={t('settings.density')}
-              />
-            </div>
-            {/* Idioma */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.language')}</div>
-                <div className="text-caption text-text-muted">{t('settings.languageCaption')}</div>
-              </div>
-              <SegmentedControl
-                options={[
-                  { value: 'auto', label: t('settings.languageAuto') },
-                  { value: 'es', label: 'Español' },
-                  { value: 'en', label: 'English' },
-                ]}
-                value={lang}
-                onChange={(v) => {
-                  setLanguage(v)
-                  notify()
-                }}
-                ariaLabel={t('settings.language')}
-              />
-            </div>
-            <div className="border-t border-border pt-2">
-              <SwitchRow
-                label={t('settings.reduceMotion')}
-                caption={t('settings.reduceMotionCaption')}
-                checked={reduceMotion}
-                onCheckedChange={(v) => {
-                  setReduceMotion(v)
-                  notify()
-                }}
-              />
-            </div>
-          </Card>
-        </div>
-
         {/* ④ Datos y umbrales */}
         <div className="lg:col-span-7">
           <Card
@@ -1463,6 +1332,137 @@ export default function Settings() {
                   </AnimatePresence>
                 </div>
               ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* ② Apariencia */}
+        <div className="lg:col-span-5">
+          <Card title={t('settings.appearance')} caption={t('settings.appearanceCaption')} index={0} reduce={reduce}>
+            {/* Tema: 3 cards visuales */}
+            <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label={t('nav.theme')}>
+              {THEME_OPTIONS.map((opt) => {
+                const active = mode === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => {
+                      setMode(opt.value)
+                      notify()
+                    }}
+                    className={cn(
+                      'group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors duration-150',
+                      active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
+                    )}
+                  >
+                    <span className="relative block h-20 overflow-hidden rounded-lg sm:h-24">
+                      <ThemePreview variant={opt.value} />
+                      <AnimatePresence>
+                        {active && (
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                            className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-canvas"
+                          >
+                            <Check className="h-3 w-3" strokeWidth={2.5} />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </span>
+                    <span className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-text-primary">
+                      <opt.icon className={cn('h-3.5 w-3.5', active ? 'text-accent' : 'text-text-muted')} strokeWidth={1.75} />
+                      {t(opt.labelKey)}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Acento */}
+            <div className="mt-5">
+              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
+              <div className="mt-2.5 flex items-center gap-3">
+                {ACCENTS.map((a) => {
+                  const active = accentId === a.id
+                  return (
+                    <motion.button
+                      key={a.id}
+                      type="button"
+                      aria-label={t('settings.accentAria', { label: t(a.labelKey) })}
+                      aria-pressed={active}
+                      whileTap={reduce ? undefined : { scale: 0.8 }}
+                      onClick={() => {
+                        setAccentId(a.id)
+                        notify()
+                      }}
+                      className={cn(
+                        'flex h-9 w-9 items-center justify-center rounded-full transition-shadow duration-150',
+                        active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-border-strong hover:ring-offset-2 hover:ring-offset-surface',
+                      )}
+                      style={{ backgroundColor: a.swatch }}
+                    >
+                      {active && <Check className="h-4 w-4 text-[#070B12]" strokeWidth={2.5} />}
+                    </motion.button>
+                  )
+                })}
+                <span className="ml-1 text-caption text-text-muted">{t('settings.accentCaption')}</span>
+              </div>
+            </div>
+
+            {/* Densidad + idioma + animaciones */}
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <div>
+                <div className="text-sm font-medium text-text-primary">{t('settings.density')}</div>
+                <div className="text-caption text-text-muted">{t('settings.densityCaption')}</div>
+              </div>
+              <SegmentedControl
+                options={[
+                  { value: 'comoda', label: t('settings.densityComfy') },
+                  { value: 'compacta', label: t('settings.densityCompact') },
+                ]}
+                value={density}
+                onChange={(v) => {
+                  setDensity(v)
+                  notify()
+                }}
+                ariaLabel={t('settings.density')}
+              />
+            </div>
+            {/* Idioma */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <div>
+                <div className="text-sm font-medium text-text-primary">{t('settings.language')}</div>
+                <div className="text-caption text-text-muted">{t('settings.languageCaption')}</div>
+              </div>
+              <SegmentedControl
+                options={[
+                  { value: 'auto', label: t('settings.languageAuto') },
+                  { value: 'es', label: 'Español' },
+                  { value: 'en', label: 'English' },
+                ]}
+                value={lang}
+                onChange={(v) => {
+                  setLanguage(v)
+                  notify()
+                }}
+                ariaLabel={t('settings.language')}
+              />
+            </div>
+            <div className="border-t border-border pt-2">
+              <SwitchRow
+                label={t('settings.reduceMotion')}
+                caption={t('settings.reduceMotionCaption')}
+                checked={reduceMotion}
+                onCheckedChange={(v) => {
+                  setReduceMotion(v)
+                  notify()
+                }}
+              />
             </div>
           </Card>
         </div>

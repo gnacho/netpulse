@@ -24,6 +24,10 @@ export interface Router {
   /** Pill de rol: "Principal" | "AP" */
   roleBadge: 'Principal' | 'AP'
   ip: string
+  /** MAC del bridge br-lan (live) */
+  mac?: string
+  /** Descripción del firmware (live, system board) */
+  firmware?: string
   status: Status
   /** Salud 0–100 */
   health: number

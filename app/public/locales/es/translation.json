@@ -39,7 +39,13 @@
     "unreadCount_one": "aviso sin leer",
     "unreadCount_other": "avisos sin leer",
     "viewRouter": "Ver router",
-    "wgPeerCaption": "Peer WireGuard · wg0"
+    "wgPeerCaption": "Peer WireGuard · wg0",
+    "reason": {
+      "temp": "temperatura",
+      "offline": "offline",
+      "weak": "señal débil",
+      "other": "otros"
+    }
   },
   "auth": {
     "checking": "Comprobando sesión",

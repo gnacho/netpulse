@@ -234,6 +234,8 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       role: cfg.id === gatewayCfg?.id ? 'Gateway principal' : 'Punto de acceso',
       roleBadge: cfg.id === gatewayCfg?.id ? 'Principal' : 'AP',
       ip: cfg.host,
+      mac: polled.brMac ?? undefined,
+      firmware: polled.board?.release?.description ?? undefined,
       status: temp > 65 || polled.cpu > 85 ? 'warn' : 'online',
       health,
       cpu: polled.cpu,

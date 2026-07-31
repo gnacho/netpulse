@@ -12,11 +12,12 @@ import { cn } from '@/lib/utils'
 export function RecentAlerts() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { alerts } = useNetPulse()
+  const { alerts, unreadAlerts } = useNetPulse()
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [spinning, setSpinning] = useState(false)
   const recent = alerts.slice(0, 4)
-  const unread = recent.filter((a) => !a.read && !readIds.has(a.id)).length
+  // El badge muestra el total de no leídas (como la campana), no solo de las 4 visibles
+  const unread = Math.max(0, unreadAlerts - readIds.size)
 
   const markReadAndGo = (id: string) => {
     setReadIds((prev) => new Set(prev).add(id))

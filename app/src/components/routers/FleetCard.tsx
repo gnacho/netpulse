@@ -11,6 +11,7 @@ import { MetricBar } from '@/components/MetricBar'
 import { Sparkline } from '@/components/Sparkline'
 import { StatusPill } from '@/components/StatusPill'
 import { getRouterExtras } from '@/components/routers/routerExtras'
+import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
 function MetricRow({
@@ -55,7 +56,8 @@ interface FleetCardProps {
 /** FleetCard grande de /routers (routers.md §②) */
 export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps) {
   const { t } = useTranslation()
-  const extras = getRouterExtras(router.id)
+  const { isDemo } = useNetPulse()
+  const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
   const reduce = useReducedMotion()
   const isGateway = router.id === 'flint2'
@@ -145,8 +147,8 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
         <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl bg-elevated/60 px-3.5 py-3">
           {[
             ['IP', router.ip],
-            ['MAC', extras.mac],
-            ['Firmware', extras.firmwareBase ? `${extras.firmware} / ${extras.firmwareBase}` : extras.firmware],
+            ['MAC', router.mac ?? extras.mac],
+            ['Firmware', router.firmware ?? (extras.firmwareBase ? `${extras.firmware} / ${extras.firmwareBase}` : extras.firmware)],
             ['Uptime', fmtUptime(router.uptime)],
           ].map(([k, v]) => (
             <div key={k} className="min-w-0">

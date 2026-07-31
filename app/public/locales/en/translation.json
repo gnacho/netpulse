@@ -39,7 +39,13 @@
     "unreadCount_one": "unread alert",
     "unreadCount_other": "unread alerts",
     "viewRouter": "View router",
-    "wgPeerCaption": "WireGuard peer · wg0"
+    "wgPeerCaption": "WireGuard peer · wg0",
+    "reason": {
+      "temp": "temperature",
+      "offline": "offline",
+      "weak": "weak signal",
+      "other": "other"
+    }
   },
   "auth": {
     "checking": "Checking session",
