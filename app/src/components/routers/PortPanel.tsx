@@ -5,6 +5,7 @@ import type { Router } from '@/data/mock'
 import { SectionHeader } from '@/components/SectionHeader'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { EthPort, RouterExtras } from '@/components/routers/routerExtras'
+import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
 /**
