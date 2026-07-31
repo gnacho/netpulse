@@ -304,14 +304,15 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
   }
 
   async function pollAdGuard() {
-    if (!adguardClient) return null
+    const client = getAdguardClient()
+    if (!client) return null
     try {
-      return await adguardClient.getStats()
+      return await client.getStats()
     } catch (err) {
       console.warn(`[netpulse] AdGuard inalcanzable: ${err.message}`)
       return {
-        host: new URL(config.adguard.url).hostname,
-        port: Number(new URL(config.adguard.url).port || 80),
+        host: client.host ?? '',
+        port: 3000,
         status: 'inactive',
         queries24h: 0, blocked24h: 0, blockedPct: 0, trackersBlocked: 0,
         dnsLatencyMs: 0, clientsUsing: 0, clientsTotal: 0,
