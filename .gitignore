@@ -11,3 +11,6 @@ server/.env
 
 # Sistema
 .DS_Store
+
+# Notas locales con credenciales
+*_user.txt
