@@ -225,7 +225,8 @@
       "total24h": "Total 24h",
       "uploadMbps": "Subida (Mbps)"
     },
-    "upload": "Subida"
+    "upload": "Subida",
+    "greetingName": ", {{name}}"
   },
   "login": {
     "enter": "Entrar",
@@ -234,7 +235,9 @@
     "password": "Contraseña",
     "tagline": "Panel de tu red doméstica · acceso protegido",
     "tooManyAttempts": "Demasiados intentos — espera",
-    "wrongPassword": "Contraseña incorrecta — inténtalo de nuevo"
+    "wrongPassword": "Usuario o contraseña incorrectos",
+    "username": "Usuario",
+    "usernamePlaceholder": "tu usuario"
   },
   "nav": {
     "alerts": "Alertas",
@@ -532,6 +535,22 @@
       "sshKeyCaption": "Autorízala en cada router (Sistema → Administración → claves SSH, o /etc/dropbear/authorized_keys). NetPulse solo lee: estado, clientes y tráfico.",
       "copy": "Copiar",
       "copied": "Copiada"
+    },
+    "users": {
+      "title": "Usuarios",
+      "caption": "Quién puede entrar en NetPulse. El resto de funciones es igual para todos.",
+      "username": "Usuario",
+      "password": "Contraseña (mín. 6)",
+      "roleAdmin": "Admin",
+      "you": "Tú",
+      "add": "Crear usuario",
+      "adding": "Creando…",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Eliminar al usuario {name}?",
+      "changePassword": "Cambiar contraseña",
+      "passwordPrompt": "Nueva contraseña para {name} (mín. 6 caracteres):",
+      "errorDuplicate": "Ese usuario ya existe",
+      "errorGeneric": "No se pudo completar la operación."
     }
   },
   "statcard": {

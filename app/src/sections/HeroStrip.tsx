@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { Fragment } from 'react'
 import { ArrowDown, ArrowUp, Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { healthLabel } from '@/i18n'
@@ -6,6 +7,7 @@ import { CountUp } from '@/components/CountUp'
 import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
 import { useNetPulse } from '@/data/DataProvider'
+import { useAuth } from '@/data/AuthContext'
 import { useDashboard } from '@/hooks/useDashboard'
 
 function greetingKey(): string {
@@ -50,7 +52,8 @@ export function HeroStrip() {
   const reduce = useReducedMotion()
   const { refreshKey } = useDashboard()
   const { deviceTotals, health: healthScore, wan } = useNetPulse()
-  const greeting = t(greetingKey())
+  const auth = useAuth()
+  const greeting = t(greetingKey()) + (auth?.user ? t('home.greetingName', { name: auth.user }) : '')
   const words = greeting.split(' ')
 
   return (
@@ -68,16 +71,17 @@ export function HeroStrip() {
         <div className="text-center md:text-left">
           <h1 className="font-display text-h1 text-text-primary md:text-2xl" aria-label={greeting}>
             {words.map((w, i) => (
-              <motion.span
-                key={`${w}-${i}`}
-                className="inline-block"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: 'easeOut', delay: i * 0.04 }}
-              >
-                {w}
+              <Fragment key={`${w}-${i}`}>
+                <motion.span
+                  className="inline-block"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: 'easeOut', delay: i * 0.04 }}
+                >
+                  {w}
+                </motion.span>
                 {i < words.length - 1 ? ' ' : ''}
-              </motion.span>
+              </Fragment>
             ))}
           </h1>
           <motion.p

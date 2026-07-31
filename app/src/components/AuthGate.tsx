@@ -11,20 +11,23 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { AuthProvider } from '@/data/AuthContext'
+import type { AuthUser } from '@/data/AuthContext'
 
 type GateState = 'loading' | 'authed' | 'login' | 'demo'
 
-async function checkSession(): Promise<GateState> {
+async function checkSession(): Promise<{ state: GateState; auth: AuthUser | null }> {
   try {
     const res = await fetch('/api/auth/me', { signal: AbortSignal.timeout(2500) })
-    if (res.status === 401) return 'login'
-    if (!res.ok) return 'demo'
+    if (res.status === 401) return { state: 'login', auth: null }
+    if (!res.ok) return { state: 'demo', auth: null }
     // La preview estática responde HTML con 200 (SPA fallback): no es sesión
-    if (!(res.headers.get('content-type') ?? '').includes('application/json')) return 'demo'
-    const data = (await res.json()) as { user?: string }
-    return data?.user ? 'authed' : 'demo'
+    if (!(res.headers.get('content-type') ?? '').includes('application/json')) return { state: 'demo', auth: null }
+    const data = (await res.json()) as { user?: string; role?: 'admin' | 'user' }
+    if (!data?.user) return { state: 'demo', auth: null }
+    return { state: 'authed', auth: { user: data.user, role: data.role ?? 'user' } }
   } catch {
-    return 'demo'
+    return { state: 'demo', auth: null }
   }
 }
 
@@ -55,11 +58,14 @@ function GateSkeleton() {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<GateState>('loading')
+  const [auth, setAuth] = useState<AuthUser | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    void checkSession().then((s) => {
-      if (!cancelled) setState(s)
+    void checkSession().then(({ state: s, auth: a }) => {
+      if (cancelled) return
+      setState(s)
+      setAuth(a)
     })
     return () => {
       cancelled = true
@@ -68,5 +74,5 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (state === 'loading') return <GateSkeleton />
   if (state === 'login') return <Navigate to="/login" replace />
-  return <>{children}</>
+  return <AuthProvider auth={auth}>{children}</AuthProvider>
 }

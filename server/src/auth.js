@@ -18,6 +18,32 @@ export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 días
 const LOCK_MS = 5 * 60 * 1000 // 5 minutos
 
 // ---------------------------------------------------------------------------
+// Usuarios (multiusuario): seed admin desde .env si la tabla está vacía
+// ---------------------------------------------------------------------------
+
+/** Crea el admin inicial (AUTH_USER/AUTH_PASS) cuando no hay ningún usuario. */
+export async function ensureUsers(db, config) {
+  const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c
+  if (count > 0) return
+  const hash = await bcrypt.hash(config.authPass, 10)
+  db.prepare('INSERT INTO users (username, pass_hash, role, created_at) VALUES (?, ?, ?, ?)').run(
+    config.authUser,
+    hash,
+    'admin',
+    Date.now(),
+  )
+  console.log(`[netpulse] usuario admin inicial creado: ${config.authUser}`)
+}
+
+export function getUserByName(db, username) {
+  return db.prepare('SELECT id, username, pass_hash, role FROM users WHERE username = ?').get(username)
+}
+
+export function getUserById(db, id) {
+  return db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(id)
+}
+
+// ---------------------------------------------------------------------------
 // Secret HMAC y hash de password
 // ---------------------------------------------------------------------------
 
@@ -106,14 +132,15 @@ export function buildSessionCookie(config, c, signedId, maxAgeSec) {
 // Sesiones en SQLite
 // ---------------------------------------------------------------------------
 
-export function createSession(db, ua) {
+export function createSession(db, ua, userId = null) {
   const id = crypto.randomUUID()
   const now = Date.now()
-  db.prepare('INSERT INTO sessions (id, created_at, expires_at, ua) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO sessions (id, created_at, expires_at, ua, user_id) VALUES (?, ?, ?, ?, ?)').run(
     id,
     now,
     now + SESSION_TTL_MS,
     (ua || '').slice(0, 255),
+    userId,
   )
   return id
 }
@@ -122,15 +149,30 @@ export function destroySession(db, id) {
   if (id) db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
 }
 
+export function destroyUserSessions(db, userId) {
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId)
+}
+
 export function getSession(db, id) {
   if (!id) return null
-  const row = db.prepare('SELECT id, expires_at FROM sessions WHERE id = ?').get(id)
+  const row = db.prepare('SELECT id, expires_at, user_id FROM sessions WHERE id = ?').get(id)
   if (!row) return null
   if (row.expires_at < Date.now()) {
     destroySession(db, id)
     return null
   }
   return row
+}
+
+/** Sesión válida + usuario asociado (null si la sesión es antigua sin user). */
+export function sessionUserFromRequest(db, secret, c) {
+  const header = c.req.header('cookie') || ''
+  const match = /(?:^|;\s*)session=([^;]+)/.exec(header)
+  const id = verifySessionCookie(secret, match?.[1])
+  const session = id && getSession(db, id)
+  if (!session || !session.user_id) return null
+  const user = getUserById(db, session.user_id)
+  return user ? { sessionId: id, user } : null
 }
 
 export function sessionIdFromRequest(db, secret, c) {
@@ -186,21 +228,22 @@ export function loginOk(db, c) {
 // ---------------------------------------------------------------------------
 
 /**
- * Valida credenciales y crea sesión nueva (rotación: invalida la anterior).
- * @returns session id o null si credenciales inválidas.
+ * Valida credenciales contra la tabla users y crea sesión nueva
+ * (rotación: invalida la anterior).
+ * @returns { id, user } o null si credenciales inválidas.
  */
 export async function handleLogin(db, config, secret, c, body) {
   const { username, password } = body || {}
-  if (!password) return null
-  // username es opcional en el contrato (single-user); si viene, debe coincidir
-  if (username != null && !safeEqual(username, config.authUser)) return null
-  const hash = await ensurePasswordHash(db, config)
-  const valid = await bcrypt.compare(password, hash)
+  if (!username || !password) return null
+  const user = getUserByName(db, username)
+  if (!user) return null
+  const valid = await bcrypt.compare(password, user.pass_hash)
   if (!valid) return null
   // Rotación de sesión: invalida la cookie previa si existía
   const prevId = sessionIdFromRequest(db, secret, c)
   if (prevId) destroySession(db, prevId)
-  return createSession(db, c.req.header('user-agent'))
+  const id = createSession(db, c.req.header('user-agent'), user.id)
+  return { id, user: { id: user.id, username: user.username, role: user.role } }
 }
 
 export function handleLogout(db, secret, c) {
@@ -217,9 +260,19 @@ export function requireAuth(db, secret) {
     const path = c.req.path
     if (!path.startsWith('/api/')) return next()
     if (path === '/api/health' || path === '/api/auth/login') return next()
-    const id = sessionIdFromRequest(db, secret, c)
-    if (!id) return c.json({ error: 'unauthorized' }, 401)
-    c.set('sessionId', id)
+    const sess = sessionUserFromRequest(db, secret, c)
+    if (!sess) return c.json({ error: 'unauthorized' }, 401)
+    c.set('sessionId', sess.sessionId)
+    c.set('user', sess.user)
+    return next()
+  }
+}
+
+/** Middleware admin: tras requireAuth, exige role === 'admin'. */
+export function requireAdmin() {
+  return async (c, next) => {
+    const user = c.get('user')
+    if (!user || user.role !== 'admin') return c.json({ error: 'forbidden' }, 403)
     return next()
   }
 }

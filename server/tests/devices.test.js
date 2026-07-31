@@ -9,7 +9,7 @@ describe('GET /api/devices', () => {
   let srv
   let cookie
   before(async () => {
-    srv = makeTestServer()
+    srv = await makeTestServer()
     ;({ cookie } = await loginCookie(srv.base))
   })
   after(async () => {

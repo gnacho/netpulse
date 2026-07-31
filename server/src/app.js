@@ -12,6 +12,7 @@ import { registerHealthRoutes } from './health.js'
 import { registerAuthRoutes } from './routes/auth.js'
 import { registerDataRoutes } from './routes/data.js'
 import { registerConfigRoutes } from './routes/config.js'
+import { registerUserRoutes } from './routes/users.js'
 
 const VERSION = '1.0.0'
 
@@ -32,6 +33,7 @@ export function createApp({ config, dbHandle, adapter, sse, poller, secret }) {
   registerAuthRoutes(app, { db: dbHandle.db, config, secret, mode })
   registerDataRoutes(app, { adapter, getOverview })
   registerConfigRoutes(app, { dbHandle, adapter, config })
+  registerUserRoutes(app, { db: dbHandle.db })
   app.get('/api/stream', (c) => sse.handleStream(c))
 
   // 4. 404 JSON para /api/* desconocido

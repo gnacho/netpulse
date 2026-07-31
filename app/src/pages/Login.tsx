@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowRight, Lock, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Lock, ShieldCheck, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Status = 'idle' | 'checking' | 'submitting' | 'error' | 'locked'
@@ -20,6 +20,7 @@ export default function Login() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const reduce = useReducedMotion() ?? false
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [shakeKey, setShakeKey] = useState(0)
@@ -57,13 +58,13 @@ export default function Login() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password || status === 'submitting' || retryLeft > 0) return
+    if (!username || !password || status === 'submitting' || retryLeft > 0) return
     setStatus('submitting')
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       })
       if (res.status === 204) {
         window.location.assign('/')
@@ -132,6 +133,39 @@ export default function Login() {
             className="mt-6 space-y-4"
           >
             <div>
+              <label htmlFor="login-username" className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">
+                {t('login.username')}
+              </label>
+              <div className="relative mt-2">
+                <User
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+                  strokeWidth={1.75}
+                />
+                <input
+                  id="login-username"
+                  ref={inputRef}
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value)
+                    if (status === 'error') setStatus('idle')
+                  }}
+                  disabled={locked}
+                  placeholder={t('login.usernamePlaceholder')}
+                  className={cn(
+                    'h-11 w-full rounded-lg border bg-elevated pl-10 pr-3 text-sm text-text-primary',
+                    'placeholder:text-text-muted focus:outline-none focus:ring-2',
+                    status === 'error'
+                      ? 'border-danger/60 focus:border-danger/60 focus:ring-danger/20'
+                      : 'border-border focus:border-accent/60 focus:ring-accent/20',
+                    locked && 'opacity-50',
+                  )}
+                />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="login-password" className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">
                 {t('login.password')}
               </label>
@@ -142,7 +176,6 @@ export default function Login() {
                 />
                 <input
                   id="login-password"
-                  ref={inputRef}
                   type="password"
                   autoComplete="current-password"
                   value={password}
@@ -185,7 +218,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={!password || status === 'submitting' || locked}
+              disabled={!username || !password || status === 'submitting' || locked}
               className={cn(
                 'flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent text-sm font-semibold text-canvas',
                 'transition-colors duration-150 hover:bg-accent/90',

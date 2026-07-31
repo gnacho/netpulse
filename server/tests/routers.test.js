@@ -13,7 +13,7 @@ describe('config routers', () => {
   let cookie
 
   before(async () => {
-    srv = makeTestServer()
+    srv = await makeTestServer()
     const login = await loginCookie(srv.base)
     assert.equal(login.status, 204)
     cookie = login.cookie

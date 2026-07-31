@@ -6,7 +6,7 @@
 import { serve } from '@hono/node-server'
 import { loadDotEnv, loadConfig } from './config.js'
 import { openDb } from './db.js'
-import { ensureSessionSecret } from './auth.js'
+import { ensureSessionSecret, ensureUsers } from './auth.js'
 import { ensureSshKeypair } from './sshkey.js'
 import { ensureInitialRouters } from './routerstore.js'
 import { createAdapter } from './adapters/index.js'
@@ -26,6 +26,8 @@ async function main() {
 
   const dbHandle = openDb(config.dataDir)
   const secret = ensureSessionSecret(dbHandle.db, config)
+  // Multiusuario: seed del admin desde .env si la tabla users está vacía
+  await ensureUsers(dbHandle.db, config)
   // Clave SSH propia para sondear routers (se genera la primera vez)
   await ensureSshKeypair(config.sshKeyPath)
   // Bootstrap de routers: tabla vacía → ROUTERS_JSON o autodetección del gateway

@@ -7,12 +7,12 @@ import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { loadConfig } from '../src/config.js'
 import { openDb } from '../src/db.js'
-import { ensureSessionSecret } from '../src/auth.js'
+import { ensureSessionSecret, ensureUsers } from '../src/auth.js'
 import { createDemoAdapter } from '../src/adapters/demo.js'
 import { createSseHub } from '../src/sse.js'
 import { createApp } from '../src/app.js'
 
-export function makeTestServer(env = {}) {
+export async function makeTestServer(env = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'netpulse-test-'))
   const config = loadConfig({
     AUTH_USER: 'admin',
@@ -24,6 +24,7 @@ export function makeTestServer(env = {}) {
   })
   const dbHandle = openDb(dataDir)
   const secret = ensureSessionSecret(dbHandle.db, config)
+  await ensureUsers(dbHandle.db, config)
   const adapter = createDemoAdapter()
   const sse = createSseHub({ db: dbHandle.db, maxClients: config.maxSseClients, getOverview: () => null })
   const app = createApp({ config, dbHandle, adapter, sse, poller: null, secret })
@@ -46,11 +47,11 @@ export function makeTestServer(env = {}) {
 }
 
 /** Login y devuelve el valor de la cookie de sesión (id.hmac). */
-export async function loginCookie(base, password = 'test1234') {
+export async function loginCookie(base, password = 'test1234', username = 'admin') {
   const res = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   })
   const setCookie = res.headers.get('set-cookie') || ''
   const match = /session=([^;]+)/.exec(setCookie)

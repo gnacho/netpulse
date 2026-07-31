@@ -55,6 +55,14 @@ export function openDb(dataDir) {
       blocked INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_adguard_ts ON adguard_stats(ts);
+    -- Usuarios (multiusuario: el admin gestiona altas/bajas/passwords)
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      pass_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at INTEGER NOT NULL
+    );
     -- Routers configurados (vacía al importar; se rellena por autodetección
     -- del gateway, ROUTERS_JSON o el CRUD de Ajustes)
     CREATE TABLE IF NOT EXISTS routers (
@@ -69,6 +77,7 @@ export function openDb(dataDir) {
 
   // Migraciones tolerantes (añadir columnas si faltan en DBs antiguas)
   migrate(db, 'sessions', 'ua', 'ALTER TABLE sessions ADD COLUMN ua TEXT')
+  migrate(db, 'sessions', 'user_id', 'ALTER TABLE sessions ADD COLUMN user_id INTEGER')
 
   const stmts = {
     insertMetric: db.prepare(

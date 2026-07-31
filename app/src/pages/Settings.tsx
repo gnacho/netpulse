@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Sun,
   Trash2,
+  UserCog,
   Volume2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -30,6 +31,7 @@ import { SegmentedControl } from '@/components/SegmentedControl'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
+import { useAuth } from '@/data/AuthContext'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -625,6 +627,204 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
 
 // ---------------------------------------------------------------------------
+// Gestión de usuarios (solo admin): CRUD contra /api/users
+// ---------------------------------------------------------------------------
+
+interface ManagedUser {
+  id: number
+  username: string
+  role: 'admin' | 'user'
+}
+
+function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const auth = useAuth()
+  const [list, setList] = useState<ManagedUser[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [newUser, setNewUser] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [newAdmin, setNewAdmin] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/users')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as { users: ManagedUser[] }
+      setList(json.users)
+      setError(null)
+    } catch {
+      setError(t('settings.users.errorGeneric'))
+    }
+  }, [t])
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/users')
+        if (!res.ok) return
+        const json = (await res.json()) as { users: ManagedUser[] }
+        if (!disposed) setList(json.users)
+      } catch {
+        /* sin permisos o sin backend: la tarjeta no se muestra */
+      }
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newUser.trim() || !newPass || submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: newUser.trim(), password: newPass, role: newAdmin ? 'admin' : 'user' }),
+      })
+      if (res.status === 409) {
+        setError(t('settings.users.errorDuplicate'))
+        return
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setNewUser('')
+      setNewPass('')
+      setNewAdmin(false)
+      await load()
+      onSaved()
+    } catch {
+      setError(t('settings.users.errorGeneric'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const remove = async (u: ManagedUser) => {
+    if (!window.confirm(t('settings.users.deleteConfirm', { name: u.username }))) return
+    try {
+      const res = await fetch(`/api/users/${u.id}`, { method: 'DELETE' })
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null
+        throw new Error(body?.message ?? `HTTP ${res.status}`)
+      }
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('settings.users.errorGeneric'))
+    }
+  }
+
+  const changePassword = async (u: ManagedUser) => {
+    const pass = window.prompt(t('settings.users.passwordPrompt', { name: u.username }))
+    if (!pass) return
+    try {
+      const res = await fetch(`/api/users/${u.id}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pass }),
+      })
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null
+        throw new Error(body?.message ?? `HTTP ${res.status}`)
+      }
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('settings.users.errorGeneric'))
+    }
+  }
+
+  return (
+    <Card title={t('settings.users.title')} caption={t('settings.users.caption')} index={5} reduce={reduce}>
+      <ul className="flex flex-col gap-2">
+        {list.map((u) => (
+          <li key={u.id} className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
+            <UserCog className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium text-text-primary">{u.username}</span>
+                {u.role === 'admin' && (
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                    {t('settings.users.roleAdmin')}
+                  </span>
+                )}
+                {auth?.user === u.username && (
+                  <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                    {t('settings.users.you')}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void changePassword(u)}
+              aria-label={t('settings.users.changePassword')}
+              title={t('settings.users.changePassword')}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+            >
+              <KeyRound className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+            {auth?.user !== u.username && (
+              <button
+                type="button"
+                onClick={() => void remove(u)}
+                aria-label={t('settings.users.delete')}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <form onSubmit={(e) => void add(e)} className="mt-4 border-t border-border pt-4">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <input
+            type="text"
+            required
+            value={newUser}
+            onChange={(e) => setNewUser(e.target.value)}
+            placeholder={t('settings.users.username')}
+            aria-label={t('settings.users.username')}
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={newPass}
+            onChange={(e) => setNewPass(e.target.value)}
+            placeholder={t('settings.users.password')}
+            aria-label={t('settings.users.password')}
+            autoComplete="new-password"
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+            <Switch checked={newAdmin} onCheckedChange={setNewAdmin} />
+            {t('settings.users.roleAdmin')}
+          </label>
+          <button
+            type="submit"
+            disabled={submitting || !newUser.trim() || newPass.length < 6}
+            className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2} />
+            {submitting ? t('settings.users.adding') : t('settings.users.add')}
+          </button>
+        </div>
+        {error && <p className="mt-2 text-caption text-danger">{error}</p>}
+      </form>
+    </Card>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -632,6 +832,7 @@ export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
   const { devices, routers, wan, isDemo } = useNetPulse()
+  const auth = useAuth()
 
   // ——— Idioma ('auto' sigue al navegador; persistido como string plano) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
@@ -1269,6 +1470,13 @@ export default function Settings() {
         {!isDemo && (
           <div className="lg:col-span-12">
             <RoutersManager reduce={reduce} onSaved={notify} />
+          </div>
+        )}
+
+        {/* Gestión de usuarios — solo admin y modo live */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <UsersManager reduce={reduce} onSaved={notify} />
           </div>
         )}
 

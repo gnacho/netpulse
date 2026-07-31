@@ -13,7 +13,7 @@ import { makeTestServer, loginCookie } from './helpers.js'
 describe('auth', () => {
   let srv
   before(async () => {
-    srv = makeTestServer()
+    srv = await makeTestServer()
   })
   after(async () => {
     await srv.close()
@@ -35,7 +35,7 @@ describe('auth', () => {
     const me = await fetch(`${srv.base}/api/auth/me`, { headers: { cookie: `session=${cookie}` } })
     assert.equal(me.status, 200)
     const body = await me.json()
-    assert.deepEqual(body, { user: 'admin', mode: 'demo' })
+    assert.deepEqual(body, { user: 'admin', role: 'admin', mode: 'demo' })
   })
 
   it('protege /api/overview sin cookie (401) y la sirve con cookie (200)', async () => {
@@ -65,7 +65,7 @@ describe('auth', () => {
       fetch(`${srv.base}/api/auth/login`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ password: 'nope' }),
+        body: JSON.stringify({ username: 'admin', password: 'nope' }),
       })
     for (let i = 1; i <= 5; i++) {
       const res = await bad()
@@ -81,7 +81,7 @@ describe('auth', () => {
     const goodWhileLocked = await fetch(`${srv.base}/api/auth/login`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ password: 'test1234' }),
+      body: JSON.stringify({ username: 'admin', password: 'test1234' }),
     })
     assert.equal(goodWhileLocked.status, 429)
   })
