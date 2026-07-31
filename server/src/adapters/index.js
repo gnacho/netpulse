@@ -429,8 +429,11 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     }
 
     const allMacs = new Set([...leasesByMac.keys(), ...seen.keys(), ...known.keys()])
+    const routerMacs = new Set()
+    for (const [, p] of polled) if (p.brMac) routerMacs.add(p.brMac)
     const devices = []
     for (const mac of allMacs) {
+      if (routerMacs.has(mac)) continue // los routers no son clientes
       const lease = leasesByMac.get(mac)
       const s = seen.get(mac) // visto ESTE tick (assoc/FDB)
       const k = s ? null : known.get(mac) // última atribución buena

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
@@ -315,7 +315,8 @@ export default function Alerts() {
   const [readIds, setReadIds] = useState<ReadonlySet<string>>(new Set())
   const [sev, setSev] = useState<SevFilter>('todas')
   const [kind, setKind] = useState<KindFilter>('todos')
-  const [onlyUnread, setOnlyUnread] = useState(false)
+  const [searchParams] = useSearchParams()
+  const [onlyUnread, setOnlyUnread] = useState(() => searchParams.get('unread') === '1')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [burst, setBurst] = useState(0)
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'done'>('idle')

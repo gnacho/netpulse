@@ -4,7 +4,7 @@
     "allRead": "Todo leído — la red está tranquila",
     "chipCritical": "críticos",
     "chipCriticalCaption": "Nunca ha habido uno crítico. Toca madera.",
-    "chipToday": "eventos hoy",
+    "chipToday": "alertas hoy",
     "chipWarnings": "avisos",
     "chipWarningsCaption": "activos · temperatura y firmware",
     "days": {
@@ -15,7 +15,7 @@
     "emptyDesc": "No hay nada que requiera tu atención. La red está tranquila.",
     "emptyTitle": "Silencio total",
     "eventCount_one": "1 evento",
-    "eventCount_other": "{{count}} eventos",
+    "eventCount_other": "{{count}} alertas",
     "filterByKind": "Filtrar por tipo",
     "filterBySeverity": "Filtrar por severidad",
     "kinds": {
@@ -25,10 +25,10 @@
       "sistema": "Sistema",
       "wireguard": "WireGuard"
     },
-    "loadingOld": "Cargando eventos antiguos…",
+    "loadingOld": "Cargando alertas antiguas…",
     "markAllRead": "Marcar todo como leído",
     "moreActions": "Más acciones",
-    "noMoreEvents": "No hay más eventos (32 días de historial)",
+    "noMoreEvents": "No hay más alertas",
     "onlyUnread": "Solo no leídas",
     "sevAll": "Todas",
     "sevInfo": "Info",
@@ -437,7 +437,7 @@
       "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza routers y APs con algunos servicios como AdGuard Home + WireGuard de momento. Fase 1: solo lectura.",
       "footer": "React 19 · Tailwind · Recharts · Framer Motion — fuentes: Space Grotesk, Inter, JetBrains Mono",
       "madeAtHome": "Apoya el proyecto en Ko-fi",
-      "privacy": "Privacidad: todos los datos se quedan en tu red",
+      "privacy": "100% privado · 0% nube",
       "title": "Acerca de",
       "versionNote": "v1.0.0"
     },

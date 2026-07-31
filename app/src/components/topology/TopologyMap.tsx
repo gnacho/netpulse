@@ -636,15 +636,29 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           >
           {!reduce && (
             <motion.circle
-              r={52}
-              fill={COLOR.accent}
-              initial={{ opacity: 0.1 }}
-              animate={{ opacity: [0.08, 0.18, 0.08] }}
+              r={48}
+              fill={COLOR.ok}
+              initial={{ opacity: 0.08 }}
+              animate={{ opacity: [0.06, 0.16, 0.06] }}
               transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
             />
           )}
-          <rect x={-46} y={-38} width={92} height={76} rx={18} fill="rgb(var(--elevated))" stroke="rgb(var(--border-strong))" />
-          <Cloud x={-24} y={-20} width={48} height={40} className="text-accent" strokeWidth={1.75} aria-hidden />
+          <circle
+            r={40}
+            fill="rgb(var(--elevated))"
+            stroke={COLOR.ok}
+            strokeWidth={2}
+          />
+          <circle
+            r={45}
+            fill="none"
+            stroke={COLOR.ok}
+            strokeWidth={2.5}
+            strokeDasharray={`${(2 * Math.PI * 45) * 0.85} ${(2 * Math.PI * 45) * 0.15}`}
+            strokeLinecap="round"
+            transform="rotate(-90)"
+          />
+          <Cloud x={-18} y={-15} width={36} height={30} className="text-ok" strokeWidth={1.75} aria-hidden />
           </motion.g>
         </g>
 
@@ -781,6 +795,10 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           <ClusterGroup
             key={cluster.id}
             cluster={cluster}
+            routerPos={(() => {
+              const rn = routerNodes.find((n) => n.id === cluster.routerId)
+              return rn ? { x: rn.x, y: rn.y } : null
+            })()}
             baseDelay={(1.4 + ci * 0.15) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(cluster.id) * nodeOpacity(cluster.routerId)}
@@ -902,6 +920,7 @@ function LabelText({
 
 const ClusterGroup = memo(function ClusterGroup({
   cluster,
+  routerPos,
   baseDelay,
   reduce,
   opacity,
@@ -910,6 +929,7 @@ const ClusterGroup = memo(function ClusterGroup({
   onDotClick,
 }: {
   cluster: Cluster
+  routerPos: { x: number; y: number } | null
   baseDelay: number
   reduce: boolean
   opacity: number
@@ -919,6 +939,22 @@ const ClusterGroup = memo(function ClusterGroup({
 }) {
   return (
     <motion.g animate={{ opacity }} transition={{ duration: 0.2 }}>
+      {/* Cableados: línea desde el router hasta cada dot (wifi va suelto) */}
+      {routerPos &&
+        cluster.dots
+          .filter((dot) => dot.band === 'cable')
+          .map((dot) => (
+            <line
+              key={`${dot.id}-link`}
+              x1={routerPos.x}
+              y1={routerPos.y}
+              x2={dot.x}
+              y2={dot.y}
+              stroke={COLOR.ok}
+              strokeWidth={1}
+              strokeOpacity={0.35}
+            />
+          ))}
       {cluster.dots.map((dot, i) => (
         <motion.circle
           key={dot.id}

@@ -4,7 +4,7 @@
     "allRead": "All read — the network is quiet",
     "chipCritical": "critical",
     "chipCriticalCaption": "There has never been a critical one. Touch wood.",
-    "chipToday": "events today",
+    "chipToday": "alerts today",
     "chipWarnings": "warnings",
     "chipWarningsCaption": "active · temperature and firmware",
     "days": {
@@ -15,7 +15,7 @@
     "emptyDesc": "There is nothing that requires your attention. The network is quiet.",
     "emptyTitle": "Total silence",
     "eventCount_one": "1 event",
-    "eventCount_other": "{{count}} events",
+    "eventCount_other": "{{count}} alerts",
     "filterByKind": "Filter by type",
     "filterBySeverity": "Filter by severity",
     "kinds": {
@@ -25,10 +25,10 @@
       "sistema": "System",
       "wireguard": "WireGuard"
     },
-    "loadingOld": "Loading older events…",
+    "loadingOld": "Loading older alerts…",
     "markAllRead": "Mark all as read",
     "moreActions": "More actions",
-    "noMoreEvents": "No more events (32 days of history)",
+    "noMoreEvents": "No more alerts",
     "onlyUnread": "Unread only",
     "sevAll": "All",
     "sevInfo": "Info",
@@ -437,7 +437,7 @@
       "desc": "Network control panel for OpenWRT devices. Monitors routers and APs with some services like AdGuard Home + WireGuard for now. Phase 1: read-only.",
       "footer": "React 19 · Tailwind · Recharts · Framer Motion — fonts: Space Grotesk, Inter, JetBrains Mono",
       "madeAtHome": "Support the project on Ko-fi",
-      "privacy": "Privacy: all data stays in your network",
+      "privacy": "100% private · 0% cloud",
       "title": "About",
       "versionNote": "v1.0.0"
     },

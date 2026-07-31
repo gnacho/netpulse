@@ -271,7 +271,7 @@ function BellButton() {
   return (
     <button
       type="button"
-      onClick={() => navigate('/alerts')}
+      onClick={() => navigate('/alerts?unread=1')}
       aria-label={t('topbar.alertsUnread', { count: unreadAlerts })}
       className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
     >
