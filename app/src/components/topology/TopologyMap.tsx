@@ -608,12 +608,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         </g>
 
         {/* ------------------------- Internet ------------------------- */}
-        <motion.g
+        <g
           transform={`translate(${internetNode.x} ${internetNode.y})`}
-          initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0 }}
-          animate={{ opacity: nodeOpacity('internet'), scale: 1 }}
-          transition={reduce ? { duration: 0.2 } : { ...springPop(0), opacity: { duration: 0.2 } }}
-          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
           className="cursor-pointer outline-none"
           role="button"
           tabIndex={0}
@@ -632,6 +628,12 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             }
           }}
         >
+          <motion.g
+            initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0 }}
+            animate={{ opacity: nodeOpacity('internet'), scale: 1 }}
+            transition={reduce ? { duration: 0.2 } : { ...springPop(0), opacity: { duration: 0.2 } }}
+            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+          >
           {!reduce && (
             <motion.circle
               r={52}
@@ -643,7 +645,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           )}
           <rect x={-46} y={-38} width={92} height={76} rx={18} fill="rgb(var(--elevated))" stroke="rgb(var(--border-strong))" />
           <Cloud x={-24} y={-20} width={48} height={40} className="text-accent" strokeWidth={1.75} aria-hidden />
-        </motion.g>
+          </motion.g>
+        </g>
 
         {/* ------------------------- Routers ------------------------- */}
         {routerNodes.map((node, i) => {
