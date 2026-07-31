@@ -53,6 +53,9 @@ const envSchema = z.object({
   WG_INTERFACE: z.string().default('wg0'),
   // Cookie Secure: 'auto' = solo si la petición llega por HTTPS (o X-Forwarded-Proto)
   COOKIE_SECURE: z.enum(['auto', 'always', 'never']).default('auto'),
+  // Actualizador (repo GitHub privado → token fine-grained Contents:read)
+  GITHUB_REPO: z.string().default('gnacho/netpulse'),
+  GITHUB_TOKEN: z.string().optional(),
 })
 
 /**
@@ -101,6 +104,8 @@ export function loadConfig(env = process.env) {
       : null,
     wgInterface: e.WG_INTERFACE,
     cookieSecure: e.COOKIE_SECURE,
+    githubRepo: e.GITHUB_REPO,
+    githubToken: e.GITHUB_TOKEN,
     serverRoot: SERVER_ROOT,
   }
 }

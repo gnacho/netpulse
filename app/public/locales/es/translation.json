@@ -566,5 +566,19 @@
     "reconnecting": "Reconectando",
     "refresh": "Actualizar datos",
     "timeRange": "Rango temporal"
+  },
+  "update": {
+    "available": "Nueva versión disponible: {{version}} — {{msg}}",
+    "button": "Actualizar",
+    "updating": "Actualizando… {{step}}",
+    "dismiss": "Descartar aviso",
+    "step": {
+      "start": "iniciando",
+      "fetch": "descargando código",
+      "server-deps": "actualizando backend",
+      "frontend-build": "compilando la interfaz",
+      "restart": "reiniciando el servicio",
+      "done": "completado, recargando"
+    }
   }
 }

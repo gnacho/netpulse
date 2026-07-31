@@ -13,10 +13,11 @@ import { registerAuthRoutes } from './routes/auth.js'
 import { registerDataRoutes } from './routes/data.js'
 import { registerConfigRoutes } from './routes/config.js'
 import { registerUserRoutes } from './routes/users.js'
+import { registerUpdateRoutes } from './routes/update.js'
 
 const VERSION = '1.0.0'
 
-export function createApp({ config, dbHandle, adapter, sse, poller, secret }) {
+export function createApp({ config, dbHandle, adapter, sse, poller, secret, updater }) {
   const app = new Hono()
   const mode = adapter.mode
 
@@ -34,6 +35,7 @@ export function createApp({ config, dbHandle, adapter, sse, poller, secret }) {
   registerDataRoutes(app, { adapter, getOverview })
   registerConfigRoutes(app, { dbHandle, adapter, config })
   registerUserRoutes(app, { db: dbHandle.db })
+  if (updater) registerUpdateRoutes(app, { updater })
   app.get('/api/stream', (c) => sse.handleStream(c))
 
   // 4. 404 JSON para /api/* desconocido
