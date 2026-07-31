@@ -63,6 +63,15 @@ export function openDb(dataDir) {
       role TEXT NOT NULL DEFAULT 'user',
       created_at INTEGER NOT NULL
     );
+    -- Última atribución conocida por MAC (banda/router donde se vio asociado;
+    -- el FDB del gateway ve todo y no sirve para saber cómo conecta un equipo)
+    CREATE TABLE IF NOT EXISTS device_attrib (
+      mac TEXT PRIMARY KEY,
+      router_id TEXT,
+      band TEXT,
+      signal_dbm INTEGER,
+      last_seen INTEGER NOT NULL
+    );
     -- Routers configurados (vacía al importar; se rellena por autodetección
     -- del gateway, ROUTERS_JSON o el CRUD de Ajustes)
     CREATE TABLE IF NOT EXISTS routers (

@@ -68,6 +68,8 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     for (const id of [...lastGood.keys()]) if (!ids.has(id)) lastGood.delete(id)
     for (const id of [...lastStatus.keys()]) if (!ids.has(id)) lastStatus.delete(id)
     for (const id of [...boardCache.keys()]) if (!ids.has(id)) boardCache.delete(id)
+    for (const id of [...layoutCache.keys()]) if (!ids.has(id)) layoutCache.delete(id)
+    for (const id of [...extrasCache.keys()]) if (!ids.has(id)) extrasCache.delete(id)
     for (const id of [...lastPolled.keys()]) if (!ids.has(id)) lastPolled.delete(id)
     for (const id of [...failCount.keys()]) if (!ids.has(id)) failCount.delete(id)
   }
@@ -76,6 +78,8 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
   const lastGood = new Map() // routerId → último Router online
   const lastStatus = new Map() // routerId → 'online' | 'offline'
   const boardCache = new Map() // routerId → system board
+  const layoutCache = new Map() // routerId → layout de puertos (board.json, estático)
+  const extrasCache = new Map() // routerId → { ports, radios, wireless, fdb } último bueno
   let alerts = [] // AlertEvent[], más recientes primero (máx 100)
   let lastWgPeersActive = new Set()
 
@@ -119,21 +123,37 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     // abajo multiplexan sobre la conexión ya establecida (en frío, todas
     // compiten por crear el socket y algunas mueren → falso "offline").
     await client.ssh('true')
+    // Layout de puertos desde la CONFIG (board.json): se lee una vez y se
+    // cachea; solo se reintenta mientras no se haya conseguido ninguno
+    let layout = layoutCache.get(cfg.id)
+    if (!layout) {
+      layout = await client.getPortLayout().catch(() => null)
+      if (layout?.length) layoutCache.set(cfg.id, layout)
+    }
     const [sysInfo, cpu, temp, net, leases, wireless, ports, radios, fdb] = await Promise.all([
       client.getSystemInfo(),
       client.getCpuPercent().catch(() => null),
       client.getTempC().catch(() => null),
       client.getNetDevBps().catch(() => ({ rxBps: null, txBps: null })),
       client.getDhcpLeases().catch(() => []),
-      client.getWirelessClients().catch(() => new Map()),
-      client.getEthPorts().catch(() => []),
+      client.getWirelessClients().catch(() => null),
+      client.getEthPorts(layout ?? undefined).catch(() => []),
       client.getRadios().catch(() => []),
-      client.getBridgeFdb().catch(() => new Map()),
+      client.getBridgeFdb().catch(() => null),
     ])
     if (!boardCache.has(cfg.id)) {
       boardCache.set(cfg.id, await client.getBoard().catch(() => null))
     }
     const board = boardCache.get(cfg.id)
+    // Anti-parpadeo: si una sonda puntual falla (tick parcial), conserva la
+    // última lista buena en vez de devolver vacío. null = sonda fallida;
+    // colección vacía = resultado real (p.ej. 0 clientes wifi)
+    const cached = extrasCache.get(cfg.id) ?? { ports: [], radios: [], wireless: new Map(), fdb: new Map() }
+    const portsGood = ports.length > 0 ? ports : cached.ports
+    const radiosGood = radios.length > 0 ? radios : cached.radios
+    const wirelessGood = wireless ?? cached.wireless
+    const fdbGood = fdb ?? cached.fdb
+    extrasCache.set(cfg.id, { ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood })
     const mem = sysInfo?.memory ?? {}
     const ramTotal = (mem.total || 0) + (mem.shared || 0)
     const ramPct = ramTotal > 0 ? Math.round(((ramTotal - (mem.free || 0) - (mem.buffered || 0)) / ramTotal) * 100) : null
@@ -153,10 +173,10 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       uptimeSec: sysInfo?.uptime ?? 0,
       net,
       leases,
-      wireless,
-      ports,
-      radios,
-      fdb,
+      wireless: wirelessGood,
+      ports: portsGood,
+      radios: radiosGood,
+      fdb: fdbGood,
       latency,
     }
   }
@@ -172,7 +192,7 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     )
     return {
       id: cfg.id,
-      name: cfg.name || cfg.host,
+      name: polled.board?.hostname || cfg.name || cfg.host,
       model,
       modelShort: model,
       role: cfg.id === gatewayCfg?.id ? 'Gateway principal' : 'Punto de acceso',
@@ -302,32 +322,69 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       return { interface: config.wgInterface, subnet: '', status: 'inactive', peers: [] }
     }
   }
-
   /**
    * Dispositivos = unión de leases DHCP (nombre/IP) y MACs VISTAS por cada
    * router (assoclist WiFi + FDB del bridge). El routerId es el router que
    * realmente tiene asociado/conectado el dispositivo; si nadie lo ve pero
    * tiene lease, se atribuye al gateway.
+   *
+   * Persistencia (tabla device_attrib): el FDB del gateway aprende TODAS las
+   * MACs (tráfico hacia internet), así que ver una MAC ahí no dice cómo
+   * conecta. Guardamos la última atribución buena (wireless o FDB de
+   * satélite) y la usamos cuando el dispositivo no está asociado ahora.
    */
+  const attribStmt = dbHandle
+    ? {
+        upsert: dbHandle.db.prepare(
+          'INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?) ' +
+            'ON CONFLICT(mac) DO UPDATE SET router_id=excluded.router_id, band=excluded.band, signal_dbm=excluded.signal_dbm, last_seen=excluded.last_seen',
+        ),
+        all: dbHandle.db.prepare('SELECT mac, router_id, band, signal_dbm FROM device_attrib'),
+      }
+    : null
+
   function buildDevices(polled) {
     const leasesByMac = new Map()
     for (const [, p] of polled) {
       for (const l of p.leases ?? []) if (l.mac) leasesByMac.set(l.mac, l)
     }
+    const known = new Map((attribStmt?.all.all() ?? []).map((r) => [r.mac, r]))
+    const now = Date.now()
+
     const seen = new Map() // mac → { routerId, band, signalDbm }
+    // (1) wireless de cualquier router: la mejor pista
     for (const [routerId, p] of polled) {
       for (const [mac, w] of p.wireless ?? new Map()) {
         seen.set(mac, { routerId, band: w.band, signalDbm: w.signalDbm })
-      }
-      for (const [mac, port] of p.fdb ?? new Map()) {
-        if (!seen.has(mac)) seen.set(mac, { routerId, band: 'cable', signalDbm: null, port })
+        attribStmt?.upsert.run(mac, routerId, w.band, w.signalDbm, now)
       }
     }
-    const allMacs = new Set([...leasesByMac.keys(), ...seen.keys()])
+    // (2) FDB de satélites: cableado directo al AP
+    const gwId = gatewayCfg?.id
+    for (const [routerId, p] of polled) {
+      if (routerId === gwId) continue
+      for (const [mac] of p.fdb ?? new Map()) {
+        if (!seen.has(mac)) {
+          seen.set(mac, { routerId, band: 'cable', signalDbm: null })
+          attribStmt?.upsert.run(mac, routerId, 'cable', null, now)
+        }
+      }
+    }
+    // (3) FDB del gateway: solo si no hay memoria (puede ser wifi de cualquier
+    // AP que pasa por el backhaul). No se guarda: es mala pista.
+    const gwPolled = gwId ? polled.get(gwId) : null
+    for (const [mac] of gwPolled?.fdb ?? new Map()) {
+      if (!seen.has(mac) && !known.has(mac)) {
+        seen.set(mac, { routerId: gwId, band: 'cable', signalDbm: null })
+      }
+    }
+
+    const allMacs = new Set([...leasesByMac.keys(), ...seen.keys(), ...known.keys()])
     const devices = []
     for (const mac of allMacs) {
       const lease = leasesByMac.get(mac)
-      const s = seen.get(mac)
+      const s = seen.get(mac) // visto ESTE tick (assoc/FDB)
+      const k = s ? null : known.get(mac) // última atribución buena
       devices.push({
         id: mac.toLowerCase().replace(/:/g, '-'),
         name: lease?.hostname || mac,
@@ -335,11 +392,13 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
         manufacturer: 'Desconocido',
         ip: lease?.ip ?? '',
         mac,
-        routerId: s?.routerId ?? gatewayCfg?.id,
-        band: s?.band ?? 'cable',
-        signalDbm: s?.signalDbm ?? null,
+        routerId: s?.routerId ?? k?.router_id ?? gwId,
+        band: s?.band ?? k?.band ?? '—',
+        signalDbm: s?.signalDbm ?? k?.signal_dbm ?? null,
         trafficMbps: 0,
-        online: Boolean(s) || Boolean(lease),
+        // Lease NO es estar online (las reservas son 'infinite'): online =
+        // visto asociado/conectado en este tick
+        online: Boolean(s),
         sparkline: [],
       })
     }
@@ -416,6 +475,10 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       return router
     })
     const devices = buildDevices(polled)
+    // Clientes reales por router (atribución wireless/FDB, no leases)
+    for (const r of routerList) {
+      r.clients = devices.filter((d) => d.routerId === r.id && d.online).length
+    }
     const [adguard, wireguard] = await Promise.all([pollAdGuard(), pollWireGuard(devices)])
     const gw = routerList.find((r) => r.id === gatewayCfg?.id)
     const wan = defaultWan(gatewayCfg)

@@ -647,7 +647,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
 
         {/* ------------------------- Routers ------------------------- */}
         {routerNodes.map((node, i) => {
-          const isGw = node.id === 'flint2'
+          const isGw = node.router.roleBadge === 'Principal'
           const isWarn = node.router.status === 'warn'
           const delay = isGw ? 0.55 : 1.0 + (i - 1) * 0.15
           const Icon = RouterIcon

@@ -154,6 +154,7 @@ const CLUSTER_COORDS = [
   { cx: 500, cy: 606 },
   { cx: 790, cy: 580 },
 ]
+const GATEWAY_CLUSTER = { cx: 210, cy: 246 }
 const PEER_COORDS = [
   { x: 96, y: 120 },
   { x: 240, y: 56 },
@@ -195,7 +196,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
   }))
   const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes] : apNodes
 
-  const internetNode = { id: 'internet' as const, x: 500, y: 90 }
+  const internetNode = { id: 'internet' as const, x: 500, y: 108 }
 
   const activePeers = wireguard.peers.filter((p) => p.active)
   const peerNodes: PeerNode[] = activePeers.slice(0, PEER_COORDS.length).map((peer, i) => ({
@@ -207,12 +208,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
   }))
 
   // Clusters de clientes (máx 12 dots visibles, resto = badge "+N")
-  const clusters: Cluster[] = apNodes.map((node, i) => {
-    const { cx, cy } = CLUSTER_COORDS[i]
+  const mkCluster = (node: RouterNode, cx: number, cy: number): Cluster => {
     const named = devices.filter((d) => d.routerId === node.id && d.online)
-    const count = Math.min(node.router.clients, MAX_CLUSTER_DOTS)
+    const count = Math.min(named.length, MAX_CLUSTER_DOTS)
     const dots: ClientDot[] = []
-    const fallbackBands: Band[] = ['5 GHz', '2.4 GHz', '5 GHz', 'cable']
     for (let j = 0; j < count; j++) {
       const inner = j >= 8
       const idx = inner ? j - 8 : j
@@ -220,13 +219,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
       const radius = inner ? 22 : 46
       const angle = (-90 + (360 / n) * idx + (inner ? 22 : 0)) * (Math.PI / 180)
       const device = named[j]
-      const band: Band = device?.band ?? fallbackBands[j % fallbackBands.length]
       const weak = device?.signalDbm != null ? device.signalDbm <= -65 : false
       dots.push({
         id: `${node.id}-dot-${j}`,
         x: Math.round((cx + radius * Math.cos(angle)) * 10) / 10,
         y: Math.round((cy + radius * Math.sin(angle)) * 10) / 10,
-        band,
+        band: device?.band ?? 'cable',
         weak,
         device,
       })
@@ -237,19 +235,36 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
       cx,
       cy,
       dots,
-      extra: Math.max(0, node.router.clients - MAX_CLUSTER_DOTS),
+      extra: Math.max(0, named.length - MAX_CLUSTER_DOTS),
     }
+  }
+
+  const clusters: Cluster[] = apNodes.map((node, i) => {
+    const { cx, cy } = CLUSTER_COORDS[i]
+    return mkCluster(node, cx, cy)
   })
+  // El gateway también tiene clientes (cable + wifi)
+  if (gatewayNode) {
+    clusters.unshift(mkCluster(gatewayNode, GATEWAY_CLUSTER.cx, GATEWAY_CLUSTER.cy))
+  }
 
   // Enlaces
   const links: TopoLink[] = []
   if (gatewayNode) {
     links.push({
       id: 'wan', kind: 'wan',
-      d: 'M 500 132 C 478 156, 522 174, 500 196',
+      d: 'M 500 140 C 500 162, 500 182, 500 204',
       lx: 518, ly: 162, label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
       width: 3, packets: 3, packetDur: 2.4,
       from: 'internet', to: gatewayNode.id,
+    })
+    // Enlace gateway → su cluster de clientes
+    links.push({
+      id: `cluster-${gatewayNode.id}`, kind: 'cluster',
+      d: `M ${GATEWAY_COORD.x - GATEWAY_COORD.r} ${GATEWAY_COORD.y} L ${GATEWAY_CLUSTER.cx + 46} ${GATEWAY_CLUSTER.cy}`,
+      lx: 0, ly: 0, label: '',
+      width: 1.5, packets: 0, packetDur: 0,
+      from: gatewayNode.id, to: `cluster-${gatewayNode.id}`,
     })
   }
   apNodes.forEach((node, i) => {

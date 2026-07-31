@@ -14,12 +14,10 @@ import {
   Waypoints,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { TimeRange } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { DashboardProvider, useDashboard } from '@/hooks/useDashboard'
 import { CommandPalette } from '@/components/CommandPalette'
 import { HealthRing } from '@/components/HealthRing'
-import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -319,7 +317,7 @@ function LivePill() {
 
 function Topbar() {
   const { t } = useTranslation()
-  const { range, setRange, refresh } = useDashboard()
+  const { refresh } = useDashboard()
   const { refresh: refreshData } = useNetPulse()
   const [spinning, setSpinning] = useState(false)
   const location = useLocation()
@@ -335,14 +333,6 @@ function Topbar() {
     <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-border bg-canvas/80 px-6 backdrop-blur-md md:flex pt-safe">
       <h1 className="font-display text-h1 text-text-primary">{t(pageTitleKey(location.pathname))}</h1>
       <div className="ml-auto flex items-center gap-3">
-        {location.pathname === '/' && (
-          <SegmentedControl
-            options={TIME_RANGE_OPTIONS}
-            value={range}
-            onChange={(v) => setRange(v as TimeRange)}
-            ariaLabel={t('topbar.timeRange')}
-          />
-        )}
         <button
           type="button"
           onClick={onRefresh}

@@ -300,20 +300,50 @@ export class OpenWrtClient {
   }
 
   /**
-   * Bocas Ethernet físicas (DSA): lanN + wan con estado y velocidad.
+   * Layout canónico de puertos desde /etc/board.json (la CONFIG del router).
+   * Es estático por hardware: el adapter lo cachea y no se re-lee cada tick.
+   * Devuelve [{ id, name, label, role }] — WAN normalizado a id 'wan'.
+   */
+  async getPortLayout() {
+    const out = await this.ssh('cat /etc/board.json 2>/dev/null')
+    const net = JSON.parse(out)?.network ?? {}
+    const ports = []
+    for (const name of net.lan?.ports ?? []) {
+      ports.push({ id: name, name, label: name.replace('lan', 'LAN '), role: 'lan' })
+    }
+    const wanDev = net.wan?.device
+    if (wanDev) {
+      ports.unshift({ id: 'wan', name: wanDev, label: 'WAN', role: 'wan' })
+    }
+    return ports
+  }
+
+  /**
+   * Bocas Ethernet = layout (config) + estado /sys por nombre de interfaz.
+   * Si el layout no está disponible, heurística: lanN + wan/pppoe-wan/eth1.
    * Devuelve [{ id, label, up, speed }] listo para EthPort.
    */
-  async getEthPorts() {
+  async getEthPorts(layout = null) {
     const states = await this.getPortStates()
-    return states
-      .filter((p) => /^(lan\d+|wan)$/.test(p.name))
-      .sort((a, b) => (a.name === 'wan' ? -1 : b.name === 'wan' ? 1 : a.name.localeCompare(b.name, undefined, { numeric: true })))
-      .map((p) => ({
-        id: p.name,
-        label: p.name === 'wan' ? 'WAN' : p.name.replace('lan', 'LAN '),
-        up: p.up,
-        speed: p.up ? p.speed : undefined,
-      }))
+    const byName = new Map(states.map((p) => [p.name, p]))
+    if (layout?.length) {
+      return layout.map((p) => {
+        const st = byName.get(p.name)
+        const up = st?.up ?? false
+        return { id: p.id, label: p.label, up, speed: up ? st?.speed : undefined }
+      })
+    }
+    // Fallback sin config
+    const lan = states
+      .filter((p) => /^lan\d+$/.test(p.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      .map((p) => ({ id: p.name, label: p.name.replace('lan', 'LAN '), up: p.up, speed: p.up ? p.speed : undefined }))
+    let wanName = byName.has('wan') ? 'wan' : byName.has('pppoe-wan') ? 'eth1' : byName.has('eth1') ? 'eth1' : null
+    if (wanName) {
+      const st = byName.get(wanName)
+      lan.unshift({ id: 'wan', label: 'WAN', up: st.up, speed: st.up ? st.speed : undefined })
+    }
+    return lan
   }
 
   /**

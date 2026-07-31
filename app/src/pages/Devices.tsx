@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Check,
   ChevronDown,
   Filter,
@@ -79,6 +82,42 @@ function useRenames(): [Record<string, string>, (id: string, name: string | null
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
+type SortKey = 'name' | 'ip' | 'router' | 'band' | 'signal' | 'traffic'
+
+/** IP a número para ordenar (ipv4 "a.b.c.d" → entero). */
+function ipNum(ip: string): number {
+  return ip.split('.').reduce((acc, o) => acc * 256 + (parseInt(o, 10) || 0), 0)
+}
+
+/** Cabecera de columna ordenable. */
+function SortHeader({
+  label,
+  k,
+  sort,
+  onSort,
+}: {
+  label: string
+  k: SortKey
+  sort: { key: SortKey; dir: 1 | -1 } | null
+  onSort: (k: SortKey) => void
+}) {
+  const active = sort?.key === k
+  const Icon = active ? (sort?.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex items-center gap-1 uppercase transition-colors',
+        active ? 'text-accent' : 'hover:text-text-secondary',
+      )}
+    >
+      {label}
+      <Icon className="h-3 w-3" strokeWidth={2} />
+    </button>
+  )
+}
 
 const BAND_OPTIONS = [
   { value: 'all', labelKey: 'devices.bandAll' },
@@ -877,7 +916,6 @@ export default function Devices() {
   const [view, setView] = useState<'list' | 'grid'>('list')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastMsg | null>(null)
-
   // Búsqueda con debounce 150ms (devices.md §Interacciones)
   useEffect(() => {
     const t = setTimeout(() => setQ(query.trim().toLowerCase()), 150)
@@ -901,6 +939,11 @@ export default function Devices() {
     return counts
   }, [allDevices])
 
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null)
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
+  }, [])
+
   const filtered = useMemo(() => {
     const out = allDevices.filter((d) => {
       if (onlyOnline && !d.online) return false
@@ -913,12 +956,43 @@ export default function Devices() {
       }
       return true
     })
+    if (sort) {
+      const routerNameOf = (id: string) => routers.find((r) => r.id === id)?.name ?? id
+      return out.sort((a, b) => {
+        const dir = sort.dir
+        let c = 0
+        switch (sort.key) {
+          case 'name':
+            c = nameOf(a).localeCompare(nameOf(b), numLocale())
+            break
+          case 'ip':
+            c = ipNum(a.ip) - ipNum(b.ip)
+            break
+          case 'router':
+            c = routerNameOf(a.routerId).localeCompare(routerNameOf(b.routerId), numLocale())
+            break
+          case 'band':
+            c = a.band.localeCompare(b.band)
+            break
+          case 'signal':
+            c = (a.signalDbm ?? -999) - (b.signalDbm ?? -999)
+            break
+          case 'traffic':
+            c = a.trafficMbps - b.trafficMbps
+            break
+        }
+        if (c !== 0) return dir * c
+        // Desempate: online primero, luego nombre
+        if (a.online !== b.online) return a.online ? -1 : 1
+        return nameOf(a).localeCompare(nameOf(b), numLocale())
+      })
+    }
     // Online primero (por tráfico desc), conocidos offline al final (devices.md §④)
     return out.sort((a, b) => {
       if (a.online !== b.online) return a.online ? -1 : 1
       return a.online ? b.trafficMbps - a.trafficMbps : a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, onlyOnline, router, band, groups, q, nameOf])
+  }, [allDevices, onlyOnline, router, band, groups, q, nameOf, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1089,12 +1163,14 @@ export default function Devices() {
               ROW_GRID,
             )}
           >
-            <span>{t('devices.colDevice')}</span>
-            <span className="hidden lg:block">IP / MAC</span>
-            <span>Router</span>
-            <span>{t('devices.colBand')}</span>
-            <span>{t('devices.colSignal')}</span>
-            <span>{t('devices.colTraffic')}</span>
+            <SortHeader label={t('devices.colDevice')} k="name" sort={sort} onSort={toggleSort} />
+            <span className="hidden lg:block">
+              <SortHeader label="IP / MAC" k="ip" sort={sort} onSort={toggleSort} />
+            </span>
+            <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />
+            <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />
+            <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />
+            <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />
             <span />
           </div>
           <div className="divide-y divide-border p-1.5 md:p-2">

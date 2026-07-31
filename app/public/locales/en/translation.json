@@ -205,7 +205,9 @@
       "queriesOf": "{{blocked}} of {{total}} queries",
       "trackers": "Trackers",
       "tunnelIface": "tunnel {{iface}}",
-      "viewTunnel": "View tunnel"
+      "viewTunnel": "View tunnel",
+      "adguardInactive": "No data",
+      "adguardNoData": "No access to the AdGuard API. The GL.iNet firmware requires a router UI session; pending configuration."
     },
     "statusPhrase": "All good, although the Patio is running a bit hot (71 °C).",
     "topDevices": {
@@ -270,7 +272,8 @@
       "queries24h": "Queries 24 h",
       "rules": "{{count}} rules",
       "tooltip": "{{total}} queries · {{blocked}} blocked",
-      "topBlocked": "Top blocked domains"
+      "topBlocked": "Top blocked domains",
+      "noData": "AdGuard Home is running on the router, but its API requires a GL.iNet UI session. Credentials pending configuration."
     },
     "backhaul": {
       "linkLoad": "% link load",

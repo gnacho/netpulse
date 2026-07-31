@@ -205,7 +205,9 @@
       "queriesOf": "{{blocked}} de {{total}} consultas",
       "trackers": "Rastreadores",
       "tunnelIface": "túnel {{iface}}",
-      "viewTunnel": "Ver túnel"
+      "viewTunnel": "Ver túnel",
+      "adguardInactive": "Sin datos",
+      "adguardNoData": "Sin acceso a la API de AdGuard. El firmware GL.iNet exige sesión de la interfaz del router; pendiente de configurar."
     },
     "statusPhrase": "Todo va bien, aunque el Patio está algo caliente (71 °C).",
     "topDevices": {
@@ -270,7 +272,8 @@
       "queries24h": "Consultas 24 h",
       "rules": "{{count}} reglas",
       "tooltip": "{{total}} consultas · {{blocked}} bloqueadas",
-      "topBlocked": "Top dominios bloqueados"
+      "topBlocked": "Top dominios bloqueados",
+      "noData": "AdGuard Home está activo en el router, pero su API exige una sesión de la interfaz GL.iNet para consultarse. Pendiente de configurar las credenciales."
     },
     "backhaul": {
       "linkLoad": "% carga enlace",

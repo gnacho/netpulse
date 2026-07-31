@@ -39,7 +39,7 @@ export function AdGuardPanel() {
   const { adguard } = useNetPulse()
   const adguardSeries24h = useMemo(() => buildAdGuardSeries(adguard), [adguard])
   const maxTop = Math.max(...adguard.topBlocked.map((d) => d.count))
-  const clientsPct = Math.round((adguard.clientsUsing / adguard.clientsTotal) * 100)
+  const clientsPct = adguard.clientsTotal > 0 ? Math.round((adguard.clientsUsing / adguard.clientsTotal) * 100) : 0
 
   const STATS = [
     { label: t('routerDetail.adguard.queries24h'), value: adguard.queries24h, unit: '' },
@@ -47,6 +47,24 @@ export function AdGuardPanel() {
     { label: t('routerDetail.adguard.blockedPct'), value: adguard.blockedPct, unit: '%', decimals: 1 },
     { label: t('home.services.avgDns'), value: adguard.dnsLatencyMs, unit: 'ms' },
   ] as const
+
+  // Sin acceso a la API (GL.iNet exige sesión): estado honesto, sin números
+  if (adguard.status !== 'active') {
+    return (
+      <section id="adguard" className="scroll-mt-4 rounded-2xl border border-border bg-surface p-5 md:p-6 lg:col-span-7">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ok/10 text-ok">
+            <ShieldCheck className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          </div>
+          <h3 className="font-display text-h2 text-text-primary">AdGuard Home</h3>
+          <StatusPill tone="muted" label={t('home.services.adguardInactive')} />
+        </div>
+        <p className="mt-4 rounded-xl bg-elevated px-3.5 py-3 text-caption leading-relaxed text-text-muted">
+          {t('routerDetail.adguard.noData')}
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section id="adguard" className="scroll-mt-4 rounded-2xl border border-border bg-surface p-5 transition-shadow duration-500 md:p-6 lg:col-span-7">

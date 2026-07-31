@@ -717,6 +717,20 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
     }
   }
 
+  const changeRole = async (u: ManagedUser, admin: boolean) => {
+    try {
+      const res = await fetch(`/api/users/${u.id}/role?role=${admin ? 'admin' : 'user'}`, { method: 'PUT' })
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null
+        throw new Error(body?.message ?? `HTTP ${res.status}`)
+      }
+      await load()
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('settings.users.errorGeneric'))
+    }
+  }
+
   const changePassword = async (u: ManagedUser) => {
     const pass = window.prompt(t('settings.users.passwordPrompt', { name: u.username }))
     if (!pass) return
@@ -745,11 +759,6 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-sm font-medium text-text-primary">{u.username}</span>
-                {u.role === 'admin' && (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                    {t('settings.users.roleAdmin')}
-                  </span>
-                )}
                 {auth?.user === u.username && (
                   <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ok">
                     {t('settings.users.you')}
@@ -757,6 +766,14 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
                 )}
               </div>
             </div>
+            <label className="flex shrink-0 cursor-pointer items-center gap-2 text-caption text-text-secondary" title={t('settings.users.roleAdmin')}>
+              {t('settings.users.roleAdmin')}
+              <Switch
+                checked={u.role === 'admin'}
+                onCheckedChange={(v) => void changeRole(u, v)}
+                disabled={auth?.user === u.username}
+              />
+            </label>
             <button
               type="button"
               onClick={() => void changePassword(u)}

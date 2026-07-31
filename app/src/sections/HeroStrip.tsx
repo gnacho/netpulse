@@ -90,7 +90,7 @@ export function HeroStrip() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25, duration: 0.4 }}
           >
-            {t('home.statusPhrase')}
+            {healthScore.note || t('home.statusPhrase')}
           </motion.p>
         </div>
 

@@ -116,7 +116,7 @@ export type DeviceType =
   | 'tablet'
   | 'desconocido'
 
-export type Band = '5 GHz' | '2.4 GHz' | 'cable'
+export type Band = '5 GHz' | '2.4 GHz' | 'cable' | '—'
 
 export interface Device {
   id: string

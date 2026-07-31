@@ -84,37 +84,47 @@ function PeerRow({ peer, index }: { peer: WGPeer; index: number }) {
   )
 }
 
-/** ③ Servicios del gateway — AdGuard Home + WireGuard (home.md §③) */
-export function GatewayServices() {
+/** ③a Tarjeta AdGuard Home (home.md §③) */
+export function AdGuardCard({ index = 0 }: { index?: number }) {
   const { t } = useTranslation()
   const { refreshKey } = useDashboard()
-  const { adguard, wireguard } = useNetPulse()
-  const activePeers = wireguard.peers.filter((p) => p.active)
-  const inactivePeers = wireguard.peers.filter((p) => !p.active)
+  const { adguard } = useNetPulse()
   const maxBlocked = Math.max(...adguard.topBlocked.map((d) => d.count))
 
   return (
-    <div className="flex h-full flex-col gap-4 md:gap-5">
-      {/* 3a. AdGuard Home */}
       <ServicePanel
         icon={ShieldCheck}
         tone="ok"
         title="AdGuard Home"
-        status={<StatusPill tone="ok" label={t('common.active')} />}
-        index={0}
+        status={
+          adguard.status === 'active' ? (
+            <StatusPill tone="ok" label={t('common.active')} />
+          ) : (
+            <StatusPill tone="muted" label={t('home.services.adguardInactive')} />
+          )
+        }
+        index={index}
         className="flex-1"
         footer={
-          <a
-            href={`http://${adguard.host}:${adguard.port}`}
-            target="_blank"
-            rel="noreferrer"
-            className="group inline-flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-accent"
-          >
-            {t('home.services.openPanel')}
-            <ExternalLink className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
-          </a>
+          adguard.host ? (
+            <a
+              href={`http://${adguard.host}:${adguard.port}`}
+              target="_blank"
+              rel="noreferrer"
+              className="group inline-flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-accent"
+            >
+              {t('home.services.openPanel')}
+              <ExternalLink className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
+            </a>
+          ) : undefined
         }
       >
+        {adguard.status !== 'active' ? (
+          <p className="rounded-xl bg-elevated px-3.5 py-3 text-caption leading-relaxed text-text-muted">
+            {t('home.services.adguardNoData')}
+          </p>
+        ) : (
+          <>
         <div className="flex items-center gap-4">
           <div>
             <div className="font-mono text-stat text-ok">
@@ -160,19 +170,32 @@ export function GatewayServices() {
             </div>
           ))}
         </div>
+          </>
+        )}
       </ServicePanel>
+  )
+}
 
-      {/* 3b. WireGuard */}
+/** ③b Tarjeta WireGuard (home.md §③) */
+export function WireGuardCard({ index = 1 }: { index?: number }) {
+  const { t } = useTranslation()
+  const { refreshKey } = useDashboard()
+  const { wireguard, routers } = useNetPulse()
+  const gwId = routers.find((r) => r.roleBadge === 'Principal')?.id ?? routers[0]?.id ?? ''
+  const activePeers = wireguard.peers.filter((p) => p.active)
+  const inactivePeers = wireguard.peers.filter((p) => !p.active)
+
+  return (
       <ServicePanel
         icon={KeyRound}
         tone="tunnel"
         title="WireGuard"
         status={<StatusPill tone="tunnel" label={t('home.services.activePeers', { count: activePeers.length })} />}
-        index={1}
+        index={index}
         className="flex-1"
         footer={
           <Link
-            to="/routers/flint2#wireguard"
+            to={`/routers/${gwId}#wireguard`}
             className="group inline-flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-tunnel"
           >
             {t('home.services.viewTunnel')}
@@ -220,6 +243,5 @@ export function GatewayServices() {
           <span className="text-caption text-text-muted">{t('home.services.inactive', { count: inactivePeers.length })}</span>
         </div>
       </ServicePanel>
-    </div>
   )
 }

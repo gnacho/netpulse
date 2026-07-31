@@ -69,6 +69,29 @@ export function registerUserRoutes(app, { db }) {
     return c.body(null, 204)
   })
 
+  app.put('/api/users/:id/role', (c) => {
+    const id = Number(c.req.param('id'))
+    const me = c.get('user')
+    const target = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(id)
+    if (!target) return c.json({ error: 'not_found' }, 404)
+    const role = c.req.query('role') ?? ''
+    if (!['admin', 'user'].includes(role)) {
+      return c.json({ error: 'invalid_input', message: 'role debe ser admin|user' }, 400)
+    }
+    if (target.id === me.id) {
+      return c.json({ error: 'cannot_change_self', message: 'No puedes cambiar tu propio rol' }, 400)
+    }
+    if (target.role === 'admin' && role === 'user') {
+      const admins = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'").get().c
+      if (admins <= 1) {
+        return c.json({ error: 'last_admin', message: 'Debe quedar al menos un admin' }, 400)
+      }
+    }
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id)
+    destroyUserSessions(db, id) // fuerza re-login con el nuevo rol
+    return c.body(null, 204)
+  })
+
   app.delete('/api/users/:id', (c) => {
     const id = Number(c.req.param('id'))
     const me = c.get('user')
