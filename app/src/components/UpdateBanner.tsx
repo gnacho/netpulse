@@ -87,7 +87,7 @@ export function UpdateBanner() {
   }
 
   if (auth?.role !== 'admin') return null
-  if (!status.updateAvailable || !status.latest || dismissed === status.latest) return null
+  if (!status || !status.updateAvailable || !status.latest || dismissed === status.latest) return null
 
   const updating = Boolean(status.updating)
   const step = status.updating ? status.updating.step : 'start'
