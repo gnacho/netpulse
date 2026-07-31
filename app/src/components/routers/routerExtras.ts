@@ -43,6 +43,7 @@ export interface EthPort {
   up: boolean
   speed?: string // "2.5 Gbps" | "1 Gbps"
   connectedTo?: string // "NAS Synology" | "Salón · AX3000T"
+  deviceMac?: string // MAC del dispositivo conectado (para enlazar a /devices)
   detail?: string // "192.168.8.10 · full duplex"
 }
 

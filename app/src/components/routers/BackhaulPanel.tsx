@@ -7,6 +7,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { Sparkline } from '@/components/Sparkline'
 import { LatencyGauge } from '@/components/routers/LatencyGauge'
 import { getRouterExtras } from '@/components/routers/routerExtras'
+import type { RouterExtras } from '@/components/routers/routerExtras'
 
 function SignalTooltip({
   active,
@@ -31,15 +32,15 @@ function SignalTooltip({
 }
 
 /** ④ variante OpenWrt — Backhaul + latencia al gateway (router-detail.md §Variante). */
-export function BackhaulPanel({ router }: { router: Router }) {
+export function BackhaulPanel({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const extras = getRouterExtras(router.id)
-  const backhaul = extras.backhaul
+  const ex = extras ?? getRouterExtras(router.id)
+  const backhaul = ex.backhaul
   const reduce = useReducedMotion()
   if (!backhaul) return null
 
   const wireless = backhaul.kind === 'wireless'
-  const data = extras.backhaulSignal.map((v, i) => ({
+  const data = ex.backhaulSignal.map((v, i) => ({
     t: `${String(i).padStart(2, '0')}:00`,
     v,
   }))
@@ -109,7 +110,7 @@ export function BackhaulPanel({ router }: { router: Router }) {
           <LatencyGauge valueMs={backhaul.latencyMs} caption={t('routerDetail.latency.toHost', { host: '192.168.8.1' })} />
           <div className="w-full">
             <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{t('routerDetail.latency.24h')}</div>
-            <Sparkline data={extras.gatewayLatencySpark} width={560} height={48} color="#34D399" area className="w-full" />
+            <Sparkline data={ex.gatewayLatencySpark} width={560} height={48} color="#34D399" area className="w-full" />
           </div>
         </div>
       </section>

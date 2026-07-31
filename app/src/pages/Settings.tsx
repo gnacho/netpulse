@@ -1325,22 +1325,33 @@ export default function Settings() {
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {[
-                  { icon: Github, label: t('settings.about.code') },
-                  { icon: FileText, label: t('settings.about.changelog') },
+                  { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
+                  { icon: FileText, label: t('settings.about.changelog'), href: 'https://github.com/gnacho/netpulse/commits/main' },
                   { icon: Heart, label: t('settings.about.madeAtHome') },
                   { icon: ShieldCheck, label: t('settings.about.privacy') },
-                ].map((item, i) => (
-                  <motion.div
-                    key={item.label}
-                    initial={reduce ? false : { opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, ease: 'easeOut', delay: reduce ? 0 : 0.2 + i * 0.06 }}
-                    className="flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                    <span className="leading-snug">{item.label}</span>
-                  </motion.div>
-                ))}
+                ].map((item, i) => {
+                  const cls = "flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                  return (
+                    <motion.div
+                      key={item.label}
+                      initial={reduce ? false : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeOut', delay: reduce ? 0 : 0.2 + i * 0.06 }}
+                    >
+                      {item.href ? (
+                        <a href={item.href} target="_blank" rel="noreferrer" className={cls}>
+                          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                          <span className="leading-snug">{item.label}</span>
+                        </a>
+                      ) : (
+                        <div className={cls}>
+                          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                          <span className="leading-snug">{item.label}</span>
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })}
               </div>
             </div>
             <p className="mt-5 border-t border-border pt-3 font-mono text-caption text-text-muted">

@@ -7,6 +7,7 @@ import type { Router } from '@/data/mock'
 import { SectionHeader } from '@/components/SectionHeader'
 import { StatusPill } from '@/components/StatusPill'
 import { getRouterExtras } from '@/components/routers/routerExtras'
+import type { RouterExtras } from '@/components/routers/routerExtras'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -18,9 +19,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /** ③ Info + Red (router-detail.md §③) — definition list + acciones ghost. */
-export function RouterInfo({ router }: { router: Router }) {
+export function RouterInfo({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const extras = getRouterExtras(router.id)
+  const ex = extras ?? getRouterExtras(router.id)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
   const timer = useRef<number | null>(null)
@@ -42,25 +43,25 @@ export function RouterInfo({ router }: { router: Router }) {
 
   const rows: { label: string; node: React.ReactNode }[] = [
     { label: 'IP LAN', node: router.ip },
-    { label: 'MAC', node: extras.mac },
+    { label: 'MAC', node: ex.mac },
     {
       label: 'Firmware',
       node: (
         <span className="inline-flex items-center gap-2">
-          {extras.firmware}
-          {extras.firmwareBase && <span className="text-text-muted">{t('routerDetail.info.firmwareBase', { base: extras.firmwareBase })}</span>}
-          {extras.firmwareUpdated ? (
+          {ex.firmware}
+          {ex.firmwareBase && <span className="text-text-muted">{t('routerDetail.info.firmwareBase', { base: ex.firmwareBase })}</span>}
+          {ex.firmwareUpdated ? (
             <StatusPill tone="ok" label={t('routerDetail.info.updated')} />
           ) : (
-            <span title={t('routers.firmwareAvailable', { version: extras.firmwareAvailable })}>
-              <StatusPill tone="warn" label={extras.firmwareAvailable ?? ''} />
+            <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
+              <StatusPill tone="warn" label={ex.firmwareAvailable ?? ''} />
             </span>
           )}
         </span>
       ),
     },
     { label: 'Uptime', node: fmtUptime(router.uptime) },
-    { label: t('routerDetail.info.lastReboot'), node: extras.lastReboot },
+    { label: t('routerDetail.info.lastReboot'), node: ex.lastReboot },
     { label: t('routerDetail.info.timezone'), node: 'Europe/Madrid' },
     {
       label: t('routerDetail.info.access'),
@@ -72,8 +73,8 @@ export function RouterInfo({ router }: { router: Router }) {
         </span>
       ),
     },
-    { label: 'SoC', node: extras.soc },
-    { label: 'Flash', node: extras.flash },
+    { label: 'SoC', node: ex.soc },
+    { label: 'Flash', node: ex.flash },
   ]
 
   return (

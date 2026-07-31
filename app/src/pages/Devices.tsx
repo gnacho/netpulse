@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   Check,
@@ -858,8 +858,18 @@ export default function Devices() {
   // del mockup; en live solo fusiona metadatos conocidos sobre la API.
   const allDevices = useMemo(() => buildClientDevices(devices, isDemo), [devices, isDemo])
 
-  const [query, setQuery] = useState('')
-  const [q, setQ] = useState('')
+  const [searchParams] = useSearchParams()
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  const [q, setQ] = useState(() => (searchParams.get('q') ?? '').trim().toLowerCase())
+
+  // Enlaces entrantes tipo /devices?q=<mac|ip|nombre> (p.ej. desde Puertos)
+  useEffect(() => {
+    const incoming = searchParams.get('q')
+    if (incoming !== null) {
+      setQuery(incoming)
+      setQ(incoming.trim().toLowerCase())
+    }
+  }, [searchParams])
   const [router, setRouter] = useState('all')
   const [band, setBand] = useState<BandFilter>('all')
   const [groups, setGroups] = useState<FilterGroup[]>([])

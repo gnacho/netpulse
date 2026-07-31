@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Router as RouterIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { relTime } from '@/i18n'
 import { useNetPulse } from '@/data/DataProvider'
+import type { RouterDetailData } from '@/data/DataProvider'
 import { AdGuardPanel } from '@/components/routers/AdGuardPanel'
 import { BackhaulPanel } from '@/components/routers/BackhaulPanel'
 import { PortPanel } from '@/components/routers/PortPanel'
@@ -22,9 +23,22 @@ export default function RouterDetail() {
   const { id = '' } = useParams()
   const location = useLocation()
   const reduce = useReducedMotion()
-  const { routers, alerts } = useNetPulse()
+  const { routers, alerts, getRouterDetail } = useNetPulse()
   const router = routers.find((r) => r.id === id)
   const isGateway = router?.roleBadge === 'Principal'
+  const [detail, setDetail] = useState<RouterDetailData | null>(null)
+
+  // Detalle vivo del backend (extras: radios, bocas LAN con dispositivo, info)
+  useEffect(() => {
+    let disposed = false
+    setDetail(null)
+    void getRouterDetail(id).then((d) => {
+      if (!disposed) setDetail(d)
+    })
+    return () => {
+      disposed = true
+    }
+  }, [id, getRouterDetail, routers])
 
   // Scroll al inicio al cambiar de router
   useEffect(() => {
@@ -108,21 +122,21 @@ export default function RouterDetail() {
 
       {/* ③ Info + Red (en móvil va la última) */}
       <div className="order-last lg:order-none lg:col-span-4">
-        <RouterInfo router={router} />
+        <RouterInfo router={router} extras={detail?.extras} />
       </div>
 
       {/* ④ WAN & Latencia (gateway) / Backhaul (APs) */}
-      {isGateway ? <WanLatency /> : <BackhaulPanel router={router} />}
+      {isGateway ? <WanLatency /> : <BackhaulPanel router={router} extras={detail?.extras} />}
 
       {/* ⑤⑥ Servicios + Puertos (gateway) / Radios + Puertos (APs) */}
       {isGateway ? (
         <>
           <AdGuardPanel />
           <WireGuardPanel />
-          <PortPanel router={router} className="lg:col-span-12" />
+          <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" />
         </>
       ) : (
-        <RadiosPorts router={router} />
+        <RadiosPorts router={router} extras={detail?.extras} />
       )}
 
       {/* ⑦ Clientes de este router */}

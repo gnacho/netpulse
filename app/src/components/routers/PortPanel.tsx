@@ -1,9 +1,10 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import type { Router } from '@/data/mock'
 import { SectionHeader } from '@/components/SectionHeader'
 import { getRouterExtras } from '@/components/routers/routerExtras'
-import type { EthPort } from '@/components/routers/routerExtras'
+import type { EthPort, RouterExtras } from '@/components/routers/routerExtras'
 import { cn } from '@/lib/utils'
 
 /**
@@ -81,7 +82,17 @@ function Jack({ port, index }: { port: EthPort; index: number }) {
         {port.up ? (
           <>
             <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
-              {port.connectedTo ?? t('routerDetail.ports.inUse')}
+              {port.connectedTo ? (
+                <Link
+                  to={`/devices?q=${encodeURIComponent(port.deviceMac ?? port.connectedTo)}`}
+                  className="transition-colors hover:text-accent hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {port.connectedTo}
+                </Link>
+              ) : (
+                t('routerDetail.ports.inUse')
+              )}
             </div>
             {port.speed && <div className="font-mono text-[10px] text-text-muted">{port.speed}</div>}
           </>
@@ -93,12 +104,12 @@ function Jack({ port, index }: { port: EthPort; index: number }) {
   )
 }
 
-export function PortPanel({ router, className }: { router: Router; className?: string }) {
+export function PortPanel({ router, extras, className }: { router: Router; extras?: RouterExtras; className?: string }) {
   const { t } = useTranslation()
-  const extras = getRouterExtras(router.id)
-  const ports = extras.ethPorts
+  const ex = extras ?? getRouterExtras(router.id)
+  const ports = ex.ethPorts
   const used = ports.filter((p) => p.up).length
-  const wirelessUplink = extras.backhaul?.kind === 'wireless'
+  const wirelessUplink = ex.backhaul?.kind === 'wireless'
 
   // Separador visual tras el puerto WAN
   const wanPorts = ports.filter((p) => p.id === 'wan')

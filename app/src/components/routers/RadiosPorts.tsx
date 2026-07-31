@@ -6,12 +6,13 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { StatusPill } from '@/components/StatusPill'
 import { PortPanel } from '@/components/routers/PortPanel'
 import { getRouterExtras } from '@/components/routers/routerExtras'
+import type { RouterExtras } from '@/components/routers/routerExtras'
 import { cn } from '@/lib/utils'
 
 /** ⑤⑥ variante OpenWrt — Radios WiFi (7) + Puertos (5) (router-detail.md §Variante). */
-export function RadiosPorts({ router }: { router: Router }) {
+export function RadiosPorts({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const extras = getRouterExtras(router.id)
+  const ex = extras ?? getRouterExtras(router.id)
   const reduce = useReducedMotion()
 
   return (
@@ -20,7 +21,7 @@ export function RadiosPorts({ router }: { router: Router }) {
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-6 lg:col-span-7">
         <SectionHeader title={t('routerDetail.radios.title')} />
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {extras.radios.map((radio, i) => (
+          {ex.radios.map((radio, i) => (
             <motion.div
               key={radio.name}
               initial={reduce ? false : { opacity: 0, y: 12 }}
@@ -63,7 +64,7 @@ export function RadiosPorts({ router }: { router: Router }) {
       </section>
 
       {/* Puertos Ethernet (panel visual de bocas RJ45) */}
-      <PortPanel router={router} className="lg:col-span-5" />
+      <PortPanel router={router} extras={extras} className="lg:col-span-5" />
     </>
   )
 }

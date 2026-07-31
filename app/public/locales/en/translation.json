@@ -420,12 +420,12 @@
     "about": {
       "changelog": "Changelog",
       "code": "Source code",
-      "desc": "Home network control dashboard. Monitors 4 routers: a GL.iNet Flint 2 (AdGuard Home + WireGuard) and three OpenWrt devices. Phase 1: read-only.",
+      "desc": "Network control panel for OpenWRT devices. Monitors 4 routers and APs with AdGuard Home + WireGuard for now. Phase 1: read-only.",
       "footer": "React 19 · Tailwind · Recharts · Framer Motion — fonts: Space Grotesk, Inter, JetBrains Mono",
       "madeAtHome": "Made at home",
       "privacy": "Privacy: all data stays in your network",
       "title": "About",
-      "versionNote": "v0.1.0 · design mockup"
+      "versionNote": "v1.0.0"
     },
     "accent": "Accent",
     "accentAmber": "Amber",

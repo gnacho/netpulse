@@ -420,12 +420,12 @@
     "about": {
       "changelog": "Registro de cambios",
       "code": "Código",
-      "desc": "Panel de control de red doméstica. Monitoriza 4 routers: un GL.iNet Flint 2 (AdGuard Home + WireGuard) y tres equipos OpenWrt. Fase 1: solo lectura.",
+      "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza 4 routers y APs con AdGuard Home + WireGuard de momento. Fase 1: solo lectura.",
       "footer": "React 19 · Tailwind · Recharts · Framer Motion — fuentes: Space Grotesk, Inter, JetBrains Mono",
       "madeAtHome": "Hecho en casa",
       "privacy": "Privacidad: todos los datos se quedan en tu red",
       "title": "Acerca de",
-      "versionNote": "v0.1.0 · mockup de diseño"
+      "versionNote": "v1.0.0"
     },
     "accent": "Acento",
     "accentAmber": "Ámbar",

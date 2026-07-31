@@ -251,13 +251,14 @@ export class OpenWrtClient {
 
   /**
    * Clientes wireless asociados: iwinfo <iface> assoclist por cada radio.
+   * Compatible BusyBox (sin grep -P): awk para listar ifaces, sed BRE para parsear.
    * Devuelve mapa mac → { signalDbm, band }.
    */
   async getWirelessClients() {
     const out = await this.ssh(
-      "for i in $(iwinfo | grep -oP '^\\S+'); do " +
-        'freq=$(iwinfo "$i" info 2>/dev/null | grep -oP \'Channel:.*\\(\' | grep -oP \'\\d\\.\\d|\\d{4}\' | head -1); ' +
-        'iwinfo "$i" assoclist 2>/dev/null | grep -oP \'^[0-9A-F:]{17}\\s+-\\d+\' | while read mac sig; do ' +
+      'for i in $(iwinfo 2>/dev/null | awk \'/^[a-z]/ {print $1}\'); do ' +
+        'freq=$(iwinfo "$i" info 2>/dev/null | sed -n \'s/.*Channel: [0-9]* (\\([0-9.]*\\) GHz).*/\\1/p\' | head -1); ' +
+        'iwinfo "$i" assoclist 2>/dev/null | sed -n \'s/^\\([0-9A-Fa-f:]\\{17\\}\\) *\\(-[0-9]*\\).*/\\1 \\2/p\' | while read mac sig; do ' +
         'echo "$mac $sig $freq"; done; done',
       8000,
     )
@@ -296,5 +297,107 @@ export class OpenWrtClient {
           speed: mbps > 0 ? (mbps >= 1000 ? `${mbps / 1000} Gbps` : `${mbps} Mbps`) : '—',
         }
       })
+  }
+
+  /**
+   * Bocas Ethernet físicas (DSA): lanN + wan con estado y velocidad.
+   * Devuelve [{ id, label, up, speed }] listo para EthPort.
+   */
+  async getEthPorts() {
+    const states = await this.getPortStates()
+    return states
+      .filter((p) => /^(lan\d+|wan)$/.test(p.name))
+      .sort((a, b) => (a.name === 'wan' ? -1 : b.name === 'wan' ? 1 : a.name.localeCompare(b.name, undefined, { numeric: true })))
+      .map((p) => ({
+        id: p.name,
+        label: p.name === 'wan' ? 'WAN' : p.name.replace('lan', 'LAN '),
+        up: p.up,
+        speed: p.up ? p.speed : undefined,
+      }))
+  }
+
+  /**
+   * Tabla de reenvío del bridge: MAC aprendida → puerto (lanN/wan).
+   * Usa brctl (BusyBox lo trae; `bridge` no existe en estos routers) +
+   * /sys/class/net/br-lan/brif/<iface>/port_no para mapear nº de puerto → nombre.
+   * Devuelve Map mac → port.
+   */
+  async getBridgeFdb() {
+    const out = await this.ssh(
+      'echo "==PORTS=="; for d in /sys/class/net/br-lan/brif/*; do [ -r "$d/port_no" ] && echo "$(cat $d/port_no) $(basename $d)"; done; ' +
+        'echo "==MACS=="; brctl showmacs br-lan 2>/dev/null | awk \'NR>1 && $3=="no" {print $1, $2}\'',
+    )
+    const map = new Map()
+    const portNames = new Map()
+    let section = ''
+    for (const line of out.split('\n')) {
+      const t = line.trim()
+      if (t.startsWith('==PORTS==')) {
+        section = 'p'
+        continue
+      }
+      if (t.startsWith('==MACS==')) {
+        section = 'm'
+        continue
+      }
+      if (section === 'p') {
+        const [no, name] = t.split(/\s+/)
+        // port_no puede venir en hex (0x2) o decimal; brctl lo muestra decimal
+        const dec = no?.startsWith('0x') ? String(parseInt(no, 16)) : no
+        if (dec && name) portNames.set(dec, name)
+      } else if (section === 'm') {
+        const [no, mac] = t.split(/\s+/)
+        const port = portNames.get(no)
+        if (mac && port && /^(lan\d+|wan)$/.test(port)) map.set(mac.toUpperCase(), port)
+      }
+    }
+    return map
+  }
+
+  // -------------------------------------------------------------------------
+  // Radios WiFi
+  // -------------------------------------------------------------------------
+
+  /**
+   * Radios activas: por cada interfaz AP con ESSID, canal/ancho/potencia
+   * (iwinfo info) y nº de clientes (iwinfo assoclist). Agregado por banda.
+   * Compatible BusyBox (awk/sed, sin grep -P).
+   * Devuelve [{ name, channel, widthMhz, powerDbm, clients }].
+   */
+  async getRadios() {
+    const out = await this.ssh(
+      'for i in $(iwinfo 2>/dev/null | awk \'/^[a-z]/ {print $1}\'); do ' +
+        'info=$(iwinfo "$i" info 2>/dev/null) || continue; ' +
+        'echo "$info" | grep -q ESSID || continue; ' +
+        'freq=$(echo "$info" | sed -n \'s/.*Channel: [0-9]* (\\([0-9.]*\\) GHz).*/\\1/p\' | head -1); ' +
+        'ch=$(echo "$info" | sed -n \'s/.*Channel: \\([0-9][0-9]*\\).*/\\1/p\' | head -1); ' +
+        'ht=$(echo "$info" | sed -n \'s/.*HT [Mm]ode: \\([A-Za-z0-9]*\\).*/\\1/p\' | head -1); ' +
+        'tx=$(echo "$info" | sed -n \'s/.*Tx-Power: \\([0-9]*\\).*/\\1/p\' | head -1); ' +
+        'n=$(iwinfo "$i" assoclist 2>/dev/null | grep -c \'^[0-9A-Fa-f:]\'); ' +
+        'echo "$freq|$ch|$ht|$tx|$n"; done',
+      8000,
+    )
+    const byBand = new Map()
+    for (const line of out.trim().split('\n').filter(Boolean)) {
+      const [freqS, chS, ht, txS, nS] = line.split('|')
+      const freq = parseFloat(freqS || '0')
+      if (!freq) continue
+      const band = freq >= 5 ? '5 GHz' : '2.4 GHz'
+      const widthMhz = parseInt((ht || '').replace(/\D/g, ''), 10) || 20
+      const clients = parseInt(nS || '0', 10) || 0
+      const cur = byBand.get(band)
+      if (!cur) {
+        byBand.set(band, {
+          name: band,
+          channel: parseInt(chS || '0', 10) || 0,
+          widthMhz,
+          powerDbm: parseInt(txS || '0', 10) || 0,
+          clients,
+        })
+      } else {
+        cur.clients += clients // SSID extra en la misma banda (suma clientes)
+      }
+    }
+    return [...byBand.values()]
   }
 }

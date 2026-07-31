@@ -119,14 +119,16 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     // abajo multiplexan sobre la conexión ya establecida (en frío, todas
     // compiten por crear el socket y algunas mueren → falso "offline").
     await client.ssh('true')
-    const [sysInfo, cpu, temp, net, leases, wireless, ports] = await Promise.all([
+    const [sysInfo, cpu, temp, net, leases, wireless, ports, radios, fdb] = await Promise.all([
       client.getSystemInfo(),
       client.getCpuPercent().catch(() => null),
       client.getTempC().catch(() => null),
       client.getNetDevBps().catch(() => ({ rxBps: null, txBps: null })),
       client.getDhcpLeases().catch(() => []),
       client.getWirelessClients().catch(() => new Map()),
-      client.getPortStates().catch(() => []),
+      client.getEthPorts().catch(() => []),
+      client.getRadios().catch(() => []),
+      client.getBridgeFdb().catch(() => new Map()),
     ])
     if (!boardCache.has(cfg.id)) {
       boardCache.set(cfg.id, await client.getBoard().catch(() => null))
@@ -153,6 +155,8 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       leases,
       wireless,
       ports,
+      radios,
+      fdb,
       latency,
     }
   }
@@ -299,27 +303,45 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     }
   }
 
+  /**
+   * Dispositivos = unión de leases DHCP (nombre/IP) y MACs VISTAS por cada
+   * router (assoclist WiFi + FDB del bridge). El routerId es el router que
+   * realmente tiene asociado/conectado el dispositivo; si nadie lo ve pero
+   * tiene lease, se atribuye al gateway.
+   */
   function buildDevices(polled) {
-    const devices = []
+    const leasesByMac = new Map()
+    for (const [, p] of polled) {
+      for (const l of p.leases ?? []) if (l.mac) leasesByMac.set(l.mac, l)
+    }
+    const seen = new Map() // mac → { routerId, band, signalDbm }
     for (const [routerId, p] of polled) {
-      for (const lease of p.leases) {
-        if (!lease.mac) continue
-        const w = p.wireless.get(lease.mac)
-        devices.push({
-          id: lease.mac.toLowerCase().replace(/:/g, '-'),
-          name: lease.hostname || lease.mac,
-          type: 'desconocido',
-          manufacturer: 'Desconocido',
-          ip: lease.ip,
-          mac: lease.mac,
-          routerId,
-          band: w ? w.band : 'cable',
-          signalDbm: w ? w.signalDbm : null,
-          trafficMbps: 0,
-          online: true,
-          sparkline: [],
-        })
+      for (const [mac, w] of p.wireless ?? new Map()) {
+        seen.set(mac, { routerId, band: w.band, signalDbm: w.signalDbm })
       }
+      for (const [mac, port] of p.fdb ?? new Map()) {
+        if (!seen.has(mac)) seen.set(mac, { routerId, band: 'cable', signalDbm: null, port })
+      }
+    }
+    const allMacs = new Set([...leasesByMac.keys(), ...seen.keys()])
+    const devices = []
+    for (const mac of allMacs) {
+      const lease = leasesByMac.get(mac)
+      const s = seen.get(mac)
+      devices.push({
+        id: mac.toLowerCase().replace(/:/g, '-'),
+        name: lease?.hostname || mac,
+        type: 'desconocido',
+        manufacturer: 'Desconocido',
+        ip: lease?.ip ?? '',
+        mac,
+        routerId: s?.routerId ?? gatewayCfg?.id,
+        band: s?.band ?? 'cable',
+        signalDbm: s?.signalDbm ?? null,
+        trafficMbps: 0,
+        online: Boolean(s) || Boolean(lease),
+        sparkline: [],
+      })
     }
     return devices
   }
@@ -446,16 +468,29 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     if (!cfg) return null
     const p = lastPolled.get(id)
     const router = p ? buildRouter(p, metricsHistory(id, '24h')) : offlineRouter(cfg)
-    const ports = (p?.ports ?? []).map((port) => ({
-      id: port.name,
-      label: port.name,
-      up: port.up,
-      speed: port.up ? port.speed : undefined,
-    }))
+    // Mapa global MAC → lease (los satélites no tienen DHCP: hay que mirar
+    // la tabla del gateway para nombrar lo que cuelga de sus bocas)
+    const leaseMap = new Map()
+    for (const [, polled] of lastPolled) {
+      for (const l of polled.leases ?? []) if (l.mac) leaseMap.set(l.mac, l)
+    }
+    const fdb = p?.fdb ?? new Map()
+    const ports = (p?.ports ?? []).map((port) => {
+      if (!port.up) return port
+      const mac = [...fdb].find(([, portName]) => portName === port.id)?.[0]
+      const lease = mac ? leaseMap.get(mac) : null
+      return {
+        ...port,
+        connectedTo: lease?.hostname || lease?.ip || mac || undefined,
+        deviceMac: mac || undefined,
+        detail: lease?.ip ? `${lease.ip} · full duplex` : undefined,
+      }
+    })
+    const radios = p?.radios ?? []
     const detail = {
       router,
       ports,
-      radios: null,
+      radios,
       backhaul: null,
       series: {
         '1h': metricsHistory(id, '1h').map(({ t, cpu, ram, temp }) => ({ t, cpu, ram, temp })),
@@ -475,8 +510,8 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
         trafficNow: mbps(p?.net?.rxBps),
         gatewayLatencySpark: [],
         backhaulSignal: [],
-        radios: [],
-        ports: p?.ports ?? [],
+        radios,
+        ports,
         ethPorts: ports,
       },
     }
