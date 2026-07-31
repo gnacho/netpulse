@@ -842,6 +842,112 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
 
 
 // ---------------------------------------------------------------------------
+// AdGuard Home (GL.iNet): URL + credenciales de la UI del router (kv servidor)
+// ---------------------------------------------------------------------------
+
+function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [host, setHost] = useState('')
+  const [user, setUser] = useState('root')
+  const [password, setPassword] = useState('')
+  const [passSet, setPassSet] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/config/adguard')
+        if (!res.ok) return
+        const json = (await res.json()) as { host: string; user: string; passSet: boolean }
+        if (disposed) return
+        setHost(json.host)
+        setUser(json.user || 'root')
+        setPassSet(json.passSet)
+      } catch {
+        /* sin permisos */
+      }
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!host.trim() || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/config/adguard', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: host.trim(), user: user.trim() || 'root', password: password || undefined }),
+      })
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
+      setPassSet(true)
+      setPassword('')
+      onSaved()
+    } catch {
+      setError(t('settings.adguard.errorGeneric'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
+      <form onSubmit={(e) => void save(e)}>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <input
+            type="text"
+            required
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            placeholder={t('settings.adguard.host')}
+            aria-label={t('settings.adguard.host')}
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <input
+            type="text"
+            value={user}
+            onChange={(e) => setUser(e.target.value)}
+            placeholder={t('settings.adguard.user')}
+            aria-label={t('settings.adguard.user')}
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={passSet ? t('settings.adguard.passKeep') : t('settings.adguard.pass')}
+            aria-label={t('settings.adguard.pass')}
+            autoComplete="new-password"
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-3">
+          <span className={cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider', passSet ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn')}>
+            {passSet ? t('settings.adguard.configured') : t('settings.adguard.notConfigured')}
+          </span>
+          <button
+            type="submit"
+            disabled={saving || !host.trim() || (!passSet && !password)}
+            className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+          >
+            {saving ? t('settings.adguard.saving') : t('settings.adguard.save')}
+          </button>
+        </div>
+        {error && <p className="mt-2 text-caption text-danger">{error}</p>}
+        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
+      </form>
+    </Card>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -1487,6 +1593,13 @@ export default function Settings() {
         {!isDemo && (
           <div className="lg:col-span-12">
             <RoutersManager reduce={reduce} onSaved={notify} />
+          </div>
+        )}
+
+        {/* AdGuard Home (GL.iNet) — solo admin y modo live */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <AdGuardManager reduce={reduce} onSaved={notify} />
           </div>
         )}
 

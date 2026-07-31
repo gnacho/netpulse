@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { listRouters, addRouter, removeRouter } from '../routerstore.js'
 import { getPublicKey } from '../sshkey.js'
 import { discoverRouters } from '../discover.js'
+import { requireAdmin } from '../auth.js'
 
 const hostSchema = z
   .string()
@@ -74,6 +75,43 @@ export function registerConfigRoutes(app, { dbHandle, adapter, config }) {
     const ok = removeRouter(dbHandle.db, c.req.param('id'))
     if (!ok) return c.json({ error: 'not_found' }, 404)
     sync()
+    return c.body(null, 204)
+  })
+
+  // --- AdGuard Home (GL.iNet) — solo admin; la contraseña NO se devuelve ---
+
+  app.get('/api/config/adguard', requireAdmin(), (c) => {
+    const get = (k) => dbHandle.db.prepare(`SELECT value FROM kv WHERE key = ?`).get(k)?.value ?? ''
+    return c.json({
+      host: get('adguard_host'),
+      user: get('adguard_user') || 'root',
+      passSet: Boolean(get('adguard_pass')),
+    })
+  })
+
+  const adguardSchema = z.object({
+    host: hostSchema,
+    user: z.string().trim().min(1).max(64).default('root'),
+    password: z.string().max(128).optional(),
+  })
+
+  app.put('/api/config/adguard', requireAdmin(), async (c) => {
+    let body
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid_json' }, 400)
+    }
+    const parsed = adguardSchema.safeParse(body)
+    if (!parsed.success) {
+      return c.json({ error: 'invalid_input', message: parsed.error.issues[0]?.message }, 400)
+    }
+    const upsert = dbHandle.db.prepare(
+      'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    )
+    upsert.run('adguard_host', parsed.data.host)
+    upsert.run('adguard_user', parsed.data.user)
+    if (parsed.data.password) upsert.run('adguard_pass', parsed.data.password)
     return c.body(null, 204)
   })
 }

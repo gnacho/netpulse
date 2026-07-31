@@ -790,7 +790,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             onDotClick={(dot, e) => {
               if (moved.current) return
               const data: TooltipData = { kind: 'dot', id: dot.id, dot, x: dot.x, y: dot.y - 10 }
-              const navTo = dot.device ? `/devices?q=${encodeURIComponent(dot.device.name)}` : undefined
+              const navTo = dot.device ? `/devices?q=${encodeURIComponent(dot.device.mac ?? dot.device.name)}` : undefined
               nodeClick(e, data, navTo)
             }}
           />
@@ -805,12 +805,12 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           aria-hidden={!showLabels}
         >
           {/* Internet */}
-          <LabelText x={internetNode.x + 56} y={internetNode.y - 4} anchor="start" delay={2.0 * T} reduce={reduce ?? false}
+          <LabelText x={internetNode.x} y={internetNode.y + 56} anchor="middle" delay={2.0 * T} reduce={reduce ?? false}
             title={`Internet · ${wan.isp}`} sub={t('routerDetail.wan.fiber', { plan: wan.plan })} />
           {/* Gateway */}
           {model.gatewayNode && (
             <LabelText x={556} y={240} anchor="start" delay={2.05 * T} reduce={reduce ?? false}
-              title="Gateway" sub={`${model.gatewayNode.router.modelShort} · ${t('common.clientsCount', { count: model.gatewayNode.router.clients })}`} />
+              title={model.gatewayNode.router.name} sub={`${model.gatewayNode.router.modelShort} · ${t('common.clientsCount', { count: model.gatewayNode.router.clients })}`} />
           )}
           {/* APs */}
           {routerNodes.slice(1).map((node, i) => (
@@ -921,7 +921,7 @@ const ClusterGroup = memo(function ClusterGroup({
           key={dot.id}
           cx={dot.x}
           cy={dot.y}
-          r={5}
+          r={dot.r ?? 5}
           fill={bandColor(dot.band, dot.weak)}
           stroke="rgb(var(--canvas))"
           strokeWidth={1.5}

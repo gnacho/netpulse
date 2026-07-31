@@ -93,7 +93,7 @@ export function WanTraffic() {
   const liveDotUp = useMemo(() => makeLiveDot(liveData.length, '#A78BFA'), [liveData.length])
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
+    <section className="flex h-full flex-col rounded-2xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeader title={t('home.traffic.title')}>
           <StatusPill tone="ok" label={t('topbar.live')} pulse />

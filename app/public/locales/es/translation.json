@@ -554,6 +554,20 @@
       "passwordPrompt": "Nueva contraseña para {name} (mín. 6 caracteres):",
       "errorDuplicate": "Ese usuario ya existe",
       "errorGeneric": "No se pudo completar la operación."
+    },
+    "adguard": {
+      "title": "AdGuard Home",
+      "caption": "Conexión con la API de AdGuard en el router GL.iNet (puerto 3000)",
+      "host": "IP del router (p. ej. 192.168.1.1)",
+      "user": "Usuario de la interfaz GL",
+      "pass": "Contraseña de la interfaz GL",
+      "passKeep": "Guardada (escribe para cambiar)",
+      "configured": "Configurado",
+      "notConfigured": "Sin configurar",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "errorGeneric": "No se pudo guardar.",
+      "hint": "La contraseña se guarda solo en el servidor. NetPulse inicia sesión en la interfaz GL a través del propio router (SSH) y consulta la API de AdGuard con esa sesión."
     }
   },
   "statcard": {

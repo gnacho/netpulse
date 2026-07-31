@@ -57,7 +57,7 @@ export function HeroStrip() {
   const words = greeting.split(' ')
 
   return (
-    <section className="mesh-bg relative overflow-hidden rounded-2xl border border-border bg-surface p-5 md:p-6">
+    <section className="mesh-bg relative h-full overflow-hidden rounded-2xl border border-border bg-surface p-5 md:p-6">
       {/* Halo radial cyan que respira */}
       {!reduce && (
         <motion.div

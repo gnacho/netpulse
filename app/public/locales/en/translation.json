@@ -554,6 +554,20 @@
       "passwordPrompt": "New password for {name} (min. 6 chars):",
       "errorDuplicate": "That username already exists",
       "errorGeneric": "Could not complete the operation."
+    },
+    "adguard": {
+      "title": "AdGuard Home",
+      "caption": "Connection to the AdGuard API on the GL.iNet router (port 3000)",
+      "host": "Router IP (e.g. 192.168.1.1)",
+      "user": "GL UI username",
+      "pass": "GL UI password",
+      "passKeep": "Saved (type to change)",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "save": "Save",
+      "saving": "Saving…",
+      "errorGeneric": "Could not save.",
+      "hint": "The password is stored only on the server. NetPulse logs into the GL UI through the router itself (SSH) and queries the AdGuard API with that session."
     }
   },
   "statcard": {

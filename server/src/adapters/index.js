@@ -15,6 +15,7 @@
 import { createDemoAdapter } from './demo.js'
 import { OpenWrtClient } from './openwrt.js'
 import { AdGuardClient } from './adguard.js'
+import { AdGuardGlinetClient } from './adguard-glinet.js'
 import { getWireGuardStats } from './wireguard.js'
 
 export function createAdapter(config, dbHandle, routers = []) {
@@ -46,7 +47,6 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
   let routers = [...initialRouters]
   let gatewayCfg = pickGateway(routers)
   let clients = new Map()
-  const adguardClient = config.adguard ? new AdGuardClient(config.adguard) : null
 
   function rebuildClients() {
     clients = new Map(
@@ -62,7 +62,36 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
   function setRouters(list) {
     routers = [...list]
     gatewayCfg = pickGateway(routers)
-    rebuildClients()
+  rebuildClients()
+
+  // AdGuard: config desde kv (Ajustes, GL.iNet) con fallback a .env (AGH estándar)
+  let adguardClient = null
+  let adguardClientKey = ''
+  function getAdguardClient() {
+    let client = null
+    let key = ''
+    if (dbHandle) {
+      const host = dbHandle.db.prepare("SELECT value FROM kv WHERE key='adguard_host'").get()?.value
+      if (host) {
+        const user = dbHandle.db.prepare("SELECT value FROM kv WHERE key='adguard_user'").get()?.value ?? 'root'
+        const pass = dbHandle.db.prepare("SELECT value FROM kv WHERE key='adguard_pass'").get()?.value ?? ''
+        if (pass) {
+          key = `gl|${host}|${user}`
+          if (adguardClientKey !== key) client = new AdGuardGlinetClient({ host, user, pass, sshKeyPath: config.sshKeyPath })
+        }
+      }
+    }
+    if (!client && !key && config.adguard?.pass) {
+      key = `std|${config.adguard.url}`
+      if (adguardClientKey !== key) client = new AdGuardClient(config.adguard)
+    }
+    if (!key) return null
+    if (adguardClientKey !== key) {
+      adguardClient = client
+      adguardClientKey = key
+    }
+    return adguardClient
+  }
     // Limpia cachés de routers que ya no existen
     const ids = new Set(routers.map((r) => r.id))
     for (const id of [...lastGood.keys()]) if (!ids.has(id)) lastGood.delete(id)
@@ -155,8 +184,12 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     const fdbGood = fdb ?? cached.fdb
     extrasCache.set(cfg.id, { ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood })
     const mem = sysInfo?.memory ?? {}
-    const ramTotal = (mem.total || 0) + (mem.shared || 0)
-    const ramPct = ramTotal > 0 ? Math.round(((ramTotal - (mem.free || 0) - (mem.buffered || 0)) / ramTotal) * 100) : null
+    // Uso real de RAM como en la UI del router: used = total − available
+    // (MemAvailable ya descuenta caché recuperable; total−free−buffered infla)
+    const ramPct =
+      mem.total > 0
+        ? Math.round(((mem.total - (mem.available ?? (mem.free || 0) + (mem.buffered || 0))) / mem.total) * 100)
+        : null
     const isGw = cfg.id === gatewayCfg?.id
     const latency = isGw
       ? await client.getWanLatency().catch(() => ({ latencyMs: null, lossPct: null }))
@@ -343,6 +376,17 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       }
     : null
 
+  // Migración una vez (attrib_v2): las primeras versiones guardaban banda
+  // desde el FDB (incluidas MACs wifi de paso, p.ej. shelly) → tabla limpia
+  if (dbHandle && attribStmt) {
+    const flag = dbHandle.db.prepare("SELECT value FROM kv WHERE key = 'attrib_v2'").get()
+    if (!flag) {
+      dbHandle.db.prepare('DELETE FROM device_attrib').run()
+      dbHandle.db.prepare("INSERT INTO kv (key, value) VALUES ('attrib_v2', '1')").run()
+      console.log('[netpulse] device_attrib limpiada (attrib_v2: solo wireless persiste)')
+    }
+  }
+
   function buildDevices(polled) {
     const leasesByMac = new Map()
     for (const [, p] of polled) {
@@ -352,21 +396,22 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     const now = Date.now()
 
     const seen = new Map() // mac → { routerId, band, signalDbm }
-    // (1) wireless de cualquier router: la mejor pista
+    // (1) wireless de cualquier router: la mejor pista y la ÚNICA que se
+    // persiste. El FDB (de satélites o gateway) también ve MACs de paso
+    // (wifi de otro AP atravesando el bridge) → no sirve para recordar banda.
     for (const [routerId, p] of polled) {
       for (const [mac, w] of p.wireless ?? new Map()) {
         seen.set(mac, { routerId, band: w.band, signalDbm: w.signalDbm })
         attribStmt?.upsert.run(mac, routerId, w.band, w.signalDbm, now)
       }
     }
-    // (2) FDB de satélites: cableado directo al AP
+    // (2) FDB de satélites: pista solo de ESTE tick (no se guarda)
     const gwId = gatewayCfg?.id
     for (const [routerId, p] of polled) {
       if (routerId === gwId) continue
       for (const [mac] of p.fdb ?? new Map()) {
         if (!seen.has(mac)) {
           seen.set(mac, { routerId, band: 'cable', signalDbm: null })
-          attribStmt?.upsert.run(mac, routerId, 'cable', null, now)
         }
       }
     }

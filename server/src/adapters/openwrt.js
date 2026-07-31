@@ -320,6 +320,8 @@ export class OpenWrtClient {
 
   /**
    * Bocas Ethernet = layout (config) + estado /sys por nombre de interfaz.
+   * En APs en modo bridge el puerto físico "wan" está metido en br-lan (es
+   * una boca LAN más, no WAN): se detecta por brif y se re-etiqueta.
    * Si el layout no está disponible, heurística: lanN + wan/pppoe-wan/eth1.
    * Devuelve [{ id, label, up, speed }] listo para EthPort.
    */
@@ -327,10 +329,20 @@ export class OpenWrtClient {
     const states = await this.getPortStates()
     const byName = new Map(states.map((p) => [p.name, p]))
     if (layout?.length) {
+      // Miembros del bridge: si "wan" está en br-lan, este router es un AP
+      const brif = await this.ssh('ls /sys/class/net/br-lan/brif/ 2>/dev/null').catch(() => '')
+      const members = new Set(brif.trim().split('\n').filter(Boolean))
+      const lanCount = layout.filter((p) => p.role === 'lan').length
       return layout.map((p) => {
         const st = byName.get(p.name)
         const up = st?.up ?? false
-        return { id: p.id, label: p.label, up, speed: up ? st?.speed : undefined }
+        const isWanInBridge = p.role === 'wan' && members.has(p.name)
+        return {
+          id: p.id,
+          label: isWanInBridge ? `LAN ${lanCount + 1}` : p.label,
+          up,
+          speed: up ? st?.speed : undefined,
+        }
       })
     }
     // Fallback sin config

@@ -42,6 +42,8 @@ export interface ClientDot {
   band: Band
   weak: boolean
   device?: Device
+  /** radio del dot (menor cuantos más clientes) */
+  r?: number
 }
 
 export interface Cluster {
@@ -207,35 +209,36 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
     y: PEER_COORDS[i].y,
   }))
 
-  // Clusters de clientes (máx 12 dots visibles, resto = badge "+N")
+  // Clusters de clientes: UN DOT POR CLIENTE (sin cap), tamaño según densidad
   const mkCluster = (node: RouterNode, cx: number, cy: number): Cluster => {
     const named = devices.filter((d) => d.routerId === node.id && d.online)
-    const count = Math.min(named.length, MAX_CLUSTER_DOTS)
-    const dots: ClientDot[] = []
-    for (let j = 0; j < count; j++) {
+    const count = named.length
+    const dotR = count <= 8 ? 6 : count <= 16 ? 5 : count <= 30 ? 4 : 3
+    const dots: ClientDot[] = named.map((device, j) => {
+      // 8 en el anillo interior, el resto en el exterior
       const inner = j >= 8
       const idx = inner ? j - 8 : j
-      const n = inner ? count - 8 : Math.min(count, 8)
-      const radius = inner ? 22 : 46
-      const angle = (-90 + (360 / n) * idx + (inner ? 22 : 0)) * (Math.PI / 180)
-      const device = named[j]
+      const n = inner ? Math.max(count - 8, 1) : Math.min(count, 8)
+      const radius = inner ? 26 : 54
+      const angle = (-90 + (360 / n) * idx + (inner ? 20 : 0)) * (Math.PI / 180)
       const weak = device?.signalDbm != null ? device.signalDbm <= -65 : false
-      dots.push({
+      return {
         id: `${node.id}-dot-${j}`,
         x: Math.round((cx + radius * Math.cos(angle)) * 10) / 10,
         y: Math.round((cy + radius * Math.sin(angle)) * 10) / 10,
         band: device?.band ?? 'cable',
         weak,
         device,
-      })
-    }
+        r: dotR,
+      }
+    })
     return {
       id: `cluster-${node.id}`,
       routerId: node.id,
       cx,
       cy,
       dots,
-      extra: Math.max(0, named.length - MAX_CLUSTER_DOTS),
+      extra: 0,
     }
   }
 
