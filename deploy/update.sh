@@ -20,7 +20,8 @@ npm ci --no-audit --no-fund
 npm run build
 
 echo "STEP:restart"
-# Reinicio diferido en proceso desacoplado (este script muere con el servicio)
-setsid sh -c 'sleep 3; sudo -n systemctl restart netpulse.service' >/dev/null 2>&1 &
+# Reinicio vía unidad systemd.path del CT (netpulse-restart.path vigila este
+# flag y ejecuta systemctl restart netpulse.service como root)
+touch /opt/netpulse/server/data/.restart-me
 
 echo "STEP:done"
