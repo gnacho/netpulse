@@ -13,7 +13,10 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'es',
+    // Inglés por defecto salvo elección previa (español opcional en Ajustes;
+    // la opción 'auto' sigue al navegador vía detector manual)
+    lng: localStorage.getItem('i18nextLng') ?? 'en',
+    fallbackLng: 'en',
     supportedLngs: ['es', 'en'],
     nonExplicitSupportedLngs: true,
     backend: {

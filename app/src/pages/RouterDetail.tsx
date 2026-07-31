@@ -29,11 +29,13 @@ export default function RouterDetail() {
   const [detail, setDetail] = useState<RouterDetailData | null>(null)
 
   // Detalle vivo del backend (extras: radios, bocas LAN con dispositivo, info)
-  // NO se nullea al refrescar: evita parpadeo mock↔live en cada snapshot SSE
+  // NO se nullea al refrescar ni se sustituye si no cambia nada: evita
+  // parpadeo/re-animación en cada snapshot SSE
   useEffect(() => {
     let disposed = false
     void getRouterDetail(id).then((d) => {
-      if (!disposed && d) setDetail(d)
+      if (disposed || !d) return
+      setDetail((prev) => (prev && JSON.stringify(prev) === JSON.stringify(d) ? prev : d))
     })
     return () => {
       disposed = true

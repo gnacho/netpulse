@@ -111,6 +111,7 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
   const extrasCache = new Map() // routerId → { ports, radios, wireless, fdb } último bueno
   let alerts = [] // AlertEvent[], más recientes primero (máx 100)
   let lastWgPeersActive = new Set()
+  const weakAlerted = new Map() // mac → ts última alerta de señal débil
 
   function pushAlert(alert) {
     alerts = [alert, ...alerts].slice(0, 100)
@@ -523,6 +524,24 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       return router
     })
     const devices = buildDevices(polled)
+    // Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
+    for (const d of devices) {
+      if (d.online && d.signalDbm != null && d.signalDbm < -70) {
+        const last = weakAlerted.get(d.mac) ?? 0
+        if (Date.now() - last > 24 * 3600e3) {
+          weakAlerted.set(d.mac, Date.now())
+          pushAlert({
+            id: `alert-weak-${d.mac}-${Date.now()}`,
+            severity: 'warn',
+            title: `Señal débil en ${d.name}`,
+            description: `${d.signalDbm} dBm en ${d.routerId} — revisa cobertura o acerca un AP`,
+            time: 'ahora mismo',
+            read: false,
+            routerId: d.routerId,
+          })
+        }
+      }
+    }
     // Clientes reales por router (atribución wireless/FDB, no leases)
     for (const r of routerList) {
       r.clients = devices.filter((d) => d.routerId === r.id && d.online).length
@@ -582,13 +601,13 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     // Mapa global MAC → lease (los satélites no tienen DHCP: hay que mirar
     // la tabla del gateway para nombrar lo que cuelga de sus bocas)
     const leaseMap = new Map()
-    const routerMacs = new Set()
+    const routerByMac = new Map() // br-lan MAC → nombre del router
     for (const [, polled] of lastPolled) {
       for (const l of polled.leases ?? []) if (l.mac) leaseMap.set(l.mac, l)
-      if (polled.brMac) routerMacs.add(polled.brMac)
+      if (polled.brMac) routerByMac.set(polled.brMac, polled.cfg.name || polled.cfg.host)
     }
-    // Puerto → MACs aprendidas (menos las de los propios routers: esa boca
-    // es un enlace ascendente, no un dispositivo final)
+    // Boca → MACs aprendidas. Lo importante es el VECINO inmediato (lo que
+    // hay al otro lado del cable), no cuántos equipos cuelgan detrás.
     const portMacs = new Map()
     for (const [mac, portName] of p?.fdb ?? new Map()) {
       if (!portMacs.has(portName)) portMacs.set(portName, [])
@@ -597,21 +616,35 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     const ports = (p?.ports ?? []).map((port) => {
       if (!port.up) return port
       const all = portMacs.get(port.id) ?? []
-      const endDevices = all.filter((mac) => !routerMacs.has(mac))
-      if (all.length > 0 && endDevices.length === 0) {
-        return { ...port, connectedTo: 'Enlace ascendente' }
+      // 1) ¿Hay otro router al otro lado? (uplink router↔router)
+      const neighbor = all.find((mac) => routerByMac.has(mac))
+      if (neighbor) {
+        return { ...port, connectedTo: routerByMac.get(neighbor), detail: 'enlace entre routers' }
       }
+      // 2) Un solo dispositivo final
+      const endDevices = all
+      if (endDevices.length === 1) {
+        const mac = endDevices[0]
+        const lease = leaseMap.get(mac)
+        return {
+          ...port,
+          connectedTo: lease?.hostname || lease?.ip || mac,
+          deviceMac: mac,
+          detail: lease?.ip ? `${lease.ip} · full duplex` : undefined,
+        }
+      }
+      // 3) Varios: el vecino es un switch/hub — si tiene nombre (lease), ese es
       if (endDevices.length > 1) {
-        return { ...port, connectedTo: `${endDevices.length} equipos` }
+        const infraMac = endDevices.find((mac) => leaseMap.get(mac)?.hostname)
+        const infra = infraMac ? leaseMap.get(infraMac) : null
+        return {
+          ...port,
+          connectedTo: infra?.hostname || 'Switch',
+          deviceMac: infraMac || undefined,
+          detail: infra?.ip ?? undefined,
+        }
       }
-      const mac = endDevices[0]
-      const lease = mac ? leaseMap.get(mac) : null
-      return {
-        ...port,
-        connectedTo: lease?.hostname || lease?.ip || mac || undefined,
-        deviceMac: mac || undefined,
-        detail: lease?.ip ? `${lease.ip} · full duplex` : undefined,
-      }
+      return port
     })
     const radios = p?.radios ?? []
     const detail = {
@@ -626,10 +659,18 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       },
       clients: buildDevices(lastPolled).filter((d) => d.routerId === id),
       extras: {
-        mac: p?.board ? (p.board['mac'] ?? '—') : '—',
+        mac: p?.brMac ?? '—',
         firmware: p?.board?.release?.description ?? '—',
         firmwareUpdated: true,
-        lastReboot: '—',
+        lastReboot: p?.uptimeSec
+          ? new Date(Date.now() - p.uptimeSec * 1000).toLocaleString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '—',
         soc: p?.board?.system ?? '—',
         flash: '—',
         ramMb: p?.sysInfo?.memory?.total ? Math.round(p.sysInfo.memory.total / 1e6) : 0,
@@ -677,6 +718,43 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     return null // el poller usa el último overview (adguard del snapshot)
   }
 
+  /** Red DAWN (roaming/band-steering): la malla completa la tiene cualquier nodo. */
+  async function getDawn() {
+    for (const [routerId, p] of lastPolled) {
+      try {
+        const data = await p.client.sshJson('ubus call dawn get_network')
+        const aps = []
+        for (const [ssid, bssids] of Object.entries(data ?? {})) {
+          for (const [bssid, ap] of Object.entries(bssids)) {
+            aps.push({
+              ssid,
+              bssid,
+              hostname: ap.hostname ?? routerId,
+              band: (ap.freq ?? 0) >= 5000 ? '5 GHz' : '2.4 GHz',
+              channel: ap.channel ?? 0,
+              utilizationPct: ap.channel_utilization ?? 0,
+              clients: ap.num_sta ?? 0,
+              local: Boolean(ap.local),
+              iface: ap.iface ?? '',
+            })
+          }
+        }
+        aps.sort((a, b) => a.hostname.localeCompare(b.hostname) || a.band.localeCompare(b.band))
+        return { aps, from: routerId }
+      } catch {
+        // prueba el siguiente router de la malla
+      }
+    }
+    return null
+  }
+
+  /** Clientes AdGuard (solo si está configurado y responde). */
+  async function getAdguardClients() {
+    const client = getAdguardClient()
+    if (!client || typeof client.queryClients !== 'function') return null
+    return client.queryClients()
+  }
+
   return {
     mode: 'live',
     tick() {}, // el sondeo real ocurre en getOverview() (async)
@@ -688,6 +766,8 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     getAlerts,
     getMetricsRows,
     getAdguardRow,
+    getDawn,
+    getAdguardClients,
     async close() {},
   }
 }

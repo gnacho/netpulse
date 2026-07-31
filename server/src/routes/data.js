@@ -104,4 +104,22 @@ export function registerDataRoutes(app, { adapter, getOverview }) {
   app.get('/api/topology', (c) => {
     return c.json({ routers: adapter.getRouters(), devices: adapter.getDevices() })
   })
+
+  // GET /api/dawn — malla DAWN (roaming): APs, canales, utilización, clientes
+  app.get('/api/dawn', async (c) => {
+    const dawn = await adapter.getDawn()
+    if (!dawn) return c.json({ error: 'unavailable' }, 503)
+    return c.json(dawn)
+  })
+
+  // GET /api/adguard/clients — clientes que usa AdGuard (si está configurado)
+  app.get('/api/adguard/clients', async (c) => {
+    try {
+      const clients = await adapter.getAdguardClients()
+      if (!clients) return c.json({ error: 'not_configured' }, 404)
+      return c.json({ clients })
+    } catch (err) {
+      return c.json({ error: 'adguard_error', message: err.message }, 502)
+    }
+  })
 }

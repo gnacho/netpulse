@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { ExternalLink, ShieldCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ExternalLink, ShieldCheck } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { CountUp } from '@/components/CountUp'
 import { StatusPill } from '@/components/StatusPill'
 import { buildAdGuardSeries } from '@/components/routers/routerExtras'
+import { cn } from '@/lib/utils'
 
 function AdGuardTooltip({
   active,
@@ -37,6 +38,26 @@ export function AdGuardPanel() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const { adguard } = useNetPulse()
+  const [showClients, setShowClients] = useState(false)
+  const [clients, setClients] = useState<{ name: string; ip: string }[] | null>(null)
+
+  useEffect(() => {
+    if (!showClients || clients !== null) return
+    let disposed = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/adguard/clients')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = (await res.json()) as { clients: { name: string; ip: string }[] }
+        if (!disposed) setClients(json.clients)
+      } catch {
+        if (!disposed) setClients([])
+      }
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [showClients, clients])
   const adguardSeries24h = useMemo(() => buildAdGuardSeries(adguard), [adguard])
   const maxTop = Math.max(...adguard.topBlocked.map((d) => d.count))
   const clientsPct = adguard.clientsTotal > 0 ? Math.round((adguard.clientsUsing / adguard.clientsTotal) * 100) : 0
@@ -161,20 +182,44 @@ export function AdGuardPanel() {
           <span className="text-text-muted"> · {t('routerDetail.adguard.rules', { count: fmtInt(adguard.rules) })}</span>
         </div>
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-caption">
-            <span className="text-text-secondary">
-              {t('routerDetail.adguard.protectedClients')} <span className="font-mono text-text-primary">{adguard.clientsUsing}/{adguard.clientsTotal}</span>
-            </span>
-            <span className="font-mono text-text-muted">{clientsPct} %</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-border/50">
-            <motion.div
-              className="h-full rounded-full bg-ok"
-              initial={reduce ? { width: `${clientsPct}%` } : { width: 0 }}
-              animate={{ width: `${clientsPct}%` }}
-              transition={{ duration: 0.7, ease: 'easeOut', delay: 0.3 }}
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowClients((v) => !v)}
+            aria-expanded={showClients}
+            className="w-full text-left"
+          >
+            <div className="mb-1.5 flex items-center justify-between text-caption">
+              <span className="flex items-center gap-1.5 text-text-secondary">
+                {t('routerDetail.adguard.protectedClients')} <span className="font-mono text-text-primary">{adguard.clientsUsing}/{adguard.clientsTotal}</span>
+                <ChevronDown className={cn('h-3.5 w-3.5 text-text-muted transition-transform', showClients && 'rotate-180')} strokeWidth={1.75} />
+              </span>
+              <span className="font-mono text-text-muted">{clientsPct} %</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-border/50">
+              <motion.div
+                className="h-full rounded-full bg-ok"
+                initial={reduce ? { width: `${clientsPct}%` } : { width: 0 }}
+                animate={{ width: `${clientsPct}%` }}
+                transition={{ duration: 0.7, ease: 'easeOut', delay: 0.3 }}
+              />
+            </div>
+          </button>
+          {showClients && (
+            <div className="mt-3 max-h-48 space-y-1 overflow-y-auto rounded-xl bg-elevated p-3">
+              {clients === null ? (
+                <p className="text-caption text-text-muted">…</p>
+              ) : clients.length === 0 ? (
+                <p className="text-caption text-text-muted">{t('routerDetail.adguard.clients')}: 0</p>
+              ) : (
+                clients.map((cl, i) => (
+                  <div key={`${cl.ip}-${i}`} className="flex items-center justify-between gap-3 text-caption">
+                    <span className="truncate text-text-primary">{cl.name || cl.ip}</span>
+                    <span className="shrink-0 font-mono text-text-muted">{cl.ip}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>

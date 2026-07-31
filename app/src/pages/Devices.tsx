@@ -297,6 +297,9 @@ interface FilterBarProps {
   toggleGroup: (g: FilterGroup) => void
   onlyOnline: boolean
   setOnlyOnline: (v: boolean) => void
+  onlyWeak: boolean
+  setOnlyWeak: (v: boolean) => void
+  weakCount: number
   view: 'list' | 'grid'
   setView: (v: 'list' | 'grid') => void
   shown: number
@@ -368,6 +371,21 @@ function FilterBar(p: FilterBarProps) {
           <Switch checked={p.onlyOnline} onCheckedChange={p.setOnlyOnline} aria-label={t('devices.onlyOnline')} />
           {t('devices.onlyOnline')}
         </label>
+        {/* Señal débil */}
+        {p.weakCount > 0 && (
+          <button
+            type="button"
+            onClick={() => p.setOnlyWeak(!p.onlyWeak)}
+            aria-pressed={p.onlyWeak}
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors',
+              p.onlyWeak ? 'border-warn/50 bg-warn/10 text-warn' : 'border-border text-text-secondary hover:border-warn/40 hover:text-warn',
+            )}
+          >
+            <SignalLow className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {t('devices.weakChip', { count: p.weakCount })}
+          </button>
+        )}
         {/* Derecha: vista + caption */}
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden text-caption text-text-muted sm:inline">
@@ -913,6 +931,11 @@ export default function Devices() {
   const [band, setBand] = useState<BandFilter>('all')
   const [groups, setGroups] = useState<FilterGroup[]>([])
   const [onlyOnline, setOnlyOnline] = useState(true)
+  const [onlyWeak, setOnlyWeak] = useState(false)
+  const weakCount = useMemo(
+    () => allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length,
+    [allDevices],
+  )
   const [view, setView] = useState<'list' | 'grid'>('list')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastMsg | null>(null)
@@ -947,6 +970,7 @@ export default function Devices() {
   const filtered = useMemo(() => {
     const out = allDevices.filter((d) => {
       if (onlyOnline && !d.online) return false
+      if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
       if (router !== 'all' && d.routerId !== router) return false
       if (band !== 'all' && d.band !== band) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
@@ -992,7 +1016,7 @@ export default function Devices() {
       if (a.online !== b.online) return a.online ? -1 : 1
       return a.online ? b.trafficMbps - a.trafficMbps : a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, onlyOnline, router, band, groups, q, nameOf, sort, routers])
+  }, [allDevices, onlyOnline, onlyWeak, router, band, groups, q, nameOf, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1118,6 +1142,9 @@ export default function Devices() {
         toggleGroup={toggleGroup}
         onlyOnline={onlyOnline}
         setOnlyOnline={setOnlyOnline}
+        onlyWeak={onlyWeak}
+        setOnlyWeak={setOnlyWeak}
+        weakCount={weakCount}
         view={view}
         setView={setView}
         shown={filtered.length}

@@ -113,4 +113,33 @@ export class AdGuardGlinetClient {
       return this.queryStats()
     }
   }
+
+  /** Lista de clientes que usan AdGuard (/control/clients). */
+  async queryClients() {
+    if (!this.sid) await this.login()
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS)
+    try {
+      const res = await fetch(`http://${this.host}:3000/control/clients`, {
+        headers: { Cookie: `Admin-Token=${this.sid}` },
+        signal: ctrl.signal,
+      })
+      if (res.status === 401) {
+        this.sid = null
+        await this.login()
+        return this.queryClients()
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const clients = Array.isArray(data.clients) ? data.clients : []
+      return clients.map((cl) => ({
+        name: cl.name || cl.ids?.[0] || '',
+        ip: cl.ids?.[0] ?? '',
+        useGlobalSettings: Boolean(cl.use_global_settings),
+        blockedServices: (cl.blocked_services ?? []).length,
+      }))
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 }

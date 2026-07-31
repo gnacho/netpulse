@@ -217,6 +217,8 @@ export function createDemoAdapter() {
     getAlerts,
     getMetricsRows,
     getAdguardRow,
+    getDawn: async () => null,
+    getAdguardClients: async () => null,
     async close() {},
   }
 }

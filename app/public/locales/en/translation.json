@@ -175,7 +175,8 @@
       "tablet": "tablet",
       "tv": "TV"
     },
-    "wiredConnection": "Wired connection"
+    "wiredConnection": "Wired connection",
+    "weakChip": "{{count}} with weak signal"
   },
   "home": {
     "devices": "Devices",
@@ -273,7 +274,8 @@
       "rules": "{{count}} rules",
       "tooltip": "{{total}} queries · {{blocked}} blocked",
       "topBlocked": "Top blocked domains",
-      "noData": "AdGuard Home is running on the router, but its API requires a GL.iNet UI session. Credentials pending configuration."
+      "noData": "AdGuard Home is running on the router, but its API requires a GL.iNet UI session. Credentials pending configuration.",
+      "clients": "Clients using AdGuard"
     },
     "backhaul": {
       "linkLoad": "% link load",
@@ -334,7 +336,7 @@
     },
     "radios": {
       "channel": "Channel",
-      "clear": "Clear",
+      "clear": "Clear channel",
       "congested": "Congested",
       "power": "Power",
       "title": "WiFi radios",
@@ -420,15 +422,21 @@
     "weakSignal": "Weak signal",
     "zoomControls": "Map zoom controls",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "dawn": {
+      "title": "WiFi roaming (DAWN)",
+      "caption": "Band-steering mesh between APs",
+      "clients": "{{count}} clients",
+      "util": "{{pct}}% util."
+    }
   },
   "settings": {
     "about": {
       "changelog": "Changelog",
       "code": "Source code",
-      "desc": "Network control panel for OpenWRT devices. Monitors 4 routers and APs with AdGuard Home + WireGuard for now. Phase 1: read-only.",
+      "desc": "Network control panel for OpenWRT devices. Monitors routers and APs with some services like AdGuard Home + WireGuard for now. Phase 1: read-only.",
       "footer": "React 19 · Tailwind · Recharts · Framer Motion — fonts: Space Grotesk, Inter, JetBrains Mono",
-      "madeAtHome": "Made at home",
+      "madeAtHome": "Support the project on Ko-fi",
       "privacy": "Privacy: all data stays in your network",
       "title": "About",
       "versionNote": "v1.0.0"
@@ -568,6 +576,14 @@
       "saving": "Saving…",
       "errorGeneric": "Could not save.",
       "hint": "The password is stored only on the server. NetPulse logs into the GL UI through the router itself (SSH) and queries the AdGuard API with that session."
+    },
+    "services": {
+      "title": "Services",
+      "caption": "Which services are shown on the dashboard",
+      "adguardCaption": "Filtered DNS on the gateway",
+      "wireguardCaption": "WireGuard VPN tunnels",
+      "openvpnCaption": "OpenVPN tunnels (coming soon)",
+      "note": "Only checked cards are shown. More services coming soon."
     }
   },
   "statcard": {

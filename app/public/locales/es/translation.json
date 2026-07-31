@@ -175,7 +175,8 @@
       "tablet": "tablet",
       "tv": "TV"
     },
-    "wiredConnection": "Conexión por cable"
+    "wiredConnection": "Conexión por cable",
+    "weakChip": "{{count}} con señal débil"
   },
   "home": {
     "devices": "Dispositivos",
@@ -273,7 +274,8 @@
       "rules": "{{count}} reglas",
       "tooltip": "{{total}} consultas · {{blocked}} bloqueadas",
       "topBlocked": "Top dominios bloqueados",
-      "noData": "AdGuard Home está activo en el router, pero su API exige una sesión de la interfaz GL.iNet para consultarse. Pendiente de configurar las credenciales."
+      "noData": "AdGuard Home está activo en el router, pero su API exige una sesión de la interfaz GL.iNet para consultarse. Pendiente de configurar las credenciales.",
+      "clients": "Clientes que usan AdGuard"
     },
     "backhaul": {
       "linkLoad": "% carga enlace",
@@ -334,7 +336,7 @@
     },
     "radios": {
       "channel": "Canal",
-      "clear": "Despejado",
+      "clear": "Canal despejado",
       "congested": "Congestionado",
       "power": "Potencia",
       "title": "Radios WiFi",
@@ -420,15 +422,21 @@
     "weakSignal": "Señal débil",
     "zoomControls": "Controles de zoom del mapa",
     "zoomIn": "Acercar",
-    "zoomOut": "Alejar"
+    "zoomOut": "Alejar",
+    "dawn": {
+      "title": "Roaming WiFi (DAWN)",
+      "caption": "Malla de band-steering entre APs",
+      "clients": "{{count}} clientes",
+      "util": "{{pct}}% util."
+    }
   },
   "settings": {
     "about": {
       "changelog": "Registro de cambios",
       "code": "Código",
-      "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza 4 routers y APs con AdGuard Home + WireGuard de momento. Fase 1: solo lectura.",
+      "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza routers y APs con algunos servicios como AdGuard Home + WireGuard de momento. Fase 1: solo lectura.",
       "footer": "React 19 · Tailwind · Recharts · Framer Motion — fuentes: Space Grotesk, Inter, JetBrains Mono",
-      "madeAtHome": "Hecho en casa",
+      "madeAtHome": "Apoya el proyecto en Ko-fi",
       "privacy": "Privacidad: todos los datos se quedan en tu red",
       "title": "Acerca de",
       "versionNote": "v1.0.0"
@@ -568,6 +576,14 @@
       "saving": "Guardando…",
       "errorGeneric": "No se pudo guardar.",
       "hint": "La contraseña se guarda solo en el servidor. NetPulse inicia sesión en la interfaz GL a través del propio router (SSH) y consulta la API de AdGuard con esa sesión."
+    },
+    "services": {
+      "title": "Servicios",
+      "caption": "Qué servicios se muestran en el panel",
+      "adguardCaption": "DNS filtrado en el gateway",
+      "wireguardCaption": "Túneles VPN WireGuard",
+      "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
+      "note": "Solo se muestran las tarjetas marcadas. Más servicios próximamente."
     }
   },
   "statcard": {

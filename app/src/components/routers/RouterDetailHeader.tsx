@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 export function RouterDetailHeader({ router }: { router: Router }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const isGateway = router.id === 'flint2'
+  const isGateway = router.roleBadge === 'Principal'
   const pills = [
     { label: roleLabel(router.roleBadge), tone: 'accent' as const, pulse: false },
     {

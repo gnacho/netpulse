@@ -5,10 +5,18 @@ import { RoutersRow } from '@/sections/RoutersRow'
 import { TopDevices } from '@/sections/TopDevices'
 import { WanTraffic } from '@/sections/WanTraffic'
 import { useNetPulse } from '@/data/DataProvider'
+import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 
 /** Página Resumen `/` (home.md) */
 export default function Home() {
   const { isDemo } = useNetPulse()
+  const [services] = useServicesVisibility()
+  const cards = [
+    services.adguard && <AdGuardCard key="adguard" />,
+    services.wireguard && <WireGuardCard key="wireguard" />,
+    <RecentAlerts key="alerts" />,
+  ].filter(Boolean)
+  const span = Math.max(4, Math.floor(12 / cards.length))
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
       {/* ① Hero 50% + Tráfico 50% */}
@@ -18,16 +26,12 @@ export default function Home() {
       <div className="lg:col-span-6">
         <WanTraffic />
       </div>
-      {/* ② AdGuard + WireGuard + Alertas en una fila */}
-      <div className="lg:col-span-4">
-        <AdGuardCard />
-      </div>
-      <div className="lg:col-span-4">
-        <WireGuardCard />
-      </div>
-      <div className="lg:col-span-4">
-        <RecentAlerts />
-      </div>
+      {/* ② Servicios marcados en Ajustes + Alertas en una fila */}
+      {cards.map((card, i) => (
+        <div key={i} className={`lg:col-span-${span} lg:col-span-4 xl:col-span-${span}`} style={{ gridColumn: `span ${span} / span ${span}` }}>
+          {card}
+        </div>
+      ))}
       {/* ③ Routers */}
       <div className="lg:col-span-12">
         <RoutersRow />

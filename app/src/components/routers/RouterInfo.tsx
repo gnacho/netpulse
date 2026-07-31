@@ -76,7 +76,6 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
       ),
     },
     { label: 'SoC', node: ex.soc },
-    { label: 'Flash', node: ex.flash },
   ]
 
   return (
@@ -96,8 +95,9 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
       </dl>
       <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3.5">
         <a
-          href="#"
-          onClick={(e) => e.preventDefault()}
+          href={`http://${router.ip}`}
+          target="_blank"
+          rel="noreferrer"
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
         >
           <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />

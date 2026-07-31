@@ -32,6 +32,8 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import { useServicesVisibility } from '@/hooks/useServicesVisibility'
+import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -951,16 +953,51 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
+function ServicesCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [services, setService] = useServicesVisibility()
+  const rows: { key: keyof ServicesVisibility; label: string; caption: string }[] = [
+    { key: 'adguard', label: 'AdGuard Home', caption: t('settings.services.adguardCaption') },
+    { key: 'wireguard', label: 'WireGuard', caption: t('settings.services.wireguardCaption') },
+    { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
+  ]
+  return (
+    <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
+      <div className="flex flex-col divide-y divide-border/60">
+        {rows.map((r) => (
+          <SwitchRow
+            key={r.key}
+            label={r.label}
+            caption={r.caption}
+            checked={services[r.key]}
+            onCheckedChange={(v) => {
+              setService(r.key, v)
+              onSaved()
+            }}
+          />
+        ))}
+      </div>
+      <p className="mt-3 rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+        {t('settings.services.note')}
+      </p>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Página Ajustes `/settings` (settings.md)
+// ---------------------------------------------------------------------------
+
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
   const { devices, routers, wan, isDemo } = useNetPulse()
   const auth = useAuth()
 
-  // ——— Idioma ('auto' sigue al navegador; persistido como string plano) ———
+  // ——— Idioma ('en' por defecto; 'auto' sigue al navegador; persistido) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
     const raw = localStorage.getItem('netpulse-lang')
-    return raw === 'es' || raw === 'en' ? raw : 'auto'
+    return raw === 'es' || raw === 'en' || raw === 'auto' ? raw : 'en'
   })
   const setLanguage = useCallback((v: 'auto' | 'es' | 'en') => {
     setLang(v)
@@ -1531,6 +1568,11 @@ export default function Settings() {
               ))}
             </div>
           </Card>
+        </div>
+
+        {/* Servicios visibles (checks) */}
+        <div className="lg:col-span-7">
+          <ServicesCard reduce={reduce} onSaved={notify} />
         </div>
 
         {/* ⑤ Notificaciones visuales */}

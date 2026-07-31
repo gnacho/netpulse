@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Router } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
@@ -10,19 +11,62 @@ import { cn } from '@/lib/utils'
 
 const VISIBLE_COUNT = 6
 
+type SortKey = 'name' | 'ip' | 'type' | 'band' | 'signal' | 'traffic'
+
+function ipNum(ip: string): number {
+  return ip.split('.').reduce((acc, o) => acc * 256 + (parseInt(o, 10) || 0), 0)
+}
+
 /** ⑦ Clientes de este router (router-detail.md §⑦). */
 export function RouterClients({ router }: { router: Router }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 })
   const reduce = useReducedMotion()
   const { devices } = useNetPulse()
 
-  const clients = useMemo(
-    () => devices.filter((d) => d.routerId === router.id && d.online),
-    [devices, router.id],
-  )
+  const clients = useMemo(() => {
+    const list = devices.filter((d) => d.routerId === router.id && d.online)
+    const dir = sort.dir
+    return [...list].sort((a, b) => {
+      switch (sort.key) {
+        case 'name':
+          return dir * a.name.localeCompare(b.name)
+        case 'ip':
+          return dir * (ipNum(a.ip) - ipNum(b.ip))
+        case 'type':
+          return dir * a.type.localeCompare(b.type)
+        case 'band':
+          return dir * a.band.localeCompare(b.band)
+        case 'signal':
+          return dir * ((a.signalDbm ?? -999) - (b.signalDbm ?? -999))
+        case 'traffic':
+          return dir * (a.trafficMbps - b.trafficMbps)
+      }
+    })
+  }, [devices, router.id, sort])
   const visible = expanded ? clients : clients.slice(0, VISIBLE_COUNT)
   const hiddenCount = clients.length - VISIBLE_COUNT
+
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
+
+  const Th = ({ label, k, right }: { label: string; k: SortKey; right?: boolean }) => {
+    const active = sort.key === k
+    const Icon = active ? (sort.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown
+    return (
+      <th className={cn('pb-2.5 pr-3 text-label font-medium uppercase text-text-muted', right && 'text-right')}>
+        <button
+          type="button"
+          onClick={() => toggleSort(k)}
+          className={cn('inline-flex items-center gap-1 uppercase transition-colors', active ? 'text-accent' : 'hover:text-text-secondary')}
+        >
+          {label}
+          <Icon className="h-3 w-3" strokeWidth={2} />
+        </button>
+      </th>
+    )
+  }
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 md:p-6 lg:col-span-12">
@@ -37,11 +81,12 @@ export function RouterClients({ router }: { router: Router }) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border">
-              {[t('devices.colDevice'), 'IP', t('devices.colType'), t('devices.colBand'), t('devices.colSignal'), t('devices.colTraffic')].map((h, i) => (
-                <th key={h} className={cn('pb-2.5 pr-3 text-label font-medium uppercase text-text-muted', i === 5 && 'text-right')}>
-                  {h}
-                </th>
-              ))}
+              <Th label={t('devices.colDevice')} k="name" />
+              <Th label="IP" k="ip" />
+              <Th label={t('devices.colType')} k="type" />
+              <Th label={t('devices.colBand')} k="band" />
+              <Th label={t('devices.colSignal')} k="signal" />
+              <Th label={t('devices.colTraffic')} k="traffic" right />
             </tr>
           </thead>
           <tbody>
