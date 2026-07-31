@@ -198,7 +198,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
   }))
   const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes] : apNodes
 
-  const internetNode = { id: 'internet' as const, x: 500, y: 108 }
+  const internetNode = { id: 'internet' as const, x: 500, y: 132 }
 
   const activePeers = wireguard.peers.filter((p) => p.active)
   const peerNodes: PeerNode[] = activePeers.slice(0, PEER_COORDS.length).map((peer, i) => ({
@@ -256,7 +256,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard }: Topolog
   if (gatewayNode) {
     links.push({
       id: 'wan', kind: 'wan',
-      d: 'M 500 140 C 500 162, 500 182, 500 204',
+      d: 'M 500 164 C 500 178, 500 190, 500 204',
       lx: 518, ly: 162, label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
       width: 3, packets: 3, packetDur: 2.4,
       from: 'internet', to: gatewayNode.id,
