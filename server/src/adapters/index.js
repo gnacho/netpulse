@@ -62,7 +62,17 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
   function setRouters(list) {
     routers = [...list]
     gatewayCfg = pickGateway(routers)
-  rebuildClients()
+    rebuildClients()
+    // Limpia cachés de routers que ya no existen
+    const ids = new Set(routers.map((r) => r.id))
+    for (const id of [...lastGood.keys()]) if (!ids.has(id)) lastGood.delete(id)
+    for (const id of [...lastStatus.keys()]) if (!ids.has(id)) lastStatus.delete(id)
+    for (const id of [...boardCache.keys()]) if (!ids.has(id)) boardCache.delete(id)
+    for (const id of [...layoutCache.keys()]) if (!ids.has(id)) layoutCache.delete(id)
+    for (const id of [...extrasCache.keys()]) if (!ids.has(id)) extrasCache.delete(id)
+    for (const id of [...lastPolled.keys()]) if (!ids.has(id)) lastPolled.delete(id)
+    for (const id of [...failCount.keys()]) if (!ids.has(id)) failCount.delete(id)
+  }
 
   // AdGuard: config desde kv (Ajustes, GL.iNet) con fallback a .env (AGH estándar)
   let adguardClient = null
@@ -91,16 +101,6 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       adguardClientKey = key
     }
     return adguardClient
-  }
-    // Limpia cachés de routers que ya no existen
-    const ids = new Set(routers.map((r) => r.id))
-    for (const id of [...lastGood.keys()]) if (!ids.has(id)) lastGood.delete(id)
-    for (const id of [...lastStatus.keys()]) if (!ids.has(id)) lastStatus.delete(id)
-    for (const id of [...boardCache.keys()]) if (!ids.has(id)) boardCache.delete(id)
-    for (const id of [...layoutCache.keys()]) if (!ids.has(id)) layoutCache.delete(id)
-    for (const id of [...extrasCache.keys()]) if (!ids.has(id)) extrasCache.delete(id)
-    for (const id of [...lastPolled.keys()]) if (!ids.has(id)) lastPolled.delete(id)
-    for (const id of [...failCount.keys()]) if (!ids.has(id)) failCount.delete(id)
   }
 
   // Estado entre ticks
