@@ -30,8 +30,8 @@ RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-# La DB SQLite vive en DATA_DIR (por defecto server/data)
-ReadWritePaths=/opt/netpulse/server/data
+# La DB vive en DATA_DIR; el auto-actualizador escribe en todo /opt/netpulse
+ReadWritePaths=/opt/netpulse
 # NOTA modo live: ProtectHome=true impide leer claves SSH bajo /home o /root.
 # Coloca la clave de los routers en /opt/netpulse/server/data/.ssh (o ajusta
 # SSH_KEY_PATH + ReadWritePaths/ProtectHome en consecuencia).
