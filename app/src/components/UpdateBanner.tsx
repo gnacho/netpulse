@@ -86,7 +86,7 @@ export function UpdateBanner() {
     }
   }
 
-  if (auth?.role !== 'admin' || !status?.hasToken) return null
+  if (auth?.role !== 'admin') return null
   if (!status.updateAvailable || !status.latest || dismissed === status.latest) return null
 
   const updating = Boolean(status.updating)

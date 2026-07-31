@@ -17,7 +17,13 @@ fi
 echo "STEP:frontend-build"
 cd /opt/netpulse/app
 npm ci --no-audit --no-fund
-npm run build
+# Build atómico: si falla (p.ej. RAM justa), el dist anterior queda intacto
+rm -rf dist.new
+npm run build -- --outDir dist.new
+rm -rf dist.old
+[ -d dist ] && mv dist dist.old
+mv dist.new dist
+rm -rf dist.old
 
 echo "STEP:restart"
 # Reinicio vía unidad systemd.path del CT (netpulse-restart.path vigila este
