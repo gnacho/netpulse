@@ -82,14 +82,16 @@ function Jack({ port, index }: { port: EthPort; index: number }) {
         {port.up ? (
           <>
             <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
-              {port.connectedTo ? (
+              {port.connectedTo && port.deviceMac ? (
                 <Link
-                  to={`/devices?q=${encodeURIComponent(port.deviceMac ?? port.connectedTo)}`}
+                  to={`/devices?q=${encodeURIComponent(port.deviceMac)}`}
                   className="transition-colors hover:text-accent hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {port.connectedTo}
                 </Link>
+              ) : port.connectedTo ? (
+                port.connectedTo
               ) : (
                 t('routerDetail.ports.inUse')
               )}
@@ -106,7 +108,8 @@ function Jack({ port, index }: { port: EthPort; index: number }) {
 
 export function PortPanel({ router, extras, className }: { router: Router; extras?: RouterExtras; className?: string }) {
   const { t } = useTranslation()
-  const ex = extras ?? getRouterExtras(router.id)
+  const { isDemo } = useNetPulse()
+  const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const ports = ex.ethPorts
   const used = ports.filter((p) => p.up).length
   const wirelessUplink = ex.backhaul?.kind === 'wireless'

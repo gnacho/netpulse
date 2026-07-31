@@ -159,7 +159,7 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       layout = await client.getPortLayout().catch(() => null)
       if (layout?.length) layoutCache.set(cfg.id, layout)
     }
-    const [sysInfo, cpu, temp, net, leases, wireless, ports, radios, fdb] = await Promise.all([
+    const [sysInfo, cpu, temp, net, leases, wireless, ports, radios, fdb, brMac] = await Promise.all([
       client.getSystemInfo(),
       client.getCpuPercent().catch(() => null),
       client.getTempC().catch(() => null),
@@ -169,6 +169,7 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       client.getEthPorts(layout ?? undefined).catch(() => []),
       client.getRadios().catch(() => []),
       client.getBridgeFdb().catch(() => null),
+      client.getBridgeMac().catch(() => null),
     ])
     if (!boardCache.has(cfg.id)) {
       boardCache.set(cfg.id, await client.getBoard().catch(() => null))
@@ -210,6 +211,7 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
       ports: portsGood,
       radios: radiosGood,
       fdb: fdbGood,
+      brMac,
       latency,
     }
   }
@@ -580,13 +582,29 @@ function createLiveAdapter(config, dbHandle, initialRouters) {
     // Mapa global MAC → lease (los satélites no tienen DHCP: hay que mirar
     // la tabla del gateway para nombrar lo que cuelga de sus bocas)
     const leaseMap = new Map()
+    const routerMacs = new Set()
     for (const [, polled] of lastPolled) {
       for (const l of polled.leases ?? []) if (l.mac) leaseMap.set(l.mac, l)
+      if (polled.brMac) routerMacs.add(polled.brMac)
     }
-    const fdb = p?.fdb ?? new Map()
+    // Puerto → MACs aprendidas (menos las de los propios routers: esa boca
+    // es un enlace ascendente, no un dispositivo final)
+    const portMacs = new Map()
+    for (const [mac, portName] of p?.fdb ?? new Map()) {
+      if (!portMacs.has(portName)) portMacs.set(portName, [])
+      portMacs.get(portName).push(mac)
+    }
     const ports = (p?.ports ?? []).map((port) => {
       if (!port.up) return port
-      const mac = [...fdb].find(([, portName]) => portName === port.id)?.[0]
+      const all = portMacs.get(port.id) ?? []
+      const endDevices = all.filter((mac) => !routerMacs.has(mac))
+      if (all.length > 0 && endDevices.length === 0) {
+        return { ...port, connectedTo: 'Enlace ascendente' }
+      }
+      if (endDevices.length > 1) {
+        return { ...port, connectedTo: `${endDevices.length} equipos` }
+      }
+      const mac = endDevices[0]
       const lease = mac ? leaseMap.get(mac) : null
       return {
         ...port,

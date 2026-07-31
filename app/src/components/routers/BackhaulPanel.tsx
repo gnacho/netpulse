@@ -8,6 +8,7 @@ import { Sparkline } from '@/components/Sparkline'
 import { LatencyGauge } from '@/components/routers/LatencyGauge'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
+import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 
 function SignalTooltip({
   active,
@@ -34,7 +35,8 @@ function SignalTooltip({
 /** ④ variante OpenWrt — Backhaul + latencia al gateway (router-detail.md §Variante). */
 export function BackhaulPanel({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const ex = extras ?? getRouterExtras(router.id)
+  const { isDemo } = useNetPulse()
+  const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const backhaul = ex.backhaul
   const reduce = useReducedMotion()
   if (!backhaul) return null

@@ -151,7 +151,7 @@ function emptyBundle(): NetPulseData {
 }
 
 /** Extras de detalle vacíos (live sin datos aún); el mock NO se usa en live. */
-const EMPTY_EXTRAS: RouterExtras = {
+export const EMPTY_EXTRAS: RouterExtras = {
   mac: '—',
   firmware: '—',
   firmwareUpdated: true,

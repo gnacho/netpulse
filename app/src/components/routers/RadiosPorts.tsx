@@ -7,12 +7,14 @@ import { StatusPill } from '@/components/StatusPill'
 import { PortPanel } from '@/components/routers/PortPanel'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
+import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
 /** ⑤⑥ variante OpenWrt — Radios WiFi (7) + Puertos (5) (router-detail.md §Variante). */
 export function RadiosPorts({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const ex = extras ?? getRouterExtras(router.id)
+  const { isDemo } = useNetPulse()
+  const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
 
   return (

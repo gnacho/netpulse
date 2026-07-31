@@ -8,6 +8,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { StatusPill } from '@/components/StatusPill'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
+import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -21,7 +22,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 /** ③ Info + Red (router-detail.md §③) — definition list + acciones ghost. */
 export function RouterInfo({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const ex = extras ?? getRouterExtras(router.id)
+  const { isDemo } = useNetPulse()
+  const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
   const timer = useRef<number | null>(null)

@@ -396,6 +396,12 @@ export class OpenWrtClient {
     return map
   }
 
+  /** MAC del bridge br-lan (para reconocer uplinks entre routers en el FDB). */
+  async getBridgeMac() {
+    const out = await this.ssh('cat /sys/class/net/br-lan/address 2>/dev/null')
+    return out.trim().toUpperCase() || null
+  }
+
   // -------------------------------------------------------------------------
   // Radios WiFi
   // -------------------------------------------------------------------------
