@@ -15,10 +15,8 @@ import {
   MonitorSmartphone,
   Moon,
   Plus,
-  PlusSquare,
   Radar,
   Router as RouterIcon,
-  Share,
   ShieldCheck,
   Sun,
   Trash2,
@@ -849,6 +847,8 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
 
 function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
   const { t } = useTranslation()
+  const { routers } = useNetPulse()
+  const gwIp = routers.find((r) => r.roleBadge === 'Principal')?.ip ?? routers[0]?.ip ?? ''
   const [host, setHost] = useState('')
   const [user, setUser] = useState('root')
   const [password, setPassword] = useState('')
@@ -864,17 +864,18 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         if (!res.ok) return
         const json = (await res.json()) as { host: string; user: string; passSet: boolean }
         if (disposed) return
-        setHost(json.host)
+        setHost(json.host || gwIp)
         setUser(json.user || 'root')
         setPassSet(json.passSet)
       } catch {
-        /* sin permisos */
+        if (!disposed && gwIp) setHost((h) => h || gwIp)
       }
     })()
     return () => {
       disposed = true
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gwIp])
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1303,110 +1304,6 @@ export default function Settings() {
           </Card>
         </div>
 
-        {/* ③ Instalar app PWA */}
-        <div className="lg:col-span-5">
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut', delay: reduce ? 0 : 0.14 }}
-            className="relative h-full overflow-hidden rounded-2xl p-[1px]"
-          >
-            {/* Borde gradiente fluido cyan→violet */}
-            <motion.div
-              aria-hidden="true"
-              className="absolute inset-0 opacity-70"
-              style={{
-                backgroundImage:
-                  'linear-gradient(120deg, rgb(var(--accent) / 0.9) 0%, rgb(var(--tunnel) / 0.9) 50%, rgb(var(--accent) / 0.9) 100%)',
-                backgroundSize: '200% 200%',
-              }}
-              animate={reduce ? undefined : { backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-            />
-            <div className="relative flex h-full flex-col rounded-2xl bg-surface p-5">
-              <Confetti burstKey={confettiKey} reduce={reduce} />
-              <div className="flex items-center gap-3">
-                <img src="/icon-192.png" alt="" className="h-16 w-16 rounded-2xl ring-1 ring-border" />
-                <div>
-                  <h2 className="font-display text-h2 text-text-primary">{t('settings.pwa.title')}</h2>
-                  <p className="mt-0.5 text-caption text-text-muted">{t('settings.pwa.caption')}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-sm text-text-secondary">
-                {t('settings.pwa.desc')}
-              </p>
-
-              <div className="mt-4">
-                {installed ? (
-                  <div className="flex items-center gap-2.5">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-ok/10 px-3 py-1.5 text-caption font-semibold uppercase tracking-[0.06em] text-ok">
-                      <BadgeCheck className="h-4 w-4" strokeWidth={1.75} />
-                      {t('settings.pwa.installed')}
-                    </span>
-                    <span className="font-mono text-caption text-text-muted">{t('settings.pwa.shellVersion')}</span>
-                  </div>
-                ) : isIOS ? (
-                  <div className="rounded-xl border border-border bg-elevated p-3.5">
-                    <div className="text-sm font-medium text-text-primary">{t('settings.pwa.iosHow')}</div>
-                    <ol className="mt-2 space-y-2 text-sm text-text-secondary">
-                      <li className="flex items-center gap-2.5">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface text-accent">
-                          <Share className="h-4 w-4" strokeWidth={1.75} />
-                        </span>
-                        {t('settings.pwa.iosStep1Pre')} <strong className="font-semibold text-text-primary">{t('settings.pwa.iosStep1Strong')}</strong> {t('settings.pwa.iosStep1Post')}
-                      </li>
-                      <li className="flex items-center gap-2.5">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface text-accent">
-                          <PlusSquare className="h-4 w-4" strokeWidth={1.75} />
-                        </span>
-                        {t('settings.pwa.iosStep2Pre')} <strong className="font-semibold text-text-primary">{t('settings.pwa.iosStep2Strong')}</strong>
-                      </li>
-                    </ol>
-                  </div>
-                ) : (
-                  <>
-                    <motion.button
-                      type="button"
-                      onClick={() => void install()}
-                      animate={
-                        reduce
-                          ? undefined
-                          : {
-                              boxShadow: [
-                                '0 0 0 0 rgb(var(--accent) / 0.35)',
-                                '0 0 22px 2px rgb(var(--accent) / 0.12)',
-                                '0 0 0 0 rgb(var(--accent) / 0.35)',
-                              ],
-                            }
-                      }
-                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-canvas transition-colors hover:bg-accent/90"
-                    >
-                      <Download className="h-4 w-4" strokeWidth={1.75} />
-                      {t('settings.pwa.install')}
-                    </motion.button>
-                    {showManualHelp && !deferred && (
-                      <p className="mt-2.5 text-caption leading-relaxed text-text-muted">
-                        {t('settings.pwa.manualPre')}{' '}
-                        <strong className="text-text-secondary">{t('settings.pwa.manualStrong')}</strong>.
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="mt-auto space-y-1.5 pt-4">
-                {[t('settings.pwa.specOffline'), t('settings.pwa.specUpdates'), '2,1 MB'].map((spec) => (
-                  <div key={spec} className="flex items-center gap-2 font-mono text-caption text-text-muted">
-                    <span className="h-1 w-1 rounded-full bg-accent" />
-                    {spec}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
         {/* ④ Datos y umbrales */}
         <div className="lg:col-span-7">
           <Card
@@ -1734,6 +1631,40 @@ export default function Settings() {
                 })}
               </div>
             </div>
+            {/* Instalación PWA compacta */}
+            <div className="relative mt-5">
+              <Confetti burstKey={confettiKey} reduce={reduce} />
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Download className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+                  <p className="text-caption leading-snug text-text-secondary">{t('settings.pwa.compact')}</p>
+                </div>
+                {installed ? (
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                    <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                    {t('settings.pwa.installed')}
+                  </span>
+                ) : isIOS ? (
+                  <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void install()}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                  >
+                    <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                    {t('settings.pwa.install')}
+                  </button>
+                )}
+              </div>
+              {showManualHelp && !deferred && !installed && (
+                <p className="mt-2 text-caption leading-relaxed text-text-muted">
+                  {t('settings.pwa.manualPre')}{' '}
+                  <strong className="text-text-secondary">{t('settings.pwa.manualStrong')}</strong>.
+                </p>
+              )}
+            </div>
+
             <p className="mt-5 border-t border-border pt-3 font-mono text-caption text-text-muted">
               {t('settings.about.footer')}
             </p>

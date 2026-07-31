@@ -505,7 +505,8 @@
       "shellVersion": "Versión del shell 1.0.0",
       "specOffline": "Funciona sin conexión (shell)",
       "specUpdates": "Actualizaciones automáticas",
-      "title": "NetPulse en tu pantalla de inicio"
+      "title": "NetPulse en tu pantalla de inicio",
+      "compact": "Instala NetPulse como app: pantalla completa, sin barra del navegador y acceso instantáneo."
     },
     "reduceMotion": "Reducir animaciones",
     "reduceMotionCaption": "Desactiva pulsos, tweens y entradas escalonadas",
@@ -566,7 +567,7 @@
     "adguard": {
       "title": "AdGuard Home",
       "caption": "Conexión con la API de AdGuard en el router GL.iNet (puerto 3000)",
-      "host": "IP del router (p. ej. 192.168.1.1)",
+      "host": "IP del router",
       "user": "Usuario de la interfaz GL",
       "pass": "Contraseña de la interfaz GL",
       "passKeep": "Guardada (escribe para cambiar)",
@@ -575,7 +576,7 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "errorGeneric": "No se pudo guardar.",
-      "hint": "La contraseña se guarda solo en el servidor. NetPulse inicia sesión en la interfaz GL a través del propio router (SSH) y consulta la API de AdGuard con esa sesión."
+      "hint": "Puerto 3000 (fijo en GL.iNet). La contraseña se guarda solo en el servidor; NetPulse inicia sesión en la UI GL a través del propio router (SSH) y consulta la API con esa sesión."
     },
     "services": {
       "title": "Servicios",
