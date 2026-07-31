@@ -1,0 +1,300 @@
+/**
+ * Adapter live para routers OpenWrt / GL.iNet (Flint 2 usa firmware basado en
+ * OpenWrt con ubus expuesto igualmente).
+ *
+ * Estrategia por consulta:
+ *   1. ubus JSON-RPC sobre HTTP: POST http://<host>/ubus
+ *      (login: method "call", ["00000000000000000000000000000000","session","login",
+ *       {username, password}] → ubus_rpc_session).
+ *   2. Fallback SSH (clave, sin passphrase interactiva):
+ *      ssh -i $SSH_KEY_PATH -o BatchMode=yes -o ConnectTimeout=4 root@<host> <cmd>
+ *
+ * NOTA SANDBOX: este código no se puede probar contra routers reales aquí.
+ * Todas las llamadas tienen timeout y degradan con excepción controlada:
+ * el caller (live adapter) marca el router offline y sigue con el resto.
+ */
+import { execFile } from 'node:child_process'
+import { sshBaseArgs } from '../sshkey.js'
+
+const SSH_TIMEOUT_MS = 5000
+const HTTP_TIMEOUT_MS = 4000
+
+export class OpenWrtClient {
+  /**
+   * @param {{ id: string, host: string, name?: string, type?: string }} routerCfg
+   * @param {{ sshKeyPath: string, user?: string, password?: string }} opts
+   *   user/password son opcionales: solo necesarios para ubus HTTP (session login).
+   */
+  constructor(routerCfg, opts) {
+    this.cfg = routerCfg
+    this.host = routerCfg.host
+    this.sshKeyPath = opts.sshKeyPath
+    this.user = opts.user || 'root'
+    this.password = opts.password || ''
+    this._sid = null // sesión ubus HTTP cacheada
+    this._lastStat = null // /proc/stat previo para cpu%
+    this._lastNetDev = null // /proc/net/dev previo para bps
+  }
+
+  // -------------------------------------------------------------------------
+  // Transporte SSH
+  // -------------------------------------------------------------------------
+
+  ssh(cmd, timeoutMs = SSH_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+      execFile(
+        'ssh',
+        [
+          ...sshBaseArgs(this.sshKeyPath),
+          // Multiplexación: reutiliza la conexión SSH entre ticks del poller
+          '-o', 'ControlMaster=auto',
+          '-o', `ControlPath=/tmp/netpulse-ssh-%r@%h:%p`,
+          '-o', 'ControlPersist=60',
+          `root@${this.host}`,
+          cmd,
+        ],
+        { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err) return reject(new Error(`ssh ${this.host}: ${err.message} ${stderr || ''}`.trim()))
+          resolve(stdout)
+        },
+      )
+    })
+  }
+
+  async sshJson(cmd) {
+    const out = await this.ssh(cmd)
+    return JSON.parse(out)
+  }
+
+  // -------------------------------------------------------------------------
+  // Transporte ubus HTTP (JSON-RPC)
+  // -------------------------------------------------------------------------
+
+  async _ubusHttpRpc(sid, object, method, params = {}) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS)
+    try {
+      const res = await fetch(`http://${this.host}/ubus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'call',
+          params: [sid, object, method, params],
+        }),
+        signal: ctrl.signal,
+      })
+      if (!res.ok) throw new Error(`ubus HTTP ${res.status}`)
+      const data = await res.json()
+      if (data.error) throw new Error(`ubus RPC error: ${JSON.stringify(data.error)}`)
+      const result = data.result
+      // ubus devuelve [exitCode, payload]
+      if (Array.isArray(result) && result[0] === 0) return result[1]
+      throw new Error(`ubus call falló: ${JSON.stringify(result)}`)
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  async _ubusLogin() {
+    const result = await this._ubusHttpRpc(
+      '00000000000000000000000000000000',
+      'session',
+      'login',
+      { username: this.user, password: this.password },
+    )
+    this._sid = result.ubus_rpc_session
+    return this._sid
+  }
+
+  /**
+   * ubus call con HTTP + login cacheado; reintenta login una vez si la sesión
+   * expiró; fallback a SSH si HTTP no está disponible.
+   */
+  async ubusCall(object, method, params = {}) {
+    try {
+      if (!this._sid) await this._ubusLogin()
+      try {
+        return await this._ubusHttpRpc(this._sid, object, method, params)
+      } catch (err) {
+        // Sesión caducada → un solo re-login
+        this._sid = null
+        await this._ubusLogin()
+        return await this._ubusHttpRpc(this._sid, object, method, params)
+      }
+    } catch (httpErr) {
+      // Fallback SSH: ubus call <object> <method> '<json>'
+      const paramsJson = JSON.stringify(params).replace(/'/g, "'\\''")
+      return this.sshJson(`ubus call ${object} ${method} '${paramsJson}'`)
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Sonda de sistema
+  // -------------------------------------------------------------------------
+
+  /** Modelo, release, kernel → metadatos estáticos del router. */
+  async getBoard() {
+    return this.ubusCall('system', 'board')
+  }
+
+  /** uptime, memoria, load. */
+  async getSystemInfo() {
+    return this.ubusCall('system', 'info')
+  }
+
+  /**
+   * CPU % real por delta de /proc/stat (vía SSH; ubus no lo expone).
+   * Primera muestra: null (no hay delta aún).
+   */
+  async getCpuPercent() {
+    const out = await this.ssh("grep '^cpu ' /proc/stat")
+    const parts = out.trim().split(/\s+/).slice(1).map(Number)
+    const [user, nice, system, idle, iowait, irq, softirq] = parts
+    const idleAll = idle + (iowait || 0)
+    const nonIdle = user + nice + system + (irq || 0) + (softirq || 0)
+    const total = idleAll + nonIdle
+    const prev = this._lastStat
+    this._lastStat = { total, idleAll }
+    if (!prev) return null
+    const dTotal = total - prev.total
+    const dIdle = idleAll - prev.idleAll
+    if (dTotal <= 0) return null
+    return Math.round(((dTotal - dIdle) / dTotal) * 100)
+  }
+
+  /** Temperatura °C del primer thermal zone disponible (vía SSH). */
+  async getTempC() {
+    const out = await this.ssh(
+      'for f in /sys/class/thermal/thermal_zone*/temp; do [ -r "$f" ] && cat "$f" && break; done',
+    )
+    const milli = parseInt(out.trim(), 10)
+    return Number.isFinite(milli) ? Math.round(milli / 1000) : null
+  }
+
+  /**
+   * Tráfico agregado (bps) por delta de /proc/net/dev en interfaces físicas
+   * (excluye lo, bridges, ifb, wg, tun/tap para no duplicar contadores).
+   */
+  async getNetDevBps() {
+    const out = await this.ssh("cat /proc/net/dev | tail -n +3")
+    let rx = 0
+    let tx = 0
+    for (const line of out.trim().split('\n')) {
+      const m = /^\s*([\w.-]+):\s*(.*)$/.exec(line)
+      if (!m) continue
+      const iface = m[1]
+      if (/^(lo|br-|ifb|wg|tun|tap)/.test(iface)) continue
+      const fields = m[2].trim().split(/\s+/).map(Number)
+      rx += fields[0] || 0
+      tx += fields[8] || 0
+    }
+    const now = Date.now()
+    const prev = this._lastNetDev
+    this._lastNetDev = { rx, tx, at: now }
+    if (!prev) return { rxBps: null, txBps: null }
+    const dt = (now - prev.at) / 1000
+    if (dt <= 0) return { rxBps: null, txBps: null }
+    return {
+      rxBps: Math.max(0, Math.round(((rx - prev.rx) * 8) / dt)),
+      txBps: Math.max(0, Math.round(((tx - prev.tx) * 8) / dt)),
+    }
+  }
+
+  /** Latencia/pérdida WAN (ping a internet) — solo tiene sentido en el gateway. */
+  async getWanLatency(target = '1.1.1.1') {
+    const out = await this.ssh(`ping -c 3 -W 2 ${target} 2>/dev/null | tail -2`)
+    const loss = /(\d+(?:\.\d+)?)% packet loss/.exec(out)
+    const rtt = /= [\d.]+\/([\d.]+)\/[\d.]+\/[\d.]+ ms/.exec(out)
+    return {
+      latencyMs: rtt ? Math.round(parseFloat(rtt[1])) : null,
+      lossPct: loss ? parseFloat(loss[1]) : null,
+    }
+  }
+
+  /** Latencia al gateway desde un AP (ping corto). */
+  async getGatewayLatency(gatewayHost) {
+    const out = await this.ssh(`ping -c 2 -W 2 ${gatewayHost} 2>/dev/null | tail -1`)
+    const rtt = /= [\d.]+\/([\d.]+)\/[\d.]+ ms/.exec(out)
+    return rtt ? Math.round(parseFloat(rtt[1])) : null
+  }
+
+  // -------------------------------------------------------------------------
+  // Clientes (DHCP + wireless)
+  // -------------------------------------------------------------------------
+
+  /** Leases DHCP: ubus dhcp ipv4leases; fallback /tmp/dhcp.leases. */
+  async getDhcpLeases() {
+    try {
+      const data = await this.ubusCall('dhcp', 'ipv4leases')
+      const leases = data?.lease ?? data?.leases ?? []
+      return leases.map((l) => ({
+        mac: (l.mac || '').toUpperCase(),
+        ip: l['ip-address'] || l.ip || '',
+        hostname: l.hostname || '',
+      }))
+    } catch {
+      const out = await this.ssh('cat /tmp/dhcp.leases 2>/dev/null || true')
+      // Formato: <expiry> <mac> <ip> <hostname> <clientid>
+      return out
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const p = line.split(/\s+/)
+          return { mac: (p[1] || '').toUpperCase(), ip: p[2] || '', hostname: p[3] === '*' ? '' : p[3] || '' }
+        })
+    }
+  }
+
+  /**
+   * Clientes wireless asociados: iwinfo <iface> assoclist por cada radio.
+   * Devuelve mapa mac → { signalDbm, band }.
+   */
+  async getWirelessClients() {
+    const out = await this.ssh(
+      "for i in $(iwinfo | grep -oP '^\\S+'); do " +
+        'freq=$(iwinfo "$i" info 2>/dev/null | grep -oP \'Channel:.*\\(\' | grep -oP \'\\d\\.\\d|\\d{4}\' | head -1); ' +
+        'iwinfo "$i" assoclist 2>/dev/null | grep -oP \'^[0-9A-F:]{17}\\s+-\\d+\' | while read mac sig; do ' +
+        'echo "$mac $sig $freq"; done; done',
+      8000,
+    )
+    const map = new Map()
+    for (const line of out.trim().split('\n').filter(Boolean)) {
+      const [mac, sig, freq] = line.split(/\s+/)
+      const ghz = parseFloat(freq || '0')
+      map.set(mac.toUpperCase(), {
+        signalDbm: parseInt(sig, 10),
+        band: ghz >= 5 ? '5 GHz' : '2.4 GHz',
+      })
+    }
+    return map
+  }
+
+  // -------------------------------------------------------------------------
+  // Puertos
+  // -------------------------------------------------------------------------
+
+  /** Estado de interfaces: operstate + speed desde /sys (vía SSH). */
+  async getPortStates() {
+    const out = await this.ssh(
+      'for d in /sys/class/net/*; do i=$(basename "$d"); ' +
+        'echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1)"; done',
+    )
+    return out
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [name, oper, speed] = line.split(/\s+/)
+        const mbps = parseInt(speed, 10)
+        return {
+          name,
+          up: oper === 'up',
+          speed: mbps > 0 ? (mbps >= 1000 ? `${mbps / 1000} Gbps` : `${mbps} Mbps`) : '—',
+        }
+      })
+  }
+}

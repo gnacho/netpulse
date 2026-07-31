@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160" fill="none">
+  <defs>
+    <linearGradient id="ea-grad" x1="70" y1="40" x2="170" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+  </defs>
+  <!-- concentric waves -->
+  <circle cx="120" cy="80" r="70" stroke="#22D3EE" stroke-opacity="0.12" stroke-width="1.5"/>
+  <circle cx="120" cy="80" r="54" stroke="#22D3EE" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="4 6"/>
+  <circle cx="120" cy="80" r="38" stroke="#34D399" stroke-opacity="0.3" stroke-width="1.5"/>
+  <!-- shield -->
+  <path d="M120 42 L148 53 V78 C148 96 136 109 120 116 C104 109 92 96 92 78 V53 Z"
+        stroke="url(#ea-grad)" stroke-width="3" stroke-linejoin="round"/>
+  <!-- check -->
+  <path d="M108 78 L117 87 L134 68" stroke="#34D399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- small deco dots -->
+  <circle cx="52" cy="40" r="2" fill="#22D3EE" fill-opacity="0.35"/>
+  <circle cx="196" cy="52" r="2.5" fill="#34D399" fill-opacity="0.3"/>
+  <circle cx="182" cy="126" r="2" fill="#22D3EE" fill-opacity="0.25"/>
+  <circle cx="44" cy="118" r="2.5" fill="#34D399" fill-opacity="0.22"/>
+</svg>

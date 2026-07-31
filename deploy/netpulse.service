@@ -1,0 +1,46 @@
+# NetPulse — unit systemd
+# NOTA: la skill 'infraestructura' del usuario refinará este fichero en el
+# despliegue real (puerto 80 con CAP_NET_BIND_SERVICE, reverse proxy HTTPS, etc).
+# Esta unidad es el punto de partida razonable: usuario dedicado, hardening
+# básico y arranque tras la red.
+#
+# Instalación:
+#   sudo useradd --system --home /opt/netpulse --shell /usr/sbin/nologin netpulse
+#   sudo cp deploy/netpulse.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now netpulse
+
+[Unit]
+Description=NetPulse — dashboard de monitorización de red doméstica
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netpulse
+Group=netpulse
+WorkingDirectory=/opt/netpulse/server
+EnvironmentFile=/opt/netpulse/server/.env
+# NODE_ENV ya viene en .env; descomentar para forzar:
+#Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# La DB SQLite vive en DATA_DIR (por defecto server/data)
+ReadWritePaths=/opt/netpulse/server/data
+# NOTA modo live: ProtectHome=true impide leer claves SSH bajo /home o /root.
+# Coloca la clave de los routers en /opt/netpulse/server/data/.ssh (o ajusta
+# SSH_KEY_PATH + ReadWritePaths/ProtectHome en consecuencia).
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

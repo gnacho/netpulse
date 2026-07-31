@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* NetPulse design tokens — dark-first (design.md §3). Default = dark "NOC doméstico". */
+  :root {
+    --canvas: 7 11 18;          /* #070B12 */
+    --surface: 13 20 32;        /* #0D1420 */
+    --elevated: 19 28 44;       /* #131C2C */
+    --hover: 26 36 54;          /* #1A2436 */
+    --border: 30 42 61;         /* #1E2A3D */
+    --border-strong: 42 58 82;  /* #2A3A52 */
+    --text-primary: 232 238 247;  /* #E8EEF7 */
+    --text-secondary: 154 168 188; /* #9AA8BC */
+    --text-muted: 91 107 130;   /* #5B6B82 */
+    --accent: 34 211 238;       /* #22D3EE cyan-400 */
+    --tunnel: 167 139 250;      /* #A78BFA violet-400 */
+    --ok: 52 211 153;           /* #34D399 emerald-400 */
+    --warn: 251 191 36;         /* #FBBF24 amber-400 */
+    --danger: 248 113 113;      /* #F87171 red-400 */
+    --info: 96 165 250;         /* #60A5FA blue-400 */
+    --radius: 0.625rem;         /* 10px */
+    color-scheme: dark;
+  }
+
+  /* Light theme — toggled via .light class on <html> */
+  html.light {
+    --canvas: 243 245 249;      /* #F3F5F9 */
+    --surface: 255 255 255;
+    --elevated: 255 255 255;
+    --hover: 241 245 249;       /* slate-100 */
+    --border: 226 232 240;      /* #E2E8F0 */
+    --border-strong: 203 213 225;
+    --text-primary: 15 23 42;   /* #0F172A */
+    --text-secondary: 71 85 105;  /* #475569 */
+    --text-muted: 100 116 139;  /* slate-500, AA sobre surface */
+    --accent: 8 145 178;        /* #0891B2 cyan-600 */
+    --tunnel: 124 58 237;       /* violet-600 */
+    --ok: 5 150 105;            /* emerald-600 */
+    --warn: 217 119 6;          /* amber-600 */
+    --danger: 220 38 38;        /* red-600 */
+    --info: 37 99 235;          /* blue-600 */
+    color-scheme: light;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-canvas text-text-primary font-sans antialiased;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  .font-mono,
+  code,
+  kbd {
+    font-feature-settings: "tnum";
+  }
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Scrollbar discreto acorde al tema */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--border-strong));
+    border-radius: 999px;
+    border: 2px solid rgb(var(--canvas));
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  /* Safe areas (PWA, design.md §12) */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  .h-tabbar {
+    height: calc(4rem + env(safe-area-inset-bottom));
+  }
+  .mesh-bg {
+    background-image: url('/mesh-texture.svg');
+    background-repeat: repeat;
+    background-size: 400px 400px;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Reduced motion: desactiva pulses/tweens (design.md §8, §13) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

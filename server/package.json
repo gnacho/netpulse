@@ -1,0 +1,25 @@
+{
+  "name": "netpulse-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NetPulse backend — Hono + SQLite (auth single-user, SSE, adapters demo/live)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.2.0",
+    "hono": "^4.6.14",
+    "zod": "^3.23.8"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
+  }
+}

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160" fill="none">
+  <defs>
+    <linearGradient id="ed-grad" x1="80" y1="30" x2="170" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  <!-- smartphone -->
+  <rect x="84" y="28" width="56" height="104" rx="10" stroke="#22D3EE" stroke-opacity="0.7" stroke-width="2.5"/>
+  <line x1="106" y1="38" x2="118" y2="38" stroke="#22D3EE" stroke-opacity="0.5" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="94" y1="118" x2="130" y2="118" stroke="#22D3EE" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+  <!-- signal dots inside screen -->
+  <circle cx="100" cy="88" r="2.5" fill="#22D3EE" fill-opacity="0.5"/>
+  <circle cx="112" cy="78" r="2.5" fill="#22D3EE" fill-opacity="0.65"/>
+  <circle cx="124" cy="68" r="2.5" fill="#22D3EE" fill-opacity="0.8"/>
+  <!-- magnifier -->
+  <circle cx="158" cy="92" r="22" stroke="url(#ed-grad)" stroke-width="3.5"/>
+  <line x1="174" y1="108" x2="190" y2="124" stroke="url(#ed-grad)" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="158" cy="92" r="30" stroke="#22D3EE" stroke-opacity="0.15" stroke-width="1.5" stroke-dasharray="3 6"/>
+  <!-- deco dots -->
+  <circle cx="52" cy="48" r="2" fill="#22D3EE" fill-opacity="0.3"/>
+  <circle cx="60" cy="120" r="2.5" fill="#A78BFA" fill-opacity="0.3"/>
+  <circle cx="204" cy="44" r="2" fill="#22D3EE" fill-opacity="0.25"/>
+</svg>

@@ -1,0 +1,541 @@
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Bell,
+  Download,
+  LayoutDashboard,
+  MonitorSmartphone,
+  MoreHorizontal,
+  RefreshCw,
+  Router as RouterIcon,
+  Settings,
+  Waypoints,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import type { TimeRange } from '@/data/mock'
+import { useNetPulse } from '@/data/DataProvider'
+import { DashboardProvider, useDashboard } from '@/hooks/useDashboard'
+import { CommandPalette } from '@/components/CommandPalette'
+import { HealthRing } from '@/components/HealthRing'
+import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { cn } from '@/lib/utils'
+
+// ---------------------------------------------------------------------------
+// Navegación
+// ---------------------------------------------------------------------------
+
+interface NavItem {
+  to: string
+  labelKey: string
+  icon: LucideIcon
+  end?: boolean
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', labelKey: 'nav.overview', icon: LayoutDashboard, end: true },
+  { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
+  { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
+  { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
+  { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
+  { to: '/settings', labelKey: 'nav.settings', icon: Settings },
+]
+
+/** Badge de alertas sin leer, desde el DataProvider */
+function useNavBadge(to: string): number {
+  const { unreadAlerts } = useNetPulse()
+  return to === '/alerts' ? unreadAlerts : 0
+}
+
+const PAGE_TITLE_KEYS: [RegExp, string][] = [
+  [/^\/$/, 'nav.overview'],
+  [/^\/routers\/[^/]+/, 'nav.routerDetail'],
+  [/^\/routers/, 'nav.routers'],
+  [/^\/devices/, 'nav.devices'],
+  [/^\/topology/, 'nav.topology'],
+  [/^\/alerts/, 'nav.alerts'],
+  [/^\/settings/, 'nav.settings'],
+]
+
+function pageTitleKey(pathname: string): string {
+  return PAGE_TITLE_KEYS.find(([re]) => re.test(pathname))?.[1] ?? 'nav.overview'
+}
+
+/** Pill "Modo demo" (amber sutil) — solo cuando no hay backend */
+function DemoPill() {
+  const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
+  if (!isDemo) return null
+  return (
+    <span className="rounded-md border border-warn/30 bg-warn/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-warn">
+      {t('topbar.demoMode')}
+    </span>
+  )
+}
+
+function Logo({ compact = false }: { compact?: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <Link to="/" className="flex items-center gap-2.5" aria-label={`NetPulse — ${t('nav.overview')}`}>
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent/20 to-tunnel/20 ring-1 ring-accent/30">
+        <img src="/logo.svg" alt="" className="h-6 w-6" />
+      </span>
+      {!compact && (
+        <span className="flex items-center gap-2">
+          <span className="font-display text-lg font-bold tracking-tight text-text-primary">NetPulse</span>
+          <span className="rounded-md bg-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            Home
+          </span>
+          <DemoPill />
+        </span>
+      )}
+    </Link>
+  )
+}
+
+function NavBadge({ count }: { count: number }) {
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-warn px-1.5 font-mono text-[11px] font-semibold text-canvas">
+      {count}
+    </span>
+  )
+}
+
+/** Badge de un item de navegación (solo «Alertas» lo tiene) */
+function NavItemBadge({ to, variant }: { to: string; variant: 'sidebar' | 'rail' | 'tab' }) {
+  const count = useNavBadge(to)
+  if (!count) return null
+  if (variant === 'sidebar') return <NavBadge count={count} />
+  return (
+    <span
+      className={cn(
+        'absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-warn px-1 font-mono text-[10px] font-semibold text-canvas',
+        variant === 'rail' ? 'right-1 top-1' : '-right-1.5 -top-1',
+      )}
+    >
+      {count}
+    </span>
+  )
+}
+
+/** Tarjeta "Estado del gateway" al pie del sidebar (datos del provider) */
+function GatewayStatus() {
+  const { t } = useTranslation()
+  const { routers } = useNetPulse()
+  const gw = routers.find((r) => r.roleBadge === 'Principal') ?? routers[0]
+  if (!gw) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl bg-elevated px-3 py-2.5">
+        <span className="relative flex h-2 w-2">
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-text-muted" />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-caption font-semibold text-text-secondary">{t('topbar.gatewayStatus')}</div>
+          <div className="truncate font-mono text-caption text-text-muted">—</div>
+        </div>
+      </div>
+    )
+  }
+  const statusLabel = t(`common.status.${gw.status}`)
+  const dotClass = gw.status === 'online' ? 'bg-ok' : gw.status === 'warn' ? 'bg-warn' : 'bg-danger'
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl bg-elevated px-3 py-2.5">
+      <span className="relative flex h-2 w-2">
+        <span className={cn('absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping-soft', dotClass)} />
+        <span className={cn('relative inline-flex h-2 w-2 rounded-full', dotClass)} />
+      </span>
+      <div className="min-w-0">
+        <div className="truncate text-caption font-semibold text-text-secondary">{t('topbar.gatewayStatus')}</div>
+        <div className="truncate font-mono text-caption text-text-muted">
+          {gw.modelShort.replace('GL.iNet ', '')} · {statusLabel} · {gw.uptime}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar desktop (≥1024px) — 232px
+// ---------------------------------------------------------------------------
+
+function Sidebar() {
+  const { t } = useTranslation()
+  const main = NAV_ITEMS.filter((i) => i.to !== '/settings')
+  const settings = NAV_ITEMS[NAV_ITEMS.length - 1]
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-border bg-surface lg:flex">
+      <div className="flex h-16 items-center px-5 pt-safe">
+        <Logo />
+      </div>
+      <nav className="flex-1 space-y-1 px-3 py-2" aria-label={t('nav.mainNav')}>
+        {main.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) =>
+              cn(
+                'group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-150',
+                isActive ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.span
+                    layoutId="nav-indicator"
+                    className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent"
+                  />
+                )}
+                <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                {t(item.labelKey)}
+                <NavItemBadge to={item.to} variant="sidebar" />
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="space-y-3 border-t border-border p-3">
+        <GatewayStatus />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <NavLink
+            to={settings.to}
+            className={({ isActive }) =>
+              cn(
+                'flex h-9 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors duration-150',
+                isActive ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+              )
+            }
+          >
+            <settings.icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            {t('nav.settings')}
+          </NavLink>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Rail tablet (768–1023px) — 64px con tooltips
+// ---------------------------------------------------------------------------
+
+function Rail() {
+  const { t } = useTranslation()
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-16 flex-col items-center border-r border-border bg-surface md:flex lg:hidden">
+      <div className="flex h-16 items-center pt-safe">
+        <Logo compact />
+      </div>
+      <nav className="flex-1 space-y-1 py-2" aria-label={t('nav.mainNav')}>
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            title={t(item.labelKey)}
+            className={({ isActive }) =>
+              cn(
+                'group relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150',
+                isActive ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+              )
+            }
+          >
+            <item.icon className="h-5 w-5" strokeWidth={1.75} />
+            <NavItemBadge to={item.to} variant="rail" />
+            <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-lg border border-border-strong bg-elevated px-2.5 py-1.5 text-caption font-medium text-text-primary shadow-lg group-hover:block">
+              {t(item.labelKey)}
+            </span>
+          </NavLink>
+        ))}
+      </nav>
+      <div className="border-t border-border py-3">
+        <ThemeToggle />
+      </div>
+    </aside>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Campana con badge
+// ---------------------------------------------------------------------------
+
+function BellButton() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { unreadAlerts } = useNetPulse()
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/alerts')}
+      aria-label={t('topbar.alertsUnread', { count: unreadAlerts })}
+      className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+    >
+      <Bell className="h-4 w-4" strokeWidth={1.75} />
+      {unreadAlerts > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warn px-1 font-mono text-[10px] font-semibold text-canvas">
+          {unreadAlerts}
+        </span>
+      )}
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Topbar (≥768px) — h-14
+// ---------------------------------------------------------------------------
+
+/** Pill de estado de conexión en el topbar (live: "En vivo"; reconectando: amber) */
+function LivePill() {
+  const { t } = useTranslation()
+  const { connectionStatus } = useNetPulse()
+  if (connectionStatus === 'reconnecting') {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full bg-warn/10 px-2.5 py-1">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-warn opacity-75 animate-ping-soft" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-warn" />
+        </span>
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-warn">{t('topbar.reconnecting')}</span>
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full rounded-full bg-ok opacity-75 animate-ping-soft" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-ok" />
+      </span>
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ok">{t('topbar.live')}</span>
+    </span>
+  )
+}
+
+function Topbar() {
+  const { t } = useTranslation()
+  const { range, setRange, refresh } = useDashboard()
+  const { refresh: refreshData } = useNetPulse()
+  const [spinning, setSpinning] = useState(false)
+  const location = useLocation()
+
+  const onRefresh = () => {
+    setSpinning(true)
+    refresh()
+    refreshData()
+    window.setTimeout(() => setSpinning(false), 450)
+  }
+
+  return (
+    <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-border bg-canvas/80 px-6 backdrop-blur-md md:flex pt-safe">
+      <h1 className="font-display text-h1 text-text-primary">{t(pageTitleKey(location.pathname))}</h1>
+      <div className="ml-auto flex items-center gap-3">
+        {location.pathname === '/' && (
+          <SegmentedControl
+            options={TIME_RANGE_OPTIONS}
+            value={range}
+            onChange={(v) => setRange(v as TimeRange)}
+            ariaLabel={t('topbar.timeRange')}
+          />
+        )}
+        <button
+          type="button"
+          onClick={onRefresh}
+          aria-label={t('topbar.refresh')}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <RefreshCw
+            className={cn('h-4 w-4 transition-transform duration-500', spinning && 'rotate-[360deg]')}
+            strokeWidth={1.75}
+          />
+        </button>
+        <LivePill />
+        <BellButton />
+      </div>
+    </header>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Header móvil (<768px)
+// ---------------------------------------------------------------------------
+
+function MobileHeader() {
+  const { t } = useTranslation()
+  const { health: healthScore } = useNetPulse()
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
+      <Logo />
+      <div className="flex items-center gap-3">
+        <Link to="/" aria-label={t('topbar.networkHealth100', { score: healthScore.score })}>
+          <motion.div layoutId="health-ring">
+            <HealthRing
+              value={healthScore.score}
+              size={32}
+              stroke={3.5}
+              animateIn={false}
+              ariaLabel={t('topbar.networkHealth', { score: healthScore.score })}
+              center={<span className="font-mono text-[9px] font-semibold text-text-primary">{healthScore.score}</span>}
+            />
+          </motion.div>
+        </Link>
+        <BellButton />
+      </div>
+    </header>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bottom tab bar móvil (<768px) — 5 tabs + sheet "Más"
+// ---------------------------------------------------------------------------
+
+const TAB_ITEMS = NAV_ITEMS.filter((i) => ['/', '/routers', '/devices', '/alerts'].includes(i.to))
+
+function MoreSheet() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const moreActive = ['/topology', '/settings'].some((p) => location.pathname.startsWith(p))
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'flex h-full min-w-[56px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
+            moreActive ? 'text-accent' : 'text-text-muted',
+          )}
+          aria-label={t('nav.moreOptions')}
+        >
+          <span className={cn('flex h-8 items-center rounded-full px-3', moreActive && 'bg-accent-soft')}>
+            <MoreHorizontal className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <span className="text-[10px] font-medium">{t('nav.more')}</span>
+        </button>
+      </SheetTrigger>
+      <SheetContent side="bottom" className="rounded-t-2xl border-border bg-elevated pb-safe">
+        <SheetHeader>
+          <SheetTitle className="font-display text-text-primary">{t('nav.more')}</SheetTitle>
+        </SheetHeader>
+        <div className="mt-2 space-y-1">
+          {[
+            { to: '/topology', label: t('nav.topology'), icon: Waypoints, desc: t('nav.topologyDesc') },
+            { to: '/settings', label: t('nav.settings'), icon: Settings, desc: t('nav.settingsDesc') },
+          ].map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-hover"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-accent">
+                <item.icon className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <span>
+                <span className="block text-sm font-medium text-text-primary">{item.label}</span>
+                <span className="block text-caption text-text-muted">{item.desc}</span>
+              </span>
+            </Link>
+          ))}
+          <div className="flex items-center gap-3 rounded-xl px-3 py-3 opacity-70">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-text-secondary">
+              <Download className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <span>
+              <span className="block text-sm font-medium text-text-primary">{t('nav.installApp')}</span>
+              <span className="block text-caption text-text-muted">{t('nav.installFromSettings')}</span>
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl px-3 py-3">
+            <span className="text-sm font-medium text-text-primary">{t('nav.theme')}</span>
+            <ThemeToggle />
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function TabBar() {
+  const { t } = useTranslation()
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-elevated/90 backdrop-blur-md md:hidden"
+      aria-label={t('nav.mainNav')}
+    >
+      <div className="flex h-16 items-stretch px-2 pb-[env(safe-area-inset-bottom)]">
+        {TAB_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) =>
+              cn(
+                'flex h-full min-w-[56px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
+                isActive ? 'text-accent' : 'text-text-muted',
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span className={cn('relative flex h-8 items-center rounded-full px-3', isActive && 'bg-accent-soft')}>
+                  <item.icon className="h-5 w-5" strokeWidth={1.75} />
+                  <NavItemBadge to={item.to} variant="tab" />
+                </span>
+                <span className="text-[10px] font-medium">{t(item.labelKey)}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+        <MoreSheet />
+      </div>
+    </nav>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
+
+function Shell() {
+  const location = useLocation()
+  const key = useMemo(() => location.pathname, [location.pathname])
+  return (
+    <div className="min-h-[100dvh] bg-canvas">
+      <Sidebar />
+      <Rail />
+      <div className="md:pl-16 lg:pl-[232px]">
+        <Topbar />
+        <MobileHeader />
+        <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={key}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+      <TabBar />
+      <CommandPalette />
+    </div>
+  )
+}
+
+/** App shell del dashboard (design.md §9). Sustituye a Navbar/Footer. */
+export default function Layout() {
+  return (
+    <DashboardProvider>
+      <Shell />
+    </DashboardProvider>
+  )
+}

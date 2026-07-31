@@ -1,0 +1,13 @@
+# Dependencias
+dist/
+node_modules/
+
+# Backend: datos y secretos
+server/data/
+server/.env
+.env
+.env.local
+.env.*.local
+
+# Sistema
+.DS_Store
