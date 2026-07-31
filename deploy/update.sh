@@ -16,7 +16,10 @@ fi
 
 echo "STEP:frontend-build"
 cd /opt/netpulse/app
-npm ci --no-audit --no-fund
+# npm ci SOLO si cambió el lockfile (656 paquetes: OOM seguro en el CT de 512MB)
+if git diff --name-only 'HEAD@{1}' HEAD 2>/dev/null | grep -q 'app/package-lock.json'; then
+  npm ci --no-audit --no-fund
+fi
 # Build atómico: si falla (p.ej. RAM justa), el dist anterior queda intacto
 rm -rf dist.new
 npm run build -- --outDir dist.new
