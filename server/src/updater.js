@@ -103,8 +103,10 @@ export function createUpdater({ repoRoot, repo, token }) {
     child.on('close', (code) => {
       if (code === 0) {
         state.updating = { step: 'done', log: state.updating.log }
+        state.lastLog = state.updating.log
         state.updateAvailable = false
       } else {
+        state.lastLog = state.updating?.log ?? null
         state.updating = false
         state.error = `update_exit_${code}`
       }
@@ -127,6 +129,7 @@ export function createUpdater({ repoRoot, repo, token }) {
       return {
         ...state,
         updating: state.updating ? { step: state.updating.step } : false,
+        lastLog: state.updating?.log?.slice(-800) ?? state.lastLog ?? null,
         repo,
         hasToken: Boolean(token),
       }

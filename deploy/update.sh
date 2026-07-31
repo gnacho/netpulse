@@ -15,18 +15,28 @@ if git diff --name-only 'HEAD@{1}' HEAD 2>/dev/null | grep -q 'server/package-lo
 fi
 
 echo "STEP:frontend-build"
-cd /opt/netpulse/app
-# npm ci SOLO si cambió el lockfile (656 paquetes: OOM seguro en el CT de 512MB)
-if git diff --name-only 'HEAD@{1}' HEAD 2>/dev/null | grep -q 'app/package-lock.json'; then
-  npm ci --no-audit --no-fund
+cd /opt/netpulse
+SHA=$(git rev-parse HEAD)
+URL="https://github.com/gnacho/netpulse/releases/download/dist-latest/app-dist-$SHA.tar.gz"
+rm -rf /opt/netpulse/app/dist.new
+mkdir -p /opt/netpulse/app/dist.new
+# Vía preferida: dist precompilado por CI (el CT no tiene RAM para compilar)
+if curl -fsSL -m 300 "$URL" -o /tmp/app-dist.tgz && tar xzf /tmp/app-dist.tgz -C /opt/netpulse/app/dist.new; then
+  echo "dist precompilado descargado de CI ($SHA)"
+else
+  echo "sin dist en CI para $SHA; build local (riesgo OOM en 512MB)"
+  cd /opt/netpulse/app
+  # npm ci SOLO si cambió el lockfile (656 paquetes: OOM seguro en el CT)
+  if git diff --name-only 'HEAD@{1}' HEAD 2>/dev/null | grep -q 'app/package-lock.json'; then
+    npm ci --no-audit --no-fund
+  fi
+  npm run build -- --outDir dist.new
 fi
-# Build atómico: si falla (p.ej. RAM justa), el dist anterior queda intacto
-rm -rf dist.new
-npm run build -- --outDir dist.new
-rm -rf dist.old
-[ -d dist ] && mv dist dist.old
-mv dist.new dist
-rm -rf dist.old
+# Swap atómico: si algo falló antes, el dist anterior queda intacto
+rm -rf /opt/netpulse/app/dist.old
+[ -d /opt/netpulse/app/dist ] && mv /opt/netpulse/app/dist /opt/netpulse/app/dist.old
+mv /opt/netpulse/app/dist.new /opt/netpulse/app/dist
+rm -rf /opt/netpulse/app/dist.old /tmp/app-dist.tgz
 
 echo "STEP:restart"
 # Reinicio vía unidad systemd.path del CT (netpulse-restart.path vigila este

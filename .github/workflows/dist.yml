@@ -1,0 +1,48 @@
+name: dist
+
+# Compila app/dist en CI y lo publica como asset de la prerelease "dist-latest"
+# (el CT 226 tiene 512MB y no puede compilar; el updater descarga el build
+# exacto de su commit: app-dist-<sha>.tar.gz).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/dist.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Build frontend
+        working-directory: app
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Empaqueta dist
+        run: tar czf app-dist-${{ github.sha }}.tar.gz -C app/dist .
+
+      - name: Publica en prerelease dist-latest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dist-latest
+          name: dist-latest
+          prerelease: true
+          files: app-dist-${{ github.sha }}.tar.gz
+
+      - name: Limpia assets antiguos (conserva los 5 últimos)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view dist-latest --json assets --jq '.assets[].name' \
+            | sort -r | tail -n +6 \
+            | while read -r a; do gh release delete-asset dist-latest "$a" -y; done
