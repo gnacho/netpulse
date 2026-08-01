@@ -29,6 +29,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
+          cache-dependency-path: |
+            server-go/go.sum
+            collector/go.sum
+
+      - name: Build frontend + copia dist al embed (necesario para go:embed y tests)
+        run: |
+          npm ci --no-audit --no-fund --prefix app
+          npm run build --prefix app
+          rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
 
       - name: Tests Go (ambos módulos)
         run: |
