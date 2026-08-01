@@ -154,6 +154,14 @@ type Device struct {
 	TrafficMbps  float64   `json:"trafficMbps"`
 	Online       bool      `json:"online"`
 	Sparkline    []float64 `json:"sparkline"`
+	// --- topología v5 (FDB/LLDP; omitempty: ausentes si no hay datos) ---
+	// Port: puerto físico del bridge donde se aprende la MAC (cableados, FDB).
+	Port string `json:"port,omitempty"`
+	// Lldp: identificación del vecino cuando se anuncia por LLDP.
+	Lldp *LldpInfo `json:"lldp,omitempty"`
+	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
+	// DistributionNode inferido o de otro Device — hipervisor/switch).
+	AttachTo string `json:"attachTo,omitempty"`
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname     string `json:"hostname,omitempty"`
 	DHCPLease    string `json:"dhcpLease,omitempty"`
@@ -165,6 +173,31 @@ type Device struct {
 	IsNew        bool   `json:"isNew,omitempty"`
 	NewThisWeek  bool   `json:"newThisWeek,omitempty"`
 	IconOverride string `json:"iconOverride,omitempty"`
+}
+
+// LldpInfo identifica un vecino que se anuncia por LLDP (switch gestionado,
+// AP, host…). Campos del `lldpcli -f json show neighbors`.
+type LldpInfo struct {
+	Chassis  string `json:"chassis,omitempty"`
+	Mgmt     string `json:"mgmt,omitempty"`
+	Caps     string `json:"caps,omitempty"`
+	PortDesc string `json:"portDesc,omitempty"`
+}
+
+// DistributionNode: puerto físico con varias MACs aprendidas en el FDB.
+// "inferred" = OUI heterogéneo (switch o bridge desconocido, sin IP);
+// "hypervisor" = OUI de hipervisor (Proxmox/VMware/Hyper-V/KVM) → sus
+// CTs/VMs se anidan bajo el host en el mapa.
+type DistributionNode struct {
+	ID       string    `json:"id"`
+	Kind     string    `json:"kind"` // "inferred"|"hypervisor"
+	RouterID string    `json:"routerId"`
+	Port     string    `json:"port"`
+	MacCount int       `json:"macCount"`
+	// HostDeviceID: hipervisor → id del Device host (Proxmox…), si es cliente.
+	HostDeviceID string    `json:"hostDeviceId,omitempty"`
+	Name         string    `json:"name,omitempty"`
+	Lldp         *LldpInfo `json:"lldp,omitempty"`
 }
 
 // AlertEvent (máx 100 en memoria, más recientes primero).
@@ -190,7 +223,11 @@ type Overview struct {
 	TopDevices   []Device       `json:"topDevices"` // 5 por trafficMbps desc
 	Alerts       []AlertEvent   `json:"alerts"`
 	UnreadAlerts int            `json:"unreadAlerts"`
-	Ts           int64          `json:"ts"` // floor(now/1000) — SEGUNDOS
+	// DistributionNodes: switches/hipervisores inferidos del FDB (topología
+	// v5). Vacío/ausente si aún no hay datos FDB: el mapa cuelga los
+	// cableados del router (degradación amable).
+	DistributionNodes []DistributionNode `json:"distributionNodes,omitempty"`
+	Ts                int64              `json:"ts"` // floor(now/1000) — SEGUNDOS
 }
 
 // ---------------------------------------------------------------------------

@@ -490,22 +490,22 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	srv := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
 
-	// Paginación: 47 dispositivos del dataset canónico (port devices.test.js)
+	// Paginación: 67 dispositivos del dataset canónico (47 base + 20 fixtures topología v5)
 	res := get(t, srv.URL, "/api/devices?page=1&pageSize=10", cookie)
 	body := readJSON(t, res)
-	if body["total"].(float64) != 47 || len(body["items"].([]any)) != 10 {
+	if body["total"].(float64) != 67 || len(body["items"].([]any)) != 10 {
 		t.Fatalf("page1: %v items, total %v", len(body["items"].([]any)), body["total"])
 	}
 	if body["page"].(float64) != 1 || body["pageSize"].(float64) != 10 {
 		t.Fatalf("page/pageSize: %v", body)
 	}
-	res = get(t, srv.URL, "/api/devices?page=5&pageSize=10", cookie)
+	res = get(t, srv.URL, "/api/devices?page=7&pageSize=10", cookie)
 	body = readJSON(t, res)
 	if len(body["items"].([]any)) != 7 {
-		t.Fatalf("page5 (resto): %v", len(body["items"].([]any)))
+		t.Fatalf("page7 (resto): %v", len(body["items"].([]any)))
 	}
 	// Sin solape con la página anterior
-	res = get(t, srv.URL, "/api/devices?page=4&pageSize=10", cookie)
+	res = get(t, srv.URL, "/api/devices?page=6&pageSize=10", cookie)
 	prev := readJSON(t, res)
 	prevIDs := map[string]bool{}
 	for _, it := range prev["items"].([]any) {
@@ -513,7 +513,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	}
 	for _, it := range body["items"].([]any) {
 		if prevIDs[it.(map[string]any)["id"].(string)] {
-			t.Fatalf("solape entre page4 y page5: %v", it)
+			t.Fatalf("solape entre page6 y page7: %v", it)
 		}
 	}
 	// Defaults: pageSize=50
@@ -525,7 +525,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	// Filtros
 	res = get(t, srv.URL, "/api/devices?routerId=living", cookie)
 	body = readJSON(t, res)
-	if body["total"].(float64) != 18 {
+	if body["total"].(float64) != 22 { // 18 base + switch-netgear + 3 clientes detrás
 		t.Fatalf("routerId=living: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?band=cable", cookie)
@@ -535,7 +535,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 			t.Fatalf("band=cable con item de otra banda: %v", it)
 		}
 	}
-	if body["total"].(float64) != 7 { // ps5, nas, pc-sobremesa, raspberry, switch, mac-mini, hue-hub
+	if body["total"].(float64) != 27 { // 7 base + 20 fixtures cable (3 netgear + pve + 10 CTs + 6 tras switch)
 		t.Fatalf("band=cable: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?status=offline", cookie)
