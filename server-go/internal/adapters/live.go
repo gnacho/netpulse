@@ -1217,7 +1217,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		return out
 	}
 	clients := []Device{}
-	for _, d := range l.buildDevices(polledAll) {
+	detDevices, _ := inferTopology(polledAll, l.buildDevices(polledAll))
+	for _, d := range detDevices {
 		if d.RouterID == id {
 			clients = append(clients, d)
 		}
@@ -1294,12 +1295,14 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	return detail, nil
 }
 
-// GetDevices: buildDevices sobre el último sondeo.
+// GetDevices: buildDevices sobre el último sondeo (+ inferencia FDB de
+// topología: Port/AttachTo, como en buildOverview).
 func (l *Live) GetDevices(context.Context) []Device {
 	l.mu.Lock()
 	polled := l.lastPolled
 	l.mu.Unlock()
-	return l.buildDevices(polled)
+	devices, _ := inferTopology(polled, l.buildDevices(polled))
+	return devices
 }
 
 // GetAlerts: copia de las alertas en memoria.
