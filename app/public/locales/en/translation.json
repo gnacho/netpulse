@@ -464,6 +464,10 @@
     "ct": {
       "pill": "CT",
       "note": "Container on the hypervisor · its traffic rides the host's cable"
+    },
+    "peers": {
+      "overflowTitle": "{{count}} more peers",
+      "overflowAria": "{{count}} additional WireGuard peers"
     }
   },
   "settings": {

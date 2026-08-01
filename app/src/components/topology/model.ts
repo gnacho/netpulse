@@ -122,6 +122,8 @@ export interface TopologyModel {
   routerNodes: RouterNode[]
   internetNode: { id: 'internet'; x: number; y: number }
   peerNodes: PeerNode[]
+  /** Peers activos que exceden las coordenadas canónicas (chip "+N") */
+  hiddenPeers: WGPeer[]
   chips: ChipNode[]
   distNodes: DistNodeView[]
   /** CTs/VMs anidados por host hipervisor (hostId → chips en grid) */
@@ -541,6 +543,8 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
 
   // -- peers WireGuard (arriba; túnel trazado vía Internet) -------------------
+  // Hay 4 coordenadas canónicas: los activos que exceden se agrupan en el
+  // chip "+N" (antes se descartaban silenciosamente).
   const activePeers = wireguard.peers.filter((p) => p.active)
   const peerNodes: PeerNode[] = activePeers.slice(0, PEER_COORDS.length).map((peer, i) => ({
     kind: 'peer',
@@ -548,6 +552,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     peer,
     ...PEER_COORDS[i],
   }))
+  const hiddenPeers = activePeers.slice(PEER_COORDS.length)
 
   // -- tráfico agregado de un sub-árbol (para el flujo ∝ Mbps) ----------------
   const subtreeTraffic = (hubId: string, seen = new Set<string>()): number => {
@@ -744,6 +749,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     routerNodes,
     internetNode,
     peerNodes,
+    hiddenPeers,
     chips,
     distNodes,
     ctsByHost,
