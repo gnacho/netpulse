@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -73,6 +74,10 @@ type routerPolled struct {
 	brMac     string
 	latencyMs *float64
 	lossPct   *float64
+	// backhaul: "cable"|"wifi"|"" (desconocido → se omite en el contrato).
+	backhaul string
+	// lldp: vecinos LLDP del tier lento (nil = sin lldpd o sonda fallida).
+	lldp []LldpNeighbor
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -81,6 +86,25 @@ type extrasSnapshot struct {
 	radios   []Radio
 	wireless map[string]WirelessClient
 	fdb      map[string]string
+}
+
+// backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.
+const backhaulCacheTTL = 5 * time.Minute
+
+// backhaulCacheEntry: resultado cacheado de la detección de uplink wifi
+// (value "" = desconocido/sonda fallida → el campo se omite).
+type backhaulCacheEntry struct {
+	value string
+	at    time.Time
+}
+
+// lldpCacheTTL: tier lento LLDP (45 s, como los extras cacheados).
+const lldpCacheTTL = 45 * time.Second
+
+// lldpCacheEntry: vecinos LLDP cacheados por router (nil = sin datos).
+type lldpCacheEntry struct {
+	neighbors []LldpNeighbor
+	at        time.Time
 }
 
 // Live es el Snapshotter del modo live.
@@ -94,16 +118,18 @@ type Live struct {
 	gatewayCfg *RouterConfig
 	clients    map[string]*OpenWrtClient
 
-	lastGood    map[string]*Router
-	lastStatus  map[string]string
-	boardCache  map[string]*BoardInfo
-	layoutCache map[string][]PortLayout
-	extrasCache map[string]*extrasSnapshot
-	lastPolled  map[string]*routerPolled
-	failCount   map[string]int
-	alerts      []AlertEvent
-	wgActive    map[string]bool
-	weakAlerted map[string]int64
+	lastGood      map[string]*Router
+	lastStatus    map[string]string
+	boardCache    map[string]*BoardInfo
+	layoutCache   map[string][]PortLayout
+	extrasCache   map[string]*extrasSnapshot
+	lastPolled    map[string]*routerPolled
+	failCount     map[string]int
+	alerts        []AlertEvent
+	wgActive      map[string]bool
+	weakAlerted   map[string]int64
+	backhaulCache map[string]backhaulCacheEntry
+	lldpCache     map[string]lldpCacheEntry
 
 	agStd *AdGuardClient
 	agGL  *AdGuardGlinetClient
@@ -121,18 +147,20 @@ type sfResult struct {
 // NewLive crea el adapter live (db puede ser nil en tests).
 func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool) *Live {
 	l := &Live{
-		cfg:         cfg,
-		db:          d,
-		pool:        pool,
-		lastGood:    map[string]*Router{},
-		lastStatus:  map[string]string{},
-		boardCache:  map[string]*BoardInfo{},
-		layoutCache: map[string][]PortLayout{},
-		extrasCache: map[string]*extrasSnapshot{},
-		lastPolled:  map[string]*routerPolled{},
-		failCount:   map[string]int{},
-		wgActive:    map[string]bool{},
-		weakAlerted: map[string]int64{},
+		cfg:           cfg,
+		db:            d,
+		pool:          pool,
+		lastGood:      map[string]*Router{},
+		lastStatus:    map[string]string{},
+		boardCache:    map[string]*BoardInfo{},
+		layoutCache:   map[string][]PortLayout{},
+		extrasCache:   map[string]*extrasSnapshot{},
+		lastPolled:    map[string]*routerPolled{},
+		failCount:     map[string]int{},
+		wgActive:      map[string]bool{},
+		weakAlerted:   map[string]int64{},
+		backhaulCache: map[string]backhaulCacheEntry{},
+		lldpCache:     map[string]lldpCacheEntry{},
 	}
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
@@ -208,6 +236,63 @@ func (l *Live) SetRouters(list []RouterConfig) {
 			delete(l.failCount, id)
 		}
 	}
+	for id := range l.backhaulCache {
+		if !ids[id] {
+			delete(l.backhaulCache, id)
+		}
+	}
+	for id := range l.lldpCache {
+		if !ids[id] {
+			delete(l.lldpCache, id)
+		}
+	}
+}
+
+// probeBackhaul detecta el medio del uplink (interfaz STA asociada → "wifi";
+// si no → "cable") con caché de 5 min: no se sondea cada tick. Error (router
+// sin wifi, ubus caído) → "" cacheado igualmente (el campo se omite y el
+// sondeo no se rompe).
+func (l *Live) probeBackhaul(routerID string, client *OpenWrtClient) string {
+	l.mu.Lock()
+	e, ok := l.backhaulCache[routerID]
+	l.mu.Unlock()
+	if ok && time.Since(e.at) < backhaulCacheTTL {
+		return e.value
+	}
+	value := ""
+	if wifi, err := client.GetWirelessUplink(); err == nil {
+		value = "cable"
+		if wifi {
+			value = "wifi"
+		}
+	}
+	l.mu.Lock()
+	l.backhaulCache[routerID] = backhaulCacheEntry{value: value, at: time.Now()}
+	l.mu.Unlock()
+	return value
+}
+
+// probeLldp: vecinos LLDP del router con caché de 45 s (tier lento, como los
+// extras anti-parpadeo). Error o lldpd ausente → nil (sin datos; el FDB solo
+// sigue mandando, comportamiento actual intacto).
+func (l *Live) probeLldp(ctx context.Context, routerID string, client *OpenWrtClient) []LldpNeighbor {
+	l.mu.Lock()
+	e, ok := l.lldpCache[routerID]
+	l.mu.Unlock()
+	if ok && time.Since(e.at) < lldpCacheTTL {
+		return e.neighbors
+	}
+	neighbors, err := client.LldpNeighbors(ctx)
+	if err != nil {
+		if !errors.Is(err, ErrLldpUnavailable) {
+			log.Printf("[netpulse] LLDP %s: %v", routerID, err)
+		}
+		neighbors = nil
+	}
+	l.mu.Lock()
+	l.lldpCache[routerID] = lldpCacheEntry{neighbors: neighbors, at: time.Now()}
+	l.mu.Unlock()
+	return neighbors
 }
 
 // getAdguardClient: kv (GL.iNet) con fallback a .env (AGH estándar).
@@ -320,7 +405,7 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 }
 
 // pollRouter sondea un router; error si está inalcanzable.
-func (l *Live) pollRouter(cfg RouterConfig) (*routerPolled, error) {
+func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
 	gw := l.gatewayCfg
@@ -363,6 +448,10 @@ func (l *Live) pollRouter(cfg RouterConfig) (*routerPolled, error) {
 	radios := client.GetRadios()
 	fdb := client.GetBridgeFdb()
 	brMac := client.GetBridgeMac()
+	// Tier lento: backhaul (5 min) y vecinos LLDP (45 s), ambos cacheados y
+	// tolerantes a error (router sin wifi/lldpd → campo ausente, sin romper).
+	backhaul := l.probeBackhaul(cfg.ID, client)
+	lldp := l.probeLldp(ctx, cfg.ID, client)
 	if !hasBoard {
 		if b, err := client.GetBoard(); err == nil {
 			board = b
@@ -431,6 +520,7 @@ func (l *Live) pollRouter(cfg RouterConfig) (*routerPolled, error) {
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
+		backhaul: backhaul, lldp: lldp,
 	}, nil
 }
 
@@ -494,6 +584,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.brMac != "" {
 		r.MAC = p.brMac
 	}
+	if p.backhaul != "" {
+		r.Backhaul = p.backhaul
+	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
 	}
@@ -538,7 +631,7 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 }
 
 // pollAll sondea todos los routers en paralelo (Promise.allSettled).
-func (l *Live) pollAll() map[string]*routerPolled {
+func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
 	l.mu.Unlock()
@@ -554,7 +647,7 @@ func (l *Live) pollAll() map[string]*routerPolled {
 		wg.Add(1)
 		go func(i int, cfg RouterConfig) {
 			defer wg.Done()
-			p, err := l.pollRouter(cfg)
+			p, err := l.pollRouter(ctx, cfg)
 			results[i] = result{cfg, p, err}
 		}(i, cfg)
 	}
@@ -913,7 +1006,7 @@ func (l *Live) GetOverview(ctx context.Context) (*Overview, error) {
 }
 
 func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
-	polled := l.pollAll()
+	polled := l.pollAll(ctx)
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
 	gw := l.gatewayCfg
@@ -1161,6 +1254,11 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		if neighbor != "" {
 			port.ConnectedTo = routerByMac[neighbor]
 			port.Detail = "enlace entre routers"
+			// El vecino además se anuncia por LLDP → el frontend puede
+			// mostrar el sufijo "· LLDP" en la etiqueta del uplink (C2).
+			if nb := lldpNeighborOnPort(p.lldp, port.ID); nb != nil {
+				port.Detail = "enlace entre routers · LLDP"
+			}
 			enriched = append(enriched, port)
 			continue
 		}
@@ -1185,6 +1283,18 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 		// 3) Varios: el vecino es un switch/hub
 		if len(all) > 1 {
+			// Si se anuncia por LLDP, esa identificación (chassis + mgmt-ip)
+			// es mejor pista que el hostname DHCP.
+			if nb := lldpNeighborOnPort(p.lldp, port.ID); nb != nil && nb.displayName() != "" {
+				port.ConnectedTo = nb.displayName()
+				if nb.Mgmt != "" {
+					port.Detail = nb.Mgmt + " · LLDP"
+				} else {
+					port.Detail = "LLDP"
+				}
+				enriched = append(enriched, port)
+				continue
+			}
 			infraMac := ""
 			for _, mac := range all {
 				if le, ok := leaseMap[mac]; ok && le.Hostname != "" {
