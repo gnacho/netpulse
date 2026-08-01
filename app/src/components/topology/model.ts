@@ -130,6 +130,8 @@ export interface TopologyModel {
   ctsByHost: Map<string, ChipNode[]>
   /** nº de CTs por host (badge +N) */
   ctCountByHost: Map<string, number>
+  /** radios de los anillos wifi realmente usados por router (guías punteadas) */
+  ringRadii: Map<string, number[]>
   links: TopoLink[]
   totalPackets: number
   activeLinkCount: number
@@ -454,6 +456,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   })
 
   // wifi: anillos con arcos prohibidos (uplink, etiqueta, WAN, fan cableado)
+  const ringRadii = new Map<string, number[]>()
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
     const wifi = childrenOf(node.id).filter((d) => !isWired(d)).map((d) => mkChip(d, node.id))
@@ -477,6 +480,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       rings.push({ r: last.r + 30, cap: last.cap + 5 })
       cap = rings.reduce((a, r) => a + r.cap, 0)
     }
+    ringRadii.set(node.id, rings.map((r) => r.r))
     ringLayout(wifi, node, rings, excludes)
     // chips algo menores en anillos externos
     wifi.forEach((c, i) => {
@@ -754,6 +758,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     distNodes,
     ctsByHost,
     ctCountByHost,
+    ringRadii,
     links,
     totalPackets,
     activeLinkCount,

@@ -668,9 +668,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         </defs>
 
         {/* ------------------------- Anillos guía wifi ------------------------- */}
+        {/* guías para TODOS los anillos usados (el modelo añade anillos extra
+            si el wifi supera el aforo de los dos primeros) */}
         <g aria-hidden>
           {routerNodes.map((node) =>
-            (node.id === model.gatewayNode?.id ? [88, 118] : [74, 108]).map((r) => (
+            (model.ringRadii.get(node.id) ?? (node.id === model.gatewayNode?.id ? [88, 118] : [74, 108])).map((r) => (
               <circle
                 key={`${node.id}-ring-${r}`}
                 cx={node.x}
@@ -810,6 +812,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 animate={{ opacity: [0.05, 0.15, 0.05] }}
                 transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
               />
+            )}
+            {/* anillo orbital con punto rotando 24s (mockup v5) */}
+            {!reduce && (
+              <g aria-hidden>
+                <circle r={38} fill="none" stroke={COLOR.ok} strokeWidth={1.2} strokeDasharray="3 7" opacity={0.55} />
+                <circle r={3} fill={COLOR.ok} cx={0} cy={-38} />
+                <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="24s" repeatCount="indefinite" />
+              </g>
             )}
             <circle r={28} fill="rgb(var(--elevated))" stroke={COLOR.ok} strokeWidth={2} />
             <Cloud x={-12} y={-10} width={24} height={20} className="text-ok" strokeWidth={1.75} aria-hidden />
