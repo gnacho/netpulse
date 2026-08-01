@@ -19,6 +19,29 @@ puntos de acceso OpenWrt.
   **TODO**: que server-go lea estas series de largo plazo del collector en vez
   de depender solo de su tabla `metrics` de 5 s.
 
+## Instalación (servidor Linux, un comando)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh
+```
+
+Detecta distro/arquitectura (amd64, arm64, armv7), descarga la release
+verificada (sha256 contra `checksums.txt`), crea un servicio systemd
+sandboxed `netpulse` y muestra la contraseña admin inicial. Requiere systemd.
+Actualizar = re-ejecutar el mismo comando; desinstalar con
+`sh install.sh --uninstall`. Si prefieres inspeccionar antes:
+`curl -fsSL …/install.sh -o install.sh && less install.sh`.
+
+Sidecar opcional de latencia (series temporales de sondeos TCP a cada router):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh | sh
+```
+
+Los binarios estables se publican por tag `v*` (goreleaser,
+`.github/workflows/release.yml`); los builds rolling por commit viven en la
+prerelease `go-latest` para el updater integrado.
+
 ## Estructura
 
 ```

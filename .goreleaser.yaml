@@ -1,0 +1,66 @@
+version: 2
+
+# Releases de NetPulse: dos binarios estáticos por tag v*
+#   netpulse            app completa (backend Go + frontend embebido)
+#   netpulse-collector  sidecar de latencia TCP con series temporales propias
+# El frontend se construye en el hook (el binario netpulse lo embebe con go:embed).
+
+before:
+  hooks:
+    - npm ci --no-audit --no-fund --prefix app
+    - npm run build --prefix app
+    - rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
+
+builds:
+  - id: netpulse
+    dir: server-go
+    main: ./cmd/netpulse
+    binary: netpulse
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64, arm]
+    goarm: [7]
+    flags: [-trimpath]
+    ldflags: [-s, -w]
+
+  - id: netpulse-collector
+    dir: collector
+    main: .
+    binary: netpulse-collector
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64, arm]
+    goarm: [7]
+    flags: [-trimpath]
+    ldflags: [-s, -w]
+
+archives:
+  - id: netpulse
+    builds: [netpulse]
+    formats: [tar.gz]
+    name_template: >-
+      {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE
+      - src: server-go/.env.example
+        dst: .env.example
+
+  - id: netpulse-collector
+    builds: [netpulse-collector]
+    formats: [tar.gz]
+    name_template: >-
+      {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

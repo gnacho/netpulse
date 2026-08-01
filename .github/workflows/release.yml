@@ -1,0 +1,50 @@
+name: release
+
+# Release estable por tag v*: goreleaser construye netpulse (con el frontend
+# embebido) y netpulse-collector para linux/amd64|arm64|armv7 + checksums.txt.
+# install.sh / install-collector.sh consumen estos assets.
+# Distinto de go.yml: aquello publica binarios rolling del commit en la
+# prerelease go-latest (para el updater del CT 226); esto publica versiones.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # sin tag = snapshot de prueba (no publica release)
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Tests Go (ambos módulos)
+        run: |
+          (cd server-go && go test ./...)
+          (cd collector && go test ./...)
+
+      - name: Valida config goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: check
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean ${{ (github.ref_type == 'tag' && '' ) || '--snapshot' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

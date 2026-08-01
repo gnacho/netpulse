@@ -28,6 +28,28 @@ AdGuard Home stats and alerts — in real time.
   (`/etc/dropbear/authorized_keys`). Read-only polling: ubus, `/proc`, iwinfo,
   `bridge fdb`, `wg show`.
 
+## Install (Linux server, one-liner)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh
+```
+
+Detects your distro/arch (amd64, arm64, armv7), downloads the verified release
+(sha256 against `checksums.txt`), creates a sandboxed `netpulse` systemd
+service and prints the initial admin password. Requires systemd. Update =
+re-run the same line; remove with `sh install.sh --uninstall`. Inspect first if
+you prefer: `curl -fsSL …/install.sh -o install.sh && less install.sh`.
+
+Optional latency sidecar (time-series of TCP probes to each router):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh | sh
+```
+
+Stable binaries are published per `v*` tag (goreleaser,
+`.github/workflows/release.yml`); rolling per-commit builds live in the
+`go-latest` prerelease for the in-app updater.
+
 ## Quick start
 
 ```bash
