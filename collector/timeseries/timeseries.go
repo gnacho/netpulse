@@ -1,18 +1,19 @@
 // timeseries.go — módulo de referencia: series temporales en SQLite (Go + modernc.org/sqlite)
 // Uso:
-//   ts, _ := NewTimeSeries("data/metrics.db")
-//   ts.RegisterMetric(Metric{Key: "latency_ms", Unit: "ms", Kind: "gauge", MaxValue: ptr(60000.0)})
-//   ts.Write("latency_ms", 12.3)          // buffer; flush cada 1s/50 muestras
-//   go ts.RunNightlyJob(ctx, 3, 30)       // job diario 03:30 local (rollup+purga+mantenimiento)
-//   ts.Series("latency_ms", from, to, 800)
-//   ts.Close()                            // SIGTERM: flush + checkpoint (patrón go-collector-stack)
+//
+//	ts, _ := NewTimeSeries("data/metrics.db")
+//	ts.RegisterMetric(Metric{Key: "latency_ms", Unit: "ms", Kind: "gauge", MaxValue: ptr(60000.0)})
+//	ts.Write("latency_ms", 12.3)          // buffer; flush cada 1s/50 muestras
+//	go ts.RunNightlyJob(ctx, 3, 30)       // job diario 03:30 local (rollup+purga+mantenimiento)
+//	ts.Series("latency_ms", from, to, 800)
+//	ts.Close()                            // SIGTERM: flush + checkpoint (patrón go-collector-stack)
 package timeseries
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -25,6 +26,10 @@ const (
 	bucketRetentionS = 366 * 86400
 	bucketS          = 300
 	flushBatch       = 50
+	// bufferCap acota la memoria si la DB falla (FS RO/disco lleno): drop-oldest.
+	bufferCap = 10000
+	// dropLogEvery limita el spam del aviso de drops (como mucho 1 aviso/intervalo).
+	dropLogEvery = time.Minute
 )
 
 type Metric struct {
@@ -44,13 +49,15 @@ type sample struct {
 }
 
 type TimeSeries struct {
-	db       *sql.DB
-	mu       sync.Mutex
-	metrics  map[string]Metric
-	lastGood map[int64]float64
-	buffer   []sample
-	done     chan struct{}
-	wg       sync.WaitGroup
+	db          *sql.DB
+	mu          sync.Mutex
+	metrics     map[string]Metric
+	lastGood    map[int64]float64
+	buffer      []sample
+	dropped     int64 // muestras descartadas por buffer lleno (drop-oldest)
+	lastDropLog time.Time
+	done        chan struct{}
+	wg          sync.WaitGroup
 }
 
 func NewTimeSeries(path string) (*TimeSeries, error) {
@@ -74,9 +81,14 @@ func NewTimeSeries(path string) (*TimeSeries, error) {
 	for rows.Next() {
 		var m Metric
 		if err := rows.Scan(&m.ID, &m.Key, &m.Unit, &m.Kind, &m.MaxValue, &m.MaxRate, &m.MaxDaily); err != nil {
+			db.Close() // no fugues la conexión si el scan inicial falla
 			return nil, err
 		}
 		t.metrics[m.Key] = m
+	}
+	if err := rows.Err(); err != nil {
+		db.Close()
+		return nil, err
 	}
 	t.wg.Add(1)
 	go t.flushLoop()
@@ -135,20 +147,20 @@ func (t *TimeSeries) Write(key string, value float64) bool {
 		return false
 	}
 	if value < 0 {
-		log.Printf("[SANITY] %s: descartada muestra %v (negativo)", key, value)
+		slog.Warn("[SANITY] muestra descartada (negativo)", "key", key, "value", value)
 		return false
 	}
 	if m.MaxValue != nil && value > *m.MaxValue {
-		log.Printf("[SANITY] %s: descartada muestra %v (> max_value %v)", key, value, *m.MaxValue)
+		slog.Warn("[SANITY] muestra descartada (> max_value)", "key", key, "value", value, "max_value", *m.MaxValue)
 		return false
 	}
 	if m.Kind == "counter" {
 		if prev, ok := t.lastGood[m.ID]; ok {
 			delta := value - prev
 			if delta < 0 {
-				log.Printf("[SANITY] %s: reset de counter (%v -> %v), nueva base", key, prev, value)
+				slog.Warn("[SANITY] reset de counter, nueva base", "key", key, "prev", prev, "value", value)
 			} else if m.MaxRate != nil && delta > *m.MaxRate {
-				log.Printf("[SANITY] %s: descartada muestra %v (delta %v > max_rate %v)", key, value, delta, *m.MaxRate)
+				slog.Warn("[SANITY] muestra descartada (delta > max_rate)", "key", key, "value", value, "delta", delta, "max_rate", *m.MaxRate)
 				return false
 			}
 		}
@@ -158,7 +170,32 @@ func (t *TimeSeries) Write(key string, value float64) bool {
 	if len(t.buffer) >= flushBatch {
 		t.flushLocked()
 	}
+	t.capBufferLocked()
 	return true
+}
+
+// capBufferLocked aplica la cota del buffer (drop-oldest): si la DB falla el
+// buffer no puede crecer sin límite — crítico en un FS degradado (router).
+func (t *TimeSeries) capBufferLocked() {
+	if len(t.buffer) <= bufferCap {
+		return
+	}
+	drop := len(t.buffer) - bufferCap
+	copy(t.buffer, t.buffer[drop:])
+	t.buffer = t.buffer[:bufferCap]
+	t.dropped += int64(drop)
+	if time.Since(t.lastDropLog) >= dropLogEvery {
+		t.lastDropLog = time.Now()
+		slog.Warn("buffer lleno: descartando muestras antiguas (drop-oldest)",
+			"dropped_total", t.dropped, "cap", bufferCap)
+	}
+}
+
+// Dropped: total acumulado de muestras descartadas por buffer lleno.
+func (t *TimeSeries) Dropped() int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.dropped
 }
 
 func (t *TimeSeries) flushLoop() {
@@ -183,22 +220,23 @@ func (t *TimeSeries) flushLocked() {
 	}
 	tx, err := t.db.Begin()
 	if err != nil {
-		log.Printf("[JOB] flush: begin: %v", err)
+		slog.Error("flush: begin", "err", err)
 		return
 	}
 	stmt, err := tx.Prepare("INSERT INTO samples (ts, metric_id, value) VALUES (?, ?, ?)")
 	if err != nil {
+		slog.Error("flush: prepare", "err", err)
 		tx.Rollback()
 		return
 	}
 	for _, s := range t.buffer {
 		if _, err := stmt.Exec(s.ts, s.metricID, s.value); err != nil {
-			log.Printf("[JOB] flush: insert: %v", err)
+			slog.Error("flush: insert", "err", err)
 		}
 	}
 	stmt.Close()
 	if err := tx.Commit(); err != nil {
-		log.Printf("[JOB] flush: commit: %v", err)
+		slog.Error("flush: commit", "err", err)
 		return
 	}
 	t.buffer = t.buffer[:0]
@@ -213,33 +251,52 @@ func (t *TimeSeries) NightlyJob() {
 	start := time.Now()
 	now := time.Now().Unix()
 
-	t.db.Exec(fmt.Sprintf(`
+	// Cada paso loguea su error: un fallo nocturno silencioso es inobservable.
+	if _, err := t.db.Exec(fmt.Sprintf(`
 	  INSERT OR REPLACE INTO buckets (bucket_ts, metric_id, n, min, max, avg, sum)
 	  SELECT (ts / %d) * %d, metric_id, COUNT(*), MIN(value), MAX(value), AVG(value),
 	         CASE WHEN (SELECT kind FROM metrics WHERE id = metric_id) = 'counter'
 	              THEN MAX(value) - MIN(value) ELSE SUM(value) END
 	  FROM samples WHERE ts >= ?
-	  GROUP BY metric_id, ts / %d`, bucketS, bucketS, bucketS), now-48*3600)
+	  GROUP BY metric_id, ts / %d`, bucketS, bucketS, bucketS), now-48*3600); err != nil {
+		slog.Error("NightlyJob: rollup 5min", "err", err)
+	}
 
 	fromDate := time.Unix(now-35*86400, 0).UTC().Format("2006-01-02")
-	t.db.Exec(`
+	if _, err := t.db.Exec(`
 	  INSERT OR REPLACE INTO daily (date, metric_id, n, min, max, avg, sum)
 	  SELECT date(bucket_ts, 'unixepoch'), metric_id, SUM(n), MIN(min), MAX(max),
 	         SUM(sum) * 1.0 / SUM(n), SUM(sum)
 	  FROM buckets WHERE date(bucket_ts, 'unixepoch') >= ?
-	  GROUP BY metric_id, date(bucket_ts, 'unixepoch')`, fromDate)
-
-	t.db.Exec("DELETE FROM samples WHERE ts < ?", now-rawRetentionS)
-	t.db.Exec("DELETE FROM buckets WHERE bucket_ts < ?", now-bucketRetentionS)
-	t.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-	t.db.Exec("PRAGMA optimize")
-	t.db.Exec("ANALYZE")
-	var freelist int
-	t.db.QueryRow("PRAGMA freelist_count").Scan(&freelist)
-	if freelist > 1000 {
-		t.db.Exec("VACUUM")
+	  GROUP BY metric_id, date(bucket_ts, 'unixepoch')`, fromDate); err != nil {
+		slog.Error("NightlyJob: rollup diario", "err", err)
 	}
-	log.Printf("[JOB] NightlyJob en %v (freelist=%d)", time.Since(start), freelist)
+
+	if _, err := t.db.Exec("DELETE FROM samples WHERE ts < ?", now-rawRetentionS); err != nil {
+		slog.Error("NightlyJob: purga raw", "err", err)
+	}
+	if _, err := t.db.Exec("DELETE FROM buckets WHERE bucket_ts < ?", now-bucketRetentionS); err != nil {
+		slog.Error("NightlyJob: purga buckets", "err", err)
+	}
+	if _, err := t.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		slog.Error("NightlyJob: checkpoint", "err", err)
+	}
+	if _, err := t.db.Exec("PRAGMA optimize"); err != nil {
+		slog.Error("NightlyJob: optimize", "err", err)
+	}
+	if _, err := t.db.Exec("ANALYZE"); err != nil {
+		slog.Error("NightlyJob: analyze", "err", err)
+	}
+	var freelist int
+	if err := t.db.QueryRow("PRAGMA freelist_count").Scan(&freelist); err != nil {
+		slog.Error("NightlyJob: freelist_count", "err", err)
+	}
+	if freelist > 1000 {
+		if _, err := t.db.Exec("VACUUM"); err != nil {
+			slog.Error("NightlyJob: vacuum", "err", err)
+		}
+	}
+	slog.Info("NightlyJob completado", "duracion", time.Since(start), "freelist", freelist)
 }
 
 // RunNightlyJob programa el job a hour:min local cada día hasta ctx.Done().
@@ -278,7 +335,7 @@ func (t *TimeSeries) Series(key string, from, to int64, points int) (string, []P
 	case span <= 2*86400:
 		resolution = "raw"
 		rows, err = t.db.Query("SELECT ts, value FROM samples WHERE metric_id = ? AND ts BETWEEN ? AND ? ORDER BY ts", m.ID, from, to)
-	case span <= 60 * 86400:
+	case span <= 60*86400:
 		resolution = "5m"
 		rows, err = t.db.Query("SELECT bucket_ts, avg FROM buckets WHERE metric_id = ? AND bucket_ts BETWEEN ? AND ? ORDER BY bucket_ts", m.ID, from, to)
 	default:
@@ -321,18 +378,27 @@ func (t *TimeSeries) Health(dbPath string) map[string]any {
 			last[id] = ts
 		}
 	}
-	return map[string]any{"wal_bytes": walBytes, "freelist_pages": freelist, "last_sample": last}
+	t.mu.Lock()
+	pending := len(t.buffer)
+	dropped := t.dropped
+	t.mu.Unlock()
+	return map[string]any{
+		"wal_bytes": walBytes, "freelist_pages": freelist, "last_sample": last,
+		"buffer_pending": pending, "buffer_dropped": dropped,
+	}
 }
 
-// Close: SIGTERM — para el loop, vuelca el lote pendiente, checkpoint y cierra.
+// Close: SIGTERM — para el loop, vuelca el lote pendiente, checkpoint, espera a
+// las goroutines (flushLoop/NightlyJob) y SOLO ENTONCES cierra la conexión:
+// nadie toca la DB después de db.Close().
 func (t *TimeSeries) Close() {
 	close(t.done)
 	t.mu.Lock()
 	t.flushLocked()
 	t.mu.Unlock()
 	t.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-	t.db.Close()
 	t.wg.Wait()
+	t.db.Close()
 }
 
 // LTTB — Largest-Triangle-Three-Buckets; conserva la forma visual de la serie.
