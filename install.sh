@@ -131,6 +131,49 @@ fi
 fetch_to() { $FETCH "$1" > "$2"; }
 command -v sha256sum >/dev/null 2>&1 || fatal 21 "missing sha256sum (coreutils package)"
 
+# ------------------------------------------------- disk / memory pre-flight --
+AVAIL_MB=$(df -Pm / 2>/dev/null | awk 'NR==2 {print $4}' || true)
+if [ -n "${AVAIL_MB:-}" ]; then
+    [ "$AVAIL_MB" -lt 150 ] && fatal 24 "not enough disk space: ${AVAIL_MB} MB free (minimum 150 MB)"
+    [ "$AVAIL_MB" -lt 300 ] && warn "low disk space: ${AVAIL_MB} MB free (recommended: 300+ MB)"
+    ok "disk space: ${AVAIL_MB} MB free"
+fi
+MEM_MB=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || true)
+if [ -n "${MEM_MB:-}" ] && [ "$MEM_MB" -lt 128 ]; then
+    warn "low memory: ${MEM_MB} MB available — NetPulse needs very little, but 128+ MB is recommended"
+fi
+
+# ------------------------------------------------------ port pre-flight -----
+port_in_use() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -tln 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${1}\$"
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tln 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${1}\$"
+    else
+        return 1  # can't check: assume free
+    fi
+}
+pick_port() {
+    _p=$1; _end=$((_p + 20))
+    while [ "$_p" -le "$_end" ]; do
+        if ! port_in_use "$_p"; then printf '%s' "$_p"; return 0; fi
+        _p=$((_p + 1))
+    done
+    return 1
+}
+
+# Fresh install only: an upgrade keeps the port from the existing .env file.
+PORT="$DEFAULT_PORT"
+if [ ! -f "$STATE_DIR/.env" ]; then
+    if port_in_use "$DEFAULT_PORT"; then
+        PORT=$(pick_port "$((DEFAULT_PORT + 1))") \
+            || fatal 25 "port $DEFAULT_PORT is busy and no free port found in $((DEFAULT_PORT + 1))-$((DEFAULT_PORT + 21)) — set one manually in $STATE_DIR/.env after install"
+        warn "port $DEFAULT_PORT is already in use — NetPulse will listen on $PORT instead"
+    else
+        ok "port $DEFAULT_PORT is free"
+    fi
+fi
+
 # --------------------------------------------------------- resolve version --
 if [ -z "$VERSION" ]; then
     info "resolving latest stable version"
@@ -156,7 +199,7 @@ fi
 
 # ---------------------------------------------------------- download+verify --
 TMP=$(mktemp -d) || fatal 34 "mktemp failed"
-cleanup() { rm -rf "$TMP"; }
+cleanup() { rm -rf "$TMP"; return 0; }
 trap cleanup EXIT INT TERM
 
 info "downloading $ASSET"
@@ -198,9 +241,9 @@ fi
 # Initial config ONLY on fresh install (upgrades never touch .env or data)
 if [ ! -f "$STATE_DIR/.env" ]; then
     ADMIN_PASS=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
-    if [ "$DRY_RUN" -eq 1 ]; then info "[dry-run] would generate $STATE_DIR/.env (0600, random admin password)"; else
+    if [ "$DRY_RUN" -eq 1 ]; then info "[dry-run] would generate $STATE_DIR/.env (0600, random admin password, PORT=$PORT)"; else
         $SUDO tee "$STATE_DIR/.env" >/dev/null <<EOF
-PORT=$DEFAULT_PORT
+PORT=$PORT
 DATA_DIR=./data
 AUTH_USER=admin
 AUTH_PASS=$ADMIN_PASS
@@ -213,6 +256,8 @@ EOF
     FRESH_CREDENTIALS=1
 else
     FRESH_CREDENTIALS=0
+    PORT=$(sed -n 's/^PORT=//p' "$STATE_DIR/.env" | head -1)
+    PORT="${PORT:-$DEFAULT_PORT}"
     info "existing config kept ($STATE_DIR/.env)"
 fi
 
@@ -259,9 +304,9 @@ if [ "$DRY_RUN" -eq 0 ]; then
     fi
     ok "service $SERVICE_NAME active"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsS --max-time 5 "http://127.0.0.1:$DEFAULT_PORT/api/health" >/dev/null 2>&1 \
-            && ok "HTTP health check OK on :$DEFAULT_PORT" \
-            || warn "service is up but http://127.0.0.1:$DEFAULT_PORT didn't answer yet (give it a few seconds)"
+        curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 \
+            && ok "HTTP health check OK on :$PORT" \
+            || warn "service is up but http://127.0.0.1:$PORT didn't answer yet (give it a few seconds)"
     fi
 fi
 
@@ -270,7 +315,7 @@ printf '\n%s================ %s installed ================%s\n' "$C_G" "$APP_NAM
 printf 'Version:  %s%s\n' "$VERSION" "$( [ "$UPGRADING" -eq 1 ] && echo " (upgrade — previous binary at $INSTALL_DIR/$BIN_NAME.bak)" || true)"
 printf 'Binary:   %s\n' "$INSTALL_DIR/$BIN_NAME"
 printf 'Data:     %s (SQLite, .env, SSH keypair)\n' "$STATE_DIR"
-printf 'Access:   http://<this-machine-ip>:%s\n' "$DEFAULT_PORT"
+printf 'Access:   http://<this-machine-ip>:%s\n' "$PORT"
 if [ "${FRESH_CREDENTIALS:-0}" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
     printf '\nInitial credentials (shown ONCE — change them after logging in):\n'
     printf '  user:     admin\n  password: %s\n' "$ADMIN_PASS"
@@ -281,8 +326,8 @@ printf '  sh install.sh              # update to the latest stable version\n'
 printf '  sh install.sh --uninstall\n'
 printf '\nNotes:\n'
 printf '  - No firewall port was opened. If you need one:\n'
-printf '      firewall-cmd --permanent --add-port=%s/tcp && firewall-cmd --reload\n' "$DEFAULT_PORT"
-printf '      ufw allow %s/tcp\n' "$DEFAULT_PORT"
+printf '      firewall-cmd --permanent --add-port=%s/tcp && firewall-cmd --reload\n' "$PORT"
+printf '      ufw allow %s/tcp\n' "$PORT"
 printf '  - Live mode: authorize the server SSH public key on each router\n'
 printf '    (Settings shows it; append to /etc/dropbear/authorized_keys).\n'
 printf '  - The in-app updater follows rolling builds from main; for stable\n'

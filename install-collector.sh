@@ -131,6 +131,37 @@ fi
 fetch_to() { $FETCH "$1" > "$2"; }
 command -v sha256sum >/dev/null 2>&1 || fatal 21 "missing sha256sum (coreutils)"
 
+# ------------------------------------------------------ port pre-flight -----
+port_in_use() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -tln 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${1}\$"
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tln 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${1}\$"
+    else
+        return 1  # can't check: assume free
+    fi
+}
+pick_port() {
+    _p=$1; _end=$((_p + 20))
+    while [ "$_p" -le "$_end" ]; do
+        if ! port_in_use "$_p"; then printf '%s' "$_p"; return 0; fi
+        _p=$((_p + 1))
+    done
+    return 1
+}
+
+# Fresh install only: an upgrade keeps the port from the existing unit.
+PORT="$DEFAULT_PORT"
+if [ ! -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
+    if port_in_use "$DEFAULT_PORT"; then
+        PORT=$(pick_port "$((DEFAULT_PORT + 1))") \
+            || fatal 25 "port $DEFAULT_PORT is busy and no free port found in $((DEFAULT_PORT + 1))-$((DEFAULT_PORT + 21))"
+        warn "port $DEFAULT_PORT is already in use — the collector will listen on $PORT instead"
+    else
+        ok "port $DEFAULT_PORT is free"
+    fi
+fi
+
 # --------------------------------------------------------- resolve version --
 if [ -z "$VERSION" ]; then
     info "resolving latest stable version"
@@ -155,7 +186,7 @@ fi
 
 # ---------------------------------------------------------- download+verify --
 TMP=$(mktemp -d) || fatal 34 "mktemp failed"
-cleanup() { rm -rf "$TMP"; }
+cleanup() { rm -rf "$TMP"; return 0; }
 trap cleanup EXIT INT TERM
 
 info "downloading $ASSET"
@@ -216,7 +247,7 @@ User=$APP_NAME
 Group=$APP_NAME
 Environment=DATA_DIR=$STATE_DIR/data
 Environment=NETPULSE_DB=$NETPULSE_DB
-Environment=LISTEN=127.0.0.1:$DEFAULT_PORT
+Environment=LISTEN=127.0.0.1:$PORT
 ExecStart=$INSTALL_DIR/$BIN_NAME
 Restart=on-failure
 RestartSec=5
@@ -247,8 +278,8 @@ if [ "$DRY_RUN" -eq 0 ]; then
     fi
     ok "service $SERVICE_NAME active"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsS --max-time 5 "http://127.0.0.1:$DEFAULT_PORT/healthz" >/dev/null 2>&1 \
-            && ok "healthz OK on 127.0.0.1:$DEFAULT_PORT" \
+        curl -fsS --max-time 5 "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 \
+            && ok "healthz OK on 127.0.0.1:$PORT" \
             || warn "service is up but healthz didn't answer yet (give it a few seconds)"
     fi
 fi
@@ -258,7 +289,7 @@ printf '\n%s================ %s installed ================%s\n' "$C_G" "$APP_NAM
 printf 'Version:    %s%s\n' "$VERSION" "$( [ "$UPGRADING" -eq 1 ] && echo " (upgrade — previous binary at $INSTALL_DIR/$BIN_NAME.bak)" || true)"
 printf 'Binary:     %s\n' "$INSTALL_DIR/$BIN_NAME"
 printf 'Data:       %s/data (metrics.db, state.json)\n' "$STATE_DIR"
-printf 'Health:     http://127.0.0.1:%s/healthz (localhost only)\n' "$DEFAULT_PORT"
+printf 'Health:     http://127.0.0.1:%s/healthz (localhost only)\n' "$PORT"
 printf 'Routers DB: %s (read-only)\n' "$NETPULSE_DB"
 printf '\nUseful commands:\n'
 printf '  systemctl status %s\n  journalctl -u %s -f\n' "$SERVICE_NAME" "$SERVICE_NAME"
