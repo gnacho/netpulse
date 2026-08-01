@@ -1,0 +1,25 @@
+[Unit]
+Description=NetPulse Go collector (piloto: latencia TCP a routers)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netpulse
+Group=netpulse
+ExecStart=/opt/netpulse-collector/netpulse-collector
+Restart=on-failure
+RestartSec=5
+
+Environment=DATA_DIR=/opt/netpulse-collector/data
+Environment=NETPULSE_DB=/opt/netpulse/server/data/netpulse.db
+Environment=LISTEN=127.0.0.1:9100
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/netpulse-collector/data
+
+[Install]
+WantedBy=multi-user.target
