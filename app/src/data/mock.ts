@@ -58,7 +58,7 @@ export const routers: Router[] = [
     model: 'GL.iNet Flint 2 (GL-MT6000)',
     modelShort: 'GL.iNet Flint 2',
     role: 'Main gateway',
-    roleBadge: 'Main',
+    roleBadge: 'Principal',
     ip: '192.168.8.1',
     status: 'online',
     health: 98,
@@ -195,7 +195,7 @@ export const trafficByRange: Record<TimeRange, TrafficPoint[]> = {
 
 export const healthScore: HealthScore = {
   score: 92,
-  label: 'Excellent',
+  label: 'Excelente',
   caption: 'Network health score',
   note: 'Penalized by the Patio temperature.',
   breakdown: [
