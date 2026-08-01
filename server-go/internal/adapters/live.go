@@ -791,7 +791,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		s, isSeen := seen[mac]
 		d := Device{
 			ID: strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
-			MAC: mac, Type: "desconocido", Manufacturer: "Desconocido",
+			MAC: mac, Manufacturer: "Desconocido",
 			TrafficMbps: 0, Sparkline: []float64{},
 			RouterID: gwID, Band: "—",
 			Online: isSeen,
@@ -806,6 +806,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		} else {
 			d.Name = mac
 		}
+		// Tipo estimado por hostname (el DHCP/FDB no dice qué es el cliente).
+		// Con nombre-MAC (sin hostname) queda "desconocido".
+		d.Type = GuessDeviceType(d.Name, d.Manufacturer)
 		if isSeen {
 			d.RouterID = s.routerID
 			d.Band = s.band

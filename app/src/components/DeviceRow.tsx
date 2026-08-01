@@ -1,7 +1,7 @@
 import {
   Camera,
+  CircuitBoard,
   Gamepad2,
-  HelpCircle,
   Laptop,
   Lightbulb,
   Monitor,
@@ -38,7 +38,7 @@ export const DEVICE_ICONS: Record<DeviceType, LucideIcon> = {
   altavoz: Speaker,
   servidor: Server,
   switch: Network,
-  desconocido: HelpCircle,
+  desconocido: CircuitBoard,
 }
 
 const SIGNAL_ICONS = {
@@ -83,7 +83,7 @@ export function DeviceRow({ device, variant = 'compact', className, onClick }: D
   const { t } = useTranslation()
   const { routers } = useNetPulse()
   const routerName = (id: string) => routers.find((r) => r.id === id)?.name ?? id
-  const Icon = DEVICE_ICONS[device.type] ?? HelpCircle
+  const Icon = DEVICE_ICONS[device.type] ?? CircuitBoard
   return (
     <div
       onClick={onClick}
