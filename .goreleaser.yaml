@@ -3,13 +3,12 @@ version: 2
 # Releases de NetPulse: dos binarios estáticos por tag v*
 #   netpulse            app completa (backend Go + frontend embebido)
 #   netpulse-collector  sidecar de latencia TCP con series temporales propias
-# El frontend se construye en el hook (el binario netpulse lo embebe con go:embed).
-
-before:
-  hooks:
-    - npm ci --no-audit --no-fund --prefix app
-    - npm run build --prefix app
-    - rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
+#
+# OJO: los hooks globales `before:` son feature GoReleaser PRO (en OSS se
+# "ejecutan" en el log pero no hacen nada, y encima rompen el embed).
+# El frontend DEBE construirse ANTES de goreleaser: lo hace el paso
+# "Build frontend + copia dist al embed" de .github/workflows/release.yml
+# (en local: npm run build --prefix app && cp -r app/dist server-go/internal/staticspa/dist).
 
 builds:
   - id: netpulse
