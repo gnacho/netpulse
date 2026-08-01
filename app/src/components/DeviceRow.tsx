@@ -5,6 +5,7 @@ import {
   Laptop,
   Lightbulb,
   Monitor,
+  Network,
   Server,
   SignalHigh,
   SignalLow,
@@ -36,6 +37,7 @@ export const DEVICE_ICONS: Record<DeviceType, LucideIcon> = {
   camara: Camera,
   altavoz: Speaker,
   servidor: Server,
+  switch: Network,
   desconocido: HelpCircle,
 }
 

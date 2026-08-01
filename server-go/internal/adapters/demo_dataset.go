@@ -22,11 +22,11 @@ func canonRouters() []Router {
 	return []Router{
 		{ID: "flint2", Name: "Gateway", Model: "GL.iNet Flint 2 (GL-MT6000)", ModelShort: "GL.iNet Flint 2",
 			Role: "Gateway principal", RoleBadge: "Principal", IP: "192.168.8.1", Status: "online",
-			Health: 98, CPU: iptr(23), RAM: iptr(41), Temp: iptr(54), Uptime: "32d 14h", Clients: 14,
+			Health: 98, CPU: iptr(23), RAM: iptr(41), Temp: iptr(54), Uptime: "32d 14h", Clients: 33,
 			Sparkline: []float64{8, 6, 5, 5, 6, 9, 18, 32, 41, 38, 35, 44, 52, 48, 45, 55, 68, 84, 96, 120, 150, 110, 84, 40}},
 		{ID: "living", Name: "Salón", Model: "OpenWrt AP (Xiaomi AX3000T)", ModelShort: "Xiaomi AX3000T",
 			Role: "Punto de acceso", RoleBadge: "AP", IP: "192.168.8.2", Status: "online",
-			Health: 95, CPU: iptr(12), RAM: iptr(38), Temp: iptr(47), Uptime: "32d 14h", Clients: 18,
+			Health: 95, CPU: iptr(12), RAM: iptr(38), Temp: iptr(47), Uptime: "32d 14h", Clients: 22,
 			Sparkline: []float64{4, 3, 3, 2, 3, 5, 10, 22, 28, 26, 24, 30, 38, 35, 33, 42, 55, 72, 88, 105, 132, 92, 61, 28}},
 		{ID: "estudio", Name: "Estudio", Model: "OpenWrt (NanoPi R4S)", ModelShort: "NanoPi R4S",
 			Role: "AP + switch", RoleBadge: "AP", IP: "192.168.8.3", Status: "online",
@@ -94,7 +94,7 @@ func canonAdguard() AdGuardStats {
 	return AdGuardStats{
 		Host: "192.168.8.1", Port: 3000, Status: "active",
 		Queries24h: 84312, Blocked24h: 15687, BlockedPct: 18.6, TrackersBlocked: 9204,
-		DNSLatencyMs: 14, ClientsUsing: 41, ClientsTotal: 47,
+		DNSLatencyMs: 14, ClientsUsing: 60, ClientsTotal: 67,
 		TopBlocked: []TopBlocked{
 			{Domain: "graph.facebook.com", Count: 1204},
 			{Domain: "adservice.google.com", Count: 986},
@@ -212,7 +212,7 @@ func canonDevices() []Device {
 			Traffic24hRx: "18 GB", Traffic24hTx: "2,2 GB", Adguard: boolp(true), Group: "ordenadores"},
 		{ID: "ps5", Name: "PS5", Type: "consola", Manufacturer: "Sony",
 			IP: "192.168.8.31", MAC: "78:C8:81:0A:6B:D4", RouterID: "living", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 12.7, Online: true,
+			SignalDbm: nil, TrafficMbps: 12.7, Online: true, Port: "lan2",
 			Sparkline: []float64{4, 6, 8, 10, 12, 14, 13, 12, 13, 12, 13, 13},
 			Hostname:  "ps5-salon", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 300 días",
 			Traffic24hRx: "92 GB", Traffic24hTx: "4,8 GB", Adguard: boolp(true), Group: "tv"},
@@ -236,7 +236,7 @@ func canonDevices() []Device {
 			Traffic24hRx: "1,4 GB", Traffic24hTx: "88 MB", Adguard: boolp(true), Group: "iot"},
 		{ID: "nas-synology", Name: "NAS Synology", Type: "servidor", Manufacturer: "Synology",
 			IP: "192.168.8.10", MAC: "00:11:32:9C:51:B7", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 2.3, Online: true,
+			SignalDbm: nil, TrafficMbps: 2.3, Online: true, Port: "lan1",
 			Sparkline: []float64{1, 1.5, 2, 2.5, 3, 2.8, 2.4, 2.2, 2.3, 2.3, 2.3, 2.3},
 			Hostname:  "diskstation", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 320 días",
 			Traffic24hRx: "96 GB", Traffic24hTx: "1,1 TB", Adguard: boolp(true), Group: "red"},
@@ -263,15 +263,17 @@ func additionalDevices() []Device {
 			"macbook-pro-marc", "renueva en 4 h 16 min", "hace 230 días", "12,4 GB", "1,9 GB", true, "ordenadores", ""),
 		withDetails(devExtra(Device{ID: "pc-sobremesa", Name: "PC de sobremesa", Type: "ordenador", Manufacturer: "ASUSTeK",
 			IP: "192.168.8.11", MAC: "04:D4:C4:8B:30:A7", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 21.3, Online: true}, 13, 0),
+			SignalDbm: nil, TrafficMbps: 21.3, Online: true, AttachTo: "dist-flint2-lan3"}, 13, 0),
 			"desktop-8f2k1", "IP fija (reserva)", "hace 310 días", "84 GB", "6,2 GB", true, "ordenadores", ""),
 		withDetails(devExtra(Device{ID: "raspberry-pi", Name: "Raspberry Pi 4", Type: "servidor", Manufacturer: "Raspberry Pi",
 			IP: "192.168.8.12", MAC: "DC:A6:32:4F:77:02", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 0.8, Online: true}, 14, 0),
+			SignalDbm: nil, TrafficMbps: 0.8, Online: true, AttachTo: "dist-flint2-lan3"}, 14, 0),
 			"raspberrypi", "IP fija (reserva)", "hace 320 días", "3,4 GB", "890 MB", true, "red", ""),
-		withDetails(devExtra(Device{ID: "switch-netgear", Name: "Switch Netgear 8p", Type: "servidor", Manufacturer: "Netgear",
-			IP: "192.168.8.13", MAC: "28:C6:8E:1D:90:44", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 0.02, Online: true}, 15, 0.04),
+		// Switch gestionado identificado por LLDP (topología v5: type switch + Salón lan3)
+		withDetails(devExtra(Device{ID: "switch-netgear", Name: "Switch Netgear", Type: "switch", Manufacturer: "Netgear GS308E",
+			IP: "192.168.8.13", MAC: "28:C6:8E:1D:90:44", RouterID: "living", Band: "cable",
+			SignalDbm: nil, TrafficMbps: 0.02, Online: true, Port: "lan3",
+			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}}, 15, 0.04),
 			"gs308e", "IP fija (reserva)", "hace 300 días", "64 MB", "12 MB", false, "red", "Network"),
 		withDetails(devExtra(Device{ID: "timbre-nest", Name: "Timbre Nest", Type: "camara", Manufacturer: "Google",
 			IP: "192.168.8.72", MAC: "F4:F5:D8:66:01:B8", RouterID: "flint2", Band: "2.4 GHz",
@@ -405,11 +407,117 @@ func withDetails(d Device, hostname, lease, firstSeen, rx, tx string, adguard bo
 	return d
 }
 
-// canonAllDevices: los 47 clientes (canon expandido + adicionales).
+// canonAllDevices: los 67 clientes (canon expandido + adicionales + fixtures
+// de topología v5: switch gestionado LLDP, hipervisor con CTs, switch
+// inferido FDB — espejo del mock front app/src/data/mock.ts).
 func canonAllDevices() []Device {
 	out := canonDevices()
 	out = append(out, additionalDevices()...)
+	out = append(out, topologyDevices()...)
 	return out
+}
+
+// topologyDevices: fixtures NUEVAS de topología v5 (mockup aprobado
+// 2-Ago-2026). Los 3 clientes preexistentes (switch-netgear, pc-sobremesa,
+// raspberry-pi) se enriquecen in situ en additionalDevices — no se duplican.
+func topologyDevices() []Device {
+	out := []Device{
+		// 3 clientes detrás del switch gestionado (Salón)
+		withDetails(Device{ID: "xbox-series-s", Name: "Xbox Series S", Type: "consola", Manufacturer: "Microsoft",
+			IP: "192.168.8.35", MAC: "7C:ED:8D:4A:11:22", RouterID: "living", Band: "cable",
+			SignalDbm: nil, TrafficMbps: 9.8, Online: true, AttachTo: "switch-netgear",
+			Sparkline: []float64{3, 5, 7, 9, 11, 12, 10, 9, 10, 9, 10, 9.8}},
+			"xbox-series-s", "renueva en 4 h 12 min", "hace 140 días", "31 GB", "1,9 GB", true, "tv", ""),
+		withDetails(Device{ID: "apple-tv-4k", Name: "Apple TV 4K", Type: "tv", Manufacturer: "Apple",
+			IP: "192.168.8.36", MAC: "F0:18:98:2B:33:44", RouterID: "living", Band: "cable",
+			SignalDbm: nil, TrafficMbps: 15.2, Online: true, AttachTo: "switch-netgear",
+			Sparkline: []float64{6, 8, 10, 12, 14, 16, 15, 14, 15, 15, 15, 15.2}},
+			"apple-tv-4k", "renueva en 6 h 3 min", "hace 210 días", "88 GB", "3,4 GB", true, "tv", ""),
+		withDetails(Device{ID: "receptor-denon", Name: "Receptor Denon", Type: "altavoz", Manufacturer: "Denon",
+			IP: "192.168.8.37", MAC: "00:05:CD:55:66:77", RouterID: "living", Band: "cable",
+			SignalDbm: nil, TrafficMbps: 0.6, Online: true, AttachTo: "switch-netgear",
+			Sparkline: []float64{0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6}},
+			"denon-avr", "IP fija (reserva)", "hace 320 días", "640 MB", "42 MB", true, "iot", ""),
+		// Hipervisor Proxmox (gateway lan2); sus 10 CTs se anidan (OUI BC:24:11)
+		withDetails(Device{ID: "pve", Name: "Proxmox pve", Type: "servidor", Manufacturer: "Supermicro",
+			IP: "192.168.8.5", MAC: "3C:52:82:10:20:30", RouterID: "flint2", Band: "cable",
+			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan2",
+			Sparkline: []float64{8, 9, 10, 11, 12, 13, 12, 12, 12, 12, 12, 12.3}},
+			"pve", "IP fija (reserva)", "hace 400 días", "1,2 TB", "96 GB", true, "red", ""),
+	}
+	cts := []struct {
+		id, name, typ, ip string
+		mbps              float64
+	}{
+		{"ct-pihole", "Pi-hole", "servidor", "192.168.8.41", 6.1},
+		{"ct-home-assistant", "Home Assistant", "iot", "192.168.8.42", 4.2},
+		{"ct-nextcloud", "Nextcloud", "servidor", "192.168.8.43", 7.8},
+		{"ct-jellyfin", "Jellyfin", "servidor", "192.168.8.44", 9.4},
+		{"ct-immich", "Immich", "servidor", "192.168.8.45", 3.3},
+		{"ct-gitea", "Gitea", "servidor", "192.168.8.46", 1.2},
+		{"ct-uptime-kuma", "Uptime Kuma", "iot", "192.168.8.47", 0.4},
+		{"ct-adguard-sync", "AdGuard sync", "servidor", "192.168.8.48", 0.8},
+		{"ct-postgres", "Postgres", "servidor", "192.168.8.49", 2.1},
+		{"ct-redis", "Redis", "servidor", "192.168.8.50", 0.9},
+	}
+	for i, c := range cts {
+		mbps := c.mbps
+		sp := make([]float64, 12)
+		for j := range sp {
+			sp[j] = max(0.1, mbps-2+float64((i+j)%5))
+		}
+		out = append(out, withDetails(Device{
+			ID: c.id, Name: c.name, Type: c.typ, Manufacturer: "Proxmox VE (CT)",
+			IP: c.ip, MAC: fmt.Sprintf("BC:24:11:00:2%d:%02X", i, 0x10+i), RouterID: "flint2", Band: "cable",
+			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "pve", Sparkline: sp},
+			c.id, "renueva en 3 h 10 min", "hace 90 días", "1,1 GB", "88 MB", true, "red", ""))
+	}
+	// Tras el switch/bridge inferido (gateway lan3, OUI heterogéneo, sin IP).
+	// pc-sobremesa y raspberry-pi ya existen (enriquecidos con AttachTo en
+	// additionalDevices): aquí solo los 6 nuevos.
+	behind := []struct {
+		id, name, typ, man, mac, ip string
+		mbps                        float64
+	}{
+		{"tv-salon-cable", "TV Salón (cable)", "tv", "Samsung", "8C:EA:48:AA:02:02", "192.168.8.61", 24.4},
+		{"impresora-hp", "Impresora HP", "iot", "HP", "3C:D9:2B:AA:03:03", "192.168.8.62", 0.1},
+		{"xbox-one", "Xbox One", "consola", "Microsoft", "7C:ED:8D:AA:05:05", "192.168.8.64", 4.2},
+		{"receptor-av", "Receptor AV", "altavoz", "Denon", "00:05:CD:AA:06:06", "192.168.8.65", 0.3},
+		{"deco-orange", "Deco Orange", "tv", "Sagemcom", "48:83:B4:AA:07:07", "192.168.8.66", 1.1},
+		{"pc-invitado", "PC invitado", "ordenador", "—", "A2:F4:11:AA:08:08", "192.168.8.67", 0.8},
+	}
+	for i, b := range behind {
+		mbps := b.mbps
+		sp := make([]float64, 12)
+		for j := range sp {
+			sp[j] = max(0.05, mbps-1.5+float64((i+j)%4)*0.5)
+		}
+		grp := "otros"
+		switch b.typ {
+		case "ordenador":
+			grp = "ordenadores"
+		case "tv":
+			grp = "tv"
+		case "iot":
+			grp = "iot"
+		case "altavoz":
+			grp = "iot"
+		}
+		out = append(out, withDetails(Device{
+			ID: b.id, Name: b.name, Type: b.typ, Manufacturer: b.man,
+			IP: b.ip, MAC: b.mac, RouterID: "flint2", Band: "cable",
+			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "dist-flint2-lan3", Sparkline: sp},
+			b.id, "renueva en 5 h 22 min", "hace 60 días", "2,4 GB", "120 MB", true, grp, ""))
+	}
+	return out
+}
+
+// canonDistributionNodes: distnodes demo (en live los infiere el colector FDB).
+func canonDistributionNodes() []DistributionNode {
+	return []DistributionNode{
+		{ID: "dist-flint2-lan3", Kind: "inferred", RouterID: "flint2", Port: "lan3", MacCount: 8},
+		{ID: "dist-pve", Kind: "hypervisor", RouterID: "flint2", Port: "lan2", MacCount: 11, HostDeviceID: "pve", Name: "Proxmox pve"},
+	}
 }
 
 // boolp: los literales demo fijan adguard explícito (true/false) como en el

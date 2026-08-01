@@ -405,7 +405,11 @@
       "summary": "{{online}} clientes online · {{peers}} peers VPN · {{links}} enlaces activos",
       "title": "Leyenda",
       "wired": "Cable",
-      "wgTunnel": "Túnel WireGuard"
+      "wgTunnel": "Túnel WireGuard",
+      "wiredLink": "Cable físico (WAN, uplinks, equipos)",
+      "wifiUplink": "Uplink wifi (backhaul inalámbrico)",
+      "lldpIdentified": "Identificado vía LLDP",
+      "inferredSwitch": "Switch o bridge inferido (sin IP)"
     },
     "links": {
       "colLink": "Enlace",
@@ -437,6 +441,28 @@
       "caption": "Malla de band-steering entre APs",
       "clients": "{{count}} clientes",
       "util": "{{pct}}% util."
+    },
+    "port": "Puerto",
+    "signal": "Señal",
+    "traffic": "Tráfico",
+    "connection": "Conexión",
+    "viaInternet": "vía Internet → gateway",
+    "peerVia": "VPN · vía Internet",
+    "lldpIdentified": "Identificado vía LLDP: chasis \"{{chassis}}\" · mgmt {{mgmt}} · caps {{caps}} · puerto remoto {{port}}",
+    "dist": {
+      "title": "Switch o bridge",
+      "inferred": "inferido",
+      "noIp": "sin IP · no consultable directamente",
+      "port": "Puerto del gateway",
+      "macs": "MACs aprendidas",
+      "fdbNote": "FDB: {{count}} MACs heterogéneas en un solo puerto físico. Probablemente un switch; no podemos afirmarlo sin LLDP."
+    },
+    "host": {
+      "hypervisor": "hipervisor"
+    },
+    "ct": {
+      "pill": "CT",
+      "note": "Contenedor en el hipervisor · su tráfico viaja por el cable del host"
     }
   },
   "settings": {

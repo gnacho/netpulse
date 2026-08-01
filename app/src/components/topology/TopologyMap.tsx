@@ -1,8 +1,10 @@
 /**
- * NetPulse — Mapa SVG animado de la red (topology.md §②).
- * Pan (drag) + zoom (wheel/pinch 0.5×–2×) manipulando el viewBox,
- * flujo de paquetes SMIL, túneles WG dashed violeta, tooltips y
- * coordinación hover con la tabla de enlaces.
+ * NetPulse — Mapa SVG animado de la red (v5, mockup aprobado 2-Ago-2026).
+ * Chips por dispositivo (cable 26px / wifi 24px con badge de banda), nodos de
+ * distribución inferidos del FDB (círculo dashed), CTs anidados bajo su
+ * hipervisor (badge +N), túneles WG trazados peer → Internet, flujo de
+ * paquetes SMIL ∝ Mbps, pan (drag) + zoom (wheel/pinch) sobre el viewBox,
+ * tooltips y coordinación hover con la tabla de enlaces.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
@@ -11,11 +13,12 @@ import { animate, motion, useReducedMotion } from 'framer-motion'
 import { Cloud, Laptop, Router as RouterIcon, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
-import type { Router, WanInfo, WGPeer } from '@/data/mock'
+import type { DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
+import { DEVICE_ICONS } from '@/components/DeviceRow'
 import { cn } from '@/lib/utils'
-import type { ClientDot, Cluster, RouterNode, TopoLink, TopologyModel } from './model'
-import { COLOR, VB_H, VB_W, bandColor, statusColor } from './model'
+import type { ChipNode, DistNodeView, RouterNode, TopologyModel } from './model'
+import { COLOR, VB_H, VB_W, bandColor, linkColor, statusColor } from './model'
 
 // ---------------------------------------------------------------------------
 // API imperativa expuesta a la página (botones de zoom del header)
@@ -62,7 +65,8 @@ type TooltipData =
   | { kind: 'router'; id: string; router: Router; x: number; y: number }
   | { kind: 'internet'; id: string; x: number; y: number }
   | { kind: 'peer'; id: string; peer: WGPeer; x: number; y: number }
-  | { kind: 'dot'; id: string; dot: ClientDot; x: number; y: number }
+  | { kind: 'chip'; id: string; chip: ChipNode; x: number; y: number }
+  | { kind: 'dist'; id: string; node: DistributionNode; x: number; y: number }
 
 type TooltipState = TooltipData & { left: number; top: number; below: boolean }
 
@@ -80,7 +84,7 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
   return (
     <div
       className={cn(
-        'pointer-events-none absolute z-20 w-56 -translate-x-1/2 rounded-xl border border-border-strong bg-elevated p-3 shadow-lg',
+        'pointer-events-none absolute z-20 w-60 -translate-x-1/2 rounded-xl border border-border-strong bg-elevated p-3 shadow-lg',
         tip.below ? 'translate-y-[14px]' : '-translate-y-[calc(100%+14px)]',
       )}
       style={{ left: tip.left, top: tip.top }}
@@ -127,7 +131,9 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
             <span className="font-display text-sm font-semibold text-text-primary">{tip.peer.name}</span>
             <StatusPill tone="tunnel" label={t('common.active')} pulse />
           </div>
-          <div className="mt-0.5 font-mono text-caption text-text-muted">{tip.peer.tunnelIp} · wg0</div>
+          <div className="mt-0.5 font-mono text-caption text-text-muted">
+            {tip.peer.tunnelIp} · wg0 · {t('topology.viaInternet')}
+          </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <MiniStat label="Handshake" value={relTime(tip.peer.lastHandshake)} />
             <MiniStat label={t('topology.tunnel')} value="WireGuard" />
@@ -136,22 +142,72 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
           </div>
         </div>
       )}
-      {tip.kind === 'dot' && (
+      {tip.kind === 'chip' && <ChipTooltip chip={tip.chip} touch={touch} />}
+      {tip.kind === 'dist' && (
         <div>
-          <div className="font-display text-sm font-semibold text-text-primary">
-            {tip.dot.device?.name ?? t('topology.connectedClient')}
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-text-primary">{t('topology.dist.title')}</span>
+            <StatusPill tone="muted" label={t('topology.dist.inferred')} />
           </div>
-          <div className="mt-0.5 font-mono text-caption text-text-muted">
-            {tip.dot.device?.ip ?? tip.dot.band}
-            {tip.dot.device ? ` · ${tip.dot.band}` : ''}
-            {tip.dot.device?.signalDbm != null ? ` · ${tip.dot.device.signalDbm} dBm` : ''}
+          <div className="mt-0.5 text-caption text-text-muted">{t('topology.dist.noIp')}</div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
-          {tip.dot.weak && <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>}
-          {tip.dot.device && (
-            <div className="mt-2 text-caption font-semibold text-accent">
-              {touch ? t('topology.tapAgainDevice') : t('topology.clickDevice')}
-            </div>
-          )}
+          <div className="mt-2 text-caption leading-snug text-text-secondary">
+            {t('topology.dist.fdbNote', { count: tip.node.macCount })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Tooltip de un chip de dispositivo (cliente, hub, host hipervisor o CT). */
+function ChipTooltip({ chip, touch }: { chip: ChipNode; touch: boolean }) {
+  const { t } = useTranslation()
+  const d = chip.device
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-display text-sm font-semibold text-text-primary">{d.name}</span>
+        <StatusPill
+          tone={chip.isCt ? 'muted' : chip.wired ? 'ok' : chip.weak ? 'warn' : 'ok'}
+          label={chip.isCt ? t('topology.ct.pill') : chip.wired ? t('common.cable') : d.band}
+        />
+      </div>
+      <div className="mt-0.5 font-mono text-caption text-text-muted">
+        {d.manufacturer} · {d.mac}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <MiniStat label="IP" value={d.ip} />
+        <MiniStat
+          label={chip.wired ? t('topology.port') : t('topology.signal')}
+          value={chip.wired ? (d.port ?? '—') : `${d.signalDbm ?? '—'} dBm`}
+          hot={!chip.wired && chip.weak}
+        />
+        <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
+        <MiniStat label={t('topology.connection')} value={chip.wired ? 'Ethernet' : 'Wi-Fi'} />
+      </div>
+      {d.lldp && (
+        <div className="mt-2 text-caption font-semibold text-accent">
+          {t('topology.lldpIdentified', {
+            chassis: d.lldp.chassis ?? '—',
+            mgmt: d.lldp.mgmt ?? '—',
+            caps: d.lldp.caps ?? '—',
+            port: d.lldp.portDesc ?? '—',
+          })}
+        </div>
+      )}
+      {chip.isCt && (
+        <div className="mt-2 text-caption leading-snug text-text-secondary">{t('topology.ct.note')}</div>
+      )}
+      {!chip.isCt && chip.weak && (
+        <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>
+      )}
+      {!chip.isCt && (
+        <div className="mt-2 text-caption font-semibold text-accent">
+          {touch ? t('topology.tapAgainDevice') : t('topology.clickDevice')}
         </div>
       )}
     </div>
@@ -174,7 +230,7 @@ const PacketDot = memo(function PacketDot({
   color: string
 }) {
   return (
-    <circle r={3} fill={color} opacity={0.95}>
+    <circle r={2.6} fill={color} opacity={0.95}>
       <animateMotion dur={`${dur}s`} begin={`${begin}s`} repeatCount="indefinite">
         <mpath href={`#${pathId}`} />
       </animateMotion>
@@ -225,7 +281,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { clusters, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
@@ -408,7 +464,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
     const v = viewRef.current
     // nodos en la zona superior del mapa: tooltip hacia abajo
     const below = data.kind === 'internet' || data.kind === 'peer'
-    const left = clamp(((data.x - v.x) / v.w) * rect.width, 120, rect.width - 120)
+    const left = clamp(((data.x - v.x) / v.w) * rect.width, 130, rect.width - 130)
     const rawTop = ((data.y - v.y) / v.h) * rect.height
     const top = below ? clamp(rawTop, 16, rect.height - 190) : clamp(rawTop, 190, rect.height - 20)
     setTooltip({ ...data, left, top, below })
@@ -476,17 +532,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   // delays de la coreografía de montaje (0 si reduced-motion)
   const T = reduce ? 0 : 1
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
   const springPop = (delay: number) =>
     reduce
       ? { duration: 0 }
       : { delay, type: 'spring' as const, stiffness: 260, damping: 20 }
 
-  const linkStroke = (link: TopoLink) =>
-    link.kind === 'wg' ? COLOR.tunnel : 'rgb(var(--border-strong))'
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div
@@ -511,22 +564,40 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         }}
       >
         <defs>
-          <linearGradient id="topo-wan-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={COLOR.accent} stopOpacity="0.9" />
-            <stop offset="100%" stopColor={COLOR.accent} stopOpacity="0.35" />
-          </linearGradient>
           <linearGradient id="topo-gw-grad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={COLOR.accent} stopOpacity="0.28" />
             <stop offset="100%" stopColor={COLOR.tunnel} stopOpacity="0.28" />
           </linearGradient>
         </defs>
 
+        {/* ------------------------- Anillos guía wifi ------------------------- */}
+        <g aria-hidden>
+          {routerNodes.map((node) =>
+            (node.id === model.gatewayNode?.id ? [88, 118] : [74, 108]).map((r) => (
+              <circle
+                key={`${node.id}-ring-${r}`}
+                cx={node.x}
+                cy={node.y}
+                r={r}
+                fill="none"
+                stroke="rgb(var(--border-strong))"
+                strokeWidth={1}
+                strokeDasharray="2 6"
+                opacity={0.3}
+              />
+            )),
+          )}
+        </g>
+
         {/* ------------------------- Enlaces ------------------------- */}
         <g>
           {links.map((link, i) => {
             const highlighted = linkHighlighted(link.id)
             const isWg = link.kind === 'wg'
-            const drawDelay = link.kind === 'wan' ? 0.25 : link.kind === 'uplink' ? 0.8 + i * 0.15 : 1.7
+            const isWifiUp = link.kind === 'uplink' && link.wifi
+            const drawDelay = link.kind === 'wan' ? 0.25 : link.kind === 'uplink' ? 0.8 + i * 0.12 : 1.5
+            const stroke = linkColor(link)
+            const baseOpacity = link.kind === 'wired' ? 0.45 : link.kind === 'dist' ? 0.55 : isWifiUp ? 0.8 : link.kind === 'uplink' ? 0.55 : 0.9
             return (
               <g key={link.id}>
                 {/* base */}
@@ -534,11 +605,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                   id={`topo-link-${link.id}`}
                   d={link.d}
                   fill="none"
-                  stroke={link.kind === 'wan' ? 'url(#topo-wan-grad)' : linkStroke(link)}
+                  stroke={stroke}
                   strokeWidth={link.width}
                   strokeLinecap="round"
-                  strokeDasharray={isWg ? '7 7' : undefined}
-                  opacity={link.kind === 'cluster' ? 0.5 : 0.9}
+                  strokeDasharray={isWg ? '7 7' : isWifiUp ? '8 6' : undefined}
+                  opacity={baseOpacity}
                   initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={reduce ? { duration: 0 } : { delay: drawDelay * T, duration: 0.4, ease: 'easeOut' }}
@@ -577,7 +648,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                   d={link.d}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={16}
+                  strokeWidth={link.kind === 'wired' ? 8 : 16}
                   className="cursor-pointer"
                   onPointerEnter={(e) => {
                     if (e.pointerType === 'mouse') onHoverLink(link.id)
@@ -590,7 +661,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             )
           })}
 
-          {/* paquetes animados */}
+          {/* paquetes animados (∝ Mbps, color del enlace) */}
           {showFlow &&
             links
               .filter((l) => l.packets > 0)
@@ -601,7 +672,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                     pathId={`topo-link-${l.id}`}
                     dur={l.packetDur}
                     begin={-((l.packetDur / l.packets) * i)}
-                    color={l.kind === 'wg' ? COLOR.tunnel : COLOR.accent}
+                    color={linkColor(l)}
                   />
                 )),
               )}
@@ -634,31 +705,17 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             transition={reduce ? { duration: 0.2 } : { ...springPop(0), opacity: { duration: 0.2 } }}
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
           >
-          {!reduce && (
-            <motion.circle
-              r={48}
-              fill={COLOR.ok}
-              initial={{ opacity: 0.08 }}
-              animate={{ opacity: [0.06, 0.16, 0.06] }}
-              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          )}
-          <circle
-            r={40}
-            fill="rgb(var(--elevated))"
-            stroke={COLOR.ok}
-            strokeWidth={2}
-          />
-          <circle
-            r={45}
-            fill="none"
-            stroke={COLOR.ok}
-            strokeWidth={2.5}
-            strokeDasharray={`${(2 * Math.PI * 45) * 0.85} ${(2 * Math.PI * 45) * 0.15}`}
-            strokeLinecap="round"
-            transform="rotate(-90)"
-          />
-          <Cloud x={-18} y={-15} width={36} height={30} className="text-ok" strokeWidth={1.75} aria-hidden />
+            {!reduce && (
+              <motion.circle
+                r={42}
+                fill={COLOR.ok}
+                initial={{ opacity: 0.08 }}
+                animate={{ opacity: [0.05, 0.15, 0.05] }}
+                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            )}
+            <circle r={28} fill="rgb(var(--elevated))" stroke={COLOR.ok} strokeWidth={2} />
+            <Cloud x={-12} y={-10} width={24} height={20} className="text-ok" strokeWidth={1.75} aria-hidden />
           </motion.g>
         </g>
 
@@ -699,7 +756,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 }
               }}
             >
-              {/* halo permanente del gateway / pulso de aviso del Patio */}
+              {/* halo permanente del gateway / pulso de aviso */}
               {isGw && !reduce && (
                 <motion.circle
                   r={node.r + 18}
@@ -747,14 +804,12 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           const PeerIcon = node.peer.type === 'movil' ? Smartphone : Laptop
           return (
             <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
-              {/* entrada escalonada */}
               <motion.g
                 initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={reduce ? { duration: 0 } : { delay: 1.8 * T + i * 0.12, duration: 0.35 }}
                 style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
               >
-                {/* atenuación por hover */}
                 <motion.g
                   className="cursor-pointer outline-none"
                   role="button"
@@ -778,41 +833,55 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 >
                   {!reduce && (
                     <circle r={22} fill="none" stroke={COLOR.tunnel} strokeWidth={1.5}>
-                      <animate attributeName="r" values="20;30" dur="2.2s" repeatCount="indefinite" />
+                      <animate attributeName="r" values="18;27" dur="2.2s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.5;0" dur="2.2s" repeatCount="indefinite" />
                     </circle>
                   )}
-                  <rect x={-20} y={-20} width={40} height={40} rx={12} fill="rgb(var(--elevated))" stroke={COLOR.tunnel} strokeWidth={1.5} />
-                  <PeerIcon x={-10} y={-10} width={20} height={20} className="text-tunnel" strokeWidth={1.75} aria-hidden />
+                  <rect x={-18} y={-18} width={36} height={36} rx={11} fill="rgb(var(--elevated))" stroke={COLOR.tunnel} strokeWidth={1.5} />
+                  <PeerIcon x={-9} y={-9} width={18} height={18} className="text-tunnel" strokeWidth={1.75} aria-hidden />
                 </motion.g>
               </motion.g>
             </g>
           )
         })}
 
-        {/* ------------------------- Clusters de clientes ------------------------- */}
-        {clusters.map((cluster, ci) => (
-          <ClusterGroup
-            key={cluster.id}
-            cluster={cluster}
-            routerPos={(() => {
-              const rn = routerNodes.find((n) => n.id === cluster.routerId)
-              return rn ? { x: rn.x, y: rn.y } : null
-            })()}
-            baseDelay={(1.4 + ci * 0.15) * T}
+        {/* ------------------------- Nodos de distribución (switch inferido) --- */}
+        {distNodes.map((dv, i) => (
+          <DistNodeGroup
+            key={dv.id}
+            dv={dv}
+            delay={(1.5 + i * 0.1) * T}
             reduce={reduce ?? false}
-            opacity={nodeOpacity(cluster.id) * nodeOpacity(cluster.routerId)}
-            onDotHover={(dot, e) => {
-              if (e.pointerType !== 'mouse') return
-              setHoverNode(cluster.routerId)
-              openTooltip({ kind: 'dot', id: dot.id, dot, x: dot.x, y: dot.y - 10 })
-            }}
-            onDotLeave={closeHover}
-            onDotClick={(dot, e) => {
-              if (moved.current) return
-              const data: TooltipData = { kind: 'dot', id: dot.id, dot, x: dot.x, y: dot.y - 10 }
-              const navTo = dot.device ? `/devices?q=${encodeURIComponent(dot.device.mac ?? dot.device.name)}` : undefined
-              nodeClick(e, data, navTo)
+            opacity={nodeOpacity(dv.id)}
+            onHover={(e) => handleNodeHover({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 }, e)}
+            onLeave={closeHover}
+            onClick={(e) => nodeClick(e, { kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 })}
+          />
+        ))}
+
+        {/* ------------------------- Chips de dispositivos ------------------------- */}
+        {chips.map((chip, i) => (
+          <ChipGroup
+            key={chip.id}
+            chip={chip}
+            ctCount={ctCountByHost.get(chip.id) ?? 0}
+            delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
+            reduce={reduce ?? false}
+            opacity={nodeOpacity(chip.id)}
+            onHover={(e) =>
+              handleNodeHover({ kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 }, e)
+            }
+            onLeave={closeHover}
+            onClick={(e) => {
+              if (chip.isCt) {
+                nodeClick(e, { kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 })
+                return
+              }
+              nodeClick(
+                e,
+                { kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 },
+                `/devices?q=${encodeURIComponent(chip.device.mac ?? chip.device.name)}`,
+              )
             }}
           />
         ))}
@@ -826,23 +895,46 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           aria-hidden={!showLabels}
         >
           {/* Internet */}
-          <LabelText x={internetNode.x} y={internetNode.y + 56} anchor="middle" delay={2.0 * T} reduce={reduce ?? false}
+          <LabelText x={548} y={54} anchor="start" delay={2.0 * T} reduce={reduce ?? false}
             title={`Internet · ${wan.isp}`} sub={t('routerDetail.wan.fiber', { plan: wan.plan })} />
           {/* Gateway */}
           {model.gatewayNode && (
-            <LabelText x={556} y={240} anchor="start" delay={2.05 * T} reduce={reduce ?? false}
-              title={model.gatewayNode.router.name} sub={`${model.gatewayNode.router.modelShort} · ${t('common.clientsCount', { count: model.gatewayNode.router.clients })}`} />
+            <LabelText x={model.gatewayNode.label.x} y={model.gatewayNode.label.y} anchor={model.gatewayNode.label.anchor}
+              delay={2.05 * T} reduce={reduce ?? false}
+              title={model.gatewayNode.router.name}
+              sub={`${model.gatewayNode.router.modelShort} · ${model.gatewayNode.router.roleBadge} · ${t('common.clientsCount', { count: model.gatewayNode.router.clients })}`} />
           )}
           {/* APs */}
-          {routerNodes.slice(1).map((node, i) => (
+          {model.apNodes.map((node, i) => (
             <LabelText key={node.id} x={node.label.x} y={node.label.y} anchor={node.label.anchor}
               delay={(2.1 + i * 0.03) * T} reduce={reduce ?? false}
-              title={node.router.name} sub={t('common.clientsCount', { count: node.router.clients })} />
+              title={node.router.name}
+              sub={node.router.status === 'warn'
+                ? `${t('common.clientsCount', { count: node.router.clients })} · ${t('common.status.warn')}`
+                : t('common.clientsCount', { count: node.router.clients })}
+              subColor={node.router.status === 'warn' ? COLOR.warn : undefined} />
           ))}
+          {/* Distnodes inferidos */}
+          {distNodes.map((dv, i) => (
+            <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
+              reduce={reduce ?? false} title={t('topology.dist.title')}
+              sub={`${t('topology.dist.inferred')} · ${dv.node.port}`} />
+          ))}
+          {/* Hosts hipervisores (badge +N ya en el chip; etiqueta con puerto y nº CTs) */}
+          {[...ctsByHost.keys()].map((hostId, i) => {
+            const host = chips.find((c) => c.id === hostId)
+            if (!host) return null
+            return (
+              <LabelText key={hostId} x={host.x} y={host.y - 38} anchor="middle" delay={(2.18 + i * 0.03) * T}
+                reduce={reduce ?? false} title={host.device.name}
+                sub={`${t('topology.host.hypervisor')} · ${host.device.port ?? ''} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
+            )
+          })}
           {/* Peers */}
           {peerNodes.map((node, i) => (
-            <LabelText key={node.id} x={node.x + 28} y={node.y - 2} anchor="start" delay={(2.2 + i * 0.03) * T}
-              reduce={reduce ?? false} title={node.peer.name} sub="VPN" subColor={COLOR.tunnel} />
+            <LabelText key={node.id} x={node.x + (i % 2 ? -26 : 26)} y={node.y - 4} anchor={i % 2 ? 'end' : 'start'}
+              delay={(2.2 + i * 0.03) * T} reduce={reduce ?? false}
+              title={node.peer.name} sub={t('topology.peerVia')} subColor={COLOR.tunnel} />
           ))}
           {/* Etiquetas de enlace */}
           {links
@@ -915,107 +1007,159 @@ function LabelText({
 }
 
 // ---------------------------------------------------------------------------
-// Cluster de clientes
+// Nodo de distribución inferido (círculo dashed, sin IP)
 // ---------------------------------------------------------------------------
 
-const ClusterGroup = memo(function ClusterGroup({
-  cluster,
-  routerPos,
-  baseDelay,
+const DistNodeGroup = memo(function DistNodeGroup({
+  dv,
+  delay,
   reduce,
   opacity,
-  onDotHover,
-  onDotLeave,
-  onDotClick,
+  onHover,
+  onLeave,
+  onClick,
 }: {
-  cluster: Cluster
-  routerPos: { x: number; y: number } | null
-  baseDelay: number
+  dv: DistNodeView
+  delay: number
   reduce: boolean
   opacity: number
-  onDotHover: (dot: ClientDot, e: ReactPointerEvent) => void
-  onDotLeave: () => void
-  onDotClick: (dot: ClientDot, e: { stopPropagation: () => void }) => void
+  onHover: (e: ReactPointerEvent) => void
+  onLeave: () => void
+  onClick: (e: { stopPropagation: () => void }) => void
 }) {
+  const { t } = useTranslation()
+  const SwitchIcon = DEVICE_ICONS.switch
   return (
-    <motion.g animate={{ opacity }} transition={{ duration: 0.2 }}>
-      {/* Cableados: línea desde el router hasta cada dot (wifi va suelto) */}
-      {routerPos &&
-        cluster.dots
-          .filter((dot) => dot.band === 'cable')
-          .map((dot) => (
-            <line
-              key={`${dot.id}-link`}
-              x1={routerPos.x}
-              y1={routerPos.y}
-              x2={dot.x}
-              y2={dot.y}
-              stroke={COLOR.ok}
-              strokeWidth={1}
-              strokeOpacity={0.35}
-            />
-          ))}
-      {cluster.dots.map((dot, i) => (
-        <motion.circle
-          key={dot.id}
-          cx={dot.x}
-          cy={dot.y}
-          r={dot.r ?? 5}
-          fill={bandColor(dot.band, dot.weak)}
+    <motion.g
+      transform={`translate(${dv.x} ${dv.y})`}
+      className="cursor-pointer outline-none"
+      role="button"
+      tabIndex={0}
+      aria-label={`${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${dv.node.port}`}
+      animate={{ opacity }}
+      transition={{ duration: 0.2 }}
+      onPointerEnter={onHover}
+      onPointerLeave={onLeave}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(e)
+        }
+      }}
+    >
+      <motion.g
+        initial={reduce ? { scale: 1 } : { scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={reduce ? { duration: 0 } : { delay, type: 'spring', stiffness: 260, damping: 20 }}
+        style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+      >
+        <circle r={dv.r + 5} fill="none" stroke="rgb(var(--text-muted))" strokeWidth={1} strokeDasharray="2 5" opacity={0.6} />
+        <circle r={dv.r} fill="rgb(var(--elevated) / 0.65)" stroke="rgb(var(--text-muted))" strokeWidth={1.5} strokeDasharray="4 4" />
+        <SwitchIcon x={-10} y={-10} width={20} height={20} className="text-text-secondary" strokeWidth={1.75} aria-hidden />
+      </motion.g>
+    </motion.g>
+  )
+})
+
+// ---------------------------------------------------------------------------
+// Chip de dispositivo (cliente wifi/cable, hub, host hipervisor o CT)
+// ---------------------------------------------------------------------------
+
+const ChipGroup = memo(function ChipGroup({
+  chip,
+  ctCount,
+  delay,
+  reduce,
+  opacity,
+  onHover,
+  onLeave,
+  onClick,
+}: {
+  chip: ChipNode
+  ctCount: number
+  delay: number
+  reduce: boolean
+  opacity: number
+  onHover: (e: ReactPointerEvent) => void
+  onLeave: () => void
+  onClick: (e: { stopPropagation: () => void }) => void
+}) {
+  const d = chip.device
+  const S = chip.size
+  const half = S / 2
+  const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
+  const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
+  return (
+    <motion.g
+      transform={`translate(${chip.x} ${chip.y})`}
+      className="cursor-pointer outline-none"
+      role="button"
+      tabIndex={0}
+      aria-label={`${d.name}, ${chip.wired ? 'cable' : d.band}`}
+      initial={reduce ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
+      animate={{ opacity, scale: 1 }}
+      transition={reduce ? { duration: 0 } : { delay, type: 'spring', stiffness: 300, damping: 18 }}
+      style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+      onPointerEnter={onHover}
+      onPointerLeave={onLeave}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(e)
+        }
+      }}
+    >
+      <rect
+        x={-half}
+        y={-half}
+        width={S}
+        height={S}
+        rx={7}
+        fill="rgb(var(--elevated))"
+        stroke={stroke}
+        strokeWidth={chip.wired ? 1.3 : 1.1}
+      />
+      <Icon
+        x={-7}
+        y={-7}
+        width={14}
+        height={14}
+        style={{ color: chip.wired ? COLOR.ok : 'rgb(var(--text-primary))' }}
+        strokeWidth={1.9}
+        aria-hidden
+      />
+      {/* badge de banda (wifi): esquina inferior derecha */}
+      {!chip.wired && (
+        <circle
+          cx={half - 2}
+          cy={half - 2}
+          r={3.8}
+          fill={bandColor(chip.band, chip.weak)}
           stroke="rgb(var(--canvas))"
-          strokeWidth={1.5}
-          className="cursor-pointer outline-none"
-          role="button"
-          tabIndex={0}
-          aria-label={dot.device ? `${dot.device.name}, ${dot.band}` : `Cliente ${dot.band}`}
-          initial={reduce ? { scale: 1 } : { scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={
-            reduce
-              ? { duration: 0 }
-              : { delay: baseDelay + i * 0.02, type: 'spring', stiffness: 300, damping: 18 }
-          }
-          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-          onPointerEnter={(e) => onDotHover(dot, e)}
-          onPointerLeave={onDotLeave}
-          onClick={(e) => onDotClick(dot, e)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              onDotClick(dot, e)
-            }
-          }}
-        >
-          <title>{dot.device?.name ?? `Cliente ${dot.band}`}</title>
-        </motion.circle>
-      ))}
-      {cluster.extra > 0 && (
-        <motion.g
-          initial={reduce ? { opacity: 1 } : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: baseDelay + 0.3, duration: reduce ? 0 : 0.3 }}
-        >
-          <rect
-            x={cluster.cx - 17}
-            y={cluster.cy + 56}
-            width={34}
-            height={18}
-            rx={9}
-            fill="rgb(var(--elevated))"
-            stroke="rgb(var(--border-strong))"
-          />
-          <text
-            x={cluster.cx}
-            y={cluster.cy + 69}
-            textAnchor="middle"
-            fontSize={10}
-            fontWeight={600}
-            className="fill-text-secondary font-mono"
-          >
-            +{cluster.extra}
-          </text>
-        </motion.g>
+          strokeWidth={1.4}
+        />
       )}
+      {/* badge LLDP: esquina superior derecha */}
+      {d.lldp && (
+        <g aria-hidden>
+          <rect x={half - 4} y={-half - 4} width={22} height={10} rx={5} fill="rgb(var(--elevated))" stroke={COLOR.accent} strokeWidth={1} />
+          <text x={half + 7} y={-half + 3.4} textAnchor="middle" fontSize={6.5} fontWeight={800} fill={COLOR.accent} letterSpacing="0.04em">
+            LLDP
+          </text>
+        </g>
+      )}
+      {/* badge +N de CTs (host hipervisor) */}
+      {ctCount > 0 && (
+        <g aria-hidden>
+          <circle cx={half + 1} cy={-half - 1} r={8} fill="rgb(var(--elevated))" stroke={COLOR.ok} strokeWidth={1.2} />
+          <text x={half + 1} y={-half + 2} textAnchor="middle" fontSize={8} fontWeight={700} fill={COLOR.ok}>
+            +{ctCount}
+          </text>
+        </g>
+      )}
+      <title>{d.name}</title>
     </motion.g>
   )
 })
