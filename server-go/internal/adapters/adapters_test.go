@@ -393,3 +393,83 @@ func TestSparkDeterminista(t *testing.T) {
 		}
 	}
 }
+
+// --- Backhaul (C1-server): sonda ubus network.wireless status + canon demo ---
+
+// Fixture ubus network.wireless status: radio0 con AP + STA asociada
+// (uplink inalámbrico, p.ej. el EAP225 del patio).
+const wirelessStatusSta = `{
+  "radio0": {
+    "up": true,
+    "interfaces": [
+      {"section": "default_radio0", "ifname": "phy0-ap0",
+       "config": {"mode": "ap", "ssid": "Casa-Patio", "network": ["lan"]}},
+      {"section": "wifinet1", "ifname": "phy0-sta0",
+       "config": {"mode": "sta", "ssid": "Casa", "network": ["wwan"]}}
+    ]
+  }
+}`
+
+const wirelessStatusSoloAp = `{
+  "radio0": {
+    "up": true,
+    "interfaces": [
+      {"section": "default_radio0", "ifname": "phy0-ap0",
+       "config": {"mode": "ap", "ssid": "Casa", "network": ["lan"]}}
+    ]
+  }
+}`
+
+func TestParseWirelessUplink(t *testing.T) {
+	// STA asociada (radio up + ifname) → uplink inalámbrico
+	wifi, err := parseWirelessUplink([]byte(wirelessStatusSta))
+	if err != nil || !wifi {
+		t.Fatalf("sta asociada: %v %v", wifi, err)
+	}
+	// Solo APs → cable
+	wifi, err = parseWirelessUplink([]byte(wirelessStatusSoloAp))
+	if err != nil || wifi {
+		t.Fatalf("solo ap: %v %v", wifi, err)
+	}
+	// STA configurada pero NO activa (radio caída o sin asociar) → cable
+	for _, in := range []string{
+		`{"radio0":{"up":false,"interfaces":[{"ifname":"phy0-sta0","config":{"mode":"sta"}}]}}`,
+		`{"radio0":{"up":true,"interfaces":[{"ifname":"","config":{"mode":"sta"}}]}}`,
+		`{}`,
+	} {
+		wifi, err = parseWirelessUplink([]byte(in))
+		if err != nil || wifi {
+			t.Fatalf("%s → %v %v", in, wifi, err)
+		}
+	}
+	// Respuesta no JSON → error (el live omite el campo, no rompe)
+	if _, err = parseWirelessUplink([]byte("Command failed")); err == nil {
+		t.Fatal("no JSON debería dar error")
+	}
+}
+
+// Canon demo del backhaul: Patio "wifi" (único AP inalámbrico), resto "cable".
+func TestDemoBackhaulCanon(t *testing.T) {
+	d := NewDemo()
+	want := map[string]string{"flint2": "cable", "living": "cable", "estudio": "cable", "patio": "wifi"}
+	seen := 0
+	for _, r := range d.GetRouters(context.Background()) {
+		if r.Backhaul != want[r.ID] {
+			t.Fatalf("backhaul %s: %q (esperaba %q)", r.ID, r.Backhaul, want[r.ID])
+		}
+		seen++
+	}
+	if seen != 4 {
+		t.Fatalf("routers: %d", seen)
+	}
+	// El overview lleva el mismo dato (routersCopy preserva el campo)
+	ov, err := d.GetOverview(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range ov.Routers {
+		if r.Backhaul != want[r.ID] {
+			t.Fatalf("overview backhaul %s: %q", r.ID, r.Backhaul)
+		}
+	}
+}
