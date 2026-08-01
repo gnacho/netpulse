@@ -328,11 +328,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const online = devices.filter((d) => d.online)
   const deviceById = new Map(online.map((d) => [d.id, d]))
   const distById = new Map(distributionNodes.map((n) => [n.id, n]))
-  /** hub al que cuelga un dispositivo: attachTo (si existe y resuelve) o su router */
+  /** hub al que cuelga un dispositivo: attachTo (si existe y resuelve) o su router.
+   *  Regla de anclaje (2-Ago-2026, decisión usuario): un cableado SIN evidencia
+   *  (ni attachTo ni puerto FDB) se ancla al GATEWAY — sin evidencia no se
+   *  afirma que cuelgue de un AP. */
   const hubOf = (d: Device): string => {
     if (d.attachTo && (routerById.has(d.attachTo) || distById.has(d.attachTo) || deviceById.has(d.attachTo))) {
       return d.attachTo
     }
+    if (isWired(d) && !d.port && gatewayNode) return gatewayNode.id
     return d.routerId
   }
   const childrenOf = (hubId: string) => online.filter((d) => hubOf(d) === hubId)
