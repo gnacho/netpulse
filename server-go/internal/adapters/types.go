@@ -128,6 +128,9 @@ type Router struct {
 	Clients    int       `json:"clients"`
 	HotMetric  string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65
 	Sparkline  []float64 `json:"sparkline"`
+	// Backhaul: medio del uplink del router ("cable"|"wifi"). Ausente =
+	// cable/desconocido (router sin wifi o sonda no disponible).
+	Backhaul string `json:"backhaul,omitempty"`
 }
 
 // DeviceTotals del overview (quirk: NewToday=0 en live).
@@ -187,16 +190,20 @@ type LldpInfo struct {
 // DistributionNode: puerto físico con varias MACs aprendidas en el FDB.
 // "inferred" = OUI heterogéneo (switch o bridge desconocido, sin IP);
 // "hypervisor" = OUI de hipervisor (Proxmox/VMware/Hyper-V/KVM) → sus
-// CTs/VMs se anidan bajo el host en el mapa.
+// CTs/VMs se anidan bajo el host en el mapa;
+// "managed" = identificado por LLDP (vecino anunciado en ese puerto cuya
+// chassis-MAC está entre las aprendidas): lleva Name (chassis), Ip (mgmt)
+// y Lldp con las capacidades/puerto remoto anunciados.
 type DistributionNode struct {
 	ID       string    `json:"id"`
-	Kind     string    `json:"kind"` // "inferred"|"hypervisor"
+	Kind     string    `json:"kind"` // "inferred"|"hypervisor"|"managed"
 	RouterID string    `json:"routerId"`
 	Port     string    `json:"port"`
 	MacCount int       `json:"macCount"`
 	// HostDeviceID: hipervisor → id del Device host (Proxmox…), si es cliente.
 	HostDeviceID string    `json:"hostDeviceId,omitempty"`
 	Name         string    `json:"name,omitempty"`
+	Ip           string    `json:"ip,omitempty"` // managed: mgmt-ip anunciada por LLDP
 	Lldp         *LldpInfo `json:"lldp,omitempty"`
 }
 

@@ -23,18 +23,23 @@ func canonRouters() []Router {
 		{ID: "flint2", Name: "Gateway", Model: "GL.iNet Flint 2 (GL-MT6000)", ModelShort: "GL.iNet Flint 2",
 			Role: "Gateway principal", RoleBadge: "Principal", IP: "192.168.8.1", Status: "online",
 			Health: 98, CPU: iptr(23), RAM: iptr(41), Temp: iptr(54), Uptime: "32d 14h", Clients: 33,
+			Backhaul:  "cable",
 			Sparkline: []float64{8, 6, 5, 5, 6, 9, 18, 32, 41, 38, 35, 44, 52, 48, 45, 55, 68, 84, 96, 120, 150, 110, 84, 40}},
 		{ID: "living", Name: "Salón", Model: "OpenWrt AP (Xiaomi AX3000T)", ModelShort: "Xiaomi AX3000T",
 			Role: "Punto de acceso", RoleBadge: "AP", IP: "192.168.8.2", Status: "online",
 			Health: 95, CPU: iptr(12), RAM: iptr(38), Temp: iptr(47), Uptime: "32d 14h", Clients: 22,
+			Backhaul:  "cable",
 			Sparkline: []float64{4, 3, 3, 2, 3, 5, 10, 22, 28, 26, 24, 30, 38, 35, 33, 42, 55, 72, 88, 105, 132, 92, 61, 28}},
 		{ID: "estudio", Name: "Estudio", Model: "OpenWrt (NanoPi R4S)", ModelShort: "NanoPi R4S",
 			Role: "AP + switch", RoleBadge: "AP", IP: "192.168.8.3", Status: "online",
 			Health: 92, CPU: iptr(18), RAM: iptr(44), Temp: iptr(51), Uptime: "11d 3h", Clients: 9,
+			Backhaul:  "cable",
 			Sparkline: []float64{2, 2, 1, 1, 2, 4, 8, 15, 22, 25, 24, 22, 26, 24, 21, 24, 28, 31, 29, 24, 18, 12, 8, 4}},
+		// Patio: único AP con uplink inalámbrico del dataset (backhaul "wifi").
 		{ID: "patio", Name: "Patio", Model: "OpenWrt (TP-Link EAP225)", ModelShort: "TP-Link EAP225",
 			Role: "AP exterior", RoleBadge: "AP", IP: "192.168.8.4", Status: "warn",
 			Health: 68, CPU: iptr(31), RAM: iptr(57), Temp: iptr(71), Uptime: "4d 2h", Clients: 6, HotMetric: "temp",
+			Backhaul:  "wifi",
 			Sparkline: []float64{1, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 9, 10, 9, 8, 9, 11, 12, 13, 12, 9, 6, 4, 2}},
 	}
 }
