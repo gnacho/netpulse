@@ -151,10 +151,39 @@ pick_port() {
 }
 
 # Fresh install only: an upgrade keeps the port from the existing unit.
+tty_ok() { (exec 3<>/dev/tty) 2>/dev/null; }
+
+# choose_port WANT — interactive (TTY): asks, suggesting the next free port.
+# Non-interactive: prints the next free one. Fails if none is free.
+choose_port() {
+    _want=$1
+    _next=$(pick_port "$((_want + 1))") || _next=""
+    if [ "$UNATTENDED" -eq 0 ] && tty_ok; then
+        while :; do
+            printf 'Port %s is already in use.\nWhich port should the collector listen on? [%s] ' \
+                "$_want" "${_next:-none free}" > /dev/tty
+            IFS= read -r _r < /dev/tty || _r=""
+            _r="${_r:-$_next}"
+            case "$_r" in
+                ''|*[!0-9]*) printf 'Please enter a port number.\n' > /dev/tty; continue ;;
+            esac
+            if [ "$_r" -lt 1 ] || [ "$_r" -gt 65535 ]; then
+                printf 'Out of range (1-65535).\n' > /dev/tty; continue
+            fi
+            if port_in_use "$_r"; then
+                printf 'Port %s is also in use.\n' "$_r" > /dev/tty; continue
+            fi
+            printf '%s' "$_r"; return 0
+        done
+    fi
+    [ -n "$_next" ] || return 1
+    printf '%s' "$_next"
+}
+
 PORT="$DEFAULT_PORT"
 if [ ! -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
     if port_in_use "$DEFAULT_PORT"; then
-        PORT=$(pick_port "$((DEFAULT_PORT + 1))") \
+        PORT=$(choose_port "$DEFAULT_PORT") \
             || fatal 25 "port $DEFAULT_PORT is busy and no free port found in $((DEFAULT_PORT + 1))-$((DEFAULT_PORT + 21))"
         warn "port $DEFAULT_PORT is already in use — the collector will listen on $PORT instead"
     else
