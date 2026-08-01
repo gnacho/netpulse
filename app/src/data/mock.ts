@@ -213,8 +213,8 @@ export const healthScore: HealthScore = {
 // ---------------------------------------------------------------------------
 
 export const deviceTotals = {
-  total: 70,
-  online: 62,
+  total: 67,
+  online: 59,
   knownOffline: 8,
   newToday: 3,
 }
@@ -384,8 +384,8 @@ export const adguard: AdGuardStats = {
   blockedPct: 18.6,
   trackersBlocked: 9204,
   dnsLatencyMs: 14,
-  clientsUsing: 64,
-  clientsTotal: 70,
+  clientsUsing: 60,
+  clientsTotal: 67,
   topBlocked: [
     { domain: 'graph.facebook.com', count: 1204 },
     { domain: 'adservice.google.com', count: 986 },

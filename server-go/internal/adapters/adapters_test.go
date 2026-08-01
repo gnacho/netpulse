@@ -29,7 +29,7 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	if *flint.CPU != 23 || *flint.RAM != 41 || *flint.Temp != 54 {
 		t.Fatalf("flint2 cpu/ram/temp: %v/%v/%v", *flint.CPU, *flint.RAM, *flint.Temp)
 	}
-	if flint.Clients != 14 || flint.Health != 98 {
+	if flint.Clients != 33 || flint.Health != 98 {
 		t.Fatalf("flint2 clients/health: %v/%v", flint.Clients, flint.Health)
 	}
 	// WAN
@@ -52,7 +52,7 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 		t.Fatalf("peer0: %+v", p0)
 	}
 	// DeviceTotals
-	if ov.DeviceTotals != (DeviceTotals{Total: 47, Online: 39, KnownOffline: 8, NewToday: 3}) {
+	if ov.DeviceTotals != (DeviceTotals{Total: 67, Online: 59, KnownOffline: 8, NewToday: 3}) {
 		t.Fatalf("deviceTotals: %+v", ov.DeviceTotals)
 	}
 	// Health
@@ -69,10 +69,10 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	}
 }
 
-func TestDemoDevices47YTop(t *testing.T) {
+func TestDemoDevices67YTop(t *testing.T) {
 	d := NewDemo()
 	devs := d.GetDevices(context.Background())
-	if len(devs) != 47 {
+	if len(devs) != 67 {
 		t.Fatalf("devices: %d", len(devs))
 	}
 	offline := 0

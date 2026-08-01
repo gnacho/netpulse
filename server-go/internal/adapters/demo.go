@@ -178,11 +178,12 @@ func (d *Demo) buildOverview() *Overview {
 		Adguard:      d.adguard,
 		Wireguard:    d.wireguardSnapshot(),
 		Routers:      d.routersCopy(),
-		DeviceTotals: DeviceTotals{Total: 47, Online: 39, KnownOffline: 8, NewToday: 3},
+		DeviceTotals: DeviceTotals{Total: 67, Online: 59, KnownOffline: 8, NewToday: 3},
 		TopDevices:   d.topDevices(5),
 		Alerts:       d.alertsCopy(),
 		UnreadAlerts: unread,
-		Ts:           time.Now().Unix(),
+		DistributionNodes: canonDistributionNodes(),
+		Ts:                time.Now().Unix(),
 	}
 }
 
