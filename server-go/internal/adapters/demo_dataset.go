@@ -1,7 +1,7 @@
 // demo_dataset.go — Dataset demo canónico COMPLETO (port literal de
 // server/src/demo/dataset.js, SPEC §7.1): 4 routers, WAN, trafficByRange,
-// health score, AdGuard, WireGuard, alertas, los 47 dispositivos (10
-// canónicos + 37 adicionales, sparklines deterministas con el mismo LCG),
+// health score, AdGuard, WireGuard, alertas, los 66 dispositivos (canon +
+// adicionales + fixtures topología v5, sparklines deterministas con el LCG),
 // routerExtras, perfSeries, WAN_LATENCY_24H, adguardSeries24h, wgPeerExtras
 // y WG_TOTALS_30D. Cada llamada a los builders devuelve estructuras NUEVAS
 // (el adapter muta su copia con el random walk; el canon no se toca).
@@ -274,12 +274,10 @@ func additionalDevices() []Device {
 			IP: "192.168.8.12", MAC: "DC:A6:32:4F:77:02", RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 0.8, Online: true, AttachTo: "dist-flint2-lan3"}, 14, 0),
 			"raspberrypi", "IP fija (reserva)", "hace 320 días", "3,4 GB", "890 MB", true, "red", ""),
-		// Switch gestionado identificado por LLDP (topología v5: type switch + Salón lan3)
-		withDetails(devExtra(Device{ID: "switch-netgear", Name: "Switch Netgear", Type: "switch", Manufacturer: "Netgear GS308E",
-			IP: "192.168.8.13", MAC: "28:C6:8E:1D:90:44", RouterID: "living", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 0.02, Online: true, Port: "lan3",
-			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}}, 15, 0.04),
-			"gs308e", "IP fija (reserva)", "hace 300 días", "64 MB", "12 MB", false, "red", "Network"),
+		// NOTA (Fase 5): el switch gestionado GS308E (Salón lan3) ya NO es un
+		// Device: se representa como DistributionNode "managed" (ver
+		// canonDistributionNodes), con xbox/apple-tv/denon en abanico — la
+		// historia del mockup "identificado por LLDP" sin duplicar el chip.
 		withDetails(devExtra(Device{ID: "timbre-nest", Name: "Timbre Nest", Type: "camara", Manufacturer: "Google",
 			IP: "192.168.8.72", MAC: "F4:F5:D8:66:01:B8", RouterID: "flint2", Band: "2.4 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0.6, Online: true}, 16, 0),
@@ -412,9 +410,10 @@ func withDetails(d Device, hostname, lease, firstSeen, rx, tx string, adguard bo
 	return d
 }
 
-// canonAllDevices: los 67 clientes (canon expandido + adicionales + fixtures
-// de topología v5: switch gestionado LLDP, hipervisor con CTs, switch
-// inferido FDB — espejo del mock front app/src/data/mock.ts).
+// canonAllDevices: los 66 clientes (canon expandido + adicionales + fixtures
+// de topología v5: hipervisor con CTs, clientes tras switch inferido FDB y
+// tras el switch gestionado — espejo del mock front app/src/data/mock.ts).
+// Fase 5: el GS308E deja de ser Device (es el DistributionNode managed).
 func canonAllDevices() []Device {
 	out := canonDevices()
 	out = append(out, additionalDevices()...)
@@ -423,24 +422,26 @@ func canonAllDevices() []Device {
 }
 
 // topologyDevices: fixtures NUEVAS de topología v5 (mockup aprobado
-// 2-Ago-2026). Los 3 clientes preexistentes (switch-netgear, pc-sobremesa,
-// raspberry-pi) se enriquecen in situ en additionalDevices — no se duplican.
+// 2-Ago-2026). Los clientes preexistentes (pc-sobremesa, raspberry-pi) se
+// enriquecen in situ en additionalDevices — no se duplican. El GS308E NO
+// existe como Device: es el DistributionNode "managed" (Fase 5).
 func topologyDevices() []Device {
 	out := []Device{
-		// 3 clientes detrás del switch gestionado (Salón)
+		// 3 clientes detrás del switch gestionado identificado por LLDP
+		// (nodo managed dist-living-lan3, Salón)
 		withDetails(Device{ID: "xbox-series-s", Name: "Xbox Series S", Type: "consola", Manufacturer: "Microsoft",
 			IP: "192.168.8.35", MAC: "7C:ED:8D:4A:11:22", RouterID: "living", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 9.8, Online: true, AttachTo: "switch-netgear",
+			SignalDbm: nil, TrafficMbps: 9.8, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{3, 5, 7, 9, 11, 12, 10, 9, 10, 9, 10, 9.8}},
 			"xbox-series-s", "renueva en 4 h 12 min", "hace 140 días", "31 GB", "1,9 GB", true, "tv", ""),
 		withDetails(Device{ID: "apple-tv-4k", Name: "Apple TV 4K", Type: "tv", Manufacturer: "Apple",
 			IP: "192.168.8.36", MAC: "F0:18:98:2B:33:44", RouterID: "living", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 15.2, Online: true, AttachTo: "switch-netgear",
+			SignalDbm: nil, TrafficMbps: 15.2, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{6, 8, 10, 12, 14, 16, 15, 14, 15, 15, 15, 15.2}},
 			"apple-tv-4k", "renueva en 6 h 3 min", "hace 210 días", "88 GB", "3,4 GB", true, "tv", ""),
 		withDetails(Device{ID: "receptor-denon", Name: "Receptor Denon", Type: "altavoz", Manufacturer: "Denon",
 			IP: "192.168.8.37", MAC: "00:05:CD:55:66:77", RouterID: "living", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 0.6, Online: true, AttachTo: "switch-netgear",
+			SignalDbm: nil, TrafficMbps: 0.6, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6}},
 			"denon-avr", "IP fija (reserva)", "hace 320 días", "640 MB", "42 MB", true, "iot", ""),
 		// Hipervisor Proxmox (gateway lan2); sus 10 CTs se anidan (OUI BC:24:11)
@@ -517,11 +518,17 @@ func topologyDevices() []Device {
 	return out
 }
 
-// canonDistributionNodes: distnodes demo (en live los infiere el colector FDB).
+// canonDistributionNodes: distnodes demo (en live los infiere el colector
+// FDB/LLDP). Las DOS historias de switch: fantasma inferido (gateway lan3)
+// vs gestionado identificado por LLDP (Salón lan3, el GS308E del mockup con
+// sus 3 clientes en abanico; Fase 5: ya no existe como Device suelto).
 func canonDistributionNodes() []DistributionNode {
 	return []DistributionNode{
 		{ID: "dist-flint2-lan3", Kind: "inferred", RouterID: "flint2", Port: "lan3", MacCount: 8},
 		{ID: "dist-pve", Kind: "hypervisor", RouterID: "flint2", Port: "lan2", MacCount: 11, HostDeviceID: "pve", Name: "Proxmox pve"},
+		{ID: "dist-living-lan3", Kind: "managed", RouterID: "living", Port: "lan3", MacCount: 4,
+			Name: "GS308E", Ip: "192.168.8.13",
+			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}},
 	}
 }
 

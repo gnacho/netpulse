@@ -52,7 +52,7 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 		t.Fatalf("peer0: %+v", p0)
 	}
 	// DeviceTotals
-	if ov.DeviceTotals != (DeviceTotals{Total: 67, Online: 59, KnownOffline: 8, NewToday: 3}) {
+	if ov.DeviceTotals != (DeviceTotals{Total: 66, Online: 58, KnownOffline: 8, NewToday: 3}) {
 		t.Fatalf("deviceTotals: %+v", ov.DeviceTotals)
 	}
 	// Health
@@ -69,10 +69,10 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	}
 }
 
-func TestDemoDevices67YTop(t *testing.T) {
+func TestDemoDevices66YTop(t *testing.T) {
 	d := NewDemo()
 	devs := d.GetDevices(context.Background())
-	if len(devs) != 67 {
+	if len(devs) != 66 {
 		t.Fatalf("devices: %d", len(devs))
 	}
 	offline := 0
@@ -471,5 +471,58 @@ func TestDemoBackhaulCanon(t *testing.T) {
 		if r.Backhaul != want[r.ID] {
 			t.Fatalf("overview backhaul %s: %q", r.ID, r.Backhaul)
 		}
+	}
+}
+
+// Canon demo del nodo "managed" (Fase 5): el GS308E del Salón es un
+// DistributionNode identificado por LLDP (NO un Device), con sus 3 clientes
+// en abanico. El fantasma inferido del gateway se mantiene (las dos
+// historias: inferido vs identificado).
+func TestDemoNodoManagedCanon(t *testing.T) {
+	d := NewDemo()
+	ov, err := d.GetOverview(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var managed, inferred *DistributionNode
+	for i := range ov.DistributionNodes {
+		switch ov.DistributionNodes[i].ID {
+		case "dist-living-lan3":
+			managed = &ov.DistributionNodes[i]
+		case "dist-flint2-lan3":
+			inferred = &ov.DistributionNodes[i]
+		}
+	}
+	if inferred == nil || inferred.Kind != "inferred" {
+		t.Fatalf("el fantasma del gateway se mantiene: %+v", inferred)
+	}
+	if managed == nil {
+		t.Fatalf("falta el nodo managed: %+v", ov.DistributionNodes)
+	}
+	if managed.Kind != "managed" || managed.RouterID != "living" || managed.Port != "lan3" || managed.MacCount != 4 {
+		t.Fatalf("nodo managed: %+v", managed)
+	}
+	if managed.Name != "GS308E" || managed.Ip != "192.168.8.13" {
+		t.Fatalf("name/ip: %+v", managed)
+	}
+	if managed.Lldp == nil || managed.Lldp.Chassis != "GS308E" || managed.Lldp.Mgmt != "192.168.8.13" ||
+		managed.Lldp.Caps != "Bridge" || managed.Lldp.PortDesc != "ge5" {
+		t.Fatalf("lldp del nodo: %+v", managed.Lldp)
+	}
+	// El GS308E ya no es un Device; sus 3 clientes cuelgan del nodo
+	fan := 0
+	for _, dev := range d.GetDevices(context.Background()) {
+		if dev.ID == "switch-netgear" {
+			t.Fatal("switch-netgear no debe existir como Device (es el nodo managed)")
+		}
+		if dev.AttachTo == "dist-living-lan3" {
+			fan++
+			if dev.RouterID != "living" {
+				t.Fatalf("cliente del managed con routerId raro: %+v", dev)
+			}
+		}
+	}
+	if fan != 3 {
+		t.Fatalf("abanico del managed: %d (esperaba 3)", fan)
 	}
 }

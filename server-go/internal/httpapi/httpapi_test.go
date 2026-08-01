@@ -490,10 +490,11 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	srv := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
 
-	// Paginación: 67 dispositivos del dataset canónico (47 base + 20 fixtures topología v5)
+	// Paginación: 66 dispositivos del dataset canónico (47 base − GS308E, que
+	// ahora es nodo managed, + 20 fixtures topología v5)
 	res := get(t, srv.URL, "/api/devices?page=1&pageSize=10", cookie)
 	body := readJSON(t, res)
-	if body["total"].(float64) != 67 || len(body["items"].([]any)) != 10 {
+	if body["total"].(float64) != 66 || len(body["items"].([]any)) != 10 {
 		t.Fatalf("page1: %v items, total %v", len(body["items"].([]any)), body["total"])
 	}
 	if body["page"].(float64) != 1 || body["pageSize"].(float64) != 10 {
@@ -501,7 +502,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	}
 	res = get(t, srv.URL, "/api/devices?page=7&pageSize=10", cookie)
 	body = readJSON(t, res)
-	if len(body["items"].([]any)) != 7 {
+	if len(body["items"].([]any)) != 6 {
 		t.Fatalf("page7 (resto): %v", len(body["items"].([]any)))
 	}
 	// Sin solape con la página anterior
@@ -525,7 +526,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	// Filtros
 	res = get(t, srv.URL, "/api/devices?routerId=living", cookie)
 	body = readJSON(t, res)
-	if body["total"].(float64) != 22 { // 18 base + switch-netgear + 3 clientes detrás
+	if body["total"].(float64) != 21 { // 18 base + 3 clientes del switch gestionado (nodo managed)
 		t.Fatalf("routerId=living: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?band=cable", cookie)
@@ -535,7 +536,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 			t.Fatalf("band=cable con item de otra banda: %v", it)
 		}
 	}
-	if body["total"].(float64) != 27 { // 7 base + 20 fixtures cable (3 netgear + pve + 10 CTs + 6 tras switch)
+	if body["total"].(float64) != 26 { // 6 base + 20 fixtures cable (3 netgear + pve + 10 CTs + 6 tras switch)
 		t.Fatalf("band=cable: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?status=offline", cookie)
