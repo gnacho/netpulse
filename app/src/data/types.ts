@@ -173,11 +173,12 @@ export interface Device {
  * Nodo de distribución entre un router y varios cableados, inferido del FDB:
  * un puerto físico con varias MACs aprendidas. `inferred` = OUI heterogéneo
  * (switch o bridge desconocido, sin IP); `hypervisor` = OUI de hipervisor
- * (Proxmox/VMware/Hyper-V/KVM) → sus CTs/VMs se anidan bajo el host.
+ * (Proxmox/VMware/Hyper-V/KVM) → sus CTs/VMs se anidan bajo el host;
+ * `managed` = switch gestionado identificado vía LLDP (tiene IP de mgmt).
  */
 export interface DistributionNode {
   id: string
-  kind: 'inferred' | 'hypervisor'
+  kind: 'inferred' | 'hypervisor' | 'managed'
   routerId: string
   /** Puerto físico del router donde cuelga (lan3…). */
   port: string
@@ -185,8 +186,10 @@ export interface DistributionNode {
   macCount: number
   /** Hypervisor: id del Device host (Proxmox…), si existe como cliente. */
   hostDeviceId?: string
-  /** Nombre descriptivo (host o futura identificación LLDP). */
+  /** Nombre descriptivo (host o chasis LLDP del switch gestionado). */
   name?: string
+  /** Managed: IP de gestión anunciada por LLDP. */
+  ip?: string
   lldp?: LldpInfo | null
 }
 

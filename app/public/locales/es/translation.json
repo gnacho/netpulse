@@ -452,6 +452,7 @@
     "dist": {
       "title": "Switch o bridge",
       "inferred": "inferido",
+      "managed": "switch gestionado",
       "noIp": "sin IP · no consultable directamente",
       "port": "Puerto del gateway",
       "macs": "MACs aprendidas",

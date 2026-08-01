@@ -296,30 +296,25 @@ export const devices: Device[] = [
   // -- Fixtures de topología v5 (mockup aprobado: switch gestionado LLDP, --
   // -- hipervisor con CTs anidados, switch/bridge inferido vía FDB) ----------
 
-  // Switch gestionado identificado por LLDP + 3 clientes detrás (Salón, lan3)
-  {
-    id: 'switch-netgear', name: 'Switch Netgear', type: 'switch', manufacturer: 'Netgear GS308E',
-    ip: '192.168.8.2', mac: 'D8:B3:70:1A:2B:3C', routerId: 'living', band: 'cable',
-    signalDbm: null, trafficMbps: 3.4, online: true, port: 'lan3',
-    lldp: { chassis: 'GS308E', mgmt: '192.168.8.2', caps: 'Bridge', portDesc: 'ge5' },
-    sparkline: [2, 2.4, 2.8, 3.1, 3.3, 3.6, 3.4, 3.2, 3.4, 3.5, 3.4, 3.4],
-  },
+  // 3 clientes tras el switch gestionado GS308E (Salón, lan3) — el switch se
+  // modela como DistributionNode kind='managed' (identificado vía LLDP), igual
+  // que lo emitirá el backend demo (C2).
   {
     id: 'xbox-series-s', name: 'Xbox Series S', type: 'consola', manufacturer: 'Microsoft',
     ip: '192.168.8.35', mac: '7C:ED:8D:4A:11:22', routerId: 'living', band: 'cable',
-    signalDbm: null, trafficMbps: 9.8, online: true, attachTo: 'switch-netgear',
+    signalDbm: null, trafficMbps: 9.8, online: true, attachTo: 'dist-living-lan3',
     sparkline: [3, 5, 7, 9, 11, 12, 10, 9, 10, 9, 10, 9.8],
   },
   {
     id: 'apple-tv-4k', name: 'Apple TV 4K', type: 'tv', manufacturer: 'Apple',
     ip: '192.168.8.36', mac: 'F0:18:98:2B:33:44', routerId: 'living', band: 'cable',
-    signalDbm: null, trafficMbps: 15.2, online: true, attachTo: 'switch-netgear',
+    signalDbm: null, trafficMbps: 15.2, online: true, attachTo: 'dist-living-lan3',
     sparkline: [6, 8, 10, 12, 14, 16, 15, 14, 15, 15, 15, 15.2],
   },
   {
     id: 'receptor-denon', name: 'Receptor Denon', type: 'altavoz', manufacturer: 'Denon',
     ip: '192.168.8.37', mac: '00:05:CD:55:66:77', routerId: 'living', band: 'cable',
-    signalDbm: null, trafficMbps: 0.6, online: true, attachTo: 'switch-netgear',
+    signalDbm: null, trafficMbps: 0.6, online: true, attachTo: 'dist-living-lan3',
     sparkline: [0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6],
   },
 
@@ -375,6 +370,13 @@ export const devices: Device[] = [
 export const distributionNodes: DistributionNode[] = [
   { id: 'dist-flint2-lan3', kind: 'inferred', routerId: 'flint2', port: 'lan3', macCount: 8 },
   { id: 'dist-pve', kind: 'hypervisor', routerId: 'flint2', port: 'lan2', macCount: 11, hostDeviceId: 'pve', name: 'Proxmox pve' },
+  // Switch gestionado Netgear GS308E en el AP Salón (lan3), identificado vía
+  // LLDP (chasis + IP de mgmt + caps + puerto remoto). 4 MACs: switch + 3 equipos.
+  {
+    id: 'dist-living-lan3', kind: 'managed', routerId: 'living', port: 'lan3', macCount: 4,
+    name: 'GS308E', ip: '192.168.8.13',
+    lldp: { chassis: 'GS308E', mgmt: '192.168.8.13', caps: 'Bridge', portDesc: 'ge5' },
+  },
 ]
 
 // ---------------------------------------------------------------------------

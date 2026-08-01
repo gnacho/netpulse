@@ -452,6 +452,7 @@
     "dist": {
       "title": "Switch or bridge",
       "inferred": "inferred",
+      "managed": "managed switch",
       "noIp": "no IP · not directly queryable",
       "port": "Gateway port",
       "macs": "Learned MACs",

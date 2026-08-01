@@ -382,10 +382,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
-    // Solo los distnodes inferidos son anchors propios (círculo dashed); el
+    // Los distnodes inferidos y gestionados (LLDP) son anchors propios; el
     // hipervisor se posiciona vía su device host (hub), el distnode solo
     // aporta metadatos (puerto, macCount).
-    const dists = distributionNodes.filter((n) => n.routerId === node.id && n.kind === 'inferred')
+    const dists = distributionNodes.filter(
+      (n) => n.routerId === node.id && (n.kind === 'inferred' || n.kind === 'managed'),
+    )
     const directWired = childrenOf(node.id).filter(isWired)
     const hubs = directWired.filter((d) => deviceHubs.has(d.id))
     const plain = directWired.filter((d) => !deviceHubs.has(d.id))
@@ -554,6 +556,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     let sum = 0
     for (const d of childrenOf(hubId)) {
       sum += d.trafficMbps + subtreeTraffic(d.id, seen)
+    }
+    // distnodes que cuelgan de este hub: su sub-árbol también viaja por el
+    // enlace del hub (el hipervisor ya cuenta vía su device host).
+    for (const dn of distributionNodes) {
+      if (dn.routerId !== hubId || dn.kind === 'hypervisor') continue
+      sum += subtreeTraffic(dn.id, seen)
     }
     const dn = distById.get(hubId)
     if (dn?.kind === 'hypervisor' && dn.hostDeviceId) {
