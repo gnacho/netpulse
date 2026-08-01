@@ -38,7 +38,7 @@ builds:
 
 archives:
   - id: netpulse
-    builds: [netpulse]
+    ids: [netpulse]
     formats: [tar.gz]
     name_template: >-
       {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
@@ -48,7 +48,7 @@ archives:
         dst: .env.example
 
   - id: netpulse-collector
-    builds: [netpulse-collector]
+    ids: [netpulse-collector]
     formats: [tar.gz]
     name_template: >-
       {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
