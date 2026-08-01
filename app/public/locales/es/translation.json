@@ -464,6 +464,10 @@
     "ct": {
       "pill": "CT",
       "note": "Contenedor en el hipervisor · su tráfico viaja por el cable del host"
+    },
+    "peers": {
+      "overflowTitle": "{{count}} peers más",
+      "overflowAria": "{{count}} peers WireGuard adicionales"
     }
   },
   "settings": {

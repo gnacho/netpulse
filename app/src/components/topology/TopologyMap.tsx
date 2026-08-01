@@ -41,6 +41,9 @@ const INITIAL_VIEW: View = { x: 0, y: 0, w: VB_W, h: VB_H }
 /** zoom 2×–0.5× */
 const MIN_W = VB_W / 2
 const MAX_W = VB_W * 2
+/** Chip "+N" de peers WG que exceden las 4 coordenadas canónicas (zona de
+ *  peers, entre la órbita de Internet y el peer interior derecho) */
+const PEERS_OVERFLOW_COORD = { x: 560, y: 26 }
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v))
@@ -65,6 +68,7 @@ type TooltipData =
   | { kind: 'router'; id: string; router: Router; x: number; y: number }
   | { kind: 'internet'; id: string; x: number; y: number }
   | { kind: 'peer'; id: string; peer: WGPeer; x: number; y: number }
+  | { kind: 'peersOverflow'; id: string; peers: WGPeer[]; x: number; y: number }
   | { kind: 'chip'; id: string; chip: ChipNode; x: number; y: number }
   | { kind: 'dist'; id: string; node: DistributionNode; x: number; y: number }
 
@@ -139,6 +143,24 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
             <MiniStat label={t('topology.tunnel')} value="WireGuard" />
             <MiniStat label={t('topology.received')} value={`↓ ${tip.peer.rx}`} />
             <MiniStat label={t('topology.sent')} value={`↑ ${tip.peer.tx}`} />
+          </div>
+        </div>
+      )}
+      {tip.kind === 'peersOverflow' && (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-text-primary">
+              {t('topology.peers.overflowTitle', { count: tip.peers.length })}
+            </span>
+            <StatusPill tone="tunnel" label={t('common.active')} pulse />
+          </div>
+          <div className="mt-2 space-y-1.5">
+            {tip.peers.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 text-caption">
+                <span className="font-semibold text-text-primary">{p.name}</span>
+                <span className="font-mono text-text-muted">Handshake {relTime(p.lastHandshake)}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -308,7 +330,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { chips, ctsByHost, ctCountByHost, distNodes, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
@@ -490,7 +512,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
     const rect = el.getBoundingClientRect()
     const v = viewRef.current
     // nodos en la zona superior del mapa: tooltip hacia abajo
-    const below = data.kind === 'internet' || data.kind === 'peer'
+    const below = data.kind === 'internet' || data.kind === 'peer' || data.kind === 'peersOverflow'
     const left = clamp(((data.x - v.x) / v.w) * rect.width, 130, rect.width - 130)
     const rawTop = ((data.y - v.y) / v.h) * rect.height
     const top = below ? clamp(rawTop, 16, rect.height - 190) : clamp(rawTop, 190, rect.height - 20)
@@ -871,6 +893,55 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             </g>
           )
         })}
+
+        {/* ------------------------- Peers ocultos ("+N") ---------------------- */}
+        {hiddenPeers.length > 0 && (
+          <g transform={`translate(${PEERS_OVERFLOW_COORD.x} ${PEERS_OVERFLOW_COORD.y})`}>
+            <motion.g
+              initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
+              animate={{ opacity: nodeOpacity('peers-overflow'), scale: 1 }}
+              transition={reduce ? { duration: 0 } : { delay: 2.1 * T, duration: 0.35 }}
+              style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            >
+              <g
+                className="cursor-pointer outline-none"
+                role="button"
+                tabIndex={0}
+                aria-label={t('topology.peers.overflowAria', { count: hiddenPeers.length })}
+                onPointerEnter={(e) =>
+                  handleNodeHover(
+                    { kind: 'peersOverflow', id: 'peers-overflow', peers: hiddenPeers, x: PEERS_OVERFLOW_COORD.x, y: PEERS_OVERFLOW_COORD.y + 30 },
+                    e,
+                  )
+                }
+                onPointerLeave={closeHover}
+                onClick={(e) =>
+                  nodeClick(
+                    e,
+                    { kind: 'peersOverflow', id: 'peers-overflow', peers: hiddenPeers, x: PEERS_OVERFLOW_COORD.x, y: PEERS_OVERFLOW_COORD.y + 30 },
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleNodeClick({
+                      kind: 'peersOverflow',
+                      id: 'peers-overflow',
+                      peers: hiddenPeers,
+                      x: PEERS_OVERFLOW_COORD.x,
+                      y: PEERS_OVERFLOW_COORD.y + 30,
+                    })
+                  }
+                }}
+              >
+                <rect x={-15} y={-11} width={30} height={22} rx={8} fill="rgb(var(--elevated))" stroke={COLOR.tunnel} strokeWidth={1.5} />
+                <text x={0} y={3.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={COLOR.tunnel}>
+                  +{hiddenPeers.length}
+                </text>
+              </g>
+            </motion.g>
+          </g>
+        )}
 
         {/* ------------------------- Nodos de distribución (switch inferido) --- */}
         {distNodes.map((dv, i) => (
