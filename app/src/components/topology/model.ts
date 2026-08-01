@@ -221,6 +221,13 @@ const CT_COLS = 5
 const CT_DX = 42
 const CT_DY = 38
 const CT_OFFSET_Y = 56
+/** Grid de cableados directos del gateway (a partir de N, el abanico oeste
+ *  de 60° los apiña: se pasa a filas×columnas al oeste, decisión 2-Ago-2026) */
+const GW_GRID_MIN = 6
+const GW_GRID_ROWS = 4
+const GW_GRID_DX = 46
+const GW_GRID_DY = 40
+const GW_GRID_R0 = 142
 
 // ---------------------------------------------------------------------------
 // Utilidades de ángulos y layout (portadas del mockup aprobado)
@@ -302,9 +309,24 @@ function fanLayout<T extends { x: number; y: number }>(
   })
 }
 
-/** flujo de paquetes ∝ tráfico (mockup: umbrales 35/15/2 Mbps, guardrail 60) */
-function flowFor(mbps: number): { packets: number; packetDur: number } {
-  const packets = mbps >= 35 ? 3 : mbps >= 15 ? 2 : mbps >= 2 ? 1 : 0
+/** grid de filas × columnas al oeste del gateway (muchas bocas cableadas
+ *  directas: el abanico de 60° las apiñaría). Llena por columnas hacia el
+ *  oeste; la última columna parcial queda centrada verticalmente. */
+function gridLayoutWest<T extends { x: number; y: number }>(items: T[], node: { x: number; y: number }): void {
+  items.forEach((d, i) => {
+    const col = Math.floor(i / GW_GRID_ROWS)
+    const row = i % GW_GRID_ROWS
+    const inThisCol = Math.min(GW_GRID_ROWS, items.length - col * GW_GRID_ROWS)
+    d.x = node.x - GW_GRID_R0 - col * GW_GRID_DX
+    d.y = node.y + (row - (inThisCol - 1) / 2) * GW_GRID_DY
+  })
+}
+
+/** flujo de paquetes ∝ tráfico (mockup: umbrales 35/15/2 Mbps, guardrail 60).
+ *  `alive`: enlace físico activo sin medición de tráfico (live no mide Mbps
+ *  por cliente) → 1 paquete lento para que el cable "respire" (5s). */
+function flowFor(mbps: number, alive = false): { packets: number; packetDur: number } {
+  const packets = mbps >= 35 ? 3 : mbps >= 15 ? 2 : mbps >= 2 ? 1 : alive ? 1 : 0
   return { packets, packetDur: Math.max(1.6, 5 - mbps / 12) }
 }
 
@@ -388,7 +410,11 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       const westItems = west.map((a) => ({ ...a, x: 0, y: 0 }))
       fanLayout(eastItems, node, ROUTER_FAN_RADIUS, GW_EAST_FAN[0], GW_EAST_FAN[1])
       fanLayout(farWestItems, node, HYPERVISOR_FAN_RADIUS, 160, 200)
-      fanLayout(westItems, node, ROUTER_FAN_RADIUS, GW_WEST_FAN[0], GW_WEST_FAN[1])
+      if (westItems.length >= GW_GRID_MIN) {
+        gridLayoutWest(westItems, node)
+      } else {
+        fanLayout(westItems, node, ROUTER_FAN_RADIUS, GW_WEST_FAN[0], GW_WEST_FAN[1])
+      }
       placed.push(...eastItems, ...farWestItems, ...westItems)
       fanArcByRouter.set(node.id, [...arcAround(0, 26), [GW_WEST_FAN[0] - 8, GW_WEST_FAN[1] + 8]])
     } else {
@@ -570,7 +596,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       id: `dist-${dv.id}`, kind: 'dist',
       d: `M ${edge.x} ${edge.y} Q ${mid.x + 6} ${mid.y - 6}, ${dv.x} ${dv.y}`,
       lx: 0, ly: 0, label: '',
-      width: 2.5, ...flowFor(subtreeTraffic(dv.id)),
+      width: 2.5, ...flowFor(subtreeTraffic(dv.id), true),
       from: dv.node.routerId, to: dv.id,
     })
   }
@@ -599,7 +625,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       id: `wired-${chip.id}`, kind: 'wired',
       d: `M ${edge.x} ${edge.y} Q ${c1x} ${c1y}, ${chip.x} ${chip.y}`,
       lx: 0, ly: 0, label: '',
-      width: 1.4, ...flowFor(mbps),
+      width: 1.4, ...flowFor(mbps, true),
       from: chip.hubId, to: chip.id,
     })
   }
@@ -612,7 +638,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         id: `wired-${ct.id}`, kind: 'wired',
         d: `M ${hostChip.x} ${hostChip.y + hostChip.size / 2} L ${ct.x} ${ct.y - ct.size / 2}`,
         lx: 0, ly: 0, label: '',
-        width: 1.2, ...flowFor(ct.device.trafficMbps),
+        width: 1.2, ...flowFor(ct.device.trafficMbps, true),
         from: hostId, to: ct.id,
       })
     }
