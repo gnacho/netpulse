@@ -10,7 +10,7 @@ import (
 // Inferencia de topología v5 (FDB): puertos físicos, switches/bridges e
 // hipervisores. Función pura (sin SSH ni BD) para ser testeable.
 //
-// Reglas (plan 2-Ago-2026):
+// Reglas (plan 2-Ago-2026; regla de anclaje refinada 2-Ago-2026):
 //   - Un puerto físico (lanN) con UNA MAC aprendida = cableado directo →
 //     Device.Port.
 //   - Un puerto con VARIAS MACs = algo multiplexándolo (switch, hipervisor,
@@ -20,6 +20,13 @@ import (
 //   - Se excluyen las MACs de los propios routers (su bridge br-lan) y las
 //     de clientes atribuidos a OTROS routers (los clientes wifi de un AP
 //     aparecen en el FDB del gateway por el puerto del uplink).
+//   - Anclaje al GATEWAY (decisión del usuario 2-Ago-2026): los nodos
+//     "inferred" SOLO se crean en el gateway. En un AP, un puerto multi-MAC
+//     es casi seguro su UPLINK (aprende las MACs de toda la LAN) y el FDB
+//     no puede distinguirlo de un switch local → no se afirma nada: esos
+//     clientes quedan "sin evidencia" y el frontend los cuelga del gateway.
+//     Única excepción tras un AP: hipervisor con evidencia clara (MACs OUI
+//     de hipervisor + exactamente un host) = servidor con VMs tras ese AP.
 // ---------------------------------------------------------------------------
 
 // hypervisorOUI: prefijos de MAC de hipervisores conocidos.
@@ -62,6 +69,27 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 		routerIDs = append(routerIDs, id)
 	}
 	sort.Strings(routerIDs)
+
+	// Gateway con la misma prioridad que pickGateway (is_gateway → glinet →
+	// primero): solo él puede anclar nodos "inferred".
+	gatewayID := ""
+	for _, id := range routerIDs {
+		if polled[id].cfg.IsGateway {
+			gatewayID = id
+			break
+		}
+	}
+	if gatewayID == "" {
+		for _, id := range routerIDs {
+			if polled[id].cfg.Type == "glinet" {
+				gatewayID = id
+				break
+			}
+		}
+	}
+	if gatewayID == "" && len(routerIDs) > 0 {
+		gatewayID = routerIDs[0]
+	}
 
 	for _, routerID := range routerIDs {
 		p := polled[routerID]
@@ -112,8 +140,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				continue
 			}
 
-			// puerto multi-MAC → nodo de distribución
-			setPort()
+			// puerto multi-MAC
 			id := fmt.Sprintf("dist-%s-%s", routerID, port)
 			var vmMACs, hostMACs []string
 			for _, mac := range kept {
@@ -125,7 +152,9 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			}
 			if len(vmMACs) > 0 && len(hostMACs) == 1 {
 				if hidx, ok := byMAC[hostMACs[0]]; ok && devices[hidx].RouterID == routerID {
-					// hipervisor con host identificado: VMs anidadas bajo él
+					// Hipervisor con host identificado: evidencia clara, válida
+					// también tras un AP (servidor con VMs colgando de ese AP).
+					setPort()
 					dists = append(dists, DistributionNode{
 						ID: id, Kind: "hypervisor", RouterID: routerID, Port: port,
 						MacCount: len(kept), HostDeviceID: devices[hidx].ID, Name: devices[hidx].Name,
@@ -138,7 +167,16 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 					continue
 				}
 			}
-			// OUI heterogéneo (o hipervisor ambiguo sin host claro): inferido
+			if routerID != gatewayID {
+				// AP con puerto multi-MAC sin evidencia de hipervisor: es casi
+				// seguro su uplink (aprende las MACs de toda la LAN). No se
+				// afirma switch local ni se anota puerto: los clientes quedan
+				// "sin evidencia" y el frontend los ancla al gateway.
+				continue
+			}
+			// Gateway, OUI heterogéneo (o hipervisor ambiguo sin host claro):
+			// algo multiplexa ese puerto → nodo inferido colgando del gateway.
+			setPort()
 			dists = append(dists, DistributionNode{
 				ID: id, Kind: "inferred", RouterID: routerID, Port: port, MacCount: len(kept),
 			})
