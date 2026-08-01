@@ -5,13 +5,14 @@ de 4 routers: 1 GL.iNet Flint 2 (GL-MT6000, con AdGuard Home y WireGuard) + 3
 puntos de acceso OpenWrt.
 
 - **Frontend** (`app/`): React 19 + Vite + Tailwind + shadcn/ui. PWA instalable.
-- **Backend** (`server/`): Node + Hono + SQLite (better-sqlite3). Auth
-  multiusuario con cookie de sesión, SSE en tiempo real (5 s), adapters demo/live.
-- **Backend Go** (`server-go/`): reescritura completa del backend en Go
-  (`net/http` estándar, `modernc.org/sqlite`, binario estático único con el
-  frontend embebido). Reemplazo directo: misma API/variables/`.env`, migración
-  automática desde la BD de Node en el primer arranque. Unit systemd:
-  `deploy/netpulse-go.service`.
+- **Backend** (`server-go/`): Go (`net/http` estándar, `modernc.org/sqlite`,
+  binario estático único con el frontend embebido). Auth multiusuario con
+  cookie de sesión + bcrypt, SSE en tiempo real (5 s), adapters demo/live.
+  Unit systemd: `deploy/netpulse-go.service`.
+- **Backend legacy** (`server/`): la implementación original Node + Hono,
+  **archivada como fallback** (no se elimina — runbook de fallback en
+  `server/README.md`). La migración desde su BD es automática en el primer
+  arranque del Go.
 - **Collector** (`collector/`): sidecar en Go que sondea la latencia TCP a cada
   router (lee la lista de routers de `netpulse.db` en solo lectura) y guarda su
   propia SQLite de series temporales (`metrics.db`, raw → buckets 5 min → diario).
