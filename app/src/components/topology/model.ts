@@ -576,12 +576,16 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
   apNodes.forEach((node, i) => {
     const p = UPLINK_PATHS[i]
-    const isWifi = node.id === 'patio'
+    // C1: backhaul real del router (ausente = cable); sin hardcode por id.
+    const isWifi = node.router.backhaul === 'wifi'
     const traffic = subtreeTraffic(node.id)
+    // Etiqueta wifi: genérica (no hay dato de señal en el contrato Router);
+    // cable: sufijo "· LLDP" si el AP se anuncia en el puerto del uplink (C2).
+    const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
     links.push({
       id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
       d: p.d, lx: p.lx, ly: p.ly,
-      label: isWifi ? 'WiFi uplink −58 dBm' : 'Cable 1G',
+      label,
       width: isWifi ? 2 : 3, ...flowFor(Math.max(traffic, isWifi ? 40 : 120)),
       from: gatewayNode?.id ?? 'internet', to: node.id,
     })
@@ -681,7 +685,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     })
   }
   for (const node of apNodes) {
-    const isWifi = node.id === 'patio'
+    const isWifi = node.router.backhaul === 'wifi'
     backhauls.push({
       id: `uplink-${node.id}`, a: 'Gateway', b: node.router.name, kind: 'uplink',
       type: isWifi ? 'topology.links.wifiUplink' : 'common.cable',

@@ -38,6 +38,16 @@ export interface Router {
   clients: number
   /** Métrica en umbral (se pinta --warn), p. ej. 'temp' en Patio */
   hotMetric?: 'cpu' | 'ram' | 'temp'
+  /**
+   * Backhaul del AP (C1): 'wifi' = uplink inalámbrico (se dibuja dashed
+   * ámbar); 'cable'/ausente = cableado o desconocido.
+   */
+  backhaul?: 'cable' | 'wifi'
+  /**
+   * El AP se anuncia por LLDP en el puerto del uplink (C2): el frontend
+   * añade el sufijo "· LLDP" a la etiqueta del enlace. Ausente = sin dato.
+   */
+  lldp?: LldpInfo | null
   /** Sparkline de tráfico 24h (Mbps, 24 puntos) */
   sparkline: number[]
 }
