@@ -47,8 +47,12 @@ if [ -f /opt/netpulse/server-go/netpulse ]; then
   rm -rf /opt/netpulse/server-go/pkg.new /opt/netpulse/server-go/netpulse.old /tmp/netpulse-go.tgz
 
   echo "STEP:restart"
-  # Reinicio vía unidad systemd.path del CT (netpulse-restart.path vigila este
-  # flag y ejecuta systemctl restart netpulse-go.service como root)
+  # Reinicio vía unidad systemd.path del CT (netpulse-go-restart.path vigila
+  # este flag y ejecuta systemctl restart netpulse-go.service como root).
+  # El dir puede no existir (DATA_DIR real vive en /opt/netpulse/server/data):
+  # crearlo antes de tocar el flag (bug visto 1-Ago-2026: touch fallaba y el
+  # binario nuevo quedaba instalado sin reiniciar).
+  mkdir -p /opt/netpulse/server-go/data
   touch /opt/netpulse/server-go/data/.restart-me
 else
   # ---------------- Flujo Node (legacy) ----------------
