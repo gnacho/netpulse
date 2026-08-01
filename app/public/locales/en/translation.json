@@ -459,11 +459,13 @@
       "fdbNote": "FDB: {{count}} heterogeneous MACs on a single physical port. Probably a switch; we cannot tell for sure without LLDP."
     },
     "host": {
-      "hypervisor": "hypervisor"
+      "hypervisor": "hypervisor",
+      "note": "Hypervisor: {{count}} CTs/VMs behind its virtual bridge — not a switch"
     },
     "ct": {
       "pill": "CT",
-      "note": "Container on the hypervisor · its traffic rides the host's cable"
+      "note": "Container on the hypervisor · its traffic rides the host's cable",
+      "noteIn": "Container on {{host}} · virtual bridge ({{port}}) · traffic rides the host's cable"
     },
     "peers": {
       "overflowTitle": "{{count}} more peers",
