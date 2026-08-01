@@ -18,8 +18,8 @@ export const routers = [
     name: 'Gateway',
     model: 'GL.iNet Flint 2 (GL-MT6000)',
     modelShort: 'GL.iNet Flint 2',
-    role: 'Gateway principal',
-    roleBadge: 'Principal',
+    role: 'Main gateway',
+    roleBadge: 'Main',
     ip: '192.168.8.1',
     status: 'online',
     health: 98,
@@ -32,10 +32,10 @@ export const routers = [
   },
   {
     id: 'living',
-    name: 'Salón',
+    name: 'Living Room',
     model: 'OpenWrt AP (Xiaomi AX3000T)',
     modelShort: 'Xiaomi AX3000T',
-    role: 'Punto de acceso',
+    role: 'Access point',
     roleBadge: 'AP',
     ip: '192.168.8.2',
     status: 'online',
@@ -49,7 +49,7 @@ export const routers = [
   },
   {
     id: 'estudio',
-    name: 'Estudio',
+    name: 'Study',
     model: 'OpenWrt (NanoPi R4S)',
     modelShort: 'NanoPi R4S',
     role: 'AP + switch',
@@ -69,7 +69,7 @@ export const routers = [
     name: 'Patio',
     model: 'OpenWrt (TP-Link EAP225)',
     modelShort: 'TP-Link EAP225',
-    role: 'AP exterior',
+    role: 'Outdoor AP',
     roleBadge: 'AP',
     ip: '192.168.8.4',
     status: 'warn',
@@ -99,7 +99,7 @@ export const wan = {
   peakTodayMbps: 412,
   peakTodayTime: '21:14',
   avgDownMbps: 61,
-  total24h: '1,32 TB',
+  total24h: '1.32 TB',
 }
 
 // ---------------------------------------------------------------------------
@@ -134,10 +134,10 @@ export const trafficByRange = {
     { t: '22', down: 284, up: 48 }, { t: '23', down: 122, up: 21 },
   ],
   '7d': [
-    { t: 'Lun', down: 61, up: 12 }, { t: 'Mar', down: 58, up: 11 },
-    { t: 'Mié', down: 64, up: 13 }, { t: 'Jue', down: 71, up: 15 },
-    { t: 'Vie', down: 88, up: 19 }, { t: 'Sáb', down: 96, up: 22 },
-    { t: 'Dom', down: 84, up: 18 },
+    { t: 'Mon', down: 61, up: 12 }, { t: 'Tue', down: 58, up: 11 },
+    { t: 'Wed', down: 64, up: 13 }, { t: 'Thu', down: 71, up: 15 },
+    { t: 'Fri', down: 88, up: 19 }, { t: 'Sat', down: 96, up: 22 },
+    { t: 'Sun', down: 84, up: 18 },
   ],
   '30d': [
     { t: '1', down: 54, up: 10 }, { t: '4', down: 58, up: 11 },
@@ -155,13 +155,13 @@ export const trafficByRange = {
 
 export const healthScore = {
   score: 92,
-  label: 'Excelente',
-  caption: 'Puntuación de salud de la red',
-  note: 'Penalizado por la temperatura del Patio.',
+  label: 'Excellent',
+  caption: 'Network health score',
+  note: 'Penalized by the Patio temperature.',
   breakdown: [
-    { label: 'temp. Patio', delta: -4 },
-    { label: 'cobertura Patio', delta: -2 },
-    { label: 'canal 2.4 GHz congestionado', delta: -2 },
+    { label: 'Patio temp.', delta: -4 },
+    { label: 'Patio coverage', delta: -2 },
+    { label: 'congested 2.4 GHz channel', delta: -2 },
   ],
 }
 
@@ -182,7 +182,7 @@ export const deviceTotals = {
 
 const canonDevices = [
   {
-    id: 'imac-salon', name: 'iMac Salón', type: 'ordenador', manufacturer: 'Apple',
+    id: 'imac-salon', name: 'iMac Living Room', type: 'ordenador', manufacturer: 'Apple',
     ip: '192.168.8.21', mac: 'A4:83:E7:21:0B:3C', routerId: 'living', band: '5 GHz',
     signalDbm: -48, trafficMbps: 32.4, online: true,
     sparkline: [12, 15, 18, 22, 26, 30, 34, 32, 28, 30, 32, 31],
@@ -212,13 +212,13 @@ const canonDevices = [
     sparkline: [4, 6, 8, 10, 12, 14, 13, 12, 13, 12, 13, 13],
   },
   {
-    id: 'robot-aspirador', name: 'Robot aspirador', type: 'iot', manufacturer: 'Roborock',
+    id: 'robot-aspirador', name: 'Robot vacuum', type: 'iot', manufacturer: 'Roborock',
     ip: '192.168.8.61', mac: 'B0:4A:39:2E:77:10', routerId: 'patio', band: '2.4 GHz',
     signalDbm: -67, trafficMbps: 0.02, online: true,
     sparkline: [0.01, 0.02, 0.02, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02],
   },
   {
-    id: 'camara-porche', name: 'Cámara porche', type: 'camara', manufacturer: 'Reolink',
+    id: 'camara-porche', name: 'Porch camera', type: 'camara', manufacturer: 'Reolink',
     ip: '192.168.8.71', mac: 'EC:71:DB:44:12:8A', routerId: 'patio', band: '2.4 GHz',
     signalDbm: -72, trafficMbps: 1.1, online: true,
     sparkline: [1, 1.1, 1.1, 1.2, 1.1, 1, 1.1, 1.1, 1.2, 1.1, 1.1, 1.1],
@@ -236,7 +236,7 @@ const canonDevices = [
     sparkline: [1, 1.5, 2, 2.5, 3, 2.8, 2.4, 2.2, 2.3, 2.3, 2.3, 2.3],
   },
   {
-    id: 'bombillas-ikea', name: 'Bombillas Ikea ×6', type: 'iot', manufacturer: 'Ikea',
+    id: 'bombillas-ikea', name: 'Ikea bulbs ×6', type: 'iot', manufacturer: 'Ikea',
     ip: '192.168.8.8x', mac: '—', routerId: 'living', band: '2.4 GHz',
     signalDbm: -60, trafficMbps: 0, online: true,
     sparkline: [0, 0, 0.01, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0],
@@ -284,11 +284,11 @@ export const wireguard = {
   subnet: '10.0.0.1/24',
   status: 'active',
   peers: [
-    { id: 'pixel-8-pro', name: 'Pixel 8 Pro', type: 'movil', tunnelIp: '10.0.0.2', active: true, lastHandshake: 'hace 38 s', rx: '1,2 GB', tx: '214 MB' },
-    { id: 'macbook-air', name: 'MacBook Air', type: 'portatil', tunnelIp: '10.0.0.3', active: true, lastHandshake: 'hace 1 min', rx: '640 MB', tx: '88 MB' },
-    { id: 'ipad-air', name: 'iPad Air', type: 'tablet', tunnelIp: '10.0.0.4', active: false, lastHandshake: 'hace 2 días', rx: '3,1 GB', tx: '402 MB' },
-    { id: 'portatil-trabajo', name: 'Portátil trabajo', type: 'portatil', tunnelIp: '10.0.0.5', active: false, lastHandshake: 'hace 6 h', rx: '812 MB', tx: '121 MB' },
-    { id: 'casa-familia', name: 'Casa familia', type: 'sitio', tunnelIp: '10.0.0.6', active: false, lastHandshake: 'hace 9 días', rx: '12 GB', tx: '4,2 GB' },
+    { id: 'pixel-8-pro', name: 'Pixel 8 Pro', type: 'movil', tunnelIp: '10.0.0.2', active: true, lastHandshake: '38s ago', rx: '1.2 GB', tx: '214 MB' },
+    { id: 'macbook-air', name: 'MacBook Air', type: 'portatil', tunnelIp: '10.0.0.3', active: true, lastHandshake: '1 min ago', rx: '640 MB', tx: '88 MB' },
+    { id: 'ipad-air', name: 'iPad Air', type: 'tablet', tunnelIp: '10.0.0.4', active: false, lastHandshake: '2 days ago', rx: '3.1 GB', tx: '402 MB' },
+    { id: 'portatil-trabajo', name: 'Work laptop', type: 'portatil', tunnelIp: '10.0.0.5', active: false, lastHandshake: '6h ago', rx: '812 MB', tx: '121 MB' },
+    { id: 'casa-familia', name: 'Family home', type: 'sitio', tunnelIp: '10.0.0.6', active: false, lastHandshake: '9 days ago', rx: '12 GB', tx: '4.2 GB' },
   ],
 }
 
@@ -298,24 +298,24 @@ export const wireguard = {
 
 export const alerts = [
   {
-    id: 'alert-temp-patio', severity: 'warn', title: 'Temperatura alta en Patio',
-    description: '71 °C, por encima del umbral (65 °C)', time: 'hace 12 min', read: false, routerId: 'patio',
+    id: 'alert-temp-patio', severity: 'warn', title: 'High temperature on Patio',
+    description: '71 °C, above the threshold (65 °C)', time: '12 min ago', read: false, routerId: 'patio',
   },
   {
-    id: 'alert-firmware-estudio', severity: 'warn', title: 'Firmware disponible',
-    description: 'OpenWrt 24.10.1 para Estudio', time: 'hace 3 h', read: false, routerId: 'estudio',
+    id: 'alert-firmware-estudio', severity: 'warn', title: 'Firmware available',
+    description: 'OpenWrt 24.10.1 for Study', time: '3h ago', read: false, routerId: 'estudio',
   },
   {
-    id: 'alert-nuevo-tab', severity: 'info', title: 'Nuevo dispositivo',
-    description: "'Galaxy Tab S9' se ha unido a Salón", time: 'hace 26 min', read: true, routerId: 'living',
+    id: 'alert-nuevo-tab', severity: 'info', title: 'New device',
+    description: "'Galaxy Tab S9' joined Living Room", time: '26 min ago', read: true, routerId: 'living',
   },
   {
-    id: 'alert-handshake-wg', severity: 'info', title: 'Handshake WireGuard',
-    description: 'Pixel 8 Pro conectado desde 5.224.x.x', time: 'hace 38 s', read: true, routerId: 'flint2',
+    id: 'alert-handshake-wg', severity: 'info', title: 'WireGuard handshake',
+    description: 'Pixel 8 Pro connected from 5.224.x.x', time: '38s ago', read: true, routerId: 'flint2',
   },
   {
-    id: 'alert-backup-adguard', severity: 'ok', title: 'Copia de AdGuard completada',
-    description: 'Configuración y listas respaldadas en el NAS', time: 'hace 1 día', read: true, routerId: 'flint2',
+    id: 'alert-backup-adguard', severity: 'ok', title: 'AdGuard backup completed',
+    description: 'Configuration and lists backed up to the NAS', time: '1 day ago', read: true, routerId: 'flint2',
   },
 ]
 
@@ -330,43 +330,43 @@ export const unreadAlerts = alerts.filter((a) => !a.read).length
 
 const CANON_DETAILS = {
   'imac-salon': {
-    hostname: 'imac-de-marc', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 320 días',
-    traffic24hRx: '38 GB', traffic24hTx: '2,1 GB', adguard: true, group: 'ordenadores',
+    hostname: 'imac-de-marc', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    traffic24hRx: '38 GB', traffic24hTx: '2.1 GB', adguard: true, group: 'ordenadores',
   },
   'tv-samsung': {
-    hostname: 'samsung-tv-salon', dhcpLease: 'renueva en 7 h 48 min', firstSeen: 'hace 290 días',
-    traffic24hRx: '54 GB', traffic24hTx: '1,2 GB', adguard: true, group: 'tv',
+    hostname: 'samsung-tv-salon', dhcpLease: 'renews in 7h 48min', firstSeen: '290 days ago',
+    traffic24hRx: '54 GB', traffic24hTx: '1.2 GB', adguard: true, group: 'tv',
   },
   'pixel-8-pro': {
-    hostname: 'pixel-8-pro', dhcpLease: 'renueva en 9 h 12 min', firstSeen: 'hace 214 días',
-    traffic24hRx: '4,2 GB', traffic24hTx: '310 MB', adguard: true, group: 'moviles',
+    hostname: 'pixel-8-pro', dhcpLease: 'renews in 9h 12min', firstSeen: '214 days ago',
+    traffic24hRx: '4.2 GB', traffic24hTx: '310 MB', adguard: true, group: 'moviles',
   },
   'macbook-air': {
-    hostname: 'macbook-air-de-ana', dhcpLease: 'renueva en 5 h 31 min', firstSeen: 'hace 260 días',
-    traffic24hRx: '18 GB', traffic24hTx: '2,2 GB', adguard: true, group: 'ordenadores',
+    hostname: 'macbook-air-de-ana', dhcpLease: 'renews in 5h 31min', firstSeen: '260 days ago',
+    traffic24hRx: '18 GB', traffic24hTx: '2.2 GB', adguard: true, group: 'ordenadores',
   },
   'ps5': {
-    hostname: 'ps5-salon', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 300 días',
-    traffic24hRx: '92 GB', traffic24hTx: '4,8 GB', adguard: true, group: 'tv',
+    hostname: 'ps5-salon', dhcpLease: 'Static IP (reservation)', firstSeen: '300 days ago',
+    traffic24hRx: '92 GB', traffic24hTx: '4.8 GB', adguard: true, group: 'tv',
   },
   'robot-aspirador': {
-    hostname: 'roborock-s8', dhcpLease: 'renueva en 10 h 2 min', firstSeen: 'hace 180 días',
+    hostname: 'roborock-s8', dhcpLease: 'renews in 10h 2min', firstSeen: '180 days ago',
     traffic24hRx: '340 MB', traffic24hTx: '28 MB', adguard: true, group: 'iot',
   },
   'camara-porche': {
-    hostname: 'reolink-porche', dhcpLease: 'renueva en 3 h 57 min', firstSeen: 'hace 150 días',
+    hostname: 'reolink-porche', dhcpLease: 'renews in 3h 57min', firstSeen: '150 days ago',
     traffic24hRx: '11 GB', traffic24hTx: '640 MB', adguard: true, group: 'iot',
   },
   'nest-mini': {
-    hostname: 'nest-mini-estudio', dhcpLease: 'renueva en 8 h 20 min', firstSeen: 'hace 240 días',
-    traffic24hRx: '1,4 GB', traffic24hTx: '88 MB', adguard: true, group: 'iot',
+    hostname: 'nest-mini-estudio', dhcpLease: 'renews in 8h 20min', firstSeen: '240 days ago',
+    traffic24hRx: '1.4 GB', traffic24hTx: '88 MB', adguard: true, group: 'iot',
   },
   'nas-synology': {
-    hostname: 'diskstation', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 320 días',
-    traffic24hRx: '96 GB', traffic24hTx: '1,1 TB', adguard: true, group: 'red',
+    hostname: 'diskstation', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    traffic24hRx: '96 GB', traffic24hTx: '1.1 TB', adguard: true, group: 'red',
   },
   'galaxy-tab-s9': {
-    hostname: 'galaxy-tab-s9', dhcpLease: 'renueva en 11 h 5 min', firstSeen: 'hoy',
+    hostname: 'galaxy-tab-s9', dhcpLease: 'renews in 11h 5min', firstSeen: 'today',
     traffic24hRx: '640 MB', traffic24hTx: '48 MB', adguard: true, group: 'moviles', newThisWeek: true,
   },
 }
@@ -394,7 +394,7 @@ function bulb(n, name, ip, mac, dbm) {
     id: `bombilla-${n}`, name, type: 'iot', manufacturer: 'Ikea Trådfri',
     ip, mac, routerId: 'living', band: '2.4 GHz', signalDbm: dbm,
     trafficMbps: 0, online: true, sparkline: spark(40 + n, 0.005, 0.02),
-    hostname: `tradfri-${n}`, dhcpLease: 'renueva en 12 h 0 min', firstSeen: 'hace 280 días',
+    hostname: `tradfri-${n}`, dhcpLease: 'renews in 12h 0min', firstSeen: '280 days ago',
     traffic24hRx: '4 MB', traffic24hTx: '1 MB', adguard: true, group: 'iot',
   }
 }
@@ -402,67 +402,67 @@ function bulb(n, name, ip, mac, dbm) {
 const ADDITIONAL = [
   // —— Gateway (flint2): 14 totales (canon: pixel-8-pro, nas-synology) ——
   {
-    ...extra({ id: 'iphone-ana', name: 'iPhone de Ana', type: 'movil', manufacturer: 'Apple',
+    ...extra({ id: 'iphone-ana', name: "Ana's iPhone", type: 'movil', manufacturer: 'Apple',
       ip: '192.168.8.44', mac: 'F4:D4:88:19:C2:71', routerId: 'flint2', band: '5 GHz',
       signalDbm: -46, trafficMbps: 2.1, online: true, seed: 11 }),
-    hostname: 'iphone-de-ana', dhcpLease: 'renueva en 6 h 40 min', firstSeen: 'hace 190 días',
-    traffic24hRx: '2,8 GB', traffic24hTx: '240 MB', adguard: true, group: 'moviles',
+    hostname: 'iphone-de-ana', dhcpLease: 'renews in 6h 40min', firstSeen: '190 days ago',
+    traffic24hRx: '2.8 GB', traffic24hTx: '240 MB', adguard: true, group: 'moviles',
   },
   {
-    ...extra({ id: 'macbook-pro', name: 'MacBook Pro de Marc', type: 'portatil', manufacturer: 'Apple',
+    ...extra({ id: 'macbook-pro', name: "Marc's MacBook Pro", type: 'portatil', manufacturer: 'Apple',
       ip: '192.168.8.26', mac: 'F0:18:98:5A:11:E9', routerId: 'flint2', band: '5 GHz',
       signalDbm: -44, trafficMbps: 8.6, online: true, seed: 12 }),
-    hostname: 'macbook-pro-marc', dhcpLease: 'renueva en 4 h 16 min', firstSeen: 'hace 230 días',
-    traffic24hRx: '12,4 GB', traffic24hTx: '1,9 GB', adguard: true, group: 'ordenadores',
+    hostname: 'macbook-pro-marc', dhcpLease: 'renews in 4h 16min', firstSeen: '230 days ago',
+    traffic24hRx: '12.4 GB', traffic24hTx: '1.9 GB', adguard: true, group: 'ordenadores',
   },
   {
-    ...extra({ id: 'pc-sobremesa', name: 'PC de sobremesa', type: 'ordenador', manufacturer: 'ASUSTeK',
+    ...extra({ id: 'pc-sobremesa', name: 'Desktop PC', type: 'ordenador', manufacturer: 'ASUSTeK',
       ip: '192.168.8.11', mac: '04:D4:C4:8B:30:A7', routerId: 'flint2', band: 'cable',
       signalDbm: null, trafficMbps: 21.3, online: true, seed: 13 }),
-    hostname: 'desktop-8f2k1', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 310 días',
-    traffic24hRx: '84 GB', traffic24hTx: '6,2 GB', adguard: true, group: 'ordenadores',
+    hostname: 'desktop-8f2k1', dhcpLease: 'Static IP (reservation)', firstSeen: '310 days ago',
+    traffic24hRx: '84 GB', traffic24hTx: '6.2 GB', adguard: true, group: 'ordenadores',
   },
   {
     ...extra({ id: 'raspberry-pi', name: 'Raspberry Pi 4', type: 'servidor', manufacturer: 'Raspberry Pi',
       ip: '192.168.8.12', mac: 'DC:A6:32:4F:77:02', routerId: 'flint2', band: 'cable',
       signalDbm: null, trafficMbps: 0.8, online: true, seed: 14 }),
-    hostname: 'raspberrypi', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 320 días',
-    traffic24hRx: '3,4 GB', traffic24hTx: '890 MB', adguard: true, group: 'red',
+    hostname: 'raspberrypi', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    traffic24hRx: '3.4 GB', traffic24hTx: '890 MB', adguard: true, group: 'red',
   },
   {
-    ...extra({ id: 'switch-netgear', name: 'Switch Netgear 8p', type: 'servidor', manufacturer: 'Netgear',
+    ...extra({ id: 'switch-netgear', name: 'Netgear 8-port switch', type: 'servidor', manufacturer: 'Netgear',
       ip: '192.168.8.13', mac: '28:C6:8E:1D:90:44', routerId: 'flint2', band: 'cable',
       signalDbm: null, trafficMbps: 0.02, online: true, seed: 15, spread: 0.04 }),
-    hostname: 'gs308e', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 300 días',
+    hostname: 'gs308e', dhcpLease: 'Static IP (reservation)', firstSeen: '300 days ago',
     traffic24hRx: '64 MB', traffic24hTx: '12 MB', adguard: false, group: 'red',
     iconOverride: 'Network',
   },
   {
-    ...extra({ id: 'timbre-nest', name: 'Timbre Nest', type: 'camara', manufacturer: 'Google',
+    ...extra({ id: 'timbre-nest', name: 'Nest doorbell', type: 'camara', manufacturer: 'Google',
       ip: '192.168.8.72', mac: 'F4:F5:D8:66:01:B8', routerId: 'flint2', band: '2.4 GHz',
       signalDbm: -58, trafficMbps: 0.6, online: true, seed: 16 }),
-    hostname: 'nest-doorbell', dhcpLease: 'renueva en 9 h 44 min', firstSeen: 'hace 170 días',
-    traffic24hRx: '1,2 GB', traffic24hTx: '140 MB', adguard: true, group: 'iot',
+    hostname: 'nest-doorbell', dhcpLease: 'renews in 9h 44min', firstSeen: '170 days ago',
+    traffic24hRx: '1.2 GB', traffic24hTx: '140 MB', adguard: true, group: 'iot',
   },
   {
-    ...extra({ id: 'enchufe-lavadora', name: 'Enchufe lavadora', type: 'iot', manufacturer: 'TP-Link',
+    ...extra({ id: 'enchufe-lavadora', name: 'Washing machine plug', type: 'iot', manufacturer: 'TP-Link',
       ip: '192.168.8.81', mac: '50:C7:BF:22:E1:9C', routerId: 'flint2', band: '2.4 GHz',
       signalDbm: -62, trafficMbps: 0.01, online: true, seed: 17, spread: 0.02 }),
-    hostname: 'tapo-p110-lavadora', dhcpLease: 'renueva en 12 h 0 min', firstSeen: 'hace 140 días',
+    hostname: 'tapo-p110-lavadora', dhcpLease: 'renews in 12h 0min', firstSeen: '140 days ago',
     traffic24hRx: '8 MB', traffic24hTx: '2 MB', adguard: false, group: 'iot',
   },
   {
     ...extra({ id: 'pixel-7', name: 'Pixel 7', type: 'movil', manufacturer: 'Google',
       ip: '192.168.8.46', mac: '3C:5A:B4:08:D7:5E', routerId: 'flint2', band: '5 GHz',
       signalDbm: -49, trafficMbps: 1.4, online: true, seed: 18 }),
-    hostname: 'pixel-7', dhcpLease: 'renueva en 7 h 3 min', firstSeen: 'hace 205 días',
-    traffic24hRx: '1,9 GB', traffic24hTx: '180 MB', adguard: true, group: 'moviles',
+    hostname: 'pixel-7', dhcpLease: 'renews in 7h 3min', firstSeen: '205 days ago',
+    traffic24hRx: '1.9 GB', traffic24hTx: '180 MB', adguard: true, group: 'moviles',
   },
   {
-    ...extra({ id: 'impresora-hp', name: 'Impresora HP', type: 'desconocido', manufacturer: 'HP',
+    ...extra({ id: 'impresora-hp', name: 'HP Printer', type: 'desconocido', manufacturer: 'HP',
       ip: '192.168.8.14', mac: '3C:52:82:AB:19:60', routerId: 'flint2', band: '2.4 GHz',
       signalDbm: -60, trafficMbps: 0, online: false }),
-    hostname: 'hp-laserjet-m209', dhcpLease: 'Expirado', firstSeen: 'hace 250 días',
+    hostname: 'hp-laserjet-m209', dhcpLease: 'Expired', firstSeen: '250 days ago',
     traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'otros',
     iconOverride: 'Printer',
   },
@@ -470,21 +470,21 @@ const ADDITIONAL = [
     ...extra({ id: 'ipad-air', name: 'iPad Air', type: 'tablet', manufacturer: 'Apple',
       ip: '192.168.8.47', mac: '8C:85:90:2F:B4:11', routerId: 'flint2', band: '5 GHz',
       signalDbm: -54, trafficMbps: 0, online: false }),
-    hostname: 'ipad-air', dhcpLease: 'Expirado', firstSeen: 'hace 260 días',
-    traffic24hRx: '6,4 GB', traffic24hTx: '520 MB', adguard: true, group: 'moviles',
+    hostname: 'ipad-air', dhcpLease: 'Expired', firstSeen: '260 days ago',
+    traffic24hRx: '6.4 GB', traffic24hTx: '520 MB', adguard: true, group: 'moviles',
   },
   {
-    ...extra({ id: 'portatil-trabajo', name: 'Portátil trabajo', type: 'portatil', manufacturer: 'Lenovo',
+    ...extra({ id: 'portatil-trabajo', name: 'Work laptop', type: 'portatil', manufacturer: 'Lenovo',
       ip: '192.168.8.27', mac: '54:EE:75:9A:03:F1', routerId: 'flint2', band: '5 GHz',
       signalDbm: -50, trafficMbps: 0, online: false }),
-    hostname: 'thinkpad-t14', dhcpLease: 'Expirado', firstSeen: 'hace 160 días',
+    hostname: 'thinkpad-t14', dhcpLease: 'Expired', firstSeen: '160 days ago',
     traffic24hRx: '812 MB', traffic24hTx: '121 MB', adguard: true, group: 'ordenadores',
   },
   {
     ...extra({ id: 'kindle', name: 'Kindle Paperwhite', type: 'desconocido', manufacturer: 'Amazon',
       ip: '192.168.8.49', mac: '44:65:0D:71:28:C3', routerId: 'flint2', band: '2.4 GHz',
       signalDbm: -58, trafficMbps: 0, online: false }),
-    hostname: 'kindle-paperwhite', dhcpLease: 'Expirado', firstSeen: 'hace 220 días',
+    hostname: 'kindle-paperwhite', dhcpLease: 'Expired', firstSeen: '220 days ago',
     traffic24hRx: '220 MB', traffic24hTx: '8 MB', adguard: true, group: 'otros',
     iconOverride: 'BookOpen',
   },
@@ -492,52 +492,52 @@ const ADDITIONAL = [
 
 const LIVING = [
   // —— Salón (living): 18 totales (canon: imac, tv-samsung, ps5, galaxy-tab-s9) ——
-  bulb(1, 'Bombilla salón 1', '192.168.8.90', 'CC:86:EC:10:04:21', -58),
-  bulb(2, 'Bombilla salón 2', '192.168.8.91', 'CC:86:EC:10:04:22', -59),
-  bulb(3, 'Bombilla lámpara pie', '192.168.8.92', 'CC:86:EC:10:04:23', -61),
-  bulb(4, 'Bombilla entrada', '192.168.8.93', 'CC:86:EC:10:04:24', -64),
-  bulb(5, 'Bombilla pasillo', '192.168.8.94', 'CC:86:EC:10:04:25', -66),
-  bulb(6, 'Bombilla cocina', '192.168.8.95', 'CC:86:EC:10:04:26', -60),
+  bulb(1, 'Living room bulb 1', '192.168.8.90', 'CC:86:EC:10:04:21', -58),
+  bulb(2, 'Living room bulb 2', '192.168.8.91', 'CC:86:EC:10:04:22', -59),
+  bulb(3, 'Floor lamp bulb', '192.168.8.92', 'CC:86:EC:10:04:23', -61),
+  bulb(4, 'Entryway bulb', '192.168.8.93', 'CC:86:EC:10:04:24', -64),
+  bulb(5, 'Hallway bulb', '192.168.8.94', 'CC:86:EC:10:04:25', -66),
+  bulb(6, 'Kitchen bulb', '192.168.8.95', 'CC:86:EC:10:04:26', -60),
   {
     ...extra({ id: 'chromecast', name: 'Chromecast HD', type: 'tv', manufacturer: 'Google',
       ip: '192.168.8.36', mac: '54:60:09:E3:5B:0A', routerId: 'living', band: '5 GHz',
       signalDbm: -54, trafficMbps: 3.9, online: true, seed: 21 }),
-    hostname: 'chromecast-hd', dhcpLease: 'renueva en 6 h 12 min', firstSeen: 'hace 200 días',
+    hostname: 'chromecast-hd', dhcpLease: 'renews in 6h 12min', firstSeen: '200 days ago',
     traffic24hRx: '21 GB', traffic24hTx: '380 MB', adguard: true, group: 'tv',
   },
   {
     ...extra({ id: 'homepod-mini', name: 'HomePod mini', type: 'altavoz', manufacturer: 'Apple',
       ip: '192.168.8.53', mac: 'F0:D1:A9:3E:77:5C', routerId: 'living', band: '5 GHz',
       signalDbm: -47, trafficMbps: 0.3, online: true, seed: 22 }),
-    hostname: 'homepod-mini', dhcpLease: 'renueva en 10 h 41 min', firstSeen: 'hace 190 días',
-    traffic24hRx: '2,2 GB', traffic24hTx: '96 MB', adguard: true, group: 'iot',
+    hostname: 'homepod-mini', dhcpLease: 'renews in 10h 41min', firstSeen: '190 days ago',
+    traffic24hRx: '2.2 GB', traffic24hTx: '96 MB', adguard: true, group: 'iot',
   },
   {
     ...extra({ id: 'galaxy-s23', name: 'Galaxy S23', type: 'movil', manufacturer: 'Samsung',
       ip: '192.168.8.42', mac: '5C:0A:5B:88:1D:E4', routerId: 'living', band: '5 GHz',
       signalDbm: -51, trafficMbps: 0.9, online: true, seed: 23 }),
-    hostname: 'galaxy-s23', dhcpLease: 'renueva en 8 h 55 min', firstSeen: 'hace 175 días',
-    traffic24hRx: '3,2 GB', traffic24hTx: '290 MB', adguard: true, group: 'moviles',
+    hostname: 'galaxy-s23', dhcpLease: 'renews in 8h 55min', firstSeen: '175 days ago',
+    traffic24hRx: '3.2 GB', traffic24hTx: '290 MB', adguard: true, group: 'moviles',
   },
   {
     ...extra({ id: 'echo-dot', name: 'Echo Dot', type: 'altavoz', manufacturer: 'Amazon',
       ip: '192.168.8.54', mac: '74:C2:46:19:F0:6B', routerId: 'living', band: '2.4 GHz',
       signalDbm: -56, trafficMbps: 0.2, online: true, seed: 24 }),
-    hostname: 'echo-dot-cocina', dhcpLease: 'renueva en 11 h 18 min', firstSeen: 'hace 210 días',
-    traffic24hRx: '1,1 GB', traffic24hTx: '74 MB', adguard: true, group: 'iot',
+    hostname: 'echo-dot-cocina', dhcpLease: 'renews in 11h 18min', firstSeen: '210 days ago',
+    traffic24hRx: '1.1 GB', traffic24hTx: '74 MB', adguard: true, group: 'iot',
   },
   {
     ...extra({ id: 'nintendo-switch', name: 'Nintendo Switch', type: 'consola', manufacturer: 'Nintendo',
       ip: '192.168.8.33', mac: '58:BD:A3:4C:E2:09', routerId: 'living', band: '5 GHz',
       signalDbm: -53, trafficMbps: 0.1, online: true, seed: 25, spread: 0.3 }),
-    hostname: 'switch-oled', dhcpLease: 'renueva en 5 h 47 min', firstSeen: 'hace 240 días',
-    traffic24hRx: '8,6 GB', traffic24hTx: '310 MB', adguard: true, group: 'tv',
+    hostname: 'switch-oled', dhcpLease: 'renews in 5h 47min', firstSeen: '240 days ago',
+    traffic24hRx: '8.6 GB', traffic24hTx: '310 MB', adguard: true, group: 'tv',
   },
   {
-    ...extra({ id: 'portatil-invitado', name: 'Portátil invitado', type: 'portatil', manufacturer: 'Desconocido',
+    ...extra({ id: 'portatil-invitado', name: 'Guest laptop', type: 'portatil', manufacturer: 'Desconocido',
       ip: '192.168.8.29', mac: 'A2:7E:9C:41:0B:6D', routerId: 'living', band: '5 GHz',
       signalDbm: -58, trafficMbps: 0.7, online: true, isNew: true, seed: 26 }),
-    hostname: 'unknown-7f2a', dhcpLease: 'renueva en 2 h 9 min', firstSeen: 'hoy',
+    hostname: 'unknown-7f2a', dhcpLease: 'renews in 2h 9min', firstSeen: 'today',
     traffic24hRx: '480 MB', traffic24hTx: '62 MB', adguard: false, group: 'ordenadores',
     newThisWeek: true,
   },
@@ -545,14 +545,14 @@ const LIVING = [
     ...extra({ id: 'xbox-series-s', name: 'Xbox Series S', type: 'consola', manufacturer: 'Microsoft',
       ip: '192.168.8.32', mac: '7C:1E:52:06:AA:3F', routerId: 'living', band: '5 GHz',
       signalDbm: -55, trafficMbps: 0, online: false }),
-    hostname: 'xbox-series-s', dhcpLease: 'Expirado', firstSeen: 'hace 230 días',
+    hostname: 'xbox-series-s', dhcpLease: 'Expired', firstSeen: '230 days ago',
     traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'tv',
   },
   {
-    ...extra({ id: 'portatil-antiguo', name: 'Portátil antiguo', type: 'portatil', manufacturer: 'HP',
+    ...extra({ id: 'portatil-antiguo', name: 'Old laptop', type: 'portatil', manufacturer: 'HP',
       ip: '192.168.8.28', mac: '3C:52:82:5D:90:17', routerId: 'living', band: '2.4 GHz',
       signalDbm: -62, trafficMbps: 0, online: false }),
-    hostname: 'hp-pavilion-15', dhcpLease: 'Expirado', firstSeen: 'hace 300 días',
+    hostname: 'hp-pavilion-15', dhcpLease: 'Expired', firstSeen: '300 days ago',
     traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'ordenadores',
   },
 ]
@@ -563,50 +563,50 @@ const ESTUDIO = [
     ...extra({ id: 'mac-mini', name: 'Mac mini', type: 'ordenador', manufacturer: 'Apple',
       ip: '192.168.8.22', mac: 'A4:83:E7:66:2C:98', routerId: 'estudio', band: 'cable',
       signalDbm: null, trafficMbps: 1.9, online: true, seed: 31 }),
-    hostname: 'mac-mini', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 280 días',
-    traffic24hRx: '44 GB', traffic24hTx: '5,6 GB', adguard: true, group: 'ordenadores',
+    hostname: 'mac-mini', dhcpLease: 'Static IP (reservation)', firstSeen: '280 days ago',
+    traffic24hRx: '44 GB', traffic24hTx: '5.6 GB', adguard: true, group: 'ordenadores',
   },
   {
-    ...extra({ id: 'enchufe-ventilador', name: 'Enchufe ventilador', type: 'iot', manufacturer: 'TP-Link',
+    ...extra({ id: 'enchufe-ventilador', name: 'Fan plug', type: 'iot', manufacturer: 'TP-Link',
       ip: '192.168.8.82', mac: '9C:53:22:B1:4E:70', routerId: 'estudio', band: '2.4 GHz',
       signalDbm: -59, trafficMbps: 0.01, online: true, seed: 32, spread: 0.02 }),
-    hostname: 'tapo-p110-ventilador', dhcpLease: 'renueva en 12 h 0 min', firstSeen: 'hace 120 días',
+    hostname: 'tapo-p110-ventilador', dhcpLease: 'renews in 12h 0min', firstSeen: '120 days ago',
     traffic24hRx: '7 MB', traffic24hTx: '2 MB', adguard: true, group: 'iot',
   },
   {
     ...extra({ id: 'ipad-pro', name: 'iPad Pro', type: 'tablet', manufacturer: 'Apple',
       ip: '192.168.8.51', mac: 'F0:18:98:91:5A:2B', routerId: 'estudio', band: '5 GHz',
       signalDbm: -49, trafficMbps: 0.8, online: true, seed: 33 }),
-    hostname: 'ipad-pro', dhcpLease: 'renueva en 9 h 26 min', firstSeen: 'hace 160 días',
-    traffic24hRx: '5,1 GB', traffic24hTx: '390 MB', adguard: true, group: 'moviles',
+    hostname: 'ipad-pro', dhcpLease: 'renews in 9h 26min', firstSeen: '160 days ago',
+    traffic24hRx: '5.1 GB', traffic24hTx: '390 MB', adguard: true, group: 'moviles',
   },
   {
     ...extra({ id: 'hue-hub', name: 'Hub Philips Hue', type: 'iot', manufacturer: 'Signify',
       ip: '192.168.8.15', mac: '00:17:88:2A:91:CE', routerId: 'estudio', band: 'cable',
       signalDbm: null, trafficMbps: 0.02, online: true, seed: 34, spread: 0.04 }),
-    hostname: 'philips-hue-bridge', dhcpLease: 'IP fija (reserva)', firstSeen: 'hace 280 días',
+    hostname: 'philips-hue-bridge', dhcpLease: 'Static IP (reservation)', firstSeen: '280 days ago',
     traffic24hRx: '96 MB', traffic24hTx: '22 MB', adguard: false, group: 'iot',
   },
   {
     ...extra({ id: 'sonos-one', name: 'Sonos One', type: 'altavoz', manufacturer: 'Sonos',
       ip: '192.168.8.55', mac: '48:A6:B8:14:72:E0', routerId: 'estudio', band: '2.4 GHz',
       signalDbm: -57, trafficMbps: 0.5, online: true, seed: 35 }),
-    hostname: 'sonos-one-estudio', dhcpLease: 'renueva en 10 h 4 min', firstSeen: 'hace 195 días',
-    traffic24hRx: '3,8 GB', traffic24hTx: '110 MB', adguard: true, group: 'iot',
+    hostname: 'sonos-one-estudio', dhcpLease: 'renews in 10h 4min', firstSeen: '195 days ago',
+    traffic24hRx: '3.8 GB', traffic24hTx: '110 MB', adguard: true, group: 'iot',
   },
   {
-    ...extra({ id: 'iphone-trabajo', name: 'iPhone de trabajo', type: 'movil', manufacturer: 'Apple',
+    ...extra({ id: 'iphone-trabajo', name: 'Work iPhone', type: 'movil', manufacturer: 'Apple',
       ip: '192.168.8.50', mac: '8C:85:90:47:C1:93', routerId: 'estudio', band: '5 GHz',
       signalDbm: -47, trafficMbps: 0.3, online: true, isNew: true, seed: 36 }),
-    hostname: 'iphone-15-pro-work', dhcpLease: 'renueva en 3 h 38 min', firstSeen: 'hoy',
+    hostname: 'iphone-15-pro-work', dhcpLease: 'renews in 3h 38min', firstSeen: 'today',
     traffic24hRx: '320 MB', traffic24hTx: '41 MB', adguard: true, group: 'moviles',
     newThisWeek: true,
   },
   {
-    ...extra({ id: 'macbook-viejo', name: 'MacBook viejo', type: 'portatil', manufacturer: 'Apple',
+    ...extra({ id: 'macbook-viejo', name: 'Old MacBook', type: 'portatil', manufacturer: 'Apple',
       ip: '192.168.8.25', mac: '3C:22:FB:0E:66:A1', routerId: 'estudio', band: '2.4 GHz',
       signalDbm: -60, trafficMbps: 0, online: false }),
-    hostname: 'macbook-pro-2015', dhcpLease: 'Expirado', firstSeen: 'hace 320 días',
+    hostname: 'macbook-pro-2015', dhcpLease: 'Expired', firstSeen: '320 days ago',
     traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'ordenadores',
   },
 ]
@@ -614,33 +614,33 @@ const ESTUDIO = [
 const PATIO = [
   // —— Patio: 6 totales (canon: robot-aspirador, camara-porche) ——
   {
-    ...extra({ id: 'camara-jardin', name: 'Cámara jardín', type: 'camara', manufacturer: 'Reolink',
+    ...extra({ id: 'camara-jardin', name: 'Garden camera', type: 'camara', manufacturer: 'Reolink',
       ip: '192.168.8.73', mac: 'EC:71:DB:44:12:9B', routerId: 'patio', band: '2.4 GHz',
       signalDbm: -74, trafficMbps: 1.4, online: true, seed: 41 }),
-    hostname: 'reolink-jardin', dhcpLease: 'renueva en 8 h 49 min', firstSeen: 'hace 4 días',
+    hostname: 'reolink-jardin', dhcpLease: 'renews in 8h 49min', firstSeen: '4 days ago',
     traffic24hRx: '14 GB', traffic24hTx: '820 MB', adguard: true, group: 'iot',
     newThisWeek: true,
   },
   {
-    ...extra({ id: 'sensor-riego', name: 'Sensor de riego', type: 'iot', manufacturer: 'Tuya',
+    ...extra({ id: 'sensor-riego', name: 'Irrigation sensor', type: 'iot', manufacturer: 'Tuya',
       ip: '192.168.8.89', mac: 'D8:1F:12:5B:08:44', routerId: 'patio', band: '2.4 GHz',
       signalDbm: -71, trafficMbps: 0.01, online: true, seed: 42, spread: 0.02 }),
-    hostname: 'tuya-riego-01', dhcpLease: 'renueva en 12 h 0 min', firstSeen: 'hace 5 días',
+    hostname: 'tuya-riego-01', dhcpLease: 'renews in 12h 0min', firstSeen: '5 days ago',
     traffic24hRx: '2 MB', traffic24hTx: '1 MB', adguard: false, group: 'iot',
     newThisWeek: true,
   },
   {
-    ...extra({ id: 'enchufe-calefactor', name: 'Enchufe calefactor', type: 'iot', manufacturer: 'TP-Link',
+    ...extra({ id: 'enchufe-calefactor', name: 'Heater plug', type: 'iot', manufacturer: 'TP-Link',
       ip: '192.168.8.80', mac: '50:C7:BF:31:7A:05', routerId: 'patio', band: '2.4 GHz',
       signalDbm: -75, trafficMbps: 0.02, online: true, seed: 43, spread: 0.03 }),
-    hostname: 'tapo-p110-calefactor', dhcpLease: 'renueva en 12 h 0 min', firstSeen: 'hace 96 días',
+    hostname: 'tapo-p110-calefactor', dhcpLease: 'renews in 12h 0min', firstSeen: '96 days ago',
     traffic24hRx: '6 MB', traffic24hTx: '2 MB', adguard: true, group: 'iot',
   },
   {
-    ...extra({ id: 'camara-garaje', name: 'Cámara garaje', type: 'camara', manufacturer: 'Reolink',
+    ...extra({ id: 'camara-garaje', name: 'Garage camera', type: 'camara', manufacturer: 'Reolink',
       ip: '192.168.8.74', mac: 'EC:71:DB:44:13:02', routerId: 'patio', band: '2.4 GHz',
       signalDbm: -78, trafficMbps: 0, online: false }),
-    hostname: 'reolink-garaje', dhcpLease: 'Expirado', firstSeen: 'hace 130 días',
+    hostname: 'reolink-garaje', dhcpLease: 'Expired', firstSeen: '130 days ago',
     traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: false, group: 'iot',
   },
 ]
@@ -664,7 +664,7 @@ export const routerExtras = {
     firmware: 'GL 4.7.0',
     firmwareBase: 'OpenWrt 21.02',
     firmwareUpdated: true,
-    lastReboot: '12 nov, 03:12 (mantenimiento)',
+    lastReboot: 'Nov 12, 03:12 (maintenance)',
     soc: 'MediaTek MT7986A',
     flash: '8 GB eMMC',
     ramMb: 512,
@@ -676,10 +676,10 @@ export const routerExtras = {
     ports: [],
     // GL-MT6000: 1× WAN 2.5G + 4× LAN 1G
     ethPorts: [
-      { id: 'wan', label: 'WAN', up: true, speed: '2.5 Gbps', connectedTo: 'ONT fibra · Digi', detail: '84.122.x.x · full duplex' },
-      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Salón · AX3000T', detail: 'Uplink AP Salón (192.168.8.2)' },
+      { id: 'wan', label: 'WAN', up: true, speed: '2.5 Gbps', connectedTo: 'Fiber ONT · Digi', detail: '84.122.x.x · full duplex' },
+      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Living Room · AX3000T', detail: 'Living Room AP uplink (192.168.8.2)' },
       { id: 'lan2', label: 'LAN 2', up: true, speed: '1 Gbps', connectedTo: 'NAS Synology', detail: '192.168.8.10 · cable' },
-      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Estudio · NanoPi R4S', detail: 'Uplink AP Estudio (192.168.8.3)' },
+      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Study · NanoPi R4S', detail: 'Study AP uplink (192.168.8.3)' },
       { id: 'lan4', label: 'LAN 4', up: false },
     ],
   },
@@ -687,7 +687,7 @@ export const routerExtras = {
     mac: '50:D2:F5:11:8C:2E',
     firmware: 'OpenWrt 23.05.5',
     firmwareUpdated: true,
-    lastReboot: '12 nov, 03:12 (mantenimiento)',
+    lastReboot: 'Nov 12, 03:12 (maintenance)',
     soc: 'MediaTek MT7981B',
     flash: '128 MB NAND',
     ramMb: 256,
@@ -703,7 +703,7 @@ export const routerExtras = {
     ],
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
-      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink al Gateway' },
+      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink to Gateway' },
       { name: 'lan1', up: true, speed: '1 Gbps', role: 'PS5' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
       { name: 'phy1-ap0', up: true, speed: '—', role: 'Radio 5 GHz' },
@@ -721,7 +721,7 @@ export const routerExtras = {
     firmware: 'OpenWrt 23.05.5',
     firmwareUpdated: false,
     firmwareAvailable: '24.10.1',
-    lastReboot: '2 dic, 21:40 (actualización)',
+    lastReboot: 'Dec 2, 21:40 (update)',
     soc: 'Rockchip RK3399',
     flash: '32 GB microSD',
     ramMb: 1024,
@@ -737,15 +737,15 @@ export const routerExtras = {
     ],
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
-      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink al Gateway' },
-      { name: 'eth1', up: true, speed: '1 Gbps', role: 'Switch estudio' },
+      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink to Gateway' },
+      { name: 'eth1', up: true, speed: '1 Gbps', role: 'Study switch' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
       { name: 'phy1-ap0', up: true, speed: '—', role: 'Radio 5 GHz' },
     ],
     // NanoPi R4S: 2× 1G (WAN + LAN)
     ethPorts: [
       { id: 'wan', label: 'WAN', up: true, speed: '1 Gbps', connectedTo: 'Uplink → Gateway', detail: 'Gateway · LAN 3 (192.168.8.1)' },
-      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Switch estudio', detail: 'Switch 8 puertos · 4 en uso' },
+      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Study switch', detail: '8-port switch · 4 in use' },
     ],
   },
   patio: {
@@ -753,7 +753,7 @@ export const routerExtras = {
     firmware: 'OpenWrt 23.05.5',
     firmwareUpdated: false,
     firmwareAvailable: '24.10.1',
-    lastReboot: '9 dic, 14:05 (corte eléctrico)',
+    lastReboot: 'Dec 9, 14:05 (power outage)',
     soc: 'Qualcomm QCA9563',
     flash: '16 MB SPI',
     ramMb: 128,
@@ -769,13 +769,13 @@ export const routerExtras = {
     ],
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
-      { name: 'eth0', up: false, speed: '—', role: 'Puerto LAN (sin uso)' },
+      { name: 'eth0', up: false, speed: '—', role: 'LAN port (unused)' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
-      { name: 'phy1-sta0', up: true, speed: '866 Mbps', role: 'Uplink wireless al Gateway' },
+      { name: 'phy1-sta0', up: true, speed: '866 Mbps', role: 'Wireless uplink to Gateway' },
     ],
     // EAP225: 1× 1G — sin uso (uplink inalámbrico mesh, ver backhaul)
     ethPorts: [
-      { id: 'lan1', label: 'LAN', up: false, detail: 'Uplink por WiFi mesh' },
+      { id: 'lan1', label: 'LAN', up: false, detail: 'Uplink over WiFi mesh' },
     ],
   },
 }
@@ -811,7 +811,7 @@ function hourRangeLabels(n = 20) {
   return labels
 }
 
-const DAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export function perfSeries(router, range) {
   const seed = routers.findIndex((r) => r.id === router.id) + 1
@@ -895,7 +895,7 @@ export const wgPeerExtras = {
   'casa-familia': { endpoint: '—', allowedIps: '10.0.0.6/32', lastIp: '95.60.x.x' },
 }
 
-export const WG_TOTALS_30D = { rx: '17,9 GB', tx: '5,0 GB' }
+export const WG_TOTALS_30D = { rx: '17.9 GB', tx: '5.0 GB' }
 
 // ---------------------------------------------------------------------------
 // Utilidades
