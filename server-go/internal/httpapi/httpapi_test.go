@@ -711,3 +711,24 @@ func TestSPAFallback(t *testing.T) {
 	// con STATIC_DIR. Aquí solo verificamos que /api/* no cae al SPA.
 	_ = srv
 }
+
+// writeJSON debe serializar como Hono: JSON compacto SIN el '\n' final que
+// añade json.Encoder (consistencia con D5 WriteError).
+func TestWriteJSONSinSaltoFinal(t *testing.T) {
+	srv := makeTestServer(t)
+	res := get(t, srv.URL, "/api/health", "")
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(body) == 0 {
+		t.Fatal("body vacío")
+	}
+	if body[len(body)-1] == '\n' {
+		t.Fatalf("el body NO debe terminar en '\\n': %q", body[len(body)-20:])
+	}
+	if !json.Valid(body) {
+		t.Fatalf("body no es JSON válido: %q", body)
+	}
+}

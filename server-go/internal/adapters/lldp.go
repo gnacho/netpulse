@@ -122,29 +122,36 @@ func parseLldpNeighbors(data []byte) ([]LldpNeighbor, error) {
 			names = append(names, name)
 		}
 		sort.Strings(names)
+		neighbors := make([]LldpNeighbor, 0, len(names))
 		for _, name := range names {
-			entries = append(entries, byName[name])
+			// En la forma mapa el nombre de la interfaz es la CLAVE
+			neighbors = append(neighbors, parseLldpEntry(byName[name], name))
 		}
+		return neighbors, nil
 	}
 	neighbors := make([]LldpNeighbor, 0, len(entries))
 	for _, raw := range entries {
-		neighbors = append(neighbors, parseLldpEntry(raw))
+		neighbors = append(neighbors, parseLldpEntry(raw, ""))
 	}
 	return neighbors, nil
 }
 
 // parseLldpEntry parsea una entrada de interface (nunca entra en pánico:
 // los Unmarshal secundarios ignoran el error a propósito — best-effort).
-func parseLldpEntry(raw json.RawMessage) LldpNeighbor {
+// fallbackName es la clave de la forma mapa (lldpd viejo, sin campo "name").
+func parseLldpEntry(raw json.RawMessage, fallbackName string) LldpNeighbor {
 	var e struct {
 		Name    string                     `json:"name"`
 		Chassis map[string]json.RawMessage `json:"chassis"`
 		Port    json.RawMessage            `json:"port"`
 	}
-	if json.Unmarshal(raw, &e) != nil {
-		return LldpNeighbor{}
-	}
+	// Best-effort: un campo de tipo inesperado (chassis como cadena, port
+	// como número…) no invalida el resto de la entrada.
+	_ = json.Unmarshal(raw, &e)
 	n := LldpNeighbor{Port: e.Name}
+	if n.Port == "" {
+		n.Port = fallbackName
+	}
 
 	// Chassis: mapa nombre→datos (normalmente uno; el primero ordenado)
 	keys := make([]string, 0, len(e.Chassis))
