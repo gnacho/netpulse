@@ -20,6 +20,7 @@ import type {
   Device,
   DeviceQuery,
   DeviceTotals,
+  DistributionNode,
   HealthScore,
   OverviewBundle,
   Paged,
@@ -34,6 +35,7 @@ import {
   alerts as mockAlerts,
   devices as mockDevices,
   deviceTotals as mockDeviceTotals,
+  distributionNodes as mockDistributionNodes,
   healthScore as mockHealth,
   routers as mockRouters,
   trafficByRange as mockTraffic,
@@ -68,6 +70,7 @@ export interface NetPulseData {
   routers: Router[]
   devices: Device[]
   deviceTotals: DeviceTotals
+  distributionNodes: DistributionNode[]
   topDevices: Device[]
   alerts: AlertEvent[]
   unreadAlerts: number
@@ -98,6 +101,7 @@ function initialBundle(): NetPulseData {
     routers: mockRouters,
     devices: mockDevices,
     deviceTotals: mockDeviceTotals,
+    distributionNodes: mockDistributionNodes,
     topDevices: [...mockDevices].sort((a, b) => b.trafficMbps - a.trafficMbps).slice(0, 5),
     alerts: mockAlerts,
     unreadAlerts: mockAlerts.filter((a) => !a.read).length,
@@ -144,6 +148,7 @@ function emptyBundle(): NetPulseData {
     routers: [],
     devices: [],
     deviceTotals: { total: 0, online: 0, knownOffline: 0, newToday: 0 },
+    distributionNodes: [],
     topDevices: [],
     alerts: [],
     unreadAlerts: 0,
@@ -275,6 +280,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       wireguard: o.wireguard,
       routers: o.routers,
       deviceTotals: o.deviceTotals,
+      distributionNodes: o.distributionNodes ?? [],
       topDevices: o.topDevices,
       alerts: o.alerts,
       unreadAlerts: o.unreadAlerts,
