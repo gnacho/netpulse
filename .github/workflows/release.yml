@@ -50,10 +50,20 @@ jobs:
           version: '~> v2'
           args: check
 
-      - name: Release
+      - name: Release (tag v* — publica)
+        if: github.ref_type == 'tag'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'
-          args: release --clean ${{ (github.ref_type == 'tag' && '' ) || '--snapshot' }}
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release (workflow_dispatch — snapshot sin publicar)
+        if: github.ref_type != 'tag'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean --snapshot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
