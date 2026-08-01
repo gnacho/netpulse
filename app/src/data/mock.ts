@@ -57,8 +57,8 @@ export const routers: Router[] = [
     name: 'Gateway',
     model: 'GL.iNet Flint 2 (GL-MT6000)',
     modelShort: 'GL.iNet Flint 2',
-    role: 'Gateway principal',
-    roleBadge: 'Principal',
+    role: 'Main gateway',
+    roleBadge: 'Main',
     ip: '192.168.8.1',
     status: 'online',
     health: 98,
@@ -71,10 +71,10 @@ export const routers: Router[] = [
   },
   {
     id: 'living',
-    name: 'Salón',
+    name: 'Living Room',
     model: 'OpenWrt AP (Xiaomi AX3000T)',
     modelShort: 'Xiaomi AX3000T',
-    role: 'Punto de acceso',
+    role: 'Access point',
     roleBadge: 'AP',
     ip: '192.168.8.2',
     status: 'online',
@@ -88,7 +88,7 @@ export const routers: Router[] = [
   },
   {
     id: 'estudio',
-    name: 'Estudio',
+    name: 'Study',
     model: 'OpenWrt (NanoPi R4S)',
     modelShort: 'NanoPi R4S',
     role: 'AP + switch',
@@ -108,7 +108,7 @@ export const routers: Router[] = [
     name: 'Patio',
     model: 'OpenWrt (TP-Link EAP225)',
     modelShort: 'TP-Link EAP225',
-    role: 'AP exterior',
+    role: 'Outdoor AP',
     roleBadge: 'AP',
     ip: '192.168.8.4',
     status: 'warn',
@@ -138,7 +138,7 @@ export const wan: WanInfo = {
   peakTodayMbps: 412,
   peakTodayTime: '21:14',
   avgDownMbps: 61,
-  total24h: '1,32 TB',
+  total24h: '1.32 TB',
 }
 
 // ---------------------------------------------------------------------------
@@ -174,10 +174,10 @@ export const trafficByRange: Record<TimeRange, TrafficPoint[]> = {
     { t: '22', down: 284, up: 48 }, { t: '23', down: 122, up: 21 },
   ],
   '7d': [
-    { t: 'Lun', down: 61, up: 12 }, { t: 'Mar', down: 58, up: 11 },
-    { t: 'Mié', down: 64, up: 13 }, { t: 'Jue', down: 71, up: 15 },
-    { t: 'Vie', down: 88, up: 19 }, { t: 'Sáb', down: 96, up: 22 },
-    { t: 'Dom', down: 84, up: 18 },
+    { t: 'Mon', down: 61, up: 12 }, { t: 'Tue', down: 58, up: 11 },
+    { t: 'Wed', down: 64, up: 13 }, { t: 'Thu', down: 71, up: 15 },
+    { t: 'Fri', down: 88, up: 19 }, { t: 'Sat', down: 96, up: 22 },
+    { t: 'Sun', down: 84, up: 18 },
   ],
   '30d': [
     { t: '1', down: 54, up: 10 }, { t: '4', down: 58, up: 11 },
@@ -195,13 +195,13 @@ export const trafficByRange: Record<TimeRange, TrafficPoint[]> = {
 
 export const healthScore: HealthScore = {
   score: 92,
-  label: 'Excelente',
-  caption: 'Puntuación de salud de la red',
-  note: 'Penalizado por la temperatura del Patio.',
+  label: 'Excellent',
+  caption: 'Network health score',
+  note: 'Penalized by the Patio temperature.',
   breakdown: [
-    { label: 'temp. Patio', delta: -4 },
-    { label: 'cobertura Patio', delta: -2 },
-    { label: 'canal 2.4 GHz congestionado', delta: -2 },
+    { label: 'Patio temp.', delta: -4 },
+    { label: 'Patio coverage', delta: -2 },
+    { label: 'congested 2.4 GHz channel', delta: -2 },
   ],
 }
 
@@ -218,7 +218,7 @@ export const deviceTotals = {
 
 export const devices: Device[] = [
   {
-    id: 'imac-salon', name: 'iMac Salón', type: 'ordenador', manufacturer: 'Apple',
+    id: 'imac-salon', name: 'iMac Living Room', type: 'ordenador', manufacturer: 'Apple',
     ip: '192.168.8.21', mac: 'A4:83:E7:21:0B:3C', routerId: 'living', band: '5 GHz',
     signalDbm: -48, trafficMbps: 32.4, online: true,
     sparkline: [12, 15, 18, 22, 26, 30, 34, 32, 28, 30, 32, 31],
@@ -248,13 +248,13 @@ export const devices: Device[] = [
     sparkline: [4, 6, 8, 10, 12, 14, 13, 12, 13, 12, 13, 13],
   },
   {
-    id: 'robot-aspirador', name: 'Robot aspirador', type: 'iot', manufacturer: 'Roborock',
+    id: 'robot-aspirador', name: 'Robot vacuum', type: 'iot', manufacturer: 'Roborock',
     ip: '192.168.8.61', mac: 'B0:4A:39:2E:77:10', routerId: 'patio', band: '2.4 GHz',
     signalDbm: -67, trafficMbps: 0.02, online: true,
     sparkline: [0.01, 0.02, 0.02, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02],
   },
   {
-    id: 'camara-porche', name: 'Cámara porche', type: 'camara', manufacturer: 'Reolink',
+    id: 'camara-porche', name: 'Porch camera', type: 'camara', manufacturer: 'Reolink',
     ip: '192.168.8.71', mac: 'EC:71:DB:44:12:8A', routerId: 'patio', band: '2.4 GHz',
     signalDbm: -72, trafficMbps: 1.1, online: true,
     sparkline: [1, 1.1, 1.1, 1.2, 1.1, 1, 1.1, 1.1, 1.2, 1.1, 1.1, 1.1],
@@ -272,7 +272,7 @@ export const devices: Device[] = [
     sparkline: [1, 1.5, 2, 2.5, 3, 2.8, 2.4, 2.2, 2.3, 2.3, 2.3, 2.3],
   },
   {
-    id: 'bombillas-ikea', name: 'Bombillas Ikea ×6', type: 'iot', manufacturer: 'Ikea',
+    id: 'bombillas-ikea', name: 'Ikea bulbs ×6', type: 'iot', manufacturer: 'Ikea',
     ip: '192.168.8.8x', mac: '—', routerId: 'living', band: '2.4 GHz',
     signalDbm: -60, trafficMbps: 0, online: true,
     sparkline: [0, 0, 0.01, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0],
@@ -320,11 +320,11 @@ export const wireguard: WireGuardStats = {
   subnet: '10.0.0.1/24',
   status: 'active',
   peers: [
-    { id: 'pixel-8-pro', name: 'Pixel 8 Pro', type: 'movil', tunnelIp: '10.0.0.2', active: true, lastHandshake: 'hace 38 s', rx: '1,2 GB', tx: '214 MB' },
-    { id: 'macbook-air', name: 'MacBook Air', type: 'portatil', tunnelIp: '10.0.0.3', active: true, lastHandshake: 'hace 1 min', rx: '640 MB', tx: '88 MB' },
-    { id: 'ipad-air', name: 'iPad Air', type: 'tablet', tunnelIp: '10.0.0.4', active: false, lastHandshake: 'hace 2 días', rx: '3,1 GB', tx: '402 MB' },
-    { id: 'portatil-trabajo', name: 'Portátil trabajo', type: 'portatil', tunnelIp: '10.0.0.5', active: false, lastHandshake: 'hace 6 h', rx: '812 MB', tx: '121 MB' },
-    { id: 'casa-familia', name: 'Casa familia', type: 'sitio', tunnelIp: '10.0.0.6', active: false, lastHandshake: 'hace 9 días', rx: '12 GB', tx: '4,2 GB' },
+    { id: 'pixel-8-pro', name: 'Pixel 8 Pro', type: 'movil', tunnelIp: '10.0.0.2', active: true, lastHandshake: '38s ago', rx: '1.2 GB', tx: '214 MB' },
+    { id: 'macbook-air', name: 'MacBook Air', type: 'portatil', tunnelIp: '10.0.0.3', active: true, lastHandshake: '1 min ago', rx: '640 MB', tx: '88 MB' },
+    { id: 'ipad-air', name: 'iPad Air', type: 'tablet', tunnelIp: '10.0.0.4', active: false, lastHandshake: '2 days ago', rx: '3.1 GB', tx: '402 MB' },
+    { id: 'portatil-trabajo', name: 'Work laptop', type: 'portatil', tunnelIp: '10.0.0.5', active: false, lastHandshake: '6h ago', rx: '812 MB', tx: '121 MB' },
+    { id: 'casa-familia', name: 'Family home', type: 'sitio', tunnelIp: '10.0.0.6', active: false, lastHandshake: '9 days ago', rx: '12 GB', tx: '4.2 GB' },
   ],
 }
 
@@ -334,24 +334,24 @@ export const wireguard: WireGuardStats = {
 
 export const alerts: AlertEvent[] = [
   {
-    id: 'alert-temp-patio', severity: 'warn', title: 'Temperatura alta en Patio',
-    description: '71 °C, por encima del umbral (65 °C)', time: 'hace 12 min', read: false, routerId: 'patio',
+    id: 'alert-temp-patio', severity: 'warn', title: 'High temperature on Patio',
+    description: '71 °C, above the threshold (65 °C)', time: '12 min ago', read: false, routerId: 'patio',
   },
   {
-    id: 'alert-firmware-estudio', severity: 'warn', title: 'Firmware disponible',
-    description: 'OpenWrt 24.10.1 para Estudio', time: 'hace 3 h', read: false, routerId: 'estudio',
+    id: 'alert-firmware-estudio', severity: 'warn', title: 'Firmware available',
+    description: 'OpenWrt 24.10.1 for Study', time: '3h ago', read: false, routerId: 'estudio',
   },
   {
-    id: 'alert-nuevo-tab', severity: 'info', title: 'Nuevo dispositivo',
-    description: "'Galaxy Tab S9' se ha unido a Salón", time: 'hace 26 min', read: true, routerId: 'living',
+    id: 'alert-nuevo-tab', severity: 'info', title: 'New device',
+    description: "'Galaxy Tab S9' joined Living Room", time: '26 min ago', read: true, routerId: 'living',
   },
   {
-    id: 'alert-handshake-wg', severity: 'info', title: 'Handshake WireGuard',
-    description: 'Pixel 8 Pro conectado desde 5.224.x.x', time: 'hace 38 s', read: true, routerId: 'flint2',
+    id: 'alert-handshake-wg', severity: 'info', title: 'WireGuard handshake',
+    description: 'Pixel 8 Pro connected from 5.224.x.x', time: '38s ago', read: true, routerId: 'flint2',
   },
   {
-    id: 'alert-backup-adguard', severity: 'ok', title: 'Copia de AdGuard completada',
-    description: 'Configuración y listas respaldadas en el NAS', time: 'hace 1 día', read: true, routerId: 'flint2',
+    id: 'alert-backup-adguard', severity: 'ok', title: 'AdGuard backup completed',
+    description: 'Configuration and lists backed up to the NAS', time: '1 day ago', read: true, routerId: 'flint2',
   },
 ]
 

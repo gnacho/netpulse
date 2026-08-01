@@ -85,7 +85,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     firmware: 'GL 4.7.0',
     firmwareBase: 'OpenWrt 21.02',
     firmwareUpdated: true,
-    lastReboot: '12 nov, 03:12 (mantenimiento)',
+    lastReboot: 'Nov 12, 03:12 (maintenance)',
     soc: 'MediaTek MT7986A',
     flash: '8 GB eMMC',
     ramMb: 512,
@@ -97,10 +97,10 @@ export const routerExtras: Record<string, RouterExtras> = {
     ports: [],
     // GL-MT6000: 1× WAN 2.5G + 4× LAN 1G
     ethPorts: [
-      { id: 'wan', label: 'WAN', up: true, speed: '2.5 Gbps', connectedTo: 'ONT fibra · Digi', detail: '84.122.x.x · full duplex' },
-      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Salón · AX3000T', detail: 'Uplink AP Salón (192.168.8.2)' },
+      { id: 'wan', label: 'WAN', up: true, speed: '2.5 Gbps', connectedTo: 'Fiber ONT · Digi', detail: '84.122.x.x · full duplex' },
+      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Living Room · AX3000T', detail: 'Living Room AP uplink (192.168.8.2)' },
       { id: 'lan2', label: 'LAN 2', up: true, speed: '1 Gbps', connectedTo: 'NAS Synology', detail: '192.168.8.10 · cable' },
-      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Estudio · NanoPi R4S', detail: 'Uplink AP Estudio (192.168.8.3)' },
+      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Study · NanoPi R4S', detail: 'Study AP uplink (192.168.8.3)' },
       { id: 'lan4', label: 'LAN 4', up: false },
     ],
   },
@@ -108,7 +108,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     mac: '50:D2:F5:11:8C:2E',
     firmware: 'OpenWrt 23.05.5',
     firmwareUpdated: true,
-    lastReboot: '12 nov, 03:12 (mantenimiento)',
+    lastReboot: 'Nov 12, 03:12 (maintenance)',
     soc: 'MediaTek MT7981B',
     flash: '128 MB NAND',
     ramMb: 256,
@@ -124,7 +124,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     ],
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
-      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink al Gateway' },
+      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink to Gateway' },
       { name: 'lan1', up: true, speed: '1 Gbps', role: 'PS5' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
       { name: 'phy1-ap0', up: true, speed: '—', role: 'Radio 5 GHz' },
@@ -142,7 +142,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     firmware: 'OpenWrt 23.05.5',
     firmwareUpdated: false,
     firmwareAvailable: '24.10.1',
-    lastReboot: '2 dic, 21:40 (actualización)',
+    lastReboot: 'Dec 2, 21:40 (update)',
     soc: 'Rockchip RK3399',
     flash: '32 GB microSD',
     ramMb: 1024,
@@ -158,15 +158,15 @@ export const routerExtras: Record<string, RouterExtras> = {
     ],
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
-      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink al Gateway' },
-      { name: 'eth1', up: true, speed: '1 Gbps', role: 'Switch estudio' },
+      { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink to Gateway' },
+      { name: 'eth1', up: true, speed: '1 Gbps', role: 'Study switch' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
       { name: 'phy1-ap0', up: true, speed: '—', role: 'Radio 5 GHz' },
     ],
     // NanoPi R4S: 2× 1G (WAN + LAN)
     ethPorts: [
       { id: 'wan', label: 'WAN', up: true, speed: '1 Gbps', connectedTo: 'Uplink → Gateway', detail: 'Gateway · LAN 3 (192.168.8.1)' },
-      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Switch estudio', detail: 'Switch 8 puertos · 4 en uso' },
+      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Study switch', detail: '8-port switch · 4 in use' },
     ],
   },
   patio: {
@@ -174,7 +174,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     firmware: 'OpenWrt 23.05.5',
     firmwareUpdated: false,
     firmwareAvailable: '24.10.1',
-    lastReboot: '9 dic, 14:05 (corte eléctrico)',
+    lastReboot: 'Dec 9, 14:05 (power outage)',
     soc: 'Qualcomm QCA9563',
     flash: '16 MB SPI',
     ramMb: 128,
@@ -190,13 +190,13 @@ export const routerExtras: Record<string, RouterExtras> = {
     ],
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
-      { name: 'eth0', up: false, speed: '—', role: 'Puerto LAN (sin uso)' },
+      { name: 'eth0', up: false, speed: '—', role: 'LAN port (unused)' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
-      { name: 'phy1-sta0', up: true, speed: '866 Mbps', role: 'Uplink wireless al Gateway' },
+      { name: 'phy1-sta0', up: true, speed: '866 Mbps', role: 'Wireless uplink to Gateway' },
     ],
     // EAP225: 1× 1G — sin uso (uplink inalámbrico mesh, ver backhaul)
     ethPorts: [
-      { id: 'lan1', label: 'LAN', up: false, detail: 'Uplink por WiFi mesh' },
+      { id: 'lan1', label: 'LAN', up: false, detail: 'Uplink over WiFi mesh' },
     ],
   },
 }
@@ -352,7 +352,7 @@ export const wgPeerExtras: Record<string, PeerExtra> = {
   'casa-familia': { endpoint: '—', allowedIps: '10.0.0.6/32', lastIp: '95.60.x.x' },
 }
 
-export const WG_TOTALS_30D = { rx: '17,9 GB', tx: '5,0 GB' } as const
+export const WG_TOTALS_30D = { rx: '17.9 GB', tx: '5.0 GB' } as const
 
 // ---------------------------------------------------------------------------
 // Utilidades
