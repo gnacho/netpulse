@@ -14,3 +14,4 @@ server/.env
 
 # Notas locales con credenciales
 *_user.txt
+v2/

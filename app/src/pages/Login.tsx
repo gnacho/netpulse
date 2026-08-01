@@ -14,6 +14,25 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, Lock, ShieldCheck, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Fuerza el prompt "guardar contraseña" del navegador tras un login OK
+ * (refuerzo: además la navegación a `/` es una recarga completa).
+ */
+async function storeCredentials(username: string, password: string) {
+  try {
+    const PC = (
+      window as unknown as {
+        PasswordCredential?: new (d: { id: string; password: string; name?: string }) => Credential
+      }
+    ).PasswordCredential
+    if ('credentials' in navigator && PC) {
+      await navigator.credentials.store(new PC({ id: username, password, name: username }))
+    }
+  } catch {
+    /* el usuario rechazó o el navegador no lo soporta: ignorar */
+  }
+}
+
 type Status = 'idle' | 'checking' | 'submitting' | 'error' | 'locked'
 
 export default function Login() {
@@ -67,6 +86,7 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       })
       if (res.status === 204) {
+        await storeCredentials(username, password)
         window.dispatchEvent(new Event('netpulse-authed'))
         window.location.assign('/')
         return

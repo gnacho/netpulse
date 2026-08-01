@@ -33,6 +33,8 @@ import { useAuth } from '@/data/AuthContext'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn } from '@/lib/utils'
+import { ACCENTS, type AccentId, type ThemeMode } from '@/lib/theme-boot'
+import pkg from '../../package.json'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -159,39 +161,26 @@ function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trail
 // ② Apariencia — previews de tema
 // ---------------------------------------------------------------------------
 
-type ThemeMode = 'dark' | 'light' | 'system'
-
 function ThemePreview({ variant }: { variant: ThemeMode }) {
-  const dark = (
-    <div className="flex h-full flex-col gap-1 bg-[#070B12] p-1.5">
-      <div className="h-1.5 w-2/3 rounded-full bg-white/15" />
+  // Preview pintado con los tokens reales (scope .light/.dark): prohibido hex duplicados.
+  const half = (
+    <div className="flex h-full w-full flex-col gap-1 bg-canvas p-1.5">
+      <div className="h-1.5 w-2/3 rounded-full bg-text-primary/15" />
       <div className="flex flex-1 gap-1">
-        <div className="w-1/4 rounded-sm bg-white/10" />
+        <div className="w-1/4 rounded-sm bg-elevated" />
         <div className="flex flex-1 flex-col gap-1">
-          <div className="h-1/2 rounded-sm bg-[#22D3EE]/60" />
-          <div className="flex-1 rounded-sm bg-white/10" />
+          <div className="h-1/2 rounded-sm bg-accent/60" />
+          <div className="flex-1 rounded-sm bg-elevated" />
         </div>
       </div>
     </div>
   )
-  const light = (
-    <div className="flex h-full flex-col gap-1 bg-[#F3F5F9] p-1.5">
-      <div className="h-1.5 w-2/3 rounded-full bg-black/15" />
-      <div className="flex flex-1 gap-1">
-        <div className="w-1/4 rounded-sm bg-black/10" />
-        <div className="flex flex-1 flex-col gap-1">
-          <div className="h-1/2 rounded-sm bg-[#0891B2]/60" />
-          <div className="flex-1 rounded-sm bg-black/10" />
-        </div>
-      </div>
-    </div>
-  )
-  if (variant === 'dark') return dark
-  if (variant === 'light') return light
+  if (variant === 'dark') return <div className="dark h-full">{half}</div>
+  if (variant === 'light') return <div className="light h-full">{half}</div>
   return (
     <div className="grid h-full grid-cols-2">
-      {dark}
-      {light}
+      <div className="dark">{half}</div>
+      <div className="light">{half}</div>
     </div>
   )
 }
@@ -201,15 +190,6 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string; icon: LucideIcon }[] 
   { value: 'light', labelKey: 'settings.themeLight', icon: Sun },
   { value: 'system', labelKey: 'settings.themeSystem', icon: MonitorSmartphone },
 ]
-
-const ACCENTS = [
-  { id: 'cyan', dark: '34 211 238', light: '8 145 178', swatch: '#22D3EE', labelKey: 'settings.accentCyan' },
-  { id: 'violet', dark: '167 139 250', light: '124 58 237', swatch: '#A78BFA', labelKey: 'settings.accentViolet' },
-  { id: 'emerald', dark: '52 211 153', light: '5 150 105', swatch: '#34D399', labelKey: 'settings.accentEmerald' },
-  { id: 'amber', dark: '251 191 36', light: '217 119 6', swatch: '#FBBF24', labelKey: 'settings.accentAmber' },
-] as const
-
-type AccentId = (typeof ACCENTS)[number]['id']
 
 // ---------------------------------------------------------------------------
 // ③ PWA — evento beforeinstallprompt
@@ -1112,6 +1092,43 @@ export default function Settings() {
   }, [])
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
+  // ——— Cambio de la propia contraseña (Mi sesión) ———
+  const [showPwdForm, setShowPwdForm] = useState(false)
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwBusy, setPwBusy] = useState(false)
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwChanged, setPwChanged] = useState(false)
+
+  const submitOwnPassword = useCallback(async () => {
+    if (pwBusy || !pwCurrent || pwNew.length < 6 || pwNew !== pwConfirm) return
+    setPwBusy(true)
+    setPwError(null)
+    setPwChanged(false)
+    try {
+      const res = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current: pwCurrent, password: pwNew }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null
+        throw new Error(body?.message ?? t('settings.session.pwError'))
+      }
+      setPwChanged(true)
+      setPwCurrent('')
+      setPwNew('')
+      setPwConfirm('')
+      notify()
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : t('settings.session.pwError'))
+    } finally {
+      setPwBusy(false)
+    }
+  }, [pwBusy, pwCurrent, pwNew, pwConfirm, t, notify])
+
+
   // ——— Tema (compatible con ThemeToggle: 'netpulse-theme' = light|dark) ———
   const [mode, setMode] = useStoredState<ThemeMode>(
     'netpulse-theme-mode',
@@ -1198,7 +1215,6 @@ export default function Settings() {
       (navigator as unknown as { standalone?: boolean }).standalone === true,
   )
   const [confettiKey, setConfettiKey] = useState(0)
-  const [showManualHelp, setShowManualHelp] = useState(false)
   const isIOS = useMemo(
     () =>
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -1223,10 +1239,7 @@ export default function Settings() {
   }, [])
 
   const install = async () => {
-    if (!deferred) {
-      setShowManualHelp(true)
-      return
-    }
+    if (!deferred) return
     await deferred.prompt()
     const choice = await deferred.userChoice
     if (choice.outcome === 'accepted') {
@@ -1528,19 +1541,19 @@ export default function Settings() {
                 <div className="text-sm font-medium text-text-primary">{t('settings.language')}</div>
                 <div className="text-caption text-text-muted">{t('settings.languageCaption')}</div>
               </div>
-              <SegmentedControl
-                options={[
-                  { value: 'auto', label: t('settings.languageAuto') },
-                  { value: 'es', label: 'Español' },
-                  { value: 'en', label: 'English' },
-                ]}
+              <select
+                aria-label={t('settings.language')}
                 value={lang}
-                onChange={(v) => {
-                  setLanguage(v)
+                onChange={(e) => {
+                  setLanguage(e.target.value as 'auto' | 'es' | 'en')
                   notify()
                 }}
-                ariaLabel={t('settings.language')}
-              />
+                className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary"
+              >
+                <option value="auto">🌐 {t('settings.languageAuto')}</option>
+                <option value="es">🇪🇸 Español</option>
+                <option value="en">🇬🇧 English</option>
+              </select>
             </div>
             <div className="border-t border-border pt-2">
               <SwitchRow
@@ -1638,61 +1651,101 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Salir del modo demo (flag local, sin sesión) */}
-        {isDemo && (
-          <div className="lg:col-span-12">
-            <Card title={t('settings.session.title')} index={5} reduce={reduce}>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">{t('settings.session.demoActive')}</p>
-                  <p className="mt-0.5 text-caption text-text-muted">{t('settings.session.demoCaption')}</p>
-                </div>
+        {/* Mi sesión: cambiar contraseña + cerrar sesión (patrón easyzfs) */}
+        <div className="lg:col-span-12">
+          <Card title={t('settings.session.title')} index={5} reduce={reduce}>
+            <div className="flex flex-wrap items-center gap-3">
+              {!isDemo && (
                 <button
                   type="button"
-                  onClick={() => {
+                  aria-expanded={showPwdForm}
+                  onClick={() => setShowPwdForm((v) => !v)}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-4 py-2 text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-hover"
+                >
+                  <LogOut className="hidden h-4 w-4" strokeWidth={1.75} />
+                  {t('settings.session.changePassword')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isDemo) {
                     sessionStorage.removeItem('netpulse-demo')
                     window.location.assign('/login')
-                  }}
-                  className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
-                >
-                  <LogOut className="h-4 w-4" strokeWidth={1.75} />
-                  {t('settings.session.exitDemo')}
-                </button>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Cerrar sesión — solo con backend (modo live), webapp-stack §Logout */}
-        {!isDemo && (
-          <div className="lg:col-span-12">
-            <Card title={t('settings.session.title')} index={5} reduce={reduce}>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">{t('settings.session.active')}</p>
-                  <p className="mt-0.5 text-caption text-text-muted">
-                    {t('settings.session.activeCaption')}
+                    return
+                  }
+                  void fetch('/api/auth/logout', { method: 'POST' })
+                    .catch(() => undefined)
+                    .finally(() => {
+                      window.dispatchEvent(new Event('netpulse-unauthorized'))
+                      window.location.assign('/login')
+                    })
+                }}
+                className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
+              >
+                <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                {isDemo ? t('demo.exit') : t('settings.session.logout')}
+              </button>
+            </div>
+            {showPwdForm && !isDemo && (
+              <form
+                className="mt-4 flex max-w-md flex-col gap-3 border-t border-border pt-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void submitOwnPassword()
+                }}
+              >
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={pwCurrent}
+                  onChange={(e) => setPwCurrent(e.target.value)}
+                  placeholder={t('settings.session.pwCurrent')}
+                  aria-label={t('settings.session.pwCurrent')}
+                  className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary"
+                />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={pwNew}
+                  onChange={(e) => setPwNew(e.target.value)}
+                  placeholder={t('settings.session.pwNew')}
+                  aria-label={t('settings.session.pwNew')}
+                  className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary"
+                />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={pwConfirm}
+                  onChange={(e) => setPwConfirm(e.target.value)}
+                  placeholder={t('settings.session.pwConfirm')}
+                  aria-label={t('settings.session.pwConfirm')}
+                  className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary"
+                />
+                {pwError && (
+                  <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">
+                    {pwError}
                   </p>
-                </div>
+                )}
+                {pwChanged && (
+                  <p role="status" className="rounded-lg bg-ok/10 px-3 py-2 text-caption text-ok">
+                    {t('settings.session.pwChanged')}
+                  </p>
+                )}
                 <button
-                  type="button"
-                  onClick={() => {
-                    void fetch('/api/auth/logout', { method: 'POST' })
-                      .catch(() => undefined)
-                      .finally(() => {
-                        window.dispatchEvent(new Event('netpulse-unauthorized'))
-                        window.location.assign('/login')
-                      })
-                  }}
-                  className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
+                  type="submit"
+                  disabled={pwBusy || !pwCurrent || pwNew.length < 6 || pwNew !== pwConfirm}
+                  className="flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  <LogOut className="h-4 w-4" strokeWidth={1.75} />
-                  {t('settings.session.logout')}
+                  {pwBusy ? t('settings.session.pwSubmitting') : t('settings.session.pwSubmit')}
                 </button>
-              </div>
-            </Card>
-          </div>
-        )}
+                {pwNew.length > 0 && pwConfirm.length > 0 && pwNew !== pwConfirm && (
+                  <p role="alert" className="text-caption text-danger">{t('settings.session.pwMismatch')}</p>
+                )}
+              </form>
+            )}
+          </Card>
+        </div>
 
         {/* ⑥ Acerca de */}
         <div className="lg:col-span-12">
@@ -1710,7 +1763,7 @@ export default function Settings() {
                 <div>
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-display text-h2 font-bold text-text-primary">NetPulse</span>
-                    <span className="font-mono text-caption text-text-muted">{t('settings.about.versionNote')}</span>
+                    <span className="font-mono text-caption text-text-muted">v{pkg.version}</span>
                   </div>
                   <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
                     {t('settings.about.desc')}
@@ -1763,7 +1816,7 @@ export default function Settings() {
                   </span>
                 ) : isIOS ? (
                   <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
-                ) : (
+                ) : deferred ? (
                   <button
                     type="button"
                     onClick={() => void install()}
@@ -1772,14 +1825,9 @@ export default function Settings() {
                     <Download className="h-3.5 w-3.5" strokeWidth={2} />
                     {t('settings.pwa.install')}
                   </button>
-                )}
+                ) : null}
               </div>
-              {showManualHelp && !deferred && !installed && (
-                <p className="mt-2 text-caption leading-relaxed text-text-muted">
-                  {t('settings.pwa.manualPre')}{' '}
-                  <strong className="text-text-secondary">{t('settings.pwa.manualStrong')}</strong>.
-                </p>
-              )}
+
             </div>
 
             <p className="mt-5 border-t border-border pt-3 font-mono text-caption text-text-muted">

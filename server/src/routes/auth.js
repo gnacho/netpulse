@@ -5,6 +5,7 @@
  *   GET  /api/auth/me      → 200 {user, role, mode} · 401 (requireAuth)
  */
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import {
   SESSION_COOKIE,
   SESSION_TTL_MS,
@@ -14,12 +15,18 @@ import {
   loginOk,
   loginRateLimited,
   registerLoginFail,
+  sessionIdFromRequest,
   signSessionId,
 } from '../auth.js'
 
 const loginSchema = z.object({
   username: z.string().min(1).max(64),
   password: z.string().min(1),
+})
+
+const ownPasswordSchema = z.object({
+  current: z.string().min(1),
+  password: z.string().min(6).max(128),
 })
 
 export function registerAuthRoutes(app, { db, config, secret, mode }) {
@@ -48,6 +55,25 @@ export function registerAuthRoutes(app, { db, config, secret, mode }) {
     handleLogout(db, secret, c)
     // Borra la cookie (mismos atributos para que el navegador la reemplace)
     c.header('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`)
+    return c.body(null, 204)
+  })
+
+  // Cambio de la propia contraseña (verifica la actual, cierra las demás sesiones)
+  app.put('/api/auth/password', async (c) => {
+    const user = c.get('user')
+    const body = await c.req.json().catch(() => null)
+    const parsed = ownPasswordSchema.safeParse(body)
+    if (!parsed.success) {
+      return c.json({ error: 'invalid_input', message: 'password mínimo 6 caracteres' }, 400)
+    }
+    const row = db.prepare('SELECT id, pass_hash FROM users WHERE id = ?').get(user.id)
+    if (!row) return c.json({ error: 'not_found' }, 404)
+    const ok = await bcrypt.compare(parsed.data.current, row.pass_hash)
+    if (!ok) return c.json({ error: 'invalid_current', message: 'La contraseña actual no es correcta' }, 403)
+    const hash = await bcrypt.hash(parsed.data.password, 10)
+    db.prepare('UPDATE users SET pass_hash = ? WHERE id = ?').run(hash, user.id)
+    const sid = sessionIdFromRequest(db, secret, c)
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?').run(user.id, sid ?? '')
     return c.body(null, 204)
   })
 

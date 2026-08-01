@@ -4,7 +4,9 @@
 
 @layer base {
   /* NetPulse design tokens — dark-first (design.md §3). Default = dark "NOC doméstico". */
-  :root {
+  /* .dark permite forzar el tema oscuro en previews dentro de páginas claras */
+  :root,
+  .dark {
     --canvas: 7 11 18;          /* #070B12 */
     --surface: 13 20 32;        /* #0D1420 */
     --elevated: 19 28 44;       /* #131C2C */
@@ -24,8 +26,9 @@
     color-scheme: dark;
   }
 
-  /* Light theme — toggled via .light class on <html> */
-  html.light {
+  /* Light theme — toggled via .light class on <html> (o en un contenedor para previews) */
+  html.light,
+  .light {
     --canvas: 243 245 249;      /* #F3F5F9 */
     --surface: 255 255 255;
     --elevated: 255 255 255;
