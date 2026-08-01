@@ -36,6 +36,32 @@ function RingSample({ color }: { color: string }) {
   )
 }
 
+/** Muestras de enlaces de la topología v5 */
+function LineSample({ color, dash }: { color: string; dash?: string }) {
+  return (
+    <svg width="26" height="8" viewBox="0 0 26 8" aria-hidden="true">
+      <line x1="1" y1="4" x2="25" y2="4" stroke={color} strokeWidth="2" strokeLinecap="round" strokeDasharray={dash} />
+    </svg>
+  )
+}
+
+function LldpSample() {
+  return (
+    <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
+      <rect x="1" y="1" width="24" height="12" rx="4" fill="none" stroke={COLOR.accent} strokeWidth="1.4" />
+      <text x="13" y="10" textAnchor="middle" fontSize="7" fontWeight="800" fill={COLOR.accent}>L</text>
+    </svg>
+  )
+}
+
+function InferredSample() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" fill="none" stroke="rgb(var(--text-muted))" strokeWidth="1.4" strokeDasharray="3 3" />
+    </svg>
+  )
+}
+
 /** Muestra de línea dashed WireGuard, auto-animada en loop */
 function WgSample() {
   const reduce = useReducedMotion()
@@ -85,6 +111,27 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
           <motion.li className="col-span-2 flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
             <WgSample />
             {t('topology.legend.wgTunnel')}
+          </motion.li>
+        </ul>
+      </div>
+      <div>
+        <div className="mb-2 text-label uppercase text-text-muted">{t('topology.links.title')}</div>
+        <ul className="grid grid-cols-1 gap-x-4 gap-y-2">
+          <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <LineSample color={COLOR.ok} />
+            {t('topology.legend.wiredLink')}
+          </motion.li>
+          <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <LineSample color={COLOR.warn} dash="6 4" />
+            {t('topology.legend.wifiUplink')}
+          </motion.li>
+          <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <LldpSample />
+            {t('topology.legend.lldpIdentified')}
+          </motion.li>
+          <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <InferredSample />
+            {t('topology.legend.inferredSwitch')}
           </motion.li>
         </ul>
       </div>

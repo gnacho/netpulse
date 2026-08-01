@@ -118,9 +118,18 @@ export type DeviceType =
   | 'altavoz'
   | 'servidor'
   | 'tablet'
+  | 'switch'
   | 'desconocido'
 
 export type Band = '5 GHz' | '2.4 GHz' | 'cable' | '—'
+
+/** Identificación LLDP de un vecino (switch gestionado, AP, host…). */
+export interface LldpInfo {
+  chassis?: string
+  mgmt?: string
+  caps?: string
+  portDesc?: string
+}
 
 export interface Device {
   id: string
@@ -138,6 +147,37 @@ export interface Device {
   online: boolean
   isNew?: boolean
   sparkline: number[]
+  /** Puerto físico del router/switch donde se aprende la MAC (cableados; FDB). */
+  port?: string | null
+  /** Datos LLDP cuando el vecino se anuncia (switch gestionado identificado). */
+  lldp?: LldpInfo | null
+  /**
+   * De qué hub cuelga en el mapa de topología: id de un router (defecto,
+   * = routerId), de un DistributionNode (switch inferido) o de otro Device
+   * (hipervisor / switch gestionado identificado).
+   */
+  attachTo?: string
+}
+
+/**
+ * Nodo de distribución entre un router y varios cableados, inferido del FDB:
+ * un puerto físico con varias MACs aprendidas. `inferred` = OUI heterogéneo
+ * (switch o bridge desconocido, sin IP); `hypervisor` = OUI de hipervisor
+ * (Proxmox/VMware/Hyper-V/KVM) → sus CTs/VMs se anidan bajo el host.
+ */
+export interface DistributionNode {
+  id: string
+  kind: 'inferred' | 'hypervisor'
+  routerId: string
+  /** Puerto físico del router donde cuelga (lan3…). */
+  port: string
+  /** MACs aprendidas en ese puerto (FDB). */
+  macCount: number
+  /** Hypervisor: id del Device host (Proxmox…), si existe como cliente. */
+  hostDeviceId?: string
+  /** Nombre descriptivo (host o futura identificación LLDP). */
+  name?: string
+  lldp?: LldpInfo | null
 }
 
 export type AlertSeverity = 'warn' | 'critical' | 'info' | 'ok'
@@ -177,6 +217,12 @@ export interface OverviewBundle {
   topDevices: Device[]
   alerts: AlertEvent[]
   unreadAlerts: number
+  /**
+   * Nodos de distribución inferidos del FDB (switches/hipervisores entre un
+   * router y sus cableados). Ausente/vacío si aún no hay datos FDB (live sin
+   * colector o primera pasada): el mapa cuelga los cableados del router.
+   */
+  distributionNodes?: DistributionNode[]
   ts: number
 }
 
