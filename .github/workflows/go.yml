@@ -1,0 +1,75 @@
+name: go-server
+
+# Compila el backend Go (con app/dist embebido en el binario) y lo publica como
+# asset de la prerelease "go-latest" (el CT 226 tiene 512MB y no tiene Go; el
+# updater descarga el binario exacto de su commit:
+# netpulse-server-<sha>-linux-<arch>.tar.gz).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server-go/**'
+      - 'app/**' # el dist va embebido en el binario
+      - '.github/workflows/go.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # publicar assets en la prerelease go-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: server-go/go.sum
+
+      - name: Build frontend
+        working-directory: app
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Copia dist al embed del binario
+        run: rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
+
+      - name: Tests Go
+        working-directory: server-go
+        run: go test ./...
+
+      - name: Build binario (linux/${{ matrix.arch }})
+        working-directory: server-go
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+        run: go build -trimpath -ldflags "-s -w" -o netpulse ./cmd/netpulse
+
+      - name: Empaqueta binario + despliegue
+        run: tar czf netpulse-server-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz -C server-go netpulse .env.example -C .. deploy
+
+      - name: Publica en prerelease go-latest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: go-latest
+          name: go-latest
+          prerelease: true
+          files: netpulse-server-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz
+
+      - name: Limpia assets antiguos (conserva los 10 más recientes por fecha)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/releases/tags/go-latest \
+            --jq '.assets | sort_by(.created_at) | reverse | .[10:] | .[].name' \
+            | while read -r a; do gh release delete-asset go-latest "$a" -y; done
