@@ -7,12 +7,14 @@ routers: fleet status, per-router health, connected devices, WireGuard peers,
 AdGuard Home stats and alerts — in real time.
 
 - **Frontend** (`app/`): React 19 + Vite + Tailwind + shadcn/ui. Installable PWA.
-- **Backend** (`server/`): Node + Hono + SQLite (better-sqlite3). Multi-user
-  auth (session cookie + bcrypt), SSE live updates (5 s), demo/live adapters.
-- **Go backend** (`server-go/`): full Go rewrite of the backend (std `net/http`,
-  `modernc.org/sqlite`, single static binary with the frontend embedded).
-  Drop-in replacement: same API/env/`.env`, automatic migration from the Node
-  database on first boot. systemd unit: `deploy/netpulse-go.service`.
+- **Backend** (`server-go/`): Go (std `net/http`, `modernc.org/sqlite`, single
+  static binary with the frontend embedded). Multi-user auth (session cookie +
+  bcrypt), SSE live updates (5 s), demo/live adapters. systemd unit:
+  `deploy/netpulse-go.service`.
+- **Legacy backend** (`server/`): the original Node + Hono implementation,
+  **archived as fallback** (not deleted — see `server/README.md` for the
+  fallback runbook). Automatic migration from its database happens on the
+  first Go boot.
 - **Collector** (`collector/`): Go sidecar that probes TCP latency to each
   router (reads the router list from `netpulse.db` read-only) and stores its
   own time-series SQLite (`metrics.db`, raw → 5-min buckets → daily).
