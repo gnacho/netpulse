@@ -54,7 +54,9 @@ func main() {
 	slog.Info("netpulse-collector arrancando", "version", version)
 
 	dataDir := envOr("DATA_DIR", "/opt/netpulse-collector/data")
-	netpulseDB := envOr("NETPULSE_DB", "/opt/netpulse/server/data/netpulse.db")
+	// Ruta real donde install.sh del servidor deja netpulse.db
+	// (WorkingDirectory=/var/lib/netpulse + DATA_DIR=./data).
+	netpulseDB := envOr("NETPULSE_DB", "/var/lib/netpulse/data/netpulse.db")
 	listen := envOr("LISTEN", "127.0.0.1:9100")
 
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
@@ -76,9 +78,20 @@ func main() {
 		slog.Error("register uptime", "err", err)
 	}
 
-	// Resultados recientes por target (para state.json y /healthz)
-	var mu sync.Mutex
+	// Resultados recientes por target (para state.json y /healthz).
+	// RWMutex: /healthz lee un snapshot bajo RLock corto y nunca queda
+	// bloqueado por las sondas que publican resultados.
+	var mu sync.RWMutex
 	last := map[string]probeResult{}
+	snapshotLast := func() map[string]probeResult {
+		mu.RLock()
+		defer mu.RUnlock()
+		snap := make(map[string]probeResult, len(last))
+		for k, v := range last {
+			snap[k] = v
+		}
+		return snap
+	}
 
 	// Recarga de targets: netpulse.db es la fuente de verdad (CRUD en caliente
 	// desde la UI de NetPulse; el collector la relee, nunca la escribe).
@@ -103,48 +116,53 @@ func main() {
 	}()
 
 	// Supervisor: mantiene una goroutine sonda por target; las que desaparecen
-	// de la config mueren por ctx; las nuevas arrancan en caliente.
-	var wg sync.WaitGroup
-	children := map[string]context.CancelFunc{}
+	// de la config mueren por ctx; las nuevas arrancan en caliente; las que
+	// cambian de host se reinician con el host nuevo.
+	// wg: sondas (drenan en el apagado). supWg: supervisor + state.json —
+	// ninguna goroutine que toque `ts` queda viva tras supWg.Wait().
+	var wg, supWg sync.WaitGroup
+	children := map[string]childProc{}
+	onStart := func(t Target) {
+		if err := registerTargetMetrics(ts, t); err != nil {
+			slog.Error("register metric", "target", t.Name, "err", err)
+			return
+		}
+		cctx, ccancel := context.WithCancel(ctx)
+		children[t.Name] = childProc{cancel: ccancel, addr: t.Addr}
+		wg.Add(1)
+		go func(t Target) {
+			defer wg.Done()
+			runProbe(cctx, ts, t, &mu, last)
+		}(t)
+		slog.Info("target añadido", "name", t.Name, "addr", t.Addr)
+	}
+	onStop := func(name string) {
+		// Purgar `last`: sin esto, state.json y /healthz muestran targets
+		// eliminados para siempre (stale).
+		mu.Lock()
+		delete(last, name)
+		mu.Unlock()
+		slog.Info("target eliminado", "name", name)
+	}
+	supWg.Add(1)
 	go func() {
+		defer supWg.Done()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case targets := <-targetCh:
-				seen := map[string]bool{}
-				for _, t := range targets {
-					seen[t.Name] = true
-					if _, ok := children[t.Name]; ok {
-						continue
-					}
-					if err := registerTargetMetrics(ts, t); err != nil {
-						slog.Error("register metric", "target", t.Name, "err", err)
-						continue
-					}
-					cctx, ccancel := context.WithCancel(ctx)
-					children[t.Name] = ccancel
-					wg.Add(1)
-					go func(t Target) {
-						defer wg.Done()
-						runProbe(cctx, ts, t, &mu, last)
-					}(t)
-					slog.Info("target añadido", "name", t.Name, "addr", t.Addr)
-				}
-				for name, ccancel := range children {
-					if !seen[name] {
-						ccancel()
-						delete(children, name)
-						slog.Info("target eliminado", "name", name)
-					}
-				}
+				reconcileTargets(children, targets, onStart, onStop)
 			}
 		}
 	}()
 
 	// Fichero de estado atómico (lección OMV/Beszel): la salud del collector
-	// es un dato más, sondeable sin hablar con el proceso.
+	// es un dato más, sondeable sin hablar con el proceso. Bajo supWg para que
+	// pare (y deje de escribir en ts) antes de ts.Close().
+	supWg.Add(1)
 	go func() {
+		defer supWg.Done()
 		tick := time.NewTicker(probeInterval)
 		defer tick.Stop()
 		for {
@@ -153,9 +171,7 @@ func main() {
 				return
 			case <-tick.C:
 				ts.Write("collector_uptime_s", time.Since(started).Seconds())
-				mu.Lock()
-				writeStateFile(dataDir, started, last)
-				mu.Unlock()
+				writeStateFile(dataDir, started, snapshotLast())
 			}
 		}
 	}()
@@ -163,17 +179,17 @@ func main() {
 	// Job nocturno: rollup → purga → checkpoint → optimize → VACUUM condicional
 	go ts.RunNightlyJob(ctx, 3, 30)
 
-	// /healthz
+	// /healthz — snapshot de `last` bajo RLock corto: las consultas a la DB del
+	// store (lentas con DB ocupada) NO se hacen con el mutex de sondas cogido.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
+		targets := snapshotLast()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"version": version,
+			"version":  version,
 			"uptime_s": int(time.Since(started).Seconds()),
-			"store":   ts.Health(filepath.Join(dataDir, "metrics.db")),
-			"targets": last,
+			"store":    ts.Health(filepath.Join(dataDir, "metrics.db")),
+			"targets":  targets,
 		})
 	})
 	srv := &http.Server{Addr: listen, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
@@ -189,10 +205,46 @@ func main() {
 	<-sig
 	slog.Info("apagando: parando sondas, drenando writer…")
 	cancel()
-	wg.Wait()          // sondas: acotadas por probeTimeout
-	ts.Close()         // flush final + checkpoint (drena de verdad)
+	supWg.Wait() // supervisor + state.json: ya nadie registra métricas
+	wg.Wait()    // sondas: acotadas por probeTimeout
+	ts.Close()   // flush final + checkpoint (drena de verdad)
 	srv.Close()
 	slog.Info("apagado limpio")
+}
+
+// childProc: sonda viva supervisada — cancel para matarla y addr para detectar
+// que el router cambió de host (hay que reiniciar la sonda, no basta el nombre).
+type childProc struct {
+	cancel context.CancelFunc
+	addr   string
+}
+
+// reconcileTargets arranca sondas nuevas, reinicia las que cambiaron de host y
+// para las que ya no están en la config. onStart/onStop son callbacks para que
+// el supervisor enchufe el registro de métricas y la purga de `last`
+// (factorizado así para ser testeable sin DB ni red).
+func reconcileTargets(children map[string]childProc, targets []Target, onStart func(Target), onStop func(string)) {
+	seen := map[string]bool{}
+	for _, t := range targets {
+		seen[t.Name] = true
+		if c, ok := children[t.Name]; ok {
+			if c.addr == t.Addr {
+				continue // sin cambios
+			}
+			c.cancel()
+			delete(children, t.Name)
+			slog.Warn("target cambió de host: reiniciando sonda",
+				"name", t.Name, "antes", c.addr, "ahora", t.Addr)
+		}
+		onStart(t)
+	}
+	for name, c := range children {
+		if !seen[name] {
+			c.cancel()
+			delete(children, name)
+			onStop(name)
+		}
+	}
 }
 
 // loadTargets lee los routers de NetPulse en SOLO LECTURA + targets extra por env
@@ -230,7 +282,33 @@ func loadTargets(netpulseDB string) ([]Target, error) {
 		}
 		targets = append(targets, Target{Name: slug(name), Addr: addr})
 	}
-	return targets, nil
+	return dedupeSlugs(targets), nil
+}
+
+// dedupeSlugs garantiza nombres únicos (las métricas cuelgan del slug: una
+// colisión silenciosa mezclaría series de dos routers). Colisión → sufijo
+// -2, -3… + aviso.
+func dedupeSlugs(targets []Target) []Target {
+	used := map[string]bool{}
+	for i, t := range targets {
+		if !used[t.Name] {
+			used[t.Name] = true
+			continue
+		}
+		base := t.Name
+		name := ""
+		for n := 2; ; n++ {
+			name = fmt.Sprintf("%s-%d", base, n)
+			if !used[name] {
+				break
+			}
+		}
+		slog.Warn("colisión de slug: target renombrado",
+			"slug", base, "nuevo", name, "addr", t.Addr)
+		used[name] = true
+		targets[i].Name = name
+	}
+	return targets
 }
 
 func registerTargetMetrics(ts *timeseries.TimeSeries, t Target) error {
@@ -240,7 +318,7 @@ func registerTargetMetrics(ts *timeseries.TimeSeries, t Target) error {
 	return ts.RegisterMetric(timeseries.Metric{Key: "tcp_ok." + t.Name, Unit: "bool", Kind: "gauge", MaxValue: ptr(1.0)})
 }
 
-func runProbe(ctx context.Context, ts *timeseries.TimeSeries, t Target, mu *sync.Mutex, last map[string]probeResult) {
+func runProbe(ctx context.Context, ts *timeseries.TimeSeries, t Target, mu *sync.RWMutex, last map[string]probeResult) {
 	// Arranque escalonado (jitter) para no sondear todos los targets a la vez
 	select {
 	case <-ctx.Done():
