@@ -1091,26 +1091,26 @@ const ChipGroup = memo(function ChipGroup({
   const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
   return (
-    <motion.g
-      transform={`translate(${chip.x} ${chip.y})`}
-      className="cursor-pointer outline-none"
-      role="button"
-      tabIndex={0}
-      aria-label={`${d.name}, ${chip.wired ? 'cable' : d.band}`}
-      initial={reduce ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
-      animate={{ opacity, scale: 1 }}
-      transition={reduce ? { duration: 0 } : { delay, type: 'spring', stiffness: 300, damping: 18 }}
-      style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-      onPointerEnter={onHover}
-      onPointerLeave={onLeave}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick(e)
-        }
-      }}
-    >
+    <g transform={`translate(${chip.x} ${chip.y})`}>
+      <motion.g
+        className="cursor-pointer outline-none"
+        role="button"
+        tabIndex={0}
+        aria-label={`${d.name}, ${chip.wired ? 'cable' : d.band}`}
+        initial={reduce ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
+        animate={{ opacity, scale: 1 }}
+        transition={reduce ? { duration: 0 } : { delay, type: 'spring', stiffness: 300, damping: 18 }}
+        style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+        onPointerEnter={onHover}
+        onPointerLeave={onLeave}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClick(e)
+          }
+        }}
+      >
       <rect
         x={-half}
         y={-half}
@@ -1160,6 +1160,7 @@ const ChipGroup = memo(function ChipGroup({
         </g>
       )}
       <title>{d.name}</title>
-    </motion.g>
+      </motion.g>
+    </g>
   )
 })
