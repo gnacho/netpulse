@@ -143,7 +143,34 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
         </div>
       )}
       {tip.kind === 'chip' && <ChipTooltip chip={tip.chip} touch={touch} />}
-      {tip.kind === 'dist' && (
+      {tip.kind === 'dist' && tip.node.kind === 'managed' && (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-text-primary">
+              {tip.node.name ?? t('topology.dist.managed')}
+            </span>
+            <StatusPill tone="accent" label="LLDP" />
+          </div>
+          <div className="mt-0.5 text-caption text-text-muted">
+            {[tip.node.ip, tip.node.port].filter(Boolean).join(' · ')}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
+          </div>
+          {tip.node.lldp && (
+            <div className="mt-2 text-caption font-semibold text-accent">
+              {t('topology.lldpIdentified', {
+                chassis: tip.node.lldp.chassis ?? '—',
+                mgmt: tip.node.lldp.mgmt ?? '—',
+                caps: tip.node.lldp.caps ?? '—',
+                port: tip.node.lldp.portDesc ?? '—',
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      {tip.kind === 'dist' && tip.node.kind !== 'managed' && (
         <div>
           <div className="flex items-center justify-between gap-2">
             <span className="font-display text-sm font-semibold text-text-primary">{t('topology.dist.title')}</span>
@@ -914,12 +941,19 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 : t('common.clientsCount', { count: node.router.clients })}
               subColor={node.router.status === 'warn' ? COLOR.warn : undefined} />
           ))}
-          {/* Distnodes inferidos */}
-          {distNodes.map((dv, i) => (
-            <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
-              reduce={reduce ?? false} title={t('topology.dist.title')}
-              sub={`${t('topology.dist.inferred')} · ${dv.node.port}`} />
-          ))}
+          {/* Distnodes (inferidos / gestionados vía LLDP) */}
+          {distNodes.map((dv, i) =>
+            dv.node.kind === 'managed' ? (
+              <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
+                reduce={reduce ?? false} title={dv.node.name ?? t('topology.dist.managed')}
+                sub={`${[dv.node.ip ?? 'LLDP', dv.node.port].join(' · ')}`}
+                subColor={COLOR.accent} />
+            ) : (
+              <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
+                reduce={reduce ?? false} title={t('topology.dist.title')}
+                sub={`${t('topology.dist.inferred')} · ${dv.node.port}`} />
+            ),
+          )}
           {/* Hosts hipervisores (badge +N ya en el chip; etiqueta con puerto y nº CTs) */}
           {[...ctsByHost.keys()].map((hostId, i) => {
             const host = chips.find((c) => c.id === hostId)
@@ -1029,13 +1063,18 @@ const DistNodeGroup = memo(function DistNodeGroup({
 }) {
   const { t } = useTranslation()
   const SwitchIcon = DEVICE_ICONS.switch
+  const managed = dv.node.kind === 'managed'
   return (
     <motion.g
       transform={`translate(${dv.x} ${dv.y})`}
       className="cursor-pointer outline-none"
       role="button"
       tabIndex={0}
-      aria-label={`${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${dv.node.port}`}
+      aria-label={
+        managed
+          ? `${dv.node.name ?? t('topology.dist.managed')}, LLDP, ${dv.node.ip ?? ''} ${dv.node.port}`
+          : `${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${dv.node.port}`
+      }
       animate={{ opacity }}
       transition={{ duration: 0.2 }}
       onPointerEnter={onHover}
@@ -1054,9 +1093,33 @@ const DistNodeGroup = memo(function DistNodeGroup({
         transition={reduce ? { duration: 0 } : { delay, type: 'spring', stiffness: 260, damping: 20 }}
         style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
       >
-        <circle r={dv.r + 5} fill="none" stroke="rgb(var(--text-muted))" strokeWidth={1} strokeDasharray="2 5" opacity={0.6} />
-        <circle r={dv.r} fill="rgb(var(--elevated) / 0.65)" stroke="rgb(var(--text-muted))" strokeWidth={1.5} strokeDasharray="4 4" />
-        <SwitchIcon x={-10} y={-10} width={20} height={20} className="text-text-secondary" strokeWidth={1.75} aria-hidden />
+        {/* managed: sólido con borde cyan (identificado vía LLDP);
+            inferred: círculo dashed (no podemos afirmarlo) */}
+        <circle
+          r={dv.r + 5}
+          fill="none"
+          stroke={managed ? COLOR.accent : 'rgb(var(--text-muted))'}
+          strokeWidth={1}
+          strokeDasharray={managed ? undefined : '2 5'}
+          opacity={managed ? 0.5 : 0.6}
+        />
+        <circle
+          r={dv.r}
+          fill={managed ? 'rgb(var(--elevated))' : 'rgb(var(--elevated) / 0.65)'}
+          stroke={managed ? COLOR.accent : 'rgb(var(--text-muted))'}
+          strokeWidth={1.5}
+          strokeDasharray={managed ? undefined : '4 4'}
+        />
+        <SwitchIcon x={-10} y={-10} width={20} height={20} className={managed ? 'text-accent' : 'text-text-secondary'} strokeWidth={1.75} aria-hidden />
+        {/* badge LLDP (misma geometría que el badge de los chips) */}
+        {managed && (
+          <g aria-hidden>
+            <rect x={dv.r - 4} y={-dv.r - 4} width={22} height={10} rx={5} fill="rgb(var(--elevated))" stroke={COLOR.accent} strokeWidth={1} />
+            <text x={dv.r + 7} y={-dv.r + 3.4} textAnchor="middle" fontSize={6.5} fontWeight={800} fill={COLOR.accent} letterSpacing="0.04em">
+              LLDP
+            </text>
+          </g>
+        )}
       </motion.g>
     </motion.g>
   )
