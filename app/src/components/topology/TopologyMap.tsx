@@ -13,7 +13,7 @@ import { animate, motion, useReducedMotion } from 'framer-motion'
 import { Cloud, Laptop, Router as RouterIcon, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
-import type { DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
+import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
 import { DEVICE_ICONS } from '@/components/DeviceRow'
 import { cn } from '@/lib/utils'
@@ -69,7 +69,17 @@ type TooltipData =
   | { kind: 'internet'; id: string; x: number; y: number }
   | { kind: 'peer'; id: string; peer: WGPeer; x: number; y: number }
   | { kind: 'peersOverflow'; id: string; peers: WGPeer[]; x: number; y: number }
-  | { kind: 'chip'; id: string; chip: ChipNode; x: number; y: number }
+  | {
+      kind: 'chip'
+      id: string
+      chip: ChipNode
+      /** >0 si el chip es un host hipervisor (nota "no es un switch") */
+      hostCtCount?: number
+      /** device host cuando el chip es un CT/VM anidado */
+      ctHost?: Device
+      x: number
+      y: number
+    }
   | { kind: 'dist'; id: string; node: DistributionNode; x: number; y: number }
 
 type TooltipState = TooltipData & { left: number; top: number; below: boolean }
@@ -164,7 +174,9 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
           </div>
         </div>
       )}
-      {tip.kind === 'chip' && <ChipTooltip chip={tip.chip} touch={touch} />}
+      {tip.kind === 'chip' && (
+        <ChipTooltip chip={tip.chip} touch={touch} hostCtCount={tip.hostCtCount} ctHost={tip.ctHost} />
+      )}
       {tip.kind === 'dist' && tip.node.kind === 'managed' && (
         <div>
           <div className="flex items-center justify-between gap-2">
@@ -213,7 +225,19 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
 }
 
 /** Tooltip de un chip de dispositivo (cliente, hub, host hipervisor o CT). */
-function ChipTooltip({ chip, touch }: { chip: ChipNode; touch: boolean }) {
+function ChipTooltip({
+  chip,
+  touch,
+  hostCtCount = 0,
+  ctHost,
+}: {
+  chip: ChipNode
+  touch: boolean
+  /** >0 si el chip es un host hipervisor (badge +N en el mapa) */
+  hostCtCount?: number
+  /** device host cuando el chip es un CT/VM anidado */
+  ctHost?: Device
+}) {
   const { t } = useTranslation()
   const d = chip.device
   return (
@@ -249,7 +273,16 @@ function ChipTooltip({ chip, touch }: { chip: ChipNode; touch: boolean }) {
         </div>
       )}
       {chip.isCt && (
-        <div className="mt-2 text-caption leading-snug text-text-secondary">{t('topology.ct.note')}</div>
+        <div className="mt-2 text-caption leading-snug text-text-secondary">
+          {ctHost
+            ? t('topology.ct.noteIn', { host: ctHost.name, port: ctHost.port ?? '—' })
+            : t('topology.ct.note')}
+        </div>
+      )}
+      {!chip.isCt && hostCtCount > 0 && (
+        <div className="mt-2 text-caption leading-snug text-text-secondary">
+          {t('topology.host.note', { count: hostCtCount })}
+        </div>
       )}
       {!chip.isCt && chip.weak && (
         <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>
@@ -564,6 +597,21 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
 
   // -- atenuación por hover -----------------------------------------------------
   const related = useMemo(() => (hoverNode ? relatedTo(hoverNode) : null), [hoverNode])
+  /** chip por id (para resolver el host de un CT en tooltips) */
+  const chipById = useMemo(() => new Map(chips.map((c) => [c.id, c])), [chips])
+  /** datos del tooltip de un chip: +N si es host hipervisor, host si es CT */
+  const chipTip = useCallback(
+    (chip: ChipNode): TooltipData => ({
+      kind: 'chip',
+      id: chip.id,
+      chip,
+      hostCtCount: ctCountByHost.get(chip.id) ?? 0,
+      ctHost: chip.isCt ? chipById.get(chip.hubId)?.device : undefined,
+      x: chip.x,
+      y: chip.y - chip.size / 2 - 6,
+    }),
+    [ctCountByHost, chipById],
+  )
   const nodeOpacity = useCallback(
     (id: string) => {
       if (!related) return 1
@@ -966,18 +1014,16 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(chip.id)}
-            onHover={(e) =>
-              handleNodeHover({ kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 }, e)
-            }
+            onHover={(e) => handleNodeHover(chipTip(chip), e)}
             onLeave={closeHover}
             onClick={(e) => {
               if (chip.isCt) {
-                nodeClick(e, { kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 })
+                nodeClick(e, chipTip(chip))
                 return
               }
               nodeClick(
                 e,
-                { kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 },
+                chipTip(chip),
                 `/devices?q=${encodeURIComponent(chip.device.mac ?? chip.device.name)}`,
               )
             }}
