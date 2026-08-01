@@ -264,7 +264,9 @@
     "settingsDesc": "Theme, units and installation",
     "theme": "Theme",
     "topology": "Topology",
-    "topologyDesc": "Visual network map"
+    "topologyDesc": "Visual network map",
+    "collapse": "Collapse menu",
+    "expand": "Expand menu"
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."
@@ -522,10 +524,19 @@
       "active": "Active session on this device",
       "activeCaption": "You will have to enter the password again to sign in.",
       "logout": "Sign out",
-      "title": "Session",
+      "title": "My session",
       "demoActive": "Demo mode active",
       "demoCaption": "Local simulated data, no connection to your network.",
-      "exitDemo": "Exit demo mode"
+      "exitDemo": "Exit demo mode",
+      "changePassword": "Change my password",
+      "pwCurrent": "Current password",
+      "pwNew": "New password",
+      "pwConfirm": "Repeat password",
+      "pwMismatch": "Passwords do not match",
+      "pwSubmit": "Change password",
+      "pwSubmitting": "Changing…",
+      "pwChanged": "Password updated",
+      "pwError": "Could not change password"
     },
     "subtitle": "NetPulse local preferences — nothing here modifies your network",
     "themeDark": "Dark",
@@ -628,5 +639,9 @@
       "restart": "restarting the service",
       "done": "done, reloading"
     }
+  },
+  "demo": {
+    "banner": "Demo mode — changes are not applied to the system",
+    "exit": "Exit demo"
   }
 }

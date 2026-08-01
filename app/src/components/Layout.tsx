@@ -4,6 +4,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
+  ChevronsLeft,
+  ChevronsRight,
   Download,
   LayoutDashboard,
   MonitorSmartphone,
@@ -160,10 +162,55 @@ function GatewayStatus() {
 // Sidebar desktop (≥1024px) — 232px
 // ---------------------------------------------------------------------------
 
-function Sidebar() {
+function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
   const { t } = useTranslation()
   const main = NAV_ITEMS.filter((i) => i.to !== '/settings')
   const settings = NAV_ITEMS[NAV_ITEMS.length - 1]
+
+  if (collapsed) {
+    // Sidebar colapsado = raíl de iconos en lg (persiste en localStorage)
+    return (
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-16 flex-col items-center border-r border-border bg-surface lg:flex">
+        <div className="flex h-16 items-center pt-safe">
+          <Logo compact />
+        </div>
+        <nav className="flex-1 space-y-1 py-2" aria-label={t('nav.mainNav')}>
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              title={t(item.labelKey)}
+              className={({ isActive }) =>
+                cn(
+                  'group relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150',
+                  isActive ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+                )
+              }
+            >
+              <item.icon className="h-5 w-5" strokeWidth={1.75} />
+              <NavItemBadge to={item.to} variant="rail" />
+              <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-lg border border-border-strong bg-elevated px-2.5 py-1.5 text-caption font-medium text-text-primary shadow-lg group-hover:block">
+                {t(item.labelKey)}
+              </span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="flex flex-col items-center gap-2 border-t border-border py-3">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={t('nav.expand')}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <ChevronsRight className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
+      </aside>
+    )
+  }
+
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-border bg-surface lg:flex">
       <div className="flex h-16 items-center px-5 pt-safe">
@@ -214,6 +261,14 @@ function Sidebar() {
             <settings.icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
             {t('nav.settings')}
           </NavLink>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={t('nav.collapse')}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <ChevronsLeft className="h-4 w-4" strokeWidth={1.75} />
+          </button>
         </div>
       </div>
     </aside>
@@ -492,17 +547,52 @@ function TabBar() {
 // Layout
 // ---------------------------------------------------------------------------
 
+/** Barra de modo demo (patrón zfsctl): visible en todas las vistas con sesión demo. */
+function DemoBanner() {
+  const { t } = useTranslation()
+  return (
+    <div
+      role="status"
+      className="mb-4 flex items-center gap-2.5 rounded-xl border border-warn/35 bg-warn/10 px-3.5 py-2.5 text-[13px] font-semibold text-warn"
+    >
+      <span className="h-2 w-2 shrink-0 animate-ping-soft rounded-full bg-warn" />
+      <span>{t('demo.banner')}</span>
+      <button
+        type="button"
+        onClick={() => {
+          sessionStorage.removeItem('netpulse-demo')
+          window.location.assign('/login')
+        }}
+        className="ml-auto flex h-8 items-center rounded-lg border border-warn/40 px-3 text-caption font-medium text-warn transition-colors hover:bg-warn/15"
+      >
+        {t('demo.exit')}
+      </button>
+    </div>
+  )
+}
+
 function Shell() {
   const location = useLocation()
   const key = useMemo(() => location.pathname, [location.pathname])
+  const { isDemo } = useNetPulse()
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('netpulse-sidebar-collapsed') === '1')
+
+  const toggleCollapse = () => {
+    setCollapsed((prev) => {
+      localStorage.setItem('netpulse-sidebar-collapsed', prev ? '0' : '1')
+      return !prev
+    })
+  }
+
   return (
     <div className="min-h-[100dvh] bg-canvas">
-      <Sidebar />
+      <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
       <Rail />
-      <div className="md:pl-16 lg:pl-[232px]">
+      <div className={collapsed ? 'md:pl-16 lg:pl-16' : 'md:pl-16 lg:pl-[232px]'}>
         <Topbar />
         <MobileHeader />
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
+          {isDemo && <DemoBanner />}
           <UpdateBanner />
           <AnimatePresence mode="wait">
             <motion.div

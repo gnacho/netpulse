@@ -264,7 +264,9 @@
     "settingsDesc": "Tema, unidades e instalación",
     "theme": "Tema",
     "topology": "Topología",
-    "topologyDesc": "Mapa visual de la red"
+    "topologyDesc": "Mapa visual de la red",
+    "collapse": "Plegar menú",
+    "expand": "Desplegar menú"
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."
@@ -522,10 +524,19 @@
       "active": "Sesión activa en este dispositivo",
       "activeCaption": "Tendrás que volver a introducir la contraseña para entrar.",
       "logout": "Cerrar sesión",
-      "title": "Sesión",
+      "title": "Mi sesión",
       "demoActive": "Modo demo activo",
       "demoCaption": "Datos simulados locales, sin conexión a tu red.",
-      "exitDemo": "Salir del modo demo"
+      "exitDemo": "Salir del modo demo",
+      "changePassword": "Cambiar mi contraseña",
+      "pwCurrent": "Contraseña actual",
+      "pwNew": "Nueva contraseña",
+      "pwConfirm": "Repite la contraseña",
+      "pwMismatch": "Las contraseñas no coinciden",
+      "pwSubmit": "Cambiar contraseña",
+      "pwSubmitting": "Cambiando…",
+      "pwChanged": "Contraseña actualizada",
+      "pwError": "No se pudo cambiar la contraseña"
     },
     "subtitle": "Preferencias locales de NetPulse — nada aquí modifica tu red",
     "themeDark": "Oscuro",
@@ -628,5 +639,9 @@
       "restart": "reiniciando el servicio",
       "done": "completado, recargando"
     }
+  },
+  "demo": {
+    "banner": "Modo demo — los cambios no se aplican al sistema",
+    "exit": "Salir del demo"
   }
 }
