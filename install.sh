@@ -30,7 +30,7 @@ INSTALL_DIR="/usr/local/bin"
 STATE_DIR="/var/lib/$APP_NAME"
 SERVICE_NAME="$APP_NAME"
 
-VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0
+VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0; DEMO=0
 
 # ---------------------------------------------------------------- logging ---
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -49,6 +49,7 @@ NetPulse — installer (network monitoring dashboard for OpenWrt/GL.iNet)
 
 Usage: sh install.sh [options]
   --version=X.Y.Z   version to install (default: latest stable release)
+  --demo            install in demo mode with sample data (DEMO_MODE=1)
   --unattended      no questions (automatic when there's no TTY)
   --dry-run         describe each step without touching the system
   --uninstall       remove service, binary and user (keeps $STATE_DIR)
@@ -64,6 +65,7 @@ EOF
 for arg in "$@"; do
     case "$arg" in
         --version=*)  VERSION="${arg#*=}" ;;
+        --demo)       DEMO=1 ;;
         --unattended) UNATTENDED=1 ;;
         --dry-run)    DRY_RUN=1 ;;
         --uninstall)  UNINSTALL=1 ;;
@@ -73,6 +75,28 @@ for arg in "$@"; do
     esac
 done
 [ -t 0 ] || UNATTENDED=1   # pipe-to-shell: never prompt
+
+# ------------------------------------------------------- interactive helpers -
+tty_ok() { (exec 3<>/dev/tty) 2>/dev/null; }
+
+# ask_yes_no "question" [default: 0=no, 1=yes] — prompts on /dev/tty; returns 0/1.
+# Non-interactive (--unattended or no TTY): returns the default silently.
+ask_yes_no() {
+    _q=$1; _def=${2:-0}
+    [ "$UNATTENDED" -eq 1 ] && return "$_def"
+    tty_ok || return "$_def"
+    if [ "$_def" -eq 1 ]; then _hint="Y/n"; else _hint="y/N"; fi
+    while :; do
+        printf '%s [%s] ' "$_q" "$_hint" > /dev/tty
+        IFS= read -r _r < /dev/tty || _r=""
+        case "$(printf '%s' "$_r" | tr '[:upper:]' '[:lower:]')" in
+            "") return "$_def" ;;
+            y|yes|s|si) return 0 ;;
+            n|no) return 1 ;;
+            *) printf 'Please answer y or n.\n' > /dev/tty ;;
+        esac
+    done
+}
 
 # -------------------------------------------------------------- elevation ---
 if [ "$(id -u)" -eq 0 ]; then SUDO=""
@@ -162,15 +186,50 @@ pick_port() {
     return 1
 }
 
+# choose_port WANT — interactive (TTY): asks which port to use, suggesting the
+# next free one and rejecting busy/invalid answers. Non-interactive: prints the
+# next free port. Prints the chosen port on stdout; fails if none is free.
+choose_port() {
+    _want=$1
+    _next=$(pick_port "$((_want + 1))") || _next=""
+    if [ "$UNATTENDED" -eq 0 ] && tty_ok; then
+        while :; do
+            printf 'Port %s is already in use.\nWhich port should %s listen on? [%s] ' \
+                "$_want" "$APP_NAME" "${_next:-none free}" > /dev/tty
+            IFS= read -r _r < /dev/tty || _r=""
+            _r="${_r:-$_next}"
+            case "$_r" in
+                ''|*[!0-9]*) printf 'Please enter a port number.\n' > /dev/tty; continue ;;
+            esac
+            if [ "$_r" -lt 1 ] || [ "$_r" -gt 65535 ]; then
+                printf 'Out of range (1-65535).\n' > /dev/tty; continue
+            fi
+            if port_in_use "$_r"; then
+                printf 'Port %s is also in use.\n' "$_r" > /dev/tty; continue
+            fi
+            printf '%s' "$_r"; return 0
+        done
+    fi
+    [ -n "$_next" ] || return 1
+    printf '%s' "$_next"
+}
+
 # Fresh install only: an upgrade keeps the port from the existing .env file.
 PORT="$DEFAULT_PORT"
 if [ ! -f "$STATE_DIR/.env" ]; then
     if port_in_use "$DEFAULT_PORT"; then
-        PORT=$(pick_port "$((DEFAULT_PORT + 1))") \
+        PORT=$(choose_port "$DEFAULT_PORT") \
             || fatal 25 "port $DEFAULT_PORT is busy and no free port found in $((DEFAULT_PORT + 1))-$((DEFAULT_PORT + 21)) — set one manually in $STATE_DIR/.env after install"
         warn "port $DEFAULT_PORT is already in use — NetPulse will listen on $PORT instead"
     else
         ok "port $DEFAULT_PORT is free"
+    fi
+fi
+
+# Demo mode: --demo flag, or ask interactively on fresh installs.
+if [ ! -f "$STATE_DIR/.env" ] && [ "$DEMO" -eq 0 ]; then
+    if ask_yes_no "Install in DEMO mode first? (sample network with 60+ devices to explore; you can switch to your real routers later)" 0; then
+        DEMO=1
     fi
 fi
 
@@ -241,13 +300,13 @@ fi
 # Initial config ONLY on fresh install (upgrades never touch .env or data)
 if [ ! -f "$STATE_DIR/.env" ]; then
     ADMIN_PASS=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
-    if [ "$DRY_RUN" -eq 1 ]; then info "[dry-run] would generate $STATE_DIR/.env (0600, random admin password, PORT=$PORT)"; else
+    if [ "$DRY_RUN" -eq 1 ]; then info "[dry-run] would generate $STATE_DIR/.env (0600, random admin password, PORT=$PORT, DEMO_MODE=$DEMO)"; else
         $SUDO tee "$STATE_DIR/.env" >/dev/null <<EOF
 PORT=$PORT
 DATA_DIR=./data
 AUTH_USER=admin
 AUTH_PASS=$ADMIN_PASS
-DEMO_MODE=0
+DEMO_MODE=$DEMO
 SSH_KEY_PATH=$STATE_DIR/.ssh/id_ed25519
 EOF
         $SUDO chmod 0600 "$STATE_DIR/.env"
@@ -258,6 +317,8 @@ else
     FRESH_CREDENTIALS=0
     PORT=$(sed -n 's/^PORT=//p' "$STATE_DIR/.env" | head -1)
     PORT="${PORT:-$DEFAULT_PORT}"
+    DEMO=$(sed -n 's/^DEMO_MODE=//p' "$STATE_DIR/.env" | head -1)
+    DEMO="${DEMO:-0}"
     info "existing config kept ($STATE_DIR/.env)"
 fi
 
@@ -325,6 +386,13 @@ printf '  systemctl status %s\n  journalctl -u %s -f\n' "$SERVICE_NAME" "$SERVIC
 printf '  sh install.sh              # update to the latest stable version\n'
 printf '  sh install.sh --uninstall\n'
 printf '\nNotes:\n'
+if [ "${DEMO:-0}" = "1" ]; then
+    printf '  - DEMO MODE: sample network with 60+ devices; your routers are untouched.\n'
+    printf '    To go live: set DEMO_MODE=0 in %s/.env and systemctl restart %s\n' "$STATE_DIR" "$SERVICE_NAME"
+else
+    printf '  - To explore with sample data first: set DEMO_MODE=1 in %s/.env\n' "$STATE_DIR"
+    printf '    and systemctl restart %s (demo mode never touches your routers).\n' "$SERVICE_NAME"
+fi
 printf '  - No firewall port was opened. If you need one:\n'
 printf '      firewall-cmd --permanent --add-port=%s/tcp && firewall-cmd --reload\n' "$PORT"
 printf '      ufw allow %s/tcp\n' "$PORT"
