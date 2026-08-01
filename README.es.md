@@ -6,7 +6,17 @@ puntos de acceso OpenWrt.
 
 - **Frontend** (`app/`): React 19 + Vite + Tailwind + shadcn/ui. PWA instalable.
 - **Backend** (`server/`): Node + Hono + SQLite (better-sqlite3). Auth
-  single-user con cookie de sesión, SSE en tiempo real (5 s), adapters demo/live.
+  multiusuario con cookie de sesión, SSE en tiempo real (5 s), adapters demo/live.
+- **Backend Go** (`server-go/`): reescritura completa del backend en Go
+  (`net/http` estándar, `modernc.org/sqlite`, binario estático único con el
+  frontend embebido). Reemplazo directo: misma API/variables/`.env`, migración
+  automática desde la BD de Node en el primer arranque. Unit systemd:
+  `deploy/netpulse-go.service`.
+- **Collector** (`collector/`): sidecar en Go que sondea la latencia TCP a cada
+  router (lee la lista de routers de `netpulse.db` en solo lectura) y guarda su
+  propia SQLite de series temporales (`metrics.db`, raw → buckets 5 min → diario).
+  **TODO**: que server-go lea estas series de largo plazo del collector en vez
+  de depender solo de su tabla `metrics` de 5 s.
 
 ## Estructura
 
@@ -17,7 +27,9 @@ server/       # Backend Hono + SQLite (ver ARCHITECTURE.md)
     index.js  # Entry: valida .env, arranca Hono + poller + jobs
     demo/     # Dataset canónico (port ESM del mock del frontend)
     adapters/ # demo.js (dataset + random walk) · openwrt.js · adguard.js · wireguard.js
-deploy/       # Unit systemd de referencia
+server-go/    # Backend Go (reemplazo directo del Node; ver server-go/README.md)
+collector/    # Sidecar Go: latencia TCP a routers + series temporales propias
+deploy/       # Units systemd de referencia (netpulse, netpulse-go, netpulse-collector)
 ```
 
 ## Requisitos
