@@ -951,6 +951,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		routerList = append(routerList, router)
 	}
 	devices := l.buildDevices(polled)
+	// Topología v5: puertos FDB + switches/hipervisores inferidos
+	devices, distNodes := inferTopology(polled, devices)
 	// Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
 	for _, d := range devices {
 		if d.Online && d.SignalDbm != nil && *d.SignalDbm < -70 {
@@ -1038,7 +1040,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 			Total: len(devices), Online: online, KnownOffline: len(devices) - online, NewToday: 0,
 		},
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
-		Ts: time.Now().Unix(),
+		DistributionNodes: distNodes,
+		Ts:                time.Now().Unix(),
 	}, nil
 }
 
