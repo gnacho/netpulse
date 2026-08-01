@@ -24,9 +24,17 @@ import (
 //     "inferred" SOLO se crean en el gateway. En un AP, un puerto multi-MAC
 //     es casi seguro su UPLINK (aprende las MACs de toda la LAN) y el FDB
 //     no puede distinguirlo de un switch local → no se afirma nada: esos
-//     clientes quedan "sin evidencia" y el frontend los cuelga del gateway.
+//     clientes quedan "sin evidencia" y el frontend los cuelgan del gateway.
 //     Única excepción tras un AP: hipervisor con evidencia clara (MACs OUI
 //     de hipervisor + exactamente un host) = servidor con VMs tras ese AP.
+//   - LLDP (Fase 5, contrato C2): si en un puerto multi-MAC se anuncia un
+//     vecino LLDP cuya chassis-MAC está entre las aprendidas, el equipo que
+//     multiplexa queda IDENTIFICADO → nodo "managed" (nombre/mgmt-ip/caps
+//     anunciados). Es evidencia positiva, como la de hipervisor: aplica
+//     también tras un AP (el uplink al gateway no puede promover porque su
+//     MAC está excluida de las aprendidas). Además, cualquier vecino cuya
+//     chassis-MAC sea un Device conocido puebla Device.Lldp. Sin datos LLDP
+//     todo sigue exactamente como antes (inferred/hypervisor + reglas OUI).
 // ---------------------------------------------------------------------------
 
 // hypervisorOUI: prefijos de MAC de hipervisores conocidos.
@@ -167,6 +175,23 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 					continue
 				}
 			}
+			// LLDP: un vecino anunciado en este puerto cuya chassis-MAC está
+			// entre las aprendidas identifica el switch/AP gestionado que
+			// multiplexa → nodo "managed" (evidencia positiva, válida también
+			// tras un AP; ver cabecera).
+			if nb := findManagedNeighbor(p.lldp, port, kept); nb != nil {
+				setPort()
+				dists = append(dists, DistributionNode{
+					ID: id, Kind: "managed", RouterID: routerID, Port: port,
+					MacCount: len(kept), Name: nb.displayName(), Ip: nb.Mgmt, Lldp: nb.info(),
+				})
+				for _, mac := range kept {
+					if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
+						devices[idx].AttachTo = id
+					}
+				}
+				continue
+			}
 			if routerID != gatewayID {
 				// AP con puerto multi-MAC sin evidencia de hipervisor: es casi
 				// seguro su uplink (aprende las MACs de toda la LAN). No se
@@ -187,5 +212,36 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			}
 		}
 	}
+
+	// Post-paso LLDP: un vecino cuya chassis-MAC es un Device conocido lo
+	// identifica (Device.Lldp), en el puerto que sea y aunque no multiplexe.
+	for _, routerID := range routerIDs {
+		for i := range polled[routerID].lldp {
+			nb := &polled[routerID].lldp[i]
+			if nb.ChassisMac == "" {
+				continue
+			}
+			if idx, ok := byMAC[nb.ChassisMac]; ok {
+				devices[idx].Lldp = nb.info()
+			}
+		}
+	}
 	return devices, dists
+}
+
+// findManagedNeighbor: vecino LLDP anunciado en `port` cuya chassis-MAC está
+// entre las MACs aprendidas (nil si no hay evidencia).
+func findManagedNeighbor(neighbors []LldpNeighbor, port string, kept []string) *LldpNeighbor {
+	for i := range neighbors {
+		nb := &neighbors[i]
+		if nb.Port != port || nb.ChassisMac == "" {
+			continue
+		}
+		for _, mac := range kept {
+			if mac == nb.ChassisMac {
+				return nb
+			}
+		}
+	}
+	return nil
 }
