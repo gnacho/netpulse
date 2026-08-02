@@ -135,6 +135,11 @@ type Live struct {
 	backhaulCache  map[string]backhaulCacheEntry
 	lldpCache      map[string]lldpCacheEntry
 
+	// Agentes nativos (Tier 2): último payload por slug + flag de caída
+	// (degradado a SSH tras emitir la alerta, SPEC-AGENTE-PILOTO §1).
+	agents    *AgentRegistry
+	agentDown map[string]bool
+
 	agStd *AdGuardClient
 	agGL  *AdGuardGlinetClient
 	agKey string
@@ -168,6 +173,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		wanDown:       map[string]int{},
 		backhaulCache: map[string]backhaulCacheEntry{},
 		lldpCache:     map[string]lldpCacheEntry{},
+		agentDown:     map[string]bool{},
 	}
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
@@ -411,8 +417,13 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 	return out
 }
 
-// pollRouter sondea un router; error si está inalcanzable.
+// pollRouter sondea un router; error si está inalcanzable. Si el router tiene
+// agente nativo con payload fresco (Tier 2), el sondeo viene del último push
+// y NO se toca SSH; si el agente expiró, se degrada a Tier 0 (SSH) con aviso.
 func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
+	if fresh, p := l.pollRouterAgent(cfg); fresh {
+		return p, nil
+	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
 	gw := l.gatewayCfg

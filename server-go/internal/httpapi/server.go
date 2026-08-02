@@ -39,6 +39,9 @@ type Deps struct {
 	Secret  string
 	Static  *staticspa.Handler
 	Updater *updater.Updater // nil → sin rutas /api/update/*
+	// Agents: registry de agentes nativos (ingesta POST /api/ingest/agent y
+	// last_seen/versión de GET /api/agents). nil → ingesta 503.
+	Agents *adapters.AgentRegistry
 	// LastOverview devuelve el último overview del poller (nil si aún no hay).
 	LastOverview func() *adapters.Overview
 	// PollNow dispara un ciclo de sondeo inmediato (POST /api/refresh);
@@ -53,6 +56,7 @@ type server struct {
 	adapter adapters.Snapshotter
 	hub     *sse.Hub
 	secret  string
+	agents  *adapters.AgentRegistry
 	lastOv  func() *adapters.Overview
 	pollNow func()
 	started time.Time
@@ -60,13 +64,17 @@ type server struct {
 	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
 	refreshMu   sync.Mutex
 	lastRefresh time.Time
+
+	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
+	ingestLimit *ipRateLimit
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
 func NewHandler(d Deps) http.Handler {
 	s := &server{
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
-		secret: d.Secret, lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
+		secret: d.Secret, agents: d.Agents, lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
+		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 	}
 	mode := d.Adapter.Mode()
 
@@ -97,6 +105,14 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
+
+	// --- Agentes nativos (Fase 6) ---
+	// Ingesta: SIN sesión (auth Bearer propia; exenta en RequireAuth).
+	mux.HandleFunc("POST /api/ingest/agent", s.handleIngestAgent)
+	// Gestión de tokens: tras sesión como el resto del API.
+	mux.HandleFunc("POST /api/agents", s.handleAgentsCreate)
+	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
+	mux.HandleFunc("DELETE /api/agents/{slug}", s.handleAgentsDelete)
 
 	// --- Users ---
 	// Idioma propio: FUERA del gate admin (se registra antes en Node).

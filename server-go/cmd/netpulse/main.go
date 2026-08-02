@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -78,6 +79,16 @@ func run() error {
 
 	// Adapter: DEMO_MODE=1 → demo (dataset canónico + random walk);
 	// live → sondeo real (SSH/ubus) de los routers configurados.
+	// Registry de agentes nativos (Fase 6): en live alimenta el adapter
+	// live-agent (Tier 2 con degrade a SSH); en demo solo registra pushes
+	// (last_seen/versión para GET /api/agents) sin tocar el dataset canónico.
+	agentTTL := adapters.AgentTTLDefault
+	if v := os.Getenv("NETPULSE_AGENT_TTL_S"); v != "" {
+		if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+			agentTTL = time.Duration(sec) * time.Second
+		}
+	}
+	agentReg := adapters.NewAgentRegistry(agentTTL)
 	var adapter adapters.Snapshotter
 	if cfg.DemoMode {
 		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
@@ -87,7 +98,9 @@ func run() error {
 			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
 			adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 		} else {
-			adapter = adapters.NewLive(cfg, dbHandle, routers, pool)
+			live := adapters.NewLive(cfg, dbHandle, routers, pool)
+			live.SetAgents(agentReg)
+			adapter = live
 		}
 	}
 
@@ -119,6 +132,7 @@ func run() error {
 		Secret:  secret,
 		Static:  static,
 		Updater: upd,
+		Agents:  agentReg,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
