@@ -13,7 +13,7 @@ import { animate, motion, useReducedMotion } from 'framer-motion'
 import { Cloud, Laptop, Router as RouterIcon, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
-import type { DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
+import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
 import { DEVICE_ICONS } from '@/components/DeviceRow'
 import { cn } from '@/lib/utils'
@@ -41,6 +41,9 @@ const INITIAL_VIEW: View = { x: 0, y: 0, w: VB_W, h: VB_H }
 /** zoom 2×–0.5× */
 const MIN_W = VB_W / 2
 const MAX_W = VB_W * 2
+/** Chip "+N" de peers WG que exceden las 4 coordenadas canónicas (zona de
+ *  peers, entre la órbita de Internet y el peer interior derecho) */
+const PEERS_OVERFLOW_COORD = { x: 560, y: 26 }
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v))
@@ -65,7 +68,18 @@ type TooltipData =
   | { kind: 'router'; id: string; router: Router; x: number; y: number }
   | { kind: 'internet'; id: string; x: number; y: number }
   | { kind: 'peer'; id: string; peer: WGPeer; x: number; y: number }
-  | { kind: 'chip'; id: string; chip: ChipNode; x: number; y: number }
+  | { kind: 'peersOverflow'; id: string; peers: WGPeer[]; x: number; y: number }
+  | {
+      kind: 'chip'
+      id: string
+      chip: ChipNode
+      /** >0 si el chip es un host hipervisor (nota "no es un switch") */
+      hostCtCount?: number
+      /** device host cuando el chip es un CT/VM anidado */
+      ctHost?: Device
+      x: number
+      y: number
+    }
   | { kind: 'dist'; id: string; node: DistributionNode; x: number; y: number }
 
 type TooltipState = TooltipData & { left: number; top: number; below: boolean }
@@ -142,8 +156,55 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
           </div>
         </div>
       )}
-      {tip.kind === 'chip' && <ChipTooltip chip={tip.chip} touch={touch} />}
-      {tip.kind === 'dist' && (
+      {tip.kind === 'peersOverflow' && (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-text-primary">
+              {t('topology.peers.overflowTitle', { count: tip.peers.length })}
+            </span>
+            <StatusPill tone="tunnel" label={t('common.active')} pulse />
+          </div>
+          <div className="mt-2 space-y-1.5">
+            {tip.peers.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 text-caption">
+                <span className="font-semibold text-text-primary">{p.name}</span>
+                <span className="font-mono text-text-muted">Handshake {relTime(p.lastHandshake)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {tip.kind === 'chip' && (
+        <ChipTooltip chip={tip.chip} touch={touch} hostCtCount={tip.hostCtCount} ctHost={tip.ctHost} />
+      )}
+      {tip.kind === 'dist' && tip.node.kind === 'managed' && (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-text-primary">
+              {tip.node.name ?? t('topology.dist.managed')}
+            </span>
+            <StatusPill tone="accent" label="LLDP" />
+          </div>
+          <div className="mt-0.5 text-caption text-text-muted">
+            {[tip.node.ip, tip.node.port].filter(Boolean).join(' · ')}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
+          </div>
+          {tip.node.lldp && (
+            <div className="mt-2 text-caption font-semibold text-accent">
+              {t('topology.lldpIdentified', {
+                chassis: tip.node.lldp.chassis ?? '—',
+                mgmt: tip.node.lldp.mgmt ?? '—',
+                caps: tip.node.lldp.caps ?? '—',
+                port: tip.node.lldp.portDesc ?? '—',
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      {tip.kind === 'dist' && tip.node.kind !== 'managed' && (
         <div>
           <div className="flex items-center justify-between gap-2">
             <span className="font-display text-sm font-semibold text-text-primary">{t('topology.dist.title')}</span>
@@ -164,7 +225,19 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
 }
 
 /** Tooltip de un chip de dispositivo (cliente, hub, host hipervisor o CT). */
-function ChipTooltip({ chip, touch }: { chip: ChipNode; touch: boolean }) {
+function ChipTooltip({
+  chip,
+  touch,
+  hostCtCount = 0,
+  ctHost,
+}: {
+  chip: ChipNode
+  touch: boolean
+  /** >0 si el chip es un host hipervisor (badge +N en el mapa) */
+  hostCtCount?: number
+  /** device host cuando el chip es un CT/VM anidado */
+  ctHost?: Device
+}) {
   const { t } = useTranslation()
   const d = chip.device
   return (
@@ -200,7 +273,16 @@ function ChipTooltip({ chip, touch }: { chip: ChipNode; touch: boolean }) {
         </div>
       )}
       {chip.isCt && (
-        <div className="mt-2 text-caption leading-snug text-text-secondary">{t('topology.ct.note')}</div>
+        <div className="mt-2 text-caption leading-snug text-text-secondary">
+          {ctHost
+            ? t('topology.ct.noteIn', { host: ctHost.name, port: ctHost.port ?? '—' })
+            : t('topology.ct.note')}
+        </div>
+      )}
+      {!chip.isCt && hostCtCount > 0 && (
+        <div className="mt-2 text-caption leading-snug text-text-secondary">
+          {t('topology.host.note', { count: hostCtCount })}
+        </div>
       )}
       {!chip.isCt && chip.weak && (
         <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>
@@ -281,7 +363,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { chips, ctsByHost, ctCountByHost, distNodes, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
@@ -463,7 +545,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
     const rect = el.getBoundingClientRect()
     const v = viewRef.current
     // nodos en la zona superior del mapa: tooltip hacia abajo
-    const below = data.kind === 'internet' || data.kind === 'peer'
+    const below = data.kind === 'internet' || data.kind === 'peer' || data.kind === 'peersOverflow'
     const left = clamp(((data.x - v.x) / v.w) * rect.width, 130, rect.width - 130)
     const rawTop = ((data.y - v.y) / v.h) * rect.height
     const top = below ? clamp(rawTop, 16, rect.height - 190) : clamp(rawTop, 190, rect.height - 20)
@@ -515,6 +597,21 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
 
   // -- atenuación por hover -----------------------------------------------------
   const related = useMemo(() => (hoverNode ? relatedTo(hoverNode) : null), [hoverNode])
+  /** chip por id (para resolver el host de un CT en tooltips) */
+  const chipById = useMemo(() => new Map(chips.map((c) => [c.id, c])), [chips])
+  /** datos del tooltip de un chip: +N si es host hipervisor, host si es CT */
+  const chipTip = useCallback(
+    (chip: ChipNode): TooltipData => ({
+      kind: 'chip',
+      id: chip.id,
+      chip,
+      hostCtCount: ctCountByHost.get(chip.id) ?? 0,
+      ctHost: chip.isCt ? chipById.get(chip.hubId)?.device : undefined,
+      x: chip.x,
+      y: chip.y - chip.size / 2 - 6,
+    }),
+    [ctCountByHost, chipById],
+  )
   const nodeOpacity = useCallback(
     (id: string) => {
       if (!related) return 1
@@ -571,9 +668,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         </defs>
 
         {/* ------------------------- Anillos guía wifi ------------------------- */}
+        {/* guías para TODOS los anillos usados (el modelo añade anillos extra
+            si el wifi supera el aforo de los dos primeros) */}
         <g aria-hidden>
           {routerNodes.map((node) =>
-            (node.id === model.gatewayNode?.id ? [88, 118] : [74, 108]).map((r) => (
+            (model.ringRadii.get(node.id) ?? (node.id === model.gatewayNode?.id ? [88, 118] : [74, 108])).map((r) => (
               <circle
                 key={`${node.id}-ring-${r}`}
                 cx={node.x}
@@ -714,6 +813,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
               />
             )}
+            {/* anillo orbital con punto rotando 24s (mockup v5) */}
+            {!reduce && (
+              <g aria-hidden>
+                <circle r={38} fill="none" stroke={COLOR.ok} strokeWidth={1.2} strokeDasharray="3 7" opacity={0.55} />
+                <circle r={3} fill={COLOR.ok} cx={0} cy={-38} />
+                <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="24s" repeatCount="indefinite" />
+              </g>
+            )}
             <circle r={28} fill="rgb(var(--elevated))" stroke={COLOR.ok} strokeWidth={2} />
             <Cloud x={-12} y={-10} width={24} height={20} className="text-ok" strokeWidth={1.75} aria-hidden />
           </motion.g>
@@ -845,6 +952,55 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           )
         })}
 
+        {/* ------------------------- Peers ocultos ("+N") ---------------------- */}
+        {hiddenPeers.length > 0 && (
+          <g transform={`translate(${PEERS_OVERFLOW_COORD.x} ${PEERS_OVERFLOW_COORD.y})`}>
+            <motion.g
+              initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
+              animate={{ opacity: nodeOpacity('peers-overflow'), scale: 1 }}
+              transition={reduce ? { duration: 0 } : { delay: 2.1 * T, duration: 0.35 }}
+              style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            >
+              <g
+                className="cursor-pointer outline-none"
+                role="button"
+                tabIndex={0}
+                aria-label={t('topology.peers.overflowAria', { count: hiddenPeers.length })}
+                onPointerEnter={(e) =>
+                  handleNodeHover(
+                    { kind: 'peersOverflow', id: 'peers-overflow', peers: hiddenPeers, x: PEERS_OVERFLOW_COORD.x, y: PEERS_OVERFLOW_COORD.y + 30 },
+                    e,
+                  )
+                }
+                onPointerLeave={closeHover}
+                onClick={(e) =>
+                  nodeClick(
+                    e,
+                    { kind: 'peersOverflow', id: 'peers-overflow', peers: hiddenPeers, x: PEERS_OVERFLOW_COORD.x, y: PEERS_OVERFLOW_COORD.y + 30 },
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleNodeClick({
+                      kind: 'peersOverflow',
+                      id: 'peers-overflow',
+                      peers: hiddenPeers,
+                      x: PEERS_OVERFLOW_COORD.x,
+                      y: PEERS_OVERFLOW_COORD.y + 30,
+                    })
+                  }
+                }}
+              >
+                <rect x={-15} y={-11} width={30} height={22} rx={8} fill="rgb(var(--elevated))" stroke={COLOR.tunnel} strokeWidth={1.5} />
+                <text x={0} y={3.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={COLOR.tunnel}>
+                  +{hiddenPeers.length}
+                </text>
+              </g>
+            </motion.g>
+          </g>
+        )}
+
         {/* ------------------------- Nodos de distribución (switch inferido) --- */}
         {distNodes.map((dv, i) => (
           <DistNodeGroup
@@ -868,18 +1024,16 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(chip.id)}
-            onHover={(e) =>
-              handleNodeHover({ kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 }, e)
-            }
+            onHover={(e) => handleNodeHover(chipTip(chip), e)}
             onLeave={closeHover}
             onClick={(e) => {
               if (chip.isCt) {
-                nodeClick(e, { kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 })
+                nodeClick(e, chipTip(chip))
                 return
               }
               nodeClick(
                 e,
-                { kind: 'chip', id: chip.id, chip, x: chip.x, y: chip.y - chip.size / 2 - 6 },
+                chipTip(chip),
                 `/devices?q=${encodeURIComponent(chip.device.mac ?? chip.device.name)}`,
               )
             }}
@@ -914,12 +1068,19 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 : t('common.clientsCount', { count: node.router.clients })}
               subColor={node.router.status === 'warn' ? COLOR.warn : undefined} />
           ))}
-          {/* Distnodes inferidos */}
-          {distNodes.map((dv, i) => (
-            <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
-              reduce={reduce ?? false} title={t('topology.dist.title')}
-              sub={`${t('topology.dist.inferred')} · ${dv.node.port}`} />
-          ))}
+          {/* Distnodes (inferidos / gestionados vía LLDP) */}
+          {distNodes.map((dv, i) =>
+            dv.node.kind === 'managed' ? (
+              <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
+                reduce={reduce ?? false} title={dv.node.name ?? t('topology.dist.managed')}
+                sub={`${[dv.node.ip ?? 'LLDP', dv.node.port].join(' · ')}`}
+                subColor={COLOR.accent} />
+            ) : (
+              <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
+                reduce={reduce ?? false} title={t('topology.dist.title')}
+                sub={`${t('topology.dist.inferred')} · ${dv.node.port}`} />
+            ),
+          )}
           {/* Hosts hipervisores (badge +N ya en el chip; etiqueta con puerto y nº CTs) */}
           {[...ctsByHost.keys()].map((hostId, i) => {
             const host = chips.find((c) => c.id === hostId)
@@ -1029,13 +1190,18 @@ const DistNodeGroup = memo(function DistNodeGroup({
 }) {
   const { t } = useTranslation()
   const SwitchIcon = DEVICE_ICONS.switch
+  const managed = dv.node.kind === 'managed'
   return (
     <motion.g
       transform={`translate(${dv.x} ${dv.y})`}
       className="cursor-pointer outline-none"
       role="button"
       tabIndex={0}
-      aria-label={`${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${dv.node.port}`}
+      aria-label={
+        managed
+          ? `${dv.node.name ?? t('topology.dist.managed')}, LLDP, ${dv.node.ip ?? ''} ${dv.node.port}`
+          : `${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${dv.node.port}`
+      }
       animate={{ opacity }}
       transition={{ duration: 0.2 }}
       onPointerEnter={onHover}
@@ -1054,9 +1220,33 @@ const DistNodeGroup = memo(function DistNodeGroup({
         transition={reduce ? { duration: 0 } : { delay, type: 'spring', stiffness: 260, damping: 20 }}
         style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
       >
-        <circle r={dv.r + 5} fill="none" stroke="rgb(var(--text-muted))" strokeWidth={1} strokeDasharray="2 5" opacity={0.6} />
-        <circle r={dv.r} fill="rgb(var(--elevated) / 0.65)" stroke="rgb(var(--text-muted))" strokeWidth={1.5} strokeDasharray="4 4" />
-        <SwitchIcon x={-10} y={-10} width={20} height={20} className="text-text-secondary" strokeWidth={1.75} aria-hidden />
+        {/* managed: sólido con borde cyan (identificado vía LLDP);
+            inferred: círculo dashed (no podemos afirmarlo) */}
+        <circle
+          r={dv.r + 5}
+          fill="none"
+          stroke={managed ? COLOR.accent : 'rgb(var(--text-muted))'}
+          strokeWidth={1}
+          strokeDasharray={managed ? undefined : '2 5'}
+          opacity={managed ? 0.5 : 0.6}
+        />
+        <circle
+          r={dv.r}
+          fill={managed ? 'rgb(var(--elevated))' : 'rgb(var(--elevated) / 0.65)'}
+          stroke={managed ? COLOR.accent : 'rgb(var(--text-muted))'}
+          strokeWidth={1.5}
+          strokeDasharray={managed ? undefined : '4 4'}
+        />
+        <SwitchIcon x={-10} y={-10} width={20} height={20} className={managed ? 'text-accent' : 'text-text-secondary'} strokeWidth={1.75} aria-hidden />
+        {/* badge LLDP (misma geometría que el badge de los chips) */}
+        {managed && (
+          <g aria-hidden>
+            <rect x={dv.r - 4} y={-dv.r - 4} width={22} height={10} rx={5} fill="rgb(var(--elevated))" stroke={COLOR.accent} strokeWidth={1} />
+            <text x={dv.r + 7} y={-dv.r + 3.4} textAnchor="middle" fontSize={6.5} fontWeight={800} fill={COLOR.accent} letterSpacing="0.04em">
+              LLDP
+            </text>
+          </g>
+        )}
       </motion.g>
     </motion.g>
   )

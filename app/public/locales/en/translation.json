@@ -452,17 +452,24 @@
     "dist": {
       "title": "Switch or bridge",
       "inferred": "inferred",
+      "managed": "managed switch",
       "noIp": "no IP · not directly queryable",
       "port": "Gateway port",
       "macs": "Learned MACs",
       "fdbNote": "FDB: {{count}} heterogeneous MACs on a single physical port. Probably a switch; we cannot tell for sure without LLDP."
     },
     "host": {
-      "hypervisor": "hypervisor"
+      "hypervisor": "hypervisor",
+      "note": "Hypervisor: {{count}} CTs/VMs behind its virtual bridge — not a switch"
     },
     "ct": {
       "pill": "CT",
-      "note": "Container on the hypervisor · its traffic rides the host's cable"
+      "note": "Container on the hypervisor · its traffic rides the host's cable",
+      "noteIn": "Container on {{host}} · virtual bridge ({{port}}) · traffic rides the host's cable"
+    },
+    "peers": {
+      "overflowTitle": "{{count}} more peers",
+      "overflowAria": "{{count}} additional WireGuard peers"
     }
   },
   "settings": {

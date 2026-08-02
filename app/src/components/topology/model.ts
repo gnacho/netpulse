@@ -122,12 +122,16 @@ export interface TopologyModel {
   routerNodes: RouterNode[]
   internetNode: { id: 'internet'; x: number; y: number }
   peerNodes: PeerNode[]
+  /** Peers activos que exceden las coordenadas canónicas (chip "+N") */
+  hiddenPeers: WGPeer[]
   chips: ChipNode[]
   distNodes: DistNodeView[]
   /** CTs/VMs anidados por host hipervisor (hostId → chips en grid) */
   ctsByHost: Map<string, ChipNode[]>
   /** nº de CTs por host (badge +N) */
   ctCountByHost: Map<string, number>
+  /** radios de los anillos wifi realmente usados por router (guías punteadas) */
+  ringRadii: Map<string, number[]>
   links: TopoLink[]
   totalPackets: number
   activeLinkCount: number
@@ -382,10 +386,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
-    // Solo los distnodes inferidos son anchors propios (círculo dashed); el
+    // Los distnodes inferidos y gestionados (LLDP) son anchors propios; el
     // hipervisor se posiciona vía su device host (hub), el distnode solo
     // aporta metadatos (puerto, macCount).
-    const dists = distributionNodes.filter((n) => n.routerId === node.id && n.kind === 'inferred')
+    const dists = distributionNodes.filter(
+      (n) => n.routerId === node.id && (n.kind === 'inferred' || n.kind === 'managed'),
+    )
     const directWired = childrenOf(node.id).filter(isWired)
     const hubs = directWired.filter((d) => deviceHubs.has(d.id))
     const plain = directWired.filter((d) => !deviceHubs.has(d.id))
@@ -450,6 +456,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   })
 
   // wifi: anillos con arcos prohibidos (uplink, etiqueta, WAN, fan cableado)
+  const ringRadii = new Map<string, number[]>()
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
     const wifi = childrenOf(node.id).filter((d) => !isWired(d)).map((d) => mkChip(d, node.id))
@@ -473,6 +480,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       rings.push({ r: last.r + 30, cap: last.cap + 5 })
       cap = rings.reduce((a, r) => a + r.cap, 0)
     }
+    ringRadii.set(node.id, rings.map((r) => r.r))
     ringLayout(wifi, node, rings, excludes)
     // chips algo menores en anillos externos
     wifi.forEach((c, i) => {
@@ -504,7 +512,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const hc = mkChip(hubDev, parentHub)
     Object.assign(hc, p)
     hubChips.push(hc)
-    const kids = childrenOf(hubId).map((d) => mkChip(d, hubId))
+    // Los CTs de un hipervisor NO van en el abanico: los renderiza el loop
+    // dedicado (grid bajo el host, isCt=true). Meterlos aquí también duplicaba
+    // chips (key ct-*) y enlaces (key wired-ct-*).
+    const kids = hypervisorHosts.has(hubId) ? [] : childrenOf(hubId).map((d) => mkChip(d, hubId))
     const center = angleTo(routerById.get(parentHub)?.x ?? p.x, routerById.get(parentHub)?.y ?? p.y, p.x, p.y)
     fanLayout(kids, p, HUB_FAN_RADIUS, center - 45, center + 45)
     chips.push(...kids)
@@ -539,6 +550,8 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
 
   // -- peers WireGuard (arriba; túnel trazado vía Internet) -------------------
+  // Hay 4 coordenadas canónicas: los activos que exceden se agrupan en el
+  // chip "+N" (antes se descartaban silenciosamente).
   const activePeers = wireguard.peers.filter((p) => p.active)
   const peerNodes: PeerNode[] = activePeers.slice(0, PEER_COORDS.length).map((peer, i) => ({
     kind: 'peer',
@@ -546,6 +559,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     peer,
     ...PEER_COORDS[i],
   }))
+  const hiddenPeers = activePeers.slice(PEER_COORDS.length)
 
   // -- tráfico agregado de un sub-árbol (para el flujo ∝ Mbps) ----------------
   const subtreeTraffic = (hubId: string, seen = new Set<string>()): number => {
@@ -554,6 +568,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     let sum = 0
     for (const d of childrenOf(hubId)) {
       sum += d.trafficMbps + subtreeTraffic(d.id, seen)
+    }
+    // distnodes que cuelgan de este hub: su sub-árbol también viaja por el
+    // enlace del hub (el hipervisor ya cuenta vía su device host).
+    for (const dn of distributionNodes) {
+      if (dn.routerId !== hubId || dn.kind === 'hypervisor') continue
+      sum += subtreeTraffic(dn.id, seen)
     }
     const dn = distById.get(hubId)
     if (dn?.kind === 'hypervisor' && dn.hostDeviceId) {
@@ -576,12 +596,16 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
   apNodes.forEach((node, i) => {
     const p = UPLINK_PATHS[i]
-    const isWifi = node.id === 'patio'
+    // C1: backhaul real del router (ausente = cable); sin hardcode por id.
+    const isWifi = node.router.backhaul === 'wifi'
     const traffic = subtreeTraffic(node.id)
+    // Etiqueta wifi: genérica (no hay dato de señal en el contrato Router);
+    // cable: sufijo "· LLDP" si el AP se anuncia en el puerto del uplink (C2).
+    const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
     links.push({
       id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
       d: p.d, lx: p.lx, ly: p.ly,
-      label: isWifi ? 'WiFi uplink −58 dBm' : 'Cable 1G',
+      label,
       width: isWifi ? 2 : 3, ...flowFor(Math.max(traffic, isWifi ? 40 : 120)),
       from: gatewayNode?.id ?? 'internet', to: node.id,
     })
@@ -681,7 +705,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     })
   }
   for (const node of apNodes) {
-    const isWifi = node.id === 'patio'
+    const isWifi = node.router.backhaul === 'wifi'
     backhauls.push({
       id: `uplink-${node.id}`, a: 'Gateway', b: node.router.name, kind: 'uplink',
       type: isWifi ? 'topology.links.wifiUplink' : 'common.cable',
@@ -732,10 +756,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     routerNodes,
     internetNode,
     peerNodes,
+    hiddenPeers,
     chips,
     distNodes,
     ctsByHost,
     ctCountByHost,
+    ringRadii,
     links,
     totalPackets,
     activeLinkCount,
