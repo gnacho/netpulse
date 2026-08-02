@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   BadgeCheck,
+  BellOff,
+  BellRing,
   Check,
   Copy,
   Download,
@@ -30,6 +32,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn } from '@/lib/utils'
@@ -1047,6 +1050,189 @@ function ServicesCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
 }
 
 // ---------------------------------------------------------------------------
+// Tarjeta «Notificaciones push» (SPEC-PUSH §2)
+// ---------------------------------------------------------------------------
+
+type PushCardState =
+  | 'loading'
+  | 'insecure' // sin contexto seguro (HTTP en LAN que no sea localhost)
+  | 'unsupported' // sin SW / PushManager / Notification
+  | 'demo' // demo local: no se simula (una suscripción sin servidor nunca recibiría nada)
+  | 'denied' // permiso de notificaciones denegado en el navegador
+  | 'enabled' // suscripción push activa
+  | 'disabled' // todo listo, falta activar
+
+function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
+  const [state, setState] = useState<PushCardState>('loading')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Detección del estado real: soporte → demo → permiso → suscripción viva
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const ctx = pushContext()
+      if (ctx !== 'ok') {
+        setState(ctx)
+        return
+      }
+      if (isDemo) {
+        setState('demo')
+        return
+      }
+      if (Notification.permission === 'denied') {
+        setState('denied')
+        return
+      }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration()
+        const sub = reg ? await reg.pushManager.getSubscription() : null
+        if (!cancelled) setState(sub ? 'enabled' : 'disabled')
+      } catch {
+        if (!cancelled) setState('disabled')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+
+  /** requestPermission → pushManager.subscribe(VAPID) → POST /api/push/subscribe */
+  const enable = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') {
+        setState(perm === 'denied' ? 'denied' : 'disabled')
+        return
+      }
+      const vapid = await getVapidKey()
+      if (!vapid) {
+        setError(t('settings.push.errorServer'))
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+      })
+      const json = sub.toJSON()
+      const ok = await postPushSubscribe({
+        endpoint: sub.endpoint,
+        keys: { auth: json.keys?.auth ?? '', p256dh: json.keys?.p256dh ?? '' },
+      })
+      if (!ok) {
+        // El servidor no la guardó: baja local para no dejar estado fantasma
+        await sub.unsubscribe().catch(() => false)
+        setError(t('settings.push.errorServer'))
+        return
+      }
+      setState('enabled')
+      onSaved()
+    } catch {
+      setError(t('settings.push.errorGeneric'))
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, t, onSaved])
+
+  /** Baja local + POST /api/push/unsubscribe (best-effort: el servidor purga 404/410) */
+  const disable = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      const sub = reg ? await reg.pushManager.getSubscription() : null
+      if (sub) {
+        const endpoint = sub.endpoint
+        await sub.unsubscribe().catch(() => false)
+        await postPushUnsubscribe(endpoint)
+      }
+      setState('disabled')
+      onSaved()
+    } catch {
+      setError(t('settings.push.errorGeneric'))
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, t, onSaved])
+
+  const btnBase =
+    'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50'
+
+  return (
+    <Card title={t('settings.push.title')} caption={t('settings.push.caption')} index={4} reduce={reduce}>
+      {state === 'loading' && <p className="text-caption text-text-muted">{t('settings.push.checking')}</p>}
+
+      {state === 'enabled' && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+              <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
+              {t('settings.push.stateOn')}
+            </span>
+            <p className="text-caption leading-snug text-text-muted">{t('settings.push.stateOnCaption')}</p>
+          </div>
+          <button type="button" disabled={busy} onClick={() => void disable()} className={cn(btnBase, 'border border-border bg-elevated text-text-primary')}>
+            <BellOff className="h-3.5 w-3.5" strokeWidth={2} />
+            {busy ? t('settings.push.disabling') : t('settings.push.disable')}
+          </button>
+        </div>
+      )}
+
+      {state === 'disabled' && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 text-caption leading-snug text-text-secondary">{t('settings.push.stateOffCaption')}</p>
+          <button type="button" disabled={busy} onClick={() => void enable()} className={cn(btnBase, 'bg-accent text-canvas')}>
+            <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
+            {busy ? t('settings.push.enabling') : t('settings.push.enable')}
+          </button>
+        </div>
+      )}
+
+      {state === 'denied' && (
+        <p className="rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-relaxed text-warn">
+          {t('settings.push.denied')}
+        </p>
+      )}
+
+      {state === 'unsupported' && (
+        <p className="rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+          {t('settings.push.unsupported')}
+        </p>
+      )}
+
+      {state === 'insecure' && (
+        <p className="rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-relaxed text-warn">
+          {t('settings.push.insecure')}
+        </p>
+      )}
+
+      {state === 'demo' && (
+        <p className="rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+          {t('settings.push.demoNote')}
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">
+          {error}
+        </p>
+      )}
+
+      {(state === 'enabled' || state === 'disabled') && (
+        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.push.note')}</p>
+      )}
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -1628,6 +1814,11 @@ export default function Settings() {
               {t('settings.notif.note')}
             </p>
           </Card>
+        </div>
+
+        {/* Notificaciones push (Web Push nativo, SPEC-PUSH §2) */}
+        <div className="lg:col-span-7">
+          <PushNotificationsCard reduce={reduce} onSaved={notify} />
         </div>
 
         {/* Gestión de routers — solo con backend (modo live) */}
