@@ -67,6 +67,12 @@ func NewDemo() *Demo {
 	for _, p := range wg.Peers {
 		d.wgBytes[p.ID] = &wgByteCounter{rx: parseBytes(p.Rx), tx: parseBytes(p.Tx), active: p.Active}
 	}
+	// SPEC-CANON D5: totales y clientes por router DERIVADOS del dataset
+	// (los literales de canonRouters/canonAdguard son solo el canon base).
+	for i := range d.routers {
+		d.routers[i].Clients = onlineClientsOf(d.devices, d.routers[i].ID)
+	}
+	d.adguard.ClientsTotal = len(d.devices)
 	return d
 }
 
@@ -178,7 +184,7 @@ func (d *Demo) buildOverview() *Overview {
 		Adguard:      d.adguard,
 		Wireguard:    d.wireguardSnapshot(),
 		Routers:      d.routersCopy(),
-		DeviceTotals: DeviceTotals{Total: 66, Online: 58, KnownOffline: 8, NewToday: 3},
+		DeviceTotals: deviceTotalsOf(d.devices), // D5: derivado del dataset
 		TopDevices:   d.topDevices(5),
 		Alerts:       d.alertsCopy(),
 		UnreadAlerts: unread,
