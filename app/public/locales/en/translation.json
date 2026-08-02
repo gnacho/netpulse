@@ -112,6 +112,14 @@
     "viewDetailShort": "View detail"
   },
   "devices": {
+    "badges": {
+      "ct": "CT",
+      "ctTip": "Container on {{host}}",
+      "hypervisor": "Hypervisor",
+      "hypervisorTip": "Host with CTs/VMs nested behind its virtual bridge",
+      "managedSwitch": "Managed switch",
+      "managedSwitchTip": "Switch identified via LLDP"
+    },
     "bandAll": "All",
     "changeView": "Change view",
     "clearFilters": "Clear filters",
@@ -124,6 +132,7 @@
     "detail": {
       "dhcpLease": "DHCP lease",
       "firstSeen": "First seen",
+      "infra": "Infrastructure",
       "manufacturer": "Manufacturer (OUI)",
       "protected": "Protected",
       "rename": "Rename device",
@@ -138,6 +147,7 @@
     "filterByRouter": "Filter by router",
     "gridView": "Grid view",
     "groups": {
+      "infra": "Infra",
       "iot": "IoT & home",
       "moviles": "Mobiles",
       "ordenadores": "Computers",
@@ -178,6 +188,7 @@
       "ordenador": "computer",
       "portatil": "laptop",
       "servidor": "server",
+      "switch": "switch",
       "tablet": "tablet",
       "tv": "TV"
     },
@@ -409,13 +420,18 @@
       "wiredLink": "Physical cable (WAN, uplinks, devices)",
       "wifiUplink": "WiFi uplink (wireless backhaul)",
       "lldpIdentified": "Identified via LLDP",
-      "inferredSwitch": "Inferred switch or bridge (no IP)"
+      "inferredSwitch": "Inferred switch or bridge (no IP)",
+      "hypervisorHost": "Hypervisor (host with +N badge)",
+      "ctGrid": "CT/VM nested in a grid under its host"
     },
     "links": {
       "colLink": "Link",
       "colSpeed": "Speed",
       "congestedChannel": "Congested channel",
       "fiberWan": "WAN fiber",
+      "hypervisorCable": "Hypervisor cable",
+      "inferredSwitch": "Inferred switch · {{port}}",
+      "managedSwitch": "Managed switch",
       "throughput": "Link throughput",
       "title": "Links between devices",
       "wifiUplink": "WiFi uplink"
@@ -454,7 +470,7 @@
       "inferred": "inferred",
       "managed": "managed switch",
       "noIp": "no IP · not directly queryable",
-      "port": "Gateway port",
+      "port": "Port on {{router}}",
       "macs": "Learned MACs",
       "fdbNote": "FDB: {{count}} heterogeneous MACs on a single physical port. Probably a switch; we cannot tell for sure without LLDP."
     },
