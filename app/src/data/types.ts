@@ -260,6 +260,21 @@ export interface OverviewBundle {
   ts: number
 }
 
+/**
+ * Item de `GET /api/agents` (Fase 6): agente nativo registrado en un router.
+ * `slug` coincide con el `id` del router (mismo alfabeto que routerstore).
+ * `fresh` = el agente empujó dentro del TTL (~90 s); false → caído, el
+ * backend vuelve a sondear por SSH.
+ */
+export interface AgentInfo {
+  slug: string
+  /** Unix SEGUNDOS del último push; null si nunca empujó */
+  lastSeen: number | null
+  /** Versión del binario netpulse-agent ("" si aún no se conoce) */
+  version?: string
+  fresh: boolean
+}
+
 /** Respuesta paginada (`GET /api/devices`, `GET /api/alerts`). */
 export interface Paged<T> {
   items: T[]

@@ -9,6 +9,7 @@ import { fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { MetricBar } from '@/components/MetricBar'
 import { StatusPill } from '@/components/StatusPill'
+import { AgentBadge } from '@/components/routers/AgentBadge'
 import { getRouterExtras, uptimeHours } from '@/components/routers/routerExtras'
 import { cn } from '@/lib/utils'
 
@@ -76,10 +77,11 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const reduce = useReducedMotion()
-  const { routers } = useNetPulse()
+  const { routers, agents } = useNetPulse()
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [asc, setAsc] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
+  const agentBySlug = useMemo(() => new Map(agents.map((a) => [a.slug, a])), [agents])
 
   const sorted = useMemo(() => {
     const arr = [...routers]
@@ -162,7 +164,10 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                         <RouterIcon className="h-4 w-4" strokeWidth={1.75} />
                       </span>
                       <span>
-                        <span className="block font-medium text-text-primary">{r.name}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="font-medium text-text-primary">{r.name}</span>
+                          <AgentBadge agent={agentBySlug.get(r.id)} />
+                        </span>
                         <span className="block text-caption text-text-muted">{r.modelShort}</span>
                       </span>
                     </div>
@@ -222,6 +227,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                     <RouterIcon className="h-4 w-4" strokeWidth={1.75} />
                   </span>
                   <span className="truncate font-medium text-text-primary">{r.name}</span>
+                  <AgentBadge agent={agentBySlug.get(r.id)} />
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <StatusPill

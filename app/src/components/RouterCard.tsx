@@ -8,6 +8,8 @@ import type { Router } from '@/data/mock'
 import { HealthRing, STATUS_COLORS } from '@/components/HealthRing'
 import { Sparkline } from '@/components/Sparkline'
 import { StatusPill } from '@/components/StatusPill'
+import { AgentBadge } from '@/components/routers/AgentBadge'
+import { useAgentFor } from '@/hooks/useAgentFor'
 import { cn } from '@/lib/utils'
 
 function MiniMetric({
@@ -38,6 +40,7 @@ interface RouterCardProps {
 /** Tarjeta de router (design.md §10.2): StatusRing, mini-métricas, sparkline, chevron. */
 export function RouterCard({ router, index = 0, className }: RouterCardProps) {
   const { t } = useTranslation()
+  const agent = useAgentFor(router.id)
   const warn = router.status === 'warn'
   const offline = router.status === 'offline'
   return (
@@ -68,6 +71,7 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
                 <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                   {roleLabel(router.roleBadge)}
                 </span>
+                <AgentBadge agent={agent} className="shrink-0" />
               </div>
               <div className="truncate text-caption text-text-muted">{router.modelShort}</div>
             </div>

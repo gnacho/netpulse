@@ -6,6 +6,8 @@ import { roleLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
+import { AgentBadge } from '@/components/routers/AgentBadge'
+import { useAgentFor } from '@/hooks/useAgentFor'
 import { cn } from '@/lib/utils'
 
 /** ① Detail header (router-detail.md §①) — identidad + StatusRing 96px. */
@@ -13,6 +15,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const isGateway = router.roleBadge === 'Principal'
+  const agent = useAgentFor(router.id)
   const pills = [
     { label: roleLabel(router.roleBadge), tone: 'accent' as const, pulse: false },
     {
@@ -73,6 +76,15 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   <StatusPill tone={p.tone} label={p.label} pulse={p.pulse} />
                 </motion.span>
               ))}
+              {agent && (
+                <motion.span
+                  initial={reduce ? false : { opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2, delay: 0.15 + pills.length * 0.06 }}
+                >
+                  <AgentBadge agent={agent} />
+                </motion.span>
+              )}
             </div>
           </div>
         </div>
