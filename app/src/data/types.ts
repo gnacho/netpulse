@@ -201,13 +201,28 @@ export interface DistributionNode {
 
 export type AlertSeverity = 'warn' | 'critical' | 'info' | 'ok'
 
+/** Taxonomía de categorías de alerta (SPEC-ALERTAS §1, espejo del backend Go). */
+export type AlertCategory = 'router' | 'internet' | 'clients' | 'signal' | 'vpn' | 'system'
+
+/** Nivel de configuración por categoría (SPEC-ALERTAS §2). */
+export type AlertConfigLevel = 'urgent' | 'all' | 'none'
+
+/** Configuración de alertas: las 6 categorías con su nivel. */
+export type AlertsConfig = Record<AlertCategory, AlertConfigLevel>
+
 export interface AlertEvent {
   id: string
+  /** Categoría del evento (filtrado + configuración por nivel) */
+  category: AlertCategory
+  /** true = "rompe silencio" (badge URGENTE; push en Bloque C) */
+  urgent: boolean
   severity: AlertSeverity
   title: string
   description: string
-  /** Timestamp relativo ya formateado: "hace 12 min" */
+  /** LEGADO display: "hace 12 min" — fallback si `ts` no es válido */
   time: string
+  /** Unix SEGUNDOS; el frontend calcula el tiempo relativo */
+  ts: number
   read: boolean
   routerId?: string
 }
@@ -264,9 +279,11 @@ export interface DeviceQuery {
   pageSize?: number
 }
 
-/** Parámetros de `GET /api/alerts?severity=&page=&pageSize=`. */
+/** Parámetros de `GET /api/alerts?severity=&category=&unread=&page=&pageSize=`. */
 export interface AlertQuery {
   severity?: AlertSeverity
+  category?: AlertCategory
+  unread?: boolean
   page?: number
   pageSize?: number
 }

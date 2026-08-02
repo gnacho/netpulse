@@ -441,26 +441,31 @@ export const wireguard: WireGuardStats = {
 // Alertas (canon §11)
 // ---------------------------------------------------------------------------
 
+// Ts unix SEGUNDOS escalonados en coherencia con el string legado
+// ("38s ago" → now-38, "12 min ago" → now-720, ...) — espejo del canon Go
+// (server-go/internal/adapters/demo_dataset.go canonAlerts, SPEC-ALERTAS §5).
+const alertNow = Math.floor(Date.now() / 1000)
+
 export const alerts: AlertEvent[] = [
   {
-    id: 'alert-temp-patio', severity: 'warn', title: 'High temperature on Patio',
-    description: '71 °C, above the threshold (65 °C)', time: '12 min ago', read: false, routerId: 'patio',
+    id: 'alert-temp-patio', category: 'router', urgent: true, severity: 'warn', title: 'High temperature on Patio',
+    description: '71 °C, above the threshold (65 °C)', time: '12 min ago', ts: alertNow - 12 * 60, read: false, routerId: 'patio',
   },
   {
-    id: 'alert-firmware-estudio', severity: 'warn', title: 'Firmware available',
-    description: 'OpenWrt 24.10.1 for Study', time: '3h ago', read: false, routerId: 'estudio',
+    id: 'alert-firmware-estudio', category: 'system', urgent: false, severity: 'warn', title: 'Firmware available',
+    description: 'OpenWrt 24.10.1 for Study', time: '3h ago', ts: alertNow - 3 * 3600, read: false, routerId: 'estudio',
   },
   {
-    id: 'alert-nuevo-tab', severity: 'info', title: 'New device',
-    description: "'Galaxy Tab S9' joined Living Room", time: '26 min ago', read: true, routerId: 'living',
+    id: 'alert-nuevo-tab', category: 'clients', urgent: false, severity: 'info', title: 'New device',
+    description: "'Galaxy Tab S9' joined Living Room", time: '26 min ago', ts: alertNow - 26 * 60, read: true, routerId: 'living',
   },
   {
-    id: 'alert-handshake-wg', severity: 'info', title: 'WireGuard handshake',
-    description: 'Pixel 8 Pro connected from 5.224.x.x', time: '38s ago', read: true, routerId: 'flint2',
+    id: 'alert-handshake-wg', category: 'vpn', urgent: false, severity: 'info', title: 'WireGuard handshake',
+    description: 'Pixel 8 Pro connected from 5.224.x.x', time: '38s ago', ts: alertNow - 38, read: true, routerId: 'flint2',
   },
   {
-    id: 'alert-backup-adguard', severity: 'ok', title: 'AdGuard backup completed',
-    description: 'Configuration and lists backed up to the NAS', time: '1 day ago', read: true, routerId: 'flint2',
+    id: 'alert-backup-adguard', category: 'system', urgent: false, severity: 'ok', title: 'AdGuard backup completed',
+    description: 'Configuration and lists backed up to the NAS', time: '1 day ago', ts: alertNow - 24 * 3600, read: true, routerId: 'flint2',
   },
 ]
 

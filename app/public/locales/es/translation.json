@@ -45,6 +45,34 @@
       "offline": "offline",
       "weak": "señal débil",
       "other": "otros"
+    },
+    "filterByCategory": "Filtrar por categoría",
+    "urgentBadge": "URGENTE",
+    "configButton": "Configurar alertas",
+    "configTitle": "Configuración de alertas",
+    "configDescription": "Elige qué eventos entran en tu historial y cuentan en la campana, por categoría.",
+    "configSaved": "Guardado",
+    "configSaveError": "No se pudo guardar — inténtalo de nuevo",
+    "categories": {
+      "router": "Router",
+      "internet": "Internet",
+      "clients": "Clientes",
+      "signal": "Señal",
+      "vpn": "VPN",
+      "system": "Sistema"
+    },
+    "categoryDescriptions": {
+      "router": "Estado, temperatura y reinicios de los routers",
+      "internet": "Cortes y recuperaciones de la conexión WAN",
+      "clients": "Dispositivos que se unen a la red (conocidos y desconocidos)",
+      "signal": "Cobertura WiFi débil en clientes y nodos",
+      "vpn": "Handshakes y sesiones de WireGuard",
+      "system": "Firmware, copias de seguridad y servicios (AdGuard, NAS)"
+    },
+    "levels": {
+      "urgent": "Solo urgentes",
+      "all": "Todo",
+      "none": "Nada"
     }
   },
   "auth": {

@@ -5,19 +5,28 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
   ArrowRight,
+  Check,
   CheckCheck,
   CheckCircle2,
   ChevronRight,
+  Globe,
   Info,
   Laptop,
   MoreVertical,
   OctagonX,
+  Router,
+  Server,
+  Settings2,
+  Shield,
+  Signal,
   Smartphone,
   Tablet,
+  Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { relTime } from '@/i18n'
-import type { AlertSeverity } from '@/data/mock'
+import { alertRelTime, relTime } from '@/i18n'
+import type { AlertCategory, AlertConfigLevel, AlertSeverity } from '@/data/types'
+import { ALERT_CATEGORIES } from '@/data/alertConfig'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -51,6 +60,21 @@ const SEVERITY: Record<AlertSeverity, { icon: LucideIcon; tile: string; dot: str
 }
 
 const PEER_ICONS = { movil: Smartphone, portatil: Laptop, tablet: Tablet } as const
+
+// ---------------------------------------------------------------------------
+// Categorías (SPEC-ALERTAS §1): chips de filtro + configuración por nivel
+// ---------------------------------------------------------------------------
+
+const CATEGORY_META: Record<AlertCategory, { icon: LucideIcon; tile: string }> = {
+  router: { icon: Router, tile: 'bg-warn/10 text-warn' },
+  internet: { icon: Globe, tile: 'bg-info/10 text-info' },
+  clients: { icon: Users, tile: 'bg-accent-soft text-accent' },
+  signal: { icon: Signal, tile: 'bg-tunnel/10 text-tunnel' },
+  vpn: { icon: Shield, tile: 'bg-tunnel/10 text-tunnel' },
+  system: { icon: Server, tile: 'bg-ok/10 text-ok' },
+}
+
+const LEVEL_ORDER: readonly AlertConfigLevel[] = ['urgent', 'all', 'none']
 
 // ---------------------------------------------------------------------------
 // Filtros
@@ -252,7 +276,14 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) 
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-sm font-medium text-text-primary">{ev.title}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-medium text-text-primary">{ev.title}</span>
+              {ev.urgent && (
+                <span className="shrink-0 rounded-md bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-danger">
+                  {t('alerts.urgentBadge')}
+                </span>
+              )}
+            </span>
             <span className="flex shrink-0 items-center gap-2">
               <AnimatePresence initial={false}>
                 {!read && (
@@ -265,7 +296,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) 
                   />
                 )}
               </AnimatePresence>
-              <span className="font-mono text-caption text-text-muted">{relTime(ev.time)}</span>
+              <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>
             </span>
           </div>
           <p className="mt-0.5 truncate text-caption text-text-secondary">{ev.description}</p>
@@ -303,7 +334,17 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) 
 export default function Alerts() {
   const { t } = useTranslation()
   const reduce = useReducedMotion() ?? false
-  const { alerts, wireguard, routers, isDemo } = useNetPulse()
+  const {
+    alerts,
+    wireguard,
+    routers,
+    isDemo,
+    unreadAlerts,
+    alertsConfig,
+    setAlertConfig,
+    markAlertsRead,
+    markAllAlertsRead,
+  } = useNetPulse()
   // Feed: demo = diseño enriquecido del mockup; live = SOLO alertas reales
   const alertFeed = useMemo(
     () =>
@@ -312,39 +353,64 @@ export default function Alerts() {
         : buildLiveFeed(alerts),
     [alerts, wireguard, routers, isDemo],
   )
-  const [readIds, setReadIds] = useState<ReadonlySet<string>>(new Set())
   const [sev, setSev] = useState<SevFilter>('todas')
   const [kind, setKind] = useState<KindFilter>('todos')
+  const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())
   const [searchParams] = useSearchParams()
   const [onlyUnread, setOnlyUnread] = useState(() => searchParams.get('unread') === '1')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [burst, setBurst] = useState(0)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveTimerRef = useRef<number | undefined>(undefined)
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'done'>('idle')
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  const isRead = (ev: FeedEvent) => ev.read || readIds.has(ev.id)
-  const unread = alertFeed.filter((ev) => !isRead(ev)).length
+  // Read state: el SERVIDOR es la fuente de verdad (ev.read viene del backend
+  // vía overview/SSE; en demo, del estado del provider). Nada de useState local.
+  const isRead = (ev: FeedEvent) => ev.read
+  const unread = unreadAlerts
 
   const markAllRead = () => {
-    setReadIds(new Set(alertFeed.map((ev) => ev.id)))
+    markAllAlertsRead()
     setBurst((b) => b + 1)
   }
 
   const toggleEvent = (ev: FeedEvent) => {
-    setReadIds((prev) => (prev.has(ev.id) ? prev : new Set(prev).add(ev.id)))
+    if (!ev.read) markAlertsRead([ev.id])
     setExpandedId((cur) => (cur === ev.id ? null : ev.id))
   }
+
+  const toggleCat = (cat: AlertCategory) => {
+    setCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
+
+  const changeLevel = (cat: AlertCategory, level: AlertConfigLevel) => {
+    window.clearTimeout(saveTimerRef.current)
+    setSaveState('saving')
+    void setAlertConfig(cat, level).then((ok) => {
+      setSaveState(ok ? 'saved' : 'error')
+      saveTimerRef.current = window.setTimeout(() => setSaveState('idle'), 2500)
+    })
+  }
+
+  useEffect(() => () => window.clearTimeout(saveTimerRef.current), [])
 
   const filtered = useMemo(
     () =>
       alertFeed.filter((ev) => {
         if (sev !== 'todas' && ev.severity !== SEV_MATCH[sev]) return false
         if (kind !== 'todos' && ev.kind !== kind) return false
+        if (cats.size > 0 && !cats.has(ev.category)) return false
         if (onlyUnread && isRead(ev)) return false
         return true
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [alertFeed, sev, kind, onlyUnread, readIds],
+    [alertFeed, sev, kind, cats, onlyUnread],
   )
 
   const groups = useMemo(
@@ -372,7 +438,7 @@ export default function Alerts() {
     return () => io.disconnect()
   }, [loadState, filtered.length])
 
-  const filterKey = `${sev}|${kind}|${onlyUnread}`
+  const filterKey = `${sev}|${kind}|${[...cats].sort().join(',')}|${onlyUnread}`
 
   return (
     <div className="mx-auto w-full max-w-[1100px]">
@@ -408,18 +474,34 @@ export default function Alerts() {
           </motion.p>
         </div>
 
-        {/* Desktop: botón ghost · Móvil: menú MoreVertical */}
-        <button
-          type="button"
-          onClick={markAllRead}
-          disabled={unread === 0}
-          className="hidden h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 md:inline-flex"
-        >
-          <motion.span key={burst} animate={reduce ? undefined : { scale: [1, 1.2, 1] }} transition={{ duration: 0.35 }}>
-            <CheckCheck className="h-4 w-4" strokeWidth={1.75} />
-          </motion.span>
-          {t('alerts.markAllRead')}
-        </button>
+        {/* Desktop: botones ghost · Móvil: menú MoreVertical */}
+        <div className="hidden shrink-0 items-center gap-2 md:flex">
+          <button
+            type="button"
+            onClick={() => setConfigOpen((v) => !v)}
+            aria-expanded={configOpen}
+            className={cn(
+              'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors duration-150',
+              configOpen
+                ? 'border-accent/40 bg-accent-soft text-accent'
+                : 'border-border bg-elevated text-text-secondary hover:border-accent/40 hover:text-accent',
+            )}
+          >
+            <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+            {t('alerts.configButton')}
+          </button>
+          <button
+            type="button"
+            onClick={markAllRead}
+            disabled={unread === 0}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <motion.span key={burst} animate={reduce ? undefined : { scale: [1, 1.2, 1] }} transition={{ duration: 0.35 }}>
+              <CheckCheck className="h-4 w-4" strokeWidth={1.75} />
+            </motion.span>
+            {t('alerts.markAllRead')}
+          </button>
+        </div>
         <div className="md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -432,6 +514,13 @@ export default function Alerts() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="border-border bg-elevated">
+              <DropdownMenuItem
+                onSelect={() => setConfigOpen((v) => !v)}
+                className="gap-2 text-text-primary focus:bg-hover"
+              >
+                <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+                {t('alerts.configButton')}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={unread === 0}
                 onSelect={markAllRead}
@@ -506,6 +595,83 @@ export default function Alerts() {
         )
       })()}
 
+      {/* ②bis Configuración de alertas por categoría (SPEC-ALERTAS §2) */}
+      <AnimatePresence initial={false}>
+        {configOpen && (
+          <motion.section
+            key="alerts-config"
+            initial={reduce ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="overflow-hidden"
+            aria-label={t('alerts.configTitle')}
+          >
+            <div className="mt-4 rounded-2xl border border-border bg-surface p-4 md:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-h2 text-text-primary">{t('alerts.configTitle')}</h2>
+                  <p className="mt-1 max-w-prose text-caption leading-snug text-text-muted">
+                    {t('alerts.configDescription')}
+                  </p>
+                </div>
+                <span
+                  aria-live="polite"
+                  className={cn(
+                    'flex shrink-0 items-center gap-1.5 text-caption font-medium',
+                    saveState === 'error' ? 'text-danger' : 'text-ok',
+                    (saveState === 'idle' || saveState === 'saving') && 'invisible',
+                  )}
+                >
+                  {saveState === 'error' ? (
+                    t('alerts.configSaveError')
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" strokeWidth={2} />
+                      {t('alerts.configSaved')}
+                    </>
+                  )}
+                </span>
+              </div>
+              <ul className="mt-3 divide-y divide-border/60">
+                {ALERT_CATEGORIES.map((cat) => {
+                  const meta = CATEGORY_META[cat]
+                  const Icon = meta.icon
+                  return (
+                    <li
+                      key={cat}
+                      className="flex flex-col gap-2.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', meta.tile)}>
+                          <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-text-primary">
+                            {t(`alerts.categories.${cat}`)}
+                          </div>
+                          <p className="mt-0.5 text-caption leading-snug text-text-muted">
+                            {t(`alerts.categoryDescriptions.${cat}`)}
+                          </p>
+                        </div>
+                      </div>
+                      <SegmentedControl
+                        size="sm"
+                        options={LEVEL_ORDER.map((lv) => ({ value: lv, label: t(`alerts.levels.${lv}`) }))}
+                        value={alertsConfig[cat]}
+                        onChange={(v) => changeLevel(cat, v)}
+                        ariaLabel={t(`alerts.categories.${cat}`)}
+                        className="shrink-0 self-start sm:self-auto"
+                      />
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
       {/* ③ Filtros */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5 md:gap-3">
         <SegmentedControl options={SEV_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} value={sev} onChange={(v) => setSev(v)} ariaLabel={t('alerts.filterBySeverity')} />
@@ -526,6 +692,29 @@ export default function Alerts() {
             ))}
           </SelectContent>
         </Select>
+        <div role="group" aria-label={t('alerts.filterByCategory')} className="flex flex-wrap items-center gap-1.5">
+          {ALERT_CATEGORIES.map((cat) => {
+            const Icon = CATEGORY_META[cat].icon
+            const active = cats.has(cat)
+            return (
+              <button
+                key={cat}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleCat(cat)}
+                className={cn(
+                  'inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150',
+                  active
+                    ? 'border-accent/40 bg-accent-soft text-accent'
+                    : 'border-border bg-elevated text-text-secondary hover:text-text-primary',
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                {t(`alerts.categories.${cat}`)}
+              </button>
+            )
+          })}
+        </div>
         <button
           type="button"
           role="switch"

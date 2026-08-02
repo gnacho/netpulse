@@ -45,6 +45,34 @@
       "offline": "offline",
       "weak": "weak signal",
       "other": "other"
+    },
+    "filterByCategory": "Filter by category",
+    "urgentBadge": "URGENT",
+    "configButton": "Configure alerts",
+    "configTitle": "Alert settings",
+    "configDescription": "Choose which events are kept in your history and counted on the bell, per category.",
+    "configSaved": "Saved",
+    "configSaveError": "Could not save — please try again",
+    "categories": {
+      "router": "Router",
+      "internet": "Internet",
+      "clients": "Clients",
+      "signal": "Signal",
+      "vpn": "VPN",
+      "system": "System"
+    },
+    "categoryDescriptions": {
+      "router": "Router status, temperature and reboots",
+      "internet": "WAN outages and recoveries",
+      "clients": "Devices joining the network (known and unknown)",
+      "signal": "Weak WiFi coverage on clients and nodes",
+      "vpn": "WireGuard handshakes and sessions",
+      "system": "Firmware, backups and services (AdGuard, NAS)"
+    },
+    "levels": {
+      "urgent": "Urgent only",
+      "all": "Everything",
+      "none": "Nothing"
     }
   },
   "auth": {
