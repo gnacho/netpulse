@@ -18,8 +18,9 @@ cd server-go
 go build -trimpath -ldflags "-s -w" -o netpulse ./cmd/netpulse
 ```
 
-El binario embebe `internal/staticspa/dist` (en el repo hay un placeholder;
-**la CI copia `app/dist` ahí antes de compilar** — ver `.github/workflows/go.yml`).
+El binario embebe `internal/staticspa/dist` (gitignored; **la CI copia `app/dist`
+ahí antes de compilar** — ver `.github/workflows/go.yml`; en local hay que hacer lo
+mismo una vez o el build de Go falla).
 Para desarrollo, `STATIC_DIR=../app/dist` tiene prioridad sobre el embed.
 
 ## Run
