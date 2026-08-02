@@ -97,6 +97,9 @@ export interface BackhaulRow {
   id: string // coincide con TopoLink.id
   a: string
   b: string
+  /** clave i18n de `b` cuando el nombre del extremo B se traduce (p. ej. "Switch inferido · lan3") */
+  bKey?: string
+  bVars?: Record<string, string | number>
   kind: TopoLinkKind
   type: string
   speed: string
@@ -697,8 +700,17 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
   }
 
-  /** Enlaces activos de la red (WAN + uplinks + distribución), sin túneles */
-  const activeLinkCount = links.filter((l) => l.kind === 'wan' || l.kind === 'uplink' || l.kind === 'dist').length
+  /** Enlaces activos de la red: WAN + uplinks + distribución (dist-*) + el
+   *  cable de cada host hipervisor (wired-<host>) — sin túneles WG. Cuadra
+   *  con las filas físicas de la LinksTable (D7); la única fila no contada
+   *  es el túnel WireGuard (se muestra aparte, tone 'tunnel'). */
+  const activeLinkCount = links.filter(
+    (l) =>
+      l.kind === 'wan' ||
+      l.kind === 'uplink' ||
+      l.kind === 'dist' ||
+      (l.kind === 'wired' && hypervisorHosts.has(l.to)),
+  ).length
 
   // Tabla de backhauls (topology.md §④)
   const backhauls: BackhaulRow[] = []
@@ -722,6 +734,45 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       note: isWifi ? 'topology.links.congestedChannel' : undefined,
       spark: node.router.sparkline,
       sparkColor: isWifi ? COLOR.warn : COLOR.accent,
+    })
+  }
+  // D7: enlaces de distribución — el mapa ya los dibuja (dist-*) y
+  // activeLinkCount los cuenta; la tabla también los lista.
+  for (const dv of distNodes) {
+    const rn = routerById.get(dv.node.routerId)
+    if (!rn) continue
+    if (dv.node.kind === 'managed') {
+      backhauls.push({
+        id: `dist-${dv.id}`, a: rn.router.name,
+        b: [dv.node.name, dv.node.ip, 'LLDP', dv.node.port].filter(Boolean).join(' · '),
+        kind: 'dist', type: 'topology.links.managedSwitch',
+        speed: '1 Gbps', signal: '<1 ms',
+        tone: 'ok', statusLabel: 'common.status.online',
+        spark: rn.router.sparkline, sparkColor: COLOR.accent,
+      })
+    } else {
+      backhauls.push({
+        id: `dist-${dv.id}`, a: rn.router.name,
+        b: '', bKey: 'topology.links.inferredSwitch', bVars: { port: dv.node.port },
+        kind: 'dist', type: 'common.cable',
+        speed: '1 Gbps', signal: '<1 ms',
+        tone: 'ok', statusLabel: 'common.status.online',
+        spark: rn.router.sparkline, sparkColor: COLOR.ok,
+      })
+    }
+  }
+  // D7: cable del hipervisor (host con sus CTs/VMs anidados).
+  for (const dn of distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId)) {
+    const host = deviceById.get(dn.hostDeviceId!)
+    const rn = routerById.get(dn.routerId)
+    if (!host || !rn) continue
+    backhauls.push({
+      id: `wired-${host.id}`, a: rn.router.name,
+      b: `${host.name} · ${dn.port} · ${ctCountByHost.get(host.id) ?? 0} CT`,
+      kind: 'wired', type: 'topology.links.hypervisorCable',
+      speed: '—', signal: '—',
+      tone: 'ok', statusLabel: 'common.status.online',
+      spark: host.sparkline, sparkColor: COLOR.ok,
     })
   }
   // La tabla canónica muestra un único túnel (el más reciente)

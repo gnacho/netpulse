@@ -304,8 +304,8 @@ export const devices: Device[] = [
   // kind='managed' (dist-living-lan3, misma chassis-MAC); el mapa nunca
   // renderiza su chip (filtro por MAC en model.ts).
   {
-    id: 'gs308e', name: 'GS308E', type: 'switch', manufacturer: 'Netgear',
-    ip: '192.168.8.13', mac: 'B0:B9:8A:13:08:0E', routerId: 'living', band: 'cable',
+    id: 'switch-netgear', name: 'Switch GS308E', type: 'switch', manufacturer: 'Netgear',
+    ip: '192.168.8.13', mac: '28:C6:8E:1D:90:44', routerId: 'living', band: 'cable',
     signalDbm: null, trafficMbps: 0.4, online: true, attachTo: 'living', port: 'lan3',
     lldp: { chassis: 'GS308E', mgmt: '192.168.8.13', caps: 'Bridge', portDesc: 'ge5' },
     sparkline: [0.3, 0.4, 0.4, 0.5, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4],
@@ -386,10 +386,10 @@ export const distributionNodes: DistributionNode[] = [
   { id: 'dist-pve', kind: 'hypervisor', routerId: 'flint2', port: 'lan5', macCount: 11, hostDeviceId: 'pve', name: 'Proxmox pve' },
   // Switch gestionado Netgear GS308E en el AP Salón (uplink lan3), identificado
   // vía LLDP (chasis + IP de mgmt + caps + puerto remoto). 4 MACs: switch + 3
-  // equipos. D1: `mac` = chassis-MAC del Device 'gs308e' (excluye su chip).
+  // equipos. D1: `mac` = chassis-MAC del Device 'switch-netgear' (excluye su chip).
   {
     id: 'dist-living-lan3', kind: 'managed', routerId: 'living', port: 'lan3', macCount: 4,
-    name: 'GS308E', ip: '192.168.8.13', mac: 'B0:B9:8A:13:08:0E',
+    name: 'GS308E', ip: '192.168.8.13', mac: '28:C6:8E:1D:90:44',
     lldp: { chassis: 'GS308E', mgmt: '192.168.8.13', caps: 'Bridge', portDesc: 'ge5' },
   },
 ]

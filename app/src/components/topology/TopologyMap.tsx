@@ -93,7 +93,18 @@ function MiniStat({ label, value, hot }: { label: string; value: string; hot?: b
   )
 }
 
-function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; wan: WanInfo }) {
+function TooltipCard({
+  tip,
+  touch,
+  wan,
+  routerName,
+}: {
+  tip: TooltipState
+  touch: boolean
+  wan: WanInfo
+  /** nombre visible del router del que cuelga un nodo (D8: tooltip dist) */
+  routerName: (id: string) => string
+}) {
   const { t } = useTranslation()
   return (
     <div
@@ -189,7 +200,7 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
             {[tip.node.ip, tip.node.port].filter(Boolean).join(' · ')}
           </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={tip.node.port} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
           {tip.node.lldp && (
@@ -212,7 +223,7 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
           </div>
           <div className="mt-0.5 text-caption text-text-muted">{t('topology.dist.noIp')}</div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={tip.node.port} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
           <div className="mt-2 text-caption leading-snug text-text-secondary">
@@ -599,6 +610,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const related = useMemo(() => (hoverNode ? relatedTo(hoverNode) : null), [hoverNode])
   /** chip por id (para resolver el host de un CT en tooltips) */
   const chipById = useMemo(() => new Map(chips.map((c) => [c.id, c])), [chips])
+  /** nombre visible de un router por id (D8: "Puerto de <router>") */
+  const routerName = useCallback(
+    (id: string) => routerNodes.find((n) => n.id === id)?.router.name ?? id,
+    [routerNodes],
+  )
   /** datos del tooltip de un chip: +N si es host hipervisor, host si es CT */
   const chipTip = useCallback(
     (chip: ChipNode): TooltipData => ({
@@ -1121,7 +1137,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       </svg>
 
       {/* tooltip flotante */}
-      {tooltip && <TooltipCard tip={tooltip} touch={!hoverCapable} wan={wan} />}
+      {tooltip && <TooltipCard tip={tooltip} touch={!hoverCapable} wan={wan} routerName={routerName} />}
     </div>
   )
 }

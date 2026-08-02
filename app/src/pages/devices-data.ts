@@ -91,7 +91,7 @@ const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
   },
   // D1: el GS308E vuelve a ser Device (además del distnode managed de mock.ts).
   // Su grupo visible es 'infra' (lo reasigna Devices.tsx al detectar `lldp`).
-  'gs308e': {
+  'switch-netgear': {
     hostname: 'gs308e', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
     traffic24hRx: '96 MB', traffic24hTx: '42 MB', adguard: false, group: 'red',
   },

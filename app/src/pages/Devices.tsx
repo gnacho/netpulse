@@ -141,6 +141,43 @@ function signalTextClass(dbm: number | null): string {
   return 'text-warn'
 }
 
+// ---------------------------------------------------------------------------
+// Taxonomía de infraestructura (D6): hipervisor (host con CTs), CT (contenedor
+// anidado, tooltip con su host) y switch gestionado (device con LLDP). Se
+// deriva de attachTo/lldp + los distributionNodes del provider.
+// ---------------------------------------------------------------------------
+
+type InfraKind = 'hypervisor' | 'ct' | 'managedSwitch'
+
+interface InfraInfo {
+  kind: InfraKind
+  /** nombre del host (solo CT) */
+  host?: string
+}
+
+const INFRA_BADGE_CLASS: Record<InfraKind, string> = {
+  hypervisor: 'border-tunnel/40 bg-tunnel/10 text-tunnel',
+  ct: 'border-border bg-elevated text-text-muted',
+  managedSwitch: 'border-accent/30 bg-accent-soft text-accent',
+}
+
+/** Badge de infraestructura con tooltip explicativo (D6). */
+function InfraBadge({ info }: { info: InfraInfo }) {
+  const { t } = useTranslation()
+  const tip = info.kind === 'ct' ? t('devices.badges.ctTip', { host: info.host }) : t(`devices.badges.${info.kind}Tip`)
+  return (
+    <span
+      title={tip}
+      className={cn(
+        'inline-flex w-fit shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        INFRA_BADGE_CLASS[info.kind],
+      )}
+    >
+      {t(`devices.badges.${info.kind}`)}
+    </span>
+  )
+}
+
 const EASE_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
 // ---------------------------------------------------------------------------
@@ -504,10 +541,12 @@ function DetailItem({ label, children, mono }: { label: string; children: React.
 function DeviceDetail({
   device,
   name,
+  infra,
   onRename,
 }: {
   device: ClientDevice
   name: string
+  infra?: InfraInfo
   onRename: (id: string, name: string | null) => void
 }) {
   // El panel se desmonta al colapsar: el borrador siempre arranca del nombre actual
@@ -545,6 +584,14 @@ function DeviceDetail({
           )}
         </div>
       </div>
+      {infra && (
+        <DetailItem label={t('devices.detail.infra')}>
+          <InfraBadge info={infra} />
+          {infra.kind === 'ct' && infra.host && (
+            <span className="ml-1.5 text-caption text-text-muted">{t('devices.badges.ctTip', { host: infra.host })}</span>
+          )}
+        </DetailItem>
+      )}
       <div className="col-span-2">
         <label htmlFor={`rename-${device.id}`} className="text-label uppercase text-text-muted">
           {t('devices.detail.rename')}
@@ -698,6 +745,7 @@ const ROW_GRID =
 function ListRow({
   device,
   name,
+  infra,
   expanded,
   index,
   onToggle,
@@ -707,6 +755,7 @@ function ListRow({
 }: {
   device: ClientDevice
   name: string
+  infra?: InfraInfo
   expanded: boolean
   index: number
   onToggle: () => void
@@ -749,6 +798,7 @@ function ListRow({
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium text-text-primary">{name}</span>
               {device.isNew && <NewPill />}
+              {infra && <InfraBadge info={infra} />}
               {!device.online && <StatusPill tone="muted" label={t('common.status.offline')} />}
             </div>
             <div className="truncate text-caption text-text-muted">{device.manufacturer}</div>
@@ -792,7 +842,7 @@ function ListRow({
         <DeviceRow device={{ ...device, name }} variant="full" onClick={onToggle} />
       </div>
       <ExpandPanel open={expanded}>
-        <DeviceDetail device={device} name={name} onRename={onRename} />
+        <DeviceDetail device={device} name={name} infra={infra} onRename={onRename} />
       </ExpandPanel>
     </motion.div>
   )
@@ -830,6 +880,7 @@ function SignalBars({ device }: { device: ClientDevice }) {
 function GridCard({
   device,
   name,
+  infra,
   expanded,
   index,
   onToggle,
@@ -838,6 +889,7 @@ function GridCard({
 }: {
   device: ClientDevice
   name: string
+  infra?: InfraInfo
   expanded: boolean
   index: number
   onToggle: () => void
@@ -876,7 +928,10 @@ function GridCard({
           <DeviceTile device={device} size="lg" />
           {!device.online ? <StatusPill tone="muted" label={t('common.status.offline')} /> : device.isNew ? <NewPill /> : null}
         </div>
-        <div className="mt-3 truncate text-sm font-medium text-text-primary">{name}</div>
+        <div className="mt-3 flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-text-primary">{name}</span>
+          {infra && <InfraBadge info={infra} />}
+        </div>
         <div className="truncate text-caption text-text-muted">
           {device.manufacturer} · <span className="font-mono">{device.ip}</span>
         </div>
@@ -894,7 +949,7 @@ function GridCard({
         </div>
       </div>
       <ExpandPanel open={expanded}>
-        <DeviceDetail device={device} name={name} onRename={onRename} />
+        <DeviceDetail device={device} name={name} infra={infra} onRename={onRename} />
       </ExpandPanel>
     </motion.div>
   )
@@ -908,12 +963,29 @@ export default function Devices() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const reduce = useReducedMotion()
-  const { devices, deviceTotals, isDemo, routers } = useNetPulse()
+  const { devices, deviceTotals, isDemo, routers, distributionNodes } = useNetPulse()
   const [renames, setRename] = useRenames()
 
-  // Lista enriquecida de clientes: en demo local expande el canon a los 47
-  // del mockup; en live solo fusiona metadatos conocidos sobre la API.
-  const allDevices = useMemo(() => buildClientDevices(devices, isDemo), [devices, isDemo])
+  // Lista enriquecida de clientes: en demo local expande el canon a los 65
+  // del dataset reconciliado; en live solo fusiona metadatos conocidos sobre
+  // la API. D6: los equipos de infraestructura (host hipervisor, sus CTs y
+  // switches gestionados con LLDP) se reclasifican al grupo de filtro 'infra'.
+  const { allDevices, infraById } = useMemo(() => {
+    const list = buildClientDevices(devices, isDemo)
+    const hosts = new Set(
+      distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId).map((n) => n.hostDeviceId!),
+    )
+    const byId = new Map(list.map((d) => [d.id, d]))
+    const infra = new Map<string, InfraInfo>()
+    for (const d of list) {
+      if (hosts.has(d.id)) infra.set(d.id, { kind: 'hypervisor' })
+      else if (d.attachTo && hosts.has(d.attachTo)) {
+        infra.set(d.id, { kind: 'ct', host: byId.get(d.attachTo)?.name ?? d.attachTo })
+      } else if (d.lldp) infra.set(d.id, { kind: 'managedSwitch' })
+    }
+    if (infra.size === 0) return { allDevices: list, infraById: infra }
+    return { allDevices: list.map((d) => (infra.has(d.id) ? { ...d, group: 'infra' as const } : d)), infraById: infra }
+  }, [devices, isDemo, distributionNodes])
 
   const [searchParams] = useSearchParams()
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
@@ -1207,6 +1279,7 @@ export default function Devices() {
                   key={d.id}
                   device={d}
                   name={nameOf(d)}
+                  infra={infraById.get(d.id)}
                   expanded={expandedId === d.id}
                   index={i}
                   onToggle={() => setExpandedId((prev) => (prev === d.id ? null : d.id))}
@@ -1226,6 +1299,7 @@ export default function Devices() {
                 key={d.id}
                 device={d}
                 name={nameOf(d)}
+                infra={infraById.get(d.id)}
                 expanded={expandedId === d.id}
                 index={i}
                 onToggle={() => setExpandedId((prev) => (prev === d.id ? null : d.id))}

@@ -73,13 +73,14 @@ function rowMotion(reduce: boolean, i: number) {
 }
 
 function LinkNames({ row }: { row: BackhaulRow }) {
+  const { t } = useTranslation()
   return (
     <span className="flex items-center gap-1.5">
       <span className="font-medium text-text-primary">{row.a}</span>
       <span className={cn('text-text-muted', row.kind === 'wg' && 'text-tunnel')} aria-hidden>
         {row.kind === 'wg' ? '⇢' : '↔'}
       </span>
-      <span className="font-medium text-text-primary">{row.b}</span>
+      <span className="font-medium text-text-primary">{row.bKey ? t(row.bKey, row.bVars) : row.b}</span>
     </span>
   )
 }

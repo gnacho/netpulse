@@ -62,6 +62,28 @@ function InferredSample() {
   )
 }
 
+/** Muestra de host hipervisor: chip con badge +N */
+function HypervisorSample() {
+  return (
+    <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
+      <rect x="1" y="3" width="14" height="10" rx="3" fill="none" stroke={COLOR.ok} strokeWidth="1.4" />
+      <rect x="13" y="0" width="12" height="8" rx="4" fill="rgb(var(--canvas))" stroke={COLOR.tunnel} strokeWidth="1.1" />
+      <text x="19" y="6.2" textAnchor="middle" fontSize="5.5" fontWeight="800" fill={COLOR.tunnel}>+N</text>
+    </svg>
+  )
+}
+
+/** Muestra de CT/VM anidado en grid bajo el host */
+function CtSample() {
+  return (
+    <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
+      <rect x="1" y="1" width="10" height="12" rx="2.5" fill="none" stroke={COLOR.ok} strokeWidth="1.4" />
+      <rect x="15" y="1" width="10" height="12" rx="2.5" fill="none" stroke="rgb(var(--text-muted))" strokeWidth="1.2" />
+      <text x="20" y="9.5" textAnchor="middle" fontSize="5.5" fontWeight="800" fill="rgb(var(--text-muted))">CT</text>
+    </svg>
+  )
+}
+
 /** Muestra de línea dashed WireGuard, auto-animada en loop */
 function WgSample() {
   const reduce = useReducedMotion()
@@ -132,6 +154,14 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
           <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
             <InferredSample />
             {t('topology.legend.inferredSwitch')}
+          </motion.li>
+          <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <HypervisorSample />
+            {t('topology.legend.hypervisorHost')}
+          </motion.li>
+          <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <CtSample />
+            {t('topology.legend.ctGrid')}
           </motion.li>
         </ul>
       </div>
