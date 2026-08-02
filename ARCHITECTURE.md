@@ -111,10 +111,45 @@
 | Tabla | Contenido |
 |---|---|
 | `sessions(id, created_at, expires_at, ua)` | Sesiones (cookie `session=id.hmac`, 30 d) |
-| `kv(key, value)` | `session_secret`, `auth_pass_hash` (bcrypt) + fingerprint, `adguard_*`, `go_migration` |
+| `kv(key, value)` | `session_secret`, `auth_pass_hash` (bcrypt) + fingerprint, `adguard_*`, `go_migration`, `alerts.config.v1`, `alerts.read.v1`, `agent.token.<slug>` (sha256), `push.vapid.*` |
 | `login_attempts(ip, attempts, locked_until)` | Rate-limit persistente |
 | `metrics(router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps)` | 1 fila/router/tick; retención 7 días |
 | `adguard_stats(ts, queries, blocked)` | 1 fila/tick; retención 7 días |
+| `push_subscriptions(endpoint, keys_auth, keys_p256dh, user_agent, created_at)` | Suscripciones Web Push; 404/410 al enviar → borrado |
+
+## Alertas (motor `internal/alerts`)
+
+Eventos con `Category` (router|internet|clients|signal|vpn|system), `Urgent`
+y `Ts`. El motor aplica **config por categoría de 3 niveles** (`urgent` / `all`
+/ `none`, en `kv alerts.config.v1`) EN CREACIÓN: `none` descarta, `urgent` solo
+deja pasar los urgentes, `all` pasa todo. Dedup 5 min por
+(categoría,título,router), cap 100. Read-state en servidor (`kv
+alerts.read.v1`, FIFO 200) — la campana usa `overview.unreadAlerts` (server
+truth). Fuentes live: router offline (2 fallos seguidos) y recuperado, WAN
+down (lossPct=100 en 2 sondeos), temperatura > 65 °C, señal < −70 dBm
+(1/día/device), handshake WireGuard, dispositivo desconocido (sin nombre DHCP,
+primer ciclo mudo). La demo siembra sus 5 canon vía `Engine.Seed` (omite solo
+el filtro de config). Hook `Notifier` para canales externos.
+
+## Web Push
+
+VAPID en `kv` (generado en primer arranque), suscripciones en tabla propia,
+`push.Notifier` envía SOLO las alertas que pasan config y son urgentes
+(payload `{title, body, category, severity, url, tag}`; tag = dedup del
+navegador). SW propio (`injectManifest`) con handlers `push` y
+`notificationclick` → abre `/alerts`. Requiere contexto seguro (HTTPS o
+localhost) — en LAN HTTP la tarjeta de Ajustes lo avisa.
+
+## Agente OpenWrt (Fase 6, piloto)
+
+`POST /api/ingest/agent` (Bearer por equipo, token sha256 en `kv`, rate-limit
+30/min, body ≤ 2 MB) + CRUD `/api/agents`. El adapter live-agent usa el último
+payload como estado del router; si `last_seen` expira (TTL 90 s) degrada a SSH
+con alerta `system` y avisa al recuperar. El binario `agent/` (stdlib-only,
+CGO=0, ~5,8 MB arm64 — suelo realista con TLS/x509) ejecuta localmente las
+sondas del tier rápido (package `probe` compartido con server-go vía
+`replace ../agent`), stateless, push con backoff y buffer RAM acotado; procd +
+`install-agent.sh`. Diseño completo y hoja de ruta en `docs/AGENTE-OPENWRT.md`.
 
 Jobs de mantenimiento (cada hora): borrado de filas > 7 días, sesiones
 expiradas y `PRAGMA wal_checkpoint(TRUNCATE)`. Migración Node→Go automática
@@ -137,7 +172,10 @@ Ver `server-go/.env.example`. Resumen: `PORT`, `STATIC_DIR`, `DATA_DIR`,
 
 ## Hoja de ruta
 
-- **Fase 6 — agente OpenWrt (nativo en el router):** diseño en
-  `docs/AGENTE-OPENWRT.md` (agente stateless con push HTTPS+token, procd,
-  tmpfs; el colector-satélite actual se conserva para series largas).
+- **Fase 6 — incremento 2 del agente:** netlink/nl80211 nativo, eventos ubus
+  (assoc/disassoc en tiempo real), `.ipk`, medición en hardware real.
+  Piloto (ingesta + push + fallback SSH) YA implementado — ver sección
+  "Agente OpenWrt".
+- **Fase 7 (opcional):** `luci-app-netpulse` — gestión del agente desde la
+  interfaz web del router.
 - Integración de las series del collector en server-go (hoy son independientes).
