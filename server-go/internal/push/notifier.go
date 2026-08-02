@@ -29,7 +29,8 @@ const (
 	// apagado más tiempo, la alerta ya es historia).
 	ttlSeconds = 3600
 	// subscriber VAPID (sub del JWT; informativo para el push service).
-	subscriber = "mailto:netpulse@localhost"
+	// webpush-go antepone "mailto:" si no empieza por "https:".
+	subscriber = "netpulse@localhost"
 )
 
 // payload es el JSON cifrado que recibe el Service Worker (contrato con
