@@ -10,6 +10,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -129,14 +130,17 @@ func noStoreMux(next http.Handler) http.Handler {
 	})
 }
 
-// writeJSON serializa como JSON.stringify: compacto y SIN escapar HTML
-// (SetEscapeHTML(false)).
+// writeJSON serializa como JSON.stringify: compacto, SIN escapar HTML
+// (SetEscapeHTML(false)) y SIN el '\n' final que añade Encoder.Encode
+// (consistencia con D5 WriteError / paridad Hono: marshal + write).
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	enc := json.NewEncoder(w)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(v)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write(bytes.TrimSuffix(buf.Bytes(), []byte("\n")))
 }
 
 // writeError escribe el envelope {error, message?}.
