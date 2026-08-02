@@ -15,9 +15,3 @@ server/.env
 # Notas locales con credenciales
 *_user.txt
 v2/
-
-# Placeholder del dist embebido: un checkout fresco debe compilar server-go
-# (el dist real lo genera CI antes del build; no commitear el resto del dist)
-!server-go/internal/staticspa/dist/
-server-go/internal/staticspa/dist/*
-!server-go/internal/staticspa/dist/index.html

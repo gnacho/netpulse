@@ -38,11 +38,6 @@ jobs:
           npm ci --no-audit --no-fund --prefix app
           npm run build --prefix app
           rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
-          # dist/index.html está trackeado (placeholder para checkout fresco):
-          # commitear el dist real para que goreleaser --clean no falle por árbol sucio
-          git config user.email ci@netpulse.local && git config user.name ci
-          git add -f server-go/internal/staticspa/dist
-          git commit -q -m "ci: dist embebido del build" || true
 
       - name: Tests Go (ambos módulos)
         run: |

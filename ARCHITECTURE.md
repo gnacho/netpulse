@@ -125,8 +125,9 @@ con backup atómico (marca `kv.go_migration`).
 `internal/staticspa` sirve el `dist` embebido (override con `STATIC_DIR`).
 Fallback a `index.html` para rutas no-API; `404 Not Found` plano (text/plain)
 para `/api/*` desconocidas, `/assets/*` inexistentes y métodos no-GET.
-El repo commitea un `dist/index.html` placeholder para que un checkout fresco
-compile; el dist real lo genera CI antes del build de Go.
+El `dist` embebido NO se commitea (gitignored): un checkout fresco necesita
+`npm run build --prefix app && cp -r app/dist server-go/internal/staticspa/dist`
+(o `STATIC_DIR`) antes de compilar Go; la CI lo hace siempre antes del build.
 
 ## Variables de entorno
 
