@@ -66,7 +66,7 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
               <RouterIcon className="h-5 w-5" strokeWidth={1.75} />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="truncate font-display text-h2 text-text-primary">{router.name}</span>
                 <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                   {roleLabel(router.roleBadge)}

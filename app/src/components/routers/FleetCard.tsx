@@ -107,7 +107,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               <RouterIcon className="h-[22px] w-[22px]" strokeWidth={1.75} />
             </motion.div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h3 className="truncate font-display text-h2 text-text-primary">{router.name}</h3>
                 <AgentBadge agent={agent} />
               </div>

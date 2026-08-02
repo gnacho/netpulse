@@ -226,8 +226,10 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                   )}>
                     <RouterIcon className="h-4 w-4" strokeWidth={1.75} />
                   </span>
-                  <span className="truncate font-medium text-text-primary">{r.name}</span>
-                  <AgentBadge agent={agentBySlug.get(r.id)} />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-text-primary">{r.name}</span>
+                    <AgentBadge agent={agentBySlug.get(r.id)} className="mt-1" />
+                  </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <StatusPill
