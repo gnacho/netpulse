@@ -28,12 +28,16 @@ func canonRouters() []Router {
 		{ID: "living", Name: "Salón", Model: "OpenWrt AP (Xiaomi AX3000T)", ModelShort: "Xiaomi AX3000T",
 			Role: "Punto de acceso", RoleBadge: "AP", IP: "192.168.8.2", Status: "online",
 			Health: 95, CPU: iptr(12), RAM: iptr(38), Temp: iptr(47), Uptime: "32d 14h", Clients: 22,
-			Backhaul:  "cable",
+			Backhaul: "cable",
+			// Uplink cableado al gateway identificado por LLDP (sufijo "· LLDP")
+			Lldp:      &LldpInfo{Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan1"},
 			Sparkline: []float64{4, 3, 3, 2, 3, 5, 10, 22, 28, 26, 24, 30, 38, 35, 33, 42, 55, 72, 88, 105, 132, 92, 61, 28}},
 		{ID: "estudio", Name: "Estudio", Model: "OpenWrt (NanoPi R4S)", ModelShort: "NanoPi R4S",
 			Role: "AP + switch", RoleBadge: "AP", IP: "192.168.8.3", Status: "online",
 			Health: 92, CPU: iptr(18), RAM: iptr(44), Temp: iptr(51), Uptime: "11d 3h", Clients: 9,
-			Backhaul:  "cable",
+			Backhaul: "cable",
+			// Uplink cableado al gateway identificado por LLDP (sufijo "· LLDP")
+			Lldp:      &LldpInfo{Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan2"},
 			Sparkline: []float64{2, 2, 1, 1, 2, 4, 8, 15, 22, 25, 24, 22, 26, 24, 21, 24, 28, 31, 29, 24, 18, 12, 8, 4}},
 		// Patio: único AP con uplink inalámbrico del dataset (backhaul "wifi").
 		{ID: "patio", Name: "Patio", Model: "OpenWrt (TP-Link EAP225)", ModelShort: "TP-Link EAP225",

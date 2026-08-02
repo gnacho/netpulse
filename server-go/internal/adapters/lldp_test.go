@@ -204,3 +204,53 @@ func TestIsLldpUnavailable(t *testing.T) {
 		}
 	}
 }
+
+// Router.Lldp live (ítem 4 de C2): si los vecinos LLDP de un router incluyen
+// en su puerto de uplink a OTRO router conocido (chassis-MAC = bridge MAC de
+// otro router de la config), la tarjeta lleva Lldp; si no, se omite.
+func TestBuildRouterLldpUplink(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{
+		{ID: "flint2", Host: "192.168.8.1", IsGateway: true},
+		{ID: "living", Host: "192.168.8.2"},
+	}, nil)
+	gw := &routerPolled{cfg: RouterConfig{ID: "flint2", Host: "192.168.8.1", IsGateway: true},
+		brMac: "94:83:C4:00:00:01", fdb: map[string]string{}, lldp: []LldpNeighbor{}}
+	ap := &routerPolled{cfg: RouterConfig{ID: "living", Host: "192.168.8.2"},
+		brMac: "94:83:C4:00:00:02",
+		fdb:   map[string]string{"94:83:C4:00:00:01": "lan1"},
+		lldp: []LldpNeighbor{{
+			Port: "lan1", Chassis: "Flint 2", ChassisMac: "94:83:C4:00:00:01",
+			Mgmt: "192.168.8.1", Caps: []string{"Bridge", "Router"}, PortDesc: "lan3",
+		}}}
+	l.lastPolled = map[string]*routerPolled{"flint2": gw, "living": ap}
+
+	// AP: uplink al gateway identificado por LLDP (chassis-MAC = brMac del
+	// gateway, anunciada en el puerto donde el FDB la aprende)
+	r := l.buildRouter(ap, nil)
+	if r.Lldp == nil {
+		t.Fatal("living debería llevar Lldp (uplink identificado)")
+	}
+	if r.Lldp.Chassis != "Flint 2" || r.Lldp.Mgmt != "192.168.8.1" || r.Lldp.Caps != "Bridge, Router" || r.Lldp.PortDesc != "lan3" {
+		t.Fatalf("Router.Lldp: %+v", r.Lldp)
+	}
+	// Gateway: sin vecinos que sean routers → sin campo
+	if rgw := l.buildRouter(gw, nil); rgw.Lldp != nil {
+		t.Fatalf("gateway no debería llevar Lldp: %+v", rgw.Lldp)
+	}
+	// El anuncio llega por OTRO puerto (no es el uplink) → sin campo
+	ap.fdb["94:83:C4:00:00:01"] = "lan2"
+	if r := l.buildRouter(ap, nil); r.Lldp != nil {
+		t.Fatalf("anuncio por puerto distinto al del FDB: %+v", r.Lldp)
+	}
+	// Vecino LLDP que NO es un router de la config → sin campo
+	ap.fdb["94:83:C4:00:00:01"] = "lan1"
+	ap.lldp[0].ChassisMac = "28:C6:8E:1D:90:44"
+	if r := l.buildRouter(ap, nil); r.Lldp != nil {
+		t.Fatalf("vecino no-router: %+v", r.Lldp)
+	}
+	// Sin datos LLDP → sin campo (comportamiento intacto)
+	ap.lldp = nil
+	if r := l.buildRouter(ap, nil); r.Lldp != nil {
+		t.Fatalf("sin LLDP: %+v", r.Lldp)
+	}
+}

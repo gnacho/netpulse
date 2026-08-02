@@ -587,6 +587,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.backhaul != "" {
 		r.Backhaul = p.backhaul
 	}
+	if uplink := l.uplinkLldp(p); uplink != nil {
+		r.Lldp = uplink
+	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
 	}
@@ -594,6 +597,37 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.HotMetric = "temp"
 	}
 	return r
+}
+
+// uplinkLldp: vecino LLDP del router que es OTRO router conocido (su
+// chassis-MAC es la bridge MAC de otro router de la config) → el uplink
+// está identificado por LLDP y la app muestra el sufijo "· LLDP". Si el FDB
+// dice dónde se aprendió esa MAC, el anuncio debe llegar por ese puerto
+// (uplink); sin FDB, la MAC ya es evidencia suficiente. nil si no hay dato.
+func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
+	if len(p.lldp) == 0 {
+		return nil
+	}
+	l.mu.Lock()
+	polled := l.lastPolled
+	l.mu.Unlock()
+	routerMacs := map[string]bool{}
+	for id, other := range polled {
+		if id != p.cfg.ID && other.brMac != "" {
+			routerMacs[other.brMac] = true
+		}
+	}
+	for i := range p.lldp {
+		nb := &p.lldp[i]
+		if nb.ChassisMac == "" || !routerMacs[nb.ChassisMac] {
+			continue
+		}
+		if port, ok := p.fdb[nb.ChassisMac]; ok && port != nb.Port {
+			continue
+		}
+		return nb.info()
+	}
+	return nil
 }
 
 // offlineRouter: último bueno marcado offline o placeholder (index.js:251-272).

@@ -526,3 +526,36 @@ func TestDemoNodoManagedCanon(t *testing.T) {
 		t.Fatalf("abanico del managed: %d (esperaba 3)", fan)
 	}
 }
+
+// Canon demo de Router.Lldp (Fase 5, ítem 4 de C2): los AP cableados
+// (living, estudio) tienen su uplink al gateway identificado por LLDP;
+// patio (uplink wifi) y el propio gateway NO llevan el campo.
+func TestDemoRouterLldpCanon(t *testing.T) {
+	d := NewDemo()
+	want := map[string]*LldpInfo{
+		"living":  {Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan1"},
+		"estudio": {Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan2"},
+		"patio":   nil, // uplink wifi: sin LLDP
+		"flint2":  nil, // gateway: su uplink es WAN
+	}
+	seen := 0
+	for _, r := range d.GetRouters(context.Background()) {
+		w, ok := want[r.ID]
+		if !ok {
+			t.Fatalf("router inesperado: %s", r.ID)
+		}
+		if w == nil {
+			if r.Lldp != nil {
+				t.Fatalf("%s no debería llevar lldp: %+v", r.ID, r.Lldp)
+			}
+		} else {
+			if r.Lldp == nil || *r.Lldp != *w {
+				t.Fatalf("%s lldp: %+v (esperaba %+v)", r.ID, r.Lldp, w)
+			}
+		}
+		seen++
+	}
+	if seen != 4 {
+		t.Fatalf("routers: %d", seen)
+	}
+}
