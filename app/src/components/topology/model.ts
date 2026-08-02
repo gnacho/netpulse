@@ -512,7 +512,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const hc = mkChip(hubDev, parentHub)
     Object.assign(hc, p)
     hubChips.push(hc)
-    const kids = childrenOf(hubId).map((d) => mkChip(d, hubId))
+    // Los CTs de un hipervisor NO van en el abanico: los renderiza el loop
+    // dedicado (grid bajo el host, isCt=true). Meterlos aquí también duplicaba
+    // chips (key ct-*) y enlaces (key wired-ct-*).
+    const kids = hypervisorHosts.has(hubId) ? [] : childrenOf(hubId).map((d) => mkChip(d, hubId))
     const center = angleTo(routerById.get(parentHub)?.x ?? p.x, routerById.get(parentHub)?.y ?? p.y, p.x, p.y)
     fanLayout(kids, p, HUB_FAN_RADIUS, center - 45, center + 45)
     chips.push(...kids)
