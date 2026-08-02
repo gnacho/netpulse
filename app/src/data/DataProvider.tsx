@@ -82,6 +82,15 @@ export interface NetPulseApi extends NetPulseData {
   isDemo: boolean
   /** Re-pide `/api/overview` (live); en demo es no-op */
   refresh: () => void
+  /** Date.now() del último snapshot fresco (SSE o fetch de overview); 0 si aún no hubo */
+  lastSnapshotAt: number
+  /**
+   * POST /api/refresh (live): fuerza un sondeo inmediato en el backend; el
+   * snapshot fresco llega por SSE. Resuelve `true` si toca esperar snapshot
+   * (202 o 429 — el tick de 5 s lo empuja igualmente) y `false` si no hay
+   * backend (demo) o falló la petición. En demo es no-op → false.
+   */
+  requestServerRefresh: () => Promise<boolean>
   getRouterDetail: (id: string) => Promise<RouterDetailData | null>
   getDevices: (params?: DeviceQuery) => Promise<Paged<Device>>
   getAlerts: (params?: AlertQuery) => Promise<Paged<AlertEvent>>
@@ -264,6 +273,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // isDemo desde el primer render si hay flag de demo (evita que los managers
   // de Ajustes disparen fetches antes del boot y fuercen redirect a /login)
   const [isDemo, setIsDemo] = useState(() => sessionStorage.getItem('netpulse-demo') === '1')
+  // Marca temporal del último snapshot fresco (el botón "Refrescar" gira
+  // hasta que esto avanza o expira su timeout de seguridad)
+  const [lastSnapshotAt, setLastSnapshotAt] = useState(0)
 
   // Refs para closures estables (getters async con la misma firma en ambos modos)
   const bundleRef = useRef(bundle)
@@ -271,6 +283,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const modeRef = useRef<'boot' | 'live' | 'demo'>('boot')
 
   const applyOverview = useCallback((o: OverviewBundle) => {
+    setLastSnapshotAt(Date.now())
     setBundle((prev) => ({
       ...prev,
       health: o.health,
@@ -445,6 +458,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [applyOverview])
 
+  // Sondeo manual (botón "Refrescar" de Topología): el backend sondea ya y
+  // empuja el snapshot por SSE; aquí solo se dispara la petición. Un 429
+  // (anti-martilleo, min 5 s) también cuenta como "espera": el tick regular
+  // de 5 s del poller empujará un snapshot fresco antes del timeout del botón.
+  const requestServerRefresh = useCallback(async (): Promise<boolean> => {
+    if (modeRef.current !== 'live') return false
+    try {
+      const res = await fetch('/api/refresh', { method: 'POST' })
+      if (res.status === 401) redirectLogin()
+      return res.status === 202 || res.status === 429
+    } catch {
+      return false
+    }
+  }, [])
+
   const getRouterDetail = useCallback(async (id: string): Promise<RouterDetailData | null> => {
     if (modeRef.current === 'live') {
       const res = await fetch(`/api/routers/${encodeURIComponent(id)}`)
@@ -534,11 +562,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       connectionStatus,
       isDemo,
       refresh,
+      lastSnapshotAt,
+      requestServerRefresh,
       getRouterDetail,
       getDevices,
       getAlerts,
     }),
-    [bundle, connectionStatus, isDemo, refresh, getRouterDetail, getDevices, getAlerts],
+    [bundle, connectionStatus, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

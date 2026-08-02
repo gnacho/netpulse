@@ -2,11 +2,11 @@
  * NetPulse — Página Topología `/topology` (topology.md).
  * Header con controles → mapa SVG animado (pan/zoom) → leyenda + enlaces.
  */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ChevronRight, Maximize, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronRight, Maximize, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { LegendCard, LegendSheet } from '@/components/topology/LegendCard'
 import { LinksTable } from '@/components/topology/LinksTable'
@@ -21,19 +21,22 @@ const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 function ControlButton({
   label,
   onClick,
+  disabled,
   children,
 }: {
   label: string
   onClick?: () => void
+  disabled?: boolean
   children: React.ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-label={label}
       title={label}
-      className="flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors duration-150 hover:bg-hover hover:text-text-primary active:bg-hover"
+      className="flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors duration-150 hover:bg-hover hover:text-text-primary active:bg-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
     >
       {children}
     </button>
@@ -43,7 +46,8 @@ function ControlButton({
 export default function Topology() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { routers, devices, wan, wireguard, distributionNodes } = useNetPulse()
+  const { routers, devices, wan, wireguard, distributionNodes, lastSnapshotAt, requestServerRefresh } =
+    useNetPulse()
   const model = useMemo(
     () => buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes }),
     [routers, devices, wan, wireguard, distributionNodes],
@@ -52,6 +56,43 @@ export default function Topology() {
   const [flow, setFlow] = useState(true)
   const [hoverLink, setHoverLink] = useState<string | null>(null)
   const mapApi = useRef<TopologyMapApi>({})
+
+  // Botón "Refrescar": POST /api/refresh → el backend sondea ya y empuja el
+  // snapshot por SSE. El icono gira hasta que llega ese snapshot (sin recargar
+  // ni re-montar el grafo) o hasta el timeout de seguridad de 10 s.
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshStartRef = useRef(0)
+  const refreshTimeoutRef = useRef<number | undefined>(undefined)
+
+  const stopRefreshSpin = () => {
+    window.clearTimeout(refreshTimeoutRef.current)
+    refreshTimeoutRef.current = undefined
+    refreshStartRef.current = 0
+    setRefreshing(false)
+  }
+
+  useEffect(() => {
+    if (refreshing && refreshStartRef.current > 0 && lastSnapshotAt >= refreshStartRef.current) {
+      stopRefreshSpin()
+    }
+  }, [lastSnapshotAt, refreshing])
+
+  useEffect(() => () => window.clearTimeout(refreshTimeoutRef.current), [])
+
+  const handleRefresh = () => {
+    if (refreshing) return
+    setRefreshing(true)
+    refreshStartRef.current = Date.now()
+    void requestServerRefresh().then((waiting) => {
+      if (waiting) {
+        // 202/429: espera al próximo snapshot SSE (o al timeout de 10 s)
+        refreshTimeoutRef.current = window.setTimeout(stopRefreshSpin, 10_000)
+      } else {
+        // Demo local o petición fallida: no llegará snapshot; spin breve
+        refreshTimeoutRef.current = window.setTimeout(stopRefreshSpin, 800)
+      }
+    })
+  }
 
   const controlMotion = (i: number) =>
     reduce
@@ -102,20 +143,35 @@ export default function Topology() {
           <motion.div
             {...controlMotion(0)}
             className="flex items-center gap-0.5 rounded-xl border border-border bg-surface p-1"
+          >
+            <ControlButton
+              label={refreshing ? t('topology.refreshing') : t('topology.refreshNow')}
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                className={`h-[18px] w-[18px] ${refreshing ? 'animate-spin' : ''}`}
+                strokeWidth={1.75}
+              />
+            </ControlButton>
+          </motion.div>
+          <motion.div
+            {...controlMotion(1)}
+            className="flex items-center gap-0.5 rounded-xl border border-border bg-surface p-1"
             role="group"
             aria-label={t('topology.zoomControls')}
           >
             {zoomControls}
           </motion.div>
           <motion.label
-            {...controlMotion(1)}
+            {...controlMotion(2)}
             className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
           >
             <Switch checked={showLabels} onCheckedChange={setShowLabels} aria-label={t('topology.showLabels')} />
             {t('topology.labels')}
           </motion.label>
           <motion.label
-            {...controlMotion(2)}
+            {...controlMotion(3)}
             className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
           >
             <Switch checked={flow} onCheckedChange={setFlow} aria-label={t('topology.animateFlow')} />
