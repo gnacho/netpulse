@@ -112,6 +112,14 @@
     "viewDetailShort": "Ver detalle"
   },
   "devices": {
+    "badges": {
+      "ct": "CT",
+      "ctTip": "Contenedor en {{host}}",
+      "hypervisor": "Hipervisor",
+      "hypervisorTip": "Host con CTs/VMs anidados tras su bridge virtual",
+      "managedSwitch": "Switch gestionado",
+      "managedSwitchTip": "Switch identificado vía LLDP"
+    },
     "bandAll": "Todas",
     "changeView": "Cambiar vista",
     "clearFilters": "Limpiar filtros",
@@ -124,6 +132,7 @@
     "detail": {
       "dhcpLease": "Concesión DHCP",
       "firstSeen": "Primera vez vista",
+      "infra": "Infraestructura",
       "manufacturer": "Fabricante (OUI)",
       "protected": "Protegido",
       "rename": "Renombrar dispositivo",
@@ -138,6 +147,7 @@
     "filterByRouter": "Filtrar por router",
     "gridView": "Vista de tarjetas",
     "groups": {
+      "infra": "Infra",
       "iot": "IoT y hogar",
       "moviles": "Móviles",
       "ordenadores": "Ordenadores",
@@ -178,6 +188,7 @@
       "ordenador": "ordenador",
       "portatil": "portátil",
       "servidor": "servidor",
+      "switch": "switch",
       "tablet": "tablet",
       "tv": "TV"
     },
@@ -409,13 +420,18 @@
       "wiredLink": "Cable físico (WAN, uplinks, equipos)",
       "wifiUplink": "Uplink wifi (backhaul inalámbrico)",
       "lldpIdentified": "Identificado vía LLDP",
-      "inferredSwitch": "Switch o bridge inferido (sin IP)"
+      "inferredSwitch": "Switch o bridge inferido (sin IP)",
+      "hypervisorHost": "Hipervisor (host con badge +N)",
+      "ctGrid": "CT/VM anidado en grid bajo su host"
     },
     "links": {
       "colLink": "Enlace",
       "colSpeed": "Velocidad",
       "congestedChannel": "Canal congestionado",
       "fiberWan": "Fibra WAN",
+      "hypervisorCable": "Cable de hipervisor",
+      "inferredSwitch": "Switch inferido · {{port}}",
+      "managedSwitch": "Switch gestionado",
       "throughput": "Throughput del enlace",
       "title": "Enlaces entre equipos",
       "wifiUplink": "WiFi uplink"
@@ -456,7 +472,7 @@
       "inferred": "inferido",
       "managed": "switch gestionado",
       "noIp": "sin IP · no consultable directamente",
-      "port": "Puerto del gateway",
+      "port": "Puerto de {{router}}",
       "macs": "MACs aprendidas",
       "fdbNote": "FDB: {{count}} MACs heterogéneas en un solo puerto físico. Probablemente un switch; no podemos afirmarlo sin LLDP."
     },
