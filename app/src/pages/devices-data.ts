@@ -3,11 +3,11 @@
  * Los 10 dispositivos destacados de `@/data/mock` se reutilizan tal cual;
  * la entrada agregada "Bombillas Ikea ×6" se expande en sus 6 bombillas
  * individuales y se añaden los clientes restantes hasta los totales del
- * canon: 47 conocidos · 39 online · 8 offline (Gateway 14, Salón 18,
+ * canon: 46 conocidos · 38 online · 8 offline (Gateway 13, Salón 18,
  * Estudio 9, Patio 6). Nada aquí contradice `@/data/mock`.
  */
 import type { LucideIcon } from 'lucide-react'
-import { BookOpen, Network, Printer } from 'lucide-react'
+import { BookOpen, Printer } from 'lucide-react'
 import type { Device } from '@/data/mock'
 import { devices as canonDevices } from '@/data/mock'
 
@@ -131,7 +131,7 @@ function bulb(n: number, name: string, ip: string, mac: string, dbm: number): Cl
 // ---------------------------------------------------------------------------
 
 const ADDITIONAL: ClientDevice[] = [
-  // —— Gateway (flint2): 14 totales (canon: pixel-8-pro, nas-synology) ——
+  // —— Gateway (flint2): 13 totales (canon: pixel-8-pro, nas-synology) ——
   {
     ...extra({ id: 'iphone-ana', name: "Ana's iPhone", type: 'movil', manufacturer: 'Apple',
       ip: '192.168.8.44', mac: 'F4:D4:88:19:C2:71', routerId: 'flint2', band: '5 GHz',
@@ -160,14 +160,8 @@ const ADDITIONAL: ClientDevice[] = [
     hostname: 'raspberrypi', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
     traffic24hRx: '3.4 GB', traffic24hTx: '890 MB', adguard: true, group: 'red',
   },
-  {
-    ...extra({ id: 'switch-netgear', name: 'Netgear 8-port switch', type: 'servidor', manufacturer: 'Netgear',
-      ip: '192.168.8.13', mac: '28:C6:8E:1D:90:44', routerId: 'flint2', band: 'cable',
-      signalDbm: null, trafficMbps: 0.02, online: true, seed: 15, spread: 0.04 }),
-    hostname: 'gs308e', dhcpLease: 'Static IP (reservation)', firstSeen: '300 days ago',
-    traffic24hRx: '64 MB', traffic24hTx: '12 MB', adguard: false, group: 'red',
-    iconOverride: Network,
-  },
+  // (El switch Netgear GS308E ya no es un Device: el backend demo lo emite
+  // como DistributionNode kind='managed' — dist-living-lan3, ver mock.ts.)
   {
     ...extra({ id: 'timbre-nest', name: 'Nest doorbell', type: 'camara', manufacturer: 'Google',
       ip: '192.168.8.72', mac: 'F4:F5:D8:66:01:B8', routerId: 'flint2', band: '2.4 GHz',
