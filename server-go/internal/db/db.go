@@ -85,6 +85,15 @@ CREATE TABLE IF NOT EXISTS routers (
   is_gateway INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+-- Suscripciones Web Push (Fase 6 Bloque C; sin paridad Node: el push es
+-- nuevo en Go). created_at en milisegundos como el resto de epochs.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  keys_auth TEXT NOT NULL,
+  keys_p256dh TEXT NOT NULL,
+  user_agent TEXT,
+  created_at INTEGER NOT NULL
+);
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
