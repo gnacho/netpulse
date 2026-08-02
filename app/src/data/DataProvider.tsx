@@ -15,8 +15,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AdGuardStats,
+  AlertCategory,
+  AlertConfigLevel,
   AlertEvent,
   AlertQuery,
+  AlertsConfig,
   Device,
   DeviceQuery,
   DeviceTotals,
@@ -42,6 +45,12 @@ import {
   wan as mockWan,
   wireguard as mockWireguard,
 } from '@/data/mock'
+import {
+  countUnreadAlerts,
+  loadDemoAlertsConfig,
+  normalizeAlertsConfig,
+  saveDemoAlertsConfig,
+} from '@/data/alertConfig'
 import { buildClientDevices } from '@/pages/devices-data'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
@@ -94,6 +103,17 @@ export interface NetPulseApi extends NetPulseData {
   getRouterDetail: (id: string) => Promise<RouterDetailData | null>
   getDevices: (params?: DeviceQuery) => Promise<Paged<Device>>
   getAlerts: (params?: AlertQuery) => Promise<Paged<AlertEvent>>
+  /**
+   * Configuración de alertas por categoría (SPEC-ALERTAS §2). Live: GET/PUT
+   * /api/alerts/config (kv en backend). Demo: localStorage (UI demostrable).
+   */
+  alertsConfig: AlertsConfig
+  /** Cambia el nivel de UNA categoría (PUT parcial en live). Resuelve true si persistió. */
+  setAlertConfig: (category: AlertCategory, level: AlertConfigLevel) => Promise<boolean>
+  /** Read state en SERVIDOR (live): POST /api/alerts/read. Demo: estado local. Optimista. */
+  markAlertsRead: (ids: string[]) => void
+  /** POST /api/alerts/read-all (live). Demo: estado local. Optimista. */
+  markAllAlertsRead: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -276,11 +296,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Marca temporal del último snapshot fresco (el botón "Refrescar" gira
   // hasta que esto avanza o expira su timeout de seguridad)
   const [lastSnapshotAt, setLastSnapshotAt] = useState(0)
+  // Config de alertas: arranca con la demo (localStorage); en live la
+  // reemplaza GET /api/alerts/config durante el boot
+  const [alertsConfig, setAlertsConfigState] = useState<AlertsConfig>(loadDemoAlertsConfig)
 
   // Refs para closures estables (getters async con la misma firma en ambos modos)
   const bundleRef = useRef(bundle)
   bundleRef.current = bundle
   const modeRef = useRef<'boot' | 'live' | 'demo'>('boot')
+  const configRef = useRef(alertsConfig)
+  configRef.current = alertsConfig
 
   const applyOverview = useCallback((o: OverviewBundle) => {
     setLastSnapshotAt(Date.now())
@@ -398,12 +423,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    const fetchAlertsConfig = async (): Promise<void> => {
+      try {
+        const res = await fetchJson('/api/alerts/config')
+        if (!res.ok) return
+        const cfg = normalizeAlertsConfig(await res.json())
+        if (!disposed) setAlertsConfigState(cfg)
+      } catch {
+        /* sin config: se quedan los defaults del SPEC §2 */
+      }
+    }
+
     const startLive = async () => {
       modeRef.current = 'live'
       setIsDemo(false)
       setBundle(emptyBundle()) // live: cero datos del mockup, solo backend
       const ok = await fetchOverview()
       await fetchDevices()
+      await fetchAlertsConfig()
       if (disposed) return
       if (ok) setConnectionStatus('connected')
       else {
@@ -417,6 +454,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       modeRef.current = 'demo'
       setIsDemo(true)
       setConnectionStatus('demo')
+      // Demo: el badge de no leídas respeta la config guardada (SPEC §2)
+      setBundle((prev) => ({ ...prev, unreadAlerts: countUnreadAlerts(prev.alerts, configRef.current) }))
       tickId = window.setInterval(() => {
         if (!disposed) setBundle((prev) => demoTick(prev))
       }, DEMO_TICK_MS)
@@ -471,6 +510,91 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return false
     }
+  }, [])
+
+  // -- Alertas: config + read state (SPEC-ALERTAS §2/§4) -----------------------
+
+  /** Aplica una config nueva al estado y, en demo, la persiste y recalcula el badge. */
+  const applyAlertsConfig = useCallback((cfg: AlertsConfig) => {
+    configRef.current = cfg
+    setAlertsConfigState(cfg)
+    if (modeRef.current !== 'live') {
+      saveDemoAlertsConfig(cfg)
+      setBundle((prev) => ({ ...prev, unreadAlerts: countUnreadAlerts(prev.alerts, cfg) }))
+    }
+  }, [])
+
+  const setAlertConfig = useCallback(
+    async (category: AlertCategory, level: AlertConfigLevel): Promise<boolean> => {
+      const optimistic = { ...configRef.current, [category]: level }
+      applyAlertsConfig(optimistic)
+      if (modeRef.current !== 'live') return true
+      try {
+        const res = await fetch('/api/alerts/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [category]: level }),
+        })
+        if (res.status === 401) redirectLogin()
+        if (!res.ok) {
+          // Resync con la verdad del servidor (p. ej. 400 por valor inválido)
+          const g = await fetch('/api/alerts/config')
+          if (g.status === 401) redirectLogin()
+          if (g.ok) applyAlertsConfig(normalizeAlertsConfig(await g.json()))
+          return false
+        }
+        applyAlertsConfig(normalizeAlertsConfig(await res.json()))
+        refresh() // la lista/badge pueden cambiar con la nueva config
+        return true
+      } catch {
+        return false
+      }
+    },
+    [applyAlertsConfig, refresh],
+  )
+
+  /** Marca leídas de forma optimista; en live además POST /api/alerts/read. */
+  const markAlertsRead = useCallback((ids: string[]) => {
+    if (ids.length === 0) return
+    const idSet = new Set(ids)
+    setBundle((prev) => {
+      const alerts = prev.alerts.map((a) => (idSet.has(a.id) ? { ...a, read: true } : a))
+      const unreadAlerts =
+        modeRef.current === 'live'
+          ? alerts.filter((a) => !a.read).length
+          : countUnreadAlerts(alerts, configRef.current)
+      return { ...prev, alerts, unreadAlerts }
+    })
+    if (modeRef.current !== 'live') return
+    void (async () => {
+      try {
+        const res = await fetch('/api/alerts/read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        })
+        if (res.status === 401) redirectLogin()
+      } catch {
+        /* el próximo snapshot/SSE resincroniza el read state */
+      }
+    })()
+  }, [])
+
+  const markAllAlertsRead = useCallback(() => {
+    setBundle((prev) => ({
+      ...prev,
+      alerts: prev.alerts.map((a) => ({ ...a, read: true })),
+      unreadAlerts: 0,
+    }))
+    if (modeRef.current !== 'live') return
+    void (async () => {
+      try {
+        const res = await fetch('/api/alerts/read-all', { method: 'POST' })
+        if (res.status === 401) redirectLogin()
+      } catch {
+        /* idem: resync por snapshot */
+      }
+    })()
   }, [])
 
   const getRouterDetail = useCallback(async (id: string): Promise<RouterDetailData | null> => {
@@ -543,15 +667,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const getAlerts = useCallback(async (params: AlertQuery = {}): Promise<Paged<AlertEvent>> => {
-    const { severity, page = 1, pageSize = 20 } = params
+    const { severity, category, unread, page = 1, pageSize = 20 } = params
     if (modeRef.current === 'live') {
-      const res = await fetch(`/api/alerts${toQuery({ severity, page, pageSize })}`)
+      const res = await fetch(`/api/alerts${toQuery({ severity, category, unread: unread ? 1 : undefined, page, pageSize })}`)
       if (res.status === 401) redirectLogin()
       if (!res.ok) throw new Error(`GET /api/alerts → ${res.status}`)
       return (await res.json()) as Paged<AlertEvent>
     }
     let items = bundleRef.current.alerts
     if (severity) items = items.filter((a) => a.severity === severity)
+    if (category) items = items.filter((a) => a.category === category)
+    if (unread) items = items.filter((a) => !a.read)
     const start = (page - 1) * pageSize
     return { items: items.slice(start, start + pageSize), total: items.length, page, pageSize }
   }, [])
@@ -567,8 +693,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getRouterDetail,
       getDevices,
       getAlerts,
+      alertsConfig,
+      setAlertConfig,
+      markAlertsRead,
+      markAllAlertsRead,
     }),
-    [bundle, connectionStatus, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bundle, connectionStatus, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>
