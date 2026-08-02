@@ -12,7 +12,7 @@ Restart=on-failure
 RestartSec=5
 
 Environment=DATA_DIR=/opt/netpulse-collector/data
-Environment=NETPULSE_DB=/opt/netpulse/server/data/netpulse.db
+Environment=NETPULSE_DB=/var/lib/netpulse/data/netpulse.db
 Environment=LISTEN=127.0.0.1:9100
 
 NoNewPrivileges=true
