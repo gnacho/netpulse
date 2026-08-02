@@ -3,10 +3,15 @@ module github.com/gnacho/netpulse/server-go
 go 1.25.0
 
 require (
+	github.com/gnacho/netpulse/agent v0.0.0
 	golang.org/x/crypto v0.54.0
 	golang.org/x/text v0.40.0
 	modernc.org/sqlite v1.55.0
 )
+
+// Módulo hermano en el mismo repo: sondas/parseo compartido con el agente
+// nativo (SPEC-AGENTE-PILOTO §2). Solo stdlib — no arrastra dependencias.
+replace github.com/gnacho/netpulse/agent => ../agent
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
