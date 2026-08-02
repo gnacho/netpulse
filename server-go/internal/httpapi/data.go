@@ -93,19 +93,27 @@ func paginate[T any](items []T, page, pageSize int64) map[string]any {
 }
 
 // handleOverview: último overview del poller o GetOverview en caliente.
+// El read-state de alertas se aplica SIEMPRE al servir (server truth,
+// SPEC-ALERTAS §4): el caché del poller puede llevar hasta 5 s de retraso
+// y el badge debe reflejar read/read-all al instante.
 func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
+	var ov *adapters.Overview
 	if s.lastOv != nil {
-		if ov := s.lastOv(); ov != nil {
-			writeJSON(w, http.StatusOK, ov)
+		ov = s.lastOv()
+	}
+	if ov == nil {
+		fresh, err := s.adapter.GetOverview(r.Context())
+		if err != nil || fresh == nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
+		ov = fresh
 	}
-	ov, err := s.adapter.GetOverview(r.Context())
-	if err != nil || ov == nil {
-		writeError(w, http.StatusInternalServerError, "internal_error")
-		return
-	}
-	writeJSON(w, http.StatusOK, ov)
+	out := *ov
+	engine := s.adapter.AlertsEngine()
+	out.Alerts = engine.List()
+	out.UnreadAlerts = engine.UnreadCount()
+	writeJSON(w, http.StatusOK, &out)
 }
 
 // handleRouters: {routers: [Router…]}.

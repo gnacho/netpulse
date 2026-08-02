@@ -229,9 +229,9 @@ func (s *spyNotifier) Notify(ev AlertEvent) { s.got = append(s.got, ev) }
 func TestNotifierOnlyUrgentThatPass(t *testing.T) {
 	spy := &spyNotifier{}
 	e := New(nil, spy)
-	e.Emit(ev("n1", CatSystem, false))         // pasa, no urgente → sin notify
-	e.Emit(ev("n2", CatSystem, true))          // pasa, urgente → notify
-	e.Emit(ev("n3", CatSignal, true))          // signal:none → descartado, sin notify
+	e.Emit(ev("n1", CatSystem, false)) // pasa, no urgente → sin notify
+	e.Emit(ev("n2", CatSystem, true))  // pasa, urgente → notify
+	e.Emit(ev("n3", CatSignal, true))  // signal:none → descartado, sin notify
 	if len(spy.got) != 1 || spy.got[0].ID != "n2" {
 		t.Fatalf("notifier: %+v", spy.got)
 	}
