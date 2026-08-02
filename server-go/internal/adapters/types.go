@@ -131,6 +131,10 @@ type Router struct {
 	// Backhaul: medio del uplink del router ("cable"|"wifi"). Ausente =
 	// cable/desconocido (router sin wifi o sonda no disponible).
 	Backhaul string `json:"backhaul,omitempty"`
+	// Lldp: vecino LLDP del puerto de uplink cuando es OTRO router conocido
+	// (uplink identificado por LLDP). Ausente si no hay dato — la app lo usa
+	// para el sufijo "· LLDP" en la etiqueta del uplink.
+	Lldp *LldpInfo `json:"lldp,omitempty"`
 }
 
 // DeviceTotals del overview (quirk: NewToday=0 en live).
