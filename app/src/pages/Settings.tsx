@@ -1116,10 +1116,17 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
         return
       }
       const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
-      })
+      // Timeout de seguridad: si el push service del navegador no responde
+      // (sin red, FCM inalcanzable…) el botón no se queda «Activando…»
+      const sub = await Promise.race([
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+        }),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => reject(new Error('push subscribe timeout')), 15000),
+        ),
+      ])
       const json = sub.toJSON()
       const ok = await postPushSubscribe({
         endpoint: sub.endpoint,
