@@ -1,109 +1,177 @@
 # NetPulse
 
-Dashboard PWA de monitorización de red doméstica (**solo lectura**) para una red
-de 4 routers: 1 GL.iNet Flint 2 (GL-MT6000, con AdGuard Home y WireGuard) + 3
-puntos de acceso OpenWrt.
+<p align="center">
+  <a href="README.md">English</a> |
+  <a href="README.es.md">Español</a>
+</p>
 
-- **Frontend** (`app/`): React 19 + Vite + Tailwind + shadcn/ui. PWA instalable.
-- **Backend** (`server-go/`): Go (`net/http` estándar, `modernc.org/sqlite`,
-  binario estático único con el frontend embebido). Auth multiusuario con
-  cookie de sesión + bcrypt, SSE en tiempo real (5 s), adapters demo/live.
-  Unit systemd: `deploy/netpulse-go.service`.
-- **Backend legacy** (`server/`): la implementación original Node + Hono,
-  **archivada como fallback** (no se elimina — runbook de fallback en
-  `server/README.md`). La migración desde su BD es automática en el primer
-  arranque del Go.
-- **Collector** (`collector/`): sidecar en Go que sondea la latencia TCP a cada
-  router (lee la lista de routers de `netpulse.db` en solo lectura) y guarda su
-  propia SQLite de series temporales (`metrics.db`, raw → buckets 5 min → diario).
-  **TODO**: que server-go lea estas series de largo plazo del collector en vez
-  de depender solo de su tabla `metrics` de 5 s.
+<p align="center">
+  <a href="https://github.com/gnacho/netpulse/releases"><img alt="Release" src="https://img.shields.io/github/v/release/gnacho/netpulse"></a>
+  <a href="https://github.com/gnacho/netpulse/actions/workflows/release.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/gnacho/netpulse/release.yml?branch=main"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/gnacho/netpulse"></a>
+</p>
 
-## Instalación (servidor Linux, un comando)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/hero-es-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/hero-es-light.png">
+    <img alt="Resumen de NetPulse con puntuación de salud de red, gráfico de tráfico en vivo, estadísticas de AdGuard Home, peers WireGuard y el feed de alertas" src="assets/hero-es-light.png" width="800">
+  </picture>
+</p>
+
+NetPulse es una PWA de solo lectura para monitorizar una red doméstica
+construida con routers OpenWrt/GL.iNet: estado de la flota, salud por
+router, dispositivos conectados, mapa de topología en vivo, peers
+WireGuard, estadísticas de AdGuard Home y alertas, en tiempo real. Un
+único binario Go estático con el frontend embebido, autoalojado en una
+caja Linux pequeña.
+
+## ¿Por qué existe?
+
+Siempre he creído en la soberanía digital: si un dispositivo te hace
+depender de su cloud, de su firmware o de su fabricante, no es 100% tuyo.
+Por eso siempre he priorizado hardware que se pueda flashear o rootear.
+La distribución de mi casa acabó con cuatro routers: un Flint 2 como
+principal y tres puntos de acceso Xiaomi AX6 comprados de segunda mano a
+30 euros cada uno. Baratos, potentes, y todos corriendo OpenWrt. Esa
+soberanía me permitió orquestar y personalizar la red a mi antojo (no sin
+ciertos desafíos), pero siempre eché en falta una vista unificada de lo
+que pasaba: qué se conecta dónde, qué va bien, qué no. No había nada, o
+no supe encontrarlo, así que me puse manos a la obra. NetPulse es ese
+visor global: analiza tu red, detecta anomalías y te avisa.
+
+## ¿Por qué este stack?
+
+- **Go, un único binario estático**: un monitor 24/7 en un LXC pequeño.
+  ServeMux de `net/http` de la stdlib, sin framework, `go:embed` para el
+  frontend. Actualizar es cambiar un fichero.
+- **`modernc.org/sqlite`, CGO off**: totalmente estático, sin toolchain C
+  en el destino. Series temporales, usuarios y sesiones en un único
+  fichero SQLite embebido (WAL).
+- **Solo lectura por diseño**: el servidor genera su propio par de claves
+  ed25519; autorizas la clave pública en cada router y solo lee (ubus,
+  `/proc`, iwinfo, `bridge fdb`, `wg show`). No puede cambiar tu red.
+- **PWA React 19 + Vite + Tailwind**: instalable, en vivo por SSE (5 s),
+  la misma shell de UI que mis otras apps.
+- **systemd, sin Docker**: monitoriza una red; no necesita un contenedor
+  para hacerlo.
+
+## Características
+
+- **Resumen de flota**: puntuación de salud, tráfico en vivo, latencia,
+  estado por router (CPU, memoria, temperatura, uptime).
+- **Mapa de topología en vivo**: inferido del FDB del bridge (y LLDP
+  cuando está disponible), con clientes cableados e inalámbricos, switches
+  e hipervisores detectados, y túneles WireGuard dibujados de peer a
+  Internet.
+- **Dispositivos**: cada cliente con clasificación por tipo (patrones de
+  hostname + OUI), primer visto, banda, señal.
+- **WireGuard**: peers, últimos handshakes, transferencia por peer.
+- **AdGuard Home**: estadísticas de consultas y dominios más bloqueados.
+- **Alertas**: temperatura, firmware disponible, nuevo dispositivo,
+  handshake, con feed en la campana.
+- **Auth multiusuario**: contraseñas bcrypt, idioma por usuario (ES/EN),
+  roles admin y viewer.
+- **Modo demo** (`DEMO_MODE=1`): una red de muestra de 67 dispositivos,
+  sin necesidad de routers.
+- **Sidecar collector opcional**: sondeo de latencia TCP por router con
+  sus propias series temporales de largo plazo.
+
+## Capturas
+
+**Topología: inferida en vivo del FDB del bridge, túneles incluidos**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-topology-es-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-topology-es-light.png">
+  <img alt="Mapa de topología con el gateway en el centro, tres puntos de acceso, clientes cableados e inalámbricos, un switch inferido y el túnel WireGuard a Internet" src="assets/screenshot-topology-es-light.png" width="800">
+</picture>
+
+**Dispositivos: cada cliente clasificado, con banda y señal**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-devices-es-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-devices-es-light.png">
+  <img alt="Lista de dispositivos con iconos por tipo, hostname, IP, banda, intensidad de señal y el router al que está asociado cada cliente" src="assets/screenshot-devices-es-light.png" width="800">
+</picture>
+
+**Routers: salud por router de un vistazo**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-router-es-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-router-es-light.png">
+  <img alt="Vista de routers con tarjetas por router mostrando modelo, firmware, CPU, memoria, temperatura y uptime" src="assets/screenshot-router-es-light.png" width="800">
+</picture>
+
+## Qué debes esperar
+
+NetPulse es un proyecto personal, construido para mi propia red y
+publicado como software libre (AGPL-3.0). Es y será siempre libre. Trabajo
+en él en mi tiempo libre: hay muchas ideas para mejoras, pero poco tiempo,
+y evoluciona siguiendo primero mis propias necesidades. Con colaboraciones
+o apoyo quizás podría crecer más rápido, pero no puedo prometer nada.
+**Nota honesta de alcance**: de momento solo se ha probado con mi propio
+hardware (un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6
+con OpenWrt), además de WireGuard y AdGuard Home. Otros dispositivos
+OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
+
+## Instalación
+
+Requisitos: Linux (x86_64, arm64 o armv7) con systemd.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh   # (recomendado)
 ```
 
-Detecta distro/arquitectura (amd64, arm64, armv7), descarga la release
-verificada (sha256 contra `checksums.txt`), crea un servicio systemd
-sandboxed `netpulse` y muestra la contraseña admin inicial. Requiere systemd.
-Actualizar = re-ejecutar el mismo comando; desinstalar con
-`sh install.sh --uninstall`. Si prefieres inspeccionar antes:
-`curl -fsSL …/install.sh -o install.sh && less install.sh`.
+El instalador es shell plano y legible: [inspecciónalo primero](install.sh).
+Detecta tu distro y arquitectura, descarga la release verificada (sha256
+contra `checksums.txt`), crea un servicio systemd `netpulse` enjaulado y
+muestra la contraseña inicial de admin una sola vez. Actualiza
+re-ejecutando la misma línea; desinstala con `sh install.sh --uninstall`.
 
-Sidecar opcional de latencia (series temporales de sondeos TCP a cada router):
+Sidecar de latencia opcional (series temporales de sondeo TCP por router):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh | sh
 ```
 
-Los binarios estables se publican por tag `v*` (goreleaser,
-`.github/workflows/release.yml`); los builds rolling por commit viven en la
-prerelease `go-latest` para el updater integrado.
+Los binarios estables se publican por tag `v*` (goreleaser); los builds
+rolling por commit viven en la prerelease `go-latest` para el updater
+in-app.
 
-## Estructura
+## Conectar tus routers
 
-```
-app/          # Frontend React (PWA). Contrato de datos: app/src/data/mock.ts
-server/       # Backend Hono + SQLite (ver ARCHITECTURE.md)
-  src/
-    index.js  # Entry: valida .env, arranca Hono + poller + jobs
-    demo/     # Dataset canónico (port ESM del mock del frontend)
-    adapters/ # demo.js (dataset + random walk) · openwrt.js · adguard.js · wireguard.js
-server-go/    # Backend Go (reemplazo directo del Node; ver server-go/README.md)
-collector/    # Sidecar Go: latencia TCP a routers + series temporales propias
-deploy/       # Units systemd de referencia (netpulse, netpulse-go, netpulse-collector)
-```
-
-## Requisitos
-
-- **Node 24 LTS** recomendado en el servidor (o la LTS vigente; `engines` >= 22).
-  `better-sqlite3` trae prebuilds para las LTS actuales.
-- En modo live: acceso root por SSH (clave) a los routers y AdGuard Home
-  accesible por HTTP desde el servidor.
+El servidor genera su propio par de claves ed25519 y muestra la clave
+pública en Ajustes. Autorízala en cada router que quieras monitorizar
+(`/etc/dropbear/authorized_keys`). El gateway se autodetecta en el primer
+arranque por descubrimiento LAN (barrido TCP :22, fingerprint ubus/GL-UI);
+el resto se añade desde Ajustes. El sondeo es estrictamente de solo
+lectura.
 
 ## Desarrollo
 
 ```bash
-# Backend (puerto 3000, modo demo por defecto)
-cd server
-npm install
-cp .env.example .env    # edita AUTH_PASS
-npm run dev             # node --watch
+# Backend (Go; sirve app/dist vía go:embed)
+cd server-go
+cp ../app/dist internal/staticspa/dist -r   # el dist embebido nunca se trackea
+go build -o netpulse ./cmd/netpulse && DEMO_MODE=1 ./netpulse
 
-# Frontend (puerto 5173, proxifica /api → localhost:3000)
+# Frontend (dev server con proxy)
 cd app
 npm install
 npm run dev
 ```
 
-## Producción
-
-```bash
-cd app && npm run build          # genera app/dist/
-
-cd server
-cp .env.example .env             # AUTH_USER/AUTH_PASS, DEMO_MODE, ROUTERS_JSON…
-NODE_ENV=production node src/index.js   # sirve app/dist + /api/* en :3000
-```
-
-systemd: ver `deploy/netpulse.service` (usuario dedicado `netpulse`, hardening
-básico; la skill de infraestructura lo refina: HTTPS, CAP_NET_BIND_SERVICE…).
-
-## Modos de datos
-
-- **Demo** (`DEMO_MODE=1` o sin `ROUTERS_JSON`): sirve el dataset canónico del
-  mockup con random walk suave cada 5 s. Ideal para desarrollo y demos.
-- **Live** (`DEMO_MODE=0` + `ROUTERS_JSON`): sondea los routers por
-  ubus/SSH, AdGuard por HTTP API y WireGuard con `wg show`. Un router caído
-  queda `offline` + alerta; el resto sigue funcionando.
-
-Variables de entorno: `server/.env.example` (todas documentadas ahí y en
-`ARCHITECTURE.md`). Contrato API: `design/api-contract.md`.
+El backend Node legado (`server/`) está archivado como fallback
+documentado; la migración desde su base de datos ocurre automáticamente en
+el primer arranque Go.
 
 ## Tests
 
 ```bash
-cd server && npm test   # node --test: auth+rate-limit, snapshot demo, paginación
+cd server-go && go test ./...
 ```
+
+## Licencia
+
+[AGPL-3.0](LICENSE)
