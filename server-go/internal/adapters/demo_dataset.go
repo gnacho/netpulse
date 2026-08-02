@@ -13,6 +13,9 @@ package adapters
 import (
 	"fmt"
 	"math"
+	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
 func iptr(v int) *int { return &v }
@@ -135,18 +138,22 @@ func canonWireguard() WireGuardStats {
 	}
 }
 
+// canonAlerts: las 5 alertas canónicas con Category/Urgent/Ts (SPEC-ALERTAS
+// §1 y §5). Los Ts son unix SEGUNDOS escalonados en coherencia con el string
+// legado ("hace 38 s" → now-38, "hace 12 min" → now-720, ...).
 func canonAlerts() []AlertEvent {
+	now := time.Now().Unix()
 	return []AlertEvent{
-		{ID: "alert-temp-patio", Severity: "warn", Title: "Temperatura alta en Patio",
-			Description: "71 °C, por encima del umbral (65 °C)", Time: "hace 12 min", Read: false, RouterID: "patio"},
-		{ID: "alert-firmware-estudio", Severity: "warn", Title: "Firmware disponible",
-			Description: "OpenWrt 24.10.1 para Estudio", Time: "hace 3 h", Read: false, RouterID: "estudio"},
-		{ID: "alert-nuevo-tab", Severity: "info", Title: "Nuevo dispositivo",
-			Description: "'Galaxy Tab S9' se ha unido a Salón", Time: "hace 26 min", Read: true, RouterID: "living"},
-		{ID: "alert-handshake-wg", Severity: "info", Title: "Handshake WireGuard",
-			Description: "Pixel 8 Pro conectado desde 5.224.x.x", Time: "hace 38 s", Read: true, RouterID: "flint2"},
-		{ID: "alert-backup-adguard", Severity: "ok", Title: "Copia de AdGuard completada",
-			Description: "Configuración y listas respaldadas en el NAS", Time: "hace 1 día", Read: true, RouterID: "flint2"},
+		{ID: "alert-temp-patio", Category: alerts.CatRouter, Urgent: true, Severity: "warn", Title: "Temperatura alta en Patio",
+			Description: "71 °C, por encima del umbral (65 °C)", Time: "hace 12 min", Ts: now - 12*60, Read: false, RouterID: "patio"},
+		{ID: "alert-firmware-estudio", Category: alerts.CatSystem, Urgent: false, Severity: "warn", Title: "Firmware disponible",
+			Description: "OpenWrt 24.10.1 para Estudio", Time: "hace 3 h", Ts: now - 3*3600, Read: false, RouterID: "estudio"},
+		{ID: "alert-nuevo-tab", Category: alerts.CatClients, Urgent: false, Severity: "info", Title: "Nuevo dispositivo",
+			Description: "'Galaxy Tab S9' se ha unido a Salón", Time: "hace 26 min", Ts: now - 26*60, Read: true, RouterID: "living"},
+		{ID: "alert-handshake-wg", Category: alerts.CatVPN, Urgent: false, Severity: "info", Title: "Handshake WireGuard",
+			Description: "Pixel 8 Pro conectado desde 5.224.x.x", Time: "hace 38 s", Ts: now - 38, Read: true, RouterID: "flint2"},
+		{ID: "alert-backup-adguard", Category: alerts.CatSystem, Urgent: false, Severity: "ok", Title: "Copia de AdGuard completada",
+			Description: "Configuración y listas respaldadas en el NAS", Time: "hace 1 día", Ts: now - 24*3600, Read: true, RouterID: "flint2"},
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -79,12 +80,12 @@ func run() error {
 	// live → sondeo real (SSH/ubus) de los routers configurados.
 	var adapter adapters.Snapshotter
 	if cfg.DemoMode {
-		adapter = adapters.NewDemo()
+		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 	} else {
 		pool, err := adapters.NewSSHPool(cfg.SSHKeyPath)
 		if err != nil {
 			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
-			adapter = adapters.NewDemo()
+			adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 		} else {
 			adapter = adapters.NewLive(cfg, dbHandle, routers, pool)
 		}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
 var bands = []string{"5 GHz", "2.4 GHz", "cable"}
@@ -192,7 +193,8 @@ func deviceMatches(d adapters.Device, query string) bool {
 	return false
 }
 
-// handleAlerts: severity + paginación (default pageSize=20).
+// handleAlerts: severity + category + unread=1 + paginación (default
+// pageSize=20). El read-state lo aplica el motor (SPEC-ALERTAS §3-4).
 func (s *server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 	page, pageSize, ok := parsePagination(r, 20)
 	if !ok {
@@ -204,15 +206,66 @@ func (s *server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", "severity debe ser una de: "+strings.Join(severities, ", "))
 		return
 	}
+	category := r.URL.Query().Get("category")
+	if category != "" && !alerts.IsCategory(category) {
+		writeError(w, http.StatusBadRequest, "invalid_query", "category debe ser una de: "+strings.Join(alerts.Categories, ", "))
+		return
+	}
+	unreadOnly := r.URL.Query().Get("unread") == "1"
 	items := s.adapter.GetAlerts(r.Context())
 	filtered := make([]adapters.AlertEvent, 0, len(items))
 	for _, a := range items {
 		if severity != "" && a.Severity != severity {
 			continue
 		}
+		if category != "" && a.Category != category {
+			continue
+		}
+		if unreadOnly && a.Read {
+			continue
+		}
 		filtered = append(filtered, a)
 	}
 	writeJSON(w, http.StatusOK, paginate(filtered, page, pageSize))
+}
+
+// handleAlertsConfig (GET): las 6 categorías con su nivel efectivo.
+func (s *server) handleAlertsConfigGet(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.adapter.AlertsEngine().Config())
+}
+
+// handleAlertsConfigPut (PUT): parche parcial {"signal":"all"}; valida
+// categorías y niveles (400 en inválido, SPEC-ALERTAS §4).
+func (s *server) handleAlertsConfigPut(w http.ResponseWriter, r *http.Request) {
+	var patch map[string]string
+	if !readJSONBody(r, &patch) || patch == nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "body JSON inválido")
+		return
+	}
+	if err := s.adapter.AlertsEngine().SetConfig(patch); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_config", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, s.adapter.AlertsEngine().Config())
+}
+
+// handleAlertsRead (POST): body {"ids":["a","b"]} → marca leídas.
+func (s *server) handleAlertsRead(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if !readJSONBody(r, &body) {
+		writeError(w, http.StatusBadRequest, "invalid_body", "body JSON inválido")
+		return
+	}
+	s.adapter.AlertsEngine().MarkRead(body.IDs...)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// handleAlertsReadAll (POST): marca todas como leídas.
+func (s *server) handleAlertsReadAll(w http.ResponseWriter, _ *http.Request) {
+	s.adapter.AlertsEngine().MarkAllRead()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // handleTopology: {routers, devices} sin paginar.

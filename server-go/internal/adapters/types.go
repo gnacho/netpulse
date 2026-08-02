@@ -11,7 +11,11 @@
 //   - Epochs: ms en DB, SEGUNDOS en Overview.Ts.
 package adapters
 
-import "context"
+import (
+	"context"
+
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
+)
 
 // ---------------------------------------------------------------------------
 // Bloques del Overview (SPEC §7.8)
@@ -199,15 +203,15 @@ type LldpInfo struct {
 // chassis-MAC está entre las aprendidas): lleva Name (chassis), Ip (mgmt)
 // y Lldp con las capacidades/puerto remoto anunciados.
 type DistributionNode struct {
-	ID       string    `json:"id"`
-	Kind     string    `json:"kind"` // "inferred"|"hypervisor"|"managed"
-	RouterID string    `json:"routerId"`
-	Port     string    `json:"port"`
-	MacCount int       `json:"macCount"`
+	ID       string `json:"id"`
+	Kind     string `json:"kind"` // "inferred"|"hypervisor"|"managed"
+	RouterID string `json:"routerId"`
+	Port     string `json:"port"`
+	MacCount int    `json:"macCount"`
 	// HostDeviceID: hipervisor → id del Device host (Proxmox…), si es cliente.
-	HostDeviceID string    `json:"hostDeviceId,omitempty"`
-	Name         string    `json:"name,omitempty"`
-	Ip           string    `json:"ip,omitempty"` // managed: mgmt-ip anunciada por LLDP
+	HostDeviceID string `json:"hostDeviceId,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Ip           string `json:"ip,omitempty"` // managed: mgmt-ip anunciada por LLDP
 	// Mac: chassis-MAC del vecino cuando kind='managed' (SPEC-CANON D1). La
 	// app la usa para excluir del mapa el chip del Device del switch (que
 	// existe como Device Y como nodo managed, sin duplicar el render).
@@ -215,16 +219,9 @@ type DistributionNode struct {
 	Lldp *LldpInfo `json:"lldp,omitempty"`
 }
 
-// AlertEvent (máx 100 en memoria, más recientes primero).
-type AlertEvent struct {
-	ID          string `json:"id"`
-	Severity    string `json:"severity"` // "warn"|"critical"|"info"|"ok"
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Time        string `json:"time"` // relativo ES ("hace 12 min") — el frontend lo muestra tal cual
-	Read        bool   `json:"read"`
-	RouterID    string `json:"routerId"`
-}
+// AlertEvent vive en internal/alerts (SPEC-ALERTAS §1: Category/Urgent/Ts);
+// el alias mantiene el contrato adapters.AlertEvent para handlers y tests.
+type AlertEvent = alerts.AlertEvent
 
 // Overview es el bundle completo (SPEC §7.8). Ts en SEGUNDOS.
 type Overview struct {
@@ -303,12 +300,12 @@ type RouterDetail struct {
 	Clients  []Device   `json:"clients"`
 	Extras   any        `json:"extras"`
 	// --- solo gateway (demo: solo flint2; live: solo el gateway) ---
-	Adguard          *AdGuardStats  `json:"adguard,omitempty"`
+	Adguard          *AdGuardStats   `json:"adguard,omitempty"`
 	Wireguard        *WireGuardStats `json:"wireguard,omitempty"`
-	AdguardSeries24h []AdGuardHour  `json:"adguardSeries24h,omitempty"`
-	WANLatency       *WANLatency    `json:"wanLatency,omitempty"`
-	WGPeerExtras     any            `json:"wgPeerExtras,omitempty"`
-	WGTotals30d      *WGTotals      `json:"wgTotals30d,omitempty"`
+	AdguardSeries24h []AdGuardHour   `json:"adguardSeries24h,omitempty"`
+	WANLatency       *WANLatency     `json:"wanLatency,omitempty"`
+	WGPeerExtras     any             `json:"wgPeerExtras,omitempty"`
+	WGTotals30d      *WGTotals       `json:"wgTotals30d,omitempty"`
 }
 
 // AdGuardHour es un punto de la serie horaria AdGuard del detalle del gateway
@@ -440,6 +437,9 @@ type Snapshotter interface {
 	GetDevices(ctx context.Context) []Device
 	// GetAlerts lista las alertas (más recientes primero, máx 100).
 	GetAlerts(ctx context.Context) []AlertEvent
+	// AlertsEngine expone el motor de alertas (SPEC-ALERTAS §3): config,
+	// read-state y UnreadCount viven ahí (server truth).
+	AlertsEngine() *alerts.Engine
 	// GetMetricsRows devuelve las filas para la tabla metrics del tick
 	// actual (el poller solo persiste si Mode() != "demo").
 	GetMetricsRows(ctx context.Context) []MetricsRow

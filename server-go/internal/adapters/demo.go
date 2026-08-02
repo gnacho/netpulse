@@ -3,6 +3,7 @@
 //   - cpu/ram/temp ±2 máx (acotados 2-95 / 10-92 / 30-82)
 //   - tráfico ±5 %, latencia WAN acotada 6–11 ms
 //   - AdGuard siempre creciente, bytes WG crecientes solo en peers activos
+//
 // El PRIMER snapshot (antes del primer Tick) es exactamente el canon.
 package adapters
 
@@ -13,6 +14,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
 const demoGatewayID = "flint2"
@@ -32,7 +35,7 @@ type Demo struct {
 	wan       WAN
 	adguard   AdGuardStats
 	wireguard WireGuardStats
-	alerts    []AlertEvent
+	engine    *alerts.Engine
 	devices   []Device
 	extras    map[string]*demoExtras
 	wgBytes   map[string]*wgByteCounter
@@ -44,18 +47,27 @@ type Demo struct {
 }
 
 // NewDemo crea el adapter demo con una copia fresca del dataset canónico.
-func NewDemo() *Demo {
+// Las 5 alertas canónicas entran en el motor vía Seed (SPEC-ALERTAS §5:
+// deben sobrevivir con los defaults — nótese que con el filtrado estricto
+// de creación, "vpn:none" y "clients:urgent" descartarían 2 de las 5; Seed
+// omite SOLO el filtro de config y mantiene dedup/cap/read-state). Si se
+// pasa un engine (main lo crea con kv) se usa; si no, memoria (tests).
+func NewDemo(engine ...*alerts.Engine) *Demo {
+	eng := alerts.New(nil, nil)
+	if len(engine) > 0 && engine[0] != nil {
+		eng = engine[0]
+	}
 	wg := canonWireguard()
 	d := &Demo{
-		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
-		routers:   canonRouters(),
-		wan:       canonWAN(),
-		adguard:   canonAdguard(),
-		wireguard: wg,
-		alerts:    canonAlerts(),
-		devices:   canonAllDevices(),
-		extras:    canonRouterExtras(),
-		wgBytes:   map[string]*wgByteCounter{},
+		rng:           rand.New(rand.NewSource(time.Now().UnixNano())),
+		routers:       canonRouters(),
+		wan:           canonWAN(),
+		adguard:       canonAdguard(),
+		wireguard:     wg,
+		engine:        eng,
+		devices:       canonAllDevices(),
+		extras:        canonRouterExtras(),
+		wgBytes:       map[string]*wgByteCounter{},
 		adguardSeries: buildAdGuardSeries(),
 		wanLatency: &WANLatency{
 			Last24h: canonWANLatency24h(),
@@ -73,6 +85,20 @@ func NewDemo() *Demo {
 		d.routers[i].Clients = onlineClientsOf(d.devices, d.routers[i].ID)
 	}
 	d.adguard.ClientsTotal = len(d.devices)
+	// Las 5 canon entran al motor en ORDEN INVERSO (Seed prepende) para que el
+	// feed quede en el orden canónico; después se marca el read-state del
+	// canon (3 leídas) en el read-set del servidor.
+	canon := canonAlerts()
+	for i := len(canon) - 1; i >= 0; i-- {
+		eng.Seed(canon[i])
+	}
+	readIDs := []string{}
+	for _, a := range canon {
+		if a.Read {
+			readIDs = append(readIDs, a.ID)
+		}
+	}
+	eng.MarkRead(readIDs...)
 	return d
 }
 
@@ -171,23 +197,17 @@ func (d *Demo) GetOverview(context.Context) (*Overview, error) {
 }
 
 func (d *Demo) buildOverview() *Overview {
-	unread := 0
-	for _, a := range d.alerts {
-		if !a.Read {
-			unread++
-		}
-	}
 	return &Overview{
-		Health:       canonHealthScore(),
-		WAN:          d.wan,
-		Traffic:      canonTraffic(),
-		Adguard:      d.adguard,
-		Wireguard:    d.wireguardSnapshot(),
-		Routers:      d.routersCopy(),
-		DeviceTotals: deviceTotalsOf(d.devices), // D5: derivado del dataset
-		TopDevices:   d.topDevices(5),
-		Alerts:       d.alertsCopy(),
-		UnreadAlerts: unread,
+		Health:            canonHealthScore(),
+		WAN:               d.wan,
+		Traffic:           canonTraffic(),
+		Adguard:           d.adguard,
+		Wireguard:         d.wireguardSnapshot(),
+		Routers:           d.routersCopy(),
+		DeviceTotals:      deviceTotalsOf(d.devices), // D5: derivado del dataset
+		TopDevices:        d.topDevices(5),
+		Alerts:            d.alertsCopy(),
+		UnreadAlerts:      d.engine.UnreadCount(),
 		DistributionNodes: canonDistributionNodes(),
 		Ts:                time.Now().Unix(),
 	}
@@ -209,9 +229,7 @@ func (d *Demo) routersCopy() []Router {
 }
 
 func (d *Demo) alertsCopy() []AlertEvent {
-	out := make([]AlertEvent, len(d.alerts))
-	copy(out, d.alerts)
-	return out
+	return d.engine.List()
 }
 
 func (d *Demo) devicesCopy() []Device {
@@ -305,12 +323,13 @@ func (d *Demo) GetDevices(context.Context) []Device {
 	return d.devicesCopy()
 }
 
-// GetAlerts devuelve las 5 alertas canónicas.
+// GetAlerts devuelve las 5 alertas canónicas (via motor; read-set aplicado).
 func (d *Demo) GetAlerts(context.Context) []AlertEvent {
-	d.mu.Lock()
-	defer d.mu.Unlock()
 	return d.alertsCopy()
 }
+
+// AlertsEngine: motor de alertas del adapter (SPEC-ALERTAS §3).
+func (d *Demo) AlertsEngine() *alerts.Engine { return d.engine }
 
 // GetMetricsRows (demo.js:189-203). El poller no persiste en demo, pero la
 // interfaz lo exige.
