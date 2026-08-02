@@ -304,8 +304,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const bundleRef = useRef(bundle)
   bundleRef.current = bundle
   const modeRef = useRef<'boot' | 'live' | 'demo'>('boot')
+  // Se sincroniza en applyAlertsConfig y en el fetch del boot (nunca en render)
   const configRef = useRef(alertsConfig)
-  configRef.current = alertsConfig
 
   const applyOverview = useCallback((o: OverviewBundle) => {
     setLastSnapshotAt(Date.now())
@@ -428,7 +428,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const res = await fetchJson('/api/alerts/config')
         if (!res.ok) return
         const cfg = normalizeAlertsConfig(await res.json())
-        if (!disposed) setAlertsConfigState(cfg)
+        if (!disposed) {
+          configRef.current = cfg
+          setAlertsConfigState(cfg)
+        }
       } catch {
         /* sin config: se quedan los defaults del SPEC §2 */
       }
@@ -698,7 +701,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAlertsRead,
       markAllAlertsRead,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [bundle, connectionStatus, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead],
   )
 
