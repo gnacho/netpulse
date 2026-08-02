@@ -1,10 +1,13 @@
 /**
  * Devices — extensión local del canon (design.md §11 / devices.md §④).
- * Los 10 dispositivos destacados de `@/data/mock` se reutilizan tal cual;
+ * Los dispositivos destacados de `@/data/mock` se reutilizan tal cual;
  * la entrada agregada "Bombillas Ikea ×6" se expande en sus 6 bombillas
  * individuales y se añaden los clientes restantes hasta los totales del
- * canon: 46 conocidos · 38 online · 8 offline (Gateway 13, Salón 18,
- * Estudio 9, Patio 6). Nada aquí contradice `@/data/mock`.
+ * canon reconciliado (D5): 65 conocidos · 59 online · 6 offline
+ * (online por router: Gateway 26, Salón 20, Estudio 8, Patio 5).
+ * Regla D3: cada ID existe exactamente 1 vez en el dataset (mock.ts +
+ * este archivo), espejo del dataset demo de Go. Nada aquí contradice
+ * `@/data/mock`.
  */
 import type { LucideIcon } from 'lucide-react'
 import { BookOpen, Printer } from 'lucide-react'
@@ -15,7 +18,7 @@ import { devices as canonDevices } from '@/data/mock'
 // Tipos
 // ---------------------------------------------------------------------------
 
-export type FilterGroup = 'moviles' | 'ordenadores' | 'tv' | 'iot' | 'red' | 'otros'
+export type FilterGroup = 'infra' | 'moviles' | 'ordenadores' | 'tv' | 'iot' | 'red' | 'otros'
 
 export interface ClientDevice extends Device {
   hostname: string
@@ -36,16 +39,10 @@ export interface ClientDevice extends Device {
   iconOverride?: LucideIcon
 }
 
-export const GROUP_LABELS: Record<FilterGroup, string> = {
-  moviles: 'Mobiles',
-  ordenadores: 'Computers',
-  tv: 'TV & consoles',
-  iot: 'IoT & home',
-  red: 'Network',
-  otros: 'Others',
-}
-
-export const GROUP_ORDER: FilterGroup[] = ['moviles', 'ordenadores', 'tv', 'iot', 'red', 'otros']
+// 'infra' primero (D6): hipervisores, CTs y switches gestionados de un vistazo.
+// El grupo 'infra' no deriva del `type`: lo asigna Devices.tsx cruzando
+// attachTo/lldp con los distributionNodes del provider.
+export const GROUP_ORDER: FilterGroup[] = ['infra', 'moviles', 'ordenadores', 'tv', 'iot', 'red', 'otros']
 
 // ---------------------------------------------------------------------------
 // Detalles extra de los dispositivos canónicos (mock.ts §Dispositivos)
@@ -92,6 +89,12 @@ const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
     hostname: 'galaxy-tab-s9', dhcpLease: 'renews in 11h 5min', firstSeen: 'today',
     traffic24hRx: '640 MB', traffic24hTx: '48 MB', adguard: true, group: 'moviles', newThisWeek: true,
   },
+  // D1: el GS308E vuelve a ser Device (además del distnode managed de mock.ts).
+  // Su grupo visible es 'infra' (lo reasigna Devices.tsx al detectar `lldp`).
+  'gs308e': {
+    hostname: 'gs308e', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    traffic24hRx: '96 MB', traffic24hTx: '42 MB', adguard: false, group: 'red',
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -126,12 +129,12 @@ function bulb(n: number, name: string, ip: string, mac: string, dbm: number): Cl
 }
 
 // ---------------------------------------------------------------------------
-// Dispositivos adicionales (canon: los 10 destacados ya están en mock.ts;
-// aquí están el resto hasta 47 — devices.md §④ "29 adicionales plausibles")
+// Dispositivos adicionales (canon: los destacados ya están en mock.ts;
+// aquí está el resto hasta los 65 IDs únicos del dataset reconciliado, D3/D5)
 // ---------------------------------------------------------------------------
 
 const ADDITIONAL: ClientDevice[] = [
-  // —— Gateway (flint2): 13 totales (canon: pixel-8-pro, nas-synology) ——
+  // —— Gateway (flint2) ——
   {
     ...extra({ id: 'iphone-ana', name: "Ana's iPhone", type: 'movil', manufacturer: 'Apple',
       ip: '192.168.8.44', mac: 'F4:D4:88:19:C2:71', routerId: 'flint2', band: '5 GHz',
@@ -146,22 +149,22 @@ const ADDITIONAL: ClientDevice[] = [
     hostname: 'macbook-pro-marc', dhcpLease: 'renews in 4h 16min', firstSeen: '230 days ago',
     traffic24hRx: '12.4 GB', traffic24hTx: '1.9 GB', adguard: true, group: 'ordenadores',
   },
+  // D3: pc-sobremesa y raspberry-pi cuelgan del switch inferido (attachTo),
+  // enriquecidos in situ igual que en el dataset Go — no se duplican en mock.ts.
   {
     ...extra({ id: 'pc-sobremesa', name: 'Desktop PC', type: 'ordenador', manufacturer: 'ASUSTeK',
       ip: '192.168.8.11', mac: '04:D4:C4:8B:30:A7', routerId: 'flint2', band: 'cable',
-      signalDbm: null, trafficMbps: 21.3, online: true, seed: 13 }),
+      signalDbm: null, trafficMbps: 21.3, online: true, attachTo: 'dist-flint2-lan3', seed: 13 }),
     hostname: 'desktop-8f2k1', dhcpLease: 'Static IP (reservation)', firstSeen: '310 days ago',
     traffic24hRx: '84 GB', traffic24hTx: '6.2 GB', adguard: true, group: 'ordenadores',
   },
   {
     ...extra({ id: 'raspberry-pi', name: 'Raspberry Pi 4', type: 'servidor', manufacturer: 'Raspberry Pi',
       ip: '192.168.8.12', mac: 'DC:A6:32:4F:77:02', routerId: 'flint2', band: 'cable',
-      signalDbm: null, trafficMbps: 0.8, online: true, seed: 14 }),
+      signalDbm: null, trafficMbps: 0.8, online: true, attachTo: 'dist-flint2-lan3', seed: 14 }),
     hostname: 'raspberrypi', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
     traffic24hRx: '3.4 GB', traffic24hTx: '890 MB', adguard: true, group: 'red',
   },
-  // (El switch Netgear GS308E ya no es un Device: el backend demo lo emite
-  // como DistributionNode kind='managed' — dist-living-lan3, ver mock.ts.)
   {
     ...extra({ id: 'timbre-nest', name: 'Nest doorbell', type: 'camara', manufacturer: 'Google',
       ip: '192.168.8.72', mac: 'F4:F5:D8:66:01:B8', routerId: 'flint2', band: '2.4 GHz',
@@ -183,12 +186,14 @@ const ADDITIONAL: ClientDevice[] = [
     hostname: 'pixel-7', dhcpLease: 'renews in 7h 3min', firstSeen: '205 days ago',
     traffic24hRx: '1.9 GB', traffic24hTx: '180 MB', adguard: true, group: 'moviles',
   },
+  // D3: una única identidad — la cableada al switch inferido (gateway lan3).
   {
-    ...extra({ id: 'impresora-hp', name: 'HP Printer', type: 'desconocido', manufacturer: 'HP',
-      ip: '192.168.8.14', mac: '3C:52:82:AB:19:60', routerId: 'flint2', band: '2.4 GHz',
-      signalDbm: -60, trafficMbps: 0, online: false }),
-    hostname: 'hp-laserjet-m209', dhcpLease: 'Expired', firstSeen: '250 days ago',
-    traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'otros',
+    ...extra({ id: 'impresora-hp', name: 'HP Printer', type: 'iot', manufacturer: 'HP',
+      ip: '192.168.8.62', mac: '3C:D9:2B:AA:03:03', routerId: 'flint2', band: 'cable',
+      signalDbm: null, trafficMbps: 0.1, online: true, attachTo: 'dist-flint2-lan3',
+      seed: 15, spread: 0.2 }),
+    hostname: 'hp-laserjet-m209', dhcpLease: 'renews in 5h 22min', firstSeen: '60 days ago',
+    traffic24hRx: '2.4 GB', traffic24hTx: '120 MB', adguard: true, group: 'iot',
     iconOverride: Printer,
   },
   {
@@ -216,7 +221,7 @@ const ADDITIONAL: ClientDevice[] = [
 ]
 
 const LIVING: ClientDevice[] = [
-  // —— Salón (living): 18 totales (canon: imac, tv-samsung, ps5, galaxy-tab-s9) ——
+  // —— Salón (living) ——
   bulb(1, 'Living room bulb 1', '192.168.8.90', 'CC:86:EC:10:04:21', -58),
   bulb(2, 'Living room bulb 2', '192.168.8.91', 'CC:86:EC:10:04:22', -59),
   bulb(3, 'Floor lamp bulb', '192.168.8.92', 'CC:86:EC:10:04:23', -61),
@@ -266,13 +271,8 @@ const LIVING: ClientDevice[] = [
     traffic24hRx: '480 MB', traffic24hTx: '62 MB', adguard: false, group: 'ordenadores',
     newThisWeek: true,
   },
-  {
-    ...extra({ id: 'xbox-series-s', name: 'Xbox Series S', type: 'consola', manufacturer: 'Microsoft',
-      ip: '192.168.8.32', mac: '7C:1E:52:06:AA:3F', routerId: 'living', band: '5 GHz',
-      signalDbm: -55, trafficMbps: 0, online: false }),
-    hostname: 'xbox-series-s', dhcpLease: 'Expired', firstSeen: '230 days ago',
-    traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'tv',
-  },
+  // D3: xbox-series-s tiene UNA identidad — la cableada al GS308E de mock.ts
+  // (attachTo dist-living-lan3, online); la vieja versión wifi/offline se elimina.
   {
     ...extra({ id: 'portatil-antiguo', name: 'Old laptop', type: 'portatil', manufacturer: 'HP',
       ip: '192.168.8.28', mac: '3C:52:82:5D:90:17', routerId: 'living', band: '2.4 GHz',
@@ -283,7 +283,7 @@ const LIVING: ClientDevice[] = [
 ]
 
 const ESTUDIO: ClientDevice[] = [
-  // —— Estudio: 9 totales (canon: macbook-air, nest-mini) ——
+  // —— Estudio ——
   {
     ...extra({ id: 'mac-mini', name: 'Mac mini', type: 'ordenador', manufacturer: 'Apple',
       ip: '192.168.8.22', mac: 'A4:83:E7:66:2C:98', routerId: 'estudio', band: 'cable',
@@ -337,7 +337,7 @@ const ESTUDIO: ClientDevice[] = [
 ]
 
 const PATIO: ClientDevice[] = [
-  // —— Patio: 6 totales (canon: robot-aspirador, camara-porche) ——
+  // —— Patio ——
   {
     ...extra({ id: 'camara-jardin', name: 'Garden camera', type: 'camara', manufacturer: 'Reolink',
       ip: '192.168.8.73', mac: 'EC:71:DB:44:12:9B', routerId: 'patio', band: '2.4 GHz',
@@ -371,15 +371,11 @@ const PATIO: ClientDevice[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// Lista completa: 47 clientes (los 10 del canon — salvo el agregado de
-// bombillas, que se expande — + 37 adicionales)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Builder: enriquece una lista de `Device` (mock local o API) con los
 // metadatos de cliente (hostname, DHCP, AdGuard, grupo de filtro).
 // - `withSynthetic=true` (modo demo local, sin backend): expande el canon a
-//   los 47 clientes del mockup (agregado de bombillas + adicionales).
+//   los 65 clientes del dataset reconciliado (agregado de bombillas +
+//   adicionales).
 // - `withSynthetic=false` (backend live): solo fusiona detalles conocidos por
 //   id y deriva valores plausibles para clientes nuevos — nunca inventa
 //   dispositivos que la API no ha reportado.

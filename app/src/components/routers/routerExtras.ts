@@ -95,13 +95,16 @@ export const routerExtras: Record<string, RouterExtras> = {
     backhaulSignal: [],
     radios: [],
     ports: [],
-    // GL-MT6000: 1× WAN 2.5G + 4× LAN 1G
+    // GL-MT6000: 1× WAN 2.5G + 4× LAN 1G + 1× LAN 2.5G — canon D4:
+    // lan1 = uplink Salón (LLDP), lan2 = uplink Estudio (LLDP), lan3 = switch
+    // inferido, lan4 = NAS, lan5 = Proxmox pve (2.5G).
     ethPorts: [
       { id: 'wan', label: 'WAN', up: true, speed: '2.5 Gbps', connectedTo: 'Fiber ONT · Digi', detail: '84.122.x.x · full duplex' },
-      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Living Room · AX3000T', detail: 'Living Room AP uplink (192.168.8.2)' },
-      { id: 'lan2', label: 'LAN 2', up: true, speed: '1 Gbps', connectedTo: 'NAS Synology', detail: '192.168.8.10 · cable' },
-      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Study · NanoPi R4S', detail: 'Study AP uplink (192.168.8.3)' },
-      { id: 'lan4', label: 'LAN 4', up: false },
+      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Living Room · AX3000T', detail: 'Living Room AP uplink (192.168.8.2) · LLDP' },
+      { id: 'lan2', label: 'LAN 2', up: true, speed: '1 Gbps', connectedTo: 'Study · NanoPi R4S', detail: 'Study AP uplink (192.168.8.3) · LLDP' },
+      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Switch sin gestión (inferido)', detail: '8 MACs · sin IP (FDB)' },
+      { id: 'lan4', label: 'LAN 4', up: true, speed: '1 Gbps', connectedTo: 'NAS Synology', detail: '192.168.8.10 · cable' },
+      { id: 'lan5', label: 'LAN 5', up: true, speed: '2.5 Gbps', connectedTo: 'Proxmox pve', detail: '192.168.8.5 · 2.5G · 10 CT' },
     ],
   },
   living: {
@@ -126,15 +129,16 @@ export const routerExtras: Record<string, RouterExtras> = {
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
       { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink to Gateway' },
       { name: 'lan1', up: true, speed: '1 Gbps', role: 'PS5' },
+      { name: 'lan3', up: true, speed: '1 Gbps', role: 'Switch GS308E (LLDP)' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
       { name: 'phy1-ap0', up: true, speed: '—', role: 'Radio 5 GHz' },
     ],
-    // AX3000T: 1× WAN + 3× LAN
+    // AX3000T: 1× WAN + 3× LAN — canon D4: lan3 = uplink del GS308E (up).
     ethPorts: [
       { id: 'wan', label: 'WAN', up: true, speed: '1 Gbps', connectedTo: 'Uplink → Gateway', detail: 'Gateway · LAN 1 (192.168.8.1)' },
       { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'PS5', detail: '192.168.8.31 · cable' },
       { id: 'lan2', label: 'LAN 2', up: false },
-      { id: 'lan3', label: 'LAN 3', up: false },
+      { id: 'lan3', label: 'LAN 3', up: true, speed: '1 Gbps', connectedTo: 'Switch GS308E', detail: '192.168.8.13 · LLDP · uplink ge5' },
     ],
   },
   estudio: {
@@ -159,14 +163,15 @@ export const routerExtras: Record<string, RouterExtras> = {
     ports: [
       { name: 'br-lan', up: true, speed: '—', role: 'Bridge LAN' },
       { name: 'eth0', up: true, speed: '1 Gbps', role: 'Uplink to Gateway' },
-      { name: 'eth1', up: true, speed: '1 Gbps', role: 'Study switch' },
+      { name: 'eth1', up: true, speed: '1 Gbps', role: 'Unmanaged switch' },
       { name: 'phy0-ap0', up: true, speed: '—', role: 'Radio 2.4 GHz' },
       { name: 'phy1-ap0', up: true, speed: '—', role: 'Radio 5 GHz' },
     ],
-    // NanoPi R4S: 2× 1G (WAN + LAN)
+    // NanoPi R4S: 2× 1G (WAN + LAN) — canon D4: lan1 = switch sin gestión.
+    // Solo panel: la topología no lo muestra (regla "inferred solo en gateway").
     ethPorts: [
-      { id: 'wan', label: 'WAN', up: true, speed: '1 Gbps', connectedTo: 'Uplink → Gateway', detail: 'Gateway · LAN 3 (192.168.8.1)' },
-      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Study switch', detail: '8-port switch · 4 in use' },
+      { id: 'wan', label: 'WAN', up: true, speed: '1 Gbps', connectedTo: 'Uplink → Gateway', detail: 'Gateway · LAN 2 (192.168.8.1)' },
+      { id: 'lan1', label: 'LAN 1', up: true, speed: '1 Gbps', connectedTo: 'Switch sin gestión', detail: '8 puertos · 4 en uso · la topología no lo muestra' },
     ],
   },
   patio: {
