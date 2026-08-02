@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
@@ -40,7 +41,10 @@ type Deps struct {
 	Updater *updater.Updater // nil → sin rutas /api/update/*
 	// LastOverview devuelve el último overview del poller (nil si aún no hay).
 	LastOverview func() *adapters.Overview
-	Started      time.Time
+	// PollNow dispara un ciclo de sondeo inmediato (POST /api/refresh);
+	// nil → el refresh manual es no-op (tests sin poller).
+	PollNow func()
+	Started time.Time
 }
 
 type server struct {
@@ -50,14 +54,19 @@ type server struct {
 	hub     *sse.Hub
 	secret  string
 	lastOv  func() *adapters.Overview
+	pollNow func()
 	started time.Time
+
+	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
+	refreshMu   sync.Mutex
+	lastRefresh time.Time
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
 func NewHandler(d Deps) http.Handler {
 	s := &server{
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
-		secret: d.Secret, lastOv: d.LastOverview, started: d.Started,
+		secret: d.Secret, lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 	}
 	mode := d.Adapter.Mode()
 
@@ -81,6 +90,9 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
+
+	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
+	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
 
 	// --- Users ---
 	// Idioma propio: FUERA del gate admin (se registra antes en Node).

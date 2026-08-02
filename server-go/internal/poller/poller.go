@@ -36,6 +36,9 @@ type Poller struct {
 	stopCh chan struct{}
 	doneCh chan struct{}
 	once   sync.Once
+
+	// tickMu serializa los ticks (ticker 5 s + sondeos manuales PollNow).
+	tickMu sync.Mutex
 }
 
 // New crea el poller.
@@ -58,7 +61,7 @@ func (p *Poller) LastOverview() *adapters.Overview {
 func (p *Poller) Start() {
 	go func() {
 		defer close(p.doneCh)
-		p.tick()
+		p.tickOnce()
 		t := time.NewTicker(TickMS)
 		defer t.Stop()
 		for {
@@ -66,10 +69,28 @@ func (p *Poller) Start() {
 			case <-p.stopCh:
 				return
 			case <-t.C:
-				p.tick()
+				p.tickOnce()
 			}
 		}
 	}()
+}
+
+// PollNow solicita un ciclo de sondeo inmediato (POST /api/refresh). No
+// bloquea al caller HTTP: el tick corre en background y el snapshot fresco
+// llega por el broadcast SSE normal. Si ya hay un tick en curso (manual o
+// del ticker) no apila otro: ese snapshot también estará fresco.
+func (p *Poller) PollNow() {
+	go p.tickOnce()
+}
+
+// tickOnce ejecuta un tick solo si no hay otro en curso (evita solapar
+// sondeos SSH de todos los routers cuando coinciden ticker y refresh manual).
+func (p *Poller) tickOnce() {
+	if !p.tickMu.TryLock() {
+		return
+	}
+	defer p.tickMu.Unlock()
+	p.tick()
 }
 
 // Stop detiene el bucle y espera a que termine el tick en curso.

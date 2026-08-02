@@ -424,6 +424,8 @@
     "peerAria": "{{name}}, active WireGuard tunnel, {{ip}}",
     "plan": "Plan",
     "received": "Received",
+    "refreshNow": "Refresh now",
+    "refreshing": "Refreshing…",
     "resetView": "Center and reset view",
     "routerAria": "{{name}}, {{model}}, {{clients}} clients",
     "sent": "Sent",

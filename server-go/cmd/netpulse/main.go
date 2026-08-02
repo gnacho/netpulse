@@ -121,6 +121,7 @@ func run() error {
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
+		PollNow: p.PollNow,
 		Started: time.Now(),
 	})
 
