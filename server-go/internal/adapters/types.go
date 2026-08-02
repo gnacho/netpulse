@@ -208,7 +208,11 @@ type DistributionNode struct {
 	HostDeviceID string    `json:"hostDeviceId,omitempty"`
 	Name         string    `json:"name,omitempty"`
 	Ip           string    `json:"ip,omitempty"` // managed: mgmt-ip anunciada por LLDP
-	Lldp         *LldpInfo `json:"lldp,omitempty"`
+	// Mac: chassis-MAC del vecino cuando kind='managed' (SPEC-CANON D1). La
+	// app la usa para excluir del mapa el chip del Device del switch (que
+	// existe como Device Y como nodo managed, sin duplicar el render).
+	Mac  string    `json:"mac,omitempty"`
+	Lldp *LldpInfo `json:"lldp,omitempty"`
 }
 
 // AlertEvent (máx 100 en memoria, más recientes primero).
