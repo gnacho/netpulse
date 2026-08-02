@@ -10,6 +10,8 @@ import { HealthRing } from '@/components/HealthRing'
 import { MetricBar } from '@/components/MetricBar'
 import { Sparkline } from '@/components/Sparkline'
 import { StatusPill } from '@/components/StatusPill'
+import { AgentBadge } from '@/components/routers/AgentBadge'
+import { useAgentFor } from '@/hooks/useAgentFor'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
@@ -57,6 +59,7 @@ interface FleetCardProps {
 export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps) {
   const { t } = useTranslation()
   const { isDemo } = useNetPulse()
+  const agent = useAgentFor(router.id)
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
   const reduce = useReducedMotion()
@@ -104,8 +107,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               <RouterIcon className="h-[22px] w-[22px]" strokeWidth={1.75} />
             </motion.div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h3 className="truncate font-display text-h2 text-text-primary">{router.name}</h3>
+                <AgentBadge agent={agent} />
               </div>
               <div className="truncate text-caption text-text-muted">
                 {isGateway ? 'GL.iNet Flint 2 · GL-MT6000' : `OpenWrt · ${router.modelShort}`}

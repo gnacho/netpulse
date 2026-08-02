@@ -405,6 +405,13 @@
     }
   },
   "routers": {
+    "agent": {
+      "badge": "Agent",
+      "freshTip": "netpulse-agent v{{version}} · pushes every 15 s",
+      "freshTipUnknown": "netpulse-agent · pushes every 15 s",
+      "stale": "Agent down",
+      "staleTip": "No data from agent — polling via SSH"
+    },
     "colClients": "Clients",
     "colCpu": "CPU",
     "colDevice": "Device",

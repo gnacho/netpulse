@@ -15,6 +15,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AdGuardStats,
+  AgentInfo,
   AlertCategory,
   AlertConfigLevel,
   AlertEvent,
@@ -87,6 +88,12 @@ export interface NetPulseData {
 
 export interface NetPulseApi extends NetPulseData {
   connectionStatus: ConnectionStatus
+  /**
+   * Agentes nativos registrados (GET /api/agents, Fase 6). El `slug` casa con
+   * el `id` del router. En demo: lista vacía (sin badges, comportamiento
+   * honesto — no se mockean agentes). Se refresca cada ~30 s en live.
+   */
+  agents: AgentInfo[]
   /** true = sin backend: dataset local del mockup con tick simulado */
   isDemo: boolean
   /** Re-pide `/api/overview` (live); en demo es no-op */
@@ -280,6 +287,8 @@ function toQuery(params: Record<string, string | number | undefined>): string {
 const BACKOFF_MS = [2000, 5000, 15000]
 const POLL_MS = 15000
 const DEMO_TICK_MS = 3000
+// Refresco del estado de agentes (fresh cambia solo en el backend, TTL ~90 s)
+const AGENTS_POLL_MS = 30000
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -299,6 +308,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Config de alertas: arranca con la demo (localStorage); en live la
   // reemplaza GET /api/alerts/config durante el boot
   const [alertsConfig, setAlertsConfigState] = useState<AlertsConfig>(loadDemoAlertsConfig)
+  // Agentes nativos (live); demo = siempre vacío
+  const [agents, setAgents] = useState<AgentInfo[]>([])
 
   // Refs para closures estables (getters async con la misma firma en ambos modos)
   const bundleRef = useRef(bundle)
@@ -332,6 +343,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     let pollId: number | undefined
     let reconnectId: number | undefined
     let tickId: number | undefined
+    let agentsPollId: number | undefined
     let backoffIdx = 0
 
     const fetchJson = async (url: string): Promise<Response> => {
@@ -437,6 +449,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Agentes nativos (Fase 6): no forman parte del overview; se sondean
+    // aparte cada ~30 s. Sin agentes registrados → [] (sin badges).
+    const fetchAgents = async (): Promise<void> => {
+      try {
+        const res = await fetchJson('/api/agents')
+        if (!res.ok) return
+        const json = (await res.json()) as { agents?: AgentInfo[] } | AgentInfo[]
+        const list = Array.isArray(json) ? json : (json.agents ?? [])
+        if (!disposed) setAgents(list)
+      } catch {
+        /* sin agentes: se mantiene el último estado conocido */
+      }
+    }
+
     const startLive = async () => {
       modeRef.current = 'live'
       setIsDemo(false)
@@ -444,12 +470,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const ok = await fetchOverview()
       await fetchDevices()
       await fetchAlertsConfig()
+      await fetchAgents()
       if (disposed) return
       if (ok) setConnectionStatus('connected')
       else {
         setConnectionStatus('reconnecting')
         pollId = window.setInterval(() => void fetchOverview(), POLL_MS)
       }
+      agentsPollId = window.setInterval(() => void fetchAgents(), AGENTS_POLL_MS)
       startSse()
     }
 
@@ -482,6 +510,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       stopPolling()
       window.clearTimeout(reconnectId)
       window.clearInterval(tickId)
+      window.clearInterval(agentsPollId)
     }
   }, [applyOverview])
 
@@ -689,6 +718,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...bundle,
       connectionStatus,
+      agents,
       isDemo,
       refresh,
       lastSnapshotAt,
@@ -701,7 +731,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAlertsRead,
       markAllAlertsRead,
     }),
-    [bundle, connectionStatus, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead],
+    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>
