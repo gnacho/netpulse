@@ -191,6 +191,12 @@ export interface DistributionNode {
   /** Managed: IP de gestión anunciada por LLDP. */
   ip?: string
   lldp?: LldpInfo | null
+  /**
+   * Managed: chassis-MAC del switch (D1). El switch gestionado existe a la
+   * vez como Device (visible en /devices); el mapa excluye su chip filtrando
+   * los Devices cuya MAC coincide con esta — se representa SOLO como nodo.
+   */
+  mac?: string
 }
 
 export type AlertSeverity = 'warn' | 'critical' | 'info' | 'ok'

@@ -70,7 +70,8 @@ export const routers: Router[] = [
     ram: 41,
     temp: 54,
     uptime: '32d 14h',
-    clients: 33,
+    // D5: recuento real de clientes online atribuidos (enumeración del dataset)
+    clients: 26,
     sparkline: [8, 6, 5, 5, 6, 9, 18, 32, 41, 38, 35, 44, 52, 48, 45, 55, 68, 84, 96, 120, 150, 110, 84, 40],
   },
   {
@@ -89,7 +90,7 @@ export const routers: Router[] = [
     ram: 38,
     temp: 47,
     uptime: '32d 14h',
-    clients: 22,
+    clients: 20,
     sparkline: [4, 3, 3, 2, 3, 5, 10, 22, 28, 26, 24, 30, 38, 35, 33, 42, 55, 72, 88, 105, 132, 92, 61, 28],
   },
   {
@@ -108,7 +109,7 @@ export const routers: Router[] = [
     ram: 44,
     temp: 51,
     uptime: '11d 3h',
-    clients: 9,
+    clients: 8,
     sparkline: [2, 2, 1, 1, 2, 4, 8, 15, 22, 25, 24, 22, 26, 24, 21, 24, 28, 31, 29, 24, 18, 12, 8, 4],
   },
   {
@@ -126,7 +127,7 @@ export const routers: Router[] = [
     ram: 57,
     temp: 71,
     uptime: '4d 2h',
-    clients: 6,
+    clients: 5,
     hotMetric: 'temp',
     sparkline: [1, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 9, 10, 9, 8, 9, 11, 12, 13, 12, 9, 6, 4, 2],
   },
@@ -218,10 +219,12 @@ export const healthScore: HealthScore = {
 // Dispositivos (totales + destacados)
 // ---------------------------------------------------------------------------
 
+// D5: totales derivados de la enumeración real del dataset reconciliado
+// (65 IDs únicos: 59 online · 6 conocidos offline · 3 nuevos hoy).
 export const deviceTotals = {
-  total: 67,
+  total: 65,
   online: 59,
-  knownOffline: 8,
+  knownOffline: 6,
   newToday: 3,
 }
 
@@ -253,7 +256,7 @@ export const devices: Device[] = [
   {
     id: 'ps5', name: 'PS5', type: 'consola', manufacturer: 'Sony',
     ip: '192.168.8.31', mac: '78:C8:81:0A:6B:D4', routerId: 'living', band: 'cable',
-    signalDbm: null, trafficMbps: 12.7, online: true, port: 'lan2',
+    signalDbm: null, trafficMbps: 12.7, online: true, port: 'lan1',
     sparkline: [4, 6, 8, 10, 12, 14, 13, 12, 13, 12, 13, 13],
   },
   {
@@ -277,7 +280,7 @@ export const devices: Device[] = [
   {
     id: 'nas-synology', name: 'NAS Synology', type: 'servidor', manufacturer: 'Synology',
     ip: '192.168.8.10', mac: '00:11:32:9C:51:B7', routerId: 'flint2', band: 'cable',
-    signalDbm: null, trafficMbps: 2.3, online: true, port: 'lan1',
+    signalDbm: null, trafficMbps: 2.3, online: true, port: 'lan4',
     sparkline: [1, 1.5, 2, 2.5, 3, 2.8, 2.4, 2.2, 2.3, 2.3, 2.3, 2.3],
   },
   {
@@ -296,9 +299,20 @@ export const devices: Device[] = [
   // -- Fixtures de topología v5 (mockup aprobado: switch gestionado LLDP, --
   // -- hipervisor con CTs anidados, switch/bridge inferido vía FDB) ----------
 
-  // 3 clientes tras el switch gestionado GS308E (Salón, lan3) — el switch se
-  // modela como DistributionNode kind='managed' (identificado vía LLDP), igual
-  // que lo emitirá el backend demo (C2).
+  // Switch gestionado Netgear GS308E (Salón, uplink lan3): D1 — existe como
+  // Device (badge "Switch gestionado" en /devices) Y como DistributionNode
+  // kind='managed' (dist-living-lan3, misma chassis-MAC); el mapa nunca
+  // renderiza su chip (filtro por MAC en model.ts).
+  {
+    id: 'gs308e', name: 'GS308E', type: 'switch', manufacturer: 'Netgear',
+    ip: '192.168.8.13', mac: 'B0:B9:8A:13:08:0E', routerId: 'living', band: 'cable',
+    signalDbm: null, trafficMbps: 0.4, online: true, attachTo: 'living', port: 'lan3',
+    lldp: { chassis: 'GS308E', mgmt: '192.168.8.13', caps: 'Bridge', portDesc: 'ge5' },
+    sparkline: [0.3, 0.4, 0.4, 0.5, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4],
+  },
+
+  // 3 clientes tras el switch gestionado GS308E (Salón, lan3) — cuelgan del
+  // DistributionNode kind='managed' (identificado vía LLDP).
   {
     id: 'xbox-series-s', name: 'Xbox Series S', type: 'consola', manufacturer: 'Microsoft',
     ip: '192.168.8.35', mac: '7C:ED:8D:4A:11:22', routerId: 'living', band: 'cable',
@@ -318,11 +332,11 @@ export const devices: Device[] = [
     sparkline: [0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6],
   },
 
-  // Hipervisor Proxmox (gateway lan2) + 10 CTs anidados (MACs OUI BC:24:11)
+  // Hipervisor Proxmox (gateway lan5, 2.5G) + 10 CTs anidados (MACs OUI BC:24:11)
   {
     id: 'pve', name: 'Proxmox pve', type: 'servidor', manufacturer: 'Supermicro',
     ip: '192.168.8.5', mac: '3C:52:82:10:20:30', routerId: 'flint2', band: 'cable',
-    signalDbm: null, trafficMbps: 12.3, online: true, port: 'lan2',
+    signalDbm: null, trafficMbps: 12.3, online: true, port: 'lan5',
     sparkline: [8, 9, 10, 11, 12, 13, 12, 12, 12, 12, 12, 12.3],
   },
   ...([
@@ -344,12 +358,12 @@ export const devices: Device[] = [
     sparkline: Array.from({ length: 12 }, (_, j) => Math.max(0.1, mbps - 2 + ((i + j) % 5))),
   })),
 
-  // Tras el switch/bridge inferido (gateway lan3, OUI heterogéneo, sin IP)
+  // Tras el switch/bridge inferido (gateway lan3, OUI heterogéneo, sin IP).
+  // D3: pc-sobremesa, raspberry-pi e impresora-hp ya existen como clientes
+  // preexistentes (enriquecidos con attachTo en devices-data.ts, igual que en
+  // el dataset Go) — aquí solo los 5 IDs nuevos; cada ID aparece 1 sola vez.
   ...([
-    ['pc-sobremesa', 'PC Desktop', 'ordenador', 'Intel NIC', '78:2B:CB:AA:01:01', 8.60, 18.9],
     ['tv-salon-cable', 'TV Living (wired)', 'tv', 'Samsung', '8C:EA:48:AA:02:02', 8.61, 24.4],
-    ['impresora-hp', 'HP Printer', 'iot', 'HP', '3C:D9:2B:AA:03:03', 8.62, 0.1],
-    ['raspberry-pi', 'Raspberry Pi', 'servidor', 'Raspberry Pi Ltd', 'DC:A6:32:AA:04:04', 8.63, 1.7],
     ['xbox-one', 'Xbox One', 'consola', 'Microsoft', '7C:ED:8D:AA:05:05', 8.64, 4.2],
     ['receptor-av', 'AV Receiver', 'altavoz', 'Denon', '00:05:CD:AA:06:06', 8.65, 0.3],
     ['deco-orange', 'Orange STB', 'tv', 'Sagemcom', '48:83:B4:AA:07:07', 8.66, 1.1],
@@ -364,17 +378,18 @@ export const devices: Device[] = [
 
 // ---------------------------------------------------------------------------
 // Nodos de distribución (topología v5): inferidos del FDB en live; en demo,
-// fixtures equivalentes al mockup aprobado (switch lan3 + hipervisor lan2).
+// fixtures equivalentes al mockup aprobado (switch lan3 + hipervisor lan5).
 // ---------------------------------------------------------------------------
 
 export const distributionNodes: DistributionNode[] = [
   { id: 'dist-flint2-lan3', kind: 'inferred', routerId: 'flint2', port: 'lan3', macCount: 8 },
-  { id: 'dist-pve', kind: 'hypervisor', routerId: 'flint2', port: 'lan2', macCount: 11, hostDeviceId: 'pve', name: 'Proxmox pve' },
-  // Switch gestionado Netgear GS308E en el AP Salón (lan3), identificado vía
-  // LLDP (chasis + IP de mgmt + caps + puerto remoto). 4 MACs: switch + 3 equipos.
+  { id: 'dist-pve', kind: 'hypervisor', routerId: 'flint2', port: 'lan5', macCount: 11, hostDeviceId: 'pve', name: 'Proxmox pve' },
+  // Switch gestionado Netgear GS308E en el AP Salón (uplink lan3), identificado
+  // vía LLDP (chasis + IP de mgmt + caps + puerto remoto). 4 MACs: switch + 3
+  // equipos. D1: `mac` = chassis-MAC del Device 'gs308e' (excluye su chip).
   {
     id: 'dist-living-lan3', kind: 'managed', routerId: 'living', port: 'lan3', macCount: 4,
-    name: 'GS308E', ip: '192.168.8.13',
+    name: 'GS308E', ip: '192.168.8.13', mac: 'B0:B9:8A:13:08:0E',
     lldp: { chassis: 'GS308E', mgmt: '192.168.8.13', caps: 'Bridge', portDesc: 'ge5' },
   },
 ]
@@ -393,7 +408,7 @@ export const adguard: AdGuardStats = {
   trackersBlocked: 9204,
   dnsLatencyMs: 14,
   clientsUsing: 60,
-  clientsTotal: 67,
+  clientsTotal: 65,
   topBlocked: [
     { domain: 'graph.facebook.com', count: 1204 },
     { domain: 'adservice.google.com', count: 986 },

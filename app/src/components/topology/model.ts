@@ -351,7 +351,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   const internetNode = { id: 'internet' as const, ...INTERNET_COORD }
 
-  const online = devices.filter((d) => d.online)
+  // D1: el switch gestionado existe como Device Y como distnode managed, pero
+  // en el mapa se representa SOLO como nodo managed: se excluye de los chips
+  // cualquier Device cuya MAC coincida con la chassis-MAC de un distnode.
+  const managedMacs = new Set(
+    distributionNodes.filter((n) => n.kind === 'managed' && n.mac).map((n) => n.mac!.toUpperCase()),
+  )
+  const online = devices.filter((d) => d.online && !managedMacs.has(d.mac.toUpperCase()))
   const deviceById = new Map(online.map((d) => [d.id, d]))
   const distById = new Map(distributionNodes.map((n) => [n.id, n]))
   /** hub al que cuelga un dispositivo: attachTo (si existe y resuelve) o su router.
