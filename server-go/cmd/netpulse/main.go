@@ -30,6 +30,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/poller"
+	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
@@ -104,6 +105,17 @@ func run() error {
 		}
 	}
 
+	// Web Push (Bloque C): par VAPID en kv (primer arranque) + Notifier
+	// asíncrono conectado al motor de alertas del adapter (solo eventos
+	// urgentes que pasan config). Si falla, el resto del servidor sigue.
+	var pushNotifier *push.Notifier
+	if pub, priv, err := push.EnsureVAPIDKeys(dbHandle); err != nil {
+		log.Printf("[netpulse] aviso: Web Push desactivado (%v)", err)
+	} else {
+		pushNotifier = push.NewNotifier(dbHandle, pub, priv)
+		adapter.AlertsEngine().SetNotifier(pushNotifier)
+	}
+
 	// Dependencia sse↔poller resuelta con un holder (como index.js:40-45).
 	var p *poller.Poller
 	hub := sse.NewHub(dbHandle, cfg.MaxSSEClients, func() any {
@@ -176,6 +188,11 @@ func run() error {
 		upd.Stop()
 		hub.NotifyShutdown()
 		_ = adapter.Close()
+		// Tras parar poller y adapter ya nadie emite alertas: se puede
+		// cerrar el worker de push sin riesgo de Notify sobre canal cerrado.
+		if pushNotifier != nil {
+			pushNotifier.Close()
+		}
 		// Salvavidas de 3 s: salir igualmente aunque el server no cierre.
 		lifeline := time.AfterFunc(3*time.Second, func() {
 			_ = dbHandle.Close()

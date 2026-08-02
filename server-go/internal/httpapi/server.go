@@ -114,6 +114,11 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
 	mux.HandleFunc("DELETE /api/agents/{slug}", s.handleAgentsDelete)
 
+	// --- Web Push (Fase 6 Bloque C; tras sesión como el resto del API) ---
+	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)
+	mux.HandleFunc("POST /api/push/subscribe", s.handlePushSubscribe)
+	mux.HandleFunc("POST /api/push/unsubscribe", s.handlePushUnsubscribe)
+
 	// --- Users ---
 	// Idioma propio: FUERA del gate admin (se registra antes en Node).
 	mux.HandleFunc("PUT /api/users/me/language", s.handleMyLanguage)

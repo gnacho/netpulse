@@ -135,6 +135,14 @@ func New(d *db.DB, n Notifier) *Engine {
 	return e
 }
 
+// SetNotifier sustituye el hook Notifier (wiring de Bloque C desde main;
+// nil = no-op). Seguro en caliente: Emit lo lee bajo el mismo mutex.
+func (e *Engine) SetNotifier(n Notifier) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.notifier = n
+}
+
 // SetClock sustituye el reloj (solo tests).
 func (e *Engine) SetClock(f func() time.Time) {
 	e.mu.Lock()
