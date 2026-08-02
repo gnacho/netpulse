@@ -11,6 +11,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // injectManifest: SW propio (src/sw.ts) con handlers Web Push;
+      // generateSW no permite handlers custom (SPEC-PUSH §2).
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['logo.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
@@ -28,10 +33,17 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable any' },
         ],
       },
-      workbox: {
-        // App-shell precache; los datos son mock locales (siempre "frescos")
+      injectManifest: {
+        // App-shell precache (mismo glob que con generateSW: 16 entradas);
+        // el fallback de navegación vive ahora en src/sw.ts (NavigationRoute)
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallback: 'index.html',
+      },
+      // SW también en dev: permite probar el alta push en local (localhost
+      // es contexto seguro). La ruta de navegación offline se desactiva en
+      // dev dentro de src/sw.ts para no congelar el index.html.
+      devOptions: {
+        enabled: true,
+        type: 'module',
       },
     }),
   ],
