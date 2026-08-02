@@ -183,9 +183,17 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				setPort()
 				dists = append(dists, DistributionNode{
 					ID: id, Kind: "managed", RouterID: routerID, Port: port,
-					MacCount: len(kept), Name: nb.displayName(), Ip: nb.Mgmt, Lldp: nb.info(),
+					MacCount: len(kept), Name: nb.displayName(), Ip: nb.Mgmt,
+					Mac: nb.ChassisMac, Lldp: nb.info(),
 				})
 				for _, mac := range kept {
+					// SPEC-CANON D2: la chassis-MAC del propio switch NO cuelga
+					// de su propio nodo — su Device queda con attachTo al
+					// router + port de uplink (el switch es Device Y nodo a la
+					// vez, sin self-attach ni doble conteo).
+					if mac == nb.ChassisMac {
+						continue
+					}
 					if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 						devices[idx].AttachTo = id
 					}

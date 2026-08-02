@@ -490,11 +490,11 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	srv := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
 
-	// Paginación: 66 dispositivos del dataset canónico (47 base − GS308E, que
-	// ahora es nodo managed, + 20 fixtures topología v5)
+	// Paginación: 65 dispositivos del dataset canónico reconciliado
+	// (SPEC-CANON D1/D3/D5: GS308E de vuelta como Device, sin IDs duplicadas)
 	res := get(t, srv.URL, "/api/devices?page=1&pageSize=10", cookie)
 	body := readJSON(t, res)
-	if body["total"].(float64) != 66 || len(body["items"].([]any)) != 10 {
+	if body["total"].(float64) != 65 || len(body["items"].([]any)) != 10 {
 		t.Fatalf("page1: %v items, total %v", len(body["items"].([]any)), body["total"])
 	}
 	if body["page"].(float64) != 1 || body["pageSize"].(float64) != 10 {
@@ -502,7 +502,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	}
 	res = get(t, srv.URL, "/api/devices?page=7&pageSize=10", cookie)
 	body = readJSON(t, res)
-	if len(body["items"].([]any)) != 6 {
+	if len(body["items"].([]any)) != 5 {
 		t.Fatalf("page7 (resto): %v", len(body["items"].([]any)))
 	}
 	// Sin solape con la página anterior
@@ -526,7 +526,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	// Filtros
 	res = get(t, srv.URL, "/api/devices?routerId=living", cookie)
 	body = readJSON(t, res)
-	if body["total"].(float64) != 21 { // 18 base + 3 clientes del switch gestionado (nodo managed)
+	if body["total"].(float64) != 21 { // 17 base + GS308E (Device, D1) + 3 clientes del switch gestionado
 		t.Fatalf("routerId=living: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?band=cable", cookie)
@@ -536,12 +536,12 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 			t.Fatalf("band=cable con item de otra banda: %v", it)
 		}
 	}
-	if body["total"].(float64) != 26 { // 6 base + 20 fixtures cable (3 netgear + pve + 10 CTs + 6 tras switch)
+	if body["total"].(float64) != 27 { // 6 base + 21 fixtures cable (GS308E + 3 netgear + pve + 10 CTs + 6 tras switch)
 		t.Fatalf("band=cable: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?status=offline", cookie)
 	body = readJSON(t, res)
-	if body["total"].(float64) != 8 {
+	if body["total"].(float64) != 6 {
 		t.Fatalf("status=offline: %v", body["total"])
 	}
 	res = get(t, srv.URL, "/api/devices?type=movil", cookie)

@@ -1,10 +1,13 @@
 // demo_dataset.go — Dataset demo canónico COMPLETO (port literal de
 // server/src/demo/dataset.js, SPEC §7.1): 4 routers, WAN, trafficByRange,
-// health score, AdGuard, WireGuard, alertas, los 66 dispositivos (canon +
+// health score, AdGuard, WireGuard, alertas, los 65 dispositivos (canon +
 // adicionales + fixtures topología v5, sparklines deterministas con el LCG),
 // routerExtras, perfSeries, WAN_LATENCY_24H, adguardSeries24h, wgPeerExtras
 // y WG_TOTALS_30D. Cada llamada a los builders devuelve estructuras NUEVAS
 // (el adapter muta su copia con el random walk; el canon no se toca).
+// SPEC-CANON (fase 6): D1 switch gestionado = Device + distnode managed;
+// D3 una sola identidad por ID; D4 puertos del gateway; D5 totales
+// DERIVADOS del dataset (deviceTotalsOf / onlineClientsOf), no literales.
 package adapters
 
 import (
@@ -18,23 +21,26 @@ func iptr(v int) *int { return &v }
 // Routers / WAN / tráfico / health / AdGuard / WireGuard / alertas (canon)
 // ---------------------------------------------------------------------------
 
+// canonRouters: SPEC-CANON D5 — Clients es el recuento real de clientes
+// ONLINE por router del dataset (NewDemo lo re-deriva con onlineClientsOf;
+// estos literales solo documentan el canon y deben coincidir con él).
 func canonRouters() []Router {
 	return []Router{
 		{ID: "flint2", Name: "Gateway", Model: "GL.iNet Flint 2 (GL-MT6000)", ModelShort: "GL.iNet Flint 2",
 			Role: "Gateway principal", RoleBadge: "Principal", IP: "192.168.8.1", Status: "online",
-			Health: 98, CPU: iptr(23), RAM: iptr(41), Temp: iptr(54), Uptime: "32d 14h", Clients: 33,
+			Health: 98, CPU: iptr(23), RAM: iptr(41), Temp: iptr(54), Uptime: "32d 14h", Clients: 26,
 			Backhaul:  "cable",
 			Sparkline: []float64{8, 6, 5, 5, 6, 9, 18, 32, 41, 38, 35, 44, 52, 48, 45, 55, 68, 84, 96, 120, 150, 110, 84, 40}},
 		{ID: "living", Name: "Salón", Model: "OpenWrt AP (Xiaomi AX3000T)", ModelShort: "Xiaomi AX3000T",
 			Role: "Punto de acceso", RoleBadge: "AP", IP: "192.168.8.2", Status: "online",
-			Health: 95, CPU: iptr(12), RAM: iptr(38), Temp: iptr(47), Uptime: "32d 14h", Clients: 22,
+			Health: 95, CPU: iptr(12), RAM: iptr(38), Temp: iptr(47), Uptime: "32d 14h", Clients: 20,
 			Backhaul: "cable",
 			// Uplink cableado al gateway identificado por LLDP (sufijo "· LLDP")
 			Lldp:      &LldpInfo{Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan1"},
 			Sparkline: []float64{4, 3, 3, 2, 3, 5, 10, 22, 28, 26, 24, 30, 38, 35, 33, 42, 55, 72, 88, 105, 132, 92, 61, 28}},
 		{ID: "estudio", Name: "Estudio", Model: "OpenWrt (NanoPi R4S)", ModelShort: "NanoPi R4S",
 			Role: "AP + switch", RoleBadge: "AP", IP: "192.168.8.3", Status: "online",
-			Health: 92, CPU: iptr(18), RAM: iptr(44), Temp: iptr(51), Uptime: "11d 3h", Clients: 9,
+			Health: 92, CPU: iptr(18), RAM: iptr(44), Temp: iptr(51), Uptime: "11d 3h", Clients: 8,
 			Backhaul: "cable",
 			// Uplink cableado al gateway identificado por LLDP (sufijo "· LLDP")
 			Lldp:      &LldpInfo{Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan2"},
@@ -42,7 +48,7 @@ func canonRouters() []Router {
 		// Patio: único AP con uplink inalámbrico del dataset (backhaul "wifi").
 		{ID: "patio", Name: "Patio", Model: "OpenWrt (TP-Link EAP225)", ModelShort: "TP-Link EAP225",
 			Role: "AP exterior", RoleBadge: "AP", IP: "192.168.8.4", Status: "warn",
-			Health: 68, CPU: iptr(31), RAM: iptr(57), Temp: iptr(71), Uptime: "4d 2h", Clients: 6, HotMetric: "temp",
+			Health: 68, CPU: iptr(31), RAM: iptr(57), Temp: iptr(71), Uptime: "4d 2h", Clients: 5, HotMetric: "temp",
 			Backhaul:  "wifi",
 			Sparkline: []float64{1, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 9, 10, 9, 8, 9, 11, 12, 13, 12, 9, 6, 4, 2}},
 	}
@@ -103,7 +109,8 @@ func canonAdguard() AdGuardStats {
 	return AdGuardStats{
 		Host: "192.168.8.1", Port: 3000, Status: "active",
 		Queries24h: 84312, Blocked24h: 15687, BlockedPct: 18.6, TrackersBlocked: 9204,
-		DNSLatencyMs: 14, ClientsUsing: 60, ClientsTotal: 67,
+		// ClientsTotal = IDs únicos del dataset (D5; NewDemo lo re-deriva).
+		DNSLatencyMs: 14, ClientsUsing: 60, ClientsTotal: 65,
 		TopBlocked: []TopBlocked{
 			{Domain: "graph.facebook.com", Count: 1204},
 			{Domain: "adservice.google.com", Count: 986},
@@ -221,7 +228,7 @@ func canonDevices() []Device {
 			Traffic24hRx: "18 GB", Traffic24hTx: "2,2 GB", Adguard: boolp(true), Group: "ordenadores"},
 		{ID: "ps5", Name: "PS5", Type: "consola", Manufacturer: "Sony",
 			IP: "192.168.8.31", MAC: "78:C8:81:0A:6B:D4", RouterID: "living", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 12.7, Online: true, Port: "lan2",
+			SignalDbm: nil, TrafficMbps: 12.7, Online: true, Port: "lan1",
 			Sparkline: []float64{4, 6, 8, 10, 12, 14, 13, 12, 13, 12, 13, 13},
 			Hostname:  "ps5-salon", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 300 días",
 			Traffic24hRx: "92 GB", Traffic24hTx: "4,8 GB", Adguard: boolp(true), Group: "tv"},
@@ -245,7 +252,7 @@ func canonDevices() []Device {
 			Traffic24hRx: "1,4 GB", Traffic24hTx: "88 MB", Adguard: boolp(true), Group: "iot"},
 		{ID: "nas-synology", Name: "NAS Synology", Type: "servidor", Manufacturer: "Synology",
 			IP: "192.168.8.10", MAC: "00:11:32:9C:51:B7", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 2.3, Online: true, Port: "lan1",
+			SignalDbm: nil, TrafficMbps: 2.3, Online: true, Port: "lan4",
 			Sparkline: []float64{1, 1.5, 2, 2.5, 3, 2.8, 2.4, 2.2, 2.3, 2.3, 2.3, 2.3},
 			Hostname:  "diskstation", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 320 días",
 			Traffic24hRx: "96 GB", Traffic24hTx: "1,1 TB", Adguard: boolp(true), Group: "red"},
@@ -278,10 +285,11 @@ func additionalDevices() []Device {
 			IP: "192.168.8.12", MAC: "DC:A6:32:4F:77:02", RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 0.8, Online: true, AttachTo: "dist-flint2-lan3"}, 14, 0),
 			"raspberrypi", "IP fija (reserva)", "hace 320 días", "3,4 GB", "890 MB", true, "red", ""),
-		// NOTA (Fase 5): el switch gestionado GS308E (Salón lan3) ya NO es un
-		// Device: se representa como DistributionNode "managed" (ver
-		// canonDistributionNodes), con xbox/apple-tv/denon en abanico — la
-		// historia del mockup "identificado por LLDP" sin duplicar el chip.
+		// NOTA (SPEC-CANON D1): el switch gestionado GS308E (Salón lan3)
+		// vuelve a ser Device — ver topologyDevices, junto a sus clientes —
+		// ADEMÁS de seguir siendo el DistributionNode "managed"
+		// dist-living-lan3. La app excluye su chip del mapa cruzando
+		// Device.MAC con DistributionNode.Mac.
 		withDetails(devExtra(Device{ID: "timbre-nest", Name: "Timbre Nest", Type: "camara", Manufacturer: "Google",
 			IP: "192.168.8.72", MAC: "F4:F5:D8:66:01:B8", RouterID: "flint2", Band: "2.4 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0.6, Online: true}, 16, 0),
@@ -294,10 +302,9 @@ func additionalDevices() []Device {
 			IP: "192.168.8.46", MAC: "3C:5A:B4:08:D7:5E", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-49), TrafficMbps: 1.4, Online: true}, 18, 0),
 			"pixel-7", "renueva en 7 h 3 min", "hace 205 días", "1,9 GB", "180 MB", true, "moviles", ""),
-		withDetails(devExtra(Device{ID: "impresora-hp", Name: "Impresora HP", Type: "desconocido", Manufacturer: "HP",
-			IP: "192.168.8.14", MAC: "3C:52:82:AB:19:60", RouterID: "flint2", Band: "2.4 GHz",
-			SignalDbm: iptr(-60), TrafficMbps: 0, Online: false}, 1, 0),
-			"hp-laserjet-m209", "Expirado", "hace 250 días", "0 MB", "0 MB", true, "otros", "Printer"),
+		// SPEC-CANON D3: la identidad vieja wifi/offline de impresora-hp se
+		// elimina — la única es la cableada al switch inferido
+		// (topologyDevices, attachTo dist-flint2-lan3).
 		withDetails(devExtra(Device{ID: "ipad-air", Name: "iPad Air", Type: "tablet", Manufacturer: "Apple",
 			IP: "192.168.8.47", MAC: "8C:85:90:2F:B4:11", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-54), TrafficMbps: 0, Online: false}, 1, 0),
@@ -341,10 +348,9 @@ func additionalDevices() []Device {
 			IP: "192.168.8.29", MAC: "A2:7E:9C:41:0B:6D", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0.7, Online: true, IsNew: true}, 26, 0),
 			"unknown-7f2a", "renueva en 2 h 9 min", "hoy", "480 MB", "62 MB", false, "ordenadores", ""),
-		withDetails(devExtra(Device{ID: "xbox-series-s", Name: "Xbox Series S", Type: "consola", Manufacturer: "Microsoft",
-			IP: "192.168.8.32", MAC: "7C:1E:52:06:AA:3F", RouterID: "living", Band: "5 GHz",
-			SignalDbm: iptr(-55), TrafficMbps: 0, Online: false}, 1, 0),
-			"xbox-series-s", "Expirado", "hace 230 días", "0 MB", "0 MB", true, "tv", ""),
+		// SPEC-CANON D3: la identidad vieja wifi/offline de xbox-series-s se
+		// elimina — la única es la cableada al GS308E (topologyDevices,
+		// attachTo dist-living-lan3).
 		withDetails(devExtra(Device{ID: "portatil-antiguo", Name: "Portátil antiguo", Type: "portatil", Manufacturer: "HP",
 			IP: "192.168.8.28", MAC: "3C:52:82:5D:90:17", RouterID: "living", Band: "2.4 GHz",
 			SignalDbm: iptr(-62), TrafficMbps: 0, Online: false}, 1, 0),
@@ -414,10 +420,11 @@ func withDetails(d Device, hostname, lease, firstSeen, rx, tx string, adguard bo
 	return d
 }
 
-// canonAllDevices: los 66 clientes (canon expandido + adicionales + fixtures
+// canonAllDevices: los 65 clientes (canon expandido + adicionales + fixtures
 // de topología v5: hipervisor con CTs, clientes tras switch inferido FDB y
 // tras el switch gestionado — espejo del mock front app/src/data/mock.ts).
-// Fase 5: el GS308E deja de ser Device (es el DistributionNode managed).
+// SPEC-CANON D1/D3: el GS308E vuelve a ser Device (además del distnode
+// managed) y xbox-series-s/impresora-hp tienen UNA sola identidad.
 func canonAllDevices() []Device {
 	out := canonDevices()
 	out = append(out, additionalDevices()...)
@@ -427,10 +434,20 @@ func canonAllDevices() []Device {
 
 // topologyDevices: fixtures NUEVAS de topología v5 (mockup aprobado
 // 2-Ago-2026). Los clientes preexistentes (pc-sobremesa, raspberry-pi) se
-// enriquecen in situ en additionalDevices — no se duplican. El GS308E NO
-// existe como Device: es el DistributionNode "managed" (Fase 5).
+// enriquecen in situ en additionalDevices — no se duplican. SPEC-CANON D1:
+// el GS308E existe como Device (badge "Switch gestionado", con Lldp,
+// attachTo al router Salón y port de su uplink) Y como DistributionNode
+// managed dist-living-lan3; la app no renderiza su chip cruzando MACs.
 func topologyDevices() []Device {
 	out := []Device{
+		// Switch gestionado Netgear GS308E (Salón lan3), identificado por
+		// LLDP. Device + nodo managed a la vez (SPEC-CANON D1): attachTo al
+		// router y port de uplink — NUNCA cuelga de su propio nodo (D2).
+		withDetails(devExtra(Device{ID: "switch-netgear", Name: "Switch GS308E", Type: "switch", Manufacturer: "Netgear",
+			IP: "192.168.8.13", MAC: "28:C6:8E:1D:90:44", RouterID: "living", Band: "cable",
+			SignalDbm: nil, TrafficMbps: 0.02, Online: true, AttachTo: "living", Port: "lan3",
+			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}}, 15, 0.04),
+			"gs308e", "IP fija (reserva)", "hace 300 días", "64 MB", "12 MB", false, "red", "Network"),
 		// 3 clientes detrás del switch gestionado identificado por LLDP
 		// (nodo managed dist-living-lan3, Salón)
 		withDetails(Device{ID: "xbox-series-s", Name: "Xbox Series S", Type: "consola", Manufacturer: "Microsoft",
@@ -448,10 +465,11 @@ func topologyDevices() []Device {
 			SignalDbm: nil, TrafficMbps: 0.6, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6}},
 			"denon-avr", "IP fija (reserva)", "hace 320 días", "640 MB", "42 MB", true, "iot", ""),
-		// Hipervisor Proxmox (gateway lan2); sus 10 CTs se anidan (OUI BC:24:11)
+		// Hipervisor Proxmox (gateway lan5, 2.5G — SPEC-CANON D4); sus 10 CTs
+		// se anidan (OUI BC:24:11)
 		withDetails(Device{ID: "pve", Name: "Proxmox pve", Type: "servidor", Manufacturer: "Supermicro",
 			IP: "192.168.8.5", MAC: "3C:52:82:10:20:30", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan2",
+			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan5",
 			Sparkline: []float64{8, 9, 10, 11, 12, 13, 12, 12, 12, 12, 12, 12.3}},
 			"pve", "IP fija (reserva)", "hace 400 días", "1,2 TB", "96 GB", true, "red", ""),
 	}
@@ -525,13 +543,14 @@ func topologyDevices() []Device {
 // canonDistributionNodes: distnodes demo (en live los infiere el colector
 // FDB/LLDP). Las DOS historias de switch: fantasma inferido (gateway lan3)
 // vs gestionado identificado por LLDP (Salón lan3, el GS308E del mockup con
-// sus 3 clientes en abanico; Fase 5: ya no existe como Device suelto).
+// sus 3 clientes en abanico). SPEC-CANON D1: el nodo managed lleva Mac
+// (chassis-MAC) para que la app excluya el chip del Device del switch.
 func canonDistributionNodes() []DistributionNode {
 	return []DistributionNode{
 		{ID: "dist-flint2-lan3", Kind: "inferred", RouterID: "flint2", Port: "lan3", MacCount: 8},
-		{ID: "dist-pve", Kind: "hypervisor", RouterID: "flint2", Port: "lan2", MacCount: 11, HostDeviceID: "pve", Name: "Proxmox pve"},
+		{ID: "dist-pve", Kind: "hypervisor", RouterID: "flint2", Port: "lan5", MacCount: 11, HostDeviceID: "pve", Name: "Proxmox pve"},
 		{ID: "dist-living-lan3", Kind: "managed", RouterID: "living", Port: "lan3", MacCount: 4,
-			Name: "GS308E", Ip: "192.168.8.13",
+			Name: "GS308E", Ip: "192.168.8.13", Mac: "28:C6:8E:1D:90:44",
 			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}},
 	}
 }
@@ -539,3 +558,37 @@ func canonDistributionNodes() []DistributionNode {
 // boolp: los literales demo fijan adguard explícito (true/false) como en el
 // dataset JS; live lo deja nil para omitir el campo.
 func boolp(b bool) *bool { return &b }
+
+// ---------------------------------------------------------------------------
+// D5 — totales DERIVADOS del dataset (nunca literales escritos a mano)
+// ---------------------------------------------------------------------------
+
+// deviceTotalsOf enumera el dataset y deriva deviceTotals: total = IDs
+// únicos del dataset reconciliado, online/offline por estado, newToday =
+// dispositivos con IsNew.
+func deviceTotalsOf(devices []Device) DeviceTotals {
+	t := DeviceTotals{Total: len(devices)}
+	for _, d := range devices {
+		if d.Online {
+			t.Online++
+		} else {
+			t.KnownOffline++
+		}
+		if d.IsNew {
+			t.NewToday++
+		}
+	}
+	return t
+}
+
+// onlineClientsOf: recuento real de clientes ONLINE de un router
+// (router.clients — SPEC-CANON D5).
+func onlineClientsOf(devices []Device, routerID string) int {
+	n := 0
+	for _, d := range devices {
+		if d.RouterID == routerID && d.Online {
+			n++
+		}
+	}
+	return n
+}

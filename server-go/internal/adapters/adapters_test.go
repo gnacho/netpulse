@@ -29,7 +29,7 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	if *flint.CPU != 23 || *flint.RAM != 41 || *flint.Temp != 54 {
 		t.Fatalf("flint2 cpu/ram/temp: %v/%v/%v", *flint.CPU, *flint.RAM, *flint.Temp)
 	}
-	if flint.Clients != 33 || flint.Health != 98 {
+	if flint.Clients != 26 || flint.Health != 98 {
 		t.Fatalf("flint2 clients/health: %v/%v", flint.Clients, flint.Health)
 	}
 	// WAN
@@ -51,9 +51,12 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	if p0.ID != "pixel-8-pro" || !p0.Active || p0.Rx != "1,2 GB" || p0.Tx != "214 MB" || p0.LastHandshake != "hace 38 s" {
 		t.Fatalf("peer0: %+v", p0)
 	}
-	// DeviceTotals
-	if ov.DeviceTotals != (DeviceTotals{Total: 66, Online: 58, KnownOffline: 8, NewToday: 3}) {
+	// DeviceTotals (D5: derivados del dataset reconciliado — 65 IDs únicos)
+	if ov.DeviceTotals != (DeviceTotals{Total: 65, Online: 59, KnownOffline: 6, NewToday: 3}) {
 		t.Fatalf("deviceTotals: %+v", ov.DeviceTotals)
+	}
+	if ov.Adguard.ClientsTotal != 65 {
+		t.Fatalf("adguard clientsTotal: %v", ov.Adguard.ClientsTotal)
 	}
 	// Health
 	if ov.Health.Score != 92 || ov.Health.Label != "Excelente" || len(ov.Health.Breakdown) != 3 {
@@ -69,10 +72,10 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	}
 }
 
-func TestDemoDevices66YTop(t *testing.T) {
+func TestDemoDevices65YTop(t *testing.T) {
 	d := NewDemo()
 	devs := d.GetDevices(context.Background())
-	if len(devs) != 66 {
+	if len(devs) != 65 {
 		t.Fatalf("devices: %d", len(devs))
 	}
 	offline := 0
@@ -84,7 +87,7 @@ func TestDemoDevices66YTop(t *testing.T) {
 			t.Fatalf("sparkline offline debe ser [] no null: %s", dev.ID)
 		}
 	}
-	if offline != 8 {
+	if offline != 6 {
 		t.Fatalf("offline: %d", offline)
 	}
 	ov, _ := d.GetOverview(context.Background())
@@ -509,11 +512,20 @@ func TestDemoNodoManagedCanon(t *testing.T) {
 		managed.Lldp.Caps != "Bridge" || managed.Lldp.PortDesc != "ge5" {
 		t.Fatalf("lldp del nodo: %+v", managed.Lldp)
 	}
-	// El GS308E ya no es un Device; sus 3 clientes cuelgan del nodo
+	// SPEC-CANON D1: el nodo managed lleva la chassis-MAC del switch.
+	if managed.Mac != "28:C6:8E:1D:90:44" {
+		t.Fatalf("mac del nodo managed: %q", managed.Mac)
+	}
+	// SPEC-CANON D1/D2: el GS308E existe A LA VEZ como Device (con lldp,
+	// attachTo al router y port de uplink — NUNCA a su propio nodo) y sus
+	// 3 clientes cuelgan del nodo.
 	fan := 0
-	for _, dev := range d.GetDevices(context.Background()) {
+	var sw *Device
+	devices := d.GetDevices(context.Background())
+	for i := range devices {
+		dev := &devices[i]
 		if dev.ID == "switch-netgear" {
-			t.Fatal("switch-netgear no debe existir como Device (es el nodo managed)")
+			sw = dev
 		}
 		if dev.AttachTo == "dist-living-lan3" {
 			fan++
@@ -524,6 +536,21 @@ func TestDemoNodoManagedCanon(t *testing.T) {
 	}
 	if fan != 3 {
 		t.Fatalf("abanico del managed: %d (esperaba 3)", fan)
+	}
+	if sw == nil {
+		t.Fatal("switch-netgear debe existir como Device (SPEC-CANON D1)")
+	}
+	if sw.Type != "switch" || !sw.Online || sw.IP != "192.168.8.13" {
+		t.Fatalf("GS308E device: %+v", sw)
+	}
+	if sw.Lldp == nil || sw.Lldp.Chassis != "GS308E" {
+		t.Fatalf("GS308E device sin lldp: %+v", sw.Lldp)
+	}
+	if sw.AttachTo == "dist-living-lan3" {
+		t.Fatalf("el switch NO cuelga de su propio nodo: %+v", sw)
+	}
+	if sw.AttachTo != "living" || sw.Port != "lan3" {
+		t.Fatalf("GS308E attachTo/port de uplink: %+v", sw)
 	}
 }
 
