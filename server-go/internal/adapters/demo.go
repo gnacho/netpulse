@@ -178,7 +178,7 @@ func (d *Demo) buildOverview() *Overview {
 		Adguard:      d.adguard,
 		Wireguard:    d.wireguardSnapshot(),
 		Routers:      d.routersCopy(),
-		DeviceTotals: DeviceTotals{Total: 67, Online: 59, KnownOffline: 8, NewToday: 3},
+		DeviceTotals: DeviceTotals{Total: 66, Online: 58, KnownOffline: 8, NewToday: 3},
 		TopDevices:   d.topDevices(5),
 		Alerts:       d.alertsCopy(),
 		UnreadAlerts: unread,
@@ -292,7 +292,7 @@ func (d *Demo) GetRouterDetail(_ context.Context, id string) (*RouterDetail, err
 	return detail, nil
 }
 
-// GetDevices devuelve copia de los 47 dispositivos.
+// GetDevices devuelve copia de los 66 dispositivos.
 func (d *Demo) GetDevices(context.Context) []Device {
 	d.mu.Lock()
 	defer d.mu.Unlock()

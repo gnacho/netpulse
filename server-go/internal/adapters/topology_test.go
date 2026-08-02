@@ -197,3 +197,136 @@ func TestInferTopologyApCableadoDirecto(t *testing.T) {
 		t.Fatalf("port: %q", devices[0].Port)
 	}
 }
+
+// --- LLDP (contrato C2): promoción a "managed" y Device.Lldp ---
+
+// gs308eNeighbor: switch gestionado anunciándose en lan3 (fixture GS308E).
+func gs308eNeighbor() []LldpNeighbor {
+	return []LldpNeighbor{{
+		Port: "lan3", Chassis: "GS308E", ChassisMac: "28:C6:8E:1D:90:44",
+		Mgmt: "192.168.8.13", Caps: []string{"Bridge"}, PortDesc: "ge5",
+	}}
+}
+
+// Puerto multi-MAC del gateway CON vecino LLDP cuya chassis-MAC está entre
+// las aprendidas → nodo "managed" con Name/Ip/Lldp; los equipos cuelgan de
+// él igual que del inferido.
+func TestInferTopologySwitchManagedLldp(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+			fdb: map[string]string{
+				"28:C6:8E:1D:90:44": "lan3", // el propio GS308E
+				"04:D4:C4:8B:30:A7": "lan3", // PC tras el switch
+				"DC:A6:32:4F:77:02": "lan3", // Raspberry tras el switch
+			},
+			lldp: gs308eNeighbor()},
+	}
+	devices := []Device{
+		dev("28:C6:8E:1D:90:44", "flint2", "cable"),
+		dev("04:D4:C4:8B:30:A7", "flint2", "cable"),
+		dev("DC:A6:32:4F:77:02", "flint2", "cable"),
+	}
+	devices, dists := inferTopology(polled, devices)
+	if len(dists) != 1 {
+		t.Fatalf("distnodes: %+v", dists)
+	}
+	dn := dists[0]
+	if dn.Kind != "managed" || dn.ID != "dist-flint2-lan3" || dn.MacCount != 3 {
+		t.Fatalf("distnode managed: %+v", dn)
+	}
+	if dn.Name != "GS308E" || dn.Ip != "192.168.8.13" {
+		t.Fatalf("name/ip: %+v", dn)
+	}
+	if dn.Lldp == nil || dn.Lldp.Chassis != "GS308E" || dn.Lldp.Mgmt != "192.168.8.13" || dn.Lldp.Caps != "Bridge" || dn.Lldp.PortDesc != "ge5" {
+		t.Fatalf("lldp del nodo: %+v", dn.Lldp)
+	}
+	for _, d := range devices {
+		if d.AttachTo != "dist-flint2-lan3" || d.Port != "lan3" {
+			t.Fatalf("%s debería colgar del nodo managed: port=%q attachTo=%q", d.MAC, d.Port, d.AttachTo)
+		}
+	}
+	// El propio switch queda identificado como Device
+	if devices[0].Lldp == nil || devices[0].Lldp.Chassis != "GS308E" {
+		t.Fatalf("Device.Lldp del switch: %+v", devices[0].Lldp)
+	}
+}
+
+// El mismo puerto multi-MAC SIN datos LLDP (lldpd ausente: lldp nil) sigue
+// fantasma: nodo "inferred" exactamente como antes.
+func TestInferTopologyMultiMacSinLldpSigueFantasma(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+			fdb: map[string]string{
+				"78:2B:CB:AA:01:01": "lan3",
+				"8C:EA:48:AA:02:02": "lan3",
+			}},
+	}
+	devices := []Device{
+		dev("78:2B:CB:AA:01:01", "flint2", "cable"),
+		dev("8C:EA:48:AA:02:02", "flint2", "cable"),
+	}
+	devices, dists := inferTopology(polled, devices)
+	if len(dists) != 1 || dists[0].Kind != "inferred" || dists[0].Lldp != nil || dists[0].Ip != "" {
+		t.Fatalf("sin LLDP sigue inferido: %+v", dists)
+	}
+	// Vecino LLDP cuya chassis-MAC NO está aprendida en ese puerto → tampoco
+	// promociona (no es el equipo que multiplexa).
+	polled["flint2"].lldp = []LldpNeighbor{{
+		Port: "lan3", Chassis: "OtroEquipo", ChassisMac: "00:00:00:00:00:99",
+	}}
+	_, dists = inferTopology(polled, devices)
+	if len(dists) != 1 || dists[0].Kind != "inferred" {
+		t.Fatalf("chassis no aprendida sigue inferido: %+v", dists)
+	}
+	// Vecino en OTRO puerto → no promociona este
+	polled["flint2"].lldp = []LldpNeighbor{{
+		Port: "lan1", Chassis: "GS308E", ChassisMac: "78:2B:CB:AA:01:01",
+	}}
+	_, dists = inferTopology(polled, devices)
+	if len(dists) != 1 || dists[0].Kind != "inferred" {
+		t.Fatalf("vecino en otro puerto sigue inferido: %+v", dists)
+	}
+}
+
+// Managed también aplica tras un AP (evidencia positiva, como el hipervisor):
+// switch gestionado identificado colgando del AP, no del gateway.
+func TestInferTopologyManagedTrasAP(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01", fdb: map[string]string{}},
+		"living": {cfg: RouterConfig{ID: "living"}, brMac: "94:83:C4:00:00:02",
+			fdb: map[string]string{
+				"28:C6:8E:1D:90:44": "lan3",
+				"04:D4:C4:8B:30:A7": "lan3",
+			},
+			lldp: gs308eNeighbor()},
+	}
+	devices := []Device{
+		dev("28:C6:8E:1D:90:44", "living", "cable"),
+		dev("04:D4:C4:8B:30:A7", "living", "cable"),
+	}
+	devices, dists := inferTopology(polled, devices)
+	if len(dists) != 1 || dists[0].Kind != "managed" || dists[0].RouterID != "living" || dists[0].Name != "GS308E" {
+		t.Fatalf("managed tras AP: %+v", dists)
+	}
+	if devices[1].AttachTo != "dist-living-lan3" {
+		t.Fatalf("cliente tras el switch: %q", devices[1].AttachTo)
+	}
+}
+
+// Vecino LLDP cuya chassis-MAC es un Device conocido en puerto de UNA sola
+// MAC (cableado directo): no hay nodo, pero el Device queda identificado.
+func TestInferTopologyLldpIdentificaDeviceDirecto(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+			fdb:  map[string]string{"28:C6:8E:1D:90:44": "lan3"},
+			lldp: gs308eNeighbor()},
+	}
+	devices := []Device{dev("28:C6:8E:1D:90:44", "flint2", "cable")}
+	devices, dists := inferTopology(polled, devices)
+	if len(dists) != 0 {
+		t.Fatalf("cableado directo no genera nodo: %+v", dists)
+	}
+	if devices[0].Lldp == nil || devices[0].Lldp.Chassis != "GS308E" || devices[0].Lldp.Mgmt != "192.168.8.13" {
+		t.Fatalf("Device.Lldp: %+v", devices[0].Lldp)
+	}
+}

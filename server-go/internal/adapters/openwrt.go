@@ -40,6 +40,9 @@ type OpenWrtClient struct {
 	sid        string     // sesión ubus HTTP cacheada
 	lastStat   *cpuSample // /proc/stat previo
 	lastNetDev *netSample // /proc/net/dev previo
+	// lldpDownUntil: indisponibilidad de lldpd cacheada (≥5 min) para no
+	// martillear con un comando que no existe. Solo lo toca el sondeo.
+	lldpDownUntil time.Time
 }
 
 type cpuSample struct{ total, idleAll float64 }
@@ -499,6 +502,46 @@ func parseWirelessClients(out string) map[string]WirelessClient {
 		m[strings.ToUpper(p[0])] = WirelessClient{SignalDbm: sig, Band: band}
 	}
 	return m
+}
+
+// GetWirelessUplink: true si el router tiene uplink inalámbrico (alguna
+// interfaz STA activa/asociada en `ubus call network.wireless status`).
+// Error si el router no soporta la llamada (sin wifi → el caller omite el
+// campo backhaul, nunca rompe el sondeo).
+func (c *OpenWrtClient) GetWirelessUplink() (bool, error) {
+	raw, err := c.UbusCall("network.wireless", "status", nil)
+	if err != nil {
+		return false, err
+	}
+	return parseWirelessUplink(raw)
+}
+
+// parseWirelessUplink: alguna interfaz con config.mode "sta" activa (radio
+// up e ifname asignado = asociada). Tolerante con radios/entradas raras.
+func parseWirelessUplink(raw json.RawMessage) (bool, error) {
+	var radios map[string]struct {
+		Up         bool `json:"up"`
+		Interfaces []struct {
+			Ifname string `json:"ifname"`
+			Config struct {
+				Mode string `json:"mode"`
+			} `json:"config"`
+		} `json:"interfaces"`
+	}
+	if err := json.Unmarshal(raw, &radios); err != nil {
+		return false, err
+	}
+	for _, r := range radios {
+		if !r.Up {
+			continue
+		}
+		for _, itf := range r.Interfaces {
+			if itf.Config.Mode == "sta" && itf.Ifname != "" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // ---------------------------------------------------------------------------

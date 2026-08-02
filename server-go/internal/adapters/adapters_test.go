@@ -52,7 +52,7 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 		t.Fatalf("peer0: %+v", p0)
 	}
 	// DeviceTotals
-	if ov.DeviceTotals != (DeviceTotals{Total: 67, Online: 59, KnownOffline: 8, NewToday: 3}) {
+	if ov.DeviceTotals != (DeviceTotals{Total: 66, Online: 58, KnownOffline: 8, NewToday: 3}) {
 		t.Fatalf("deviceTotals: %+v", ov.DeviceTotals)
 	}
 	// Health
@@ -69,10 +69,10 @@ func TestDemoPrimerSnapshotEsCanon(t *testing.T) {
 	}
 }
 
-func TestDemoDevices67YTop(t *testing.T) {
+func TestDemoDevices66YTop(t *testing.T) {
 	d := NewDemo()
 	devs := d.GetDevices(context.Background())
-	if len(devs) != 67 {
+	if len(devs) != 66 {
 		t.Fatalf("devices: %d", len(devs))
 	}
 	offline := 0
@@ -391,5 +391,171 @@ func TestSparkDeterminista(t *testing.T) {
 		if v < 0 {
 			t.Fatal("spark negativo")
 		}
+	}
+}
+
+// --- Backhaul (C1-server): sonda ubus network.wireless status + canon demo ---
+
+// Fixture ubus network.wireless status: radio0 con AP + STA asociada
+// (uplink inalámbrico, p.ej. el EAP225 del patio).
+const wirelessStatusSta = `{
+  "radio0": {
+    "up": true,
+    "interfaces": [
+      {"section": "default_radio0", "ifname": "phy0-ap0",
+       "config": {"mode": "ap", "ssid": "Casa-Patio", "network": ["lan"]}},
+      {"section": "wifinet1", "ifname": "phy0-sta0",
+       "config": {"mode": "sta", "ssid": "Casa", "network": ["wwan"]}}
+    ]
+  }
+}`
+
+const wirelessStatusSoloAp = `{
+  "radio0": {
+    "up": true,
+    "interfaces": [
+      {"section": "default_radio0", "ifname": "phy0-ap0",
+       "config": {"mode": "ap", "ssid": "Casa", "network": ["lan"]}}
+    ]
+  }
+}`
+
+func TestParseWirelessUplink(t *testing.T) {
+	// STA asociada (radio up + ifname) → uplink inalámbrico
+	wifi, err := parseWirelessUplink([]byte(wirelessStatusSta))
+	if err != nil || !wifi {
+		t.Fatalf("sta asociada: %v %v", wifi, err)
+	}
+	// Solo APs → cable
+	wifi, err = parseWirelessUplink([]byte(wirelessStatusSoloAp))
+	if err != nil || wifi {
+		t.Fatalf("solo ap: %v %v", wifi, err)
+	}
+	// STA configurada pero NO activa (radio caída o sin asociar) → cable
+	for _, in := range []string{
+		`{"radio0":{"up":false,"interfaces":[{"ifname":"phy0-sta0","config":{"mode":"sta"}}]}}`,
+		`{"radio0":{"up":true,"interfaces":[{"ifname":"","config":{"mode":"sta"}}]}}`,
+		`{}`,
+	} {
+		wifi, err = parseWirelessUplink([]byte(in))
+		if err != nil || wifi {
+			t.Fatalf("%s → %v %v", in, wifi, err)
+		}
+	}
+	// Respuesta no JSON → error (el live omite el campo, no rompe)
+	if _, err = parseWirelessUplink([]byte("Command failed")); err == nil {
+		t.Fatal("no JSON debería dar error")
+	}
+}
+
+// Canon demo del backhaul: Patio "wifi" (único AP inalámbrico), resto "cable".
+func TestDemoBackhaulCanon(t *testing.T) {
+	d := NewDemo()
+	want := map[string]string{"flint2": "cable", "living": "cable", "estudio": "cable", "patio": "wifi"}
+	seen := 0
+	for _, r := range d.GetRouters(context.Background()) {
+		if r.Backhaul != want[r.ID] {
+			t.Fatalf("backhaul %s: %q (esperaba %q)", r.ID, r.Backhaul, want[r.ID])
+		}
+		seen++
+	}
+	if seen != 4 {
+		t.Fatalf("routers: %d", seen)
+	}
+	// El overview lleva el mismo dato (routersCopy preserva el campo)
+	ov, err := d.GetOverview(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range ov.Routers {
+		if r.Backhaul != want[r.ID] {
+			t.Fatalf("overview backhaul %s: %q", r.ID, r.Backhaul)
+		}
+	}
+}
+
+// Canon demo del nodo "managed" (Fase 5): el GS308E del Salón es un
+// DistributionNode identificado por LLDP (NO un Device), con sus 3 clientes
+// en abanico. El fantasma inferido del gateway se mantiene (las dos
+// historias: inferido vs identificado).
+func TestDemoNodoManagedCanon(t *testing.T) {
+	d := NewDemo()
+	ov, err := d.GetOverview(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var managed, inferred *DistributionNode
+	for i := range ov.DistributionNodes {
+		switch ov.DistributionNodes[i].ID {
+		case "dist-living-lan3":
+			managed = &ov.DistributionNodes[i]
+		case "dist-flint2-lan3":
+			inferred = &ov.DistributionNodes[i]
+		}
+	}
+	if inferred == nil || inferred.Kind != "inferred" {
+		t.Fatalf("el fantasma del gateway se mantiene: %+v", inferred)
+	}
+	if managed == nil {
+		t.Fatalf("falta el nodo managed: %+v", ov.DistributionNodes)
+	}
+	if managed.Kind != "managed" || managed.RouterID != "living" || managed.Port != "lan3" || managed.MacCount != 4 {
+		t.Fatalf("nodo managed: %+v", managed)
+	}
+	if managed.Name != "GS308E" || managed.Ip != "192.168.8.13" {
+		t.Fatalf("name/ip: %+v", managed)
+	}
+	if managed.Lldp == nil || managed.Lldp.Chassis != "GS308E" || managed.Lldp.Mgmt != "192.168.8.13" ||
+		managed.Lldp.Caps != "Bridge" || managed.Lldp.PortDesc != "ge5" {
+		t.Fatalf("lldp del nodo: %+v", managed.Lldp)
+	}
+	// El GS308E ya no es un Device; sus 3 clientes cuelgan del nodo
+	fan := 0
+	for _, dev := range d.GetDevices(context.Background()) {
+		if dev.ID == "switch-netgear" {
+			t.Fatal("switch-netgear no debe existir como Device (es el nodo managed)")
+		}
+		if dev.AttachTo == "dist-living-lan3" {
+			fan++
+			if dev.RouterID != "living" {
+				t.Fatalf("cliente del managed con routerId raro: %+v", dev)
+			}
+		}
+	}
+	if fan != 3 {
+		t.Fatalf("abanico del managed: %d (esperaba 3)", fan)
+	}
+}
+
+// Canon demo de Router.Lldp (Fase 5, ítem 4 de C2): los AP cableados
+// (living, estudio) tienen su uplink al gateway identificado por LLDP;
+// patio (uplink wifi) y el propio gateway NO llevan el campo.
+func TestDemoRouterLldpCanon(t *testing.T) {
+	d := NewDemo()
+	want := map[string]*LldpInfo{
+		"living":  {Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan1"},
+		"estudio": {Chassis: "Flint 2", Mgmt: "192.168.8.1", Caps: "Bridge, Router", PortDesc: "lan2"},
+		"patio":   nil, // uplink wifi: sin LLDP
+		"flint2":  nil, // gateway: su uplink es WAN
+	}
+	seen := 0
+	for _, r := range d.GetRouters(context.Background()) {
+		w, ok := want[r.ID]
+		if !ok {
+			t.Fatalf("router inesperado: %s", r.ID)
+		}
+		if w == nil {
+			if r.Lldp != nil {
+				t.Fatalf("%s no debería llevar lldp: %+v", r.ID, r.Lldp)
+			}
+		} else {
+			if r.Lldp == nil || *r.Lldp != *w {
+				t.Fatalf("%s lldp: %+v (esperaba %+v)", r.ID, r.Lldp, w)
+			}
+		}
+		seen++
+	}
+	if seen != 4 {
+		t.Fatalf("routers: %d", seen)
 	}
 }
