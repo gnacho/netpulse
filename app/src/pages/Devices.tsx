@@ -143,8 +143,9 @@ function signalTextClass(dbm: number | null): string {
 
 // ---------------------------------------------------------------------------
 // Taxonomía de infraestructura (D6): hipervisor (host con CTs), CT (contenedor
-// anidado, tooltip con su host) y switch gestionado (device con LLDP). Se
-// deriva de attachTo/lldp + los distributionNodes del provider.
+// anidado, tooltip con su host) y switch gestionado. SPEC-65 D65-2/B2: si el
+// servidor sella `device.infra` manda; si no, fallback a la inferencia local
+// de attachTo/lldp + los distributionNodes del provider.
 // ---------------------------------------------------------------------------
 
 type InfraKind = 'hypervisor' | 'ct' | 'managedSwitch'
@@ -978,10 +979,16 @@ export default function Devices() {
     const byId = new Map(list.map((d) => [d.id, d]))
     const infra = new Map<string, InfraInfo>()
     for (const d of list) {
-      if (hosts.has(d.id)) infra.set(d.id, { kind: 'hypervisor' })
-      else if (d.attachTo && hosts.has(d.attachTo)) {
-        infra.set(d.id, { kind: 'ct', host: byId.get(d.attachTo)?.name ?? d.attachTo })
-      } else if (d.lldp) infra.set(d.id, { kind: 'managedSwitch' })
+      // SPEC-65 D65-2/B2: prioridad al sello server-side `device.infra`;
+      // la inferencia local queda como fallback para datos viejos.
+      const sealed = d.infra
+      if (sealed === 'hypervisor' || (!sealed && hosts.has(d.id))) {
+        infra.set(d.id, { kind: 'hypervisor' })
+      } else if (sealed === 'ct' || (!sealed && d.attachTo && hosts.has(d.attachTo))) {
+        infra.set(d.id, { kind: 'ct', host: byId.get(d.attachTo ?? '')?.name ?? d.attachTo })
+      } else if (sealed === 'managed-switch' || (!sealed && d.lldp)) {
+        infra.set(d.id, { kind: 'managedSwitch' })
+      }
     }
     if (infra.size === 0) return { allDevices: list, infraById: infra }
     return { allDevices: list.map((d) => (infra.has(d.id) ? { ...d, group: 'infra' as const } : d)), infraById: infra }

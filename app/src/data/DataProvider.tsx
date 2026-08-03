@@ -30,10 +30,12 @@ import type {
   Paged,
   Router,
   TimeRange,
+  TopoSemantics,
   TrafficPoint,
   WanInfo,
   WireGuardStats,
 } from '@/data/types'
+import { VM_SUPPORTED } from '@/data/types'
 import {
   adguard as mockAdGuard,
   alerts as mockAlerts,
@@ -84,6 +86,16 @@ export interface NetPulseData {
   topDevices: Device[]
   alerts: AlertEvent[]
   unreadAlerts: number
+  /**
+   * Versión del view-model del último overview (SPEC-65 D65-4). En demo y
+   * antes del primer fetch vale VM_SUPPORTED (el canon local es vm=1).
+   */
+  vm: number
+  /**
+   * Semántica de topología precalculada por el servidor (SPEC-65 D65-3).
+   * Ausente en demo y con servidores viejos → model.ts usa su cálculo local.
+   */
+  topology?: TopoSemantics
 }
 
 export interface NetPulseApi extends NetPulseData {
@@ -141,6 +153,7 @@ function initialBundle(): NetPulseData {
     topDevices: [...mockDevices].sort((a, b) => b.trafficMbps - a.trafficMbps).slice(0, 5),
     alerts: mockAlerts,
     unreadAlerts: mockAlerts.filter((a) => !a.read).length,
+    vm: VM_SUPPORTED,
   }
 }
 
@@ -188,6 +201,7 @@ function emptyBundle(): NetPulseData {
     topDevices: [],
     alerts: [],
     unreadAlerts: 0,
+    vm: VM_SUPPORTED,
   }
 }
 
@@ -284,6 +298,9 @@ function toQuery(params: Record<string, string | number | undefined>): string {
   return s ? `?${s}` : ''
 }
 
+/** Flag de módulo (B3): el aviso de vm > VM_SUPPORTED sale UNA sola vez. */
+let vmVersionWarned = false
+
 const BACKOFF_MS = [2000, 5000, 15000]
 const POLL_MS = 15000
 const DEMO_TICK_MS = 3000
@@ -319,6 +336,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const configRef = useRef(alertsConfig)
 
   const applyOverview = useCallback((o: OverviewBundle) => {
+    // SPEC-65 D65-4/D65-9 B3: view-model versionado. Un `vm` mayor que el
+    // soportado avisa UNA sola vez por consola y nunca rompe la UI. Servidor
+    // viejo sin `vm` → se asume la versión soportada. En demo no aplica
+    // (el canon local es vm=1 y no pasa por aquí).
+    const vm = o.vm ?? VM_SUPPORTED
+    if (vm > VM_SUPPORTED && !vmVersionWarned) {
+      vmVersionWarned = true
+      console.warn(
+        `[NetPulse] El servidor sirve view-model vm=${vm}, pero esta app soporta hasta vm=${VM_SUPPORTED}. ` +
+          'La UI sigue funcionando; actualiza la app para ver los campos nuevos.',
+      )
+    }
     setLastSnapshotAt(Date.now())
     setBundle((prev) => ({
       ...prev,
@@ -333,6 +362,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       topDevices: o.topDevices,
       alerts: o.alerts,
       unreadAlerts: o.unreadAlerts,
+      vm,
+      topology: o.topology,
     }))
   }, [])
 

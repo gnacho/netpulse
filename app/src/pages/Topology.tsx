@@ -46,11 +46,11 @@ function ControlButton({
 export default function Topology() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { routers, devices, wan, wireguard, distributionNodes, lastSnapshotAt, requestServerRefresh } =
+  const { routers, devices, wan, wireguard, distributionNodes, topology, vm, lastSnapshotAt, requestServerRefresh } =
     useNetPulse()
   const model = useMemo(
-    () => buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes }),
-    [routers, devices, wan, wireguard, distributionNodes],
+    () => buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes, topology, vm }),
+    [routers, devices, wan, wireguard, distributionNodes, topology, vm],
   )
   const [showLabels, setShowLabels] = useState(true)
   const [flow, setFlow] = useState(true)
