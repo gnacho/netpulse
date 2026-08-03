@@ -42,13 +42,13 @@ export function useServicesVisibility(): [ServicesVisibility, (k: keyof Services
   }, [])
 
   const set = useCallback((k: keyof ServicesVisibility, v: boolean) => {
-    setServices((prev) => {
-      const next = { ...prev, [k]: v }
-      try {
-        localStorage.setItem(KEY, JSON.stringify(next))
-      } catch {}
-      return next
-    })
+    // localStorage es la fuente de verdad compartida: escribir ANTES de emitir
+    // el evento (nunca dentro del updater: React puede diferirlo/re-ejecutarlo)
+    const next = { ...getServicesVisibility(), [k]: v }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next))
+    } catch {}
+    setServices(next)
     window.dispatchEvent(new Event('netpulse-services-changed'))
   }, [])
 
