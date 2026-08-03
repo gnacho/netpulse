@@ -137,7 +137,9 @@ fi
 
 # ------------------------------------------------------------------ install --
 info "copiando binario → $SSH:$BIN_DST"
-scp -q "$TMP/$BIN_NAME" "$SSH:$BIN_DST"
+# -O: protocolo SCP legacy — dropbear (OpenWrt) no tiene sftp-server y el
+# scp de OpenSSH ≥9 usa SFTP por defecto → "connection closed" sin esto.
+scp -Oq "$TMP/$BIN_NAME" "$SSH:$BIN_DST"
 ssh "$SSH" "chmod 0755 $BIN_DST"
 ok "binario en $BIN_DST"
 
@@ -159,7 +161,7 @@ ok "config escrita"
 info "instalando servicio procd"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -f "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" ]; then
-    scp -q "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" "$SSH:$INIT_DST"
+    scp -Oq "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" "$SSH:$INIT_DST"
 else
     # Instalación vía curl|sh (sin repo a mano): init embebido — es el MISMO
     # contenido que agent/deploy/netpulse-agent.init (mantener ambos a la par).
