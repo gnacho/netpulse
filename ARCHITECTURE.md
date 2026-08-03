@@ -93,7 +93,20 @@ enlaces, anillos por router y peers ocultos "+N") y los devices pueden llevar
 `infra` (`hypervisor`|`ct`|`managed-switch`, sellado server-side — la app no
 infiere). El dataset demo canónico es single-source en Go:
 `app/src/data/demo-canon.json` se GENERA con `go run ./cmd/gen-demo-canon`
-(hay test de frescura; la app lo importa en build).
+(hay test de frescura; la app lo importa en build — `mock.ts` re-exporta
+desde el JSON, sin arrays canon duplicados).
+
+Consumo en la app: `types.ts` fija `VM_SUPPORTED = 1` y DataProvider avisa
+por consola (una vez, sin romper UI) si llega un `vm` mayor; la topología
+semántica del snapshot se usa cuando está presente (anillos, enlaces y "+N"
+del server; la geometría de píxeles sigue siendo local) con fallback exacto
+al cálculo cliente si el servidor es viejo.
+
+Endpoints de soporte (Fase 6.5): `GET /api/system/info` (datos reales del
+proceso: versión Go, distro, kernel, CPU, RAM, uptime — alimenta el bloque
+Sistema de Acerca de) y `PUT /api/users/me/display-name` (nombre de saludo
+del Resumen, ≠ username; columna `users.display_name` migrada como
+`language`; `GET /api/auth/me` y `/api/users` lo devuelven).
 
 ## Auth y seguridad
 
