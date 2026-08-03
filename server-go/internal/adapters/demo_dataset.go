@@ -8,6 +8,10 @@
 // SPEC-CANON (fase 6): D1 switch gestionado = Device + distnode managed;
 // D3 una sola identidad por ID; D4 puertos del gateway; D5 totales
 // DERIVADOS del dataset (deviceTotalsOf / onlineClientsOf), no literales.
+// SPEC-65 D65-2: Device.Infra sellado en el canon (pve=hypervisor, sus
+// CTs/VMs=ct, switch-netgear=managed-switch).
+//
+//go:generate go run ../../cmd/gen-demo-canon
 package adapters
 
 import (
@@ -453,7 +457,8 @@ func topologyDevices() []Device {
 		withDetails(devExtra(Device{ID: "switch-netgear", Name: "Switch GS308E", Type: "switch", Manufacturer: "Netgear",
 			IP: "192.168.8.13", MAC: "28:C6:8E:1D:90:44", RouterID: "living", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 0.02, Online: true, AttachTo: "living", Port: "lan3",
-			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}}, 15, 0.04),
+			Infra: "managed-switch",
+			Lldp:  &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}}, 15, 0.04),
 			"gs308e", "IP fija (reserva)", "hace 300 días", "64 MB", "12 MB", false, "red", "Network"),
 		// 3 clientes detrás del switch gestionado identificado por LLDP
 		// (nodo managed dist-living-lan3, Salón)
@@ -476,7 +481,7 @@ func topologyDevices() []Device {
 		// se anidan (OUI BC:24:11)
 		withDetails(Device{ID: "pve", Name: "Proxmox pve", Type: "servidor", Manufacturer: "Supermicro",
 			IP: "192.168.8.5", MAC: "3C:52:82:10:20:30", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan5",
+			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan5", Infra: "hypervisor",
 			Sparkline: []float64{8, 9, 10, 11, 12, 13, 12, 12, 12, 12, 12, 12.3}},
 			"pve", "IP fija (reserva)", "hace 400 días", "1,2 TB", "96 GB", true, "red", ""),
 	}
@@ -504,7 +509,7 @@ func topologyDevices() []Device {
 		out = append(out, withDetails(Device{
 			ID: c.id, Name: c.name, Type: c.typ, Manufacturer: "Proxmox VE (CT)",
 			IP: c.ip, MAC: fmt.Sprintf("BC:24:11:00:2%d:%02X", i, 0x10+i), RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "pve", Sparkline: sp},
+			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "pve", Infra: "ct", Sparkline: sp},
 			c.id, "renueva en 3 h 10 min", "hace 90 días", "1,1 GB", "88 MB", true, "red", ""))
 	}
 	// Tras el switch/bridge inferido (gateway lan3, OUI heterogéneo, sin IP).

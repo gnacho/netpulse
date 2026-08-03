@@ -1,6 +1,7 @@
 // users.go — CRUD de usuarios (paridad routes/users.js).
 //
 //	PUT  /api/users/me/language   (cualquier rol — fuera del gate admin)
+//	PUT  /api/users/me/display-name (cualquier rol — fuera del gate admin)
 //	GET  /api/users               (admin)
 //	POST /api/users               (admin) → 201 · 400 · 409
 //	PUT  /api/users/:id/password  (admin) → 204 (invalida sus sesiones)
@@ -14,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -52,6 +54,31 @@ func (s *server) adminCount() int {
 	return n
 }
 
+// handleMyDisplayName (SPEC-65 D65-5): {displayName: string} → 204 (fuera del
+// gate admin). Trim, máx 40 runes, vacío permitido (= volver al username) y
+// sin '<' ni '>' (el frontend ya escapa, pero no se permite HTML).
+func (s *server) handleMyDisplayName(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserFromContext(r.Context())
+	var body struct {
+		DisplayName *string `json:"displayName"`
+	}
+	if !readJSONBody(r, &body) || body.DisplayName == nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", `Se esperaba { "displayName": string }`)
+		return
+	}
+	name := strings.TrimSpace(*body.DisplayName)
+	if utf8.RuneCountInString(name) > 40 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "displayName máximo 40 caracteres")
+		return
+	}
+	if strings.ContainsAny(name, "<>") {
+		writeError(w, http.StatusBadRequest, "invalid_input", "displayName no puede contener '<' ni '>'")
+		return
+	}
+	_, _ = s.db.Exec("UPDATE users SET display_name = ? WHERE id = ?", name, me.ID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleMyLanguage: {language: auto|es|en} → 204 (fuera del gate admin).
 func (s *server) handleMyLanguage(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserFromContext(r.Context())
@@ -67,9 +94,10 @@ func (s *server) handleMyLanguage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleListUsers: {users:[{id, username, role, language, created_at}]} por username.
+// handleListUsers: {users:[{id, username, role, language, displayName, created_at}]}
+// por username (SPEC-65 D65-5: displayName, "" si no puesto).
 func (s *server) handleListUsers(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query("SELECT id, username, role, language, created_at FROM users ORDER BY username")
+	rows, err := s.db.Query("SELECT id, username, role, language, display_name, created_at FROM users ORDER BY username")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
@@ -78,13 +106,14 @@ func (s *server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	users := []map[string]any{}
 	for rows.Next() {
 		var (
-			id        int64
-			username  string
-			role      string
-			language  sql.NullString
-			createdAt int64
+			id          int64
+			username    string
+			role        string
+			language    sql.NullString
+			displayName sql.NullString
+			createdAt   int64
 		)
-		if err := rows.Scan(&id, &username, &role, &language, &createdAt); err != nil {
+		if err := rows.Scan(&id, &username, &role, &language, &displayName, &createdAt); err != nil {
 			continue
 		}
 		var lang any
@@ -92,7 +121,8 @@ func (s *server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 			lang = language.String
 		}
 		users = append(users, map[string]any{
-			"id": id, "username": username, "role": role, "language": lang, "created_at": createdAt,
+			"id": id, "username": username, "role": role, "language": lang,
+			"displayName": displayName.String, "created_at": createdAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": users})
