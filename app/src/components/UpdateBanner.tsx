@@ -50,24 +50,47 @@ export function UpdateBanner() {
     return () => window.clearInterval(id)
   }, [auth?.role, fetchStatus])
 
-  // Tras aplicar: espera a que el backend reinicie y recarga la app
-  const waitAndReload = useCallback(() => {
+  // Tras aplicar: espera a que el backend reinicie y recarga la app.
+  // BUG pantalla negra: STEP:done salta al tocar el flag de restart, pero el
+  // proceso VIEJO sigue respondiendo unos segundos. Recargar con el primer
+  // health OK hacía que la recarga compitiera con el reinicio y la página
+  // moría a medias (#root vacío → pantalla negra hasta refrescar a mano).
+  // Fix: solo recargamos cuando responde un proceso DISTINTO (uptimeSec menor
+  // que el que había antes de aplicar). Tope de 90 s por si el restart se atasca.
+  const waitAndReload = useCallback((uptimeBefore: number) => {
+    const deadline = Date.now() + 90_000
     const id = window.setInterval(async () => {
       try {
         const res = await fetch('/api/health', { signal: AbortSignal.timeout(2000) })
         if (res.ok) {
-          window.clearInterval(id)
-          window.location.reload()
+          const j = (await res.json().catch(() => null)) as { uptimeSec?: number } | null
+          const freshProcess = j != null && typeof j.uptimeSec === 'number' && j.uptimeSec < uptimeBefore
+          if (freshProcess || Date.now() > deadline) {
+            window.clearInterval(id)
+            window.location.reload()
+          }
         }
       } catch {
         /* reiniciando… */
       }
-    }, 3000)
+    }, 1500)
   }, [])
 
   const apply = async () => {
     if (applyingRef.current) return
     applyingRef.current = true
+    // Uptime base del proceso actual: waitAndReload exige un proceso nuevo.
+    // Sin baseline (fetch falló) se acepta el primer OK (comportamiento legacy).
+    let uptimeBefore = Number.MAX_SAFE_INTEGER
+    try {
+      const res = await fetch('/api/health', { signal: AbortSignal.timeout(2000) })
+      if (res.ok) {
+        const j = (await res.json()) as { uptimeSec?: number }
+        if (typeof j.uptimeSec === 'number') uptimeBefore = j.uptimeSec
+      }
+    } catch {
+      /* sin baseline: primer OK recarga */
+    }
     try {
       await fetch('/api/update/apply', { method: 'POST' })
       // Seguimiento del progreso hasta que acabe
@@ -75,7 +98,7 @@ export function UpdateBanner() {
         const s = await fetchStatus()
         if (s && s.updating && s.updating.step === 'done') {
           window.clearInterval(id)
-          waitAndReload()
+          waitAndReload(uptimeBefore)
         } else if (s && !s.updating) {
           window.clearInterval(id)
           applyingRef.current = false

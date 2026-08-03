@@ -109,6 +109,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "index.html"
 	}
+	// Cache por tipo de recurso (fix pantalla negra tras update):
+	//  - /assets/* tiene hash de contenido → inmutable 1 año.
+	//  - index.html y sw.js SIN no-cache se servían desde la caché del
+	//    navegador apuntando a hashes que el update acababa de borrar →
+	//    los JS no cargaban y #root quedaba vacío (pantalla negra hasta
+	//    refrescar a mano). no-cache obliga a revalidar cada navegación.
+	if strings.HasPrefix(p, "/assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else if name == "index.html" || name == "sw.js" {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	if h.serveFile(w, r, name) {
 		return
 	}

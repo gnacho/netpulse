@@ -49,7 +49,12 @@ builds:
     goarch: [amd64, arm64, arm]
     goarm: [7]
     flags: [-trimpath]
-    ldflags: [-s, -w]
+    # -X main.Version: sin esto el agente reporta "0.1.0" para siempre
+    # (main.go declara var Version con fallback para builds locales).
+    ldflags:
+      - -s
+      - -w
+      - "-X main.Version={{.Version}}"
 
 archives:
   - id: netpulse
