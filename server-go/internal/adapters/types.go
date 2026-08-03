@@ -11,7 +11,11 @@
 //   - Epochs: ms en DB, SEGUNDOS en Overview.Ts.
 package adapters
 
-import "context"
+import (
+	"context"
+
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
+)
 
 // ---------------------------------------------------------------------------
 // Bloques del Overview (SPEC §7.8)
@@ -169,6 +173,11 @@ type Device struct {
 	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
 	// DistributionNode inferido o de otro Device — hipervisor/switch).
 	AttachTo string `json:"attachTo,omitempty"`
+	// Infra: rol de infraestructura sellado server-side (Fase 6.5). La app NO
+	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
+	// "ct" (CT/VM anidado bajo hipervisor), "managed-switch" (switch con gestión
+	// identificado por LLDP — hoy switch-netgear).
+	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"managed-switch"
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname     string `json:"hostname,omitempty"`
 	DHCPLease    string `json:"dhcpLease,omitempty"`
@@ -199,27 +208,50 @@ type LldpInfo struct {
 // chassis-MAC está entre las aprendidas): lleva Name (chassis), Ip (mgmt)
 // y Lldp con las capacidades/puerto remoto anunciados.
 type DistributionNode struct {
-	ID       string    `json:"id"`
-	Kind     string    `json:"kind"` // "inferred"|"hypervisor"|"managed"
-	RouterID string    `json:"routerId"`
-	Port     string    `json:"port"`
-	MacCount int       `json:"macCount"`
+	ID       string `json:"id"`
+	Kind     string `json:"kind"` // "inferred"|"hypervisor"|"managed"
+	RouterID string `json:"routerId"`
+	Port     string `json:"port"`
+	MacCount int    `json:"macCount"`
 	// HostDeviceID: hipervisor → id del Device host (Proxmox…), si es cliente.
-	HostDeviceID string    `json:"hostDeviceId,omitempty"`
-	Name         string    `json:"name,omitempty"`
-	Ip           string    `json:"ip,omitempty"` // managed: mgmt-ip anunciada por LLDP
-	Lldp         *LldpInfo `json:"lldp,omitempty"`
+	HostDeviceID string `json:"hostDeviceId,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Ip           string `json:"ip,omitempty"` // managed: mgmt-ip anunciada por LLDP
+	// Mac: chassis-MAC del vecino cuando kind='managed' (SPEC-CANON D1). La
+	// app la usa para excluir del mapa el chip del Device del switch (que
+	// existe como Device Y como nodo managed, sin duplicar el render).
+	Mac  string    `json:"mac,omitempty"`
+	Lldp *LldpInfo `json:"lldp,omitempty"`
 }
 
-// AlertEvent (máx 100 en memoria, más recientes primero).
-type AlertEvent struct {
-	ID          string `json:"id"`
-	Severity    string `json:"severity"` // "warn"|"critical"|"info"|"ok"
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Time        string `json:"time"` // relativo ES ("hace 12 min") — el frontend lo muestra tal cual
-	Read        bool   `json:"read"`
-	RouterID    string `json:"routerId"`
+// AlertEvent vive en internal/alerts (SPEC-ALERTAS §1: Category/Urgent/Ts);
+// el alias mantiene el contrato adapters.AlertEvent para handlers y tests.
+type AlertEvent = alerts.AlertEvent
+
+// ViewModelVersion es la versión del view-model de presentación (SPEC-65
+// D65-4). La API es un view-model versionado: un cliente debe rechazar/avisar
+// si `vm` supera la versión que soporta. Bump = cualquier cambio incompatible
+// de forma (añadir campos opcionales NO bumpea).
+const ViewModelVersion = 1
+
+// TopoSemantics: modelo semántico de la topología (Fase 6.5). La app conserva
+// SOLO la geometría de píxeles; asignaciones de anillo, enlaces y conteos de
+// peers ocultos llegan calculados.
+type TopoSemantics struct {
+	Links []TopoLink `json:"links"`
+	// Rings: routerId → ids de Device en su anillo (orden: cableados primero,
+	// luego por banda 5GHz/2.4GHz, estable).
+	Rings map[string][]string `json:"rings"`
+	// HiddenPeers: routerId → nº de clientes no pintados como chip (el "+N").
+	HiddenPeers map[string]int `json:"hiddenPeers,omitempty"`
+}
+
+// TopoLink es un enlace semántico del mapa (sin geometría).
+type TopoLink struct {
+	From string `json:"from"` // id: router | device | distnode | "internet" | "peer-<wgPeerId>"
+	To   string `json:"to"`
+	Kind string `json:"kind"`           // "wan"|"uplink"|"wired"|"dist"|"wg"
+	Port string `json:"port,omitempty"` // puerto físico si aplica
 }
 
 // Overview es el bundle completo (SPEC §7.8). Ts en SEGUNDOS.
@@ -238,7 +270,12 @@ type Overview struct {
 	// v5). Vacío/ausente si aún no hay datos FDB: el mapa cuelga los
 	// cableados del router (degradación amable).
 	DistributionNodes []DistributionNode `json:"distributionNodes,omitempty"`
-	Ts                int64              `json:"ts"` // floor(now/1000) — SEGUNDOS
+	// Topology: semántica de topología precalculada (SPEC-65 D65-3). Puntero:
+	// ausente en snapshots viejos → la app usa su cálculo actual como fallback.
+	Topology *TopoSemantics `json:"topology,omitempty"`
+	// VM: versión del view-model (SPEC-65 D65-4). SIEMPRE presente.
+	VM int `json:"vm"`
+	Ts int64 `json:"ts"` // floor(now/1000) — SEGUNDOS
 }
 
 // ---------------------------------------------------------------------------
@@ -299,12 +336,12 @@ type RouterDetail struct {
 	Clients  []Device   `json:"clients"`
 	Extras   any        `json:"extras"`
 	// --- solo gateway (demo: solo flint2; live: solo el gateway) ---
-	Adguard          *AdGuardStats  `json:"adguard,omitempty"`
+	Adguard          *AdGuardStats   `json:"adguard,omitempty"`
 	Wireguard        *WireGuardStats `json:"wireguard,omitempty"`
-	AdguardSeries24h []AdGuardHour  `json:"adguardSeries24h,omitempty"`
-	WANLatency       *WANLatency    `json:"wanLatency,omitempty"`
-	WGPeerExtras     any            `json:"wgPeerExtras,omitempty"`
-	WGTotals30d      *WGTotals      `json:"wgTotals30d,omitempty"`
+	AdguardSeries24h []AdGuardHour   `json:"adguardSeries24h,omitempty"`
+	WANLatency       *WANLatency     `json:"wanLatency,omitempty"`
+	WGPeerExtras     any             `json:"wgPeerExtras,omitempty"`
+	WGTotals30d      *WGTotals       `json:"wgTotals30d,omitempty"`
 }
 
 // AdGuardHour es un punto de la serie horaria AdGuard del detalle del gateway
@@ -436,6 +473,9 @@ type Snapshotter interface {
 	GetDevices(ctx context.Context) []Device
 	// GetAlerts lista las alertas (más recientes primero, máx 100).
 	GetAlerts(ctx context.Context) []AlertEvent
+	// AlertsEngine expone el motor de alertas (SPEC-ALERTAS §3): config,
+	// read-state y UnreadCount viven ahí (server truth).
+	AlertsEngine() *alerts.Engine
 	// GetMetricsRows devuelve las filas para la tabla metrics del tick
 	// actual (el poller solo persiste si Mode() != "demo").
 	GetMetricsRows(ctx context.Context) []MetricsRow

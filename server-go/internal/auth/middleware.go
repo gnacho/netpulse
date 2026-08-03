@@ -44,11 +44,14 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 }
 
 // RequireAuth es middleware global: todo /api/* exige sesión salvo
-// /api/health y /api/auth/login. Fallo → 401 {error:'unauthorized'}.
+// /api/health, /api/auth/login y /api/ingest/agent (este último lleva auth
+// propia Bearer por token de equipo, SPEC-AGENTE-PILOTO §1 — la sesión es de
+// humanos). Fallo → 401 {error:'unauthorized'}.
 func RequireAuth(d *db.DB, secret string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if !strings.HasPrefix(path, "/api/") || path == "/api/health" || path == "/api/auth/login" {
+		if !strings.HasPrefix(path, "/api/") || path == "/api/health" || path == "/api/auth/login" ||
+			path == "/api/ingest/agent" {
 			next.ServeHTTP(w, r)
 			return
 		}

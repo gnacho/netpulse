@@ -93,7 +93,18 @@ function MiniStat({ label, value, hot }: { label: string; value: string; hot?: b
   )
 }
 
-function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; wan: WanInfo }) {
+function TooltipCard({
+  tip,
+  touch,
+  wan,
+  routerName,
+}: {
+  tip: TooltipState
+  touch: boolean
+  wan: WanInfo
+  /** nombre visible del router del que cuelga un nodo (D8: tooltip dist) */
+  routerName: (id: string) => string
+}) {
   const { t } = useTranslation()
   return (
     <div
@@ -189,7 +200,7 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
             {[tip.node.ip, tip.node.port].filter(Boolean).join(' · ')}
           </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={tip.node.port} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
           {tip.node.lldp && (
@@ -212,7 +223,7 @@ function TooltipCard({ tip, touch, wan }: { tip: TooltipState; touch: boolean; w
           </div>
           <div className="mt-0.5 text-caption text-text-muted">{t('topology.dist.noIp')}</div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label={t('topology.dist.port')} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={tip.node.port} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
           <div className="mt-2 text-caption leading-snug text-text-secondary">
@@ -363,7 +374,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, internetNode, links, peerNodes, relatedTo, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
@@ -599,6 +610,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const related = useMemo(() => (hoverNode ? relatedTo(hoverNode) : null), [hoverNode])
   /** chip por id (para resolver el host de un CT en tooltips) */
   const chipById = useMemo(() => new Map(chips.map((c) => [c.id, c])), [chips])
+  /** nombre visible de un router por id (D8: "Puerto de <router>") */
+  const routerName = useCallback(
+    (id: string) => routerNodes.find((n) => n.id === id)?.router.name ?? id,
+    [routerNodes],
+  )
   /** datos del tooltip de un chip: +N si es host hipervisor, host si es CT */
   const chipTip = useCallback(
     (chip: ChipNode): TooltipData => ({
@@ -1001,6 +1017,29 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           </g>
         )}
 
+        {/* --------- Clientes ocultos del anillo ("+N", semántica server) ------ */}
+        {ringOverflowChips.map((chip, i) => {
+          const routerName = routerNodes.find((n) => n.id === chip.routerId)?.router.name ?? chip.routerId
+          return (
+            <g key={`ring-overflow-${chip.routerId}`} transform={`translate(${chip.x} ${chip.y})`}>
+              <motion.g
+                initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
+                animate={{ opacity: nodeOpacity(`ring-overflow-${chip.routerId}`), scale: 1 }}
+                transition={reduce ? { duration: 0 } : { delay: (2.2 + i * 0.1) * T, duration: 0.35 }}
+                style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+              >
+                <g role="img" aria-label={t('topology.ring.overflowAria', { count: chip.count, router: routerName })}>
+                  <title>{t('topology.ring.overflowAria', { count: chip.count, router: routerName })}</title>
+                  <rect x={-15} y={-11} width={30} height={22} rx={8} fill="rgb(var(--elevated))" stroke={COLOR.accent} strokeWidth={1.5} />
+                  <text x={0} y={3.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={COLOR.accent}>
+                    +{chip.count}
+                  </text>
+                </g>
+              </motion.g>
+            </g>
+          )
+        })}
+
         {/* ------------------------- Nodos de distribución (switch inferido) --- */}
         {distNodes.map((dv, i) => (
           <DistNodeGroup
@@ -1121,7 +1160,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       </svg>
 
       {/* tooltip flotante */}
-      {tooltip && <TooltipCard tip={tooltip} touch={!hoverCapable} wan={wan} />}
+      {tooltip && <TooltipCard tip={tooltip} touch={!hoverCapable} wan={wan} routerName={routerName} />}
     </div>
   )
 }

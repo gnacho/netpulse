@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
@@ -38,9 +39,15 @@ type Deps struct {
 	Secret  string
 	Static  *staticspa.Handler
 	Updater *updater.Updater // nil → sin rutas /api/update/*
+	// Agents: registry de agentes nativos (ingesta POST /api/ingest/agent y
+	// last_seen/versión de GET /api/agents). nil → ingesta 503.
+	Agents *adapters.AgentRegistry
 	// LastOverview devuelve el último overview del poller (nil si aún no hay).
 	LastOverview func() *adapters.Overview
-	Started      time.Time
+	// PollNow dispara un ciclo de sondeo inmediato (POST /api/refresh);
+	// nil → el refresh manual es no-op (tests sin poller).
+	PollNow func()
+	Started time.Time
 }
 
 type server struct {
@@ -49,15 +56,25 @@ type server struct {
 	adapter adapters.Snapshotter
 	hub     *sse.Hub
 	secret  string
+	agents  *adapters.AgentRegistry
 	lastOv  func() *adapters.Overview
+	pollNow func()
 	started time.Time
+
+	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
+	refreshMu   sync.Mutex
+	lastRefresh time.Time
+
+	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
+	ingestLimit *ipRateLimit
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
 func NewHandler(d Deps) http.Handler {
 	s := &server{
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
-		secret: d.Secret, lastOv: d.LastOverview, started: d.Started,
+		secret: d.Secret, agents: d.Agents, lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
+		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 	}
 	mode := d.Adapter.Mode()
 
@@ -78,13 +95,35 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/routers/{id}", s.handleRouterDetail)
 	mux.HandleFunc("GET /api/devices", s.handleDevices)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
+	mux.HandleFunc("GET /api/alerts/config", s.handleAlertsConfigGet)
+	mux.HandleFunc("PUT /api/alerts/config", s.handleAlertsConfigPut)
+	mux.HandleFunc("POST /api/alerts/read", s.handleAlertsRead)
+	mux.HandleFunc("POST /api/alerts/read-all", s.handleAlertsReadAll)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
+	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
+
+	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
+	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
+
+	// --- Agentes nativos (Fase 6) ---
+	// Ingesta: SIN sesión (auth Bearer propia; exenta en RequireAuth).
+	mux.HandleFunc("POST /api/ingest/agent", s.handleIngestAgent)
+	// Gestión de tokens: tras sesión como el resto del API.
+	mux.HandleFunc("POST /api/agents", s.handleAgentsCreate)
+	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
+	mux.HandleFunc("DELETE /api/agents/{slug}", s.handleAgentsDelete)
+
+	// --- Web Push (Fase 6 Bloque C; tras sesión como el resto del API) ---
+	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)
+	mux.HandleFunc("POST /api/push/subscribe", s.handlePushSubscribe)
+	mux.HandleFunc("POST /api/push/unsubscribe", s.handlePushUnsubscribe)
 
 	// --- Users ---
-	// Idioma propio: FUERA del gate admin (se registra antes en Node).
+	// Idioma y nombre propios: FUERA del gate admin (se registran antes en Node).
 	mux.HandleFunc("PUT /api/users/me/language", s.handleMyLanguage)
+	mux.HandleFunc("PUT /api/users/me/display-name", s.handleMyDisplayName)
 	// Resto: solo admin.
 	mux.Handle("GET /api/users", auth.RequireAdmin(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("POST /api/users", auth.RequireAdmin(http.HandlerFunc(s.handleCreateUser)))

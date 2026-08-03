@@ -167,9 +167,13 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 						ID: id, Kind: "hypervisor", RouterID: routerID, Port: port,
 						MacCount: len(kept), HostDeviceID: devices[hidx].ID, Name: devices[hidx].Name,
 					})
+					// SPEC-65 D65-2: sellado de infra — host = hypervisor,
+					// las MACs con OUI de hipervisor anidadas bajo él = ct.
+					devices[hidx].Infra = "hypervisor"
 					for _, mac := range vmMACs {
 						if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 							devices[idx].AttachTo = devices[hidx].ID
+							devices[idx].Infra = "ct"
 						}
 					}
 					continue
@@ -183,9 +187,22 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				setPort()
 				dists = append(dists, DistributionNode{
 					ID: id, Kind: "managed", RouterID: routerID, Port: port,
-					MacCount: len(kept), Name: nb.displayName(), Ip: nb.Mgmt, Lldp: nb.info(),
+					MacCount: len(kept), Name: nb.displayName(), Ip: nb.Mgmt,
+					Mac: nb.ChassisMac, Lldp: nb.info(),
 				})
+				// SPEC-65 D65-2: el vecino LLDP managed que existe como Device
+				// queda sellado como managed-switch.
+				if idx, ok := byMAC[nb.ChassisMac]; ok {
+					devices[idx].Infra = "managed-switch"
+				}
 				for _, mac := range kept {
+					// SPEC-CANON D2: la chassis-MAC del propio switch NO cuelga
+					// de su propio nodo — su Device queda con attachTo al
+					// router + port de uplink (el switch es Device Y nodo a la
+					// vez, sin self-attach ni doble conteo).
+					if mac == nb.ChassisMac {
+						continue
+					}
 					if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 						devices[idx].AttachTo = id
 					}

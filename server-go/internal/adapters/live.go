@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
@@ -118,18 +119,26 @@ type Live struct {
 	gatewayCfg *RouterConfig
 	clients    map[string]*OpenWrtClient
 
-	lastGood      map[string]*Router
-	lastStatus    map[string]string
-	boardCache    map[string]*BoardInfo
-	layoutCache   map[string][]PortLayout
-	extrasCache   map[string]*extrasSnapshot
-	lastPolled    map[string]*routerPolled
-	failCount     map[string]int
-	alerts        []AlertEvent
-	wgActive      map[string]bool
-	weakAlerted   map[string]int64
-	backhaulCache map[string]backhaulCacheEntry
-	lldpCache     map[string]lldpCacheEntry
+	lastGood       map[string]*Router
+	lastStatus     map[string]string
+	boardCache     map[string]*BoardInfo
+	layoutCache    map[string][]PortLayout
+	extrasCache    map[string]*extrasSnapshot
+	lastPolled     map[string]*routerPolled
+	failCount      map[string]int
+	engine         *alerts.Engine
+	wgActive       map[string]bool
+	weakAlerted    map[string]int64
+	onlineMacs     map[string]bool
+	seenOnlineMacs bool
+	wanDown        map[string]int
+	backhaulCache  map[string]backhaulCacheEntry
+	lldpCache      map[string]lldpCacheEntry
+
+	// Agentes nativos (Tier 2): último payload por slug + flag de caída
+	// (degradado a SSH tras emitir la alerta, SPEC-AGENTE-PILOTO §1).
+	agents    *AgentRegistry
+	agentDown map[string]bool
 
 	agStd *AdGuardClient
 	agGL  *AdGuardGlinetClient
@@ -157,10 +166,14 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		extrasCache:   map[string]*extrasSnapshot{},
 		lastPolled:    map[string]*routerPolled{},
 		failCount:     map[string]int{},
+		engine:        alerts.New(d, nil),
 		wgActive:      map[string]bool{},
 		weakAlerted:   map[string]int64{},
+		onlineMacs:    map[string]bool{},
+		wanDown:       map[string]int{},
 		backhaulCache: map[string]backhaulCacheEntry{},
 		lldpCache:     map[string]lldpCacheEntry{},
+		agentDown:     map[string]bool{},
 	}
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
@@ -404,8 +417,13 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 	return out
 }
 
-// pollRouter sondea un router; error si está inalcanzable.
+// pollRouter sondea un router; error si está inalcanzable. Si el router tiene
+// agente nativo con payload fresco (Tier 2), el sondeo viene del último push
+// y NO se toca SSH; si el agente expiró, se degrada a Tier 0 (SSH) con aviso.
 func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
+	if fresh, p := l.pollRouterAgent(cfg); fresh {
+		return p, nil
+	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
 	gw := l.gatewayCfg
@@ -694,7 +712,20 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		if res.err == nil {
 			polled[res.cfg.ID] = res.p
 			l.failCount[res.cfg.ID] = 0
+			// Router recuperado (offline→online, SPEC-ALERTAS §1)
+			if l.lastStatus[res.cfg.ID] == "offline" {
+				name := res.cfg.Name
+				if name == "" {
+					name = res.cfg.Host
+				}
+				l.emitRouterRecovered(res.cfg.ID, name)
+			}
 			l.lastStatus[res.cfg.ID] = "online"
+			// WAN/Internet caído: gateway OK pero ping a internet con 100 %
+			// de pérdida en 2 sondeos seguidos (mismo debounce que offline).
+			if l.gatewayCfg != nil && res.cfg.ID == l.gatewayCfg.ID {
+				l.trackWanDown(&res.cfg, res.p)
+			}
 			continue
 		}
 		fails := l.failCount[res.cfg.ID] + 1
@@ -706,16 +737,14 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 			if name == "" {
 				name = res.cfg.Host
 			}
-			l.alerts = append([]AlertEvent{{
+			l.engine.Emit(AlertEvent{
 				ID:       fmt.Sprintf("alert-offline-%s-%d", res.cfg.ID, time.Now().UnixMilli()),
-				Severity: "critical",
-				Title:    name + " offline",
+				Category: alerts.CatRouter, Urgent: true,
+				Severity:    "critical",
+				Title:       name + " offline",
 				Description: fmt.Sprintf("Sin respuesta de %s: %v", res.cfg.Host, res.err),
-				Time:     "ahora mismo", Read: false, RouterID: res.cfg.ID,
-			}}, l.alerts...)
-			if len(l.alerts) > 100 {
-				l.alerts = l.alerts[:100]
-			}
+				Time:        "ahora mismo", RouterID: res.cfg.ID,
+			})
 		}
 		if fails >= 2 {
 			l.lastStatus[res.cfg.ID] = "offline"
@@ -723,6 +752,87 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 	}
 	l.lastPolled = polled
 	return polled
+}
+
+// emitRouterRecovered: evento "router recuperado" (offline→online;
+// category router, urgent false, severity ok — SPEC-ALERTAS §1).
+// Debe llamarse con l.mu tomado (mismo contexto que el resto de emisiones).
+func (l *Live) emitRouterRecovered(routerID, name string) {
+	l.engine.Emit(AlertEvent{
+		ID:       fmt.Sprintf("alert-recovered-%s-%d", routerID, time.Now().UnixMilli()),
+		Category: alerts.CatRouter, Urgent: false,
+		Severity:    "ok",
+		Title:       name + " recuperado",
+		Description: fmt.Sprintf("%s vuelve a responder", name),
+		Time:        "ahora mismo", RouterID: routerID,
+	})
+}
+
+// trackWanDown detecta "WAN/Internet caído" (category internet, urgent true,
+// critical — SPEC-ALERTAS §1): el gateway responde por SSH pero su ping a
+// internet da 100 % de pérdida en 2 sondeos seguidos (debounce como offline).
+// Al recuperarse la WAN se resetea el estado (la próxima caída vuelve a
+// alertar). Debe llamarse con l.mu tomado.
+func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
+	key := cfg.ID + ":wan"
+	if p == nil || p.lossPct == nil || *p.lossPct < 100 {
+		l.wanDown[cfg.ID] = 0
+		l.lastStatus[key] = "up"
+		return
+	}
+	l.wanDown[cfg.ID]++
+	if l.wanDown[cfg.ID] >= 2 && l.lastStatus[key] != "down" {
+		l.lastStatus[key] = "down"
+		name := cfg.Name
+		if name == "" {
+			name = cfg.Host
+		}
+		l.engine.Emit(AlertEvent{
+			ID:       fmt.Sprintf("alert-wan-%s-%d", cfg.ID, time.Now().UnixMilli()),
+			Category: alerts.CatInternet, Urgent: true,
+			Severity:    "critical",
+			Title:       "Internet caído",
+			Description: fmt.Sprintf("%s responde pero no alcanza internet (100 %% de pérdida)", name),
+			Time:        "ahora mismo", RouterID: cfg.ID,
+		})
+	}
+}
+
+// trackUnknownDevices emite "dispositivo desconocido se conecta" cuando un
+// cliente SIN nombre (Name == MAC, sin hostname DHCP ni alias — device_attrib
+// no guarda alias) pasa de no-online a online. El primer ciclo de sondeo del
+// proceso NO alerta (evita la avalancha de arranque: todo lo ya conectado
+// sería "nuevo"). Toma l.mu internamente.
+func (l *Live) trackUnknownDevices(devices []Device) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	nowOnline := map[string]bool{}
+	for _, d := range devices {
+		if !d.Online {
+			continue
+		}
+		nowOnline[d.MAC] = true
+		if l.seenOnlineMacs && !l.onlineMacs[d.MAC] && d.Name == d.MAC {
+			l.emitUnknownDevice(d)
+		}
+	}
+	l.onlineMacs = nowOnline
+	l.seenOnlineMacs = true
+}
+
+// emitUnknownDevice: evento "dispositivo desconocido se conecta" (category
+// clients, urgent true, warn — SPEC-ALERTAS §1). "Desconocido" = sin nombre/
+// alias: device_attrib no guarda alias, así que la señal práctica es un
+// cliente sin hostname DHCP (Name == MAC). Debe llamarse con l.mu tomado.
+func (l *Live) emitUnknownDevice(d Device) {
+	l.engine.Emit(AlertEvent{
+		ID:       fmt.Sprintf("alert-unknown-%s-%d", d.MAC, time.Now().UnixMilli()),
+		Category: alerts.CatClients, Urgent: true,
+		Severity:    "warn",
+		Title:       "Dispositivo desconocido",
+		Description: fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID),
+		Time:        "ahora mismo", RouterID: d.RouterID,
+	})
 }
 
 // pollAdGuard: stats del cliente configurado; fallback inactivo si falla.
@@ -790,15 +900,13 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 					name = p.Name
 				}
 			}
-			l.alerts = append([]AlertEvent{{
-				ID: fmt.Sprintf("alert-wg-%s-%d", id, time.Now().UnixMilli()),
+			l.engine.Emit(AlertEvent{
+				ID:       fmt.Sprintf("alert-wg-%s-%d", id, time.Now().UnixMilli()),
+				Category: alerts.CatVPN, Urgent: false,
 				Severity: "info", Title: "Handshake WireGuard",
 				Description: name + " conectado",
-				Time:        "ahora mismo", Read: false, RouterID: gw.ID,
-			}}, l.alerts...)
-			if len(l.alerts) > 100 {
-				l.alerts = l.alerts[:100]
-			}
+				Time:        "ahora mismo", RouterID: gw.ID,
+			})
 		}
 	}
 	l.wgActive = activeNow
@@ -917,7 +1025,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
 		d := Device{
-			ID: strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
+			ID:  strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
 			MAC: mac, Manufacturer: "Desconocido",
 			TrafficMbps: 0, Sparkline: []float64{},
 			RouterID: gwID, Band: "—",
@@ -1067,15 +1175,13 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		// Alerta de temperatura UNA vez por proceso (flag, como el JS)
 		if router.Temp != nil && *router.Temp > 65 && l.lastStatus[cfg.ID+":temp"] != "warn" {
 			l.lastStatus[cfg.ID+":temp"] = "warn"
-			l.alerts = append([]AlertEvent{{
-				ID: fmt.Sprintf("alert-temp-%s-%d", cfg.ID, time.Now().UnixMilli()),
+			l.engine.Emit(AlertEvent{
+				ID:       fmt.Sprintf("alert-temp-%s-%d", cfg.ID, time.Now().UnixMilli()),
+				Category: alerts.CatRouter, Urgent: true,
 				Severity: "warn", Title: "Temperatura alta en " + router.Name,
 				Description: fmt.Sprintf("%d °C, por encima del umbral (65 °C)", *router.Temp),
-				Time:        "ahora mismo", Read: false, RouterID: cfg.ID,
-			}}, l.alerts...)
-			if len(l.alerts) > 100 {
-				l.alerts = l.alerts[:100]
-			}
+				Time:        "ahora mismo", RouterID: cfg.ID,
+			})
 		}
 		l.mu.Unlock()
 		routerList = append(routerList, router)
@@ -1090,19 +1196,18 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 			last := l.weakAlerted[d.MAC]
 			if time.Now().UnixMilli()-last > 24*3600e3 {
 				l.weakAlerted[d.MAC] = time.Now().UnixMilli()
-				l.alerts = append([]AlertEvent{{
-					ID: fmt.Sprintf("alert-weak-%s-%d", d.MAC, time.Now().UnixMilli()),
+				l.engine.Emit(AlertEvent{
+					ID:       fmt.Sprintf("alert-weak-%s-%d", d.MAC, time.Now().UnixMilli()),
+					Category: alerts.CatSignal, Urgent: false,
 					Severity: "warn", Title: "Señal débil en " + d.Name,
 					Description: fmt.Sprintf("%d dBm en %s — revisa cobertura o acerca un AP", *d.SignalDbm, d.RouterID),
-					Time:        "ahora mismo", Read: false, RouterID: d.RouterID,
-				}}, l.alerts...)
-				if len(l.alerts) > 100 {
-					l.alerts = l.alerts[:100]
-				}
+					Time:        "ahora mismo", RouterID: d.RouterID,
+				})
 			}
 			l.mu.Unlock()
 		}
 	}
+	l.trackUnknownDevices(devices)
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	for i := range routerList {
 		n := 0
@@ -1152,15 +1257,10 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	if len(top) > 5 {
 		top = top[:5]
 	}
-	l.mu.Lock()
-	alertsCopy := append([]AlertEvent(nil), l.alerts...)
-	l.mu.Unlock()
-	unread := 0
-	for _, a := range alertsCopy {
-		if !a.Read {
-			unread++
-		}
-	}
+	// El motor de alertas es el dueño de la lista y del read-state
+	// (SPEC-ALERTAS §3-4): UnreadAlerts = no leídas que pasaron config.
+	alertsCopy := l.engine.List()
+	unread := l.engine.UnreadCount()
 	return &Overview{
 		Health:  computeHealth(routerList, adguard),
 		WAN:     wan,
@@ -1171,6 +1271,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		},
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
+		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
+		VM:                ViewModelVersion,                                            // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
 }
@@ -1404,7 +1506,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	}
 	detail := &RouterDetail{
 		Router: router, Ports: enriched, Radios: radios, Backhaul: nil,
-		Series: PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
+		Series:  PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
 		Clients: clients, Extras: extras,
 	}
 	if gw != nil && id == gw.ID {
@@ -1454,10 +1556,11 @@ func (l *Live) GetDevices(context.Context) []Device {
 
 // GetAlerts: copia de las alertas en memoria.
 func (l *Live) GetAlerts(context.Context) []AlertEvent {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return append([]AlertEvent(nil), l.alerts...)
+	return l.engine.List()
 }
+
+// AlertsEngine: motor de alertas del adapter (SPEC-ALERTAS §3).
+func (l *Live) AlertsEngine() *alerts.Engine { return l.engine }
 
 // GetMetricsRows: filas para el poller (index.js:725-739).
 func (l *Live) GetMetricsRows(context.Context) []MetricsRow {

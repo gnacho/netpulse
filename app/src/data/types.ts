@@ -99,6 +99,13 @@ export interface AdGuardStats {
 
 export type PeerType = 'movil' | 'portatil' | 'tablet' | 'sitio'
 
+/**
+ * Rol de infraestructura sellado server-side (SPEC-65 D65-2):
+ * "hypervisor" (host Proxmox/VMware/…), "ct" (CT/VM anidado bajo un
+ * hipervisor), "managed-switch" (switch con gestión identificado por LLDP).
+ */
+export type DeviceInfra = 'hypervisor' | 'ct' | 'managed-switch'
+
 export interface WGPeer {
   id: string
   name: string
@@ -167,6 +174,12 @@ export interface Device {
    * (hipervisor / switch gestionado identificado).
    */
   attachTo?: string
+  /**
+   * Rol de infraestructura sellado server-side (SPEC-65 D65-2): la app NO
+   * infiere; pinta el badge si viene. Ausente = dispositivo normal (la app
+   * puede seguir infiriendo como fallback para datos viejos, B2).
+   */
+  infra?: DeviceInfra
 }
 
 /**
@@ -191,17 +204,38 @@ export interface DistributionNode {
   /** Managed: IP de gestión anunciada por LLDP. */
   ip?: string
   lldp?: LldpInfo | null
+  /**
+   * Managed: chassis-MAC del switch (D1). El switch gestionado existe a la
+   * vez como Device (visible en /devices); el mapa excluye su chip filtrando
+   * los Devices cuya MAC coincide con esta — se representa SOLO como nodo.
+   */
+  mac?: string
 }
 
 export type AlertSeverity = 'warn' | 'critical' | 'info' | 'ok'
 
+/** Taxonomía de categorías de alerta (SPEC-ALERTAS §1, espejo del backend Go). */
+export type AlertCategory = 'router' | 'internet' | 'clients' | 'signal' | 'vpn' | 'system'
+
+/** Nivel de configuración por categoría (SPEC-ALERTAS §2). */
+export type AlertConfigLevel = 'urgent' | 'all' | 'none'
+
+/** Configuración de alertas: las 6 categorías con su nivel. */
+export type AlertsConfig = Record<AlertCategory, AlertConfigLevel>
+
 export interface AlertEvent {
   id: string
+  /** Categoría del evento (filtrado + configuración por nivel) */
+  category: AlertCategory
+  /** true = "rompe silencio" (badge URGENTE; push en Bloque C) */
+  urgent: boolean
   severity: AlertSeverity
   title: string
   description: string
-  /** Timestamp relativo ya formateado: "hace 12 min" */
+  /** LEGADO display: "hace 12 min" — fallback si `ts` no es válido */
   time: string
+  /** Unix SEGUNDOS; el frontend calcula el tiempo relativo */
+  ts: number
   read: boolean
   routerId?: string
 }
@@ -216,6 +250,36 @@ export interface DeviceTotals {
   online: number
   knownOffline: number
   newToday: number
+}
+
+/**
+ * Versión del view-model que la app soporta (SPEC-65 D65-4). Si el servidor
+ * manda `vm` mayor → la app avisa una vez por consola y sigue (nunca rompe).
+ */
+export const VM_SUPPORTED = 1
+
+/** Enlace semántico del mapa (SPEC-65 D65-3), sin geometría. */
+export interface TopoSemLink {
+  /** id: router | device | distnode | "internet" | "peer-<wgPeerId>" */
+  from: string
+  to: string
+  kind: 'wan' | 'uplink' | 'wired' | 'dist' | 'wg'
+  /** puerto físico si aplica */
+  port?: string
+}
+
+/**
+ * Modelo SEMÁNTICO de la topología (SPEC-65 D65-3): asignaciones de anillo,
+ * enlaces y conteos de peers ocultos llegan calculados del servidor; la app
+ * conserva solo la geometría de píxeles. Ausente en snapshots viejos → la
+ * app usa su cálculo local como fallback.
+ */
+export interface TopoSemantics {
+  links: TopoSemLink[]
+  /** routerId → ids de Device en su anillo (cableados primero, luego 5/2.4 GHz) */
+  rings: Record<string, string[]>
+  /** routerId → nº de clientes no pintados como chip (el "+N") */
+  hiddenPeers?: Record<string, number>
 }
 
 /** Bundle de `GET /api/overview` y del evento SSE `snapshot`. */
@@ -236,7 +300,29 @@ export interface OverviewBundle {
    * colector o primera pasada): el mapa cuelga los cableados del router.
    */
   distributionNodes?: DistributionNode[]
+  /**
+   * Versión del view-model (SPEC-65 D65-4). Siempre presente en servidores
+   * nuevos; ausente en servidores viejos (se asume VM_SUPPORTED).
+   */
+  vm?: number
+  /** Semántica de topología precalculada (SPEC-65 D65-3); ausente = fallback local. */
+  topology?: TopoSemantics
   ts: number
+}
+
+/**
+ * Item de `GET /api/agents` (Fase 6): agente nativo registrado en un router.
+ * `slug` coincide con el `id` del router (mismo alfabeto que routerstore).
+ * `fresh` = el agente empujó dentro del TTL (~90 s); false → caído, el
+ * backend vuelve a sondear por SSH.
+ */
+export interface AgentInfo {
+  slug: string
+  /** Unix SEGUNDOS del último push; null si nunca empujó */
+  lastSeen: number | null
+  /** Versión del binario netpulse-agent ("" si aún no se conoce) */
+  version?: string
+  fresh: boolean
 }
 
 /** Respuesta paginada (`GET /api/devices`, `GET /api/alerts`). */
@@ -258,9 +344,11 @@ export interface DeviceQuery {
   pageSize?: number
 }
 
-/** Parámetros de `GET /api/alerts?severity=&page=&pageSize=`. */
+/** Parámetros de `GET /api/alerts?severity=&category=&unread=&page=&pageSize=`. */
 export interface AlertQuery {
   severity?: AlertSeverity
+  category?: AlertCategory
+  unread?: boolean
   page?: number
   pageSize?: number
 }

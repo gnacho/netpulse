@@ -65,7 +65,9 @@ func canonRouterExtras() map[string]*demoExtras {
 			Soc: "MediaTek MT7986A", Flash: "8 GB eMMC", RamMb: 512,
 			BandSplit: demoBandSplit{Band24: 4, Band5: 10, Cable: 3},
 			TrafficNow: 84.2,
-			// GL-MT6000: 1× WAN 2.5G + 4× LAN 1G
+			// GL-MT6000: 1× WAN 2.5G + 4× LAN 1G + 1× LAN 2.5G.
+			// SPEC-CANON D4: lan1/lan2 = uplinks LLDP (Salón/Estudio),
+			// lan3 = switch tonto inferido, lan4 = NAS, lan5 = pve 2.5G.
 			GatewayLatencySpark: []float64{},
 			BackhaulSignal:      []float64{},
 			Radios:              []Radio{},
@@ -73,9 +75,10 @@ func canonRouterExtras() map[string]*demoExtras {
 			EthPorts: []EthPort{
 				{ID: "wan", Label: "WAN", Up: true, Speed: "2.5 Gbps", ConnectedTo: "ONT fibra · Digi", Detail: "84.122.x.x · full duplex"},
 				{ID: "lan1", Label: "LAN 1", Up: true, Speed: "1 Gbps", ConnectedTo: "Salón · AX3000T", Detail: "Uplink AP Salón (192.168.8.2)"},
-				{ID: "lan2", Label: "LAN 2", Up: true, Speed: "1 Gbps", ConnectedTo: "NAS Synology", Detail: "192.168.8.10 · cable"},
-				{ID: "lan3", Label: "LAN 3", Up: true, Speed: "1 Gbps", ConnectedTo: "Estudio · NanoPi R4S", Detail: "Uplink AP Estudio (192.168.8.3)"},
-				{ID: "lan4", Label: "LAN 4", Up: false},
+				{ID: "lan2", Label: "LAN 2", Up: true, Speed: "1 Gbps", ConnectedTo: "Estudio · NanoPi R4S", Detail: "Uplink AP Estudio (192.168.8.3)"},
+				{ID: "lan3", Label: "LAN 3", Up: true, Speed: "1 Gbps", ConnectedTo: "Switch sin gestión", Detail: "Inferido por FDB · 8 MACs"},
+				{ID: "lan4", Label: "LAN 4", Up: true, Speed: "1 Gbps", ConnectedTo: "NAS Synology", Detail: "192.168.8.10 · cable"},
+				{ID: "lan5", Label: "LAN 5", Up: true, Speed: "2.5 Gbps", ConnectedTo: "Proxmox pve", Detail: "192.168.8.5 · hipervisor · 10 CT"},
 			},
 		},
 		"living": {
@@ -98,12 +101,13 @@ func canonRouterExtras() map[string]*demoExtras {
 				{Name: "phy0-ap0", Up: true, Speed: "—", Role: "Radio 2.4 GHz"},
 				{Name: "phy1-ap0", Up: true, Speed: "—", Role: "Radio 5 GHz"},
 			},
-			// AX3000T: 1× WAN + 3× LAN
+			// AX3000T: 1× WAN + 3× LAN (SPEC-CANON D4: lan1 = PS5,
+			// lan3 = GS308E UP — el switch gestionado, dist-living-lan3)
 			EthPorts: []EthPort{
 				{ID: "wan", Label: "WAN", Up: true, Speed: "1 Gbps", ConnectedTo: "Uplink → Gateway", Detail: "Gateway · LAN 1 (192.168.8.1)"},
 				{ID: "lan1", Label: "LAN 1", Up: true, Speed: "1 Gbps", ConnectedTo: "PS5", Detail: "192.168.8.31 · cable"},
 				{ID: "lan2", Label: "LAN 2", Up: false},
-				{ID: "lan3", Label: "LAN 3", Up: false},
+				{ID: "lan3", Label: "LAN 3", Up: true, Speed: "1 Gbps", ConnectedTo: "GS308E", Detail: "Switch gestionado · 192.168.8.13 · LLDP"},
 			},
 		},
 		"estudio": {
@@ -122,14 +126,16 @@ func canonRouterExtras() map[string]*demoExtras {
 			Ports: []demoPortState{
 				{Name: "br-lan", Up: true, Speed: "—", Role: "Bridge LAN"},
 				{Name: "eth0", Up: true, Speed: "1 Gbps", Role: "Uplink al Gateway"},
-				{Name: "eth1", Up: true, Speed: "1 Gbps", Role: "Switch estudio"},
+				{Name: "eth1", Up: true, Speed: "1 Gbps", Role: "Switch sin gestión"},
 				{Name: "phy0-ap0", Up: true, Speed: "—", Role: "Radio 2.4 GHz"},
 				{Name: "phy1-ap0", Up: true, Speed: "—", Role: "Radio 5 GHz"},
 			},
-			// NanoPi R4S: 2× 1G (WAN + LAN)
+			// NanoPi R4S: 2× 1G (WAN + LAN). SPEC-CANON D4: lan1 = switch sin
+			// gestión — SOLO panel; la topología no lo muestra (los nodos
+			// "inferred" solo se anclan en el gateway, ver topology.go).
 			EthPorts: []EthPort{
-				{ID: "wan", Label: "WAN", Up: true, Speed: "1 Gbps", ConnectedTo: "Uplink → Gateway", Detail: "Gateway · LAN 3 (192.168.8.1)"},
-				{ID: "lan1", Label: "LAN 1", Up: true, Speed: "1 Gbps", ConnectedTo: "Switch estudio", Detail: "Switch 8 puertos · 4 en uso"},
+				{ID: "wan", Label: "WAN", Up: true, Speed: "1 Gbps", ConnectedTo: "Uplink → Gateway", Detail: "Gateway · LAN 2 (192.168.8.1)"},
+				{ID: "lan1", Label: "LAN 1", Up: true, Speed: "1 Gbps", ConnectedTo: "Switch sin gestión", Detail: "Switch 8 puertos · 4 en uso"},
 			},
 		},
 		"patio": {

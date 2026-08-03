@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { healthLabel } from '@/i18n'
@@ -53,7 +53,24 @@ export function HeroStrip() {
   const { refreshKey } = useDashboard()
   const { deviceTotals, health: healthScore, wan } = useNetPulse()
   const auth = useAuth()
-  const greeting = t(greetingKey()) + (auth?.user ? t('home.greetingName', { name: auth.user }) : '')
+  // SPEC-65 D65-5: saluda con displayName || username. En demo (sin backend)
+  // el nombre vive en localStorage ('netpulse-displayname').
+  const [demoName, setDemoName] = useState('')
+  useEffect(() => {
+    if (auth) return
+    const read = () => {
+      try {
+        setDemoName(localStorage.getItem('netpulse-displayname') ?? '')
+      } catch {
+        /* modo privado */
+      }
+    }
+    read()
+    window.addEventListener('netpulse-auth-refresh', read)
+    return () => window.removeEventListener('netpulse-auth-refresh', read)
+  }, [auth])
+  const name = auth ? auth.displayName || auth.user : demoName
+  const greeting = t(greetingKey()) + (name ? t('home.greetingName', { name }) : '')
   const words = greeting.split(' ')
 
   return (

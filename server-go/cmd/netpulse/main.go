@@ -19,15 +19,18 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/poller"
+	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
@@ -77,17 +80,40 @@ func run() error {
 
 	// Adapter: DEMO_MODE=1 → demo (dataset canónico + random walk);
 	// live → sondeo real (SSH/ubus) de los routers configurados.
+	// Registry de agentes nativos (Fase 6): en live alimenta el adapter
+	// live-agent (Tier 2 con degrade a SSH); en demo solo registra pushes
+	// (last_seen/versión para GET /api/agents) sin tocar el dataset canónico.
+	agentTTL := adapters.AgentTTLDefault
+	if v := os.Getenv("NETPULSE_AGENT_TTL_S"); v != "" {
+		if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+			agentTTL = time.Duration(sec) * time.Second
+		}
+	}
+	agentReg := adapters.NewAgentRegistry(agentTTL)
 	var adapter adapters.Snapshotter
 	if cfg.DemoMode {
-		adapter = adapters.NewDemo()
+		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 	} else {
 		pool, err := adapters.NewSSHPool(cfg.SSHKeyPath)
 		if err != nil {
 			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
-			adapter = adapters.NewDemo()
+			adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 		} else {
-			adapter = adapters.NewLive(cfg, dbHandle, routers, pool)
+			live := adapters.NewLive(cfg, dbHandle, routers, pool)
+			live.SetAgents(agentReg)
+			adapter = live
 		}
+	}
+
+	// Web Push (Bloque C): par VAPID en kv (primer arranque) + Notifier
+	// asíncrono conectado al motor de alertas del adapter (solo eventos
+	// urgentes que pasan config). Si falla, el resto del servidor sigue.
+	var pushNotifier *push.Notifier
+	if pub, priv, err := push.EnsureVAPIDKeys(dbHandle); err != nil {
+		log.Printf("[netpulse] aviso: Web Push desactivado (%v)", err)
+	} else {
+		pushNotifier = push.NewNotifier(dbHandle, pub, priv)
+		adapter.AlertsEngine().SetNotifier(pushNotifier)
 	}
 
 	// Dependencia sse↔poller resuelta con un holder (como index.js:40-45).
@@ -118,9 +144,11 @@ func run() error {
 		Secret:  secret,
 		Static:  static,
 		Updater: upd,
+		Agents:  agentReg,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
+		PollNow: p.PollNow,
 		Started: time.Now(),
 	})
 
@@ -160,6 +188,11 @@ func run() error {
 		upd.Stop()
 		hub.NotifyShutdown()
 		_ = adapter.Close()
+		// Tras parar poller y adapter ya nadie emite alertas: se puede
+		// cerrar el worker de push sin riesgo de Notify sobre canal cerrado.
+		if pushNotifier != nil {
+			pushNotifier.Close()
+		}
 		// Salvavidas de 3 s: salir igualmente aunque el server no cierre.
 		lifeline := time.AfterFunc(3*time.Second, func() {
 			_ = dbHandle.Close()

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   BadgeCheck,
+  BellOff,
+  BellRing,
   Check,
   Copy,
   Download,
@@ -14,6 +16,7 @@ import {
   LogOut,
   MonitorSmartphone,
   Moon,
+  Pencil,
   Plus,
   Radar,
   Router as RouterIcon,
@@ -30,6 +33,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn } from '@/lib/utils'
@@ -267,6 +271,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [copied, setCopied] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [candidates, setCandidates] = useState<DiscoverCandidate[] | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -403,6 +408,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setName('')
       setType('openwrt')
       setGateway(false)
+      setShowAddForm(false)
       await load()
       refresh()
       onSaved()
@@ -444,16 +450,16 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               <RouterIcon className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-text-primary">{r.name || r.host}</span>
+                  <span className="truncate font-mono text-sm font-medium text-text-primary">{r.host}</span>
                   {r.is_gateway && (
                     <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
                       {t('settings.routers.gatewayBadge')}
                     </span>
                   )}
                 </div>
-                <div className="font-mono text-caption text-text-muted">
-                  {r.host} · {r.type === 'glinet' ? 'GL.iNet' : 'OpenWrt'}
-                </div>
+                {r.name && r.name !== r.host && (
+                  <div className="truncate text-caption text-text-muted">{r.name}</div>
+                )}
               </div>
               {confirmDeleteFor === r.id ? (
                 <span className="flex shrink-0 items-center gap-1.5">
@@ -550,8 +556,19 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         )}
       </div>
 
-      {/* Formulario de alta */}
-      <form onSubmit={(e) => void add(e)} className="mt-4 border-t border-border pt-4">
+      {/* Alta manual colapsada tras botón (SPEC-65 D65-7a) */}
+      <div className="mt-4 border-t border-border pt-4">
+        <button
+          type="button"
+          aria-expanded={showAddForm}
+          onClick={() => setShowAddForm((v) => !v)}
+          className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
+          {t('settings.routers.addDevice')}
+        </button>
+        {showAddForm && (
+        <form onSubmit={(e) => void add(e)} className="mt-3">
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <input
             type="text"
@@ -596,7 +613,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
         <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.routers.hint')}</p>
-      </form>
+        </form>
+        )}
+      </div>
 
       {/* Clave pública SSH del servidor */}
       <div className="mt-4 border-t border-border pt-4">
@@ -647,6 +666,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
   const [newUser, setNewUser] = useState('')
   const [newPass, setNewPass] = useState('')
   const [newAdmin, setNewAdmin] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async () => {
@@ -697,6 +717,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
       setNewUser('')
       setNewPass('')
       setNewAdmin(false)
+      setShowCreateForm(false)
       await load()
       onSaved()
     } catch {
@@ -858,7 +879,19 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
         ))}
       </ul>
 
-      <form onSubmit={(e) => void add(e)} className="mt-4 border-t border-border pt-4">
+      {/* Alta de usuario colapsada tras botón (SPEC-65 D65-7b) */}
+      <div className="mt-4 border-t border-border pt-4">
+        <button
+          type="button"
+          aria-expanded={showCreateForm}
+          onClick={() => setShowCreateForm((v) => !v)}
+          className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
+          {t('settings.users.createUser')}
+        </button>
+        {showCreateForm && (
+        <form onSubmit={(e) => void add(e)} className="mt-3">
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <input
             type="text"
@@ -896,7 +929,9 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
           </button>
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
-      </form>
+        </form>
+        )}
+      </div>
     </Card>
   )
 }
@@ -914,6 +949,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [user, setUser] = useState('root')
   const [password, setPassword] = useState('')
   const [passSet, setPassSet] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -952,12 +988,39 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       setPassSet(true)
       setPassword('')
+      setEditing(false)
       onSaved()
     } catch {
       setError(t('settings.adguard.errorGeneric'))
     } finally {
       setSaving(false)
     }
+  }
+
+  // SPEC-65 D65-7c: configurado y sin editar → vista compacta (icono + host +
+  // chip ok + Editar). Sin configurar → form directo como antes.
+  if (passSet && !editing) {
+    return (
+      <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+          <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-text-primary">{host}</span>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+            {t('settings.adguard.configured')}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={t('settings.adguard.edit')}
+            title={t('settings.adguard.edit')}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+          >
+            <Pencil className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
+        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
+      </Card>
+    )
   }
 
   return (
@@ -1002,6 +1065,19 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           >
             {saving ? t('settings.adguard.saving') : t('settings.adguard.save')}
           </button>
+          {passSet && editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false)
+                setPassword('')
+                setError(null)
+              }}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+            >
+              {t('settings.users.cancel')}
+            </button>
+          )}
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
         <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
@@ -1010,6 +1086,114 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   )
 }
 
+
+// ---------------------------------------------------------------------------
+// Bloque «Sistema» en Acerca de (SPEC-65 D65-6/7e): GET /api/system/info
+// ---------------------------------------------------------------------------
+
+interface SystemInfoData {
+  version: string
+  goVersion: string
+  os: string
+  arch: string
+  distro: string
+  kernel: string
+  cpuModel: string
+  cpuCores: number
+  memTotalMb: number
+  uptimeS: number
+  demo: boolean
+}
+
+function fmtUptime(s: number): string {
+  if (!s || s <= 0) return '—'
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m`
+  return `${Math.floor(s)}s`
+}
+
+function SystemInfoBlock() {
+  const { t } = useTranslation()
+  const [info, setInfo] = useState<SystemInfoData | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let disposed = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/system/info')
+        // La preview estática responde HTML con 200: no es el endpoint
+        if (!res.ok || !(res.headers.get('content-type') ?? '').includes('application/json')) {
+          throw new Error(`HTTP ${res.status}`)
+        }
+        const json = (await res.json()) as SystemInfoData
+        if (!disposed) setInfo(json)
+      } catch {
+        if (!disposed) setFailed(true)
+      }
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  // Fetch fallido o servidor en demo: solo App + React + caption (SPEC-65 D65-7e)
+  const server = info && !info.demo ? info : null
+  const rows: { label: string; value: string }[] = [
+    { label: t('settings.about.sysApp'), value: `v${server?.version || pkg.version}` },
+    ...(server ? [{ label: t('settings.about.sysGo'), value: server.goVersion || '—' }] : []),
+    { label: t('settings.about.sysReact'), value: React.version },
+    ...(server
+      ? [
+          { label: t('settings.about.sysOs'), value: `${server.distro || server.os} ${server.arch}`.trim() || '—' },
+          { label: t('settings.about.sysKernel'), value: server.kernel || '—' },
+          {
+            label: t('settings.about.sysCpu'),
+            value: server.cpuModel ? `${server.cpuModel} (${server.cpuCores})` : server.cpuCores > 0 ? `${server.cpuCores}` : '—',
+          },
+          {
+            label: t('settings.about.sysRam'),
+            value: server.memTotalMb > 0 ? `${(server.memTotalMb / 1024).toFixed(1)} GiB` : '—',
+          },
+          { label: t('settings.about.sysUptime'), value: fmtUptime(server.uptimeS) },
+        ]
+      : []),
+  ]
+
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">
+        {t('settings.about.system')}
+      </div>
+      {!info && !failed ? (
+        <div className="mt-2.5 grid animate-pulse grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2" aria-hidden="true">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-baseline justify-between gap-3">
+              <span className="h-3 w-14 rounded bg-elevated" />
+              <span className="h-3 w-24 rounded bg-elevated" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
+          <dl className="mt-2.5 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-baseline justify-between gap-3">
+                <dt className="shrink-0 text-caption text-text-muted">{r.label}</dt>
+                <dd className="truncate font-mono text-caption text-text-secondary">{r.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {!server && <p className="mt-2 text-caption text-text-muted">{t('settings.about.demoNoServer')}</p>}
+        </>
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
@@ -1047,6 +1231,196 @@ function ServicesCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
 }
 
 // ---------------------------------------------------------------------------
+// Tarjeta «Notificaciones push» (SPEC-PUSH §2)
+// ---------------------------------------------------------------------------
+
+type PushCardState =
+  | 'loading'
+  | 'insecure' // sin contexto seguro (HTTP en LAN que no sea localhost)
+  | 'unsupported' // sin SW / PushManager / Notification
+  | 'demo' // demo local: no se simula (una suscripción sin servidor nunca recibiría nada)
+  | 'denied' // permiso de notificaciones denegado en el navegador
+  | 'enabled' // suscripción push activa
+  | 'disabled' // todo listo, falta activar
+
+function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
+  const [state, setState] = useState<PushCardState>('loading')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Detección del estado real: soporte → demo → permiso → suscripción viva
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const ctx = pushContext()
+      if (ctx !== 'ok') {
+        setState(ctx)
+        return
+      }
+      if (isDemo) {
+        setState('demo')
+        return
+      }
+      if (Notification.permission === 'denied') {
+        setState('denied')
+        return
+      }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration()
+        const sub = reg ? await reg.pushManager.getSubscription() : null
+        if (!cancelled) setState(sub ? 'enabled' : 'disabled')
+      } catch {
+        if (!cancelled) setState('disabled')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+
+  /** requestPermission → pushManager.subscribe(VAPID) → POST /api/push/subscribe */
+  const enable = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') {
+        setState(perm === 'denied' ? 'denied' : 'disabled')
+        return
+      }
+      const vapid = await getVapidKey()
+      if (!vapid) {
+        setError(t('settings.push.errorServer'))
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
+      // Timeout de seguridad: si el push service del navegador no responde
+      // (sin red, FCM inalcanzable…) el botón no se queda «Activando…»
+      const sub = await Promise.race([
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+        }),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => reject(new Error('push subscribe timeout')), 15000),
+        ),
+      ])
+      const json = sub.toJSON()
+      const ok = await postPushSubscribe({
+        endpoint: sub.endpoint,
+        keys: { auth: json.keys?.auth ?? '', p256dh: json.keys?.p256dh ?? '' },
+      })
+      if (!ok) {
+        // El servidor no la guardó: baja local para no dejar estado fantasma
+        await sub.unsubscribe().catch(() => false)
+        setError(t('settings.push.errorServer'))
+        return
+      }
+      setState('enabled')
+      onSaved()
+    } catch {
+      setError(t('settings.push.errorGeneric'))
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, t, onSaved])
+
+  /** Baja local + POST /api/push/unsubscribe (best-effort: el servidor purga 404/410) */
+  const disable = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      const sub = reg ? await reg.pushManager.getSubscription() : null
+      if (sub) {
+        const endpoint = sub.endpoint
+        await sub.unsubscribe().catch(() => false)
+        await postPushUnsubscribe(endpoint)
+      }
+      setState('disabled')
+      onSaved()
+    } catch {
+      setError(t('settings.push.errorGeneric'))
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, t, onSaved])
+
+  const btnBase =
+    'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50'
+
+  return (
+    <Card title={t('settings.push.title')} caption={t('settings.push.caption')} index={4} reduce={reduce}>
+      {state === 'loading' && <p className="text-caption text-text-muted">{t('settings.push.checking')}</p>}
+
+      {state === 'enabled' && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+              <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
+              {t('settings.push.stateOn')}
+            </span>
+            <p className="text-caption leading-snug text-text-muted">{t('settings.push.stateOnCaption')}</p>
+          </div>
+          <button type="button" disabled={busy} onClick={() => void disable()} className={cn(btnBase, 'border border-border bg-elevated text-text-primary')}>
+            <BellOff className="h-3.5 w-3.5" strokeWidth={2} />
+            {busy ? t('settings.push.disabling') : t('settings.push.disable')}
+          </button>
+        </div>
+      )}
+
+      {state === 'disabled' && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 text-caption leading-snug text-text-secondary">{t('settings.push.stateOffCaption')}</p>
+          <button type="button" disabled={busy} onClick={() => void enable()} className={cn(btnBase, 'bg-accent text-canvas')}>
+            <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
+            {busy ? t('settings.push.enabling') : t('settings.push.enable')}
+          </button>
+        </div>
+      )}
+
+      {state === 'denied' && (
+        <p className="rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-relaxed text-warn">
+          {t('settings.push.denied')}
+        </p>
+      )}
+
+      {state === 'unsupported' && (
+        <p className="rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+          {t('settings.push.unsupported')}
+        </p>
+      )}
+
+      {state === 'insecure' && (
+        <p className="rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-relaxed text-warn">
+          {t('settings.push.insecure')}
+        </p>
+      )}
+
+      {state === 'demo' && (
+        <p className="rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+          {t('settings.push.demoNote')}
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">
+          {error}
+        </p>
+      )}
+
+      {(state === 'enabled' || state === 'disabled') && (
+        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.push.note')}</p>
+      )}
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -1055,6 +1429,8 @@ export default function Settings() {
   const reduce = useReducedMotion() ?? false
   const { devices, routers, wan, isDemo } = useNetPulse()
   const auth = useAuth()
+  // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
+  const [services] = useServicesVisibility()
 
   // ——— Idioma ('en' por defecto; 'auto' sigue al navegador; persistido) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
@@ -1127,6 +1503,71 @@ export default function Settings() {
       setPwBusy(false)
     }
   }, [pwBusy, pwCurrent, pwNew, pwConfirm, t, notify])
+
+  // ——— Nombre para el saludo del Resumen (SPEC-65 D65-5/7d) ———
+  const [nameDraft, setNameDraft] = useState('')
+  const [nameBaseline, setNameBaseline] = useState('')
+  const [nameBusy, setNameBusy] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+  useEffect(() => {
+    let v = auth?.displayName ?? ''
+    if (isDemo) {
+      try {
+        v = localStorage.getItem('netpulse-displayname') ?? v
+      } catch {
+        /* modo privado */
+      }
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza el draft con auth/localStorage al montar y tras cada refetch de /api/auth/me
+    setNameBaseline(v)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNameDraft(v)
+  }, [isDemo, auth?.displayName])
+
+  const saveDisplayName = useCallback(async () => {
+    const v = nameDraft.trim()
+    if (nameBusy || v === nameBaseline) return
+    setNameBusy(true)
+    setNameError(null)
+    if (isDemo) {
+      try {
+        localStorage.setItem('netpulse-displayname', v)
+      } catch {
+        /* modo privado */
+      }
+      window.dispatchEvent(new Event('netpulse-auth-refresh'))
+      setNameBaseline(v)
+      setNameDraft(v)
+      setNameBusy(false)
+      notify()
+      return
+    }
+    try {
+      const res = await fetch('/api/users/me/display-name', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName: v }),
+      })
+      if (res.status === 404 || res.status === 405) {
+        // Endpoint aún no desplegado: fallback local (mismo almacén que el demo)
+        try {
+          localStorage.setItem('netpulse-displayname', v)
+        } catch {
+          /* modo privado */
+        }
+      } else if (!res.ok && res.status !== 204) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      window.dispatchEvent(new Event('netpulse-auth-refresh'))
+      setNameBaseline(v)
+      setNameDraft(v)
+      notify()
+    } catch {
+      setNameError(t('settings.users.errorGeneric'))
+    } finally {
+      setNameBusy(false)
+    }
+  }, [nameDraft, nameBaseline, nameBusy, isDemo, notify, t])
 
 
   // ——— Tema (compatible con ThemeToggle: 'netpulse-theme' = light|dark) ———
@@ -1630,6 +2071,11 @@ export default function Settings() {
           </Card>
         </div>
 
+        {/* Notificaciones push (Web Push nativo, SPEC-PUSH §2) */}
+        <div className="lg:col-span-7">
+          <PushNotificationsCard reduce={reduce} onSaved={notify} />
+        </div>
+
         {/* Gestión de routers — solo con backend (modo live) */}
         {!isDemo && (
           <div className="lg:col-span-12">
@@ -1637,8 +2083,8 @@ export default function Settings() {
           </div>
         )}
 
-        {/* AdGuard Home (GL.iNet) — solo admin y modo live */}
-        {!isDemo && auth?.role === 'admin' && (
+        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
+        {!isDemo && auth?.role === 'admin' && services.adguard && (
           <div className="lg:col-span-12">
             <AdGuardManager reduce={reduce} onSaved={notify} />
           </div>
@@ -1654,6 +2100,37 @@ export default function Settings() {
         {/* Mi sesión: cambiar contraseña + cerrar sesión (patrón easyzfs) */}
         <div className="lg:col-span-12">
           <Card title={t('settings.session.title')} index={5} reduce={reduce}>
+            {/* Nombre para el saludo del Resumen (SPEC-65 D65-7d) */}
+            <div className="mb-4 max-w-md">
+              <label htmlFor="session-display-name" className="text-sm font-medium text-text-primary">
+                {t('settings.session.name')}
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  id="session-display-name"
+                  type="text"
+                  value={nameDraft}
+                  maxLength={40}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  placeholder={auth?.user ?? ''}
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveDisplayName()}
+                  disabled={nameBusy || nameDraft.trim() === nameBaseline}
+                  className="flex h-10 shrink-0 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {t('settings.adguard.save')}
+                </button>
+              </div>
+              <p className="mt-1.5 text-caption text-text-muted">{t('settings.session.nameHint')}</p>
+              {nameError && (
+                <p role="alert" className="mt-1.5 text-caption text-danger">
+                  {nameError}
+                </p>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               {!isDemo && (
                 <button
@@ -1829,6 +2306,9 @@ export default function Settings() {
               </div>
 
             </div>
+
+            {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
+            <SystemInfoBlock />
 
             <p className="mt-5 border-t border-border pt-3 font-mono text-caption text-text-muted">
               {t('settings.about.footer')}

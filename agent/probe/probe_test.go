@@ -1,0 +1,243 @@
+// probe_test.go — parsers sobre fixtures de salidas reales (los MISMOS
+// fixtures que internal/adapters/adapters_test.go del servidor: al compartir
+// package, estos tests son el test cruzado agente↔servidor) + Build del
+// prober local con runner fake.
+package probe
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestParseProcStat(t *testing.T) {
+	s, err := ParseProcStat("cpu  4705 356 584 3699 23 0 23 0 0 0\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	idle := float64(3699 + 23)
+	total := idle + float64(4705+356+584+0+23)
+	if s.Total != total || s.IdleAll != idle {
+		t.Fatalf("procstat: %+v", s)
+	}
+	// Delta → porcentaje
+	prev := CPUSample{Total: 1000, IdleAll: 500}
+	cur := CPUSample{Total: 2000, IdleAll: 750}
+	pct := CPUPercent(prev, cur)
+	if pct == nil || *pct != 75 {
+		t.Fatalf("cpu%%: %v", pct)
+	}
+	if CPUPercent(cur, prev) != nil {
+		t.Fatal("contadores reseteados → nil")
+	}
+	if _, err := ParseProcStat("basura"); err == nil {
+		t.Fatal("procstat basura debería dar error")
+	}
+}
+
+func TestParseTempC(t *testing.T) {
+	if v := ParseTempC("43500\n"); v == nil || *v != 44 {
+		t.Fatalf("temp: %v", v)
+	}
+	if ParseTempC("") != nil || ParseTempC("nan") != nil {
+		t.Fatal("temp inválida → nil")
+	}
+}
+
+func TestParseNetDevYBps(t *testing.T) {
+	out := "  eth0: 1000000    0    0    0    0     0          0         0   500000    0\n" +
+		"    lo: 9999999    0    0    0    0     0          0         0  8888888    0\n" +
+		"br-lan: 7000000    0    0    0    0     0          0         0  6000000    0\n" +
+		"  lan1: 2000000    0    0    0    0     0          0         0  1000000    0\n"
+	rx, tx := ParseNetDev(out)
+	if rx != 3000000 || tx != 1500000 { // lo, br-lan excluidos
+		t.Fatalf("netdev: %v/%v", rx, tx)
+	}
+	rxBps, txBps := NetDevBps(1000, 2000, 3000, 6000, 2)
+	if rxBps == nil || *rxBps != 8000 || txBps == nil || *txBps != 16000 {
+		t.Fatalf("bps: %v/%v", rxBps, txBps)
+	}
+	if a, b := NetDevBps(0, 0, 0, 0, 0); a != nil || b != nil {
+		t.Fatal("dt=0 → nil")
+	}
+}
+
+func TestParsePingSummary(t *testing.T) {
+	out := "3 packets transmitted, 3 received, 0% packet loss, time 2003ms\nrtt min/avg/max/mdev = 8.123/9.456/10.999/0.5 ms"
+	lat, loss := ParsePingSummary(out)
+	if lat == nil || *lat != 9 || loss == nil || *loss != 0 {
+		t.Fatalf("ping: %v %v", lat, loss)
+	}
+	if lat, _ := ParsePingSummary("2 packets transmitted, 0 received, 100% packet loss"); lat != nil {
+		t.Fatalf("sin rtt → nil: %v", lat)
+	}
+}
+
+func TestParseDhcp(t *testing.T) {
+	out := "1700000000 aa:bb:cc:dd:ee:ff 192.168.8.21 imac-de-marc 01:aa:bb:cc:dd:ee:ff\n" +
+		"1700000001 11:22:33:44:55:66 192.168.8.34 * *\n"
+	leases := ParseDhcpLeasesFile(out)
+	if len(leases) != 2 || leases[0].MAC != "AA:BB:CC:DD:EE:FF" || leases[0].Hostname != "imac-de-marc" || leases[1].Hostname != "" {
+		t.Fatalf("leases: %+v", leases)
+	}
+	ubus := `{"lease":[{"mac":"aa:bb:cc:dd:ee:ff","ip":"192.168.8.21","hostname":"imac"}]}`
+	leases, err := ParseDhcpUbus([]byte(ubus))
+	if err != nil || len(leases) != 1 || leases[0].IP != "192.168.8.21" {
+		t.Fatalf("ubus dhcp: %v %+v", err, leases)
+	}
+	if _, err := ParseDhcpUbus([]byte("Command failed")); err == nil {
+		t.Fatal("ubus roto debería dar error")
+	}
+}
+
+func TestParseWireless(t *testing.T) {
+	out := "A4:83:E7:21:0B:3C -48 5\nEC:71:DB:44:12:8A -72 2.4\n"
+	m := ParseWirelessClients(out)
+	if len(m) != 2 || m["A4:83:E7:21:0B:3C"].Band != "5 GHz" || m["A4:83:E7:21:0B:3C"].SignalDbm != -48 || m["EC:71:DB:44:12:8A"].Band != "2.4 GHz" {
+		t.Fatalf("wireless: %+v", m)
+	}
+	sta := `{"radio0":{"up":true,"interfaces":[{"ifname":"wlan0","config":{"mode":"sta"}}]}}`
+	wifi, err := ParseWirelessUplink([]byte(sta))
+	if err != nil || !wifi {
+		t.Fatalf("sta: %v %v", wifi, err)
+	}
+	ap := `{"radio0":{"up":true,"interfaces":[{"ifname":"wlan0","config":{"mode":"ap"}}]}}`
+	wifi, _ = ParseWirelessUplink([]byte(ap))
+	if wifi {
+		t.Fatal("solo AP → cable")
+	}
+}
+
+func TestParsePortsYLayout(t *testing.T) {
+	states := ParsePortStates("eth0 up 2500\nlan1 up 1000\nlan2 down -1\nwlan0 up 0\n")
+	if len(states) != 4 || states[0].Speed != "2 Gbps" || states[2].Up || states[2].Speed != "—" {
+		t.Fatalf("states: %+v", states)
+	}
+	board := `{"network":{"lan":{"ports":["lan1","lan2","lan3","lan4"],"device":"br-lan"},"wan":{"device":"wan","protocol":"dhcp"}}}`
+	layout, err := ParsePortLayout(board)
+	if err != nil || len(layout) != 5 || layout[0].ID != "wan" || layout[1].Label != "LAN 1" {
+		t.Fatalf("layout: %v %+v", err, layout)
+	}
+	// AP en bridge: wan en br-lan → se re-etiqueta LAN 5
+	ports := BuildEthPorts(layout, states, map[string]bool{"wan": true})
+	if len(ports) != 5 || ports[0].Label != "LAN 5" {
+		t.Fatalf("ethports bridge: %+v", ports)
+	}
+	// Sin layout: fallback heurístico
+	ports = BuildEthPorts(nil, ParsePortStates("lan2 up 1000\nlan10 up 100\nwan down -1\n"), nil)
+	if len(ports) != 3 || ports[0].ID != "wan" || ports[1].ID != "lan2" || ports[2].ID != "lan10" {
+		t.Fatalf("ethports fallback: %+v", ports)
+	}
+}
+
+func TestParseFdbYRadios(t *testing.T) {
+	fdb := ParseBridgeFdb("==PORTS==\n0x1 lan1\n0x2 lan2\n==MACS==\n1 aa:bb:cc:dd:ee:ff\n2 11:22:33:44:55:66\n")
+	if len(fdb) != 2 || fdb["AA:BB:CC:DD:EE:FF"] != "lan1" || fdb["11:22:33:44:55:66"] != "lan2" {
+		t.Fatalf("fdb: %+v", fdb)
+	}
+	radios := ParseRadios("2.4|6|HT20|20|3\n5|36|HT80|23|7\n")
+	if len(radios) != 2 || radios[0].Name != "2.4 GHz" || radios[0].Clients != 3 || radios[1].WidthMhz != 80 || radios[1].PowerDbm != 23 {
+		t.Fatalf("radios: %+v", radios)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Prober local con runner fake
+// ---------------------------------------------------------------------------
+
+type fakeRunner struct{ outs map[string]string }
+
+func (f fakeRunner) Run(_ context.Context, cmd string, _ time.Duration) (string, error) {
+	if out, ok := f.outs[cmd]; ok {
+		return out, nil
+	}
+	return "", &fakeErr{cmd}
+}
+
+type fakeErr struct{ cmd string }
+
+func (e *fakeErr) Error() string { return "no existe: " + e.cmd }
+
+func TestProberBuild(t *testing.T) {
+	run := fakeRunner{outs: map[string]string{
+		CmdUbusSystemInfo:  `{"uptime":90061,"load":[0.1,0.2,0.3],"memory":{"total":256000000,"free":100000000,"buffered":0,"available":128000000}}`,
+		CmdUbusSystemBoard: `{"model":"TP-Link EAP225","hostname":"patio","release":{"version":"23.05","description":"OpenWrt 23.05"}}`,
+		CmdProcStat:        "cpu  4705 356 584 3699 23 0 23 0 0 0\n",
+		CmdTemp:            "43500\n",
+		CmdNetDev:          "  eth0: 1000000 0 0 0 0 0 0 0 500000 0\n",
+		CmdBridgeMAC:       "94:83:c4:00:00:09\n",
+		CmdIwinfoAssoc:     "EC:71:DB:44:12:8A -55 2.4\n",
+		CmdRadios:          "2.4|6|HT20|20|1\n",
+		CmdDhcpFile:        "1700000000 ec:71:db:44:12:8a 192.168.8.71 movil *\n",
+		CmdBridgeFDB:       "==PORTS==\n0x1 lan1\n==MACS==\n1 ec:71:db:44:12:8a\n",
+		CmdPortStates:      "lan1 up 1000\nwan down -1\n",
+		CmdUbusWireless:    `{"radio0":{"up":true,"interfaces":[{"ifname":"wlan0","config":{"mode":"ap"}}]}}`,
+	}}
+	p := NewProber(run, Options{GwPingTarget: "192.168.8.1"})
+
+	// Primera muestra: cpu/net sin delta (null), el resto presente
+	pl := p.Build(context.Background(), "patio", "0.1.0")
+	if pl.Router != "patio" || pl.Version != "0.1.0" || pl.Ts <= 0 {
+		t.Fatalf("cabecera: %+v", pl)
+	}
+	sd := pl.Data.System
+	if sd == nil || sd.SysInfo == nil || sd.SysInfo.Uptime != 90061 || sd.Board.Hostname != "patio" {
+		t.Fatalf("system: %+v", sd)
+	}
+	if sd.CPU != nil || sd.RxBps != nil {
+		t.Fatalf("primera muestra sin delta: %v %v", sd.CPU, sd.RxBps)
+	}
+	if sd.Temp == nil || *sd.Temp != 44 || sd.Backhaul != "cable" || sd.BridgeMAC != "94:83:C4:00:00:09" {
+		t.Fatalf("temp/backhaul/mac: %+v", sd)
+	}
+	if pl.Data.Wireless.Clients["EC:71:DB:44:12:8A"].SignalDbm != -55 || len(pl.Data.Wireless.Radios) != 1 {
+		t.Fatalf("wireless: %+v", pl.Data.Wireless)
+	}
+	if len(pl.Data.DHCP.Leases) != 1 || pl.Data.DHCP.Leases[0].IP != "192.168.8.71" {
+		t.Fatalf("dhcp: %+v", pl.Data.DHCP)
+	}
+	if pl.Data.FDB.MACs["EC:71:DB:44:12:8A"] != "lan1" || len(pl.Data.FDB.Ports) == 0 {
+		t.Fatalf("fdb: %+v", pl.Data.FDB)
+	}
+
+	// Segunda muestra (contadores avanzados): ya hay delta de cpu/net
+	run.outs[CmdProcStat] = "cpu  4805 356 584 3799 23 0 23 0 0 0\n"
+	run.outs[CmdNetDev] = "  eth0: 2000000 0 0 0 0 0 0 0 1000000 0\n"
+	pl2 := p.Build(context.Background(), "patio", "0.1.0")
+	if pl2.Data.System.CPU == nil || pl2.Data.System.RxBps == nil {
+		t.Fatal("segunda muestra debería tener delta cpu/net")
+	}
+}
+
+func TestProberSondasFallidasSeccionAusente(t *testing.T) {
+	// Equipo sin ubus/iwinfo/brctl (todo falla salvo /proc): las secciones
+	// wireless/dhcp/fdb quedan ausentes (nil) → el servidor conserva lo último.
+	run := fakeRunner{outs: map[string]string{
+		CmdProcStat: "cpu  4705 356 584 3699 23 0 23 0 0 0\n",
+		CmdTemp:     "43500\n",
+		CmdNetDev:   "  eth0: 1000 0 0 0 0 0 0 0 500 0\n",
+	}}
+	p := NewProber(run, Options{})
+	pl := p.Build(context.Background(), "patio", "0.1.0")
+	if pl.Data.System == nil {
+		t.Fatal("system debería existir (proc funciona)")
+	}
+	if pl.Data.Wireless != nil || pl.Data.DHCP != nil || pl.Data.FDB != nil {
+		t.Fatalf("secciones fallidas deberían ser nil: %+v", pl.Data)
+	}
+	// JSON de las secciones ausentes: omitempty las omite
+	if strings.Contains(payloadJSON(t, pl), `"wireless"`) {
+		t.Fatal("wireless ausente no debería serializarse")
+	}
+}
+
+func payloadJSON(t *testing.T, pl *Payload) string {
+	t.Helper()
+	data, err := json.Marshal(pl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}

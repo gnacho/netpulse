@@ -45,6 +45,34 @@
       "offline": "offline",
       "weak": "señal débil",
       "other": "otros"
+    },
+    "filterByCategory": "Filtrar por categoría",
+    "urgentBadge": "URGENTE",
+    "configButton": "Configurar alertas",
+    "configTitle": "Configuración de alertas",
+    "configDescription": "Elige qué eventos entran en tu historial y cuentan en la campana, por categoría.",
+    "configSaved": "Guardado",
+    "configSaveError": "No se pudo guardar — inténtalo de nuevo",
+    "categories": {
+      "router": "Router",
+      "internet": "Internet",
+      "clients": "Clientes",
+      "signal": "Señal",
+      "vpn": "VPN",
+      "system": "Sistema"
+    },
+    "categoryDescriptions": {
+      "router": "Estado, temperatura y reinicios de los routers",
+      "internet": "Cortes y recuperaciones de la conexión WAN",
+      "clients": "Dispositivos que se unen a la red (conocidos y desconocidos)",
+      "signal": "Cobertura WiFi débil en clientes y nodos",
+      "vpn": "Handshakes y sesiones de WireGuard",
+      "system": "Firmware, copias de seguridad y servicios (AdGuard, NAS)"
+    },
+    "levels": {
+      "urgent": "Solo urgentes",
+      "all": "Todo",
+      "none": "Nada"
     }
   },
   "auth": {
@@ -112,6 +140,14 @@
     "viewDetailShort": "Ver detalle"
   },
   "devices": {
+    "badges": {
+      "ct": "CT",
+      "ctTip": "Contenedor en {{host}}",
+      "hypervisor": "Hipervisor",
+      "hypervisorTip": "Host con CTs/VMs anidados tras su bridge virtual",
+      "managedSwitch": "Switch gestionado",
+      "managedSwitchTip": "Switch identificado vía LLDP"
+    },
     "bandAll": "Todas",
     "changeView": "Cambiar vista",
     "clearFilters": "Limpiar filtros",
@@ -124,6 +160,7 @@
     "detail": {
       "dhcpLease": "Concesión DHCP",
       "firstSeen": "Primera vez vista",
+      "infra": "Infraestructura",
       "manufacturer": "Fabricante (OUI)",
       "protected": "Protegido",
       "rename": "Renombrar dispositivo",
@@ -138,6 +175,7 @@
     "filterByRouter": "Filtrar por router",
     "gridView": "Vista de tarjetas",
     "groups": {
+      "infra": "Infra",
       "iot": "IoT y hogar",
       "moviles": "Móviles",
       "ordenadores": "Ordenadores",
@@ -178,6 +216,7 @@
       "ordenador": "ordenador",
       "portatil": "portátil",
       "servidor": "servidor",
+      "switch": "switch",
       "tablet": "tablet",
       "tv": "TV"
     },
@@ -366,6 +405,13 @@
     }
   },
   "routers": {
+    "agent": {
+      "badge": "Agente",
+      "freshTip": "netpulse-agent v{{version}} · empuja cada 15 s",
+      "freshTipUnknown": "netpulse-agent · empuja cada 15 s",
+      "stale": "Agente caído",
+      "staleTip": "Sin datos del agente — sondeando por SSH"
+    },
     "colClients": "Clientes",
     "colCpu": "CPU",
     "colDevice": "Equipo",
@@ -409,13 +455,18 @@
       "wiredLink": "Cable físico (WAN, uplinks, equipos)",
       "wifiUplink": "Uplink wifi (backhaul inalámbrico)",
       "lldpIdentified": "Identificado vía LLDP",
-      "inferredSwitch": "Switch o bridge inferido (sin IP)"
+      "inferredSwitch": "Switch o bridge inferido (sin IP)",
+      "hypervisorHost": "Hipervisor (host con badge +N)",
+      "ctGrid": "CT/VM anidado en grid bajo su host"
     },
     "links": {
       "colLink": "Enlace",
       "colSpeed": "Velocidad",
       "congestedChannel": "Canal congestionado",
       "fiberWan": "Fibra WAN",
+      "hypervisorCable": "Cable de hipervisor",
+      "inferredSwitch": "Switch inferido · {{port}}",
+      "managedSwitch": "Switch gestionado",
       "throughput": "Throughput del enlace",
       "title": "Enlaces entre equipos",
       "wifiUplink": "WiFi uplink"
@@ -424,6 +475,8 @@
     "peerAria": "{{name}}, túnel WireGuard activo, {{ip}}",
     "plan": "Plan",
     "received": "Recibido",
+    "refreshNow": "Refrescar ahora",
+    "refreshing": "Actualizando…",
     "resetView": "Centrar y restablecer vista",
     "routerAria": "{{name}}, {{model}}, {{clients}} clientes",
     "sent": "Enviado",
@@ -454,7 +507,7 @@
       "inferred": "inferido",
       "managed": "switch gestionado",
       "noIp": "sin IP · no consultable directamente",
-      "port": "Puerto del gateway",
+      "port": "Puerto de {{router}}",
       "macs": "MACs aprendidas",
       "fdbNote": "FDB: {{count}} MACs heterogéneas en un solo puerto físico. Probablemente un switch; no podemos afirmarlo sin LLDP."
     },
@@ -470,6 +523,9 @@
     "peers": {
       "overflowTitle": "{{count}} peers más",
       "overflowAria": "{{count}} peers WireGuard adicionales"
+    },
+    "ring": {
+      "overflowAria": "{{count}} clientes más en {{router}}"
     }
   },
   "settings": {
@@ -481,7 +537,17 @@
       "madeAtHome": "Apoya el proyecto en Ko-fi",
       "privacy": "100% privado · 0% nube",
       "title": "Acerca de",
-      "versionNote": "v1.0.0"
+      "versionNote": "v1.0.0",
+      "system": "Sistema",
+      "sysApp": "App",
+      "sysGo": "Go",
+      "sysReact": "React",
+      "sysOs": "SO",
+      "sysKernel": "Kernel",
+      "sysCpu": "CPU",
+      "sysRam": "RAM",
+      "sysUptime": "Tiempo activo",
+      "demoNoServer": "Datos del servidor no disponibles (demo)"
     },
     "accent": "Acento",
     "accentAmber": "Ámbar",
@@ -523,13 +589,32 @@
       "badge": "Badge de avisos en la navegación",
       "badgeCaption": "Contador junto a «Alertas»",
       "caption": "Avisos dentro de la app",
-      "note": "Son solo avisos dentro de la app. NetPulse no envía notificaciones push en esta fase.",
+      "note": "Son solo avisos dentro de la app. Para recibir alertas con la app cerrada, activa las «Notificaciones push».",
       "pulse": "Punto pulsante en equipos con aviso",
       "pulseCaption": "Dot animado en tarjetas con warn",
       "sound": "Sonido al llegar una alerta",
       "soundOff": "Desactivado",
       "soundOn": "Activado — suena un beep suave",
       "title": "Notificaciones visuales"
+    },
+    "push": {
+      "title": "Notificaciones push",
+      "caption": "Alertas urgentes incluso con la app cerrada",
+      "checking": "Comprobando soporte…",
+      "enable": "Activar",
+      "disable": "Desactivar",
+      "enabling": "Activando…",
+      "disabling": "Desactivando…",
+      "stateOn": "Activadas",
+      "stateOnCaption": "Este dispositivo recibe las alertas urgentes aunque NetPulse esté cerrado.",
+      "stateOffCaption": "Recibe las alertas urgentes en este dispositivo aunque no tengas la app abierta.",
+      "denied": "Permiso denegado en el navegador. Para reactivarlo: pulsa el candado (o el icono de ajustes) de la barra de direcciones → Permisos → Notificaciones → Permitir, y recarga la página.",
+      "unsupported": "Este navegador no admite notificaciones push (hacen falta Service Worker, Push API y la API de notificaciones).",
+      "insecure": "Las notificaciones push exigen un contexto seguro (HTTPS). En la red local solo funcionan accediendo por localhost; desde http://<ip-de-la-lan> el navegador las bloquea.",
+      "demoNote": "No disponible en la demo local: las notificaciones push necesitan el backend de NetPulse (sin servidor, una suscripción nunca recibiría nada).",
+      "errorServer": "No se pudo contactar con el servidor push. Inténtalo de nuevo.",
+      "errorGeneric": "No se pudieron activar las notificaciones push en este dispositivo.",
+      "note": "Solo llegan las alertas marcadas como urgentes (se configura en Alertas). El aviso lo muestra el sistema operativo con el icono de NetPulse."
     },
     "pwa": {
       "caption": "App instalable · PWA",
@@ -562,6 +647,9 @@
       "demoCaption": "Datos simulados locales, sin conexión a tu red.",
       "exitDemo": "Salir del modo demo",
       "changePassword": "Cambiar mi contraseña",
+      "name": "Nombre",
+      "nameHint": "Así te saluda el Resumen; no es tu nombre de usuario",
+      "nameSaved": "Nombre guardado",
       "pwCurrent": "Contraseña actual",
       "pwNew": "Nueva contraseña",
       "pwConfirm": "Repite la contraseña",
@@ -585,6 +673,7 @@
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",
       "add": "Añadir",
+      "addDevice": "Añadir dispositivo",
       "adding": "Añadiendo…",
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar {name}? El histórico de métricas se conserva.",
@@ -610,6 +699,7 @@
       "roleAdmin": "Admin",
       "you": "Tú",
       "add": "Crear usuario",
+      "createUser": "Crear usuario",
       "adding": "Creando…",
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar al usuario {name}?",
@@ -629,6 +719,7 @@
       "user": "Usuario de la interfaz GL",
       "pass": "Contraseña de la interfaz GL",
       "passKeep": "Guardada (escribe para cambiar)",
+      "edit": "Editar",
       "configured": "Configurado",
       "notConfigured": "Sin configurar",
       "save": "Guardar",

@@ -9,6 +9,8 @@ export interface AuthUser {
   role: 'admin' | 'user'
   /** 'auto' (navegador) | 'es' | 'en' — fuente de verdad: users.language */
   language?: 'auto' | 'es' | 'en'
+  /** Nombre para saludar (SPEC-65 D65-5); '' = usar username */
+  displayName?: string
 }
 
 const AuthContext = createContext<AuthUser | null>(null)

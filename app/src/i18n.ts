@@ -40,16 +40,41 @@ export function numLocale(): string {
 }
 
 const REL_RE = /^hace\s+(\d+)\s*(s|min|h|días?|d)$/
+const REL_RE_EN = /^(\d+)\s*(s|sec|min|h|hr|d|days?)\s+ago$/
 
-/** Convierte tiempos relativos canónicos del dataset ("hace 12 min", "hoy") al idioma activo */
+/** Convierte tiempos relativos canónicos del dataset ("hace 12 min", "12 min ago", "hoy") al idioma activo */
 export function relTime(s: string): string {
   const t = s.trim()
-  if (t === 'hoy') return i18n.t('common.today')
-  const m = REL_RE.exec(t)
+  if (t === 'hoy' || t.toLowerCase() === 'today') return i18n.t('common.today')
+  const m = REL_RE.exec(t) ?? REL_RE_EN.exec(t)
   if (!m) return s
   const n = Number(m[1])
-  const unit = m[2] === 's' ? 's' : m[2] === 'min' ? 'min' : m[2] === 'h' ? 'h' : 'd'
+  const u = m[2]
+  const unit = u === 's' || u === 'sec' ? 's' : u === 'min' ? 'min' : u === 'h' || u === 'hr' ? 'h' : 'd'
   return i18n.t(`common.ago.${unit}`, { count: n, n })
+}
+
+/**
+ * Tiempo relativo desde un timestamp unix en SEGUNDOS (SPEC-ALERTAS §1: el
+ * frontend calcula el relativo; el string `time` queda como fallback legado).
+ * Devuelve null si `ts` no es usable (0/NaN/futuro lejano) → usar `relTime(time)`.
+ */
+export function relTimeFromTs(ts: number | undefined, nowMs = Date.now()): string | null {
+  if (!ts || !Number.isFinite(ts) || ts <= 0) return null
+  const diffS = Math.floor(nowMs / 1000) - ts
+  if (diffS < 0) return null
+  if (diffS < 60) return i18n.t('common.ago.s', { count: diffS, n: diffS })
+  const min = Math.floor(diffS / 60)
+  if (min < 60) return i18n.t('common.ago.min', { count: min, n: min })
+  const h = Math.floor(min / 60)
+  if (h < 24) return i18n.t('common.ago.h', { count: h, n: h })
+  const d = Math.floor(h / 24)
+  return i18n.t('common.ago.d', { count: d, n: d })
+}
+
+/** Relativo de una alerta: desde `ts` si es válido; si no, el string legado. */
+export function alertRelTime(ev: { ts?: number; time: string }): string {
+  return relTimeFromTs(ev.ts) ?? relTime(ev.time)
 }
 
 /** Uptime canónico tipo "12d 4h" → "12 días, 4 h" / "12 days, 4 h" */

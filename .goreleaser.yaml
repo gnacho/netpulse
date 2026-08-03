@@ -1,8 +1,9 @@
 version: 2
 
-# Releases de NetPulse: dos binarios estáticos por tag v*
+# Releases de NetPulse: tres binarios estáticos por tag v*
 #   netpulse            app completa (backend Go + frontend embebido)
 #   netpulse-collector  sidecar de latencia TCP con series temporales propias
+#   netpulse-agent      agente nativo OpenWrt (push al servidor; Fase 6)
 #
 # OJO: los hooks globales `before:` son feature GoReleaser PRO (en OSS se
 # "ejecutan" en el log pero no hacen nada, y encima rompen el embed).
@@ -35,6 +36,21 @@ builds:
     flags: [-trimpath]
     ldflags: [-s, -w]
 
+  # Agente nativo OpenWrt (Fase 6): binario stateless que empuja al servidor.
+  # arm64 = GL-MT6000 + APs (Cortex-A53); armv7 por si aparece un AP más
+  # viejo; amd64 para pilotos locales.
+  - id: netpulse-agent
+    dir: agent
+    main: ./cmd/netpulse-agent
+    binary: netpulse-agent
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64, arm]
+    goarm: [7]
+    flags: [-trimpath]
+    ldflags: [-s, -w]
+
 archives:
   - id: netpulse
     ids: [netpulse]
@@ -53,6 +69,16 @@ archives:
       {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - LICENSE
+
+  - id: netpulse-agent
+    ids: [netpulse-agent]
+    formats: [tar.gz]
+    name_template: >-
+      {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE
+      - src: agent/deploy/netpulse-agent.init
+        dst: netpulse-agent.init
 
 checksum:
   name_template: checksums.txt

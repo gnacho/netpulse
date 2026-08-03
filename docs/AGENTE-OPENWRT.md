@@ -1,6 +1,12 @@
 # Fase 6 — Agente nativo OpenWrt (`netpulse-agent`)
 
-> Estado: **diseño propuesto** (pendiente de aprobación). No implementado.
+> Estado: **piloto implementado** (2026-08-02): ingesta `POST /api/ingest/agent`
+> + tokens por equipo + adapter live-agent con fallback SSH + binario
+> `agent/` (probe compartido, push con backoff, procd, install-agent.sh).
+> Medido: **5,8 MB arm64** (suelo realista con TLS/x509; el objetivo inicial
+> ≤ 3 MB no es alcanzable sin renunciar a HTTPS — cabe sobrado en MT6000/MT7981;
+> la variante `/tmp` cubre flashes justas). Pendiente incremento 2: netlink/
+> nl80211 nativo, eventos ubus, `.ipk`, medición en hardware real.
 > Base: auditoría del collector piloto (2026-08-02) y la decisión de tiers:
 > Tier 0 = SSH agentless (actual, obligatorio) · Tier 1 = `lldpd` ·
 > **Tier 2 = agente nativo opcional por equipo.**

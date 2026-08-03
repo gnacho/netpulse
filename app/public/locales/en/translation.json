@@ -45,6 +45,34 @@
       "offline": "offline",
       "weak": "weak signal",
       "other": "other"
+    },
+    "filterByCategory": "Filter by category",
+    "urgentBadge": "URGENT",
+    "configButton": "Configure alerts",
+    "configTitle": "Alert settings",
+    "configDescription": "Choose which events are kept in your history and counted on the bell, per category.",
+    "configSaved": "Saved",
+    "configSaveError": "Could not save — please try again",
+    "categories": {
+      "router": "Router",
+      "internet": "Internet",
+      "clients": "Clients",
+      "signal": "Signal",
+      "vpn": "VPN",
+      "system": "System"
+    },
+    "categoryDescriptions": {
+      "router": "Router status, temperature and reboots",
+      "internet": "WAN outages and recoveries",
+      "clients": "Devices joining the network (known and unknown)",
+      "signal": "Weak WiFi coverage on clients and nodes",
+      "vpn": "WireGuard handshakes and sessions",
+      "system": "Firmware, backups and services (AdGuard, NAS)"
+    },
+    "levels": {
+      "urgent": "Urgent only",
+      "all": "Everything",
+      "none": "Nothing"
     }
   },
   "auth": {
@@ -112,6 +140,14 @@
     "viewDetailShort": "View detail"
   },
   "devices": {
+    "badges": {
+      "ct": "CT",
+      "ctTip": "Container on {{host}}",
+      "hypervisor": "Hypervisor",
+      "hypervisorTip": "Host with CTs/VMs nested behind its virtual bridge",
+      "managedSwitch": "Managed switch",
+      "managedSwitchTip": "Switch identified via LLDP"
+    },
     "bandAll": "All",
     "changeView": "Change view",
     "clearFilters": "Clear filters",
@@ -124,6 +160,7 @@
     "detail": {
       "dhcpLease": "DHCP lease",
       "firstSeen": "First seen",
+      "infra": "Infrastructure",
       "manufacturer": "Manufacturer (OUI)",
       "protected": "Protected",
       "rename": "Rename device",
@@ -138,6 +175,7 @@
     "filterByRouter": "Filter by router",
     "gridView": "Grid view",
     "groups": {
+      "infra": "Infra",
       "iot": "IoT & home",
       "moviles": "Mobiles",
       "ordenadores": "Computers",
@@ -178,6 +216,7 @@
       "ordenador": "computer",
       "portatil": "laptop",
       "servidor": "server",
+      "switch": "switch",
       "tablet": "tablet",
       "tv": "TV"
     },
@@ -366,6 +405,13 @@
     }
   },
   "routers": {
+    "agent": {
+      "badge": "Agent",
+      "freshTip": "netpulse-agent v{{version}} · pushes every 15 s",
+      "freshTipUnknown": "netpulse-agent · pushes every 15 s",
+      "stale": "Agent down",
+      "staleTip": "No data from agent — polling via SSH"
+    },
     "colClients": "Clients",
     "colCpu": "CPU",
     "colDevice": "Device",
@@ -409,13 +455,18 @@
       "wiredLink": "Physical cable (WAN, uplinks, devices)",
       "wifiUplink": "WiFi uplink (wireless backhaul)",
       "lldpIdentified": "Identified via LLDP",
-      "inferredSwitch": "Inferred switch or bridge (no IP)"
+      "inferredSwitch": "Inferred switch or bridge (no IP)",
+      "hypervisorHost": "Hypervisor (host with +N badge)",
+      "ctGrid": "CT/VM nested in a grid under its host"
     },
     "links": {
       "colLink": "Link",
       "colSpeed": "Speed",
       "congestedChannel": "Congested channel",
       "fiberWan": "WAN fiber",
+      "hypervisorCable": "Hypervisor cable",
+      "inferredSwitch": "Inferred switch · {{port}}",
+      "managedSwitch": "Managed switch",
       "throughput": "Link throughput",
       "title": "Links between devices",
       "wifiUplink": "WiFi uplink"
@@ -424,6 +475,8 @@
     "peerAria": "{{name}}, active WireGuard tunnel, {{ip}}",
     "plan": "Plan",
     "received": "Received",
+    "refreshNow": "Refresh now",
+    "refreshing": "Refreshing…",
     "resetView": "Center and reset view",
     "routerAria": "{{name}}, {{model}}, {{clients}} clients",
     "sent": "Sent",
@@ -454,7 +507,7 @@
       "inferred": "inferred",
       "managed": "managed switch",
       "noIp": "no IP · not directly queryable",
-      "port": "Gateway port",
+      "port": "Port on {{router}}",
       "macs": "Learned MACs",
       "fdbNote": "FDB: {{count}} heterogeneous MACs on a single physical port. Probably a switch; we cannot tell for sure without LLDP."
     },
@@ -470,6 +523,9 @@
     "peers": {
       "overflowTitle": "{{count}} more peers",
       "overflowAria": "{{count}} additional WireGuard peers"
+    },
+    "ring": {
+      "overflowAria": "{{count}} more clients on {{router}}"
     }
   },
   "settings": {
@@ -481,7 +537,17 @@
       "madeAtHome": "Support the project on Ko-fi",
       "privacy": "100% private · 0% cloud",
       "title": "About",
-      "versionNote": "v1.0.0"
+      "versionNote": "v1.0.0",
+      "system": "System",
+      "sysApp": "App",
+      "sysGo": "Go",
+      "sysReact": "React",
+      "sysOs": "OS",
+      "sysKernel": "Kernel",
+      "sysCpu": "CPU",
+      "sysRam": "RAM",
+      "sysUptime": "Uptime",
+      "demoNoServer": "Server data unavailable (demo)"
     },
     "accent": "Accent",
     "accentAmber": "Amber",
@@ -523,13 +589,32 @@
       "badge": "Alerts badge in the navigation",
       "badgeCaption": "Counter next to \"Alerts\"",
       "caption": "In-app notices",
-      "note": "These are only in-app notices. NetPulse does not send push notifications in this phase.",
+      "note": "These are only in-app notices. To get alerts when the app is closed, enable “Push notifications”.",
       "pulse": "Pulsing dot on devices with warnings",
       "pulseCaption": "Animated dot on cards with warn",
       "sound": "Sound when an alert arrives",
       "soundOff": "Off",
       "soundOn": "On — plays a soft beep",
       "title": "Visual notifications"
+    },
+    "push": {
+      "title": "Push notifications",
+      "caption": "Urgent alerts even when the app is closed",
+      "checking": "Checking support…",
+      "enable": "Enable",
+      "disable": "Disable",
+      "enabling": "Enabling…",
+      "disabling": "Disabling…",
+      "stateOn": "Enabled",
+      "stateOnCaption": "This device receives urgent alerts even when NetPulse is closed.",
+      "stateOffCaption": "Get urgent alerts on this device even when the app is not open.",
+      "denied": "Permission denied in the browser. To re-enable it: click the lock (or tune) icon in the address bar → Permissions → Notifications → Allow, then reload the page.",
+      "unsupported": "This browser does not support push notifications (it needs Service Worker, the Push API and the Notifications API).",
+      "insecure": "Push notifications require a secure context (HTTPS). On the local network they only work via localhost; over http://<lan-ip> the browser blocks them.",
+      "demoNote": "Not available in the local demo: push notifications need the NetPulse backend (without a server, a subscription would never receive anything).",
+      "errorServer": "Could not reach the push server. Please try again.",
+      "errorGeneric": "Push notifications could not be enabled on this device.",
+      "note": "Only alerts marked as urgent arrive (configured in Alerts). The notice is shown by the operating system with the NetPulse icon."
     },
     "pwa": {
       "caption": "Installable app · PWA",
@@ -562,6 +647,9 @@
       "demoCaption": "Local simulated data, no connection to your network.",
       "exitDemo": "Exit demo mode",
       "changePassword": "Change my password",
+      "name": "Name",
+      "nameHint": "This is how the Summary greets you; it's not your username",
+      "nameSaved": "Name saved",
       "pwCurrent": "Current password",
       "pwNew": "New password",
       "pwConfirm": "Repeat password",
@@ -585,6 +673,7 @@
       "gateway": "Is the gateway",
       "gatewayBadge": "Main",
       "add": "Add",
+      "addDevice": "Add device",
       "adding": "Adding…",
       "delete": "Delete",
       "deleteConfirm": "Delete {name}? Metrics history is kept.",
@@ -610,6 +699,7 @@
       "roleAdmin": "Admin",
       "you": "You",
       "add": "Create user",
+      "createUser": "Create user",
       "adding": "Creating…",
       "delete": "Delete",
       "deleteConfirm": "Delete user {name}?",
@@ -629,6 +719,7 @@
       "user": "GL UI username",
       "pass": "GL UI password",
       "passKeep": "Saved (type to change)",
+      "edit": "Edit",
       "configured": "Configured",
       "notConfigured": "Not configured",
       "save": "Save",

@@ -209,8 +209,10 @@ func gs308eNeighbor() []LldpNeighbor {
 }
 
 // Puerto multi-MAC del gateway CON vecino LLDP cuya chassis-MAC está entre
-// las aprendidas → nodo "managed" con Name/Ip/Lldp; los equipos cuelgan de
-// él igual que del inferido.
+// las aprendidas → nodo "managed" con Name/Ip/Mac/Lldp; los equipos cuelgan
+// de él igual que del inferido. SPEC-CANON D1/D2: el switch existe A LA VEZ
+// como Device (con Lldp, attachTo al router, port de uplink) y como nodo
+// managed (con Mac = chassis-MAC), y NUNCA cuelga de su propio nodo.
 func TestInferTopologySwitchManagedLldp(t *testing.T) {
 	polled := map[string]*routerPolled{
 		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
@@ -237,17 +239,32 @@ func TestInferTopologySwitchManagedLldp(t *testing.T) {
 	if dn.Name != "GS308E" || dn.Ip != "192.168.8.13" {
 		t.Fatalf("name/ip: %+v", dn)
 	}
+	// D1: el nodo managed lleva la chassis-MAC del switch (la app la usa para
+	// excluir su chip del mapa).
+	if dn.Mac != "28:C6:8E:1D:90:44" {
+		t.Fatalf("mac del nodo managed: %q", dn.Mac)
+	}
 	if dn.Lldp == nil || dn.Lldp.Chassis != "GS308E" || dn.Lldp.Mgmt != "192.168.8.13" || dn.Lldp.Caps != "Bridge" || dn.Lldp.PortDesc != "ge5" {
 		t.Fatalf("lldp del nodo: %+v", dn.Lldp)
 	}
-	for _, d := range devices {
+	// D2: los clientes tras el switch cuelgan del nodo managed…
+	for _, d := range devices[1:] {
 		if d.AttachTo != "dist-flint2-lan3" || d.Port != "lan3" {
 			t.Fatalf("%s debería colgar del nodo managed: port=%q attachTo=%q", d.MAC, d.Port, d.AttachTo)
 		}
 	}
-	// El propio switch queda identificado como Device
-	if devices[0].Lldp == nil || devices[0].Lldp.Chassis != "GS308E" {
-		t.Fatalf("Device.Lldp del switch: %+v", devices[0].Lldp)
+	// …pero el propio switch NO cuelga de su propio nodo: sigue existiendo
+	// como Device identificado (Lldp), con su puerto de uplink y attachTo al
+	// router (vacío = router por defecto).
+	sw := devices[0]
+	if sw.AttachTo != "" {
+		t.Fatalf("el switch NO debe colgar de su propio nodo: attachTo=%q", sw.AttachTo)
+	}
+	if sw.Port != "lan3" {
+		t.Fatalf("puerto de uplink del switch: %q", sw.Port)
+	}
+	if sw.Lldp == nil || sw.Lldp.Chassis != "GS308E" {
+		t.Fatalf("Device.Lldp del switch: %+v", sw.Lldp)
 	}
 }
 

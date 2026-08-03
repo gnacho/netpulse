@@ -85,6 +85,15 @@ CREATE TABLE IF NOT EXISTS routers (
   is_gateway INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+-- Suscripciones Web Push (Fase 6 Bloque C; sin paridad Node: el push es
+-- nuevo en Go). created_at en milisegundos como el resto de epochs.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  keys_auth TEXT NOT NULL,
+  keys_p256dh TEXT NOT NULL,
+  user_agent TEXT,
+  created_at INTEGER NOT NULL
+);
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
@@ -145,6 +154,8 @@ func Open(dataDir string) (*DB, error) {
 	migrate(sqldb, "sessions", "ua", "ALTER TABLE sessions ADD COLUMN ua TEXT")
 	migrate(sqldb, "sessions", "user_id", "ALTER TABLE sessions ADD COLUMN user_id INTEGER")
 	migrate(sqldb, "users", "language", "ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'auto'")
+	// SPEC-65 D65-5: nombre visible por usuario ("" = usar el username).
+	migrate(sqldb, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria

@@ -94,6 +94,10 @@ export function buildAlertFeed(
   const canon = new Proxy(byId as Record<string, AlertEvent>, {
     get: (target, id: string) => target[id] ?? fallbackCanon[id],
   })
+  // Ts de los eventos de presentación (no canónicos): escalonados en
+  // coherencia con su string "hace X" (SPEC-ALERTAS §5)
+  const now = Math.floor(Date.now() / 1000)
+  const ago = (s: number) => now - s
 
   return [
   // ————— Hoy —————
@@ -146,10 +150,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-pico-trafico',
+    category: 'system',
+    urgent: false,
     severity: 'info',
     title: 'Pico de tráfico',
     description: '412 Mbps de bajada — streaming 4K en TV Samsung',
     time: 'hace 1 h',
+    ts: ago(3600),
     read: true,
     routerId: 'flint2',
     day: 'hoy',
@@ -168,10 +175,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-backup-nas',
+    category: 'system',
+    urgent: false,
     severity: 'info',
     title: 'Backup del NAS completado',
     description: 'Copia nocturna adelantada — pico de subida de 96 Mbps',
     time: 'hace 1 h',
+    ts: ago(3600),
     read: true,
     routerId: 'flint2',
     day: 'hoy',
@@ -199,10 +209,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-dns-robot',
+    category: 'system',
+    urgent: false,
     severity: 'info',
     title: 'Consultas DNS inusuales',
     description: "AdGuard: +340 % desde 'Robot aspirador' (reintentos)",
     time: 'hace 5 h',
+    ts: ago(5 * 3600),
     read: true,
     routerId: 'patio',
     day: 'hoy',
@@ -220,10 +233,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-wg-trabajo',
+    category: 'vpn',
+    urgent: false,
     severity: 'info',
     title: 'Túnel WireGuard cerrado',
     description: 'Portátil trabajo se desconectó tras 6 h de sesión',
     time: 'hace 6 h',
+    ts: ago(6 * 3600),
     read: true,
     routerId: 'flint2',
     day: 'hoy',
@@ -256,10 +272,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-macbook-vpn',
+    category: 'vpn',
+    urgent: false,
     severity: 'info',
     title: 'MacBook Air conectado por VPN',
     description: 'Handshake desde 79.153.x.x · túnel 10.0.0.3',
     time: 'hace 1 día',
+    ts: ago(24 * 3600),
     read: true,
     routerId: 'flint2',
     day: 'ayer',
@@ -277,10 +296,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-canal-patio',
+    category: 'signal',
+    urgent: false,
     severity: 'info',
     title: 'Canal 2.4 GHz cambiado',
     description: 'Patio: canal 6 → 11 (selección automática)',
     time: 'hace 1 día',
+    ts: ago(24 * 3600),
     read: true,
     routerId: 'patio',
     day: 'ayer',
@@ -295,10 +317,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-perdida-ok',
+    category: 'internet',
+    urgent: false,
     severity: 'ok',
     title: 'Pérdida de paquetes resuelta',
     description: 'La WAN vuelve a estar estable (0 % de pérdida)',
     time: 'hace 1 día',
+    ts: ago(25 * 3600),
     read: true,
     routerId: 'flint2',
     day: 'ayer',
@@ -314,10 +339,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-nest-hub',
+    category: 'clients',
+    urgent: false,
     severity: 'info',
     title: 'Nuevo dispositivo',
     description: "'Nest Hub' se ha unido a Estudio",
     time: 'hace 1 día',
+    ts: ago(26 * 3600),
     read: true,
     routerId: 'estudio',
     day: 'ayer',
@@ -334,10 +362,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-adguard-listas',
+    category: 'system',
+    urgent: false,
     severity: 'info',
     title: 'Listas de AdGuard actualizadas',
     description: '218 442 reglas activas en 6 listas de filtros',
     time: 'hace 1 día',
+    ts: ago(27 * 3600),
     read: true,
     routerId: 'flint2',
     day: 'ayer',
@@ -348,10 +379,13 @@ export function buildAlertFeed(
   // ————— 12 nov (arranque del historial, 32 días) —————
   {
     id: 'evt-reinicio-gateway',
+    category: 'router',
+    urgent: false,
     severity: 'info',
     title: 'Reinicio programado del Gateway',
     description: 'Mantenimiento a las 03:12 — el uptime actual arranca aquí',
     time: 'hace 32 días',
+    ts: ago(32 * 24 * 3600),
     read: true,
     routerId: 'flint2',
     day: '12nov',
@@ -366,10 +400,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-wg-setup',
+    category: 'vpn',
+    urgent: false,
     severity: 'info',
     title: 'WireGuard configurado',
     description: `Servidor ${wg.interface} activo con ${wg.peers.length} peers (${wg.subnet})`,
     time: 'hace 32 días',
+    ts: ago(32 * 24 * 3600),
     read: true,
     routerId: 'flint2',
     day: '12nov',
@@ -378,10 +415,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-adguard-on',
+    category: 'system',
+    urgent: false,
     severity: 'info',
     title: 'AdGuard Home activado',
     description: 'DNS de la red apuntando a 192.168.8.1:3000',
     time: 'hace 32 días',
+    ts: ago(32 * 24 * 3600),
     read: true,
     routerId: 'flint2',
     day: '12nov',
@@ -390,10 +430,13 @@ export function buildAlertFeed(
   },
   {
     id: 'evt-netpulse-start',
+    category: 'system',
+    urgent: false,
     severity: 'info',
     title: 'NetPulse empezó a monitorizar',
     description: 'Primer evento del historial — bienvenido a bordo',
     time: 'hace 32 días',
+    ts: ago(32 * 24 * 3600),
     read: true,
     day: '12nov',
     kind: 'sistema',
@@ -416,12 +459,25 @@ const LIVE_KIND: [RegExp, AlertKind][] = [
   [/^alert-(nuevo|device)/, 'dispositivos'],
 ]
 
+/** Respaldo por categoría (SPEC-ALERTAS §1) cuando el id no casa con LIVE_KIND. */
+const KIND_BY_CATEGORY: Record<AlertEvent['category'], AlertKind> = {
+  router: 'router',
+  internet: 'router',
+  clients: 'dispositivos',
+  signal: 'router',
+  vpn: 'wireguard',
+  system: 'sistema',
+}
+
 /** Mapea las alertas reales a FeedEvent sin contexto inventado. */
 export function buildLiveFeed(canonAlerts: AlertEvent[]): FeedEvent[] {
   return canonAlerts.map((a) => ({
     ...a,
     day: 'hoy' as FeedDay,
-    kind: LIVE_KIND.find(([re]) => re.test(a.id))?.[1] ?? (a.routerId ? 'router' : 'sistema'),
+    kind:
+      LIVE_KIND.find(([re]) => re.test(a.id))?.[1] ??
+      KIND_BY_CATEGORY[a.category] ??
+      (a.routerId ? 'router' : 'sistema'),
   }))
 }
 
