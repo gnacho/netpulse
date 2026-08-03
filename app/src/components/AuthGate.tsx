@@ -26,9 +26,17 @@ async function checkSession(): Promise<{ state: GateState; auth: AuthUser | null
     if (!res.ok) return { state: 'demo', auth: null }
     // La preview estática responde HTML con 200 (SPA fallback): no es sesión
     if (!(res.headers.get('content-type') ?? '').includes('application/json')) return { state: 'demo', auth: null }
-    const data = (await res.json()) as { user?: string; role?: 'admin' | 'user'; language?: 'auto' | 'es' | 'en' }
+    const data = (await res.json()) as {
+      user?: string
+      role?: 'admin' | 'user'
+      language?: 'auto' | 'es' | 'en'
+      displayName?: string
+    }
     if (!data?.user) return { state: 'demo', auth: null }
-    return { state: 'authed', auth: { user: data.user, role: data.role ?? 'user', language: data.language ?? 'auto' } }
+    return {
+      state: 'authed',
+      auth: { user: data.user, role: data.role ?? 'user', language: data.language ?? 'auto', displayName: data.displayName ?? '' },
+    }
   } catch {
     return { state: 'demo', auth: null }
   }
@@ -80,6 +88,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Refetch bajo demanda (SPEC-65 D65-5): tras cambiar displayName/idioma, la
+  // página emite 'netpulse-auth-refresh' y el contexto se actualiza sin reload.
+  useEffect(() => {
+    const onRefresh = () => {
+      void checkSession().then(({ state: s, auth: a }) => {
+        if (s === 'authed') setAuth(a)
+      })
+    }
+    window.addEventListener('netpulse-auth-refresh', onRefresh)
+    return () => window.removeEventListener('netpulse-auth-refresh', onRefresh)
   }, [])
 
   if (state === 'loading') return <GateSkeleton />

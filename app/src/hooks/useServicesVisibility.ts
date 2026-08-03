@@ -26,23 +26,30 @@ export function getServicesVisibility(): ServicesVisibility {
 export function useServicesVisibility(): [ServicesVisibility, (k: keyof ServicesVisibility, v: boolean) => void] {
   const [services, setServices] = useState<ServicesVisibility>(getServicesVisibility)
 
-  // Sincroniza entre pestañas/componentes (Ajustes y Home a la vez)
+  // Sincroniza entre pestañas/componentes (Ajustes y Home a la vez). El evento
+  // 'storage' no salta en la misma pestaña: se emite además uno custom.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY) setServices(getServicesVisibility())
     }
+    const onLocal = () => setServices(getServicesVisibility())
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    window.addEventListener('netpulse-services-changed', onLocal)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('netpulse-services-changed', onLocal)
+    }
   }, [])
 
   const set = useCallback((k: keyof ServicesVisibility, v: boolean) => {
-    setServices((prev) => {
-      const next = { ...prev, [k]: v }
-      try {
-        localStorage.setItem(KEY, JSON.stringify(next))
-      } catch {}
-      return next
-    })
+    // localStorage es la fuente de verdad compartida: escribir ANTES de emitir
+    // el evento (nunca dentro del updater: React puede diferirlo/re-ejecutarlo)
+    const next = { ...getServicesVisibility(), [k]: v }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next))
+    } catch {}
+    setServices(next)
+    window.dispatchEvent(new Event('netpulse-services-changed'))
   }, [])
 
   return [services, set]
