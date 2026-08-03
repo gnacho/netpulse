@@ -199,10 +199,17 @@ Ver `server-go/.env.example`. Resumen: `PORT`, `STATIC_DIR`, `DATA_DIR`,
 
 ## Hoja de ruta
 
+Ver `docs/ROADMAP.md` (fuente de verdad, actualizada 2026-08-03). Resumen:
+
+- **Fase 0 — TLS y endurecimiento (bloqueante):** HTTPS en CT 226
+  (desbloquea Web Push), HMAC en la ingesta, binario del agente servido
+  localmente, reinstalación de agentes con versión inyectada.
 - **Fase 6 — incremento 2 del agente:** netlink/nl80211 nativo, eventos ubus
   (assoc/disassoc en tiempo real), `.ipk`, medición en hardware real.
-  Piloto (ingesta + push + fallback SSH) YA implementado — ver sección
-  "Agente OpenWrt".
-- **Fase 7 (opcional):** `luci-app-netpulse` — gestión del agente desde la
-  interfaz web del router.
+  Piloto (ingesta + push + fallback SSH) YA implementado y desplegado en los
+  4 routers — ver sección "Agente OpenWrt".
+- **Fase 7:** app embebida en routers (server on-box en el gateway,
+  `luci-app-netpulse` opcional).
+- **Fase 8:** escritura/orquestación (AdGuard → WireGuard → DAWN → Batman)
+  con plan/apply/rollback.
 - Integración de las series del collector en server-go (hoy son independientes).
