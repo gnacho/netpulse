@@ -1,7 +1,8 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-03 (tras v2.2.0, agentes desplegados en los 4 routers,
-> fix pantalla negra). Orden por dependencias: lo bloqueante primero.
+> Actualizada: 2026-08-03 (v2.3.0: Fase 6.1 resiliencia del agente — watchdog
+> cron con heartbeat + rearme desde el servidor). Orden por dependencias: lo
+> bloqueante primero.
 > Referencias: `docs/AUDITORIA-FASE65.md` (riesgos R1-R8),
 > `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
@@ -41,6 +42,22 @@ Sin esto, ni push funciona ni la Fase 8 es segura.
 4. **Servir el binario del agente desde el propio servidor** (R3):
    `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
    GitHub en LANs sin salida y el `curl | sh` con token en argv.
+
+## Fase 6.1 — resiliencia del agente (hecha, v2.3.0)
+
+Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
+
+1. **Plan A (auto-supervisión en el router):** el agente toca
+   `/tmp/netpulse-agent.heartbeat` en cada push confirmado; un watchdog cron
+   (`/usr/sbin/netpulse-watchdog`, cada 2 min) relanza el servicio si procd se
+   rindió (pgrep) y lo reinicia si el proceso vive pero lleva >5 min sin
+   latido. Instalado/desinstalado por `install-agent.sh`.
+2. **Plan B (rearme desde el servidor):** `POST /api/agents/{slug}/rearm`
+   reinicia `init.d/netpulse-agent` vía el pool SSH del sondeo, espera el push
+   de vuelta (30 s) y responde con el resultado real; cooldown 60 s por slug;
+   botón «Rearmar» en la cabecera del router (solo agente caído).
+3. Auto-rearme tras TTL: pendiente, detrás de flag (regla Fase 8: nada
+   autónomo sobre equipamiento de red sin confirmación).
 
 ## Fase 6 — incremento 2: el agente de verdad (~1 semana)
 
