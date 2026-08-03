@@ -197,18 +197,22 @@ func (d *Demo) GetOverview(context.Context) (*Overview, error) {
 }
 
 func (d *Demo) buildOverview() *Overview {
+	wg := d.wireguardSnapshot()
+	dists := canonDistributionNodes()
 	return &Overview{
 		Health:            canonHealthScore(),
 		WAN:               d.wan,
 		Traffic:           canonTraffic(),
 		Adguard:           d.adguard,
-		Wireguard:         d.wireguardSnapshot(),
+		Wireguard:         wg,
 		Routers:           d.routersCopy(),
 		DeviceTotals:      deviceTotalsOf(d.devices), // D5: derivado del dataset
 		TopDevices:        d.topDevices(5),
 		Alerts:            d.alertsCopy(),
 		UnreadAlerts:      d.engine.UnreadCount(),
-		DistributionNodes: canonDistributionNodes(),
+		DistributionNodes: dists,
+		Topology:          BuildTopoSemantics(d.routers, d.devices, wg, dists), // SPEC-65 D65-3
+		VM:                ViewModelVersion,                                    // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}
 }

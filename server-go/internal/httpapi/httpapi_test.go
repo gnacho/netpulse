@@ -146,7 +146,7 @@ func TestLoginCorrectoYMe(t *testing.T) {
 		t.Fatalf("me: got %d want 200", res.StatusCode)
 	}
 	body := readJSON(t, res)
-	want := map[string]any{"user": "admin", "role": "admin", "language": "auto", "mode": "demo"}
+	want := map[string]any{"user": "admin", "role": "admin", "language": "auto", "displayName": "", "mode": "demo"}
 	for k, v := range want {
 		if body[k] != v {
 			t.Fatalf("me[%s]: got %v want %v (body=%v)", k, body[k], v, body)
@@ -173,11 +173,14 @@ func TestOverviewProtegido(t *testing.T) {
 		t.Fatalf("con cookie: got %d want 200", res2.StatusCode)
 	}
 	ov := readJSON(t, res2)
-	// Shape del overview (claves del contrato)
-	for _, k := range []string{"health", "wan", "traffic", "adguard", "wireguard", "routers", "deviceTotals", "topDevices", "alerts", "unreadAlerts", "ts"} {
+	// Shape del overview (claves del contrato; vm SIEMPRE, SPEC-65 D65-4)
+	for _, k := range []string{"health", "wan", "traffic", "adguard", "wireguard", "routers", "deviceTotals", "topDevices", "alerts", "unreadAlerts", "vm", "ts"} {
 		if _, ok := ov[k]; !ok {
 			t.Fatalf("overview sin clave %q", k)
 		}
+	}
+	if ov["vm"] != float64(1) {
+		t.Fatalf("vm debe ser 1 (ViewModelVersion): %v", ov["vm"])
 	}
 	if routers, ok := ov["routers"].([]any); !ok || len(routers) != 4 {
 		t.Fatalf("routers: %v", ov["routers"])

@@ -47,7 +47,8 @@ func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleMe: {user, role, language, mode} (language releído de users).
+// handleMe: {user, role, language, displayName, mode} (language/displayName
+// releídos de users; SPEC-65 D65-5: displayName "" = no puesto).
 func (s *server) handleMe(mode string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := auth.UserFromContext(r.Context())
@@ -60,11 +61,17 @@ func (s *server) handleMe(mode string) http.HandlerFunc {
 		if err := s.db.QueryRow("SELECT language FROM users WHERE id = ?", user.ID).Scan(&lang); err == nil && lang != nil {
 			language = *lang
 		}
+		displayName := ""
+		var dn *string
+		if err := s.db.QueryRow("SELECT display_name FROM users WHERE id = ?", user.ID).Scan(&dn); err == nil && dn != nil {
+			displayName = *dn
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"user":     user.Username,
-			"role":     user.Role,
-			"language": language,
-			"mode":     mode,
+			"user":        user.Username,
+			"role":        user.Role,
+			"language":    language,
+			"displayName": displayName,
+			"mode":        mode,
 		})
 	}
 }

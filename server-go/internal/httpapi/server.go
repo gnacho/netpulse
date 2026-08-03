@@ -102,6 +102,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
+	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 
 	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
@@ -120,8 +121,9 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/push/unsubscribe", s.handlePushUnsubscribe)
 
 	// --- Users ---
-	// Idioma propio: FUERA del gate admin (se registra antes en Node).
+	// Idioma y nombre propios: FUERA del gate admin (se registran antes en Node).
 	mux.HandleFunc("PUT /api/users/me/language", s.handleMyLanguage)
+	mux.HandleFunc("PUT /api/users/me/display-name", s.handleMyDisplayName)
 	// Resto: solo admin.
 	mux.Handle("GET /api/users", auth.RequireAdmin(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("POST /api/users", auth.RequireAdmin(http.HandlerFunc(s.handleCreateUser)))

@@ -173,6 +173,11 @@ type Device struct {
 	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
 	// DistributionNode inferido o de otro Device — hipervisor/switch).
 	AttachTo string `json:"attachTo,omitempty"`
+	// Infra: rol de infraestructura sellado server-side (Fase 6.5). La app NO
+	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
+	// "ct" (CT/VM anidado bajo hipervisor), "managed-switch" (switch con gestión
+	// identificado por LLDP — hoy switch-netgear).
+	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"managed-switch"
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname     string `json:"hostname,omitempty"`
 	DHCPLease    string `json:"dhcpLease,omitempty"`
@@ -223,6 +228,32 @@ type DistributionNode struct {
 // el alias mantiene el contrato adapters.AlertEvent para handlers y tests.
 type AlertEvent = alerts.AlertEvent
 
+// ViewModelVersion es la versión del view-model de presentación (SPEC-65
+// D65-4). La API es un view-model versionado: un cliente debe rechazar/avisar
+// si `vm` supera la versión que soporta. Bump = cualquier cambio incompatible
+// de forma (añadir campos opcionales NO bumpea).
+const ViewModelVersion = 1
+
+// TopoSemantics: modelo semántico de la topología (Fase 6.5). La app conserva
+// SOLO la geometría de píxeles; asignaciones de anillo, enlaces y conteos de
+// peers ocultos llegan calculados.
+type TopoSemantics struct {
+	Links []TopoLink `json:"links"`
+	// Rings: routerId → ids de Device en su anillo (orden: cableados primero,
+	// luego por banda 5GHz/2.4GHz, estable).
+	Rings map[string][]string `json:"rings"`
+	// HiddenPeers: routerId → nº de clientes no pintados como chip (el "+N").
+	HiddenPeers map[string]int `json:"hiddenPeers,omitempty"`
+}
+
+// TopoLink es un enlace semántico del mapa (sin geometría).
+type TopoLink struct {
+	From string `json:"from"` // id: router | device | distnode | "internet" | "peer-<wgPeerId>"
+	To   string `json:"to"`
+	Kind string `json:"kind"`           // "wan"|"uplink"|"wired"|"dist"|"wg"
+	Port string `json:"port,omitempty"` // puerto físico si aplica
+}
+
 // Overview es el bundle completo (SPEC §7.8). Ts en SEGUNDOS.
 type Overview struct {
 	Health       HealthScore    `json:"health"`
@@ -239,7 +270,12 @@ type Overview struct {
 	// v5). Vacío/ausente si aún no hay datos FDB: el mapa cuelga los
 	// cableados del router (degradación amable).
 	DistributionNodes []DistributionNode `json:"distributionNodes,omitempty"`
-	Ts                int64              `json:"ts"` // floor(now/1000) — SEGUNDOS
+	// Topology: semántica de topología precalculada (SPEC-65 D65-3). Puntero:
+	// ausente en snapshots viejos → la app usa su cálculo actual como fallback.
+	Topology *TopoSemantics `json:"topology,omitempty"`
+	// VM: versión del view-model (SPEC-65 D65-4). SIEMPRE presente.
+	VM int `json:"vm"`
+	Ts int64 `json:"ts"` // floor(now/1000) — SEGUNDOS
 }
 
 // ---------------------------------------------------------------------------
