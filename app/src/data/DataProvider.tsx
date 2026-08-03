@@ -133,6 +133,13 @@ export interface NetPulseApi extends NetPulseData {
   markAlertsRead: (ids: string[]) => void
   /** POST /api/alerts/read-all (live). Demo: estado local. Optimista. */
   markAllAlertsRead: () => void
+  /**
+   * Fase 6.1 (Plan B): POST /api/agents/{slug}/rearm — reinicia el servicio
+   * procd del agente en el router (vía SSH del servidor) y espera a que
+   * vuelva a empujar. Devuelve `{ recovered }` o null si la petición falló
+   * (demo siempre null: no hay agentes que rearmar).
+   */
+  rearmAgent: (slug: string) => Promise<{ recovered: boolean; message?: string } | null>
 }
 
 // ---------------------------------------------------------------------------
@@ -660,6 +667,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
+  /**
+   * Fase 6.1 (Plan B): rearme del servicio del agente en el router. El
+   * backend ejecuta `init.d restart` por SSH y espera hasta 30 s el push de
+   * vuelta → por eso aquí NO hay timeout corto: se deja respirar. null =
+   * petición fallida (red, 4xx/5xx, demo).
+   */
+  const rearmAgent = useCallback(
+    async (slug: string): Promise<{ recovered: boolean; message?: string } | null> => {
+      if (modeRef.current !== 'live') return null
+      try {
+        const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/rearm`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(60_000),
+        })
+        if (res.status === 401) redirectLogin()
+        if (!res.ok) return null
+        const json = (await res.json()) as { recovered?: boolean; message?: string }
+        return { recovered: json.recovered ?? false, message: json.message }
+      } catch {
+        return null
+      }
+    },
+    [],
+  )
+
   const getRouterDetail = useCallback(async (id: string): Promise<RouterDetailData | null> => {
     if (modeRef.current === 'live') {
       const res = await fetch(`/api/routers/${encodeURIComponent(id)}`)
@@ -761,8 +793,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setAlertConfig,
       markAlertsRead,
       markAllAlertsRead,
+      rearmAgent,
     }),
-    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead],
+    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

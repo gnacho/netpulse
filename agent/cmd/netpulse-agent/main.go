@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/internal/heartbeat"
 	"github.com/gnacho/netpulse/agent/internal/push"
 	"github.com/gnacho/netpulse/agent/probe"
 )
@@ -41,6 +42,7 @@ type config struct {
 	interval            time.Duration
 	wanTarget, gwTarget string
 	insecureTLS         bool
+	heartbeatFile       string
 }
 
 // loadEnvFile lee KEY=VALUE de un fichero env (líneas # = comentario).
@@ -78,13 +80,14 @@ func loadConfig() (config, error) {
 		return fromFile[key]
 	}
 	cfg := config{
-		server:      strings.TrimRight(get("NETPULSE_SERVER"), "/"),
-		token:       get("NETPULSE_TOKEN"),
-		slug:        get("NETPULSE_SLUG"),
-		interval:    15 * time.Second,
-		wanTarget:   get("NETPULSE_WAN_TARGET"),
-		gwTarget:    get("NETPULSE_GW_TARGET"),
-		insecureTLS: get("NETPULSE_INSECURE_TLS") == "1",
+		server:        strings.TrimRight(get("NETPULSE_SERVER"), "/"),
+		token:         get("NETPULSE_TOKEN"),
+		slug:          get("NETPULSE_SLUG"),
+		interval:      15 * time.Second,
+		wanTarget:     get("NETPULSE_WAN_TARGET"),
+		gwTarget:      get("NETPULSE_GW_TARGET"),
+		insecureTLS:   get("NETPULSE_INSECURE_TLS") == "1",
+		heartbeatFile: get("NETPULSE_HEARTBEAT_FILE"),
 	}
 	if v := get("NETPULSE_INTERVAL"); v != "" {
 		if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
@@ -144,11 +147,21 @@ func run() error {
 	defer stop()
 
 	log.Printf("[netpulse-agent] v%s · %s → %s cada %s", Version, cfg.slug, cfg.server, cfg.interval)
+	hbFile := cfg.heartbeatFile
+	if hbFile == "" {
+		hbFile = heartbeat.DefaultFile
+	}
 	for {
 		payload := prober.Build(ctx, cfg.slug, Version)
 		if err := client.Push(ctx, payload); err != nil {
 			log.Printf("[netpulse-agent] push falló (%v); buffered=%d descartados=%d",
 				err, client.Buffered(), client.Dropped())
+		} else {
+			// Push confirmado por el servidor → latido para el watchdog cron.
+			// Tolerante: un fallo de heartbeat nunca afecta al ciclo de push.
+			if err := heartbeat.Touch(hbFile, time.Now()); err != nil {
+				log.Printf("[netpulse-agent] heartbeat: %v", err)
+			}
 		}
 		select {
 		case <-ctx.Done():

@@ -77,6 +77,11 @@ if [ "$UNINSTALL" -eq 1 ]; then
         $INIT_DST stop 2>/dev/null || true
         $INIT_DST disable 2>/dev/null || true
         rm -f $INIT_DST $ENV_FILE /usr/sbin/$BIN_NAME /tmp/$BIN_NAME
+        rm -f /usr/sbin/netpulse-watchdog /tmp/netpulse-agent.heartbeat
+        # quitar la línea del watchdog del crontab (si existe)
+        if [ -f /etc/crontabs/root ]; then
+            sed -i '/netpulse-watchdog/d' /etc/crontabs/root
+        fi
     "
     ok "$BIN_NAME desinstalado de $HOST"
     exit 0
@@ -188,6 +193,56 @@ INITEOF
 fi
 ssh "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
 ok "servicio $INIT_NAME habilitado y arrancado"
+
+# ------------------------------------------------------------ watchdog cron --
+# Fase 6.1 (Plan A): cron cada 2 min relanza el agente si procd se rindió o
+# si está "vivo pero roto" (heartbeat viejo). Idempotente: reemplaza la
+# línea previa del crontab.
+info "instalando watchdog (cron, cada 2 min)"
+WATCHDOG_DST="/usr/sbin/netpulse-watchdog"
+if [ -f "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" ]; then
+    scp -Oq "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" "$SSH:$WATCHDOG_DST"
+else
+    ssh "$SSH" "cat > $WATCHDOG_DST" <<'WATCHDOGEOF'
+#!/bin/sh
+INIT=/etc/init.d/netpulse-agent
+HB=/tmp/netpulse-agent.heartbeat
+MAX_AGE=300
+[ -f /etc/netpulse-agent.env ] && . /etc/netpulse-agent.env 2>/dev/null
+[ -n "${NETPULSE_HEARTBEAT_FILE:-}" ] && HB="$NETPULSE_HEARTBEAT_FILE"
+log() { logger -t netpulse-watchdog "$*"; }
+if [ ! -x /usr/sbin/netpulse-agent ] && [ ! -x /tmp/netpulse-agent ]; then
+    exit 0
+fi
+if ! pgrep -x netpulse-agent >/dev/null 2>&1; then
+    log "agente no está en marcha — reiniciando servicio"
+    $INIT restart >/dev/null 2>&1
+    exit 0
+fi
+if [ -f "$HB" ]; then
+    now=$(date +%s)
+    hb=$(cat "$HB" 2>/dev/null)
+    case "$hb" in
+        '' | *[!0-9]*) exit 0 ;;
+    esac
+    age=$((now - hb))
+    if [ "$age" -gt "$MAX_AGE" ]; then
+        log "proceso vivo pero sin latido en ${age}s — reiniciando servicio"
+        $INIT restart >/dev/null 2>&1
+    fi
+fi
+exit 0
+WATCHDOGEOF
+fi
+ssh "$SSH" "
+    chmod 0755 $WATCHDOG_DST
+    mkdir -p /etc/crontabs
+    sed -i '/netpulse-watchdog/d' /etc/crontabs/root 2>/dev/null
+    echo '*/2 * * * * $WATCHDOG_DST' >> /etc/crontabs/root
+    /etc/init.d/cron enable
+    /etc/init.d/cron restart
+"
+ok "watchdog en cron (*/2 * * * *)"
 
 sleep 2
 if ssh "$SSH" "logread -e $INIT_NAME" 2>/dev/null | tail -2 | grep -q .; then

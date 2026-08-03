@@ -42,6 +42,13 @@ type Deps struct {
 	// Agents: registry de agentes nativos (ingesta POST /api/ingest/agent y
 	// last_seen/versión de GET /api/agents). nil → ingesta 503.
 	Agents *adapters.AgentRegistry
+	// Pool: ejecutor de comandos SSH del sondeo. nil (demo / sin clave) → el
+	// rearme de agentes responde 503 (POST /api/agents/{slug}/rearm, Fase 6.1).
+	// Es una interfaz para poder inyectar un fake en los tests.
+	Pool SSHRunner
+	// RearmPollWait: cuánto esperar el push de vuelta tras rearmar (default
+	// 30 s; los tests lo bajan). <= 0 → rearmPollWait.
+	RearmPollWait time.Duration
 	// LastOverview devuelve el último overview del poller (nil si aún no hay).
 	LastOverview func() *adapters.Overview
 	// PollNow dispara un ciclo de sondeo inmediato (POST /api/refresh);
@@ -57,6 +64,8 @@ type server struct {
 	hub     *sse.Hub
 	secret  string
 	agents  *adapters.AgentRegistry
+	pool    SSHRunner
+	rearmPollWait time.Duration
 	lastOv  func() *adapters.Overview
 	pollNow func()
 	started time.Time
@@ -67,14 +76,23 @@ type server struct {
 
 	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
 	ingestLimit *ipRateLimit
+
+	// Anti-martilleo del rearme de agentes (60 s por slug, Fase 6.1).
+	rearmMu   sync.Mutex
+	lastRearm map[string]time.Time
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
 func NewHandler(d Deps) http.Handler {
 	s := &server{
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
-		secret: d.Secret, agents: d.Agents, lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
+		secret: d.Secret, agents: d.Agents, pool: d.Pool,
+		rearmPollWait: d.RearmPollWait,
+		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
+	}
+	if s.rearmPollWait <= 0 {
+		s.rearmPollWait = rearmPollWait
 	}
 	mode := d.Adapter.Mode()
 
@@ -114,6 +132,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/agents", s.handleAgentsCreate)
 	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
 	mux.HandleFunc("DELETE /api/agents/{slug}", s.handleAgentsDelete)
+	// Fase 6.1 (Plan B): rearme del servicio procd del agente vía SSH.
+	mux.HandleFunc("POST /api/agents/{slug}/rearm", s.handleAgentRearm)
 
 	// --- Web Push (Fase 6 Bloque C; tras sesión como el resto del API) ---
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)

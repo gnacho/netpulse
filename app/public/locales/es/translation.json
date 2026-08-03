@@ -410,7 +410,12 @@
       "freshTip": "netpulse-agent v{{version}} · empuja cada 15 s",
       "freshTipUnknown": "netpulse-agent · empuja cada 15 s",
       "stale": "Agente caído",
-      "staleTip": "Sin datos del agente — sondeando por SSH"
+      "staleTip": "Sin datos del agente — sondeando por SSH",
+      "rearm": "Rearmar",
+      "rearming": "Reiniciando…",
+      "rearmOk": "Agente rearmado",
+      "rearmPending": "Reiniciado; esperando el primer push",
+      "rearmFail": "No se pudo rearmar"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",

@@ -91,6 +91,7 @@ func run() error {
 	}
 	agentReg := adapters.NewAgentRegistry(agentTTL)
 	var adapter adapters.Snapshotter
+	var sshPool *adapters.SSHPool
 	if cfg.DemoMode {
 		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 	} else {
@@ -99,6 +100,7 @@ func run() error {
 			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
 			adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 		} else {
+			sshPool = pool
 			live := adapters.NewLive(cfg, dbHandle, routers, pool)
 			live.SetAgents(agentReg)
 			adapter = live
@@ -145,6 +147,7 @@ func run() error {
 		Static:  static,
 		Updater: upd,
 		Agents:  agentReg,
+		Pool:    sshPool,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
