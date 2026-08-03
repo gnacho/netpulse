@@ -1,16 +1,20 @@
 /**
- * Devices — extensión local del canon (design.md §11 / devices.md §④).
- * Los dispositivos destacados de `@/data/mock` se reutilizan tal cual;
- * la entrada agregada "Bombillas Ikea ×6" se expande en sus 6 bombillas
- * individuales y se añaden los clientes restantes hasta los totales del
- * canon reconciliado (D5): 65 conocidos · 59 online · 6 offline
- * (online por router: Gateway 26, Salón 20, Estudio 8, Patio 5).
- * Regla D3: cada ID existe exactamente 1 vez en el dataset (mock.ts +
- * este archivo), espejo del dataset demo de Go. Nada aquí contradice
- * `@/data/mock`.
+ * Devices — enriquecido local de clientes (design.md §11 / devices.md §④).
+ *
+ * SPEC-65 D65-1 (single-source): el canon de dispositivos (65 IDs únicos,
+ * D3/D5: 59 online · 6 offline · 3 nuevos hoy; online por router Gateway 26,
+ * Salón 20, Estudio 8, Patio 5) vive SOLO en `@/data/demo-canon.json`
+ * (re-exportado por `@/data/mock`) y ya trae inline los metadatos de cliente
+ * (hostname, DHCP, primer visto, tráfico 24h, AdGuard, grupo). Este módulo
+ * ya NO expande ni duplica el canon: solo fusiona metadatos.
+ * - Canon con metadatos inline (demo local o API demo): se usan tal cual
+ *   (el JSON es la verdad reconciliada).
+ * - Live sin metadatos (servidor real): se fusionan los detalles conocidos
+ *   por id (CANON_DETAILS) o se derivan valores plausibles — nunca se
+ *   inventan dispositivos que la API no ha reportado.
  */
 import type { LucideIcon } from 'lucide-react'
-import { BookOpen, Printer } from 'lucide-react'
+import { BookOpen, Network } from 'lucide-react'
 import type { Device } from '@/data/mock'
 import { devices as canonDevices } from '@/data/mock'
 
@@ -41,11 +45,13 @@ export interface ClientDevice extends Device {
 
 // 'infra' primero (D6): hipervisores, CTs y switches gestionados de un vistazo.
 // El grupo 'infra' no deriva del `type`: lo asigna Devices.tsx cruzando
+// device.infra (sellado server-side, SPEC-65 D65-2) o, como fallback,
 // attachTo/lldp con los distributionNodes del provider.
 export const GROUP_ORDER: FilterGroup[] = ['infra', 'moviles', 'ordenadores', 'tv', 'iot', 'red', 'otros']
 
 // ---------------------------------------------------------------------------
-// Detalles extra de los dispositivos canónicos (mock.ts §Dispositivos)
+// Detalles extra de los dispositivos canónicos: fallback para live cuando la
+// API no trae metadatos inline (el canon JSON del demo ya los trae todos).
 // ---------------------------------------------------------------------------
 
 const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
@@ -89,8 +95,8 @@ const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
     hostname: 'galaxy-tab-s9', dhcpLease: 'renews in 11h 5min', firstSeen: 'today',
     traffic24hRx: '640 MB', traffic24hTx: '48 MB', adguard: true, group: 'moviles', newThisWeek: true,
   },
-  // D1: el GS308E vuelve a ser Device (además del distnode managed de mock.ts).
-  // Su grupo visible es 'infra' (lo reasigna Devices.tsx al detectar `lldp`).
+  // D1: el GS308E vuelve a ser Device (además del distnode managed del canon).
+  // Su grupo visible es 'infra' (lo reasigna Devices.tsx con device.infra/lldp).
   'switch-netgear': {
     hostname: 'gs308e', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
     traffic24hRx: '96 MB', traffic24hTx: '42 MB', adguard: false, group: 'red',
@@ -98,287 +104,8 @@ const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
 }
 
 // ---------------------------------------------------------------------------
-// Sparkline determinista (mock): paseo pseudo-aleatorio alrededor de `base`
-// ---------------------------------------------------------------------------
-
-function spark(seed: number, base: number, spread: number): number[] {
-  let s = seed
-  const out: number[] = []
-  for (let i = 0; i < 12; i++) {
-    s = (s * 9301 + 49297) % 233280
-    const r = s / 233280
-    out.push(Math.max(0, +(base + (r - 0.45) * spread).toFixed(2)))
-  }
-  out[out.length - 1] = base
-  return out
-}
-
-function extra(spec: Omit<Device, 'sparkline'> & { seed?: number; spread?: number }): Device {
-  const { seed = 1, spread, ...d } = spec
-  return { ...d, sparkline: d.online ? spark(seed, d.trafficMbps, spread ?? d.trafficMbps * 0.8) : [] }
-}
-
-function bulb(n: number, name: string, ip: string, mac: string, dbm: number): ClientDevice {
-  return {
-    id: `bombilla-${n}`, name, type: 'iot', manufacturer: 'Ikea Trådfri',
-    ip, mac, routerId: 'living', band: '2.4 GHz', signalDbm: dbm,
-    trafficMbps: 0, online: true, sparkline: spark(40 + n, 0.005, 0.02),
-    hostname: `tradfri-${n}`, dhcpLease: 'renews in 12h 0min', firstSeen: '280 days ago',
-    traffic24hRx: '4 MB', traffic24hTx: '1 MB', adguard: true, group: 'iot',
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Dispositivos adicionales (canon: los destacados ya están en mock.ts;
-// aquí está el resto hasta los 65 IDs únicos del dataset reconciliado, D3/D5)
-// ---------------------------------------------------------------------------
-
-const ADDITIONAL: ClientDevice[] = [
-  // —— Gateway (flint2) ——
-  {
-    ...extra({ id: 'iphone-ana', name: "Ana's iPhone", type: 'movil', manufacturer: 'Apple',
-      ip: '192.168.8.44', mac: 'F4:D4:88:19:C2:71', routerId: 'flint2', band: '5 GHz',
-      signalDbm: -46, trafficMbps: 2.1, online: true, seed: 11 }),
-    hostname: 'iphone-de-ana', dhcpLease: 'renews in 6h 40min', firstSeen: '190 days ago',
-    traffic24hRx: '2.8 GB', traffic24hTx: '240 MB', adguard: true, group: 'moviles',
-  },
-  {
-    ...extra({ id: 'macbook-pro', name: "Marc's MacBook Pro", type: 'portatil', manufacturer: 'Apple',
-      ip: '192.168.8.26', mac: 'F0:18:98:5A:11:E9', routerId: 'flint2', band: '5 GHz',
-      signalDbm: -44, trafficMbps: 8.6, online: true, seed: 12 }),
-    hostname: 'macbook-pro-marc', dhcpLease: 'renews in 4h 16min', firstSeen: '230 days ago',
-    traffic24hRx: '12.4 GB', traffic24hTx: '1.9 GB', adguard: true, group: 'ordenadores',
-  },
-  // D3: pc-sobremesa y raspberry-pi cuelgan del switch inferido (attachTo),
-  // enriquecidos in situ igual que en el dataset Go — no se duplican en mock.ts.
-  {
-    ...extra({ id: 'pc-sobremesa', name: 'Desktop PC', type: 'ordenador', manufacturer: 'ASUSTeK',
-      ip: '192.168.8.11', mac: '04:D4:C4:8B:30:A7', routerId: 'flint2', band: 'cable',
-      signalDbm: null, trafficMbps: 21.3, online: true, attachTo: 'dist-flint2-lan3', seed: 13 }),
-    hostname: 'desktop-8f2k1', dhcpLease: 'Static IP (reservation)', firstSeen: '310 days ago',
-    traffic24hRx: '84 GB', traffic24hTx: '6.2 GB', adguard: true, group: 'ordenadores',
-  },
-  {
-    ...extra({ id: 'raspberry-pi', name: 'Raspberry Pi 4', type: 'servidor', manufacturer: 'Raspberry Pi',
-      ip: '192.168.8.12', mac: 'DC:A6:32:4F:77:02', routerId: 'flint2', band: 'cable',
-      signalDbm: null, trafficMbps: 0.8, online: true, attachTo: 'dist-flint2-lan3', seed: 14 }),
-    hostname: 'raspberrypi', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
-    traffic24hRx: '3.4 GB', traffic24hTx: '890 MB', adguard: true, group: 'red',
-  },
-  {
-    ...extra({ id: 'timbre-nest', name: 'Nest doorbell', type: 'camara', manufacturer: 'Google',
-      ip: '192.168.8.72', mac: 'F4:F5:D8:66:01:B8', routerId: 'flint2', band: '2.4 GHz',
-      signalDbm: -58, trafficMbps: 0.6, online: true, seed: 16 }),
-    hostname: 'nest-doorbell', dhcpLease: 'renews in 9h 44min', firstSeen: '170 days ago',
-    traffic24hRx: '1.2 GB', traffic24hTx: '140 MB', adguard: true, group: 'iot',
-  },
-  {
-    ...extra({ id: 'enchufe-lavadora', name: 'Washing machine plug', type: 'iot', manufacturer: 'TP-Link',
-      ip: '192.168.8.81', mac: '50:C7:BF:22:E1:9C', routerId: 'flint2', band: '2.4 GHz',
-      signalDbm: -62, trafficMbps: 0.01, online: true, seed: 17, spread: 0.02 }),
-    hostname: 'tapo-p110-lavadora', dhcpLease: 'renews in 12h 0min', firstSeen: '140 days ago',
-    traffic24hRx: '8 MB', traffic24hTx: '2 MB', adguard: false, group: 'iot',
-  },
-  {
-    ...extra({ id: 'pixel-7', name: 'Pixel 7', type: 'movil', manufacturer: 'Google',
-      ip: '192.168.8.46', mac: '3C:5A:B4:08:D7:5E', routerId: 'flint2', band: '5 GHz',
-      signalDbm: -49, trafficMbps: 1.4, online: true, seed: 18 }),
-    hostname: 'pixel-7', dhcpLease: 'renews in 7h 3min', firstSeen: '205 days ago',
-    traffic24hRx: '1.9 GB', traffic24hTx: '180 MB', adguard: true, group: 'moviles',
-  },
-  // D3: una única identidad — la cableada al switch inferido (gateway lan3).
-  {
-    ...extra({ id: 'impresora-hp', name: 'HP Printer', type: 'iot', manufacturer: 'HP',
-      ip: '192.168.8.62', mac: '3C:D9:2B:AA:03:03', routerId: 'flint2', band: 'cable',
-      signalDbm: null, trafficMbps: 0.1, online: true, attachTo: 'dist-flint2-lan3',
-      seed: 15, spread: 0.2 }),
-    hostname: 'hp-laserjet-m209', dhcpLease: 'renews in 5h 22min', firstSeen: '60 days ago',
-    traffic24hRx: '2.4 GB', traffic24hTx: '120 MB', adguard: true, group: 'iot',
-    iconOverride: Printer,
-  },
-  {
-    ...extra({ id: 'ipad-air', name: 'iPad Air', type: 'tablet', manufacturer: 'Apple',
-      ip: '192.168.8.47', mac: '8C:85:90:2F:B4:11', routerId: 'flint2', band: '5 GHz',
-      signalDbm: -54, trafficMbps: 0, online: false }),
-    hostname: 'ipad-air', dhcpLease: 'Expired', firstSeen: '260 days ago',
-    traffic24hRx: '6.4 GB', traffic24hTx: '520 MB', adguard: true, group: 'moviles',
-  },
-  {
-    ...extra({ id: 'portatil-trabajo', name: 'Work laptop', type: 'portatil', manufacturer: 'Lenovo',
-      ip: '192.168.8.27', mac: '54:EE:75:9A:03:F1', routerId: 'flint2', band: '5 GHz',
-      signalDbm: -50, trafficMbps: 0, online: false }),
-    hostname: 'thinkpad-t14', dhcpLease: 'Expired', firstSeen: '160 days ago',
-    traffic24hRx: '812 MB', traffic24hTx: '121 MB', adguard: true, group: 'ordenadores',
-  },
-  {
-    ...extra({ id: 'kindle', name: 'Kindle Paperwhite', type: 'desconocido', manufacturer: 'Amazon',
-      ip: '192.168.8.49', mac: '44:65:0D:71:28:C3', routerId: 'flint2', band: '2.4 GHz',
-      signalDbm: -58, trafficMbps: 0, online: false }),
-    hostname: 'kindle-paperwhite', dhcpLease: 'Expired', firstSeen: '220 days ago',
-    traffic24hRx: '220 MB', traffic24hTx: '8 MB', adguard: true, group: 'otros',
-    iconOverride: BookOpen,
-  },
-]
-
-const LIVING: ClientDevice[] = [
-  // —— Salón (living) ——
-  bulb(1, 'Living room bulb 1', '192.168.8.90', 'CC:86:EC:10:04:21', -58),
-  bulb(2, 'Living room bulb 2', '192.168.8.91', 'CC:86:EC:10:04:22', -59),
-  bulb(3, 'Floor lamp bulb', '192.168.8.92', 'CC:86:EC:10:04:23', -61),
-  bulb(4, 'Entryway bulb', '192.168.8.93', 'CC:86:EC:10:04:24', -64),
-  bulb(5, 'Hallway bulb', '192.168.8.94', 'CC:86:EC:10:04:25', -66),
-  bulb(6, 'Kitchen bulb', '192.168.8.95', 'CC:86:EC:10:04:26', -60),
-  {
-    ...extra({ id: 'chromecast', name: 'Chromecast HD', type: 'tv', manufacturer: 'Google',
-      ip: '192.168.8.36', mac: '54:60:09:E3:5B:0A', routerId: 'living', band: '5 GHz',
-      signalDbm: -54, trafficMbps: 3.9, online: true, seed: 21 }),
-    hostname: 'chromecast-hd', dhcpLease: 'renews in 6h 12min', firstSeen: '200 days ago',
-    traffic24hRx: '21 GB', traffic24hTx: '380 MB', adguard: true, group: 'tv',
-  },
-  {
-    ...extra({ id: 'homepod-mini', name: 'HomePod mini', type: 'altavoz', manufacturer: 'Apple',
-      ip: '192.168.8.53', mac: 'F0:D1:A9:3E:77:5C', routerId: 'living', band: '5 GHz',
-      signalDbm: -47, trafficMbps: 0.3, online: true, seed: 22 }),
-    hostname: 'homepod-mini', dhcpLease: 'renews in 10h 41min', firstSeen: '190 days ago',
-    traffic24hRx: '2.2 GB', traffic24hTx: '96 MB', adguard: true, group: 'iot',
-  },
-  {
-    ...extra({ id: 'galaxy-s23', name: 'Galaxy S23', type: 'movil', manufacturer: 'Samsung',
-      ip: '192.168.8.42', mac: '5C:0A:5B:88:1D:E4', routerId: 'living', band: '5 GHz',
-      signalDbm: -51, trafficMbps: 0.9, online: true, seed: 23 }),
-    hostname: 'galaxy-s23', dhcpLease: 'renews in 8h 55min', firstSeen: '175 days ago',
-    traffic24hRx: '3.2 GB', traffic24hTx: '290 MB', adguard: true, group: 'moviles',
-  },
-  {
-    ...extra({ id: 'echo-dot', name: 'Echo Dot', type: 'altavoz', manufacturer: 'Amazon',
-      ip: '192.168.8.54', mac: '74:C2:46:19:F0:6B', routerId: 'living', band: '2.4 GHz',
-      signalDbm: -56, trafficMbps: 0.2, online: true, seed: 24 }),
-    hostname: 'echo-dot-cocina', dhcpLease: 'renews in 11h 18min', firstSeen: '210 days ago',
-    traffic24hRx: '1.1 GB', traffic24hTx: '74 MB', adguard: true, group: 'iot',
-  },
-  {
-    ...extra({ id: 'nintendo-switch', name: 'Nintendo Switch', type: 'consola', manufacturer: 'Nintendo',
-      ip: '192.168.8.33', mac: '58:BD:A3:4C:E2:09', routerId: 'living', band: '5 GHz',
-      signalDbm: -53, trafficMbps: 0.1, online: true, seed: 25, spread: 0.3 }),
-    hostname: 'switch-oled', dhcpLease: 'renews in 5h 47min', firstSeen: '240 days ago',
-    traffic24hRx: '8.6 GB', traffic24hTx: '310 MB', adguard: true, group: 'tv',
-  },
-  {
-    ...extra({ id: 'portatil-invitado', name: 'Guest laptop', type: 'portatil', manufacturer: 'Desconocido',
-      ip: '192.168.8.29', mac: 'A2:7E:9C:41:0B:6D', routerId: 'living', band: '5 GHz',
-      signalDbm: -58, trafficMbps: 0.7, online: true, isNew: true, seed: 26 }),
-    hostname: 'unknown-7f2a', dhcpLease: 'renews in 2h 9min', firstSeen: 'today',
-    traffic24hRx: '480 MB', traffic24hTx: '62 MB', adguard: false, group: 'ordenadores',
-    newThisWeek: true,
-  },
-  // D3: xbox-series-s tiene UNA identidad — la cableada al GS308E de mock.ts
-  // (attachTo dist-living-lan3, online); la vieja versión wifi/offline se elimina.
-  {
-    ...extra({ id: 'portatil-antiguo', name: 'Old laptop', type: 'portatil', manufacturer: 'HP',
-      ip: '192.168.8.28', mac: '3C:52:82:5D:90:17', routerId: 'living', band: '2.4 GHz',
-      signalDbm: -62, trafficMbps: 0, online: false }),
-    hostname: 'hp-pavilion-15', dhcpLease: 'Expired', firstSeen: '300 days ago',
-    traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'ordenadores',
-  },
-]
-
-const ESTUDIO: ClientDevice[] = [
-  // —— Estudio ——
-  {
-    ...extra({ id: 'mac-mini', name: 'Mac mini', type: 'ordenador', manufacturer: 'Apple',
-      ip: '192.168.8.22', mac: 'A4:83:E7:66:2C:98', routerId: 'estudio', band: 'cable',
-      signalDbm: null, trafficMbps: 1.9, online: true, seed: 31 }),
-    hostname: 'mac-mini', dhcpLease: 'Static IP (reservation)', firstSeen: '280 days ago',
-    traffic24hRx: '44 GB', traffic24hTx: '5.6 GB', adguard: true, group: 'ordenadores',
-  },
-  {
-    ...extra({ id: 'enchufe-ventilador', name: 'Fan plug', type: 'iot', manufacturer: 'TP-Link',
-      ip: '192.168.8.82', mac: '9C:53:22:B1:4E:70', routerId: 'estudio', band: '2.4 GHz',
-      signalDbm: -59, trafficMbps: 0.01, online: true, seed: 32, spread: 0.02 }),
-    hostname: 'tapo-p110-ventilador', dhcpLease: 'renews in 12h 0min', firstSeen: '120 days ago',
-    traffic24hRx: '7 MB', traffic24hTx: '2 MB', adguard: true, group: 'iot',
-  },
-  {
-    ...extra({ id: 'ipad-pro', name: 'iPad Pro', type: 'tablet', manufacturer: 'Apple',
-      ip: '192.168.8.51', mac: 'F0:18:98:91:5A:2B', routerId: 'estudio', band: '5 GHz',
-      signalDbm: -49, trafficMbps: 0.8, online: true, seed: 33 }),
-    hostname: 'ipad-pro', dhcpLease: 'renews in 9h 26min', firstSeen: '160 days ago',
-    traffic24hRx: '5.1 GB', traffic24hTx: '390 MB', adguard: true, group: 'moviles',
-  },
-  {
-    ...extra({ id: 'hue-hub', name: 'Hub Philips Hue', type: 'iot', manufacturer: 'Signify',
-      ip: '192.168.8.15', mac: '00:17:88:2A:91:CE', routerId: 'estudio', band: 'cable',
-      signalDbm: null, trafficMbps: 0.02, online: true, seed: 34, spread: 0.04 }),
-    hostname: 'philips-hue-bridge', dhcpLease: 'Static IP (reservation)', firstSeen: '280 days ago',
-    traffic24hRx: '96 MB', traffic24hTx: '22 MB', adguard: false, group: 'iot',
-  },
-  {
-    ...extra({ id: 'sonos-one', name: 'Sonos One', type: 'altavoz', manufacturer: 'Sonos',
-      ip: '192.168.8.55', mac: '48:A6:B8:14:72:E0', routerId: 'estudio', band: '2.4 GHz',
-      signalDbm: -57, trafficMbps: 0.5, online: true, seed: 35 }),
-    hostname: 'sonos-one-estudio', dhcpLease: 'renews in 10h 4min', firstSeen: '195 days ago',
-    traffic24hRx: '3.8 GB', traffic24hTx: '110 MB', adguard: true, group: 'iot',
-  },
-  {
-    ...extra({ id: 'iphone-trabajo', name: 'Work iPhone', type: 'movil', manufacturer: 'Apple',
-      ip: '192.168.8.50', mac: '8C:85:90:47:C1:93', routerId: 'estudio', band: '5 GHz',
-      signalDbm: -47, trafficMbps: 0.3, online: true, isNew: true, seed: 36 }),
-    hostname: 'iphone-15-pro-work', dhcpLease: 'renews in 3h 38min', firstSeen: 'today',
-    traffic24hRx: '320 MB', traffic24hTx: '41 MB', adguard: true, group: 'moviles',
-    newThisWeek: true,
-  },
-  {
-    ...extra({ id: 'macbook-viejo', name: 'Old MacBook', type: 'portatil', manufacturer: 'Apple',
-      ip: '192.168.8.25', mac: '3C:22:FB:0E:66:A1', routerId: 'estudio', band: '2.4 GHz',
-      signalDbm: -60, trafficMbps: 0, online: false }),
-    hostname: 'macbook-pro-2015', dhcpLease: 'Expired', firstSeen: '320 days ago',
-    traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: true, group: 'ordenadores',
-  },
-]
-
-const PATIO: ClientDevice[] = [
-  // —— Patio ——
-  {
-    ...extra({ id: 'camara-jardin', name: 'Garden camera', type: 'camara', manufacturer: 'Reolink',
-      ip: '192.168.8.73', mac: 'EC:71:DB:44:12:9B', routerId: 'patio', band: '2.4 GHz',
-      signalDbm: -74, trafficMbps: 1.4, online: true, seed: 41 }),
-    hostname: 'reolink-jardin', dhcpLease: 'renews in 8h 49min', firstSeen: '4 days ago',
-    traffic24hRx: '14 GB', traffic24hTx: '820 MB', adguard: true, group: 'iot',
-    newThisWeek: true,
-  },
-  {
-    ...extra({ id: 'sensor-riego', name: 'Irrigation sensor', type: 'iot', manufacturer: 'Tuya',
-      ip: '192.168.8.89', mac: 'D8:1F:12:5B:08:44', routerId: 'patio', band: '2.4 GHz',
-      signalDbm: -71, trafficMbps: 0.01, online: true, seed: 42, spread: 0.02 }),
-    hostname: 'tuya-riego-01', dhcpLease: 'renews in 12h 0min', firstSeen: '5 days ago',
-    traffic24hRx: '2 MB', traffic24hTx: '1 MB', adguard: false, group: 'iot',
-    newThisWeek: true,
-  },
-  {
-    ...extra({ id: 'enchufe-calefactor', name: 'Heater plug', type: 'iot', manufacturer: 'TP-Link',
-      ip: '192.168.8.80', mac: '50:C7:BF:31:7A:05', routerId: 'patio', band: '2.4 GHz',
-      signalDbm: -75, trafficMbps: 0.02, online: true, seed: 43, spread: 0.03 }),
-    hostname: 'tapo-p110-calefactor', dhcpLease: 'renews in 12h 0min', firstSeen: '96 days ago',
-    traffic24hRx: '6 MB', traffic24hTx: '2 MB', adguard: true, group: 'iot',
-  },
-  {
-    ...extra({ id: 'camara-garaje', name: 'Garage camera', type: 'camara', manufacturer: 'Reolink',
-      ip: '192.168.8.74', mac: 'EC:71:DB:44:13:02', routerId: 'patio', band: '2.4 GHz',
-      signalDbm: -78, trafficMbps: 0, online: false }),
-    hostname: 'reolink-garaje', dhcpLease: 'Expired', firstSeen: '130 days ago',
-    traffic24hRx: '0 MB', traffic24hTx: '0 MB', adguard: false, group: 'iot',
-  },
-]
-
-// ---------------------------------------------------------------------------
 // Builder: enriquece una lista de `Device` (mock local o API) con los
 // metadatos de cliente (hostname, DHCP, AdGuard, grupo de filtro).
-// - `withSynthetic=true` (modo demo local, sin backend): expande el canon a
-//   los 65 clientes del dataset reconciliado (agregado de bombillas +
-//   adicionales).
-// - `withSynthetic=false` (backend live): solo fusiona detalles conocidos por
-//   id y deriva valores plausibles para clientes nuevos — nunca inventa
-//   dispositivos que la API no ha reportado.
 // ---------------------------------------------------------------------------
 
 const TYPE_TO_GROUP: Record<Device['type'], FilterGroup> = {
@@ -395,6 +122,9 @@ const TYPE_TO_GROUP: Record<Device['type'], FilterGroup> = {
   switch: 'red',
   desconocido: 'otros',
 }
+
+/** Iconos lucide referenciados POR NOMBRE en el canon JSON (iconOverride). */
+const ICON_BY_NAME: Record<string, LucideIcon> = { BookOpen, Network }
 
 function slug(name: string): string {
   return (
@@ -420,19 +150,47 @@ function defaultDetails(d: Device): Omit<ClientDevice, keyof Device> {
   }
 }
 
-export function buildClientDevices(canon: Device[], withSynthetic: boolean): ClientDevice[] {
-  const expanded: ClientDevice[] = canon
-    .filter((d) => !withSynthetic || d.id !== 'bombillas-ikea')
-    .map((d) => ({ ...d, ...(CANON_DETAILS[d.id] ?? defaultDetails(d)) }))
-  if (!withSynthetic) return expanded
-  return [...expanded, ...ADDITIONAL, ...LIVING, ...ESTUDIO, ...PATIO]
+/** Metadatos de cliente que pueden venir inline (canon JSON / API demo). */
+interface InlineDetails {
+  hostname?: string
+  dhcpLease?: string
+  firstSeen?: string
+  traffic24hRx?: string
+  traffic24hTx?: string
+  adguard?: boolean
+  group?: FilterGroup
+  iconOverride?: string
+  newThisWeek?: boolean
 }
 
-const canonExpanded: ClientDevice[] = canonDevices
-  .filter((d) => d.id !== 'bombillas-ikea')
-  .map((d) => ({ ...d, ...CANON_DETAILS[d.id] }))
+/** Extrae los metadatos inline del canon; null si el Device no los trae. */
+function inlineDetails(d: Device): Omit<ClientDevice, keyof Device> | null {
+  const raw = d as Device & InlineDetails
+  if (typeof raw.hostname !== 'string' || typeof raw.group !== 'string') return null
+  return {
+    hostname: raw.hostname,
+    dhcpLease: raw.dhcpLease ?? '—',
+    firstSeen: raw.firstSeen ?? '—',
+    traffic24hRx: raw.traffic24hRx ?? '—',
+    traffic24hTx: raw.traffic24hTx ?? '—',
+    adguard: raw.adguard ?? true,
+    group: raw.group ?? TYPE_TO_GROUP[d.type],
+    newThisWeek: raw.newThisWeek,
+    iconOverride: raw.iconOverride ? ICON_BY_NAME[raw.iconOverride] : undefined,
+  }
+}
 
-export const allDevices: ClientDevice[] = [...canonExpanded, ...ADDITIONAL, ...LIVING, ...ESTUDIO, ...PATIO]
+/**
+ * Fusiona metadatos de cliente sobre la lista de Devices. Prioridad:
+ * inline (canon JSON / API demo) > CANON_DETAILS (ids conocidos) > defaults.
+ * `_withSynthetic` se conserva por compatibilidad de firma: desde D65-1 el
+ * canon ya llega completo (65 IDs) y nunca se sintetizan devices extra.
+ */
+export function buildClientDevices(canon: Device[], _withSynthetic = false): ClientDevice[] {
+  return canon.map((d) => ({ ...d, ...(inlineDetails(d) ?? CANON_DETAILS[d.id] ?? defaultDetails(d)) }))
+}
+
+export const allDevices: ClientDevice[] = buildClientDevices(canonDevices, true)
 
 /** Señal débil: online con < −70 dBm (devices.md §②) */
 export const weakSignalCount = allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length
