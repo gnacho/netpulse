@@ -183,10 +183,11 @@ function inlineDetails(d: Device): Omit<ClientDevice, keyof Device> | null {
 /**
  * Fusiona metadatos de cliente sobre la lista de Devices. Prioridad:
  * inline (canon JSON / API demo) > CANON_DETAILS (ids conocidos) > defaults.
- * `_withSynthetic` se conserva por compatibilidad de firma: desde D65-1 el
+ * `withSynthetic` se conserva por compatibilidad de firma: desde D65-1 el
  * canon ya llega completo (65 IDs) y nunca se sintetizan devices extra.
  */
-export function buildClientDevices(canon: Device[], _withSynthetic = false): ClientDevice[] {
+export function buildClientDevices(canon: Device[], withSynthetic = false): ClientDevice[] {
+  void withSynthetic // legado de la firma: el canon ya viene completo (D65-1)
   return canon.map((d) => ({ ...d, ...(inlineDetails(d) ?? CANON_DETAILS[d.id] ?? defaultDetails(d)) }))
 }
 
