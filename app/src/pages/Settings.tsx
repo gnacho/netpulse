@@ -1518,7 +1518,9 @@ export default function Settings() {
         /* modo privado */
       }
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza el draft con auth/localStorage al montar y tras cada refetch de /api/auth/me
     setNameBaseline(v)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNameDraft(v)
   }, [isDemo, auth?.displayName])
 
