@@ -82,6 +82,19 @@
   lento): asciende el nodo a **"managed"** (identificado: chasis, IP de
   gestión, capacidades, puerto remoto, badge cyan) y puebla `Device.Lldp`.
 
+## View-model versionado (Fase 6.5)
+
+La API es un **view-model de presentación versionado**: `GET /api/overview`
+lleva siempre `vm` (`adapters.ViewModelVersion`, hoy `1`). Un cliente (p.ej.
+Fase 7 LuCI) debe rechazar/avisar si `vm` supera la versión que soporta. Bump
+de versión = cualquier cambio incompatible de forma; añadir campos opcionales
+NO bumpea. El overview gana además `topology` (semántica precalculada:
+enlaces, anillos por router y peers ocultos "+N") y los devices pueden llevar
+`infra` (`hypervisor`|`ct`|`managed-switch`, sellado server-side — la app no
+infiere). El dataset demo canónico es single-source en Go:
+`app/src/data/demo-canon.json` se GENERA con `go run ./cmd/gen-demo-canon`
+(hay test de frescura; la app lo importa en build).
+
 ## Auth y seguridad
 
 - Credenciales en `.env` (`AUTH_USER`/`AUTH_PASS`); bcrypt (coste 10) en
