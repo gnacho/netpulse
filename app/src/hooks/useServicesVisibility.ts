@@ -26,13 +26,19 @@ export function getServicesVisibility(): ServicesVisibility {
 export function useServicesVisibility(): [ServicesVisibility, (k: keyof ServicesVisibility, v: boolean) => void] {
   const [services, setServices] = useState<ServicesVisibility>(getServicesVisibility)
 
-  // Sincroniza entre pestañas/componentes (Ajustes y Home a la vez)
+  // Sincroniza entre pestañas/componentes (Ajustes y Home a la vez). El evento
+  // 'storage' no salta en la misma pestaña: se emite además uno custom.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY) setServices(getServicesVisibility())
     }
+    const onLocal = () => setServices(getServicesVisibility())
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    window.addEventListener('netpulse-services-changed', onLocal)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('netpulse-services-changed', onLocal)
+    }
   }, [])
 
   const set = useCallback((k: keyof ServicesVisibility, v: boolean) => {
@@ -43,6 +49,7 @@ export function useServicesVisibility(): [ServicesVisibility, (k: keyof Services
       } catch {}
       return next
     })
+    window.dispatchEvent(new Event('netpulse-services-changed'))
   }, [])
 
   return [services, set]

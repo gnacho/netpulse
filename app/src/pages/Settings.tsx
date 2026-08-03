@@ -16,6 +16,7 @@ import {
   LogOut,
   MonitorSmartphone,
   Moon,
+  Pencil,
   Plus,
   Radar,
   Router as RouterIcon,
@@ -270,6 +271,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [copied, setCopied] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [candidates, setCandidates] = useState<DiscoverCandidate[] | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -406,6 +408,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setName('')
       setType('openwrt')
       setGateway(false)
+      setShowAddForm(false)
       await load()
       refresh()
       onSaved()
@@ -447,16 +450,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               <RouterIcon className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-text-primary">{r.name || r.host}</span>
+                  <span className="truncate font-mono text-sm font-medium text-text-primary">{r.host}</span>
                   {r.is_gateway && (
                     <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
                       {t('settings.routers.gatewayBadge')}
                     </span>
                   )}
                 </div>
-                <div className="font-mono text-caption text-text-muted">
-                  {r.host} · {r.type === 'glinet' ? 'GL.iNet' : 'OpenWrt'}
-                </div>
+                {r.name && <div className="truncate text-caption text-text-muted">{r.name}</div>}
               </div>
               {confirmDeleteFor === r.id ? (
                 <span className="flex shrink-0 items-center gap-1.5">
@@ -553,8 +554,19 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         )}
       </div>
 
-      {/* Formulario de alta */}
-      <form onSubmit={(e) => void add(e)} className="mt-4 border-t border-border pt-4">
+      {/* Alta manual colapsada tras botón (SPEC-65 D65-7a) */}
+      <div className="mt-4 border-t border-border pt-4">
+        <button
+          type="button"
+          aria-expanded={showAddForm}
+          onClick={() => setShowAddForm((v) => !v)}
+          className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
+          {t('settings.routers.addDevice')}
+        </button>
+        {showAddForm && (
+        <form onSubmit={(e) => void add(e)} className="mt-3">
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <input
             type="text"
@@ -599,7 +611,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
         <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.routers.hint')}</p>
-      </form>
+        </form>
+        )}
+      </div>
 
       {/* Clave pública SSH del servidor */}
       <div className="mt-4 border-t border-border pt-4">
@@ -650,6 +664,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
   const [newUser, setNewUser] = useState('')
   const [newPass, setNewPass] = useState('')
   const [newAdmin, setNewAdmin] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async () => {
@@ -700,6 +715,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
       setNewUser('')
       setNewPass('')
       setNewAdmin(false)
+      setShowCreateForm(false)
       await load()
       onSaved()
     } catch {
@@ -861,7 +877,19 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
         ))}
       </ul>
 
-      <form onSubmit={(e) => void add(e)} className="mt-4 border-t border-border pt-4">
+      {/* Alta de usuario colapsada tras botón (SPEC-65 D65-7b) */}
+      <div className="mt-4 border-t border-border pt-4">
+        <button
+          type="button"
+          aria-expanded={showCreateForm}
+          onClick={() => setShowCreateForm((v) => !v)}
+          className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
+          {t('settings.users.createUser')}
+        </button>
+        {showCreateForm && (
+        <form onSubmit={(e) => void add(e)} className="mt-3">
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <input
             type="text"
@@ -899,7 +927,9 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
           </button>
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
-      </form>
+        </form>
+        )}
+      </div>
     </Card>
   )
 }
@@ -917,6 +947,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [user, setUser] = useState('root')
   const [password, setPassword] = useState('')
   const [passSet, setPassSet] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -955,12 +986,39 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       setPassSet(true)
       setPassword('')
+      setEditing(false)
       onSaved()
     } catch {
       setError(t('settings.adguard.errorGeneric'))
     } finally {
       setSaving(false)
     }
+  }
+
+  // SPEC-65 D65-7c: configurado y sin editar → vista compacta (icono + host +
+  // chip ok + Editar). Sin configurar → form directo como antes.
+  if (passSet && !editing) {
+    return (
+      <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+          <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-text-primary">{host}</span>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+            {t('settings.adguard.configured')}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={t('settings.adguard.edit')}
+            title={t('settings.adguard.edit')}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+          >
+            <Pencil className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
+        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
+      </Card>
+    )
   }
 
   return (
@@ -1005,6 +1063,19 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           >
             {saving ? t('settings.adguard.saving') : t('settings.adguard.save')}
           </button>
+          {passSet && editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false)
+                setPassword('')
+                setError(null)
+              }}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+            >
+              {t('settings.users.cancel')}
+            </button>
+          )}
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
         <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
@@ -1248,6 +1319,8 @@ export default function Settings() {
   const reduce = useReducedMotion() ?? false
   const { devices, routers, wan, isDemo } = useNetPulse()
   const auth = useAuth()
+  // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
+  const [services] = useServicesVisibility()
 
   // ——— Idioma ('en' por defecto; 'auto' sigue al navegador; persistido) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
@@ -1835,8 +1908,8 @@ export default function Settings() {
           </div>
         )}
 
-        {/* AdGuard Home (GL.iNet) — solo admin y modo live */}
-        {!isDemo && auth?.role === 'admin' && (
+        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
+        {!isDemo && auth?.role === 'admin' && services.adguard && (
           <div className="lg:col-span-12">
             <AdGuardManager reduce={reduce} onSaved={notify} />
           </div>
