@@ -543,11 +543,15 @@ func topologyDevices() []Device {
 		case "altavoz":
 			grp = "iot"
 		}
+		icon := ""
+		if b.id == "impresora-hp" {
+			icon = "Printer" // paridad con el mock viejo (devices-data.ts)
+		}
 		out = append(out, withDetails(Device{
 			ID: b.id, Name: b.name, Type: b.typ, Manufacturer: b.man,
 			IP: b.ip, MAC: b.mac, RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "dist-flint2-lan3", Sparkline: sp},
-			b.id, "renueva en 5 h 22 min", "hace 60 días", "2,4 GB", "120 MB", true, grp, ""))
+			b.id, "renueva en 5 h 22 min", "hace 60 días", "2,4 GB", "120 MB", true, grp, icon))
 	}
 	return out
 }

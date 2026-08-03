@@ -14,7 +14,7 @@
  *   inventan dispositivos que la API no ha reportado.
  */
 import type { LucideIcon } from 'lucide-react'
-import { BookOpen, Network } from 'lucide-react'
+import { BookOpen, Network, Printer } from 'lucide-react'
 import type { Device } from '@/data/mock'
 import { devices as canonDevices } from '@/data/mock'
 
@@ -124,7 +124,7 @@ const TYPE_TO_GROUP: Record<Device['type'], FilterGroup> = {
 }
 
 /** Iconos lucide referenciados POR NOMBRE en el canon JSON (iconOverride). */
-const ICON_BY_NAME: Record<string, LucideIcon> = { BookOpen, Network }
+const ICON_BY_NAME: Record<string, LucideIcon> = { BookOpen, Network, Printer }
 
 function slug(name: string): string {
   return (
