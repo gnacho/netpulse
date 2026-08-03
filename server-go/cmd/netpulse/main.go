@@ -31,6 +31,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/poller"
 	"github.com/gnacho/netpulse/server-go/internal/push"
+	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
@@ -138,6 +139,28 @@ func run() error {
 	// Actualizador: repoRoot = padre de serverRoot (paridad index.js:49-53)
 	upd := updater.New(filepath.Clean(filepath.Join(cfg.ServerRoot, "..")), cfg.GithubRepo, cfg.GithubToken)
 
+	// Rearmer compartido (endpoint manual + supervisor de auto-rearme).
+	// El supervisor solo arranca con NETPULSE_AUTO_REARM=1 y en modo live
+	// con pool SSH: nada autónomo sobre equipamiento de red sin opt-in
+	// explícito (regla Fase 8).
+	rearmEngine := adapter.AlertsEngine()
+	arm := rearmer.New(dbHandle.DB, agentReg, sshPool, rearmEngine, 0)
+	var rearmSup *rearmer.Supervisor
+	if cfg.AutoRearm && sshPool != nil {
+		var cooldown time.Duration
+		if v := os.Getenv("NETPULSE_AUTO_REARM_COOLDOWN_S"); v != "" {
+			if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+				cooldown = time.Duration(sec) * time.Second
+			}
+		}
+		rearmSup = rearmer.NewSupervisor(arm, agentReg, dbHandle.DB, rearmEngine, 0, cooldown)
+		rearmSup.Start()
+		if cooldown <= 0 {
+			cooldown = rearmer.AutoCooldownDefault
+		}
+		log.Printf("[netpulse] supervisor de auto-rearme activo (cooldown %d s)", int(cooldown.Seconds()))
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:  cfg,
 		DB:      dbHandle,
@@ -148,6 +171,7 @@ func run() error {
 		Updater: upd,
 		Agents:  agentReg,
 		Pool:    sshPool,
+		Rearmer: arm,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
@@ -187,6 +211,9 @@ func run() error {
 			name = "SIGTERM"
 		}
 		log.Printf("[netpulse] %s recibido, cerrando...", name)
+		if rearmSup != nil {
+			rearmSup.Stop()
+		}
 		p.Stop()
 		upd.Stop()
 		hub.NotifyShutdown()

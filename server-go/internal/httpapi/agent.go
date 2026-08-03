@@ -18,6 +18,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,8 +28,8 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
-	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
@@ -308,17 +309,10 @@ func (s *server) handleAgentsDelete(w http.ResponseWriter, r *http.Request) {
 
 // ---------------------------------------------------------------------------
 // POST /api/agents/{slug}/rearm — Fase 6.1 (Plan B): reiniciar el servicio
-// procd del agente en el router vía SSH (el mismo canal del sondeo). El
-// servidor espera hasta ~30 s a que llegue un push nuevo y responde con el
-// resultado real, no con suposiciones.
+// procd del agente en el router vía SSH (el mismo canal del sondeo). La
+// lógica completa vive en el paquete rearmer (compartida con el supervisor
+// de auto-rearme); este handler solo mapea errores tipificados a status.
 // ---------------------------------------------------------------------------
-
-const (
-	rearmCmd      = "/etc/init.d/netpulse-agent restart"
-	rearmSSHWait  = 10 * time.Second // timeout del comando SSH
-	rearmPollWait = 30 * time.Second // cuánto esperar el push de vuelta
-	rearmCooldown = 60 * time.Second // anti-martilleo por slug
-)
 
 type rearmResponse struct {
 	Slug      string `json:"slug"`
@@ -333,93 +327,31 @@ func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	if s.db == nil {
+	if s.rearmer == nil {
 		writeError(w, http.StatusInternalServerError, "db_error")
 		return
 	}
-	// El slug debe tener token registrado (si no, 404 como DELETE)
-	var exists int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM kv WHERE key = ?", agentTokenKey(slug)).Scan(&exists); err != nil || exists == 0 {
-		writeError(w, http.StatusNotFound, "not_found", "ese slug no tiene agente registrado")
-		return
-	}
-	// Resolver host del router (tabla routers)
-	host := ""
-	for _, rc := range routerstore.ListRouters(s.db.DB) {
-		if rc.ID == slug {
-			host = rc.Host
-			break
-		}
-	}
-	if host == "" {
-		writeError(w, http.StatusConflict, "router_unknown", "no hay router con ese slug en la tabla routers")
-		return
-	}
-	if s.pool == nil {
-		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH (modo demo o clave ausente)")
-		return
-	}
 
-	// Anti-martilleo por slug (60 s)
-	s.rearmMu.Lock()
-	if last, ok := s.lastRearm[slug]; ok && time.Since(last) < rearmCooldown {
-		s.rearmMu.Unlock()
-		writeError(w, http.StatusTooManyRequests, "cooldown",
-			fmt.Sprintf("rearme reciente; espera %d s", int(rearmCooldown.Seconds())))
-		return
-	}
-	if s.lastRearm == nil {
-		s.lastRearm = map[string]time.Time{}
-	}
-	s.lastRearm[slug] = time.Now()
-	s.rearmMu.Unlock()
-
-	before := time.Now()
-	// Marcar el lastSeen previo para saber si el push que llega es NUEVO
-	var prevSeen time.Time
-	if s.agents != nil {
-		if seen, _, ok := s.agents.Info(slug); ok {
-			prevSeen = seen
+	res, err := s.rearmer.Rearm(slug)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, rearmResponse{
+			Slug: res.Slug, Restarted: res.Restarted, Recovered: res.Recovered, Message: res.Message,
+		})
+	case errors.Is(err, rearmer.ErrNoDB):
+		writeError(w, http.StatusInternalServerError, "db_error")
+	case errors.Is(err, rearmer.ErrNoToken):
+		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, rearmer.ErrNoRouter):
+		writeError(w, http.StatusConflict, "router_unknown", err.Error())
+	case errors.Is(err, rearmer.ErrNoSSH):
+		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", err.Error())
+	default:
+		var cd rearmer.ErrCooldown
+		if errors.As(err, &cd) {
+			writeError(w, http.StatusTooManyRequests, "cooldown", cd.Error())
+			return
 		}
+		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
 	}
-
-	if _, err := s.pool.Run(host, rearmCmd, rearmSSHWait); err != nil {
-		writeError(w, http.StatusBadGateway, "ssh_failed", fmt.Sprintf("no pude reiniciar el servicio en %s: %v", host, err))
-		return
-	}
-
-	// Esperar a que el agente vuelva a empujar (poll cada 2 s hasta rearmPollWait)
-	recovered := false
-	deadline := time.Now().Add(s.rearmPollWait)
-	pollInterval := 2 * time.Second
-	if s.rearmPollWait < pollInterval {
-		pollInterval = 50 * time.Millisecond
-	}
-	for time.Now().Before(deadline) {
-		time.Sleep(pollInterval)
-		if s.agents == nil {
-			break
-		}
-		if seen, _, ok := s.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
-			recovered = true
-			break
-		}
-	}
-
-	resp := rearmResponse{Slug: slug, Restarted: true, Recovered: recovered}
-	if recovered {
-		resp.Message = "servicio reiniciado y el agente volvió a empujar"
-		if s.adapter != nil {
-			s.adapter.AlertsEngine().Emit(alerts.AlertEvent{
-				ID:       fmt.Sprintf("alert-agent-rearm-%s-%d", slug, time.Now().UnixMilli()),
-				Category: alerts.CatSystem, Urgent: false, Severity: "info",
-				Title:       fmt.Sprintf("Agente rearmado en %s", slug),
-				Description: "Reinicio del servicio netpulse-agent desde el servidor — el agente vuelve a empujar",
-				Time:        "ahora mismo", RouterID: slug,
-			})
-		}
-	} else {
-		resp.Message = "servicio reiniciado, pero el agente aún no ha empujado en 30 s"
-	}
-	writeJSON(w, http.StatusOK, resp)
 }

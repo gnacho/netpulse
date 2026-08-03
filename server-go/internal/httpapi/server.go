@@ -11,6 +11,7 @@ package httpapi
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
@@ -28,7 +30,7 @@ import (
 )
 
 // Version es la versión del backend (app.js:18).
-const Version = "2.3.0"
+const Version = "2.4.0"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
@@ -49,6 +51,9 @@ type Deps struct {
 	// RearmPollWait: cuánto esperar el push de vuelta tras rearmar (default
 	// 30 s; los tests lo bajan). <= 0 → rearmPollWait.
 	RearmPollWait time.Duration
+	// Rearmer: instancia compartida (la usa también el supervisor de
+	// auto-rearme). nil → se construye una interna (tests).
+	Rearmer *rearmer.Rearmer
 	// LastOverview devuelve el último overview del poller (nil si aún no hay).
 	LastOverview func() *adapters.Overview
 	// PollNow dispara un ciclo de sondeo inmediato (POST /api/refresh);
@@ -65,7 +70,7 @@ type server struct {
 	secret  string
 	agents  *adapters.AgentRegistry
 	pool    SSHRunner
-	rearmPollWait time.Duration
+	rearmer *rearmer.Rearmer
 	lastOv  func() *adapters.Overview
 	pollNow func()
 	started time.Time
@@ -76,10 +81,6 @@ type server struct {
 
 	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
 	ingestLimit *ipRateLimit
-
-	// Anti-martilleo del rearme de agentes (60 s por slug, Fase 6.1).
-	rearmMu   sync.Mutex
-	lastRearm map[string]time.Time
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -87,12 +88,25 @@ func NewHandler(d Deps) http.Handler {
 	s := &server{
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
-		rearmPollWait: d.RearmPollWait,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 	}
-	if s.rearmPollWait <= 0 {
-		s.rearmPollWait = rearmPollWait
+	// Rearmer compartido entre el endpoint manual y el supervisor de
+	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
+	// compartan cooldowns; nil → se crea uno interno, p. ej. en tests).
+	if d.Rearmer != nil {
+		s.rearmer = d.Rearmer
+	} else {
+		// El motor de alertas del adapter alimenta las alertas de rearme.
+		var rearmEngine rearmer.AlertsEngine
+		if d.Adapter != nil {
+			rearmEngine = d.Adapter.AlertsEngine()
+		}
+		var dbHandle *sql.DB
+		if d.DB != nil {
+			dbHandle = d.DB.DB
+		}
+		s.rearmer = rearmer.New(dbHandle, d.Agents, d.Pool, rearmEngine, d.RearmPollWait)
 	}
 	mode := d.Adapter.Mode()
 

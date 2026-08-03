@@ -43,7 +43,7 @@ Sin esto, ni push funciona ni la Fase 8 es segura.
    `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
    GitHub en LANs sin salida y el `curl | sh` con token en argv.
 
-## Fase 6.1 — resiliencia del agente (hecha, v2.3.0)
+## Fase 6.1 — resiliencia del agente (hecha, v2.3.0) + auto-rearme (v2.4.0)
 
 Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
 
@@ -56,8 +56,14 @@ Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
    reinicia `init.d/netpulse-agent` vía el pool SSH del sondeo, espera el push
    de vuelta (30 s) y responde con el resultado real; cooldown 60 s por slug;
    botón «Rearmar» en la cabecera del router (solo agente caído).
-3. Auto-rearme tras TTL: pendiente, detrás de flag (regla Fase 8: nada
-   autónomo sobre equipamiento de red sin confirmación).
+3. **Auto-rearme tras TTL (v2.4.0):** supervisor en el servidor (cada 30 s)
+   que rearma automáticamente los agentes cuyo último push expiró (TTL 90 s).
+   Detrás de flag `NETPULSE_AUTO_REARM=1` (opt-in, regla Fase 8: nada
+   autónomo sobre red sin confirmación). Cooldown largo por slug
+   (`NETPULSE_AUTO_REARM_COOLDOWN_S`, default 600 s); solo rearma slugs con
+   token registrado y push previo (nunca un slug que no ha empujado jamás);
+   alerta de fallo si tras el reinicio no vuelve a empujar. Lógica de rearme
+   compartida con el endpoint manual (paquete `rearmer`).
 
 ## Fase 6 — incremento 2: el agente de verdad (~1 semana)
 

@@ -47,6 +47,7 @@ type Config struct {
 	GithubRepo    string
 	GithubToken   string
 	ServerRoot    string
+	AutoRearm     bool // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -170,6 +171,20 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_AUTO_REARM: '0'|'1', opcional (solo rearma si === '1').
+	// Opt-in explícito: nada autónomo sobre equipamiento de red sin
+	// confirmación del usuario (regla Fase 8).
+	autoRearm := false
+	if v, ok := env["NETPULSE_AUTO_REARM"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			autoRearm = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_AUTO_REARM", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
 	// MAX_SSE_CLIENTS: int 1..100, default 10
 	maxSSE := 10
 	if v, ok := env["MAX_SSE_CLIENTS"]; ok && v != "" {
@@ -277,6 +292,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		GithubRepo:    githubRepo,
 		GithubToken:   githubToken,
 		ServerRoot:    serverRoot,
+		AutoRearm:     autoRearm,
 	}, nil
 }
 
