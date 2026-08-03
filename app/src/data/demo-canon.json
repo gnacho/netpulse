@@ -2231,7 +2231,8 @@
       "traffic24hRx": "2,4 GB",
       "traffic24hTx": "120 MB",
       "adguard": true,
-      "group": "iot"
+      "group": "iot",
+      "iconOverride": "Printer"
     },
     {
       "id": "xbox-one",
