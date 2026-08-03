@@ -15,7 +15,7 @@
  * con arcos prohibidos (uplink, etiqueta, WAN, abanico cableado); cableados
  * en abanicos por hub; CTs en grid bajo el host.
  */
-import type { Band, Device, DistributionNode, Router, WanInfo, WGPeer, WireGuardStats } from '@/data/mock'
+import type { Band, Device, DistributionNode, Router, TopoSemantics, TopoSemLink, WanInfo, WGPeer, WireGuardStats } from '@/data/mock'
 
 /** viewBox del lienzo SVG */
 export const VB_W = 1000
@@ -117,6 +117,23 @@ export interface TopologyInput {
   wan: WanInfo
   wireguard: WireGuardStats
   distributionNodes?: DistributionNode[]
+  /**
+   * Semántica de topología precalculada server-side (SPEC-65 D65-3/D65-9 B2):
+   * anillos (miembros y orden), enlaces (from/to/kind) y "+N" de peers
+   * ocultos. La GEOMETRÍA (coordenadas, radios, paths) sigue 100% aquí.
+   * Ausente (servidor viejo o demo local) → cálculo local exacto de siempre.
+   */
+  topology?: TopoSemantics
+  /** Versión del view-model (SPEC-65 D65-4): la semántica aplica si vm >= 1. */
+  vm?: number
+}
+
+/** Chip "+N" de un anillo desbordado (posición ya calculada, geometría local). */
+export interface RingOverflowChip {
+  routerId: string
+  count: number
+  x: number
+  y: number
 }
 
 export interface TopologyModel {
@@ -135,6 +152,11 @@ export interface TopologyModel {
   ctCountByHost: Map<string, number>
   /** radios de los anillos wifi realmente usados por router (guías punteadas) */
   ringRadii: Map<string, number[]>
+  /**
+   * Chips "+N" por anillo desbordado (SPEC-65 D65-3 hiddenPeers, solo con
+   * semántica server-side): clientes del anillo que exceden el aforo visible.
+   */
+  ringOverflowChips: RingOverflowChip[]
   links: TopoLink[]
   totalPackets: number
   activeLinkCount: number
@@ -341,7 +363,10 @@ function flowFor(mbps: number, alive = false): { packets: number; packetDur: num
 // Builder
 // ---------------------------------------------------------------------------
 
-export function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [] }: TopologyInput): TopologyModel {
+export function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [], topology, vm }: TopologyInput): TopologyModel {
+  // SPEC-65 D65-3/D65-9 B2: la semántica server-side aplica con vm >= 1 y
+  // `topology` presente; sin ella, fallback EXACTO al cálculo local.
+  const sem = topology && (vm ?? 1) >= 1 ? topology : undefined
   const gateway = routers.find((r) => r.roleBadge === 'Principal') ?? routers[0]
   const aps = routers.filter((r) => r.id !== gateway?.id).slice(0, AP_COORDS.length)
 
@@ -374,7 +399,36 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (isWired(d) && !d.port && gatewayNode) return gatewayNode.id
     return d.routerId
   }
-  const childrenOf = (hubId: string) => online.filter((d) => hubOf(d) === hubId)
+  // SPEC-65 D65-3/D65-9 B2: con semántica server-side, los anillos llegan
+  // calculados (miembros y orden: cableados primero, luego 5/2.4 GHz) junto
+  // con el "+N" (hiddenPeers = ring − aforo visible de los anillos canónicos:
+  // gateway 5+8=13, AP 7+13=20). Sin semántica, fallback al cálculo local.
+  const GW_RING_VISIBLE = GATEWAY_RINGS.reduce((a, r) => a + r.cap, 0)
+  const AP_RING_VISIBLE = AP_RINGS.reduce((a, r) => a + r.cap, 0)
+  const ringOrder = new Map<string, string[]>()
+  const ringVisible = new Map<string, Set<string>>()
+  const ringOverflow = new Map<string, number>()
+  if (sem) {
+    for (const node of routerNodes) {
+      const ring = sem.rings[node.id] ?? []
+      ringOrder.set(node.id, ring)
+      const cap = node.id === gatewayNode?.id ? GW_RING_VISIBLE : AP_RING_VISIBLE
+      ringVisible.set(node.id, new Set(ring.slice(0, cap)))
+      const hidden = sem.hiddenPeers?.[node.id] ?? 0
+      if (hidden > 0) ringOverflow.set(node.id, hidden)
+    }
+  }
+  const childrenOf = (hubId: string): Device[] => {
+    const ring = ringOrder.get(hubId)
+    if (ring) return ring.map((id) => deviceById.get(id)).filter((d): d is Device => d !== undefined)
+    return online.filter((d) => hubOf(d) === hubId)
+  }
+  /** Chips visibles del anillo: con semántica, los ocultos ("+N") no se pintan. */
+  const isVisibleInRing = (d: Device): boolean => {
+    if (!sem) return true
+    const vis = ringVisible.get(hubOf(d))
+    return vis ? vis.has(d.id) : true
+  }
   const isWired = (d: Device) => d.band === 'cable'
 
   /** Hubs que son dispositivos con hijos propios (switch gestionado, hipervisor) */
@@ -401,7 +455,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const dists = distributionNodes.filter(
       (n) => n.routerId === node.id && (n.kind === 'inferred' || n.kind === 'managed'),
     )
-    const directWired = childrenOf(node.id).filter(isWired)
+    const directWired = childrenOf(node.id).filter((d) => isWired(d) && isVisibleInRing(d))
     const hubs = directWired.filter((d) => deviceHubs.has(d.id))
     const plain = directWired.filter((d) => !deviceHubs.has(d.id))
 
@@ -468,7 +522,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const ringRadii = new Map<string, number[]>()
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
-    const wifi = childrenOf(node.id).filter((d) => !isWired(d)).map((d) => mkChip(d, node.id))
+    const wifi = childrenOf(node.id)
+      .filter((d) => !isWired(d) && isVisibleInRing(d))
+      .map((d) => mkChip(d, node.id))
     if (wifi.length === 0) continue
     const excludes: [number, number][] = []
     if (isGw) {
@@ -556,6 +612,19 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     ctsByHost.set(hostId, kids)
     ctCountByHost.set(hostId, kids.length)
     chips.push(...kids)
+  }
+
+  // Chips "+N" de anillos desbordados (solo con semántica server-side):
+  // posición en el anillo externo — geometría 100% local (ángulo libre:
+  // gateway 60° entre el fan WAN y el uplink patio; AP 250° bajo el router).
+  const ringOverflowChips: RingOverflowChip[] = []
+  for (const [routerId, count] of ringOverflow) {
+    const node = routerById.get(routerId)
+    if (!node) continue
+    const radii = ringRadii.get(routerId)
+    const isGw = routerId === gatewayNode?.id
+    const r = radii?.[radii.length - 1] ?? (isGw ? GATEWAY_RINGS : AP_RINGS)[(isGw ? GATEWAY_RINGS : AP_RINGS).length - 1].r
+    ringOverflowChips.push({ routerId, count, ...pos(node.x, node.y, isGw ? 60 : 250, r) })
   }
 
   // -- peers WireGuard (arriba; túnel trazado vía Internet) -------------------
@@ -686,6 +755,109 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       from: node.id, to: 'internet',
     })
   })
+
+  // SPEC-65 D65-3/D65-9 B2: con semántica server-side, la LISTA de enlaces
+  // (from/to/kind) la manda el servidor; aquí solo se asigna la geometría
+  // (paths, etiquetas, flujo). En canon hay paridad 1:1 con los enlaces
+  // derivados localmente (golden test Go), así que se reutiliza la geometría
+  // ya calculada; para un enlace sin equivalente local (live con datos que
+  // el cálculo local no reproduce) se genera con las mismas reglas visuales.
+  if (sem) {
+    /** Geometría de un enlace semántico sin equivalente derivado localmente. */
+    const semLinkGeometry = (sl: TopoSemLink, wgIdx: number): TopoLink | null => {
+      const curve = (a: { x: number; y: number; r: number }, b: { x: number; y: number }): string => {
+        const edge = pos(a.x, a.y, angleTo(a.x, a.y, b.x, b.y), a.r + 2)
+        const dx = b.x - edge.x
+        const dy = b.y - edge.y
+        return `M ${edge.x} ${edge.y} Q ${edge.x + dx * 0.5 - dy * 0.1} ${edge.y + dy * 0.5 + dx * 0.1}, ${b.x} ${b.y}`
+      }
+      switch (sl.kind) {
+        case 'wan': {
+          if (!gatewayNode || sl.to !== gatewayNode.id) return null
+          return {
+            id: 'wan', kind: 'wan',
+            d: 'M 500 92 C 500 122, 500 162, 500 208',
+            lx: 518, ly: 162, label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
+            width: 3, ...flowFor(600),
+            from: sl.from, to: sl.to,
+          }
+        }
+        case 'uplink': {
+          const i = apNodes.findIndex((n) => n.id === sl.to)
+          const node = i >= 0 ? apNodes[i] : routerById.get(sl.to)
+          if (!node) return null
+          const isWifi = node.router.backhaul === 'wifi'
+          const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
+          const p = i >= 0 ? UPLINK_PATHS[i] : null
+          const from = gatewayNode ?? null
+          return {
+            id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
+            d: p?.d ?? (from ? curve(from, node) : ''),
+            lx: p?.lx ?? 0, ly: p?.ly ?? 0,
+            label,
+            width: isWifi ? 2 : 3, ...flowFor(Math.max(subtreeTraffic(node.id), isWifi ? 40 : 120)),
+            from: sl.from, to: sl.to,
+          }
+        }
+        case 'dist': {
+          const dv = distNodes.find((n) => n.id === sl.to)
+          const rn = routerById.get(sl.from)
+          if (!dv || !rn) return null
+          const edge = pos(rn.x, rn.y, angleTo(rn.x, rn.y, dv.x, dv.y), rn.r + 2)
+          const mid = { x: (edge.x + dv.x) / 2, y: (edge.y + dv.y) / 2 }
+          return {
+            id: `dist-${dv.id}`, kind: 'dist',
+            d: `M ${edge.x} ${edge.y} Q ${mid.x + 6} ${mid.y - 6}, ${dv.x} ${dv.y}`,
+            lx: 0, ly: 0, label: '',
+            width: 2.5, ...flowFor(subtreeTraffic(dv.id), true),
+            from: sl.from, to: sl.to,
+          }
+        }
+        case 'wired': {
+          const chip = chipById.get(sl.to)
+          const hub = hubPos(sl.from)
+          if (!chip || !hub) return null
+          const mbps = deviceHubs.has(chip.id) ? chip.device.trafficMbps + subtreeTraffic(chip.id) : chip.device.trafficMbps
+          return {
+            id: `wired-${chip.id}`, kind: 'wired',
+            d: curve(hub, chip),
+            lx: 0, ly: 0, label: '',
+            width: chip.isCt ? 1.2 : 1.4, ...flowFor(mbps, true),
+            from: sl.from, to: sl.to,
+          }
+        }
+        case 'wg': {
+          const pn = peerNodes.find((p) => p.id === sl.from)
+          if (!pn) return null
+          const p = WG_PATHS[wgIdx] ?? { d: '', dur: 3.2 }
+          const d = p.d || `M ${pn.x + 7} ${pn.y + 18} C ${pn.x + 60} ${pn.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
+          return {
+            id: `wg-${pn.peer.id}`, kind: 'wg',
+            d, lx: 0, ly: 0, label: '',
+            width: 2, packets: 1, packetDur: p.dur,
+            from: sl.from, to: sl.to,
+          }
+        }
+      }
+    }
+    const derivedByKey = new Map(links.map((l) => [`${l.kind}|${l.from}|${l.to}`, l] as const))
+    const semLinks: TopoLink[] = []
+    let wgIdx = 0
+    for (const sl of sem.links) {
+      const key = `${sl.kind}|${sl.from}|${sl.to}` as const
+      const hit = derivedByKey.get(key)
+      if (hit) {
+        semLinks.push(hit)
+        derivedByKey.delete(key)
+        if (sl.kind === 'wg') wgIdx++
+        continue
+      }
+      const gen = semLinkGeometry(sl, sl.kind === 'wg' ? wgIdx++ : 0)
+      if (gen) semLinks.push(gen)
+    }
+    links.length = 0
+    links.push(...semLinks)
+  }
 
   /** Guardrail de rendimiento: máx ~60 paquetes simultáneos (mockup) */
   let totalPackets = links.reduce((acc, l) => acc + l.packets, 0)
@@ -819,6 +991,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     ctsByHost,
     ctCountByHost,
     ringRadii,
+    ringOverflowChips,
     links,
     totalPackets,
     activeLinkCount,

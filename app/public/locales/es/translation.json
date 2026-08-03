@@ -523,6 +523,9 @@
     "peers": {
       "overflowTitle": "{{count}} peers más",
       "overflowAria": "{{count}} peers WireGuard adicionales"
+    },
+    "ring": {
+      "overflowAria": "{{count}} clientes más en {{router}}"
     }
   },
   "settings": {
