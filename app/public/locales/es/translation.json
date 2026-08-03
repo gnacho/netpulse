@@ -533,7 +533,6 @@
       "changelog": "Registro de cambios",
       "code": "Código",
       "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza routers y APs con algunos servicios como AdGuard Home + WireGuard de momento. Fase 1: solo lectura.",
-      "footer": "React 19 · Tailwind · Recharts · Framer Motion — fuentes: Space Grotesk, Inter, JetBrains Mono",
       "madeAtHome": "Apoya el proyecto en Ko-fi",
       "privacy": "100% privado · 0% nube",
       "title": "Acerca de",

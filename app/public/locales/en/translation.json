@@ -533,7 +533,6 @@
       "changelog": "Changelog",
       "code": "Source code",
       "desc": "Network control panel for OpenWRT devices. Monitors routers and APs with some services like AdGuard Home + WireGuard for now. Phase 1: read-only.",
-      "footer": "React 19 · Tailwind · Recharts · Framer Motion — fonts: Space Grotesk, Inter, JetBrains Mono",
       "madeAtHome": "Support the project on Ko-fi",
       "privacy": "100% private · 0% cloud",
       "title": "About",

@@ -2309,10 +2309,6 @@ export default function Settings() {
 
             {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
             <SystemInfoBlock />
-
-            <p className="mt-5 border-t border-border pt-3 font-mono text-caption text-text-muted">
-              {t('settings.about.footer')}
-            </p>
           </Card>
         </div>
       </div>
