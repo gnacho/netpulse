@@ -142,6 +142,10 @@ fi
 
 # ------------------------------------------------------------------ install --
 info "copiando binario → $SSH:$BIN_DST"
+# Reinstalación: si hay una versión previa en marcha, parar el servicio ANTES
+# del scp — el proceso vivo tiene el binario abierto y la copia falla con
+# "Text file busy". El servicio se reactiva al final (enable + restart).
+ssh "$SSH" "/etc/init.d/$INIT_NAME stop >/dev/null 2>&1 || true"
 # -O: protocolo SCP legacy — dropbear (OpenWrt) no tiene sftp-server y el
 # scp de OpenSSH ≥9 usa SFTP por defecto → "connection closed" sin esto.
 scp -Oq "$TMP/$BIN_NAME" "$SSH:$BIN_DST"
