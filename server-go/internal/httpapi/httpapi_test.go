@@ -673,7 +673,7 @@ func TestHealthEndpoints(t *testing.T) {
 	if res.StatusCode != 200 {
 		t.Fatalf("/api/health: %d", res.StatusCode)
 	}
-	if body["ok"] != true || body["version"] != "2.1.0" || body["mode"] != "demo" || body["db"] != "ok" {
+	if body["ok"] != true || body["version"] != "2.2.0" || body["mode"] != "demo" || body["db"] != "ok" {
 		t.Fatalf("/api/health: %v", body)
 	}
 	if _, ok := body["uptimeSec"].(float64); !ok {
