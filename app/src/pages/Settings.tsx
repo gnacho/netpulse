@@ -457,7 +457,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     </span>
                   )}
                 </div>
-                {r.name && <div className="truncate text-caption text-text-muted">{r.name}</div>}
+                {r.name && r.name !== r.host && (
+                  <div className="truncate text-caption text-text-muted">{r.name}</div>
+                )}
               </div>
               {confirmDeleteFor === r.id ? (
                 <span className="flex shrink-0 items-center gap-1.5">
