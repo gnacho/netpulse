@@ -2076,8 +2076,9 @@ export default function Settings() {
           <PushNotificationsCard reduce={reduce} onSaved={notify} />
         </div>
 
-        {/* Gestión de routers — solo con backend (modo live) */}
-        {!isDemo && (
+        {/* Gestión de routers — solo admin y con backend (modo live); la API
+            exige rol admin en las mutaciones (auditoría v2.4.0 §2, #7) */}
+        {!isDemo && auth?.role === 'admin' && (
           <div className="lg:col-span-12">
             <RoutersManager reduce={reduce} onSaved={notify} />
           </div>

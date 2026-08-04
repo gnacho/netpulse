@@ -30,7 +30,7 @@ import (
 )
 
 // Version es la versión del backend (app.js:18).
-const Version = "2.4.0"
+const Version = "2.4.1"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
@@ -142,12 +142,15 @@ func NewHandler(d Deps) http.Handler {
 	// --- Agentes nativos (Fase 6) ---
 	// Ingesta: SIN sesión (auth Bearer propia; exenta en RequireAuth).
 	mux.HandleFunc("POST /api/ingest/agent", s.handleIngestAgent)
-	// Gestión de tokens: tras sesión como el resto del API.
-	mux.HandleFunc("POST /api/agents", s.handleAgentsCreate)
+	// Gestión de tokens: tras sesión como el resto del API; las mutaciones
+	// (crear/revocar/rearmar) exigen rol admin — ejecutan acciones sobre los
+	// routers o exponen credenciales (auditoría v2.4.0 §2, issue #7). La
+	// lista es de lectura y se deja tras RequireAuth.
+	mux.Handle("POST /api/agents", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsCreate)))
 	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
-	mux.HandleFunc("DELETE /api/agents/{slug}", s.handleAgentsDelete)
+	mux.Handle("DELETE /api/agents/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsDelete)))
 	// Fase 6.1 (Plan B): rearme del servicio procd del agente vía SSH.
-	mux.HandleFunc("POST /api/agents/{slug}/rearm", s.handleAgentRearm)
+	mux.Handle("POST /api/agents/{slug}/rearm", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRearm)))
 
 	// --- Web Push (Fase 6 Bloque C; tras sesión como el resto del API) ---
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)

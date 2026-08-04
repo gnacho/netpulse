@@ -1,8 +1,8 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-03 (v2.3.0: Fase 6.1 resiliencia del agente — watchdog
-> cron con heartbeat + rearme desde el servidor). Orden por dependencias: lo
-> bloqueante primero.
+> Actualizada: 2026-08-04 (v2.4.1: endurecimiento de permisos — rutas de
+> agentes/rearme/gestión de routers exigen rol admin; auditoría §2, issue #7).
+> Orden por dependencias: lo bloqueante primero.
 > Referencias: `docs/AUDITORIA-FASE65.md` (riesgos R1-R8),
 > `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
@@ -64,6 +64,15 @@ Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
    token registrado y push previo (nunca un slug que no ha empujado jamás);
    alerta de fallo si tras el reinicio no vuelve a empujar. Lógica de rearme
    compartida con el endpoint manual (paquete `rearmer`).
+4. **Endurecimiento de permisos (v2.4.1):** las rutas que mutan la
+   monitorización (`POST/DELETE /api/agents`, `POST /api/agents/{slug}/rearm`,
+   `POST/DELETE /api/config/routers`) o exponen credenciales/escaneo
+   (`GET /api/config/sshkey`, `GET /api/config/discover`) pasan de
+   `RequireAuth` a `RequireAdmin`. Un usuario con rol `user` recibe 403.
+   Las lecturas equivalentes (`GET /api/agents`, `GET /api/config/routers`)
+   siguen tras `RequireAuth`. Frontend: `RoutersManager` y el botón «Rearmar»
+   se ocultan a usuarios no admin. Cierra el punto §2 de la auditoría
+   (issue #7); el resto de la auditoría vive en el issue #6.
 
 ## Fase 6 — incremento 2: el agente de verdad (~1 semana)
 

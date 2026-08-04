@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
+import { useAuth } from '@/data/AuthContext'
 import type { AgentInfo } from '@/data/types'
 import { cn } from '@/lib/utils'
 
@@ -13,9 +14,10 @@ interface AgentRearmButtonProps {
 type RearmState = 'idle' | 'busy' | 'ok' | 'pending' | 'fail'
 
 /**
- * Botón «Rearmar» (Fase 6.1, Plan B): solo aparece con un agente registrado
- * y NO fresh (caído). Reinicia el servicio procd en el router vía
- * POST /api/agents/{slug}/rearm y refleja el resultado real:
+ * Botón «Rearmar» (Fase 6.1, Plan B): solo aparece con un agente registrado,
+ * NO fresh (caído) y sesión con rol admin (la API exige admin en el rearme;
+ * auditoría v2.4.0 §2, issue #7). Reinicia el servicio procd en el router
+ * vía POST /api/agents/{slug}/rearm y refleja el resultado real:
  *   ok      → el agente volvió a empujar (recuperado)
  *   pending → reiniciado pero sin push en 30 s
  *   fail    → petición fallida (SSH, cooldown, sin servidor…)
@@ -24,9 +26,11 @@ type RearmState = 'idle' | 'busy' | 'ok' | 'pending' | 'fail'
 export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
   const { t } = useTranslation()
   const { rearmAgent } = useNetPulse()
+  const auth = useAuth()
   const [state, setState] = useState<RearmState>('idle')
 
   if (!agent || agent.fresh) return null
+  if (auth?.role !== 'admin') return null
 
   const label =
     state === 'busy' ? t('routers.agent.rearming')
