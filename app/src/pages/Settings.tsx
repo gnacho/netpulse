@@ -10,6 +10,7 @@ import {
   Copy,
   Download,
   FileText,
+  FlaskConical,
   Github,
   Heart,
   KeyRound,
@@ -1421,6 +1422,92 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
 }
 
 // ---------------------------------------------------------------------------
+// Modo demo (issue #4): activar/desactivar desde la UI sin reinstalar.
+// El instalador ya no pregunta por demo (default BD limpia); este card es la
+// vía de explorarla después. Solo visible para admin con backend real (en el
+// demo local sin backend no hay .env que tocar).
+// ---------------------------------------------------------------------------
+function DemoCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [serverMode, setServerMode] = useState<'demo' | 'live' | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/health', { signal: AbortSignal.timeout(3000) })
+        if (!res.ok) return
+        const json = (await res.json()) as { mode?: string }
+        if (json.mode === 'demo' || json.mode === 'live') setServerMode(json.mode)
+      } catch {
+        /* sin backend: el card no se muestra */
+      }
+    })()
+  }, [])
+
+  const switchMode = useCallback(
+    async (enable: boolean) => {
+      if (busy) return
+      setBusy(true)
+      setError(null)
+      try {
+        const res = await fetch('/api/demo/enable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enable }),
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (!res.ok) {
+          setError(`${t('settings.demo.title')} — HTTP ${res.status}`)
+          setBusy(false)
+          return
+        }
+        onSaved()
+        // El servidor se está reiniciando (flag .restart-me → systemd.path).
+        // Recargar en unos segundos para recoger el nuevo modo.
+        window.setTimeout(() => window.location.reload(), 6000)
+      } catch {
+        setError(`${t('settings.demo.title')} — fetch error`)
+        setBusy(false)
+      }
+    },
+    [busy, onSaved, t],
+  )
+
+  if (serverMode === null) return null
+
+  const enabling = serverMode === 'live'
+  return (
+    <Card title={t('settings.demo.title')} caption={t('settings.demo.caption')} index={5} reduce={reduce}>
+      <div className="flex flex-col gap-3">
+        <p className="text-caption leading-relaxed text-text-muted">
+          {enabling ? t('settings.demo.enableDesc') : t('settings.demo.disableDesc')}
+        </p>
+        {busy ? (
+          <div className="flex items-center gap-2 rounded-xl bg-elevated px-3.5 py-2.5 text-caption text-text-secondary">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-accent opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+            </span>
+            {t('settings.demo.restarting')}
+          </div>
+        ) : (
+          <button
+            onClick={() => void switchMode(enabling)}
+            className="inline-flex w-fit items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <FlaskConical className="h-4 w-4" strokeWidth={1.75} />
+            {enabling ? t('settings.demo.enable') : t('settings.demo.disable')}
+          </button>
+        )}
+        {error && <p className="text-caption text-red-500">{error}</p>}
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -1432,10 +1519,10 @@ export default function Settings() {
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
 
-  // ——— Idioma ('en' por defecto; 'auto' sigue al navegador; persistido) ———
+  // ——— Idioma ('auto' por defecto sigue al navegador; elección explícita persistida) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
     const raw = localStorage.getItem('netpulse-lang')
-    return raw === 'es' || raw === 'en' || raw === 'auto' ? raw : 'en'
+    return raw === 'es' || raw === 'en' || raw === 'auto' ? raw : 'auto'
   })
   const setLanguage = useCallback((v: 'auto' | 'es' | 'en') => {
     setLang(v)
@@ -2081,6 +2168,14 @@ export default function Settings() {
         {!isDemo && auth?.role === 'admin' && (
           <div className="lg:col-span-12">
             <RoutersManager reduce={reduce} onSaved={notify} />
+          </div>
+        )}
+
+        {/* Modo demo (issue #4): activar/desactivar desde la UI. Solo admin;
+            el card se oculta solo si no hay backend real (demo local). */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-5">
+            <DemoCard reduce={reduce} onSaved={notify} />
           </div>
         )}
 

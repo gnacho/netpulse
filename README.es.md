@@ -123,9 +123,12 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 | **5 — Topología v5** | ✅ | Mapa semántico real: FDB + LLDP en vivo, backhaul, switches gestionados vs. inferidos, hipervisores con sus CTs anidados, collector de series temporales |
 | **6 — Alertas, Push y agente (piloto)** | ✅ | Alertas con 6 categorías y config por categoría (urgente/todo/nada), Web Push nativo (VAPID), refresco bajo demanda, auditoría switch/bridge con canon de datos reconciliado, agente OpenWrt piloto (ingesta con tokens, fallback SSH, procd) |
 | **6.5 — View-model versionado** | ✅ | API como view-model de presentación (`vm: 1`), canon demo single-source en Go → JSON, `Device.infra` sellado server-side, topología semántica en el snapshot, remodel de Preferencias (nombre de saludo, info de sistema real, AdGuard/usuarios/routers simplificados) |
-| **6 inc. 2 — Agente a fondo** | ⏳ | netlink/nl80211 nativo, eventos ubus en tiempo real, paquete `.ipk`, medición en hardware real |
-| **7 — Cliente en el router** | 🔮 | `luci-app-netpulse`: cliente ligero LuCI que consume el view-model versionado (la 6.5 deja la API lista para esto) |
-| **Backlog** | 📋 | Integrar las series del collector en server-go · verificación de push real (FCM) · piloto del agente en los APs reales |
+| **8 — Resiliencia del agente** | ✅ | Watchdog + heartbeat en el router (v2.3.0), rearme manual desde el servidor (v2.4.0), auto-rearme tras TTL (v2.4.0) y rutas de mutación solo-admin (v2.4.1) |
+| **7 — TLS y endurecimiento** | 🔮 | HTTPS en CT 226 (desbloquea Web Push real), HMAC-SHA256 en la ingesta del agente, servir el binario del agente desde el propio servidor |
+| **9 — Agente a fondo** | ⏳ | netlink/nl80211 nativo, eventos ubus en tiempo real, paquete `.ipk`, medición en hardware real |
+| **10 — Cliente en el router** | 🔮 | `luci-app-netpulse`: cliente ligero LuCI que consume el view-model versionado (la 6.5 deja la API lista para esto) |
+| **11 — Escritura/orquestación** | 🔮 | Plan → apply → state (patrón Terraform), `uci` transaccional, allowlist estricta; empieza por AdGuard Home |
+| **Backlog** | 📋 | Integrar las series del collector en server-go · verificación de push real (FCM) · retención de series + informe semanal |
 
 Detalle completo en [docs/ROADMAP.md](docs/ROADMAP.md).
 

@@ -241,6 +241,14 @@ const GW_EAST_FAN: [number, number] = [336, 24] // wrap (a1 < a0)
 const GW_WEST_FAN: [number, number] = [150, 210]
 const AP_WIRED_FAN: [number, number] = [50, 130]
 const DIST_FAN_RADIUS = 82
+/** distnodes: hasta DIST_FAN_MAX hijos en abanico de 136°; con más, el arco
+ *  de radio fijo los amontona (issue #5 bug 2: 8 bocas tras un switch en el
+ *  mismo puerto) → anillos concéntricos alrededor del círculo dashed. */
+const DIST_FAN_MAX = 5
+const DIST_RINGS = [
+  { r: 62, cap: 7 },
+  { r: 104, cap: 12 },
+]
 const HUB_FAN_RADIUS = 56
 const ROUTER_FAN_RADIUS = 134
 /** Hosts hipervisores del gateway: lejos (su grid de CTs necesita espacio) */
@@ -587,12 +595,28 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
   chips.push(...hubChips)
 
-  // hijos de distnodes inferidos: abanico alrededor del círculo dashed
+  // hijos de distnodes inferidos: hasta DIST_FAN_MAX en abanico de 136°; con
+  // más, anillos concéntricos (el arco único los solapa — issue #5 bug 2).
   for (const dv of distNodes) {
     const kids = childrenOf(dv.id).map((d) => mkChip(d, dv.id))
     const rn = routerById.get(dv.node.routerId)
     const center = rn ? angleTo(rn.x, rn.y, dv.x, dv.y) : 0
-    fanLayout(kids, dv, DIST_FAN_RADIUS, center - 68, center + 68)
+    if (kids.length > DIST_FAN_MAX) {
+      // anillos alrededor del círculo dashed: se excluye el sector hacia el
+      // router (por donde entra el enlace dist-*) para que las líneas no
+      // crucen los chips
+      const excludes = rn ? arcAround(angleTo(dv.x, dv.y, rn.x, rn.y), 20) : []
+      const rings = [...DIST_RINGS]
+      let cap = rings.reduce((a, r) => a + r.cap, 0)
+      while (cap < kids.length) {
+        const last = rings[rings.length - 1]
+        rings.push({ r: last.r + 34, cap: last.cap + 5 })
+        cap = rings.reduce((a, r) => a + r.cap, 0)
+      }
+      ringLayout(kids, dv, rings, excludes)
+    } else {
+      fanLayout(kids, dv, DIST_FAN_RADIUS, center - 68, center + 68)
+    }
     chips.push(...kids)
   }
 

@@ -92,6 +92,37 @@ func TestParseDhcp(t *testing.T) {
 	}
 }
 
+func TestParseGlClients(t *testing.T) {
+	// Formato real del Flint2: map mac -> objeto con mac/ip/name/online.
+	raw := `{"clients":{
+		"AA:BB:CC:DD:EE:FF":{"mac":"aa:bb:cc:dd:ee:ff","ip":"192.168.8.21","name":"imac","online":true},
+		"11:22:33:44:55:66":{"mac":"11:22:33:44:55:66","ip":"192.168.8.34","name":"","online":true},
+		"22:33:44:55:66:77":{"mac":"22:33:44:55:66:77","ip":"192.168.8.40","name":"viejo","online":false},
+		"33:44:55:66:77:88":{"mac":"33:44:55:66:77:88","ip":"","name":"sinip","online":true}
+	}}`
+	leases, err := ParseGlClients([]byte(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	// Solo deben quedar los ONLINE con IP (2 de 4), ordenados por MAC.
+	if len(leases) != 2 {
+		t.Fatalf("esperadas 2, %d: %+v", len(leases), leases)
+	}
+	if leases[0].MAC != "11:22:33:44:55:66" || leases[0].IP != "192.168.8.34" {
+		t.Fatalf("primera %+v", leases[0])
+	}
+	if leases[1].MAC != "AA:BB:CC:DD:EE:FF" || leases[1].IP != "192.168.8.21" || leases[1].Hostname != "imac" {
+		t.Fatalf("segunda %+v", leases[1])
+	}
+	// Salida vacía / JSON roto no deben dar entradas.
+	if got, err := ParseGlClients([]byte("")); err == nil && len(got) != 0 {
+		t.Fatalf("vacío: %+v", got)
+	}
+	if _, err := ParseGlClients([]byte("not json")); err == nil {
+		t.Fatal("JSON roto debería dar error")
+	}
+}
+
 func TestParseWireless(t *testing.T) {
 	out := "A4:83:E7:21:0B:3C -48 5\nEC:71:DB:44:12:8A -72 2.4\n"
 	m := ParseWirelessClients(out)

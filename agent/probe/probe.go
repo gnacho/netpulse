@@ -31,6 +31,10 @@ const (
 	CmdPingGateway = "ping -c 2 -W 2 %s 2>/dev/null | tail -1"
 	CmdDhcpUbus    = "ubus call dhcp ipv4leases"
 	CmdDhcpFile    = "cat /tmp/dhcp.leases 2>/dev/null || true"
+	// CmdGlClients (GL.iNet): base de clientes completa del firmware. Es un
+	// SUPERSET de dhcp.leases: incluye equipos con IP estática o sin lease
+	// DHCP que el dnsmasq del Flint2 no lista (issue #5 bug 1).
+	CmdGlClients = "ubus call gl-clients list 2>/dev/null || true"
 	// CmdIwinfoAssoc: "<mac> <sig> <freq>" por cliente wifi asociado.
 	CmdIwinfoAssoc = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
 		`freq=$(iwinfo "$i" info 2>/dev/null | sed -n 's/.*Channel: [0-9]* (\([0-9.]*\) GHz).*/\1/p' | head -1); ` +
@@ -300,6 +304,49 @@ func ParseDhcpLeasesFile(out string) []DhcpLease {
 		leases = append(leases, DhcpLease{MAC: strings.ToUpper(p[1]), IP: p[2], Hostname: hostname})
 	}
 	return leases
+}
+
+// ParseGlClients parsea la respuesta de `ubus call gl-clients list`
+// (GL.iNet Flint2 y similares): {"clients": {"MAC": {mac, ip, name, online, ...}}}.
+// Error si no es JSON con esa forma. Solo devuelve entradas ONLINE con IP:
+// la base del firmware acumula historial (cientos de entradas) y las offline
+// solo servirían para inflar la lista de dispositivos; los equipos que
+// necesitan resolución de IP son los que están en la red ahora (issue #5
+// bug 1).
+func ParseGlClients(raw []byte) ([]DhcpLease, error) {
+	type clientJSON struct {
+		MAC      string `json:"mac"`
+		IP       string `json:"ip"`
+		Name     string `json:"name"`
+		Hostname string `json:"hostname"`
+		Online   bool   `json:"online"`
+	}
+	var data struct {
+		Clients map[string]clientJSON `json:"clients"`
+	}
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, err
+	}
+	if data.Clients == nil {
+		return nil, fmt.Errorf("gl-clients: sin clave clients")
+	}
+	out := make([]DhcpLease, 0, len(data.Clients))
+	for key, c := range data.Clients {
+		mac := c.MAC
+		if mac == "" {
+			mac = key
+		}
+		if mac == "" || c.IP == "" || !c.Online {
+			continue
+		}
+		hostname := c.Hostname
+		if hostname == "" {
+			hostname = c.Name
+		}
+		out = append(out, DhcpLease{MAC: strings.ToUpper(mac), IP: c.IP, Hostname: hostname})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].MAC < out[j].MAC })
+	return out, nil
 }
 
 // ParseWirelessClients parsea líneas "<mac> <sig> <freq>" del bucle iwinfo.
