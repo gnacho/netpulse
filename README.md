@@ -113,6 +113,20 @@ only been tested with my own hardware (a GL.iNet Flint 2 gateway and three
 Xiaomi AX6 access points running OpenWrt) plus WireGuard and AdGuard Home.
 Other OpenWrt devices should work, but yours would be the first to tell.
 
+## Roadmap
+
+| Phase | Status | Highlights |
+|---|---|---|
+| **1 — Read-only base** | ✅ | React PWA, read-only SSH polling (ubus, `/proc`, iwinfo), AdGuard Home + WireGuard, multi-user auth, LAN discovery, backend migrated from Node to Go (single binary with the app embedded) |
+| **5 — Topology v5** | ✅ | Real semantic map: live FDB + LLDP, backhaul, managed vs. inferred switches, hypervisors with nested CTs, time-series collector |
+| **6 — Alerts, Push and agent (pilot)** | ✅ | Alerts with 6 categories and per-category config (urgent/all/none), native Web Push (VAPID), on-demand refresh, switch/bridge audit with a reconciled data canon, OpenWrt agent pilot (token ingestion, SSH fallback, procd) |
+| **6.5 — Versioned view-model** | ✅ | API as a presentation view-model (`vm: 1`), single-source demo canon in Go → JSON, server-side sealed `Device.infra`, semantic topology in the snapshot, Preferences remodel (greeting name, real system info, simplified AdGuard/users/routers) |
+| **6 inc. 2 — Agent, deep dive** | ⏳ | Native netlink/nl80211, real-time ubus events, `.ipk` package, measurements on real hardware |
+| **7 — Client on the router** | 🔮 | `luci-app-netpulse`: lightweight LuCI client consuming the versioned view-model (6.5 gets the API ready for this) |
+| **Backlog** | 📋 | Integrate the collector's series into server-go · real push verification (FCM) · agent pilot on the real APs |
+
+Full detail in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Installation
 
 Requirements: Linux (x86_64, arm64 or armv7) with systemd.
