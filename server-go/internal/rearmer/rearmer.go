@@ -1,4 +1,4 @@
-// Package rearmer — Fase 6.1+: rearme de agentes netpulse.
+// Package rearmer — Fase 5: rearme de agentes netpulse.
 //
 // Dos disparadores comparten exactamente la misma lógica de rearme:
 //
@@ -27,7 +27,7 @@ const (
 	SSHWait = 10 * time.Second
 	// PollWait: cuánto esperar el push de vuelta tras el reinicio.
 	PollWait = 30 * time.Second
-	// Cooldown: anti-martilleo por slug (rearme manual, Fase 6.1).
+	// Cooldown: anti-martilleo por slug (rearme manual, Fase 5).
 	Cooldown = 60 * time.Second
 	// AutoCooldownDefault: anti-martilleo del supervisor (10 min por slug:
 	// si el rearme automático no lo arregla, el problema no es el proceso).
@@ -200,7 +200,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 
 // Supervisor vigila el registry de agentes: slug con token registrado cuyo
 // último push expiró (TTL) → Rearm con cooldown largo + alerta de fallo si
-// no se recupera. Coherente con la regla Fase 8: solo actúa si el usuario
+// no se recupera. Coherente con la regla Fase 10: solo actúa si el usuario
 // lo activó explícitamente (flag en .env).
 type Supervisor struct {
 	rearmer  *Rearmer

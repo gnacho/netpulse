@@ -199,7 +199,7 @@ ssh "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
 ok "servicio $INIT_NAME habilitado y arrancado"
 
 # ------------------------------------------------------------ watchdog cron --
-# Fase 6.1 (Plan A): cron cada 2 min relanza el agente si procd se rindió o
+# Fase 5 (Plan A): cron cada 2 min relanza el agente si procd se rindió o
 # si está "vivo pero roto" (heartbeat viejo). Idempotente: reemplaza la
 # línea previa del crontab.
 info "instalando watchdog (cron, cada 2 min)"

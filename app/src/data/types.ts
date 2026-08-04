@@ -311,7 +311,7 @@ export interface OverviewBundle {
 }
 
 /**
- * Item de `GET /api/agents` (Fase 6): agente nativo registrado en un router.
+ * Item de `GET /api/agents` (Fase 3): agente nativo registrado en un router.
  * `slug` coincide con el `id` del router (mismo alfabeto que routerstore).
  * `fresh` = el agente empujó dentro del TTL (~90 s); false → caído, el
  * backend vuelve a sondear por SSH.

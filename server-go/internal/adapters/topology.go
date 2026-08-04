@@ -27,7 +27,7 @@ import (
 //     clientes quedan "sin evidencia" y el frontend los cuelgan del gateway.
 //     Única excepción tras un AP: hipervisor con evidencia clara (MACs OUI
 //     de hipervisor + exactamente un host) = servidor con VMs tras ese AP.
-//   - LLDP (Fase 5, contrato C2): si en un puerto multi-MAC se anuncia un
+//   - LLDP (Fase 2, contrato C2): si en un puerto multi-MAC se anuncia un
 //     vecino LLDP cuya chassis-MAC está entre las aprendidas, el equipo que
 //     multiplexa queda IDENTIFICADO → nodo "managed" (nombre/mgmt-ip/caps
 //     anunciados). Es evidencia positiva, como la de hipervisor: aplica

@@ -1,4 +1,4 @@
-// lldp.go — Vecinos LLDP live (contrato C2, SPEC Fase 5): sonda SSH
+// lldp.go — Vecinos LLDP live (contrato C2, SPEC Fase 2): sonda SSH
 // `lldpcli -f json show neighbors` con timeout corto, error tipado
 // ErrLldpUnavailable cuando lldpd no está instalado (cacheado ≥5 min para no
 // martillear) y parseo defensivo del JSON (todos los campos opcionales; una

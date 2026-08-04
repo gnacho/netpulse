@@ -477,7 +477,7 @@ func TestDemoBackhaulCanon(t *testing.T) {
 	}
 }
 
-// Canon demo del nodo "managed" (Fase 5): el GS308E del Salón es un
+// Canon demo del nodo "managed" (Fase 2): el GS308E del Salón es un
 // DistributionNode identificado por LLDP (NO un Device), con sus 3 clientes
 // en abanico. El fantasma inferido del gateway se mantiene (las dos
 // historias: inferido vs identificado).
@@ -554,7 +554,7 @@ func TestDemoNodoManagedCanon(t *testing.T) {
 	}
 }
 
-// Canon demo de Router.Lldp (Fase 5, ítem 4 de C2): los AP cableados
+// Canon demo de Router.Lldp (Fase 2, ítem 4 de C2): los AP cableados
 // (living, estudio) tienen su uplink al gateway identificado por LLDP;
 // patio (uplink wifi) y el propio gateway NO llevan el campo.
 func TestDemoRouterLldpCanon(t *testing.T) {

@@ -1,4 +1,4 @@
-// timeseries_test.go — primeros tests del paquete (contrato C4, Fase 5).
+// timeseries_test.go — primeros tests del paquete (contrato C4, Fase 2).
 // SQLite real en t.TempDir(); el fallo de DB se inyecta cerrando la conexión
 // (equivale a Begin/Commit fallando por FS RO o disco lleno).
 package timeseries

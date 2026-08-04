@@ -1,31 +1,16 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-04 (v2.4.3: issues #3/#4/#5 — idioma auto, BD limpia
-> por defecto con demo activable desde la UI, clientes GL.iNet sin lease —
-> por las rutas SSH Y agente — y layout radial en topología).
-> Fases consecutivas desde la 1; la numeración antigua (0, 6.1, 6, 7, 8) se
-> reasignó en orden de dependencias: lo bloqueante primero.
-> Referencias: `docs/AUDITORIA-FASE65.md` (riesgos R1-R8),
-> `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
+> Actualizada: 2026-08-04 (v2.4.3). Fases consecutivas desde la 1, basadas
+> en el histórico real de commits. Referencias: `docs/AUDITORIA-FASE65.md`
+> (riesgos R1-R8), `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
 ## Estado actual (v2.4.3)
 
 Hecho y en producción (CT 226):
-- Fases 1-5: monitorización SSH agentless, AdGuard/WireGuard, topología,
-  alertas, PWA, demo mode, updater con banner.
-- Fase 6 (piloto): agente nativo instalado y reportando en gateway + 3 APs,
-  ingesta con tokens, Web Push implementado (backend + SW), alertas por
-  categorías.
-- Fase 6.5: view-model semántico (`vm: 1`), `Device.infra`, displayName,
-  `/api/system/info`.
-- Fase 8: resiliencia del agente (v2.3.0), rearme manual (v2.4.0),
-  auto-rearme (v2.4.0) y endurecimiento de permisos (v2.4.1).
-- Fixes v2.4.2/v2.4.3: idioma por defecto "auto" (sigue al navegador, issue #3);
-  instalación con BD limpia y demo activable desde Ajustes (issue #4);
-  IPs de clientes GL.iNet vía `gl-clients` donde dnsmasq no tiene lease y
-  layout en anillos para nodos de distribución con muchos hijos (issue #5).
-- Fixes previos: pantalla negra tras update (cache + reload racing + guard),
-  `-X main.Version` en el build del agente, `scp -O` para dropbear.
+- Fases 1-5 completas: base read-only, topología v5, alertas/push/agente
+  piloto, view-model semántico, resiliencia del agente.
+- Fixes v2.4.2/v2.4.3: idioma auto, BD limpia + demo desde UI, gl-clients
+  por rutas SSH y agente, layout radial en topología (issues #3/#4/#5).
 
 Dormido en producción (implementado pero sin efecto real):
 - **Web Push**: sin HTTPS en el servidor ningún navegador puede suscribirse
@@ -34,58 +19,123 @@ Dormido en producción (implementado pero sin efecto real):
   aportan tiempo real; y reportan versión 0.1.0 hasta reinstalarlos con la
   próxima release.
 
-## Fase 7 — TLS y endurecimiento (BLOQUEANTE, ~1 día)
+---
 
-Sin esto, ni push funciona ni la Fase 11 es segura.
+## Fase 1 — Base read-only (hecha, v1.x)
 
+Monitorización SSH agentless de routers OpenWrt/GL.iNet:
+- PWA en React con sondeo SSH de solo lectura (ubus, `/proc`, iwinfo).
+- AdGuard Home + WireGuard (stats y estado).
+- Auth multi-usuario con roles, discovery LAN.
+- Backend migrado de Node a Go (binario único con la app embebida).
+
+**Deploy**: install.sh one-liner, systemd en CT 226.
+
+---
+
+## Fase 2 — Topología v5 (hecha, v2.0.0)
+
+Mapa semántico real basado en evidencia de red:
+- FDB + LLDP en vivo: puertos cableados, switches gestionados vs. inferidos.
+- Backhaul real (wifi/cable) detectado por sonda ubus.
+- Hipervisores con sus CTs anidados (OUI de hipervisor + exactamente un host).
+- Collector de series temporales (latencia TCP, heartbeat, timeseries SQLite).
+
+**Deploy**: collector Go independiente con install-collector.sh.
+
+---
+
+## Fase 3 — Alertas, Push y agente piloto (hecha, v2.2.0)
+
+- Motor de alertas con 6 categorías y config por categoría (urgente/todo/nada).
+- Web Push nativo (VAPID) con SW propio (injectManifest).
+- Agente OpenWrt piloto: ingesta con tokens, fallback SSH, procd con respawn.
+- Refresco bajo demanda (POST /api/refresh con rate limit).
+
+**Deploy**: agentes instalados en gateway + 3 APs vía install-agent.sh.
+
+---
+
+## Fase 4 — View-model versionado (hecha, v2.2.0)
+
+API como view-model de presentación para consumo directo por clientes ligeros:
+- `vm: 1` en overview, canon demo single-source en Go → JSON.
+- `Device.infra` sellado server-side (hypervisor, ct, managed-switch).
+- Topología semántica en el snapshot.
+- Remodel de Preferencias: nombre de saludo, info de sistema real,
+  AdGuard/usuarios/routers simplificados con alta colapsada.
+
+**Deploy**: sin cambios (mismo servidor).
+
+---
+
+## Fase 5 — Resiliencia del agente (hecha, v2.3.0/v2.4.0/v2.4.1)
+
+Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
+1. **Plan A (auto-supervisión en el router):** watchdog cron con heartbeat.
+2. **Plan B (rearme desde el servidor):** POST /api/agents/{slug}/rearm.
+3. **Auto-rearme tras TTL (v2.4.0):** supervisor cada 30 s, opt-in con flag.
+4. **Endurecimiento de permisos (v2.4.1):** rutas de mutación solo-admin.
+
+**Deploy**: agentes reinstalados con watchdog incluido.
+
+---
+
+## Fase 6 — Fixes cosméticos y de datos (hecha parcialmente, v2.4.2/v2.4.3)
+
+Issues #3/#4/#5 + feedback cosmético del usuario:
+
+**Hecho:**
+- Idioma por defecto "auto" (sigue al navegador, issue #3).
+- Instalación con BD limpia y demo activable desde Ajustes (issue #4).
+- IPs de clientes GL.iNet vía `gl-clients` donde dnsmasq no tiene lease,
+  por las rutas SSH Y agente (issue #5 bug 1).
+- Layout en anillos para nodos de distribución con muchos hijos (issue #5 bug 2).
+- Remodel de Preferencias: routers solo-IP con alta colapsada, AdGuard
+  editable/oculto según servicio, usuarios colapsados, nombre de saludo,
+  info de sistema real en Acerca de (ya implementado en Fase 4).
+
+**Pendiente (feedback cosmético restante):**
+- **Espaciar más los iconos de clientes en topología**: el mockup tiene más
+  aire entre iconos; aumentar radio de abanicos (ROUTER_FAN_RADIUS,
+  DIST_FAN_RADIUS, HUB_FAN_RADIUS) sin deshacer nada.
+- **Identificación de Proxmox en live**: hoy solo se detecta hipervisor si
+  hay exactamente un host con MAC de hipervisor + VMs con OUI de hipervisor.
+  En producción con cluster Proxmox (2 hosts citadel-01/02) no se identifica
+  porque la regla exige "exactamente un host". Revisar si hay que relajar a
+  "uno o más hosts" o si el problema es que los hosts no están en la BD.
+
+**Deploy**: sin cambios (mismo servidor).
+
+---
+
+## Fase 7 — TLS y endurecimiento (bloqueante, ~1 día)
+
+Sin esto, ni push funciona ni la Fase 9 es segura.
+
+**Desarrollo:**
+1. **HMAC-SHA256 en la ingesta del agente** (R4): firmar el payload con el
+   token. ~10 líneas. Barato ahora, carísimo después de la Fase 9.
+2. **Servir el binario del agente desde el propio servidor** (R3):
+   `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
+   GitHub en LANs sin salida y el `curl | sh` con token en argv.
+
+**Deploy:**
 1. **HTTPS en CT 226** (R1): Caddy delante con cert autofirmado + confianza
    manual, o Tailscale Serve (HTTPS automático). Desbloquea Web Push real y
    permite retirar `NETPULSE_INSECURE_TLS`.
    Decisión pendiente: Caddy vs Tailscale (afecta a cómo confiarán los
    routers en el cert cuando ellos también empujen con TLS).
-2. **HMAC-SHA256 en la ingesta del agente** (R4): firmar el payload con el
-   token. ~10 líneas. Barato ahora, carísimo después de la Fase 11.
-3. **Reinstalar agentes con release nueva** para que reporten versión real
+2. **Reinstalar agentes con release nueva** para que reporten versión real
    (el fix `-X main.Version` ya está en goreleaser).
-4. **Servir el binario del agente desde el propio servidor** (R3):
-   `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
-   GitHub en LANs sin salida y el `curl | sh` con token en argv.
 
-## Fase 8 — resiliencia del agente (hecha: v2.3.0, v2.4.0, v2.4.1)
+---
 
-Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
-
-1. **Plan A (auto-supervisión en el router):** el agente toca
-   `/tmp/netpulse-agent.heartbeat` en cada push confirmado; un watchdog cron
-   (`/usr/sbin/netpulse-watchdog`, cada 2 min) relanza el servicio si procd se
-   rindió (pgrep) y lo reinicia si el proceso vive pero lleva >5 min sin
-   latido. Instalado/desinstalado por `install-agent.sh`.
-2. **Plan B (rearme desde el servidor):** `POST /api/agents/{slug}/rearm`
-   reinicia `init.d/netpulse-agent` vía el pool SSH del sondeo, espera el push
-   de vuelta (30 s) y responde con el resultado real; cooldown 60 s por slug;
-   botón «Rearmar» en la cabecera del router (solo agente caído).
-3. **Auto-rearme tras TTL (v2.4.0):** supervisor en el servidor (cada 30 s)
-   que rearma automáticamente los agentes cuyo último push expiró (TTL 90 s).
-   Detrás de flag `NETPULSE_AUTO_REARM=1` (opt-in, regla Fase 11: nada
-   autónomo sobre red sin confirmación). Cooldown largo por slug
-   (`NETPULSE_AUTO_REARM_COOLDOWN_S`, default 600 s); solo rearma slugs con
-   token registrado y push previo (nunca un slug que no ha empujado jamás);
-   alerta de fallo si tras el reinicio no vuelve a empujar. Lógica de rearme
-   compartida con el endpoint manual (paquete `rearmer`).
-4. **Endurecimiento de permisos (v2.4.1):** las rutas que mutan la
-   monitorización (`POST/DELETE /api/agents`, `POST /api/agents/{slug}/rearm`,
-   `POST/DELETE /api/config/routers`) o exponen credenciales/escaneo
-   (`GET /api/config/sshkey`, `GET /api/config/discover`) pasan de
-   `RequireAuth` a `RequireAdmin`. Un usuario con rol `user` recibe 403.
-   Las lecturas equivalentes (`GET /api/agents`, `GET /api/config/routers`)
-   siguen tras `RequireAuth`. Frontend: `RoutersManager` y el botón «Rearmar»
-   se ocultan a usuarios no admin. Cierra el punto §2 de la auditoría
-   (issue #7); el resto de la auditoría vive en el issue #6.
-
-## Fase 9 — el agente de verdad (~1 semana)
+## Fase 8 — Agente a fondo (~1 semana)
 
 El piloto actual ahorra SSH pero no da tiempo real. El salto es:
 
+**Desarrollo:**
 1. **Eventos ubus** (R7, el corazón): suscripción a hostapd assoc/disassoc →
    el dashboard ve clientes entrar/salir al instante.
 2. **netlink/nl80211 nativo**: FDB/ARP vía rtnetlink, estaciones wifi con
@@ -94,10 +144,15 @@ El piloto actual ahorra SSH pero no da tiempo real. El salto es:
    instalador actual queda como fallback.
 4. Medición en hardware real (RAM/CPU/flash) y ajuste de intervalos.
 
-## Fase 10 — app embebida en routers (decisión de diseño primero)
+**Deploy**: reinstalar agentes con la nueva versión (`.ipk` si está listo).
+
+---
+
+## Fase 9 — App embebida en routers (decisión de diseño primero)
 
 Convertir NetPulse en una app DEL router, no solo un panel externo:
 
+**Desarrollo:**
 - **Arquitectura objetivo**: el Flint 2 (gateway, 8 GB) corre
   `netpulse-agent` + `netpulse-server` reducido (modo on-box); los APs solo
   agent. La URL de la app ES la IP del router.
@@ -110,11 +165,16 @@ Convertir NetPulse en una app DEL router, no solo un panel externo:
 - Presupuesto: server-go hoy = 20 MB RSS / 14,4 MB binario → sobra en el
   gateway; en APs (512 MB) nunca debe correr el server.
 
-## Fase 11 — escritura/orquestación (riesgo alto, reglas estrictas)
+**Deploy**: instalar server on-box en el gateway, agentes en APs.
+
+---
+
+## Fase 10 — Escritura/orquestación (riesgo alto, reglas estrictas)
 
 Pasar de leer a actuar. Reglas de diseño innegociables
 (detalle en AUDITORIA-FASE65.md §5):
 
+**Desarrollo:**
 - Plan → apply → state (patrón Terraform): diff de config + confirmación.
 - `uci` transaccional, nunca sed sobre ficheros; snapshot antes de aplicar;
   rollback verificable obligatorio.
@@ -131,6 +191,10 @@ Orden por riesgo/beneficio:
 4. **Batman-adv** (el último: riesgo de bucles en mesh; dry-run obligatorio
    + ventana de confirmación con auto-rollback).
 
+**Deploy**: sin cambios hasta que haya algo que desplegar.
+
+---
+
 ## Deudas y mejoras transversales (sin fase asignada)
 
 - **Series del collector en server-go**: hoy son independientes
@@ -143,8 +207,14 @@ Orden por riesgo/beneficio:
 - Registry de agentes persistente (hoy `lastSeen` se pierde al reiniciar el
   servidor) y adopción solo de slugs conocidos (evitar huérfanos, R8).
 
+---
+
 ## Convención de trabajo
 
 Cada ítem de esta hoja de ruta se materializa como issue en GitHub antes de
 tocar código, y se cierra con el PR que lo resuelve (ver convención
 issue→PR acordada el 2026-08-03).
+
+Separación desarrollo/deploy: cada fase indica qué es código y qué es
+despliegue en el servidor/routers. El desarrollo se commitea y pushea;
+el deploy se ejecuta aparte (install.sh, reinstall de agentes, etc.).

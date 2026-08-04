@@ -81,7 +81,7 @@ func run() error {
 
 	// Adapter: DEMO_MODE=1 → demo (dataset canónico + random walk);
 	// live → sondeo real (SSH/ubus) de los routers configurados.
-	// Registry de agentes nativos (Fase 6): en live alimenta el adapter
+	// Registry de agentes nativos (Fase 3): en live alimenta el adapter
 	// live-agent (Tier 2 con degrade a SSH); en demo solo registra pushes
 	// (last_seen/versión para GET /api/agents) sin tocar el dataset canónico.
 	agentTTL := adapters.AgentTTLDefault
@@ -142,7 +142,7 @@ func run() error {
 	// Rearmer compartido (endpoint manual + supervisor de auto-rearme).
 	// El supervisor solo arranca con NETPULSE_AUTO_REARM=1 y en modo live
 	// con pool SSH: nada autónomo sobre equipamiento de red sin opt-in
-	// explícito (regla Fase 8).
+	// explícito (regla Fase 10).
 	rearmEngine := adapter.AlertsEngine()
 	arm := rearmer.New(dbHandle.DB, agentReg, sshPool, rearmEngine, 0)
 	var rearmSup *rearmer.Supervisor

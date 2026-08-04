@@ -45,7 +45,7 @@ type Deps struct {
 	// last_seen/versión de GET /api/agents). nil → ingesta 503.
 	Agents *adapters.AgentRegistry
 	// Pool: ejecutor de comandos SSH del sondeo. nil (demo / sin clave) → el
-	// rearme de agentes responde 503 (POST /api/agents/{slug}/rearm, Fase 6.1).
+	// rearme de agentes responde 503 (POST /api/agents/{slug}/rearm, Fase 5).
 	// Es una interfaz para poder inyectar un fake en los tests.
 	Pool SSHRunner
 	// RearmPollWait: cuánto esperar el push de vuelta tras rearmar (default
@@ -139,7 +139,7 @@ func NewHandler(d Deps) http.Handler {
 	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
 
-	// --- Agentes nativos (Fase 6) ---
+	// --- Agentes nativos (Fase 3) ---
 	// Ingesta: SIN sesión (auth Bearer propia; exenta en RequireAuth).
 	mux.HandleFunc("POST /api/ingest/agent", s.handleIngestAgent)
 	// Gestión de tokens: tras sesión como el resto del API; las mutaciones
@@ -149,10 +149,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("POST /api/agents", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsCreate)))
 	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
 	mux.Handle("DELETE /api/agents/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsDelete)))
-	// Fase 6.1 (Plan B): rearme del servicio procd del agente vía SSH.
+	// Fase 5 (Plan B): rearme del servicio procd del agente vía SSH.
 	mux.Handle("POST /api/agents/{slug}/rearm", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRearm)))
 
-	// --- Web Push (Fase 6 Bloque C; tras sesión como el resto del API) ---
+	// --- Web Push (Fase 3 Bloque C; tras sesión como el resto del API) ---
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)
 	mux.HandleFunc("POST /api/push/subscribe", s.handlePushSubscribe)
 	mux.HandleFunc("POST /api/push/unsubscribe", s.handlePushUnsubscribe)

@@ -173,7 +173,7 @@ type Device struct {
 	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
 	// DistributionNode inferido o de otro Device — hipervisor/switch).
 	AttachTo string `json:"attachTo,omitempty"`
-	// Infra: rol de infraestructura sellado server-side (Fase 6.5). La app NO
+	// Infra: rol de infraestructura sellado server-side (Fase 4). La app NO
 	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
 	// "ct" (CT/VM anidado bajo hipervisor), "managed-switch" (switch con gestión
 	// identificado por LLDP — hoy switch-netgear).
@@ -234,7 +234,7 @@ type AlertEvent = alerts.AlertEvent
 // de forma (añadir campos opcionales NO bumpea).
 const ViewModelVersion = 1
 
-// TopoSemantics: modelo semántico de la topología (Fase 6.5). La app conserva
+// TopoSemantics: modelo semántico de la topología (Fase 4). La app conserva
 // SOLO la geometría de píxeles; asignaciones de anillo, enlaces y conteos de
 // peers ocultos llegan calculados.
 type TopoSemantics struct {

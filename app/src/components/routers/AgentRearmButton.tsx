@@ -14,7 +14,7 @@ interface AgentRearmButtonProps {
 type RearmState = 'idle' | 'busy' | 'ok' | 'pending' | 'fail'
 
 /**
- * Botón «Rearmar» (Fase 6.1, Plan B): solo aparece con un agente registrado,
+ * Botón «Rearmar» (Fase 5, Plan B): solo aparece con un agente registrado,
  * NO fresh (caído) y sesión con rol admin (la API exige admin en el rearme;
  * auditoría v2.4.0 §2, issue #7). Reinicia el servicio procd en el router
  * vía POST /api/agents/{slug}/rearm y refleja el resultado real:

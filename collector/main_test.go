@@ -1,4 +1,4 @@
-// main_test.go — primeros tests del collector (contrato C4, Fase 5).
+// main_test.go — primeros tests del collector (contrato C4, Fase 2).
 package main
 
 import (

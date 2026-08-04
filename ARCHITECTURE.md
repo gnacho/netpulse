@@ -82,11 +82,11 @@
   lento): asciende el nodo a **"managed"** (identificado: chasis, IP de
   gestión, capacidades, puerto remoto, badge cyan) y puebla `Device.Lldp`.
 
-## View-model versionado (Fase 6.5)
+## View-model versionado (Fase 4)
 
 La API es un **view-model de presentación versionado**: `GET /api/overview`
 lleva siempre `vm` (`adapters.ViewModelVersion`, hoy `1`). Un cliente (p.ej.
-Fase 7 LuCI) debe rechazar/avisar si `vm` supera la versión que soporta. Bump
+Fase 9 LuCI) debe rechazar/avisar si `vm` supera la versión que soporta. Bump
 de versión = cualquier cambio incompatible de forma; añadir campos opcionales
 NO bumpea. El overview gana además `topology` (semántica precalculada:
 enlaces, anillos por router y peers ocultos "+N") y los devices pueden llevar
@@ -102,7 +102,7 @@ semántica del snapshot se usa cuando está presente (anillos, enlaces y "+N"
 del server; la geometría de píxeles sigue siendo local) con fallback exacto
 al cálculo cliente si el servidor es viejo.
 
-Endpoints de soporte (Fase 6.5): `GET /api/system/info` (datos reales del
+Endpoints de soporte (Fase 4): `GET /api/system/info` (datos reales del
 proceso: versión Go, distro, kernel, CPU, RAM, uptime — alimenta el bloque
 Sistema de Acerca de) y `PUT /api/users/me/display-name` (nombre de saludo
 del Resumen, ≠ username; columna `users.display_name` migrada como
@@ -166,7 +166,7 @@ navegador). SW propio (`injectManifest`) con handlers `push` y
 `notificationclick` → abre `/alerts`. Requiere contexto seguro (HTTPS o
 localhost) — en LAN HTTP la tarjeta de Ajustes lo avisa.
 
-## Agente OpenWrt (Fase 6, piloto)
+## Agente OpenWrt (Fase 3, piloto)
 
 `POST /api/ingest/agent` (Bearer por equipo, token sha256 en `kv`, rate-limit
 30/min, body ≤ 2 MB) + CRUD `/api/agents`. El adapter live-agent usa el último
@@ -199,17 +199,17 @@ Ver `server-go/.env.example`. Resumen: `PORT`, `STATIC_DIR`, `DATA_DIR`,
 
 ## Hoja de ruta
 
-Ver `docs/ROADMAP.md` (fuente de verdad, actualizada 2026-08-03). Resumen:
+Ver `docs/ROADMAP.md` (fuente de verdad, actualizada 2026-08-04). Resumen:
 
-- **Fase 0 — TLS y endurecimiento (bloqueante):** HTTPS en CT 226
+- **Fase 7 — TLS y endurecimiento (bloqueante):** HTTPS en CT 226
   (desbloquea Web Push), HMAC en la ingesta, binario del agente servido
   localmente, reinstalación de agentes con versión inyectada.
-- **Fase 6 — incremento 2 del agente:** netlink/nl80211 nativo, eventos ubus
+- **Fase 8 — agente a fondo:** netlink/nl80211 nativo, eventos ubus
   (assoc/disassoc en tiempo real), `.ipk`, medición en hardware real.
   Piloto (ingesta + push + fallback SSH) YA implementado y desplegado en los
   4 routers — ver sección "Agente OpenWrt".
-- **Fase 7:** app embebida en routers (server on-box en el gateway,
+- **Fase 9:** app embebida en routers (server on-box en el gateway,
   `luci-app-netpulse` opcional).
-- **Fase 8:** escritura/orquestación (AdGuard → WireGuard → DAWN → Batman)
+- **Fase 10:** escritura/orquestación (AdGuard → WireGuard → DAWN → Batman)
   con plan/apply/rollback.
 - Integración de las series del collector en server-go (hoy son independientes).

@@ -1,4 +1,4 @@
-// rearm_api_test.go — Fase 6.1 (Plan B): POST /api/agents/{slug}/rearm.
+// rearm_api_test.go — Fase 5 (Plan B): POST /api/agents/{slug}/rearm.
 // Casos: 404 sin slug registrado, 409 slug sin router en la tabla routers,
 // 503 sin pool SSH (modo demo), 502 si el SSH falla, 200 recuperado (un push
 // de vuelta llega tras el reinicio), 200 sin push de vuelta y 429 por cooldown.

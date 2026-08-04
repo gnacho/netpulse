@@ -1,4 +1,4 @@
-// rearmer_test.go — Fase 6.1+: Rearmer compartido + Supervisor de
+// rearmer_test.go — Fase 5: Rearmer compartido + Supervisor de
 // auto-rearme. Casos: rearme completo (SSH ejecutado), supervisor solo
 // rearma slugs con token + push expirado (nunca sin evidencia previa),
 // cooldown largo del supervisor, alerta de fallo sin recuperación.

@@ -118,14 +118,15 @@ Other OpenWrt devices should work, but yours would be the first to tell.
 | Phase | Status | Highlights |
 |---|---|---|
 | **1 — Read-only base** | ✅ | React PWA, read-only SSH polling (ubus, `/proc`, iwinfo), AdGuard Home + WireGuard, multi-user auth, LAN discovery, backend migrated from Node to Go (single binary with embedded app) |
-| **5 — Topology v5** | ✅ | Real semantic map: live FDB + LLDP, backhaul, managed vs. inferred switches, hypervisors with nested CTs, time-series collector |
-| **6 — Alerts, Push & agent (pilot)** | ✅ | Alerts with 6 categories and per-category config (urgent/all/none), native Web Push (VAPID), on-demand refresh, switch/bridge audit with reconciled data canon, OpenWrt agent pilot (token ingest, SSH fallback, procd) |
-| **6.5 — Versioned view-model** | ✅ | API as a presentation view-model (`vm: 1`), single-sourced demo canon in Go → JSON, server-stamped `Device.infra`, semantic topology in the snapshot, Settings revamp (greeting name, real system info, streamlined AdGuard/users/routers) |
-| **8 — Agent resilience** | ✅ | Router-side watchdog + heartbeat (v2.3.0), server-side manual rearm (v2.4.0), TTL auto-rearm (v2.4.0) and admin-only mutation routes (v2.4.1) |
+| **2 — Topology v5** | ✅ | Real semantic map: live FDB + LLDP, backhaul, managed vs. inferred switches, hypervisors with nested CTs, time-series collector |
+| **3 — Alerts, Push & agent (pilot)** | ✅ | Alerts with 6 categories and per-category config (urgent/all/none), native Web Push (VAPID), on-demand refresh, switch/bridge audit with reconciled data canon, OpenWrt agent pilot (token ingest, SSH fallback, procd) |
+| **4 — Versioned view-model** | ✅ | API as a presentation view-model (`vm: 1`), single-sourced demo canon in Go → JSON, server-stamped `Device.infra`, semantic topology in the snapshot, Settings revamp (greeting name, real system info, streamlined AdGuard/users/routers) |
+| **5 — Agent resilience** | ✅ | Router-side watchdog + heartbeat (v2.3.0), server-side manual rearm (v2.4.0), TTL auto-rearm (v2.4.0) and admin-only mutation routes (v2.4.1) |
+| **6 — Cosmetic & data fixes** | 🚧 | Auto language, clean DB + demo from UI, GL.iNet IPs without lease (SSH and agent paths), radial layout (v2.4.2/v2.4.3); pending: more spacing between client icons and Proxmox cluster detection |
 | **7 — TLS & hardening** | 🔮 | HTTPS on CT 226 (unlocks real Web Push), HMAC-SHA256 on agent ingest, serve the agent binary from the server itself |
-| **9 — Agent deep dive** | ⏳ | Native netlink/nl80211, real-time ubus events, `.ipk` package, real-hardware benchmarking |
-| **10 — On-router client** | 🔮 | `luci-app-netpulse`: lightweight LuCI client consuming the versioned view-model (6.5 makes the API ready for this) |
-| **11 — Write/orchestration** | 🔮 | Plan → apply → state (Terraform pattern), transactional `uci`, strict allowlist; starts with AdGuard Home |
+| **8 — Agent deep dive** | ⏳ | Native netlink/nl80211, real-time ubus events, `.ipk` package, real-hardware benchmarking |
+| **9 — Embedded on-router app** | 🔮 | On-box server on the gateway (the app URL IS the router's IP), zero-friction pairing, optional `luci-app-netpulse` |
+| **10 — Write/orchestration** | 🔮 | Plan → apply → state (Terraform pattern), transactional `uci`, strict allowlist; starts with AdGuard Home |
 | **Backlog** | 📋 | Integrate collector series into server-go · real push verification (FCM) · series retention + weekly availability report |
 
 Full detail in [docs/ROADMAP.md](docs/ROADMAP.md).

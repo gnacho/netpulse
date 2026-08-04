@@ -1,6 +1,6 @@
 #!/bin/sh
 # =============================================================================
-# netpulse-watchdog — Fase 6.1 (Plan A): auto-supervisión del agente desde el
+# netpulse-watchdog — Fase 5 (Plan A): auto-supervisión del agente desde el
 # propio router. Se ejecuta desde cron cada 2 minutos:
 #
 #   1. Proceso muerto → /etc/init.d/netpulse-agent restart

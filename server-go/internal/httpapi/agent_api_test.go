@@ -1,4 +1,4 @@
-// agent_api_test.go — Fase 6 piloto (SPEC-AGENTE-PILOTO §1): ingesta con
+// agent_api_test.go — Fase 3 piloto (SPEC-AGENTE-PILOTO §1): ingesta con
 // token válido/inválido, body grande, rate limit, payload inválido (no rompe
 // el pipeline), y gestión de tokens (crear/listar/revocar; el token solo se
 // muestra una vez y NUNCA sale por GET).

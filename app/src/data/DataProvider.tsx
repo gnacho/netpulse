@@ -101,7 +101,7 @@ export interface NetPulseData {
 export interface NetPulseApi extends NetPulseData {
   connectionStatus: ConnectionStatus
   /**
-   * Agentes nativos registrados (GET /api/agents, Fase 6). El `slug` casa con
+   * Agentes nativos registrados (GET /api/agents, Fase 3). El `slug` casa con
    * el `id` del router. En demo: lista vacía (sin badges, comportamiento
    * honesto — no se mockean agentes). Se refresca cada ~30 s en live.
    */
@@ -134,7 +134,7 @@ export interface NetPulseApi extends NetPulseData {
   /** POST /api/alerts/read-all (live). Demo: estado local. Optimista. */
   markAllAlertsRead: () => void
   /**
-   * Fase 6.1 (Plan B): POST /api/agents/{slug}/rearm — reinicia el servicio
+   * Fase 5 (Plan B): POST /api/agents/{slug}/rearm — reinicia el servicio
    * procd del agente en el router (vía SSH del servidor) y espera a que
    * vuelva a empujar. Devuelve `{ recovered }` o null si la petición falló
    * (demo siempre null: no hay agentes que rearmar).
@@ -487,7 +487,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Agentes nativos (Fase 6): no forman parte del overview; se sondean
+    // Agentes nativos (Fase 3): no forman parte del overview; se sondean
     // aparte cada ~30 s. Sin agentes registrados → [] (sin badges).
     const fetchAgents = async (): Promise<void> => {
       try {
@@ -668,7 +668,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /**
-   * Fase 6.1 (Plan B): rearme del servicio del agente en el router. El
+   * Fase 5 (Plan B): rearme del servicio del agente en el router. El
    * backend ejecuta `init.d restart` por SSH y espera hasta 30 s el push de
    * vuelta → por eso aquí NO hay timeout corto: se deja respirar. null =
    * petición fallida (red, 4xx/5xx, demo).

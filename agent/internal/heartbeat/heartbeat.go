@@ -1,4 +1,4 @@
-// Package heartbeat — Fase 6.1 (resiliencia del agente): el agente toca un
+// Package heartbeat — Fase 5 (resiliencia del agente): el agente toca un
 // fichero en /tmp (RAM, nada en NAND) tras cada push CONFIRMADO por el
 // servidor. El watchdog cron del router (agent/deploy/watchdog.sh) usa la
 // edad de ese fichero para distinguir "proceso vivo y empujando" de

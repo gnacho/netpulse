@@ -1,4 +1,4 @@
-// agent.go — Fase 6 piloto (SPEC-AGENTE-PILOTO §1):
+// agent.go — Fase 3 piloto (SPEC-AGENTE-PILOTO §1):
 //
 //   POST /api/ingest/agent  — ingesta de agentes nativos. NO va detrás del
 //                             middleware de sesión: auth propia Bearer con
@@ -47,7 +47,7 @@ const (
 var agentSlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 // SSHRunner ejecuta comandos en los routers (adapters.SSHPool en
-// producción; fake en tests). Fase 6.1: rearme de agentes.
+// producción; fake en tests). Fase 5: rearme de agentes.
 type SSHRunner interface {
 	Run(host, cmd string, timeout time.Duration) (string, error)
 }
@@ -308,7 +308,7 @@ func (s *server) handleAgentsDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/agents/{slug}/rearm — Fase 6.1 (Plan B): reiniciar el servicio
+// POST /api/agents/{slug}/rearm — Fase 5 (Plan B): reiniciar el servicio
 // procd del agente en el router vía SSH (el mismo canal del sondeo). La
 // lógica completa vive en el paquete rearmer (compartida con el supervisor
 // de auto-rearme); este handler solo mapea errores tipificados a status.

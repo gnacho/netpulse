@@ -10,7 +10,7 @@ interface AgentBadgeProps {
 }
 
 /**
- * Badge "Agente" (Fase 6 piloto):
+ * Badge "Agente" (Fase 3 piloto):
  * - `fresh` → tono info discreto, tooltip con versión y cadencia de push.
  * - caído  → tono warn pulsante, tooltip "sondeando por SSH" (las alertas de
  *   categoría system ya narran la caída/recuperación; aquí solo el estado).

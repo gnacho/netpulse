@@ -173,7 +173,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 
 	// NETPULSE_AUTO_REARM: '0'|'1', opcional (solo rearma si === '1').
 	// Opt-in explícito: nada autónomo sobre equipamiento de red sin
-	// confirmación del usuario (regla Fase 8).
+	// confirmación del usuario (regla Fase 10).
 	autoRearm := false
 	if v, ok := env["NETPULSE_AUTO_REARM"]; ok && v != "" {
 		switch v {
