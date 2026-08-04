@@ -226,6 +226,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	}
 	if dd := p.Data.DHCP; dd != nil {
 		out.leases = dd.Leases
+		// gl-clients del agente (GL.iNet): enriquece IPs igual que en la
+		// ruta SSH (issue #5 bug 1).
+		out.glClients = dd.GlClients
 	}
 	if fd := p.Data.FDB; fd != nil {
 		if fd.MACs != nil {

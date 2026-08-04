@@ -1,14 +1,14 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-04 (v2.4.2: issues #3/#4/#5 — idioma auto, BD limpia
-> por defecto con demo activable desde la UI, clientes GL.iNet sin lease y
-> layout radial en topología).
+> Actualizada: 2026-08-04 (v2.4.3: issues #3/#4/#5 — idioma auto, BD limpia
+> por defecto con demo activable desde la UI, clientes GL.iNet sin lease —
+> por las rutas SSH Y agente — y layout radial en topología).
 > Fases consecutivas desde la 1; la numeración antigua (0, 6.1, 6, 7, 8) se
 > reasignó en orden de dependencias: lo bloqueante primero.
 > Referencias: `docs/AUDITORIA-FASE65.md` (riesgos R1-R8),
 > `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
-## Estado actual (v2.4.2)
+## Estado actual (v2.4.3)
 
 Hecho y en producción (CT 226):
 - Fases 1-5: monitorización SSH agentless, AdGuard/WireGuard, topología,
@@ -20,7 +20,7 @@ Hecho y en producción (CT 226):
   `/api/system/info`.
 - Fase 8: resiliencia del agente (v2.3.0), rearme manual (v2.4.0),
   auto-rearme (v2.4.0) y endurecimiento de permisos (v2.4.1).
-- Fixes v2.4.2: idioma por defecto "auto" (sigue al navegador, issue #3);
+- Fixes v2.4.2/v2.4.3: idioma por defecto "auto" (sigue al navegador, issue #3);
   instalación con BD limpia y demo activable desde Ajustes (issue #4);
   IPs de clientes GL.iNet vía `gl-clients` donde dnsmasq no tiene lease y
   layout en anillos para nodos de distribución con muchos hijos (issue #5).

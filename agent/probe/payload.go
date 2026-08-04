@@ -42,9 +42,13 @@ type WirelessData struct {
 	Radios  []Radio                   `json:"radios"`
 }
 
-// DHCPData: leases ipv4 (mac en mayúsculas).
+// DHCPData: leases ipv4 (mac en mayúsculas) + clientes GL.iNet.
 type DHCPData struct {
 	Leases []DhcpLease `json:"leases"`
+	// GlClients (GL.iNet): base de clientes del firmware, superset de las
+	// leases — resuelve IPs de equipos con IP estática o sin lease en el
+	// dnsmasq del Flint2 (issue #5 bug 1). Vacío/ausente en otros routers.
+	GlClients []DhcpLease `json:"glClients,omitempty"`
 }
 
 // FDBData: MAC aprendida → puerto del bridge + puertos ethernet.

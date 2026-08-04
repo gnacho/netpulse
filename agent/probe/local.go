@@ -194,18 +194,29 @@ func (p *Prober) probeWireless(ctx context.Context) *WirelessData {
 	return wd
 }
 
-// probeDHCP: ubus dhcp ipv4leases con fallback a /tmp/dhcp.leases.
+// probeDHCP: ubus dhcp ipv4leases con fallback a /tmp/dhcp.leases, más
+// gl-clients (GL.iNet) como superset para resolver IPs sin lease
+// (issue #5 bug 1 — el gateway Flint2 llega por esta ruta de agente).
 func (p *Prober) probeDHCP(ctx context.Context) *DHCPData {
+	var dd *DHCPData
 	if out := p.runBest(ctx, CmdDhcpUbus, 0); out != "" {
 		if leases, err := ParseDhcpUbus([]byte(out)); err == nil {
-			return &DHCPData{Leases: leases}
+			dd = &DHCPData{Leases: leases}
 		}
 	}
-	out := p.runBest(ctx, CmdDhcpFile, 0)
-	if out == "" {
-		return nil
+	if dd == nil {
+		out := p.runBest(ctx, CmdDhcpFile, 0)
+		if out == "" {
+			return nil
+		}
+		dd = &DHCPData{Leases: ParseDhcpLeasesFile(out)}
 	}
-	return &DHCPData{Leases: ParseDhcpLeasesFile(out)}
+	if out := p.runBest(ctx, CmdGlClients, 0); out != "" {
+		if gl, err := ParseGlClients([]byte(out)); err == nil {
+			dd.GlClients = gl
+		}
+	}
+	return dd
 }
 
 // probeFDB: MACs aprendidas (brctl) + puertos ethernet (layout + /sys).

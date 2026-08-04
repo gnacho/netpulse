@@ -36,9 +36,16 @@ func testPayload() *probe.Payload {
 		},
 		Radios: []probe.Radio{{Name: "2.4 GHz", Channel: 6, WidthMhz: 20, PowerDbm: 20, Clients: 1}},
 	}
-	pl.Data.DHCP = &probe.DHCPData{Leases: []probe.DhcpLease{
-		{MAC: "EC:71:DB:44:12:8A", IP: "192.168.8.71", Hostname: "movil"},
-	}}
+	pl.Data.DHCP = &probe.DHCPData{
+		Leases: []probe.DhcpLease{
+			{MAC: "EC:71:DB:44:12:8A", IP: "192.168.8.71", Hostname: "movil"},
+		},
+		// gl-clients (GL.iNet, issue #5 bug 1): superset que resuelve IPs
+		// sin lease — debe llegar a routerPolled.glClients por la ruta agente.
+		GlClients: []probe.DhcpLease{
+			{MAC: "AA:BB:CC:00:00:01", IP: "192.168.8.99"},
+		},
+	}
 	pl.Data.FDB = &probe.FDBData{
 		MACs:  map[string]string{"EC:71:DB:44:12:8A": "lan1"},
 		Ports: []probe.EthPort{{ID: "lan1", Label: "LAN 1", Up: true, Speed: "1 Gbps"}},
@@ -123,6 +130,10 @@ func TestLiveAgentFreshSkipsSSH(t *testing.T) {
 	}
 	if len(p.leases) != 1 || p.leases[0].Hostname != "movil" {
 		t.Fatalf("leases: %+v", p.leases)
+	}
+	// gl-clients del agente deben propagarse a routerPolled (issue #5 bug 1)
+	if len(p.glClients) != 1 || p.glClients[0].IP != "192.168.8.99" {
+		t.Fatalf("glClients vía agente: %+v", p.glClients)
 	}
 	if p.wireless["EC:71:DB:44:12:8A"].SignalDbm != -55 {
 		t.Fatalf("wireless: %+v", p.wireless)
