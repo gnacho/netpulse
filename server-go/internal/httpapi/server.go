@@ -30,7 +30,7 @@ import (
 )
 
 // Version es la versión del backend (app.js:18).
-const Version = "2.4.1"
+const Version = "2.4.2"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
@@ -170,6 +170,9 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Config (sesión; /api/config/adguard solo admin) ---
 	s.registerConfigRoutes(mux)
+
+	// --- Demo (issue #4): activar modo demo desde la UI; solo admin ---
+	s.registerDemoRoutes(mux)
 
 	// --- Update (solo admin; ausente si no hay updater, p.ej. en tests) ---
 	if d.Updater != nil {

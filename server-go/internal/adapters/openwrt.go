@@ -325,6 +325,24 @@ func (c *OpenWrtClient) GetDhcpLeases() []DhcpLease {
 	return parseDhcpLeasesFile(out)
 }
 
+// GetGlClients: base de clientes del firmware GL.iNet (`ubus call gl-clients
+// list`). SUPERSET de dhcp.leases: incluye equipos con IP estática o sin
+// lease que el dnsmasq del Flint2 no lista. En routers sin el objeto ubus
+// gl-clients devuelve vacío (la salida del comando es vacía) — el caller lo
+// usa solo para enriquecer IPs de dispositivos ya conocidos, nunca para
+// crearlos (issue #5 bug 1).
+func (c *OpenWrtClient) GetGlClients() []DhcpLease {
+	out, err := c.pool.Run(c.Host, probe.CmdGlClients, 0)
+	if err != nil || strings.TrimSpace(out) == "" {
+		return []DhcpLease{}
+	}
+	leases, perr := probe.ParseGlClients([]byte(out))
+	if perr != nil {
+		return []DhcpLease{}
+	}
+	return leases
+}
+
 // parseDhcpLeasesFile parsea /tmp/dhcp.leases:
 // <expiry> <mac> <ip> <hostname> <clientid>
 func parseDhcpLeasesFile(out string) []DhcpLease {

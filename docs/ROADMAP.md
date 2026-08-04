@@ -1,12 +1,14 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-04 (v2.4.1: endurecimiento de permisos — rutas de
-> agentes/rearme/gestión de routers exigen rol admin; auditoría §2, issue #7).
-> Orden por dependencias: lo bloqueante primero.
+> Actualizada: 2026-08-04 (v2.4.2: issues #3/#4/#5 — idioma auto, BD limpia
+> por defecto con demo activable desde la UI, clientes GL.iNet sin lease y
+> layout radial en topología).
+> Fases consecutivas desde la 1; la numeración antigua (0, 6.1, 6, 7, 8) se
+> reasignó en orden de dependencias: lo bloqueante primero.
 > Referencias: `docs/AUDITORIA-FASE65.md` (riesgos R1-R8),
 > `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
-## Estado actual (v2.2.0)
+## Estado actual (v2.4.2)
 
 Hecho y en producción (CT 226):
 - Fases 1-5: monitorización SSH agentless, AdGuard/WireGuard, topología,
@@ -16,7 +18,13 @@ Hecho y en producción (CT 226):
   categorías.
 - Fase 6.5: view-model semántico (`vm: 1`), `Device.infra`, displayName,
   `/api/system/info`.
-- Fixes recientes: pantalla negra tras update (cache + reload racing + guard),
+- Fase 8: resiliencia del agente (v2.3.0), rearme manual (v2.4.0),
+  auto-rearme (v2.4.0) y endurecimiento de permisos (v2.4.1).
+- Fixes v2.4.2: idioma por defecto "auto" (sigue al navegador, issue #3);
+  instalación con BD limpia y demo activable desde Ajustes (issue #4);
+  IPs de clientes GL.iNet vía `gl-clients` donde dnsmasq no tiene lease y
+  layout en anillos para nodos de distribución con muchos hijos (issue #5).
+- Fixes previos: pantalla negra tras update (cache + reload racing + guard),
   `-X main.Version` en el build del agente, `scp -O` para dropbear.
 
 Dormido en producción (implementado pero sin efecto real):
@@ -26,9 +34,9 @@ Dormido en producción (implementado pero sin efecto real):
   aportan tiempo real; y reportan versión 0.1.0 hasta reinstalarlos con la
   próxima release.
 
-## Fase 0 — TLS y endurecimiento (BLOQUEANTE, ~1 día)
+## Fase 7 — TLS y endurecimiento (BLOQUEANTE, ~1 día)
 
-Sin esto, ni push funciona ni la Fase 8 es segura.
+Sin esto, ni push funciona ni la Fase 11 es segura.
 
 1. **HTTPS en CT 226** (R1): Caddy delante con cert autofirmado + confianza
    manual, o Tailscale Serve (HTTPS automático). Desbloquea Web Push real y
@@ -36,14 +44,14 @@ Sin esto, ni push funciona ni la Fase 8 es segura.
    Decisión pendiente: Caddy vs Tailscale (afecta a cómo confiarán los
    routers en el cert cuando ellos también empujen con TLS).
 2. **HMAC-SHA256 en la ingesta del agente** (R4): firmar el payload con el
-   token. ~10 líneas. Barato ahora, carísimo después de la Fase 8.
+   token. ~10 líneas. Barato ahora, carísimo después de la Fase 11.
 3. **Reinstalar agentes con release nueva** para que reporten versión real
    (el fix `-X main.Version` ya está en goreleaser).
 4. **Servir el binario del agente desde el propio servidor** (R3):
    `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
    GitHub en LANs sin salida y el `curl | sh` con token en argv.
 
-## Fase 6.1 — resiliencia del agente (hecha, v2.3.0) + auto-rearme (v2.4.0)
+## Fase 8 — resiliencia del agente (hecha: v2.3.0, v2.4.0, v2.4.1)
 
 Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
 
@@ -58,7 +66,7 @@ Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
    botón «Rearmar» en la cabecera del router (solo agente caído).
 3. **Auto-rearme tras TTL (v2.4.0):** supervisor en el servidor (cada 30 s)
    que rearma automáticamente los agentes cuyo último push expiró (TTL 90 s).
-   Detrás de flag `NETPULSE_AUTO_REARM=1` (opt-in, regla Fase 8: nada
+   Detrás de flag `NETPULSE_AUTO_REARM=1` (opt-in, regla Fase 11: nada
    autónomo sobre red sin confirmación). Cooldown largo por slug
    (`NETPULSE_AUTO_REARM_COOLDOWN_S`, default 600 s); solo rearma slugs con
    token registrado y push previo (nunca un slug que no ha empujado jamás);
@@ -74,7 +82,7 @@ Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
    se ocultan a usuarios no admin. Cierra el punto §2 de la auditoría
    (issue #7); el resto de la auditoría vive en el issue #6.
 
-## Fase 6 — incremento 2: el agente de verdad (~1 semana)
+## Fase 9 — el agente de verdad (~1 semana)
 
 El piloto actual ahorra SSH pero no da tiempo real. El salto es:
 
@@ -86,14 +94,14 @@ El piloto actual ahorra SSH pero no da tiempo real. El salto es:
    instalador actual queda como fallback.
 4. Medición en hardware real (RAM/CPU/flash) y ajuste de intervalos.
 
-## Fase 7 — app embebida en routers (decisión de diseño primero)
+## Fase 10 — app embebida en routers (decisión de diseño primero)
 
 Convertir NetPulse en una app DEL router, no solo un panel externo:
 
 - **Arquitectura objetivo**: el Flint 2 (gateway, 8 GB) corre
   `netpulse-agent` + `netpulse-server` reducido (modo on-box); los APs solo
   agent. La URL de la app ES la IP del router.
-- **Bloqueantes previos**: decisión TLS de la Fase 0 (la app servida por el
+- **Bloqueantes previos**: decisión TLS de la Fase 7 (la app servida por el
   router necesita cert autofirmado + flujo "confiar") y DB fuera de NAND
   (SQLite WAL en flash = inviable; usar USB/eMMC/overlay).
 - **Pairing cero-fricción**: token de emparejamiento mostrado en LuCI
@@ -102,7 +110,7 @@ Convertir NetPulse en una app DEL router, no solo un panel externo:
 - Presupuesto: server-go hoy = 20 MB RSS / 14,4 MB binario → sobra en el
   gateway; en APs (512 MB) nunca debe correr el server.
 
-## Fase 8 — escritura/orquestación (riesgo alto, reglas estrictas)
+## Fase 11 — escritura/orquestación (riesgo alto, reglas estrictas)
 
 Pasar de leer a actuar. Reglas de diseño innegociables
 (detalle en AUDITORIA-FASE65.md §5):
@@ -112,7 +120,7 @@ Pasar de leer a actuar. Reglas de diseño innegociables
   rollback verificable obligatorio.
 - Idempotencia (estado declarado, no acumulado).
 - Ejecutor con allowlist estricta de comandos (nada de shell libre).
-- HMAC (Fase 0) firmado ANTES de que viaje ninguna orden.
+- HMAC (Fase 7) firmado ANTES de que viaje ninguna orden.
 
 Orden por riesgo/beneficio:
 1. **AdGuard Home** (fácil: binario + YAML + DNS en dnsmasq; el módulo de

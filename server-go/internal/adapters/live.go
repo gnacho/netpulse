@@ -68,6 +68,10 @@ type routerPolled struct {
 	uptimeSec float64
 	net       *NetDevBps
 	leases    []DhcpLease
+	// glClients (GL.iNet): base de clientes del firmware, superset de las
+	// leases. Se usa SOLO para resolver IPs de dispositivos ya conocidos que
+	// salen sin IP (dnsmasq sin lease), nunca para crear dispositivos nuevos.
+	glClients []DhcpLease
 	wireless  map[string]WirelessClient
 	ports     []EthPort
 	radios    []Radio
@@ -461,6 +465,10 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		net = &NetDevBps{}
 	}
 	leases := client.GetDhcpLeases()
+	// gl-clients (GL.iNet): complementa la resolución de IP donde dnsmasq no
+	// tiene lease (issue #5 bug 1). En routers sin el objeto ubus sale vacío
+	// — coste: una llamada ubus local por poll.
+	glClients := client.GetGlClients()
 	wireless := client.GetWirelessClients()
 	ports := client.GetEthPorts(layout)
 	radios := client.GetRadios()
@@ -535,7 +543,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
-		uptimeSec: sysInfo.Uptime, net: net, leases: leases,
+		uptimeSec: sysInfo.Uptime, net: net, leases: leases, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp,
@@ -918,10 +926,19 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 // FDB gateway si no hay memoria) + device_attrib (index.js:396-460).
 func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	leasesByMac := map[string]DhcpLease{}
+	glByMac := map[string]DhcpLease{}
 	for _, p := range polled {
 		for _, le := range p.leases {
 			if le.MAC != "" {
 				leasesByMac[le.MAC] = le
+			}
+		}
+		// gl-clients: fallback de IP para MACs sin lease (dnsmasq sin ese
+		// cliente). No crea dispositivos: solo enriquece los ya resueltos
+		// por wireless/FDB (issue #5 bug 1).
+		for _, le := range p.glClients {
+			if le.MAC != "" && le.IP != "" {
+				glByMac[le.MAC] = le
 			}
 		}
 	}
@@ -1040,6 +1057,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			d.IP = lease.IP
 		} else {
 			d.Name = mac
+			// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
+			// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
+			if gl, ok := glByMac[mac]; ok {
+				d.IP = gl.IP
+				if gl.Hostname != "" {
+					d.Name = gl.Hostname
+				}
+			}
 		}
 		// Tipo estimado por hostname (el DHCP/FDB no dice qué es el cliente).
 		// Con nombre-MAC (sin hostname) queda "desconocido".

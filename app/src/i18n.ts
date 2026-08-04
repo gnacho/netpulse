@@ -3,8 +3,10 @@ import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import HttpBackend from 'i18next-http-backend'
 
-// 'auto' => seguir al navegador: no debe quedar idioma cacheado en localStorage
-if (localStorage.getItem('netpulse-lang') === 'auto') {
+// 'auto' (o sin elección previa) => seguir al navegador: no debe quedar
+// idioma cacheado en localStorage por el detector
+const savedLang = localStorage.getItem('netpulse-lang')
+if (!savedLang || savedLang === 'auto') {
   localStorage.removeItem('i18nextLng')
 }
 
@@ -13,9 +15,10 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    // Inglés por defecto salvo elección previa (español opcional en Ajustes;
-    // la opción 'auto' sigue al navegador vía detector manual)
-    lng: localStorage.getItem('i18nextLng') ?? 'en',
+    // Sin elección previa NO se fija idioma: el LanguageDetector resuelve
+    // desde el navegador (orden localStorage → navigator). 'en' queda solo
+    // como fallback para locales no soportados. (issue #3)
+    lng: localStorage.getItem('i18nextLng') ?? undefined,
     fallbackLng: 'en',
     supportedLngs: ['es', 'en'],
     nonExplicitSupportedLngs: true,

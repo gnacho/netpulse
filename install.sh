@@ -112,6 +112,12 @@ if [ "$UNINSTALL" -eq 1 ]; then
         run $SUDO systemctl stop "$SERVICE_NAME" 2>/dev/null || true
         run $SUDO systemctl disable "$SERVICE_NAME" 2>/dev/null || true
         run $SUDO rm -f "/etc/systemd/system/$SERVICE_NAME.service"
+        # Units de reinicio bajo demanda (issue #4): si existen, quitarlas
+        if [ -f "/etc/systemd/system/$SERVICE_NAME-restart.path" ]; then
+            run $SUDO systemctl disable --now "$SERVICE_NAME-restart.path" 2>/dev/null || true
+            run $SUDO rm -f "/etc/systemd/system/$SERVICE_NAME-restart.path" \
+                "/etc/systemd/system/$SERVICE_NAME-restart.service"
+        fi
         run $SUDO systemctl daemon-reload
         ok "systemd unit removed"
     fi
@@ -132,7 +138,12 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 # --------------------------------------------------------------- detection --
+# /etc/os-release define su propia VERSION ("13 (trixie)" en Debian) y pisaría
+# la variable VERSION del script; guardar y restaurar alrededor del source.
+_saved_version="$VERSION"
 . /etc/os-release 2>/dev/null || true
+VERSION="$_saved_version"
+unset _saved_version
 OS_PRETTY="${PRETTY_NAME:-$(uname -s)}"
 
 ARCH=$(uname -m)
@@ -226,12 +237,9 @@ if [ ! -f "$STATE_DIR/.env" ]; then
     fi
 fi
 
-# Demo mode: --demo flag, or ask interactively on fresh installs.
-if [ ! -f "$STATE_DIR/.env" ] && [ "$DEMO" -eq 0 ]; then
-    if ask_yes_no "Install in DEMO mode first? (sample network with 60+ devices to explore; you can switch to your real routers later)" 0; then
-        DEMO=1
-    fi
-fi
+# Demo mode (issue #4): solo con --demo explícito. El default es BD limpia;
+# la demo se activa después desde Ajustes (el botón llama a
+# POST /api/demo/enable y reinicia el servicio vía .restart-me).
 
 # --------------------------------------------------------- resolve version --
 if [ -z "$VERSION" ]; then
@@ -350,10 +358,34 @@ UMask=007
 [Install]
 WantedBy=multi-user.target
 EOF
+
+    # Unidad de reinicio bajo demanda (issue #4 + updater): una unit .path
+    # vigila $STATE_DIR/data/.restart-me; cuando el servidor lo toca (p.ej.
+    # POST /api/demo/enable) este oneshot lo borra y reinicia el servicio.
+    $SUDO tee "/etc/systemd/system/$SERVICE_NAME-restart.path" >/dev/null <<EOF
+[Unit]
+Description=Reinicia $SERVICE_NAME cuando el servidor toca .restart-me
+
+[Path]
+PathChanged=$STATE_DIR/data/.restart-me
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    $SUDO tee "/etc/systemd/system/$SERVICE_NAME-restart.service" >/dev/null <<EOF
+[Unit]
+Description=Reinicio de $SERVICE_NAME solicitado por el servidor
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c "rm -f $STATE_DIR/data/.restart-me; /bin/systemctl restart $SERVICE_NAME.service"
+EOF
 fi
 run $SUDO systemctl daemon-reload
 if [ "$UPGRADING" -eq 1 ]; then run $SUDO systemctl restart "$SERVICE_NAME"
 else run $SUDO systemctl enable --now "$SERVICE_NAME"; fi
+run $SUDO systemctl enable --now "$SERVICE_NAME-restart.path" 2>/dev/null \
+    || warn "could not enable $SERVICE_NAME-restart.path (demo/update auto-restart)"
 
 if [ "$DRY_RUN" -eq 0 ]; then
     sleep 3
