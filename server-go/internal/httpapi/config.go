@@ -20,12 +20,15 @@ import (
 var hostRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // registerConfigRoutes registra las rutas /api/config/* en el mux.
+// Las mutaciones (añadir/borrar routers) y las que exponen credenciales o
+// escanean la red (sshkey, discover) exigen rol admin (auditoría v2.4.0 §2,
+// issue #7); la lista de routers es de lectura y queda tras RequireAuth.
 func (s *server) registerConfigRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/config/sshkey", s.handleGetSSHKey)
-	mux.HandleFunc("GET /api/config/discover", s.handleDiscover)
+	mux.Handle("GET /api/config/sshkey", auth.RequireAdmin(http.HandlerFunc(s.handleGetSSHKey)))
+	mux.Handle("GET /api/config/discover", auth.RequireAdmin(http.HandlerFunc(s.handleDiscover)))
 	mux.HandleFunc("GET /api/config/routers", s.handleListConfigRouters)
-	mux.HandleFunc("POST /api/config/routers", s.handleAddConfigRouter)
-	mux.HandleFunc("DELETE /api/config/routers/{id}", s.handleDeleteConfigRouter)
+	mux.Handle("POST /api/config/routers", auth.RequireAdmin(http.HandlerFunc(s.handleAddConfigRouter)))
+	mux.Handle("DELETE /api/config/routers/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteConfigRouter)))
 	mux.Handle("GET /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleGetAdguardConfig)))
 	mux.Handle("PUT /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handlePutAdguardConfig)))
 }
