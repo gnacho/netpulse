@@ -1,0 +1,908 @@
+/* ============================================================
+   NetPulse landing — i18n.js
+   Idioma auto según navegador; 10 idiomas; persistencia local.
+   Claves de localStorage: netpulse-web-lang / -theme-mode / -accent.
+   ============================================================ */
+
+const LANGS = {
+  en: { name: 'English', dir: 'ltr' },
+  zh: { name: '中文', dir: 'ltr' },
+  es: { name: 'Español', dir: 'ltr' },
+  ar: { name: 'العربية', dir: 'rtl' },
+  hi: { name: 'हिन्दी', dir: 'ltr' },
+  pt: { name: 'Português', dir: 'ltr' },
+  fr: { name: 'Français', dir: 'ltr' },
+  ja: { name: '日本語', dir: 'ltr' },
+  ru: { name: 'Русский', dir: 'ltr' },
+  de: { name: 'Deutsch', dir: 'ltr' },
+}
+
+/* Números demo reales del canon de NetPulse (demo_dataset.go) */
+const DEMO = {
+  score: 92, label: 'Excellent',
+  down: 84.2, up: 12.6, latency: 8, plan: '600/600',
+  avgDown: 61, total24h: '1.32', dnsMs: 14, clients: 60, clientsTotal: 65,
+  devices: 67,
+}
+
+const I18N = {
+  /* ---------------- ENGLISH ---------------- */
+  en: {
+    nav: { features: 'Features', install: 'Install', github: 'GitHub' },
+    hero: {
+      eyebrow: 'Read-only home network monitoring',
+      t1: 'Your network’s pulse.',
+      t2: 'Real time. No cloud.',
+      sub: 'NetPulse watches over OpenWrt routers, maps your topology, scores your network health and alerts you — all from a single self-hosted binary. Nothing leaves your LAN.',
+      cta1: 'Install on your network', cta2: 'View on GitHub', cta3: 'Try the live demo',
+    },
+    facts: { noCloud: 'No cloud', free: '100% free · AGPL-3.0', data: 'Your app, your data', binary: 'One static binary', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'Health', down: 'Download', up: 'Upload', latency: 'Latency', devices: 'Devices' },
+    principles: {
+      title: 'Built on three stubborn principles',
+      lead: 'Not marketing lines. They are the reason NetPulse exists, and they shape every decision.',
+      p1t: 'No cloud',
+      p1p: 'No account, no subscription, no telemetry phoning home. NetPulse runs on a small box in your network and nowhere else. If your internet goes down, it keeps working.',
+      p2t: '100% free and open source',
+      p2p: 'AGPL-3.0, forever. Read the code, audit it, fork it, run it. There is no premium tier and there never will be.',
+      p3t: 'Your app, your data',
+      p3p: 'The server reads from your routers and never writes. Metrics live in a local SQLite file you own. Delete it, back it up, move it — it’s yours.',
+    },
+    theater: {
+      title: 'Watch it come alive',
+      lead: 'Keep scrolling. These are the real widgets, fed with the demo dataset — the same numbers you get when you run NetPulse in demo mode.',
+      st1t: 'One number tells the whole story',
+      st1p: 'The health score condenses latency, loss, uptime and temperature into 0–100. Green means calm. It updates every 5 seconds over SSE.',
+      st2t: 'Traffic, drawn as it happens',
+      st2p: 'Live WAN throughput against your contracted plan, with 24-hour averages and totals. No sampling tricks — what you see is what crosses the wire.',
+      st3t: 'A topology map that infers itself',
+      st3p: 'Built live from the bridge FDB (and LLDP when available): wired and wireless clients, inferred switches, and WireGuard tunnels drawn peer to Internet.',
+      st4t: 'Your whole fleet, at a glance',
+      st4p: 'Per-router CPU, memory, temperature and uptime. Four routers here: one GL.iNet Flint 2 gateway and three second-hand Xiaomi AX6 access points.',
+      st5t: 'AdGuard Home, integrated',
+      st5p: 'DNS queries, blocked share and top blocked domains, plus which clients use it. Your ad-blocking, visible next to everything else.',
+      st6t: 'Alerts that find you',
+      st6p: 'Temperature spikes, new devices, firmware available, WireGuard handshakes — pushed to the bell and, with Web Push, to your phone.',
+    },
+    health: { caption: 'Network health score', label: 'Excellent' },
+    wan: { live: 'LIVE', title: 'WAN traffic', plan: 'plan' },
+    topo: { wired: 'Wired', wifi: 'WiFi', tunnel: 'WG tunnel', gw: 'gateway', inet: 'Internet' },
+    routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' },
+    adguard: { title: 'AdGuard Home', queries: 'queries · 24 h', blocked: 'blocked', clients: 'clients using it', domains: 'Top blocked domains' },
+    alerts: { title: 'Alert feed', a1: 'AP-Estudio: temperature 78 °C', a2: 'New device: tv-salon (wired)', a3: 'Firmware available on GW-Flint2', a4: 'WireGuard: peer “phone” handshake', ago: 'ago' },
+    features: {
+      title: 'Everything a home NOC needs',
+      lead: 'Read-only by design: NetPulse can see your network, never change it.',
+      f1t: 'Live topology', f1p: 'Inferred from bridge FDB + LLDP. Wired and wireless clients, managed and inferred switches, hypervisors with nested containers.',
+      f2t: 'Devices', f2p: 'Every client classified by hostname patterns + OUI, with band, signal, first-seen and the router it talks to.',
+      f3t: 'WireGuard', f3p: 'Peers, last handshakes and per-peer transfer, with tunnels drawn on the map.',
+      f4t: 'AdGuard Home', f4p: 'Query stats, blocked share and top blocked domains, side by side with your network.',
+      f5t: 'Alerts & push', f5p: 'Six categories with per-category urgency. Bell feed plus native Web Push (VAPID).',
+      f6t: 'Multi-user', f6p: 'bcrypt passwords, admin and viewer roles, per-user language. Share the view without handing over the keys.',
+      f7t: 'Demo mode', f7p: 'DEMO_MODE=1 gives you a full sample network of 67 devices — no routers required. Try before you install.',
+      f8t: 'Latency collector', f8p: 'Optional sidecar that polls TCP latency per router, with its own long-term time series.',
+    },
+    install: {
+      title: 'One line to install',
+      lead: 'A single static Go binary with the web app embedded, running as a sandboxed systemd service. No Docker needed — it monitors a network; it doesn’t need a container to do it.',
+      main: 'Recommended', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'Requirements', r1: 'Linux with systemd (x86_64, arm64 or armv7)', r2: 'OpenWrt / GL.iNet routers on your LAN', r3: 'About 64 MB of RAM in an LXC or small VM', r4: 'WireGuard / AdGuard Home optional',
+      inspector: 'The installer is plain, readable shell —', inspectorLink: 'inspect it first',
+      collector: 'Optional latency sidecar (long-term TCP polling series):',
+      update: 'Update by re-running the same line. Uninstall with sh install.sh --uninstall.',
+      connect: 'Connect your routers', connectp: 'The server generates its own ed25519 key pair and shows the public key in Settings. Authorize it on each router (/etc/dropbear/authorized_keys). The gateway auto-detects on first boot via LAN discovery; the rest you add from Settings. Polling is strictly read-only.',
+    },
+    honest: {
+      title: 'What you should know',
+      p1: 'NetPulse is a personal project, built for my own network and published as free software (AGPL-3.0). It is and will always be free. I work on it in my spare time: many ideas, little time, and it evolves following my own needs first.',
+      p2: 'Honest scope note: so far it has only been tested on my own hardware — a GL.iNet Flint 2 gateway and three Xiaomi AX6 access points on OpenWrt — plus WireGuard and AdGuard Home. Other OpenWrt devices should work, but yours would be the first to tell me.',
+    },
+    footer: {
+      tagline: 'Read-only monitoring for home networks, self-hosted and free forever.',
+      project: 'Project', releases: 'Releases', roadmap: 'Roadmap', license: 'License',
+      community: 'Community', issues: 'Issues', discussions: 'Discussions', contribute: 'Contribute',
+      kofi: 'Support the project on Ko-fi', rights: 'AGPL-3.0 · Built at home, for home networks.',
+    },
+    appearance: { title: 'Appearance', theme: 'Theme', dark: 'Dark', light: 'Light', system: 'Auto', accent: 'Accent', note: 'Same tokens as the app — try it live.' },
+    misc: { lang: 'Language', copy: 'Copy', copied: 'Copied!', demoBadge: 'demo data' },
+  },
+
+  /* ---------------- ESPAÑOL ---------------- */
+  es: {
+    nav: { features: 'Funciones', install: 'Instalar', github: 'GitHub' },
+    hero: {
+      eyebrow: 'Monitorización de solo lectura para tu red doméstica',
+      t1: 'El pulso de tu red.',
+      t2: 'En tiempo real. Sin nube.',
+      sub: 'NetPulse vigila tus routers OpenWrt, dibuja la topología, puntúa la salud de la red y te avisa — todo desde un único binario autoalojado. Nada sale de tu LAN.',
+      cta1: 'Instalar en tu red', cta2: 'Ver en GitHub', cta3: 'Probar la demo en vivo',
+    },
+    facts: { noCloud: 'Sin nube', free: '100% libre · AGPL-3.0', data: 'Tu app, tus datos', binary: 'Un solo binario', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'Salud', down: 'Descarga', up: 'Subida', latency: 'Latencia', devices: 'Dispositivos' },
+    principles: {
+      title: 'Construido sobre tres principios tercos',
+      lead: 'No son frases de marketing. Son la razón de que NetPulse exista, y condicionan cada decisión.',
+      p1t: 'Sin nube',
+      p1p: 'Sin cuentas, sin suscripción, sin telemetría llamando a casa. NetPulse corre en una caja pequeña dentro de tu red y en ningún otro sitio. Si se cae Internet, sigue funcionando.',
+      p2t: '100% libre y open source',
+      p2p: 'AGPL-3.0, para siempre. Lee el código, audítalo, haz un fork, ejecútalo. No hay versión premium ni la habrá.',
+      p3t: 'Tu app, tus datos',
+      p3p: 'El servidor lee de tus routers y nunca escribe. Las métricas viven en un SQLite local que es tuyo. Bórralo, haz copias, muévelo — es tuyo.',
+    },
+    theater: {
+      title: 'Míralo cobrar vida',
+      lead: 'Sigue haciendo scroll. Estos son los widgets reales, alimentados con el dataset de demo — los mismos números que ves al ejecutar NetPulse en modo demo.',
+      st1t: 'Un número que lo cuenta todo',
+      st1p: 'La puntuación de salud condensa latencia, pérdidas, uptime y temperatura en 0–100. Verde significa calma. Se actualiza cada 5 segundos por SSE.',
+      st2t: 'Tráfico dibujado mientras ocurre',
+      st2p: 'Caudal WAN en vivo contra tu plan contratado, con medias y totales de 24 h. Sin trucos de muestreo — lo que ves es lo que cruza el cable.',
+      st3t: 'Un mapa de topología que se infiere solo',
+      st3p: 'Construido en vivo desde el FDB del bridge (y LLDP cuando está disponible): clientes cableados e inalámbricos, switches inferidos y túneles WireGuard dibujados de peer a Internet.',
+      st4t: 'Toda tu flota, de un vistazo',
+      st4p: 'CPU, memoria, temperatura y uptime por router. Cuatro aquí: un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6 de segunda mano.',
+      st5t: 'AdGuard Home, integrado',
+      st5p: 'Consultas DNS, porcentaje bloqueado y dominios más bloqueados, más qué clientes lo usan. Tu bloqueo de anuncios, visible junto a todo lo demás.',
+      st6t: 'Alertas que te encuentran',
+      st6p: 'Picos de temperatura, dispositivos nuevos, firmware disponible, handshakes de WireGuard — en la campana y, con Web Push, en tu móvil.',
+    },
+    health: { caption: 'Puntuación de salud de la red', label: 'Excelente' },
+    wan: { live: 'EN VIVO', title: 'Tráfico WAN', plan: 'plan' },
+    topo: { wired: 'Cable', wifi: 'WiFi', tunnel: 'Túnel WG', gw: 'gateway', inet: 'Internet' },
+    routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' },
+    adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes lo usan', domains: 'Dominios más bloqueados' },
+    alerts: { title: 'Feed de alertas', a1: 'AP-Estudio: temperatura 78 °C', a2: 'Nuevo dispositivo: tv-salon (cable)', a3: 'Firmware disponible en GW-Flint2', a4: 'WireGuard: handshake del peer “phone”', ago: 'hace' },
+    features: {
+      title: 'Todo lo que necesita un NOC doméstico',
+      lead: 'Solo lectura por diseño: NetPulse puede ver tu red, nunca cambiarla.',
+      f1t: 'Topología en vivo', f1p: 'Inferida del FDB del bridge + LLDP. Clientes cableados e inalámbricos, switches gestionados e inferidos, hipervisores con contenedores anidados.',
+      f2t: 'Dispositivos', f2p: 'Cada cliente clasificado por patrones de hostname + OUI, con banda, señal, primer visto y el router al que habla.',
+      f3t: 'WireGuard', f3p: 'Peers, últimos handshakes y transferencia por peer, con túneles dibujados en el mapa.',
+      f4t: 'AdGuard Home', f4p: 'Estadísticas de consultas, porcentaje bloqueado y dominios más bloqueados, junto a tu red.',
+      f5t: 'Alertas y push', f5p: 'Seis categorías con urgencia por categoría. Feed en la campana más Web Push nativo (VAPID).',
+      f6t: 'Multiusuario', f6p: 'Contraseñas bcrypt, roles admin y viewer, idioma por usuario. Comparte la vista sin entregar las llaves.',
+      f7t: 'Modo demo', f7p: 'DEMO_MODE=1 te da una red de muestra completa con 67 dispositivos — sin routers. Pruébalo antes de instalar.',
+      f8t: 'Collector de latencia', f8p: 'Sidecar opcional que sondea latencia TCP por router, con sus propias series temporales de largo plazo.',
+    },
+    install: {
+      title: 'Una línea para instalar',
+      lead: 'Un único binario Go estático con la app web embebida, corriendo como servicio systemd enjaulado. Sin Docker — monitoriza una red; no necesita un contenedor para hacerlo.',
+      main: 'Recomendado', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'Requisitos', r1: 'Linux con systemd (x86_64, arm64 o armv7)', r2: 'Routers OpenWrt / GL.iNet en tu LAN', r3: 'Unos 64 MB de RAM en un LXC o VM pequeña', r4: 'WireGuard / AdGuard Home opcionales',
+      inspector: 'El instalador es shell plano y legible —', inspectorLink: 'inspecciónalo primero',
+      collector: 'Sidecar de latencia opcional (series de sondeo TCP a largo plazo):',
+      update: 'Actualiza re-ejecutando la misma línea. Desinstala con sh install.sh --uninstall.',
+      connect: 'Conecta tus routers', connectp: 'El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router (/etc/dropbear/authorized_keys). El gateway se autodetecta en el primer arranque por descubrimiento LAN; el resto se añade desde Ajustes. El sondeo es estrictamente de solo lectura.',
+    },
+    honest: {
+      title: 'Lo que debes saber',
+      p1: 'NetPulse es un proyecto personal, construido para mi propia red y publicado como software libre (AGPL-3.0). Es y será siempre libre. Trabajo en él en mi tiempo libre: muchas ideas, poco tiempo, y evoluciona siguiendo primero mis propias necesidades.',
+      p2: 'Nota honesta de alcance: de momento solo se ha probado con mi propio hardware — un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6 con OpenWrt — además de WireGuard y AdGuard Home. Otros dispositivos OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.',
+    },
+    footer: {
+      tagline: 'Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.',
+      project: 'Proyecto', releases: 'Releases', roadmap: 'Roadmap', license: 'Licencia',
+      community: 'Comunidad', issues: 'Issues', discussions: 'Discusiones', contribute: 'Contribuir',
+      kofi: 'Apoya el proyecto en Ko-fi', rights: 'AGPL-3.0 · Hecho en casa, para redes de casa.',
+    },
+    appearance: { title: 'Apariencia', theme: 'Tema', dark: 'Oscuro', light: 'Claro', system: 'Auto', accent: 'Acento', note: 'Mismos tokens que la app — pruébalo en vivo.' },
+    misc: { lang: 'Idioma', copy: 'Copiar', copied: '¡Copiado!', demoBadge: 'datos demo' },
+  },
+
+  /* ---------------- 中文 (简体) ---------------- */
+  zh: {
+    nav: { features: '功能', install: '安装', github: 'GitHub' },
+    hero: {
+      eyebrow: '家庭网络的只读监控',
+      t1: '你网络的脉搏。',
+      t2: '实时呈现，无云端。',
+      sub: 'NetPulse 监视你的 OpenWrt 路由器，绘制拓扑，评估网络健康并提醒你——全部来自一个自托管的二进制文件。数据绝不离开你的局域网。',
+      cta1: '安装到你的网络', cta2: '在 GitHub 查看', cta3: '试用在线演示',
+    },
+    facts: { noCloud: '无云端', free: '100% 自由 · AGPL-3.0', data: '你的应用，你的数据', binary: '单一静态二进制', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: '健康度', down: '下载', up: '上传', latency: '延迟', devices: '设备' },
+    principles: {
+      title: '建立在三个固执的原则之上',
+      lead: '这不是营销口号。它们是 NetPulse 存在的理由，也决定了每一个设计选择。',
+      p1t: '无云端',
+      p1p: '没有账号、没有订阅、没有上报遥测。NetPulse 运行在你网络里的一台小设备上，别处没有。断网时它照常工作。',
+      p2t: '100% 自由开源',
+      p2p: 'AGPL-3.0，永远如此。阅读代码、审计、分叉、运行。没有付费版，永远不会有。',
+      p3t: '你的应用，你的数据',
+      p3p: '服务器只读取路由器数据，从不写入。指标存在你拥有的本地 SQLite 文件中。删除、备份、迁移——都由你。',
+    },
+    theater: {
+      title: '看它活起来',
+      lead: '继续滚动。这些是真实的组件，用演示数据集驱动——与你在演示模式下运行 NetPulse 看到的数字完全一致。',
+      st1t: '一个数字讲完整个故事',
+      st1p: '健康评分将延迟、丢包、运行时间和温度浓缩为 0–100。绿色代表安心。每 5 秒通过 SSE 更新。',
+      st2t: '流量随发生而绘制',
+      st2p: '实时 WAN 吞吐量对照你的签约带宽，附 24 小时均值与总量。没有采样花招——你看到的就是线路上跑的数据。',
+      st3t: '自我推断的拓扑图',
+      st3p: '实时从网桥 FDB（可用时加 LLDP）构建：有线与无线客户端、推断出的交换机，以及从 peer 画到互联网的 WireGuard 隧道。',
+      st4t: '整个设备群，一目了然',
+      st4p: '每台路由器的 CPU、内存、温度和运行时间。这里有四台：一台 GL.iNet Flint 2 网关和三台二手小米 AX6 接入点。',
+      st5t: 'AdGuard Home，深度集成',
+      st5p: 'DNS 查询、拦截比例和热门拦截域名，以及哪些客户端在使用它。你的广告拦截与其他一切并排可见。',
+      st6t: '主动找到你的提醒',
+      st6p: '温度飙升、新设备、可用固件、WireGuard 握手——推送到铃铛，配合 Web Push 还能推到你的手机。',
+    },
+    health: { caption: '网络健康评分', label: '优秀' },
+    wan: { live: '实时', title: 'WAN 流量', plan: '套餐' },
+    topo: { wired: '有线', wifi: 'WiFi', tunnel: 'WG 隧道', gw: '网关', inet: '互联网' },
+    routers: { cpu: 'CPU', mem: '内存', temp: '温度', up: '运行' },
+    adguard: { title: 'AdGuard Home', queries: '查询 · 24 小时', blocked: '已拦截', clients: '个客户端使用', domains: '热门拦截域名' },
+    alerts: { title: '提醒信息流', a1: 'AP-Estudio：温度 78 °C', a2: '新设备：tv-salon（有线）', a3: 'GW-Flint2 有可用固件', a4: 'WireGuard：peer "phone" 握手', ago: '前' },
+    features: {
+      title: '家庭 NOC 所需的一切',
+      lead: '设计上只读：NetPulse 能看到你的网络，但永远无法改变它。',
+      f1t: '实时拓扑', f1p: '从网桥 FDB + LLDP 推断。有线与无线客户端、托管与推断的交换机、带嵌套容器的虚拟化主机。',
+      f2t: '设备', f2p: '每个客户端按主机名模式 + OUI 分类，附频段、信号、首次出现时间和所连路由器。',
+      f3t: 'WireGuard', f3p: 'Peers、最近握手和按 peer 的传输量，隧道绘制在地图上。',
+      f4t: 'AdGuard Home', f4p: '查询统计、拦截比例和热门拦截域名，与你的网络并排呈现。',
+      f5t: '提醒与推送', f5p: '六个类别，每类可设紧急程度。铃铛信息流加原生 Web Push（VAPID）。',
+      f6t: '多用户', f6p: 'bcrypt 密码、admin 与 viewer 角色、按用户设置语言。分享视图而不交出钥匙。',
+      f7t: '演示模式', f7p: 'DEMO_MODE=1 给你一个包含 67 台设备的完整示例网络——无需路由器。先试后装。',
+      f8t: '延迟采集器', f8p: '可选 sidecar，按路由器轮询 TCP 延迟，拥有自己的长期时间序列。',
+    },
+    install: {
+      title: '一行命令完成安装',
+      lead: '单个静态 Go 二进制，内嵌 Web 应用，作为沙箱化的 systemd 服务运行。无需 Docker——它监控的是网络，不需要容器来完成这件事。',
+      main: '推荐方式', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: '要求', r1: '带 systemd 的 Linux（x86_64、arm64 或 armv7）', r2: '局域网内的 OpenWrt / GL.iNet 路由器', r3: 'LXC 或小型虚拟机中约 64 MB 内存', r4: 'WireGuard / AdGuard Home 可选',
+      inspector: '安装脚本是平实可读的 shell——', inspectorLink: '先检查它',
+      collector: '可选延迟 sidecar（长期 TCP 轮询序列）：',
+      update: '重新执行同一行即可更新。用 sh install.sh --uninstall 卸载。',
+      connect: '连接你的路由器', connectp: '服务器生成自己的 ed25519 密钥对，并在设置中显示公钥。在每台路由器上授权它（/etc/dropbear/authorized_keys）。网关在首次启动时通过局域网发现自动检测；其余在设置中添加。轮询严格只读。',
+    },
+    honest: {
+      title: '你应该知道的事',
+      p1: 'NetPulse 是一个个人项目，为作者自己的网络而建，以自由软件（AGPL-3.0）发布。它现在自由，永远自由。作者在业余时间开发：想法很多，时间很少，演进首先跟随作者自己的需求。',
+      p2: '诚实的范围说明：目前只在作者自己的硬件上测试过——一台 GL.iNet Flint 2 网关和三台运行 OpenWrt 的小米 AX6 接入点——外加 WireGuard 和 AdGuard Home。其他 OpenWrt 设备应该能用，但你的会是第一个告诉我结果的。',
+    },
+    footer: {
+      tagline: '面向家庭网络的只读监控，自托管，永远自由。',
+      project: '项目', releases: '发行版', roadmap: '路线图', license: '许可证',
+      community: '社区', issues: '议题', discussions: '讨论', contribute: '贡献',
+      kofi: '在 Ko-fi 上支持项目', rights: 'AGPL-3.0 · 在家中打造，为家庭网络而生。',
+    },
+    appearance: { title: '外观', theme: '主题', dark: '深色', light: '浅色', system: '自动', accent: '强调色', note: '与应用使用相同的令牌——实时体验。' },
+    misc: { lang: '语言', copy: '复制', copied: '已复制！', demoBadge: '演示数据' },
+  },
+
+  /* ---------------- العربية ---------------- */
+  ar: {
+    nav: { features: 'المزايا', install: 'التثبيت', github: 'GitHub' },
+    hero: {
+      eyebrow: 'مراقبة للشبكات المنزلية، قراءة فقط',
+      t1: 'نبض شبكتك.',
+      t2: 'في الوقت الحقيقي. بلا سحابة.',
+      sub: 'يراقب NetPulse راوترات OpenWrt، ويرسم الخريطة الطبوغرافية، ويقيّم صحة شبكتك وينبّهك — كل ذلك من ملف ثنائي واحد تستضيفه بنفسك. لا شيء يغادر شبكتك المحلية.',
+      cta1: 'ثبّت على شبكتك', cta2: 'شاهده على GitHub', cta3: 'جرّب العرض الحي',
+    },
+    facts: { noCloud: 'بلا سحابة', free: 'حر 100% · AGPL-3.0', data: 'تطبيقك، بياناتك', binary: 'ملف ثنائي واحد', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'الصحة', down: 'تنزيل', up: 'رفع', latency: 'زمن الاستجابة', devices: 'الأجهزة' },
+    principles: {
+      title: 'مبني على ثلاثة مبادئ عنيدة',
+      lead: 'ليست عبارات تسويقية. إنها سبب وجود NetPulse، وهي التي تشكّل كل قرار.',
+      p1t: 'بلا سحابة',
+      p1p: 'لا حسابات، لا اشتراكات، لا قياسات عن بُعد ترسل بياناتك. يعمل NetPulse على جهاز صغير داخل شبكتك ولا مكان آخر. إذا انقطع الإنترنت، يستمر في العمل.',
+      p2t: 'حر ومفتوح المصدر 100%',
+      p2p: 'AGPL-3.0، إلى الأبد. اقرأ الشفرة، افحصها، انسخها، شغّلها. لا توجد نسخة مدفوعة ولن توجد.',
+      p3t: 'تطبيقك، بياناتك',
+      p3p: 'الخادم يقرأ من راوتراتك ولا يكتب أبدًا. المقاييس تعيش في ملف SQLite محلي تملكه أنت. احذفه، انسخه احتياطيًا، انقله — إنه لك.',
+    },
+    theater: {
+      title: 'شاهده ينبض بالحياة',
+      lead: 'واصل التمرير. هذه هي الودجات الحقيقية، تغذّيها بيانات العرض التجريبي — نفس الأرقام التي تراها عند تشغيل NetPulse في وضع العرض.',
+      st1t: 'رقم واحد يروي القصة كاملة',
+      st1p: 'درجة الصحة تختصر زمن الاستجابة والفقد ووقت التشغيل ودرجة الحرارة في رقم من 0 إلى 100. الأخضر يعني هدوءًا. تتحدث كل 5 ثوانٍ عبر SSE.',
+      st2t: 'حركة المرور تُرسم بينما تحدث',
+      st2p: 'إنتاجية WAN الحية مقابل خطتك المتعاقد عليها، مع متوسطات وإجماليات 24 ساعة. لا حيل في أخذ العينات — ما تراه هو ما يعبر السلك.',
+      st3t: 'خريطة طبوغرافية تستنتج نفسها',
+      st3p: 'تُبنى مباشرة من جدول FDB للجسر (وLLDP عند توفره): عملاء سلكيون ولاسلكيون، ومفاتيح مستنتجة، وأنفاق WireGuard مرسومة من النظير إلى الإنترنت.',
+      st4t: 'أسطولك كله في لمحة',
+      st4p: 'CPU والذاكرة والحرارة ووقت التشغيل لكل راوتر. أربعة هنا: بوابة GL.iNet Flint 2 وثلاث نقاط وصول Xiaomi AX6 مستعملة.',
+      st5t: 'AdGuard Home، مدمج',
+      st5p: 'استعلامات DNS ونسبة الحظر وأعلى النطاقات المحظورة، وأي العملاء يستخدمونه. حظر إعلاناتك مرئي بجانب كل شيء آخر.',
+      st6t: 'تنبيهات تصل إليك',
+      st6p: 'ارتفاع الحرارة، أجهزة جديدة، تحديثات متاحة، مصافحات WireGuard — في الجرس، ومع Web Push إلى هاتفك.',
+    },
+    health: { caption: 'درجة صحة الشبكة', label: 'ممتازة' },
+    wan: { live: 'مباشر', title: 'حركة WAN', plan: 'الخطة' },
+    topo: { wired: 'سلكي', wifi: 'WiFi', tunnel: 'نفق WG', gw: 'البوابة', inet: 'الإنترنت' },
+    routers: { cpu: 'CPU', mem: 'ذاكرة', temp: 'حرارة', up: 'تشغيل' },
+    adguard: { title: 'AdGuard Home', queries: 'استعلام · 24 س', blocked: 'محظور', clients: 'عميل يستخدمه', domains: 'أعلى النطاقات المحظورة' },
+    alerts: { title: 'سجل التنبيهات', a1: 'AP-Estudio: حرارة 78 °C', a2: 'جهاز جديد: tv-salon (سلكي)', a3: 'تحديث متاح على GW-Flint2', a4: 'WireGuard: مصافحة النظير "phone"', ago: 'منذ' },
+    features: {
+      title: 'كل ما يحتاجه مركز عمليات منزلي',
+      lead: 'قراءة فقط بالتصميم: NetPulse يرى شبكتك، لكنه لا يغيّرها أبدًا.',
+      f1t: 'طبوغرافية حية', f1p: 'مستنتجة من FDB الجسر + LLDP. عملاء سلكيون ولاسلكيون، مفاتيح مُدارة ومستنتجة، وخوادم افتراضية بحاويات متداخلة.',
+      f2t: 'الأجهزة', f2p: 'كل عميل مصنف بأنماط اسم المضيف + OUI، مع النطاق والإشارة وأول ظهور والراوتر المرتبط به.',
+      f3t: 'WireGuard', f3p: 'النظراء وآخر المصافحات وحجم النقل لكل نظير، مع أنفاق مرسومة على الخريطة.',
+      f4t: 'AdGuard Home', f4p: 'إحصاءات الاستعلامات ونسبة الحظر وأعلى النطاقات المحظورة، جنبًا إلى جنب مع شبكتك.',
+      f5t: 'تنبيهات وإشعارات', f5p: 'ست فئات مع مستوى إلحاح لكل فئة. سجل في الجرس إضافة إلى Web Push أصلي (VAPID).',
+      f6t: 'متعدد المستخدمين', f6p: 'كلمات مرور bcrypt وأدوار admin وviewer ولغة لكل مستخدم. شارك العرض دون تسليم المفاتيح.',
+      f7t: 'وضع العرض', f7p: 'DEMO_MODE=1 يمنحك شبكة عيّنة كاملة بـ 67 جهازًا — دون راوترات. جرّب قبل أن تثبّت.',
+      f8t: 'جامع زمن الاستجابة', f8p: 'Sidecar اختياري يستطلع زمن استجابة TCP لكل راوتر، بسلاسله الزمنية طويلة الأمد.',
+    },
+    install: {
+      title: 'سطر واحد للتثبيت',
+      lead: 'ملف Go ثنائي واحد ثابت مع تطبيق الويب مضمّنًا، يعمل كخدمة systemd معزولة. لا حاجة إلى Docker — إنه يراقب شبكة؛ لا يحتاج حاوية ليفعل ذلك.',
+      main: 'الطريقة الموصى بها', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'المتطلبات', r1: 'لينكس مع systemd (x86_64 أو arm64 أو armv7)', r2: 'راوترات OpenWrt / GL.iNet في شبكتك', r3: 'نحو 64 MB من RAM في LXC أو VM صغير', r4: 'WireGuard / AdGuard Home اختياريان',
+      inspector: 'المثبّت سكريبت شل واضح ومقروء —', inspectorLink: 'افحصه أولًا',
+      collector: 'Sidecar اختياري لزمن الاستجابة (سلاسل استطلاع TCP طويلة الأمد):',
+      update: 'حدّث بإعادة تشغيل نفس السطر. أزل التثبيت بـ sh install.sh --uninstall.',
+      connect: 'اربط راوتراتك', connectp: 'يولّد الخادم زوج مفاتيح ed25519 الخاص به ويعرض المفتاح العام في الإعدادات. فوّضه على كل راوتر (/etc/dropbear/authorized_keys). تُكتشف البوابة تلقائيًا عند أول إقلاع عبر اكتشاف الشبكة المحلية؛ والبقية تضيفها من الإعدادات. الاستطلاع قراءة فقط بدقة.',
+    },
+    honest: {
+      title: 'ما يجب أن تعرفه',
+      p1: 'NetPulse مشروع شخصي، بُني لشبكتي الخاصة ونُشر كبرنامج حر (AGPL-3.0). هو حر وسيبقى كذلك. أعمل عليه في وقت فراغي: أفكار كثيرة ووقت قليل، ويتطور تبعًا لاحتياجاتي أولًا.',
+      p2: 'ملاحظة صريحة عن النطاق: حتى الآن لم يُختبر إلا على عتادي — بوابة GL.iNet Flint 2 وثلاث نقاط وصول Xiaomi AX6 تعمل بـ OpenWrt — إضافة إلى WireGuard وAdGuard Home. أجهزة OpenWrt الأخرى ينبغي أن تعمل، لكن جهازك سيكون أول من يخبرني.',
+    },
+    footer: {
+      tagline: 'مراقبة قراءة فقط للشبكات المنزلية، استضافة ذاتية وحرة إلى الأبد.',
+      project: 'المشروع', releases: 'الإصدارات', roadmap: 'خارطة الطريق', license: 'الرخصة',
+      community: 'المجتمع', issues: 'البلاغات', discussions: 'النقاشات', contribute: 'ساهم',
+      kofi: 'ادعم المشروع على Ko-fi', rights: 'AGPL-3.0 · صُنع في البيت، لشبكات البيوت.',
+    },
+    appearance: { title: 'المظهر', theme: 'السمة', dark: 'داكن', light: 'فاتح', system: 'تلقائي', accent: 'اللون', note: 'نفس رموز التطبيق — جرّبه مباشرة.' },
+    misc: { lang: 'اللغة', copy: 'نسخ', copied: 'نُسخ!', demoBadge: 'بيانات عرض' },
+  },
+
+  /* ---------------- हिन्दी ---------------- */
+  hi: {
+    nav: { features: 'फ़ीचर', install: 'इंस्टॉल', github: 'GitHub' },
+    hero: {
+      eyebrow: 'घरेलू नेटवर्क की केवल-पढ़ने योग्य निगरानी',
+      t1: 'आपके नेटवर्क की धड़कन।',
+      t2: 'रियल टाइम। बिना क्लाउड।',
+      sub: 'NetPulse आपके OpenWrt राउटरों पर नज़र रखता है, टोपोलॉजी बनाता है, नेटवर्क स्वास्थ्य का स्कोर देता है और आपको सूचित करता है — सब कुछ एक सेल्फ-होस्टेड बाइनरी से। कुछ भी आपके LAN से बाहर नहीं जाता।',
+      cta1: 'अपने नेटवर्क पर इंस्टॉल करें', cta2: 'GitHub पर देखें', cta3: 'लाइव डेमो आज़माएँ',
+    },
+    facts: { noCloud: 'कोई क्लाउड नहीं', free: '100% स्वतंत्र · AGPL-3.0', data: 'आपका ऐप, आपका डेटा', binary: 'एक ही बाइनरी', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'स्वास्थ्य', down: 'डाउनलोड', up: 'अपलोड', latency: 'लेटेंसी', devices: 'डिवाइस' },
+    principles: {
+      title: 'तीन ज़िद्दी सिद्धांतों पर बना',
+      lead: 'मार्केटिंग वाक्य नहीं। ये NetPulse के अस्तित्व का कारण हैं, और हर फ़ैसले को आकार देते हैं।',
+      p1t: 'कोई क्लाउड नहीं',
+      p1p: 'कोई खाता नहीं, कोई सदस्यता नहीं, कोई टेलीमेट्री घर फ़ोन नहीं करती। NetPulse आपके नेटवर्क के एक छोटे बॉक्स पर चलता है और कहीं नहीं। इंटरनेट गिर जाए तो भी यह चलता रहता है।',
+      p2t: '100% स्वतंत्र और ओपन सोर्स',
+      p2p: 'AGPL-3.0, हमेशा के लिए। कोड पढ़ें, ऑडिट करें, फ़ोर्क करें, चलाएँ। कोई प्रीमियम टियर नहीं है और कभी नहीं होगा।',
+      p3t: 'आपका ऐप, आपका डेटा',
+      p3p: 'सर्वर आपके राउटरों से पढ़ता है और कभी लिखता नहीं। मेट्रिक्स एक स्थानीय SQLite फ़ाइल में रहते हैं जो आपकी है। मिटाएँ, बैकअप लें, ले जाएँ — यह आपका है।',
+    },
+    theater: {
+      title: 'इसे जीवंत होते देखें',
+      lead: 'स्क्रॉल करते रहें। ये असली विजेट हैं, डेमो डेटासेट से भरे हुए — वही आँकड़े जो डेमो मोड में NetPulse चलाने पर दिखते हैं।',
+      st1t: 'एक संख्या पूरी कहानी बताती है',
+      st1p: 'स्वास्थ्य स्कोर लेटेंसी, पैकेट लॉस, अपटाइम और तापमान को 0–100 में समेटता है। हरा यानी सब शांत। हर 5 सेकंड में SSE से अपडेट।',
+      st2t: 'ट्रैफ़िक, होते हुए चित्रित',
+      st2p: 'आपके प्लान के मुकाबले लाइव WAN थ्रूपुट, 24-घंटे के औसत और कुल के साथ। कोई सैंपलिंग ट्रिक नहीं — जो दिखता है वही वायर पर चलता है।',
+      st3t: 'टोपोलॉजी नक्शा जो खुद बनता है',
+      st3p: 'ब्रिज FDB से लाइव बनता है (उपलब्ध हो तो LLDP भी): वायर्ड और वायरलेस क्लाइंट, अनुमानित स्विच, और peer से इंटरनेट तक WireGuard टनल।',
+      st4t: 'पूरा फ़्लीट, एक नज़र में',
+      st4p: 'हर राउटर का CPU, मेमोरी, तापमान और अपटाइम। यहाँ चार हैं: एक GL.iNet Flint 2 गेटवे और तीन सेकंड-हैंड Xiaomi AX6 एक्सेस पॉइंट।',
+      st5t: 'AdGuard Home, एकीकृत',
+      st5p: 'DNS क्वेरी, ब्लॉक हिस्सा और सबसे ज़्यादा ब्लॉक हुए डोमेन, साथ में कौन-से क्लाइंट इसे इस्तेमाल करते हैं। आपका ऐड-ब्लॉकिंग, बाकी सबके बगल में।',
+      st6t: 'अलर्ट जो आपको ढूँढते हैं',
+      st6p: 'तापमान का उछाल, नए डिवाइस, उपलब्ध फ़र्मवेयर, WireGuard हैंडशेक — बेल में, और Web Push से आपके फ़ोन पर।',
+    },
+    health: { caption: 'नेटवर्क स्वास्थ्य स्कोर', label: 'उत्कृष्ट' },
+    wan: { live: 'लाइव', title: 'WAN ट्रैफ़िक', plan: 'प्लान' },
+    topo: { wired: 'वायर्ड', wifi: 'WiFi', tunnel: 'WG टनल', gw: 'गेटवे', inet: 'इंटरनेट' },
+    routers: { cpu: 'CPU', mem: 'MEM', temp: 'तापमान', up: 'अपटाइम' },
+    adguard: { title: 'AdGuard Home', queries: 'क्वेरी · 24 घं', blocked: 'ब्लॉक्ड', clients: 'क्लाइंट इस्तेमाल करते हैं', domains: 'सबसे ज़्यादा ब्लॉक डोमेन' },
+    alerts: { title: 'अलर्ट फ़ीड', a1: 'AP-Estudio: तापमान 78 °C', a2: 'नया डिवाइस: tv-salon (वायर्ड)', a3: 'GW-Flint2 पर फ़र्मवेयर उपलब्ध', a4: 'WireGuard: peer "phone" हैंडशेक', ago: 'पहले' },
+    features: {
+      title: 'घरेलू NOC की हर ज़रूरत',
+      lead: 'डिज़ाइन से केवल-पढ़ने योग्य: NetPulse आपका नेटवर्क देख सकता है, बदल कभी नहीं।',
+      f1t: 'लाइव टोपोलॉजी', f1p: 'ब्रिज FDB + LLDP से अनुमानित। वायर्ड/वायरलेस क्लाइंट, मैनेज्ड और अनुमानित स्विच, नेस्टेड कंटेनर वाले हाइपरवाइज़र।',
+      f2t: 'डिवाइस', f2p: 'हर क्लाइंट होस्टनेम पैटर्न + OUI से वर्गीकृत, बैंड, सिग्नल, पहली बार दिखने का समय और जुड़े राउटर के साथ।',
+      f3t: 'WireGuard', f3p: 'Peers, आख़िरी हैंडशेक और प्रति-peer ट्रांसफ़र, नक्शे पर टनल के साथ।',
+      f4t: 'AdGuard Home', f4p: 'क्वेरी आँकड़े, ब्लॉक हिस्सा और टॉप ब्लॉक्ड डोमेन, आपके नेटवर्क के साथ।',
+      f5t: 'अलर्ट और पुश', f5p: 'छह श्रेणियाँ, प्रति-श्रेणी तात्कालिकता। बेल फ़ीड के साथ नेटिव Web Push (VAPID)।',
+      f6t: 'मल्टी-यूज़र', f6p: 'bcrypt पासवर्ड, admin और viewer भूमिकाएँ, प्रति-यूज़र भाषा। चाबियाँ दिए बिना व्यू साझा करें।',
+      f7t: 'डेमो मोड', f7p: 'DEMO_MODE=1 से 67 डिवाइस का पूरा सैंपल नेटवर्क — बिना राउटर। इंस्टॉल से पहले आज़माएँ।',
+      f8t: 'लेटेंसी कलेक्टर', f8p: 'वैकल्पिक sidecar जो प्रति-राउटर TCP लेटेंसी पोल करता है, अपनी लंबी समय-श्रृंखलाओं के साथ।',
+    },
+    install: {
+      title: 'इंस्टॉल के लिए एक पंक्ति',
+      lead: 'एक स्थिर Go बाइनरी जिसमें वेब ऐप एम्बेड है, sandboxed systemd सेवा के रूप में। Docker की ज़रूरत नहीं — यह नेटवर्क की निगरानी करता है; इसके लिए कंटेनर की ज़रूरत नहीं।',
+      main: 'अनुशंसित', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'आवश्यकताएँ', r1: 'systemd वाला Linux (x86_64, arm64 या armv7)', r2: 'आपके LAN पर OpenWrt / GL.iNet राउटर', r3: 'LXC या छोटे VM में लगभग 64 MB RAM', r4: 'WireGuard / AdGuard Home वैकल्पिक',
+      inspector: 'इंस्टॉलर सादा, पढ़ने लायक़ शेल है —', inspectorLink: 'पहले जाँचें',
+      collector: 'वैकल्पिक लेटेंसी sidecar (लंबी TCP पोलिंग श्रृंखलाएँ):',
+      update: 'उसी पंक्ति को दोबारा चलाकर अपडेट करें। sh install.sh --uninstall से हटाएँ।',
+      connect: 'अपने राउटर जोड़ें', connectp: 'सर्वर अपना ed25519 की-पेयर बनाता है और पब्लिक की सेटिंग्स में दिखाता है। हर राउटर पर इसे अधिकृत करें (/etc/dropbear/authorized_keys)। गेटवे पहले बूट पर LAN डिस्कवरी से खुद पकड़ में आता है; बाकी सेटिंग्स से जोड़ें। पोलिंग सख़्ती से केवल-पढ़ने योग्य है।',
+    },
+    honest: {
+      title: 'जो आपको जानना चाहिए',
+      p1: 'NetPulse एक व्यक्तिगत प्रोजेक्ट है, मेरे अपने नेटवर्क के लिए बनाया गया और स्वतंत्र सॉफ़्टवेयर (AGPL-3.0) के रूप में प्रकाशित। यह स्वतंत्र है और हमेशा रहेगा। मैं इसे खाली समय में बनाता हूँ: विचार बहुत, समय कम, और यह पहले मेरी अपनी ज़रूरतों के अनुसार बढ़ता है।',
+      p2: 'ईमानदार गुंजाइश नोट: अब तक इसे सिर्फ़ मेरे हार्डवेयर पर परखा गया है — एक GL.iNet Flint 2 गेटवे और तीन OpenWrt वाले Xiaomi AX6 एक्सेस पॉइंट — साथ में WireGuard और AdGuard Home। दूसरे OpenWrt डिवाइस चलने चाहिए, पर आपका पहला होगा जो मुझे बताएगा।',
+    },
+    footer: {
+      tagline: 'घरेलू नेटवर्क के लिए केवल-पढ़ने योग्य निगरानी, सेल्फ-होस्टेड और हमेशा के लिए स्वतंत्र।',
+      project: 'प्रोजेक्ट', releases: 'रिलीज़', roadmap: 'रोडमैप', license: 'लाइसेंस',
+      community: 'समुदाय', issues: 'इश्यू', discussions: 'चर्चाएँ', contribute: 'योगदान',
+      kofi: 'Ko-fi पर प्रोजेक्ट का समर्थन करें', rights: 'AGPL-3.0 · घर पर बना, घर के नेटवर्क के लिए।',
+    },
+    appearance: { title: 'रूप-रंग', theme: 'थीम', dark: 'डार्क', light: 'लाइट', system: 'ऑटो', accent: 'ऐक्सेंट', note: 'ऐप वाले ही टोकन — लाइव आज़माएँ।' },
+    misc: { lang: 'भाषा', copy: 'कॉपी करें', copied: 'कॉपी हो गया!', demoBadge: 'डेमो डेटा' },
+  },
+
+  /* ---------------- PORTUGUÊS ---------------- */
+  pt: {
+    nav: { features: 'Recursos', install: 'Instalar', github: 'GitHub' },
+    hero: {
+      eyebrow: 'Monitoramento somente leitura para redes domésticas',
+      t1: 'O pulso da sua rede.',
+      t2: 'Em tempo real. Sem nuvem.',
+      sub: 'O NetPulse vigia seus roteadores OpenWrt, desenha a topologia, avalia a saúde da rede e avisa você — tudo a partir de um único binário auto-hospedado. Nada sai da sua LAN.',
+      cta1: 'Instalar na sua rede', cta2: 'Ver no GitHub', cta3: 'Testar a demo ao vivo',
+    },
+    facts: { noCloud: 'Sem nuvem', free: '100% livre · AGPL-3.0', data: 'Seu app, seus dados', binary: 'Um único binário', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'Saúde', down: 'Download', up: 'Upload', latency: 'Latência', devices: 'Dispositivos' },
+    principles: {
+      title: 'Construído sobre três princípios teimosos',
+      lead: 'Não são frases de marketing. São a razão de o NetPulse existir, e moldam cada decisão.',
+      p1t: 'Sem nuvem',
+      p1p: 'Sem conta, sem assinatura, sem telemetria ligando para casa. O NetPulse roda numa caixinha dentro da sua rede e em nenhum outro lugar. Se a internet cair, ele continua funcionando.',
+      p2t: '100% livre e open source',
+      p2p: 'AGPL-3.0, para sempre. Leia o código, audite, faça fork, execute. Não existe versão premium e nunca existirá.',
+      p3t: 'Seu app, seus dados',
+      p3p: 'O servidor lê dos seus roteadores e nunca escreve. As métricas vivem num SQLite local que é seu. Apague, faça backup, mova — é seu.',
+    },
+    theater: {
+      title: 'Veja ganhar vida',
+      lead: 'Continue rolando. Estes são os widgets reais, alimentados com o dataset de demo — os mesmos números que você vê ao rodar o NetPulse em modo demo.',
+      st1t: 'Um número conta a história toda',
+      st1p: 'A pontuação de saúde resume latência, perdas, uptime e temperatura em 0–100. Verde significa calma. Atualiza a cada 5 segundos via SSE.',
+      st2t: 'Tráfego desenhado enquanto acontece',
+      st2p: 'Vazão WAN ao vivo contra o seu plano contratado, com médias e totais de 24 h. Sem truques de amostragem — o que você vê é o que passa no cabo.',
+      st3t: 'Um mapa de topologia que se infere sozinho',
+      st3p: 'Construído ao vivo a partir do FDB da bridge (e LLDP quando disponível): clientes cabeados e sem fio, switches inferidos e túneis WireGuard desenhados do peer até a internet.',
+      st4t: 'Sua frota inteira, num relance',
+      st4p: 'CPU, memória, temperatura e uptime por roteador. Quatro aqui: um gateway GL.iNet Flint 2 e três pontos de acesso Xiaomi AX6 usados.',
+      st5t: 'AdGuard Home, integrado',
+      st5p: 'Consultas DNS, taxa de bloqueio e domínios mais bloqueados, além de quais clientes o usam. Seu bloqueio de anúncios, visível junto com todo o resto.',
+      st6t: 'Alertas que encontram você',
+      st6p: 'Picos de temperatura, dispositivos novos, firmware disponível, handshakes do WireGuard — no sino e, com Web Push, no seu celular.',
+    },
+    health: { caption: 'Pontuação de saúde da rede', label: 'Excelente' },
+    wan: { live: 'AO VIVO', title: 'Tráfego WAN', plan: 'plano' },
+    topo: { wired: 'Cabo', wifi: 'WiFi', tunnel: 'Túnel WG', gw: 'gateway', inet: 'Internet' },
+    routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' },
+    adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes usando', domains: 'Domínios mais bloqueados' },
+    alerts: { title: 'Feed de alertas', a1: 'AP-Estudio: temperatura 78 °C', a2: 'Novo dispositivo: tv-salon (cabo)', a3: 'Firmware disponível no GW-Flint2', a4: 'WireGuard: handshake do peer “phone”', ago: 'atrás' },
+    features: {
+      title: 'Tudo o que um NOC doméstico precisa',
+      lead: 'Somente leitura por design: o NetPulse vê sua rede, mas nunca a altera.',
+      f1t: 'Topologia ao vivo', f1p: 'Inferida do FDB da bridge + LLDP. Clientes cabeados e sem fio, switches gerenciados e inferidos, hypervisors com containers aninhados.',
+      f2t: 'Dispositivos', f2p: 'Cada cliente classificado por padrões de hostname + OUI, com banda, sinal, primeira aparição e o roteador ao qual fala.',
+      f3t: 'WireGuard', f3p: 'Peers, últimos handshakes e transferência por peer, com túneis desenhados no mapa.',
+      f4t: 'AdGuard Home', f4p: 'Estatísticas de consultas, taxa de bloqueio e domínios mais bloqueados, ao lado da sua rede.',
+      f5t: 'Alertas e push', f5p: 'Seis categorias com urgência por categoria. Feed no sino mais Web Push nativo (VAPID).',
+      f6t: 'Multiusuário', f6p: 'Senhas bcrypt, papéis admin e viewer, idioma por usuário. Compartilhe a visão sem entregar as chaves.',
+      f7t: 'Modo demo', f7p: 'DEMO_MODE=1 dá uma rede de amostra completa com 67 dispositivos — sem roteadores. Teste antes de instalar.',
+      f8t: 'Coletor de latência', f8p: 'Sidecar opcional que mede latência TCP por roteador, com suas próprias séries temporais de longo prazo.',
+    },
+    install: {
+      title: 'Uma linha para instalar',
+      lead: 'Um único binário Go estático com o app web embutido, rodando como serviço systemd em sandbox. Sem Docker — ele monitora uma rede; não precisa de container para isso.',
+      main: 'Recomendado', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'Requisitos', r1: 'Linux com systemd (x86_64, arm64 ou armv7)', r2: 'Roteadores OpenWrt / GL.iNet na sua LAN', r3: 'Cerca de 64 MB de RAM num LXC ou VM pequena', r4: 'WireGuard / AdGuard Home opcionais',
+      inspector: 'O instalador é shell simples e legível —', inspectorLink: 'inspecione antes',
+      collector: 'Sidecar opcional de latência (séries de sondagem TCP de longo prazo):',
+      update: 'Atualize reexecutando a mesma linha. Desinstale com sh install.sh --uninstall.',
+      connect: 'Conecte seus roteadores', connectp: 'O servidor gera seu próprio par de chaves ed25519 e mostra a pública em Configurações. Autorize-a em cada roteador (/etc/dropbear/authorized_keys). O gateway se autodetecta no primeiro boot por descoberta LAN; os demais você adiciona em Configurações. A sondagem é estritamente somente leitura.',
+    },
+    honest: {
+      title: 'O que você deve saber',
+      p1: 'O NetPulse é um projeto pessoal, construído para a minha própria rede e publicado como software livre (AGPL-3.0). É e será sempre livre. Trabalho nele no meu tempo livre: muitas ideias, pouco tempo, e ele evolui seguindo primeiro as minhas próprias necessidades.',
+      p2: 'Nota honesta de escopo: até agora só foi testado no meu próprio hardware — um gateway GL.iNet Flint 2 e três pontos de acesso Xiaomi AX6 com OpenWrt — além de WireGuard e AdGuard Home. Outros dispositivos OpenWrt devem funcionar, mas o seu seria o primeiro a contar.',
+    },
+    footer: {
+      tagline: 'Monitoramento somente leitura para redes domésticas, auto-hospedado e livre para sempre.',
+      project: 'Projeto', releases: 'Releases', roadmap: 'Roadmap', license: 'Licença',
+      community: 'Comunidade', issues: 'Issues', discussions: 'Discussões', contribute: 'Contribuir',
+      kofi: 'Apoie o projeto no Ko-fi', rights: 'AGPL-3.0 · Feito em casa, para redes de casa.',
+    },
+    appearance: { title: 'Aparência', theme: 'Tema', dark: 'Escuro', light: 'Claro', system: 'Auto', accent: 'Destaque', note: 'Mesmos tokens do app — experimente ao vivo.' },
+    misc: { lang: 'Idioma', copy: 'Copiar', copied: 'Copiado!', demoBadge: 'dados demo' },
+  },
+
+  /* ---------------- FRANÇAIS ---------------- */
+  fr: {
+    nav: { features: 'Fonctions', install: 'Installer', github: 'GitHub' },
+    hero: {
+      eyebrow: 'Supervision en lecture seule de votre réseau domestique',
+      t1: 'Le pouls de votre réseau.',
+      t2: 'En temps réel. Sans cloud.',
+      sub: 'NetPulse surveille vos routeurs OpenWrt, dessine la topologie, note la santé du réseau et vous alerte — le tout depuis un seul binaire auto-hébergé. Rien ne quitte votre LAN.',
+      cta1: 'Installer sur votre réseau', cta2: 'Voir sur GitHub', cta3: 'Essayer la démo en direct',
+    },
+    facts: { noCloud: 'Sans cloud', free: '100 % libre · AGPL-3.0', data: 'Votre app, vos données', binary: 'Un seul binaire', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'Santé', down: 'Descendant', up: 'Montant', latency: 'Latence', devices: 'Appareils' },
+    principles: {
+      title: 'Construit sur trois principes obstinés',
+      lead: 'Pas des slogans marketing. C’est la raison d’être de NetPulse, et ils façonnent chaque décision.',
+      p1t: 'Sans cloud',
+      p1p: 'Pas de compte, pas d’abonnement, pas de télémétrie qui téléphone à la maison. NetPulse tourne sur un petit boîtier dans votre réseau, et nulle part ailleurs. Si Internet tombe, il continue.',
+      p2t: '100 % libre et open source',
+      p2p: 'AGPL-3.0, pour toujours. Lisez le code, auditez-le, forkez-le, exécutez-le. Pas de version premium, il n’y en aura jamais.',
+      p3t: 'Votre app, vos données',
+      p3p: 'Le serveur lit depuis vos routeurs et n’écrit jamais. Les métriques vivent dans un fichier SQLite local qui vous appartient. Supprimez-le, sauvegardez-le, déplacez-le — c’est le vôtre.',
+    },
+    theater: {
+      title: 'Regardez-le prendre vie',
+      lead: 'Continuez à défiler. Ce sont les vrais widgets, nourris par le jeu de données démo — les mêmes chiffres que vous obtenez en lançant NetPulse en mode démo.',
+      st1t: 'Un seul chiffre raconte tout',
+      st1p: 'Le score de santé condense latence, pertes, uptime et température en 0–100. Vert signifie sérénité. Mis à jour toutes les 5 secondes via SSE.',
+      st2t: 'Le trafic dessiné en direct',
+      st2p: 'Débit WAN en direct face à votre abonnement, avec moyennes et totaux sur 24 h. Pas d’astuce d’échantillonnage — ce que vous voyez est ce qui passe sur le câble.',
+      st3t: 'Une carte topologique qui s’infère toute seule',
+      st3p: 'Construite en direct depuis la FDB du bridge (et LLDP quand disponible) : clients filaires et sans fil, switches inférés, tunnels WireGuard dessinés du peer vers Internet.',
+      st4t: 'Toute votre flotte d’un coup d’œil',
+      st4p: 'CPU, mémoire, température et uptime par routeur. Quatre ici : une gateway GL.iNet Flint 2 et trois points d’accès Xiaomi AX6 d’occasion.',
+      st5t: 'AdGuard Home, intégré',
+      st5p: 'Requêtes DNS, part bloquée et domaines les plus bloqués, plus les clients qui l’utilisent. Votre blocage de pub, visible à côté de tout le reste.',
+      st6t: 'Des alertes qui viennent à vous',
+      st6p: 'Pics de température, nouveaux appareils, firmware disponible, handshakes WireGuard — dans la cloche et, avec Web Push, sur votre téléphone.',
+    },
+    health: { caption: 'Score de santé du réseau', label: 'Excellent' },
+    wan: { live: 'DIRECT', title: 'Trafic WAN', plan: 'forfait' },
+    topo: { wired: 'Filaire', wifi: 'WiFi', tunnel: 'Tunnel WG', gw: 'gateway', inet: 'Internet' },
+    routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' },
+    adguard: { title: 'AdGuard Home', queries: 'requêtes · 24 h', blocked: 'bloqué', clients: 'clients utilisateurs', domains: 'Domaines les plus bloqués' },
+    alerts: { title: 'Fil d’alertes', a1: 'AP-Estudio : température 78 °C', a2: 'Nouvel appareil : tv-salon (filaire)', a3: 'Firmware disponible sur GW-Flint2', a4: 'WireGuard : handshake du peer « phone »', ago: 'il y a' },
+    features: {
+      title: 'Tout ce qu’il faut à un NOC domestique',
+      lead: 'Lecture seule par conception : NetPulse voit votre réseau, sans jamais le modifier.',
+      f1t: 'Topologie en direct', f1p: 'Inférée de la FDB du bridge + LLDP. Clients filaires et sans fil, switches gérés et inférés, hyperviseurs avec conteneurs imbriqués.',
+      f2t: 'Appareils', f2p: 'Chaque client classé par motifs de hostname + OUI, avec bande, signal, première apparition et routeur associé.',
+      f3t: 'WireGuard', f3p: 'Peers, derniers handshakes et transfert par peer, avec tunnels dessinés sur la carte.',
+      f4t: 'AdGuard Home', f4p: 'Statistiques de requêtes, part bloquée et domaines les plus bloqués, à côté de votre réseau.',
+      f5t: 'Alertes et push', f5p: 'Six catégories avec urgence par catégorie. Fil dans la cloche plus Web Push natif (VAPID).',
+      f6t: 'Multi-utilisateur', f6p: 'Mots de passe bcrypt, rôles admin et viewer, langue par utilisateur. Partagez la vue sans donner les clés.',
+      f7t: 'Mode démo', f7p: 'DEMO_MODE=1 offre un réseau d’exemple complet de 67 appareils — sans routeurs. Essayez avant d’installer.',
+      f8t: 'Collecteur de latence', f8p: 'Sidecar optionnel qui sonde la latence TCP par routeur, avec ses propres séries temporelles longue durée.',
+    },
+    install: {
+      title: 'Une ligne pour installer',
+      lead: 'Un unique binaire Go statique avec l’app web embarquée, en service systemd sandboxé. Pas de Docker — il supervise un réseau ; il n’a pas besoin d’un conteneur pour ça.',
+      main: 'Recommandé', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'Prérequis', r1: 'Linux avec systemd (x86_64, arm64 ou armv7)', r2: 'Routeurs OpenWrt / GL.iNet sur votre LAN', r3: 'Environ 64 Mo de RAM dans un LXC ou une petite VM', r4: 'WireGuard / AdGuard Home optionnels',
+      inspector: 'L’installateur est un shell simple et lisible —', inspectorLink: 'inspectez-le d’abord',
+      collector: 'Sidecar de latence optionnel (séries de sondage TCP longue durée) :',
+      update: 'Mettez à jour en réexécutant la même ligne. Désinstallez avec sh install.sh --uninstall.',
+      connect: 'Connectez vos routeurs', connectp: 'Le serveur génère sa propre paire de clés ed25519 et affiche la publique dans Réglages. Autorisez-la sur chaque routeur (/etc/dropbear/authorized_keys). La gateway s’autodétecte au premier démarrage par découverte LAN ; les autres s’ajoutent depuis Réglages. Le sondage est strictement en lecture seule.',
+    },
+    honest: {
+      title: 'Ce qu’il faut savoir',
+      p1: 'NetPulse est un projet personnel, construit pour mon propre réseau et publié en logiciel libre (AGPL-3.0). Il est et restera toujours libre. J’y travaille sur mon temps libre : beaucoup d’idées, peu de temps, et il évolue d’abord selon mes propres besoins.',
+      p2: 'Note honnête de périmètre : pour l’instant testé uniquement sur mon propre matériel — une gateway GL.iNet Flint 2 et trois points d’accès Xiaomi AX6 sous OpenWrt — plus WireGuard et AdGuard Home. D’autres appareils OpenWrt devraient fonctionner, mais le vôtre serait le premier à le dire.',
+    },
+    footer: {
+      tagline: 'Supervision en lecture seule des réseaux domestiques, auto-hébergée et libre pour toujours.',
+      project: 'Projet', releases: 'Releases', roadmap: 'Roadmap', license: 'Licence',
+      community: 'Communauté', issues: 'Issues', discussions: 'Discussions', contribute: 'Contribuer',
+      kofi: 'Soutenir le projet sur Ko-fi', rights: 'AGPL-3.0 · Fait maison, pour les réseaux maison.',
+    },
+    appearance: { title: 'Apparence', theme: 'Thème', dark: 'Sombre', light: 'Clair', system: 'Auto', accent: 'Accent', note: 'Mêmes tokens que l’app — essayez en direct.' },
+    misc: { lang: 'Langue', copy: 'Copier', copied: 'Copié !', demoBadge: 'données démo' },
+  },
+
+  /* ---------------- 日本語 ---------------- */
+  ja: {
+    nav: { features: '機能', install: 'インストール', github: 'GitHub' },
+    hero: {
+      eyebrow: '家庭内ネットワークの読み取り専用モニタリング',
+      t1: 'あなたのネットワークの鼓動。',
+      t2: 'リアルタイム。クラウドなし。',
+      sub: 'NetPulse は OpenWrt ルーターを見守り、トポロジーを描き、ネットワークの健全性をスコア化して通知します — すべて単一のセルフホスト バイナリから。データはあなたの LAN から出ません。',
+      cta1: '自分のネットワークに導入', cta2: 'GitHub で見る', cta3: 'ライブデモを試す',
+    },
+    facts: { noCloud: 'クラウドなし', free: '100% フリー · AGPL-3.0', data: 'あなたのアプリ、あなたのデータ', binary: '単一静的バイナリ', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: '健全性', down: 'ダウンロード', up: 'アップロード', latency: 'レイテンシ', devices: 'デバイス' },
+    principles: {
+      title: '三つの頑固な原則の上に',
+      lead: 'マーケティング文句ではありません。NetPulse が存在する理由であり、すべての決断を形作ります。',
+      p1t: 'クラウドなし',
+      p1p: 'アカウントもサブスクリプションも、家に電話するテレメトリもなし。NetPulse はあなたのネットワーク内の小さな箱で動き、他所では動きません。インターネットが落ちても動き続けます。',
+      p2t: '100% フリーでオープンソース',
+      p2p: 'AGPL-3.0、ずっと。コードを読み、監査し、フォークし、実行してください。プレミアム版はなく、今後もありません。',
+      p3t: 'あなたのアプリ、あなたのデータ',
+      p3p: 'サーバーはルーターから読むだけで、書き込みはしません。メトリクスはあなたの所有するローカル SQLite ファイルにあります。削除、バックアップ、移動 — すべてあなた次第。',
+    },
+    theater: {
+      title: '動き出す様子をご覧ください',
+      lead: 'スクロールを続けてください。これらは本物のウィジェットで、デモデータセットで動いています — デモモードで NetPulse を実行したときと同じ数字です。',
+      st1t: '一つの数字がすべてを語る',
+      st1p: 'ヘルススコアはレイテンシ、ロス、稼働時間、温度を 0–100 に凝縮します。緑は安心の印。SSE 経由で 5 秒ごとに更新。',
+      st2t: '起こりながら描かれるトラフィック',
+      st2p: '契約プランに対する WAN のライブスループットを 24 時間の平均と合計付きで表示。サンプリングのトリックなし — 見えるものがそのままケーブルを流れるもの。',
+      st3t: '自ら推論するトポロジーマップ',
+      st3p: 'ブリッジ FDB からライブ構築（利用可能なら LLDP も）：有線・無線クライアント、推論されたスイッチ、peer からインターネットへの WireGuard トンネル。',
+      st4t: 'フリート全体が一目で',
+      st4p: 'ルーターごとの CPU、メモリ、温度、稼働時間。ここには 4 台：GL.iNet Flint 2 ゲートウェイ 1 台と中古の Xiaomi AX6 アクセスポイント 3 台。',
+      st5t: 'AdGuard Home、統合済み',
+      st5p: 'DNS クエリ、ブロック率、上位ブロックドメイン、さらに利用中のクライアントも。広告ブロックが他のすべてと並んで見えます。',
+      st6t: 'あなたを見つけ出すアラート',
+      st6p: '温度急上昇、新規デバイス、ファームウェア更新、WireGuard ハンドシェイク — ベルに、Web Push でスマホにも。',
+    },
+    health: { caption: 'ネットワーク健全性スコア', label: '優秀' },
+    wan: { live: 'ライブ', title: 'WAN トラフィック', plan: 'プラン' },
+    topo: { wired: '有線', wifi: 'WiFi', tunnel: 'WG トンネル', gw: 'ゲートウェイ', inet: 'インターネット' },
+    routers: { cpu: 'CPU', mem: 'メモリ', temp: '温度', up: '稼働' },
+    adguard: { title: 'AdGuard Home', queries: 'クエリ · 24 時間', blocked: 'ブロック', clients: 'クライアントが使用中', domains: '上位ブロックドメイン' },
+    alerts: { title: 'アラートフィード', a1: 'AP-Estudio：温度 78 °C', a2: '新規デバイス：tv-salon（有線）', a3: 'GW-Flint2 にファームウェアあり', a4: 'WireGuard：peer「phone」ハンドシェイク', ago: '前' },
+    features: {
+      title: 'ホーム NOC に必要なすべて',
+      lead: '設計上読み取り専用：NetPulse はあなたのネットワークを見られますが、変更は決してしません。',
+      f1t: 'ライブトポロジー', f1p: 'ブリッジ FDB + LLDP から推論。有線・無線クライアント、管理・推論スイッチ、コンテナをネストしたハイパーバイザー。',
+      f2t: 'デバイス', f2p: '各クライアントをホスト名パターン + OUI で分類。バンド、信号、初検出時刻、接続先ルーター付き。',
+      f3t: 'WireGuard', f3p: 'peer、最終ハンドシェイク、peer ごとの転送量。トンネルはマップ上に描画。',
+      f4t: 'AdGuard Home', f4p: 'クエリ統計、ブロック率、上位ブロックドメインをネットワークと並べて表示。',
+      f5t: 'アラートとプッシュ', f5p: '6 カテゴリ、カテゴリごとの緊急度。ベルのフィードに加えネイティブ Web Push（VAPID）。',
+      f6t: 'マルチユーザー', f6p: 'bcrypt パスワード、admin と viewer ロール、ユーザーごとの言語。鍵を渡さずビューを共有。',
+      f7t: 'デモモード', f7p: 'DEMO_MODE=1 で 67 デバイスの完全なサンプルネットワーク — ルーター不要。導入前にお試し。',
+      f8t: 'レイテンシコレクター', f8p: 'オプションの sidecar がルーターごとの TCP レイテンシをポーリング。独自の長期時系列付き。',
+    },
+    install: {
+      title: 'インストールは 1 行',
+      lead: 'Web アプリを埋め込んだ単一の静的 Go バイナリを、サンドボックス化された systemd サービスとして実行。Docker 不要 — ネットワークを監視するのにコンテナは要りません。',
+      main: '推奨', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: '要件', r1: 'systemd 入り Linux（x86_64、arm64 または armv7）', r2: 'LAN 内の OpenWrt / GL.iNet ルーター', r3: 'LXC や小さな VM に約 64 MB の RAM', r4: 'WireGuard / AdGuard Home は任意',
+      inspector: 'インストーラーは素直で読めるシェルスクリプト —', inspectorLink: 'まず検分を',
+      collector: 'オプションのレイテンシ sidecar（長期 TCP ポーリング時系列）：',
+      update: '同じ行を再実行すれば更新。アンインストールは sh install.sh --uninstall。',
+      connect: 'ルーターをつなぐ', connectp: 'サーバーは自身の ed25519 キーペアを生成し、公開鍵を「設定」に表示します。各ルーターで承認してください（/etc/dropbear/authorized_keys）。ゲートウェイは初回起動時に LAN ディスカバリーで自動検出。残りは設定から追加。ポーリングは厳密に読み取り専用です。',
+    },
+    honest: {
+      title: '知っておいてほしいこと',
+      p1: 'NetPulse は個人プロジェクトで、作者自身のネットワークのために作られ、フリーソフトウェア（AGPL-3.0）として公開されています。今もこれからもずっとフリーです。空き時間に開発しており、アイデアは多く時間は少なく、まずは作者自身の必要に沿って進化します。',
+      p2: '正直な範囲の注記：現時点でテスト済みなのは作者のハードウェアのみ — GL.iNet Flint 2 ゲートウェイ 1 台と OpenWrt の Xiaomi AX6 アクセスポイント 3 台 — に加え WireGuard と AdGuard Home。他の OpenWrt デバイスも動くはずですが、あなたのものが最初の報告になるでしょう。',
+    },
+    footer: {
+      tagline: '家庭内ネットワークの読み取り専用モニタリング。セルフホスト、ずっとフリー。',
+      project: 'プロジェクト', releases: 'リリース', roadmap: 'ロードマップ', license: 'ライセンス',
+      community: 'コミュニティ', issues: 'Issues', discussions: '議論', contribute: '貢献',
+      kofi: 'Ko-fi でプロジェクトを応援', rights: 'AGPL-3.0 · 家庭のネットワークのために、家庭で作られました。',
+    },
+    appearance: { title: '外観', theme: 'テーマ', dark: 'ダーク', light: 'ライト', system: '自動', accent: 'アクセント', note: 'アプリと同じトークン — ライブでお試しください。' },
+    misc: { lang: '言語', copy: 'コピー', copied: 'コピーしました', demoBadge: 'デモデータ' },
+  },
+
+  /* ---------------- РУССКИЙ ---------------- */
+  ru: {
+    nav: { features: 'Возможности', install: 'Установка', github: 'GitHub' },
+    hero: {
+      eyebrow: 'Мониторинг домашней сети в режиме только чтение',
+      t1: 'Пульс вашей сети.',
+      t2: 'В реальном времени. Без облака.',
+      sub: 'NetPulse следит за роутерами OpenWrt, рисует топологию, оценивает здоровье сети и предупреждает вас — всё из одного self-hosted бинарника. Ничего не покидает вашу LAN.',
+      cta1: 'Установить в своей сети', cta2: 'Смотреть на GitHub', cta3: 'Попробовать живое демо',
+    },
+    facts: { noCloud: 'Без облака', free: '100% свободный · AGPL-3.0', data: 'Ваше приложение, ваши данные', binary: 'Один статический бинарник', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'Здоровье', down: 'Загрузка', up: 'Отдача', latency: 'Задержка', devices: 'Устройства' },
+    principles: {
+      title: 'Построен на трёх упрямых принципах',
+      lead: 'Это не маркетинговые лозунги. Это причина существования NetPulse, и они определяют каждое решение.',
+      p1t: 'Без облака',
+      p1p: 'Ни аккаунтов, ни подписок, ни телеметрии, звонящей домой. NetPulse работает на маленькой коробке в вашей сети — и больше нигде. Если интернет упал, он продолжает работать.',
+      p2t: '100% свободный и open source',
+      p2p: 'AGPL-3.0, навсегда. Читайте код, проверяйте, форкайте, запускайте. Премиум-версии нет и не будет.',
+      p3t: 'Ваше приложение, ваши данные',
+      p3p: 'Сервер читает с роутеров и никогда не пишет. Метрики живут в локальном файле SQLite, который принадлежит вам. Удаляйте, делайте бэкапы, переносите — он ваш.',
+    },
+    theater: {
+      title: 'Смотрите, как это оживает',
+      lead: 'Продолжайте прокручивать. Это настоящие виджеты, питаемые демо-датасетом — те самые цифры, что вы увидите, запустив NetPulse в демо-режиме.',
+      st1t: 'Одно число рассказывает всё',
+      st1p: 'Оценка здоровья сжимает задержку, потери, аптайм и температуру в 0–100. Зелёный — значит спокойно. Обновляется каждые 5 секунд по SSE.',
+      st2t: 'Трафик рисуется по мере свершения',
+      st2p: 'Живая пропускная способность WAN против вашего тарифа, со средними и итогами за 24 часа. Никаких трюков с выборкой — что видите, то и идёт по проводу.',
+      st3t: 'Карта топологии, которая выводит себя сама',
+      st3p: 'Строится вживую из FDB бриджа (и LLDP, когда доступен): проводные и беспроводные клиенты, выведенные свитчи и туннели WireGuard от peer до интернета.',
+      st4t: 'Весь ваш флот с одного взгляда',
+      st4p: 'CPU, память, температура и аптайм по каждому роутеру. Здесь четыре: один шлюз GL.iNet Flint 2 и три б/у точки доступа Xiaomi AX6.',
+      st5t: 'AdGuard Home, интегрирован',
+      st5p: 'DNS-запросы, доля блокировок и топ заблокированных доменов, плюс какие клиенты его используют. Ваша блокировка рекламы видна рядом со всем остальным.',
+      st6t: 'Оповещения, которые находят вас',
+      st6p: 'Скачки температуры, новые устройства, доступная прошивка, рукопожатия WireGuard — в колокольчике и, через Web Push, на вашем телефоне.',
+    },
+    health: { caption: 'Оценка здоровья сети', label: 'Отлично' },
+    wan: { live: 'LIVE', title: 'Трафик WAN', plan: 'тариф' },
+    topo: { wired: 'Провод', wifi: 'WiFi', tunnel: 'WG-туннель', gw: 'шлюз', inet: 'Интернет' },
+    routers: { cpu: 'CPU', mem: 'ПАМ', temp: 'ТЕМП', up: 'АПТАЙМ' },
+    adguard: { title: 'AdGuard Home', queries: 'запросов · 24 ч', blocked: 'заблокировано', clients: 'клиентов используют', domains: 'Топ заблокированных доменов' },
+    alerts: { title: 'Лента оповещений', a1: 'AP-Estudio: температура 78 °C', a2: 'Новое устройство: tv-salon (провод)', a3: 'Доступна прошивка на GW-Flint2', a4: 'WireGuard: рукопожатие peer «phone»', ago: 'назад' },
+    features: {
+      title: 'Всё, что нужно домашнему NOC',
+      lead: 'Только чтение по замыслу: NetPulse видит вашу сеть, но никогда её не меняет.',
+      f1t: 'Живая топология', f1p: 'Выводится из FDB бриджа + LLDP. Проводные и беспроводные клиенты, управляемые и выведенные свитчи, гипервизоры с вложенными контейнерами.',
+      f2t: 'Устройства', f2p: 'Каждый клиент классифицируется по паттернам hostname + OUI, с диапазоном, сигналом, первым появлением и роутером.',
+      f3t: 'WireGuard', f3p: 'Пиры, последние рукопожатия и передача по пирам, с туннелями на карте.',
+      f4t: 'AdGuard Home', f4p: 'Статистика запросов, доля блокировок и топ доменов — рядом с вашей сетью.',
+      f5t: 'Оповещения и push', f5p: 'Шесть категорий с настройкой срочности. Лента в колокольчике плюс нативный Web Push (VAPID).',
+      f6t: 'Мультипользовательность', f6p: 'Пароли bcrypt, роли admin и viewer, язык для каждого. Делитесь видом, не отдавая ключи.',
+      f7t: 'Демо-режим', f7p: 'DEMO_MODE=1 даёт полную образцовую сеть из 67 устройств — без роутеров. Попробуйте до установки.',
+      f8t: 'Коллектор задержек', f8p: 'Опциональный sidecar, опрашивающий TCP-задержку по каждому роутеру, со своими долгосрочными временными рядами.',
+    },
+    install: {
+      title: 'Одна строка для установки',
+      lead: 'Единственный статический Go-бинарник со встроенным веб-приложением, работающий как изолированный systemd-сервис. Без Docker — он мониторит сеть; контейнер для этого не нужен.',
+      main: 'Рекомендуется', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'Требования', r1: 'Linux с systemd (x86_64, arm64 или armv7)', r2: 'Роутеры OpenWrt / GL.iNet в вашей LAN', r3: 'Около 64 МБ RAM в LXC или маленькой VM', r4: 'WireGuard / AdGuard Home опционально',
+      inspector: 'Инсталлятор — простой, читаемый shell —', inspectorLink: 'сначала проверьте его',
+      collector: 'Опциональный sidecar задержек (долгосрочные ряды TCP-опроса):',
+      update: 'Обновитесь, повторно запустив ту же строку. Удаление — sh install.sh --uninstall.',
+      connect: 'Подключите роутеры', connectp: 'Сервер генерирует свою пару ключей ed25519 и показывает публичный ключ в Настройках. Авторизуйте его на каждом роутере (/etc/dropbear/authorized_keys). Шлюз самоопределяется при первом старте через обнаружение LAN; остальные добавляются в Настройках. Опрос строго только для чтения.',
+    },
+    honest: {
+      title: 'Что стоит знать',
+      p1: 'NetPulse — личный проект, построенный для моей собственной сети и опубликованный как свободное ПО (AGPL-3.0). Он свободен и всегда будет. Работаю над ним в свободное время: идей много, времени мало, и развивается он прежде всего по моим собственным нуждам.',
+      p2: 'Честная оговорка о границах: пока тестировалось только на моём железе — шлюз GL.iNet Flint 2 и три точки доступа Xiaomi AX6 на OpenWrt — плюс WireGuard и AdGuard Home. Другие устройства OpenWrt должны работать, но ваше станет первым, которое расскажет.',
+    },
+    footer: {
+      tagline: 'Мониторинг домашней сети в режиме только чтение: self-hosted и свободный навсегда.',
+      project: 'Проект', releases: 'Релизы', roadmap: 'Дорожная карта', license: 'Лицензия',
+      community: 'Сообщество', issues: 'Issues', discussions: 'Обсуждения', contribute: 'Внести вклад',
+      kofi: 'Поддержать проект на Ko-fi', rights: 'AGPL-3.0 · Сделано дома, для домашних сетей.',
+    },
+    appearance: { title: 'Внешний вид', theme: 'Тема', dark: 'Тёмная', light: 'Светлая', system: 'Авто', accent: 'Акцент', note: 'Те же токены, что в приложении — попробуйте вживую.' },
+    misc: { lang: 'Язык', copy: 'Копировать', copied: 'Скопировано!', demoBadge: 'демо-данные' },
+  },
+
+  /* ---------------- DEUTSCH ---------------- */
+  de: {
+    nav: { features: 'Funktionen', install: 'Installieren', github: 'GitHub' },
+    hero: {
+      eyebrow: 'Read-only-Monitoring für dein Heimnetz',
+      t1: 'Der Puls deines Netzwerks.',
+      t2: 'In Echtzeit. Ohne Cloud.',
+      sub: 'NetPulse überwacht deine OpenWrt-Router, zeichnet die Topologie, bewertet die Netzwerkgesundheit und warnt dich — alles aus einer einzigen selbst gehosteten Binärdatei. Nichts verlässt dein LAN.',
+      cta1: 'In deinem Netz installieren', cta2: 'Auf GitHub ansehen', cta3: 'Live-Demo testen',
+    },
+    facts: { noCloud: 'Keine Cloud', free: '100 % frei · AGPL-3.0', data: 'Deine App, deine Daten', binary: 'Eine Binärdatei', hw: 'OpenWrt / GL.iNet' },
+    strip: { health: 'Gesundheit', down: 'Download', up: 'Upload', latency: 'Latenz', devices: 'Geräte' },
+    principles: {
+      title: 'Gebaut auf drei eigensinnigen Prinzipien',
+      lead: 'Keine Marketingsprüche. Sie sind der Grund, warum NetPulse existiert, und prägen jede Entscheidung.',
+      p1t: 'Keine Cloud',
+      p1p: 'Kein Konto, kein Abo, keine Telemetrie, die nach Hause telefoniert. NetPulse läuft auf einer kleinen Box in deinem Netz und nirgendwo sonst. Fällt das Internet aus, läuft es weiter.',
+      p2t: '100 % frei und Open Source',
+      p2p: 'AGPL-3.0, für immer. Lies den Code, prüfe ihn, forke ihn, führe ihn aus. Es gibt keine Premiumstufe und wird nie eine geben.',
+      p3t: 'Deine App, deine Daten',
+      p3p: 'Der Server liest von deinen Routern und schreibt nie. Metriken leben in einer lokalen SQLite-Datei, die dir gehört. Lösche sie, sichere sie, verschiebe sie — sie gehört dir.',
+    },
+    theater: {
+      title: 'Sieh zu, wie es lebendig wird',
+      lead: 'Scrolle weiter. Das sind die echten Widgets, gespeist aus dem Demo-Datensatz — dieselben Zahlen, die du bekommst, wenn du NetPulse im Demo-Modus startest.',
+      st1t: 'Eine Zahl erzählt die ganze Geschichte',
+      st1p: 'Der Gesundheitswert verdichtet Latenz, Verluste, Uptime und Temperatur auf 0–100. Grün heißt Ruhe. Aktualisiert alle 5 Sekunden per SSE.',
+      st2t: 'Traffic, gezeichnet während er passiert',
+      st2p: 'Live-WAN-Durchsatz gegen deinen Vertragstarif, mit 24-h-Durchschnitten und Summen. Keine Sampling-Tricks — was du siehst, läuft über die Leitung.',
+      st3t: 'Eine Topologiekarte, die sich selbst erschließt',
+      st3p: 'Live gebaut aus der Bridge-FDB (und LLDP, wenn verfügbar): kabelgebundene und WLAN-Clients, erschlossene Switches und WireGuard-Tunnel von Peer bis Internet.',
+      st4t: 'Deine ganze Flotte auf einen Blick',
+      st4p: 'CPU, Speicher, Temperatur und Uptime pro Router. Vier hier: ein GL.iNet Flint 2 Gateway und drei gebrauchte Xiaomi AX6 Access Points.',
+      st5t: 'AdGuard Home, integriert',
+      st5p: 'DNS-Abfragen, Blockanteil und meistgeblockte Domains, plus welche Clients ihn nutzen. Deine Werbeblockade, sichtbar neben allem anderen.',
+      st6t: 'Alarme, die dich finden',
+      st6p: 'Temperaturspitzen, neue Geräte, verfügbare Firmware, WireGuard-Handshakes — in der Glocke und mit Web Push auf deinem Handy.',
+    },
+    health: { caption: 'Netzwerk-Gesundheitswert', label: 'Exzellent' },
+    wan: { live: 'LIVE', title: 'WAN-Traffic', plan: 'Tarif' },
+    topo: { wired: 'Kabel', wifi: 'WiFi', tunnel: 'WG-Tunnel', gw: 'Gateway', inet: 'Internet' },
+    routers: { cpu: 'CPU', mem: 'RAM', temp: 'TEMP', up: 'UPTIME' },
+    adguard: { title: 'AdGuard Home', queries: 'Abfragen · 24 h', blocked: 'geblockt', clients: 'Clients nutzen ihn', domains: 'Meistgeblockte Domains' },
+    alerts: { title: 'Alarm-Feed', a1: 'AP-Estudio: Temperatur 78 °C', a2: 'Neues Gerät: tv-salon (Kabel)', a3: 'Firmware verfügbar auf GW-Flint2', a4: 'WireGuard: Handshake von Peer „phone“', ago: 'vor' },
+    features: {
+      title: 'Alles, was ein Heim-NOC braucht',
+      lead: 'Read-only by Design: NetPulse sieht dein Netz, verändert es aber nie.',
+      f1t: 'Live-Topologie', f1p: 'Erschlossen aus Bridge-FDB + LLDP. Kabel- und WLAN-Clients, verwaltete und erschlossene Switches, Hypervisoren mit verschachtelten Containern.',
+      f2t: 'Geräte', f2p: 'Jeder Client klassifiziert per Hostname-Muster + OUI, mit Band, Signal, Erstauftauchen und zugehörigem Router.',
+      f3t: 'WireGuard', f3p: 'Peers, letzte Handshakes und Transfer pro Peer, mit Tunneln auf der Karte.',
+      f4t: 'AdGuard Home', f4p: 'Abfragestatistiken, Blockanteil und meistgeblockte Domains, neben deinem Netz.',
+      f5t: 'Alarme & Push', f5p: 'Sechs Kategorien mit Dringlichkeit pro Kategorie. Glocken-Feed plus natives Web Push (VAPID).',
+      f6t: 'Mehrbenutzer', f6p: 'bcrypt-Passwörter, Rollen admin und viewer, Sprache pro Benutzer. Teile die Ansicht, ohne die Schlüssel herzugeben.',
+      f7t: 'Demo-Modus', f7p: 'DEMO_MODE=1 liefert ein komplettes Beispielenetz mit 67 Geräten — ohne Router. Erst testen, dann installieren.',
+      f8t: 'Latenz-Collector', f8p: 'Optionaler Sidecar, der TCP-Latenz pro Router abfragt, mit eigenen Langzeit-Zeitreihen.',
+    },
+    install: {
+      title: 'Eine Zeile zum Installieren',
+      lead: 'Eine einzige statische Go-Binärdatei mit eingebetteter Web-App, laufend als abgeschotteter systemd-Dienst. Kein Docker — es überwacht ein Netz; dafür braucht es keinen Container.',
+      main: 'Empfohlen', code: 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh',
+      req: 'Voraussetzungen', r1: 'Linux mit systemd (x86_64, arm64 oder armv7)', r2: 'OpenWrt-/GL.iNet-Router in deinem LAN', r3: 'Etwa 64 MB RAM in einem LXC oder einer kleinen VM', r4: 'WireGuard / AdGuard Home optional',
+      inspector: 'Der Installer ist schlichtes, lesbares Shell —', inspectorLink: 'erst inspizieren',
+      collector: 'Optionaler Latenz-Sidecar (Langzeit-TCP-Polling-Reihen):',
+      update: 'Update durch erneutes Ausführen derselben Zeile. Deinstallieren mit sh install.sh --uninstall.',
+      connect: 'Verbinde deine Router', connectp: 'Der Server erzeugt sein eigenes ed25519-Schlüsselpaar und zeigt den öffentlichen Schlüssel in den Einstellungen. Autorisiere ihn auf jedem Router (/etc/dropbear/authorized_keys). Das Gateway erkennt sich beim ersten Start per LAN-Discovery selbst; den Rest fügst du in den Einstellungen hinzu. Das Polling ist strikt read-only.',
+    },
+    honest: {
+      title: 'Was du wissen solltest',
+      p1: 'NetPulse ist ein persönliches Projekt, gebaut für mein eigenes Netz und veröffentlicht als freie Software (AGPL-3.0). Es ist und bleibt immer frei. Ich arbeite daran in meiner Freizeit: viele Ideen, wenig Zeit, und es entwickelt sich zuerst nach meinen eigenen Bedürfnissen.',
+      p2: 'Ehrliche Anmerkung zum Umfang: Bisher nur auf meiner eigenen Hardware getestet — ein GL.iNet Flint 2 Gateway und drei Xiaomi AX6 Access Points mit OpenWrt — plus WireGuard und AdGuard Home. Andere OpenWrt-Geräte sollten funktionieren, aber deines wäre das erste, das es mir erzählt.',
+    },
+    footer: {
+      tagline: 'Read-only-Monitoring für Heimnetze, selbst gehostet und für immer frei.',
+      project: 'Projekt', releases: 'Releases', roadmap: 'Roadmap', license: 'Lizenz',
+      community: 'Community', issues: 'Issues', discussions: 'Diskussionen', contribute: 'Mitwirken',
+      kofi: 'Unterstütze das Projekt auf Ko-fi', rights: 'AGPL-3.0 · Zuhause gebaut, für Heimnetze.',
+    },
+    appearance: { title: 'Erscheinungsbild', theme: 'Thema', dark: 'Dunkel', light: 'Hell', system: 'Auto', accent: 'Akzent', note: 'Dieselben Tokens wie die App — live ausprobieren.' },
+    misc: { lang: 'Sprache', copy: 'Kopieren', copied: 'Kopiert!', demoBadge: 'Demo-Daten' },
+  },
+}
+
+/* ---------- runtime ---------- */
+const LANG_KEY = 'netpulse-web-lang'
+
+function detectLang() {
+  try {
+    const saved = localStorage.getItem(LANG_KEY)
+    if (saved && I18N[saved]) return saved
+  } catch { /* modo privado */ }
+  const nav = (navigator.language || 'en').toLowerCase()
+  const base = nav.split('-')[0]
+  if (I18N[base]) return base
+  return 'en'
+}
+
+let CURRENT = detectLang()
+
+function t(path) {
+  const seg = path.split('.')
+  let o = I18N[CURRENT]
+  for (const s of seg) { o = o ? o[s] : undefined }
+  if (o === undefined) { // fallback a EN
+    o = I18N.en
+    for (const s of seg) { o = o ? o[s] : undefined }
+  }
+  return o ?? path
+}
+
+function applyLang(lang) {
+  CURRENT = lang
+  const meta = LANGS[lang]
+  document.documentElement.lang = lang
+  document.documentElement.dir = meta.dir
+  try { localStorage.setItem(LANG_KEY, lang) } catch { /* modo privado */ }
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n)
+  })
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    el.setAttribute('aria-label', t(el.dataset.i18nAria))
+  })
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml)
+  })
+  // selector de idioma
+  const sel = document.getElementById('langSelect')
+  if (sel) sel.value = lang
+  // re-render dinámicos
+  if (typeof renderTicker === 'function') renderTicker()
+  if (typeof renderAlerts === 'function') renderAlerts()
+  if (typeof renderRouterNames === 'function') renderRouterNames()
+  if (typeof updateAppearancePanel === 'function') updateAppearancePanel()
+}
+
+function buildLangSelect() {
+  const sel = document.getElementById('langSelect')
+  if (!sel) return
+  Object.entries(LANGS).forEach(([code, m]) => {
+    const o = document.createElement('option')
+    o.value = code
+    o.textContent = m.name
+    sel.appendChild(o)
+  })
+  sel.value = CURRENT
+  sel.addEventListener('change', () => applyLang(sel.value))
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildLangSelect()
+  applyLang(CURRENT)
+})

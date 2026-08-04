@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetPulse — El pulso de tu red, sin nube</title>
+  <meta name="description" content="Monitorización de solo lectura para redes domésticas OpenWrt: topología en vivo, salud, WireGuard, AdGuard Home y alertas. Autoalojado, 100% libre (AGPL-3.0), sin nube." />
+  <meta name="theme-color" content="#070B12" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' y1='78' x2='90' y2='20' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='73' cy='60' r='6' fill='url(%23g)'/%3E%3Cpath d='M62.4 49.4 A15 15 0 0 1 83.6 49.4' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M55.3 39.7 A25 25 0 0 1 90.7 39.7' stroke='url(%23g)' stroke-width='5' stroke-linecap='round' opacity='0.6'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============ NAV ============ -->
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="#" aria-label="NetPulse">
+        <svg viewBox="0 0 96 96" fill="none" aria-hidden="true">
+          <defs><linearGradient id="np-g" x1="10" y1="78" x2="90" y2="20" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs>
+          <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+          <path d="M62.4 49.4 A15 15 0 0 1 83.6 49.4" stroke="url(#np-g)" stroke-width="5" stroke-linecap="round"/>
+          <path d="M55.3 39.7 A25 25 0 0 1 90.7 39.7" stroke="url(#np-g)" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+        </svg>
+        NetPulse
+      </a>
+      <div class="nav-links">
+        <a href="#principles" data-i18n="nav.features">Funciones</a>
+        <a href="#install" data-i18n="nav.install">Instalar</a>
+        <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
+      </div>
+      <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
+      <a class="nav-cta" href="#install" data-i18n="hero.cta1">Instalar en tu red</a>
+    </div>
+  </nav>
+
+  <!-- ============ HERO ============ -->
+  <header class="hero mesh-bg">
+    <div class="hero-halo" aria-hidden="true"></div>
+    <div class="container">
+      <span class="eyebrow" data-i18n="hero.eyebrow">Monitorización de solo lectura para tu red doméstica</span>
+      <h1 class="font-display text-balance">
+        <span data-i18n="hero.t1">El pulso de tu red.</span><br />
+        <span class="text-accent" data-i18n="hero.t2">En tiempo real. Sin nube.</span>
+      </h1>
+      <p class="hero-sub" data-i18n="hero.sub">NetPulse vigila tus routers OpenWrt, dibuja la topología, puntúa la salud de la red y te avisa — todo desde un único binario autoalojado. Nada sale de tu LAN.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="#install">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span data-i18n="hero.cta1">Instalar en tu red</span>
+        </a>
+        <a class="btn-ghost" href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.66.41.35.77 1.05.77 2.12 0 1.53-.01 2.76-.01 3.14 0 .31.21.67.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+          <span data-i18n="hero.cta2">Ver en GitHub</span>
+        </a>
+        <a class="btn-ghost" href="https://demo.netpulse.domatix.com" target="_blank" rel="noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span data-i18n="hero.cta3">Probar la demo en vivo</span>
+        </a>
+      </div>
+
+      <div class="hero-facts">
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><line x1="4" y1="4" x2="20" y2="20"/></svg><span data-i18n="facts.noCloud">Sin nube</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span data-i18n="facts.free">100% libre · AGPL-3.0</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span data-i18n="facts.data">Tu app, tus datos</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg><span data-i18n="facts.binary">Un solo binario</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg><span data-i18n="facts.hw">OpenWrt / GL.iNet</span></span>
+      </div>
+
+      <div class="demo-strip" id="heroStrip">
+        <div class="mini-stat">
+          <span class="k label text-muted uppercase"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span data-i18n="strip.health">Salud</span></span>
+          <span class="v font-mono text-ok" data-count="92" data-suffix="/100">0/100</span>
+        </div>
+        <div class="mini-stat">
+          <span class="k label text-muted uppercase"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 19 19 12"/></svg><span data-i18n="strip.down">Descarga</span></span>
+          <span class="v font-mono text-accent" data-count="84.2" data-decimals="1" data-suffix=" Mbps">0 Mbps</span>
+        </div>
+        <div class="mini-stat">
+          <span class="k label text-muted uppercase"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 5 5 12"/></svg><span data-i18n="strip.up">Subida</span></span>
+          <span class="v font-mono text-tunnel" data-count="12.6" data-decimals="1" data-suffix=" Mbps">0 Mbps</span>
+        </div>
+        <div class="mini-stat">
+          <span class="k label text-muted uppercase"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg><span data-i18n="strip.latency">Latencia</span></span>
+          <span class="v font-mono text-info" data-count="8" data-suffix=" ms">0 ms</span>
+        </div>
+        <div class="mini-stat">
+          <span class="k label text-muted uppercase"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--text-secondary))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="12" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg><span data-i18n="strip.devices">Dispositivos</span></span>
+          <span class="v font-mono" data-count="67">0</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ TICKER ============ -->
+  <div class="ticker-wrap" aria-hidden="true">
+    <div class="ticker" id="ticker"></div>
+  </div>
+
+  <!-- ============ PRINCIPIOS ============ -->
+  <section class="block" id="principles">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow">NetPulse</span>
+        <h2 class="font-display text-balance" data-i18n="principles.title">Construido sobre tres principios tercos</h2>
+        <p class="lead" data-i18n="principles.lead">No son frases de marketing. Son la razón de que NetPulse exista, y condicionan cada decisión.</p>
+      </div>
+      <div class="principles">
+        <div class="card principle reveal">
+          <svg class="big" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><line x1="4" y1="4" x2="20" y2="20"/></svg>
+          <h3 data-i18n="principles.p1t">Sin nube</h3>
+          <p data-i18n="principles.p1p">Sin cuentas, sin suscripción, sin telemetría llamando a casa. NetPulse corre en una caja pequeña dentro de tu red y en ningún otro sitio.</p>
+        </div>
+        <div class="card principle reveal">
+          <svg class="big" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <h3 data-i18n="principles.p2t">100% libre y open source</h3>
+          <p data-i18n="principles.p2p">AGPL-3.0, para siempre. Lee el código, audítalo, haz un fork, ejecútalo. No hay versión premium ni la habrá.</p>
+        </div>
+        <div class="card principle reveal">
+          <svg class="big" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <h3 data-i18n="principles.p3t">Tu app, tus datos</h3>
+          <p data-i18n="principles.p3p">El servidor lee de tus routers y nunca escribe. Las métricas viven en un SQLite local que es tuyo. Bórralo, haz copias, muévelo.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TEATRO STICKY ============ -->
+  <section class="block" id="theater" style="padding-top:3rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="misc.demoBadge">datos demo</span>
+        <h2 class="font-display text-balance" data-i18n="theater.title">Míralo cobrar vida</h2>
+        <p class="lead" data-i18n="theater.lead">Sigue haciendo scroll. Estos son los widgets reales, alimentados con el dataset de demo.</p>
+      </div>
+
+      <div class="theater">
+        <div class="theater-steps" id="theaterSteps">
+          <div class="tstep" data-stage="0">
+            <span class="num">01</span>
+            <h3 data-i18n="theater.st1t">Un número que lo cuenta todo</h3>
+            <p data-i18n="theater.st1p">La puntuación de salud condensa latencia, pérdidas, uptime y temperatura en 0–100. Se actualiza cada 5 segundos por SSE.</p>
+          </div>
+          <div class="tstep" data-stage="1">
+            <span class="num">02</span>
+            <h3 data-i18n="theater.st2t">Tráfico dibujado mientras ocurre</h3>
+            <p data-i18n="theater.st2p">Caudal WAN en vivo contra tu plan contratado, con medias y totales de 24 h. Lo que ves es lo que cruza el cable.</p>
+          </div>
+          <div class="tstep" data-stage="2">
+            <span class="num">03</span>
+            <h3 data-i18n="theater.st3t">Un mapa que se infiere solo</h3>
+            <p data-i18n="theater.st3p">Construido en vivo desde el FDB del bridge: clientes cableados e inalámbricos, switches inferidos y túneles WireGuard.</p>
+          </div>
+          <div class="tstep" data-stage="3">
+            <span class="num">04</span>
+            <h3 data-i18n="theater.st4t">Toda tu flota, de un vistazo</h3>
+            <p data-i18n="theater.st4p">CPU, memoria, temperatura y uptime por router. Un Flint 2 y tres Xiaomi AX6 de segunda mano.</p>
+          </div>
+          <div class="tstep" data-stage="4">
+            <span class="num">05</span>
+            <h3 data-i18n="theater.st5t">AdGuard Home, integrado</h3>
+            <p data-i18n="theater.st5p">Consultas DNS, porcentaje bloqueado y dominios más bloqueados. Tu bloqueo de anuncios, visible junto a todo lo demás.</p>
+          </div>
+          <div class="tstep" data-stage="5">
+            <span class="num">06</span>
+            <h3 data-i18n="theater.st6t">Alertas que te encuentran</h3>
+            <p data-i18n="theater.st6p">Picos de temperatura, dispositivos nuevos, firmware disponible, handshakes de WireGuard — en la campana y en tu móvil.</p>
+          </div>
+        </div>
+
+        <div class="theater-stage">
+          <div class="stage-frame card glow-accent">
+            <!-- Stage 0: Health Ring -->
+            <div class="stage" id="stage0">
+              <div class="w-row">
+                <div class="ring-wrap">
+                  <svg width="180" height="180" viewBox="0 0 180 180">
+                    <circle cx="90" cy="90" r="78" fill="none" stroke="rgb(var(--elevated))" stroke-width="12"/>
+                    <circle id="ringArc" cx="90" cy="90" r="78" fill="none" stroke="rgb(var(--ok))" stroke-width="12" stroke-linecap="round"
+                      stroke-dasharray="490.1" stroke-dashoffset="490.1" transform="rotate(-90 90 90)"/>
+                  </svg>
+                  <div class="ring-center">
+                    <span class="big font-mono" id="ringNum">0</span>
+                    <span class="of font-mono">/100</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.75rem;align-items:center;">
+                  <span class="pill ok"><span class="pill-dot"></span><span id="healthLabel" data-i18n="health.label">Excelente</span></span>
+                  <span class="caption text-muted" data-i18n="health.caption">Puntuación de salud de la red</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stage 1: WAN traffic -->
+            <div class="stage" id="stage1">
+              <div class="wan-card card" style="background:rgb(var(--elevated)/0.4);">
+                <div class="wan-head">
+                  <span class="label uppercase text-muted" data-i18n="wan.title">Tráfico WAN</span>
+                  <span class="wan-live"><span class="dot"></span><span data-i18n="wan.live">EN VIVO</span></span>
+                </div>
+                <svg id="trafficChart" viewBox="0 0 400 120" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="fillDown" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="rgb(var(--accent))" stop-opacity="0.25"/>
+                      <stop offset="1" stop-color="rgb(var(--accent))" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <path id="areaDown" fill="url(#fillDown)" opacity="0"/>
+                  <path id="lineDown" fill="none" stroke="rgb(var(--accent))" stroke-width="2" stroke-linecap="round"/>
+                  <path id="lineUp" fill="none" stroke="rgb(var(--tunnel))" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <div style="display:flex;gap:1.5rem;margin-top:0.6rem;flex-wrap:wrap;">
+                  <span class="caption font-mono"><span class="text-accent">↓ <span id="wanDown">0.0</span> Mbps</span></span>
+                  <span class="caption font-mono"><span class="text-tunnel">↑ <span id="wanUp">0.0</span> Mbps</span></span>
+                  <span class="caption font-mono text-muted"><span data-i18n="strip.latency">Latencia</span> <span id="wanLat">0</span> ms · 24h: 1,32 TB</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stage 2: Topology -->
+            <div class="stage" id="stage2">
+              <svg id="topoSvg" viewBox="0 0 520 340"></svg>
+            </div>
+
+            <!-- Stage 3: Routers -->
+            <div class="stage" id="stage3">
+              <div class="rgrid" id="routerGrid"></div>
+            </div>
+
+            <!-- Stage 4: AdGuard -->
+            <div class="stage" id="stage4">
+              <div class="ag-grid">
+                <div style="display:flex;flex-direction:column;gap:0.9rem;">
+                  <div class="ag-stat card" style="background:rgb(var(--elevated)/0.4);">
+                    <div class="v font-mono text-accent" id="agQueries">0</div>
+                    <div class="k" data-i18n="adguard.queries">consultas · 24 h</div>
+                  </div>
+                  <div class="ag-stat card" style="background:rgb(var(--elevated)/0.4);">
+                    <div class="v font-mono text-danger" id="agBlocked">0%</div>
+                    <div class="k" data-i18n="adguard.blocked">bloqueado</div>
+                  </div>
+                  <div class="ag-stat card" style="background:rgb(var(--elevated)/0.4);">
+                    <div class="v font-mono text-ok" id="agClients">0/65</div>
+                    <div class="k" data-i18n="adguard.clients">clientes lo usan</div>
+                  </div>
+                </div>
+                <div class="card" style="background:rgb(var(--elevated)/0.4);padding:1rem 1.1rem;">
+                  <div class="label uppercase text-muted" style="margin-bottom:0.75rem;" data-i18n="adguard.domains">Dominios más bloqueados</div>
+                  <div id="agBars"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stage 5: Alerts -->
+            <div class="stage" id="stage5">
+              <div class="label uppercase text-muted" style="margin-bottom:0.9rem;" data-i18n="alerts.title">Feed de alertas</div>
+              <div class="feed" id="alertFeed"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES ============ -->
+  <section class="block" id="features" style="padding-top:2rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="nav.features">Funciones</span>
+        <h2 class="font-display text-balance" data-i18n="features.title">Todo lo que necesita un NOC doméstico</h2>
+        <p class="lead" data-i18n="features.lead">Solo lectura por diseño: NetPulse puede ver tu red, nunca cambiarla.</p>
+      </div>
+      <div class="features">
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="19" r="2"/><path d="M5.5 6.5 9.5 10M18.5 6.5 14.5 10M5.5 17.5 9.5 14M18.5 17.5 14.5 14"/></svg>
+          <h3 data-i18n="features.f1t">Topología en vivo</h3>
+          <p data-i18n="features.f1p">Inferida del FDB del bridge + LLDP. Clientes cableados e inalámbricos, switches gestionados e inferidos, hipervisores con contenedores anidados.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="12" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg>
+          <h3 data-i18n="features.f2t">Dispositivos</h3>
+          <p data-i18n="features.f2p">Cada cliente clasificado por patrones de hostname + OUI, con banda, señal, primer visto y el router al que habla.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <h3 data-i18n="features.f3t">WireGuard</h3>
+          <p data-i18n="features.f3p">Peers, últimos handshakes y transferencia por peer, con túneles dibujados en el mapa.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--danger))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <h3 data-i18n="features.f4t">AdGuard Home</h3>
+          <p data-i18n="features.f4p">Estadísticas de consultas, porcentaje bloqueado y dominios más bloqueados, junto a tu red.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <h3 data-i18n="features.f5t">Alertas y push</h3>
+          <p data-i18n="features.f5p">Seis categorías con urgencia por categoría. Feed en la campana más Web Push nativo (VAPID).</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <h3 data-i18n="features.f6t">Multiusuario</h3>
+          <p data-i18n="features.f6p">Contraseñas bcrypt, roles admin y viewer, idioma por usuario. Comparte la vista sin entregar las llaves.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <h3 data-i18n="features.f7t">Modo demo</h3>
+          <p data-i18n="features.f7p">DEMO_MODE=1 te da una red de muestra completa con 67 dispositivos — sin routers. Pruébalo antes de instalar.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <h3 data-i18n="features.f8t">Collector de latencia</h3>
+          <p data-i18n="features.f8p">Sidecar opcional que sondea latencia TCP por router, con sus propias series temporales de largo plazo.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INSTALACIÓN ============ -->
+  <section class="block" id="install">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="nav.install">Instalar</span>
+        <h2 class="font-display text-balance" data-i18n="install.title">Una línea para instalar</h2>
+        <p class="lead" data-i18n="install.lead">Un único binario Go estático con la app web embebida, corriendo como servicio systemd enjaulado. Sin Docker.</p>
+      </div>
+      <div class="install-grid">
+        <div class="card codecard reveal">
+          <h3 data-i18n="install.main">Recomendado</h3>
+          <div class="codebox">
+            <span class="prompt font-mono">$</span>
+            <code id="installCmd">curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh</code>
+            <button class="copybtn" id="copyBtn" data-i18n-aria="misc.copy">Copiar</button>
+          </div>
+          <p class="install-note">
+            <span data-i18n="install.inspector">El instalador es shell plano y legible —</span>
+            <a href="https://github.com/gnacho/netpulse/blob/main/install.sh" target="_blank" rel="noopener" data-i18n="install.inspectorLink">inspecciónalo primero</a>.
+          </p>
+          <p class="install-note" data-i18n="install.update">Actualiza re-ejecutando la misma línea. Desinstala con sh install.sh --uninstall.</p>
+          <h3 style="margin-top:1.75rem;" data-i18n="install.connect">Conecta tus routers</h3>
+          <p class="install-note" style="font-size:0.85rem;color:rgb(var(--text-secondary));" data-i18n="install.connectp">El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router. El sondeo es estrictamente de solo lectura.</p>
+        </div>
+        <div class="card codecard reveal">
+          <h3 data-i18n="install.req">Requisitos</h3>
+          <ul class="req-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="install.r1">Linux con systemd (x86_64, arm64 o armv7)</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="install.r2">Routers OpenWrt / GL.iNet en tu LAN</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="install.r3">Unos 64 MB de RAM en un LXC o VM pequeña</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="install.r4">WireGuard / AdGuard Home opcionales</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card honest reveal" style="margin-top:1rem;padding:1.5rem 1.75rem;">
+        <h3 class="font-display" style="margin:0;font-size:1.05rem;color:rgb(var(--warn));" data-i18n="honest.title">Lo que debes saber</h3>
+        <p data-i18n="honest.p1">NetPulse es un proyecto personal…</p>
+        <p data-i18n="honest.p2">Nota honesta de alcance…</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col" style="max-width:22rem;">
+          <a class="nav-logo" href="#" style="margin-bottom:0.75rem;">
+            <svg viewBox="0 0 96 96" fill="none" width="22" height="22" aria-hidden="true">
+              <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+            </svg>
+            NetPulse
+          </a>
+          <p class="caption text-muted" data-i18n="footer.tagline">Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.</p>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.project">Proyecto</h4>
+          <a href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" data-i18n="footer.releases">Releases</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/docs/ROADMAP.md" target="_blank" rel="noopener" data-i18n="footer.roadmap">Roadmap</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">Licencia</a>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.community">Comunidad</h4>
+          <a href="https://github.com/gnacho/netpulse/issues" target="_blank" rel="noopener" data-i18n="footer.issues">Issues</a>
+          <a href="https://github.com/gnacho/netpulse/discussions" target="_blank" rel="noopener" data-i18n="footer.discussions">Discusiones</a>
+          <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="footer.contribute">Contribuir</a>
+        </div>
+        <div class="foot-col">
+          <h4>Ko-fi</h4>
+          <a class="kofi" id="kofiLink" href="#" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.24 2.437 2.057 3.134 3.957 3.134 2.806.001 5.825-.054 8.658-.065.147-.031 4.467-.842 5.393-4.63.266-1.088.05-1.574-.149-2.466zm-4.572 3.482c-.567 2.306-2.876 2.523-2.876 2.523H4.645c-1.846 0-1.833-1.873-1.833-1.873V6.94c0-1.293 1.164-1.48 1.164-1.48h11.639c1.895 0 2.088 1.509 2.088 1.509s.18 2.121.18 3.153c0 1.155-.193 2.308-.574 2.308zm-4.224-1.051c-.657-.526-1.219-1.298-1.743-2.236-.523.938-1.086 1.71-1.742 2.236-.952.762-2.352.506-2.764-.567-.177-.462-.141-1.068.069-1.711.479-1.475 1.862-3.511 3.406-4.83a1.53 1.53 0 0 1 2.06 0c1.545 1.319 2.928 3.355 3.407 4.83.21.643.246 1.249.069 1.711-.413 1.073-1.813 1.329-2.762.567z"/></svg>
+            <span data-i18n="footer.kofi">Apoya el proyecto en Ko-fi</span>
+          </a>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span data-i18n="footer.rights">AGPL-3.0 · Hecho en casa, para redes de casa.</span>
+        <span class="font-mono">demo: 92/100 · 84.2↓ Mbps · 8 ms · 67 devs</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ WIDGET APARIENCIA ============ -->
+  <button class="appearance-fab" id="appFab" aria-label="Appearance" data-i18n-aria="appearance.title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+  </button>
+  <div class="appearance-panel" id="appPanel">
+    <h5 data-i18n="appearance.title">Apariencia</h5>
+    <div class="label text-muted" style="margin-bottom:0.4rem;" data-i18n="appearance.theme">Tema</div>
+    <div class="seg" id="themeSeg">
+      <button data-mode="dark" data-i18n="appearance.dark">Oscuro</button>
+      <button data-mode="light" data-i18n="appearance.light">Claro</button>
+      <button data-mode="system" data-i18n="appearance.system">Auto</button>
+    </div>
+    <div class="label text-muted" style="margin:0.9rem 0 0.5rem;" data-i18n="appearance.accent">Acento</div>
+    <div class="swatches" id="accentSwatches">
+      <button class="swatch" data-accent="cyan" style="--sw:#22D3EE" aria-label="Cyan"></button>
+      <button class="swatch" data-accent="violet" style="--sw:#A78BFA" aria-label="Violet"></button>
+      <button class="swatch" data-accent="emerald" style="--sw:#34D399" aria-label="Emerald"></button>
+      <button class="swatch" data-accent="amber" style="--sw:#FBBF24" aria-label="Amber"></button>
+    </div>
+    <div class="panel-note" data-i18n="appearance.note">Mismos tokens que la app — pruébalo en vivo.</div>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
