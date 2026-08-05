@@ -12,9 +12,10 @@ server/.env
 # Sistema
 .DS_Store
 
-# Notas locales con credenciales
-*_user.txt
-v2/
+# Binarios compilados
+netpulse-agent*
+server-go/netpulse
+collector/netpulse-collector
 
 # Binarios de agente embebidos (construidos por CI)
 server-go/internal/agentbin/agents/netpulse-agent-*
