@@ -724,6 +724,7 @@
       "pwError": "Could not change password"
     },
     "subtitle": "NetPulse local preferences — nothing here modifies your network",
+    "demoReadOnly": "Demo mode — network configuration is disabled (read-only). Explore the simulated data.",
     "themeDark": "Dark",
     "themeLight": "Light",
     "themeSystem": "System",

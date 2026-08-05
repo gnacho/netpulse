@@ -724,6 +724,7 @@
       "pwError": "No se pudo cambiar la contraseña"
     },
     "subtitle": "Preferencias locales de NetPulse — nada aquí modifica tu red",
+    "demoReadOnly": "Modo demo — la configuración de la red está deshabilitada (solo lectura). Explora los datos simulados.",
     "themeDark": "Oscuro",
     "themeLight": "Claro",
     "themeSystem": "Sistema",

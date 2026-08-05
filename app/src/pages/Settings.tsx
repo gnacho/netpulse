@@ -19,6 +19,7 @@ import {
   Moon,
   Pencil,
   Plus,
+  Lock,
   Radar,
   Router as RouterIcon,
   ShieldCheck,
@@ -138,9 +139,10 @@ interface SwitchRowProps {
   checked: boolean
   onCheckedChange: (v: boolean) => void
   trailing?: React.ReactNode
+  disabled?: boolean
 }
 
-function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trailing }: SwitchRowProps) {
+function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trailing, disabled = false }: SwitchRowProps) {
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <div className="flex min-w-0 items-center gap-3">
@@ -156,7 +158,7 @@ function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trail
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {trailing}
-        <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
+        <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} aria-label={label} />
       </div>
     </div>
   )
@@ -1200,7 +1202,7 @@ function SystemInfoBlock() {
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
-function ServicesCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+function ServicesCard({ reduce, onSaved, disabled = false }: { reduce: boolean; onSaved: () => void; disabled?: boolean }) {
   const { t } = useTranslation()
   const [services, setService] = useServicesVisibility()
   const rows: { key: keyof ServicesVisibility; label: string; caption: string }[] = [
@@ -1217,6 +1219,7 @@ function ServicesCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
             label={r.label}
             caption={r.caption}
             checked={services[r.key]}
+            disabled={disabled}
             onCheckedChange={(v) => {
               setService(r.key, v)
               onSaved()
@@ -1802,6 +1805,20 @@ export default function Settings() {
         {t('settings.subtitle')}
       </motion.p>
 
+      {/* Modo demo: Ajustes en solo lectura — no se puede cambiar la configuración de la red */}
+      {isDemo && (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: reduce ? 0 : 0.2 }}
+          className="mt-4 flex items-start gap-2.5 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-caption leading-relaxed text-warn"
+          role="status"
+        >
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+          <span>{t('settings.demoReadOnly')}</span>
+        </motion.div>
+      )}
+
       <div className="mt-5 grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
         {/* ④ Datos y umbrales */}
         <div className="lg:col-span-7">
@@ -2099,7 +2116,7 @@ export default function Settings() {
 
         {/* Servicios visibles (checks) */}
         <div className="lg:col-span-7">
-          <ServicesCard reduce={reduce} onSaved={notify} />
+          <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} />
         </div>
 
         {/* ⑤ Notificaciones visuales */}
