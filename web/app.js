@@ -48,7 +48,7 @@ function mkSvgEl(tag, attrs = {}, parent) {
   return e
 }
 
-/* ---------- fondo netflow (ondas de tráfico, calmado) ---------- */
+/* ---------- fondo constelación viva (red con flujo de datos) ---------- */
 function mulberry32(seed) {
   let a = seed >>> 0
   return function () {
@@ -66,56 +66,142 @@ function initBackgroundCanvas() {
   const reduce = reduceMotion
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   let w = 0, h = 0
-  let layers = []
-  const rand = mulberry32(0x51A7E)
+  let layers = [], bursts = []
+  let mx = -1e4, my = -1e4, tmx = -1e4, tmy = -1e4
+  const rand = mulberry32(0xC0FFEE)
   const alphaColor = (c, a) => c.replace(')', ` / ${a})`)
+  const PALETTE = ['accent', 'tunnel', 'ok', 'info']
 
-  function buildLayers() {
-    const palette = ['accent', 'tunnel', 'ok']
-    layers = palette.map((color, i) => ({
-      color,
-      base: 0.55 + i * 0.17,
-      amp: 22 + rand() * 26,
-      freq: 0.004 + rand() * 0.0025,
-      speed: 0.00006 + rand() * 0.00009,
-      phase: rand() * Math.PI * 2,
-      peak: 0.08 + rand() * 0.035,
-      drift: 6 + rand() * 10,
-    }))
-  }
-
-  function sample(l, x, t) {
-    return Math.sin(x * l.freq + t * l.speed + l.phase) * l.amp * 0.62
-      + Math.sin(x * l.freq * 0.51 + t * l.speed * 0.73 + l.phase * 1.7) * l.amp * 0.38
+  function buildLayout() {
+    layers = []
+    bursts = []
+    const specs = [
+      { depth: 0.5, count: 42, size: [1.6, 2.6], aMin: 0.22, aMax: 0.38, linkDist: 150, linkA: 0.10, gw: 0.02 },
+      { depth: 0.75, count: 30, size: [2.2, 3.4], aMin: 0.35, aMax: 0.55, linkDist: 190, linkA: 0.14, gw: 0.08 },
+      { depth: 1.0, count: 18, size: [3, 4.6], aMin: 0.5, aMax: 0.75, linkDist: 230, linkA: 0.18, gw: 0.15 },
+    ]
+    for (const s of specs) {
+      const nodes = []
+      let guard = 0
+      while (nodes.length < s.count && guard++ < 2500) {
+        const x = rand() * w
+        const y = rand() * h
+        const minD = 34 + rand() * 30
+        if (nodes.some((n) => Math.hypot(n.x - x, n.y - y) < minD)) continue
+        nodes.push({
+          x, y,
+          r: s.size[0] + rand() * (s.size[1] - s.size[0]),
+          a: s.aMin + rand() * (s.aMax - s.aMin),
+          gw: rand() < s.gw,
+          hue: Math.floor(rand() * PALETTE.length),
+          ph: rand() * Math.PI * 2,
+          wob: 1.5 + rand() * 2.5,
+        })
+      }
+      const links = []
+      for (let i = 0; i < nodes.length; i++) {
+        const dists = []
+        for (let j = 0; j < nodes.length; j++) {
+          if (i === j) continue
+          dists.push([Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y), j])
+        }
+        dists.sort((a, b) => a[0] - b[0])
+        for (let k = 0; k < 2; k++) {
+          const [d, j] = dists[k]
+          if (d > s.linkDist || i > j) continue
+          links.push({ i, j, len: d, a: s.linkA * (0.6 + rand() * 0.8), ph: rand() * Math.PI * 2 })
+        }
+      }
+      const packets = []
+      links.forEach((l, li) => {
+        if (rand() < 0.42) {
+          const n = l.len > 190 ? 2 : 1
+          for (let k = 0; k < n; k++) packets.push({ li, off: rand(), dur: 4 + rand() * 5, hue: Math.floor(rand() * PALETTE.length) })
+        }
+      })
+      layers.push({ depth: s.depth, nodes, links, packets })
+    }
   }
 
   function render(t) {
     ctx.clearRect(0, 0, w, h)
-    const span = 8
-    for (const l of layers) {
-      const base = l.base * h + Math.sin(t * 0.00005 + l.phase * 2) * l.drift
-      const col = getCssVar(l.color)
-      // banda: de la onda hasta el fondo, con degradado que se desvanece hacia abajo
-      const g = ctx.createLinearGradient(0, base, 0, h)
-      g.addColorStop(0, alphaColor(col, l.peak))
-      g.addColorStop(0.5, alphaColor(col, l.peak * 0.35))
-      g.addColorStop(1, alphaColor(col, 0))
-      ctx.beginPath()
-      ctx.moveTo(-span, base + sample(l, -span, t))
-      for (let x = 0; x <= w + span; x += span) ctx.lineTo(x, base + sample(l, x, t))
-      ctx.lineTo(w + span, h + 20)
-      ctx.lineTo(-span, h + 20)
-      ctx.closePath()
-      ctx.fillStyle = g
-      ctx.fill()
-      // línea de la onda (definición sutil)
-      ctx.beginPath()
-      ctx.moveTo(-span, base + sample(l, -span, t))
-      for (let x = 0; x <= w + span; x += span) ctx.lineTo(x, base + sample(l, x, t))
-      ctx.strokeStyle = alphaColor(col, l.peak * 0.6)
-      ctx.lineWidth = 1.2
-      ctx.stroke()
+    for (const L of layers) {
+      const k = L.depth
+      ctx.save()
+      ctx.translate((mx - w / 2) * 0.05 * k, (my - h / 2) * 0.05 * k)
+      // wobble sutil de cada nodo (vida, sin mover los enlaces)
+      for (const n of L.nodes) {
+        n.wx = n.x + Math.sin(t * 0.5 + n.ph) * n.wob
+        n.wy = n.y + Math.cos(t * 0.42 + n.ph) * n.wob
+      }
+      // enlaces (respiran muy lentamente)
+      ctx.lineWidth = 1
+      for (const l of L.links) {
+        const a = L.nodes[l.i], b = L.nodes[l.j]
+        ctx.strokeStyle = alphaColor('text-secondary', l.a * (0.65 + 0.35 * Math.sin(t * 0.4 + l.ph)))
+        ctx.beginPath()
+        ctx.moveTo(a.wx, a.wy)
+        ctx.lineTo(b.wx, b.wy)
+        ctx.stroke()
+      }
+      // nodos
+      for (const n of L.nodes) {
+        ctx.fillStyle = alphaColor(PALETTE[n.hue], n.a)
+        ctx.beginPath()
+        ctx.arc(n.wx, n.wy, n.r, 0, Math.PI * 2)
+        ctx.fill()
+        if (n.gw) {
+          ctx.strokeStyle = alphaColor(PALETTE[n.hue], n.a * 0.5)
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.arc(n.wx, n.wy, n.r + 3 + Math.sin(t * 1.2 + n.ph) * 1.2, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+      }
+      // paquetes de datos viajando por los enlaces
+      for (const p of L.packets) {
+        const l = L.links[p.li]
+        const a = L.nodes[l.i], b = L.nodes[l.j]
+        const frac = (p.off + t / p.dur) % 1
+        const col = PALETTE[p.hue]
+        ctx.save()
+        ctx.shadowColor = getCssVar(col)
+        ctx.shadowBlur = 8
+        ctx.fillStyle = alphaColor(col, 0.9)
+        ctx.beginPath()
+        ctx.arc(a.wx + (b.wx - a.wx) * frac, a.wy + (b.wy - a.wy) * frac, 1.8, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      }
+      // ráfagas ocasionales (evento que recorre un enlace)
+      if (L.depth >= 0.7) {
+        for (const b of bursts) {
+          if (b.layer !== L.depth) continue
+          const l = L.links[b.li]
+          if (!l) continue
+          const a = L.nodes[l.i], bb = L.nodes[l.j]
+          const prog = (t - b.t0) / b.dur
+          if (prog >= 0 && prog <= 1) {
+            ctx.save()
+            ctx.shadowColor = getCssVar('accent')
+            ctx.shadowBlur = 14
+            ctx.fillStyle = alphaColor('accent', 0.95 * (1 - prog))
+            ctx.beginPath()
+            ctx.arc(a.wx + (bb.wx - a.wx) * prog, a.wy + (bb.wy - a.wy) * prog, 2.6 * (1 - prog * 0.5), 0, Math.PI * 2)
+            ctx.fill()
+            ctx.restore()
+          }
+        }
+      }
+      ctx.restore()
     }
+    bursts = bursts.filter((b) => t - b.t0 < b.dur)
+  }
+
+  function maybeBurst(t) {
+    const L = layers[1] || layers[layers.length - 1]
+    if (!L || L.links.length === 0) return
+    bursts.push({ layer: L.depth, li: Math.floor(rand() * L.links.length), t0: t, dur: 1.6 })
   }
 
   function resize() {
@@ -124,14 +210,21 @@ function initBackgroundCanvas() {
     canvas.width = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    buildLayers()
+    buildLayout()
     if (reduce) render(0)
   }
   resize()
   window.addEventListener('resize', resize)
+  document.addEventListener('mousemove', (e) => { tmx = e.clientX; tmy = e.clientY }, { passive: true })
+  document.addEventListener('touchmove', (e) => { if (e.touches[0]) { tmx = e.touches[0].clientX; tmy = e.touches[0].clientY } }, { passive: true })
   if (reduce) return
+  let nextBurst = 3 + rand() * 4
   function loop(now) {
-    render(now / 1000)
+    const t = now / 1000
+    mx += (tmx - mx) * 0.06
+    my += (tmy - my) * 0.06
+    if (t > nextBurst) { maybeBurst(t); nextBurst = t + 5 + rand() * 6 }
+    render(t)
     requestAnimationFrame(loop)
   }
   requestAnimationFrame(loop)
