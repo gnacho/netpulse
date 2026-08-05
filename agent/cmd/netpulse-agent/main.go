@@ -4,12 +4,15 @@
 // con Bearer + backoff + buffer RAM acotado. Stateless: NADA en flash; logs
 // a stderr (procd los manda a syslog).
 //
+// Fase 7.1: eventos ubus en tiempo real (hostapd assoc/disassoc) → push
+// inmediato de wireless + DHCP, sin esperar al ciclo de sondeo (30s).
+//
 // Config (env o /etc/netpulse-agent.env; el env gana):
 //
 //	NETPULSE_SERVER    URL del servidor (https://... o http://...:3000) [obligatoria]
 //	NETPULSE_TOKEN     token del equipo (64 hex; se muestra una vez al crearlo)
 //	NETPULSE_SLUG      slug del equipo (agent.token.<slug> en el servidor)
-//	NETPULSE_INTERVAL  intervalo de push (default 15s; "15", "15s", "1m")
+//	NETPULSE_INTERVAL  intervalo de push (default 30s; "30", "15s", "1m")
 //	NETPULSE_ENV_FILE  fichero env alternativo (default /etc/netpulse-agent.env)
 //	NETPULSE_WAN_TARGET    ping WAN con pérdida (gateway; p. ej. 1.1.1.1)
 //	NETPULSE_GW_TARGET     ping corto al gateway (APs; p. ej. 192.168.8.1)
@@ -25,17 +28,29 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gnacho/netpulse/agent/internal/heartbeat"
+	"github.com/gnacho/netpulse/agent/internal/iwevents"
 	"github.com/gnacho/netpulse/agent/internal/push"
+	"github.com/gnacho/netpulse/agent/internal/sseclient"
 	"github.com/gnacho/netpulse/agent/probe"
 )
 
 // Version del agente (la reporta cada push; se puede fijar con
 // -ldflags "-X main.Version=x.y.z").
 var Version = "0.1.0"
+
+const (
+	// pollInterval: ciclo completo de sistema + wireless + DHCP + FDB (30s).
+	pollInterval = 30 * time.Second
+	// ubusMinGap: tiempo mínimo entre pushes wireless consecutivos disparados
+	// por eventos ubus (evita martillear al servidor con ráfagas assoc/disassoc
+	// — p. ej. un cliente que entra y sale repetidamente).
+	ubusMinGap = 3 * time.Second
+)
 
 type config struct {
 	server, token, slug string
@@ -83,7 +98,7 @@ func loadConfig() (config, error) {
 		server:        strings.TrimRight(get("NETPULSE_SERVER"), "/"),
 		token:         get("NETPULSE_TOKEN"),
 		slug:          get("NETPULSE_SLUG"),
-		interval:      15 * time.Second,
+		interval:      pollInterval,
 		wanTarget:     get("NETPULSE_WAN_TARGET"),
 		gwTarget:      get("NETPULSE_GW_TARGET"),
 		insecureTLS:   get("NETPULSE_INSECURE_TLS") == "1",
@@ -95,7 +110,7 @@ func loadConfig() (config, error) {
 		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			cfg.interval = d
 		} else {
-			log.Printf("[netpulse-agent] NETPULSE_INTERVAL %q inválido; usando 15s", v)
+			log.Printf("[netpulse-agent] NETPULSE_INTERVAL %q inválido; usando 30s", v)
 		}
 	}
 	for _, kv := range [][2]string{
@@ -125,6 +140,18 @@ func main() {
 	}
 }
 
+// pushOnce envía el payload y toca el heartbeat; si falla, lo loguea.
+func pushOnce(ctx context.Context, client *push.Client, payload *probe.Payload, hbFile string) {
+	if err := client.Push(ctx, payload); err != nil {
+		log.Printf("[netpulse-agent] push falló (%v); buffered=%d descartados=%d",
+			err, client.Buffered(), client.Dropped())
+		return
+	}
+	if err := heartbeat.Touch(hbFile, time.Now()); err != nil {
+		log.Printf("[netpulse-agent] heartbeat: %v", err)
+	}
+}
+
 func run() error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -147,26 +174,66 @@ func run() error {
 	defer stop()
 
 	log.Printf("[netpulse-agent] v%s · %s → %s cada %s", Version, cfg.slug, cfg.server, cfg.interval)
+
 	hbFile := cfg.heartbeatFile
 	if hbFile == "" {
 		hbFile = heartbeat.DefaultFile
 	}
-	for {
-		payload := prober.Build(ctx, cfg.slug, Version)
-		if err := client.Push(ctx, payload); err != nil {
-			log.Printf("[netpulse-agent] push falló (%v); buffered=%d descartados=%d",
-				err, client.Buffered(), client.Dropped())
-		} else {
-			// Push confirmado por el servidor → latido para el watchdog cron.
-			// Tolerante: un fallo de heartbeat nunca afecta al ciclo de push.
-			if err := heartbeat.Touch(hbFile, time.Now()); err != nil {
-				log.Printf("[netpulse-agent] heartbeat: %v", err)
+
+	// Fase 7.1: eventos nl80211 en tiempo real (new/del station).
+	if iwevents.Available() {
+		log.Printf("[netpulse-agent] iw detectado: suscribiendo a eventos nl80211")
+		var lastEventPush time.Time
+		var evMu sync.Mutex
+		go func() {
+			if err := iwevents.Listen(ctx, func(ev iwevents.Event) {
+				evMu.Lock()
+				since := time.Since(lastEventPush)
+				if since < ubusMinGap {
+					evMu.Unlock()
+					return
+				}
+				lastEventPush = time.Now()
+				evMu.Unlock()
+				action := "assoc"
+				if !ev.Connected {
+					action = "disassoc"
+				}
+				log.Printf("[netpulse-agent] iw: %s %s (%s)", action, ev.MAC, ev.Iface)
+				payload := prober.BuildWireless(ctx, cfg.slug, Version)
+				pushOnce(ctx, client, payload, hbFile)
+			}); err != nil {
+				log.Printf("[netpulse-agent] iw event terminó: %v", err)
+			}
+		}()
+	}
+
+	// Fase 7.3: SSE bidireccional — el servidor envía comandos al agente.
+	refreshCh := make(chan struct{}, 1)
+	go func() {
+	sse := sseclient.New(cfg.server, cfg.slug, cfg.token, func(ev sseclient.Event) {
+		if ev.Name == "refresh" {
+			select {
+			case refreshCh <- struct{}{}:
+			default:
 			}
 		}
+		log.Printf("[netpulse-agent] SSE: %s", ev.Name)
+	})
+		sse.SetLogger(func(format string, args ...any) { log.Printf(format, args...) })
+		sse.Run(ctx)
+	}()
+
+	// Ciclo principal: sondeo completo cada 30s o cuando el servidor lo pide.
+	for {
+		payload := prober.Build(ctx, cfg.slug, Version)
+		pushOnce(ctx, client, payload, hbFile)
 		select {
 		case <-ctx.Done():
 			log.Printf("[netpulse-agent] saliendo")
 			return nil
+		case <-refreshCh:
+			// refresh inmediato pedido por el servidor
 		case <-time.After(client.Delay(cfg.interval)):
 		}
 	}

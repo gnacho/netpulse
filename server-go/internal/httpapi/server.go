@@ -60,6 +60,9 @@ type Deps struct {
 	// nil → el refresh manual es no-op (tests sin poller).
 	PollNow func()
 	Started time.Time
+	// AgentHub: SSE bidireccional para agentes (Fase 7.3). nil → endpoint
+	// de stream devuelve 503.
+	AgentHub *sse.AgentHub
 }
 
 type server struct {
@@ -75,6 +78,9 @@ type server struct {
 	pollNow func()
 	started time.Time
 
+	// SSE bidireccional para agentes (Fase 7.3).
+	agentHub *sse.AgentHub
+
 	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
 	refreshMu   sync.Mutex
 	lastRefresh time.Time
@@ -89,6 +95,7 @@ func NewHandler(d Deps) http.Handler {
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
+		agentHub: d.AgentHub,
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
@@ -155,6 +162,12 @@ func NewHandler(d Deps) http.Handler {
 	// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
 	// instalación incluye el token y se ejecuta en el router, sin sesión admin.
 	mux.HandleFunc("GET /api/agents/{slug}/binary", s.handleAgentBinary)
+	// Fase 7.3: SSE bidireccional agente↔servidor. El agente mantiene una
+	// conexión SSE abierta; el servidor envía comandos (refresh, etc.).
+	// Auth por token de agente (Bearer), igual que ingesta y binary.
+	if s.agentHub != nil {
+		mux.HandleFunc("GET /api/agents/{slug}/stream", s.agentHub.HandleStream)
+	}
 
 	// --- Web Push (Fase 3 Bloque C; tras sesión como el resto del API) ---
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)

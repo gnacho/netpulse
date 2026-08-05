@@ -12,6 +12,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -161,6 +164,12 @@ func run() error {
 		log.Printf("[netpulse] supervisor de auto-rearme activo (cooldown %d s)", int(cooldown.Seconds()))
 	}
 
+	// Fase 7.3: SSE bidireccional agente↔servidor (AgentHub permite al
+	// servidor enviar comandos al agente vía SSE).
+	agentHub := sse.NewAgentHub(func(slug, token string) bool {
+		return checkAgentToken(dbHandle, slug, token)
+	})
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:  cfg,
 		DB:      dbHandle,
@@ -172,6 +181,7 @@ func run() error {
 		Agents:  agentReg,
 		Pool:    sshPool,
 		Rearmer: arm,
+		AgentHub: agentHub,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
@@ -235,4 +245,19 @@ func run() error {
 		_ = dbHandle.Close()
 	}
 	return nil
+}
+
+// checkAgentToken valida el token de un agente contra su hash sha256 en kv.
+// Usado por AgentHub y por el endpoint de binario.
+func checkAgentToken(d *db.DB, slug, token string) bool {
+	if token == "" || d == nil {
+		return false
+	}
+	var stored string
+	if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", "agent.token."+slug).Scan(&stored); err != nil {
+		return false
+	}
+	sum := sha256.Sum256([]byte(token))
+	got := hex.EncodeToString(sum[:])
+	return subtle.ConstantTimeCompare([]byte(got), []byte(stored)) == 1
 }

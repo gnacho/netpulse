@@ -93,6 +93,20 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	return pl
 }
 
+// BuildWireless es un sondeo rápido de solo wireless + DHCP (Fase 7.1:
+// disparado por eventos ubus assoc/disassoc). El servidor conserva el último
+// dato bueno de system y FDB (parpadeo suprimido por secciones nil).
+func (p *Prober) BuildWireless(ctx context.Context, router, version string) *Payload {
+	pl := &Payload{
+		Router:  router,
+		Ts:      time.Now().Unix(),
+		Version: version,
+	}
+	pl.Data.Wireless = p.probeWireless(ctx)
+	pl.Data.DHCP = p.probeDHCP(ctx)
+	return pl
+}
+
 // probeSystem: sysinfo + board + cpu/temp + netdev + pings + backhaul + MAC
 // del bridge. Devuelve nil solo si TODAS las sondas fallaron (equipo sin
 // ubus y sin /proc — no pasa en OpenWrt; cubre al fake runner de tests).

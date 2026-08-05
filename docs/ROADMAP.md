@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-05 (v2.5.0). Fases reordenadas por peso/entregable, no
+> Actualizada: 2026-08-05 (v2.6.0-dev). Fases reordenadas por peso/entregable, no
 > estrictamente por orden cronológico. El refactor Node → Go sigue siendo la
 > base, pero se sitúa como Fase 3 porque las Fases 1 y 2 son los hitos visibles
 > que hoy definen el producto. Referencias: `docs/AUDITORIA-FASE65.md`
@@ -131,10 +131,10 @@ Cierre de los huecos de seguridad detectados en la auditoría del piloto:
 
 ---
 
-## Fase 7 — Agente a fondo (~1 semana)
+## Fase 7 — Agente a fondo (en curso, v2.6.0-dev)
 
 Objetivo: pasar del agente "sondista" actual a un componente de red local de
-verdad, con eventos en tiempo real, recolección nativa del kernel y empaquetado
+verdad, con eventos en tiempo real, comunicación bidireccional y empaquetado
 oficial de OpenWrt.
 
 Contexto del piloto (v2.2.0):
@@ -143,33 +143,37 @@ Contexto del piloto (v2.2.0):
   `ubus call`) que varía entre versiones de OpenWrt.
 - Se instala con `install-agent.sh` (scp + procd); no es un paquete mantenible.
 
-**Desarrollo:**
-1. **Eventos ubus** (R7, el corazón): suscribirse a señales de `hostapd`
-   (`assoc`/`disassoc`), `netifd` (`interface.up`/`down`) y `udhcpc`
-   (`bound`/`renew`) y enviarlos al servidor inmediatamente (o con cola mínima).
-   El dashboard debe ver entrar/salir clientes en el segundo.
-2. **netlink/nl80211 nativo** (Go o C con bindings):
-   - FDB/ARP vía `rtnetlink` (sin `bridge fdb`/`ip neigh`).
-   - Estaciones wifi con RSSI, MCS, PHY rate por cliente vía `nl80211`
-     (sin `iwinfo`).
-   - Permite versiones de OpenWrt sin `iwinfo` y reduce CPU/memoria.
-3. **Comunicación bidireccional robusta**: WebSocket o SSE desde el agente al
-   servidor, con fallback a push HTTP como hoy. El server debe poder enviar
-   órdenes al agente (Fase 9) sin esperar al próximo tick.
-4. **Empaquetado `.ipk`**: Makefile OpenWrt, feed propio o incorporación al
-   feed de paquetes del usuario; instalación con `opkg install netpulse-agent`.
-   El `install-agent.sh` actual pasa a ser fallback para desarrollo.
-5. **Profiling en hardware real**:
-   - Medir RSS, CPU y escritura a flash en el Flint 2 y en los APs.
-   - Ajustar intervalos: eventos en tiempo real, métricas de red cada 30 s,
-     heartbeat cada 60 s.
-   - Límite de buffer local (RAM) con drop-oldest si la conexión falla.
+**Desarrollo (en curso):**
+
+1. **✅ Eventos nl80211 en tiempo real** (7.1): `iw event -t` como proceso hijo
+   persistente; assoc/disassoc de clientes wifi disparan un push inmediato
+   (wireless + DHCP, min gap 3s). Ya no hay que esperar 30s para ver cambios
+   en el dashboard.
+
+2. **⏸️ Netlink/nl80211 nativo** (7.2): APLAZADO. Sustituiría `brctl`, `iwinfo`
+   e `ip neigh` por rtnetlink y nl80211 (ABI del kernel, parseo estructurado,
+   sin fork/exec). Añadiría ~1 MB al binario. Pendiente para después del .ipk.
+
+3. **✅ Comunicación bidireccional SSE** (7.3): endpoint
+   `GET /api/agents/{slug}/stream` en el servidor (auth Bearer, misma que la
+   ingesta). El agente mantiene una conexión SSE abierta y recibe comandos
+   (`refresh`, `connected`, `bye`). El servidor puede enviar comandos al
+   agente sin esperar al próximo tick de sondeo. Infraestructura lista para
+   Fase 9 (escritura/orquestación).
+
+4. **🔄 Empaquetado `.ipk`** (7.4): Makefile OpenWrt + procd init script +
+   UCI config (`/etc/config/netpulse-agent`) + uci-defaults (migración desde
+   instalación manual previa + watchdog cron). `opkg install netpulse-agent`
+   funcional. `install-agent.sh` actual pasa a fallback para desarrollo.
+
+5. **⏳ Profiling en hardware real** (7.5): pendiente medir RSS, CPU y
+   escritura a flash en el Flint 2 y en los APs.
 
 **Criterios de aceptación:**
-- Un cliente wifi conectado aparece en el dashboard en < 3 s desde `assoc`.
-- El agente consume < 5 % CPU en un AP de 4 núcleos ARM y < 10 MB RSS.
-- Se instala/desinstala con `opkg` sin dejar archivos huérfanos.
-- Tests de compatibilidad con OpenWrt 23.05 y 24.10.
+- ✅ Un cliente wifi desconectado/reconectado dispara un push en < 3s.
+- ⏳ El agente consume < 5% CPU en un AP de 4 núcleos ARM y < 10 MB RSS.
+- ⏳ Se instala/desinstala con `opkg` sin dejar archivos huérfanos.
+- ⏳ Tests de compatibilidad con OpenWrt 23.05 y 24.10.
 
 **Deploy**: reinstalar agentes con el nuevo `.ipk` en gateway + 3 APs.
 

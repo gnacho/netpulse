@@ -1,0 +1,77 @@
+#!/bin/sh /etc/rc.common
+# netpulse-agent — procd init script (OpenWrt)
+# Instalado por el paquete .ipk; config en /etc/config/netpulse-agent
+
+START=90
+USE_PROCD=1
+
+PROG=/usr/sbin/netpulse-agent
+HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat
+
+# Leer config UCI, con fallback a variables de entorno
+load_config() {
+	local server token slug interval
+
+	config_load netpulse-agent
+
+	config_get server  main server  ""
+	config_get token   main token   ""
+	config_get slug    main slug    ""
+
+	# Si no hay token/slug en UCI, heredar de /etc/netpulse-agent.env
+	# (instalación manual previa a .ipk)
+	if [ -z "$token" ] && [ -f /etc/netpulse-agent.env ]; then
+		. /etc/netpulse-agent.env
+	fi
+	if [ -z "$server" ]; then
+		server="$NETPULSE_SERVER"
+	fi
+	if [ -z "$token" ]; then
+		token="$NETPULSE_TOKEN"
+	fi
+	if [ -z "$slug" ]; then
+		slug="$NETPULSE_SLUG"
+	fi
+
+	config_get interval main interval "30s"
+
+	export NETPULSE_SERVER="$server"
+	export NETPULSE_TOKEN="$token"
+	export NETPULSE_SLUG="$slug"
+	export NETPULSE_INTERVAL="$interval"
+	export NETPULSE_HEARTBEAT_FILE="$HEARTBEAT_FILE"
+
+	# Targets de ping (solo se usan si están definidos)
+	local wan_target gw_target
+	config_get wan_target main wan_target ""
+	config_get gw_target  main gw_target  ""
+	[ -n "$wan_target" ] && export NETPULSE_WAN_TARGET="$wan_target"
+	[ -n "$gw_target" ]  && export NETPULSE_GW_TARGET="$gw_target"
+
+	# TLS inseguro (LAN con cert autofirmado)
+	local insecure_tls
+	config_get insecure_tls main insecure_tls "0"
+	[ "$insecure_tls" = "1" ] && export NETPULSE_INSECURE_TLS=1
+}
+
+start_service() {
+	load_config
+
+	# Validación mínima
+	if [ -z "$NETPULSE_SERVER" ] || [ -z "$NETPULSE_TOKEN" ] || [ -z "$NETPULSE_SLUG" ]; then
+		echo "netpulse-agent: falta server, token o slug en /etc/config/netpulse-agent"
+		return 1
+	fi
+
+	procd_open_instance
+	procd_set_param command "$PROG"
+	procd_set_param stdout stderr  # logs vía procd a syslog
+	procd_set_param respawn 3600 3600 0  # respawn tras 1h como máximo (el watchdog cron lo gestiona)
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger netpulse-agent
+}
+
+# stop_service lo gestiona procd automáticamente (SIGTERM al comando)

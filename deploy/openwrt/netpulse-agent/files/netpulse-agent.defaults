@@ -1,0 +1,55 @@
+#!/bin/sh
+# uci-defaults: ejecutado UNA vez tras instalar el .ipk.
+# Migra una instalación manual previa (si existe /etc/netpulse-agent.env)
+# al formato UCI, y programa el watchdog cron.
+
+AGENT_ENV=/etc/netpulse-agent.env
+AGENT_UCI=netpulse-agent
+
+# Migrar instalación manual previa (.env) a UCI
+if [ -f "$AGENT_ENV" ]; then
+	. "$AGENT_ENV"
+	[ -n "$NETPULSE_SERVER" ]  && uci set "$AGENT_UCI.main.server=$NETPULSE_SERVER"
+	[ -n "$NETPULSE_TOKEN" ]   && uci set "$AGENT_UCI.main.token=$NETPULSE_TOKEN"
+	[ -n "$NETPULSE_SLUG" ]    && uci set "$AGENT_UCI.main.slug=$NETPULSE_SLUG"
+	[ -n "$NETPULSE_INTERVAL" ] && uci set "$AGENT_UCI.main.interval=$NETPULSE_INTERVAL"
+	[ "$NETPULSE_INSECURE_TLS" = "1" ] && uci set "$AGENT_UCI.main.insecure_tls=1"
+	[ -n "$NETPULSE_WAN_TARGET" ] && uci set "$AGENT_UCI.main.wan_target=$NETPULSE_WAN_TARGET"
+	[ -n "$NETPULSE_GW_TARGET" ]  && uci set "$AGENT_UCI.main.gw_target=$NETPULSE_GW_TARGET"
+	uci commit "$AGENT_UCI"
+fi
+
+# Watchdog cron: cada 2 min, reiniciar si el agente no late
+WATCHDOG=/usr/sbin/netpulse-watchdog
+HEARTBEAT=/tmp/netpulse-agent.heartbeat
+
+cat > "$WATCHDOG" << 'WDOG'
+#!/bin/sh
+# netpulse-watchdog: si el agente no ha escrito el heartbeat en 300s, reiniciar
+HB=/tmp/netpulse-agent.heartbeat
+if ! pgrep -x netpulse-agent > /dev/null; then
+	/etc/init.d/netpulse-agent restart
+	exit 0
+fi
+if [ -f "$HB" ]; then
+	now=$(date +%s)
+	last=$(cat "$HB" 2>/dev/null)
+	if [ -n "$last" ] && [ $((now - last)) -gt 300 ]; then
+		logger -t netpulse-agent "watchdog: heartbeat stalled ($((now - last))s), restarting"
+		/etc/init.d/netpulse-agent restart
+	fi
+fi
+WDOG
+
+chmod 755 "$WATCHDOG"
+
+# Instalar cron solo si no existe ya
+if ! crontab -l 2>/dev/null | grep -q netpulse-watchdog; then
+	(crontab -l 2>/dev/null; echo "*/2 * * * * $WATCHDOG") | crontab -
+fi
+
+# Habilitar y arrancar el servicio
+/etc/init.d/netpulse-agent enable
+/etc/init.d/netpulse-agent restart
+
+exit 0
