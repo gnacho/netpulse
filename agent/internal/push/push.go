@@ -8,6 +8,9 @@ package push
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -165,7 +168,14 @@ func (c *Client) growBackoffLocked() {
 	}
 }
 
-// post hace el POST con Bearer; error si no hay 2xx.
+// hmacSign devuelve HMAC-SHA256(token, body) en hex.
+func hmacSign(token string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// post hace el POST con Bearer + HMAC; error si no hay 2xx.
 func (c *Client) post(ctx context.Context, p *probe.Payload) error {
 	body, err := json.Marshal(p)
 	if err != nil {
@@ -177,6 +187,7 @@ func (c *Client) post(ctx context.Context, p *probe.Payload) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("X-Agent-Signature", hmacSign(c.token, body))
 	res, err := c.hc.Do(req)
 	if err != nil {
 		return err

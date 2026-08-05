@@ -15,3 +15,6 @@ server/.env
 # Notas locales con credenciales
 *_user.txt
 v2/
+
+# Binarios de agente embebidos (construidos por CI)
+server-go/internal/agentbin/agents/netpulse-agent-*

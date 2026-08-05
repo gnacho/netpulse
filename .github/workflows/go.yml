@@ -47,6 +47,16 @@ jobs:
         working-directory: server-go
         run: go test ./...
 
+      - name: Build agent binaries para embed (todas las arquitecturas)
+        run: |
+          for target in amd64 arm64 armv7; do
+            goarch="$target"
+            goarm=""
+            if [ "$target" = "armv7" ]; then goarch="arm"; goarm="GOARM=7"; fi
+            echo "→ agente linux/$target"
+            (cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=$goarch $goarm go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-$target ./cmd/netpulse-agent)
+          done
+
       - name: Build binario (linux/${{ matrix.arch }})
         working-directory: server-go
         env:

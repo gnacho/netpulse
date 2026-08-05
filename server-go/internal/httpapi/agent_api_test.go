@@ -5,6 +5,7 @@
 package httpapi_test
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -102,6 +103,9 @@ func ingest(t *testing.T, ts *agentTestServer, token, ip, payload string) *http.
 	req.Header.Set("X-Forwarded-For", ip)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+		mac := hmac.New(sha256.New, []byte(token))
+		mac.Write([]byte(payload))
+		req.Header.Set("X-Agent-Signature", hex.EncodeToString(mac.Sum(nil)))
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

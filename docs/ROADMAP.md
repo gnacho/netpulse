@@ -1,12 +1,12 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-05 (v2.4.4). Fases reordenadas por peso/entregable, no
+> Actualizada: 2026-08-05 (v2.5.0). Fases reordenadas por peso/entregable, no
 > estrictamente por orden cronológico. El refactor Node → Go sigue siendo la
 > base, pero se sitúa como Fase 3 porque las Fases 1 y 2 son los hitos visibles
 > que hoy definen el producto. Referencias: `docs/AUDITORIA-FASE65.md`
 > (riesgos R1-R8), `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
-## Estado actual (v2.4.4)
+## Estado actual (v2.5.0)
 
 Hecho y en producción (CT 226):
 - **Fase 1 — Topología v5** (v2.1.0): FDB + LLDP en vivo, backhaul real,
@@ -21,6 +21,10 @@ Hecho y en producción (CT 226):
   displayName y remodel de Preferencias.
 - **Fase 5 — Resiliencia del agente** (v2.3.0/v2.4.0/v2.4.1): watchdog,
   rearme desde servidor, auto-rearme TTL y endurecimiento de rutas admin.
+- **Fase 6 — Seguridad del agente** (v2.5.0): **HMAC-SHA256 en la ingesta**
+  (firma obligatoria del payload con el token), **binario del agente servido
+  desde el propio servidor** (`GET /api/agents/{slug}/binary`) eliminando la
+  dependencia de GitHub y el token en argv.
 - **Cierre de fixes cosméticos/de datos** (v2.4.2/v2.4.3/v2.4.4): idioma
   "auto", BD limpia + demo desde UI, clientes GL.iNet vía `gl-clients`, layout
   radial y espaciado de iconos en topología (issues #3/#4/#5).
@@ -32,11 +36,18 @@ Dormido en producción (implementado pero sin efecto real):
   aportan tiempo real; y reportan versión 0.1.0 hasta reinstalarlos con la
   próxima release.
 
-Pendiente inmediato (Fase 6):
-- HMAC-SHA256 en la ingesta del agente.
-- Servir el binario del agente desde el propio servidor.
-- HTTPS en CT 226.
-- Identificación de Proxmox en cluster.
+Pendiente inmediato (Fase 7):
+- Eventos ubus en tiempo real (hostapd assoc/disassoc).
+- netlink/nl80211 nativo (FDB/ARP/stations sin parsear CLI).
+- Comunicación bidireccional (WebSocket/SSE agente↔servidor).
+- Empaquetado `.ipk` para `opkg install`.
+- Profiling en hardware real (Flint 2 + APs).
+
+Deuda sin fase:
+- Web Push dormido (sin HTTPS en servidor; decisión de despliegue del usuario).
+- Agentes reportan versión 0.1.0 (reinstalar con release nueva para el fix de goreleaser `-X main.Version`).
+- Collector sidecar sin integrar con server-go.
+- recharts v2 deprecated.
 
 ---
 
@@ -103,32 +114,20 @@ Cierre de los huecos de supervisión detectados en la auditoría del piloto:
 
 ---
 
-## Fase 6 — TLS, endurecimiento y cierre de fixes (bloqueante, ~1 día + sprints)
+## Fase 6 — Seguridad del agente (hecha, v2.5.0)
 
-Fusión de la deuda cosmética reciente con los bloqueantes de seguridad.
-Sin esto, ni push funciona ni la Fase 8 es segura.
+Cierre de los huecos de seguridad detectados en la auditoría del piloto:
 
-**Desarrollo:**
-1. **HMAC-SHA256 en la ingesta del agente** (R4): firmar el payload con el
-   token. ~10 líneas. Barato ahora, carísimo después de la Fase 8.
-2. **Servir el binario del agente desde el propio servidor** (R3):
-   `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
-   GitHub en LANs sin salida y el `curl | sh` con token en argv.
-3. **Identificación de Proxmox en live**: hoy solo se detecta hipervisor si
-   hay exactamente un host con MAC de hipervisor + VMs con OUI de hipervisor.
-   En producción con cluster Proxmox (2 hosts citadel-01/02) no se identifica
-   porque la regla exige "exactamente un host". Revisar si hay que relajar a
-   "uno o más hosts" o si el problema es que los hosts no están en la BD.
-4. Cierre de deuda cosmética pendiente (si queda algo tras v2.4.4).
+1. **HMAC-SHA256 en la ingesta** (R4): el agente firma cada payload con
+   `HMAC-SHA256(token, body)` en la cabecera `X-Agent-Signature`. El servidor
+   rechaza peticiones sin firma o con firma inválida (401).
+2. **Binario del agente desde el servidor** (R3): endpoint
+   `GET /api/agents/{slug}/binary?arch=...` con auth por token de agente
+   (Bearer). Los binarios van embebidos en el servidor vía `go:embed`
+   (construidos por CI para amd64/arm64/armv7). El one-liner de instalación
+   descarga el binario del servidor en vez de GitHub.
 
-**Deploy:**
-1. **HTTPS en CT 226** (R1): Caddy delante con cert autofirmado + confianza
-   manual, o Tailscale Serve (HTTPS automático). Desbloquea Web Push real y
-   permite retirar `NETPULSE_INSECURE_TLS`.
-   Decisión pendiente: Caddy vs Tailscale (afecta a cómo confiarán los
-   routers en el cert cuando ellos también empujen con TLS).
-2. **Reinstalar agentes con release nueva** para que reporten versión real
-   (el fix `-X main.Version` ya está en goreleaser).
+**Deploy**: reinstalar agentes con la nueva release para que usen HMAC.
 
 ---
 

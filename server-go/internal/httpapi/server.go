@@ -30,7 +30,7 @@ import (
 )
 
 // Version es la versión del backend (app.js:18).
-const Version = "2.4.4"
+const Version = "2.5.0"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
@@ -151,6 +151,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("DELETE /api/agents/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsDelete)))
 	// Fase 5 (Plan B): rearme del servicio procd del agente vía SSH.
 	mux.Handle("POST /api/agents/{slug}/rearm", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRearm)))
+	// Fase 6.2: servir binario del agente desde el propio servidor (sin GitHub).
+	// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
+	// instalación incluye el token y se ejecuta en el router, sin sesión admin.
+	mux.HandleFunc("GET /api/agents/{slug}/binary", s.handleAgentBinary)
 
 	// --- Web Push (Fase 3 Bloque C; tras sesión como el resto del API) ---
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)

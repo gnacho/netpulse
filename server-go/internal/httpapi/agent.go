@@ -13,6 +13,7 @@
 package httpapi
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
+	"github.com/gnacho/netpulse/server-go/internal/agentbin"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
@@ -134,6 +136,21 @@ func (s *server) checkAgentToken(slug, token string) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(stored)) == 1
 }
 
+// checkHMAC verifica que X-Agent-Signature coincida con HMAC-SHA256(token, body).
+// Devuelve nil si la firma es correcta; error si falta o no coincide.
+func checkHMAC(token string, body []byte, sig string) error {
+	if sig == "" {
+		return errors.New("falta X-Agent-Signature")
+	}
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write(body)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if subtle.ConstantTimeCompare([]byte(sig), []byte(expected)) != 1 {
+		return errors.New("HMAC no coincide")
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/ingest/agent (auth Bearer propia; exenta del middleware de sesión)
 // ---------------------------------------------------------------------------
@@ -175,6 +192,12 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	// 401: HMAC-SHA256 del payload no coincide (R4: firma obligatoria)
+	sig := r.Header.Get("X-Agent-Signature")
+	if err := checkHMAC(token, body, sig); err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid_signature", err.Error())
+		return
+	}
 	if s.agents == nil {
 		writeError(w, http.StatusServiceUnavailable, "unavailable",
 			"el servidor no tiene registry de agentes")
@@ -182,6 +205,52 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	s.agents.Ingest(&p)
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/agents/{slug}/binary?arch=... — Fase 6.2: servir el binario del
+// agente desde el propio servidor (embebido vía go:embed en agentbin/).
+// Elimina la dependencia de GitHub para instalar/reinstalar agentes.
+// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
+// instalación incluye el token y se ejecuta en el router.
+// ---------------------------------------------------------------------------
+
+func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !agentSlugRe.MatchString(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	// Auth por token de agente (no sesión admin)
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !s.checkAgentToken(slug, token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	arch := r.URL.Query().Get("arch")
+	if arch == "" {
+		arch = "arm64"
+	}
+	f, err := agentbin.Open(arch)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found",
+			"binario no disponible para "+arch+" (compila el servidor con los binarios de agente embebidos)")
+		return
+	}
+	defer f.Close()
+	st, _ := f.Stat()
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent-%s"`, arch))
+	http.ServeContent(w, r, st.Name(), st.ModTime(), f.(io.ReadSeeker))
+}
+
+// hasAgentToken verifica si existe un token para el slug (rápido, sin cargar el valor).
+func (s *server) hasAgentToken(slug string) bool {
+	if s.db == nil {
+		return false
+	}
+	var dummy string
+	return s.db.QueryRow("SELECT value FROM kv WHERE key = ?", agentTokenKey(slug)).Scan(&dummy) == nil
 }
 
 // ---------------------------------------------------------------------------
@@ -224,9 +293,10 @@ func (s *server) handleAgentsCreate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// agentInstallLine: one-liner de instalación vía SSH desde esta máquina
-// (install-agent.sh, hermano de install-collector.sh). El host del router se
-// resuelve de la tabla routers si el slug existe.
+// agentInstallLine: one-liner de instalación vía SSH desde esta máquina.
+// El host del router se resuelve de la tabla routers si el slug existe.
+// Fase 6.2: el binario se descarga del propio servidor con el token del agente
+// en vez de GitHub, eliminando la dependencia de internet y el token en argv.
 func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	host := "<ip-del-router>"
 	if s.db != nil {
@@ -243,8 +313,8 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	}
 	server := scheme + "://" + r.Host
 	return fmt.Sprintf(
-		"curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --host %s --server %s --slug %s --token %s",
-		host, server, slug, token)
+		"curl -fsSL -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary /tmp/netpulse-agent --host %s --server %s --slug %s --token %s",
+		token, server, slug, host, server, slug, token)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.
