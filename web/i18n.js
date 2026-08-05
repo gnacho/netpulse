@@ -5,16 +5,16 @@
    ============================================================ */
 
 const LANGS = {
-  en: { name: 'English', dir: 'ltr' },
-  zh: { name: '中文', dir: 'ltr' },
-  es: { name: 'Español', dir: 'ltr' },
-  ar: { name: 'العربية', dir: 'rtl' },
-  hi: { name: 'हिन्दी', dir: 'ltr' },
-  pt: { name: 'Português', dir: 'ltr' },
-  fr: { name: 'Français', dir: 'ltr' },
-  ja: { name: '日本語', dir: 'ltr' },
-  ru: { name: 'Русский', dir: 'ltr' },
-  de: { name: 'Deutsch', dir: 'ltr' },
+  en: { name: 'English', dir: 'ltr', flag: '🇬🇧' },
+  zh: { name: '中文', dir: 'ltr', flag: '🇨🇳' },
+  es: { name: 'Español', dir: 'ltr', flag: '🇪🇸' },
+  ar: { name: 'العربية', dir: 'rtl', flag: '🌙' },
+  hi: { name: 'हिन्दी', dir: 'ltr', flag: '🇮🇳' },
+  pt: { name: 'Português', dir: 'ltr', flag: '🇵🇹' },
+  fr: { name: 'Français', dir: 'ltr', flag: '🇫🇷' },
+  ja: { name: '日本語', dir: 'ltr', flag: '🇯🇵' },
+  ru: { name: 'Русский', dir: 'ltr', flag: '🇷🇺' },
+  de: { name: 'Deutsch', dir: 'ltr', flag: '🇩🇪' },
 }
 
 /* Números demo reales del canon de NetPulse (demo_dataset.go) */
@@ -895,7 +895,7 @@ function buildLangSelect() {
   Object.entries(LANGS).forEach(([code, m]) => {
     const o = document.createElement('option')
     o.value = code
-    o.textContent = m.name
+    o.textContent = `${m.flag} ${m.name}`
     sel.appendChild(o)
   })
   sel.value = CURRENT

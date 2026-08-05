@@ -248,7 +248,7 @@ function buildTopo() {
   topoBuilt = true
   const svg = document.getElementById('topoSvg')
   const NS = 'http://www.w3.org/2000/svg'
-  svg.setAttribute('viewBox', '0 0 1000 680')
+  svg.setAttribute('viewBox', "0 0 1000 680")
   const canvas = getCssVar('canvas')
 
   const mk = (tag, attrs, parent) => {
@@ -278,22 +278,22 @@ function buildTopo() {
   }
 
   // --- nodos canónicos de la app ---
-  const gw = { id: 'gw', name: 'GW-Flint2', model: 'Flint 2', x: 500, y: 250, r: 40, status: 'ok', health: 92, clients: 34 }
+  const gw = { id: 'gw', name: 'GW-Flint2', model: 'Flint 2', x: 500, y: 250, r: 48, status: 'ok', health: 92, clients: 34 }
   const aps = [
-    { id: 'ap1', name: 'AP-Salon', x: 195, y: 470, r: 32, status: 'ok', health: 88, clients: 18 },
-    { id: 'ap2', name: 'AP-Pasillo', x: 500, y: 505, r: 32, status: 'warn', health: 71, clients: 10 },
-    { id: 'ap3', name: 'AP-Dormitorio', x: 805, y: 470, r: 32, status: 'ok', health: 95, clients: 5 },
+    { id: 'ap1', name: 'AP-Salon', x: 195, y: 470, r: 38, status: 'ok', health: 88, clients: 18 },
+    { id: 'ap2', name: 'AP-Pasillo', x: 500, y: 505, r: 38, status: 'warn', health: 71, clients: 10 },
+    { id: 'ap3', name: 'AP-Dormitorio', x: 805, y: 470, r: 38, status: 'ok', health: 95, clients: 5 },
   ]
   const internet = { x: 500, y: 58 }
   const peers = [
     { id: 'p1', name: 'phone', type: 'phone', x: 265, y: 26 },
     { id: 'p2', name: 'nas-wg', type: 'laptop', x: 735, y: 26 },
   ]
-  const dist = { id: 'dist1', name: 'Switch inferido', x: 660, y: 230, r: 24, managed: false, port: 'lan3', macs: 8 }
+  const dist = { id: 'dist1', name: 'Switch inferido', x: 660, y: 230, r: 30, managed: false, port: 'lan3', macs: 8 }
   const allRouters = [gw, ...aps]
 
   // --- anillos guía wifi ---
-  const guideRadii = [96, 130]
+  const guideRadii = [110, 150]
   allRouters.forEach(r => {
     guideRadii.forEach(rad => {
       svgAppend(mk('circle', { cx: r.x, cy: r.y, r: rad, class: 'topo-guide' }))
@@ -335,7 +335,7 @@ function buildTopo() {
     `M${gw.x} ${gw.y + gw.r} C${gw.x} 360, ${gw.x} 420, ${aps[1].y - aps[1].r}`,
     `M${gw.x + gw.r * 0.7} ${gw.y + gw.r * 0.7} C610 340, 710 400, ${aps[2].x - aps[2].r * 0.6} ${aps[2].y - aps[2].r * 0.6}`,
   ]
-  uplinkPaths.forEach((d, i) => addLink(d, 'uplink', COLOR.ok, 2, false, true, i === 1 ? 'uplink' : ''))
+  uplinkPaths.forEach((d, i) => addLink(d, 'uplink', COLOR.ok, 2.2, false, true, i === 1 ? 'uplink' : ''))
   // distnode link
   addLink(`M${gw.x + gw.r + 4} ${gw.y} L${dist.x - dist.r - 4} ${dist.y}`, 'wired', COLOR.ok, 1.5, false, true)
 
@@ -380,10 +380,10 @@ function buildTopo() {
     setTimeout(() => ring.style.strokeDashoffset = target, 100 + i * 120)
     drawIcon(isGw ? 'router' : 'ap', 0, 0, isGw ? 34 : 28, isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--text-primary))', g)
 
-    const label = mk('text', { x: r.x - (isGw ? 54 : 60), y: r.y + (isGw ? 62 : 44), 'text-anchor': 'end', class: 'topo-label' }, svg)
+    const label = mk('text', { x: r.x - (isGw ? 70 : 66), y: r.y + (isGw ? 74 : 54), 'text-anchor': 'end', class: 'topo-label' }, svg)
     label.textContent = r.name
     order.push(label)
-    const sub = mk('text', { x: r.x - (isGw ? 54 : 60), y: r.y + (isGw ? 78 : 60), 'text-anchor': 'end', class: 'topo-label-sub' }, svg)
+    const sub = mk('text', { x: r.x - (isGw ? 70 : 66), y: r.y + (isGw ? 92 : 72), 'text-anchor': 'end', class: 'topo-label-sub' }, svg)
     sub.textContent = `${r.clients} clients · ${r.health}%`
     order.push(sub)
   })
@@ -397,8 +397,8 @@ function buildTopo() {
       mk('animate', { attributeName: 'r', values: '18;27', dur: '2.2s', repeatCount: 'indefinite' }, pulse)
       mk('animate', { attributeName: 'opacity', values: '0.5;0', dur: '2.2s', repeatCount: 'indefinite' }, pulse)
     }
-    mk('rect', { x: -18, y: -18, width: 36, height: 36, rx: 11, fill: canvas, stroke: COLOR.tunnel, 'stroke-width': 1.5 }, g)
-    drawIcon(p.type, 0, 0, 20, COLOR.tunnel, g)
+    mk('rect', { x: -21, y: -21, width: 42, height: 42, rx: 13, fill: canvas, stroke: COLOR.tunnel, 'stroke-width': 1.5 }, g)
+    drawIcon(p.type, 0, 0, 24, COLOR.tunnel, g)
     const label = mk('text', { x: p.x + (i % 2 ? -26 : 26), y: p.y - 4, 'text-anchor': i % 2 ? 'end' : 'start', class: 'topo-label' }, svg)
     label.textContent = p.name
     order.push(label)
@@ -446,14 +446,14 @@ function buildTopo() {
   chips.forEach((c, i) => {
     const g = mk('g', { transform: `translate(${c.x} ${c.y})`, class: 'topo-node' }, svg)
     order.push(g)
-    const S = c.wired ? 26 : 24
+    const S = c.wired ? 30 : 28
     const half = S / 2
     const stroke = c.wired ? COLOR.ok : 'rgb(var(--border-strong))'
     mk('rect', { x: -half, y: -half, width: S, height: S, rx: 7, fill: canvas, stroke, 'stroke-width': c.wired ? 1.3 : 1.1 }, g)
-    drawIcon(c.type, 0, 0, 16, c.wired ? COLOR.ok : 'rgb(var(--text-primary))', g)
+    drawIcon(c.type, 0, 0, 19, c.wired ? COLOR.ok : 'rgb(var(--text-primary))', g)
     if (!c.wired) {
       const bandColor = c.weak ? COLOR.warn : c.band === '5 GHz' ? COLOR.accent : COLOR.info
-      mk('circle', { cx: half - 2, cy: half - 2, r: 3.8, fill: bandColor, stroke: canvas, 'stroke-width': 1.4 }, g)
+      mk('circle', { cx: half - 2, cy: half - 2, r: 4.5, fill: bandColor, stroke: canvas, 'stroke-width': 1.4 }, g)
     }
     const title = mk('title', {}, g)
     title.textContent = c.name
