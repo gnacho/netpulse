@@ -229,42 +229,42 @@ const WG_PATHS = [
 ]
 /** Anillos wifi (v5: separados de los nodos; chips no "tocan" el router) */
 const GATEWAY_RINGS = [
-  { r: 88, cap: 5 },
-  { r: 118, cap: 8 },
+  { r: 96, cap: 5 },
+  { r: 130, cap: 8 },
 ]
 const AP_RINGS = [
-  { r: 74, cap: 7 },
-  { r: 108, cap: 13 },
+  { r: 82, cap: 7 },
+  { r: 120, cap: 13 },
 ]
 /** Abanicos cableados: gateway tiene sector este (switch inferido) y oeste */
 const GW_EAST_FAN: [number, number] = [336, 24] // wrap (a1 < a0)
 const GW_WEST_FAN: [number, number] = [150, 210]
 const AP_WIRED_FAN: [number, number] = [50, 130]
-const DIST_FAN_RADIUS = 82
+const DIST_FAN_RADIUS = 96
 /** distnodes: hasta DIST_FAN_MAX hijos en abanico de 136°; con más, el arco
  *  de radio fijo los amontona (issue #5 bug 2: 8 bocas tras un switch en el
  *  mismo puerto) → anillos concéntricos alrededor del círculo dashed. */
 const DIST_FAN_MAX = 5
 const DIST_RINGS = [
-  { r: 62, cap: 7 },
-  { r: 104, cap: 12 },
+  { r: 72, cap: 7 },
+  { r: 118, cap: 12 },
 ]
-const HUB_FAN_RADIUS = 56
-const ROUTER_FAN_RADIUS = 134
+const HUB_FAN_RADIUS = 68
+const ROUTER_FAN_RADIUS = 150
 /** Hosts hipervisores del gateway: lejos (su grid de CTs necesita espacio) */
-const HYPERVISOR_FAN_RADIUS = 300
+const HYPERVISOR_FAN_RADIUS = 320
 /** Grid de CTs bajo el host hipervisor */
 const CT_COLS = 5
-const CT_DX = 42
-const CT_DY = 38
-const CT_OFFSET_Y = 56
+const CT_DX = 46
+const CT_DY = 44
+const CT_OFFSET_Y = 64
 /** Grid de cableados directos del gateway (a partir de N, el abanico oeste
  *  de 60° los apiña: se pasa a filas×columnas al oeste, decisión 2-Ago-2026) */
 const GW_GRID_MIN = 6
 const GW_GRID_ROWS = 4
-const GW_GRID_DX = 46
-const GW_GRID_DY = 40
-const GW_GRID_R0 = 142
+const GW_GRID_DX = 56
+const GW_GRID_DY = 50
+const GW_GRID_R0 = 160
 
 // ---------------------------------------------------------------------------
 // Utilidades de ángulos y layout (portadas del mockup aprobado)

@@ -666,6 +666,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       <svg
         ref={svgRef}
         viewBox={`${INITIAL_VIEW.x} ${INITIAL_VIEW.y} ${INITIAL_VIEW.w} ${INITIAL_VIEW.h}`}
+        preserveAspectRatio="xMidYMid meet"
         className="h-full w-full"
         role="img"
         aria-label={t('topology.mapAria')}
@@ -688,7 +689,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             si el wifi supera el aforo de los dos primeros) */}
         <g aria-hidden>
           {routerNodes.map((node) =>
-            (model.ringRadii.get(node.id) ?? (node.id === model.gatewayNode?.id ? [88, 118] : [74, 108])).map((r) => (
+            (model.ringRadii.get(node.id) ?? (node.id === model.gatewayNode?.id ? [96, 130] : [82, 120])).map((r) => (
               <circle
                 key={`${node.id}-ring-${r}`}
                 cx={node.x}

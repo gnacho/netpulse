@@ -1,16 +1,17 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-04 (v2.4.3). Fases consecutivas desde la 1, basadas
+> Actualizada: 2026-08-05 (v2.4.4). Fases consecutivas desde la 1, basadas
 > en el histórico real de commits. Referencias: `docs/AUDITORIA-FASE65.md`
 > (riesgos R1-R8), `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
-## Estado actual (v2.4.3)
+## Estado actual (v2.4.4)
 
 Hecho y en producción (CT 226):
 - Fases 1-5 completas: base read-only, topología v5, alertas/push/agente
   piloto, view-model semántico, resiliencia del agente.
-- Fixes v2.4.2/v2.4.3: idioma auto, BD limpia + demo desde UI, gl-clients
-  por rutas SSH y agente, layout radial en topología (issues #3/#4/#5).
+- Fixes v2.4.2/v2.4.3/v2.4.4: idioma auto, BD limpia + demo desde UI,
+  gl-clients por rutas SSH y agente, layout radial en topología, espaciado
+  de iconos de clientes y aspect-ratio fijo en mapa (issues #3/#4/#5).
 
 Dormido en producción (implementado pero sin efecto real):
 - **Web Push**: sin HTTPS en el servidor ningún navegador puede suscribirse
@@ -95,10 +96,15 @@ Issues #3/#4/#5 + feedback cosmético del usuario:
   editable/oculto según servicio, usuarios colapsados, nombre de saludo,
   info de sistema real en Acerca de (ya implementado en Fase 4).
 
-**Pendiente (feedback cosmético restante):**
-- **Espaciar más los iconos de clientes en topología**: el mockup tiene más
-  aire entre iconos; aumentar radio de abanicos (ROUTER_FAN_RADIUS,
-  DIST_FAN_RADIUS, HUB_FAN_RADIUS) sin deshacer nada.
+**Hecho en v2.4.4:**
+- **Espaciar más los iconos de clientes en topología**: radio de abanicos
+  aumentado (ROUTER_FAN_RADIUS 134→150, DIST_FAN_RADIUS 82→96,
+  HUB_FAN_RADIUS 56→68, hipervisor 300→320, anillos wifi gateway 88/118→96/130,
+  AP 74/108→82/120, grid CT 42/38/56→46/44/64, grid gateway 46/40/142→56/50/160),
+  y SVG con `preserveAspectRatio="xMidYMid meet"` para no distorsionar el
+  espaciado al estirar el contenedor.
+
+**Pendiente:**
 - **Identificación de Proxmox en live**: hoy solo se detecta hipervisor si
   hay exactamente un host con MAC de hipervisor + VMs con OUI de hipervisor.
   En producción con cluster Proxmox (2 hosts citadel-01/02) no se identifica
