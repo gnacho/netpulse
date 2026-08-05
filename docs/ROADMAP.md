@@ -134,37 +134,98 @@ Sin esto, ni push funciona ni la Fase 8 es segura.
 
 ## Fase 7 — Agente a fondo (~1 semana)
 
-El piloto actual ahorra SSH pero no da tiempo real. El salto es:
+Objetivo: pasar del agente "sondista" actual a un componente de red local de
+verdad, con eventos en tiempo real, recolección nativa del kernel y empaquetado
+oficial de OpenWrt.
+
+Contexto del piloto (v2.2.0):
+- El agente ejecuta comandos shell localmente cada 15 s y hace push al servidor.
+- Ahorra SSH, pero no es tiempo real y parsea texto (`iwinfo`, `ip neigh`,
+  `ubus call`) que varía entre versiones de OpenWrt.
+- Se instala con `install-agent.sh` (scp + procd); no es un paquete mantenible.
 
 **Desarrollo:**
-1. **Eventos ubus** (R7, el corazón): suscripción a hostapd assoc/disassoc →
-   el dashboard ve clientes entrar/salir al instante.
-2. **netlink/nl80211 nativo**: FDB/ARP vía rtnetlink, estaciones wifi con
-   señal/tasas por cliente vía nl80211 (sin parsear CLI).
-3. **`.ipk` empaquetado**: `opkg install` en vez de install-agent.sh; el
-   instalador actual queda como fallback.
-4. Medición en hardware real (RAM/CPU/flash) y ajuste de intervalos.
+1. **Eventos ubus** (R7, el corazón): suscribirse a señales de `hostapd`
+   (`assoc`/`disassoc`), `netifd` (`interface.up`/`down`) y `udhcpc`
+   (`bound`/`renew`) y enviarlos al servidor inmediatamente (o con cola mínima).
+   El dashboard debe ver entrar/salir clientes en el segundo.
+2. **netlink/nl80211 nativo** (Go o C con bindings):
+   - FDB/ARP vía `rtnetlink` (sin `bridge fdb`/`ip neigh`).
+   - Estaciones wifi con RSSI, MCS, PHY rate por cliente vía `nl80211`
+     (sin `iwinfo`).
+   - Permite versiones de OpenWrt sin `iwinfo` y reduce CPU/memoria.
+3. **Comunicación bidireccional robusta**: WebSocket o SSE desde el agente al
+   servidor, con fallback a push HTTP como hoy. El server debe poder enviar
+   órdenes al agente (Fase 9) sin esperar al próximo tick.
+4. **Empaquetado `.ipk`**: Makefile OpenWrt, feed propio o incorporación al
+   feed de paquetes del usuario; instalación con `opkg install netpulse-agent`.
+   El `install-agent.sh` actual pasa a ser fallback para desarrollo.
+5. **Profiling en hardware real**:
+   - Medir RSS, CPU y escritura a flash en el Flint 2 y en los APs.
+   - Ajustar intervalos: eventos en tiempo real, métricas de red cada 30 s,
+     heartbeat cada 60 s.
+   - Límite de buffer local (RAM) con drop-oldest si la conexión falla.
 
-**Deploy**: reinstalar agentes con la nueva versión (`.ipk` si está listo).
+**Criterios de aceptación:**
+- Un cliente wifi conectado aparece en el dashboard en < 3 s desde `assoc`.
+- El agente consume < 5 % CPU en un AP de 4 núcleos ARM y < 10 MB RSS.
+- Se instala/desinstala con `opkg` sin dejar archivos huérfanos.
+- Tests de compatibilidad con OpenWrt 23.05 y 24.10.
+
+**Deploy**: reinstalar agentes con el nuevo `.ipk` en gateway + 3 APs.
 
 ---
 
 ## Fase 8 — App embebida en routers (decisión de diseño primero)
 
-Convertir NetPulse en una app DEL router, no solo un panel externo:
+Objetivo: NetPulse deja de ser un panel externo en un CT para convertirse en
+una app que vive en el propio router, alcanzable desde la IP del gateway sin
+dependencia de infraestructura externa.
+
+Contexto:
+- Hoy el servidor vive en CT 226 y los agentes le hablan por IP fija.
+- Eso rompe si cambias de red, apagas el servidor o no tienes un CT disponible.
+- El Flint 2 tiene 8 GB de RAM y flash eMMC; los APs de 512 MB solo pueden
+  correr el agente.
 
 **Desarrollo:**
-- **Arquitectura objetivo**: el Flint 2 (gateway, 8 GB) corre
-  `netpulse-agent` + `netpulse-server` reducido (modo on-box); los APs solo
-  agent. La URL de la app ES la IP del router.
-- **Bloqueantes previos**: decisión TLS de la Fase 6 (la app servida por el
-  router necesita cert autofirmado + flujo "confiar") y DB fuera de NAND
-  (SQLite WAL en flash = inviable; usar USB/eMMC/overlay).
-- **Pairing cero-fricción**: token de emparejamiento mostrado en LuCI
-  (patrón HomeKit/Tailscale), no curl|sh manual.
-- **`luci-app-netpulse`** (opcional): gestión del agente desde LuCI.
-- Presupuesto: server-go hoy = 20 MB RSS / 14,4 MB binario → sobra en el
-  gateway; en APs (512 MB) nunca debe correr el server.
+1. **Modo on-box del servidor**:
+   - Build de `server-go` con tag `onbox` o flag de compilación que excluya
+     collector independiente y mantenga solo API web + ingesta de agentes.
+   - Arranque vía procd con UCI config (`/etc/config/netpulse`).
+   - Detección automática: si el router tiene interfaces WAN y LAN, actúa como
+     hub (server + agent); si solo LAN/STA, actúa solo como agente.
+2. **Persistencia fuera de NAND**:
+   - SQLite en USB o overlay con WAL desactivado (`PRAGMA journal_mode=DELETE`
+     o `MEMORY`) para no desgastar flash.
+   - Migraciones automáticas al arrancar; backup diario de la BD.
+3. **TLS local**:
+   - Cert autofirmado generado en primer arranque + pantalla de "confiar" en
+     el navegador, similar a Home Assistant o un NAS.
+   - Alternativa: Tailscale funnel/certs para HTTPS automático si hay salida.
+   - El agente debe validar el cert del servidor (Fase 6 HMAC) aunque sea
+     autofirmado, sin `--insecure`.
+4. **Pairing cero-fricción**:
+   - Al instalar un agente, se genera un token de emparejamiento mostrado en
+     LuCI o en un log accesible (`logread`).
+   - El servidor on-box escanea/adopta agentes de la misma LAN con ese token.
+   - No más `curl | sh` con token en argv.
+5. **`luci-app-netpulse` (opcional pero recomendable)**:
+   - Página en LuCI para ver estado del agente/server, último push, versión y
+     botón de adoptar/desvincular.
+   - No reemplaza la PWA, pero permite diagnóstico sin acceso a la app.
+6. **Presupuesto y roles**:
+   - Gateway (Flint 2): server (~20 MB RSS) + agent.
+   - APs (Redmi AX6, 512 MB): solo agente.
+
+**Criterios de aceptación:**
+- Con el CT 226 apagado, la app es accesible desde `https://192.168.1.1`.
+- Desde un móvil en la red se puede adoptar un AP nuevo sin editar env files.
+- El gateway sobrevive a un reinicio conservando configuración y últimas 24 h
+  de datos (en USB/overlay).
+
+**Bloqueantes previos**: TLS resuelto en Fase 6 + agente bidireccional de
+Fase 7.
 
 **Deploy**: instalar server on-box en el gateway, agentes en APs.
 
@@ -172,27 +233,51 @@ Convertir NetPulse en una app DEL router, no solo un panel externo:
 
 ## Fase 9 — Escritura/orquestación (riesgo alto, reglas estrictas)
 
-Pasar de leer a actuar. Reglas de diseño innegociables
-(detalle en AUDITORIA-FASE65.md §5):
+Objetivo: pasar de leer la red a actuar sobre ella de forma declarativa,
+segura y reversible, con reglas que impidan quedarse sin wifi por un error.
+
+Contexto:
+- Hasta Fase 8 NetPulse es un panel de observación y alertas.
+- Cualquier cambio en routers (AdGuard, WireGuard, roaming) requiere LuCI/SSH.
+- Un error en un script puede dejar la red inaccesible.
+
+**Reglas de diseño innegociables** (detalle en `docs/AUDITORIA-FASE65.md` §5):
+- Plan → apply → state (patrón Terraform): siempre mostrar diff antes de
+  aplicar; nada se ejecuta sin confirmación explícita del usuario.
+- `uci` transaccional; nunca `sed` sobre ficheros.
+- Snapshot automático antes de apply; rollback si el healthcheck falla.
+- Idempotencia: declarar el estado deseado, no acumular comandos.
+- Allowlist estricta de operaciones; nada de shell libre.
+- HMAC en todas las órdenes de escritura (Fase 6) para autenticar origen.
 
 **Desarrollo:**
-- Plan → apply → state (patrón Terraform): diff de config + confirmación.
-- `uci` transaccional, nunca sed sobre ficheros; snapshot antes de aplicar;
-  rollback verificable obligatorio.
-- Idempotencia (estado declarado, no acumulado).
-- Ejecutor con allowlist estricta de comandos (nada de shell libre).
-- HMAC (Fase 6) firmado ANTES de que viaje ninguna orden.
+1. **Modelo de recursos**: definir recursos NetPulse (`AdGuard`, `WireGuardPeer`,
+   `DawnConfig`, `BatmanMesh`) con schema versionado y validación server-side.
+2. **Motor de orquestación**:
+   - `POST /api/plans` → genera diff contra el estado actual del router.
+   - `POST /api/apply/{planId}` → aplica tras confirmación del usuario.
+   - `POST /api/rollback/{planId}` → revierte al snapshot UCI anterior.
+3. **Ejecutor sandboxeado en el agente**:
+   - Traduce recursos a comandos UCI/booleanos concretos de la allowlist.
+   - Cada apply crea un snapshot de `/etc/config` antes de tocar nada.
+   - Healthcheck post-apply: si ping/gateway/wifi falla, rollback automático.
+4. **Módulos por orden de riesgo/beneficio**:
+   1. **AdGuard Home**: binario + YAML + reenvío DNS desde dnsmasq. Módulo de
+      stats ya existe; riesgo bajo.
+   2. **WireGuard peers**: alta desde la app; ajustar firewall + allowed_ips.
+      Riesgo medio.
+   3. **DAWN / 802.11r**: roaming enterprise. Riesgo alto; un error deja APs sin
+      wifi → modo rescate con fallback a config previa.
+   4. **Batman-adv**: mesh L2. Riesgo muy alto; dry-run obligatorio + ventana
+      de confirmación con auto-rollback si se pierde conectividad.
 
-Orden por riesgo/beneficio:
-1. **AdGuard Home** (fácil: binario + YAML + DNS en dnsmasq; el módulo de
-   stats ya existe).
-2. **WireGuard peers** (alta de peer desde el móvil; riesgo medio: firewall).
-3. **DAWN/802.11r** (riesgo alto: un error deja APs sin wifi → modo rescate
-   con fallback a config previa).
-4. **Batman-adv** (el último: riesgo de bucles en mesh; dry-run obligatorio
-   + ventana de confirmación con auto-rollback).
+**Criterios de aceptación:**
+- Cualquier apply muestra diff y pide confirmación antes de ejecutar.
+- Un apply fallido deja la red en el estado anterior en < 60 s.
+- Solo comandos de la allowlist pueden ejecutarse; shell libre está bloqueado.
+- Auditoría: quién, qué y cuándo se aplicó cada cambio.
 
-**Deploy**: sin cambios hasta que haya algo que desplegar.
+**Deploy**: se despliega módulo a módulo, empezando por AdGuard Home.
 
 ---
 
