@@ -51,11 +51,11 @@ jobs:
         run: |
           set -e
           # amd64
-          GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o server-go/internal/agentbin/agents/netpulse-agent-amd64 ./agent/cmd/netpulse-agent
+          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
           # arm64
-          GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o server-go/internal/agentbin/agents/netpulse-agent-arm64 ./agent/cmd/netpulse-agent
+          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
           # armv7
-          GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o server-go/internal/agentbin/agents/netpulse-agent-armv7 ./agent/cmd/netpulse-agent
+          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
 
       - name: Valida config goreleaser
         uses: goreleaser/goreleaser-action@v6

@@ -174,7 +174,7 @@
 
         <div class="theater-stage">
           <div class="stage-frame card glow-accent">
-            <!-- Stage 0: Health Ring -->
+            <!-- Stage 0: Health -->
             <div class="stage" id="stage0">
               <div class="w-row">
                 <div class="ring-wrap">
@@ -194,9 +194,18 @@
                     <span class="of font-mono">/100</span>
                   </div>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:1rem;align-items:center;">
+                <div class="health-box">
                   <span class="pill ok"><span class="pill-dot"></span><span id="healthLabel" data-i18n="health.label">Excelente</span></span>
                   <span class="caption text-muted" data-i18n="health.caption">Puntuación de salud de la red</span>
+                  <span class="health-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span data-i18n="health.note">Penalizado por la temperatura del Patio.</span>
+                  </span>
+                  <div class="health-stats">
+                    <span class="caption font-mono text-accent">↓ <span id="hDown">0.0</span> Mbps</span>
+                    <span class="caption font-mono text-tunnel">↑ <span id="hUp">0.0</span> Mbps</span>
+                    <span class="caption font-mono text-ok"><span data-i18n="strip.latency">Latencia</span> <span id="hLat">0</span> ms</span>
+                  </div>
                 </div>
               </div>
             </div>

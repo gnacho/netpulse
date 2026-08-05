@@ -65,7 +65,7 @@ const I18N = {
       st6p: 'Temperature spikes, new devices, firmware available, WireGuard handshakes — pushed to the bell and, with Web Push, to your phone.',
     },
     health: { caption: 'Network health score', label: 'Excellent', note: 'Penalized by the Patio temperature.' },
-    wan: { live: 'LIVE', title: 'WAN traffic', plan: 'plan' },
+    wan: { live: 'LIVE', title: 'WAN traffic', plan: 'plan', peak: 'Peak today', avg: 'Average', total: 'Total 24 h', loss: 'Loss' },
     topo: {
       wired: 'Wired', wifi: 'WiFi', tunnel: 'WG tunnel', gw: 'gateway', inet: 'Internet',
       clients: 'clients', viaInternet: 'via Internet', inferredSwitch: 'Inferred switch',
@@ -86,7 +86,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clients', roleGW: 'Gateway', roleAP: 'AP', online: 'Online', warn: 'Warning',},
-    adguard: { title: 'AdGuard Home', queries: 'queries · 24 h', blocked: 'blocked', clients: 'clients using it', domains: 'Top blocked domains' },
+    adguard: { title: 'AdGuard Home', queries: 'queries · 24 h', blocked: 'blocked', clients: 'clients using it', domains: 'Top blocked domains', active: 'Active', open: 'Open panel', trackers: 'Trackers', dns: 'Avg DNS', blockedOf: '{blocked} of {total}' },
     alerts: { title: 'Alert feed', a1: 'AP-Estudio: temperature 78 °C', a2: 'New device: tv-salon (wired)', a3: 'Firmware available on GW-Flint2', a4: 'WireGuard: peer “phone” handshake', ago: 'ago' },
     features: {
       title: 'Everything a home NOC needs',
@@ -164,7 +164,7 @@ const I18N = {
       st6p: 'Picos de temperatura, dispositivos nuevos, firmware disponible, handshakes de WireGuard — en la campana y, con Web Push, en tu móvil.',
     },
     health: { caption: 'Puntuación de salud de la red', label: 'Excelente', note: 'Penalizado por la temperatura del Patio.' },
-    wan: { live: 'EN VIVO', title: 'Tráfico WAN', plan: 'plan' },
+    wan: { live: 'EN VIVO', title: 'Tráfico WAN', plan: 'plan', peak: 'Pico hoy', avg: 'Media', total: 'Total 24 h', loss: 'Pérdida' },
     topo: {
       wired: 'Cable', wifi: 'WiFi', tunnel: 'Túnel WG', gw: 'gateway', inet: 'Internet',
       clients: 'clientes', viaInternet: 'vía Internet', inferredSwitch: 'Switch inferido',
@@ -173,7 +173,7 @@ const I18N = {
       names: {},
     },
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clientes', roleGW: 'Gateway', roleAP: 'AP', online: 'En línea', warn: 'Aviso',},
-    adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes lo usan', domains: 'Dominios más bloqueados' },
+    adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes lo usan', domains: 'Dominios más bloqueados', active: 'Activo', open: 'Abrir panel', trackers: 'Rastreadores', dns: 'DNS medio', blockedOf: '{blocked} de {total}' },
     alerts: { title: 'Feed de alertas', a1: 'AP-Estudio: temperatura 78 °C', a2: 'Nuevo dispositivo: tv-salon (cable)', a3: 'Firmware disponible en GW-Flint2', a4: 'WireGuard: handshake del peer “phone”', ago: 'hace' },
     features: {
       title: 'Todo lo que necesita un NOC doméstico',
@@ -250,8 +250,8 @@ const I18N = {
       st6t: '主动找到你的提醒',
       st6p: '温度飙升、新设备、可用固件、WireGuard 握手——推送到铃铛，配合 Web Push 还能推到你的手机。',
     },
-    health: { caption: '网络健康评分', label: '优秀' },
-    wan: { live: '实时', title: 'WAN 流量', plan: '套餐' },
+    health: { caption: '网络健康评分', label: '优秀', note: '因庭院温度被扣分。' },
+    wan: { live: '实时', title: 'WAN 流量', plan: '套餐', peak: '今日峰值', avg: '平均', total: '24 小时总计', loss: '丢包率' },
     topo: {
       wired: '有线', wifi: 'WiFi', tunnel: 'WG 隧道', gw: '网关', inet: '互联网',
       clients: '台设备', viaInternet: '通过互联网', inferredSwitch: '推断的交换机',
@@ -272,7 +272,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: '内存', temp: '温度', up: '运行' , clients: '客户端', roleGW: '网关', roleAP: '接入点', online: '在线', warn: '警告',},
-    adguard: { title: 'AdGuard Home', queries: '查询 · 24 小时', blocked: '已拦截', clients: '个客户端使用', domains: '热门拦截域名' },
+    adguard: { title: 'AdGuard Home', queries: '查询 · 24 小时', blocked: '已拦截', clients: '个客户端使用', domains: '热门拦截域名', active: '已启用', open: '打开面板', trackers: '追踪器', dns: '平均 DNS', blockedOf: '{blocked} / {total}' },
     alerts: { title: '提醒信息流', a1: 'AP-Estudio：温度 78 °C', a2: '新设备：tv-salon（有线）', a3: 'GW-Flint2 有可用固件', a4: 'WireGuard：peer "phone" 握手', ago: '前' },
     features: {
       title: '家庭 NOC 所需的一切',
@@ -349,8 +349,8 @@ const I18N = {
       st6t: 'تنبيهات تصل إليك',
       st6p: 'ارتفاع الحرارة، أجهزة جديدة، تحديثات متاحة، مصافحات WireGuard — في الجرس، ومع Web Push إلى هاتفك.',
     },
-    health: { caption: 'درجة صحة الشبكة', label: 'ممتازة' },
-    wan: { live: 'مباشر', title: 'حركة WAN', plan: 'الخطة' },
+    health: { caption: 'درجة صحة الشبكة', label: 'ممتازة', note: 'خصم بسبب حرارة الفناء.' },
+    wan: { live: 'مباشر', title: 'حركة WAN', plan: 'الخطة', peak: 'ذروة اليوم', avg: 'المتوسط', total: 'إجمالي 24 ساعة', loss: 'الفقدان' },
     topo: {
       wired: 'سلكي', wifi: 'WiFi', tunnel: 'نفق WG', gw: 'البوابة', inet: 'الإنترنت',
       clients: 'عميل', viaInternet: 'عبر الإنترنت', inferredSwitch: 'مبدّل مستنتج',
@@ -371,7 +371,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'ذاكرة', temp: 'حرارة', up: 'تشغيل' , clients: 'عملاء', roleGW: 'بوابة', roleAP: 'نقطة وصول', online: 'متصل', warn: 'تحذير',},
-    adguard: { title: 'AdGuard Home', queries: 'استعلام · 24 س', blocked: 'محظور', clients: 'عميل يستخدمه', domains: 'أعلى النطاقات المحظورة' },
+    adguard: { title: 'AdGuard Home', queries: 'استعلام · 24 س', blocked: 'محظور', clients: 'عميل يستخدمه', domains: 'أعلى النطاقات المحظورة', active: 'نشط', open: 'فتح اللوحة', trackers: 'أدوات التتبع', dns: 'متوسط DNS', blockedOf: '{blocked} من {total}' },
     alerts: { title: 'سجل التنبيهات', a1: 'AP-Estudio: حرارة 78 °C', a2: 'جهاز جديد: tv-salon (سلكي)', a3: 'تحديث متاح على GW-Flint2', a4: 'WireGuard: مصافحة النظير "phone"', ago: 'منذ' },
     features: {
       title: 'كل ما يحتاجه مركز عمليات منزلي',
@@ -448,8 +448,8 @@ const I18N = {
       st6t: 'अलर्ट जो आपको ढूँढते हैं',
       st6p: 'तापमान का उछाल, नए डिवाइस, उपलब्ध फ़र्मवेयर, WireGuard हैंडशेक — बेल में, और Web Push से आपके फ़ोन पर।',
     },
-    health: { caption: 'नेटवर्क स्वास्थ्य स्कोर', label: 'उत्कृष्ट' },
-    wan: { live: 'लाइव', title: 'WAN ट्रैफ़िक', plan: 'प्लान' },
+    health: { caption: 'नेटवर्क स्वास्थ्य स्कोर', label: 'उत्कृष्ट', note: 'आँगन के तापमान के कारण कटौती।' },
+    wan: { live: 'लाइव', title: 'WAN ट्रैफ़िक', plan: 'प्लान', peak: 'आज का शिखर', avg: 'औसत', total: '24 घंटे का कुल', loss: 'हानि' },
     topo: {
       wired: 'वायर्ड', wifi: 'WiFi', tunnel: 'WG टनल', gw: 'गेटवे', inet: 'इंटरनेट',
       clients: 'क्लाइंट', viaInternet: 'इंटरनेट से', inferredSwitch: 'अनुमानित स्विच',
@@ -470,7 +470,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'तापमान', up: 'अपटाइम' , clients: 'क्लाइंट', roleGW: 'गेटवे', roleAP: 'AP', online: 'ऑनलाइन', warn: 'चेतावनी',},
-    adguard: { title: 'AdGuard Home', queries: 'क्वेरी · 24 घं', blocked: 'ब्लॉक्ड', clients: 'क्लाइंट इस्तेमाल करते हैं', domains: 'सबसे ज़्यादा ब्लॉक डोमेन' },
+    adguard: { title: 'AdGuard Home', queries: 'क्वेरी · 24 घं', blocked: 'ब्लॉक्ड', clients: 'क्लाइंट इस्तेमाल करते हैं', domains: 'सबसे ज़्यादा ब्लॉक डोमेन', active: 'सक्रिय', open: 'पैनल खोलें', trackers: 'ट्रैकर्स', dns: 'औसत DNS', blockedOf: '{blocked} / {total}' },
     alerts: { title: 'अलर्ट फ़ीड', a1: 'AP-Estudio: तापमान 78 °C', a2: 'नया डिवाइस: tv-salon (वायर्ड)', a3: 'GW-Flint2 पर फ़र्मवेयर उपलब्ध', a4: 'WireGuard: peer "phone" हैंडशेक', ago: 'पहले' },
     features: {
       title: 'घरेलू NOC की हर ज़रूरत',
@@ -547,8 +547,8 @@ const I18N = {
       st6t: 'Alertas que encontram você',
       st6p: 'Picos de temperatura, dispositivos novos, firmware disponível, handshakes do WireGuard — no sino e, com Web Push, no seu celular.',
     },
-    health: { caption: 'Pontuação de saúde da rede', label: 'Excelente' },
-    wan: { live: 'AO VIVO', title: 'Tráfego WAN', plan: 'plano' },
+    health: { caption: 'Pontuação de saúde da rede', label: 'Excelente', note: 'Penalizado pela temperatura do pátio.' },
+    wan: { live: 'AO VIVO', title: 'Tráfego WAN', plan: 'plano', peak: 'Pico hoje', avg: 'Média', total: 'Total 24 h', loss: 'Perda' },
     topo: {
       wired: 'Cabo', wifi: 'WiFi', tunnel: 'Túnel WG', gw: 'gateway', inet: 'Internet',
       clients: 'clientes', viaInternet: 'via Internet', inferredSwitch: 'Switch inferido',
@@ -569,7 +569,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clientes', roleGW: 'Gateway', roleAP: 'AP', online: 'Online', warn: 'Aviso',},
-    adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes usando', domains: 'Domínios mais bloqueados' },
+    adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes usando', domains: 'Domínios mais bloqueados', active: 'Ativo', open: 'Abrir painel', trackers: 'Rastreadores', dns: 'DNS médio', blockedOf: '{blocked} de {total}' },
     alerts: { title: 'Feed de alertas', a1: 'AP-Estudio: temperatura 78 °C', a2: 'Novo dispositivo: tv-salon (cabo)', a3: 'Firmware disponível no GW-Flint2', a4: 'WireGuard: handshake do peer “phone”', ago: 'atrás' },
     features: {
       title: 'Tudo o que um NOC doméstico precisa',
@@ -646,8 +646,8 @@ const I18N = {
       st6t: 'Des alertes qui viennent à vous',
       st6p: 'Pics de température, nouveaux appareils, firmware disponible, handshakes WireGuard — dans la cloche et, avec Web Push, sur votre téléphone.',
     },
-    health: { caption: 'Score de santé du réseau', label: 'Excellent' },
-    wan: { live: 'DIRECT', title: 'Trafic WAN', plan: 'forfait' },
+    health: { caption: 'Score de santé du réseau', label: 'Excellent', note: 'Pénalisé par la température du patio.' },
+    wan: { live: 'DIRECT', title: 'Trafic WAN', plan: 'forfait', peak: 'Pic aujourd’hui', avg: 'Moyenne', total: 'Total 24 h', loss: 'Perte' },
     topo: {
       wired: 'Filaire', wifi: 'WiFi', tunnel: 'Tunnel WG', gw: 'gateway', inet: 'Internet',
       clients: 'clients', viaInternet: 'via Internet', inferredSwitch: 'Switch inféré',
@@ -668,7 +668,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clients', roleGW: 'Passerelle', roleAP: 'AP', online: 'En ligne', warn: 'Avertissement',},
-    adguard: { title: 'AdGuard Home', queries: 'requêtes · 24 h', blocked: 'bloqué', clients: 'clients utilisateurs', domains: 'Domaines les plus bloqués' },
+    adguard: { title: 'AdGuard Home', queries: 'requêtes · 24 h', blocked: 'bloqué', clients: 'clients utilisateurs', domains: 'Domaines les plus bloqués', active: 'Actif', open: 'Ouvrir le panneau', trackers: 'Traceurs', dns: 'DNS moyen', blockedOf: '{blocked} sur {total}' },
     alerts: { title: 'Fil d’alertes', a1: 'AP-Estudio : température 78 °C', a2: 'Nouvel appareil : tv-salon (filaire)', a3: 'Firmware disponible sur GW-Flint2', a4: 'WireGuard : handshake du peer « phone »', ago: 'il y a' },
     features: {
       title: 'Tout ce qu’il faut à un NOC domestique',
@@ -745,8 +745,8 @@ const I18N = {
       st6t: 'あなたを見つけ出すアラート',
       st6p: '温度急上昇、新規デバイス、ファームウェア更新、WireGuard ハンドシェイク — ベルに、Web Push でスマホにも。',
     },
-    health: { caption: 'ネットワーク健全性スコア', label: '優秀' },
-    wan: { live: 'ライブ', title: 'WAN トラフィック', plan: 'プラン' },
+    health: { caption: 'ネットワーク健全性スコア', label: '優秀', note: 'パティオの温度により減点。' },
+    wan: { live: 'ライブ', title: 'WAN トラフィック', plan: 'プラン', peak: '今日のピーク', avg: '平均', total: '24時間合計', loss: '損失' },
     topo: {
       wired: '有線', wifi: 'WiFi', tunnel: 'WG トンネル', gw: 'ゲートウェイ', inet: 'インターネット',
       clients: '台のクライアント', viaInternet: 'インターネット経由', inferredSwitch: '推定スイッチ',
@@ -767,7 +767,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'メモリ', temp: '温度', up: '稼働' , clients: 'クライアント', roleGW: 'ゲートウェイ', roleAP: 'AP', online: 'オンライン', warn: '警告',},
-    adguard: { title: 'AdGuard Home', queries: 'クエリ · 24 時間', blocked: 'ブロック', clients: 'クライアントが使用中', domains: '上位ブロックドメイン' },
+    adguard: { title: 'AdGuard Home', queries: 'クエリ · 24 時間', blocked: 'ブロック', clients: 'クライアントが使用中', domains: '上位ブロックドメイン', active: '有効', open: 'パネルを開く', trackers: 'トラッカー', dns: '平均DNS', blockedOf: '{blocked} / {total}' },
     alerts: { title: 'アラートフィード', a1: 'AP-Estudio：温度 78 °C', a2: '新規デバイス：tv-salon（有線）', a3: 'GW-Flint2 にファームウェアあり', a4: 'WireGuard：peer「phone」ハンドシェイク', ago: '前' },
     features: {
       title: 'ホーム NOC に必要なすべて',
@@ -844,8 +844,8 @@ const I18N = {
       st6t: 'Оповещения, которые находят вас',
       st6p: 'Скачки температуры, новые устройства, доступная прошивка, рукопожатия WireGuard — в колокольчике и, через Web Push, на вашем телефоне.',
     },
-    health: { caption: 'Оценка здоровья сети', label: 'Отлично' },
-    wan: { live: 'LIVE', title: 'Трафик WAN', plan: 'тариф' },
+    health: { caption: 'Оценка здоровья сети', label: 'Отлично', note: 'Штраф за температуру во дворе.' },
+    wan: { live: 'LIVE', title: 'Трафик WAN', plan: 'тариф', peak: 'Пик сегодня', avg: 'Среднее', total: 'Итого за 24 ч', loss: 'Потери' },
     topo: {
       wired: 'Провод', wifi: 'WiFi', tunnel: 'WG-туннель', gw: 'шлюз', inet: 'Интернет',
       clients: 'клиент(ов)', viaInternet: 'через Интернет', inferredSwitch: 'Предполагаемый коммутатор',
@@ -866,7 +866,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'ПАМ', temp: 'ТЕМП', up: 'АПТАЙМ' , clients: 'Клиенты', roleGW: 'Шлюз', roleAP: 'ТД', online: 'В сети', warn: 'Предупреждение',},
-    adguard: { title: 'AdGuard Home', queries: 'запросов · 24 ч', blocked: 'заблокировано', clients: 'клиентов используют', domains: 'Топ заблокированных доменов' },
+    adguard: { title: 'AdGuard Home', queries: 'запросов · 24 ч', blocked: 'заблокировано', clients: 'клиентов используют', domains: 'Топ заблокированных доменов', active: 'Активен', open: 'Открыть панель', trackers: 'Трекеры', dns: 'Средний DNS', blockedOf: '{blocked} из {total}' },
     alerts: { title: 'Лента оповещений', a1: 'AP-Estudio: температура 78 °C', a2: 'Новое устройство: tv-salon (провод)', a3: 'Доступна прошивка на GW-Flint2', a4: 'WireGuard: рукопожатие peer «phone»', ago: 'назад' },
     features: {
       title: 'Всё, что нужно домашнему NOC',
@@ -943,8 +943,8 @@ const I18N = {
       st6t: 'Alarme, die dich finden',
       st6p: 'Temperaturspitzen, neue Geräte, verfügbare Firmware, WireGuard-Handshakes — in der Glocke und mit Web Push auf deinem Handy.',
     },
-    health: { caption: 'Netzwerk-Gesundheitswert', label: 'Exzellent' },
-    wan: { live: 'LIVE', title: 'WAN-Traffic', plan: 'Tarif' },
+    health: { caption: 'Netzwerk-Gesundheitswert', label: 'Exzellent', note: 'Abzug wegen Terrasse-Temperatur.' },
+    wan: { live: 'LIVE', title: 'WAN-Traffic', plan: 'Tarif', peak: 'Peak heute', avg: 'Durchschnitt', total: 'Gesamt 24 h', loss: 'Verlust' },
     topo: {
       wired: 'Kabel', wifi: 'WiFi', tunnel: 'WG-Tunnel', gw: 'Gateway', inet: 'Internet',
       clients: 'Clients', viaInternet: 'über Internet', inferredSwitch: 'Vermuteter Switch',
@@ -965,7 +965,7 @@ const I18N = {
       },
     },
     routers: { cpu: 'CPU', mem: 'RAM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clients', roleGW: 'Gateway', roleAP: 'AP', online: 'Online', warn: 'Warnung',},
-    adguard: { title: 'AdGuard Home', queries: 'Abfragen · 24 h', blocked: 'geblockt', clients: 'Clients nutzen ihn', domains: 'Meistgeblockte Domains' },
+    adguard: { title: 'AdGuard Home', queries: 'Abfragen · 24 h', blocked: 'geblockt', clients: 'Clients nutzen ihn', domains: 'Meistgeblockte Domains', active: 'Aktiv', open: 'Panel öffnen', trackers: 'Tracker', dns: 'Ø DNS', blockedOf: '{blocked} von {total}' },
     alerts: { title: 'Alarm-Feed', a1: 'AP-Estudio: Temperatur 78 °C', a2: 'Neues Gerät: tv-salon (Kabel)', a3: 'Firmware verfügbar auf GW-Flint2', a4: 'WireGuard: Handshake von Peer „phone“', ago: 'vor' },
     features: {
       title: 'Alles, was ein Heim-NOC braucht',
