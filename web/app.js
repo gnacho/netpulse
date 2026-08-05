@@ -893,7 +893,7 @@ function buildTopo() {
 
 function buildRouters() {
   const grid = document.getElementById('routerGrid')
-  const C = 2 * Math.PI * 31 // R=31 (size 56 /2 +stroke? inner r ~31)
+  const C = 2 * Math.PI * 25 // r=25 para que el anillo (stroke 5) quepa en el viewBox 56x56 y no se recorte
   grid.innerHTML = DEMO_ROUTERS.map(r => {
     const isWarn = r.status === 'warn'
     const statusColor = isWarn ? 'rgb(var(--warn))' : 'rgb(var(--ok))'
@@ -914,8 +914,8 @@ function buildRouters() {
         </div>
         <div class="ring-wrap" style="width:56px;height:56px;">
           <svg width="56" height="56" viewBox="0 0 56 56" style="transform:rotate(-90deg);">
-            <circle cx="28" cy="28" r="31" fill="none" stroke="rgb(var(--border))" stroke-width="5"/>
-            <circle class="router-health-ring" cx="28" cy="28" r="31" fill="none" stroke="${statusColor}" stroke-width="5" stroke-linecap="round"
+            <circle cx="28" cy="28" r="25" fill="none" stroke="rgb(var(--border))" stroke-width="5"/>
+            <circle class="router-health-ring" cx="28" cy="28" r="25" fill="none" stroke="${statusColor}" stroke-width="5" stroke-linecap="round"
               stroke-dasharray="${C}" stroke-dashoffset="${C}" data-target="${healthDash}"/>
           </svg>
           <div class="ring-center" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
