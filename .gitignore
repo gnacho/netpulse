@@ -5,6 +5,8 @@ node_modules/
 # Backend: datos y secretos
 server/data/
 server/.env
+legacy/server-node/data/
+legacy/server-node/.env
 .env
 .env.local
 .env.*.local

@@ -1,7 +1,8 @@
 # NetPulse — Arquitectura
 
-> v2.0.0 (era Go). El backend Node (`server/`) está **archivado como fallback**
-> (ver README, sección de rollback). El backend activo es `server-go/`.
+> v2.0.0 (era Go). El backend Node legado vive en `legacy/server-node/` como
+> histórico (decisión 5-Ago-2026: no se despliega ni se actualiza; ver README).
+> El backend activo es `server-go/`.
 
 ## Vista de capas
 
@@ -129,7 +130,7 @@ del Resumen, ≠ username; columna `users.display_name` migrada como
 - La password de AdGuard (estándar o GL.iNet) vive en `kv` y nunca aparece en
   respuestas, errores ni logs (el comando de login GL la lleva embebida y no
   se ecoa).
-- `.env` y `server/data/` están en `.gitignore`; CI corre gitleaks sobre todo
+- `.env` y `server-go/data/` están en `.gitignore`; CI corre gitleaks sobre todo
   el historial.
 
 ## Tablas SQLite (`DATA_DIR/netpulse.db`, WAL + synchronous NORMAL)

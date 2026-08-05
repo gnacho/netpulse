@@ -6,7 +6,7 @@
 #   1. Descarga el binario de CI (release go-latest) o compílalo (ver server-go/README.md)
 #      y colócalo en /opt/netpulse/server-go/netpulse (con .env junto a él).
 #   2. DATA_DIR: apunta al MISMO directorio de datos que usaba la versión Node
-#      (p. ej. /opt/netpulse/server/data): el primer arranque migra la DB
+#      (p. ej. /opt/netpulse/server-go/data): el primer arranque migra la DB
 #      automáticamente (backup netpulse.db.bak-<timestamp> incluido; usuarios,
 #      sesiones vivas, routers y métricas se conservan).
 #   3. sudo cp deploy/netpulse-go.service /etc/systemd/system/
