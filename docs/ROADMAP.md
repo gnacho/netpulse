@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-05 (v2.6.0-dev). Fases reordenadas por peso/entregable, no
+> Actualizada: 2026-08-05 (v2.6.0). Fases reordenadas por peso/entregable, no
 > estrictamente por orden cronológico. El refactor Node → Go sigue siendo la
 > base, pero se sitúa como Fase 3 porque las Fases 1 y 2 son los hitos visibles
 > que hoy definen el producto. Referencias: `docs/AUDITORIA-FASE65.md`
