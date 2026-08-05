@@ -719,6 +719,14 @@ function drawTopology() {
     if (parent) parent.appendChild(el)
     return el
   }
+  // Lección de la app (bug chips invisibles): nunca atributo transform y
+  // animación CSS de scale en el mismo <g> — el transform CSS machaca el
+  // translate del atributo y los nodos colapsan en (0,0). El translate va en
+  // el <g> padre y la animación (opacity/scale con transform-box) en un hijo.
+  const nodeGroup = (x, y) => {
+    const outer = mk('g', { transform: `translate(${x} ${y})` })
+    return mk('g', { class: 'topo-node on' }, outer)
+  }
 
   // defs
   const defs = mk('defs')
@@ -760,7 +768,7 @@ function drawTopology() {
   }
 
   // internet
-  const inetG = mk('g', { transform: `translate(${model.internetNode.x} ${model.internetNode.y})`, class: 'topo-node on' })
+  const inetG = nodeGroup(model.internetNode.x, model.internetNode.y)
   mk('circle', { r: 42, fill: TOPO_COLOR.ok, opacity: 0.08 }, inetG)
   const orbit = mk('g', { 'aria-hidden': 'true', class: 'topo-orbit' }, inetG)
   mk('circle', { r: 38, fill: 'none', stroke: TOPO_COLOR.ok, 'stroke-width': 1.2, 'stroke-dasharray': '3 7', opacity: 0.55 }, orbit)
@@ -773,7 +781,7 @@ function drawTopology() {
   model.routerNodes.forEach((node, i) => {
     const isGw = node.router.roleBadge === 'Principal'
     const isWarn = node.router.status === 'warn'
-    const g = mk('g', { transform: `translate(${node.x} ${node.y})`, class: 'topo-node on' })
+    const g = nodeGroup(node.x, node.y)
     if (isGw) mk('circle', { r: node.r + 18, fill: TOPO_COLOR.accent, opacity: 0.1, class: 'topo-halo' }, g)
     if (isWarn) {
       mk('circle', { r: node.r + 8, fill: 'none', stroke: TOPO_COLOR.warn, 'stroke-width': 2, class: 'topo-warn-pulse' }, g)
@@ -793,7 +801,7 @@ function drawTopology() {
   // peers
   model.peerNodes.forEach((node, i) => {
     const isMovil = node.peer.type === 'movil'
-    const g = mk('g', { transform: `translate(${node.x} ${node.y})`, class: 'topo-node on' })
+    const g = nodeGroup(node.x, node.y)
     const pulse = mk('circle', { r: 22, fill: 'none', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.5, class: 'topo-peer-pulse' }, g)
     mk('rect', { x: -18, y: -18, width: 36, height: 36, rx: 11, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.5 }, g)
     const path = isMovil
@@ -804,7 +812,7 @@ function drawTopology() {
 
   // hidden peers +N
   if (model.hiddenPeers.length > 0) {
-    const g = mk('g', { transform: `translate(${PEERS_OVERFLOW_COORD.x} ${PEERS_OVERFLOW_COORD.y})`, class: 'topo-node on' })
+    const g = nodeGroup(PEERS_OVERFLOW_COORD.x, PEERS_OVERFLOW_COORD.y)
     mk('rect', { x: -15, y: -11, width: 30, height: 22, rx: 8, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.5 }, g)
     mk('text', { x: 0, y: 3.5, 'text-anchor': 'middle', 'font-size': 9.5, 'font-weight': 700, fill: TOPO_COLOR.tunnel }, g).textContent = '+' + model.hiddenPeers.length
   }
@@ -812,7 +820,7 @@ function drawTopology() {
   // distnodes
   model.distNodes.forEach((dv) => {
     const managed = dv.node.kind === 'managed'
-    const g = mk('g', { transform: `translate(${dv.x} ${dv.y})`, class: 'topo-node on' })
+    const g = nodeGroup(dv.x, dv.y)
     mk('circle', { r: dv.r + 5, fill: 'none', stroke: managed ? TOPO_COLOR.accent : 'rgb(var(--text-muted))', 'stroke-width': 1,
       'stroke-dasharray': managed ? undefined : '2 5', opacity: managed ? 0.5 : 0.6 }, g)
     mk('circle', { r: dv.r, fill: managed ? 'rgb(var(--elevated))' : 'rgb(var(--elevated) / 0.65)',
@@ -828,7 +836,7 @@ function drawTopology() {
   model.chips.forEach((chip) => {
     const d = chip.device, S = chip.size, half = S / 2
     const stroke = d.lldp ? TOPO_COLOR.accent : chip.wired ? TOPO_COLOR.ok : 'rgb(var(--border-strong))'
-    const g = mk('g', { transform: `translate(${chip.x} ${chip.y})`, class: 'topo-node on' })
+    const g = nodeGroup(chip.x, chip.y)
     const rect = mk('rect', { x: -half, y: -half, width: S, height: S, rx: 7, fill: 'rgb(var(--elevated))', stroke, 'stroke-width': chip.wired ? 1.3 : 1.1 }, g)
     const iconG = mk('g', { style: `color: ${chip.wired ? TOPO_COLOR.ok : 'rgb(var(--text-primary))'}` }, g)
     drawIcon(d.type, 14, iconG)
