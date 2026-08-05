@@ -462,7 +462,19 @@ html[dir="rtl"] .appearance-panel { right: auto; left: 1.25rem; }
 html[dir="rtl"] .mini-stat { border-left: none; border-right: 1px solid rgb(var(--border)); padding-left: 0; padding-right: 1.25rem; }
 html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--warn)); }
 
-/* ---------- reduced motion ---------- */
+/* agente OpenWrt (stage 7) */
+.term { border-radius: calc(var(--radius) + 4px); overflow: hidden; min-width: 0; }
+.term-bar { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.9rem; background: rgb(var(--elevated) / 0.5); border-bottom: 1px solid rgb(var(--border)); }
+.term-dots { display: flex; gap: 0.4rem; }
+.term-dots i { width: 9px; height: 9px; border-radius: 50%; background: rgb(var(--text-muted)); display: inline-block; }
+.term-dots i:nth-child(1) { background: #ff5f56; }
+.term-dots i:nth-child(2) { background: #ffbd2e; }
+.term-dots i:nth-child(3) { background: #27c93f; }
+.term-title { font-size: 0.7rem; color: rgb(var(--text-muted)); letter-spacing: 0.04em; }
+.term-body { padding: 0.85rem 1rem; font-size: 0.78rem; line-height: 1.75; color: rgb(var(--text-secondary)); }
+.term-line { display: block; opacity: 0; }
+.term-line.text-ok { color: rgb(var(--ok)); }
+.agent-badge { font-size: 0.68rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 999px; background: rgb(var(--elevated)); border: 1px solid rgb(var(--border)); color: rgb(var(--text-secondary)); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after {

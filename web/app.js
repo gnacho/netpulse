@@ -1175,7 +1175,19 @@ function playAdGuard() {
   })
 }
 
-/* ---------- stage 5: alerts ---------- */
+/* ---------- stage 6: agente OpenWrt (terminal) ---------- */
+let agentPlayed = false
+function playAgent() {
+  if (agentPlayed) return
+  agentPlayed = true
+  const lines = document.querySelectorAll('#stage6 .term-line')
+  if (!lines.length) return
+  if (reduceMotion) { lines.forEach(l => l.style.opacity = '1'); return }
+  lines.forEach((l, i) => {
+    l.style.opacity = '0'
+    setTimeout(() => { l.style.opacity = '1'; l.style.transition = 'opacity 180ms ease' }, 200 + i * 160)
+  })
+}
 const ALERT_ICONS = {
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
   ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -1211,7 +1223,7 @@ function playAlerts() {
 }
 
 /* ---------- teatro: control de stages por scroll ---------- */
-const STAGE_PLAYERS = [playRing, playTraffic, buildTopo, playRouters, playAdGuard, playAlerts]
+const STAGE_PLAYERS = [playRing, playTraffic, buildTopo, playRouters, playAdGuard, playAlerts, playAgent]
 let currentStage = -1
 
 function setStage(i) {
@@ -1295,13 +1307,24 @@ function initCopy() {
   if (!btn) return
   btn.addEventListener('click', async () => {
     const cmd = document.getElementById('installCmd').textContent
-    try { await navigator.clipboard.writeText(cmd) } catch {
-      const ta = document.createElement('textarea'); ta.value = cmd; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove()
-    }
-    const orig = t('misc.copy')
-    btn.textContent = t('misc.copied')
-    setTimeout(() => { btn.textContent = orig }, 1600)
+    copyText(cmd, btn)
   })
+  const agentBtn = document.getElementById('agentCopyBtn')
+  if (agentBtn) {
+    agentBtn.addEventListener('click', async () => {
+      const cmd = document.getElementById('agentCmd').textContent
+      copyText(cmd, agentBtn)
+    })
+  }
+}
+
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text) } catch {
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove()
+  }
+  const orig = t('misc.copy')
+  btn.textContent = t('misc.copied')
+  setTimeout(() => { btn.textContent = orig }, 1600)
 }
 
 /* ---------- ko-fi placeholder ---------- */

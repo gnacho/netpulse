@@ -88,6 +88,7 @@ const I18N = {
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clients', roleGW: 'Gateway', roleAP: 'AP', online: 'Online', warn: 'Warning',},
     adguard: { title: 'AdGuard Home', queries: 'queries · 24 h', blocked: 'blocked', clients: 'clients using it', domains: 'Top blocked domains', active: 'Active', open: 'Open panel', trackers: 'Trackers', dns: 'Avg DNS', blockedOf: '{blocked} of {total}' },
     alerts: { title: 'Alert feed', a1: 'AP-Estudio: temperature 78 °C', a2: 'New device: tv-salon (wired)', a3: 'Firmware available on GW-Flint2', a4: 'WireGuard: peer “phone” handshake', ago: 'ago' },
+    agent: { title: 'netpulse-agent', uci: 'UCI config', procd: 'procd init', watchdog: 'watchdog', sse: 'SSE connection', events: 'iw events', rss: '12 MB RSS', pid: 'pid 987', install: 'opkg install', config: 'Configuring', enabled: 'Enabled · respawn', connected: 'Connected to server', running: 'Agent running' },
     features: {
       title: 'Everything a home NOC needs',
       lead: 'Read-only by design: NetPulse can see your network, never change it.',
@@ -109,12 +110,14 @@ const I18N = {
       collector: 'Optional latency sidecar (long-term TCP polling series):',
       update: 'Update by re-running the same line. Uninstall with sh install.sh --uninstall.',
       connect: 'Connect your routers', connectp: 'The server generates its own ed25519 key pair and shows the public key in Settings. Authorize it on each router (/etc/dropbear/authorized_keys). The gateway auto-detects on first boot via LAN discovery; the rest you add from Settings. Polling is strictly read-only.',
+      agentTitle: 'Agent on your routers', agentDesc: 'Install the agent directly on each OpenWrt router. It collects WiFi events, pushes data over SSE, and reports back to the server.', agentCmd: 'opkg install netpulse-agent',
     },
     honest: {
       title: 'About NetPulse',
       p1: 'NetPulse is a personal project, built for my own network and published as free software (AGPL-3.0). It is and will always be free and community-driven. I work on it in my spare time: many ideas, little time, and it evolves following my own needs first.',
       p2: 'If you like the project or want to help it grow, consider a contribution through Ko-fi. It lets me spend more time on it and move faster. Sharing NetPulse also helps a lot.',
       p3: 'Honest scope note: so far it has only been tested on my own hardware — a GL.iNet Flint 2 gateway and three Xiaomi AX6 access points on OpenWrt — plus WireGuard and AdGuard Home. Other OpenWrt devices should work, but yours would be the first to tell me.',
+      p4: 'The agent installs as a native .ipk package on OpenWrt (opkg install netpulse-agent). It ships with procd init, UCI config, a watchdog, and iw event listeners so WiFi changes appear in <3 seconds. Runs on the router itself, ~12 MB RSS, strictly read-only.',
     },
     footer: {
       tagline: 'Read-only monitoring for home networks, self-hosted and free forever.',
@@ -176,6 +179,7 @@ const I18N = {
     routers: { cpu: 'CPU', mem: 'MEM', temp: 'TEMP', up: 'UPTIME' , clients: 'Clientes', roleGW: 'Gateway', roleAP: 'AP', online: 'En línea', warn: 'Aviso',},
     adguard: { title: 'AdGuard Home', queries: 'consultas · 24 h', blocked: 'bloqueado', clients: 'clientes lo usan', domains: 'Dominios más bloqueados', active: 'Activo', open: 'Abrir panel', trackers: 'Rastreadores', dns: 'DNS medio', blockedOf: '{blocked} de {total}' },
     alerts: { title: 'Feed de alertas', a1: 'AP-Estudio: temperatura 78 °C', a2: 'Nuevo dispositivo: tv-salon (cable)', a3: 'Firmware disponible en GW-Flint2', a4: 'WireGuard: handshake del peer “phone”', ago: 'hace' },
+    agent: { title: 'netpulse-agent', uci: 'config UCI', procd: 'init procd', watchdog: 'watchdog', sse: 'conexión SSE', events: 'eventos iw', rss: '12 MB RSS', pid: 'pid 987', install: 'opkg install', config: 'Configurando', enabled: 'Activado · respawn', connected: 'Conectado al servidor', running: 'Agente en marcha' },
     features: {
       title: 'Todo lo que necesita un NOC doméstico',
       lead: 'Solo lectura por diseño: NetPulse puede ver tu red, nunca cambiarla.',
@@ -197,12 +201,14 @@ const I18N = {
       collector: 'Sidecar de latencia opcional (series de sondeo TCP a largo plazo):',
       update: 'Actualiza re-ejecutando la misma línea. Desinstala con sh install.sh --uninstall.',
       connect: 'Conecta tus routers', connectp: 'El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router (/etc/dropbear/authorized_keys). El gateway se autodetecta en el primer arranque por descubrimiento LAN; el resto se añade desde Ajustes. El sondeo es estrictamente de solo lectura.',
+      agentTitle: 'Agente en tus routers', agentDesc: 'Instala el agente directamente en cada router OpenWrt. Recoge eventos WiFi, envía datos por SSE y reporta al servidor.', agentCmd: 'opkg install netpulse-agent',
     },
     honest: {
       title: 'Acerca de NetPulse',
       p1: 'NetPulse es un proyecto personal, construido para mi propia red y publicado como software libre (AGPL-3.0). Es y será siempre libre y comunitario. Trabajo en él en mi tiempo libre: muchas ideas, poco tiempo, y evoluciona siguiendo primero mis propias necesidades.',
       p2: 'Si el proyecto te gusta o quieres ayudarlo a crecer, considera una aportación a través de Ko-fi. Eso me permitirá dedicar más tiempo y avanzar más rápido. También puedes ayudarme mucho difundiendo NetPulse.',
       p3: 'Nota honesta de alcance: de momento solo se ha probado con mi propio hardware — un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6 con OpenWrt — además de WireGuard y AdGuard Home. Otros dispositivos OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.',
+      p4: 'El agente se instala como paquete .ipk nativo en OpenWrt (opkg install netpulse-agent). Incluye init procd, config UCI, un watchdog y escucha de eventos iw para que los cambios WiFi aparezcan en <3 segundos. Corre en el propio router, ~12 MB RSS, estrictamente solo lectura.',
     },
     footer: {
       tagline: 'Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.',

@@ -109,6 +109,7 @@
         <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span data-i18n="facts.data">Tu app, tus datos</span></span>
         <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg><span data-i18n="facts.binary">Un solo binario</span></span>
         <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg><span data-i18n="facts.hw">OpenWrt / GL.iNet</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg><span data-i18n="facts.package">Paquete .ipk OpenWrt</span></span>
       </div>
 
       <div class="demo-strip" id="heroStrip">
@@ -209,6 +210,11 @@
             <span class="num">06</span>
             <h3 data-i18n="theater.st6t">Alertas que te encuentran</h3>
             <p data-i18n="theater.st6p">Picos de temperatura, dispositivos nuevos, firmware disponible, handshakes de WireGuard — en la campana y en tu móvil.</p>
+          </div>
+          <div class="tstep" data-stage="6">
+            <span class="num">07</span>
+            <h3 data-i18n="theater.st7t">Un agente que corre en tus routers</h3>
+            <p data-i18n="theater.st7p">Un paquete .ipk nativo de OpenWrt con init procd, configuración UCI y un watchdog. Se instala con opkg y vive en cada router vigilando los eventos WiFi en tiempo real.</p>
           </div>
         </div>
 
@@ -343,6 +349,34 @@
               <div class="label uppercase text-muted" style="margin-bottom:0.9rem;" data-i18n="alerts.title">Feed de alertas</div>
               <div class="feed" id="alertFeed"></div>
             </div>
+
+            <!-- Stage 6: Agent OpenWrt -->
+            <div class="stage" id="stage6">
+              <div class="agent-stage" style="width:100%;max-width:42rem;">
+                <div class="term card" style="background:rgb(8 10 16);border:1px solid rgb(var(--border));">
+                  <div class="term-bar"><span class="term-dots"><i></i><i></i><i></i></span><span class="term-title font-mono">root@OpenWrt:~</span></div>
+                  <div class="term-body font-mono">
+                    <span class="term-line"><span style="color:rgb(var(--ok))">root@OpenWrt:~#</span> <span data-i18n="agent.install">opkg install</span> netpulse-agent</span>
+                    <span class="term-line text-muted">Installing netpulse-agent (2.6.0)...</span>
+                    <span class="term-line text-ok">Configuring netpulse-agent.</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.procd">procd init</span> — <span data-i18n="agent.enabled" style="color:rgb(var(--accent))">Activo · respawn</span></span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.uci">config UCI</span> — /etc/config/netpulse-agent</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.watchdog">watchdog</span> — cron */2 min</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.events">eventos iw</span> — push WiFi &lt;3 s</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.connected">Conectado al servidor</span> — SSE</span>
+                    <span class="term-line" style="margin-top:0.5rem"><span class="text-muted" data-i18n="agent.running">Agente en marcha</span> · <span data-i18n="agent.pid">pid 987</span> · <span data-i18n="agent.rss">12 MB RSS</span></span>
+                  </div>
+                </div>
+                <div class="agent-badges" style="display:flex;flex-wrap:wrap;gap:0.45rem;margin-top:1rem;justify-content:center;">
+                  <span class="agent-badge">procd init</span>
+                  <span class="agent-badge">config UCI</span>
+                  <span class="agent-badge">watchdog cron</span>
+                  <span class="agent-badge">eventos iw</span>
+                  <span class="agent-badge">~12 MB RSS</span>
+                  <span class="agent-badge">solo lectura</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -398,6 +432,11 @@
           <h3 data-i18n="features.f8t">Collector de latencia</h3>
           <p data-i18n="features.f8p">Sidecar opcional que sondea latencia TCP por router, con sus propias series temporales de largo plazo.</p>
         </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          <h3 data-i18n="features.f9t">Paquete nativo OpenWrt</h3>
+          <p data-i18n="features.f9p">El agente se distribuye como paquete .ipk para instalar con opkg. Init procd, configuración UCI, watchdog y eventos iw — un ciudadano OpenWrt de primera clase, corriendo en tus routers a ~12 MB RSS.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -425,6 +464,14 @@
           <p class="install-note" data-i18n="install.update">Actualiza re-ejecutando la misma línea. Desinstala con sh install.sh --uninstall.</p>
           <h3 style="margin-top:1.75rem;" data-i18n="install.connect">Conecta tus routers</h3>
           <p class="install-note" style="font-size:0.85rem;color:rgb(var(--text-secondary));" data-i18n="install.connectp">El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router. El sondeo es estrictamente de solo lectura.</p>
+
+          <h3 style="margin-top:1.75rem;" data-i18n="install.agentTitle">Agente en tus routers</h3>
+          <p class="install-note" style="font-size:0.85rem;color:rgb(var(--text-secondary));" data-i18n="install.agentDesc">Instala el agente directamente en cada router OpenWrt. Recoge eventos WiFi, envía datos por SSE y reporta al servidor.</p>
+          <div class="codebox" style="margin-top:0.75rem;">
+            <span class="prompt font-mono">#</span>
+            <code id="agentCmd">opkg install netpulse-agent</code>
+            <button class="copybtn agent-copy" id="agentCopyBtn" data-i18n-aria="misc.copy">Copiar</button>
+          </div>
         </div>
         <div class="card codecard reveal">
           <h3 data-i18n="install.req">Requisitos</h3>
@@ -446,6 +493,7 @@
           <span data-i18n="footer.kofi">Apoya el proyecto en Ko-fi</span>
         </a>
         <p data-i18n="honest.p3" style="margin-top:0.9rem;font-size:0.85rem;color:rgb(var(--text-muted));">Nota honesta de alcance…</p>
+        <p data-i18n="honest.p4" style="margin-top:0.75rem;font-size:0.85rem;color:rgb(var(--text-muted));">El agente se instala como paquete .ipk nativo en OpenWrt…</p>
       </div>
     </div>
   </section>
