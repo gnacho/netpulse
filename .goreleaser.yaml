@@ -22,7 +22,10 @@ builds:
     goarch: [amd64, arm64, arm]
     goarm: [7]
     flags: [-trimpath]
-    ldflags: [-s, -w]
+    ldflags:
+      - -s
+      - -w
+      - "-X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit={{.ShortCommit}}"
 
   - id: netpulse-collector
     dir: collector

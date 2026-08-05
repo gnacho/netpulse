@@ -30,6 +30,11 @@ const (
 // APIBase es la base de la API de GitHub (inyectable en tests).
 var APIBase = "https://api.github.com"
 
+// BuildCommit se fija en compilación con -ldflags "-X ...". Si está definido,
+// el updater lo usa en vez de ejecutar git rev-parse (permite builds fuera de un
+// repo git, p.ej. despliegues manuales sin working tree).
+var BuildCommit string
+
 type progress struct {
 	Step string `json:"step"`
 }
@@ -82,6 +87,9 @@ func New(repoRoot, repo, token string) *Updater {
 }
 
 func gitShort(repoRoot string) string {
+	if BuildCommit != "" {
+		return BuildCommit
+	}
 	out, err := exec.Command("git", "-C", repoRoot, "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return ""

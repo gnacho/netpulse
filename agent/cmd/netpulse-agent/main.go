@@ -22,6 +22,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -134,6 +136,14 @@ func (e *configError) Error() string {
 func main() {
 	log.SetOutput(os.Stderr)
 	log.SetPrefix("")
+
+	versionFlag := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *versionFlag {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
+
 	if err := run(); err != nil {
 		log.Printf("[netpulse-agent] error fatal: %v", err)
 		os.Exit(1)
