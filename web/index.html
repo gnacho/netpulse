@@ -7,6 +7,9 @@
   <meta name="description" content="Monitorización de solo lectura para redes domésticas OpenWrt: topología en vivo, salud, WireGuard, AdGuard Home y alertas. Autoalojado, 100% libre (AGPL-3.0), sin nube." />
   <meta name="theme-color" content="#070B12" />
   <link rel="canonical" href="https://netpulse.cloudless.club/" />
+  <link rel="alternate" hreflang="es" href="https://netpulse.cloudless.club/?hl=es" />
+  <link rel="alternate" hreflang="en" href="https://netpulse.cloudless.club/" />
+  <link rel="alternate" hreflang="x-default" href="https://netpulse.cloudless.club/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="NetPulse" />
   <meta property="og:title" content="NetPulse — El pulso de tu red, sin nube" />
@@ -47,6 +50,36 @@
         "description": "Monitor de red OpenWrt/GL.iNet de solo lectura, autoalojado y libre (AGPL-3.0). Topología en vivo, salud de la red, WireGuard, AdGuard Home y alertas desde un único binario.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
         "isAccessibleForFree": true
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "¿NetPulse es de pago?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. NetPulse es software libre (AGPL-3.0) y no tiene versión premium ni la tendrá." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Qué routers soporta NetPulse?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Routers OpenWrt y GL.iNet. Está desarrollado y probado con un GL.iNet Flint 2 y tres Xiaomi AX6 de segunda mano." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿NetPulse envía mis datos a la nube?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. Corre en una caja dentro de tu red, no hay telemetría y nada sale de tu LAN." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Cómo se instala NetPulse?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Es un único binario Go autoalojado; se instala con una línea (curl | sh) y corre como servicio systemd." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Qué puedo monitorizar con NetPulse?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Topología en vivo, salud de la red, tráfico WAN, WireGuard, AdGuard Home y alertas por categorías." }
+          }
+        ]
       }
     ]
   }
