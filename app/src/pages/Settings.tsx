@@ -38,7 +38,7 @@ import { useAuth } from '@/data/AuthContext'
 import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
-import { cn } from '@/lib/utils'
+import { cn, exitDemo } from '@/lib/utils'
 import { ACCENTS, type AccentId, type ThemeMode } from '@/lib/theme-boot'
 import pkg from '../../package.json'
 
@@ -2260,8 +2260,7 @@ export default function Settings() {
                 type="button"
                 onClick={() => {
                   if (isDemo) {
-                    sessionStorage.removeItem('netpulse-demo')
-                    window.location.assign('/login')
+                    exitDemo()
                     return
                   }
                   void fetch('/api/auth/logout', { method: 'POST' })

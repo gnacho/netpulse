@@ -23,7 +23,7 @@ import { HealthRing } from '@/components/HealthRing'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { cn } from '@/lib/utils'
+import { cn, exitDemo } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Navegación
@@ -559,10 +559,7 @@ function DemoBanner() {
       <span>{t('demo.banner')}</span>
       <button
         type="button"
-        onClick={() => {
-          sessionStorage.removeItem('netpulse-demo')
-          window.location.assign('/login')
-        }}
+        onClick={exitDemo}
         className="ml-auto flex h-8 items-center rounded-lg border border-warn/40 px-3 text-caption font-medium text-warn transition-colors hover:bg-warn/15"
       >
         {t('demo.exit')}
