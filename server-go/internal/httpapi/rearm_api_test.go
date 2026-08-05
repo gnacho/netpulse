@@ -5,6 +5,9 @@
 package httpapi_test
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -174,6 +177,9 @@ func rearmIngest(t *testing.T, ts *rearmTestServer, token, payload string) *http
 	req.Header.Set("X-Forwarded-For", "10.9.9.1")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+		mac := hmac.New(sha256.New, []byte(token))
+		mac.Write([]byte(payload))
+		req.Header.Set("X-Agent-Signature", hex.EncodeToString(mac.Sum(nil)))
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -216,7 +222,7 @@ func TestRearmRecuperado200(t *testing.T) {
 	// uno NUEVO.
 	ts.agents.Ingest(&probe.Payload{Router: "patio", Ts: time.Now().Unix(), Version: "0.1.0"})
 
-	// En paralelo: 200 ms después el agente "vuelve a empujar"
+	// En paralelo: 500 ms después el agente "vuelve a empujar"
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		res := rearmIngest(t, ts, tok, validPayload)
