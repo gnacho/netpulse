@@ -239,18 +239,14 @@ func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	st, _ := f.Stat()
+	rs, ok := f.(io.ReadSeeker)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent-%s"`, arch))
-	http.ServeContent(w, r, st.Name(), st.ModTime(), f.(io.ReadSeeker))
-}
-
-// hasAgentToken verifica si existe un token para el slug (rápido, sin cargar el valor).
-func (s *server) hasAgentToken(slug string) bool {
-	if s.db == nil {
-		return false
-	}
-	var dummy string
-	return s.db.QueryRow("SELECT value FROM kv WHERE key = ?", agentTokenKey(slug)).Scan(&dummy) == nil
+	http.ServeContent(w, r, st.Name(), st.ModTime(), rs)
 }
 
 // ---------------------------------------------------------------------------
