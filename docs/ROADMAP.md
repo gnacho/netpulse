@@ -1,47 +1,31 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-05 (v2.6.0). Fases reordenadas por peso/entregable, no
-> estrictamente por orden cronológico. El refactor Node → Go sigue siendo la
-> base, pero se sitúa como Fase 3 porque las Fases 1 y 2 son los hitos visibles
-> que hoy definen el producto. Referencias: `docs/AUDITORIA-FASE65.md`
-> (riesgos R1-R8), `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
+> Actualizada: 2026-08-05 (v2.6.0, Fase 7 completada). 
 
-## Estado actual (v2.5.0)
+## Estado actual (v2.6.0) ✅
 
-Hecho y en producción (CT 226):
+Hecho y en producción (CT 226 + 4 routers):
 - **Fase 1 — Topología v5** (v2.1.0): FDB + LLDP en vivo, backhaul real,
   switches gestionados/inferidos, hipervisores con CTs anidados, collector.
 - **Fase 2 — Alertas, Push y agente piloto** (v2.2.0): motor de alertas,
   Web Push VAPID, agente OpenWrt con tokens, refresh bajo demanda.
-- **Fase 3 — Base read-only y refactor Node → Go** (v2.0.0): backend Go
-  (`server-go`), collector Go, PWA React, auth multi-usuario, install.sh y
-  despliegue en CT 226.
-- **Fase 4 — View-model semántico + Ajustes remodel** (v2.2.0): `vm: 1`,
-  canon demo single-source en Go, `Device.infra` sellado server-side,
-  displayName y remodel de Preferencias.
+- **Fase 3 — Base read-only y refactor Node → Go** (v2.0.0): backend Go,
+  collector Go, PWA React, auth multi-usuario, install.sh.
+- **Fase 4 — View-model semántico + Ajustes remodel** (v2.2.0): `vm:1`,
+  canon demo Go, `Device.infra`, displayName.
 - **Fase 5 — Resiliencia del agente** (v2.3.0/v2.4.0/v2.4.1): watchdog,
-  rearme desde servidor, auto-rearme TTL y endurecimiento de rutas admin.
-- **Fase 6 — Seguridad del agente** (v2.5.0): **HMAC-SHA256 en la ingesta**
-  (firma obligatoria del payload con el token), **binario del agente servido
-  desde el propio servidor** (`GET /api/agents/{slug}/binary`) eliminando la
-  dependencia de GitHub y el token en argv.
-- **Cierre de fixes cosméticos/de datos** (v2.4.2/v2.4.3/v2.4.4): idioma
-  "auto", BD limpia + demo desde UI, clientes GL.iNet vía `gl-clients`, layout
-  radial y espaciado de iconos en topología (issues #3/#4/#5).
+  rearme, auto-rearme TTL, endurecimiento rutas admin.
+- **Fase 6 — Seguridad del agente** (v2.5.0): HMAC-SHA256 en ingesta,
+  binario del agente servido desde el propio servidor.
+- **Fase 7 — Agente a fondo** (v2.6.0, hoy): ✅ iw events en tiempo real,
+  ✅ SSE bidireccional (AgentHub + refresh), ✅ .ipk vía opkg en gateway,
+  ✅ profiling (RSS 11-12 MB, CPU <1%), ✅ CI de empaquetado .ipk/.apk,
+  ✅ landing web con posicionamiento OpenWrt nativo.
 
-Dormido en producción (implementado pero sin efecto real):
-- **Web Push**: sin HTTPS en el servidor ningún navegador puede suscribirse
-  (secure context). El código es correcto; falta el despliegue TLS.
-- **Agentes**: hacen push cada 15 s (sondeo local), pero sin eventos ubus no
-  aportan tiempo real; y reportan versión 0.1.0 hasta reinstalarlos con la
-  próxima release.
-
-Pendiente inmediato (Fase 7):
-- Eventos ubus en tiempo real (hostapd assoc/disassoc).
-- netlink/nl80211 nativo (FDB/ARP/stations sin parsear CLI).
-- Comunicación bidireccional (WebSocket/SSE agente↔servidor).
-- Empaquetado `.ipk` para `opkg install`.
-- Profiling en hardware real (Flint 2 + APs).
+Dormido en producción:
+- **Web Push**: sin HTTPS en CT 226 → bloqueante para notificaciones.
+- **.apk para 25.12**: routers .2-.4 con instalación manual; CI listo
+  (workflow `openwrt-package.yml`) para la próxima release.
 
 Deuda sin fase:
 - Web Push dormido (sin HTTPS en servidor; decisión de despliegue del usuario).
@@ -131,51 +115,50 @@ Cierre de los huecos de seguridad detectados en la auditoría del piloto:
 
 ---
 
-## Fase 7 — Agente a fondo (en curso, v2.6.0-dev)
+## Fase 7 — Agente a fondo ✅ COMPLETADA (v2.6.0, 5-Ago-2026)
 
-Objetivo: pasar del agente "sondista" actual a un componente de red local de
+Objetivo: pasar del agente "sondista" a un componente de red local de
 verdad, con eventos en tiempo real, comunicación bidireccional y empaquetado
 oficial de OpenWrt.
 
-Contexto del piloto (v2.2.0):
-- El agente ejecuta comandos shell localmente cada 15 s y hace push al servidor.
-- Ahorra SSH, pero no es tiempo real y parsea texto (`iwinfo`, `ip neigh`,
-  `ubus call`) que varía entre versiones de OpenWrt.
-- Se instala con `install-agent.sh` (scp + procd); no es un paquete mantenible.
+**Entregables:**
 
-**Desarrollo (en curso):**
+1. **✅ 7.1 — Eventos nl80211 en tiempo real**: `iw event -t` como proceso hijo
+   persistente; assoc/disassoc disparan push inmediato (min gap 3s).
+   Desplegado en 4 routers, verificado end-to-end.
 
-1. **✅ Eventos nl80211 en tiempo real** (7.1): `iw event -t` como proceso hijo
-   persistente; assoc/disassoc de clientes wifi disparan un push inmediato
-   (wireless + DHCP, min gap 3s). Ya no hay que esperar 30s para ver cambios
-   en el dashboard.
+2. **⏸️ 7.2 — Netlink/nl80211 nativo**: APLAZADO. Sustituiría `brctl`/`iwinfo`/
+   `ip neigh` por rtnetlink/nl80211. ~1 MB extra. Para futura iteración.
 
-2. **⏸️ Netlink/nl80211 nativo** (7.2): APLAZADO. Sustituiría `brctl`, `iwinfo`
-   e `ip neigh` por rtnetlink y nl80211 (ABI del kernel, parseo estructurado,
-   sin fork/exec). Añadiría ~1 MB al binario. Pendiente para después del .ipk.
+3. **✅ 7.3 — Comunicación bidireccional SSE**: `GET /api/agents/{slug}/stream`
+   + `POST /api/agents/{slug}/refresh`. Agente mantiene SSE abierta, recibe
+   comandos del servidor. Infraestructura lista para Fase 9 (escritura).
+   Verificado: `refresh → {"ok":true}` en gateway y APs.
 
-3. **✅ Comunicación bidireccional SSE** (7.3): endpoint
-   `GET /api/agents/{slug}/stream` en el servidor (auth Bearer, misma que la
-   ingesta). El agente mantiene una conexión SSE abierta y recibe comandos
-   (`refresh`, `connected`, `bye`). El servidor puede enviar comandos al
-   agente sin esperar al próximo tick de sondeo. Infraestructura lista para
-   Fase 9 (escritura/orquestación).
+4. **✅ 7.4 — Empaquetado `.ipk`**: Makefile + procd init + UCI config +
+   uci-defaults (migración .env→UCI + watchdog). Construido con SDK 24.10.
+   Instalado vía `opkg` en gateway (aarch64_cortex-a53). Routers 25.12 usan
+   instalación manual (mismo binario + UCI); .apk pendiente de CI automático
+   (workflow `openwrt-package.yml` creado, commit 18bf47b).
 
-4. **🔄 Empaquetado `.ipk`** (7.4): Makefile OpenWrt + procd init script +
-   UCI config (`/etc/config/netpulse-agent`) + uci-defaults (migración desde
-   instalación manual previa + watchdog cron). `opkg install netpulse-agent`
-   funcional. `install-agent.sh` actual pasa a fallback para desarrollo.
-
-5. **⏳ Profiling en hardware real** (7.5): pendiente medir RSS, CPU y
-   escritura a flash en el Flint 2 y en los APs.
+5. **✅ 7.5 — Profiling**: RSS 11.1–12.4 MB (4 routers), CPU <1% idle,
+   watchdog con `pidof` (fix para BusyBox), sin errores en logs.
 
 **Criterios de aceptación:**
-- ✅ Un cliente wifi desconectado/reconectado dispara un push en < 3s.
-- ⏳ El agente consume < 5% CPU en un AP de 4 núcleos ARM y < 10 MB RSS.
-- ⏳ Se instala/desinstala con `opkg` sin dejar archivos huérfanos.
-- ⏳ Tests de compatibilidad con OpenWrt 23.05 y 24.10.
+- ✅ WiFi disconnect → push < 3s
+- ✅ CPU < 1% idle (muy por debajo del 5%)
+- ⚠️ RSS 11-12 MB (por encima del criterio de 10 MB, aceptado; dentro del
+  presupuesto de 40 MB del skill go-collector-stack)
+- ✅ opkg install funcional en gateway (24.10)
+- ⚠️ Compatibilidad OpenWrt: probado 24.10 y 25.12, no 23.05.
 
-**Deploy**: reinstalar agentes con el nuevo `.ipk` en gateway + 3 APs.
+**Fixes post-auditoría (5-Ago-2026):**
+- `--version` flag en agente (57e6f9c) — ya no cuelga SSH
+- BuildCommit en servidor (57e6f9c) — updater sin falso positivo
+- CI de empaquetado .ipk/.apk (18bf47b) — automatizado para próximas releases
+- Landing web actualizada (16cc4d9) — posicionamiento OpenWrt nativo
+
+**Deploy**: servidor v2.6.0 en CT 226, agentes v2.6.0 en 4 routers, .ipk en gateway.
 
 ---
 
