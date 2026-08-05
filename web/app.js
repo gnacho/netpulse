@@ -852,7 +852,7 @@ function drawTopology() {
       mk('circle', { cx: half + 1, cy: -half - 1, r: 8, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.ok, 'stroke-width': 1.2 }, g)
       mk('text', { x: half + 1, y: -half + 2, 'text-anchor': 'middle', 'font-size': 8, 'font-weight': 700, fill: TOPO_COLOR.ok }, g).textContent = '+' + ctCount
     }
-    mk('title', {}, g).textContent = d.name
+    mk('title', {}, g).textContent = tName(d.name)
   })
 
   // etiquetas
@@ -862,26 +862,31 @@ function drawTopology() {
     mk('text', { x, y, 'text-anchor': anchor, 'font-size': 13, 'font-weight': 600, fill: 'rgb(var(--text-primary))', stroke: 'rgb(var(--canvas))', 'stroke-width': 4, style: 'paint-order: stroke' }, g).textContent = title
     mk('text', { x, y: y + 15, 'text-anchor': anchor, 'font-size': 10.5, fill: subColor || 'rgb(var(--text-secondary))', stroke: 'rgb(var(--canvas))', 'stroke-width': 3, style: 'paint-order: stroke' }, g).textContent = sub
   }
-  label(548, 54, 'start', `Internet · ${model.wan.isp}`, `${model.wan.plan} · ${model.wan.latencyMs} ms`)
+  const linkLabelText = (l) => {
+    if (l.kind === 'wan') return t('topo.fiber').replace('{plan}', model.wan.plan).replace('{latency}', model.wan.latencyMs)
+    if (l.kind === 'uplink') return l.wifi ? t('topo.wifiUplink') : t('topo.cable1g') + (l.label.includes('LLDP') ? ' · LLDP' : '')
+    return ''
+  }
+  label(548, 54, 'start', `${t('topo.inet')} · ${model.wan.isp}`, `${model.wan.plan} · ${model.wan.latencyMs} ms`)
   if (model.gatewayNode) {
     const n = model.gatewayNode
-    label(n.label.x, n.label.y, n.label.anchor, n.router.name, `${n.router.modelShort} · ${n.router.roleBadge} · ${n.router.clients} clients`)
+    label(n.label.x, n.label.y, n.label.anchor, tName(n.router.name), `${n.router.modelShort} · ${n.router.roleBadge} · ${n.router.clients} ${t('topo.clients')}`)
   }
   model.apNodes.forEach((n) => {
     const warn = n.router.status === 'warn'
-    label(n.label.x, n.label.y, n.label.anchor, n.router.name, warn ? `${n.router.clients} clients · warn` : `${n.router.clients} clients`, warn ? TOPO_COLOR.warn : undefined)
+    label(n.label.x, n.label.y, n.label.anchor, tName(n.router.name), warn ? `${n.router.clients} ${t('topo.clients')} · ${t('routers.warn')}` : `${n.router.clients} ${t('topo.clients')}`, warn ? TOPO_COLOR.warn : undefined)
   })
   model.distNodes.forEach((dv) => {
-    if (dv.node.kind === 'managed') label(dv.x, dv.y - 34, 'middle', dv.node.name || 'Switch', `${dv.node.ip || 'LLDP'} · ${dv.node.port}`, TOPO_COLOR.accent)
-    else label(dv.x, dv.y - 34, 'middle', 'Switch inferido', `${dv.node.port}`)
+    if (dv.node.kind === 'managed') label(dv.x, dv.y - 34, 'middle', dv.node.name ? tName(dv.node.name) : t('topo.managed'), `${dv.node.ip || 'LLDP'} · ${dv.node.port}`, TOPO_COLOR.accent)
+    else label(dv.x, dv.y - 34, 'middle', t('topo.inferredSwitch'), `${dv.node.port}`)
   })
   for (const [hostId] of model.ctsByHost) {
     const host = model.chips.find((c) => c.id === hostId); if (!host) continue
-    label(host.x, host.y - 38, 'middle', host.device.name, `hipervisor · ${model.ctCountByHost.get(hostId) || 0} CT`)
+    label(host.x, host.y - 38, 'middle', tName(host.device.name), `${t('topo.hypervisor')} · ${model.ctCountByHost.get(hostId) || 0} CT`)
   }
-  model.peerNodes.forEach((n, i) => label(n.x + (i % 2 ? -26 : 26), n.y - 4, i % 2 ? 'end' : 'start', n.peer.name, 'vía Internet', TOPO_COLOR.tunnel))
+  model.peerNodes.forEach((n, i) => label(n.x + (i % 2 ? -26 : 26), n.y - 4, i % 2 ? 'end' : 'start', tName(n.peer.name), t('topo.viaInternet'), TOPO_COLOR.tunnel))
   model.links.filter((l) => l.label).forEach((l) => {
-    mk('text', { x: l.lx, y: l.ly, 'font-size': 10, fill: 'rgb(var(--text-muted))', stroke: 'rgb(var(--canvas))', 'stroke-width': 3, style: 'paint-order: stroke', class: 'font-mono' }, labelsG).textContent = l.label
+    mk('text', { x: l.lx, y: l.ly, 'font-size': 10, fill: 'rgb(var(--text-muted))', stroke: 'rgb(var(--canvas))', 'stroke-width': 3, style: 'paint-order: stroke', class: 'font-mono' }, labelsG).textContent = linkLabelText(l)
   })
 }
 
@@ -889,6 +894,10 @@ function buildTopo() {
   if (topoBuilt) return
   topoBuilt = true
   drawTopology()
+}
+
+function renderTopoNames() {
+  if (topoBuilt) drawTopology()
 }
 
 function buildRouters() {
@@ -907,7 +916,7 @@ function buildRouters() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h16v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z"/><path d="M8 6h8"/><path d="M6 9h12"/><path d="M10 3h4"/></svg>
           </div>
           <div>
-            <span class="name">${r.name}</span>
+            <span class="name">${tName(r.name)}</span>
             <span class="model">${r.model}</span>
             <span class="rolepill">${t(r.roleBadge === 'Principal' ? 'routers.roleGW' : 'routers.roleAP')}</span>
           </div>
