@@ -1,17 +1,29 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-05 (v2.4.4). Fases consecutivas desde la 1, basadas
-> en el histórico real de commits. Referencias: `docs/AUDITORIA-FASE65.md`
+> Actualizada: 2026-08-05 (v2.4.4). Fases reordenadas por peso/entregable, no
+> estrictamente por orden cronológico. El refactor Node → Go sigue siendo la
+> base, pero se sitúa como Fase 3 porque las Fases 1 y 2 son los hitos visibles
+> que hoy definen el producto. Referencias: `docs/AUDITORIA-FASE65.md`
 > (riesgos R1-R8), `docs/AGENTE-OPENWRT.md` (diseño del agente), ARCHITECTURE.md.
 
 ## Estado actual (v2.4.4)
 
 Hecho y en producción (CT 226):
-- Fases 1-5 completas: base read-only, topología v5, alertas/push/agente
-  piloto, view-model semántico, resiliencia del agente.
-- Fixes v2.4.2/v2.4.3/v2.4.4: idioma auto, BD limpia + demo desde UI,
-  gl-clients por rutas SSH y agente, layout radial en topología, espaciado
-  de iconos de clientes y aspect-ratio fijo en mapa (issues #3/#4/#5).
+- **Fase 1 — Topología v5** (v2.1.0): FDB + LLDP en vivo, backhaul real,
+  switches gestionados/inferidos, hipervisores con CTs anidados, collector.
+- **Fase 2 — Alertas, Push y agente piloto** (v2.2.0): motor de alertas,
+  Web Push VAPID, agente OpenWrt con tokens, refresh bajo demanda.
+- **Fase 3 — Base read-only y refactor Node → Go** (v2.0.0): backend Go
+  (`server-go`), collector Go, PWA React, auth multi-usuario, install.sh y
+  despliegue en CT 226.
+- **Fase 4 — View-model semántico + Ajustes remodel** (v2.2.0): `vm: 1`,
+  canon demo single-source en Go, `Device.infra` sellado server-side,
+  displayName y remodel de Preferencias.
+- **Fase 5 — Resiliencia del agente** (v2.3.0/v2.4.0/v2.4.1): watchdog,
+  rearme desde servidor, auto-rearme TTL y endurecimiento de rutas admin.
+- **Cierre de fixes cosméticos/de datos** (v2.4.2/v2.4.3/v2.4.4): idioma
+  "auto", BD limpia + demo desde UI, clientes GL.iNet vía `gl-clients`, layout
+  radial y espaciado de iconos en topología (issues #3/#4/#5).
 
 Dormido en producción (implementado pero sin efecto real):
 - **Web Push**: sin HTTPS en el servidor ningún navegador puede suscribirse
@@ -20,21 +32,15 @@ Dormido en producción (implementado pero sin efecto real):
   aportan tiempo real; y reportan versión 0.1.0 hasta reinstalarlos con la
   próxima release.
 
----
-
-## Fase 1 — Base read-only (hecha, v1.x)
-
-Monitorización SSH agentless de routers OpenWrt/GL.iNet:
-- PWA en React con sondeo SSH de solo lectura (ubus, `/proc`, iwinfo).
-- AdGuard Home + WireGuard (stats y estado).
-- Auth multi-usuario con roles, discovery LAN.
-- Backend migrado de Node a Go (binario único con la app embebida).
-
-**Deploy**: install.sh one-liner, systemd en CT 226.
+Pendiente inmediato (Fase 6):
+- HMAC-SHA256 en la ingesta del agente.
+- Servir el binario del agente desde el propio servidor.
+- HTTPS en CT 226.
+- Identificación de Proxmox en cluster.
 
 ---
 
-## Fase 2 — Topología v5 (hecha, v2.0.0)
+## Fase 1 — Topología v5 (hecha, v2.1.0)
 
 Mapa semántico real basado en evidencia de red:
 - FDB + LLDP en vivo: puertos cableados, switches gestionados vs. inferidos.
@@ -46,7 +52,7 @@ Mapa semántico real basado en evidencia de red:
 
 ---
 
-## Fase 3 — Alertas, Push y agente piloto (hecha, v2.2.0)
+## Fase 2 — Alertas, Push y agente piloto (hecha, v2.2.0)
 
 - Motor de alertas con 6 categorías y config por categoría (urgente/todo/nada).
 - Web Push nativo (VAPID) con SW propio (injectManifest).
@@ -57,7 +63,22 @@ Mapa semántico real basado en evidencia de red:
 
 ---
 
-## Fase 4 — View-model versionado (hecha, v2.2.0)
+## Fase 3 — Base read-only y refactor Node → Go (hecha, v2.0.0)
+
+Base funcional y migración de backend a Go. Cronológicamente fue el primer hito
+mayor del proyecto, pero se ubica aquí como cimiento de las Fases 1 y 2:
+
+- PWA en React con sondeo SSH de solo lectura (ubus, `/proc`, iwinfo).
+- AdGuard Home + WireGuard (stats y estado).
+- Auth multi-usuario con roles, discovery LAN.
+- Backend migrado de Node a Go (`server-go`), binario único con la app embebida.
+- Collector Go piloto y one-liner install.sh.
+
+**Deploy**: install.sh one-liner, systemd en CT 226, goreleaser estable.
+
+---
+
+## Fase 4 — View-model semántico y Ajustes remodel (hecha, v2.2.0)
 
 API como view-model de presentación para consumo directo por clientes ligeros:
 - `vm: 1` en overview, canon demo single-source en Go → JSON.
@@ -72,7 +93,7 @@ API como view-model de presentación para consumo directo por clientes ligeros:
 
 ## Fase 5 — Resiliencia del agente (hecha, v2.3.0/v2.4.0/v2.4.1)
 
-Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
+Cierre de los huecos de supervisión detectados en la auditoría del piloto:
 1. **Plan A (auto-supervisión en el router):** watchdog cron con heartbeat.
 2. **Plan B (rearme desde el servidor):** POST /api/agents/{slug}/rearm.
 3. **Auto-rearme tras TTL (v2.4.0):** supervisor cada 30 s, opt-in con flag.
@@ -82,49 +103,23 @@ Cierre de los dos huecos de supervisión detectados en la auditoría del piloto:
 
 ---
 
-## Fase 6 — Fixes cosméticos y de datos (hecha parcialmente, v2.4.2/v2.4.3)
+## Fase 6 — TLS, endurecimiento y cierre de fixes (bloqueante, ~1 día + sprints)
 
-Issues #3/#4/#5 + feedback cosmético del usuario:
-
-**Hecho:**
-- Idioma por defecto "auto" (sigue al navegador, issue #3).
-- Instalación con BD limpia y demo activable desde Ajustes (issue #4).
-- IPs de clientes GL.iNet vía `gl-clients` donde dnsmasq no tiene lease,
-  por las rutas SSH Y agente (issue #5 bug 1).
-- Layout en anillos para nodos de distribución con muchos hijos (issue #5 bug 2).
-- Remodel de Preferencias: routers solo-IP con alta colapsada, AdGuard
-  editable/oculto según servicio, usuarios colapsados, nombre de saludo,
-  info de sistema real en Acerca de (ya implementado en Fase 4).
-
-**Hecho en v2.4.4:**
-- **Espaciar más los iconos de clientes en topología**: radio de abanicos
-  aumentado (ROUTER_FAN_RADIUS 134→150, DIST_FAN_RADIUS 82→96,
-  HUB_FAN_RADIUS 56→68, hipervisor 300→320, anillos wifi gateway 88/118→96/130,
-  AP 74/108→82/120, grid CT 42/38/56→46/44/64, grid gateway 46/40/142→56/50/160),
-  y SVG con `preserveAspectRatio="xMidYMid meet"` para no distorsionar el
-  espaciado al estirar el contenedor.
-
-**Pendiente:**
-- **Identificación de Proxmox en live**: hoy solo se detecta hipervisor si
-  hay exactamente un host con MAC de hipervisor + VMs con OUI de hipervisor.
-  En producción con cluster Proxmox (2 hosts citadel-01/02) no se identifica
-  porque la regla exige "exactamente un host". Revisar si hay que relajar a
-  "uno o más hosts" o si el problema es que los hosts no están en la BD.
-
-**Deploy**: sin cambios (mismo servidor).
-
----
-
-## Fase 7 — TLS y endurecimiento (bloqueante, ~1 día)
-
-Sin esto, ni push funciona ni la Fase 9 es segura.
+Fusión de la deuda cosmética reciente con los bloqueantes de seguridad.
+Sin esto, ni push funciona ni la Fase 8 es segura.
 
 **Desarrollo:**
 1. **HMAC-SHA256 en la ingesta del agente** (R4): firmar el payload con el
-   token. ~10 líneas. Barato ahora, carísimo después de la Fase 9.
+   token. ~10 líneas. Barato ahora, carísimo después de la Fase 8.
 2. **Servir el binario del agente desde el propio servidor** (R3):
    `GET /api/agents/{slug}/binary?arch=...` — elimina la dependencia de
    GitHub en LANs sin salida y el `curl | sh` con token en argv.
+3. **Identificación de Proxmox en live**: hoy solo se detecta hipervisor si
+   hay exactamente un host con MAC de hipervisor + VMs con OUI de hipervisor.
+   En producción con cluster Proxmox (2 hosts citadel-01/02) no se identifica
+   porque la regla exige "exactamente un host". Revisar si hay que relajar a
+   "uno o más hosts" o si el problema es que los hosts no están en la BD.
+4. Cierre de deuda cosmética pendiente (si queda algo tras v2.4.4).
 
 **Deploy:**
 1. **HTTPS en CT 226** (R1): Caddy delante con cert autofirmado + confianza
@@ -137,7 +132,7 @@ Sin esto, ni push funciona ni la Fase 9 es segura.
 
 ---
 
-## Fase 8 — Agente a fondo (~1 semana)
+## Fase 7 — Agente a fondo (~1 semana)
 
 El piloto actual ahorra SSH pero no da tiempo real. El salto es:
 
@@ -154,7 +149,7 @@ El piloto actual ahorra SSH pero no da tiempo real. El salto es:
 
 ---
 
-## Fase 9 — App embebida en routers (decisión de diseño primero)
+## Fase 8 — App embebida en routers (decisión de diseño primero)
 
 Convertir NetPulse en una app DEL router, no solo un panel externo:
 
@@ -162,7 +157,7 @@ Convertir NetPulse en una app DEL router, no solo un panel externo:
 - **Arquitectura objetivo**: el Flint 2 (gateway, 8 GB) corre
   `netpulse-agent` + `netpulse-server` reducido (modo on-box); los APs solo
   agent. La URL de la app ES la IP del router.
-- **Bloqueantes previos**: decisión TLS de la Fase 7 (la app servida por el
+- **Bloqueantes previos**: decisión TLS de la Fase 6 (la app servida por el
   router necesita cert autofirmado + flujo "confiar") y DB fuera de NAND
   (SQLite WAL en flash = inviable; usar USB/eMMC/overlay).
 - **Pairing cero-fricción**: token de emparejamiento mostrado en LuCI
@@ -175,7 +170,7 @@ Convertir NetPulse en una app DEL router, no solo un panel externo:
 
 ---
 
-## Fase 10 — Escritura/orquestación (riesgo alto, reglas estrictas)
+## Fase 9 — Escritura/orquestación (riesgo alto, reglas estrictas)
 
 Pasar de leer a actuar. Reglas de diseño innegociables
 (detalle en AUDITORIA-FASE65.md §5):
@@ -186,7 +181,7 @@ Pasar de leer a actuar. Reglas de diseño innegociables
   rollback verificable obligatorio.
 - Idempotencia (estado declarado, no acumulado).
 - Ejecutor con allowlist estricta de comandos (nada de shell libre).
-- HMAC (Fase 7) firmado ANTES de que viaje ninguna orden.
+- HMAC (Fase 6) firmado ANTES de que viaje ninguna orden.
 
 Orden por riesgo/beneficio:
 1. **AdGuard Home** (fácil: binario + YAML + DNS en dnsmasq; el módulo de
