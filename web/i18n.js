@@ -64,7 +64,7 @@ const I18N = {
       st6t: 'Alerts that find you',
       st6p: 'Temperature spikes, new devices, firmware available, WireGuard handshakes — pushed to the bell and, with Web Push, to your phone.',
     },
-    health: { caption: 'Network health score', label: 'Excellent' },
+    health: { caption: 'Network health score', label: 'Excellent', note: 'Penalized by the Patio temperature.' },
     wan: { live: 'LIVE', title: 'WAN traffic', plan: 'plan' },
     topo: {
       wired: 'Wired', wifi: 'WiFi', tunnel: 'WG tunnel', gw: 'gateway', inet: 'Internet',
@@ -163,7 +163,7 @@ const I18N = {
       st6t: 'Alertas que te encuentran',
       st6p: 'Picos de temperatura, dispositivos nuevos, firmware disponible, handshakes de WireGuard — en la campana y, con Web Push, en tu móvil.',
     },
-    health: { caption: 'Puntuación de salud de la red', label: 'Excelente' },
+    health: { caption: 'Puntuación de salud de la red', label: 'Excelente', note: 'Penalizado por la temperatura del Patio.' },
     wan: { live: 'EN VIVO', title: 'Tráfico WAN', plan: 'plan' },
     topo: {
       wired: 'Cable', wifi: 'WiFi', tunnel: 'Túnel WG', gw: 'gateway', inet: 'Internet',
@@ -1021,7 +1021,7 @@ function detectLang() {
 
 let CURRENT = detectLang()
 
-function t(path) {
+function t(path, vars) {
   const seg = path.split('.')
   let o = I18N[CURRENT]
   for (const s of seg) { o = o ? o[s] : undefined }
@@ -1029,7 +1029,9 @@ function t(path) {
     o = I18N.en
     for (const s of seg) { o = o ? o[s] : undefined }
   }
-  return o ?? path
+  const out = o ?? path
+  if (vars) return out.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`)
+  return out
 }
 
 /** Nombre localizado de un nodo del canon (routers/dispositivos/peers).
