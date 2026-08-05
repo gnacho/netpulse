@@ -1331,7 +1331,7 @@ async function copyText(text, btn) {
 /* ---------- ko-fi placeholder ---------- */
 function initKofi() {
   // TODO(nacho): URL definitiva de Ko-fi — pendiente de que la cree.
-  const url = 'https://github.com/gnacho/netpulse'
+  const url = 'https://ko-fi.com/gnacho'
   document.querySelectorAll('.kofi').forEach((a) => { a.href = url })
 }
 
