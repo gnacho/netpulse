@@ -265,6 +265,14 @@ Contexto:
    - Posibles futuros: VLAN simple, WiFi guest, QoS básico.
    - Cada despliegue es atómico: o se completa entero o se revierte.
    - La app deja de ser "solo lectura" para estos flujos asistidos.
+6. **Webhooks y API** (orden del usuario, 6-Ago-2026):
+   - **Webhook saliente**: notificaciones de alertas a URLs externas con firma
+     HMAC-SHA256, reintentos con backoff y DLQ — patrón EasyZFS v2.4.0
+     (skill `email-webhook-notifications`). Complementa Web Push para
+     encaminar alertas a servicios propios o de terceros.
+   - **API de ingesta (webhook entrante)**: endpoint HTTP firmado para que
+     sistemas externos envíen eventos a NetPulse sin agente (lista de
+     orígenes permitida, anti-SSRF). Reutiliza el patrón HMAC de Fase 6.
 
 **Criterios de aceptación:**
 - Cualquier apply muestra diff y pide confirmación antes de ejecutar.
