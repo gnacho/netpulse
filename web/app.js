@@ -1,19 +1,30 @@
 /* ============================================================
-   NetPulse landing — app.js
-   Teatro sticky por scroll, widgets animados con datos reales
-   del demo, widget de apariencia (tema + acento) y miscelánea.
+   NetPulse landing — app.js v2
+   Fondo canvas, tipografía grande, topología fiel a la app.
    ============================================================ */
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+const COLOR = {
+  accent: '#22D3EE',
+  tunnel: '#A78BFA',
+  ok: '#34D399',
+  warn: '#FBBF24',
+  danger: '#F87171',
+  info: '#60A5FA',
+}
+
+function getCssVar(name) {
+  const s = getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim().split(' ')
+  return `rgb(${s.join(' ')})`
+}
+
 /* ---------- helpers ---------- */
 function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3) }
+function easeOutExpo(x) { return x === 1 ? 1 : 1 - Math.pow(2, -10 * x) }
 
 function animateNumber(el, target, { decimals = 0, suffix = '', duration = 1200, format } = {}) {
-  if (reduceMotion) {
-    el.textContent = format ? format(target) : target.toFixed(decimals) + suffix
-    return
-  }
+  if (reduceMotion) { el.textContent = format ? format(target) : target.toFixed(decimals) + suffix; return }
   const start = performance.now()
   function frame(now) {
     const p = Math.min(1, (now - start) / duration)
@@ -28,6 +39,83 @@ function fmtLocale(n, decimals = 0) {
   return n.toLocaleString(CURRENT === 'en' ? 'en-US' : CURRENT, {
     minimumFractionDigits: decimals, maximumFractionDigits: decimals,
   })
+}
+
+function mkSvgEl(tag, attrs = {}, parent) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag)
+  Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v))
+  if (parent) parent.appendChild(e)
+  return e
+}
+
+/* ---------- fondo canvas dinámico (red de partículas) ---------- */
+function initBackgroundCanvas() {
+  const canvas = document.getElementById('bgCanvas')
+  if (!canvas || reduceMotion) return
+  const ctx = canvas.getContext('2d')
+  let w, h, particles = [], mx = 0, my = 0, targetMx = 0, targetMy = 0
+
+  function resize() {
+    w = canvas.width = window.innerWidth
+    h = canvas.height = window.innerHeight
+    const count = Math.min(120, Math.max(40, Math.floor((w * h) / 18000)))
+    particles = Array.from({ length: count }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25,
+      r: 0.5 + Math.random() * 1.5, pulse: Math.random() * Math.PI * 2,
+    }))
+  }
+  resize()
+  window.addEventListener('resize', resize)
+  document.addEventListener('mousemove', e => { targetMx = e.clientX; targetMy = e.clientY }, { passive: true })
+  document.addEventListener('touchmove', e => { if (e.touches[0]) { targetMx = e.touches[0].clientX; targetMy = e.touches[0].clientY } }, { passive: true })
+
+  function draw(t) {
+    mx += (targetMx - mx) * 0.05
+    my += (targetMy - my) * 0.05
+    ctx.clearRect(0, 0, w, h)
+    const accent = getCssVar('accent')
+    const tunnel = getCssVar('tunnel')
+    const ok = getCssVar('ok')
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i]
+      p.x += p.vx + (mx - w / 2) * 0.00004
+      p.y += p.vy + (my - h / 2) * 0.00004
+      if (p.x < -20) p.x = w + 20; if (p.x > w + 20) p.x = -20
+      if (p.y < -20) p.y = h + 20; if (p.y > h + 20) p.y = -20
+      const pulse = 0.5 + 0.5 * Math.sin(t * 0.001 + p.pulse)
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, p.r * pulse, 0, Math.PI * 2)
+      ctx.fillStyle = i % 7 === 0 ? accent : i % 5 === 0 ? tunnel : ok
+      ctx.globalAlpha = 0.25 + 0.25 * pulse
+      ctx.fill()
+    }
+
+    ctx.globalAlpha = 1
+    const connectDist = 130
+    for (let i = 0; i < particles.length; i++) {
+      let a = particles[i]
+      for (let j = i + 1; j < particles.length; j++) {
+        let b = particles[j]
+        const dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy
+        if (d2 < connectDist * connectDist) {
+          const d = Math.sqrt(d2)
+          ctx.beginPath()
+          ctx.moveTo(a.x, a.y)
+          ctx.lineTo(b.x, b.y)
+          const col = (i + j) % 3 === 0 ? accent : (i + j) % 3 === 1 ? tunnel : ok
+          ctx.strokeStyle = col
+          ctx.globalAlpha = 0.08 * (1 - d / connectDist)
+          ctx.lineWidth = 0.8
+          ctx.stroke()
+        }
+      }
+    }
+    ctx.globalAlpha = 1
+    requestAnimationFrame(draw)
+  }
+  requestAnimationFrame(draw)
 }
 
 /* ---------- count-up hero ---------- */
@@ -45,7 +133,7 @@ function renderTicker() {
   const el = document.getElementById('ticker')
   if (!el) return
   const items = [
-    `<span><i class="dot" style="background:rgb(var(--ok))"></i><i data-i18n-inline="strip.health">${t('strip.health')}</i>&nbsp;<i class="font-mono">92/100</i></span>`,
+    `<span><i class="dot" style="background:rgb(var(--ok))"></i><i>${t('strip.health')}</i>&nbsp;<i class="font-mono">92/100</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--accent))"></i><i>${t('strip.down')}</i>&nbsp;<i class="font-mono">84.2 Mbps</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--tunnel))"></i><i>${t('strip.up')}</i>&nbsp;<i class="font-mono">12.6 Mbps</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--info))"></i><i>${t('strip.latency')}</i>&nbsp;<i class="font-mono">8 ms</i></span>`,
@@ -54,7 +142,6 @@ function renderTicker() {
     `<span><i class="dot" style="background:rgb(var(--warn))"></i><i>DNS</i>&nbsp;<i class="font-mono">14 ms</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--ok))"></i><i>WireGuard</i>&nbsp;<i class="font-mono">peer phone · ${t('alerts.ago')} 2 min</i></span>`,
   ]
-  // duplicado para loop continuo
   el.innerHTML = items.join('') + items.join('')
 }
 
@@ -65,13 +152,9 @@ function playRing() {
   ringPlayed = true
   const arc = document.getElementById('ringArc')
   const num = document.getElementById('ringNum')
-  const C = 490.1
+  const C = 590.6
   const score = DEMO.score
-  if (reduceMotion) {
-    arc.style.strokeDashoffset = C * (1 - score / 100)
-    num.textContent = score
-    return
-  }
+  if (reduceMotion) { arc.style.strokeDashoffset = C * (1 - score / 100); num.textContent = score; return }
   const dur = 1300
   const start = performance.now()
   function frame(now) {
@@ -89,8 +172,7 @@ function playRing() {
 let trafficPlayed = false
 let trafficTimer = null
 function genSeries(n, base, amp, seed = 1) {
-  const out = []
-  let s = seed
+  const out = []; let s = seed
   for (let i = 0; i < n; i++) {
     s = (s * 9301 + 49297) % 233280
     const noise = s / 233280
@@ -105,10 +187,10 @@ function pathFrom(data, W, H, max) {
 function playTraffic() {
   if (trafficPlayed) return
   trafficPlayed = true
-  const W = 400, H = 120
-  const downData = genSeries(48, DEMO.down, 18, 7)
-  const upData = genSeries(48, DEMO.up, 5, 13)
-  const max = 110
+  const W = 480, H = 160
+  const downData = genSeries(52, DEMO.down, 22, 7)
+  const upData = genSeries(52, DEMO.up, 6, 13)
+  const max = 120
   const lineDown = document.getElementById('lineDown')
   const lineUp = document.getElementById('lineUp')
   const areaDown = document.getElementById('areaDown')
@@ -124,15 +206,14 @@ function playTraffic() {
     document.getElementById('wanLat').textContent = DEMO.latency
     return
   }
-  // dibujar progresivamente
   const Ld = lineDown.getTotalLength()
   const Lu = lineUp.getTotalLength()
   lineDown.style.strokeDasharray = Ld
   lineUp.style.strokeDasharray = Lu
   lineDown.style.strokeDashoffset = Ld
   lineUp.style.strokeDashoffset = Lu
-  const dur = 1500
   const start = performance.now()
+  const dur = 1500
   function frame(now) {
     const p = Math.min(1, (now - start) / dur)
     const e = easeOutCubic(p)
@@ -153,154 +234,234 @@ function startLiveJitter() {
   const upEl = document.getElementById('wanUp')
   trafficTimer = setInterval(() => {
     if (!downEl.isConnected) return
-    const d = DEMO.down + (Math.random() - 0.5) * 6
-    const u = DEMO.up + (Math.random() - 0.5) * 2
-    downEl.textContent = Math.max(60, d).toFixed(1)
-    upEl.textContent = Math.max(9, u).toFixed(1)
-  }, 2500)
+    const d = Math.max(55, DEMO.down + (Math.random() - 0.5) * 7)
+    const u = Math.max(9, DEMO.up + (Math.random() - 0.5) * 2.5)
+    downEl.textContent = d.toFixed(1)
+    upEl.textContent = u.toFixed(1)
+  }, 2600)
 }
 
-/* ---------- stage 2: topology ---------- */
+/* ---------- stage 2: topología fiel a la app ---------- */
 let topoBuilt = false
 function buildTopo() {
   if (topoBuilt) return
   topoBuilt = true
   const svg = document.getElementById('topoSvg')
   const NS = 'http://www.w3.org/2000/svg'
-  const cx = 260, cy = 175
-  // gateway central
-  const gw = { x: cx, y: cy, r: 26, label: t('topo.gw') + ' · Flint 2', cls: 'gw' }
-  // APs en anillo
-  const aps = [
-    { x: cx - 150, y: cy - 70, label: 'AP-Estudio' },
-    { x: cx + 150, y: cy - 70, label: 'AP-Salon' },
-    { x: cx, y: cy + 120, label: 'AP-Dormitorio' },
-  ]
-  // clientes
-  const clients = [
-    { x: cx - 210, y: cy + 20, label: 'tv-salon', wired: true },
-    { x: cx - 190, y: cy - 140, label: 'laptop-nacho', wired: false },
-    { x: cx + 205, y: cy - 130, label: 'phone', wired: false },
-    { x: cx + 215, y: cy + 10, label: 'printer', wired: true },
-    { x: cx + 70, y: cy + 150, label: 'tablet', wired: false },
-    { x: cx - 60, y: cy + 155, label: 'cam-patio', wired: false },
-  ]
-  const wg = { x: cx, y: 28, label: t('topo.inet') }
+  svg.setAttribute('viewBox', '0 0 1000 680')
+  const canvas = getCssVar('canvas')
 
-  const mkEl = (tag, attrs = {}) => {
+  const mk = (tag, attrs, parent) => {
     const e = document.createElementNS(NS, tag)
     Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v))
+    if (parent) parent.appendChild(e)
     return e
   }
 
-  // edges: cliente→AP, AP→GW, GW→Internet
-  // addEdge devuelve [line, dot?] — ambos deben ir al DOM y a la coreografía
-  let edgeSeq = 0
-  const addEdge = (a, b, color, width = 1.5, flow = false) => {
-    const line = mkEl('line', {
-      x1: a.x, y1: a.y, x2: b.x, y2: b.y,
-      stroke: color, 'stroke-width': width, 'stroke-linecap': 'round',
-      class: 'topo-edge', pathLength: 1,
-    })
-    const out = [line]
-    // pulso de flujo (punto viajero)
-    if (flow && !reduceMotion) {
-      const dot = mkEl('circle', { r: 2.5, fill: color, class: 'topo-flow' })
-      const anim = mkEl('animateMotion', { dur: `${2 + Math.random() * 2}s`, repeatCount: 'indefinite' })
-      const mpath = mkEl('mpath')
-      // animateMotion necesita un path: construimos uno invisible
-      const pid = `tp-edge-${edgeSeq++}`
-      const p = mkEl('path', { d: `M${a.x} ${a.y} L${b.x} ${b.y}`, id: pid, fill: 'none', stroke: 'none' })
-      svg.appendChild(p)
-      mpath.setAttribute('href', '#' + pid)
-      mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + pid)
-      anim.appendChild(mpath)
-      dot.appendChild(anim)
-      out.push(dot)
-    }
-    return out
+  const order = []
+  const svgAppend = (e) => { svg.appendChild(e); order.push(e) }
+
+  // --- definición de iconos (paths simples) ---
+  const iconPaths = {
+    cloud: 'M17 19.2a4 4 0 0 1-3.2-6.4 4.1 4.1 0 0 1 2.7-7.3 4 4 0 0 1 6.6-1.6 4 4 0 0 1 3.6 6.5M17 19.2H6.5a4.5 4.5 0 0 1 0-9h.6a5 5 0 0 1 9.3-1.2',
+    router: 'M4 14h16v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5zm4-8h8M6 9h12M8 6h8',
+    ap: 'M12 20v-6m-3-4a3 3 0 0 1 6 0m-9-4a6 6 0 0 1 12 0',
+    laptop: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8H4V6zm-2 10h20l-2 3H4l-2-3z',
+    phone: 'M12 22h5a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h5m0-13h.01',
+    tv: 'M4 6h16v11H4zm4 17h8m-4-6v6',
+    switch: 'M4 7h16M4 12h16M4 17h16',
+  }
+  const drawIcon = (name, x, y, size, color, parent) => {
+    const g = mk('g', { transform: `translate(${x - size / 2}, ${y - size / 2})`, fill: 'none', stroke: color, 'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent)
+    mk('path', { d: iconPaths[name], transform: `scale(${size / 24})` }, g)
+    return g
   }
 
-  const C_OK = 'rgb(var(--ok))'      // cable
-  const C_ACC = 'rgb(var(--accent))' // wifi
-  const C_TUN = 'rgb(var(--tunnel))' // túnel
-
-  // orden de construcción: GW, APs, clientes, túnel
-  const order = []
-
-  // gateway
-  const gGw = mkEl('g', { class: 'topo-node' })
-  gGw.appendChild(mkEl('circle', { cx: gw.x, cy: gw.y, r: gw.r, fill: 'rgb(var(--surface))', stroke: C_ACC, 'stroke-width': 2 }))
-  const gwTxt = mkEl('text', { x: gw.x, y: gw.y + 4, 'text-anchor': 'middle', fill: 'rgb(var(--text-primary))', 'font-size': '9', 'font-family': 'JetBrains Mono, monospace' })
-  gwTxt.textContent = 'GW'
-  gGw.appendChild(gwTxt)
-  const gwLbl = mkEl('text', { x: gw.x, y: gw.y + gw.r + 14, 'text-anchor': 'middle', fill: 'rgb(var(--text-muted))', 'font-size': '9' })
-  gwLbl.textContent = gw.label
-  gGw.appendChild(gwLbl)
-  order.push(gGw)
-
-  // APs + edges GW→AP
-  aps.forEach(ap => {
-    const g = mkEl('g', { class: 'topo-node' })
-    g.appendChild(mkEl('circle', { cx: ap.x, cy: ap.y, r: 16, fill: 'rgb(var(--elevated))', stroke: C_ACC, 'stroke-width': 1.5 }))
-    // arquito wifi dentro
-    const w = mkEl('path', {
-      d: `M${ap.x - 6} ${ap.y + 2} A8 8 0 0 1 ${ap.x + 6} ${ap.y + 2}`,
-      stroke: C_ACC, 'stroke-width': 1.5, fill: 'none', 'stroke-linecap': 'round',
-    })
-    g.appendChild(w)
-    const t1 = mkEl('text', { x: ap.x, y: ap.y - 24, 'text-anchor': 'middle', fill: 'rgb(var(--text-secondary))', 'font-size': '9' })
-    t1.textContent = ap.label
-    g.appendChild(t1)
-    addEdge(gw, ap, C_ACC, 1.5, true).forEach(e => order.push(e))
-    order.push(g)
-  })
-
-  // clientes + edges AP→cliente
-  clients.forEach((c, i) => {
-    const ap = aps[i % aps.length]
-    const g = mkEl('g', { class: 'topo-node' })
-    const col = c.wired ? C_OK : C_ACC
-    g.appendChild(mkEl('circle', { cx: c.x, cy: c.y, r: 5, fill: col, opacity: 0.85 }))
-    const t1 = mkEl('text', {
-      x: c.x + (c.x > cx ? 10 : -10), y: c.y + 3,
-      'text-anchor': c.x > cx ? 'start' : 'end',
-      fill: 'rgb(var(--text-muted))', 'font-size': '8', 'font-family': 'JetBrains Mono, monospace',
-    })
-    t1.textContent = c.label
-    g.appendChild(t1)
-    addEdge(ap, c, col, 1, false).forEach(e => order.push(e))
-    order.push(g)
-  })
-
-  // túnel WireGuard GW → Internet
-  const gWg = mkEl('g', { class: 'topo-node' })
-  gWg.appendChild(mkEl('circle', { cx: wg.x, cy: wg.y, r: 14, fill: 'rgb(var(--surface))', stroke: C_TUN, 'stroke-width': 1.5 }))
-  const wgT = mkEl('text', { x: wg.x, y: wg.y + 3.5, 'text-anchor': 'middle', fill: C_TUN, 'font-size': '8', 'font-family': 'JetBrains Mono, monospace' })
-  wgT.textContent = 'WG'
-  gWg.appendChild(wgT)
-  const wgLbl = mkEl('text', { x: wg.x + 24, y: wg.y + 3, fill: 'rgb(var(--text-muted))', 'font-size': '9' })
-  wgLbl.textContent = wg.label
-  gWg.appendChild(wgLbl)
-  addEdge(gw, wg, C_TUN, 2, true).forEach(e => order.push(e))
-  order.push(gWg)
-
-  order.forEach(e => svg.appendChild(e))
-
-  // leyenda
-  const legend = [
-    { c: C_OK, k: t('topo.wired') },
-    { c: C_ACC, k: t('topo.wifi') },
-    { c: C_TUN, k: t('topo.tunnel') },
+  // --- nodos canónicos de la app ---
+  const gw = { id: 'gw', name: 'GW-Flint2', model: 'Flint 2', x: 500, y: 250, r: 40, status: 'ok', health: 92, clients: 34 }
+  const aps = [
+    { id: 'ap1', name: 'AP-Salon', x: 195, y: 470, r: 32, status: 'ok', health: 88, clients: 18 },
+    { id: 'ap2', name: 'AP-Pasillo', x: 500, y: 505, r: 32, status: 'warn', health: 71, clients: 10 },
+    { id: 'ap3', name: 'AP-Dormitorio', x: 805, y: 470, r: 32, status: 'ok', health: 95, clients: 5 },
   ]
-  legend.forEach((l, i) => {
-    const g = mkEl('g', { class: 'topo-node' })
-    g.appendChild(mkEl('circle', { cx: 16, cy: 320 - i * 16, r: 4, fill: l.c }))
-    const tx = mkEl('text', { x: 26, y: 323 - i * 16, fill: 'rgb(var(--text-muted))', 'font-size': '9' })
-    tx.textContent = l.k
-    g.appendChild(tx)
+  const internet = { x: 500, y: 58 }
+  const peers = [
+    { id: 'p1', name: 'phone', type: 'phone', x: 265, y: 26 },
+    { id: 'p2', name: 'nas-wg', type: 'laptop', x: 735, y: 26 },
+  ]
+  const dist = { id: 'dist1', name: 'Switch inferido', x: 660, y: 230, r: 24, managed: false, port: 'lan3', macs: 8 }
+  const allRouters = [gw, ...aps]
+
+  // --- anillos guía wifi ---
+  const guideRadii = [96, 130]
+  allRouters.forEach(r => {
+    guideRadii.forEach(rad => {
+      svgAppend(mk('circle', { cx: r.x, cy: r.y, r: rad, class: 'topo-guide' }))
+    })
+  })
+
+  // --- links ---
+  const addLink = (d, kind, color, width = 1.5, wifi = false, flow = false, label = '') => {
+    const id = `link-${kind}-${Math.random().toString(36).slice(2, 8)}`
+    const path = mk('path', { d, fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', class: 'topo-edge', pathLength: 1, id, 'stroke-dasharray': kind === 'wg' || (kind === 'uplink' && wifi) ? (kind === 'wg' ? '7 7' : '8 6') : undefined }, svg)
+    order.push(path)
+    if (flow && !reduceMotion) {
+      for (let i = 0; i < 2; i++) {
+        const dot = mk('circle', { r: 2.6, fill: color, class: 'topo-flow' }, svg)
+        order.push(dot)
+        const am = mk('animateMotion', { dur: `${2.2 + i * 0.6}s`, repeatCount: 'indefinite', begin: `${-i * 1.1}s` }, dot)
+        mk('mpath', { href: `#${id}` }, am)
+      }
+    }
+    if (kind === 'wg' && !reduceMotion) {
+      const dashed = mk('path', { d, fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', 'stroke-dasharray': '7 7' }, svg)
+      order.push(dashed)
+      mk('animate', { attributeName: 'stroke-dashoffset', from: '0', to: '-28', dur: '1.4s', repeatCount: 'indefinite' }, dashed)
+    }
+    if (label) {
+      const mid = path.getPointAtLength ? path.getPointAtLength(path.getTotalLength() / 2) : { x: 500, y: 300 }
+      const t = mk('text', { x: mid.x, y: mid.y - 8, 'text-anchor': 'middle', class: 'topo-label-sub', fill: 'rgb(var(--text-muted))', 'font-size': 10 }, svg)
+      t.textContent = label
+      order.push(t)
+    }
+    return path
+  }
+
+  // WAN internet-gateway
+  addLink(`M${internet.x} ${internet.y + 28} C${internet.x} 160, ${gw.x} 160, ${gw.x} ${gw.y - gw.r - 6}`, 'wan', COLOR.ok, 2.5, false, true)
+  // uplinks gateway-APs (cableados = verde)
+  const uplinkPaths = [
+    `M${gw.x - gw.r * 0.7} ${gw.y + gw.r * 0.7} C390 340, 290 400, ${aps[0].x + aps[0].r * 0.6} ${aps[0].y - aps[0].r * 0.6}`,
+    `M${gw.x} ${gw.y + gw.r} C${gw.x} 360, ${gw.x} 420, ${aps[1].y - aps[1].r}`,
+    `M${gw.x + gw.r * 0.7} ${gw.y + gw.r * 0.7} C610 340, 710 400, ${aps[2].x - aps[2].r * 0.6} ${aps[2].y - aps[2].r * 0.6}`,
+  ]
+  uplinkPaths.forEach((d, i) => addLink(d, 'uplink', COLOR.ok, 2, false, true, i === 1 ? 'uplink' : ''))
+  // distnode link
+  addLink(`M${gw.x + gw.r + 4} ${gw.y} L${dist.x - dist.r - 4} ${dist.y}`, 'wired', COLOR.ok, 1.5, false, true)
+
+  // --- internet ---
+  const inetG = mk('g', { transform: `translate(${internet.x} ${internet.y})`, class: 'topo-node' }, svg)
+  order.push(inetG)
+  mk('circle', { r: 42, fill: COLOR.ok, opacity: 0.08 }, inetG)
+  mk('circle', { r: 38, fill: 'none', stroke: COLOR.ok, 'stroke-width': 1.2, 'stroke-dasharray': '3 7', opacity: 0.55 }, inetG)
+  mk('circle', { r: 3, fill: COLOR.ok, cx: 0, cy: -38 }, inetG)
+  mk('animateTransform', { attributeName: 'transform', type: 'rotate', from: '0', to: '360', dur: '24s', repeatCount: 'indefinite' }, inetG)
+  mk('circle', { r: 28, fill: canvas, stroke: COLOR.ok, 'stroke-width': 2 }, inetG)
+  drawIcon('cloud', 0, 0, 22, COLOR.ok, inetG)
+  const inetLabel = mk('text', { x: 36, y: 6, class: 'topo-label', fill: 'rgb(var(--text-primary))' }, svg)
+  inetLabel.textContent = 'Internet'
+  order.push(inetLabel)
+
+  // --- routers ---
+  allRouters.forEach((r, i) => {
+    const g = mk('g', { transform: `translate(${r.x} ${r.y})`, class: 'topo-node' }, svg)
     order.push(g)
-    svg.appendChild(g)
+    const isGw = i === 0
+    const isWarn = r.status === 'warn'
+    if (isGw) mk('circle', { r: r.r + 18, fill: COLOR.accent, opacity: 0.12 }, g)
+    if (isWarn) {
+      const pulse = mk('circle', { r: r.r + 8, fill: 'none', stroke: COLOR.warn, 'stroke-width': 2 }, g)
+      mk('animate', { attributeName: 'r', values: `${r.r + 8};${r.r + 22}`, dur: '1.6s', repeatCount: 'indefinite' }, pulse)
+      mk('animate', { attributeName: 'opacity', values: '0.6;0', dur: '1.6s', repeatCount: 'indefinite' }, pulse)
+    }
+    const gradId = 'topo-gw-grad' + (i === 0 ? '-gw' : '')
+    if (isGw) {
+      const defs = mk('defs', {}, svg)
+      const grad = mk('linearGradient', { id: gradId, x1: 0, y1: 0, x2: 1, y2: 1 }, defs)
+      mk('stop', { offset: '0%', 'stop-color': COLOR.accent, 'stop-opacity': 0.28 }, grad)
+      mk('stop', { offset: '100%', 'stop-color': COLOR.tunnel, 'stop-opacity': 0.28 }, grad)
+    }
+    mk('circle', { r: r.r, fill: isGw ? `url(#${gradId})` : canvas, stroke: isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--border-strong))', 'stroke-width': isGw || isWarn ? 2 : 1.5 }, g)
+    // status ring
+    const R = r.r + 6, C = 2 * Math.PI * R
+    const target = C * (1 - r.health / 100)
+    const ring = mk('circle', { r: R, fill: 'none', stroke: isWarn ? COLOR.warn : COLOR.ok, 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-dasharray': C, 'stroke-dashoffset': C, transform: 'rotate(-90)' }, g)
+    ring.style.transition = 'stroke-dashoffset 900ms ease'
+    setTimeout(() => ring.style.strokeDashoffset = target, 100 + i * 120)
+    drawIcon(isGw ? 'router' : 'ap', 0, 0, isGw ? 34 : 28, isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--text-primary))', g)
+
+    const label = mk('text', { x: r.x - (isGw ? 54 : 60), y: r.y + (isGw ? 62 : 44), 'text-anchor': 'end', class: 'topo-label' }, svg)
+    label.textContent = r.name
+    order.push(label)
+    const sub = mk('text', { x: r.x - (isGw ? 54 : 60), y: r.y + (isGw ? 78 : 60), 'text-anchor': 'end', class: 'topo-label-sub' }, svg)
+    sub.textContent = `${r.clients} clients · ${r.health}%`
+    order.push(sub)
+  })
+
+  // --- peers WG ---
+  peers.forEach((p, i) => {
+    const g = mk('g', { transform: `translate(${p.x} ${p.y})`, class: 'topo-node' }, svg)
+    order.push(g)
+    if (!reduceMotion) {
+      const pulse = mk('circle', { r: 22, fill: 'none', stroke: COLOR.tunnel, 'stroke-width': 1.5 }, g)
+      mk('animate', { attributeName: 'r', values: '18;27', dur: '2.2s', repeatCount: 'indefinite' }, pulse)
+      mk('animate', { attributeName: 'opacity', values: '0.5;0', dur: '2.2s', repeatCount: 'indefinite' }, pulse)
+    }
+    mk('rect', { x: -18, y: -18, width: 36, height: 36, rx: 11, fill: canvas, stroke: COLOR.tunnel, 'stroke-width': 1.5 }, g)
+    drawIcon(p.type, 0, 0, 20, COLOR.tunnel, g)
+    const label = mk('text', { x: p.x + (i % 2 ? -26 : 26), y: p.y - 4, 'text-anchor': i % 2 ? 'end' : 'start', class: 'topo-label' }, svg)
+    label.textContent = p.name
+    order.push(label)
+    const sub = mk('text', { x: p.x + (i % 2 ? -26 : 26), y: p.y + 11, 'text-anchor': i % 2 ? 'end' : 'start', class: 'topo-label-sub', fill: COLOR.tunnel }, svg)
+    sub.textContent = 'WireGuard'
+    order.push(sub)
+    addLink(`M${p.x} ${p.y + 18} C${p.x} 80, ${gw.x} 80, ${gw.x} ${gw.y - gw.r - 10}`, 'wg', COLOR.tunnel, 2, false, true)
+  })
+
+  // --- distnode (switch inferido) ---
+  const distG = mk('g', { transform: `translate(${dist.x} ${dist.y})`, class: 'topo-node' }, svg)
+  order.push(distG)
+  mk('circle', { r: dist.r + 5, fill: 'none', stroke: 'rgb(var(--text-muted))', 'stroke-width': 1, 'stroke-dasharray': '2 5', opacity: 0.6 }, distG)
+  mk('circle', { r: dist.r, fill: canvas, stroke: 'rgb(var(--text-muted))', 'stroke-width': 1.5, 'stroke-dasharray': '4 4' }, distG)
+  drawIcon('switch', 0, 0, 22, 'rgb(var(--text-muted))', distG)
+  const distLabel = mk('text', { x: dist.x, y: dist.y - 34, 'text-anchor': 'middle', class: 'topo-label' }, svg)
+  distLabel.textContent = t('topo.wired')
+  order.push(distLabel)
+
+  // --- chips de dispositivos ---
+  const chips = [
+    // cableados del distnode (verde)
+    { id: 'c1', name: 'tv-salon', type: 'tv', x: 710, y: 180, wired: true, hub: dist, band: '' },
+    { id: 'c2', name: 'printer', type: 'tv', x: 700, y: 290, wired: true, hub: dist, band: '' },
+    // cableados del gateway oeste
+    { id: 'c3', name: 'pve', type: 'laptop', x: 280, y: 230, wired: true, hub: gw, band: '' },
+    { id: 'c4', name: 'ct-home', type: 'laptop', x: 320, y: 300, wired: true, hub: gw, band: '' },
+    // wifi gateway
+    { id: 'c5', name: 'laptop-nacho', type: 'laptop', x: 620, y: 150, wired: false, hub: gw, band: '5 GHz', weak: false },
+    { id: 'c6', name: 'phone', type: 'phone', x: 410, y: 150, wired: false, hub: gw, band: '5 GHz', weak: false },
+    { id: 'c7', name: 'tablet', type: 'phone', x: 580, y: 120, wired: false, hub: gw, band: '2.4 GHz', weak: false },
+    // wifi AP salon
+    { id: 'c8', name: 'chromecast', type: 'tv', x: 150, y: 410, wired: false, hub: aps[0], band: '2.4 GHz', weak: true },
+    { id: 'c9', name: 'consola', type: 'tv', x: 230, y: 380, wired: false, hub: aps[0], band: '5 GHz', weak: false },
+    { id: 'c10', name: 'kindle', type: 'phone', x: 120, y: 500, wired: false, hub: aps[0], band: '2.4 GHz', weak: true },
+    // wifi AP pasillo
+    { id: 'c11', name: 'cam-patio', type: 'tv', x: 430, y: 580, wired: false, hub: aps[1], band: '2.4 GHz', weak: true },
+    { id: 'c12', name: 'robot', type: 'tv', x: 570, y: 600, wired: false, hub: aps[1], band: '2.4 GHz', weak: false },
+    { id: 'c13', name: 'sensor', type: 'phone', x: 500, y: 620, wired: false, hub: aps[1], band: '2.4 GHz', weak: true },
+    // wifi AP dormitorio
+    { id: 'c14', name: 'phone-y', type: 'phone', x: 860, y: 410, wired: false, hub: aps[2], band: '5 GHz', weak: false },
+    { id: 'c15', name: 'laptop-y', type: 'laptop', x: 900, y: 500, wired: false, hub: aps[2], band: '5 GHz', weak: false },
+  ]
+
+  chips.forEach((c, i) => {
+    const g = mk('g', { transform: `translate(${c.x} ${c.y})`, class: 'topo-node' }, svg)
+    order.push(g)
+    const S = c.wired ? 26 : 24
+    const half = S / 2
+    const stroke = c.wired ? COLOR.ok : 'rgb(var(--border-strong))'
+    mk('rect', { x: -half, y: -half, width: S, height: S, rx: 7, fill: canvas, stroke, 'stroke-width': c.wired ? 1.3 : 1.1 }, g)
+    drawIcon(c.type, 0, 0, 16, c.wired ? COLOR.ok : 'rgb(var(--text-primary))', g)
+    if (!c.wired) {
+      const bandColor = c.weak ? COLOR.warn : c.band === '5 GHz' ? COLOR.accent : COLOR.info
+      mk('circle', { cx: half - 2, cy: half - 2, r: 3.8, fill: bandColor, stroke: canvas, 'stroke-width': 1.4 }, g)
+    }
+    const title = mk('title', {}, g)
+    title.textContent = c.name
+    // link
+    const target = c.wired ? { x: c.hub.x + (c.hub === dist ? -dist.r : c.hub === gw ? -gw.r : 0), y: c.hub.y } : { x: c.hub.x, y: c.hub.y }
+    const kind = c.wired ? 'wired' : 'uplink'
+    const color = c.wired ? COLOR.ok : COLOR.warn
+    addLink(`M${c.x} ${c.y} L${target.x} ${target.y}`, kind, color, c.wired ? 1.2 : 1, !c.wired, false)
   })
 
   // coreografía secuencial
@@ -311,68 +472,98 @@ function buildTopo() {
   let delay = 0
   order.forEach(el => {
     setTimeout(() => el.classList.add('on'), delay)
-    delay += el.classList.contains('topo-edge') ? 160 : 220
+    delay += el.classList.contains('topo-edge') ? 160 : 90
   })
 }
 
-/* ---------- stage 3: routers ---------- */
+function rebuildTopo() {
+  if (!topoBuilt) return
+  topoBuilt = false
+  const svg = document.getElementById('topoSvg')
+  svg.innerHTML = ''
+  buildTopo()
+}
+
+/* ---------- stage 3: routers cards fieles ---------- */
 const ROUTERS = [
-  { name: 'GW-Flint2', model: 'GL.iNet Flint 2', cpu: 23, mem: 48, temp: 52, up: '34d 6h' },
-  { name: 'AP-Estudio', model: 'Xiaomi AX6', cpu: 41, mem: 63, temp: 78, up: '12d 2h', warn: true },
-  { name: 'AP-Salon', model: 'Xiaomi AX6', cpu: 18, mem: 55, temp: 49, up: '34d 6h' },
-  { name: 'AP-Dormitorio', model: 'Xiaomi AX6', cpu: 33, mem: 59, temp: 55, up: '34d 5h' },
+  { id: 'gw', name: 'GW-Flint2', model: 'GL.iNet Flint 2', role: 'Principal', cpu: 12, ram: 34, temp: 52, clients: 34, health: 92, status: 'ok', uptime: '34d 6h', spark: [12, 18, 14, 22, 16, 20, 13] },
+  { id: 'ap1', name: 'AP-Salon', model: 'Xiaomi AX6', role: 'AP', cpu: 23, ram: 51, temp: 49, clients: 18, health: 88, status: 'ok', uptime: '14d 2h', spark: [21, 25, 30, 28, 35, 32, 29] },
+  { id: 'ap2', name: 'AP-Pasillo', model: 'Xiaomi AX6', role: 'AP', cpu: 41, ram: 63, temp: 78, clients: 10, health: 71, status: 'warn', uptime: '9d 7h', spark: [35, 42, 58, 55, 61, 48, 52] },
+  { id: 'ap3', name: 'AP-Dormitorio', model: 'Xiaomi AX6', role: 'AP', cpu: 18, ram: 48, temp: 44, clients: 5, health: 95, status: 'ok', uptime: '32d 5h', spark: [10, 14, 12, 18, 15, 13, 11] },
 ]
 let routersBuilt = false
+let routersPlayed = false
 function buildRouters() {
-  if (routersBuilt) return
-  routersBuilt = true
   const grid = document.getElementById('routerGrid')
-  grid.innerHTML = ROUTERS.map(r => `
-    <div class="rcard card" style="background:rgb(var(--elevated)/0.4);">
+  const C = 2 * Math.PI * 31 // R=31 (size 56 /2 +stroke? inner r ~31)
+  grid.innerHTML = ROUTERS.map(r => {
+    const isWarn = r.status === 'warn'
+    const statusColor = isWarn ? 'rgb(var(--warn))' : 'rgb(var(--ok))'
+    const healthDash = C * (1 - r.health / 100)
+    const sparkPath = r.spark.map((v, i) => `${i === 0 ? 'M' : 'L'}${(i / (r.spark.length - 1)) * 100} ${28 - (v / 70) * 28}`).join(' ')
+    return `
+    <div class="rcard card ${isWarn ? 'warn' : ''}">
       <div class="rt">
-        <span class="name font-mono">${r.name}</span>
-        <span class="caption text-muted">${r.model}</span>
+        <div class="nameblock">
+          <div class="iconbox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h16v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z"/><path d="M8 6h8"/><path d="M6 9h12"/><path d="M10 3h4"/></svg>
+          </div>
+          <div>
+            <span class="name">${r.name}</span>
+            <span class="model">${r.model}</span>
+            <span class="rolepill">${t(r.role === 'Principal' ? 'routers.roleGW' : 'routers.roleAP')}</span>
+          </div>
+        </div>
+        <div class="ring-wrap" style="width:56px;height:56px;">
+          <svg width="56" height="56" viewBox="0 0 56 56" style="transform:rotate(-90deg);">
+            <circle cx="28" cy="28" r="31" fill="none" stroke="rgb(var(--border))" stroke-width="5"/>
+            <circle class="router-health-ring" cx="28" cy="28" r="31" fill="none" stroke="${statusColor}" stroke-width="5" stroke-linecap="round"
+              stroke-dasharray="${C}" stroke-dashoffset="${C}" data-target="${healthDash}"/>
+          </svg>
+          <div class="ring-center" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+            <span class="font-mono" style="font-size:0.78rem;font-weight:700;">${r.health}</span>
+          </div>
+        </div>
       </div>
-      <div class="meters">
-        <div class="meter"><div class="ml"><span>${t('routers.cpu')}</span><span class="font-mono" data-v="${r.cpu}">0%</span></div><div class="bar"><i data-w="${r.cpu}"></i></div></div>
-        <div class="meter"><div class="ml"><span>${t('routers.mem')}</span><span class="font-mono" data-v="${r.mem}">0%</span></div><div class="bar"><i data-w="${r.mem}"></i></div></div>
-        <div class="meter ${r.warn ? 'warn' : ''}"><div class="ml"><span>${t('routers.temp')}</span><span class="font-mono" data-v="${r.temp}" data-suf="°C">0°C</span></div><div class="bar"><i data-w="${Math.min(100, r.temp)}"></i></div></div>
+      <div class="minimetrics">
+        <div class="${r.cpu > 40 ? 'hot' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 15h3"/><path d="M1 9h3"/><path d="M1 15h3"/></svg> CPU <span class="font-mono">${r.cpu}%</span></div>
+        <div class="${r.ram > 60 ? 'hot' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h6"/><path d="M9 11h6"/></svg> RAM <span class="font-mono">${r.ram}%</span></div>
+        <div class="${r.temp > 70 ? 'hot' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0"/></svg> ${t('routers.temp')} <span class="font-mono">${r.temp}°C</span></div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${t('routers.clients')} <span class="font-mono">${r.clients}</span></div>
       </div>
-      <div class="caption text-muted" style="margin-top:0.6rem;">${t('routers.up')} <span class="font-mono">${r.up}</span></div>
+      <div class="bottom">
+        <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><path d="${sparkPath}" vector-effect="non-scaling-stroke"/></svg>
+        <span class="font-mono" style="font-size:0.75rem;color:rgb(var(--text-muted));">${r.uptime}</span>
+        <span class="statuspill ${r.status}"><span class="dot"></span>${t(r.status === 'ok' ? 'routers.online' : 'routers.warn')}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem;color:rgb(var(--text-muted));"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
     </div>
-  `).join('')
+    `
+  }).join('')
+  routersBuilt = true
 }
+
+function fillRouterBars(instant) {
+  const grid = document.getElementById('routerGrid')
+  grid.querySelectorAll('.router-health-ring').forEach(ring => {
+    const target = ring.dataset.target
+    if (instant || reduceMotion) ring.style.strokeDashoffset = target
+    else setTimeout(() => ring.style.strokeDashoffset = target, 80)
+  })
+}
+
 function renderRouterNames() {
   if (!routersBuilt) return
-  routersBuilt = false
-  buildRouters() // reconstruye con labels del nuevo idioma
-  if (routersPlayed) {
-    // ya animado antes: estado final sin re-animar
-    const grid = document.getElementById('routerGrid')
-    grid.querySelectorAll('.bar i').forEach(bar => { bar.style.width = bar.dataset.w + '%' })
-    grid.querySelectorAll('.ml span[data-v]').forEach(sp => {
-      const v = parseFloat(sp.dataset.v)
-      const suf = sp.dataset.suf || '%'
-      sp.textContent = Math.round(v) + suf
-    })
-  }
+  buildRouters()
+  if (routersPlayed) fillRouterBars(true)
 }
-let routersPlayed = false
+
 function playRouters() {
   buildRouters()
-  if (routersPlayed) return
+  routersBuilt = true
+  if (routersPlayed) { fillRouterBars(true); return }
   routersPlayed = true
-  const grid = document.getElementById('routerGrid')
-  grid.querySelectorAll('.bar i').forEach(bar => {
-    const w = bar.dataset.w
-    if (reduceMotion) { bar.style.width = w + '%'; return }
-    setTimeout(() => { bar.style.width = w + '%' }, 80)
-  })
-  grid.querySelectorAll('.ml span[data-v]').forEach(sp => {
-    const v = parseFloat(sp.dataset.v)
-    const suf = sp.dataset.suf || '%'
-    animateNumber(sp, v, { duration: 900, format: x => Math.round(x) + suf })
-  })
+  fillRouterBars(false)
 }
 
 /* ---------- stage 4: adguard ---------- */
@@ -433,7 +624,6 @@ function renderAlerts() {
       <span><span class="t">${a.text}</span><span class="s" style="display:block;">${a.sub}</span></span>
     </div>
   `).join('')
-  // si ya se reprodujo, mantener visibles tras el re-render por cambio de idioma
   if (alertsPlayed) feed.querySelectorAll('.alert-item').forEach(el => el.classList.add('on'))
 }
 let alertsPlayed = false
@@ -454,9 +644,7 @@ let currentStage = -1
 function setStage(i) {
   if (i === currentStage) return
   currentStage = i
-  document.querySelectorAll('.stage').forEach((s, idx) => {
-    s.classList.toggle('active', idx === i)
-  })
+  document.querySelectorAll('.stage').forEach((s, idx) => s.classList.toggle('active', idx === i))
   document.querySelectorAll('.tstep').forEach(s => {
     s.style.opacity = parseInt(s.dataset.stage, 10) === i ? '1' : ''
   })
@@ -467,9 +655,7 @@ function initTheater() {
   const steps = [...document.querySelectorAll('.tstep')]
   if (!('IntersectionObserver' in window)) { setStage(0); return }
   const io = new IntersectionObserver(entries => {
-    entries.forEach(en => {
-      if (en.isIntersecting) setStage(parseInt(en.target.dataset.stage, 10))
-    })
+    entries.forEach(en => { if (en.isIntersecting) setStage(parseInt(en.target.dataset.stage, 10)) })
   }, { rootMargin: '-42% 0px -42% 0px', threshold: 0 })
   steps.forEach(s => io.observe(s))
   setStage(0)
@@ -478,14 +664,9 @@ function initTheater() {
 /* ---------- reveals on scroll ---------- */
 function initReveals() {
   const els = document.querySelectorAll('.reveal')
-  if (reduceMotion || !('IntersectionObserver' in window)) {
-    els.forEach(e => e.classList.add('in'))
-    return
-  }
+  if (reduceMotion || !('IntersectionObserver' in window)) { els.forEach(e => e.classList.add('in')); return }
   const io = new IntersectionObserver(entries => {
-    entries.forEach(en => {
-      if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target) }
-    })
+    entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target) } })
   }, { threshold: 0.12 })
   els.forEach(e => io.observe(e))
 }
@@ -493,12 +674,6 @@ function initReveals() {
 /* ---------- widget apariencia ---------- */
 const MODE_KEY = 'netpulse-web-theme-mode'
 const ACCENT_KEY = 'netpulse-web-accent'
-const ACCENTS = {
-  cyan:    { dark: '34 211 238', light: '8 145 178' },
-  violet:  { dark: '167 139 250', light: '124 58 237' },
-  emerald: { dark: '52 211 153', light: '5 150 105' },
-  amber:   { dark: '251 191 36', light: '217 119 6' },
-}
 let themeMode = 'dark'
 let accentId = 'cyan'
 
@@ -514,62 +689,31 @@ function applyTheme() {
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = light ? '#F3F5F9' : '#070B12'
 }
-function applyAccent() {
-  const root = document.documentElement
-  root.dataset.accent = accentId
-  // el acento cyan es el :root por defecto; los demás vía data-accent + CSS
-}
+function applyAccent() { document.documentElement.dataset.accent = accentId }
 function updateAppearancePanel() {
-  document.querySelectorAll('#themeSeg button').forEach(b => {
-    b.classList.toggle('on', b.dataset.mode === themeMode)
-  })
-  document.querySelectorAll('#accentSwatches .swatch').forEach(b => {
-    b.classList.toggle('on', b.dataset.accent === accentId)
-  })
+  document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === themeMode))
+  document.querySelectorAll('#accentSwatches .swatch').forEach(b => b.classList.toggle('on', b.dataset.accent === accentId))
 }
 function setMode(m) {
-  themeMode = m
-  writeStore(MODE_KEY, m)
-  applyTheme()
-  updateAppearancePanel()
+  themeMode = m; writeStore(MODE_KEY, m); applyTheme(); updateAppearancePanel()
 }
 function setAccent(a) {
-  accentId = a
-  writeStore(ACCENT_KEY, a)
-  applyAccent()
-  updateAppearancePanel()
+  accentId = a; writeStore(ACCENT_KEY, a); applyAccent(); updateAppearancePanel()
 }
-// expuestos para QA
-window.setMode = setMode
-window.setAccent = setAccent
+window.setMode = setMode; window.setAccent = setAccent
 
 function initAppearance() {
   themeMode = readStore(MODE_KEY) || 'dark'
   accentId = readStore(ACCENT_KEY) || 'cyan'
-  applyTheme()
-  applyAccent()
-  updateAppearancePanel()
-
+  applyTheme(); applyAccent(); updateAppearancePanel()
   const fab = document.getElementById('appFab')
   const panel = document.getElementById('appPanel')
-  fab.addEventListener('click', () => {
-    panel.classList.toggle('open')
-    fab.setAttribute('aria-expanded', panel.classList.contains('open'))
-  })
-  document.addEventListener('click', e => {
-    if (!panel.contains(e.target) && !fab.contains(e.target)) panel.classList.remove('open')
-  })
+  fab.addEventListener('click', () => { panel.classList.toggle('open'); fab.setAttribute('aria-expanded', panel.classList.contains('open')) })
+  document.addEventListener('click', e => { if (!panel.contains(e.target) && !fab.contains(e.target)) panel.classList.remove('open') })
   document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.classList.remove('open') })
-
-  document.querySelectorAll('#themeSeg button').forEach(b => {
-    b.addEventListener('click', () => setMode(b.dataset.mode))
-  })
-  document.querySelectorAll('#accentSwatches .swatch').forEach(b => {
-    b.addEventListener('click', () => setAccent(b.dataset.accent))
-  })
-  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-    if (themeMode === 'system') applyTheme()
-  })
+  document.querySelectorAll('#themeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
+  document.querySelectorAll('#accentSwatches .swatch').forEach(b => b.addEventListener('click', () => setAccent(b.dataset.accent)))
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themeMode === 'system') applyTheme() })
 }
 
 /* ---------- copiar comando ---------- */
@@ -578,18 +722,10 @@ function initCopy() {
   if (!btn) return
   btn.addEventListener('click', async () => {
     const cmd = document.getElementById('installCmd').textContent
-    try {
-      await navigator.clipboard.writeText(cmd)
-    } catch {
-      // fallback sin clipboard API
-      const ta = document.createElement('textarea')
-      ta.value = cmd
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      ta.remove()
+    try { await navigator.clipboard.writeText(cmd) } catch {
+      const ta = document.createElement('textarea'); ta.value = cmd; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove()
     }
-    const orig = btn.textContent
+    const orig = t('misc.copy')
     btn.textContent = t('misc.copied')
     setTimeout(() => { btn.textContent = orig }, 1600)
   })
@@ -599,13 +735,13 @@ function initCopy() {
 function initKofi() {
   const link = document.getElementById('kofiLink')
   // TODO(nacho): URL definitiva de Ko-fi — pendiente de que la cree.
-  // Cuando exista, ponerla aquí y listo. Mientras tanto enlaza al repositorio.
   link.href = 'https://github.com/gnacho/netpulse'
 }
 
 /* ---------- boot ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   initAppearance()
+  initBackgroundCanvas()
   renderTicker()
   renderAlerts()
   initReveals()
