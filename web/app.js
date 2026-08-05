@@ -48,74 +48,267 @@ function mkSvgEl(tag, attrs = {}, parent) {
   return e
 }
 
-/* ---------- fondo canvas dinámico (red de partículas) ---------- */
+/* ---------- fondo PCB (placa de circuito con señales) ---------- */
+function mulberry32(seed) {
+  let a = seed >>> 0
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
 function initBackgroundCanvas() {
   const canvas = document.getElementById('bgCanvas')
-  if (!canvas || reduceMotion) return
+  if (!canvas) return
   const ctx = canvas.getContext('2d')
-  let w, h, particles = [], mx = 0, my = 0, targetMx = 0, targetMy = 0
+  const reduce = reduceMotion
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  let w = 0, h = 0
+  let chips = [], traces = [], pulses = [], vias = []
+  let mx = -1e4, my = -1e4, tmx = -1e4, tmy = -1e4
+  const rand = mulberry32(0x5EED)
+  const G = 12 // rejilla base de la placa
+
+  const pick = (arr) => arr[Math.floor(rand() * arr.length)]
+  const alphaColor = (c, a) => c.replace(')', ` / ${a})`)
+
+  function edgePoint(c) {
+    const side = Math.floor(rand() * 4)
+    if (side === 0) return { x: c.x + c.w / 2, y: c.y - 2 }
+    if (side === 1) return { x: c.x - 2, y: c.y + c.h / 2 }
+    if (side === 2) return { x: c.x + c.w / 2, y: c.y + c.h + 2 }
+    return { x: c.x + c.w + 2, y: c.y + c.h / 2 }
+  }
+
+  function chamfer(a, b, c, d) {
+    const dx1 = Math.sign(b.x - a.x), dy1 = Math.sign(b.y - a.y)
+    const dx2 = Math.sign(c.x - b.x), dy2 = Math.sign(c.y - b.y)
+    if (dx1 === dx2 && dy1 === dy2) return [b]
+    if (dx1 === -dx2 && dy1 === -dy2) return [b]
+    const e = Math.min(d, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2, Math.abs(c.x - b.x) / 2, Math.abs(c.y - b.y) / 2)
+    if (e < 2) return [b]
+    return [
+      { x: b.x - dx1 * e, y: b.y - dy1 * e },
+      { x: b.x + dx2 * e, y: b.y + dy2 * e },
+    ]
+  }
+
+  function routePts(sx, sy, ex, ey) {
+    const pts = [{ x: sx, y: sy }]
+    const style = rand()
+    if (style < 0.32) {
+      pts.push({ x: ex, y: sy }, { x: ex, y: ey })
+    } else if (style < 0.64) {
+      pts.push({ x: sx, y: ey }, { x: ex, y: ey })
+    } else {
+      const k = 0.35 + rand() * 0.3
+      const mx0 = sx + (ex - sx) * k
+      const my0 = sy + (ey - sy) * k
+      if (rand() < 0.5) pts.push({ x: mx0, y: sy }, { x: mx0, y: ey })
+      else pts.push({ x: sx, y: my0 }, { x: ex, y: my0 })
+      pts.push({ x: ex, y: ey })
+    }
+    if (pts.length > 2) {
+      const ch = 5 + rand() * 6
+      const out = [pts[0]]
+      for (let i = 1; i < pts.length - 1; i++) out.push(...chamfer(pts[i - 1], pts[i], pts[i + 1], ch))
+      out.push(pts[pts.length - 1])
+      return out
+    }
+    return pts
+  }
+
+  function buildLayout() {
+    chips = []; traces = []; pulses = []; vias = []
+    const count = Math.min(18, Math.max(8, Math.round((w * h) / 150000)))
+    let guard = 0
+    while (chips.length < count && guard++ < 800) {
+      const cw = 18 + Math.floor(rand() * 14)
+      const chh = Math.round(cw * (0.7 + rand() * 0.6))
+      const x = Math.round((18 + rand() * (w - 36 - cw)) / G) * G
+      const y = Math.round((18 + rand() * (h - 36 - chh)) / G) * G
+      const clash = chips.some((p) => Math.abs(p.x - x) < p.w * 0.7 + cw * 0.7 + 28 && Math.abs(p.y - y) < p.h * 0.7 + chh * 0.7 + 28)
+      if (clash) continue
+      chips.push({ x, y, w: cw, h: chh, kind: rand() < 0.18 ? 'gw' : 'chip' })
+    }
+    const pairs = Math.min(chips.length * 2, 34)
+    for (let i = 0; i < pairs && chips.length > 1; i++) {
+      const a = pick(chips), b = pick(chips)
+      if (a === b) continue
+      const pa = edgePoint(a), pb = edgePoint(b)
+      traces.push({ pts: routePts(pa.x, pa.y, pb.x, pb.y) })
+      vias.push(pa, pb)
+    }
+    traces.forEach((tr) => {
+      tr.lens = [0]
+      let acc = 0
+      for (let i = 1; i < tr.pts.length; i++) {
+        acc += Math.hypot(tr.pts[i].x - tr.pts[i - 1].x, tr.pts[i].y - tr.pts[i - 1].y)
+        tr.lens.push(acc)
+      }
+      tr.total = acc
+    })
+    const colors = ['accent', 'tunnel', 'ok', 'info', 'warn']
+    traces.forEach((tr, ti) => {
+      if (tr.total < 70) return
+      const n = tr.total > 300 ? 2 : 1
+      for (let k = 0; k < n; k++) pulses.push({ ti, off: rand(), dur: 2.4 + rand() * 3.6, color: pick(colors) })
+    })
+  }
+
+  function ptAt(tr, dist) {
+    const pts = tr.pts
+    for (let i = 1; i < pts.length; i++) {
+      const s = tr.lens[i - 1], e = tr.lens[i]
+      if (dist <= e) {
+        const f = (e - s) ? (dist - s) / (e - s) : 0
+        return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f }
+      }
+    }
+    const last = pts[pts.length - 1]
+    return { x: last.x, y: last.y }
+  }
+
+  function roundRectPath(x, y, rw, rh, r) {
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.arcTo(x + rw, y, x + rw, y + rh, r)
+    ctx.arcTo(x + rw, y + rh, x, y + rh, r)
+    ctx.arcTo(x, y + rh, x, y, r)
+    ctx.arcTo(x, y, x + rw, y, r)
+    ctx.closePath()
+  }
+
+  function drawStatic() {
+    const border = getCssVar('border')
+    const borderStrong = getCssVar('border-strong')
+    const elevated = getCssVar('elevated')
+    const accent = getCssVar('accent')
+    ctx.clearRect(0, 0, w, h)
+
+    // rejilla de vías de fondo
+    ctx.fillStyle = border
+    ctx.globalAlpha = 0.05
+    for (let x = G * 4; x < w; x += G * 4) {
+      for (let y = G * 4; y < h; y += G * 4) ctx.fillRect(x - 0.6, y - 0.6, 1.2, 1.2)
+    }
+    ctx.globalAlpha = 1
+
+    // pistas base
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = borderStrong
+    ctx.globalAlpha = 0.18
+    ctx.lineWidth = 1
+    for (const tr of traces) {
+      ctx.beginPath()
+      ctx.moveTo(tr.pts[0].x, tr.pts[0].y)
+      for (let i = 1; i < tr.pts.length; i++) ctx.lineTo(tr.pts[i].x, tr.pts[i].y)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+
+    // vías / pads
+    for (const v of vias) {
+      ctx.fillStyle = accent
+      ctx.globalAlpha = 0.35
+      ctx.beginPath()
+      ctx.arc(v.x, v.y, 2.4, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = accent
+      ctx.globalAlpha = 0.5
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.arc(v.x, v.y, 4.4, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+
+    // chips IC
+    for (const c of chips) {
+      const isGw = c.kind === 'gw'
+      roundRectPath(c.x, c.y, c.w, c.h, 3)
+      ctx.fillStyle = elevated
+      ctx.globalAlpha = 0.7
+      ctx.fill()
+      ctx.strokeStyle = isGw ? accent : borderStrong
+      ctx.globalAlpha = isGw ? 0.55 : 0.3
+      ctx.lineWidth = 1
+      ctx.stroke()
+      // pin 1
+      ctx.fillStyle = isGw ? accent : borderStrong
+      ctx.globalAlpha = isGw ? 0.8 : 0.4
+      ctx.beginPath()
+      ctx.arc(c.x + 4, c.y + 4, 1.4, 0, Math.PI * 2)
+      ctx.fill()
+      // pines laterales
+      ctx.strokeStyle = borderStrong
+      ctx.globalAlpha = 0.35
+      ctx.lineWidth = 1
+      const pins = Math.max(2, Math.round(c.h / 9))
+      for (let i = 0; i < pins; i++) {
+        const yp = c.y + ((i + 0.5) / pins) * c.h
+        ctx.beginPath(); ctx.moveTo(c.x - 3, yp); ctx.lineTo(c.x, yp); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(c.x + c.w, yp); ctx.lineTo(c.x + c.w + 3, yp); ctx.stroke()
+      }
+      ctx.globalAlpha = 1
+    }
+  }
+
+  function draw(now) {
+    const t = now / 1000
+    drawStatic()
+    // pulsos de señal viajando por las pistas
+    const colors = { accent: getCssVar('accent'), tunnel: getCssVar('tunnel'), ok: getCssVar('ok'), info: getCssVar('info'), warn: getCssVar('warn') }
+    for (const p of pulses) {
+      const tr = traces[p.ti]
+      const frac = (p.off + t / p.dur) % 1
+      const pt = ptAt(tr, frac * tr.total)
+      ctx.save()
+      ctx.globalAlpha = 0.85
+      ctx.fillStyle = colors[p.color]
+      ctx.shadowColor = colors[p.color]
+      ctx.shadowBlur = 9
+      ctx.beginPath()
+      ctx.arc(pt.x, pt.y, 1.9, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    // sonda del cursor (brillo suave)
+    if (mx > -1000) {
+      const accent = getCssVar('accent')
+      const g = ctx.createRadialGradient(mx, my, 0, mx, my, 120)
+      g.addColorStop(0, alphaColor(accent, 0.06))
+      g.addColorStop(1, alphaColor(accent, 0))
+      ctx.fillStyle = g
+      ctx.fillRect(mx - 120, my - 120, 240, 240)
+    }
+  }
 
   function resize() {
-    w = canvas.width = window.innerWidth
-    h = canvas.height = window.innerHeight
-    const count = Math.min(120, Math.max(40, Math.floor((w * h) / 18000)))
-    particles = Array.from({ length: count }, () => ({
-      x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25,
-      r: 0.5 + Math.random() * 1.5, pulse: Math.random() * Math.PI * 2,
-    }))
+    w = window.innerWidth
+    h = window.innerHeight
+    canvas.width = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    buildLayout()
+    if (reduce) drawStatic()
   }
   resize()
   window.addEventListener('resize', resize)
-  document.addEventListener('mousemove', e => { targetMx = e.clientX; targetMy = e.clientY }, { passive: true })
-  document.addEventListener('touchmove', e => { if (e.touches[0]) { targetMx = e.touches[0].clientX; targetMy = e.touches[0].clientY } }, { passive: true })
-
-  function draw(t) {
-    mx += (targetMx - mx) * 0.05
-    my += (targetMy - my) * 0.05
-    ctx.clearRect(0, 0, w, h)
-    const accent = getCssVar('accent')
-    const tunnel = getCssVar('tunnel')
-    const ok = getCssVar('ok')
-
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i]
-      p.x += p.vx + (mx - w / 2) * 0.00004
-      p.y += p.vy + (my - h / 2) * 0.00004
-      if (p.x < -20) p.x = w + 20; if (p.x > w + 20) p.x = -20
-      if (p.y < -20) p.y = h + 20; if (p.y > h + 20) p.y = -20
-      const pulse = 0.5 + 0.5 * Math.sin(t * 0.001 + p.pulse)
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.r * pulse, 0, Math.PI * 2)
-      ctx.fillStyle = i % 7 === 0 ? accent : i % 5 === 0 ? tunnel : ok
-      ctx.globalAlpha = 0.25 + 0.25 * pulse
-      ctx.fill()
-    }
-
-    ctx.globalAlpha = 1
-    const connectDist = 130
-    for (let i = 0; i < particles.length; i++) {
-      let a = particles[i]
-      for (let j = i + 1; j < particles.length; j++) {
-        let b = particles[j]
-        const dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy
-        if (d2 < connectDist * connectDist) {
-          const d = Math.sqrt(d2)
-          ctx.beginPath()
-          ctx.moveTo(a.x, a.y)
-          ctx.lineTo(b.x, b.y)
-          const col = (i + j) % 3 === 0 ? accent : (i + j) % 3 === 1 ? tunnel : ok
-          ctx.strokeStyle = col
-          ctx.globalAlpha = 0.08 * (1 - d / connectDist)
-          ctx.lineWidth = 0.8
-          ctx.stroke()
-        }
-      }
-    }
-    ctx.globalAlpha = 1
-    requestAnimationFrame(draw)
+  document.addEventListener('mousemove', (e) => { tmx = e.clientX; tmy = e.clientY }, { passive: true })
+  document.addEventListener('touchmove', (e) => { if (e.touches[0]) { tmx = e.touches[0].clientX; tmy = e.touches[0].clientY } }, { passive: true })
+  document.addEventListener('mouseleave', () => { tmx = -1e4; tmy = -1e4 })
+  if (reduce) return
+  const lerp = () => { mx += (tmx - mx) * 0.08; my += (tmy - my) * 0.08 }
+  function loop(now) {
+    lerp()
+    draw(now)
+    requestAnimationFrame(loop)
   }
-  requestAnimationFrame(draw)
+  requestAnimationFrame(loop)
 }
 
 /* ---------- count-up hero ---------- */
