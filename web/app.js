@@ -137,7 +137,7 @@ function renderTicker() {
     `<span><i class="dot" style="background:rgb(var(--accent))"></i><i>${t('strip.down')}</i>&nbsp;<i class="font-mono">84.2 Mbps</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--tunnel))"></i><i>${t('strip.up')}</i>&nbsp;<i class="font-mono">12.6 Mbps</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--info))"></i><i>${t('strip.latency')}</i>&nbsp;<i class="font-mono">8 ms</i></span>`,
-    `<span><i class="dot" style="background:rgb(var(--text-secondary))"></i><i>${t('strip.devices')}</i>&nbsp;<i class="font-mono">67</i></span>`,
+    `<span><i class="dot" style="background:rgb(var(--text-secondary))"></i><i>${t('strip.devices')}</i>&nbsp;<i class="font-mono">65</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--danger))"></i><i>AdGuard</i>&nbsp;<i class="font-mono">60/65 ${t('adguard.clients')}</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--warn))"></i><i>DNS</i>&nbsp;<i class="font-mono">14 ms</i></span>`,
     `<span><i class="dot" style="background:rgb(var(--ok))"></i><i>WireGuard</i>&nbsp;<i class="font-mono">peer phone · ${t('alerts.ago')} 2 min</i></span>`,
@@ -246,92 +246,95 @@ let topoBuilt = false
 let routersBuilt = false
 let routersPlayed = false
 
-/* ===== datos demo canonicos ===== */
-const DEMO_WAN = {
-  plan: '600/600', downMbps: 84.2, upMbps: 12.6, latencyMs: 8, lossPct: 0.1,
-  publicIp: '185.75.x.x', isp: 'Digi', peakTodayMbps: 412, peakTodayTime: '21:14',
-  avgDownMbps: 61, total24h: '1.32',
-}
+/* ===== datos demo canonicos (demo-canon.json, D65-1) ===== */
+const DEMO_WAN = {"plan":"600/600 Mbps","downMbps":84.2,"upMbps":12.6,"latencyMs":8,"lossPct":0,"publicIp":"84.122.x.x","isp":"Digi","peakTodayMbps":412,"peakTodayTime":"21:14","avgDownMbps":61,"total24h":"1,32 TB"}
 const DEMO_WG = {
-  interface: 'wg0', subnet: '10.200.0.0/24', status: 'active',
+  interface: 'wg0', subnet: '10.0.0.1/24', status: 'active',
   peers: [
-    { id: 'phone', name: 'Pixel 8 Pro', type: 'movil', tunnelIp: '10.200.0.2', active: true, lastHandshake: '38s', rx: '1.2 GB', tx: '340 MB' },
-    { id: 'laptop', name: 'MacBook Air', type: 'portatil', tunnelIp: '10.200.0.3', active: true, lastHandshake: '2m', rx: '840 MB', tx: '120 MB' },
-    { id: 'nas', name: 'NAS Remoto', type: 'sitio', tunnelIp: '10.200.0.4', active: true, lastHandshake: '5m', rx: '4.1 GB', tx: '1.8 GB' },
-    { id: 'tablet', name: 'iPad', type: 'tablet', tunnelIp: '10.200.0.5', active: true, lastHandshake: '12m', rx: '210 MB', tx: '45 MB' },
-    { id: 'otro', name: 'Work laptop', type: 'portatil', tunnelIp: '10.200.0.6', active: true, lastHandshake: '1h', rx: '90 MB', tx: '12 MB' },
+    {"id":"pixel-8-pro","name":"Pixel 8 Pro","type":"movil","tunnelIp":"10.0.0.2","active":true,"lastHandshake":"hace 38 s","rx":"1,2 GB","tx":"214 MB"},
+    {"id":"macbook-air","name":"MacBook Air","type":"portatil","tunnelIp":"10.0.0.3","active":true,"lastHandshake":"hace 1 min","rx":"640 MB","tx":"88 MB"},
+    {"id":"ipad-air","name":"iPad Air","type":"tablet","tunnelIp":"10.0.0.4","active":false,"lastHandshake":"hace 2 días","rx":"3,1 GB","tx":"402 MB"},
+    {"id":"portatil-trabajo","name":"Portátil trabajo","type":"portatil","tunnelIp":"10.0.0.5","active":false,"lastHandshake":"hace 6 h","rx":"812 MB","tx":"121 MB"},
+    {"id":"casa-familia","name":"Casa familia","type":"sitio","tunnelIp":"10.0.0.6","active":false,"lastHandshake":"hace 9 días","rx":"12 GB","tx":"4,2 GB"},
   ],
 }
 const DEMO_DISTRIBUTION = [
-  { id: 'dist-lan3', kind: 'inferred', routerId: 'flint2', port: 'lan3', macCount: 8 },
-  { id: 'dist-lan4', kind: 'managed', routerId: 'flint2', port: 'lan4', macCount: 14, name: 'Switch 8P', ip: '192.168.1.10', lldp: { chassis: 'Switch 8P', mgmt: '192.168.1.10', caps: 'B', portDesc: 'Port 7' } },
-  { id: 'dist-pve', kind: 'hypervisor', routerId: 'flint2', port: 'lan2', macCount: 6, hostDeviceId: 'pve' },
-  { id: 'dist-salon', kind: 'inferred', routerId: 'salon', port: 'lan1', macCount: 5 },
+  {"id":"dist-flint2-lan3","kind":"inferred","routerId":"flint2","port":"lan3","macCount":8},
+  {"id":"dist-pve","kind":"hypervisor","routerId":"flint2","port":"lan5","macCount":11,"hostDeviceId":"pve","name":"Proxmox pve"},
+  {"id":"dist-living-lan3","kind":"managed","routerId":"living","port":"lan3","macCount":4,"name":"GS308E","ip":"192.168.8.13","mac":"28:C6:8E:1D:90:44","lldp":{"chassis":"GS308E","mgmt":"192.168.8.13","caps":"Bridge","portDesc":"ge5"}},
 ]
-
-const DEMO_DEVICES = (() => {
-  const types = ['ordenador', 'tv', 'movil', 'portatil', 'consola', 'iot', 'camara', 'altavoz', 'servidor', 'tablet', 'switch', 'desconocido']
-  const names = {
-    ordenador: ['pc-salon', 'pc-estudio', 'pc-dormitorio', 'imac', 'ryzen-ai'],
-    tv: ['tv-salon', 'tv-dormitorio', 'chromecast-salon'],
-    movil: ['Pixel-8-Pro', 'iPhone-15', 'Galaxy-S24', 'Xiaomi-14'],
-    portatil: ['MacBook-Air', 'ThinkPad', 'Framework', 'macbook-maria'],
-    consola: ['PS5', 'Steam-Deck', 'Switch'],
-    iot: ['termo', 'sensor-puerta', 'enchufe-jardin', 'aqara-humo'],
-    camara: ['camara-patio', 'camara-entrada', 'gato-cam'],
-    altavoz: ['sonos-salon', 'echo-dot', 'homepod-mini'],
-    servidor: ['pve', 'nas', 'docker-host', 'homeassistant'],
-    tablet: ['iPad', 'Tab-S9'],
-    switch: ['switch-8p', 'switch-cuarto'],
-    desconocido: ['?-01', '?-02'],
-  }
-  const devices = []
-  let id = 0
-  function add(name, type, band, opts = {}) {
-    const signal = band === 'cable' ? null : band === '5 GHz' ? -52 : -67
-    devices.push({
-      id: 'd' + (++id), name, type, manufacturer: opts.manufacturer || 'NetPulse', ip: `192.168.1.${100 + id}`,
-      mac: `a8:5e:45:${(id).toString(16).padStart(2, '0')}:00:00`, routerId: opts.routerId || 'flint2', band,
-      signalDbm: signal, trafficMbps: Math.random() * 35 + 0.5, online: true, sparkline: [],
-      port: band === 'cable' ? opts.port : null, attachTo: opts.attachTo, infra: opts.infra, lldp: opts.lldp,
-    })
-  }
-  // cableados directos del gateway
-  add('pc-salon', 'ordenador', 'cable', { port: 'lan1' })
-  add('tv-salon', 'tv', 'cable', { port: 'lan1' })
-  add('nas', 'servidor', 'cable', { port: 'lan1' })
-  add('pve', 'servidor', 'cable', { port: 'lan2', infra: 'hypervisor' })
-  add('docker-host', 'servidor', 'cable', { port: 'lan3', attachTo: 'dist-lan3' })
-  add('homeassistant', 'servidor', 'cable', { port: 'lan3', attachTo: 'dist-lan3' })
-  add('switch-8p', 'switch', 'cable', { port: 'lan4', attachTo: 'dist-lan4', lldp: { chassis: 'Switch 8P' } })
-  add('printer', 'iot', 'cable', { port: 'lan4', attachTo: 'dist-lan4' })
-  // CTs bajo pve
-  for (let i = 1; i <= 5; i++) add(`ct-${i}`, 'servidor', 'cable', { attachTo: 'pve', infra: 'ct' })
-  // hijos del switch gestionado
-  add('pc-estudio', 'ordenador', 'cable', { attachTo: 'switch-8p' })
-  add('camara-entrada', 'camara', 'cable', { attachTo: 'switch-8p' })
-  // wifi gateway
-  for (let i = 0; i < 9; i++) add(`gw-wifi-${i}`, ['movil', 'portatil', 'tablet', 'iot'][i % 4], i % 2 ? '5 GHz' : '2.4 GHz', { routerId: 'flint2' })
-  // salon wifi
-  for (let i = 0; i < 11; i++) add(`salon-wifi-${i}`, ['movil', 'tv', 'consola', 'altavoz', 'iot'][i % 5], i % 3 ? '5 GHz' : '2.4 GHz', { routerId: 'salon' })
-  // pasillo wifi
-  for (let i = 0; i < 7; i++) add(`pasillo-wifi-${i}`, ['movil', 'tablet', 'iot', 'camara'][i % 4], '2.4 GHz', { routerId: 'pasillo' })
-  // dormitorio wifi
-  for (let i = 0; i < 9; i++) add(`dorm-wifi-${i}`, ['movil', 'portatil', 'altavoz', 'iot'][i % 4], '5 GHz', { routerId: 'dormitorio' })
-  // cableados salon
-  add('chromecast-salon', 'tv', 'cable', { routerId: 'salon', port: 'lan1', attachTo: 'dist-salon' })
-  add('ap-salon-uplink', 'switch', 'cable', { routerId: 'salon', port: 'lan2' })
-  // algunos weak
-  devices[devices.length - 3].signalDbm = -71
-  devices[devices.length - 6].signalDbm = -69
-  return devices
-})()
-
+const DEMO_DEVICES = [
+  {"id":"imac-salon","name":"iMac Salón","type":"ordenador","manufacturer":"Apple","ip":"192.168.8.21","mac":"A4:83:E7:21:0B:3C","routerId":"living","band":"5 GHz","signalDbm":-48,"trafficMbps":32.4,"online":true},
+  {"id":"tv-samsung","name":"TV Samsung","type":"tv","manufacturer":"Samsung","ip":"192.168.8.34","mac":"8C:EA:48:5D:2F:91","routerId":"living","band":"5 GHz","signalDbm":-52,"trafficMbps":18.1,"online":true},
+  {"id":"pixel-8-pro","name":"Pixel 8 Pro","type":"movil","manufacturer":"Google","ip":"192.168.8.45","mac":"F2:6D:19:A8:44:C2","routerId":"flint2","band":"5 GHz","signalDbm":-41,"trafficMbps":6.2,"online":true},
+  {"id":"macbook-air","name":"MacBook Air","type":"portatil","manufacturer":"Apple","ip":"192.168.8.23","mac":"3C:22:FB:71:9E:05","routerId":"estudio","band":"5 GHz","signalDbm":-45,"trafficMbps":4.8,"online":true},
+  {"id":"ps5","name":"PS5","type":"consola","manufacturer":"Sony","ip":"192.168.8.31","mac":"78:C8:81:0A:6B:D4","routerId":"living","band":"cable","signalDbm":null,"trafficMbps":12.7,"online":true,"port":"lan1"},
+  {"id":"robot-aspirador","name":"Robot aspirador","type":"iot","manufacturer":"Roborock","ip":"192.168.8.61","mac":"B0:4A:39:2E:77:10","routerId":"patio","band":"2.4 GHz","signalDbm":-67,"trafficMbps":0.02,"online":true},
+  {"id":"camara-porche","name":"Cámara porche","type":"camara","manufacturer":"Reolink","ip":"192.168.8.71","mac":"EC:71:DB:44:12:8A","routerId":"patio","band":"2.4 GHz","signalDbm":-72,"trafficMbps":1.1,"online":true},
+  {"id":"nest-mini","name":"Nest Mini","type":"altavoz","manufacturer":"Google","ip":"192.168.8.52","mac":"1A:2B:3C:4D:5E:6F","routerId":"estudio","band":"2.4 GHz","signalDbm":-55,"trafficMbps":0.4,"online":true},
+  {"id":"nas-synology","name":"NAS Synology","type":"servidor","manufacturer":"Synology","ip":"192.168.8.10","mac":"00:11:32:9C:51:B7","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":2.3,"online":true,"port":"lan4"},
+  {"id":"galaxy-tab-s9","name":"Galaxy Tab S9","type":"tablet","manufacturer":"Samsung","ip":"192.168.8.48","mac":"D6:91:2F:07:B3:55","routerId":"living","band":"5 GHz","signalDbm":-50,"trafficMbps":1.8,"online":true},
+  {"id":"iphone-ana","name":"iPhone de Ana","type":"movil","manufacturer":"Apple","ip":"192.168.8.44","mac":"F4:D4:88:19:C2:71","routerId":"flint2","band":"5 GHz","signalDbm":-46,"trafficMbps":2.1,"online":true},
+  {"id":"macbook-pro","name":"MacBook Pro de Marc","type":"portatil","manufacturer":"Apple","ip":"192.168.8.26","mac":"F0:18:98:5A:11:E9","routerId":"flint2","band":"5 GHz","signalDbm":-44,"trafficMbps":8.6,"online":true},
+  {"id":"pc-sobremesa","name":"PC de sobremesa","type":"ordenador","manufacturer":"ASUSTeK","ip":"192.168.8.11","mac":"04:D4:C4:8B:30:A7","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":21.3,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"raspberry-pi","name":"Raspberry Pi 4","type":"servidor","manufacturer":"Raspberry Pi","ip":"192.168.8.12","mac":"DC:A6:32:4F:77:02","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.8,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"timbre-nest","name":"Timbre Nest","type":"camara","manufacturer":"Google","ip":"192.168.8.72","mac":"F4:F5:D8:66:01:B8","routerId":"flint2","band":"2.4 GHz","signalDbm":-58,"trafficMbps":0.6,"online":true},
+  {"id":"enchufe-lavadora","name":"Enchufe lavadora","type":"iot","manufacturer":"TP-Link","ip":"192.168.8.81","mac":"50:C7:BF:22:E1:9C","routerId":"flint2","band":"2.4 GHz","signalDbm":-62,"trafficMbps":0.01,"online":true},
+  {"id":"pixel-7","name":"Pixel 7","type":"movil","manufacturer":"Google","ip":"192.168.8.46","mac":"3C:5A:B4:08:D7:5E","routerId":"flint2","band":"5 GHz","signalDbm":-49,"trafficMbps":1.4,"online":true},
+  {"id":"ipad-air","name":"iPad Air","type":"tablet","manufacturer":"Apple","ip":"192.168.8.47","mac":"8C:85:90:2F:B4:11","routerId":"flint2","band":"5 GHz","signalDbm":-54,"trafficMbps":0,"online":false},
+  {"id":"portatil-trabajo","name":"Portátil trabajo","type":"portatil","manufacturer":"Lenovo","ip":"192.168.8.27","mac":"54:EE:75:9A:03:F1","routerId":"flint2","band":"5 GHz","signalDbm":-50,"trafficMbps":0,"online":false},
+  {"id":"kindle","name":"Kindle Paperwhite","type":"desconocido","manufacturer":"Amazon","ip":"192.168.8.49","mac":"44:65:0D:71:28:C3","routerId":"flint2","band":"2.4 GHz","signalDbm":-58,"trafficMbps":0,"online":false},
+  {"id":"bombilla-1","name":"Bombilla salón 1","type":"iot","manufacturer":"Ikea Trådfri","ip":"192.168.8.90","mac":"CC:86:EC:10:04:21","routerId":"living","band":"2.4 GHz","signalDbm":-58,"trafficMbps":0,"online":true},
+  {"id":"bombilla-2","name":"Bombilla salón 2","type":"iot","manufacturer":"Ikea Trådfri","ip":"192.168.8.91","mac":"CC:86:EC:10:04:22","routerId":"living","band":"2.4 GHz","signalDbm":-59,"trafficMbps":0,"online":true},
+  {"id":"bombilla-3","name":"Bombilla lámpara pie","type":"iot","manufacturer":"Ikea Trådfri","ip":"192.168.8.92","mac":"CC:86:EC:10:04:23","routerId":"living","band":"2.4 GHz","signalDbm":-61,"trafficMbps":0,"online":true},
+  {"id":"bombilla-4","name":"Bombilla entrada","type":"iot","manufacturer":"Ikea Trådfri","ip":"192.168.8.93","mac":"CC:86:EC:10:04:24","routerId":"living","band":"2.4 GHz","signalDbm":-64,"trafficMbps":0,"online":true},
+  {"id":"bombilla-5","name":"Bombilla pasillo","type":"iot","manufacturer":"Ikea Trådfri","ip":"192.168.8.94","mac":"CC:86:EC:10:04:25","routerId":"living","band":"2.4 GHz","signalDbm":-66,"trafficMbps":0,"online":true},
+  {"id":"bombilla-6","name":"Bombilla cocina","type":"iot","manufacturer":"Ikea Trådfri","ip":"192.168.8.95","mac":"CC:86:EC:10:04:26","routerId":"living","band":"2.4 GHz","signalDbm":-60,"trafficMbps":0,"online":true},
+  {"id":"chromecast","name":"Chromecast HD","type":"tv","manufacturer":"Google","ip":"192.168.8.36","mac":"54:60:09:E3:5B:0A","routerId":"living","band":"5 GHz","signalDbm":-54,"trafficMbps":3.9,"online":true},
+  {"id":"homepod-mini","name":"HomePod mini","type":"altavoz","manufacturer":"Apple","ip":"192.168.8.53","mac":"F0:D1:A9:3E:77:5C","routerId":"living","band":"5 GHz","signalDbm":-47,"trafficMbps":0.3,"online":true},
+  {"id":"galaxy-s23","name":"Galaxy S23","type":"movil","manufacturer":"Samsung","ip":"192.168.8.42","mac":"5C:0A:5B:88:1D:E4","routerId":"living","band":"5 GHz","signalDbm":-51,"trafficMbps":0.9,"online":true},
+  {"id":"echo-dot","name":"Echo Dot","type":"altavoz","manufacturer":"Amazon","ip":"192.168.8.54","mac":"74:C2:46:19:F0:6B","routerId":"living","band":"2.4 GHz","signalDbm":-56,"trafficMbps":0.2,"online":true},
+  {"id":"nintendo-switch","name":"Nintendo Switch","type":"consola","manufacturer":"Nintendo","ip":"192.168.8.33","mac":"58:BD:A3:4C:E2:09","routerId":"living","band":"5 GHz","signalDbm":-53,"trafficMbps":0.1,"online":true},
+  {"id":"portatil-invitado","name":"Portátil invitado","type":"portatil","manufacturer":"Desconocido","ip":"192.168.8.29","mac":"A2:7E:9C:41:0B:6D","routerId":"living","band":"5 GHz","signalDbm":-58,"trafficMbps":0.7,"online":true},
+  {"id":"portatil-antiguo","name":"Portátil antiguo","type":"portatil","manufacturer":"HP","ip":"192.168.8.28","mac":"3C:52:82:5D:90:17","routerId":"living","band":"2.4 GHz","signalDbm":-62,"trafficMbps":0,"online":false},
+  {"id":"mac-mini","name":"Mac mini","type":"ordenador","manufacturer":"Apple","ip":"192.168.8.22","mac":"A4:83:E7:66:2C:98","routerId":"estudio","band":"cable","signalDbm":null,"trafficMbps":1.9,"online":true},
+  {"id":"enchufe-ventilador","name":"Enchufe ventilador","type":"iot","manufacturer":"TP-Link","ip":"192.168.8.82","mac":"9C:53:22:B1:4E:70","routerId":"estudio","band":"2.4 GHz","signalDbm":-59,"trafficMbps":0.01,"online":true},
+  {"id":"ipad-pro","name":"iPad Pro","type":"tablet","manufacturer":"Apple","ip":"192.168.8.51","mac":"F0:18:98:91:5A:2B","routerId":"estudio","band":"5 GHz","signalDbm":-49,"trafficMbps":0.8,"online":true},
+  {"id":"hue-hub","name":"Hub Philips Hue","type":"iot","manufacturer":"Signify","ip":"192.168.8.15","mac":"00:17:88:2A:91:CE","routerId":"estudio","band":"cable","signalDbm":null,"trafficMbps":0.02,"online":true},
+  {"id":"sonos-one","name":"Sonos One","type":"altavoz","manufacturer":"Sonos","ip":"192.168.8.55","mac":"48:A6:B8:14:72:E0","routerId":"estudio","band":"2.4 GHz","signalDbm":-57,"trafficMbps":0.5,"online":true},
+  {"id":"iphone-trabajo","name":"iPhone de trabajo","type":"movil","manufacturer":"Apple","ip":"192.168.8.50","mac":"8C:85:90:47:C1:93","routerId":"estudio","band":"5 GHz","signalDbm":-47,"trafficMbps":0.3,"online":true},
+  {"id":"macbook-viejo","name":"MacBook viejo","type":"portatil","manufacturer":"Apple","ip":"192.168.8.25","mac":"3C:22:FB:0E:66:A1","routerId":"estudio","band":"2.4 GHz","signalDbm":-60,"trafficMbps":0,"online":false},
+  {"id":"camara-jardin","name":"Cámara jardín","type":"camara","manufacturer":"Reolink","ip":"192.168.8.73","mac":"EC:71:DB:44:12:9B","routerId":"patio","band":"2.4 GHz","signalDbm":-74,"trafficMbps":1.4,"online":true},
+  {"id":"sensor-riego","name":"Sensor de riego","type":"iot","manufacturer":"Tuya","ip":"192.168.8.89","mac":"D8:1F:12:5B:08:44","routerId":"patio","band":"2.4 GHz","signalDbm":-71,"trafficMbps":0.01,"online":true},
+  {"id":"enchufe-calefactor","name":"Enchufe calefactor","type":"iot","manufacturer":"TP-Link","ip":"192.168.8.80","mac":"50:C7:BF:31:7A:05","routerId":"patio","band":"2.4 GHz","signalDbm":-75,"trafficMbps":0.02,"online":true},
+  {"id":"camara-garaje","name":"Cámara garaje","type":"camara","manufacturer":"Reolink","ip":"192.168.8.74","mac":"EC:71:DB:44:13:02","routerId":"patio","band":"2.4 GHz","signalDbm":-78,"trafficMbps":0,"online":false},
+  {"id":"switch-netgear","name":"Switch GS308E","type":"switch","manufacturer":"Netgear","ip":"192.168.8.13","mac":"28:C6:8E:1D:90:44","routerId":"living","band":"cable","signalDbm":null,"trafficMbps":0.02,"online":true,"port":"lan3","attachTo":"living","lldp":{"chassis":"GS308E","mgmt":"192.168.8.13","caps":"Bridge","portDesc":"ge5"}},
+  {"id":"xbox-series-s","name":"Xbox Series S","type":"consola","manufacturer":"Microsoft","ip":"192.168.8.35","mac":"7C:ED:8D:4A:11:22","routerId":"living","band":"cable","signalDbm":null,"trafficMbps":9.8,"online":true,"attachTo":"dist-living-lan3"},
+  {"id":"apple-tv-4k","name":"Apple TV 4K","type":"tv","manufacturer":"Apple","ip":"192.168.8.36","mac":"F0:18:98:2B:33:44","routerId":"living","band":"cable","signalDbm":null,"trafficMbps":15.2,"online":true,"attachTo":"dist-living-lan3"},
+  {"id":"receptor-denon","name":"Receptor Denon","type":"altavoz","manufacturer":"Denon","ip":"192.168.8.37","mac":"00:05:CD:55:66:77","routerId":"living","band":"cable","signalDbm":null,"trafficMbps":0.6,"online":true,"attachTo":"dist-living-lan3"},
+  {"id":"pve","name":"Proxmox pve","type":"servidor","manufacturer":"Supermicro","ip":"192.168.8.5","mac":"3C:52:82:10:20:30","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":12.3,"online":true,"port":"lan5"},
+  {"id":"ct-pihole","name":"Pi-hole","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.41","mac":"BC:24:11:00:20:10","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":6.1,"online":true,"attachTo":"pve"},
+  {"id":"ct-home-assistant","name":"Home Assistant","type":"iot","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.42","mac":"BC:24:11:00:21:11","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":4.2,"online":true,"attachTo":"pve"},
+  {"id":"ct-nextcloud","name":"Nextcloud","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.43","mac":"BC:24:11:00:22:12","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":7.8,"online":true,"attachTo":"pve"},
+  {"id":"ct-jellyfin","name":"Jellyfin","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.44","mac":"BC:24:11:00:23:13","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":9.4,"online":true,"attachTo":"pve"},
+  {"id":"ct-immich","name":"Immich","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.45","mac":"BC:24:11:00:24:14","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":3.3,"online":true,"attachTo":"pve"},
+  {"id":"ct-gitea","name":"Gitea","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.46","mac":"BC:24:11:00:25:15","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":1.2,"online":true,"attachTo":"pve"},
+  {"id":"ct-uptime-kuma","name":"Uptime Kuma","type":"iot","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.47","mac":"BC:24:11:00:26:16","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.4,"online":true,"attachTo":"pve"},
+  {"id":"ct-adguard-sync","name":"AdGuard sync","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.48","mac":"BC:24:11:00:27:17","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.8,"online":true,"attachTo":"pve"},
+  {"id":"ct-postgres","name":"Postgres","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.49","mac":"BC:24:11:00:28:18","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":2.1,"online":true,"attachTo":"pve"},
+  {"id":"ct-redis","name":"Redis","type":"servidor","manufacturer":"Proxmox VE (CT)","ip":"192.168.8.50","mac":"BC:24:11:00:29:19","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.9,"online":true,"attachTo":"pve"},
+  {"id":"tv-salon-cable","name":"TV Salón (cable)","type":"tv","manufacturer":"Samsung","ip":"192.168.8.61","mac":"8C:EA:48:AA:02:02","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":24.4,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"impresora-hp","name":"Impresora HP","type":"iot","manufacturer":"HP","ip":"192.168.8.62","mac":"3C:D9:2B:AA:03:03","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.1,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"xbox-one","name":"Xbox One","type":"consola","manufacturer":"Microsoft","ip":"192.168.8.64","mac":"7C:ED:8D:AA:05:05","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":4.2,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"receptor-av","name":"Receptor AV","type":"altavoz","manufacturer":"Denon","ip":"192.168.8.65","mac":"00:05:CD:AA:06:06","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.3,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"deco-orange","name":"Deco Orange","type":"tv","manufacturer":"Sagemcom","ip":"192.168.8.66","mac":"48:83:B4:AA:07:07","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":1.1,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"pc-invitado","name":"PC invitado","type":"ordenador","manufacturer":"—","ip":"192.168.8.67","mac":"A2:F4:11:AA:08:08","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.8,"online":true,"attachTo":"dist-flint2-lan3"},
+]
 const DEMO_ROUTERS = [
-  { id: 'flint2', name: 'Gateway', model: 'GL.iNet Flint 2 (GL-MT6000)', modelShort: 'GL.iNet Flint 2', role: 'Principal', roleBadge: 'Principal', ip: '192.168.1.1', status: 'online', health: 92, cpu: 18, ram: 34, temp: 48, uptime: '14d 3h', clients: 42, backhaul: 'cable', sparkline: [40,55,80,65,90,120,110,130,95,85,70,60,50,45,55,80,120,200,350,412,280,180,90,70] },
-  { id: 'salon', name: 'Salón', model: 'Xiaomi AX6', modelShort: 'Xiaomi AX6', role: 'AP', roleBadge: 'AP', ip: '192.168.1.2', status: 'online', health: 88, cpu: 22, ram: 41, temp: 54, uptime: '10d 8h', clients: 18, backhaul: 'cable', sparkline: [20,30,40,35,50,60,55,45,40,35,30,25,30,45,60,70,80,75,60,50,40,30,25,20] },
-  { id: 'pasillo', name: 'Patio', model: 'Xiaomi AX6', modelShort: 'Xiaomi AX6', role: 'AP', roleBadge: 'AP', ip: '192.168.1.3', status: 'warn', health: 71, cpu: 45, ram: 62, temp: 78, uptime: '6d 12h', clients: 10, hotMetric: 'temp', backhaul: 'wifi', sparkline: [10,15,20,18,25,30,28,22,20,18,15,12,18,25,35,40,38,30,25,20,18,15,12,10] },
-  { id: 'dormitorio', name: 'Dormitorio', model: 'Xiaomi AX6', modelShort: 'Xiaomi AX6', role: 'AP', roleBadge: 'AP', ip: '192.168.1.4', status: 'online', health: 90, cpu: 19, ram: 38, temp: 52, uptime: '9d 4h', clients: 12, backhaul: 'cable', sparkline: [15,20,25,30,28,25,20,18,22,30,35,40,38,35,30,25,20,18,15,20,25,30,28,22] },
+  {"id":"flint2","name":"Gateway","model":"GL.iNet Flint 2 (GL-MT6000)","modelShort":"GL.iNet Flint 2","role":"Gateway principal","roleBadge":"Principal","ip":"192.168.8.1","status":"online","health":98,"cpu":23,"ram":41,"temp":54,"uptime":"32d 14h","clients":26,"backhaul":"cable","sparkline":[8,6,5,5,6,9,18,32,41,38,35,44,52,48,45,55,68,84,96,120,150,110,84,40]},
+  {"id":"living","name":"Salón","model":"OpenWrt AP (Xiaomi AX3000T)","modelShort":"Xiaomi AX3000T","role":"Punto de acceso","roleBadge":"AP","ip":"192.168.8.2","status":"online","health":95,"cpu":12,"ram":38,"temp":47,"uptime":"32d 14h","clients":20,"backhaul":"cable","sparkline":[4,3,3,2,3,5,10,22,28,26,24,30,38,35,33,42,55,72,88,105,132,92,61,28],"lldp":{"chassis":"Flint 2","mgmt":"192.168.8.1","caps":"Bridge, Router","portDesc":"lan1"}},
+  {"id":"estudio","name":"Estudio","model":"OpenWrt (NanoPi R4S)","modelShort":"NanoPi R4S","role":"AP + switch","roleBadge":"AP","ip":"192.168.8.3","status":"online","health":92,"cpu":18,"ram":44,"temp":51,"uptime":"11d 3h","clients":8,"backhaul":"cable","sparkline":[2,2,1,1,2,4,8,15,22,25,24,22,26,24,21,24,28,31,29,24,18,12,8,4],"lldp":{"chassis":"Flint 2","mgmt":"192.168.8.1","caps":"Bridge, Router","portDesc":"lan2"}},
+  {"id":"patio","name":"Patio","model":"OpenWrt (TP-Link EAP225)","modelShort":"TP-Link EAP225","role":"AP exterior","roleBadge":"AP","ip":"192.168.8.4","status":"warn","health":68,"cpu":31,"ram":57,"temp":71,"uptime":"4d 2h","clients":5,"hotMetric":"temp","backhaul":"wifi","sparkline":[1,1,1,1,1,2,3,5,7,8,8,9,10,9,8,9,11,12,13,12,9,6,4,2]},
 ]
 
 /* ===== utilidades de geometria (de model.ts) ===== */
@@ -898,7 +901,7 @@ function buildRouters() {
           <div>
             <span class="name">${r.name}</span>
             <span class="model">${r.model}</span>
-            <span class="rolepill">${t(r.role === 'Principal' ? 'routers.roleGW' : 'routers.roleAP')}</span>
+            <span class="rolepill">${t(r.roleBadge === 'Principal' ? 'routers.roleGW' : 'routers.roleAP')}</span>
           </div>
         </div>
         <div class="ring-wrap" style="width:56px;height:56px;">

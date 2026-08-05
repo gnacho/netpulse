@@ -22,7 +22,7 @@ const DEMO = {
   score: 92, label: 'Excellent',
   down: 84.2, up: 12.6, latency: 8, plan: '600/600',
   avgDown: 61, total24h: '1.32', dnsMs: 14, clients: 60, clientsTotal: 65,
-  devices: 67,
+  devices: 65,
 }
 
 const I18N = {
@@ -79,7 +79,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'Query stats, blocked share and top blocked domains, side by side with your network.',
       f5t: 'Alerts & push', f5p: 'Six categories with per-category urgency. Bell feed plus native Web Push (VAPID).',
       f6t: 'Multi-user', f6p: 'bcrypt passwords, admin and viewer roles, per-user language. Share the view without handing over the keys.',
-      f7t: 'Demo mode', f7p: 'DEMO_MODE=1 gives you a full sample network of 67 devices — no routers required. Try before you install.',
+      f7t: 'Demo mode', f7p: 'DEMO_MODE=1 gives you a full sample network of 65 devices — no routers required. Try before you install.',
       f8t: 'Latency collector', f8p: 'Optional sidecar that polls TCP latency per router, with its own long-term time series.',
     },
     install: {
@@ -160,7 +160,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'Estadísticas de consultas, porcentaje bloqueado y dominios más bloqueados, junto a tu red.',
       f5t: 'Alertas y push', f5p: 'Seis categorías con urgencia por categoría. Feed en la campana más Web Push nativo (VAPID).',
       f6t: 'Multiusuario', f6p: 'Contraseñas bcrypt, roles admin y viewer, idioma por usuario. Comparte la vista sin entregar las llaves.',
-      f7t: 'Modo demo', f7p: 'DEMO_MODE=1 te da una red de muestra completa con 67 dispositivos — sin routers. Pruébalo antes de instalar.',
+      f7t: 'Modo demo', f7p: 'DEMO_MODE=1 te da una red de muestra completa con 65 dispositivos — sin routers. Pruébalo antes de instalar.',
       f8t: 'Collector de latencia', f8p: 'Sidecar opcional que sondea latencia TCP por router, con sus propias series temporales de largo plazo.',
     },
     install: {
@@ -241,7 +241,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: '查询统计、拦截比例和热门拦截域名，与你的网络并排呈现。',
       f5t: '提醒与推送', f5p: '六个类别，每类可设紧急程度。铃铛信息流加原生 Web Push（VAPID）。',
       f6t: '多用户', f6p: 'bcrypt 密码、admin 与 viewer 角色、按用户设置语言。分享视图而不交出钥匙。',
-      f7t: '演示模式', f7p: 'DEMO_MODE=1 给你一个包含 67 台设备的完整示例网络——无需路由器。先试后装。',
+      f7t: '演示模式', f7p: 'DEMO_MODE=1 给你一个包含 65 台设备的完整示例网络——无需路由器。先试后装。',
       f8t: '延迟采集器', f8p: '可选 sidecar，按路由器轮询 TCP 延迟，拥有自己的长期时间序列。',
     },
     install: {
@@ -322,7 +322,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'إحصاءات الاستعلامات ونسبة الحظر وأعلى النطاقات المحظورة، جنبًا إلى جنب مع شبكتك.',
       f5t: 'تنبيهات وإشعارات', f5p: 'ست فئات مع مستوى إلحاح لكل فئة. سجل في الجرس إضافة إلى Web Push أصلي (VAPID).',
       f6t: 'متعدد المستخدمين', f6p: 'كلمات مرور bcrypt وأدوار admin وviewer ولغة لكل مستخدم. شارك العرض دون تسليم المفاتيح.',
-      f7t: 'وضع العرض', f7p: 'DEMO_MODE=1 يمنحك شبكة عيّنة كاملة بـ 67 جهازًا — دون راوترات. جرّب قبل أن تثبّت.',
+      f7t: 'وضع العرض', f7p: 'DEMO_MODE=1 يمنحك شبكة عيّنة كاملة بـ 65 جهازًا — دون راوترات. جرّب قبل أن تثبّت.',
       f8t: 'جامع زمن الاستجابة', f8p: 'Sidecar اختياري يستطلع زمن استجابة TCP لكل راوتر، بسلاسله الزمنية طويلة الأمد.',
     },
     install: {
@@ -403,7 +403,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'क्वेरी आँकड़े, ब्लॉक हिस्सा और टॉप ब्लॉक्ड डोमेन, आपके नेटवर्क के साथ।',
       f5t: 'अलर्ट और पुश', f5p: 'छह श्रेणियाँ, प्रति-श्रेणी तात्कालिकता। बेल फ़ीड के साथ नेटिव Web Push (VAPID)।',
       f6t: 'मल्टी-यूज़र', f6p: 'bcrypt पासवर्ड, admin और viewer भूमिकाएँ, प्रति-यूज़र भाषा। चाबियाँ दिए बिना व्यू साझा करें।',
-      f7t: 'डेमो मोड', f7p: 'DEMO_MODE=1 से 67 डिवाइस का पूरा सैंपल नेटवर्क — बिना राउटर। इंस्टॉल से पहले आज़माएँ।',
+      f7t: 'डेमो मोड', f7p: 'DEMO_MODE=1 से 65 डिवाइस का पूरा सैंपल नेटवर्क — बिना राउटर। इंस्टॉल से पहले आज़माएँ।',
       f8t: 'लेटेंसी कलेक्टर', f8p: 'वैकल्पिक sidecar जो प्रति-राउटर TCP लेटेंसी पोल करता है, अपनी लंबी समय-श्रृंखलाओं के साथ।',
     },
     install: {
@@ -484,7 +484,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'Estatísticas de consultas, taxa de bloqueio e domínios mais bloqueados, ao lado da sua rede.',
       f5t: 'Alertas e push', f5p: 'Seis categorias com urgência por categoria. Feed no sino mais Web Push nativo (VAPID).',
       f6t: 'Multiusuário', f6p: 'Senhas bcrypt, papéis admin e viewer, idioma por usuário. Compartilhe a visão sem entregar as chaves.',
-      f7t: 'Modo demo', f7p: 'DEMO_MODE=1 dá uma rede de amostra completa com 67 dispositivos — sem roteadores. Teste antes de instalar.',
+      f7t: 'Modo demo', f7p: 'DEMO_MODE=1 dá uma rede de amostra completa com 65 dispositivos — sem roteadores. Teste antes de instalar.',
       f8t: 'Coletor de latência', f8p: 'Sidecar opcional que mede latência TCP por roteador, com suas próprias séries temporais de longo prazo.',
     },
     install: {
@@ -565,7 +565,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'Statistiques de requêtes, part bloquée et domaines les plus bloqués, à côté de votre réseau.',
       f5t: 'Alertes et push', f5p: 'Six catégories avec urgence par catégorie. Fil dans la cloche plus Web Push natif (VAPID).',
       f6t: 'Multi-utilisateur', f6p: 'Mots de passe bcrypt, rôles admin et viewer, langue par utilisateur. Partagez la vue sans donner les clés.',
-      f7t: 'Mode démo', f7p: 'DEMO_MODE=1 offre un réseau d’exemple complet de 67 appareils — sans routeurs. Essayez avant d’installer.',
+      f7t: 'Mode démo', f7p: 'DEMO_MODE=1 offre un réseau d’exemple complet de 65 appareils — sans routeurs. Essayez avant d’installer.',
       f8t: 'Collecteur de latence', f8p: 'Sidecar optionnel qui sonde la latence TCP par routeur, avec ses propres séries temporelles longue durée.',
     },
     install: {
@@ -646,7 +646,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'クエリ統計、ブロック率、上位ブロックドメインをネットワークと並べて表示。',
       f5t: 'アラートとプッシュ', f5p: '6 カテゴリ、カテゴリごとの緊急度。ベルのフィードに加えネイティブ Web Push（VAPID）。',
       f6t: 'マルチユーザー', f6p: 'bcrypt パスワード、admin と viewer ロール、ユーザーごとの言語。鍵を渡さずビューを共有。',
-      f7t: 'デモモード', f7p: 'DEMO_MODE=1 で 67 デバイスの完全なサンプルネットワーク — ルーター不要。導入前にお試し。',
+      f7t: 'デモモード', f7p: 'DEMO_MODE=1 で 65 デバイスの完全なサンプルネットワーク — ルーター不要。導入前にお試し。',
       f8t: 'レイテンシコレクター', f8p: 'オプションの sidecar がルーターごとの TCP レイテンシをポーリング。独自の長期時系列付き。',
     },
     install: {
@@ -727,7 +727,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'Статистика запросов, доля блокировок и топ доменов — рядом с вашей сетью.',
       f5t: 'Оповещения и push', f5p: 'Шесть категорий с настройкой срочности. Лента в колокольчике плюс нативный Web Push (VAPID).',
       f6t: 'Мультипользовательность', f6p: 'Пароли bcrypt, роли admin и viewer, язык для каждого. Делитесь видом, не отдавая ключи.',
-      f7t: 'Демо-режим', f7p: 'DEMO_MODE=1 даёт полную образцовую сеть из 67 устройств — без роутеров. Попробуйте до установки.',
+      f7t: 'Демо-режим', f7p: 'DEMO_MODE=1 даёт полную образцовую сеть из 65 устройств — без роутеров. Попробуйте до установки.',
       f8t: 'Коллектор задержек', f8p: 'Опциональный sidecar, опрашивающий TCP-задержку по каждому роутеру, со своими долгосрочными временными рядами.',
     },
     install: {
@@ -808,7 +808,7 @@ const I18N = {
       f4t: 'AdGuard Home', f4p: 'Abfragestatistiken, Blockanteil und meistgeblockte Domains, neben deinem Netz.',
       f5t: 'Alarme & Push', f5p: 'Sechs Kategorien mit Dringlichkeit pro Kategorie. Glocken-Feed plus natives Web Push (VAPID).',
       f6t: 'Mehrbenutzer', f6p: 'bcrypt-Passwörter, Rollen admin und viewer, Sprache pro Benutzer. Teile die Ansicht, ohne die Schlüssel herzugeben.',
-      f7t: 'Demo-Modus', f7p: 'DEMO_MODE=1 liefert ein komplettes Beispielenetz mit 67 Geräten — ohne Router. Erst testen, dann installieren.',
+      f7t: 'Demo-Modus', f7p: 'DEMO_MODE=1 liefert ein komplettes Beispielenetz mit 65 Geräten — ohne Router. Erst testen, dann installieren.',
       f8t: 'Latenz-Collector', f8p: 'Optionaler Sidecar, der TCP-Latenz pro Router abfragt, mit eigenen Langzeit-Zeitreihen.',
     },
     install: {
