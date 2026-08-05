@@ -241,266 +241,653 @@ function startLiveJitter() {
   }, 2600)
 }
 
-/* ---------- stage 2: topología fiel a la app ---------- */
+/* ---------- stage 2: topologia fiel a la app (model.ts + TopologyMap.tsx) ---------- */
 let topoBuilt = false
-function buildTopo() {
-  if (topoBuilt) return
-  topoBuilt = true
-  const svg = document.getElementById('topoSvg')
-  const NS = 'http://www.w3.org/2000/svg'
-  svg.setAttribute('viewBox', "0 0 1000 680")
-  const canvas = getCssVar('canvas')
+let routersBuilt = false
+let routersPlayed = false
 
-  const mk = (tag, attrs, parent) => {
-    const e = document.createElementNS(NS, tag)
-    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v))
-    if (parent) parent.appendChild(e)
-    return e
+/* ===== datos demo canonicos ===== */
+const DEMO_WAN = {
+  plan: '600/600', downMbps: 84.2, upMbps: 12.6, latencyMs: 8, lossPct: 0.1,
+  publicIp: '185.75.x.x', isp: 'Digi', peakTodayMbps: 412, peakTodayTime: '21:14',
+  avgDownMbps: 61, total24h: '1.32',
+}
+const DEMO_WG = {
+  interface: 'wg0', subnet: '10.200.0.0/24', status: 'active',
+  peers: [
+    { id: 'phone', name: 'Pixel 8 Pro', type: 'movil', tunnelIp: '10.200.0.2', active: true, lastHandshake: '38s', rx: '1.2 GB', tx: '340 MB' },
+    { id: 'laptop', name: 'MacBook Air', type: 'portatil', tunnelIp: '10.200.0.3', active: true, lastHandshake: '2m', rx: '840 MB', tx: '120 MB' },
+    { id: 'nas', name: 'NAS Remoto', type: 'sitio', tunnelIp: '10.200.0.4', active: true, lastHandshake: '5m', rx: '4.1 GB', tx: '1.8 GB' },
+    { id: 'tablet', name: 'iPad', type: 'tablet', tunnelIp: '10.200.0.5', active: true, lastHandshake: '12m', rx: '210 MB', tx: '45 MB' },
+    { id: 'otro', name: 'Work laptop', type: 'portatil', tunnelIp: '10.200.0.6', active: true, lastHandshake: '1h', rx: '90 MB', tx: '12 MB' },
+  ],
+}
+const DEMO_DISTRIBUTION = [
+  { id: 'dist-lan3', kind: 'inferred', routerId: 'flint2', port: 'lan3', macCount: 8 },
+  { id: 'dist-lan4', kind: 'managed', routerId: 'flint2', port: 'lan4', macCount: 14, name: 'Switch 8P', ip: '192.168.1.10', lldp: { chassis: 'Switch 8P', mgmt: '192.168.1.10', caps: 'B', portDesc: 'Port 7' } },
+  { id: 'dist-pve', kind: 'hypervisor', routerId: 'flint2', port: 'lan2', macCount: 6, hostDeviceId: 'pve' },
+  { id: 'dist-salon', kind: 'inferred', routerId: 'salon', port: 'lan1', macCount: 5 },
+]
+
+const DEMO_DEVICES = (() => {
+  const types = ['ordenador', 'tv', 'movil', 'portatil', 'consola', 'iot', 'camara', 'altavoz', 'servidor', 'tablet', 'switch', 'desconocido']
+  const names = {
+    ordenador: ['pc-salon', 'pc-estudio', 'pc-dormitorio', 'imac', 'ryzen-ai'],
+    tv: ['tv-salon', 'tv-dormitorio', 'chromecast-salon'],
+    movil: ['Pixel-8-Pro', 'iPhone-15', 'Galaxy-S24', 'Xiaomi-14'],
+    portatil: ['MacBook-Air', 'ThinkPad', 'Framework', 'macbook-maria'],
+    consola: ['PS5', 'Steam-Deck', 'Switch'],
+    iot: ['termo', 'sensor-puerta', 'enchufe-jardin', 'aqara-humo'],
+    camara: ['camara-patio', 'camara-entrada', 'gato-cam'],
+    altavoz: ['sonos-salon', 'echo-dot', 'homepod-mini'],
+    servidor: ['pve', 'nas', 'docker-host', 'homeassistant'],
+    tablet: ['iPad', 'Tab-S9'],
+    switch: ['switch-8p', 'switch-cuarto'],
+    desconocido: ['?-01', '?-02'],
+  }
+  const devices = []
+  let id = 0
+  function add(name, type, band, opts = {}) {
+    const signal = band === 'cable' ? null : band === '5 GHz' ? -52 : -67
+    devices.push({
+      id: 'd' + (++id), name, type, manufacturer: opts.manufacturer || 'NetPulse', ip: `192.168.1.${100 + id}`,
+      mac: `a8:5e:45:${(id).toString(16).padStart(2, '0')}:00:00`, routerId: opts.routerId || 'flint2', band,
+      signalDbm: signal, trafficMbps: Math.random() * 35 + 0.5, online: true, sparkline: [],
+      port: band === 'cable' ? opts.port : null, attachTo: opts.attachTo, infra: opts.infra, lldp: opts.lldp,
+    })
+  }
+  // cableados directos del gateway
+  add('pc-salon', 'ordenador', 'cable', { port: 'lan1' })
+  add('tv-salon', 'tv', 'cable', { port: 'lan1' })
+  add('nas', 'servidor', 'cable', { port: 'lan1' })
+  add('pve', 'servidor', 'cable', { port: 'lan2', infra: 'hypervisor' })
+  add('docker-host', 'servidor', 'cable', { port: 'lan3', attachTo: 'dist-lan3' })
+  add('homeassistant', 'servidor', 'cable', { port: 'lan3', attachTo: 'dist-lan3' })
+  add('switch-8p', 'switch', 'cable', { port: 'lan4', attachTo: 'dist-lan4', lldp: { chassis: 'Switch 8P' } })
+  add('printer', 'iot', 'cable', { port: 'lan4', attachTo: 'dist-lan4' })
+  // CTs bajo pve
+  for (let i = 1; i <= 5; i++) add(`ct-${i}`, 'servidor', 'cable', { attachTo: 'pve', infra: 'ct' })
+  // hijos del switch gestionado
+  add('pc-estudio', 'ordenador', 'cable', { attachTo: 'switch-8p' })
+  add('camara-entrada', 'camara', 'cable', { attachTo: 'switch-8p' })
+  // wifi gateway
+  for (let i = 0; i < 9; i++) add(`gw-wifi-${i}`, ['movil', 'portatil', 'tablet', 'iot'][i % 4], i % 2 ? '5 GHz' : '2.4 GHz', { routerId: 'flint2' })
+  // salon wifi
+  for (let i = 0; i < 11; i++) add(`salon-wifi-${i}`, ['movil', 'tv', 'consola', 'altavoz', 'iot'][i % 5], i % 3 ? '5 GHz' : '2.4 GHz', { routerId: 'salon' })
+  // pasillo wifi
+  for (let i = 0; i < 7; i++) add(`pasillo-wifi-${i}`, ['movil', 'tablet', 'iot', 'camara'][i % 4], '2.4 GHz', { routerId: 'pasillo' })
+  // dormitorio wifi
+  for (let i = 0; i < 9; i++) add(`dorm-wifi-${i}`, ['movil', 'portatil', 'altavoz', 'iot'][i % 4], '5 GHz', { routerId: 'dormitorio' })
+  // cableados salon
+  add('chromecast-salon', 'tv', 'cable', { routerId: 'salon', port: 'lan1', attachTo: 'dist-salon' })
+  add('ap-salon-uplink', 'switch', 'cable', { routerId: 'salon', port: 'lan2' })
+  // algunos weak
+  devices[devices.length - 3].signalDbm = -71
+  devices[devices.length - 6].signalDbm = -69
+  return devices
+})()
+
+const DEMO_ROUTERS = [
+  { id: 'flint2', name: 'Gateway', model: 'GL.iNet Flint 2 (GL-MT6000)', modelShort: 'GL.iNet Flint 2', role: 'Principal', roleBadge: 'Principal', ip: '192.168.1.1', status: 'online', health: 92, cpu: 18, ram: 34, temp: 48, uptime: '14d 3h', clients: 42, backhaul: 'cable', sparkline: [40,55,80,65,90,120,110,130,95,85,70,60,50,45,55,80,120,200,350,412,280,180,90,70] },
+  { id: 'salon', name: 'Salón', model: 'Xiaomi AX6', modelShort: 'Xiaomi AX6', role: 'AP', roleBadge: 'AP', ip: '192.168.1.2', status: 'online', health: 88, cpu: 22, ram: 41, temp: 54, uptime: '10d 8h', clients: 18, backhaul: 'cable', sparkline: [20,30,40,35,50,60,55,45,40,35,30,25,30,45,60,70,80,75,60,50,40,30,25,20] },
+  { id: 'pasillo', name: 'Patio', model: 'Xiaomi AX6', modelShort: 'Xiaomi AX6', role: 'AP', roleBadge: 'AP', ip: '192.168.1.3', status: 'warn', health: 71, cpu: 45, ram: 62, temp: 78, uptime: '6d 12h', clients: 10, hotMetric: 'temp', backhaul: 'wifi', sparkline: [10,15,20,18,25,30,28,22,20,18,15,12,18,25,35,40,38,30,25,20,18,15,12,10] },
+  { id: 'dormitorio', name: 'Dormitorio', model: 'Xiaomi AX6', modelShort: 'Xiaomi AX6', role: 'AP', roleBadge: 'AP', ip: '192.168.1.4', status: 'online', health: 90, cpu: 19, ram: 38, temp: 52, uptime: '9d 4h', clients: 12, backhaul: 'cable', sparkline: [15,20,25,30,28,25,20,18,22,30,35,40,38,35,30,25,20,18,15,20,25,30,28,22] },
+]
+
+/* ===== utilidades de geometria (de model.ts) ===== */
+const VB_W = 1000, VB_H = 680
+const GATEWAY_COORD = { x: 500, y: 250, r: 40, label: { x: 446, y: 312, anchor: 'end' } }
+const AP_COORDS = [
+  { x: 195, y: 470, r: 32, label: { x: 124, y: 464, anchor: 'end' } },
+  { x: 500, y: 505, r: 32, label: { x: 554, y: 500, anchor: 'start' } },
+  { x: 805, y: 470, r: 32, label: { x: 858, y: 464, anchor: 'start' } },
+]
+const INTERNET_COORD = { x: 500, y: 58 }
+const PEER_COORDS = [{ x: 265, y: 26 }, { x: 735, y: 26 }, { x: 140, y: 26 }, { x: 860, y: 26 }]
+const PEERS_OVERFLOW_COORD = { x: 560, y: 26 }
+const UPLINK_PATHS = [
+  { d: 'M 464 282 C 390 340, 290 400, 224 440', lx: 292, ly: 366 },
+  { d: 'M 500 292 C 500 360, 500 420, 500 468', lx: 514, ly: 418 },
+  { d: 'M 536 282 C 610 340, 710 400, 776 440', lx: 664, ly: 366 },
+]
+const WG_PATHS = [
+  { d: 'M 272 44 C 330 82, 410 94, 474 80', dur: 3 },
+  { d: 'M 728 44 C 670 82, 590 94, 526 80', dur: 3.4 },
+]
+const GATEWAY_RINGS = [{ r: 96, cap: 5 }, { r: 130, cap: 8 }]
+const AP_RINGS = [{ r: 82, cap: 7 }, { r: 120, cap: 13 }]
+const GW_EAST_FAN = [336, 24]
+const GW_WEST_FAN = [150, 210]
+const AP_WIRED_FAN = [50, 130]
+const DIST_FAN_RADIUS = 96
+const DIST_FAN_MAX = 5
+const DIST_RINGS = [{ r: 72, cap: 7 }, { r: 118, cap: 12 }]
+const HUB_FAN_RADIUS = 68
+const ROUTER_FAN_RADIUS = 150
+const HYPERVISOR_FAN_RADIUS = 320
+const CT_COLS = 5, CT_DX = 46, CT_DY = 44, CT_OFFSET_Y = 64
+const GW_GRID_MIN = 6, GW_GRID_ROWS = 4, GW_GRID_DX = 56, GW_GRID_DY = 50, GW_GRID_R0 = 160
+const TOPO_COLOR = { accent: '#22D3EE', tunnel: '#A78BFA', ok: '#34D399', warn: '#FBBF24', danger: '#F87171', info: '#60A5FA' }
+
+function bandColor(band, weak) { if (weak) return TOPO_COLOR.warn; if (band === '5 GHz') return TOPO_COLOR.accent; if (band === '2.4 GHz') return TOPO_COLOR.info; return TOPO_COLOR.ok }
+function statusColor(s) { if (s === 'warn') return TOPO_COLOR.warn; if (s === 'offline') return TOPO_COLOR.danger; return TOPO_COLOR.ok }
+function linkColor(k, wifi) { if (k === 'wg') return TOPO_COLOR.tunnel; if (k === 'uplink' && wifi) return TOPO_COLOR.warn; return TOPO_COLOR.ok }
+function flowFor(mbps, alive = false) { const packets = mbps >= 35 ? 3 : mbps >= 15 ? 2 : mbps >= 2 ? 1 : alive ? 1 : 0; return { packets, packetDur: Math.max(1.6, 5 - mbps / 12) } }
+
+const rad = (d) => (d * Math.PI) / 180
+const norm = (a) => ((a % 360) + 360) % 360
+function angleTo(x, y, tx, ty) { return norm((Math.atan2(ty - y, tx - x) * 180) / Math.PI) }
+function pos(cx, cy, degA, r) { return { x: Math.round((cx + r * Math.cos(rad(degA))) * 10) / 10, y: Math.round((cy + r * Math.sin(rad(degA))) * 10) / 10 } }
+function arcAround(center, half) { const s = norm(center - half); const e = norm(center + half); return s <= e ? [[s, e]] : [[s, 360], [0, e]] }
+function freeArcs(excludes) {
+  const ex = excludes.map(([s, e]) => [Math.max(0, s), Math.min(360, e)]).filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0])
+  const free = []; let cur = 0
+  for (const [s, e] of ex) { if (s > cur) free.push([cur, s]); cur = Math.max(cur, e) }
+  if (cur < 360) free.push([cur, 360])
+  return free
+}
+function ringLayout(items, node, rings, excludes) {
+  const free = freeArcs(excludes); const total = free.reduce((a, [s, e]) => a + (e - s), 0)
+  if (total <= 0) return
+  let idx = 0
+  for (const ring of rings) {
+    if (idx >= items.length) break
+    const n = Math.min(ring.cap, items.length - idx)
+    let placed = 0
+    for (let ai = 0; ai < free.length && placed < n; ai++) {
+      const [s, e] = free[ai]
+      let k = Math.min(Math.round((n * (e - s)) / total), n - placed)
+      if (ai === free.length - 1) k = n - placed
+      for (let i = 0; i < k; i++) {
+        const a = s + ((e - s) * (i + 0.5)) / k
+        const p = pos(node.x, node.y, a, ring.r)
+        Object.assign(items[idx++], p); placed++
+      }
+    }
+  }
+}
+function fanLayout(items, node, r, a0, a1) {
+  if (a1 < a0) a1 += 360
+  const n = items.length
+  items.forEach((d, i) => { const a = a0 + ((a1 - a0) * (n === 1 ? 0.5 : i / (n - 1))); Object.assign(d, pos(node.x, node.y, norm(a), r)) })
+}
+function gridLayoutWest(items, node) {
+  items.forEach((d, i) => {
+    const col = Math.floor(i / GW_GRID_ROWS), row = i % GW_GRID_ROWS
+    const inThisCol = Math.min(GW_GRID_ROWS, items.length - col * GW_GRID_ROWS)
+    d.x = node.x - GW_GRID_R0 - col * GW_GRID_DX
+    d.y = node.y + (row - (inThisCol - 1) / 2) * GW_GRID_DY
+  })
+}
+function subtreeTraffic(childrenOf, hubId, seen = new Set()) {
+  if (seen.has(hubId)) return 0
+  seen.add(hubId)
+  let sum = 0
+  for (const d of childrenOf(hubId)) { sum += d.trafficMbps + subtreeTraffic(childrenOf, d.id, seen) }
+  return sum
+}
+
+/* ===== builder de modelo (simplificado: sin semantica server-side) ===== */
+function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [] }) {
+  const gateway = routers.find((r) => r.roleBadge === 'Principal') || routers[0]
+  const aps = routers.filter((r) => r.id !== gateway.id).slice(0, AP_COORDS.length)
+  const gatewayNode = gateway ? { kind: 'router', id: gateway.id, router: gateway, ...GATEWAY_COORD } : null
+  const apNodes = aps.map((router, i) => ({ kind: 'router', id: router.id, router, ...AP_COORDS[i] }))
+  const routerNodes = gatewayNode ? [gatewayNode, ...apNodes] : apNodes
+  const routerById = new Map(routerNodes.map((n) => [n.id, n]))
+  const internetNode = { id: 'internet', ...INTERNET_COORD }
+
+  const managedMacs = new Set(distributionNodes.filter((n) => n.kind === 'managed' && n.mac).map((n) => n.mac.toUpperCase()))
+  const online = devices.filter((d) => d.online && !managedMacs.has(d.mac.toUpperCase()))
+  const deviceById = new Map(online.map((d) => [d.id, d]))
+  const distById = new Map(distributionNodes.map((n) => [n.id, n]))
+  const hubOf = (d) => {
+    if (d.attachTo && (routerById.has(d.attachTo) || distById.has(d.attachTo) || deviceById.has(d.attachTo))) return d.attachTo
+    if (isWired(d) && !d.port && gatewayNode) return gatewayNode.id
+    return d.routerId
+  }
+  const isWired = (d) => d.band === 'cable'
+  const childrenOf = (hubId) => online.filter((d) => hubOf(d) === hubId)
+  const deviceHubs = new Set()
+  for (const d of online) { if (d.attachTo && deviceById.has(d.attachTo)) deviceHubs.add(d.attachTo) }
+
+  const distNodes = []
+  const anchorPos = new Map()
+  const fanArcByRouter = new Map()
+  const hypervisorHosts = new Set(distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId).map((n) => n.hostDeviceId))
+
+  for (const node of routerNodes) {
+    const isGw = node.id === gatewayNode?.id
+    const dists = distributionNodes.filter((n) => n.routerId === node.id && (n.kind === 'inferred' || n.kind === 'managed'))
+    const directWired = childrenOf(node.id).filter((d) => isWired(d))
+    const hubs = directWired.filter((d) => deviceHubs.has(d.id))
+    const plain = directWired.filter((d) => !deviceHubs.has(d.id))
+    const anchors = [
+      ...dists.map((n) => ({ id: n.id, kind: 'dist', ref: n })),
+      ...hubs.map((d) => ({ id: d.id, kind: 'hub', ref: d })),
+      ...plain.map((d) => ({ id: d.id, kind: 'dev', ref: d })),
+    ]
+    if (anchors.length === 0) continue
+    const placed = []
+    if (isGw) {
+      const east = anchors.filter((a) => a.kind === 'dist')
+      const farWest = anchors.filter((a) => a.kind === 'hub' && hypervisorHosts.has(a.id))
+      const west = anchors.filter((a) => a.kind !== 'dist' && !farWest.includes(a))
+      const eastItems = east.map((a) => ({ ...a, x: 0, y: 0 }))
+      const farWestItems = farWest.map((a) => ({ ...a, x: 0, y: 0 }))
+      const westItems = west.map((a) => ({ ...a, x: 0, y: 0 }))
+      fanLayout(eastItems, node, ROUTER_FAN_RADIUS, GW_EAST_FAN[0], GW_EAST_FAN[1])
+      fanLayout(farWestItems, node, HYPERVISOR_FAN_RADIUS, 160, 200)
+      if (westItems.length >= GW_GRID_MIN) gridLayoutWest(westItems, node)
+      else fanLayout(westItems, node, ROUTER_FAN_RADIUS, GW_WEST_FAN[0], GW_WEST_FAN[1])
+      placed.push(...eastItems, ...farWestItems, ...westItems)
+      fanArcByRouter.set(node.id, [...arcAround(0, 26), [GW_WEST_FAN[0] - 8, GW_WEST_FAN[1] + 8]])
+    } else {
+      const items = anchors.map((a) => ({ ...a, x: 0, y: 0 }))
+      fanLayout(items, node, ROUTER_FAN_RADIUS, AP_WIRED_FAN[0], AP_WIRED_FAN[1])
+      placed.push(...items)
+      fanArcByRouter.set(node.id, [[AP_WIRED_FAN[0] - 8, AP_WIRED_FAN[1] + 8]])
+    }
+    for (const p of placed) {
+      anchorPos.set(p.id, { x: p.x, y: p.y })
+      if (p.kind === 'dist') distNodes.push({ kind: 'dist', id: p.ref.id, node: p.ref, x: p.x, y: p.y, r: 20 })
+    }
   }
 
-  const order = []
-  const svgAppend = (e) => { svg.appendChild(e); order.push(e) }
+  const chips = []
+  const mkChip = (d, hubId, isCt = false) => ({
+    kind: 'chip', id: d.id, device: d, x: 0, y: 0,
+    size: isWired(d) ? 26 : 24, wired: isWired(d), band: d.band,
+    weak: d.signalDbm != null && d.signalDbm <= -65, hubId, isCt,
+  })
 
-  // --- definición de iconos (paths simples) ---
-  const iconPaths = {
-    cloud: 'M17 19.2a4 4 0 0 1-3.2-6.4 4.1 4.1 0 0 1 2.7-7.3 4 4 0 0 1 6.6-1.6 4 4 0 0 1 3.6 6.5M17 19.2H6.5a4.5 4.5 0 0 1 0-9h.6a5 5 0 0 1 9.3-1.2',
-    router: 'M4 14h16v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5zm4-8h8M6 9h12M8 6h8',
-    ap: 'M12 20v-6m-3-4a3 3 0 0 1 6 0m-9-4a6 6 0 0 1 12 0',
-    laptop: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8H4V6zm-2 10h20l-2 3H4l-2-3z',
-    phone: 'M12 22h5a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h5m0-13h.01',
-    tv: 'M4 6h16v11H4zm4 17h8m-4-6v6',
-    switch: 'M4 7h16M4 12h16M4 17h16',
+  const ringRadii = new Map()
+  for (const node of routerNodes) {
+    const isGw = node.id === gatewayNode?.id
+    const wifi = childrenOf(node.id).filter((d) => !isWired(d)).map((d) => mkChip(d, node.id))
+    if (wifi.length === 0) continue
+    const excludes = []
+    if (isGw) {
+      excludes.push(...arcAround(270, 14))
+      if (gatewayNode) excludes.push(...arcAround(angleTo(gatewayNode.x, gatewayNode.y, gatewayNode.label.x, gatewayNode.label.y), 22))
+      for (const ap of apNodes) excludes.push(...arcAround(angleTo(node.x, node.y, ap.x, ap.y), 15))
+    } else {
+      if (gatewayNode) excludes.push(...arcAround(angleTo(node.x, node.y, gatewayNode.x, gatewayNode.y), 27))
+      excludes.push(...arcAround(angleTo(node.x, node.y, node.label.x, node.label.y), 22))
+    }
+    excludes.push(...(fanArcByRouter.get(node.id) || []))
+    const baseRings = isGw ? GATEWAY_RINGS : AP_RINGS
+    const rings = [...baseRings]
+    let cap = rings.reduce((a, r) => a + r.cap, 0)
+    while (cap < wifi.length) { const last = rings[rings.length - 1]; rings.push({ r: last.r + 30, cap: last.cap + 5 }); cap = rings.reduce((a, r) => a + r.cap, 0) }
+    ringRadii.set(node.id, rings.map((r) => r.r))
+    ringLayout(wifi, node, rings, excludes)
+    wifi.forEach((c, i) => { if (i >= baseRings[0].cap) c.size = 22 })
+    chips.push(...wifi)
   }
-  const drawIcon = (name, x, y, size, color, parent) => {
-    const g = mk('g', { transform: `translate(${x - size / 2}, ${y - size / 2})`, fill: 'none', stroke: color, 'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent)
-    mk('path', { d: iconPaths[name], transform: `scale(${size / 24})` }, g)
-    return g
+
+  for (const node of routerNodes) {
+    for (const d of childrenOf(node.id).filter(isWired)) {
+      if (deviceHubs.has(d.id)) continue
+      const p = anchorPos.get(d.id); if (!p) continue
+      const c = mkChip(d, node.id); Object.assign(c, p); chips.push(c)
+    }
   }
 
-  // --- nodos canónicos de la app ---
-  const gw = { id: 'gw', name: 'GW-Flint2', model: 'Flint 2', x: 500, y: 250, r: 48, status: 'ok', health: 92, clients: 34 }
-  const aps = [
-    { id: 'ap1', name: 'AP-Salon', x: 195, y: 470, r: 38, status: 'ok', health: 88, clients: 18 },
-    { id: 'ap2', name: 'AP-Pasillo', x: 500, y: 505, r: 38, status: 'warn', health: 71, clients: 10 },
-    { id: 'ap3', name: 'AP-Dormitorio', x: 805, y: 470, r: 38, status: 'ok', health: 95, clients: 5 },
-  ]
-  const internet = { x: 500, y: 58 }
-  const peers = [
-    { id: 'p1', name: 'phone', type: 'phone', x: 265, y: 26 },
-    { id: 'p2', name: 'nas-wg', type: 'laptop', x: 735, y: 26 },
-  ]
-  const dist = { id: 'dist1', name: 'Switch inferido', x: 660, y: 230, r: 30, managed: false, port: 'lan3', macs: 8 }
-  const allRouters = [gw, ...aps]
+  const hubChips = []
+  for (const hubId of deviceHubs) {
+    const hubDev = deviceById.get(hubId); if (!hubDev) continue
+    const parentHub = hubOf(hubDev)
+    const p = anchorPos.get(hubId); if (!p) continue
+    const hc = mkChip(hubDev, parentHub); Object.assign(hc, p); hubChips.push(hc)
+    const kids = hypervisorHosts.has(hubId) ? [] : childrenOf(hubId).map((d) => mkChip(d, hubId))
+    const center = angleTo((routerById.get(parentHub) || p).x, (routerById.get(parentHub) || p).y, p.x, p.y)
+    fanLayout(kids, p, HUB_FAN_RADIUS, center - 45, center + 45)
+    chips.push(...kids)
+  }
+  chips.push(...hubChips)
 
-  // --- anillos guía wifi ---
-  const guideRadii = [110, 150]
-  allRouters.forEach(r => {
-    guideRadii.forEach(rad => {
-      svgAppend(mk('circle', { cx: r.x, cy: r.y, r: rad, class: 'topo-guide' }))
+  for (const dv of distNodes) {
+    const kids = childrenOf(dv.id).map((d) => mkChip(d, dv.id))
+    const rn = routerById.get(dv.node.routerId)
+    const center = rn ? angleTo(rn.x, rn.y, dv.x, dv.y) : 0
+    if (kids.length > DIST_FAN_MAX) {
+      const excludes = rn ? arcAround(angleTo(dv.x, dv.y, rn.x, rn.y), 20) : []
+      const rings = [...DIST_RINGS]
+      let cap = rings.reduce((a, r) => a + r.cap, 0)
+      while (cap < kids.length) { const last = rings[rings.length - 1]; rings.push({ r: last.r + 34, cap: last.cap + 5 }); cap = rings.reduce((a, r) => a + r.cap, 0) }
+      ringLayout(kids, dv, rings, excludes)
+    } else {
+      fanLayout(kids, dv, DIST_FAN_RADIUS, center - 68, center + 68)
+    }
+    chips.push(...kids)
+  }
+
+  const ctsByHost = new Map(), ctCountByHost = new Map()
+  for (const dn of distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId)) {
+    const hostId = dn.hostDeviceId
+    const hostChip = chips.find((c) => c.id === hostId)
+    const kids = childrenOf(hostId).map((d) => mkChip(d, hostId, true))
+    if (!hostChip || kids.length === 0) continue
+    kids.forEach((c, i) => { c.x = hostChip.x - ((Math.min(kids.length, CT_COLS) - 1) * CT_DX) / 2 + (i % CT_COLS) * CT_DX; c.y = hostChip.y + CT_OFFSET_Y + Math.floor(i / CT_COLS) * CT_DY; c.size = 22 })
+    ctsByHost.set(hostId, kids); ctCountByHost.set(hostId, kids.length)
+    chips.push(...kids)
+  }
+
+  const ringOverflowChips = []
+  const activePeers = wireguard.peers.filter((p) => p.active)
+  const peerNodes = activePeers.slice(0, PEER_COORDS.length).map((peer, i) => ({ kind: 'peer', id: `peer-${peer.id}`, peer, ...PEER_COORDS[i] }))
+  const hiddenPeers = activePeers.slice(PEER_COORDS.length)
+
+  const chipById = new Map(chips.map((c) => [c.id, c]))
+  const hubPos = (hubId) => {
+    const rn = routerById.get(hubId); if (rn) return { x: rn.x, y: rn.y, r: rn.r }
+    const dv = distNodes.find((n) => n.id === hubId); if (dv) return { x: dv.x, y: dv.y, r: dv.r }
+    const c = chipById.get(hubId); if (c) return { x: c.x, y: c.y, r: c.size / 2 }
+    return null
+  }
+
+  const links = []
+  if (gatewayNode) {
+    links.push({
+      id: 'wan', kind: 'wan',
+      d: 'M 500 92 C 500 122, 500 162, 500 208',
+      lx: 518, ly: 162, label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
+      width: 3, ...flowFor(600), from: 'internet', to: gatewayNode.id,
+    })
+  }
+  apNodes.forEach((node, i) => {
+    const p = UPLINK_PATHS[i]
+    const isWifi = node.router.backhaul === 'wifi'
+    const traffic = subtreeTraffic(childrenOf, node.id)
+    const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
+    links.push({
+      id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
+      d: p.d, lx: p.lx, ly: p.ly, label,
+      width: isWifi ? 2 : 3, ...flowFor(Math.max(traffic, isWifi ? 40 : 120)),
+      from: gatewayNode?.id || 'internet', to: node.id,
+    })
+  })
+  for (const dv of distNodes) {
+    const rn = routerById.get(dv.node.routerId); if (!rn) continue
+    const edge = pos(rn.x, rn.y, angleTo(rn.x, rn.y, dv.x, dv.y), rn.r + 2)
+    const mid = { x: (edge.x + dv.x) / 2, y: (edge.y + dv.y) / 2 }
+    links.push({
+      id: `dist-${dv.id}`, kind: 'dist',
+      d: `M ${edge.x} ${edge.y} Q ${mid.x + 6} ${mid.y - 6}, ${dv.x} ${dv.y}`,
+      lx: 0, ly: 0, label: '',
+      width: 2.5, ...flowFor(subtreeTraffic(childrenOf, dv.id), true),
+      from: dv.node.routerId, to: dv.id,
+    })
+  }
+  for (const chip of chips) {
+    if (chip.isCt || !chip.wired) continue
+    const hub = hubPos(chip.hubId); if (!hub) continue
+    const a = angleTo(hub.x, hub.y, chip.x, chip.y)
+    const edge = pos(hub.x, hub.y, a, hub.r + 2)
+    const dx = chip.x - edge.x, dy = chip.y - edge.y
+    const c1x = edge.x + dx * 0.5 - dy * 0.1
+    const c1y = edge.y + dy * 0.5 + dx * 0.1
+    const mbps = deviceHubs.has(chip.id) ? chip.device.trafficMbps + subtreeTraffic(childrenOf, chip.id) : chip.device.trafficMbps
+    links.push({
+      id: `wired-${chip.id}`, kind: 'wired',
+      d: `M ${edge.x} ${edge.y} Q ${c1x} ${c1y}, ${chip.x} ${chip.y}`,
+      lx: 0, ly: 0, label: '',
+      width: 1.4, ...flowFor(mbps, true),
+      from: chip.hubId, to: chip.id,
+    })
+  }
+  for (const [hostId, cts] of ctsByHost) {
+    const hostChip = chipById.get(hostId); if (!hostChip) continue
+    for (const ct of cts) {
+      links.push({
+        id: `wired-${ct.id}`, kind: 'wired',
+        d: `M ${hostChip.x} ${hostChip.y + hostChip.size / 2} L ${ct.x} ${ct.y - ct.size / 2}`,
+        lx: 0, ly: 0, label: '',
+        width: 1.2, ...flowFor(ct.device.trafficMbps, true),
+        from: hostId, to: ct.id,
+      })
+    }
+  }
+  peerNodes.forEach((node, i) => {
+    const p = WG_PATHS[i] || { d: '', dur: 3.2 }
+    const d = p.d || `M ${node.x + 7} ${node.y + 18} C ${node.x + 60} ${node.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
+    links.push({
+      id: `wg-${node.peer.id}`, kind: 'wg',
+      d, lx: 0, ly: 0, label: '',
+      width: 2, packets: 1, packetDur: p.dur,
+      from: node.id, to: 'internet',
     })
   })
 
-  // --- links ---
-  const addLink = (d, kind, color, width = 1.5, wifi = false, flow = false, label = '') => {
-    const id = `link-${kind}-${Math.random().toString(36).slice(2, 8)}`
-    const path = mk('path', { d, fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', class: 'topo-edge', pathLength: 1, id, 'stroke-dasharray': kind === 'wg' || (kind === 'uplink' && wifi) ? (kind === 'wg' ? '7 7' : '8 6') : undefined }, svg)
-    order.push(path)
-    if (flow && !reduceMotion) {
-      for (let i = 0; i < 2; i++) {
-        const dot = mk('circle', { r: 2.6, fill: color, class: 'topo-flow' }, svg)
-        order.push(dot)
-        const am = mk('animateMotion', { dur: `${2.2 + i * 0.6}s`, repeatCount: 'indefinite', begin: `${-i * 1.1}s` }, dot)
-        mk('mpath', { href: `#${id}` }, am)
-      }
-    }
-    if (kind === 'wg' && !reduceMotion) {
-      const dashed = mk('path', { d, fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', 'stroke-dasharray': '7 7' }, svg)
-      order.push(dashed)
-      mk('animate', { attributeName: 'stroke-dashoffset', from: '0', to: '-28', dur: '1.4s', repeatCount: 'indefinite' }, dashed)
-    }
-    if (label) {
-      const mid = path.getPointAtLength ? path.getPointAtLength(path.getTotalLength() / 2) : { x: 500, y: 300 }
-      const t = mk('text', { x: mid.x, y: mid.y - 8, 'text-anchor': 'middle', class: 'topo-label-sub', fill: 'rgb(var(--text-muted))', 'font-size': 10 }, svg)
-      t.textContent = label
-      order.push(t)
-    }
-    return path
+  return {
+    gatewayNode, apNodes, routerNodes, internetNode, peerNodes, hiddenPeers,
+    chips, distNodes, ctsByHost, ctCountByHost, ringRadii, ringOverflowChips, links,
+    wan,
   }
-
-  // WAN internet-gateway
-  addLink(`M${internet.x} ${internet.y + 28} C${internet.x} 160, ${gw.x} 160, ${gw.x} ${gw.y - gw.r - 6}`, 'wan', COLOR.ok, 2.5, false, true)
-  // uplinks gateway-APs (cableados = verde)
-  const uplinkPaths = [
-    `M${gw.x - gw.r * 0.7} ${gw.y + gw.r * 0.7} C390 340, 290 400, ${aps[0].x + aps[0].r * 0.6} ${aps[0].y - aps[0].r * 0.6}`,
-    `M${gw.x} ${gw.y + gw.r} C${gw.x} 360, ${gw.x} 420, ${aps[1].y - aps[1].r}`,
-    `M${gw.x + gw.r * 0.7} ${gw.y + gw.r * 0.7} C610 340, 710 400, ${aps[2].x - aps[2].r * 0.6} ${aps[2].y - aps[2].r * 0.6}`,
-  ]
-  uplinkPaths.forEach((d, i) => addLink(d, 'uplink', COLOR.ok, 2.2, false, true, i === 1 ? 'uplink' : ''))
-  // distnode link
-  addLink(`M${gw.x + gw.r + 4} ${gw.y} L${dist.x - dist.r - 4} ${dist.y}`, 'wired', COLOR.ok, 1.5, false, true)
-
-  // --- internet ---
-  const inetG = mk('g', { transform: `translate(${internet.x} ${internet.y})`, class: 'topo-node' }, svg)
-  order.push(inetG)
-  mk('circle', { r: 42, fill: COLOR.ok, opacity: 0.08 }, inetG)
-  mk('circle', { r: 38, fill: 'none', stroke: COLOR.ok, 'stroke-width': 1.2, 'stroke-dasharray': '3 7', opacity: 0.55 }, inetG)
-  mk('circle', { r: 3, fill: COLOR.ok, cx: 0, cy: -38 }, inetG)
-  mk('animateTransform', { attributeName: 'transform', type: 'rotate', from: '0', to: '360', dur: '24s', repeatCount: 'indefinite' }, inetG)
-  mk('circle', { r: 28, fill: canvas, stroke: COLOR.ok, 'stroke-width': 2 }, inetG)
-  drawIcon('cloud', 0, 0, 22, COLOR.ok, inetG)
-  const inetLabel = mk('text', { x: 36, y: 6, class: 'topo-label', fill: 'rgb(var(--text-primary))' }, svg)
-  inetLabel.textContent = 'Internet'
-  order.push(inetLabel)
-
-  // --- routers ---
-  allRouters.forEach((r, i) => {
-    const g = mk('g', { transform: `translate(${r.x} ${r.y})`, class: 'topo-node' }, svg)
-    order.push(g)
-    const isGw = i === 0
-    const isWarn = r.status === 'warn'
-    if (isGw) mk('circle', { r: r.r + 18, fill: COLOR.accent, opacity: 0.12 }, g)
-    if (isWarn) {
-      const pulse = mk('circle', { r: r.r + 8, fill: 'none', stroke: COLOR.warn, 'stroke-width': 2 }, g)
-      mk('animate', { attributeName: 'r', values: `${r.r + 8};${r.r + 22}`, dur: '1.6s', repeatCount: 'indefinite' }, pulse)
-      mk('animate', { attributeName: 'opacity', values: '0.6;0', dur: '1.6s', repeatCount: 'indefinite' }, pulse)
-    }
-    const gradId = 'topo-gw-grad' + (i === 0 ? '-gw' : '')
-    if (isGw) {
-      const defs = mk('defs', {}, svg)
-      const grad = mk('linearGradient', { id: gradId, x1: 0, y1: 0, x2: 1, y2: 1 }, defs)
-      mk('stop', { offset: '0%', 'stop-color': COLOR.accent, 'stop-opacity': 0.28 }, grad)
-      mk('stop', { offset: '100%', 'stop-color': COLOR.tunnel, 'stop-opacity': 0.28 }, grad)
-    }
-    mk('circle', { r: r.r, fill: isGw ? `url(#${gradId})` : canvas, stroke: isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--border-strong))', 'stroke-width': isGw || isWarn ? 2 : 1.5 }, g)
-    // status ring
-    const R = r.r + 6, C = 2 * Math.PI * R
-    const target = C * (1 - r.health / 100)
-    const ring = mk('circle', { r: R, fill: 'none', stroke: isWarn ? COLOR.warn : COLOR.ok, 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-dasharray': C, 'stroke-dashoffset': C, transform: 'rotate(-90)' }, g)
-    ring.style.transition = 'stroke-dashoffset 900ms ease'
-    setTimeout(() => ring.style.strokeDashoffset = target, 100 + i * 120)
-    drawIcon(isGw ? 'router' : 'ap', 0, 0, isGw ? 34 : 28, isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--text-primary))', g)
-
-    const label = mk('text', { x: r.x - (isGw ? 70 : 66), y: r.y + (isGw ? 74 : 54), 'text-anchor': 'end', class: 'topo-label' }, svg)
-    label.textContent = r.name
-    order.push(label)
-    const sub = mk('text', { x: r.x - (isGw ? 70 : 66), y: r.y + (isGw ? 92 : 72), 'text-anchor': 'end', class: 'topo-label-sub' }, svg)
-    sub.textContent = `${r.clients} clients · ${r.health}%`
-    order.push(sub)
-  })
-
-  // --- peers WG ---
-  peers.forEach((p, i) => {
-    const g = mk('g', { transform: `translate(${p.x} ${p.y})`, class: 'topo-node' }, svg)
-    order.push(g)
-    if (!reduceMotion) {
-      const pulse = mk('circle', { r: 22, fill: 'none', stroke: COLOR.tunnel, 'stroke-width': 1.5 }, g)
-      mk('animate', { attributeName: 'r', values: '18;27', dur: '2.2s', repeatCount: 'indefinite' }, pulse)
-      mk('animate', { attributeName: 'opacity', values: '0.5;0', dur: '2.2s', repeatCount: 'indefinite' }, pulse)
-    }
-    mk('rect', { x: -21, y: -21, width: 42, height: 42, rx: 13, fill: canvas, stroke: COLOR.tunnel, 'stroke-width': 1.5 }, g)
-    drawIcon(p.type, 0, 0, 24, COLOR.tunnel, g)
-    const label = mk('text', { x: p.x + (i % 2 ? -26 : 26), y: p.y - 4, 'text-anchor': i % 2 ? 'end' : 'start', class: 'topo-label' }, svg)
-    label.textContent = p.name
-    order.push(label)
-    const sub = mk('text', { x: p.x + (i % 2 ? -26 : 26), y: p.y + 11, 'text-anchor': i % 2 ? 'end' : 'start', class: 'topo-label-sub', fill: COLOR.tunnel }, svg)
-    sub.textContent = 'WireGuard'
-    order.push(sub)
-    addLink(`M${p.x} ${p.y + 18} C${p.x} 80, ${gw.x} 80, ${gw.x} ${gw.y - gw.r - 10}`, 'wg', COLOR.tunnel, 2, false, true)
-  })
-
-  // --- distnode (switch inferido) ---
-  const distG = mk('g', { transform: `translate(${dist.x} ${dist.y})`, class: 'topo-node' }, svg)
-  order.push(distG)
-  mk('circle', { r: dist.r + 5, fill: 'none', stroke: 'rgb(var(--text-muted))', 'stroke-width': 1, 'stroke-dasharray': '2 5', opacity: 0.6 }, distG)
-  mk('circle', { r: dist.r, fill: canvas, stroke: 'rgb(var(--text-muted))', 'stroke-width': 1.5, 'stroke-dasharray': '4 4' }, distG)
-  drawIcon('switch', 0, 0, 22, 'rgb(var(--text-muted))', distG)
-  const distLabel = mk('text', { x: dist.x, y: dist.y - 34, 'text-anchor': 'middle', class: 'topo-label' }, svg)
-  distLabel.textContent = t('topo.wired')
-  order.push(distLabel)
-
-  // --- chips de dispositivos ---
-  const chips = [
-    // cableados del distnode (verde)
-    { id: 'c1', name: 'tv-salon', type: 'tv', x: 710, y: 180, wired: true, hub: dist, band: '' },
-    { id: 'c2', name: 'printer', type: 'tv', x: 700, y: 290, wired: true, hub: dist, band: '' },
-    // cableados del gateway oeste
-    { id: 'c3', name: 'pve', type: 'laptop', x: 280, y: 230, wired: true, hub: gw, band: '' },
-    { id: 'c4', name: 'ct-home', type: 'laptop', x: 320, y: 300, wired: true, hub: gw, band: '' },
-    // wifi gateway
-    { id: 'c5', name: 'laptop-nacho', type: 'laptop', x: 620, y: 150, wired: false, hub: gw, band: '5 GHz', weak: false },
-    { id: 'c6', name: 'phone', type: 'phone', x: 410, y: 150, wired: false, hub: gw, band: '5 GHz', weak: false },
-    { id: 'c7', name: 'tablet', type: 'phone', x: 580, y: 120, wired: false, hub: gw, band: '2.4 GHz', weak: false },
-    // wifi AP salon
-    { id: 'c8', name: 'chromecast', type: 'tv', x: 150, y: 410, wired: false, hub: aps[0], band: '2.4 GHz', weak: true },
-    { id: 'c9', name: 'consola', type: 'tv', x: 230, y: 380, wired: false, hub: aps[0], band: '5 GHz', weak: false },
-    { id: 'c10', name: 'kindle', type: 'phone', x: 120, y: 500, wired: false, hub: aps[0], band: '2.4 GHz', weak: true },
-    // wifi AP pasillo
-    { id: 'c11', name: 'cam-patio', type: 'tv', x: 430, y: 580, wired: false, hub: aps[1], band: '2.4 GHz', weak: true },
-    { id: 'c12', name: 'robot', type: 'tv', x: 570, y: 600, wired: false, hub: aps[1], band: '2.4 GHz', weak: false },
-    { id: 'c13', name: 'sensor', type: 'phone', x: 500, y: 620, wired: false, hub: aps[1], band: '2.4 GHz', weak: true },
-    // wifi AP dormitorio
-    { id: 'c14', name: 'phone-y', type: 'phone', x: 860, y: 410, wired: false, hub: aps[2], band: '5 GHz', weak: false },
-    { id: 'c15', name: 'laptop-y', type: 'laptop', x: 900, y: 500, wired: false, hub: aps[2], band: '5 GHz', weak: false },
-  ]
-
-  chips.forEach((c, i) => {
-    const g = mk('g', { transform: `translate(${c.x} ${c.y})`, class: 'topo-node' }, svg)
-    order.push(g)
-    const S = c.wired ? 30 : 28
-    const half = S / 2
-    const stroke = c.wired ? COLOR.ok : 'rgb(var(--border-strong))'
-    mk('rect', { x: -half, y: -half, width: S, height: S, rx: 7, fill: canvas, stroke, 'stroke-width': c.wired ? 1.3 : 1.1 }, g)
-    drawIcon(c.type, 0, 0, 19, c.wired ? COLOR.ok : 'rgb(var(--text-primary))', g)
-    if (!c.wired) {
-      const bandColor = c.weak ? COLOR.warn : c.band === '5 GHz' ? COLOR.accent : COLOR.info
-      mk('circle', { cx: half - 2, cy: half - 2, r: 4.5, fill: bandColor, stroke: canvas, 'stroke-width': 1.4 }, g)
-    }
-    const title = mk('title', {}, g)
-    title.textContent = c.name
-    // link
-    const target = c.wired ? { x: c.hub.x + (c.hub === dist ? -dist.r : c.hub === gw ? -gw.r : 0), y: c.hub.y } : { x: c.hub.x, y: c.hub.y }
-    const kind = c.wired ? 'wired' : 'uplink'
-    const color = c.wired ? COLOR.ok : COLOR.warn
-    addLink(`M${c.x} ${c.y} L${target.x} ${target.y}`, kind, color, c.wired ? 1.2 : 1, !c.wired, false)
-  })
-
-  // coreografía secuencial
-  if (reduceMotion) {
-    svg.querySelectorAll('.topo-node,.topo-edge,.topo-flow').forEach(e => e.classList.add('on'))
-    return
-  }
-  let delay = 0
-  order.forEach(el => {
-    setTimeout(() => el.classList.add('on'), delay)
-    delay += el.classList.contains('topo-edge') ? 160 : 90
-  })
 }
 
-function rebuildTopo() {
-  if (!topoBuilt) return
-  topoBuilt = false
+/* ===== iconos SVG inline ===== */
+function drawIcon(type, size, parent) {
+  const s = size || 14
+  const half = s / 2
+  const scale = s / 24
+  const mkp = (d) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    el.setAttribute('d', d)
+    el.setAttribute('transform', `translate(${-half},${-half}) scale(${scale})`)
+    el.setAttribute('fill', 'none')
+    el.setAttribute('stroke', 'currentColor')
+    el.setAttribute('stroke-width', '1.75')
+    el.setAttribute('stroke-linecap', 'round')
+    el.setAttribute('stroke-linejoin', 'round')
+    parent.appendChild(el)
+    return el
+  }
+  const map = {
+    ordenador: 'M3 4h18v12H3z M8 16v4 M16 16v4 M6 20h12',
+    portatil: 'M4 5h16v10H4z M2 17h20v2H2z',
+    movil: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z',
+    tablet: 'M5 2h14a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z',
+    tv: 'M2 7h20v12H2z M8 3l4 4 4-4',
+    consola: 'M6 11h2v2H6zm10 0h2v2h-2zm-6 2h4v-4h-4z M4 7h16a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
+    iot: 'M12 2a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V19a3 3 0 0 0 6 0v-5.8a6 6 0 0 0 0-10.4z',
+    camara: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+    altavoz: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z M12 18a4 4 0 0 0 0-8',
+    servidor: 'M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M6 7h12 M6 12h12 M6 17h12',
+    switch: 'M4 10h16v8H4z M8 10V6 M16 10V6',
+    desconocido: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M9 9a3 3 0 1 1 6 0c0 2-3 3-3 5',
+  }
+  mkp(map[type] || map.desconocido)
+}
+
+/* ===== render SVG fiel ===== */
+function drawTopology() {
+  const model = buildTopologyModel({
+    routers: DEMO_ROUTERS, devices: DEMO_DEVICES, wan: DEMO_WAN,
+    wireguard: DEMO_WG, distributionNodes: DEMO_DISTRIBUTION,
+  })
   const svg = document.getElementById('topoSvg')
   svg.innerHTML = ''
-  buildTopo()
+  const ns = 'http://www.w3.org/2000/svg'
+  const mk = (tag, attrs = {}, parent = svg) => {
+    const el = document.createElementNS(ns, tag)
+    for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) el.setAttribute(k, v)
+    if (parent) parent.appendChild(el)
+    return el
+  }
+
+  // defs
+  const defs = mk('defs')
+  const grad = mk('linearGradient', { id: 'topo-gw-grad', x1: 0, y1: 0, x2: 1, y2: 1 }, defs)
+  mk('stop', { offset: '0%', 'stop-color': TOPO_COLOR.accent, 'stop-opacity': 0.28 }, grad)
+  mk('stop', { offset: '100%', 'stop-color': TOPO_COLOR.tunnel, 'stop-opacity': 0.28 }, grad)
+
+  // anillos guia wifi
+  const guidesG = mk('g', { 'class': 'topo-guides', 'aria-hidden': 'true' })
+  for (const node of model.routerNodes) {
+    const radii = model.ringRadii.get(node.id) || (node.id === model.gatewayNode?.id ? [96, 130] : [82, 120])
+    for (const r of radii) mk('circle', { cx: node.x, cy: node.y, r, class: 'topo-guide' }, guidesG)
+  }
+
+  // enlaces
+  const linksG = mk('g')
+  for (const link of model.links) {
+    const isWg = link.kind === 'wg'
+    const isWifiUp = link.kind === 'uplink' && link.wifi
+    const stroke = linkColor(link.kind, link.wifi)
+    const baseOpacity = link.kind === 'wired' ? 0.45 : link.kind === 'dist' ? 0.55 : isWifiUp ? 0.8 : link.kind === 'uplink' ? 0.55 : 0.9
+    const path = mk('path', { d: link.d, fill: 'none', stroke, 'stroke-width': link.width, 'stroke-linecap': 'round',
+      'stroke-dasharray': isWg ? '7 7' : isWifiUp ? '8 6' : undefined, opacity: baseOpacity,
+      id: `topo-link-${link.id}`, class: 'topo-edge on' }, linksG)
+    if (isWg) {
+      mk('path', { d: link.d, fill: 'none', stroke: TOPO_COLOR.tunnel, 'stroke-width': link.width, 'stroke-linecap': 'round',
+        'stroke-dasharray': '7 7', opacity: 0.9, class: 'topo-wg-flow' }, linksG)
+    }
+    // paquetes animados via CSS offset-path
+    if (link.packets > 0) {
+      for (let i = 0; i < link.packets; i++) {
+        const begin = -((link.packetDur / link.packets) * i)
+        mk('circle', {
+          r: 2.6, fill: stroke, opacity: 0.95, class: 'topo-packet',
+          style: `offset-path: path('${link.d.replace(/'/g, "\\'")}'); animation: packetMove ${link.packetDur}s linear infinite; animation-delay: ${begin}s`,
+        }, linksG)
+      }
+    }
+  }
+
+  // internet
+  const inetG = mk('g', { transform: `translate(${model.internetNode.x} ${model.internetNode.y})`, class: 'topo-node on' })
+  mk('circle', { r: 42, fill: TOPO_COLOR.ok, opacity: 0.08 }, inetG)
+  const orbit = mk('g', { 'aria-hidden': 'true', class: 'topo-orbit' }, inetG)
+  mk('circle', { r: 38, fill: 'none', stroke: TOPO_COLOR.ok, 'stroke-width': 1.2, 'stroke-dasharray': '3 7', opacity: 0.55 }, orbit)
+  mk('circle', { r: 3, fill: TOPO_COLOR.ok, cx: 0, cy: -38 }, orbit)
+  mk('circle', { r: 28, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.ok, 'stroke-width': 2 }, inetG)
+  mk('path', { d: 'M19.3 11.7a5.6 5.6 0 0 0-8.2-3.5A4.5 4.5 0 0 0 4.5 12.5 4.5 4.5 0 0 0 9 17h11a3.5 3.5 0 0 0 0-7h-1.2l-1.5-1.3z',
+    fill: 'none', stroke: TOPO_COLOR.ok, 'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, inetG)
+
+  // routers
+  model.routerNodes.forEach((node, i) => {
+    const isGw = node.router.roleBadge === 'Principal'
+    const isWarn = node.router.status === 'warn'
+    const g = mk('g', { transform: `translate(${node.x} ${node.y})`, class: 'topo-node on' })
+    if (isGw) mk('circle', { r: node.r + 18, fill: TOPO_COLOR.accent, opacity: 0.1, class: 'topo-halo' }, g)
+    if (isWarn) {
+      mk('circle', { r: node.r + 8, fill: 'none', stroke: TOPO_COLOR.warn, 'stroke-width': 2, class: 'topo-warn-pulse' }, g)
+    }
+    mk('circle', { r: node.r, fill: isGw ? 'url(#topo-gw-grad)' : 'rgb(var(--elevated))',
+      stroke: isWarn ? TOPO_COLOR.warn : isGw ? TOPO_COLOR.accent : 'rgb(var(--border-strong))', 'stroke-width': isGw || isWarn ? 2 : 1.5 }, g)
+    // status ring
+    const R = node.r + 6, C = 2 * Math.PI * R
+    const target = C * (1 - node.router.health / 100)
+    const ring = mk('circle', { r: R, fill: 'none', stroke: statusColor(node.router.status), 'stroke-width': 3,
+      'stroke-dasharray': C, 'stroke-dashoffset': target, 'stroke-linecap': 'round', transform: 'rotate(-90)' }, g)
+    // router icon
+    mk('path', { d: 'M4 10h16v8H4z M8 10V6 M16 10V6 M12 2v4', fill: 'none', stroke: isWarn ? TOPO_COLOR.warn : TOPO_COLOR.accent,
+      'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g)
+  })
+
+  // peers
+  model.peerNodes.forEach((node, i) => {
+    const isMovil = node.peer.type === 'movil'
+    const g = mk('g', { transform: `translate(${node.x} ${node.y})`, class: 'topo-node on' })
+    const pulse = mk('circle', { r: 22, fill: 'none', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.5, class: 'topo-peer-pulse' }, g)
+    mk('rect', { x: -18, y: -18, width: 36, height: 36, rx: 11, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.5 }, g)
+    const path = isMovil
+      ? 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z'
+      : 'M4 5h16v10H4z M2 17h20v2H2z'
+    mk('path', { d: path, fill: 'none', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g)
+  })
+
+  // hidden peers +N
+  if (model.hiddenPeers.length > 0) {
+    const g = mk('g', { transform: `translate(${PEERS_OVERFLOW_COORD.x} ${PEERS_OVERFLOW_COORD.y})`, class: 'topo-node on' })
+    mk('rect', { x: -15, y: -11, width: 30, height: 22, rx: 8, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.tunnel, 'stroke-width': 1.5 }, g)
+    mk('text', { x: 0, y: 3.5, 'text-anchor': 'middle', 'font-size': 9.5, 'font-weight': 700, fill: TOPO_COLOR.tunnel }, g).textContent = '+' + model.hiddenPeers.length
+  }
+
+  // distnodes
+  model.distNodes.forEach((dv) => {
+    const managed = dv.node.kind === 'managed'
+    const g = mk('g', { transform: `translate(${dv.x} ${dv.y})`, class: 'topo-node on' })
+    mk('circle', { r: dv.r + 5, fill: 'none', stroke: managed ? TOPO_COLOR.accent : 'rgb(var(--text-muted))', 'stroke-width': 1,
+      'stroke-dasharray': managed ? undefined : '2 5', opacity: managed ? 0.5 : 0.6 }, g)
+    mk('circle', { r: dv.r, fill: managed ? 'rgb(var(--elevated))' : 'rgb(var(--elevated) / 0.65)',
+      stroke: managed ? TOPO_COLOR.accent : 'rgb(var(--text-muted))', 'stroke-width': 1.5, 'stroke-dasharray': managed ? undefined : '4 4' }, g)
+    mk('path', { d: 'M4 10h16v8H4z M8 10V6 M16 10V6', fill: 'none', stroke: managed ? TOPO_COLOR.accent : 'rgb(var(--text-secondary))', 'stroke-width': 1.75 }, g)
+    if (managed) {
+      mk('rect', { x: dv.r - 4, y: -dv.r - 4, width: 22, height: 10, rx: 5, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.accent, 'stroke-width': 1 }, g)
+      mk('text', { x: dv.r + 7, y: -dv.r + 3.4, 'text-anchor': 'middle', 'font-size': 6.5, 'font-weight': 800, fill: TOPO_COLOR.accent, 'letter-spacing': '0.04em' }, g).textContent = 'LLDP'
+    }
+  })
+
+  // chips
+  model.chips.forEach((chip) => {
+    const d = chip.device, S = chip.size, half = S / 2
+    const stroke = d.lldp ? TOPO_COLOR.accent : chip.wired ? TOPO_COLOR.ok : 'rgb(var(--border-strong))'
+    const g = mk('g', { transform: `translate(${chip.x} ${chip.y})`, class: 'topo-node on' })
+    const rect = mk('rect', { x: -half, y: -half, width: S, height: S, rx: 7, fill: 'rgb(var(--elevated))', stroke, 'stroke-width': chip.wired ? 1.3 : 1.1 }, g)
+    const iconG = mk('g', { style: `color: ${chip.wired ? TOPO_COLOR.ok : 'rgb(var(--text-primary))'}` }, g)
+    drawIcon(d.type, 14, iconG)
+    if (!chip.wired) {
+      mk('circle', { cx: half - 2, cy: half - 2, r: 3.8, fill: bandColor(chip.band, chip.weak), stroke: 'rgb(var(--canvas))', 'stroke-width': 1.4 }, g)
+    }
+    if (d.lldp) {
+      mk('rect', { x: half - 4, y: -half - 4, width: 22, height: 10, rx: 5, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.accent, 'stroke-width': 1 }, g)
+      mk('text', { x: half + 7, y: -half + 3.4, 'text-anchor': 'middle', 'font-size': 6.5, 'font-weight': 800, fill: TOPO_COLOR.accent, 'letter-spacing': '0.04em' }, g).textContent = 'LLDP'
+    }
+    const ctCount = model.ctCountByHost.get(chip.id) || 0
+    if (ctCount > 0) {
+      mk('circle', { cx: half + 1, cy: -half - 1, r: 8, fill: 'rgb(var(--elevated))', stroke: TOPO_COLOR.ok, 'stroke-width': 1.2 }, g)
+      mk('text', { x: half + 1, y: -half + 2, 'text-anchor': 'middle', 'font-size': 8, 'font-weight': 700, fill: TOPO_COLOR.ok }, g).textContent = '+' + ctCount
+    }
+    mk('title', {}, g).textContent = d.name
+  })
+
+  // etiquetas
+  const labelsG = mk('g', { class: 'topo-labels', 'pointer-events': 'none', 'aria-hidden': 'true' })
+  function label(x, y, anchor, title, sub, subColor) {
+    const g = mk('g', {}, labelsG)
+    mk('text', { x, y, 'text-anchor': anchor, 'font-size': 13, 'font-weight': 600, fill: 'rgb(var(--text-primary))', stroke: 'rgb(var(--canvas))', 'stroke-width': 4, style: 'paint-order: stroke' }, g).textContent = title
+    mk('text', { x, y: y + 15, 'text-anchor': anchor, 'font-size': 10.5, fill: subColor || 'rgb(var(--text-secondary))', stroke: 'rgb(var(--canvas))', 'stroke-width': 3, style: 'paint-order: stroke' }, g).textContent = sub
+  }
+  label(548, 54, 'start', `Internet · ${model.wan.isp}`, `${model.wan.plan} · ${model.wan.latencyMs} ms`)
+  if (model.gatewayNode) {
+    const n = model.gatewayNode
+    label(n.label.x, n.label.y, n.label.anchor, n.router.name, `${n.router.modelShort} · ${n.router.roleBadge} · ${n.router.clients} clients`)
+  }
+  model.apNodes.forEach((n) => {
+    const warn = n.router.status === 'warn'
+    label(n.label.x, n.label.y, n.label.anchor, n.router.name, warn ? `${n.router.clients} clients · warn` : `${n.router.clients} clients`, warn ? TOPO_COLOR.warn : undefined)
+  })
+  model.distNodes.forEach((dv) => {
+    if (dv.node.kind === 'managed') label(dv.x, dv.y - 34, 'middle', dv.node.name || 'Switch', `${dv.node.ip || 'LLDP'} · ${dv.node.port}`, TOPO_COLOR.accent)
+    else label(dv.x, dv.y - 34, 'middle', 'Switch inferido', `${dv.node.port}`)
+  })
+  for (const [hostId] of model.ctsByHost) {
+    const host = model.chips.find((c) => c.id === hostId); if (!host) continue
+    label(host.x, host.y - 38, 'middle', host.device.name, `hipervisor · ${model.ctCountByHost.get(hostId) || 0} CT`)
+  }
+  model.peerNodes.forEach((n, i) => label(n.x + (i % 2 ? -26 : 26), n.y - 4, i % 2 ? 'end' : 'start', n.peer.name, 'vía Internet', TOPO_COLOR.tunnel))
+  model.links.filter((l) => l.label).forEach((l) => {
+    mk('text', { x: l.lx, y: l.ly, 'font-size': 10, fill: 'rgb(var(--text-muted))', stroke: 'rgb(var(--canvas))', 'stroke-width': 3, style: 'paint-order: stroke', class: 'font-mono' }, labelsG).textContent = l.label
+  })
 }
 
-/* ---------- stage 3: routers cards fieles ---------- */
-const ROUTERS = [
-  { id: 'gw', name: 'GW-Flint2', model: 'GL.iNet Flint 2', role: 'Principal', cpu: 12, ram: 34, temp: 52, clients: 34, health: 92, status: 'ok', uptime: '34d 6h', spark: [12, 18, 14, 22, 16, 20, 13] },
-  { id: 'ap1', name: 'AP-Salon', model: 'Xiaomi AX6', role: 'AP', cpu: 23, ram: 51, temp: 49, clients: 18, health: 88, status: 'ok', uptime: '14d 2h', spark: [21, 25, 30, 28, 35, 32, 29] },
-  { id: 'ap2', name: 'AP-Pasillo', model: 'Xiaomi AX6', role: 'AP', cpu: 41, ram: 63, temp: 78, clients: 10, health: 71, status: 'warn', uptime: '9d 7h', spark: [35, 42, 58, 55, 61, 48, 52] },
-  { id: 'ap3', name: 'AP-Dormitorio', model: 'Xiaomi AX6', role: 'AP', cpu: 18, ram: 48, temp: 44, clients: 5, health: 95, status: 'ok', uptime: '32d 5h', spark: [10, 14, 12, 18, 15, 13, 11] },
-]
-let routersBuilt = false
-let routersPlayed = false
+function buildTopo() {
+  if (topoBuilt) return
+  topoBuilt = true
+  drawTopology()
+}
+
 function buildRouters() {
   const grid = document.getElementById('routerGrid')
   const C = 2 * Math.PI * 31 // R=31 (size 56 /2 +stroke? inner r ~31)
-  grid.innerHTML = ROUTERS.map(r => {
+  grid.innerHTML = DEMO_ROUTERS.map(r => {
     const isWarn = r.status === 'warn'
     const statusColor = isWarn ? 'rgb(var(--warn))' : 'rgb(var(--ok))'
     const healthDash = C * (1 - r.health / 100)
-    const sparkPath = r.spark.map((v, i) => `${i === 0 ? 'M' : 'L'}${(i / (r.spark.length - 1)) * 100} ${28 - (v / 70) * 28}`).join(' ')
+    const sparkPath = r.sparkline.map((v, i) => `${i === 0 ? 'M' : 'L'}${(i / (r.sparkline.length - 1)) * 100} ${28 - (v / 70) * 28}`).join(' ')
     return `
     <div class="rcard card ${isWarn ? 'warn' : ''}">
       <div class="rt">

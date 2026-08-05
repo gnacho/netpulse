@@ -264,6 +264,18 @@ section.block { padding: 5rem 0; }
 .topo-node.on { opacity: 1; transform: none; }
 .topo-edge { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 900ms ease; filter: drop-shadow(0 0 2.5px currentColor); }
 .topo-edge.on { stroke-dashoffset: 0; }
+.topo-wg-flow { animation: wgFlow 1.4s linear infinite; }
+@keyframes wgFlow { to { stroke-dashoffset: -28; } }
+.topo-orbit { transform-origin: center; animation: topoOrbit 24s linear infinite; }
+@keyframes topoOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.topo-halo { animation: haloPulse 6s ease-in-out infinite; }
+@keyframes haloPulse { 0%, 100% { opacity: 0.08; } 50% { opacity: 0.22; } }
+.topo-warn-pulse { transform-origin: center; animation: warnPulse 1.6s ease-out infinite; }
+@keyframes warnPulse { 0% { opacity: 0.6; transform: scale(1); } 100% { opacity: 0; transform: scale(1.45); } }
+.topo-peer-pulse { transform-origin: center; animation: peerPulse 2.2s ease-out infinite; }
+@keyframes peerPulse { 0% { opacity: 0.5; transform: scale(1); } 100% { opacity: 0; transform: scale(1.23); } }
+.topo-packet { offset-distance: 0%; }
+@keyframes packetMove { to { offset-distance: 100%; } }
 .topo-flow { opacity: 0; transition: opacity 600ms ease; }
 .topo-flow.on { opacity: 1; }
 .topo-guide { fill: none; stroke: rgb(var(--border-strong)); stroke-width: 1; stroke-dasharray: 2 6; opacity: 0.35; }
