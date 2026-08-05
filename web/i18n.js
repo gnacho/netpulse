@@ -126,7 +126,20 @@ const I18N = {
       kofi: 'Support the project on Ko-fi', rights: 'AGPL-3.0 · Built at home, for home networks.',
     },
     appearance: { title: 'Appearance', theme: 'Theme', dark: 'Dark', light: 'Light', system: 'Auto', accent: 'Accent', note: 'Same tokens as the app — try it live.' },
-    misc: { lang: 'Language', copy: 'Copy', copied: 'Copied!', demoBadge: 'demo data' },
+    misc: { lang: 'Language', copy: 'Copy', copied: 'Copied to clipboard', demoBadge: 'demo data' },
+    shots: {
+      eyebrow: 'The app',
+      title: 'A look at the interface',
+      lead: 'NetPulse screenshots in demo mode, in the theme you pick. One per menu.',
+      prev: 'Previous screenshot',
+      next: 'Next screenshot',
+      s1: 'Overview · a glance at your network health',
+      s2: 'Routers · fleet, health and per-router metrics',
+      s3: 'Devices · clients, band and signal',
+      s4: 'Topology · the live map of your network, inferred from the FDB',
+      s5: 'Alerts · the feed of what happens in your network',
+      s6: 'Settings · appearance, users, routers and services',
+    },
   },
 
   /* ---------------- ESPAÑOL ---------------- */
@@ -217,7 +230,20 @@ const I18N = {
       kofi: 'Apoya el proyecto en Ko-fi', rights: 'AGPL-3.0 · Hecho en casa, para redes de casa.',
     },
     appearance: { title: 'Apariencia', theme: 'Tema', dark: 'Oscuro', light: 'Claro', system: 'Auto', accent: 'Acento', note: 'Mismos tokens que la app — pruébalo en vivo.' },
-    misc: { lang: 'Idioma', copy: 'Copiar', copied: '¡Copiado!', demoBadge: 'datos demo' },
+    misc: { lang: 'Idioma', copy: 'Copiar', copied: 'Copiado al portapapeles', demoBadge: 'datos demo' },
+    shots: {
+      eyebrow: 'La app',
+      title: 'Un vistazo a la interfaz',
+      lead: 'Capturas de NetPulse en modo demo, con el tema que elijas. Una por menú.',
+      prev: 'Captura anterior',
+      next: 'Captura siguiente',
+      s1: 'Panel · un vistazo a la salud de tu red',
+      s2: 'Routers · flota, salud y métricas por router',
+      s3: 'Dispositivos · clientes, banda y señal',
+      s4: 'Topología · el mapa vivo de tu red, inferido del FDB',
+      s5: 'Alertas · el feed de lo que pasa en tu red',
+      s6: 'Ajustes · apariencia, usuarios, routers y servicios',
+    },
   },
 
   /* ---------------- 中文 (简体) ---------------- */
@@ -1081,6 +1107,7 @@ function applyLang(lang) {
   if (typeof renderRouterNames === 'function') renderRouterNames()
   if (typeof renderTopoNames === 'function') renderTopoNames()
   if (typeof renderAdGuardTexts === 'function') renderAdGuardTexts()
+  if (typeof renderShot === 'function') renderShot()
   if (typeof updateAppearancePanel === 'function') updateAppearancePanel()
 }
 

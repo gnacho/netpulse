@@ -441,6 +441,37 @@
     </div>
   </section>
 
+  <!-- ============ CAPTURAS ============ -->
+  <section class="block" id="shots" style="padding-top:1rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="shots.eyebrow">La app</span>
+        <h2 class="font-display text-balance" data-i18n="shots.title">Un vistazo a la interfaz</h2>
+        <p class="lead" data-i18n="shots.lead">Capturas de NetPulse en modo demo, con el tema que elijas. Una por menú.</p>
+      </div>
+      <div class="slider reveal">
+        <div class="slider-main">
+          <button class="slider-arrow prev" id="shotPrev" aria-label="Captura anterior" data-i18n-aria="shots.prev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <img id="shotImg" src="assets/shot-overview-es-light.webp" alt="" width="1440" height="900">
+          <button class="slider-arrow next" id="shotNext" aria-label="Captura siguiente" data-i18n-aria="shots.next">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <p class="shot-caption" id="shotCaption"></p>
+        <div class="slider-thumbs" id="shotThumbs" aria-label="Miniaturas">
+          <button class="thumb active" data-slide="0" aria-label="Overview"><img data-view="overview" src="assets/shot-overview-es-light.webp" alt="Overview" width="300" height="188"></button>
+          <button class="thumb" data-slide="1" aria-label="Routers"><img data-view="routers" src="assets/shot-routers-es-light.webp" alt="Routers" width="300" height="188"></button>
+          <button class="thumb" data-slide="2" aria-label="Devices"><img data-view="devices" src="assets/shot-devices-es-light.webp" alt="Devices" width="300" height="188"></button>
+          <button class="thumb" data-slide="3" aria-label="Topology"><img data-view="topology" src="assets/shot-topology-es-light.webp" alt="Topology" width="300" height="188"></button>
+          <button class="thumb" data-slide="4" aria-label="Alerts"><img data-view="alerts" src="assets/shot-alerts-es-light.webp" alt="Alerts" width="300" height="188"></button>
+          <button class="thumb" data-slide="5" aria-label="Settings"><img data-view="settings" src="assets/shot-settings-es-light.webp" alt="Settings" width="300" height="188"></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ INSTALACIÓN ============ -->
   <section class="block" id="install">
     <div class="container">
@@ -455,7 +486,9 @@
           <div class="codebox">
             <span class="prompt font-mono">$</span>
             <code id="installCmd">curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh</code>
-            <button class="copybtn" id="copyBtn" data-i18n-aria="misc.copy">Copiar</button>
+          </div>
+          <div class="code-actions">
+            <button class="copybtn" id="copyBtn" data-i18n="misc.copy" data-i18n-aria="misc.copy">Copiar</button>
           </div>
           <p class="install-note">
             <span data-i18n="install.inspector">El instalador es shell plano y legible —</span>

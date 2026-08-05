@@ -1273,6 +1273,7 @@ function applyTheme() {
   root.classList.toggle('light', light)
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = light ? '#F3F5F9' : '#070B12'
+  if (typeof renderShot === 'function') renderShot()
 }
 function applyAccent() { document.documentElement.dataset.accent = accentId }
 function updateAppearancePanel() {
@@ -1344,6 +1345,53 @@ function initTrafficRanges() {
   })
 }
 
+/* ---------- slider de capturas ---------- */
+const SHOT_SLIDES = ['overview', 'routers', 'devices', 'topology', 'alerts', 'settings']
+const SHOT_ALT = {
+  overview: { es: 'Panel de NetPulse: salud, tráfico y dispositivos de la red', en: 'NetPulse overview: network health, traffic and devices' },
+  routers: { es: 'Vista de routers: flota, salud y métricas por router', en: 'Routers view: fleet, health and per-router metrics' },
+  devices: { es: 'Vista de dispositivos: clientes, banda y señal', en: 'Devices view: clients, band and signal' },
+  topology: { es: 'Topología: el mapa vivo de tu red, inferido del FDB', en: 'Topology: the live map of your network, inferred from the FDB' },
+  alerts: { es: 'Feed de alertas: lo que pasa en tu red, en vivo', en: 'Alerts feed: what happens in your network, live' },
+  settings: { es: 'Ajustes: apariencia, usuarios, routers y servicios', en: 'Settings: appearance, users, routers and services' },
+}
+let shotIndex = 0
+
+function shotUrl(view) {
+  const lang = (document.documentElement.lang || 'en').slice(0, 2)
+  const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
+  return `assets/shot-${view}-${lang}-${theme}.webp`
+}
+
+function renderShot(i) {
+  if (typeof i === 'number') shotIndex = (i + SHOT_SLIDES.length) % SHOT_SLIDES.length
+  const view = SHOT_SLIDES[shotIndex]
+  const img = document.getElementById('shotImg')
+  const cap = document.getElementById('shotCaption')
+  if (!img) return
+  const lang = (document.documentElement.lang || 'en').slice(0, 2)
+  img.src = shotUrl(view)
+  img.alt = (SHOT_ALT[view] && SHOT_ALT[view][lang]) || view
+  if (cap) cap.textContent = t(`shots.s${shotIndex + 1}`)
+  document.querySelectorAll('#shotThumbs .thumb').forEach((th, idx) => {
+    th.classList.toggle('active', idx === shotIndex)
+  })
+}
+
+function initSlider() {
+  const img = document.getElementById('shotImg')
+  if (!img) return
+  document.querySelectorAll('#shotThumbs img[data-view]').forEach((el) => {
+    el.src = shotUrl(el.dataset.view)
+  })
+  document.getElementById('shotPrev').addEventListener('click', () => renderShot(shotIndex - 1))
+  document.getElementById('shotNext').addEventListener('click', () => renderShot(shotIndex + 1))
+  document.querySelectorAll('#shotThumbs .thumb').forEach((th) => {
+    th.addEventListener('click', () => renderShot(parseInt(th.dataset.slide, 10)))
+  })
+  renderShot(0)
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initAppearance()
   initBackgroundCanvas()
@@ -1354,5 +1402,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initCopy()
   initKofi()
   initTrafficRanges()
+  initSlider()
   heroCountUps()
 })
