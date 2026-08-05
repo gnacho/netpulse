@@ -421,3 +421,25 @@ func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
 	}
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/agents/{slug}/refresh — Fase 7.3: enviar comando refresh al
+// agente vía SSE para que haga un sondeo inmediato. Admin solo.
+// ---------------------------------------------------------------------------
+
+func (s *server) handleAgentRefresh(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !agentSlugRe.MatchString(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if s.agentHub == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "SSE agentHub no configurado")
+		return
+	}
+	if !s.agentHub.Send(slug, "refresh", map[string]any{}) {
+		writeError(w, http.StatusNotFound, "not_found", "el agente "+slug+" no está conectado por SSE")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}

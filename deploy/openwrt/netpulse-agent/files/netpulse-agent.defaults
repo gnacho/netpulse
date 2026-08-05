@@ -27,7 +27,7 @@ cat > "$WATCHDOG" << 'WDOG'
 #!/bin/sh
 # netpulse-watchdog: si el agente no ha escrito el heartbeat en 300s, reiniciar
 HB=/tmp/netpulse-agent.heartbeat
-if ! pgrep -x netpulse-agent > /dev/null; then
+if ! pidof netpulse-agent > /dev/null; then
 	/etc/init.d/netpulse-agent restart
 	exit 0
 fi

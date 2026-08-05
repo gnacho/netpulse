@@ -265,20 +265,30 @@ Contexto:
    - Cada apply crea un snapshot de `/etc/config` antes de tocar nada.
    - Healthcheck post-apply: si ping/gateway/wifi falla, rollback automático.
 4. **Módulos por orden de riesgo/beneficio**:
-   1. **AdGuard Home**: binario + YAML + reenvío DNS desde dnsmasq. Módulo de
-      stats ya existe; riesgo bajo.
-   2. **WireGuard peers**: alta desde la app; ajustar firewall + allowed_ips.
+   1. **AdGuard Home**: **despliegue one-click** (descarga binario + YAML base +
+      reenvío DNS desde dnsmasq + enable + firewall) + stats ya existentes.
+      Riesgo bajo.
+   2. **WireGuard**: **alta de peers desde la app** (clave + IP + allowed_ips +
+      ajustar firewall). El túnel ya existe; solo se añaden/quitan peers.
       Riesgo medio.
    3. **DAWN / 802.11r**: roaming enterprise. Riesgo alto; un error deja APs sin
       wifi → modo rescate con fallback a config previa.
    4. **Batman-adv**: mesh L2. Riesgo muy alto; dry-run obligatorio + ventana
       de confirmación con auto-rollback si se pierde conectividad.
+5. **Despliegue de servicios desde la app**: además de configurar, poder
+   **instalar/activar** servicios sin tocar LuCI:
+   - AdGuard Home: instalar, activar, desactivar, actualizar.
+   - WireGuard: crear túnel nuevo (cliente o sitio-a-sitio), añadir/quitar peers.
+   - Posibles futuros: VLAN simple, WiFi guest, QoS básico.
+   - Cada despliegue es atómico: o se completa entero o se revierte.
+   - La app deja de ser "solo lectura" para estos flujos asistidos.
 
 **Criterios de aceptación:**
 - Cualquier apply muestra diff y pide confirmación antes de ejecutar.
 - Un apply fallido deja la red en el estado anterior en < 60 s.
 - Solo comandos de la allowlist pueden ejecutarse; shell libre está bloqueado.
 - Auditoría: quién, qué y cuándo se aplicó cada cambio.
+- Activar AdGuard desde la app sin abrir LuCI ni editar un solo fichero a mano.
 
 **Deploy**: se despliega módulo a módulo, empezando por AdGuard Home.
 

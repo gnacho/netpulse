@@ -167,6 +167,8 @@ func NewHandler(d Deps) http.Handler {
 	// Auth por token de agente (Bearer), igual que ingesta y binary.
 	if s.agentHub != nil {
 		mux.HandleFunc("GET /api/agents/{slug}/stream", s.agentHub.HandleStream)
+		// Forzar refresh del agente vía SSE (admin; útil para depuración y futuro UI)
+		mux.Handle("POST /api/agents/{slug}/refresh", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRefresh)))
 	}
 
 	// --- Web Push (Fase 3 Bloque C; tras sesión como el resto del API) ---
