@@ -111,9 +111,10 @@ const I18N = {
       connect: 'Connect your routers', connectp: 'The server generates its own ed25519 key pair and shows the public key in Settings. Authorize it on each router (/etc/dropbear/authorized_keys). The gateway auto-detects on first boot via LAN discovery; the rest you add from Settings. Polling is strictly read-only.',
     },
     honest: {
-      title: 'What you should know',
-      p1: 'NetPulse is a personal project, built for my own network and published as free software (AGPL-3.0). It is and will always be free. I work on it in my spare time: many ideas, little time, and it evolves following my own needs first.',
-      p2: 'Honest scope note: so far it has only been tested on my own hardware — a GL.iNet Flint 2 gateway and three Xiaomi AX6 access points on OpenWrt — plus WireGuard and AdGuard Home. Other OpenWrt devices should work, but yours would be the first to tell me.',
+      title: 'About NetPulse',
+      p1: 'NetPulse is a personal project, built for my own network and published as free software (AGPL-3.0). It is and will always be free and community-driven. I work on it in my spare time: many ideas, little time, and it evolves following my own needs first.',
+      p2: 'If you like the project or want to help it grow, consider a contribution through Ko-fi. It lets me spend more time on it and move faster. Sharing NetPulse also helps a lot.',
+      p3: 'Honest scope note: so far it has only been tested on my own hardware — a GL.iNet Flint 2 gateway and three Xiaomi AX6 access points on OpenWrt — plus WireGuard and AdGuard Home. Other OpenWrt devices should work, but yours would be the first to tell me.',
     },
     footer: {
       tagline: 'Read-only monitoring for home networks, self-hosted and free forever.',
@@ -198,9 +199,10 @@ const I18N = {
       connect: 'Conecta tus routers', connectp: 'El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router (/etc/dropbear/authorized_keys). El gateway se autodetecta en el primer arranque por descubrimiento LAN; el resto se añade desde Ajustes. El sondeo es estrictamente de solo lectura.',
     },
     honest: {
-      title: 'Lo que debes saber',
-      p1: 'NetPulse es un proyecto personal, construido para mi propia red y publicado como software libre (AGPL-3.0). Es y será siempre libre. Trabajo en él en mi tiempo libre: muchas ideas, poco tiempo, y evoluciona siguiendo primero mis propias necesidades.',
-      p2: 'Nota honesta de alcance: de momento solo se ha probado con mi propio hardware — un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6 con OpenWrt — además de WireGuard y AdGuard Home. Otros dispositivos OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.',
+      title: 'Acerca de NetPulse',
+      p1: 'NetPulse es un proyecto personal, construido para mi propia red y publicado como software libre (AGPL-3.0). Es y será siempre libre y comunitario. Trabajo en él en mi tiempo libre: muchas ideas, poco tiempo, y evoluciona siguiendo primero mis propias necesidades.',
+      p2: 'Si el proyecto te gusta o quieres ayudarlo a crecer, considera una aportación a través de Ko-fi. Eso me permitirá dedicar más tiempo y avanzar más rápido. También puedes ayudarme mucho difundiendo NetPulse.',
+      p3: 'Nota honesta de alcance: de momento solo se ha probado con mi propio hardware — un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6 con OpenWrt — además de WireGuard y AdGuard Home. Otros dispositivos OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.',
     },
     footer: {
       tagline: 'Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.',
@@ -297,9 +299,10 @@ const I18N = {
       connect: '连接你的路由器', connectp: '服务器生成自己的 ed25519 密钥对，并在设置中显示公钥。在每台路由器上授权它（/etc/dropbear/authorized_keys）。网关在首次启动时通过局域网发现自动检测；其余在设置中添加。轮询严格只读。',
     },
     honest: {
-      title: '你应该知道的事',
-      p1: 'NetPulse 是一个个人项目，为作者自己的网络而建，以自由软件（AGPL-3.0）发布。它现在自由，永远自由。作者在业余时间开发：想法很多，时间很少，演进首先跟随作者自己的需求。',
-      p2: '诚实的范围说明：目前只在作者自己的硬件上测试过——一台 GL.iNet Flint 2 网关和三台运行 OpenWrt 的小米 AX6 接入点——外加 WireGuard 和 AdGuard Home。其他 OpenWrt 设备应该能用，但你的会是第一个告诉我结果的。',
+      title: '关于 NetPulse',
+      p1: 'NetPulse 是一个个人项目，为我的自有网络而建，以自由软件（AGPL-3.0）发布。它现在和将来都将是自由和社区驱动的。我在业余时间开发它：想法很多，时间很少，它首先按照我自己的需求演进。',
+      p2: '如果你喜欢这个项目或想帮助它成长，可以考虑通过 Ko-fi 赞助。这会让我投入更多时间、进展更快。分享 NetPulse 也是很大的帮助。',
+      p3: '诚实的范围说明：目前只在作者自己的硬件上测试过——一台 GL.iNet Flint 2 网关和三台运行 OpenWrt 的小米 AX6 接入点——外加 WireGuard 和 AdGuard Home。其他 OpenWrt 设备应该能用，但你的会是第一个告诉我结果的。',
     },
     footer: {
       tagline: '面向家庭网络的只读监控，自托管，永远自由。',
@@ -396,9 +399,10 @@ const I18N = {
       connect: 'اربط راوتراتك', connectp: 'يولّد الخادم زوج مفاتيح ed25519 الخاص به ويعرض المفتاح العام في الإعدادات. فوّضه على كل راوتر (/etc/dropbear/authorized_keys). تُكتشف البوابة تلقائيًا عند أول إقلاع عبر اكتشاف الشبكة المحلية؛ والبقية تضيفها من الإعدادات. الاستطلاع قراءة فقط بدقة.',
     },
     honest: {
-      title: 'ما يجب أن تعرفه',
-      p1: 'NetPulse مشروع شخصي، بُني لشبكتي الخاصة ونُشر كبرنامج حر (AGPL-3.0). هو حر وسيبقى كذلك. أعمل عليه في وقت فراغي: أفكار كثيرة ووقت قليل، ويتطور تبعًا لاحتياجاتي أولًا.',
-      p2: 'ملاحظة صريحة عن النطاق: حتى الآن لم يُختبر إلا على عتادي — بوابة GL.iNet Flint 2 وثلاث نقاط وصول Xiaomi AX6 تعمل بـ OpenWrt — إضافة إلى WireGuard وAdGuard Home. أجهزة OpenWrt الأخرى ينبغي أن تعمل، لكن جهازك سيكون أول من يخبرني.',
+      title: 'عن NetPulse',
+      p1: 'NetPulse هو مشروع شخصي، بُني لشبكتي الخاصة ونُشر كبرنامج حر (AGPL-3.0). سيبقى حرًا ومجتمعيًا دائمًا. أعمل عليه في وقت فراغي: أفكار كثيرة ووقت قليل، ويتطور حسب احتياجاتي أولًا.',
+      p2: 'إذا أعجبك المشروع أو تريد مساعدته على النمو، فكّر في مساهمة عبر Ko-fi. سيسمح لي ذلك بتخصيص وقت أكبر والتقدم أسرع. مشاركة NetPulse مع الآخرين تساعد كثيرًا أيضًا.',
+      p3: 'ملاحظة صريحة عن النطاق: حتى الآن لم يُختبر إلا على عتادي — بوابة GL.iNet Flint 2 وثلاث نقاط وصول Xiaomi AX6 تعمل بـ OpenWrt — إضافة إلى WireGuard وAdGuard Home. أجهزة OpenWrt الأخرى ينبغي أن تعمل، لكن جهازك سيكون أول من يخبرني.',
     },
     footer: {
       tagline: 'مراقبة قراءة فقط للشبكات المنزلية، استضافة ذاتية وحرة إلى الأبد.',
@@ -495,9 +499,10 @@ const I18N = {
       connect: 'अपने राउटर जोड़ें', connectp: 'सर्वर अपना ed25519 की-पेयर बनाता है और पब्लिक की सेटिंग्स में दिखाता है। हर राउटर पर इसे अधिकृत करें (/etc/dropbear/authorized_keys)। गेटवे पहले बूट पर LAN डिस्कवरी से खुद पकड़ में आता है; बाकी सेटिंग्स से जोड़ें। पोलिंग सख़्ती से केवल-पढ़ने योग्य है।',
     },
     honest: {
-      title: 'जो आपको जानना चाहिए',
-      p1: 'NetPulse एक व्यक्तिगत प्रोजेक्ट है, मेरे अपने नेटवर्क के लिए बनाया गया और स्वतंत्र सॉफ़्टवेयर (AGPL-3.0) के रूप में प्रकाशित। यह स्वतंत्र है और हमेशा रहेगा। मैं इसे खाली समय में बनाता हूँ: विचार बहुत, समय कम, और यह पहले मेरी अपनी ज़रूरतों के अनुसार बढ़ता है।',
-      p2: 'ईमानदार गुंजाइश नोट: अब तक इसे सिर्फ़ मेरे हार्डवेयर पर परखा गया है — एक GL.iNet Flint 2 गेटवे और तीन OpenWrt वाले Xiaomi AX6 एक्सेस पॉइंट — साथ में WireGuard और AdGuard Home। दूसरे OpenWrt डिवाइस चलने चाहिए, पर आपका पहला होगा जो मुझे बताएगा।',
+      title: 'NetPulse के बारे में',
+      p1: 'NetPulse एक व्यक्तिगत प्रोजेक्ट है, जो मेरे अपने नेटवर्क के लिए बना है और मुफ्त सॉफ्टवेयर (AGPL-3.0) के रूप में प्रकाशित है। यह हमेशा मुफ्त और सामुदायिक रहेगा। मैं इसे अपने खाली समय में बनाता हूँ: कई विचार, कम समय, और यह पहले मेरी अपनी ज़रूरतों के अनुसार विकसित होता है।',
+      p2: 'अगर आपको प्रोजेक्ट पसंद है या इसे बढ़ाने में मदद करना चाहते हैं, तो Ko-fi के ज़रिए योगदान दे सकते हैं। इससे मैं ज़्यादा समय दे पाऊँगा और तेज़ी से आगे बढ़ पाऊँगा। NetPulse को फैलाना भी बहुत मदद करता है।',
+      p3: 'ईमानदार गुंजाइश नोट: अब तक इसे सिर्फ़ मेरे हार्डवेयर पर परखा गया है — एक GL.iNet Flint 2 गेटवे और तीन OpenWrt वाले Xiaomi AX6 एक्सेस पॉइंट — साथ में WireGuard और AdGuard Home। दूसरे OpenWrt डिवाइस चलने चाहिए, पर आपका पहला होगा जो मुझे बताएगा।',
     },
     footer: {
       tagline: 'घरेलू नेटवर्क के लिए केवल-पढ़ने योग्य निगरानी, सेल्फ-होस्टेड और हमेशा के लिए स्वतंत्र।',
@@ -594,9 +599,10 @@ const I18N = {
       connect: 'Conecte seus roteadores', connectp: 'O servidor gera seu próprio par de chaves ed25519 e mostra a pública em Configurações. Autorize-a em cada roteador (/etc/dropbear/authorized_keys). O gateway se autodetecta no primeiro boot por descoberta LAN; os demais você adiciona em Configurações. A sondagem é estritamente somente leitura.',
     },
     honest: {
-      title: 'O que você deve saber',
-      p1: 'O NetPulse é um projeto pessoal, construído para a minha própria rede e publicado como software livre (AGPL-3.0). É e será sempre livre. Trabalho nele no meu tempo livre: muitas ideias, pouco tempo, e ele evolui seguindo primeiro as minhas próprias necessidades.',
-      p2: 'Nota honesta de escopo: até agora só foi testado no meu próprio hardware — um gateway GL.iNet Flint 2 e três pontos de acesso Xiaomi AX6 com OpenWrt — além de WireGuard e AdGuard Home. Outros dispositivos OpenWrt devem funcionar, mas o seu seria o primeiro a contar.',
+      title: 'Sobre o NetPulse',
+      p1: 'O NetPulse é um projeto pessoal, construído para a minha própria rede e publicado como software livre (AGPL-3.0). Será sempre livre e comunitário. Trabalho nele no meu tempo livre: muitas ideias, pouco tempo, e evolui seguindo primeiro as minhas próprias necessidades.',
+      p2: 'Se gosta do projeto ou quer ajudá-lo a crescer, considere uma contribuição via Ko-fi. Isso permite-me dedicar mais tempo e avançar mais rápido. Divulgar o NetPulse também ajuda muito.',
+      p3: 'Nota honesta de escopo: até agora só foi testado no meu próprio hardware — um gateway GL.iNet Flint 2 e três pontos de acesso Xiaomi AX6 com OpenWrt — além de WireGuard e AdGuard Home. Outros dispositivos OpenWrt devem funcionar, mas o seu seria o primeiro a contar.',
     },
     footer: {
       tagline: 'Monitoramento somente leitura para redes domésticas, auto-hospedado e livre para sempre.',
@@ -693,9 +699,10 @@ const I18N = {
       connect: 'Connectez vos routeurs', connectp: 'Le serveur génère sa propre paire de clés ed25519 et affiche la publique dans Réglages. Autorisez-la sur chaque routeur (/etc/dropbear/authorized_keys). La gateway s’autodétecte au premier démarrage par découverte LAN ; les autres s’ajoutent depuis Réglages. Le sondage est strictement en lecture seule.',
     },
     honest: {
-      title: 'Ce qu’il faut savoir',
-      p1: 'NetPulse est un projet personnel, construit pour mon propre réseau et publié en logiciel libre (AGPL-3.0). Il est et restera toujours libre. J’y travaille sur mon temps libre : beaucoup d’idées, peu de temps, et il évolue d’abord selon mes propres besoins.',
-      p2: 'Note honnête de périmètre : pour l’instant testé uniquement sur mon propre matériel — une gateway GL.iNet Flint 2 et trois points d’accès Xiaomi AX6 sous OpenWrt — plus WireGuard et AdGuard Home. D’autres appareils OpenWrt devraient fonctionner, mais le vôtre serait le premier à le dire.',
+      title: 'À propos de NetPulse',
+      p1: 'NetPulse est un projet personnel, construit pour mon propre réseau et publié en logiciel libre (AGPL-3.0). Il est et restera toujours libre et communautaire. J’y travaille sur mon temps libre : beaucoup d’idées, peu de temps, et il évolue d’abord selon mes propres besoins.',
+      p2: 'Si vous aimez le projet ou voulez l’aider à grandir, pensez à une contribution via Ko-fi. Cela me permettra d’y consacrer plus de temps et d’avancer plus vite. Faire connaître NetPulse aide aussi énormément.',
+      p3: 'Note honnête de périmètre : pour l’instant testé uniquement sur mon propre matériel — une gateway GL.iNet Flint 2 et trois points d’accès Xiaomi AX6 sous OpenWrt — plus WireGuard et AdGuard Home. D’autres appareils OpenWrt devraient fonctionner, mais le vôtre serait le premier à le dire.',
     },
     footer: {
       tagline: 'Supervision en lecture seule des réseaux domestiques, auto-hébergée et libre pour toujours.',
@@ -792,9 +799,10 @@ const I18N = {
       connect: 'ルーターをつなぐ', connectp: 'サーバーは自身の ed25519 キーペアを生成し、公開鍵を「設定」に表示します。各ルーターで承認してください（/etc/dropbear/authorized_keys）。ゲートウェイは初回起動時に LAN ディスカバリーで自動検出。残りは設定から追加。ポーリングは厳密に読み取り専用です。',
     },
     honest: {
-      title: '知っておいてほしいこと',
-      p1: 'NetPulse は個人プロジェクトで、作者自身のネットワークのために作られ、フリーソフトウェア（AGPL-3.0）として公開されています。今もこれからもずっとフリーです。空き時間に開発しており、アイデアは多く時間は少なく、まずは作者自身の必要に沿って進化します。',
-      p2: '正直な範囲の注記：現時点でテスト済みなのは作者のハードウェアのみ — GL.iNet Flint 2 ゲートウェイ 1 台と OpenWrt の Xiaomi AX6 アクセスポイント 3 台 — に加え WireGuard と AdGuard Home。他の OpenWrt デバイスも動くはずですが、あなたのものが最初の報告になるでしょう。',
+      title: 'NetPulse について',
+      p1: 'NetPulseは自分のネットワークのために作った個人プロジェクトで、自由ソフトウェア（AGPL-3.0）として公開しています。これからもずっと自由でコミュニティ主導です。余暇に開発しています。アイデアは多く時間は少なく、まず自分のニーズに沿って進化します。',
+      p2: '気に入っていただけたら、Ko-fi での支援でプロジェクトの成長を手伝えます。より多くの時間を割いて速く前進できます。NetPulse を広めていただくのも大きな助けになります。',
+      p3: '正直な範囲の注記：現時点でテスト済みなのは作者のハードウェアのみ — GL.iNet Flint 2 ゲートウェイ 1 台と OpenWrt の Xiaomi AX6 アクセスポイント 3 台 — に加え WireGuard と AdGuard Home。他の OpenWrt デバイスも動くはずですが、あなたのものが最初の報告になるでしょう。',
     },
     footer: {
       tagline: '家庭内ネットワークの読み取り専用モニタリング。セルフホスト、ずっとフリー。',
@@ -891,9 +899,10 @@ const I18N = {
       connect: 'Подключите роутеры', connectp: 'Сервер генерирует свою пару ключей ed25519 и показывает публичный ключ в Настройках. Авторизуйте его на каждом роутере (/etc/dropbear/authorized_keys). Шлюз самоопределяется при первом старте через обнаружение LAN; остальные добавляются в Настройках. Опрос строго только для чтения.',
     },
     honest: {
-      title: 'Что стоит знать',
-      p1: 'NetPulse — личный проект, построенный для моей собственной сети и опубликованный как свободное ПО (AGPL-3.0). Он свободен и всегда будет. Работаю над ним в свободное время: идей много, времени мало, и развивается он прежде всего по моим собственным нуждам.',
-      p2: 'Честная оговорка о границах: пока тестировалось только на моём железе — шлюз GL.iNet Flint 2 и три точки доступа Xiaomi AX6 на OpenWrt — плюс WireGuard и AdGuard Home. Другие устройства OpenWrt должны работать, но ваше станет первым, которое расскажет.',
+      title: 'О NetPulse',
+      p1: 'NetPulse — личный проект, созданный для моей собственной сети и опубликованный как свободное ПО (AGPL-3.0). Он был и останется свободным и ориентированным на сообщество. Я работаю над ним в свободное время: много идей, мало времени, и он развивается прежде всего по моим потребностям.',
+      p2: 'Если проект вам нравится или вы хотите помочь ему расти, рассмотрите вклад через Ko-fi. Это позволит мне уделять ему больше времени и двигаться быстрее. Рассказать о NetPulse другим тоже очень помогает.',
+      p3: 'Честная оговорка о границах: пока тестировалось только на моём железе — шлюз GL.iNet Flint 2 и три точки доступа Xiaomi AX6 на OpenWrt — плюс WireGuard и AdGuard Home. Другие устройства OpenWrt должны работать, но ваше станет первым, которое расскажет.',
     },
     footer: {
       tagline: 'Мониторинг домашней сети в режиме только чтение: self-hosted и свободный навсегда.',
@@ -990,9 +999,10 @@ const I18N = {
       connect: 'Verbinde deine Router', connectp: 'Der Server erzeugt sein eigenes ed25519-Schlüsselpaar und zeigt den öffentlichen Schlüssel in den Einstellungen. Autorisiere ihn auf jedem Router (/etc/dropbear/authorized_keys). Das Gateway erkennt sich beim ersten Start per LAN-Discovery selbst; den Rest fügst du in den Einstellungen hinzu. Das Polling ist strikt read-only.',
     },
     honest: {
-      title: 'Was du wissen solltest',
-      p1: 'NetPulse ist ein persönliches Projekt, gebaut für mein eigenes Netz und veröffentlicht als freie Software (AGPL-3.0). Es ist und bleibt immer frei. Ich arbeite daran in meiner Freizeit: viele Ideen, wenig Zeit, und es entwickelt sich zuerst nach meinen eigenen Bedürfnissen.',
-      p2: 'Ehrliche Anmerkung zum Umfang: Bisher nur auf meiner eigenen Hardware getestet — ein GL.iNet Flint 2 Gateway und drei Xiaomi AX6 Access Points mit OpenWrt — plus WireGuard und AdGuard Home. Andere OpenWrt-Geräte sollten funktionieren, aber deines wäre das erste, das es mir erzählt.',
+      title: 'Über NetPulse',
+      p1: 'NetPulse ist ein persönliches Projekt, das ich für mein eigenes Netzwerk gebaut und als freie Software (AGPL-3.0) veröffentlicht habe. Es ist und bleibt immer frei und gemeinschaftlich. Ich arbeite in meiner Freizeit daran: viele Ideen, wenig Zeit, und es entwickelt sich zuerst nach meinen eigenen Bedürfnissen.',
+      p2: 'Wenn dir das Projekt gefällt oder du es wachsen sehen willst, hilf gern mit einer Spende über Ko-fi. So kann ich mehr Zeit investieren und schneller vorankommen. NetPulse weiterzuempfehlen hilft ebenfalls sehr.',
+      p3: 'Ehrliche Anmerkung zum Umfang: Bisher nur auf meiner eigenen Hardware getestet — ein GL.iNet Flint 2 Gateway und drei Xiaomi AX6 Access Points mit OpenWrt — plus WireGuard und AdGuard Home. Andere OpenWrt-Geräte sollten funktionieren, aber deines wäre das erste, das es mir erzählt.',
     },
     footer: {
       tagline: 'Read-only-Monitoring für Heimnetze, selbst gehostet und für immer frei.',
