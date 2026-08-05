@@ -1,0 +1,75 @@
+name: openwrt-package
+
+# Disparado cuando se publica un release de GitHub (tag v* → goreleaser).
+# Descarga el binario netpulse-agent arm64 de la release, lo empaqueta
+# en .ipk (SDK 24.10) y .apk (SDK 25.12), y los adjunta a la release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag (ej: v2.6.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk-version: 24.10.5
+            sdk-target: mediatek/filogic
+            format: ipk
+          - sdk-version: 25.12.5
+            sdk-target: qualcommax/ipq807x
+            format: apk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determinar release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Descargar binario netpulse-agent arm64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release download "$TAG" -p "netpulse-agent_*_linux_arm64.tar.gz" --dir /tmp/agent
+          cd /tmp/agent
+          tar xzf netpulse-agent_*_linux_arm64.tar.gz
+          ls -la netpulse-agent
+          file netpulse-agent
+
+      - name: Empaquetar ${{ matrix.format }} (SDK ${{ matrix.sdk-version }})
+        run: |
+          chmod +x deploy/openwrt/package.sh
+          PKG_VERSION=$(sed -n 's/^PKG_VERSION:=//p' deploy/openwrt/netpulse-agent/Makefile | head -1)
+          PKG_RELEASE=$(sed -n 's/^PKG_RELEASE:=//p' deploy/openwrt/netpulse-agent/Makefile | head -1)
+          deploy/openwrt/package.sh \
+            "${{ matrix.sdk-version }}" \
+            "${{ matrix.sdk-target }}" \
+            "" \
+            "${{ matrix.format }}" \
+            /tmp/agent/netpulse-agent
+
+      - name: Subir a release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          echo "Paquetes generados:"
+          ls -la dist/packages/
+          gh release upload "$TAG" dist/packages/*.${{ matrix.format }} --clobber
