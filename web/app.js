@@ -257,7 +257,7 @@ function renderTicker() {
   el.innerHTML = items.join('') + items.join('')
 }
 
-/* ---------- stage 0: health ring ---------- */
+/* ---------- stage 0: health ring + advertencias + ancho de banda ---------- */
 let ringPlayed = false
 function playRing() {
   if (ringPlayed) return
@@ -266,6 +266,9 @@ function playRing() {
   const num = document.getElementById('ringNum')
   const C = 590.6
   const score = DEMO.score
+  animateNumber(document.getElementById('hDown'), DEMO_WAN.downMbps, { decimals: 1, duration: 1400 })
+  animateNumber(document.getElementById('hUp'), DEMO_WAN.upMbps, { decimals: 1, duration: 1400 })
+  animateNumber(document.getElementById('hLat'), DEMO_WAN.latencyMs, { duration: 1400 })
   if (reduceMotion) { arc.style.strokeDashoffset = C * (1 - score / 100); num.textContent = score; return }
   const dur = 1300
   const start = performance.now()
@@ -280,77 +283,112 @@ function playRing() {
   requestAnimationFrame(frame)
 }
 
-/* ---------- stage 1: traffic chart ---------- */
+/* ---------- stage 1: tráfico WAN por rango (1h/24h/7d/30d) ---------- */
 let trafficPlayed = false
 let trafficTimer = null
-function genSeries(n, base, amp, seed = 1) {
-  const out = []; let s = seed
-  for (let i = 0; i < n; i++) {
-    s = (s * 9301 + 49297) % 233280
-    const noise = s / 233280
-    out.push(Math.max(2, base + Math.sin(i / 4) * amp * 0.6 + noise * amp))
-  }
-  return out
-}
-function pathFrom(data, W, H, max) {
-  const step = W / (data.length - 1)
-  return data.map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)} ${(H - (v / max) * (H - 10) - 5).toFixed(1)}`).join(' ')
-}
-function playTraffic() {
-  if (trafficPlayed) return
-  trafficPlayed = true
-  const W = 480, H = 160
-  const downData = genSeries(52, DEMO.down, 22, 7)
-  const upData = genSeries(52, DEMO.up, 6, 13)
-  const max = 120
+let trafficRange = '24h'
+const TRAFFIC_TICKS = { '1h': 5, '24h': 6, '7d': 7, '30d': 5 }
+const NS_T = 'http://www.w3.org/2000/svg'
+
+function renderTrafficChart(animate) {
+  const data = DEMO_TRAFFIC[trafficRange]
+  if (!data || data.length < 2) return
+  const W = 480, H = 200, padL = 8, padR = 8, padT = 14, padB = 26
+  const max = Math.max(1, ...data.map((p) => Math.max(p.down, p.up))) * 1.15
+  const stepX = (W - padL - padR) / (data.length - 1)
+  const X = (i) => padL + i * stepX
+  const Y = (v) => padT + (H - padT - padB) * (1 - v / max)
+  const path = (key) => data.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p[key]).toFixed(1)}`).join(' ')
+  const down = path('down'), up = path('up')
   const lineDown = document.getElementById('lineDown')
   const lineUp = document.getElementById('lineUp')
   const areaDown = document.getElementById('areaDown')
-  const dPath = pathFrom(downData, W, H, max)
-  const uPath = pathFrom(upData, W, H, max)
-  lineDown.setAttribute('d', dPath)
-  lineUp.setAttribute('d', uPath)
-  areaDown.setAttribute('d', dPath + ` L${W} ${H} L0 ${H} Z`)
-  if (reduceMotion) {
-    areaDown.setAttribute('opacity', '1')
-    document.getElementById('wanDown').textContent = DEMO.down.toFixed(1)
-    document.getElementById('wanUp').textContent = DEMO.up.toFixed(1)
-    document.getElementById('wanLat').textContent = DEMO.latency
-    return
+  const areaUp = document.getElementById('areaUp')
+  const x0 = X(0).toFixed(1), xN = X(data.length - 1).toFixed(1)
+  lineDown.setAttribute('d', down)
+  lineUp.setAttribute('d', up)
+  areaDown.setAttribute('d', `${down} L${xN} ${H} L${x0} ${H} Z`)
+  areaUp.setAttribute('d', `${up} L${xN} ${H} L${x0} ${H} Z`)
+  // rejilla horizontal
+  const grid = document.getElementById('trafficGrid')
+  grid.innerHTML = ''
+  for (let g = 1; g <= 3; g++) {
+    const gy = padT + (H - padT - padB) * (g / 4)
+    const el = document.createElementNS(NS_T, 'line')
+    el.setAttribute('x1', padL); el.setAttribute('x2', W - padR); el.setAttribute('y1', gy); el.setAttribute('y2', gy)
+    el.setAttribute('stroke', 'rgb(var(--border))'); el.setAttribute('stroke-dasharray', '3 6'); el.setAttribute('opacity', '0.5')
+    grid.appendChild(el)
   }
-  const Ld = lineDown.getTotalLength()
-  const Lu = lineUp.getTotalLength()
-  lineDown.style.strokeDasharray = Ld
-  lineUp.style.strokeDasharray = Lu
-  lineDown.style.strokeDashoffset = Ld
-  lineUp.style.strokeDashoffset = Lu
-  const start = performance.now()
-  const dur = 1500
-  function frame(now) {
-    const p = Math.min(1, (now - start) / dur)
-    const e = easeOutCubic(p)
-    lineDown.style.strokeDashoffset = Ld * (1 - e)
-    lineUp.style.strokeDashoffset = Lu * (1 - e)
-    areaDown.setAttribute('opacity', String(e * 0.9))
-    if (p < 1) requestAnimationFrame(frame)
-    else startLiveJitter()
+  // ticks del eje X
+  const ticks = document.getElementById('trafficXTicks')
+  ticks.innerHTML = ''
+  const n = TRAFFIC_TICKS[trafficRange] || 5
+  for (let k = 0; k < n; k++) {
+    const idx = Math.round((k * (data.length - 1)) / (n - 1))
+    const tx = document.createElementNS(NS_T, 'text')
+    tx.setAttribute('x', X(idx)); tx.setAttribute('y', H - 8); tx.setAttribute('text-anchor', 'middle')
+    tx.textContent = data[idx].t
+    ticks.appendChild(tx)
   }
-  requestAnimationFrame(frame)
-  animateNumber(document.getElementById('wanDown'), DEMO.down, { decimals: 1, duration: 1400 })
-  animateNumber(document.getElementById('wanUp'), DEMO.up, { decimals: 1, duration: 1400 })
-  animateNumber(document.getElementById('wanLat'), DEMO.latency, { duration: 1400 })
+  if (animate) {
+    const Ld = lineDown.getTotalLength()
+    const Lu = lineUp.getTotalLength()
+    lineDown.style.strokeDasharray = Ld; lineDown.style.strokeDashoffset = Ld
+    lineUp.style.strokeDasharray = Lu; lineUp.style.strokeDashoffset = Lu
+    const start = performance.now(), dur = 1400
+    function frame(now) {
+      const p = Math.min(1, (now - start) / dur)
+      const e = easeOutCubic(p)
+      lineDown.style.strokeDashoffset = Ld * (1 - e)
+      lineUp.style.strokeDashoffset = Lu * (1 - e)
+      areaDown.setAttribute('opacity', String(e * 0.9))
+      areaUp.setAttribute('opacity', String(e * 0.8))
+      if (p < 1) requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  } else {
+    lineDown.style.strokeDasharray = ''
+    lineDown.style.strokeDashoffset = ''
+    lineUp.style.strokeDasharray = ''
+    lineUp.style.strokeDashoffset = ''
+    areaDown.setAttribute('opacity', '0.9')
+    areaUp.setAttribute('opacity', '0.8')
+  }
 }
-function startLiveJitter() {
-  if (trafficTimer) return
-  const downEl = document.getElementById('wanDown')
-  const upEl = document.getElementById('wanUp')
+
+function renderWanFooter() {
+  const w = DEMO_WAN
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v }
+  set('wanPeak', `${w.peakTodayMbps} Mbps ↓`)
+  set('wanAvg', `${w.avgDownMbps} Mbps ↓`)
+  set('wanTotal', w.total24h)
+  set('wanLoss', `${w.lossPct} %`)
+}
+
+function playTraffic() {
+  if (trafficPlayed) return
+  trafficPlayed = true
+  renderTrafficChart(true)
+  renderWanFooter()
+  animateNumber(document.getElementById('wanDown'), DEMO_WAN.downMbps, { decimals: 1, duration: 1400 })
+  animateNumber(document.getElementById('wanUp'), DEMO_WAN.upMbps, { decimals: 1, duration: 1400 })
+  animateNumber(document.getElementById('wanLat'), DEMO_WAN.latencyMs, { duration: 1400 })
+  if (reduceMotion) return
   trafficTimer = setInterval(() => {
+    const downEl = document.getElementById('wanDown')
     if (!downEl.isConnected) return
-    const d = Math.max(55, DEMO.down + (Math.random() - 0.5) * 7)
-    const u = Math.max(9, DEMO.up + (Math.random() - 0.5) * 2.5)
+    const d = Math.max(55, DEMO_WAN.downMbps + (Math.random() - 0.5) * 7)
+    const u = Math.max(9, DEMO_WAN.upMbps + (Math.random() - 0.5) * 2.5)
     downEl.textContent = d.toFixed(1)
-    upEl.textContent = u.toFixed(1)
+    document.getElementById('wanUp').textContent = u.toFixed(1)
   }, 2600)
+}
+
+function setTrafficRange(r) {
+  if (trafficRange === r) return
+  trafficRange = r
+  document.querySelectorAll('#trafficRanges button').forEach((b) => b.classList.toggle('on', b.dataset.range === r))
+  renderTrafficChart(false)
 }
 
 /* ---------- stage 2: topologia fiel a la app (model.ts + TopologyMap.tsx) ---------- */
@@ -1088,39 +1126,52 @@ function playRouters() {
   fillRouterBars(false)
 }
 
-/* ---------- stage 4: adguard ---------- */
-const AG_DOMAINS = [
-  { d: 'graph.facebook.com', n: 12840 },
-  { d: 'ads.doubleclick.net', n: 9315 },
-  { d: 'app-measurement.com', n: 7602 },
-  { d: 'telemetry.microsoft.com', n: 4188 },
-  { d: 'tracking.miui.com', n: 2941 },
-]
+/* ---------- stage 4: adguard (como la tarjeta de la app) ---------- */
 let agPlayed = false
+const AG_DONUT_C = 248.2
+function renderAdGuardTexts() {
+  const ag = DEMO_ADGUARD
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v }
+  set('agBlockedPct', fmtLocale(ag.blockedPct, 1) + '%')
+  set('agBlockedOf', t('adguard.blockedOf', { blocked: fmtLocale(ag.blocked24h), total: fmtLocale(ag.queries24h) }))
+  set('agTrackers', fmtLocale(ag.trackersBlocked))
+  set('agDns', fmtLocale(ag.dnsLatencyMs) + ' ms')
+}
 function playAdGuard() {
+  renderAdGuardTexts()
+  const ag = DEMO_ADGUARD
+  const arc = document.getElementById('agDonutArc')
   if (agPlayed) return
   agPlayed = true
-  const q = document.getElementById('agQueries')
-  const b = document.getElementById('agBlocked')
-  const c = document.getElementById('agClients')
-  animateNumber(q, 184523, { duration: 1400, format: x => fmtLocale(Math.round(x)) })
-  animateNumber(b, 23, { duration: 1400, format: x => Math.round(x) + '%' })
-  animateNumber(c, DEMO.clients, { duration: 1200, format: x => Math.round(x) + '/' + DEMO.clientsTotal })
+  // animación del arco del donut
+  if (reduceMotion) {
+    arc.style.strokeDashoffset = AG_DONUT_C * (1 - ag.blockedPct / 100)
+  } else {
+    const start = performance.now(), dur = 1100
+    function frame(now) {
+      const p = Math.min(1, (now - start) / dur)
+      const e = easeOutCubic(p)
+      arc.style.strokeDashoffset = AG_DONUT_C * (1 - (ag.blockedPct / 100) * e)
+      if (p < 1) requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  }
+  // barras de dominios bloqueados
   const bars = document.getElementById('agBars')
   if (!bars.childElementCount) {
-    const max = AG_DOMAINS[0].n
-    bars.innerHTML = AG_DOMAINS.map(x => `
+    const max = ag.topBlocked[0].count
+    bars.innerHTML = ag.topBlocked.map((x) => `
       <div class="ag-bar-row">
-        <span class="d">${x.d}</span>
-        <div class="bar"><i data-w="${Math.round((x.n / max) * 100)}"></i></div>
-        <span class="n">${fmtLocale(x.n)}</span>
+        <span class="d">${x.domain}</span>
+        <div class="bar"><i data-w="${Math.round((x.count / max) * 100)}"></i></div>
+        <span class="n">${fmtLocale(x.count)}</span>
       </div>
     `).join('')
   }
   bars.querySelectorAll('.bar i').forEach((bar, i) => {
     const w = bar.dataset.w
     if (reduceMotion) { bar.style.width = w + '%'; return }
-    setTimeout(() => { bar.style.width = w + '%' }, 150 + i * 120)
+    setTimeout(() => { bar.style.width = w + '%' }, 200 + i * 120)
   })
 }
 
@@ -1261,6 +1312,15 @@ function initKofi() {
 }
 
 /* ---------- boot ---------- */
+function initTrafficRanges() {
+  const wrap = document.getElementById('trafficRanges')
+  if (!wrap) return
+  wrap.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-range]')
+    if (btn) setTrafficRange(btn.dataset.range)
+  })
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initAppearance()
   initBackgroundCanvas()
@@ -1270,5 +1330,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheater()
   initCopy()
   initKofi()
+  initTrafficRanges()
   heroCountUps()
 })

@@ -215,23 +215,42 @@
               <div class="wan-card card" style="background:rgb(var(--elevated)/0.4);">
                 <div class="wan-head">
                   <span class="label uppercase text-muted" data-i18n="wan.title">Tráfico WAN</span>
+                  <div class="seg seg-ranges" id="trafficRanges" role="tablist" aria-label="Período">
+                    <button type="button" data-range="1h">1h</button>
+                    <button type="button" data-range="24h" class="on">24h</button>
+                    <button type="button" data-range="7d">7d</button>
+                    <button type="button" data-range="30d">30d</button>
+                  </div>
                   <span class="wan-live"><span class="dot"></span><span data-i18n="wan.live">EN VIVO</span></span>
                 </div>
-                <svg id="trafficChart" viewBox="0 0 400 120" preserveAspectRatio="none">
+                <svg id="trafficChart" viewBox="0 0 480 200">
                   <defs>
                     <linearGradient id="fillDown" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0" stop-color="rgb(var(--accent))" stop-opacity="0.25"/>
                       <stop offset="1" stop-color="rgb(var(--accent))" stop-opacity="0"/>
                     </linearGradient>
+                    <linearGradient id="fillUp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="rgb(var(--tunnel))" stop-opacity="0.2"/>
+                      <stop offset="1" stop-color="rgb(var(--tunnel))" stop-opacity="0"/>
+                    </linearGradient>
                   </defs>
+                  <g id="trafficGrid"></g>
                   <path id="areaDown" fill="url(#fillDown)" opacity="0"/>
+                  <path id="areaUp" fill="url(#fillUp)" opacity="0"/>
                   <path id="lineDown" fill="none" stroke="rgb(var(--accent))" stroke-width="2" stroke-linecap="round"/>
                   <path id="lineUp" fill="none" stroke="rgb(var(--tunnel))" stroke-width="2" stroke-linecap="round"/>
+                  <g id="trafficXTicks" class="traffic-ticks"></g>
                 </svg>
-                <div style="display:flex;gap:1.5rem;margin-top:0.6rem;flex-wrap:wrap;">
+                <div class="wan-stats">
                   <span class="caption font-mono"><span class="text-accent">↓ <span id="wanDown">0.0</span> Mbps</span></span>
                   <span class="caption font-mono"><span class="text-tunnel">↑ <span id="wanUp">0.0</span> Mbps</span></span>
-                  <span class="caption font-mono text-muted"><span data-i18n="strip.latency">Latencia</span> <span id="wanLat">0</span> ms · 24h: 1,32 TB</span>
+                  <span class="caption font-mono text-muted"><span data-i18n="strip.latency">Latencia</span> <span id="wanLat">0</span> ms</span>
+                </div>
+                <div class="wan-footer">
+                  <div><span class="k" data-i18n="wan.peak">Pico hoy</span><span class="v font-mono" id="wanPeak">0 Mbps ↓</span></div>
+                  <div><span class="k" data-i18n="wan.avg">Media</span><span class="v font-mono" id="wanAvg">0 Mbps ↓</span></div>
+                  <div><span class="k" data-i18n="wan.total">Total 24 h</span><span class="v font-mono" id="wanTotal">—</span></div>
+                  <div><span class="k" data-i18n="wan.loss">Pérdida</span><span class="v font-mono" id="wanLoss">0 %</span></div>
                 </div>
               </div>
             </div>
@@ -248,25 +267,34 @@
 
             <!-- Stage 4: AdGuard -->
             <div class="stage" id="stage4">
-              <div class="ag-grid">
-                <div style="display:flex;flex-direction:column;gap:0.9rem;">
-                  <div class="ag-stat card" style="background:rgb(var(--elevated)/0.4);">
-                    <div class="v font-mono text-accent" id="agQueries">0</div>
-                    <div class="k" data-i18n="adguard.queries">consultas · 24 h</div>
-                  </div>
-                  <div class="ag-stat card" style="background:rgb(var(--elevated)/0.4);">
-                    <div class="v font-mono text-danger" id="agBlocked">0%</div>
-                    <div class="k" data-i18n="adguard.blocked">bloqueado</div>
-                  </div>
-                  <div class="ag-stat card" style="background:rgb(var(--elevated)/0.4);">
-                    <div class="v font-mono text-ok" id="agClients">0/65</div>
-                    <div class="k" data-i18n="adguard.clients">clientes lo usan</div>
-                  </div>
+              <div class="ag-card card" style="background:rgb(var(--elevated)/0.4);">
+                <div class="ag-head">
+                  <span class="label uppercase text-muted"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span data-i18n="adguard.title">AdGuard Home</span></span>
+                  <span class="pill ok"><span class="pill-dot"></span><span data-i18n="adguard.active">Activo</span></span>
                 </div>
-                <div class="card" style="background:rgb(var(--elevated)/0.4);padding:1rem 1.1rem;">
-                  <div class="label uppercase text-muted" style="margin-bottom:0.75rem;" data-i18n="adguard.domains">Dominios más bloqueados</div>
+                <div class="ag-main">
+                  <div>
+                    <div class="ag-pct font-mono text-ok" id="agBlockedPct">0%</div>
+                    <div class="ag-of font-mono" id="agBlockedOf">0</div>
+                  </div>
+                  <svg id="agDonut" width="88" height="88" viewBox="0 0 88 88" class="ag-donut" role="img">
+                    <circle cx="44" cy="44" r="39.5" fill="none" stroke="rgb(var(--border))" stroke-width="9"/>
+                    <circle id="agDonutArc" cx="44" cy="44" r="39.5" fill="none" stroke="rgb(var(--ok))" stroke-width="9" stroke-linecap="round"
+                      stroke-dasharray="248.2" stroke-dashoffset="248.2" transform="rotate(-90 44 44)"/>
+                  </svg>
+                </div>
+                <div class="ag-grid2">
+                  <div class="ag-cell"><span class="k" data-i18n="adguard.trackers">Rastreadores</span><span class="v font-mono" id="agTrackers">0</span></div>
+                  <div class="ag-cell"><span class="k" data-i18n="adguard.dns">DNS medio</span><span class="v font-mono" id="agDns">0 ms</span></div>
+                </div>
+                <div class="ag-domains">
+                  <span class="label uppercase text-muted" data-i18n="adguard.domains">Dominios más bloqueados</span>
                   <div id="agBars"></div>
                 </div>
+                <a class="ag-open" id="agOpen" href="http://192.168.8.1:3000" target="_blank" rel="noreferrer">
+                  <span data-i18n="adguard.open">Abrir panel</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+                </a>
               </div>
             </div>
 

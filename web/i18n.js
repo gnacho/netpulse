@@ -1064,6 +1064,7 @@ function applyLang(lang) {
   if (typeof renderAlerts === 'function') renderAlerts()
   if (typeof renderRouterNames === 'function') renderRouterNames()
   if (typeof renderTopoNames === 'function') renderTopoNames()
+  if (typeof renderAdGuardTexts === 'function') renderAdGuardTexts()
   if (typeof updateAppearancePanel === 'function') updateAppearancePanel()
 }
 
