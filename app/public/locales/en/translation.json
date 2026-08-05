@@ -534,6 +534,9 @@
     }
   },
   "settings": {
+    "admin": {
+      "title": "Administration"
+    },
     "about": {
       "changelog": "Changelog",
       "code": "Source code",
@@ -542,6 +545,11 @@
       "privacy": "100% private · 0% cloud",
       "title": "About",
       "versionNote": "v1.0.0",
+      "checkUpdates": "Check for updates",
+      "checking": "Checking…",
+      "updateAvailable": "New version available: v{{version}}",
+      "upToDateShort": "You're on the latest version",
+      "updateError": "Could not check. Try again.",
       "system": "System",
       "sysApp": "App",
       "sysGo": "Go",

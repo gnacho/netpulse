@@ -7,6 +7,7 @@ import {
   BellOff,
   BellRing,
   Check,
+  ChevronDown,
   Copy,
   Download,
   FileText,
@@ -21,11 +22,14 @@ import {
   Plus,
   Lock,
   Radar,
+  RefreshCw,
   Router as RouterIcon,
+  Shield,
   ShieldCheck,
   Sun,
   Trash2,
   UserCog,
+  Users,
   Volume2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -1514,6 +1518,86 @@ function DemoCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void })
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
+/** Widget inline de "Comprobar actualizaciones" para la AdminBar. Usa los
+ *  endpoints /api/update/status y /api/update/apply (misma lógica que
+ *  UpdateBanner, sin banner): al pulsar comprueba y muestra estado compacto. */
+interface NetPulseUpdateStatus {
+  current: string
+  latest: string | null
+  latestMsg: string | null
+  updateAvailable: boolean
+  updating: false | { step: string }
+}
+
+function UpdateCheckInline() {
+  const { t } = useTranslation()
+  const [status, setStatus] = useState<NetPulseUpdateStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(false)
+
+  const check = async () => {
+    setBusy(true)
+    setError(false)
+    try {
+      const res = await fetch('/api/update/status')
+      if (!res.ok) throw new Error('status')
+      setStatus((await res.json()) as NetPulseUpdateStatus)
+    } catch {
+      setError(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const apply = async () => {
+    setBusy(true)
+    try {
+      await fetch('/api/update/apply', { method: 'POST' })
+    } catch {
+      setError(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {status?.updateAvailable && status.latest ? (
+        <button
+          type="button"
+          onClick={() => void apply()}
+          disabled={busy}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:opacity-60"
+        >
+          <Download className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+          <span className="hidden sm:inline">{t('update.button')}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void check()}
+          disabled={busy}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 shrink-0 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} aria-hidden="true" />
+          <span className="hidden sm:inline">{t('settings.about.checkUpdates')}</span>
+        </button>
+      )}
+      {status?.updateAvailable && status.latest ? (
+        <span className="text-[10px] font-medium text-accent">
+          {t('settings.about.updateAvailable', { version: status.latest })}
+        </span>
+      ) : status?.updateAvailable === false ? (
+        <span className="text-[10px] font-medium text-ok">{t('settings.about.upToDateShort')}</span>
+      ) : error ? (
+        <span role="alert" className="text-[10px] font-medium text-rose-500">
+          {t('settings.about.updateError')}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
@@ -1521,6 +1605,7 @@ export default function Settings() {
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
+  const [adminPanel, setAdminPanel] = useState<'users' | null>(null)
 
   // ——— Idioma ('auto' por defecto sigue al navegador; elección explícita persistida) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
@@ -2180,6 +2265,57 @@ export default function Settings() {
           <PushNotificationsCard reduce={reduce} onSaved={notify} />
         </div>
 
+        {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
+            Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
+            Routers y AdGuard son tarjetas de dominio que siguen en el grid. */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <div className="rounded-2xl border border-l-4 border-l-accent bg-accent/[0.03] p-4 shadow-soft md:p-5">
+              <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+                <div className="flex h-9 shrink-0 items-center gap-2">
+                  <Shield className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
+                  <h2 className="font-display text-[15px] font-semibold text-text-primary">{t('settings.admin.title')}</h2>
+                </div>
+                <div className="hidden h-6 w-px bg-border sm:block" />
+
+                {/* 1. Comprobar actualizaciones (widget inline) */}
+                <UpdateCheckInline />
+
+                {/* 2. Usuarios (desplegable) */}
+                <button
+                  type="button"
+                  aria-expanded={adminPanel === 'users'}
+                  onClick={() => setAdminPanel(adminPanel === 'users' ? null : 'users')}
+                  className={[
+                    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition-colors',
+                    adminPanel === 'users'
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
+                  ].join(' ')}
+                >
+                  <Users className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span className="hidden sm:inline">{t('settings.users.title')}</span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${adminPanel === 'users' ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {/* 3. Modo demo a la derecha */}
+                <div className="ml-auto">
+                  <DemoCard reduce={reduce} onSaved={notify} />
+                </div>
+              </div>
+
+              {adminPanel === 'users' && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <UsersManager reduce={reduce} onSaved={notify} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Gestión de routers — solo admin y con backend (modo live); la API
             exige rol admin en las mutaciones (auditoría v2.4.0 §2, #7) */}
         {!isDemo && auth?.role === 'admin' && (
@@ -2188,25 +2324,10 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Modo demo (issue #4): activar/desactivar desde la UI. Solo admin;
-            el card se oculta solo si no hay backend real (demo local). */}
-        {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-5">
-            <DemoCard reduce={reduce} onSaved={notify} />
-          </div>
-        )}
-
         {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
         {!isDemo && auth?.role === 'admin' && services.adguard && (
           <div className="lg:col-span-12">
             <AdGuardManager reduce={reduce} onSaved={notify} />
-          </div>
-        )}
-
-        {/* Gestión de usuarios — solo admin y modo live */}
-        {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
-            <UsersManager reduce={reduce} onSaved={notify} />
           </div>
         )}
 

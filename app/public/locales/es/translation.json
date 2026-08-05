@@ -534,6 +534,9 @@
     }
   },
   "settings": {
+    "admin": {
+      "title": "Administración"
+    },
     "about": {
       "changelog": "Registro de cambios",
       "code": "Código",
@@ -542,6 +545,11 @@
       "privacy": "100% privado · 0% nube",
       "title": "Acerca de",
       "versionNote": "v1.0.0",
+      "checkUpdates": "Comprobar actualizaciones",
+      "checking": "Comprobando…",
+      "updateAvailable": "Nueva versión disponible: v{{version}}",
+      "upToDateShort": "Estás en la última versión",
+      "updateError": "No se pudo comprobar. Inténtalo de nuevo.",
       "system": "Sistema",
       "sysApp": "App",
       "sysGo": "Go",
