@@ -36,8 +36,11 @@ const (
 	probeInterval = 5 * time.Second
 	probeTimeout  = 2 * time.Second
 	reloadEvery   = 5 * time.Minute
-	version       = "0.1.0"
 )
+
+// Version del collector (la reporta /healthz y state.json; se fija con
+// -ldflags "-X main.Version=x.y.z" en las releases).
+var Version = "0.1.0"
 
 type Target struct {
 	Name string
@@ -51,7 +54,7 @@ type probeResult struct {
 }
 
 func main() {
-	slog.Info("netpulse-collector arrancando", "version", version)
+	slog.Info("netpulse-collector arrancando", "version", Version)
 
 	dataDir := envOr("DATA_DIR", "/opt/netpulse-collector/data")
 	// Ruta real donde install.sh del servidor deja netpulse.db
@@ -186,7 +189,7 @@ func main() {
 		targets := snapshotLast()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"version":  version,
+			"version":  Version,
 			"uptime_s": int(time.Since(started).Seconds()),
 			"store":    ts.Health(filepath.Join(dataDir, "metrics.db")),
 			"targets":  targets,
@@ -363,7 +366,7 @@ func probe(addr string) probeResult {
 func writeStateFile(dataDir string, started time.Time, last map[string]probeResult) {
 	state := map[string]any{
 		"ts":       time.Now().Unix(),
-		"version":  version,
+		"version":  Version,
 		"uptime_s": int(time.Since(started).Seconds()),
 		"targets":  last,
 	}
