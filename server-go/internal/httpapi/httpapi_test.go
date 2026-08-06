@@ -679,6 +679,13 @@ func TestHealthEndpoints(t *testing.T) {
 	if _, ok := body["uptimeSec"].(float64); !ok {
 		t.Fatalf("uptimeSec: %v", body)
 	}
+	// Métricas operativas (Fase 8): los 3 campos presentes; en demo los
+	// agentes/sse son 0 y devicesTotal viene del overview del poller demo.
+	for _, k := range []string{"agentsConnected", "sseConnections", "devicesTotal"} {
+		if _, ok := body[k].(float64); !ok {
+			t.Fatalf("%s ausente o no numérico: %v", k, body)
+		}
+	}
 	res = get(t, srv.URL, "/health", "")
 	body = readJSON(t, res)
 	if body["status"] != "ok" || body["db"] != "connected" {
