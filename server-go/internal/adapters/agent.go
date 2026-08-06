@@ -93,6 +93,20 @@ func (r *AgentRegistry) Expired(slug string) bool {
 	return ok && r.now().Sub(st.LastSeen) > r.ttl
 }
 
+// ActiveCount devuelve cuántos agentes tienen su último push dentro del TTL
+// (métricas operativas de /api/health).
+func (r *AgentRegistry) ActiveCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, st := range r.states {
+		if r.now().Sub(st.LastSeen) <= r.ttl {
+			n++
+		}
+	}
+	return n
+}
+
 // Forget borra el estado del slug (revocación de token).
 func (r *AgentRegistry) Forget(slug string) {
 	r.mu.Lock()

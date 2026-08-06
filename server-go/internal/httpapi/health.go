@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// handleAPIHealth: {ok, version, mode, uptimeSec, db}.
+// handleAPIHealth: {ok, version, mode, uptimeSec, db, agentsConnected,
+// sseConnections, devicesTotal}.
 func (s *server) handleAPIHealth(mode string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		dbOk := s.db.CheckHealth()
@@ -15,12 +16,34 @@ func (s *server) handleAPIHealth(mode string) http.HandlerFunc {
 		if !dbOk {
 			dbStatus = "error"
 		}
+
+		// Métricas operativas (Fase 8): agentes vivos (dentro de TTL),
+		// clientes SSE conectados y total de dispositivos del último
+		// overview del poller. Nil-safe: demo/sin datos → 0.
+		agentsConnected := 0
+		if s.agents != nil {
+			agentsConnected = s.agents.ActiveCount()
+		}
+		sseConnections := 0
+		if s.hub != nil {
+			sseConnections = s.hub.Size()
+		}
+		devicesTotal := 0
+		if s.lastOv != nil {
+			if ov := s.lastOv(); ov != nil {
+				devicesTotal = ov.DeviceTotals.Total
+			}
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":        dbOk,
-			"version":   Version,
-			"mode":      mode,
-			"uptimeSec": int64(time.Since(s.started).Seconds()),
-			"db":        dbStatus,
+			"ok":              dbOk,
+			"version":         Version,
+			"mode":            mode,
+			"uptimeSec":       int64(time.Since(s.started).Seconds()),
+			"db":              dbStatus,
+			"agentsConnected": agentsConnected,
+			"sseConnections":  sseConnections,
+			"devicesTotal":    devicesTotal,
 		})
 	}
 }
