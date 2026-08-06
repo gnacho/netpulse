@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 10 = paquete LuCI). 
+> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 10 = paquete LuCI; cola pre-Fase 8). 
 
 ## Estado actual (v2.6.0) ✅
 
@@ -318,6 +318,52 @@ ningún NOC multi-router; la webapp (Go + SSE) sigue siendo el visor de red.
   sin login adicional de la webapp.
 
 **Deploy**: paquete junto al agente en gateway y APs.
+
+---
+
+## Cola pre-Fase 8 — mejoras a atacar ANTES del paquete on-box (6-Ago-2026)
+
+Frente de trabajo anterior a la Fase 8 (el paquete del gateway no urge).
+Cada ítem es un PR independiente; ordenados por valor/esfuerzo.
+
+1. **Métricas operativas en `/api/health`** (barato, alto valor operativo):
+   - Añadir `agentsConnected`, `sseConnections`, `devicesTotal` al health.
+     Los datos ya existen (AgentRegistry, hub SSE, poller) — solo exponerlos.
+     Punto de mejora nº2 de la auditoría Fase 7.
+
+2. **Persistir el registry de agentes (R8)** (prerrequisito de pairing Fase 8):
+   - Hoy `AgentRegistry` es un `map` en RAM → `lastSeen`/payloads se pierden
+     al reiniciar el servidor. Deuda transversal ya anotada.
+   - Persistir último push por slug en SQLite (kv o tabla `agent_state`);
+     cargar al arrancar. Además: adoptar solo slugs conocidos (evitar huérfanos).
+
+3. **Integración del colector sidecar con server-go (propuesta 2)** (el gap
+   de histórico largo, deuda desde merge v2):
+   - **Frontera read-only**: `COLLECTOR_DB=/opt/netpulse-collector/data/metrics.db`;
+     server-go abre con `file:...?mode=ro` (1 escritor = el sidecar).
+   - El endpoint de histórico sirve corto plazo desde su tabla `metrics` (5s)
+     + largo plazo (días/meses) desde `buckets`/`daily` del sidecar (LTTB +
+     retención del skill sqlite-timeseries-daemon).
+   - **Ampliar el sidecar como historiador real**: además de latencia TCP,
+     disponibilidad (up/down) y contadores de tráfico por interfaz, todo en
+     la escalera raw→buckets→daily con NightlyJob. El server-go conserva la
+     instantánea SSE; el histórico largo se consume del sidecar.
+   - Bonus: del mismo árbol cae el **informe semanal de disponibilidad**
+     (deuda de la auditoría v2.1.0).
+   - Colateral: reinstalar el collector con release nueva (reporta `0.1.0`:
+     nunca se aplicó el fix goreleaser `-X main.Version`).
+
+4. **recharts v2 → v3** (deuda de mantenimiento):
+   - `app/package.json` usa `^2.15.4` (deprecated en npm). PR con verificación
+     visual de las gráficas (Playwright) — riesgo bajo pero a comprobar.
+
+5. **Limpieza de ramas** (trivial):
+   - `origin/feat/go-backend`, `origin/fix/issues-3-4-5` (y `fix/netpulse-jwt-cve`
+     si quedó tras el squash) — borrar las ya mergeadas.
+
+Quedan fuera de esta cola (a propósito): Web Push (requiere decisión de infra
+HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
+punto 3) y paquete del gateway (Fase 8).
 
 ---
 
