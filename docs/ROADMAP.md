@@ -227,6 +227,13 @@ independiente; ordenados por valor/esfuerzo.
      es solo Node (no aplica a backend Go); `email-webhook-notifications`
      solo cubre saliente. Crear skill `api-ingest-go` (firma entrante +
      orígenes + anti-SSRF) o ampliar la existente antes de implementar.
+   - **Prácticas del curado `learn/skills_go_api_development.md` (6-Ago)**: de
+     ese catálogo solo aplica al entrante el **request ID** (UUID por request
+     en headers/logs; hoy no existe `x-request-id` en server-go). Ya cubiertos:
+     rate-limit por IP en ingesta (`ipRateLimit`, ventana 1 min), envelope de
+     error propio con i18n (no RFC 7807), samber golang-* instalados. El resto
+     del catálogo (pgx/sqlc/Redis, Gin/Echo/Fiber, gRPC/OTel) NO aplica:
+     stack SQLite + stdlib net/http.
 
 Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
 HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
