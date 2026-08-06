@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  BarChart3,
   Bell,
   ChevronsLeft,
   ChevronsRight,
@@ -42,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
+  { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
@@ -58,6 +60,7 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/devices/, 'nav.devices'],
   [/^\/topology/, 'nav.topology'],
   [/^\/alerts/, 'nav.alerts'],
+  [/^\/reports/, 'nav.reports'],
   [/^\/settings/, 'nav.settings'],
 ]
 

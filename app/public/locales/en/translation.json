@@ -439,6 +439,20 @@
     "traffic24h": "Traffic 24 h",
     "trafficAria": "{{name}} traffic over the last 24 hours"
   },
+  "reports": {
+    "availability": "Weekly availability",
+    "colAvg": "Average",
+    "colRouter": "Router",
+    "empty": "No data for this period yet. The nightly rollup populates the report each day.",
+    "error": "Could not load the report. Check the connection and try again.",
+    "footnote": "Availability = minutes with data over the total of recorded days. The current week is shown as partial.",
+    "latency": "Average latency",
+    "loading": "Loading report…",
+    "subtitle": "Availability and performance per router, in ISO weeks (Monday–Sunday).",
+    "traffic": "Total traffic (↓+↑)",
+    "upMin": "Minutes with data",
+    "weeksLabel": "Weeks to show"
+  },
   "topology": {
     "animateFlow": "Animate packet flow",
     "clickDetail": "Click to view detail →",
