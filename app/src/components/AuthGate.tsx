@@ -87,7 +87,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Refetch bajo demanda (SPEC-65 D65-5): tras cambiar displayName/idioma, la

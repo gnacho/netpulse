@@ -1119,7 +1119,7 @@ export default function Devices() {
       void navigator.clipboard?.writeText(ip).catch(() => undefined)
       showToast(t('devices.ipCopied'))
     },
-    [showToast],
+    [showToast, t],
   )
 
   const handleRename = useCallback(
@@ -1127,7 +1127,7 @@ export default function Devices() {
       setRename(id, name)
       showToast(t('devices.nameUpdated'))
     },
-    [setRename, showToast],
+    [setRename, showToast, t],
   )
 
   const navigateRouter = useCallback((id: string) => navigate(`/routers/${id}`), [navigate])
