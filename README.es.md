@@ -6,9 +6,12 @@
 </p>
 
 <p align="center">
+  <a href="https://netpulse.cloudless.club"><img alt="Sitio web" src="https://img.shields.io/badge/Website-netpulse.cloudless.club-blue"></a>
+  <a href="https://demo.netpulse.cloudless.club"><img alt="Demo en vivo" src="https://img.shields.io/badge/Live%20demo-demo.netpulse.cloudless.club-blue"></a>
   <a href="https://github.com/gnacho/netpulse/releases"><img alt="Release" src="https://img.shields.io/github/v/release/gnacho/netpulse"></a>
   <a href="https://github.com/gnacho/netpulse/actions/workflows/release.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/gnacho/netpulse/release.yml?branch=main"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/gnacho/netpulse"></a>
+  <a href="LICENSE"><img alt="Licencia" src="https://img.shields.io/github/license/gnacho/netpulse"></a>
+  <a href="https://ko-fi.com/gnacho"><img alt="Apóyame en Ko-fi" src="https://img.shields.io/badge/Ko--fi-Donate-ff5e5b?logo=ko-fi&logoColor=white"></a>
 </p>
 
 <p align="center">
