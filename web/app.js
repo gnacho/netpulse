@@ -1392,6 +1392,41 @@ function initSlider() {
   renderShot(0)
 }
 
+/* ---------- lightbox de capturas ---------- */
+function initLightbox() {
+  const lightbox = document.getElementById('lightbox')
+  const lightboxImg = document.getElementById('lightboxImg')
+  const lightboxCaption = document.getElementById('lightboxCaption')
+  const lightboxClose = document.getElementById('lightboxClose')
+  if (!lightbox || !lightboxImg) return
+
+  function openLightbox(img) {
+    lightboxImg.src = img.currentSrc || img.src
+    lightboxImg.alt = img.alt
+    lightboxCaption.textContent = img.alt
+    lightbox.hidden = false
+    lightbox.setAttribute('aria-hidden', 'false')
+    if (lightboxClose) lightboxClose.focus()
+    document.body.style.overflow = 'hidden'
+  }
+
+  function closeLightbox() {
+    lightbox.hidden = true
+    lightbox.setAttribute('aria-hidden', 'true')
+    document.body.style.overflow = ''
+  }
+
+  document.querySelectorAll('img[data-shot]').forEach((img) => {
+    img.addEventListener('click', () => openLightbox(img))
+  })
+  if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox)
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox() })
+  document.addEventListener('keydown', (e) => {
+    if (lightbox.hidden) return
+    if (e.key === 'Escape') closeLightbox()
+  })
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initAppearance()
   initBackgroundCanvas()
@@ -1403,5 +1438,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initKofi()
   initTrafficRanges()
   initSlider()
+  initLightbox()
   heroCountUps()
 })

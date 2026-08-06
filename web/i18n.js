@@ -143,6 +143,10 @@ const I18N = {
       s5: 'Alerts · the feed of what happens in your network',
       s6: 'Settings · appearance, users, routers and services',
     },
+    lightbox: {
+      close: 'Close screenshot',
+      alt: 'Screenshot enlarged',
+    },
   },
 
   /* ---------------- ESPAÑOL ---------------- */
@@ -249,6 +253,10 @@ const I18N = {
       s4: 'Topología · el mapa vivo de tu red, inferido del FDB',
       s5: 'Alertas · el feed de lo que pasa en tu red',
       s6: 'Ajustes · apariencia, usuarios, routers y servicios',
+    },
+    lightbox: {
+      close: 'Cerrar captura',
+      alt: 'Captura ampliada',
     },
   },
 
