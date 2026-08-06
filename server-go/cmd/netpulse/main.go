@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"syscall"
 	"time"
@@ -158,8 +159,19 @@ func run() error {
 	}
 
 	// Notifier compuesto: push + webhook (SetNotifier solo admite UNO).
+	// OJO nil-encapsulado (issue #57): meter un `(*webhook.Notifier)(nil)` en
+	// la cadena lo empaqueta en la interfaz con tipo pero valor nil → la
+	// interfaz NO es nil y `if n != nil` de notifierChain no lo filtra →
+	// panic al Notify. Filtrar ANTES de empaquetar.
 	if pushNotifier != nil || webhookNotifier != nil {
-		adapter.AlertsEngine().SetNotifier(notifierChain{pushNotifier, webhookNotifier})
+		chain := notifierChain{}
+		if pushNotifier != nil {
+			chain = append(chain, pushNotifier)
+		}
+		if webhookNotifier != nil {
+			chain = append(chain, webhookNotifier)
+		}
+		adapter.AlertsEngine().SetNotifier(chain)
 	}
 
 	// Dependencia sse↔poller resuelta con un holder (como index.js:40-45).
@@ -211,16 +223,16 @@ func run() error {
 	})
 
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Config:  cfg,
-		DB:      dbHandle,
-		Adapter: adapter,
-		Hub:     hub,
-		Secret:  secret,
-		Static:  static,
-		Updater: upd,
-		Agents:  agentReg,
-		Pool:    sshPool,
-		Rearmer: arm,
+		Config:   cfg,
+		DB:       dbHandle,
+		Adapter:  adapter,
+		Hub:      hub,
+		Secret:   secret,
+		Static:   static,
+		Updater:  upd,
+		Agents:   agentReg,
+		Pool:     sshPool,
+		Rearmer:  arm,
 		AgentHub: agentHub,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
@@ -312,8 +324,14 @@ type notifierChain []alerts.Notifier
 
 func (c notifierChain) Notify(ev alerts.AlertEvent) {
 	for _, n := range c {
-		if n != nil {
-			n.Notify(ev)
+		if n == nil {
+			continue
 		}
+		// Defensa en profundidad (issue #57): si un nil-encapsulado entra en
+		// la cadena, la interfaz no es nil pero el valor sí. No debe paniquear.
+		if reflect.ValueOf(n).Kind() == reflect.Ptr && reflect.ValueOf(n).IsNil() {
+			continue
+		}
+		n.Notify(ev)
 	}
 }
