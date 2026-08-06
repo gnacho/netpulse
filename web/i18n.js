@@ -36,7 +36,7 @@ const I18N = {
       sub: 'NetPulse watches over OpenWrt routers, maps your topology, scores your network health and alerts you — all from a single self-hosted binary. Nothing leaves your LAN.',
       cta1: 'Install on your network', cta2: 'View on GitHub', cta3: 'Try the live demo',
     },
-    facts: { noCloud: 'No cloud', free: '100% free · AGPL-3.0', data: 'Your app, your data', binary: 'One static binary', hw: 'OpenWrt / GL.iNet' },
+    facts: { noCloud: 'No cloud', free: '100% free · AGPL-3.0', data: 'Your app, your data', binary: 'One static binary', hw: 'OpenWrt / GL.iNet', package: 'OpenWrt .ipk package' },
     strip: { health: 'Health', down: 'Download', up: 'Upload', latency: 'Latency', devices: 'Devices' },
     principles: {
       title: 'Built on three stubborn principles',
@@ -63,6 +63,8 @@ const I18N = {
       st5p: 'DNS queries, blocked share and top blocked domains, plus which clients use it. Your ad-blocking, visible next to everything else.',
       st6t: 'Alerts that find you',
       st6p: 'Temperature spikes, new devices, firmware available, WireGuard handshakes — pushed to the bell and, with Web Push, to your phone.',
+      st7t: 'An agent that runs on your routers',
+      st7p: 'A native OpenWrt .ipk package with a procd init, UCI configuration and a watchdog. Installed with opkg, it lives on every router watching WiFi events in real time.',
     },
     health: { caption: 'Network health score', label: 'Excellent', note: 'Penalized by the Patio temperature.' },
     wan: { live: 'LIVE', title: 'WAN traffic', plan: 'plan', peak: 'Peak today', avg: 'Average', total: 'Total 24 h', loss: 'Loss' },
@@ -100,6 +102,7 @@ const I18N = {
       f6t: 'Multi-user', f6p: 'bcrypt passwords, admin and viewer roles, per-user language. Share the view without handing over the keys.',
       f7t: 'Demo mode', f7p: 'DEMO_MODE=1 gives you a full sample network of 65 devices — no routers required. Try before you install.',
       f8t: 'Latency collector', f8p: 'Optional sidecar that polls TCP latency per router, with its own long-term time series.',
+      f9t: 'Native OpenWrt package', f9p: 'The agent ships as a .ipk package installed with opkg. procd init, UCI configuration, a watchdog and iw events — a first-class OpenWrt citizen running on your routers at ~12 MB RSS.',
     },
     install: {
       title: 'One line to install',
@@ -152,7 +155,7 @@ const I18N = {
       sub: 'NetPulse vigila tus routers OpenWrt, dibuja la topología, puntúa la salud de la red y te avisa — todo desde un único binario autoalojado. Nada sale de tu LAN.',
       cta1: 'Instalar en tu red', cta2: 'Ver en GitHub', cta3: 'Probar la demo en vivo',
     },
-    facts: { noCloud: 'Sin nube', free: '100% libre · AGPL-3.0', data: 'Tu app, tus datos', binary: 'Un solo binario', hw: 'OpenWrt / GL.iNet' },
+    facts: { noCloud: 'Sin nube', free: '100% libre · AGPL-3.0', data: 'Tu app, tus datos', binary: 'Un solo binario', hw: 'OpenWrt / GL.iNet', package: 'Paquete .ipk OpenWrt' },
     strip: { health: 'Salud', down: 'Descarga', up: 'Subida', latency: 'Latencia', devices: 'Dispositivos' },
     principles: {
       title: 'Construido sobre tres principios tercos',
@@ -179,6 +182,8 @@ const I18N = {
       st5p: 'Consultas DNS, porcentaje bloqueado y dominios más bloqueados, más qué clientes lo usan. Tu bloqueo de anuncios, visible junto a todo lo demás.',
       st6t: 'Alertas que te encuentran',
       st6p: 'Picos de temperatura, dispositivos nuevos, firmware disponible, handshakes de WireGuard — en la campana y, con Web Push, en tu móvil.',
+      st7t: 'Un agente que corre en tus routers',
+      st7p: 'Un paquete .ipk nativo de OpenWrt con init procd, configuración UCI y un watchdog. Se instala con opkg y vive en cada router vigilando los eventos WiFi en tiempo real.',
     },
     health: { caption: 'Puntuación de salud de la red', label: 'Excelente', note: 'Penalizado por la temperatura del Patio.' },
     wan: { live: 'EN VIVO', title: 'Tráfico WAN', plan: 'plan', peak: 'Pico hoy', avg: 'Media', total: 'Total 24 h', loss: 'Pérdida' },
@@ -204,6 +209,7 @@ const I18N = {
       f6t: 'Multiusuario', f6p: 'Contraseñas bcrypt, roles admin y viewer, idioma por usuario. Comparte la vista sin entregar las llaves.',
       f7t: 'Modo demo', f7p: 'DEMO_MODE=1 te da una red de muestra completa con 65 dispositivos — sin routers. Pruébalo antes de instalar.',
       f8t: 'Collector de latencia', f8p: 'Sidecar opcional que sondea latencia TCP por router, con sus propias series temporales de largo plazo.',
+      f9t: 'Paquete nativo OpenWrt', f9p: 'El agente se distribuye como paquete .ipk para instalar con opkg. Init procd, configuración UCI, watchdog y eventos iw — un ciudadano OpenWrt de primera clase, corriendo en tus routers a ~12 MB RSS.',
     },
     install: {
       title: 'Una línea para instalar',
