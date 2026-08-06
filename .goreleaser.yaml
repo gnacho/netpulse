@@ -37,7 +37,12 @@ builds:
     goarch: [amd64, arm64, arm]
     goarm: [7]
     flags: [-trimpath]
-    ldflags: [-s, -w]
+    # -X main.Version: sin esto el collector reporta "0.1.0" para siempre
+    # (main.go declara var Version con fallback para builds locales).
+    ldflags:
+      - -s
+      - -w
+      - "-X main.Version={{.Version}}"
 
   # Agente nativo OpenWrt (Fase 6): binario stateless que empuja al servidor.
   # arm64 = GL-MT6000 + APs (Cortex-A53); armv7 por si aparece un AP más
