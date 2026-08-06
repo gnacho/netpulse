@@ -210,10 +210,12 @@ independiente; ordenados por valor/esfuerzo.
      (2 majors detrás, deprecated — PR con verificación visual); Vite 7.3.6→8.2.0,
      Tailwind 3.4→4.3.3, TypeScript 5.9→7.0.2, react-router 7.18.2→8.3.0.
    - **Criterio**: subir un major solo si aporta valor al roadmap y se
-     revalida la app completa (Playwright). recharts 3 sí (deprecated);
-     Vite 8/TS 7 son muy recientes → no sin necesidad. **react-router v8:
-     NO subir** (no aporta nada, obligaría a revalidar toda la app y la línea
-     7.18.2 ya es la última estable de su rama).
+     revalida la app completa (Playwright). recharts 3 sí (deprecated).
+   - **DECISIÓN POSTERIOR (6-Ago noche, orden del usuario)**: subir TODO el
+     stack — modernc.org/sqlite 1.56, **TypeScript 7 (tsgo)**, **Vite 8**,
+     **Tailwind 4**, **react-router 8.3.0** — revirtiendo la decisión previa
+     de no subir estos majors. Cada uno en su PR con verificación completa
+     (build + tsc + PWA + Playwright). Riesgo asumido por el usuario.
 
 7. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
    **no implementados en el código**, solo planificación del commit 4a4428e):
