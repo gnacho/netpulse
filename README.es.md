@@ -125,14 +125,14 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 | **1 — Base read-only** | ✅ | PWA en React, sondeo SSH de solo lectura (ubus, `/proc`, iwinfo), AdGuard Home + WireGuard, auth multi-usuario, discovery LAN, backend migrado de Node a Go (binario único con la app embebida) |
 | **2 — Topología v5** | ✅ | Mapa semántico real: FDB + LLDP en vivo, backhaul, switches gestionados vs. inferidos, hipervisores con sus CTs anidados, collector de series temporales |
 | **3 — Alertas, Push y agente (piloto)** | ✅ | Alertas con 6 categorías y config por categoría (urgente/todo/nada), Web Push nativo (VAPID), refresco bajo demanda, auditoría switch/bridge con canon de datos reconciliado, agente OpenWrt piloto (ingesta con tokens, fallback SSH, procd) |
-| **4 — View-model versionado** | ✅ | API como view-model de presentación (`vm: 1`), canon demo single-source en Go → JSON, `Device.infra` sellado server-side, topología semántica en el snapshot, remodel de Preferencias (nombre de saludo, info de sistema real, AdGuard/usuarios/routers simplificados) |
-| **5 — Resiliencia del agente** | ✅ | Watchdog + heartbeat en el router (v2.3.0), rearme manual desde el servidor (v2.4.0), auto-rearme tras TTL (v2.4.0) y rutas de mutación solo-admin (v2.4.1) |
-| **6 — Fixes cosméticos y de datos** | 🚧 | Idioma auto, BD limpia + demo desde UI, IPs GL.iNet sin lease (rutas SSH y agente), layout radial (v2.4.2/v2.4.3); pendiente: espaciar iconos de clientes y detección de clusters Proxmox |
-| **7 — TLS y endurecimiento** | 🔮 | HTTPS en CT 226 (desbloquea Web Push real), HMAC-SHA256 en la ingesta del agente, servir el binario del agente desde el propio servidor |
-| **8 — Agente a fondo** | ⏳ | netlink/nl80211 nativo, eventos ubus en tiempo real, paquete `.ipk`, medición en hardware real |
+| **4 — View-model versionado** | ✅ | API como view-model de presentación (`vm: 1`), canon demo single-source en Go → JSON, `Device.infra` sellado server-side, topología semántica en el snapshot, remodel de Preferencias |
+| **5 — Resiliencia del agente** | ✅ | Watchdog + heartbeat en el router, rearme manual desde el servidor, auto-rearme tras TTL, rutas de mutación solo-admin |
+| **6 — Seguridad del agente** | ✅ | HMAC-SHA256 en la ingesta del agente, binario del agente servido desde el propio servidor |
+| **7 — Agente a fondo** | ✅ | Eventos wifi en tiempo real (`iw event`), SSE bidireccional (AgentHub + refresh), paquete `.ipk`, profiling (RSS 11-12 MB, CPU <1%) |
+| **8 — Consolidación** | ✅ | Métricas operativas en `/api/health`, registry de agentes persistente, retención larga (buckets 5 min → 1 año + daily), recharts v3, webhooks de alerta salientes (HMAC + retry + DLQ) |
 | **9 — App embebida en routers** | 🔮 | Server on-box en el gateway (la URL de la app ES la IP del router), pairing cero-fricción, `luci-app-netpulse` opcional |
 | **10 — Escritura/orquestación** | 🔮 | Plan → apply → state (patrón Terraform), `uci` transaccional, allowlist estricta; empieza por AdGuard Home |
-| **Backlog** | 📋 | Integrar las series del collector en server-go · verificación de push real (FCM) · retención de series + informe semanal |
+| **11 — Paquete LuCI** | 🔮 | `luci-app-netpulse`: estado local del agente (procd, UCI, logs, restart/rearm) + puente a la webapp |
 
 Detalle completo en [docs/ROADMAP.md](docs/ROADMAP.md).
 
