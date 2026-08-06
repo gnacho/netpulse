@@ -47,7 +47,9 @@ export function useServicesVisibility(): [ServicesVisibility, (k: keyof Services
     const next = { ...getServicesVisibility(), [k]: v }
     try {
       localStorage.setItem(KEY, JSON.stringify(next))
-    } catch {}
+    } catch {
+      // cuota superada o storage deshabilitado: el estado en memoria sigue valiendo
+    }
     setServices(next)
     window.dispatchEvent(new Event('netpulse-services-changed'))
   }, [])

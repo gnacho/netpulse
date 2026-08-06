@@ -978,7 +978,6 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     return () => {
       disposed = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gwIp])
 
   const save = async (e: React.FormEvent) => {
@@ -1693,9 +1692,7 @@ export default function Settings() {
         /* modo privado */
       }
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza el draft con auth/localStorage al montar y tras cada refetch de /api/auth/me
     setNameBaseline(v)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNameDraft(v)
   }, [isDemo, auth?.displayName])
 

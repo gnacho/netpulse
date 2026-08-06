@@ -15,6 +15,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: ESLint (app)
+        working-directory: app
+        run: npm ci --no-audit --no-fund && npm run lint
+
   build:
     runs-on: ubuntu-latest
     permissions:

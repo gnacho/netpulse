@@ -607,7 +607,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   )
 
   // -- atenuación por hover -----------------------------------------------------
-  const related = useMemo(() => (hoverNode ? relatedTo(hoverNode) : null), [hoverNode])
+  const related = useMemo(() => (hoverNode ? relatedTo(hoverNode) : null), [hoverNode, relatedTo])
   /** chip por id (para resolver el host de un CT en tooltips) */
   const chipById = useMemo(() => new Map(chips.map((c) => [c.id, c])), [chips])
   /** nombre visible de un router por id (D8: "Puerto de <router>") */
