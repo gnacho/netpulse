@@ -203,11 +203,20 @@ section.block { padding: 5rem 0; }
 /* ---------- club cloudless ---------- */
 .club-inner { display: flex; align-items: center; gap: 2.5rem; }
 .club-copy { flex: 1; min-width: 0; }
-.club-copy .lead { max-width: none; }
+/* Cabecera: eyebrow + título en la misma línea (fullHD). El h2 del bloque
+   (clamp hasta 5rem) no cabía junto al eyebrow, así que aquí se compacta. */
+.club-head { display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0.5rem 1.25rem; }
+.club-head .eyebrow { margin: 0; flex-shrink: 0; }
+.club-head h2 { margin: 0; font-size: clamp(1.9rem, 4.5vw, 3.4rem); }
+/* Cuerpo: texto + CTA al lado (fullHD). */
+.club-body { display: flex; align-items: center; gap: 2rem; }
+.club-body .lead { flex: 1; min-width: 0; margin-top: 1.25rem; max-width: none; }
 .club-cta { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 860px) {
   .club-inner { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
-  .club-copy .lead { max-width: 48rem; }
+  .club-head { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+  .club-body { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+  .club-body .lead { max-width: 48rem; }
 }
 
 /* ---------- acerca de mí ---------- */
