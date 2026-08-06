@@ -69,7 +69,8 @@ function initBackgroundCanvas() {
   let layers = [], bursts = []
   let mx = -1e4, my = -1e4, tmx = -1e4, tmy = -1e4
   const rand = mulberry32(0xC0FFEE)
-  const alphaColor = (c, a) => c.replace(')', ` / ${a})`)
+  const alphaColor = (name, a) => getCssVar(name).replace(')', ` / ${a})`)
+  const isLight = () => document.documentElement.classList.contains('light')
   const PALETTE = ['accent', 'tunnel', 'ok', 'info']
 
   function buildLayout() {
@@ -136,22 +137,24 @@ function initBackgroundCanvas() {
       }
       // enlaces (respiran muy lentamente)
       ctx.lineWidth = 1
+      const lineMul = isLight() ? 0.45 : 1.25
       for (const l of L.links) {
         const a = L.nodes[l.i], b = L.nodes[l.j]
-        ctx.strokeStyle = alphaColor('text-secondary', l.a * (0.65 + 0.35 * Math.sin(t * 0.4 + l.ph)))
+        ctx.strokeStyle = alphaColor('text-secondary', l.a * lineMul * (0.65 + 0.35 * Math.sin(t * 0.4 + l.ph)))
         ctx.beginPath()
         ctx.moveTo(a.wx, a.wy)
         ctx.lineTo(b.wx, b.wy)
         ctx.stroke()
       }
       // nodos
+      const nodeMul = isLight() ? 0.5 : 1
       for (const n of L.nodes) {
-        ctx.fillStyle = alphaColor(PALETTE[n.hue], n.a)
+        ctx.fillStyle = alphaColor(PALETTE[n.hue], n.a * nodeMul)
         ctx.beginPath()
         ctx.arc(n.wx, n.wy, n.r, 0, Math.PI * 2)
         ctx.fill()
         if (n.gw) {
-          ctx.strokeStyle = alphaColor(PALETTE[n.hue], n.a * 0.5)
+          ctx.strokeStyle = alphaColor(PALETTE[n.hue], n.a * nodeMul * 0.5)
           ctx.lineWidth = 1
           ctx.beginPath()
           ctx.arc(n.wx, n.wy, n.r + 3 + Math.sin(t * 1.2 + n.ph) * 1.2, 0, Math.PI * 2)

@@ -34,7 +34,7 @@ html.light {
   --text-primary: 15 23 42;
   --text-secondary: 71 85 105;
   --text-muted: 76 88 104;
-  --accent: 8 145 178;
+  --accent: 14 116 144;
   --tunnel: 124 58 237;
   --ok: 5 150 105;
   --warn: 217 119 6;
@@ -46,9 +46,17 @@ html.light {
 html[data-accent="violet"] { --accent: 167 139 250; }
 html[data-accent="emerald"] { --accent: 52 211 153; }
 html[data-accent="amber"]   { --accent: 251 191 36; }
+html[data-accent="rose"]    { --accent: 251 113 133; }
+html[data-accent="orange"]  { --accent: 251 146 60; }
+html[data-accent="blue"]    { --accent: 96 165 250; }
+html[data-accent="teal"]    { --accent: 45 212 191; }
 html.light[data-accent="violet"] { --accent: 124 58 237; }
-html.light[data-accent="emerald"] { --accent: 5 150 105; }
-html.light[data-accent="amber"]   { --accent: 217 119 6; }
+html.light[data-accent="emerald"] { --accent: 4 120 87; }
+html.light[data-accent="amber"]   { --accent: 180 83 9; }
+html.light[data-accent="rose"]    { --accent: 190 18 60; }
+html.light[data-accent="orange"]  { --accent: 194 65 12; }
+html.light[data-accent="blue"]    { --accent: 29 78 216; }
+html.light[data-accent="teal"]    { --accent: 15 118 110; }
 
 /* ---------- base ---------- */
 * { box-sizing: border-box; border-color: rgb(var(--border)); }
