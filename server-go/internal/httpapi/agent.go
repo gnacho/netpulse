@@ -43,6 +43,11 @@ const (
 	ingestRateWindow = time.Minute
 	// agentTokenKeyPrefix: kv agent.token.<slug> = sha256 hex del token.
 	agentTokenKeyPrefix = "agent.token."
+	// maxTsDrift: ventana de frescura del `ts` del agente (anti-replay,
+	// auditoría de seguridad #2). Payloads con ts fuera de |±maxTsDrift|
+	// respecto al reloj del servidor se rechazan con 401 (evita reinyectar
+	// pushes viejos capturados). Configurable vía AGENT_MAX_TS_DRIFT_S.
+	maxTsDriftDefault = 5 * time.Minute
 )
 
 // agentSlugRe: slugs de equipo válidos (mismo alfabeto que routerstore).
@@ -196,6 +201,14 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	sig := r.Header.Get("X-Agent-Signature")
 	if err := checkHMAC(token, body, sig); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_signature", err.Error())
+		return
+	}
+	// 401: anti-replay (auditoría #2) — el `ts` debe estar dentro de la
+	// ventana de frescura respecto al reloj del servidor. Rechaza pushes
+	// viejos capturados/reinyectados y saltos de reloj grandes del agente.
+	if drift := time.Since(time.Unix(p.Ts, 0)); drift < -s.maxTsDrift || drift > s.maxTsDrift {
+		writeError(w, http.StatusUnauthorized, "stale_payload",
+			"ts fuera de la ventana de frescura (revisa el reloj del router)")
 		return
 	}
 	if s.agents == nil {

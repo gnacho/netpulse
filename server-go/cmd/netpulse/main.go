@@ -62,6 +62,8 @@ func run() error {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
+	// Auditoría de seguridad #1: la IP confiable (XFF) solo si TRUST_PROXY.
+	auth.SetTrustProxy(cfg.TrustProxy)
 
 	dbHandle, err := db.Open(cfg.DataDir)
 	if err != nil {

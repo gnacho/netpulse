@@ -187,10 +187,16 @@ func sessionCookieValue(r *http.Request) string {
 	return m[1]
 }
 
-// IsSecureRequest: URL https o primer X-Forwarded-Proto == "https".
+// IsSecureRequest: URL https, o primer X-Forwarded-Proto == "https" SOLO si
+// TRUST_PROXY (despliegue detrás de proxy con TLS terminado fuera). Sin
+// TRUST_PROXY, un cliente de la LAN no puede forzar la cookie Secure
+// (hallazgo #1 de la auditoría de seguridad).
 func IsSecureRequest(r *http.Request) bool {
 	if r.TLS != nil || r.URL.Scheme == "https" {
 		return true
+	}
+	if !trustProxy {
+		return false
 	}
 	proto := r.Header.Get("X-Forwarded-Proto")
 	if proto == "" {
@@ -330,11 +336,27 @@ func SessionIDFromRequest(d *db.DB, secret string, r *http.Request) string {
 // Rate-limit en SQLite (persiste tras reinicios)
 // ---------------------------------------------------------------------------
 
-// ClientIP: primer X-Forwarded-For o la IP remota o 'unknown'.
+// trustProxy es la configuración global del paquete: si es true, ClientIP
+// confía en X-Forwarded-For (despliegue detrás de un proxy/reverse); si es
+// false (defecto), usa la IP remota del socket y XFF se ignora — un cliente
+// de la LAN no puede falsear su IP para evadir el rate-limit de login o de
+// ingesta (auditoría de seguridad, hallazgo #1). Se fija una vez al arrancar
+// desde config (TRUST_PROXY).
+var trustProxy bool
+
+// SetTrustProxy fija si las cabeceras X-Forwarded-For/-Proto son confiables.
+func SetTrustProxy(on bool) { trustProxy = on }
+
+// TrustProxy devuelve el valor actual (útil en tests).
+func TrustProxy() bool { return trustProxy }
+
+// ClientIP: primer X-Forwarded-For (solo si TRUST_PROXY) o la IP remota.
 func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
-			return first
+	if trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
+				return first
+			}
 		}
 	}
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host != "" {

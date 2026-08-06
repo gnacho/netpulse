@@ -225,7 +225,7 @@ func TestRearmRecuperado200(t *testing.T) {
 	// En paralelo: 500 ms después el agente "vuelve a empujar"
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		res := rearmIngest(t, ts, tok, validPayload)
+		res := rearmIngest(t, ts, tok, validPayload())
 		res.Body.Close()
 	}()
 
