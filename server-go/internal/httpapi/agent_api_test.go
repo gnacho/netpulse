@@ -300,3 +300,39 @@ func TestAgentsCreateValidaSlug(t *testing.T) {
 		}
 	}
 }
+
+// TestAgentStatePersistenciaYRestauracion (Fase 8.2, R8): tras una ingesta,
+// el último push queda en kv (agent.state.<slug>); un registry nuevo que
+// restaura desde kv recupera lastSeen/versión/payload (simula reinicio).
+func TestAgentStatePersistenciaYRestauracion(t *testing.T) {
+	ts := makeAgentTestServer(t)
+	_, token, _ := createAgentToken(t, ts, "patio")
+
+	res := ingest(t, ts, token, "10.0.0.1", validPayload)
+	res.Body.Close()
+	if res.StatusCode != 202 {
+		t.Fatalf("ingest: %d", res.StatusCode)
+	}
+
+	// El estado debe estar en kv tras la ingesta
+	var raw string
+	if err := ts.db.QueryRow("SELECT value FROM kv WHERE key = 'agent.state.patio'").Scan(&raw); err != nil {
+		t.Fatalf("kv agent.state: %v", err)
+	}
+
+	// Simular reinicio: registry nuevo + restaurador desde la misma BD
+	reg2 := adapters.NewAgentRegistry(90 * time.Second)
+	httpapi.NewStateRestorer(ts.db)(reg2)
+
+	_, version, ok := reg2.Info("patio")
+	if !ok {
+		t.Fatal("estado no restaurado tras reinicio")
+	}
+	if version != "0.1.0" {
+		t.Fatalf("versión restaurada: %q", version)
+	}
+	payload, fresh := reg2.Fresh("patio")
+	if !fresh || payload == nil || payload.Router != "patio" {
+		t.Fatalf("payload no fresco tras restauración: fresh=%v", fresh)
+	}
+}

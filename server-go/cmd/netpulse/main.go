@@ -99,6 +99,11 @@ func run() error {
 	if cfg.DemoMode {
 		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 	} else {
+		// Fase 8.2 (R8): restaurar el último push persistido de cada agente
+		// (kv agent.state.<slug>) para que lastSeen/versión sobrevivan a un
+		// reinicio. El siguiente push del agente refresca el estado igual.
+		restore := httpapi.NewStateRestorer(dbHandle)
+		restore(agentReg)
 		pool, err := adapters.NewSSHPool(cfg.SSHKeyPath)
 		if err != nil {
 			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
