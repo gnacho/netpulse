@@ -1,10 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* NetPulse design tokens — dark-first (design.md §3). Default = dark "NOC doméstico". */
+/* .dark permite forzar el tema oscuro en previews dentro de páginas claras */
 @layer base {
-  /* NetPulse design tokens — dark-first (design.md §3). Default = dark "NOC doméstico". */
-  /* .dark permite forzar el tema oscuro en previews dentro de páginas claras */
   :root,
   .dark {
     --canvas: 7 11 18;          /* #070B12 */
@@ -45,6 +46,119 @@
     --danger: 220 38 38;        /* red-600 */
     --info: 37 99 235;          /* blue-600 */
     color-scheme: light;
+  }
+}
+
+/* Design tokens → Tailwind 4 @theme (equivalente al theme.extend de v3).
+   En v4 los colores van PUROS (sin <alpha-value>); la opacidad (bg-x/50)
+   la gestiona Tailwind con color-mix automático. */
+@theme {
+  --color-canvas: rgb(var(--canvas));
+  --color-surface: rgb(var(--surface));
+  --color-elevated: rgb(var(--elevated));
+  --color-hover: rgb(var(--hover));
+  --color-border: rgb(var(--border));
+  --color-border-strong: rgb(var(--border-strong));
+  --color-text-primary: rgb(var(--text-primary));
+  --color-text-secondary: rgb(var(--text-secondary));
+  --color-text-muted: rgb(var(--text-muted));
+  --color-accent: rgb(var(--accent));
+  --color-accent-soft: rgb(var(--accent) / 0.12);
+  --color-tunnel: rgb(var(--tunnel));
+  --color-ok: rgb(var(--ok));
+  --color-warn: rgb(var(--warn));
+  --color-danger: rgb(var(--danger));
+  --color-info: rgb(var(--info));
+
+  /* shadcn/ui aliases mapeados a los tokens de diseño */
+  --color-background: rgb(var(--canvas));
+  --color-foreground: rgb(var(--text-primary));
+  --color-input: rgb(var(--border-strong));
+  --color-ring: rgb(var(--accent));
+  --color-primary: rgb(var(--accent));
+  --color-primary-foreground: rgb(var(--canvas));
+  --color-secondary: rgb(var(--elevated));
+  --color-secondary-foreground: rgb(var(--text-primary));
+  --color-destructive: rgb(var(--danger));
+  --color-destructive-foreground: rgb(var(--canvas));
+  --color-muted: rgb(var(--elevated));
+  --color-muted-foreground: rgb(var(--text-muted));
+  --color-popover: rgb(var(--elevated));
+  --color-popover-foreground: rgb(var(--text-primary));
+  --color-card: rgb(var(--surface));
+  --color-card-foreground: rgb(var(--text-primary));
+  --color-sidebar: rgb(var(--surface));
+  --color-sidebar-foreground: rgb(var(--text-primary));
+  --color-sidebar-primary: rgb(var(--accent));
+  --color-sidebar-primary-foreground: rgb(var(--canvas));
+  --color-sidebar-accent: rgb(var(--accent) / 0.12);
+  --color-sidebar-accent-foreground: rgb(var(--accent));
+  --color-sidebar-border: rgb(var(--border));
+  --color-sidebar-ring: rgb(var(--accent));
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.1;
+  --text-display--font-weight: 700;
+  --text-display-sm: 2.25rem;
+  --text-display-sm--line-height: 1.1;
+  --text-display-sm--font-weight: 700;
+  --text-h1: 1.5rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.125rem;
+  --text-h2--line-height: 1.3;
+  --text-h2--font-weight: 600;
+  --text-stat: 1.75rem;
+  --text-stat--line-height: 1.1;
+  --text-stat--font-weight: 600;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+  --text-label--letter-spacing: 0.06em;
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--font-weight: 500;
+  --text-mono-sm: 0.75rem;
+  --text-mono-sm--line-height: 1.4;
+  --text-mono-sm--font-weight: 500;
+
+  --radius-xs: calc(var(--radius) - 6px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-glow-ok: 0 0 40px -12px rgb(var(--ok) / 0.35);
+  --shadow-glow-warn: 0 0 40px -12px rgb(var(--warn) / 0.35);
+  --shadow-glow-danger: 0 0 40px -12px rgb(var(--danger) / 0.35);
+  --shadow-glow-accent: 0 0 40px -12px rgb(var(--accent) / 0.35);
+  --shadow-glow-tunnel: 0 0 40px -12px rgb(var(--tunnel) / 0.35);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-caret-blink: caret-blink 1.25s ease-out infinite;
+  --animate-ping-soft: ping-soft 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes caret-blink {
+    0%, 70%, 100% { opacity: 1; }
+    20%, 50% { opacity: 0; }
+  }
+  @keyframes ping-soft {
+    0% { transform: scale(1); opacity: 0.7; }
+    80%, 100% { transform: scale(2.2); opacity: 0; }
   }
 }
 
