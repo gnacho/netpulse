@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-05 (v2.6.0, Fase 7 completada). 
+> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 10 = paquete LuCI). 
 
 ## Estado actual (v2.6.0) ✅
 
@@ -196,10 +196,9 @@ Contexto:
      LuCI o en un log accesible (`logread`).
    - El servidor on-box escanea/adopta agentes de la misma LAN con ese token.
    - No más `curl | sh` con token en argv.
-5. **`luci-app-netpulse` (opcional pero recomendable)**:
-   - Página en LuCI para ver estado del agente/server, último push, versión y
-     botón de adoptar/desvincular.
-   - No reemplaza la PWA, pero permite diagnóstico sin acceso a la app.
+5. **`luci-app-netpulse`**: ver Fase 10 (paquete LuCI dedicado, se construye
+   después de la Fase 8; no reemplaza la PWA, permite diagnóstico local sin
+   la app).
 6. **Presupuesto y roles**:
    - Gateway (Flint 2): server (~20 MB RSS) + agent.
    - APs (Redmi AX6, 512 MB): solo agente.
@@ -282,6 +281,43 @@ Contexto:
 - Activar AdGuard desde la app sin abrir LuCI ni editar un solo fichero a mano.
 
 **Deploy**: se despliega módulo a módulo, empezando por AdGuard Home.
+
+---
+
+## Fase 10 — Paquete LuCI `luci-app-netpulse` (decisión de alcance 6-Ago-2026)
+
+Objetivo: paquete `luci-app-netpulse` instalable junto al `.ipk`/`.apk` del
+agente. **NO repite la webapp**: verificado en los feeds oficiales
+(`openwrt/luci` y `openwrt/packages`) que LuCI es per-dispositivo y no existe
+ningún NOC multi-router; la webapp (Go + SSE) sigue siendo el visor de red.
+
+**Alcance acordado — vista de nodo (lo local, complementa sin solapar):**
+1. **Estado y gestión del agente en ESTE router**:
+   - Estado del servicio procd (vivo/muerto), versión del binario, uptime, RSS.
+   - Config UCI (`/etc/config/netpulse`): server, slug, token presente,
+     interval — editable.
+   - Heartbeat / última conexión al servidor y si es alcanzable.
+   - Logs del agente (`logread -e netpulse`) — hoy no visibles en la webapp.
+   - Botones: restart del agente, rearm, ver token.
+2. **Puente a la webapp central** (vista de red agregada): entrada de menú con
+   enlace/iframe a la app (URL configurable en UCI). Cero UI duplicada.
+
+**Implementación:**
+- Luci modern (OpenWrt 24.10/25.x = ucode + JS/Vue, NO Luci legacy).
+- El visor lee UCI + procd + logread directamente — sin listener HTTP extra
+  en el agente (cero superficie/RAM).
+- Build vía SDK OpenWrt; empaquetar para opkg y apk (25.12). El `.apk` del
+  agente sigue pendiente de construir (Fase 7).
+- Cobra pleno sentido tras la Fase 8 (server on-box en el gateway); para
+  terceros con OpenWrt estándar, ya es útil sin ella.
+
+**Criterios de aceptación:**
+- `opkg install luci-app-netpulse` (24.10) y equivalente `.apk` (25.12).
+- Sin HTTP extra en el agente; RSS del router no sube por el paquete.
+- El paquete lee estado real del agente (procd/UCI/logread) y lo muestra
+  sin login adicional de la webapp.
+
+**Deploy**: paquete junto al agente en gateway y APs.
 
 ---
 
