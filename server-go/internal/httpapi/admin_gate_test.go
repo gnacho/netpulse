@@ -51,7 +51,7 @@ func do(t *testing.T, method, base, path, cookie string) *http.Response {
 func TestRutasAdminDevuelven403ParaRolUser(t *testing.T) {
 	ts := makeTestServer(t)
 	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
-	userCookie := createUserAndLogin(t, ts.URL, adminCookie, "viewer", "clave1234", "user")
+	userCookie := createUserAndLogin(t, ts.URL, adminCookie, "viewer", "clave12345", "user")
 
 	adminOnly := []struct{ method, path string }{
 		{"POST", "/api/agents"},

@@ -13,7 +13,7 @@ import (
 func TestDemoEnable403ParaRolUser(t *testing.T) {
 	ts := makeTestServer(t)
 	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
-	userCookie := createUserAndLogin(t, ts.URL, adminCookie, "viewerdemo", "clave1234", "user")
+	userCookie := createUserAndLogin(t, ts.URL, adminCookie, "viewerdemo", "clave12345", "user")
 
 	res := do(t, "POST", ts.URL, "/api/demo/enable", userCookie)
 	if res.StatusCode != http.StatusForbidden {

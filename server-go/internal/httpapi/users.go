@@ -163,8 +163,8 @@ func (s *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := *body.Password
-	if len(password) < 6 {
-		writeError(w, http.StatusBadRequest, "invalid_input", "String must contain at least 6 character(s)")
+	if len(password) < 10 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "String must contain at least 10 character(s)")
 		return
 	}
 	if len(password) > 128 {
@@ -230,8 +230,8 @@ func (s *server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password *string `json:"password"`
 	}
-	if !readJSONBody(r, &body) || body.Password == nil || len(*body.Password) < 6 || len(*body.Password) > 128 {
-		writeError(w, http.StatusBadRequest, "invalid_input", "password mínimo 6 caracteres")
+	if !readJSONBody(r, &body) || body.Password == nil || len(*body.Password) < 10 || len(*body.Password) > 128 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "password mínimo 10 caracteres")
 		return
 	}
 	hash, err := auth.HashPassword(*body.Password)

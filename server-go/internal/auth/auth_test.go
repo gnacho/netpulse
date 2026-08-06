@@ -139,6 +139,10 @@ func TestSessionWithoutUserIDDoesNotAuthenticate(t *testing.T) {
 }
 
 func TestRateLimitFifthFailArmsLock(t *testing.T) {
+	// El test simula la IP del cliente vía X-Forwarded-For; en producción
+	// solo se confía con TRUST_PROXY (auditoría #1).
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
 	d := testDB(t)
 	newReq := func() *http.Request {
 		r := httptest.NewRequest("POST", "/api/auth/login", nil)
@@ -176,6 +180,9 @@ func TestRateLimitFifthFailArmsLock(t *testing.T) {
 }
 
 func TestBuildSessionCookieFlags(t *testing.T) {
+	// El caso X-Forwarded-Proto=https requiere TRUST_PROXY (auditoría #1).
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
 	cfg := &config.Config{CookieSecure: "auto"}
 	r := httptest.NewRequest("POST", "http://x/api/auth/login", nil)
 	c := BuildSessionCookie(cfg, r, "id.sig", 2592000)
@@ -198,5 +205,39 @@ func TestBuildSessionCookieFlags(t *testing.T) {
 	r3 := httptest.NewRequest("POST", "https://x/", nil)
 	if got := BuildSessionCookie(cfgNever, r3, "i.s", 1); strings.Contains(got, "Secure") {
 		t.Fatal("never debe omitir Secure incluso en https")
+	}
+}
+
+func TestClientIPSinTrustProxyIgnoraXFF(t *testing.T) {
+	// Auditoría #1: sin TRUST_PROXY, X-Forwarded-For se IGNORA — la IP del
+	// cliente es la del socket, no se puede falsear para evadir rate-limit.
+	SetTrustProxy(false)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	r := httptest.NewRequest("POST", "/api/auth/login", nil)
+	r.RemoteAddr = "192.168.1.55:50000"
+	r.Header.Set("X-Forwarded-For", "10.9.9.9")
+	if got := ClientIP(r); got != "192.168.1.55" {
+		t.Fatalf("sin TRUST_PROXY debe usar la IP del socket: %q", got)
+	}
+	// Con TRUST_PROXY, XFF es la IP del cliente real (detrás de proxy).
+	SetTrustProxy(true)
+	if got := ClientIP(r); got != "10.9.9.9" {
+		t.Fatalf("con TRUST_PROXY debe usar XFF: %q", got)
+	}
+}
+
+func TestIsSecureRequestSinTrustProxyIgnoraXFP(t *testing.T) {
+	// Auditoría #1: sin TRUST_PROXY, X-Forwarded-Proto se IGNORA (un cliente
+	// de la LAN no puede forzar la cookie Secure).
+	SetTrustProxy(false)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	r := httptest.NewRequest("POST", "http://x/", nil)
+	r.Header.Set("X-Forwarded-Proto", "https")
+	if IsSecureRequest(r) {
+		t.Fatal("sin TRUST_PROXY, XFP=https no debe considerarse seguro")
+	}
+	SetTrustProxy(true)
+	if !IsSecureRequest(r) {
+		t.Fatal("con TRUST_PROXY, XFP=https debe considerarse seguro")
 	}
 }

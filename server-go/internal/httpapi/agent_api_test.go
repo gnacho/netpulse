@@ -35,6 +35,11 @@ type agentTestServer struct {
 // makeAgentTestServer: app real con registry de agentes + sesión admin.
 func makeAgentTestServer(t *testing.T) *agentTestServer {
 	t.Helper()
+	// Los helpers de test simulan IPs distintas vía X-Forwarded-For (rate
+	// limit); el comportamiento por defecto en producción es NO confiar en
+	// XFF (auditoría #1), así que aquí se activa explícitamente.
+	auth.SetTrustProxy(true)
+	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
 		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
@@ -114,7 +119,16 @@ func ingest(t *testing.T, ts *agentTestServer, token, ip, payload string) *http.
 	return res
 }
 
-const validPayload = `{"router":"patio","ts":1754140000,"version":"0.1.0","data":{"system":{"sysinfo":{"uptime":100,"load":[0,0,0],"memory":{"total":100,"free":50,"buffered":0,"available":50}},"cpu":10,"temp":40},"wireless":{"clients":{}},"dhcp":{"leases":[]},"fdb":{"macs":{}}}}`
+// validPayload construye un payload de agente válido con ts ACTUAL (el
+// anti-replay de la auditoría #2 rechaza ts antiguos, así que el payload de
+// test no puede llevar un ts fijo del pasado).
+func validPayload(ts ...int64) string {
+	t := time.Now().Unix()
+	if len(ts) > 0 {
+		t = ts[0]
+	}
+	return fmt.Sprintf(`{"router":"patio","ts":%d,"version":"0.1.0","data":{"system":{"sysinfo":{"uptime":100,"load":[0,0,0],"memory":{"total":100,"free":50,"buffered":0,"available":50}},"cpu":10,"temp":40},"wireless":{"clients":{}},"dhcp":{"leases":[]},"fdb":{"macs":{}}}}`, t)
+}
 
 func TestIngestTokenValidoEInvalido(t *testing.T) {
 	ts := makeAgentTestServer(t)
@@ -135,7 +149,7 @@ func TestIngestTokenValidoEInvalido(t *testing.T) {
 		t.Fatalf("kv debería guardar sha256: %q", stored)
 	}
 	// Ingesta sin sesión (exenta del middleware) + token válido → 202
-	res := ingest(t, ts, token, "10.0.0.1", validPayload)
+	res := ingest(t, ts, token, "10.0.0.1", validPayload())
 	res.Body.Close()
 	if res.StatusCode != 202 {
 		t.Fatalf("ingest válido: %d", res.StatusCode)
@@ -145,7 +159,7 @@ func TestIngestTokenValidoEInvalido(t *testing.T) {
 	}
 	// Token inválido → 401; sin token → 401; token de otro slug → 401
 	for _, tok := range []string{"", "deadbeef", token + "00"} {
-		res := ingest(t, ts, tok, "10.0.0.2", validPayload)
+		res := ingest(t, ts, tok, "10.0.0.2", validPayload())
 		res.Body.Close()
 		if res.StatusCode != 401 {
 			t.Fatalf("token %q debería dar 401, dio %d", tok, res.StatusCode)
@@ -178,7 +192,7 @@ func TestIngestBodyGrandeYPayloadInvalido(t *testing.T) {
 		}
 	}
 	// El pipeline sigue sano tras los 400
-	res = ingest(t, ts, token, "10.0.1.2", validPayload)
+	res = ingest(t, ts, token, "10.0.1.2", validPayload())
 	res.Body.Close()
 	if res.StatusCode != 202 {
 		t.Fatalf("ingest tras 400s: %d", res.StatusCode)
@@ -190,13 +204,13 @@ func TestIngestRateLimit(t *testing.T) {
 	_, token, _ := createAgentToken(t, ts, "patio")
 	// 30/min por IP: las 30 primeras pasan, la 31 es 429 con Retry-After
 	for i := 0; i < 30; i++ {
-		res := ingest(t, ts, token, "10.0.2.1", validPayload)
+		res := ingest(t, ts, token, "10.0.2.1", validPayload())
 		res.Body.Close()
 		if res.StatusCode != 202 {
 			t.Fatalf("push %d: %d", i, res.StatusCode)
 		}
 	}
-	res := ingest(t, ts, token, "10.0.2.1", validPayload)
+	res := ingest(t, ts, token, "10.0.2.1", validPayload())
 	defer res.Body.Close()
 	if res.StatusCode != 429 {
 		t.Fatalf("push 31 debería ser 429, dio %d", res.StatusCode)
@@ -209,7 +223,7 @@ func TestIngestRateLimit(t *testing.T) {
 		t.Fatalf("429 shape: %v retry=%q", body, res.Header.Get("Retry-After"))
 	}
 	// Otra IP no está limitada
-	res2 := ingest(t, ts, token, "10.0.2.2", validPayload)
+	res2 := ingest(t, ts, token, "10.0.2.2", validPayload())
 	res2.Body.Close()
 	if res2.StatusCode != 202 {
 		t.Fatalf("otra IP: %d", res2.StatusCode)
@@ -243,7 +257,7 @@ func TestAgentsListYRevocacion(t *testing.T) {
 	}
 
 	// Tras un push: lastSeen (unix s) + versión + fresh
-	res2 := ingest(t, ts, token, "10.0.3.1", validPayload)
+	res2 := ingest(t, ts, token, "10.0.3.1", validPayload())
 	res2.Body.Close()
 	res = get(t, ts.URL, "/api/agents", ts.cookie)
 	body = readJSON(t, res)
@@ -270,7 +284,7 @@ func TestAgentsListYRevocacion(t *testing.T) {
 	if resDel.StatusCode != 204 {
 		t.Fatalf("DELETE: %d", resDel.StatusCode)
 	}
-	res3 := ingest(t, ts, token, "10.0.3.2", validPayload)
+	res3 := ingest(t, ts, token, "10.0.3.2", validPayload())
 	res3.Body.Close()
 	if res3.StatusCode != 401 {
 		t.Fatalf("push tras revocar: %d", res3.StatusCode)
@@ -308,7 +322,7 @@ func TestAgentStatePersistenciaYRestauracion(t *testing.T) {
 	ts := makeAgentTestServer(t)
 	_, token, _ := createAgentToken(t, ts, "patio")
 
-	res := ingest(t, ts, token, "10.0.0.1", validPayload)
+	res := ingest(t, ts, token, "10.0.0.1", validPayload())
 	res.Body.Close()
 	if res.StatusCode != 202 {
 		t.Fatalf("ingest: %d", res.StatusCode)
@@ -334,5 +348,34 @@ func TestAgentStatePersistenciaYRestauracion(t *testing.T) {
 	payload, fresh := reg2.Fresh("patio")
 	if !fresh || payload == nil || payload.Router != "patio" {
 		t.Fatalf("payload no fresco tras restauración: fresh=%v", fresh)
+	}
+}
+
+// TestIngestAntiReplay (auditoría #2): un payload con ts fuera de la ventana
+// de frescura (pasado o futuro) se rechaza con 401 stale_payload, aunque el
+// token y el HMAC sean correctos — evita reinyectar pushes viejos capturados.
+func TestIngestAntiReplay(t *testing.T) {
+	ts := makeAgentTestServer(t)
+	_, token, _ := createAgentToken(t, ts, "patio")
+
+	stale := validPayload(time.Now().Add(-10 * time.Minute).Unix())
+	res := ingest(t, ts, token, "10.0.4.1", stale)
+	res.Body.Close()
+	if res.StatusCode != 401 {
+		t.Fatalf("ts pasado debería dar 401, dio %d", res.StatusCode)
+	}
+
+	future := validPayload(time.Now().Add(10 * time.Minute).Unix())
+	res = ingest(t, ts, token, "10.0.4.2", future)
+	res.Body.Close()
+	if res.StatusCode != 401 {
+		t.Fatalf("ts futuro debería dar 401, dio %d", res.StatusCode)
+	}
+
+	// ts justo dentro de la ventana → 202
+	res = ingest(t, ts, token, "10.0.4.3", validPayload(time.Now().Add(-2*time.Minute).Unix()))
+	res.Body.Close()
+	if res.StatusCode != 202 {
+		t.Fatalf("ts en ventana debería dar 202, dio %d", res.StatusCode)
 	}
 }

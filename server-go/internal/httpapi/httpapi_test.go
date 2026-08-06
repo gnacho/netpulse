@@ -30,6 +30,10 @@ type testServer struct {
 // DB temporal, config AUTH_USER=admin AUTH_PASS=test1234 DEMO_MODE=1.
 func makeTestServer(t *testing.T) *testServer {
 	t.Helper()
+	// Los helpers de test simulan IPs distintas vía X-Forwarded-For (rate
+	// limit); por defecto en producción NO se confía en XFF (auditoría #1).
+	auth.SetTrustProxy(true)
+	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
 		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
@@ -294,7 +298,7 @@ func TestUsersCRUD(t *testing.T) {
 	}
 
 	// Alta 201
-	req, _ := http.NewRequest("POST", srv.URL+"/api/users", strings.NewReader(`{"username":"ana","password":"secreto1"}`))
+	req, _ := http.NewRequest("POST", srv.URL+"/api/users", strings.NewReader(`{"username":"ana","password":"secreto12345"}`))
 	req.Header.Set("Cookie", "session="+adminCookie)
 	res, _ = http.DefaultClient.Do(req)
 	if res.StatusCode != 201 {
@@ -305,7 +309,7 @@ func TestUsersCRUD(t *testing.T) {
 	res.Body.Close()
 
 	// Duplicado 409
-	req, _ = http.NewRequest("POST", srv.URL+"/api/users", strings.NewReader(`{"username":"ana","password":"otra1234"}`))
+	req, _ = http.NewRequest("POST", srv.URL+"/api/users", strings.NewReader(`{"username":"ana","password":"otra123456"}`))
 	req.Header.Set("Cookie", "session="+adminCookie)
 	res, _ = http.DefaultClient.Do(req)
 	body = readJSON(t, res)
@@ -326,7 +330,7 @@ func TestUsersCRUD(t *testing.T) {
 	}
 
 	// El usuario creado puede loguear
-	status, anaCookie, _ := loginCookie(t, srv.URL, "ana", "secreto1")
+	status, anaCookie, _ := loginCookie(t, srv.URL, "ana", "secreto12345")
 	if status != 204 {
 		t.Fatalf("login ana: got %d", status)
 	}

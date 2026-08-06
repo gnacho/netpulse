@@ -57,6 +57,8 @@ type Config struct {
 	Webhook       *Webhook
 	WGInterface   string
 	CookieSecure  string // "auto" | "always" | "never"
+	TrustProxy    bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
+	MaxTsDriftSec int    // ventana frescura ts agente en s (0 → default 5 min)
 	GithubRepo    string
 	GithubToken   string
 	ServerRoot    string
@@ -220,6 +222,32 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// TRUST_PROXY: '1' solo cuando el servidor va detrás de un proxy/reverse
+	// que setea X-Forwarded-For/-Proto (p. ej. NPM/Tailscale). Por defecto NO
+	// se confía: la IP del socket es la real (auditoría de seguridad #1).
+	trustProxy := false
+	if v, ok := env["TRUST_PROXY"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			trustProxy = true
+		default:
+			errs.issues = append(errs.issues, issue{"TRUST_PROXY", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
+	// AGENT_MAX_TS_DRIFT_S: ventana de frescura del ts del agente en segundos
+	// (anti-replay, auditoría de seguridad #2). 0 → default 5 min.
+	maxTsDriftSec := 0
+	if v, ok := env["AGENT_MAX_TS_DRIFT_S"]; ok && v != "" {
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil || n < 0 {
+			errs.issues = append(errs.issues, issue{"AGENT_MAX_TS_DRIFT_S", "Expected int >= 0"})
+		} else {
+			maxTsDriftSec = n
+		}
+	}
+
 	wgInterface := "wg0"
 	if v, ok := env["WG_INTERFACE"]; ok && v != "" {
 		wgInterface = v
@@ -339,6 +367,8 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		Webhook:       webhook,
 		WGInterface:   wgInterface,
 		CookieSecure:  cookieSecure,
+		TrustProxy:    trustProxy,
+		MaxTsDriftSec: maxTsDriftSec,
 		GithubRepo:    githubRepo,
 		GithubToken:   githubToken,
 		ServerRoot:    serverRoot,

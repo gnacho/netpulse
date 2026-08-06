@@ -87,6 +87,9 @@ type server struct {
 
 	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
 	ingestLimit *ipRateLimit
+
+	// Ventana de frescura del `ts` del agente (anti-replay, auditoría #2).
+	maxTsDrift time.Duration
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -114,6 +117,11 @@ func NewHandler(d Deps) http.Handler {
 			dbHandle = d.DB.DB
 		}
 		s.rearmer = rearmer.New(dbHandle, d.Agents, d.Pool, rearmEngine, d.RearmPollWait)
+	}
+	// Ventana de frescura del ts del agente (anti-replay, auditoría #2).
+	s.maxTsDrift = maxTsDriftDefault
+	if d.Config != nil && d.Config.MaxTsDriftSec > 0 {
+		s.maxTsDrift = time.Duration(d.Config.MaxTsDriftSec) * time.Second
 	}
 	mode := d.Adapter.Mode()
 
@@ -252,9 +260,15 @@ func writeError(w http.ResponseWriter, status int, code string, message ...strin
 	writeJSON(w, status, map[string]any{"error": code})
 }
 
-// readJSONBody parsea el body JSON; devuelve false si no es JSON válido
-// (equivalente a c.req.json().catch(() => null)).
+// maxBodyBytes: techo defensivo para cualquier body JSON de sesión
+// (login, users, config, alerts, push). Todos los cuerpos reales son < 1 KB;
+// el cap evita abuso de memoria con bodies gigantes (auditoría #3).
+const maxBodyBytes = 64 << 10
+
+// readJSONBody parsea el body JSON; devuelve false si no es JSON válido o
+// supera maxBodyBytes (equivalente a c.req.json().catch(() => null)).
 func readJSONBody(r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(nil, r.Body, maxBodyBytes)
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(dst); err != nil {
 		return false
