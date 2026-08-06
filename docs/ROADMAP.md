@@ -217,18 +217,19 @@ independiente; ordenados por valor/esfuerzo.
 
 7. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
    **no implementados en el código**, solo planificación del commit 4a4428e):
-   - **Webhook saliente**: notificaciones de alertas a URLs externas con firma
-     HMAC-SHA256, reintentos con backoff y DLQ — patrón EasyZFS v2.4.0.
-     Usar la skill `email-webhook-notifications` (ya aplicada en EasyZFS;
-     en NetPulse NO se ha usado). Complementa Web Push.
-   - **API de ingesta (webhook entrante)**: endpoint HTTP firmado para que
-     sistemas externos envíen eventos a NetPulse sin agente (lista de
-     orígenes permitida, anti-SSRF). Reutiliza el patrón HMAC de Fase 6
-     (el único HMAC que existe hoy es el de la ingesta del agente).
-   - **⚠️ Skill para el entrante: NO existe** (verificado 6-Ago). `api-stack`
-     es solo Node (no aplica a backend Go); `email-webhook-notifications`
-     solo cubre saliente. Crear skill `api-ingest-go` (firma entrante +
-     orígenes + anti-SSRF) o ampliar la existente antes de implementar.
+   - **Webhook saliente** ✅ PRIORIDAD: notificaciones de alertas a URLs
+     externas con firma HMAC-SHA256, reintentos con backoff y DLQ — patrón
+     EasyZFS v2.4.0. Usar la skill `email-webhook-notifications` (ya aplicada
+     en EasyZFS; en NetPulse NO se ha usado). Complementa Web Push.
+   - **API de ingesta (webhook entrante)** ⏸️ DIFERIDO (decisión 6-Ago):
+     endpoint HTTP firmado para que sistemas externos envíen eventos a
+     NetPulse sin agente (lista de orígenes permitida, anti-SSRF). Reutiliza
+     el patrón HMAC de Fase 6 (el único HMAC que existe hoy es el de la
+     ingesta del agente).
+   - **✅ Skill `api-ingest-go` CREADA (6-Ago)**: cubre el hueco de
+     conocimiento del entrante (firma, orígenes, anti-SSRF, idempotencia por
+     event_id, rate limit, body cap). `api-stack` es solo Node (no aplica a
+     backend Go); `email-webhook-notifications` solo cubre saliente.
    - **Prácticas del curado `learn/skills_go_api_development.md` (6-Ago)**: de
      ese catálogo solo aplica al entrante el **request ID** (UUID por request
      en headers/logs; hoy no existe `x-request-id` en server-go). Ya cubiertos:
