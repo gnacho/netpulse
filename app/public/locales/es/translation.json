@@ -297,6 +297,7 @@
     "more": "Más",
     "moreOptions": "Más opciones",
     "overview": "Resumen",
+    "reports": "Informes",
     "routerDetail": "Detalle de router",
     "routers": "Routers",
     "settings": "Ajustes",
@@ -438,6 +439,20 @@
     "tempThreshold": "Umbral: 65 °C",
     "traffic24h": "Tráfico 24 h",
     "trafficAria": "Tráfico de {{name}} en las últimas 24 horas"
+  },
+  "reports": {
+    "availability": "Disponibilidad semanal",
+    "colAvg": "Media",
+    "colRouter": "Router",
+    "empty": "Todavía no hay datos para este período. El rollup nocturno rellena el informe cada día.",
+    "error": "No se pudo cargar el informe. Comprueba la conexión e inténtalo de nuevo.",
+    "footnote": "Disponibilidad = minutos con datos sobre el total de los días con registro. La semana en curso se muestra parcial.",
+    "latency": "Latencia media",
+    "loading": "Cargando informe…",
+    "subtitle": "Disponibilidad y rendimiento por router, en semanas ISO (lunes-domingo).",
+    "traffic": "Tráfico total (↓+↑)",
+    "upMin": "Minutos con datos",
+    "weeksLabel": "Semanas a mostrar"
   },
   "topology": {
     "animateFlow": "Animar flujo de paquetes",
