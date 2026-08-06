@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router'
 import { AlertTriangle, ArrowLeft, Router as RouterIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { relTime } from '@/i18n'

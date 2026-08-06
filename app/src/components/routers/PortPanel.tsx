@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import type { Router } from '@/data/mock'
 import { SectionHeader } from '@/components/SectionHeader'
 import { getRouterExtras } from '@/components/routers/routerExtras'

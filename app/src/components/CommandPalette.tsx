@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { Bell, LayoutDashboard, MonitorSmartphone, Router as RouterIcon, Settings, Waypoints } from 'lucide-react'
 import {
   CommandDialog,

@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, Lock, ShieldCheck, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
