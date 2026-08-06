@@ -620,7 +620,13 @@
   <!-- ============ LIGHTBOX CAPTURAS ============ -->
   <div id="lightbox" class="lightbox" hidden aria-hidden="true">
     <button class="lightbox-close" id="lightboxClose" data-i18n-aria="lightbox.close" aria-label="Cerrar">×</button>
+    <button class="lightbox-arrow prev" id="lightboxPrev" data-i18n-aria="lightbox.prev" aria-label="Captura anterior">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
     <img id="lightboxImg" class="lightbox-img" src="" alt="" data-i18n-alt="lightbox.alt" />
+    <button class="lightbox-arrow next" id="lightboxNext" data-i18n-aria="lightbox.next" aria-label="Captura siguiente">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
     <p class="lightbox-caption" id="lightboxCaption"></p>
   </div>
 

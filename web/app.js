@@ -1398,12 +1398,21 @@ function initLightbox() {
   const lightboxImg = document.getElementById('lightboxImg')
   const lightboxCaption = document.getElementById('lightboxCaption')
   const lightboxClose = document.getElementById('lightboxClose')
+  const lightboxPrev = document.getElementById('lightboxPrev')
+  const lightboxNext = document.getElementById('lightboxNext')
   if (!lightbox || !lightboxImg) return
 
+  function syncLightbox() {
+    const src = shotUrl(SHOT_SLIDES[shotIndex])
+    const lang = (document.documentElement.lang || 'en').slice(0, 2)
+    lightboxImg.src = src
+    lightboxImg.alt = (SHOT_ALT[SHOT_SLIDES[shotIndex]] && SHOT_ALT[SHOT_SLIDES[shotIndex]][lang]) || SHOT_SLIDES[shotIndex]
+    lightboxCaption.textContent = t(`shots.s${shotIndex + 1}`)
+  }
+
   function openLightbox(img) {
-    lightboxImg.src = img.currentSrc || img.src
-    lightboxImg.alt = img.alt
-    lightboxCaption.textContent = img.alt
+    shotIndex = SHOT_SLIDES.indexOf(img.dataset.view) >= 0 ? SHOT_SLIDES.indexOf(img.dataset.view) : shotIndex
+    syncLightbox()
     lightbox.hidden = false
     lightbox.setAttribute('aria-hidden', 'false')
     if (lightboxClose) lightboxClose.focus()
@@ -1416,14 +1425,23 @@ function initLightbox() {
     document.body.style.overflow = ''
   }
 
+  function nav(dir) {
+    renderShot(shotIndex + dir)
+    syncLightbox()
+  }
+
   document.querySelectorAll('img[data-shot]').forEach((img) => {
     img.addEventListener('click', () => openLightbox(img))
   })
   if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox)
+  if (lightboxPrev) lightboxPrev.addEventListener('click', () => nav(-1))
+  if (lightboxNext) lightboxNext.addEventListener('click', () => nav(1))
   lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox() })
   document.addEventListener('keydown', (e) => {
     if (lightbox.hidden) return
     if (e.key === 'Escape') closeLightbox()
+    if (e.key === 'ArrowLeft') nav(-1)
+    if (e.key === 'ArrowRight') nav(1)
   })
 }
 

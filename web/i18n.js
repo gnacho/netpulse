@@ -40,7 +40,7 @@ const I18N = {
     strip: { health: 'Health', down: 'Download', up: 'Upload', latency: 'Latency', devices: 'Devices' },
     club: {
       eyebrow: 'Part of the Cloudless Club',
-      title: 'The principles of the club',
+      title: 'Cloudless club principles',
       lead: 'NetPulse follows the three principles of the Cloudless Club: digital sovereignty, free forever, and by people, not companies. They are shared by every app in the club and live in a single place.',
       cta: 'Meet the club',
       href: 'https://cloudless.club',
@@ -142,6 +142,8 @@ const I18N = {
     },
     lightbox: {
       close: 'Close screenshot',
+      prev: 'Previous screenshot',
+      next: 'Next screenshot',
       alt: 'Screenshot enlarged',
     },
   },
@@ -160,7 +162,7 @@ const I18N = {
     strip: { health: 'Salud', down: 'Descarga', up: 'Subida', latency: 'Latencia', devices: 'Dispositivos' },
     club: {
       eyebrow: 'Parte del Club Cloudless',
-      title: 'Los principios del club',
+      title: 'Principios del club cloudless',
       lead: 'NetPulse sigue los tres principios del Club Cloudless: soberanía digital, libre para siempre y de personas, no de empresas. Son comunes a todas las apps del club y viven en un único sitio.',
       cta: 'Conocer el club',
       href: 'https://cloudless.club',
@@ -250,6 +252,8 @@ const I18N = {
     },
     lightbox: {
       close: 'Cerrar captura',
+      prev: 'Captura anterior',
+      next: 'Captura siguiente',
       alt: 'Captura ampliada',
     },
   },

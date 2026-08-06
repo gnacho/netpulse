@@ -552,3 +552,15 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
 }
 .lightbox-close:hover { background: rgb(255 255 255 / 0.15); }
 .lightbox-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.lightbox-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  background: rgb(0 0 0 / 0.4); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 1;
+}
+.lightbox-arrow.prev { left: 1.5rem; }
+.lightbox-arrow.next { right: 1.5rem; }
+.lightbox-arrow:hover { background: rgb(255 255 255 / 0.15); }
+.lightbox-arrow:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
