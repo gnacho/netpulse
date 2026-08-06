@@ -78,7 +78,10 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
   cpu_avg REAL, ram_avg REAL, temp_avg REAL,
   lat_avg REAL, rx_avg REAL, tx_avg REAL,
   rx_total REAL, tx_total REAL,
+  -- up_min: minutos de recolección del día (SUM(n) * 5 / 60; n = muestras a
+  -- 5 s → día completo ≈ 17280 muestras ≈ 1440 min).
   up_min INTEGER NOT NULL DEFAULT 0,
+  -- up_count: nº de buckets de 5 min con datos (288 = día completo).
   up_count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (router_id, date)
 );
@@ -350,7 +353,7 @@ func (d *DB) rollupBucketsToDaily(window time.Duration) error {
 			AVG(cpu_avg), AVG(ram_avg), AVG(temp_avg),
 			AVG(lat_avg), AVG(rx_avg), AVG(tx_avg),
 			SUM(rx_avg * n), SUM(tx_avg * n),
-			MIN(min_ts), COUNT(*)
+			SUM(n) * 5 / 60, COUNT(*)
 		FROM metrics_buckets
 		WHERE bucket_ts >= ?
 		GROUP BY router_id, strftime('%Y-%m-%d', bucket_ts / 1000, 'unixepoch')`,
