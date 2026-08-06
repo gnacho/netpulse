@@ -107,6 +107,29 @@ func (r *AgentRegistry) ActiveCount() int {
 	return n
 }
 
+// Restore repuebla el estado de un slug desde el almacén persistente
+// (arranque del servidor). No revalida TTL: la expiración la decide el
+// reloj comparando contra el LastSeen restaurado. Sobrescribe cualquier
+// estado previo del slug.
+func (r *AgentRegistry) Restore(slug string, st *AgentState) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.states[slug] = st
+}
+
+// Snapshot devuelve una copia del estado de un slug (o nil si no existe).
+// Usado para persistir el último push sin exponer el map interno.
+func (r *AgentRegistry) Snapshot(slug string) *AgentState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, ok := r.states[slug]
+	if !ok {
+		return nil
+	}
+	cp := *st
+	return &cp
+}
+
 // Forget borra el estado del slug (revocación de token).
 func (r *AgentRegistry) Forget(slug string) {
 	r.mu.Lock()
