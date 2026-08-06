@@ -122,6 +122,14 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   user_agent TEXT,
   created_at INTEGER NOT NULL
 );
+-- DLQ de webhooks salientes (Fase 8.7b): eventos no entregados tras agotar
+-- reintentos. event_id único (idempotencia del emisor).
+CREATE TABLE IF NOT EXISTS webhook_events (
+  event_id TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  sent_at INTEGER NOT NULL,
+  error TEXT
+);
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.

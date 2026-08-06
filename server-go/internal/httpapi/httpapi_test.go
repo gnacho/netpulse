@@ -743,3 +743,31 @@ func TestWriteJSONSinSaltoFinal(t *testing.T) {
 		t.Fatalf("body no es JSON válido: %q", body)
 	}
 }
+
+func TestWebhookDLQEndpoint(t *testing.T) {
+	srv := makeTestServer(t)
+	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	if status != 204 {
+		t.Fatalf("login: %d", status)
+	}
+
+	// Sin sesión → 401 (el middleware global exige auth)
+	req, _ := http.NewRequest("GET", srv.URL+"/api/webhook/dlq", nil)
+	res, _ := http.DefaultClient.Do(req)
+	res.Body.Close()
+	if res.StatusCode != 401 {
+		t.Fatalf("sin sesión debería dar 401, dio %d", res.StatusCode)
+	}
+
+	// Con sesión admin → 200 con items vacío (tabla nueva)
+	req, _ = http.NewRequest("GET", srv.URL+"/api/webhook/dlq", nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, _ = http.DefaultClient.Do(req)
+	body := readJSON(t, res)
+	if res.StatusCode != 200 {
+		t.Fatalf("con sesión debería dar 200, dio %d", res.StatusCode)
+	}
+	if body["total"].(float64) != 0 {
+		t.Fatalf("DLQ vacío esperado, total=%v", body["total"])
+	}
+}

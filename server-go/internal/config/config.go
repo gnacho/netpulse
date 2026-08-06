@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // RouterSeed es una entrada de ROUTERS_JSON (semilla opcional de la tabla routers).
@@ -28,6 +29,17 @@ type AdGuard struct {
 	Pass string
 }
 
+// Webhook configura el notificador saliente de alertas (Fase 8.7b). Vacío si
+// no hay WEBHOOK_URL: el webhook se desactiva y el motor sigue igual.
+type Webhook struct {
+	URL         string
+	Secret      string
+	Timeout     time.Duration
+	Retries     int
+	RetryDelay  time.Duration
+	Enabled     bool
+}
+
 // Config es la config normalizada (equivalente al objeto de loadConfig).
 type Config struct {
 	Port          int
@@ -42,6 +54,7 @@ type Config struct {
 	Routers       []RouterSeed
 	SSHKeyPath    string
 	Adguard       *AdGuard
+	Webhook       *Webhook
 	WGInterface   string
 	CookieSecure  string // "auto" | "always" | "never"
 	GithubRepo    string
@@ -232,6 +245,42 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// WEBHOOK_*: notificador saliente de alertas solo si hay URL válida.
+	// Timeout/retries/retry_delay con defaults si no vienen.
+	var webhook *Webhook
+	if v, ok := env["WEBHOOK_URL"]; ok && v != "" {
+		if u, err := url.Parse(v); err != nil || u.Scheme == "" || u.Host == "" {
+			errs.issues = append(errs.issues, issue{"WEBHOOK_URL", "Invalid url"})
+		} else {
+			timeout := 10 * time.Second
+			if w, ok := env["WEBHOOK_TIMEOUT"]; ok && w != "" {
+				if d, err := time.ParseDuration(w); err == nil && d > 0 {
+					timeout = d
+				}
+			}
+			retries := 3
+			if w, ok := env["WEBHOOK_RETRIES"]; ok && w != "" {
+				if n, err := strconv.Atoi(w); err == nil && n >= 0 {
+					retries = n
+				}
+			}
+			delay := 2 * time.Second
+			if w, ok := env["WEBHOOK_RETRY_DELAY"]; ok && w != "" {
+				if d, err := time.ParseDuration(w); err == nil && d > 0 {
+					delay = d
+				}
+			}
+			webhook = &Webhook{
+				URL:        v,
+				Secret:     env["WEBHOOK_SECRET"],
+				Timeout:    timeout,
+				Retries:    retries,
+				RetryDelay: delay,
+				Enabled:    true,
+			}
+		}
+	}
+
 	if len(errs.issues) > 0 {
 		return nil, &errs
 	}
@@ -287,6 +336,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		Routers:       routers,
 		SSHKeyPath:    sshKeyPath,
 		Adguard:       adguard,
+		Webhook:       webhook,
 		WGInterface:   wgInterface,
 		CookieSecure:  cookieSecure,
 		GithubRepo:    githubRepo,
