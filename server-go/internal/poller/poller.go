@@ -10,6 +10,7 @@ package poller
 import (
 	"context"
 	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -105,7 +106,7 @@ func (p *Poller) Stop() {
 func (p *Poller) tick() {
 	defer func() {
 		if rec := recover(); rec != nil {
-			log.Printf("[netpulse] error en tick del poller: %v", rec)
+			log.Printf("[netpulse] error en tick del poller: %v\n%s", rec, debug.Stack())
 		}
 	}()
 	ctx := context.Background()
