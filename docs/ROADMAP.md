@@ -223,12 +223,20 @@ independiente; ordenados por valor/esfuerzo.
    | Componente | De → A | Estado |
    |---|---|---|
    | modernc.org/sqlite | 1.55 → **1.56.0** | ✅ HECHO (PR #33) |
-   | TypeScript | 5.9.3 → **7.0.2** (tsgo, compilador Go) | ⏳ en curso |
-   | Vite | 7.3.6 → **8.2.0** (+ plugin-react compatible) | ⏳ |
-   | Tailwind | 3.4.19 → **4.3.3** (CSS-first, migración config) | ⏳ |
-   | react-router | 7.18.2 → **8.3.0** (revalidar enrutado) | ⏳ |
+   | TypeScript | 5.9.3 → **7.0.2** (tsgo) | ✅ HECHO (PR #34) |
+   | Vite | 7.3.6 → **8.2.0** | ✅ HECHO (PR #36) |
+   | Tailwind | 3.4.19 → **4.3.3** (CSS-first) | ✅ HECHO (PR #35) |
+   | react-router | 7.18.2 → **8.3.0** | ✅ HECHO (PR #37) |
    - Cada bump en su PR con build + tsc + PWA + verificación Playwright antes
      de mergear; deploy en CT 226 tras cada merge. Riesgo asumido por el usuario.
+   - **Lecciones del bloque (6-Ago)**: (1) Vite 8 (lightningcss) es incompatible
+     con Tailwind 3 → orden forzado: Tailwind 4 antes; (2) react-router v8
+     FUSIONA react-router-dom (el paquete @8 no existe; replace de imports +
+     eliminar la dep); (3) recharts v3 necesita `react-is` explícito (lo dejaba
+     fuera --legacy-peer-deps → build roto); (4) Tailwind 4: colores en @theme
+     PUROS (sin `<alpha-value>`), opacidad vía color-mix automático; (5) TS7
+     elimina `baseUrl` (paths relativos). **Todo desplegado en CT 226,
+     producción==main verificado (binario 5ce0c4ad, bundle index-wipKAvlJ).**
 
 7. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
    **no implementados en el código**, solo planificación del commit 4a4428e):
