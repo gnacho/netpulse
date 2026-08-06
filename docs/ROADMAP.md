@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 10 = paquete LuCI; cola pre-Fase 8). 
+> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 8 = consolidación de deudas; Fases 9-11 reordenadas). 
 
 ## Estado actual (v2.6.0) ✅
 
@@ -132,7 +132,7 @@ oficial de OpenWrt.
 
 3. **✅ 7.3 — Comunicación bidireccional SSE**: `GET /api/agents/{slug}/stream`
    + `POST /api/agents/{slug}/refresh`. Agente mantiene SSE abierta, recibe
-   comandos del servidor. Infraestructura lista para Fase 9 (escritura).
+   comandos del servidor. Infraestructura lista para Fase 10 (escritura).
    Verificado: `refresh → {"ok":true}` en gateway y APs.
 
 4. **✅ 7.4 — Empaquetado `.ipk`**: Makefile + procd init + UCI config +
@@ -162,7 +162,54 @@ oficial de OpenWrt.
 
 ---
 
-## Fase 8 — App embebida en routers (decisión de diseño primero)
+## Fase 8 — Consolidación de deudas y cierre de gaps (antes del on-box)
+
+Frente de trabajo previo al paquete del gateway (Fase 9). Cada ítem es un PR
+independiente; ordenados por valor/esfuerzo.
+
+1. **Métricas operativas en `/api/health`** (barato, alto valor operativo):
+   - Añadir `agentsConnected`, `sseConnections`, `devicesTotal` al health.
+     Los datos ya existen (AgentRegistry, hub SSE, poller) — solo exponerlos.
+     Punto de mejora nº2 de la auditoría Fase 7.
+
+2. **Persistir el registry de agentes (R8)** (prerrequisito de pairing de la
+   Fase 9):
+   - Hoy `AgentRegistry` es un `map` en RAM → `lastSeen`/payloads se pierden
+     al reiniciar el servidor. Deuda transversal ya anotada.
+   - Persistir último push por slug en SQLite (kv o tabla `agent_state`);
+     cargar al arrancar. Además: adoptar solo slugs conocidos (evitar huérfanos).
+
+3. **Integración del colector sidecar con server-go (propuesta 2)** (el gap
+   de histórico largo, deuda desde merge v2):
+   - **Frontera read-only**: `COLLECTOR_DB=/opt/netpulse-collector/data/metrics.db`;
+     server-go abre con `file:...?mode=ro` (1 escritor = el sidecar).
+   - El endpoint de histórico sirve corto plazo desde su tabla `metrics` (5s)
+     + largo plazo (días/meses) desde `buckets`/`daily` del sidecar (LTTB +
+     retención del skill sqlite-timeseries-daemon).
+   - **Ampliar el sidecar como historiador real**: además de latencia TCP,
+     disponibilidad (up/down) y contadores de tráfico por interfaz, todo en
+     la escalera raw→buckets→daily con NightlyJob. El server-go conserva la
+     instantánea SSE; el histórico largo se consume del sidecar.
+   - Bonus: del mismo árbol cae el **informe semanal de disponibilidad**
+     (deuda de la auditoría v2.1.0).
+   - Colateral: reinstalar el collector con release nueva (reporta `0.1.0`:
+     nunca se aplicó el fix goreleaser `-X main.Version`).
+
+4. **recharts v2 → v3** (deuda de mantenimiento):
+   - `app/package.json` usa `^2.15.4` (deprecated en npm). PR con verificación
+     visual de las gráficas (Playwright) — riesgo bajo pero a comprobar.
+
+5. **Limpieza de ramas** (trivial):
+   - `origin/feat/go-backend`, `origin/fix/issues-3-4-5` (y `fix/netpulse-jwt-cve`
+     si quedó tras el squash) — borrar las ya mergeadas.
+
+Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
+HTTPS en CT 226, no es micromejora) y series del collector (cubierto por el
+punto 3).
+
+---
+
+## Fase 9 — App embebida en routers (on-box; antes "Fase 8")
 
 Objetivo: NetPulse deja de ser un panel externo en un CT para convertirse en
 una app que vive en el propio router, alcanzable desde la IP del gateway sin
@@ -196,8 +243,8 @@ Contexto:
      LuCI o en un log accesible (`logread`).
    - El servidor on-box escanea/adopta agentes de la misma LAN con ese token.
    - No más `curl | sh` con token en argv.
-5. **`luci-app-netpulse`**: ver Fase 10 (paquete LuCI dedicado, se construye
-   después de la Fase 8; no reemplaza la PWA, permite diagnóstico local sin
+5. **`luci-app-netpulse`**: ver Fase 11 (paquete LuCI dedicado, se construye
+   después de la Fase 9; no reemplaza la PWA, permite diagnóstico local sin
    la app).
 6. **Presupuesto y roles**:
    - Gateway (Flint 2): server (~20 MB RSS) + agent.
@@ -210,19 +257,19 @@ Contexto:
   de datos (en USB/overlay).
 
 **Bloqueantes previos**: TLS resuelto en Fase 6 + agente bidireccional de
-Fase 7.
+Fase 7. Ver SPEC-FASE8.md (retos R1-R6 y criterios).
 
 **Deploy**: instalar server on-box en el gateway, agentes en APs.
 
 ---
 
-## Fase 9 — Escritura/orquestación (riesgo alto, reglas estrictas)
+## Fase 10 — Escritura/orquestación (riesgo alto, reglas estrictas; antes "Fase 9")
 
 Objetivo: pasar de leer la red a actuar sobre ella de forma declarativa,
 segura y reversible, con reglas que impidan quedarse sin wifi por un error.
 
 Contexto:
-- Hasta Fase 8 NetPulse es un panel de observación y alertas.
+- Hasta Fase 9 NetPulse es un panel de observación y alertas.
 - Cualquier cambio en routers (AdGuard, WireGuard, roaming) requiere LuCI/SSH.
 - Un error en un script puede dejar la red inaccesible.
 
@@ -284,7 +331,7 @@ Contexto:
 
 ---
 
-## Fase 10 — Paquete LuCI `luci-app-netpulse` (decisión de alcance 6-Ago-2026)
+## Fase 11 — Paquete LuCI `luci-app-netpulse` (antes "Fase 10")
 
 Objetivo: paquete `luci-app-netpulse` instalable junto al `.ipk`/`.apk` del
 agente. **NO repite la webapp**: verificado en los feeds oficiales
@@ -308,7 +355,7 @@ ningún NOC multi-router; la webapp (Go + SSE) sigue siendo el visor de red.
   en el agente (cero superficie/RAM).
 - Build vía SDK OpenWrt; empaquetar para opkg y apk (25.12). El `.apk` del
   agente sigue pendiente de construir (Fase 7).
-- Cobra pleno sentido tras la Fase 8 (server on-box en el gateway); para
+- Cobra pleno sentido tras la Fase 9 (server on-box en el gateway); para
   terceros con OpenWrt estándar, ya es útil sin ella.
 
 **Criterios de aceptación:**
@@ -318,52 +365,6 @@ ningún NOC multi-router; la webapp (Go + SSE) sigue siendo el visor de red.
   sin login adicional de la webapp.
 
 **Deploy**: paquete junto al agente en gateway y APs.
-
----
-
-## Cola pre-Fase 8 — mejoras a atacar ANTES del paquete on-box (6-Ago-2026)
-
-Frente de trabajo anterior a la Fase 8 (el paquete del gateway no urge).
-Cada ítem es un PR independiente; ordenados por valor/esfuerzo.
-
-1. **Métricas operativas en `/api/health`** (barato, alto valor operativo):
-   - Añadir `agentsConnected`, `sseConnections`, `devicesTotal` al health.
-     Los datos ya existen (AgentRegistry, hub SSE, poller) — solo exponerlos.
-     Punto de mejora nº2 de la auditoría Fase 7.
-
-2. **Persistir el registry de agentes (R8)** (prerrequisito de pairing Fase 8):
-   - Hoy `AgentRegistry` es un `map` en RAM → `lastSeen`/payloads se pierden
-     al reiniciar el servidor. Deuda transversal ya anotada.
-   - Persistir último push por slug en SQLite (kv o tabla `agent_state`);
-     cargar al arrancar. Además: adoptar solo slugs conocidos (evitar huérfanos).
-
-3. **Integración del colector sidecar con server-go (propuesta 2)** (el gap
-   de histórico largo, deuda desde merge v2):
-   - **Frontera read-only**: `COLLECTOR_DB=/opt/netpulse-collector/data/metrics.db`;
-     server-go abre con `file:...?mode=ro` (1 escritor = el sidecar).
-   - El endpoint de histórico sirve corto plazo desde su tabla `metrics` (5s)
-     + largo plazo (días/meses) desde `buckets`/`daily` del sidecar (LTTB +
-     retención del skill sqlite-timeseries-daemon).
-   - **Ampliar el sidecar como historiador real**: además de latencia TCP,
-     disponibilidad (up/down) y contadores de tráfico por interfaz, todo en
-     la escalera raw→buckets→daily con NightlyJob. El server-go conserva la
-     instantánea SSE; el histórico largo se consume del sidecar.
-   - Bonus: del mismo árbol cae el **informe semanal de disponibilidad**
-     (deuda de la auditoría v2.1.0).
-   - Colateral: reinstalar el collector con release nueva (reporta `0.1.0`:
-     nunca se aplicó el fix goreleaser `-X main.Version`).
-
-4. **recharts v2 → v3** (deuda de mantenimiento):
-   - `app/package.json` usa `^2.15.4` (deprecated en npm). PR con verificación
-     visual de las gráficas (Playwright) — riesgo bajo pero a comprobar.
-
-5. **Limpieza de ramas** (trivial):
-   - `origin/feat/go-backend`, `origin/fix/issues-3-4-5` (y `fix/netpulse-jwt-cve`
-     si quedó tras el squash) — borrar las ya mergeadas.
-
-Quedan fuera de esta cola (a propósito): Web Push (requiere decisión de infra
-HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
-punto 3) y paquete del gateway (Fase 8).
 
 ---
 

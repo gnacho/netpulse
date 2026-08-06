@@ -1,9 +1,11 @@
-# SPEC — Fase 8: App on-box (servidor en el router gateway)
+# SPEC — Fase 9: App on-box (servidor en el router gateway)
 
 > Estado: borrador de diseño (issue #17). Actualizada: 2026-08-06.
 > Objetivo: NetPulse corre en el propio router gateway, sin dependencia de
 > infraestructura externa (CT, servidor). Solo lectura; la escritura queda en
-> la Fase 9.
+> la Fase 10.
+> Nota: esta fase es la "Fase 8" en la numeración anterior al reordenado de
+> fases del 6-Ago-2026 (la actual Fase 8 es la consolidación de deudas).
 
 ## 0. Contexto verificado (no supuestos)
 
@@ -164,8 +166,8 @@ no compilación. Evita duplicar builds en CI y permite probar on-box en el CT
 - Web Push (SW del navegador no valida cert autofirmado).
 - Pairing automático por mDNS/LLDP.
 - Actualización in-app on-box (la gestiona opkg/apk).
-- Escritura en red (Fase 9).
-- El paquete LuCI (Fase 10) — aunque R3/R4 diseñan su superficie.
+- Escritura en red (Fase 10).
+- El paquete LuCI (Fase 11) — aunque R3/R4 diseñan su superficie.
 - `.apk` del servidor para los APs 25.12 (misma deuda que el agente; los APs
   solo corren el agente, no el servidor).
 
