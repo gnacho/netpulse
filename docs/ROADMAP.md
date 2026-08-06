@@ -212,10 +212,23 @@ independiente; ordenados por valor/esfuerzo.
    - **Criterio**: subir un major solo si aporta valor al roadmap y se
      revalida la app completa (Playwright). recharts 3 sí (deprecated).
    - **DECISIÓN POSTERIOR (6-Ago noche, orden del usuario)**: subir TODO el
-     stack — modernc.org/sqlite 1.56, **TypeScript 7 (tsgo)**, **Vite 8**,
-     **Tailwind 4**, **react-router 8.3.0** — revirtiendo la decisión previa
-     de no subir estos majors. Cada uno en su PR con verificación completa
-     (build + tsc + PWA + Playwright). Riesgo asumido por el usuario.
+      stack — modernc.org/sqlite 1.56, **TypeScript 7 (tsgo)**, **Vite 8**,
+      **Tailwind 4**, **react-router 8.3.0** — revirtiendo la decisión previa
+      de no subir estos majors. Cada uno en su PR con verificación completa
+      (build + tsc + PWA + Playwright). Riesgo asumido por el usuario.
+      → Formalizado como **ítem 8** (abajo) con seguimiento.
+
+8. **Actualización del stack a las últimas versiones** (issue #32, 6-Ago-2026,
+   orden del usuario — revierte la decisión de no subir majors):
+   | Componente | De → A | Estado |
+   |---|---|---|
+   | modernc.org/sqlite | 1.55 → **1.56.0** | ✅ HECHO (PR #33) |
+   | TypeScript | 5.9.3 → **7.0.2** (tsgo, compilador Go) | ⏳ en curso |
+   | Vite | 7.3.6 → **8.2.0** (+ plugin-react compatible) | ⏳ |
+   | Tailwind | 3.4.19 → **4.3.3** (CSS-first, migración config) | ⏳ |
+   | react-router | 7.18.2 → **8.3.0** (revalidar enrutado) | ⏳ |
+   - Cada bump en su PR con build + tsc + PWA + verificación Playwright antes
+     de mergear; deploy en CT 226 tras cada merge. Riesgo asumido por el usuario.
 
 7. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
    **no implementados en el código**, solo planificación del commit 4a4428e):
