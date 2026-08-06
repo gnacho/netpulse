@@ -203,9 +203,19 @@ independiente; ordenados por valor/esfuerzo.
    - `origin/feat/go-backend`, `origin/fix/issues-3-4-5` (y `fix/netpulse-jwt-cve`
      si quedó tras el squash) — borrar las ya mergeadas.
 
+6. **Auditoría de majors de frontend** (6-Ago-2026):
+   - Estado real verificado: React 19.2.8 ✅ al día; recharts 2.15.4→3.10.1
+     (2 majors detrás, deprecated — PR con verificación visual); Vite 7.3.6→8.2.0,
+     Tailwind 3.4→4.3.3, TypeScript 5.9→7.0.2, react-router 7.18.2→8.3.0.
+   - **Criterio**: subir un major solo si aporta valor al roadmap y se
+     revalida la app completa (Playwright). recharts 3 sí (deprecated);
+     Vite 8/TS 7 son muy recientes → no sin necesidad. **react-router v8:
+     NO subir** (no aporta nada, obligaría a revalidar toda la app y la línea
+     7.18.2 ya es la última estable de su rama).
+
 Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
-HTTPS en CT 226, no es micromejora) y series del collector (cubierto por el
-punto 3).
+HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
+punto 3) y react-router v8 (decisión deliberada, ver punto 6).
 
 ---
 
