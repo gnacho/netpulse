@@ -69,7 +69,8 @@ function initBackgroundCanvas() {
   let layers = [], bursts = []
   let mx = -1e4, my = -1e4, tmx = -1e4, tmy = -1e4
   const rand = mulberry32(0xC0FFEE)
-  const alphaColor = (c, a) => c.replace(')', ` / ${a})`)
+  const alphaColor = (name, a) => getCssVar(name).replace(')', ` / ${a})`)
+  const isLight = () => document.documentElement.classList.contains('light')
   const PALETTE = ['accent', 'tunnel', 'ok', 'info']
 
   function buildLayout() {
@@ -136,22 +137,24 @@ function initBackgroundCanvas() {
       }
       // enlaces (respiran muy lentamente)
       ctx.lineWidth = 1
+      const lineMul = isLight() ? 0.45 : 1.25
       for (const l of L.links) {
         const a = L.nodes[l.i], b = L.nodes[l.j]
-        ctx.strokeStyle = alphaColor('text-secondary', l.a * (0.65 + 0.35 * Math.sin(t * 0.4 + l.ph)))
+        ctx.strokeStyle = alphaColor('text-secondary', l.a * lineMul * (0.65 + 0.35 * Math.sin(t * 0.4 + l.ph)))
         ctx.beginPath()
         ctx.moveTo(a.wx, a.wy)
         ctx.lineTo(b.wx, b.wy)
         ctx.stroke()
       }
       // nodos
+      const nodeMul = isLight() ? 0.5 : 1
       for (const n of L.nodes) {
-        ctx.fillStyle = alphaColor(PALETTE[n.hue], n.a)
+        ctx.fillStyle = alphaColor(PALETTE[n.hue], n.a * nodeMul)
         ctx.beginPath()
         ctx.arc(n.wx, n.wy, n.r, 0, Math.PI * 2)
         ctx.fill()
         if (n.gw) {
-          ctx.strokeStyle = alphaColor(PALETTE[n.hue], n.a * 0.5)
+          ctx.strokeStyle = alphaColor(PALETTE[n.hue], n.a * nodeMul * 0.5)
           ctx.lineWidth = 1
           ctx.beginPath()
           ctx.arc(n.wx, n.wy, n.r + 3 + Math.sin(t * 1.2 + n.ph) * 1.2, 0, Math.PI * 2)
@@ -1258,9 +1261,7 @@ function initReveals() {
 
 /* ---------- widget apariencia ---------- */
 const MODE_KEY = 'netpulse-web-theme-mode'
-const ACCENT_KEY = 'netpulse-web-accent'
 let themeMode = 'dark'
-let accentId = 'cyan'
 
 function readStore(k) { try { return localStorage.getItem(k) } catch { return null } }
 function writeStore(k, v) { try { localStorage.setItem(k, v) } catch { /* privado */ } }
@@ -1275,30 +1276,23 @@ function applyTheme() {
   if (meta) meta.content = light ? '#F3F5F9' : '#070B12'
   if (typeof renderShot === 'function') renderShot()
 }
-function applyAccent() { document.documentElement.dataset.accent = accentId }
 function updateAppearancePanel() {
   document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === themeMode))
-  document.querySelectorAll('#accentSwatches .swatch').forEach(b => b.classList.toggle('on', b.dataset.accent === accentId))
 }
 function setMode(m) {
   themeMode = m; writeStore(MODE_KEY, m); applyTheme(); updateAppearancePanel()
 }
-function setAccent(a) {
-  accentId = a; writeStore(ACCENT_KEY, a); applyAccent(); updateAppearancePanel()
-}
-window.setMode = setMode; window.setAccent = setAccent
+window.setMode = setMode
 
 function initAppearance() {
   themeMode = readStore(MODE_KEY) || 'dark'
-  accentId = readStore(ACCENT_KEY) || 'cyan'
-  applyTheme(); applyAccent(); updateAppearancePanel()
+  applyTheme(); updateAppearancePanel()
   const fab = document.getElementById('appFab')
   const panel = document.getElementById('appPanel')
   fab.addEventListener('click', () => { panel.classList.toggle('open'); fab.setAttribute('aria-expanded', panel.classList.contains('open')) })
   document.addEventListener('click', e => { if (!panel.contains(e.target) && !fab.contains(e.target)) panel.classList.remove('open') })
   document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.classList.remove('open') })
   document.querySelectorAll('#themeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
-  document.querySelectorAll('#accentSwatches .swatch').forEach(b => b.addEventListener('click', () => setAccent(b.dataset.accent)))
   window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themeMode === 'system') applyTheme() })
 }
 
@@ -1398,12 +1392,21 @@ function initLightbox() {
   const lightboxImg = document.getElementById('lightboxImg')
   const lightboxCaption = document.getElementById('lightboxCaption')
   const lightboxClose = document.getElementById('lightboxClose')
+  const lightboxPrev = document.getElementById('lightboxPrev')
+  const lightboxNext = document.getElementById('lightboxNext')
   if (!lightbox || !lightboxImg) return
 
+  function syncLightbox() {
+    const src = shotUrl(SHOT_SLIDES[shotIndex])
+    const lang = (document.documentElement.lang || 'en').slice(0, 2)
+    lightboxImg.src = src
+    lightboxImg.alt = (SHOT_ALT[SHOT_SLIDES[shotIndex]] && SHOT_ALT[SHOT_SLIDES[shotIndex]][lang]) || SHOT_SLIDES[shotIndex]
+    lightboxCaption.textContent = t(`shots.s${shotIndex + 1}`)
+  }
+
   function openLightbox(img) {
-    lightboxImg.src = img.currentSrc || img.src
-    lightboxImg.alt = img.alt
-    lightboxCaption.textContent = img.alt
+    shotIndex = SHOT_SLIDES.indexOf(img.dataset.view) >= 0 ? SHOT_SLIDES.indexOf(img.dataset.view) : shotIndex
+    syncLightbox()
     lightbox.hidden = false
     lightbox.setAttribute('aria-hidden', 'false')
     if (lightboxClose) lightboxClose.focus()
@@ -1416,14 +1419,23 @@ function initLightbox() {
     document.body.style.overflow = ''
   }
 
+  function nav(dir) {
+    renderShot(shotIndex + dir)
+    syncLightbox()
+  }
+
   document.querySelectorAll('img[data-shot]').forEach((img) => {
     img.addEventListener('click', () => openLightbox(img))
   })
   if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox)
+  if (lightboxPrev) lightboxPrev.addEventListener('click', () => nav(-1))
+  if (lightboxNext) lightboxNext.addEventListener('click', () => nav(1))
   lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox() })
   document.addEventListener('keydown', (e) => {
     if (lightbox.hidden) return
     if (e.key === 'Escape') closeLightbox()
+    if (e.key === 'ArrowLeft') nav(-1)
+    if (e.key === 'ArrowRight') nav(1)
   })
 }
 
