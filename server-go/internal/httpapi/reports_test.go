@@ -9,15 +9,26 @@ import (
 	"testing"
 )
 
-// insertDaily siembra un daily del router r para una fecha dada.
-func insertDaily(t *testing.T, ts *testServer, routerID, date string, upCount int, lat, rx, tx, cpu, ram float64) {
+// insertDaily siembra un daily del router r para una fecha dada. nSamples es
+// el nº de muestras recolectadas (poll 5 s; día completo ≈ 17280 → 1440 min).
+func insertDaily(t *testing.T, ts *testServer, routerID, date string, nSamples int, lat sqlNull, rx, tx, cpu, ram float64) {
 	t.Helper()
+	var latV any
+	if lat.valid {
+		latV = lat.f
+	}
 	_, err := ts.db.Exec(
 		"INSERT OR REPLACE INTO metrics_daily (router_id, date, n, cpu_avg, ram_avg, temp_avg, lat_avg, rx_avg, tx_avg, rx_total, tx_total, up_min, up_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-		routerID, date, 288, cpu, ram, 40, lat, rx, tx, rx*288, tx*288, int64(upCount)*5, upCount)
+		routerID, date, nSamples, cpu, ram, 40, latV, rx, tx, rx*float64(nSamples), tx*float64(nSamples), 0, nSamples)
 	if err != nil {
 		t.Fatalf("insert daily %s/%s: %v", routerID, date, err)
 	}
+}
+
+// sqlNull emula sql.NullFloat64 para el test (sin importar database/sql).
+type sqlNull struct {
+	valid bool
+	f     float64
 }
 
 // weeklyReportEntry espeja la respuesta (solo los campos que usa el test).
@@ -27,6 +38,7 @@ type weeklyReportEntry struct {
 	Days     int     `json:"days"`
 	UpMin    int64   `json:"upMin"`
 	UpPct    float64 `json:"upPct"`
+	LatAvg   *float64 `json:"latAvg"`
 }
 
 func getWeekly(t *testing.T, ts *testServer, weeks string) (int, []weeklyReportEntry) {
@@ -59,12 +71,13 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	ts := makeTestServer(t)
 
 	// Dos routers en la misma semana ISO 2026-W32 (2026-08-03..09).
-	insertDaily(t, ts, "gw", "2026-08-03", 288, 1.2, 1e8, 5e7, 20, 60) // lunes completo
-	insertDaily(t, ts, "gw", "2026-08-04", 288, 1.4, 1e8, 5e7, 22, 61)
-	insertDaily(t, ts, "ap2", "2026-08-03", 144, 2.0, 1e7, 1e7, 10, 40) // media semana
+	// Día completo = 17280 muestras = 1440 min. latAvg null en prod real.
+	insertDaily(t, ts, "gw", "2026-08-03", 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
+	insertDaily(t, ts, "gw", "2026-08-04", 17280, sqlNull{true, 1.4}, 1e8, 5e7, 22, 61)
+	insertDaily(t, ts, "ap2", "2026-08-03", 8640, sqlNull{false, 0}, 1e7, 1e7, 10, 40) // medio día, sin latencia
 
 	// Otra semana distinta (2026-W31 = 2026-07-27..08-02) para el mismo router.
-	insertDaily(t, ts, "gw", "2026-07-27", 288, 1.0, 9e7, 4e7, 19, 59)
+	insertDaily(t, ts, "gw", "2026-07-27", 17280, sqlNull{true, 1.0}, 9e7, 4e7, 19, 59)
 
 	status, items := getWeekly(t, ts, "4")
 	if status != http.StatusOK {
@@ -84,7 +97,7 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 		t.Fatalf("items[0].routerId = %q, esperaba ap2", items[0].RouterID)
 	}
 
-	// gw en W32: 2 días completos = 288*2 buckets * 5 min = 2880 min, 100%.
+	// gw en W32: 2 días completos = 2*1440 = 2880 min, 100%.
 	var gwW32, gwW31, ap2W32 *weeklyReportEntry
 	for i := range items {
 		switch {
@@ -105,11 +118,18 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	if gwW32.UpPct < 99.9 || gwW32.UpPct > 100.1 {
 		t.Fatalf("gw W32 upPct=%v, esperaba ~100", gwW32.UpPct)
 	}
+	if gwW32.LatAvg == nil || *gwW32.LatAvg < 1.29 || *gwW32.LatAvg > 1.31 {
+		t.Fatalf("gw W32 latAvg=%v, esperaba ~1.3 (media de 1.2/1.4)", gwW32.LatAvg)
+	}
+	// ap2: medio día = 720 min sobre 1 día → 50%; latencia null (sin datos).
 	if ap2W32.Days != 1 || ap2W32.UpMin != 720 {
 		t.Fatalf("ap2 W32: days=%d upMin=%d, esperaba 1/720", ap2W32.Days, ap2W32.UpMin)
 	}
 	if ap2W32.UpPct < 49.9 || ap2W32.UpPct > 50.1 {
-		t.Fatalf("ap2 W32 upPct=%v, esperaba ~50 (media jornada: 720 de 1440 min)", ap2W32.UpPct)
+		t.Fatalf("ap2 W32 upPct=%v, esperaba ~50 (medio día: 720 de 1440 min)", ap2W32.UpPct)
+	}
+	if ap2W32.LatAvg != nil {
+		t.Fatalf("ap2 W32 latAvg=%v, esperaba null (sin datos de latencia)", *ap2W32.LatAvg)
 	}
 	if gwW31.Days != 1 || gwW31.UpMin != 1440 {
 		t.Fatalf("gw W31: days=%d upMin=%d, esperaba 1/1440", gwW31.Days, gwW31.UpMin)

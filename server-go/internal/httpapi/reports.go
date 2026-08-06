@@ -1,12 +1,22 @@
 // reports.go — GET /api/reports/weekly: informe de disponibilidad semanal.
 // Calculado de metrics_daily (rollup nocturno de Fase 8.3): un daily por
-// router y día con up_count (nº de buckets de 5 min con datos) + medias de
+// router y día con el nº de muestras recolectadas (n), medias de
 // latencia/cpu/ram y totales de tráfico. El corte temporal (semana ISO
 // lunes-domingo) se normaliza aquí para que el frontend no haga aritmética
 // de fechas.
+//
+// Semántica de disponibilidad (verificada contra datos reales de prod):
+//   - `n` = suma de muestras del día (poll de 5 s; día completo ≈ 17280).
+//   - minutos de recolección = n * 5 / 60.
+//   - upPct = minutos / (días con datos * 1440). La semana en curso queda
+//     parcial y se normaliza solo sobre los días que tienen datos.
+//   - `up_count` del daily NO es fiable como base (es COUNT(*) de filas
+//     bucket, que en prod coincide con muestras porque el rollup no agrega);
+//     `up_min` del daily es MIN(min_ts) (timestamp), no minutos.
 package httpapi
 
 import (
+	"database/sql"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,16 +24,16 @@ import (
 
 // weeklyReportEntry es una fila del informe: un router durante una semana.
 type weeklyReportEntry struct {
-	RouterID string  `json:"routerId"`
-	Week     string  `json:"week"`  // semana ISO, formato "2026-W31" (lunes-domingo)
-	Days     int     `json:"days"`  // días con datos en esa semana (≤7)
-	UpMin    int64   `json:"upMin"` // minutos de disponibilidad en la semana
-	UpPct    float64 `json:"upPct"` // % de disponibilidad sobre los días con datos
-	LatAvg   float64 `json:"latAvg"`
-	RxTotal  float64 `json:"rxTotal"`
-	TxTotal  float64 `json:"txTotal"`
-	CPUAvg   float64 `json:"cpuAvg"`
-	RAMAvg   float64 `json:"ramAvg"`
+	RouterID string   `json:"routerId"`
+	Week     string   `json:"week"`  // semana ISO, formato "2026-W31" (lunes-domingo)
+	Days     int      `json:"days"`  // días con datos en esa semana (≤7)
+	UpMin    int64    `json:"upMin"` // minutos de recolección en la semana
+	UpPct    float64  `json:"upPct"` // % de disponibilidad sobre los días con datos
+	LatAvg   *float64 `json:"latAvg"` // media de latencia (null si no hay datos)
+	RxTotal  float64  `json:"rxTotal"`
+	TxTotal  float64  `json:"txTotal"`
+	CPUAvg   float64  `json:"cpuAvg"`
+	RAMAvg   float64  `json:"ramAvg"`
 }
 
 // handleWeeklyReport sirve GET /api/reports/weekly?weeks=4. weeks ∈ [1,52].
@@ -48,7 +58,7 @@ func (s *server) handleWeeklyReport(w http.ResponseWriter, r *http.Request) {
 			router_id,
 			strftime('%G-W%V', date) AS week,
 			COUNT(*),
-			SUM(up_count) * 5,
+			SUM(n) * 5 / 60,
 			AVG(lat_avg),
 			SUM(rx_total),
 			SUM(tx_total),
@@ -68,11 +78,15 @@ func (s *server) handleWeeklyReport(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e weeklyReportEntry
 		var upMin int64
+		var lat sql.NullFloat64
 		if err := rows.Scan(&e.RouterID, &e.Week, &e.Days, &upMin,
-			&e.LatAvg, &e.RxTotal, &e.TxTotal, &e.CPUAvg, &e.RAMAvg); err != nil {
+			&lat, &e.RxTotal, &e.TxTotal, &e.CPUAvg, &e.RAMAvg); err != nil {
 			continue
 		}
 		e.UpMin = upMin
+		if lat.Valid {
+			e.LatAvg = &lat.Float64
+		}
 		if e.Days > 0 {
 			e.UpPct = float64(upMin) / (float64(e.Days) * 24 * 60) * 100
 		}
