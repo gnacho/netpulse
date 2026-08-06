@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '@/i18n'
-import { Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { AuthProvider } from '@/data/AuthContext'
 import type { AuthUser } from '@/data/AuthContext'

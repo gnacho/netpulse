@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router'
 import { AuthGate } from '@/components/AuthGate'
 import Layout from '@/components/Layout'
 import { DataProvider } from '@/data/DataProvider'

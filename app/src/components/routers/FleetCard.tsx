@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { AlertTriangle, Cable, ChevronRight, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
