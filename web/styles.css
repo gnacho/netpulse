@@ -521,3 +521,32 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
   .slider-thumbs { justify-content: flex-start; overflow-x: auto; padding-bottom: 0.5rem; }
   .thumb { width: 110px; flex: none; }
 }
+
+/* ---------- lightbox de capturas ---------- */
+#shotImg[data-shot] { cursor: zoom-in; }
+.lightbox {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgb(5 8 14 / 0.94);
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 1rem;
+  padding: 2rem;
+  cursor: zoom-out;
+}
+.lightbox:not([hidden]) { display: flex; }
+.lightbox[hidden] { display: none; }
+.lightbox-img {
+  max-width: 92vw; max-height: 82vh;
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.55);
+}
+.lightbox-caption { color: rgb(var(--text-secondary)); font-size: 0.95rem; text-align: center; }
+.lightbox-close {
+  position: absolute; top: 1.25rem; right: 1.5rem;
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  background: transparent; color: #fff;
+  font-size: 1.8rem; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.lightbox-close:hover { background: rgb(255 255 255 / 0.15); }
+.lightbox-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

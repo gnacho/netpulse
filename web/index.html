@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260806" />
+  <link rel="stylesheet" href="styles.css?v=20260806b" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -487,7 +487,7 @@
           <button class="slider-arrow prev" id="shotPrev" aria-label="Captura anterior" data-i18n-aria="shots.prev">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <img id="shotImg" src="assets/shot-overview-es-light.webp" alt="" width="1440" height="900">
+          <img id="shotImg" src="assets/shot-overview-es-light.webp" alt="" width="1440" height="900" data-shot>
           <button class="slider-arrow next" id="shotNext" aria-label="Captura siguiente" data-i18n-aria="shots.next">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
@@ -627,7 +627,14 @@
     <div class="panel-note" data-i18n="appearance.note">Mismos tokens que la app — pruébalo en vivo.</div>
   </div>
 
-  <script src="i18n.js?v=20260806"></script>
-  <script src="app.js?v=20260806"></script>
+  <!-- ============ LIGHTBOX CAPTURAS ============ -->
+  <div id="lightbox" class="lightbox" hidden aria-hidden="true">
+    <button class="lightbox-close" id="lightboxClose" data-i18n-aria="lightbox.close" aria-label="Cerrar">×</button>
+    <img id="lightboxImg" class="lightbox-img" src="" alt="" data-i18n-alt="lightbox.alt" />
+    <p class="lightbox-caption" id="lightboxCaption"></p>
+  </div>
+
+  <script src="i18n.js?v=20260806b"></script>
+  <script src="app.js?v=20260806b"></script>
 </body>
 </html>
