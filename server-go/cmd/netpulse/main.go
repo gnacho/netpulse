@@ -68,6 +68,26 @@ func run() error {
 		return err
 	}
 
+	// Modo mantenimiento: `-rollup` ejecuta el rollup nocturno de la escalera
+	// de retención y sale. Con `-rollup-repair` primero purga metrics_buckets
+	// y metrics_daily (útil tras un rollup previo mal formado, issue #54).
+	if os.Getenv("NETPULSE_ROLLUP") == "1" {
+		if os.Getenv("NETPULSE_ROLLUP_REPAIR") == "1" {
+			log.Print("[netpulse] rollup: purgando metrics_buckets y metrics_daily")
+			if _, err := dbHandle.Exec("DELETE FROM metrics_buckets"); err != nil {
+				return err
+			}
+			if _, err := dbHandle.Exec("DELETE FROM metrics_daily"); err != nil {
+				return err
+			}
+		}
+		log.Print("[netpulse] rollup: ejecutando NightlyJob (buckets 5 min + daily)")
+		dbHandle.NightlyJob()
+		_ = dbHandle.Close()
+		log.Print("[netpulse] rollup: OK")
+		os.Exit(0)
+	}
+
 	secret, err := auth.EnsureSessionSecret(dbHandle, cfg)
 	if err != nil {
 		return err

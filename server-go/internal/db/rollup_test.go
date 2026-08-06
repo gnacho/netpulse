@@ -77,6 +77,27 @@ func TestRollupSamplesToBucketsYDaily(t *testing.T) {
 		t.Fatalf("daily n = %d, esperaba 3", dn)
 	}
 
+	// up_min en MINUTOS (issue #54): 3 muestras a 5 s → 0 min (3*5/60 = 0).
+	var upMin, upCount int
+	if err := d.QueryRow("SELECT up_min, up_count FROM metrics_daily WHERE router_id='r1'").Scan(&upMin, &upCount); err != nil {
+		t.Fatalf("query daily up_min/up_count: %v", err)
+	}
+	if upMin != 0 {
+		t.Fatalf("up_min = %d, esperaba 0 (3 muestras * 5 s / 60 = 0 min)", upMin)
+	}
+	if upCount != 1 {
+		t.Fatalf("up_count = %d, esperaba 1 (un bucket de 5 min)", upCount)
+	}
+
+	// Los buckets deben estar alineados a BucketMS (5 min): bucket_ts % 300000 == 0.
+	var tsAligned int64
+	if err := d.QueryRow("SELECT bucket_ts % 300000 FROM metrics_buckets WHERE router_id='r1'").Scan(&tsAligned); err != nil {
+		t.Fatalf("query bucket_ts: %v", err)
+	}
+	if tsAligned != 0 {
+		t.Fatalf("bucket_ts no alineado a 5 min (mod 300000 = %d)", tsAligned)
+	}
+
 	// Idempotencia: repetir el rollup no cambia los agregados (REPLACE).
 	d.NightlyJob()
 	var n2 int
