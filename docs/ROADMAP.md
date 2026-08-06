@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 8 = consolidación de deudas; Fases 9-11 reordenadas; webhooks+API movidos a Fase 8). 
+> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; **Fase 8 COMPLETA**; Fases 9-11 reordenadas). 
 
 ## Estado actual (v2.6.0) ✅
 
@@ -167,19 +167,20 @@ oficial de OpenWrt.
 Frente de trabajo previo al paquete del gateway (Fase 9). Cada ítem es un PR
 independiente; ordenados por valor/esfuerzo.
 
-1. **Métricas operativas en `/api/health`** (barato, alto valor operativo):
+1. **✅ Métricas operativas en `/api/health`** (barato, alto valor operativo):
    - Añadir `agentsConnected`, `sseConnections`, `devicesTotal` al health.
      Los datos ya existen (AgentRegistry, hub SSE, poller) — solo exponerlos.
-     Punto de mejora nº2 de la auditoría Fase 7.
+     Punto de mejora nº2 de la auditoría Fase 7. **HECHO: PR #20.**
 
-2. **Persistir el registry de agentes (R8)** (prerrequisito de pairing de la
+2. **✅ Persistir el registry de agentes (R8)** (prerrequisito de pairing de la
    Fase 9):
    - Hoy `AgentRegistry` es un `map` en RAM → `lastSeen`/payloads se pierden
      al reiniciar el servidor. Deuda transversal ya anotada.
-   - Persistir último push por slug en SQLite (kv o tabla `agent_state`);
-     cargar al arrancar. Además: adoptar solo slugs conocidos (evitar huérfanos).
+   - Persistir último push por slug en SQLite (kv `agent.state.<slug>`);
+     cargar al arrancar (`NewStateRestorer`). **HECHO: PR #22.** Los slugs sin
+     token ya se rechazaban (401) → "solo slugs conocidos" cubierto.
 
-3. **Histórico largo en server-go (RETENCIÓN, no sidecar)** (el gap de
+3. **✅ Histórico largo en server-go (RETENCIÓN, no sidecar)** (el gap de
    histórico largo, deuda desde merge v2; **decisión 6-Ago: descartada la
    frontera sidecar-readonly** — el tráfico/cpu/ram/temp ya los captura el
    propio server-go en `metrics`, ampliar el sidecar duplicaría la adquisición,
@@ -189,36 +190,37 @@ independiente; ordenados por valor/esfuerzo.
      vacío de datos. Resolver con la escalera del skill sqlite-timeseries-daemon
      sobre la MISMA tabla: raw (7d, ya existe) → **buckets 5min (1 año)** →
      **daily (∞)**, job nocturno de rollup→purga→checkpoint (referencia
-     references/jobs.md). Aditivo, sin tocar el sidecar.
+     references/jobs.md). Aditivo, sin tocar el sidecar. **HECHO: PR #24.**
    - El endpoint de histórico (`metricsHistory`) sirve corto de `metrics` y
-     largo de `buckets`/`daily` con downsampling ≤500 pts (LTTB o bucket).
-   - Bonus: **informe semanal de disponibilidad** (deuda auditoría v2.1.0)
-     sale del mismo rollup (`daily`).
-   - Colateral: reinstalar el collector con release nueva (reporta `0.1.0`:
-     nunca se aplicó el fix goreleaser `-X main.Version`).
+     largo (30d) de `metrics_buckets` con downsampling (ventanas 6h).
+   - ⏸️ Bonus pendiente: **informe semanal de disponibilidad** (deuda auditoría
+     v2.1.0; el `daily` ya lleva `up_min`/`up_count` preparados).
+   - Colateral pendiente: reinstalar el collector con release nueva (reporta
+     `0.1.0`: nunca se aplicó el fix goreleaser `-X main.Version`).
 
-4. **recharts v2 → v3** (deuda de mantenimiento):
+4. **✅ recharts v2 → v3** (deuda de mantenimiento):
    - `app/package.json` usa `^2.15.4` (deprecated en npm). PR con verificación
-     visual de las gráficas (Playwright) — riesgo bajo pero a comprobar.
+     visual de las gráficas (Playwright). **HECHO: PR #29** (v3.10.1; se eliminó
+     el wrapper `chart.tsx` muerto de shadcn).
 
-5. **Limpieza de ramas** (trivial):
+5. **✅ Limpieza de ramas** (trivial):
    - `origin/feat/go-backend`, `origin/fix/issues-3-4-5` (y `fix/netpulse-jwt-cve`
-     si quedó tras el squash) — borrar las ya mergeadas.
+     si quedó tras el squash) — borrar las ya mergeadas. **HECHO**: ramas
+     locales y remotas purgadas; 3 PRs de dependabot cerrados con motivo
+     (react-router v8, hono legacy ×2).
 
-6. **Auditoría de majors de frontend** (6-Ago-2026):
+6. **✅ Auditoría de majors de frontend** (6-Ago-2026):
    - Estado real verificado: React 19.2.8 ✅ al día; recharts 2.15.4→3.10.1
      (2 majors detrás, deprecated — PR con verificación visual); Vite 7.3.6→8.2.0,
      Tailwind 3.4→4.3.3, TypeScript 5.9→7.0.2, react-router 7.18.2→8.3.0.
-   - **Criterio**: subir un major solo si aporta valor al roadmap y se
-     revalida la app completa (Playwright). recharts 3 sí (deprecated).
    - **DECISIÓN POSTERIOR (6-Ago noche, orden del usuario)**: subir TODO el
-      stack — modernc.org/sqlite 1.56, **TypeScript 7 (tsgo)**, **Vite 8**,
-      **Tailwind 4**, **react-router 8.3.0** — revirtiendo la decisión previa
-      de no subir estos majors. Cada uno en su PR con verificación completa
-      (build + tsc + PWA + Playwright). Riesgo asumido por el usuario.
-      → Formalizado como **ítem 8** (abajo) con seguimiento.
+     stack — modernc.org/sqlite 1.56, **TypeScript 7 (tsgo)**, **Vite 8**,
+     **Tailwind 4**, **react-router 8.3.0** — revirtiendo la decisión previa
+     de no subir estos majors. Cada uno en su PR con verificación completa
+     (build + tsc + PWA + Playwright). Riesgo asumido por el usuario.
+     → Ejecutado en el **ítem 7** (abajo).
 
-8. **Actualización del stack a las últimas versiones** (issue #32, 6-Ago-2026,
+7. **✅ Actualización del stack a las últimas versiones** (issue #32, 6-Ago-2026,
    orden del usuario — revierte la decisión de no subir majors):
    | Componente | De → A | Estado |
    |---|---|---|
@@ -237,13 +239,18 @@ independiente; ordenados por valor/esfuerzo.
      PUROS (sin `<alpha-value>`), opacidad vía color-mix automático; (5) TS7
      elimina `baseUrl` (paths relativos). **Todo desplegado en CT 226,
      producción==main verificado (binario 5ce0c4ad, bundle index-wipKAvlJ).**
+   - **⚠️ DEUDA DE ECOSISTEMA**: typescript-eslint@8.66 NO soporta TS7 (peer
+     `<6.1.0`) → `npm run lint` manual ROTO hasta que publiquen soporte. No
+     bloquea build ni CI (el lint no corre en CI). Fix aplicado en main:
+     `overrides` en app/package.json para que `npm ci` funcione.
 
-7. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
+8. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
    **no implementados en el código**, solo planificación del commit 4a4428e):
-   - **Webhook saliente** ✅ PRIORIDAD: notificaciones de alertas a URLs
+   - **Webhook saliente** ✅ HECHO (PR #31): notificaciones de alertas a URLs
      externas con firma HMAC-SHA256, reintentos con backoff y DLQ — patrón
-     EasyZFS v2.4.0. Usar la skill `email-webhook-notifications` (ya aplicada
-     en EasyZFS; en NetPulse NO se ha usado). Complementa Web Push.
+     EasyZFS v2.4.0, skill `email-webhook-notifications`. Endpoint admin
+     `GET /api/webhook/dlq`. **INACTIVO en producción** (falta WEBHOOK_URL/
+     SECRET en .env — decisión del usuario).
    - **API de ingesta (webhook entrante)** ⏸️ DIFERIDO (decisión 6-Ago):
      endpoint HTTP firmado para que sistemas externos envíen eventos a
      NetPulse sin agente (lista de orígenes permitida, anti-SSRF). Reutiliza
@@ -262,8 +269,8 @@ independiente; ordenados por valor/esfuerzo.
      stack SQLite + stdlib net/http.
 
 Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
-HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
-punto 3) y react-router v8 (decisión deliberada, ver punto 6).
+HTTPS en CT 226, no es micromejora) y el informe semanal de disponibilidad
+(cubierto en el ítem 3 como bonus pendiente).
 
 ---
 
