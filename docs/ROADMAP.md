@@ -223,6 +223,10 @@ independiente; ordenados por valor/esfuerzo.
      sistemas externos envíen eventos a NetPulse sin agente (lista de
      orígenes permitida, anti-SSRF). Reutiliza el patrón HMAC de Fase 6
      (el único HMAC que existe hoy es el de la ingesta del agente).
+   - **⚠️ Skill para el entrante: NO existe** (verificado 6-Ago). `api-stack`
+     es solo Node (no aplica a backend Go); `email-webhook-notifications`
+     solo cubre saliente. Crear skill `api-ingest-go` (firma entrante +
+     orígenes + anti-SSRF) o ampliar la existente antes de implementar.
 
 Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
 HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
