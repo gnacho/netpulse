@@ -207,6 +207,16 @@ section.block { padding: 5rem 0; }
 .reveal { opacity: 0; transform: translateY(26px); transition: opacity 650ms ease, transform 650ms ease; }
 .reveal.in { opacity: 1; transform: none; }
 
+/* ---------- club cloudless ---------- */
+.club-inner { display: flex; align-items: center; gap: 2.5rem; }
+.club-copy { flex: 1; min-width: 0; }
+.club-copy .lead { max-width: none; }
+.club-cta { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 860px) {
+  .club-inner { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
+  .club-copy .lead { max-width: 48rem; }
+}
+
 /* ---------- teatro sticky ---------- */
 .theater { display: grid; grid-template-columns: 38% 62%; gap: 1.75rem; align-items: start; margin-top: 2rem; }
 .theater-steps { display: flex; flex-direction: column; gap: 48vh; padding-bottom: 30vh; }
