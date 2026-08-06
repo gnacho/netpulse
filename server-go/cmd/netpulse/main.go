@@ -40,6 +40,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
+	"github.com/gnacho/netpulse/server-go/internal/webhook"
 )
 
 func main() {
@@ -124,7 +125,19 @@ func run() error {
 		log.Printf("[netpulse] aviso: Web Push desactivado (%v)", err)
 	} else {
 		pushNotifier = push.NewNotifier(dbHandle, pub, priv)
-		adapter.AlertsEngine().SetNotifier(pushNotifier)
+	}
+
+	// Webhook saliente (Fase 8.7b): si WEBHOOK_URL está configurado, las
+	// alertas urgentes también se envían a esa URL (HMAC + retry + DLQ).
+	var webhookNotifier *webhook.Notifier
+	if cfg.Webhook != nil && cfg.Webhook.Enabled {
+		webhookNotifier = webhook.NewNotifier(*cfg.Webhook, dbHandle)
+		log.Printf("[netpulse] webhook saliente activo: %s", cfg.Webhook.URL)
+	}
+
+	// Notifier compuesto: push + webhook (SetNotifier solo admite UNO).
+	if pushNotifier != nil || webhookNotifier != nil {
+		adapter.AlertsEngine().SetNotifier(notifierChain{pushNotifier, webhookNotifier})
 	}
 
 	// Dependencia sse↔poller resuelta con un holder (como index.js:40-45).
@@ -238,6 +251,9 @@ func run() error {
 		if pushNotifier != nil {
 			pushNotifier.Close()
 		}
+		if webhookNotifier != nil {
+			webhookNotifier.Close()
+		}
 		// Salvavidas de 3 s: salir igualmente aunque el server no cierre.
 		lifeline := time.AfterFunc(3*time.Second, func() {
 			_ = dbHandle.Close()
@@ -265,4 +281,17 @@ func checkAgentToken(d *db.DB, slug, token string) bool {
 	sum := sha256.Sum256([]byte(token))
 	got := hex.EncodeToString(sum[:])
 	return subtle.ConstantTimeCompare([]byte(got), []byte(stored)) == 1
+}
+
+// notifierChain implementa alerts.Notifier encadenando varios notifiers
+// (push + webhook). El motor de alertas solo admite UNO (SetNotifier), así
+// que este compuesto reparte cada evento a todos los miembros no nulos.
+type notifierChain []alerts.Notifier
+
+func (c notifierChain) Notify(ev alerts.AlertEvent) {
+	for _, n := range c {
+		if n != nil {
+			n.Notify(ev)
+		}
+	}
 }

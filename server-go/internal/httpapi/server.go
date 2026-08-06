@@ -186,6 +186,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("PUT /api/users/{id}/password", auth.RequireAdmin(http.HandlerFunc(s.handleSetPassword)))
 	mux.Handle("PUT /api/users/{id}/role", auth.RequireAdmin(http.HandlerFunc(s.handleSetRole)))
 	mux.Handle("DELETE /api/users/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteUser)))
+	mux.Handle("GET /api/webhook/dlq", auth.RequireAdmin(http.HandlerFunc(s.handleWebhookDLQ)))
 
 	// --- Config (sesión; /api/config/adguard solo admin) ---
 	s.registerConfigRoutes(mux)
