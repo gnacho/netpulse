@@ -207,14 +207,6 @@ section.block { padding: 5rem 0; }
 .reveal { opacity: 0; transform: translateY(26px); transition: opacity 650ms ease, transform 650ms ease; }
 .reveal.in { opacity: 1; transform: none; }
 
-/* principios */
-.principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 2.75rem; }
-.principle { padding: 1.75rem; position: relative; overflow: hidden; }
-.principle svg.big { width: 2.2rem; height: 2.2rem; margin-bottom: 1.25rem; }
-.principle h3 { font-family: "Space Grotesk", sans-serif; font-size: 1.35rem; margin: 0 0 0.6rem; }
-.principle p { margin: 0; color: rgb(var(--text-secondary)); font-size: 0.95rem; line-height: 1.55; }
-@media (max-width: 860px) { .principles { grid-template-columns: 1fr; } }
-
 /* ---------- teatro sticky ---------- */
 .theater { display: grid; grid-template-columns: 38% 62%; gap: 1.75rem; align-items: start; margin-top: 2rem; }
 .theater-steps { display: flex; flex-direction: column; gap: 48vh; padding-bottom: 30vh; }

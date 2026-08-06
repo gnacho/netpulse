@@ -28,7 +28,7 @@ const DEMO = {
 const I18N = {
   /* ---------------- ENGLISH ---------------- */
   en: {
-    nav: { features: 'Features', install: 'Install', github: 'GitHub' },
+    nav: { features: 'Features', club: 'The club', install: 'Install', github: 'GitHub' },
     hero: {
       eyebrow: 'Read-only home network monitoring',
       t1: 'Your network’s pulse.',
@@ -38,15 +38,12 @@ const I18N = {
     },
     facts: { noCloud: 'No cloud', free: '100% free · AGPL-3.0', data: 'Your app, your data', binary: 'One static binary', hw: 'OpenWrt / GL.iNet', package: 'OpenWrt .ipk package' },
     strip: { health: 'Health', down: 'Download', up: 'Upload', latency: 'Latency', devices: 'Devices' },
-    principles: {
-      title: 'Built on three stubborn principles',
-      lead: 'Not marketing lines. They are the reason NetPulse exists, and they shape every decision.',
-      p1t: 'No cloud',
-      p1p: 'No account, no subscription, no telemetry phoning home. NetPulse runs on a small box in your network and nowhere else. If your internet goes down, it keeps working.',
-      p2t: '100% free and open source',
-      p2p: 'AGPL-3.0, forever. Read the code, audit it, fork it, run it. There is no premium tier and there never will be.',
-      p3t: 'Your app, your data',
-      p3p: 'The server reads from your routers and never writes. Metrics live in a local SQLite file you own. Delete it, back it up, move it — it’s yours.',
+    club: {
+      eyebrow: 'Part of the Cloudless Club',
+      title: 'The principles of the club',
+      lead: 'NetPulse follows the three principles of the Cloudless Club: digital sovereignty, free forever, and by people, not companies. They are shared by every app in the club and live in a single place.',
+      cta: 'Meet the club',
+      href: 'https://cloudless.club',
     },
     theater: {
       title: 'Watch it come alive',
@@ -151,7 +148,7 @@ const I18N = {
 
   /* ---------------- ESPAÑOL ---------------- */
   es: {
-    nav: { features: 'Funciones', install: 'Instalar', github: 'GitHub' },
+    nav: { features: 'Funciones', club: 'El club', install: 'Instalar', github: 'GitHub' },
     hero: {
       eyebrow: 'Monitorización de solo lectura para tu red doméstica',
       t1: 'El pulso de tu red.',
@@ -161,15 +158,12 @@ const I18N = {
     },
     facts: { noCloud: 'Sin nube', free: '100% libre · AGPL-3.0', data: 'Tu app, tus datos', binary: 'Un solo binario', hw: 'OpenWrt / GL.iNet', package: 'Paquete .ipk OpenWrt' },
     strip: { health: 'Salud', down: 'Descarga', up: 'Subida', latency: 'Latencia', devices: 'Dispositivos' },
-    principles: {
-      title: 'Construido sobre tres principios tercos',
-      lead: 'No son frases de marketing. Son la razón de que NetPulse exista, y condicionan cada decisión.',
-      p1t: 'Sin nube',
-      p1p: 'Sin cuentas, sin suscripción, sin telemetría llamando a casa. NetPulse corre en una caja pequeña dentro de tu red y en ningún otro sitio. Si se cae Internet, sigue funcionando.',
-      p2t: '100% libre y open source',
-      p2p: 'AGPL-3.0, para siempre. Lee el código, audítalo, haz un fork, ejecútalo. No hay versión premium ni la habrá.',
-      p3t: 'Tu app, tus datos',
-      p3p: 'El servidor lee de tus routers y nunca escribe. Las métricas viven en un SQLite local que es tuyo. Bórralo, haz copias, muévelo — es tuyo.',
+    club: {
+      eyebrow: 'Parte del Club Cloudless',
+      title: 'Los principios del club',
+      lead: 'NetPulse sigue los tres principios del Club Cloudless: soberanía digital, libre para siempre y de personas, no de empresas. Son comunes a todas las apps del club y viven en un único sitio.',
+      cta: 'Conocer el club',
+      href: 'https://cloudless.club',
     },
     theater: {
       title: 'Míralo cobrar vida',
@@ -272,16 +266,6 @@ const I18N = {
     },
     facts: { noCloud: '无云端', free: '100% 自由 · AGPL-3.0', data: '你的应用，你的数据', binary: '单一静态二进制', hw: 'OpenWrt / GL.iNet' },
     strip: { health: '健康度', down: '下载', up: '上传', latency: '延迟', devices: '设备' },
-    principles: {
-      title: '建立在三个固执的原则之上',
-      lead: '这不是营销口号。它们是 NetPulse 存在的理由，也决定了每一个设计选择。',
-      p1t: '无云端',
-      p1p: '没有账号、没有订阅、没有上报遥测。NetPulse 运行在你网络里的一台小设备上，别处没有。断网时它照常工作。',
-      p2t: '100% 自由开源',
-      p2p: 'AGPL-3.0，永远如此。阅读代码、审计、分叉、运行。没有付费版，永远不会有。',
-      p3t: '你的应用，你的数据',
-      p3p: '服务器只读取路由器数据，从不写入。指标存在你拥有的本地 SQLite 文件中。删除、备份、迁移——都由你。',
-    },
     theater: {
       title: '看它活起来',
       lead: '继续滚动。这些是真实的组件，用演示数据集驱动——与你在演示模式下运行 NetPulse 看到的数字完全一致。',
@@ -372,16 +356,6 @@ const I18N = {
     },
     facts: { noCloud: 'بلا سحابة', free: 'حر 100% · AGPL-3.0', data: 'تطبيقك، بياناتك', binary: 'ملف ثنائي واحد', hw: 'OpenWrt / GL.iNet' },
     strip: { health: 'الصحة', down: 'تنزيل', up: 'رفع', latency: 'زمن الاستجابة', devices: 'الأجهزة' },
-    principles: {
-      title: 'مبني على ثلاثة مبادئ عنيدة',
-      lead: 'ليست عبارات تسويقية. إنها سبب وجود NetPulse، وهي التي تشكّل كل قرار.',
-      p1t: 'بلا سحابة',
-      p1p: 'لا حسابات، لا اشتراكات، لا قياسات عن بُعد ترسل بياناتك. يعمل NetPulse على جهاز صغير داخل شبكتك ولا مكان آخر. إذا انقطع الإنترنت، يستمر في العمل.',
-      p2t: 'حر ومفتوح المصدر 100%',
-      p2p: 'AGPL-3.0، إلى الأبد. اقرأ الشفرة، افحصها، انسخها، شغّلها. لا توجد نسخة مدفوعة ولن توجد.',
-      p3t: 'تطبيقك، بياناتك',
-      p3p: 'الخادم يقرأ من راوتراتك ولا يكتب أبدًا. المقاييس تعيش في ملف SQLite محلي تملكه أنت. احذفه، انسخه احتياطيًا، انقله — إنه لك.',
-    },
     theater: {
       title: 'شاهده ينبض بالحياة',
       lead: 'واصل التمرير. هذه هي الودجات الحقيقية، تغذّيها بيانات العرض التجريبي — نفس الأرقام التي تراها عند تشغيل NetPulse في وضع العرض.',
@@ -472,16 +446,6 @@ const I18N = {
     },
     facts: { noCloud: 'कोई क्लाउड नहीं', free: '100% स्वतंत्र · AGPL-3.0', data: 'आपका ऐप, आपका डेटा', binary: 'एक ही बाइनरी', hw: 'OpenWrt / GL.iNet' },
     strip: { health: 'स्वास्थ्य', down: 'डाउनलोड', up: 'अपलोड', latency: 'लेटेंसी', devices: 'डिवाइस' },
-    principles: {
-      title: 'तीन ज़िद्दी सिद्धांतों पर बना',
-      lead: 'मार्केटिंग वाक्य नहीं। ये NetPulse के अस्तित्व का कारण हैं, और हर फ़ैसले को आकार देते हैं।',
-      p1t: 'कोई क्लाउड नहीं',
-      p1p: 'कोई खाता नहीं, कोई सदस्यता नहीं, कोई टेलीमेट्री घर फ़ोन नहीं करती। NetPulse आपके नेटवर्क के एक छोटे बॉक्स पर चलता है और कहीं नहीं। इंटरनेट गिर जाए तो भी यह चलता रहता है।',
-      p2t: '100% स्वतंत्र और ओपन सोर्स',
-      p2p: 'AGPL-3.0, हमेशा के लिए। कोड पढ़ें, ऑडिट करें, फ़ोर्क करें, चलाएँ। कोई प्रीमियम टियर नहीं है और कभी नहीं होगा।',
-      p3t: 'आपका ऐप, आपका डेटा',
-      p3p: 'सर्वर आपके राउटरों से पढ़ता है और कभी लिखता नहीं। मेट्रिक्स एक स्थानीय SQLite फ़ाइल में रहते हैं जो आपकी है। मिटाएँ, बैकअप लें, ले जाएँ — यह आपका है।',
-    },
     theater: {
       title: 'इसे जीवंत होते देखें',
       lead: 'स्क्रॉल करते रहें। ये असली विजेट हैं, डेमो डेटासेट से भरे हुए — वही आँकड़े जो डेमो मोड में NetPulse चलाने पर दिखते हैं।',
@@ -572,16 +536,6 @@ const I18N = {
     },
     facts: { noCloud: 'Sem nuvem', free: '100% livre · AGPL-3.0', data: 'Seu app, seus dados', binary: 'Um único binário', hw: 'OpenWrt / GL.iNet' },
     strip: { health: 'Saúde', down: 'Download', up: 'Upload', latency: 'Latência', devices: 'Dispositivos' },
-    principles: {
-      title: 'Construído sobre três princípios teimosos',
-      lead: 'Não são frases de marketing. São a razão de o NetPulse existir, e moldam cada decisão.',
-      p1t: 'Sem nuvem',
-      p1p: 'Sem conta, sem assinatura, sem telemetria ligando para casa. O NetPulse roda numa caixinha dentro da sua rede e em nenhum outro lugar. Se a internet cair, ele continua funcionando.',
-      p2t: '100% livre e open source',
-      p2p: 'AGPL-3.0, para sempre. Leia o código, audite, faça fork, execute. Não existe versão premium e nunca existirá.',
-      p3t: 'Seu app, seus dados',
-      p3p: 'O servidor lê dos seus roteadores e nunca escreve. As métricas vivem num SQLite local que é seu. Apague, faça backup, mova — é seu.',
-    },
     theater: {
       title: 'Veja ganhar vida',
       lead: 'Continue rolando. Estes são os widgets reais, alimentados com o dataset de demo — os mesmos números que você vê ao rodar o NetPulse em modo demo.',
@@ -672,16 +626,6 @@ const I18N = {
     },
     facts: { noCloud: 'Sans cloud', free: '100 % libre · AGPL-3.0', data: 'Votre app, vos données', binary: 'Un seul binaire', hw: 'OpenWrt / GL.iNet' },
     strip: { health: 'Santé', down: 'Descendant', up: 'Montant', latency: 'Latence', devices: 'Appareils' },
-    principles: {
-      title: 'Construit sur trois principes obstinés',
-      lead: 'Pas des slogans marketing. C’est la raison d’être de NetPulse, et ils façonnent chaque décision.',
-      p1t: 'Sans cloud',
-      p1p: 'Pas de compte, pas d’abonnement, pas de télémétrie qui téléphone à la maison. NetPulse tourne sur un petit boîtier dans votre réseau, et nulle part ailleurs. Si Internet tombe, il continue.',
-      p2t: '100 % libre et open source',
-      p2p: 'AGPL-3.0, pour toujours. Lisez le code, auditez-le, forkez-le, exécutez-le. Pas de version premium, il n’y en aura jamais.',
-      p3t: 'Votre app, vos données',
-      p3p: 'Le serveur lit depuis vos routeurs et n’écrit jamais. Les métriques vivent dans un fichier SQLite local qui vous appartient. Supprimez-le, sauvegardez-le, déplacez-le — c’est le vôtre.',
-    },
     theater: {
       title: 'Regardez-le prendre vie',
       lead: 'Continuez à défiler. Ce sont les vrais widgets, nourris par le jeu de données démo — les mêmes chiffres que vous obtenez en lançant NetPulse en mode démo.',
@@ -772,16 +716,6 @@ const I18N = {
     },
     facts: { noCloud: 'クラウドなし', free: '100% フリー · AGPL-3.0', data: 'あなたのアプリ、あなたのデータ', binary: '単一静的バイナリ', hw: 'OpenWrt / GL.iNet' },
     strip: { health: '健全性', down: 'ダウンロード', up: 'アップロード', latency: 'レイテンシ', devices: 'デバイス' },
-    principles: {
-      title: '三つの頑固な原則の上に',
-      lead: 'マーケティング文句ではありません。NetPulse が存在する理由であり、すべての決断を形作ります。',
-      p1t: 'クラウドなし',
-      p1p: 'アカウントもサブスクリプションも、家に電話するテレメトリもなし。NetPulse はあなたのネットワーク内の小さな箱で動き、他所では動きません。インターネットが落ちても動き続けます。',
-      p2t: '100% フリーでオープンソース',
-      p2p: 'AGPL-3.0、ずっと。コードを読み、監査し、フォークし、実行してください。プレミアム版はなく、今後もありません。',
-      p3t: 'あなたのアプリ、あなたのデータ',
-      p3p: 'サーバーはルーターから読むだけで、書き込みはしません。メトリクスはあなたの所有するローカル SQLite ファイルにあります。削除、バックアップ、移動 — すべてあなた次第。',
-    },
     theater: {
       title: '動き出す様子をご覧ください',
       lead: 'スクロールを続けてください。これらは本物のウィジェットで、デモデータセットで動いています — デモモードで NetPulse を実行したときと同じ数字です。',
@@ -872,16 +806,6 @@ const I18N = {
     },
     facts: { noCloud: 'Без облака', free: '100% свободный · AGPL-3.0', data: 'Ваше приложение, ваши данные', binary: 'Один статический бинарник', hw: 'OpenWrt / GL.iNet' },
     strip: { health: 'Здоровье', down: 'Загрузка', up: 'Отдача', latency: 'Задержка', devices: 'Устройства' },
-    principles: {
-      title: 'Построен на трёх упрямых принципах',
-      lead: 'Это не маркетинговые лозунги. Это причина существования NetPulse, и они определяют каждое решение.',
-      p1t: 'Без облака',
-      p1p: 'Ни аккаунтов, ни подписок, ни телеметрии, звонящей домой. NetPulse работает на маленькой коробке в вашей сети — и больше нигде. Если интернет упал, он продолжает работать.',
-      p2t: '100% свободный и open source',
-      p2p: 'AGPL-3.0, навсегда. Читайте код, проверяйте, форкайте, запускайте. Премиум-версии нет и не будет.',
-      p3t: 'Ваше приложение, ваши данные',
-      p3p: 'Сервер читает с роутеров и никогда не пишет. Метрики живут в локальном файле SQLite, который принадлежит вам. Удаляйте, делайте бэкапы, переносите — он ваш.',
-    },
     theater: {
       title: 'Смотрите, как это оживает',
       lead: 'Продолжайте прокручивать. Это настоящие виджеты, питаемые демо-датасетом — те самые цифры, что вы увидите, запустив NetPulse в демо-режиме.',
@@ -972,16 +896,6 @@ const I18N = {
     },
     facts: { noCloud: 'Keine Cloud', free: '100 % frei · AGPL-3.0', data: 'Deine App, deine Daten', binary: 'Eine Binärdatei', hw: 'OpenWrt / GL.iNet' },
     strip: { health: 'Gesundheit', down: 'Download', up: 'Upload', latency: 'Latenz', devices: 'Geräte' },
-    principles: {
-      title: 'Gebaut auf drei eigensinnigen Prinzipien',
-      lead: 'Keine Marketingsprüche. Sie sind der Grund, warum NetPulse existiert, und prägen jede Entscheidung.',
-      p1t: 'Keine Cloud',
-      p1p: 'Kein Konto, kein Abo, keine Telemetrie, die nach Hause telefoniert. NetPulse läuft auf einer kleinen Box in deinem Netz und nirgendwo sonst. Fällt das Internet aus, läuft es weiter.',
-      p2t: '100 % frei und Open Source',
-      p2p: 'AGPL-3.0, für immer. Lies den Code, prüfe ihn, forke ihn, führe ihn aus. Es gibt keine Premiumstufe und wird nie eine geben.',
-      p3t: 'Deine App, deine Daten',
-      p3p: 'Der Server liest von deinen Routern und schreibt nie. Metriken leben in einer lokalen SQLite-Datei, die dir gehört. Lösche sie, sichere sie, verschiebe sie — sie gehört dir.',
-    },
     theater: {
       title: 'Sieh zu, wie es lebendig wird',
       lead: 'Scrolle weiter. Das sind die echten Widgets, gespeist aus dem Demo-Datensatz — dieselben Zahlen, die du bekommst, wenn du NetPulse im Demo-Modus startest.',
