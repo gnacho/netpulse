@@ -225,6 +225,11 @@ section.block { padding: 5rem 0; }
   .club-copy .lead { max-width: 48rem; }
 }
 
+/* ---------- acerca de mí ---------- */
+.about-body { max-width: 52rem; margin-top: 1.5rem; }
+.about-body p { color: rgb(var(--text-secondary)); font-size: 1.1rem; line-height: 1.65; margin: 0 0 1rem; }
+.about-body p:last-child { margin-bottom: 0; }
+
 /* ---------- teatro sticky ---------- */
 .theater { display: grid; grid-template-columns: 38% 62%; gap: 1.75rem; align-items: start; margin-top: 2rem; }
 .theater-steps { display: flex; flex-direction: column; gap: 48vh; padding-bottom: 30vh; }

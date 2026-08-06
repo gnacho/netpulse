@@ -45,6 +45,12 @@ const I18N = {
       cta: 'Meet the club',
       href: 'https://cloudless.club',
     },
+    about: {
+      eyebrow: 'About me',
+      title: 'A person is behind NetPulse',
+      p1: 'NetPulse was not built to be published. I started it to understand what was happening on my own network, with my own routers, without depending on anyone. And I have used it every day for a long time: it is the tool I open each morning to check that everything is still in order.',
+      p2: 'Over time, and consistently with the principles I believe in, I decided to make it free and share it with the community. There is no company behind it, just a person who uses what they publish. If it helps you, I am glad. If something breaks, I want to know.',
+    },
     theater: {
       title: 'Watch it come alive',
       lead: 'Keep scrolling. These are the real widgets, fed with the demo dataset — the same numbers you get when you run NetPulse in demo mode.',
@@ -166,6 +172,12 @@ const I18N = {
       lead: 'NetPulse sigue los tres principios del Club Cloudless: soberanía digital, libre para siempre y de personas, no de empresas. Son comunes a todas las apps del club y viven en un único sitio.',
       cta: 'Conocer el club',
       href: 'https://cloudless.club',
+    },
+    about: {
+      eyebrow: 'Acerca de mí',
+      title: 'Detrás de NetPulse hay una persona',
+      p1: 'NetPulse no nació para publicarse. Lo empecé para entender qué pasaba en mi propia red, con mis propios routers, sin depender de nadie. Y lo he usado a diario durante mucho tiempo: es la herramienta que abro cada mañana para comprobar que todo sigue en orden.',
+      p2: 'Con el tiempo, y de forma consecuente con los principios en los que creo, he decidido liberarlo y compartirlo con la comunidad. No hay ninguna empresa detrás, solo una persona que usa lo que publica. Si te sirve, me alegro. Si algo falla, quiero enterarme.',
     },
     theater: {
       title: 'Míralo cobrar vida',
