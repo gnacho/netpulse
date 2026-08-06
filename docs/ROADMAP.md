@@ -1,10 +1,13 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; **Fase 8 COMPLETA**; Fases 9-11 reordenadas). 
+> Actualizada: 2026-08-06 (v2.7.0, **Fase 12 — Auditoría de seguridad COMPLETA**; Fases 9-11 reordenadas). 
 
-## Estado actual (v2.6.0) ✅
+## Estado actual (v2.7.0) ✅
 
 Hecho y en producción (CT 226 + 4 routers):
+- **Fase 12 — Auditoría de seguridad y robustez** (v2.7.0): TRUST_PROXY
+  (anti-bypass de rate-limit), anti-replay de ingesta, body cap en JSON,
+  password mínima 10, CHANGELOG.md. Cada fix con test propio.
 - **Fase 1 — Topología v5** (v2.1.0): FDB + LLDP en vivo, backhaul real,
   switches gestionados/inferidos, hipervisores con CTs anidados, collector.
 - **Fase 2 — Alertas, Push y agente piloto** (v2.2.0): motor de alertas,
