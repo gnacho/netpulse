@@ -1261,9 +1261,7 @@ function initReveals() {
 
 /* ---------- widget apariencia ---------- */
 const MODE_KEY = 'netpulse-web-theme-mode'
-const ACCENT_KEY = 'netpulse-web-accent'
 let themeMode = 'dark'
-let accentId = 'cyan'
 
 function readStore(k) { try { return localStorage.getItem(k) } catch { return null } }
 function writeStore(k, v) { try { localStorage.setItem(k, v) } catch { /* privado */ } }
@@ -1278,30 +1276,23 @@ function applyTheme() {
   if (meta) meta.content = light ? '#F3F5F9' : '#070B12'
   if (typeof renderShot === 'function') renderShot()
 }
-function applyAccent() { document.documentElement.dataset.accent = accentId }
 function updateAppearancePanel() {
   document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === themeMode))
-  document.querySelectorAll('#accentSwatches .swatch').forEach(b => b.classList.toggle('on', b.dataset.accent === accentId))
 }
 function setMode(m) {
   themeMode = m; writeStore(MODE_KEY, m); applyTheme(); updateAppearancePanel()
 }
-function setAccent(a) {
-  accentId = a; writeStore(ACCENT_KEY, a); applyAccent(); updateAppearancePanel()
-}
-window.setMode = setMode; window.setAccent = setAccent
+window.setMode = setMode
 
 function initAppearance() {
   themeMode = readStore(MODE_KEY) || 'dark'
-  accentId = readStore(ACCENT_KEY) || 'cyan'
-  applyTheme(); applyAccent(); updateAppearancePanel()
+  applyTheme(); updateAppearancePanel()
   const fab = document.getElementById('appFab')
   const panel = document.getElementById('appPanel')
   fab.addEventListener('click', () => { panel.classList.toggle('open'); fab.setAttribute('aria-expanded', panel.classList.contains('open')) })
   document.addEventListener('click', e => { if (!panel.contains(e.target) && !fab.contains(e.target)) panel.classList.remove('open') })
   document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.classList.remove('open') })
   document.querySelectorAll('#themeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
-  document.querySelectorAll('#accentSwatches .swatch').forEach(b => b.addEventListener('click', () => setAccent(b.dataset.accent)))
   window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themeMode === 'system') applyTheme() })
 }
 

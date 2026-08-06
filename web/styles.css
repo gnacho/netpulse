@@ -43,21 +43,6 @@ html.light {
   color-scheme: light;
 }
 
-html[data-accent="violet"] { --accent: 167 139 250; }
-html[data-accent="emerald"] { --accent: 52 211 153; }
-html[data-accent="amber"]   { --accent: 251 191 36; }
-html[data-accent="rose"]    { --accent: 251 113 133; }
-html[data-accent="orange"]  { --accent: 251 146 60; }
-html[data-accent="blue"]    { --accent: 96 165 250; }
-html[data-accent="teal"]    { --accent: 45 212 191; }
-html.light[data-accent="violet"] { --accent: 124 58 237; }
-html.light[data-accent="emerald"] { --accent: 4 120 87; }
-html.light[data-accent="amber"]   { --accent: 180 83 9; }
-html.light[data-accent="rose"]    { --accent: 190 18 60; }
-html.light[data-accent="orange"]  { --accent: 194 65 12; }
-html.light[data-accent="blue"]    { --accent: 29 78 216; }
-html.light[data-accent="teal"]    { --accent: 15 118 110; }
-
 /* ---------- base ---------- */
 * { box-sizing: border-box; border-color: rgb(var(--border)); }
 html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
@@ -465,15 +450,6 @@ html[dir="rtl"] .appearance-panel { right: auto; left: 1.25rem; }
   font-family: inherit;
 }
 .seg button.on { background: rgb(var(--accent) / 0.12); border-color: rgb(var(--accent) / 0.5); color: rgb(var(--accent)); }
-.swatches { display: flex; gap: 0.75rem; }
-.swatch {
-  width: 1.85rem; height: 1.85rem; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
-  position: relative; background: rgb(var(--sw));
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
-.swatch:hover { transform: scale(1.12); box-shadow: 0 0 16px -2px rgb(var(--sw) / 0.55); }
-.swatch.on { border-color: rgb(var(--text-primary)); box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--text-primary) / 0.5); }
-.panel-note { margin-top: 0.9rem; font-size: 0.75rem; color: rgb(var(--text-muted)); }
 
 /* ---------- i18n / rtl ---------- */
 html[dir="rtl"] .mini-stat { border-left: none; border-right: 1px solid rgb(var(--border)); padding-left: 0; padding-right: 1.25rem; }

@@ -48,7 +48,7 @@ const I18N = {
     about: {
       eyebrow: 'About me',
       title: 'A person is behind NetPulse',
-      p1: 'NetPulse was not built to be published. I started it to understand what was happening on my own network, with my own routers, without depending on anyone. And I have used it every day for a long time: it is the tool I open each morning to check that everything is still in order.',
+      p1: 'NetPulse was not built to be published. I started it to understand what was happening on my own network, with my own routers, without depending on anyone. And I have used it every day for a long time: it is my unified tool to check that everything is still in order. I develop it in my spare time, between work and family.',
       p2: 'Over time, and consistently with the principles I believe in, I decided to make it free and share it with the community. There is no company behind it, just a person who uses what they publish. If it helps you, I am glad. If something breaks, I want to know.',
     },
     theater: {
@@ -131,7 +131,7 @@ const I18N = {
       community: 'Community', issues: 'Issues', discussions: 'Discussions', contribute: 'Contribute',
       kofi: 'Support the project on Ko-fi', rights: 'AGPL-3.0 · Built at home, for home networks.',
     },
-    appearance: { title: 'Appearance', theme: 'Theme', dark: 'Dark', light: 'Light', system: 'Auto', accent: 'Accent', note: 'Same tokens as the app — try it live.' },
+    appearance: { title: 'Appearance', theme: 'Theme', dark: 'Dark', light: 'Light', system: 'Auto' },
     misc: { lang: 'Language', copy: 'Copy', copied: 'Copied to clipboard', demoBadge: 'demo data' },
     shots: {
       eyebrow: 'The app',
@@ -176,7 +176,7 @@ const I18N = {
     about: {
       eyebrow: 'Acerca de mí',
       title: 'Detrás de NetPulse hay una persona',
-      p1: 'NetPulse no nació para publicarse. Lo empecé para entender qué pasaba en mi propia red, con mis propios routers, sin depender de nadie. Y lo he usado a diario durante mucho tiempo: es la herramienta que abro cada mañana para comprobar que todo sigue en orden.',
+      p1: 'NetPulse no nació para publicarse. Lo empecé para entender qué pasaba en mi propia red, con mis propios routers, sin depender de nadie. Y lo he usado a diario durante mucho tiempo: es mi herramienta unificada para comprobar que todo sigue en orden. Lo desarrollo en mi tiempo libre, entre el trabajo y la familia.',
       p2: 'Con el tiempo, y de forma consecuente con los principios en los que creo, he decidido liberarlo y compartirlo con la comunidad. No hay ninguna empresa detrás, solo una persona que usa lo que publica. Si te sirve, me alegro. Si algo falla, quiero enterarme.',
     },
     theater: {
@@ -247,7 +247,7 @@ const I18N = {
       community: 'Comunidad', issues: 'Issues', discussions: 'Discusiones', contribute: 'Contribuir',
       kofi: 'Apoya el proyecto en Ko-fi', rights: 'AGPL-3.0 · Hecho en casa, para redes de casa.',
     },
-    appearance: { title: 'Apariencia', theme: 'Tema', dark: 'Oscuro', light: 'Claro', system: 'Auto', accent: 'Acento', note: 'Mismos tokens que la app — pruébalo en vivo.' },
+    appearance: { title: 'Apariencia', theme: 'Tema', dark: 'Oscuro', light: 'Claro', system: 'Auto' },
     misc: { lang: 'Idioma', copy: 'Copiar', copied: 'Copiado al portapapeles', demoBadge: 'datos demo' },
     shots: {
       eyebrow: 'La app',
@@ -356,7 +356,7 @@ const I18N = {
       community: '社区', issues: '议题', discussions: '讨论', contribute: '贡献',
       kofi: '在 Ko-fi 上支持项目', rights: 'AGPL-3.0 · 在家中打造，为家庭网络而生。',
     },
-    appearance: { title: '外观', theme: '主题', dark: '深色', light: '浅色', system: '自动', accent: '强调色', note: '与应用使用相同的令牌——实时体验。' },
+    appearance: { title: '外观', theme: '主题', dark: '深色', light: '浅色', system: '自动' },
     misc: { lang: '语言', copy: '复制', copied: '已复制！', demoBadge: '演示数据' },
   },
 
@@ -446,7 +446,7 @@ const I18N = {
       community: 'المجتمع', issues: 'البلاغات', discussions: 'النقاشات', contribute: 'ساهم',
       kofi: 'ادعم المشروع على Ko-fi', rights: 'AGPL-3.0 · صُنع في البيت، لشبكات البيوت.',
     },
-    appearance: { title: 'المظهر', theme: 'السمة', dark: 'داكن', light: 'فاتح', system: 'تلقائي', accent: 'اللون', note: 'نفس رموز التطبيق — جرّبه مباشرة.' },
+    appearance: { title: 'المظهر', theme: 'السمة', dark: 'داكن', light: 'فاتح', system: 'تلقائي' },
     misc: { lang: 'اللغة', copy: 'نسخ', copied: 'نُسخ!', demoBadge: 'بيانات عرض' },
   },
 
@@ -536,7 +536,7 @@ const I18N = {
       community: 'समुदाय', issues: 'इश्यू', discussions: 'चर्चाएँ', contribute: 'योगदान',
       kofi: 'Ko-fi पर प्रोजेक्ट का समर्थन करें', rights: 'AGPL-3.0 · घर पर बना, घर के नेटवर्क के लिए।',
     },
-    appearance: { title: 'रूप-रंग', theme: 'थीम', dark: 'डार्क', light: 'लाइट', system: 'ऑटो', accent: 'ऐक्सेंट', note: 'ऐप वाले ही टोकन — लाइव आज़माएँ।' },
+    appearance: { title: 'रूप-रंग', theme: 'थीम', dark: 'डार्क', light: 'लाइट', system: 'ऑटो' },
     misc: { lang: 'भाषा', copy: 'कॉपी करें', copied: 'कॉपी हो गया!', demoBadge: 'डेमो डेटा' },
   },
 
@@ -626,7 +626,7 @@ const I18N = {
       community: 'Comunidade', issues: 'Issues', discussions: 'Discussões', contribute: 'Contribuir',
       kofi: 'Apoie o projeto no Ko-fi', rights: 'AGPL-3.0 · Feito em casa, para redes de casa.',
     },
-    appearance: { title: 'Aparência', theme: 'Tema', dark: 'Escuro', light: 'Claro', system: 'Auto', accent: 'Destaque', note: 'Mesmos tokens do app — experimente ao vivo.' },
+    appearance: { title: 'Aparência', theme: 'Tema', dark: 'Escuro', light: 'Claro', system: 'Auto' },
     misc: { lang: 'Idioma', copy: 'Copiar', copied: 'Copiado!', demoBadge: 'dados demo' },
   },
 
@@ -716,7 +716,7 @@ const I18N = {
       community: 'Communauté', issues: 'Issues', discussions: 'Discussions', contribute: 'Contribuer',
       kofi: 'Soutenir le projet sur Ko-fi', rights: 'AGPL-3.0 · Fait maison, pour les réseaux maison.',
     },
-    appearance: { title: 'Apparence', theme: 'Thème', dark: 'Sombre', light: 'Clair', system: 'Auto', accent: 'Accent', note: 'Mêmes tokens que l’app — essayez en direct.' },
+    appearance: { title: 'Apparence', theme: 'Thème', dark: 'Sombre', light: 'Clair', system: 'Auto' },
     misc: { lang: 'Langue', copy: 'Copier', copied: 'Copié !', demoBadge: 'données démo' },
   },
 
@@ -806,7 +806,7 @@ const I18N = {
       community: 'コミュニティ', issues: 'Issues', discussions: '議論', contribute: '貢献',
       kofi: 'Ko-fi でプロジェクトを応援', rights: 'AGPL-3.0 · 家庭のネットワークのために、家庭で作られました。',
     },
-    appearance: { title: '外観', theme: 'テーマ', dark: 'ダーク', light: 'ライト', system: '自動', accent: 'アクセント', note: 'アプリと同じトークン — ライブでお試しください。' },
+    appearance: { title: '外観', theme: 'テーマ', dark: 'ダーク', light: 'ライト', system: '自動' },
     misc: { lang: '言語', copy: 'コピー', copied: 'コピーしました', demoBadge: 'デモデータ' },
   },
 
@@ -896,7 +896,7 @@ const I18N = {
       community: 'Сообщество', issues: 'Issues', discussions: 'Обсуждения', contribute: 'Внести вклад',
       kofi: 'Поддержать проект на Ko-fi', rights: 'AGPL-3.0 · Сделано дома, для домашних сетей.',
     },
-    appearance: { title: 'Внешний вид', theme: 'Тема', dark: 'Тёмная', light: 'Светлая', system: 'Авто', accent: 'Акцент', note: 'Те же токены, что в приложении — попробуйте вживую.' },
+    appearance: { title: 'Внешний вид', theme: 'Тема', dark: 'Тёмная', light: 'Светлая', system: 'Авто' },
     misc: { lang: 'Язык', copy: 'Копировать', copied: 'Скопировано!', demoBadge: 'демо-данные' },
   },
 
@@ -986,7 +986,7 @@ const I18N = {
       community: 'Community', issues: 'Issues', discussions: 'Diskussionen', contribute: 'Mitwirken',
       kofi: 'Unterstütze das Projekt auf Ko-fi', rights: 'AGPL-3.0 · Zuhause gebaut, für Heimnetze.',
     },
-    appearance: { title: 'Erscheinungsbild', theme: 'Thema', dark: 'Dunkel', light: 'Hell', system: 'Auto', accent: 'Akzent', note: 'Dieselben Tokens wie die App — live ausprobieren.' },
+    appearance: { title: 'Erscheinungsbild', theme: 'Thema', dark: 'Dunkel', light: 'Hell', system: 'Auto' },
     misc: { lang: 'Sprache', copy: 'Kopieren', copied: 'Kopiert!', demoBadge: 'Demo-Daten' },
   },
 }
