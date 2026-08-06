@@ -179,19 +179,21 @@ independiente; ordenados por valor/esfuerzo.
    - Persistir último push por slug en SQLite (kv o tabla `agent_state`);
      cargar al arrancar. Además: adoptar solo slugs conocidos (evitar huérfanos).
 
-3. **Integración del colector sidecar con server-go (propuesta 2)** (el gap
-   de histórico largo, deuda desde merge v2):
-   - **Frontera read-only**: `COLLECTOR_DB=/opt/netpulse-collector/data/metrics.db`;
-     server-go abre con `file:...?mode=ro` (1 escritor = el sidecar).
-   - El endpoint de histórico sirve corto plazo desde su tabla `metrics` (5s)
-     + largo plazo (días/meses) desde `buckets`/`daily` del sidecar (LTTB +
-     retención del skill sqlite-timeseries-daemon).
-   - **Ampliar el sidecar como historiador real**: además de latencia TCP,
-     disponibilidad (up/down) y contadores de tráfico por interfaz, todo en
-     la escalera raw→buckets→daily con NightlyJob. El server-go conserva la
-     instantánea SSE; el histórico largo se consume del sidecar.
-   - Bonus: del mismo árbol cae el **informe semanal de disponibilidad**
-     (deuda de la auditoría v2.1.0).
+3. **Histórico largo en server-go (RETENCIÓN, no sidecar)** (el gap de
+   histórico largo, deuda desde merge v2; **decisión 6-Ago: descartada la
+   frontera sidecar-readonly** — el tráfico/cpu/ram/temp ya los captura el
+   propio server-go en `metrics`, ampliar el sidecar duplicaría la adquisición,
+   justo lo que evita go-collector-stack):
+   - La tabla `metrics` del server-go solo conserva **7 días** (RetentionMS en
+     db.go) mientras la webapp ofrece selector 1h/24h/7d/30d → el 30d está
+     vacío de datos. Resolver con la escalera del skill sqlite-timeseries-daemon
+     sobre la MISMA tabla: raw (7d, ya existe) → **buckets 5min (1 año)** →
+     **daily (∞)**, job nocturno de rollup→purga→checkpoint (referencia
+     references/jobs.md). Aditivo, sin tocar el sidecar.
+   - El endpoint de histórico (`metricsHistory`) sirve corto de `metrics` y
+     largo de `buckets`/`daily` con downsampling ≤500 pts (LTTB o bucket).
+   - Bonus: **informe semanal de disponibilidad** (deuda auditoría v2.1.0)
+     sale del mismo rollup (`daily`).
    - Colateral: reinstalar el collector con release nueva (reporta `0.1.0`:
      nunca se aplicó el fix goreleaser `-X main.Version`).
 
