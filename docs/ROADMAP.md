@@ -1,6 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 8 = consolidación de deudas; Fases 9-11 reordenadas). 
+> Actualizada: 2026-08-06 (v2.6.0, Fase 7 completada; Fase 8 = consolidación de deudas; Fases 9-11 reordenadas; webhooks+API movidos a Fase 8). 
 
 ## Estado actual (v2.6.0) ✅
 
@@ -213,6 +213,17 @@ independiente; ordenados por valor/esfuerzo.
      NO subir** (no aporta nada, obligaría a revalidar toda la app y la línea
      7.18.2 ya es la última estable de su rama).
 
+7. **Webhooks y API de ingesta** (movido de Fase 10, 6-Ago-2026; verificada:
+   **no implementados en el código**, solo planificación del commit 4a4428e):
+   - **Webhook saliente**: notificaciones de alertas a URLs externas con firma
+     HMAC-SHA256, reintentos con backoff y DLQ — patrón EasyZFS v2.4.0.
+     Usar la skill `email-webhook-notifications` (ya aplicada en EasyZFS;
+     en NetPulse NO se ha usado). Complementa Web Push.
+   - **API de ingesta (webhook entrante)**: endpoint HTTP firmado para que
+     sistemas externos envíen eventos a NetPulse sin agente (lista de
+     orígenes permitida, anti-SSRF). Reutiliza el patrón HMAC de Fase 6
+     (el único HMAC que existe hoy es el de la ingesta del agente).
+
 Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
 HTTPS en CT 226, no es micromejora), series del collector (cubierto por el
 punto 3) y react-router v8 (decisión deliberada, ver punto 6).
@@ -321,14 +332,6 @@ Contexto:
    - Posibles futuros: VLAN simple, WiFi guest, QoS básico.
    - Cada despliegue es atómico: o se completa entero o se revierte.
    - La app deja de ser "solo lectura" para estos flujos asistidos.
-6. **Webhooks y API** (orden del usuario, 6-Ago-2026):
-   - **Webhook saliente**: notificaciones de alertas a URLs externas con firma
-     HMAC-SHA256, reintentos con backoff y DLQ — patrón EasyZFS v2.4.0
-     (skill `email-webhook-notifications`). Complementa Web Push para
-     encaminar alertas a servicios propios o de terceros.
-   - **API de ingesta (webhook entrante)**: endpoint HTTP firmado para que
-     sistemas externos envíen eventos a NetPulse sin agente (lista de
-     orígenes permitida, anti-SSRF). Reutiliza el patrón HMAC de Fase 6.
 
 **Criterios de aceptación:**
 - Cualquier apply muestra diff y pide confirmación antes de ejecutar.
