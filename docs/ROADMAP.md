@@ -425,6 +425,42 @@ ningún NOC multi-router; la webapp (Go + SSE) sigue siendo el visor de red.
 
 ---
 
+## Fase 12 — Auditoría de seguridad y robustez (release bug-hunting)
+
+Objetivo: pasada sistemática de caza de bugs y endurecimiento de seguridad
+sobre el código actual (server-go + app + agentes), materializada en una
+release de mantenimiento. Cada hallazgo se abre como issue y se cierra con su
+PR (convención issue→PR).
+
+**Alcance (áreas a revisar):**
+1. **Autenticación y autorización**: revisar que todas las rutas de mutación
+   (crear/revocar agentes, routers, rearm) exijan `RequireAdmin`; que no haya
+   rutas sensibles solo con `requireAuth`. (Relacionado con issue #6.)
+2. **CSRF**: los endpoints de mutación autenticados por cookie deben proteger
+   contra CSRF (SameSite + verificación de Origin cuando aplique).
+3. **Cabeceras de seguridad HTTP**: `X-Content-Type-Options`, `X-Frame-Options`
+   o CSP en respuestas del server y del SPA embebido.
+4. **Ingesta de agentes**: firma HMAC por mensaje + anti-replay (timestamp/nonce)
+   para que un token robado no baste para inyectar datos falsos.
+5. **Path traversal y servido estático**: revisar rutas de estáticos, descargas
+   del binario del agente y cualquier acceso a ficheros.
+6. **Secretos**: confirmar que tokens/secretos no aparecen en logs ni en
+   respuestas; que el `.env` de producción no contiene nada imprimible.
+7. **Dependencias**: `go list -m` y `npm audit` para deps del server-go y del
+   front; cerrar cualquier CVE HIGH/CRITICAL real.
+8. **Bugs latentes**: revisar manejo de errores, cierres de conexiones, races
+   en el poller y caminos de error poco probados.
+
+**Criterios de aceptación:**
+- Ninguna ruta de mutación sensible alcanzable con rol `user`.
+- Las respuestas del server llevan cabeceras de seguridad básicas.
+- 0 CVEs HIGH/CRITICAL reales en deps (audit verde o justificado).
+- Tests nuevos cubriendo cada fix (test que falla primero).
+
+**Deploy**: release + install.sh en CT 226 y agentes.
+
+---
+
 ## Deudas y mejoras transversales (sin fase asignada)
 
 - **Series del collector en server-go**: hoy son independientes
