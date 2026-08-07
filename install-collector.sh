@@ -31,7 +31,7 @@ SERVICE_NAME="$APP_NAME"
 # Where the collector looks for the app's DB (read-only) to learn the routers:
 NETPULSE_DB="/var/lib/netpulse/data/netpulse.db"
 
-VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0
+NETPULSE_VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0
 
 # ---------------------------------------------------------------- logging ---
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -63,7 +63,7 @@ EOF
 
 for arg in "$@"; do
     case "$arg" in
-        --version=*)  VERSION="${arg#*=}" ;;
+        --version=*)  NETPULSE_VERSION="${arg#*=}" ;;
         --unattended) UNATTENDED=1 ;;
         --dry-run)    DRY_RUN=1 ;;
         --uninstall)  UNINSTALL=1 ;;
@@ -192,17 +192,21 @@ if [ ! -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
 fi
 
 # --------------------------------------------------------- resolve version --
-if [ -z "$VERSION" ]; then
+if [ -z "$NETPULSE_VERSION" ]; then
     info "resolving latest stable version"
-    VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
+    NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
         | grep '"tag_name"' | head -1 | cut -d'"' -f4) \
         || fatal 31 "could not resolve the latest version. Use --version=X.Y.Z"
-    [ -n "$VERSION" ] || fatal 31 "no stable release found yet. Use --version=X.Y.Z"
+    [ -n "$NETPULSE_VERSION" ] || fatal 31 "no stable release found yet. Use --version=X.Y.Z"
 fi
-VERSION_NORM=$(echo "$VERSION" | sed 's/^v//')
+VERSION_NORM=$(echo "$NETPULSE_VERSION" | sed 's/^v//')
+case "$NETPULSE_VERSION" in
+    v*) NETPULSE_TAG="$NETPULSE_VERSION" ;;
+    *)  NETPULSE_TAG="v$NETPULSE_VERSION" ;;
+esac
 ASSET="${BIN_NAME}_${VERSION_NORM}_linux_${GOARCH}.tar.gz"
-BASE_URL="https://github.com/$GH_REPO/releases/download/$VERSION"
-info "version: $VERSION"
+BASE_URL="https://github.com/$GH_REPO/releases/download/$NETPULSE_TAG"
+info "version: $NETPULSE_VERSION"
 
 $FETCH "https://github.com/$GH_REPO" >/dev/null \
     || fatal 30 "no access to github.com (proxy? DNS? firewall?)"
@@ -220,7 +224,7 @@ trap cleanup EXIT INT TERM
 
 info "downloading $ASSET"
 fetch_to "$BASE_URL/$ASSET" "$TMP/$ASSET" || fatal 32 "download failed: $BASE_URL/$ASSET"
-fetch_to "$BASE_URL/checksums.txt" "$TMP/checksums.txt" || fatal 32 "checksums.txt not found in release $VERSION"
+fetch_to "$BASE_URL/checksums.txt" "$TMP/checksums.txt" || fatal 32 "checksums.txt not found in release $NETPULSE_VERSION"
 [ -s "$TMP/$ASSET" ] || fatal 32 "downloaded asset is empty"
 
 SUM_FILE=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
@@ -315,7 +319,7 @@ fi
 
 # ------------------------------------------------------------------ summary --
 printf '\n%s================ %s installed ================%s\n' "$C_G" "$APP_NAME" "$C_0"
-printf 'Version:    %s%s\n' "$VERSION" "$( [ "$UPGRADING" -eq 1 ] && echo " (upgrade — previous binary at $INSTALL_DIR/$BIN_NAME.bak)" || true)"
+printf 'Version:    %s%s\n' "$NETPULSE_VERSION" "$( [ "$UPGRADING" -eq 1 ] && echo " (upgrade — previous binary at $INSTALL_DIR/$BIN_NAME.bak)" || true)"
 printf 'Binary:     %s\n' "$INSTALL_DIR/$BIN_NAME"
 printf 'Data:       %s/data (metrics.db, state.json)\n' "$STATE_DIR"
 printf 'Health:     http://127.0.0.1:%s/healthz (localhost only)\n' "$PORT"
