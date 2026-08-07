@@ -1,10 +1,15 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-06 (v2.7.0, **Fase 12 — Auditoría de seguridad COMPLETA**; Fases 9-11 reordenadas). 
+> Actualizada: 2026-08-07 (v2.7.2, **Fase 13 — Auditoría Fable de robustez COMPLETA**).
 
-## Estado actual (v2.7.0) ✅
+## Estado actual (v2.7.2) ✅
 
 Hecho y en producción (CT 226 + 4 routers):
+- **Fase 13 — Auditoría Fable de robustez de código** (v2.7.2): single-flight
+  de GetOverview con recover y broadcast correcto para N seguidores (#69),
+  write deadline en SSE Broadcast + ReadHeaderTimeout (#70), single-flight en
+  SSHPool.dial + chequeo de p.closed (#71), %v → %w en envolturas de error
+  (#73). Todos con tests de regresión (`-race` verde).
 - **Fase 12 — Auditoría de seguridad y robustez** (v2.7.0): TRUST_PROXY
   (anti-bypass de rate-limit), anti-replay de ingesta, body cap en JSON,
   password mínima 10, CHANGELOG.md. Cada fix con test propio.
@@ -461,6 +466,37 @@ PR (convención issue→PR).
 - Tests nuevos cubriendo cada fix (test que falla primero).
 
 **Deploy**: release + install.sh en CT 226 y agentes.
+
+---
+
+## Fase 13 — Auditoría Fable de robustez de código (COMPLETA, v2.7.2)
+
+Objetivo: auditoría dirigida de concurrencia, manejo de errores y fronteras
+en server-go. Cada hallazgo con mecanismo completo, test de regresión y fix.
+
+**Hallazgos corregidos (4 PRs → main):**
+
+1. **Single-flight de `GetOverview`** (#66 → #69): un panic en `buildOverview`
+   congelaba el poller para siempre (`sfInFlight` sin reset) y los seguidores
+   2..N recibían `(nil, nil)` del canal cerrado. Reescrito con struct `sfCall`
+   compartido + `close(done)` como pura señal + `recover` del líder.
+2. **Cliente SSE zombi bloquea broadcast** (#67 → #70): un peer desaparecido
+   sin cerrar TCP llenaba el buffer del kernel y `fmt.Fprint` bloqueaba ~15 min
+   el Broadcast síncrono de todos los clientes. Write deadline 10 s vía
+   `ResponseController` + `ReadHeaderTimeout` en `http.Server`.
+3. **Carrera en `SSHPool.dial`** (#68 → #71): dos dialers concurrentes al mismo
+   host filtraban una conexión SSH. Single-flight por host (canal `dialing`) +
+   chequeo de `p.closed`.
+4. **`%v` → `%w` en envolturas de error** (#72 → #73): dos sitios rompían
+   `errors.Is/As` aguas arriba.
+
+**Criterios de aceptación:**
+- Tests de regresión con `-race` para cada fix (fallan contra el código original,
+  pasan con el fix).
+- `go vet` limpio en server-go, collector y agent.
+- 0 cambios de API (retrocompatible).
+
+**Deploy**: release v2.7.2.
 
 ---
 
