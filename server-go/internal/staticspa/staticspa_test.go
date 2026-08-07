@@ -13,17 +13,17 @@ import (
 func TestCacheHeaders(t *testing.T) {
 	h := &Handler{
 		files: fstest.MapFS{
-			"index.html":            &fstest.MapFile{Data: []byte("<html>np</html>")},
-			"sw.js":                 &fstest.MapFile{Data: []byte("// sw")},
-			"assets/index-abc.js":   &fstest.MapFile{Data: []byte("// bundle")},
+			"index.html":          &fstest.MapFile{Data: []byte("<html>np</html>")},
+			"sw.js":               &fstest.MapFile{Data: []byte("// sw")},
+			"assets/index-abc.js": &fstest.MapFile{Data: []byte("// bundle")},
 		},
 		indexHTML: []byte("<html>np</html>"),
 	}
 
 	cases := []struct {
-		path  string
-		want  string
-		desc  string
+		path string
+		want string
+		desc string
 	}{
 		{"/", "no-cache", "index.html raíz"},
 		{"/index.html", "no-cache", "index.html directo"},

@@ -32,12 +32,12 @@ type AdGuard struct {
 // Webhook configura el notificador saliente de alertas (Fase 8.7b). Vacío si
 // no hay WEBHOOK_URL: el webhook se desactiva y el motor sigue igual.
 type Webhook struct {
-	URL         string
-	Secret      string
-	Timeout     time.Duration
-	Retries     int
-	RetryDelay  time.Duration
-	Enabled     bool
+	URL        string
+	Secret     string
+	Timeout    time.Duration
+	Retries    int
+	RetryDelay time.Duration
+	Enabled    bool
 }
 
 // Config es la config normalizada (equivalente al objeto de loadConfig).

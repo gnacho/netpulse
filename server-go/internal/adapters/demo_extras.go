@@ -63,7 +63,7 @@ func canonRouterExtras() map[string]*demoExtras {
 			MAC: "94:83:C4:2A:7F:10", Firmware: "GL 4.7.0", FirmwareBase: "OpenWrt 21.02",
 			FirmwareUpdated: true, LastReboot: "12 nov, 03:12 (mantenimiento)",
 			Soc: "MediaTek MT7986A", Flash: "8 GB eMMC", RamMb: 512,
-			BandSplit: demoBandSplit{Band24: 4, Band5: 10, Cable: 3},
+			BandSplit:  demoBandSplit{Band24: 4, Band5: 10, Cable: 3},
 			TrafficNow: 84.2,
 			// GL-MT6000: 1× WAN 2.5G + 4× LAN 1G + 1× LAN 2.5G.
 			// SPEC-CANON D4: lan1/lan2 = uplinks LLDP (Salón/Estudio),

@@ -421,7 +421,13 @@ func HandleLogin(d *db.DB, secret string, r *http.Request, username, password st
 		return nil
 	}
 	u := GetUserByName(d, username)
-	if u == nil || !CheckPassword(password, u.PassHash) {
+	if u == nil {
+		// Compare contra un hash conocido para igualar el timing con el
+		// camino de usuario válido y no filtrar existencia de usuarios.
+		_ = bcrypt.CompareHashAndPassword([]byte("$2a$10$dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy"), []byte(password))
+		return nil
+	}
+	if !CheckPassword(password, u.PassHash) {
 		return nil
 	}
 	// Rotación de sesión

@@ -66,13 +66,13 @@ func (f *fakeEngine) events() []alerts.AlertEvent {
 // makeRearmEnv: db + registry con reloj controlable + router "patio" en la
 // tabla routers + token registrado para el slug que se pase.
 type rearmEnv struct {
-	d       *db.DB
-	reg     *adapters.AgentRegistry
-	ssh     *fakeSSH
-	engine  *fakeEngine
-	arm     *rearmer.Rearmer
-	now     time.Time
-	setNow  func(time.Time)
+	d      *db.DB
+	reg    *adapters.AgentRegistry
+	ssh    *fakeSSH
+	engine *fakeEngine
+	arm    *rearmer.Rearmer
+	now    time.Time
+	setNow func(time.Time)
 }
 
 func makeRearmEnv(t *testing.T, slugsConToken ...string) *rearmEnv {

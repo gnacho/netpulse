@@ -11,7 +11,9 @@ package httpapi
 
 import (
 	"bytes"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -98,7 +100,7 @@ func NewHandler(d Deps) http.Handler {
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
-		agentHub: d.AgentHub,
+		agentHub:    d.AgentHub,
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
@@ -222,7 +224,29 @@ func NewHandler(d Deps) http.Handler {
 		mux.Handle("/", static)
 	}
 
-	return security.Middleware(auth.RequireAuth(s.db, s.secret, noStoreMux(mux)))
+	return requestID(security.Middleware(auth.RequireAuth(s.db, s.secret, noStoreMux(mux))))
+}
+
+// requestID lee o genera un x-request-id para cada petición y lo expone en
+// la respuesta. Útil para correlar logs y debugging entre front y back.
+func requestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = r.Header.Get("X-Request-Id")
+		}
+		if id == "" {
+			id = newRequestID()
+		}
+		w.Header().Set("X-Request-ID", id)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func newRequestID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
 }
 
 // noStoreMux replica el middleware noStore() de routes/data.js: aplica

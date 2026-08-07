@@ -1,10 +1,10 @@
 // openwrt.go — Cliente live para routers OpenWrt / GL.iNet (port de
 // src/adapters/openwrt.js, SPEC §7.2):
 //
-//   1. ubus JSON-RPC sobre HTTP (POST http://<host>/ubus, session login con
-//      token cacheado y un solo re-login ante sesión caducada).
-//   2. Fallback SSH con pool persistente (sshpool.go; equivalente al
-//      ControlMaster del JS).
+//  1. ubus JSON-RPC sobre HTTP (POST http://<host>/ubus, session login con
+//     token cacheado y un solo re-login ante sesión caducada).
+//  2. Fallback SSH con pool persistente (sshpool.go; equivalente al
+//     ControlMaster del JS).
 //
 // Comandos y parseo literales del JS; timeouts cortos y errores controlados:
 // el caller (live) marca el router offline y sigue con el resto.

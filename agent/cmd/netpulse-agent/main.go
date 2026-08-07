@@ -221,15 +221,15 @@ func run() error {
 	// Fase 7.3: SSE bidireccional — el servidor envía comandos al agente.
 	refreshCh := make(chan struct{}, 1)
 	go func() {
-	sse := sseclient.New(cfg.server, cfg.slug, cfg.token, func(ev sseclient.Event) {
-		if ev.Name == "refresh" {
-			select {
-			case refreshCh <- struct{}{}:
-			default:
+		sse := sseclient.New(cfg.server, cfg.slug, cfg.token, func(ev sseclient.Event) {
+			if ev.Name == "refresh" {
+				select {
+				case refreshCh <- struct{}{}:
+				default:
+				}
 			}
-		}
-		log.Printf("[netpulse-agent] SSE: %s", ev.Name)
-	})
+			log.Printf("[netpulse-agent] SSE: %s", ev.Name)
+		})
 		sse.SetLogger(func(format string, args ...any) { log.Printf(format, args...) })
 		sse.Run(ctx)
 	}()

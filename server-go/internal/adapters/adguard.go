@@ -133,8 +133,8 @@ func (c *AdGuardClient) GetStats(ctx context.Context) (*AdGuardStats, error) {
 		TrackersBlocked: trackers,
 		DNSLatencyMs:    int(math.Round(stats.AvgProcessingTime * 1000)),
 		ClientsUsing:    int(stats.NumClients), ClientsTotal: int(stats.NumClients),
-		TopBlocked:      parseTopBlocked(stats.TopBlockedDomains, 5),
-		FilterLists:     filterLists, Rules: rules,
+		TopBlocked:  parseTopBlocked(stats.TopBlockedDomains, 5),
+		FilterLists: filterLists, Rules: rules,
 	}, nil
 }
 

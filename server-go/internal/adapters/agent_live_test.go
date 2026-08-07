@@ -23,9 +23,9 @@ func testPayload() *probe.Payload {
 	sys.Memory.Total = 256e6
 	sys.Memory.Available = 128e6
 	pl.Data.System = &probe.SystemData{
-		SysInfo:   sys,
-		Board:     &probe.BoardInfo{Model: "TP-Link EAP225", Hostname: "patio"},
-		CPU:       i(12), Temp: i(43),
+		SysInfo: sys,
+		Board:   &probe.BoardInfo{Model: "TP-Link EAP225", Hostname: "patio"},
+		CPU:     i(12), Temp: i(43),
 		RxBps: f64(1e6), TxBps: f64(2e6),
 		LatencyMs: f64(3), Backhaul: "cable",
 		BridgeMAC: "94:83:C4:00:00:09",

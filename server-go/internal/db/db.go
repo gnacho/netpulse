@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS metrics (
   router_id TEXT NOT NULL,
   ts INTEGER NOT NULL,
   cpu REAL, ram REAL, temp REAL,
-  latency_ms REAL, rx_bps REAL, tx_bps REAL
+  latency_ms REAL, rx_bps REAL, tx_bps REAL,
+  PRIMARY KEY (router_id, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_router_ts ON metrics(router_id, ts);
 -- Escalera de retención (skill sqlite-timeseries-daemon): raw 7 días → buckets
