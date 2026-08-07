@@ -19,7 +19,9 @@ interface UpdateStatus {
   hasToken: boolean
 }
 
-const POLL_MS = 30 * 60 * 1000
+const POLL_MS = 60 * 60 * 1000
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+const CHECK_KEY = 'netpulse-last-update-check'
 const APPLY_POLL_MS = 2500
 
 export function UpdateBanner() {
@@ -42,11 +44,30 @@ export function UpdateBanner() {
     }
   }, [])
 
-  // Chequeo inicial + periódico (solo admin)
+  // Chequeo inicial + periódico (solo admin). Cadencia: 1 vez por semana por
+  // navegador (localStorage), patrón del resto de apps del stack. El interval
+  // de 1 h solo re-evalúa si toca volver a consultar el status.
   useEffect(() => {
     if (auth?.role !== 'admin') return
-    void fetchStatus()
-    const id = window.setInterval(() => void fetchStatus(), POLL_MS)
+    const shouldCheck = () => {
+      try {
+        const last = Number(localStorage.getItem(CHECK_KEY) || 0)
+        return !last || Date.now() - last > WEEK_MS
+      } catch {
+        return true
+      }
+    }
+    const run = () => {
+      if (!shouldCheck()) return
+      void fetchStatus()
+      try {
+        localStorage.setItem(CHECK_KEY, String(Date.now()))
+      } catch {
+        /* sin localStorage: sigue consultando */
+      }
+    }
+    run()
+    const id = window.setInterval(run, POLL_MS)
     return () => window.clearInterval(id)
   }, [auth?.role, fetchStatus])
 

@@ -1,5 +1,5 @@
 // Package updater — actualizador (paridad src/updater.js, SPEC §9): chequea
-// el último commit de main en la API de GitHub al arrancar y cada 6 h, y
+// el último commit de main en la API de GitHub al arrancar y cada 24 h, y
 // aplica la actualización lanzando deploy/update.sh (copiado antes a /tmp:
 // el propio update hace git reset --hard y reescribiría el script). El
 // binario Go se actualiza por el mismo mecanismo de script externo.
@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	checkInterval = 6 * time.Hour
+	checkInterval = 24 * time.Hour
 	httpTimeout   = 8 * time.Second
 	logTail       = 4000
 	statusLogTail = 800
