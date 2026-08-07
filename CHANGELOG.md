@@ -7,6 +7,26 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.7.2] - 2026-08-07
+
+### Fixed
+
+- **Single-flight de GetOverview**: un panic en buildOverview congelaba el poller
+  para siempre (sfInFlight sin reset, canal nunca cerrado); los seguidores 2..N
+  recibían (nil, nil) del canal cerrado. Reescrito con estructura compartida
+  sfCall, close(done) como pura señal para N seguidores, y recover del líder
+  transformando panic en error.
+- **Cliente SSE zombi bloqueaba el broadcast**: un peer desaparecido sin cerrar
+  TCP llenaba el buffer del kernel y fmt.Fprint bloqueaba el Broadcast síncrono
+  de todos los clientes (~15 min). Añadido write deadline 10s vía
+  ResponseController en Hub y AgentHub. Añadido ReadHeaderTimeout: 10s al
+  http.Server.
+- **Carrera en SSHPool.dial**: dos dialers concurrentes al mismo host filtraban
+  una conexión SSH. Añadido single-flight por host (canal dialing) y chequeo de
+  p.closed en el mutex.
+- **%v → %w en dos envolturas de error** (config.go y rearmer.go) que rompían
+  errors.Is/As aguas arriba.
+
 ## [2.7.1] - 2026-08-07
 
 ### Fixed
