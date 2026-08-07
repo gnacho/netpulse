@@ -30,7 +30,7 @@ INSTALL_DIR="/usr/local/bin"
 STATE_DIR="/var/lib/$APP_NAME"
 SERVICE_NAME="$APP_NAME"
 
-VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0; DEMO=0
+NETPULSE_VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0; DEMO=0
 
 # ---------------------------------------------------------------- logging ---
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -64,7 +64,7 @@ EOF
 
 for arg in "$@"; do
     case "$arg" in
-        --version=*)  VERSION="${arg#*=}" ;;
+        --version=*)  NETPULSE_VERSION="${arg#*=}" ;;
         --demo)       DEMO=1 ;;
         --unattended) UNATTENDED=1 ;;
         --dry-run)    DRY_RUN=1 ;;
@@ -138,12 +138,7 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 # --------------------------------------------------------------- detection --
-# /etc/os-release define su propia VERSION ("13 (trixie)" en Debian) y pisaría
-# la variable VERSION del script; guardar y restaurar alrededor del source.
-_saved_version="$VERSION"
 . /etc/os-release 2>/dev/null || true
-VERSION="$_saved_version"
-unset _saved_version
 OS_PRETTY="${PRETTY_NAME:-$(uname -s)}"
 
 ARCH=$(uname -m)
@@ -242,17 +237,21 @@ fi
 # POST /api/demo/enable y reinicia el servicio vía .restart-me).
 
 # --------------------------------------------------------- resolve version --
-if [ -z "$VERSION" ]; then
+if [ -z "$NETPULSE_VERSION" ]; then
     info "resolving latest stable version"
-    VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
+    NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
         | grep '"tag_name"' | head -1 | cut -d'"' -f4) \
         || fatal 31 "could not resolve the latest version (GitHub rate-limit?). Use --version=X.Y.Z"
-    [ -n "$VERSION" ] || fatal 31 "no stable release found yet. Use --version=X.Y.Z"
+    [ -n "$NETPULSE_VERSION" ] || fatal 31 "no stable release found yet. Use --version=X.Y.Z"
 fi
-VERSION_NORM=$(echo "$VERSION" | sed 's/^v//')
+VERSION_NORM=$(echo "$NETPULSE_VERSION" | sed 's/^v//')
+case "$NETPULSE_VERSION" in
+    v*) NETPULSE_TAG="$NETPULSE_VERSION" ;;
+    *)  NETPULSE_TAG="v$NETPULSE_VERSION" ;;
+esac
 ASSET="${BIN_NAME}_${VERSION_NORM}_linux_${GOARCH}.tar.gz"
-BASE_URL="https://github.com/$GH_REPO/releases/download/$VERSION"
-info "version: $VERSION"
+BASE_URL="https://github.com/$GH_REPO/releases/download/$NETPULSE_TAG"
+info "version: $NETPULSE_VERSION"
 
 # connectivity pre-flight BEFORE touching the system
 $FETCH "https://github.com/$GH_REPO" >/dev/null \
@@ -271,7 +270,7 @@ trap cleanup EXIT INT TERM
 
 info "downloading $ASSET"
 fetch_to "$BASE_URL/$ASSET" "$TMP/$ASSET" || fatal 32 "download failed: $BASE_URL/$ASSET"
-fetch_to "$BASE_URL/checksums.txt" "$TMP/checksums.txt" || fatal 32 "checksums.txt not found in release $VERSION"
+fetch_to "$BASE_URL/checksums.txt" "$TMP/checksums.txt" || fatal 32 "checksums.txt not found in release $NETPULSE_VERSION"
 [ -s "$TMP/$ASSET" ] || fatal 32 "downloaded asset is empty"
 
 SUM_FILE=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
@@ -405,7 +404,7 @@ fi
 
 # ------------------------------------------------------------------ summary --
 printf '\n%s================ %s installed ================%s\n' "$C_G" "$APP_NAME" "$C_0"
-printf 'Version:  %s%s\n' "$VERSION" "$( [ "$UPGRADING" -eq 1 ] && echo " (upgrade — previous binary at $INSTALL_DIR/$BIN_NAME.bak)" || true)"
+printf 'Version:  %s%s\n' "$NETPULSE_VERSION" "$( [ "$UPGRADING" -eq 1 ] && echo " (upgrade — previous binary at $INSTALL_DIR/$BIN_NAME.bak)" || true)"
 printf 'Binary:   %s\n' "$INSTALL_DIR/$BIN_NAME"
 printf 'Data:     %s (SQLite, .env, SSH keypair)\n' "$STATE_DIR"
 printf 'Access:   http://<this-machine-ip>:%s\n' "$PORT"
