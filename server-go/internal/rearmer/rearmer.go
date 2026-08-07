@@ -155,7 +155,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	}
 
 	if _, err := r.pool.Run(host, Cmd, SSHWait); err != nil {
-		return Result{}, fmt.Errorf("no pude reiniciar el servicio en %s: %v", host, err)
+		return Result{}, fmt.Errorf("no pude reiniciar el servicio en %s: %w", host, err)
 	}
 
 	// Esperar a que el agente vuelva a empujar (poll cada 2 s hasta pollWait).
