@@ -219,7 +219,6 @@ func (u *Updater) Apply() bool {
 
 	cmd := exec.Command("bash", tmpScript)
 	cmd.Dir = u.repoRoot
-	cmd.Env = append(os.Environ(), "NODE_OPTIONS=--max-old-space-size=400")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		u.mu.Lock()

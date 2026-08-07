@@ -33,11 +33,11 @@ type sqlNull struct {
 
 // weeklyReportEntry espeja la respuesta (solo los campos que usa el test).
 type weeklyReportEntry struct {
-	RouterID string  `json:"routerId"`
-	Week     string  `json:"week"`
-	Days     int     `json:"days"`
-	UpMin    int64   `json:"upMin"`
-	UpPct    float64 `json:"upPct"`
+	RouterID string   `json:"routerId"`
+	Week     string   `json:"week"`
+	Days     int      `json:"days"`
+	UpMin    int64    `json:"upMin"`
+	UpPct    float64  `json:"upPct"`
 	LatAvg   *float64 `json:"latAvg"`
 }
 

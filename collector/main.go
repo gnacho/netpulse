@@ -326,7 +326,7 @@ func runProbe(ctx context.Context, ts *timeseries.TimeSeries, t Target, mu *sync
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(time.Duration(len(t.Name)*137%4000) * time.Millisecond):
+	case <-time.After(time.Duration(hashJitter(t.Name, 4000)) * time.Millisecond):
 	}
 	tick := time.NewTicker(probeInterval)
 	defer tick.Stop()
@@ -407,3 +407,14 @@ func envOr(key, def string) string {
 }
 
 func ptr(f float64) *float64 { return &f }
+
+// hashJitter devuelve un número determinista [0, max) basado en el nombre
+// del target, para que el jitter no dependa de la longitud (targets con
+// nombres de igual tamaño sondeaban a la vez con len(s)*137%max).
+func hashJitter(s string, max int) int {
+	var h uint32
+	for _, c := range s {
+		h = h*31 + uint32(c)
+	}
+	return int(h % uint32(max))
+}

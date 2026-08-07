@@ -1,15 +1,15 @@
 // agent.go — Fase 3 piloto (SPEC-AGENTE-PILOTO §1):
 //
-//   POST /api/ingest/agent  — ingesta de agentes nativos. NO va detrás del
-//                             middleware de sesión: auth propia Bearer con
-//                             token por equipo (guardado sha256 en kv
-//                             agent.token.<slug>). Rate limit por IP 30/min,
-//                             body cap 2 MB.
-//   POST   /api/agents      — crear token para un slug (sesión). El token se
-//                             muestra UNA sola vez, con el one-liner de
-//                             instalación. Nunca se vuelve a servir.
-//   GET    /api/agents      — slugs con agente + last_seen + versión.
-//   DELETE /api/agents/{slug} — revocar (borra el token; el agente recibe 401).
+//	POST /api/ingest/agent  — ingesta de agentes nativos. NO va detrás del
+//	                          middleware de sesión: auth propia Bearer con
+//	                          token por equipo (guardado sha256 en kv
+//	                          agent.token.<slug>). Rate limit por IP 30/min,
+//	                          body cap 2 MB.
+//	POST   /api/agents      — crear token para un slug (sesión). El token se
+//	                          muestra UNA sola vez, con el one-liner de
+//	                          instalación. Nunca se vuelve a servir.
+//	GET    /api/agents      — slugs con agente + last_seen + versión.
+//	DELETE /api/agents/{slug} — revocar (borra el token; el agente recibe 401).
 package httpapi
 
 import (

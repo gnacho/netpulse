@@ -43,7 +43,7 @@ func makeRefreshServer(t *testing.T) (*testServer, *atomic.Int32) {
 	var polls atomic.Int32
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(),
-		Hub: sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
+		Hub:     sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
 		Secret:  secret,
 		PollNow: func() { polls.Add(1) },
 		Started: time.Now(),

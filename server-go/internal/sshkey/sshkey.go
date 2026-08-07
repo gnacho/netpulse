@@ -30,7 +30,7 @@ func KnownHostsPath(keyPath string) string {
 }
 
 // EnsureKeypair garantiza que existe el par de claves en keyPath
-// (ssh-keygen -t ed25519 -N '' -C netpulse); best-effort en permisos.
+// (ssh-keygen -t ed25519 -N ” -C netpulse); best-effort en permisos.
 func EnsureKeypair(keyPath string) error {
 	if _, err := os.Stat(keyPath); err == nil {
 		if _, err := os.Stat(keyPath + ".pub"); err == nil {
@@ -56,7 +56,9 @@ type ExecError struct {
 	Out  string
 }
 
-func (e *ExecError) Error() string { return e.What + ": " + e.Err.Error() + " " + strings.TrimSpace(e.Out) }
+func (e *ExecError) Error() string {
+	return e.What + ": " + e.Err.Error() + " " + strings.TrimSpace(e.Out)
+}
 func (e *ExecError) Unwrap() error { return e.Err }
 
 // PublicKey es la respuesta de /api/config/sshkey.

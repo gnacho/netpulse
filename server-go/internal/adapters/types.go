@@ -274,7 +274,7 @@ type Overview struct {
 	// ausente en snapshots viejos → la app usa su cálculo actual como fallback.
 	Topology *TopoSemantics `json:"topology,omitempty"`
 	// VM: versión del view-model (SPEC-65 D65-4). SIEMPRE presente.
-	VM int `json:"vm"`
+	VM int   `json:"vm"`
 	Ts int64 `json:"ts"` // floor(now/1000) — SEGUNDOS
 }
 

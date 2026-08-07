@@ -55,8 +55,8 @@ type AlertsEngine interface {
 // Result es el resultado de un intento de rearme.
 type Result struct {
 	Slug      string
-	Restarted bool   // el comando SSH se ejecutó
-	Recovered bool   // llegó un push nuevo tras el reinicio
+	Restarted bool // el comando SSH se ejecutó
+	Recovered bool // llegó un push nuevo tras el reinicio
 	Message   string
 }
 

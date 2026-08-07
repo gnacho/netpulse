@@ -25,10 +25,10 @@ import (
 // weeklyReportEntry es una fila del informe: un router durante una semana.
 type weeklyReportEntry struct {
 	RouterID string   `json:"routerId"`
-	Week     string   `json:"week"`  // semana ISO, formato "2026-W31" (lunes-domingo)
-	Days     int      `json:"days"`  // días con datos en esa semana (≤7)
-	UpMin    int64    `json:"upMin"` // minutos de recolección en la semana
-	UpPct    float64  `json:"upPct"` // % de disponibilidad sobre los días con datos
+	Week     string   `json:"week"`   // semana ISO, formato "2026-W31" (lunes-domingo)
+	Days     int      `json:"days"`   // días con datos en esa semana (≤7)
+	UpMin    int64    `json:"upMin"`  // minutos de recolección en la semana
+	UpPct    float64  `json:"upPct"`  // % de disponibilidad sobre los días con datos
 	LatAvg   *float64 `json:"latAvg"` // media de latencia (null si no hay datos)
 	RxTotal  float64  `json:"rxTotal"`
 	TxTotal  float64  `json:"txTotal"`

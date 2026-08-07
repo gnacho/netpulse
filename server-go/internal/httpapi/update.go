@@ -1,8 +1,9 @@
 // update.go — rutas /api/update/* (paridad src/routes/update.js, SPEC §2.18,
 // solo admin):
-//   GET  /api/update/status → estado actual
-//   POST /api/update/check  → fuerza un chequeo contra GitHub
-//   POST /api/update/apply  → aplica la actualización (202 | 409)
+//
+//	GET  /api/update/status → estado actual
+//	POST /api/update/check  → fuerza un chequeo contra GitHub
+//	POST /api/update/apply  → aplica la actualización (202 | 409)
 package httpapi
 
 import (

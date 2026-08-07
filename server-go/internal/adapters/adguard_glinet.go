@@ -166,8 +166,8 @@ func (c *AdGuardGlinetClient) queryStats(ctx context.Context) (*AdGuardStats, er
 		TrackersBlocked: 0,
 		DNSLatencyMs:    int(math.Round(data.AvgProcessingTime * 1000)),
 		ClientsUsing:    clients, ClientsTotal: clients,
-		TopBlocked:      top,
-		FilterLists:     0, Rules: 0,
+		TopBlocked:  top,
+		FilterLists: 0, Rules: 0,
 	}, nil
 }
 

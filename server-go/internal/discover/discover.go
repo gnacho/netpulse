@@ -6,6 +6,7 @@
 //     "access denied", delata uhttpd+ubus; GL.iNet redirige a su UI → firma
 //     gl-ui por https).
 //  4. Probe SSH con la clave propia → {authorized, model}.
+//
 // Caché de 60 s (force=1 la ignora).
 package discover
 

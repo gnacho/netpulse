@@ -20,13 +20,13 @@ type Event struct {
 // Client mantiene una conexión SSE al servidor y notifica comandos vía
 // callback. Se reconecta automáticamente con backoff (minRetry → maxRetry).
 type Client struct {
-	url       string
-	token     string
-	hc        *http.Client
-	onEvent   func(Event)
-	minRetry  time.Duration
-	maxRetry  time.Duration
-	logf      func(string, ...any)
+	url      string
+	token    string
+	hc       *http.Client
+	onEvent  func(Event)
+	minRetry time.Duration
+	maxRetry time.Duration
+	logf     func(string, ...any)
 }
 
 // New crea un cliente SSE. serverURL es la URL base del servidor

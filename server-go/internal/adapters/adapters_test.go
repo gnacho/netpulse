@@ -598,21 +598,21 @@ func TestLiveGetOverviewConcurrent(t *testing.T) {
 	cfg := &config.Config{}
 	eng := alerts.New(nil, nil)
 	l := &Live{
-		cfg:         cfg,
-		engine:      eng,
-		routers:     []RouterConfig{},
-		lastGood:    map[string]*Router{},
-		lastStatus:  map[string]string{},
-		boardCache:  map[string]*BoardInfo{},
-		layoutCache: map[string][]PortLayout{},
-		extrasCache: map[string]*extrasSnapshot{},
-		lastPolled:  map[string]*routerPolled{},
-		failCount:   map[string]int{},
-		wanDown:     map[string]int{},
-		onlineMacs:  map[string]bool{},
-		weakAlerted: map[string]int64{},
+		cfg:           cfg,
+		engine:        eng,
+		routers:       []RouterConfig{},
+		lastGood:      map[string]*Router{},
+		lastStatus:    map[string]string{},
+		boardCache:    map[string]*BoardInfo{},
+		layoutCache:   map[string][]PortLayout{},
+		extrasCache:   map[string]*extrasSnapshot{},
+		lastPolled:    map[string]*routerPolled{},
+		failCount:     map[string]int{},
+		wanDown:       map[string]int{},
+		onlineMacs:    map[string]bool{},
+		weakAlerted:   map[string]int64{},
 		backhaulCache: map[string]backhaulCacheEntry{},
-		lldpCache:   map[string]lldpCacheEntry{},
+		lldpCache:     map[string]lldpCacheEntry{},
 	}
 
 	const N = 3
@@ -641,21 +641,21 @@ func TestLiveGetOverviewConcurrent(t *testing.T) {
 func TestLiveGetOverviewRecoversFromPanic(t *testing.T) {
 	eng := alerts.New(nil, nil)
 	l := &Live{
-		cfg:         nil, // nil → panic en l.cfg.WGInterface
-		engine:      eng,
-		routers:     []RouterConfig{},
-		lastGood:    map[string]*Router{},
-		lastStatus:  map[string]string{},
-		boardCache:  map[string]*BoardInfo{},
-		layoutCache: map[string][]PortLayout{},
-		extrasCache: map[string]*extrasSnapshot{},
-		lastPolled:  map[string]*routerPolled{},
-		failCount:   map[string]int{},
-		wanDown:     map[string]int{},
-		onlineMacs:  map[string]bool{},
-		weakAlerted: map[string]int64{},
+		cfg:           nil, // nil → panic en l.cfg.WGInterface
+		engine:        eng,
+		routers:       []RouterConfig{},
+		lastGood:      map[string]*Router{},
+		lastStatus:    map[string]string{},
+		boardCache:    map[string]*BoardInfo{},
+		layoutCache:   map[string][]PortLayout{},
+		extrasCache:   map[string]*extrasSnapshot{},
+		lastPolled:    map[string]*routerPolled{},
+		failCount:     map[string]int{},
+		wanDown:       map[string]int{},
+		onlineMacs:    map[string]bool{},
+		weakAlerted:   map[string]int64{},
 		backhaulCache: map[string]backhaulCacheEntry{},
-		lldpCache:   map[string]lldpCacheEntry{},
+		lldpCache:     map[string]lldpCacheEntry{},
 	}
 
 	ov, err := l.GetOverview(context.Background())
