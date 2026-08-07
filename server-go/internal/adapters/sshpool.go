@@ -39,10 +39,13 @@ type SSHPool struct {
 	mu     sync.Mutex
 	conns  map[string]*sshConn
 	closed bool
+
+	dialTCP func(network, addr string, config *ssh.ClientConfig) (*ssh.Client, error)
 }
 
 type sshConn struct {
 	client   *ssh.Client
+	dialing  chan struct{}
 	failures int
 	notUntil time.Time
 }
@@ -62,6 +65,7 @@ func NewSSHPool(keyPath string) (*SSHPool, error) {
 		signer:  signer,
 		khPath:  sshkey.KnownHostsPath(keyPath),
 		conns:   map[string]*sshConn{},
+		dialTCP: ssh.Dial,
 	}, nil
 }
 
@@ -98,8 +102,13 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 }
 
 // dial abre (o reabre) la conexión a un host respetando el backoff.
+// Single-flight por host: dos llamantes concurrentes comparten el mismo dial.
 func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return nil, errors.New("ssh pool closed")
+	}
 	entry := p.conns[host]
 	if entry == nil {
 		entry = &sshConn{}
@@ -110,14 +119,32 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		p.mu.Unlock()
 		return c, nil
 	}
+	if entry.dialing != nil {
+		ch := entry.dialing
+		p.mu.Unlock()
+		<-ch
+		p.mu.Lock()
+		if entry.client != nil {
+			c := entry.client
+			p.mu.Unlock()
+			return c, nil
+		}
+		p.mu.Unlock()
+		return nil, errors.New("ssh dial failed")
+	}
 	if time.Now().Before(entry.notUntil) {
 		p.mu.Unlock()
 		return nil, fmt.Errorf("ssh %s: en backoff tras %d fallos", host, entry.failures)
 	}
+	entry.dialing = make(chan struct{})
 	p.mu.Unlock()
 
 	cb, err := p.hostKeyCallback()
 	if err != nil {
+		p.mu.Lock()
+		close(entry.dialing)
+		entry.dialing = nil
+		p.mu.Unlock()
 		return nil, err
 	}
 	cfg := &ssh.ClientConfig{
@@ -126,10 +153,11 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		HostKeyCallback: cb,
 		Timeout:         sshDialTimeout,
 	}
-	client, err := ssh.Dial("tcp", net.JoinHostPort(host, "22"), cfg)
+	client, err := p.dialTCP("tcp", net.JoinHostPort(host, "22"), cfg)
 
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	close(entry.dialing)
+	entry.dialing = nil
 	if err != nil {
 		entry.failures++
 		backoff := sshBackoffBase << min(entry.failures-1, 4)
@@ -137,11 +165,13 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 			backoff = sshBackoffMax
 		}
 		entry.notUntil = time.Now().Add(backoff)
+		p.mu.Unlock()
 		return nil, fmt.Errorf("ssh %s: %w", host, err)
 	}
 	entry.client = client
 	entry.failures = 0
 	entry.notUntil = time.Time{}
+	p.mu.Unlock()
 	return client, nil
 }
 
