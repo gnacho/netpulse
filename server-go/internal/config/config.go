@@ -318,7 +318,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	if v, ok := env["ROUTERS_JSON"]; ok && v != "" {
 		var raw []RouterSeed
 		if err := json.Unmarshal([]byte(v), &raw); err != nil {
-			return nil, fmt.Errorf("[netpulse] ROUTERS_JSON inválido: %v", err)
+			return nil, fmt.Errorf("[netpulse] ROUTERS_JSON inválido: %w", err)
 		}
 		for i, r := range raw {
 			if r.ID == "" || r.Host == "" {
