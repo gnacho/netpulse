@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -148,13 +149,14 @@ type Live struct {
 	agGL  *AdGuardGlinetClient
 	agKey string
 
-	sfMu       sync.Mutex
-	sfInFlight chan sfResult
+	sfMu   sync.Mutex
+	sfCall *sfCall
 }
 
-type sfResult struct {
-	ov  *Overview
-	err error
+type sfCall struct {
+	done chan struct{}
+	ov   *Overview
+	err  error
 }
 
 // NewLive crea el adapter live (db puede ser nil en tests).
@@ -1204,26 +1206,31 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 }
 
 // GetOverview: single-flight (los llamantes concurrentes comparten sondeo).
-func (l *Live) GetOverview(ctx context.Context) (*Overview, error) {
+// Si buildOverview paniquea, el líder lo transforma en error y todos los
+// seguidores reciben ese error en vez de bloquear para siempre.
+func (l *Live) GetOverview(ctx context.Context) (ov *Overview, err error) {
 	l.sfMu.Lock()
-	if l.sfInFlight != nil {
-		ch := l.sfInFlight
+	if c := l.sfCall; c != nil {
 		l.sfMu.Unlock()
-		r := <-ch
-		return r.ov, r.err
+		<-c.done
+		return c.ov, c.err
 	}
-	ch := make(chan sfResult, 1)
-	l.sfInFlight = ch
+	c := &sfCall{done: make(chan struct{})}
+	l.sfCall = c
 	l.sfMu.Unlock()
 
-	ov, err := l.buildOverview(ctx)
-	ch <- sfResult{ov, err}
-	close(ch)
-
-	l.sfMu.Lock()
-	l.sfInFlight = nil
-	l.sfMu.Unlock()
-	return ov, err
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic en buildOverview: %v\n%s", r, debug.Stack())
+			ov = nil
+		}
+		c.ov, c.err = ov, err
+		close(c.done)
+		l.sfMu.Lock()
+		l.sfCall = nil
+		l.sfMu.Unlock()
+	}()
+	return l.buildOverview(ctx)
 }
 
 func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {

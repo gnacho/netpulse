@@ -5,7 +5,12 @@ package adapters
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/config"
 )
 
 // --- snapshot.test.js: el PRIMER snapshot del demo es el canon EXACTO ---
@@ -584,5 +589,101 @@ func TestDemoRouterLldpCanon(t *testing.T) {
 	}
 	if seen != 4 {
 		t.Fatalf("routers: %d", seen)
+	}
+}
+
+// --- Regresión single-flight GetOverview ---
+
+func TestLiveGetOverviewConcurrent(t *testing.T) {
+	cfg := &config.Config{}
+	eng := alerts.New(nil, nil)
+	l := &Live{
+		cfg:         cfg,
+		engine:      eng,
+		routers:     []RouterConfig{},
+		lastGood:    map[string]*Router{},
+		lastStatus:  map[string]string{},
+		boardCache:  map[string]*BoardInfo{},
+		layoutCache: map[string][]PortLayout{},
+		extrasCache: map[string]*extrasSnapshot{},
+		lastPolled:  map[string]*routerPolled{},
+		failCount:   map[string]int{},
+		wanDown:     map[string]int{},
+		onlineMacs:  map[string]bool{},
+		weakAlerted: map[string]int64{},
+		backhaulCache: map[string]backhaulCacheEntry{},
+		lldpCache:   map[string]lldpCacheEntry{},
+	}
+
+	const N = 3
+	results := make([]*Overview, N)
+	errs := make([]error, N)
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i], errs[i] = l.GetOverview(context.Background())
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < N; i++ {
+		if errs[i] != nil {
+			t.Errorf("goroutine %d: %v", i, errs[i])
+		}
+		if results[i] == nil {
+			t.Errorf("goroutine %d: result nil (canal defectuoso?)", i)
+		}
+	}
+}
+
+func TestLiveGetOverviewRecoversFromPanic(t *testing.T) {
+	eng := alerts.New(nil, nil)
+	l := &Live{
+		cfg:         nil, // nil → panic en l.cfg.WGInterface
+		engine:      eng,
+		routers:     []RouterConfig{},
+		lastGood:    map[string]*Router{},
+		lastStatus:  map[string]string{},
+		boardCache:  map[string]*BoardInfo{},
+		layoutCache: map[string][]PortLayout{},
+		extrasCache: map[string]*extrasSnapshot{},
+		lastPolled:  map[string]*routerPolled{},
+		failCount:   map[string]int{},
+		wanDown:     map[string]int{},
+		onlineMacs:  map[string]bool{},
+		weakAlerted: map[string]int64{},
+		backhaulCache: map[string]backhaulCacheEntry{},
+		lldpCache:   map[string]lldpCacheEntry{},
+	}
+
+	ov, err := l.GetOverview(context.Background())
+	if err == nil {
+		t.Error("tras panic esperaba error")
+	}
+	if ov != nil {
+		t.Error("tras panic esperaba Overview nil")
+	}
+	if err.Error() == "" || err.Error()[:5] != "panic" {
+		t.Errorf("mensaje de error sin prefijo 'panic': %v", err)
+	}
+
+	l.sfMu.Lock()
+	if l.sfCall != nil {
+		t.Error("sfCall no se limpió tras el panic")
+	}
+	l.sfMu.Unlock()
+
+	// La siguiente llamada NO debe bloquear
+	done := make(chan struct{})
+	go func() {
+		l.GetOverview(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("GetOverview bloqueado tras panic (sfCall no reseteado)")
 	}
 }
