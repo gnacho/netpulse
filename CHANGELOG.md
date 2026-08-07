@@ -7,6 +7,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-08-07
+
+### Fixed
+
+- **Panic del poller por notifier nil-encapsulado**: un puntero `nil` empaquetado
+  en la interfaz `alerts.Notifier` (webhook inactivo) no es `nil` para `if n != nil`,
+  y `Notify` paniqueaba al emitir una alerta URGENTE de "dispositivo desconocido".
+  Los notifiers se filtran ahora en su tipo concreto antes de empaquetar en la
+  interfaz, con defensa adicional vía `reflect` en `notifierChain.Notify`.
+
 ## [2.7.0] - 2026-08-06
 
 ### Added
