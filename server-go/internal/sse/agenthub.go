@@ -79,6 +79,8 @@ func (h *AgentHub) remove(slug string) {
 }
 
 func (c *agentConn) write(payload string) error {
+	rc := http.NewResponseController(c.w)
+	_ = rc.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if _, err := fmt.Fprint(c.w, payload); err != nil {
 		return err
 	}
