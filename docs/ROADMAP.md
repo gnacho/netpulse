@@ -11,7 +11,7 @@ Hecho y en producción (CT 226 + 4 routers, agentes v2.8.0):
 - **Fase 10 — Orquestación** (en curso): motor plan→apply→state + agent
   executor (10.1), módulo AdGuard Home (10.2, E2E verificado). WireGuard y
   DAWN-write pendientes.
-- **Fase 13 — Auditoría Fable de robustez** (v2.7.2): single-flight, SSE
+- **Fase 13 — Auditoría de robustez** (v2.7.2): single-flight, SSE
   deadline, sshpool race, %w wrapping.
 - **Fase 12 — Auditoría de seguridad** (v2.7.0): TRUST_PROXY, anti-replay,
   body cap, password mínima 10.
@@ -462,7 +462,7 @@ PR (convención issue→PR).
 
 ---
 
-## Fase 13 — Auditoría Fable de robustez de código (COMPLETA, v2.7.2)
+## Fase 13 — Auditoría de robustez de código (COMPLETA, v2.7.2)
 
 Objetivo: auditoría dirigida de concurrencia, manejo de errores y fronteras
 en server-go. Cada hallazgo con mecanismo completo, test de regresión y fix.

@@ -56,19 +56,7 @@ Para implementar la Opción A, el servidor necesita:
 | **`cytoscape.js`** — [github.com/cytoscape/cytoscape.js](https://github.com/cytoscape/cytoscape.js) | Para visualizar la topología real durante debugging. Sus layouts `breadthfirst` permiten validar que el cruce FDB+LLDP da el árbol correcto. |
 | **`json-schema`** validation | Base para definir el contrato agente→server formalmente y que la evolución del colector no rompa el servidor. |
 
-### 2.5 Skills de Claude (Para asistencia en el repo)
-
-Fuentes oficiales:
-- **Anthropic skills cookbook** — [github.com/anthropics/skills](https://github.com/anthropics/skills). Modelo a seguir para escribir skills reproducibles.
-
-Skills sugeridas a crear en `.claude/skills/` dentro del repo:
-
-1. **`netpulse-topology-inference`**: Paso a paso para cruzar FDB+LLDP+ARP y reasignar `routerId`. Documenta el algoritmo, no el código.
-2. **`netpulse-agent-contract`**: El JSON Schema canónico del reporte agente→server. Cualquier cambio de colector pasa por aquí.
-3. **`openwrt-ubus-queries`**: Recetas ubus para extraer associations WiFi, FDB, LLDP sin depender de parsers de texto.
-4. **`ring-layout-validator`**: Invariantes que debe cumplir el ring (cap, overflow, ningún dispositivo fuera, ningún router sin su subtree).
-
-### 2.6 Testing Reproducible
+### 2.5 Testing Reproducible
 
 - **`containerlab`** — [github.com/srl-labs/containerlab](https://github.com/srl-labs/containerlab): Levanta topologías L2/L3 realistas con containers. Permite simular rt2+switch16+CTs sin hardware real.
 - **`batfish`** — [github.com/batfish/batfish](https://github.com/batfish/batfish): Su modelo de topología es instructivo para validar configuraciones de red.
@@ -84,4 +72,4 @@ Skills sugeridas a crear en `.claude/skills/` dentro del repo:
 3. **Medio plazo (Fix B - Contrato Agente):**
    - Redactar el JSON Schema del contrato agente→server.
    - El agente deja de reportar ARP como fuente de "tengo esto colgando". ARP solo se usa en el servidor como pista secundaria.
-4. **Base de skills:** Clonar `anthropics/skills` como plantilla y crear las 4 skills sugeridas en `.claude/skills/`. Esto convierte el conocimiento implícito de la topología en algo reproducible por la IA.
+4. **Documentación del algoritmo:** Capturar el conocimiento implícito de la topología en documentación reproducible dentro del repo.
