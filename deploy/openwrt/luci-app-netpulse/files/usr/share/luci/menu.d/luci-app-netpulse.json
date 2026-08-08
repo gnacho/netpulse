@@ -1,0 +1,30 @@
+{
+	"admin/services/netpulse": {
+		"title": "NetPulse",
+		"order": 60,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-netpulse" ]
+		}
+	},
+
+	"admin/services/netpulse/status": {
+		"title": "Status",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "netpulse/status"
+		}
+	},
+
+	"admin/services/netpulse/settings": {
+		"title": "Settings",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "netpulse/settings"
+		}
+	}
+}
