@@ -454,6 +454,7 @@ type RouterConfig struct {
 	Host      string `json:"host"`
 	Type      string `json:"type"` // "glinet"|"openwrt"
 	IsGateway bool   `json:"is_gateway"`
+	AgentOnly bool   `json:"agent_only"`
 	CreatedAt int64  `json:"created_at"` // epoch ms
 }
 

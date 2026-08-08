@@ -93,6 +93,18 @@ func (r *AgentRegistry) Expired(slug string) bool {
 	return ok && r.now().Sub(st.LastSeen) > r.ttl
 }
 
+// StalePayload devuelve el último payload del slug sin comprobar TTL.
+// Sirve para usar datos stale en routers agent-only (sin SSH).
+func (r *AgentRegistry) StalePayload(slug string) (*probe.Payload, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, ok := r.states[slug]
+	if !ok || st.Payload == nil {
+		return nil, false
+	}
+	return st.Payload, true
+}
+
 // StaleFor reporta si el slug lleva más de threshold sin empujar datos.
 // Se usa para el Dead Man's Switch (P6): confirmar que un agente está
 // realmente caído antes de disparar la alerta, evitando spam en flapeos.
@@ -224,16 +236,32 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 			if !l.agentDown[cfg.ID] {
 				l.agentDown[cfg.ID] = true
 				name := agentName(cfg)
-				l.engine.Emit(AlertEvent{
-					ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
-					Category: alerts.CatSystem, Urgent: false,
-					Severity:    "warn",
-					Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
-					Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
-					Time:        "ahora mismo", RouterID: cfg.ID,
-				})
+				if cfg.AgentOnly {
+					l.engine.Emit(AlertEvent{
+						ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
+						Category: alerts.CatSystem, Urgent: false,
+						Severity:    "warn",
+						Title:       fmt.Sprintf("Agente caído en %s", name),
+						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — usando datos cacheados", name, confirm),
+						Time:        "ahora mismo", RouterID: cfg.ID,
+					})
+				} else {
+					l.engine.Emit(AlertEvent{
+						ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
+						Category: alerts.CatSystem, Urgent: false,
+						Severity:    "warn",
+						Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
+						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
+						Time:        "ahora mismo", RouterID: cfg.ID,
+					})
+				}
 			}
 			l.mu.Unlock()
+		}
+		if cfg.AgentOnly {
+			if p, ok := reg.StalePayload(cfg.ID); ok {
+				return true, l.polledFromAgent(cfg, p)
+			}
 		}
 	}
 	return false, nil

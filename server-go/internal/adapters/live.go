@@ -222,7 +222,9 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	l.gatewayCfg = pickGateway(l.routers)
 	l.clients = map[string]*OpenWrtClient{}
 	for _, c := range l.routers {
-		l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
+		if !c.AgentOnly {
+			l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
+		}
 	}
 	ids := map[string]bool{}
 	for _, r := range l.routers {
@@ -668,6 +670,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
+	} else if p.cfg.AgentOnly {
+		r.Role, r.RoleBadge = "Switch", "SW"
 	} else {
 		r.Role, r.RoleBadge = "Punto de acceso", "AP"
 	}

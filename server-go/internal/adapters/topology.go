@@ -209,7 +209,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				}
 				continue
 			}
-			if routerID != gatewayID {
+			if routerID != gatewayID && !polled[routerID].cfg.AgentOnly {
 				// AP con puerto multi-MAC sin evidencia de hipervisor: es casi
 				// seguro su uplink (aprende las MACs de toda la LAN). No se
 				// afirma switch local ni se anota puerto: los clientes quedan

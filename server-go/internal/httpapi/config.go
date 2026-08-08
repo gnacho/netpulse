@@ -62,10 +62,11 @@ func (s *server) handleListConfigRouters(w http.ResponseWriter, r *http.Request)
 }
 
 type routerInput struct {
-	Name    *string `json:"name"`
-	Host    *string `json:"host"`
-	Type    string  `json:"type"`
-	Gateway bool    `json:"gateway"`
+	Name      *string `json:"name"`
+	Host      *string `json:"host"`
+	Type      string  `json:"type"`
+	Gateway   bool    `json:"gateway"`
+	AgentOnly bool    `json:"agent_only"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -128,7 +129,7 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
-		Name: name, Host: host, Type: typ, IsGateway: in.Gateway,
+		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
