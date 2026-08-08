@@ -1,0 +1,17 @@
+{
+	"luci-app-netpulse": {
+		"description": "Grant access to the NetPulse agent pages",
+		"read": {
+			"ubus": {
+				"luci.netpulse": [ "status", "logs" ]
+			},
+			"uci": [ "netpulse-agent" ]
+		},
+		"write": {
+			"ubus": {
+				"luci.netpulse": [ "restart" ]
+			},
+			"uci": [ "netpulse-agent" ]
+		}
+	}
+}

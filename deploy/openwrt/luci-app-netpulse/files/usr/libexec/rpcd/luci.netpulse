@@ -1,0 +1,180 @@
+#!/usr/bin/ucode
+// luci.netpulse — plugin rpcd (protocolo exec) para luci-app-netpulse.
+//
+// Expone el estado LOCAL del agente sin abrir ningún puerto ni tocar el
+// binario del agente (criterio Fase 11: cero superficie/RAM extra):
+//
+//   status  → procd/pid, RSS, uptime del proceso, versión del binario,
+//             heartbeat (/tmp, epoch s) y si el servicio está habilitado.
+//   logs    → últimas N líneas de `logread -e netpulse` (10..300).
+//   restart → /etc/init.d/netpulse-agent restart (el "rearme" local).
+//
+// rpcd lo invoca como ejecutable: `list` imprime la firma de métodos;
+// `call <método>` recibe los argumentos JSON por stdin e imprime el
+// resultado JSON. El acceso por sesión lo limita la ACL
+// /usr/share/rpcd/acl.d/luci-app-netpulse.json.
+//
+// ubus se carga con require() dentro de la función (no import top-level):
+// si el módulo no está, se degrada a `pidof` en vez de romper el plugin.
+
+'use strict';
+
+const fs = require('fs');
+
+const INIT = '/etc/init.d/netpulse-agent';
+const BIN = '/usr/sbin/netpulse-agent';
+const HEARTBEAT = '/tmp/netpulse-agent.heartbeat';
+
+// popen_all ejecuta cmd por shell y devuelve stdout completo (o null).
+function popen_all(cmd) {
+	let p = fs.popen(cmd, 'r');
+	if (!p)
+		return null;
+	let out = p.read('all');
+	p.close();
+	return out;
+}
+
+// agent_pid: PID vía `ubus service list` (procd, fuente canónica) con
+// fallback a pidof (BusyBox) si ubus/el módulo no están disponibles.
+function agent_pid() {
+	try {
+		let ubus = require('ubus');
+		let conn = ubus.connect();
+		if (conn) {
+			let res = conn.call('service', 'list', { name: 'netpulse-agent' });
+			conn.disconnect();
+			let inst = res?.['netpulse-agent']?.instances;
+			for (let name in inst) {
+				let i = inst[name];
+				if (i?.running && int(i.pid) > 0)
+					return int(i.pid);
+			}
+		}
+	}
+	catch (e) {
+		// sin ubus: caemos a pidof
+	}
+	let out = popen_all('pidof netpulse-agent 2>/dev/null');
+	if (out) {
+		let pid = int(split(trim(out), ' ')[0]);
+		if (pid > 0)
+			return pid;
+	}
+	return 0;
+}
+
+// proc_rss_kb: VmRSS del proceso en KiB (null si no legible).
+function proc_rss_kb(pid) {
+	let st = fs.readfile(sprintf('/proc/%d/status', pid), 8192);
+	if (!st)
+		return null;
+	let m = match(st, /VmRSS:[ \t]+([0-9]+)[ \t]+kB/);
+	return m ? int(m[1]) : null;
+}
+
+// proc_uptime_s: segundos de vida del proceso — starttime (campo 22 de
+// /proc/pid/stat, en ticks de 100 Hz) contra /proc/uptime. El comm puede
+// llevar espacios/paréntesis: se parte por el ÚLTIMO ')'.
+function proc_uptime_s(pid) {
+	let stat = fs.readfile(sprintf('/proc/%d/stat', pid), 2048);
+	let up = fs.readfile('/proc/uptime', 128);
+	if (!stat || !up)
+		return null;
+	let rp = rindex(stat, ')');
+	if (rp < 0)
+		return null;
+	let f = split(trim(substr(stat, rp + 2)), ' ');
+	// f[0] = state (campo 3) → starttime (campo 22) = f[19]
+	let start_ticks = int(f[19]);
+	let boot_s = int(split(trim(up), '.')[0]);
+	if (start_ticks <= 0 || boot_s <= 0)
+		return null;
+	let secs = int(boot_s - start_ticks / 100);
+	return secs >= 0 ? secs : 0;
+}
+
+function do_status() {
+	let pid = agent_pid();
+	let running = pid > 0;
+
+	let res = {
+		installed: !!fs.access(BIN),
+		enabled: system([ INIT, 'enabled' ], 5000) == 0,
+		running: running,
+		pid: running ? pid : null,
+		rss_kb: running ? proc_rss_kb(pid) : null,
+		uptime_s: running ? proc_uptime_s(pid) : null,
+		version: null,
+		heartbeat_ts: null,
+		heartbeat_age_s: null
+	};
+
+	if (res.installed) {
+		let v = popen_all(BIN + ' --version 2>/dev/null');
+		if (v && trim(v) != '')
+			res.version = split(trim(v), '\n')[0];
+	}
+
+	// Heartbeat: epoch en segundos escrito por el agente tras cada push
+	// (agent/internal/heartbeat). Sin fichero (reboot reciente) → null.
+	let hb = fs.readfile(HEARTBEAT, 64);
+	if (hb) {
+		let ts = int(trim(hb));
+		if (ts > 0) {
+			res.heartbeat_ts = ts;
+			let age = time() - ts;
+			res.heartbeat_age_s = age >= 0 ? age : 0;
+		}
+	}
+	return res;
+}
+
+function do_logs(args) {
+	let n = int(args?.lines ?? 50);
+	if (n < 10)
+		n = 10;
+	if (n > 300)
+		n = 300;
+	// Patrón fijo + entero acotado: nada del cliente llega crudo al shell.
+	let out = popen_all(sprintf('logread -e netpulse 2>/dev/null | tail -n %d', n));
+	return { lines: out ?? '' };
+}
+
+function do_restart() {
+	let rc = system([ INIT, 'restart' ], 20000);
+	return { ok: rc == 0, code: rc };
+}
+
+// ── Dispatcher del protocolo exec de rpcd ────────────────────────────────
+if (ARGV[0] == 'list') {
+	printf('%J\n', { status: {}, logs: { lines: 50 }, restart: {} });
+	exit(0);
+}
+
+if (ARGV[0] == 'call') {
+	let args = {};
+	try {
+		let raw = fs.stdin.read('all');
+		if (raw && trim(raw) != '')
+			args = json(raw);
+	}
+	catch (e) {
+		args = {};
+	}
+
+	if (ARGV[1] == 'status') {
+		printf('%J\n', do_status());
+		exit(0);
+	}
+	if (ARGV[1] == 'logs') {
+		printf('%J\n', do_logs(args));
+		exit(0);
+	}
+	if (ARGV[1] == 'restart') {
+		printf('%J\n', do_restart());
+		exit(0);
+	}
+}
+
+exit(1);
