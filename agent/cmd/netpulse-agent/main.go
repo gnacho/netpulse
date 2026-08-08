@@ -12,16 +12,15 @@
 //	NETPULSE_SERVER    URL del servidor (https://... o http://...:3000) [obligatoria]
 //	NETPULSE_TOKEN     token del equipo (64 hex; se muestra una vez al crearlo)
 //	NETPULSE_SLUG      slug del equipo (agent.token.<slug> en el servidor)
+//	NETPULSE_SERVER_FP SHA-256 del SPKI del servidor en hex (obligatorio si la URL es https://)
 //	NETPULSE_INTERVAL  intervalo de push (default 30s; "30", "15s", "1m")
 //	NETPULSE_ENV_FILE  fichero env alternativo (default /etc/netpulse-agent.env)
 //	NETPULSE_WAN_TARGET    ping WAN con pérdida (gateway; p. ej. 1.1.1.1)
 //	NETPULSE_GW_TARGET     ping corto al gateway (APs; p. ej. 192.168.8.1)
-//	NETPULSE_INSECURE_TLS  "1" → no verificar el certificado (LAN autofirmado)
 package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -38,6 +37,7 @@ import (
 	"github.com/gnacho/netpulse/agent/internal/iwevents"
 	"github.com/gnacho/netpulse/agent/internal/push"
 	"github.com/gnacho/netpulse/agent/internal/sseclient"
+	"github.com/gnacho/netpulse/agent/internal/tlspin"
 	"github.com/gnacho/netpulse/agent/probe"
 )
 
@@ -56,9 +56,9 @@ const (
 
 type config struct {
 	server, token, slug string
+	serverFP            string // SPKI hash hex (obligatorio si la URL es https://)
 	interval            time.Duration
 	wanTarget, gwTarget string
-	insecureTLS         bool
 	heartbeatFile       string
 }
 
@@ -100,10 +100,10 @@ func loadConfig() (config, error) {
 		server:        strings.TrimRight(get("NETPULSE_SERVER"), "/"),
 		token:         get("NETPULSE_TOKEN"),
 		slug:          get("NETPULSE_SLUG"),
+		serverFP:      tlspin.Normalize(get("NETPULSE_SERVER_FP")),
 		interval:      pollInterval,
 		wanTarget:     get("NETPULSE_WAN_TARGET"),
 		gwTarget:      get("NETPULSE_GW_TARGET"),
-		insecureTLS:   get("NETPULSE_INSECURE_TLS") == "1",
 		heartbeatFile: get("NETPULSE_HEARTBEAT_FILE"),
 	}
 	if v := get("NETPULSE_INTERVAL"); v != "" {
@@ -168,9 +168,9 @@ func run() error {
 		return err
 	}
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if cfg.insecureTLS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // opt-in documentado (LAN autofirmada)
+	transport, err := tlspin.BuildTransport(cfg.server, cfg.serverFP)
+	if err != nil {
+		return err
 	}
 	client := push.New(cfg.server, cfg.token, &http.Client{Timeout: 10 * time.Second, Transport: transport})
 	client.SetLogger(func(format string, args ...any) { log.Printf(format, args...) })
@@ -219,9 +219,12 @@ func run() error {
 	}
 
 	// Fase 7.3: SSE bidireccional — el servidor envía comandos al agente.
+	// El SSE reutiliza el mismo transporte (mismo pinning SPKI que el push).
 	refreshCh := make(chan struct{}, 1)
 	go func() {
-		sse := sseclient.New(cfg.server, cfg.slug, cfg.token, func(ev sseclient.Event) {
+		sse := sseclient.New(cfg.server, cfg.slug, cfg.token,
+			&http.Client{Timeout: 0, Transport: transport},
+			func(ev sseclient.Event) {
 			if ev.Name == "refresh" {
 				select {
 				case refreshCh <- struct{}{}:

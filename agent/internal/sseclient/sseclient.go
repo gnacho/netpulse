@@ -30,12 +30,16 @@ type Client struct {
 }
 
 // New crea un cliente SSE. serverURL es la URL base del servidor
-// (p. ej. "http://192.168.1.226:3000").
-func New(serverURL, slug, token string, onEvent func(Event)) *Client {
+// (p. ej. "http://192.168.1.226:3000"). hc permite compartir el transporte
+// (incluido el pinning SPKI del agente); nil → http.Client por defecto.
+func New(serverURL, slug, token string, hc *http.Client, onEvent func(Event)) *Client {
+	if hc == nil {
+		hc = &http.Client{Timeout: 0}
+	}
 	return &Client{
 		url:      serverURL + "/api/agents/" + slug + "/stream",
 		token:    token,
-		hc:       &http.Client{Timeout: 0}, // sin timeout: conexión persistente
+		hc:       hc,
 		onEvent:  onEvent,
 		minRetry: 5 * time.Second,
 		maxRetry: 5 * time.Minute,

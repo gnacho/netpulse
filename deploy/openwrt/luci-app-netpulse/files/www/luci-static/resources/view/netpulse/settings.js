@@ -49,8 +49,8 @@ return view.extend({
 		o.datatype = 'host';
 		o.rmempty = true;
 
-		o = s.option(form.Flag, 'insecure_tls', _('Accept self-signed TLS'),
-			_('Skips server certificate verification. Only for LANs without a CA; scheduled for removal once fingerprint pinning lands (Fase 9).'));
+		o = s.option(form.Value, 'server_fp', _('Server fingerprint (SPKI)'),
+			_('SHA-256 of the server SubjectPublicKeyInfo in hex. Required when the server URL is https. Get it with: curl http://server/fingerprint'));
 		o.rmempty = true;
 
 		return m.render();

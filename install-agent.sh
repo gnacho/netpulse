@@ -166,7 +166,7 @@ NETPULSE_TOKEN=$TOKEN
 # NETPULSE_INTERVAL=15
 # NETPULSE_WAN_TARGET=1.1.1.1      # solo si este equipo es el gateway
 # NETPULSE_GW_TARGET=192.168.8.1   # ping al gateway (APs)
-# NETPULSE_INSECURE_TLS=1          # solo si el servidor usa cert autofirmado
+# NETPULSE_SERVER_FP=<sha256 hex>  # obligatorio si SERVER es https:// (pinning SPKI)
 EOF
 ok "config escrita"
 
