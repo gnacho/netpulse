@@ -311,29 +311,33 @@ function freeArcs(excludes: [number, number][]): [number, number][] {
 }
 
 /** reparte items en anillos concéntricos evitando arcos prohibidos */
-function ringLayout<T extends { x: number; y: number }>(
+const CHIP_GAP = 4
+function ringLayout<T extends { x: number; y: number; size?: number }>(
   items: T[],
   node: { x: number; y: number },
   rings: { r: number; cap: number }[],
   excludes: [number, number][],
 ): void {
   const free = freeArcs(excludes)
-  const total = free.reduce((a, [s, e]) => a + (e - s), 0)
-  if (total <= 0) return
+  const totalFree = free.reduce((a, [s, e]) => a + (e - s), 0)
+  if (totalFree <= 0) return
   let idx = 0
   for (const ring of rings) {
     if (idx >= items.length) break
-    const n = Math.min(ring.cap, items.length - idx)
-    let placed = 0
-    for (let ai = 0; ai < free.length && placed < n; ai++) {
+    const chipSize = items[idx]?.size ?? 24
+    const minArcDeg = ((chipSize + CHIP_GAP) * 180) / (Math.PI * ring.r)
+    let ringPlaced = 0
+    for (let ai = 0; ai < free.length && ringPlaced < ring.cap && idx < items.length; ai++) {
       const [s, e] = free[ai]
-      let k = Math.min(Math.round((n * (e - s)) / total), n - placed)
-      if (ai === free.length - 1) k = n - placed
+      const arcLen = e - s
+      const maxFit = Math.max(1, Math.floor(arcLen / minArcDeg))
+      const remaining = items.length - idx
+      const k = Math.min(maxFit, ring.cap - ringPlaced, remaining)
       for (let i = 0; i < k; i++) {
-        const a = s + ((e - s) * (i + 0.5)) / k
+        const a = s + (arcLen * (i + 0.5)) / k
         const p = pos(node.x, node.y, a, ring.r)
         Object.assign(items[idx++], p)
-        placed++
+        ringPlaced++
       }
     }
   }
