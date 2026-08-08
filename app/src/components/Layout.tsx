@@ -64,8 +64,10 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/routers/, 'nav.routers'],
   [/^\/devices/, 'nav.devices'],
   [/^\/topology/, 'nav.topology'],
+  [/^\/roaming/, 'nav.roaming'],
   [/^\/alerts/, 'nav.alerts'],
   [/^\/reports/, 'nav.reports'],
+  [/^\/orchestration/, 'nav.orchestration'],
   [/^\/settings/, 'nav.settings'],
 ]
 
