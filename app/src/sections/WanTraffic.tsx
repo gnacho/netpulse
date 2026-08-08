@@ -165,9 +165,11 @@ export function WanTraffic() {
         </ResponsiveContainer>
       </motion.div>
 
-      {/* Tabla accesible (visually-hidden) */}
+      {/* Descripción + tabla accesible (visually-hidden). El texto va en un
+          span sr-only porque <caption> escapa del clip del table sr-only
+          (display: table-caption) y quedaría visible encima del header (#63). */}
+      <span className="sr-only">{t('home.traffic.tableCaption', { range })}</span>
       <table className="sr-only">
-        <caption>{t('home.traffic.tableCaption', { range })}</caption>
         <thead>
           <tr><th>{t('home.traffic.time')}</th><th>{t('home.traffic.downloadMbps')}</th><th>{t('home.traffic.uploadMbps')}</th></tr>
         </thead>

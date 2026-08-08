@@ -145,9 +145,10 @@ export function RouterPerformance({ router }: { router: Router }) {
         ))}
       </div>
 
-      {/* Tabla accesible */}
+      {/* Descripción + tabla accesible (visually-hidden). El texto va en un
+          span sr-only: <caption> escapa del clip del table sr-only (#63). */}
+      <span className="sr-only">{t('routerDetail.perf.tableCaption', { range })}</span>
       <table className="sr-only">
-        <caption>{t('routerDetail.perf.tableCaption', { range })}</caption>
         <thead>
           <tr><th>{t('home.traffic.time')}</th><th>CPU (%)</th><th>{t('common.memory')} (%)</th><th>{t('common.temperature')} (°C)</th></tr>
         </thead>
