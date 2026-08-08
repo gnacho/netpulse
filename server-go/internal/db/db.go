@@ -134,6 +134,28 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   sent_at INTEGER NOT NULL,
   error TEXT
 );
+
+CREATE TABLE IF NOT EXISTS orchestr_plans (
+  id         TEXT PRIMARY KEY,
+  router_id  TEXT NOT NULL,
+  resource   TEXT NOT NULL,
+  desired    TEXT NOT NULL,
+  diff       TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'pending',
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  applied_at INTEGER,
+  result     TEXT
+);
+
+CREATE TABLE IF NOT EXISTS orchestr_audit (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id    TEXT NOT NULL,
+  action     TEXT NOT NULL,
+  actor      TEXT NOT NULL,
+  detail     TEXT,
+  ts         INTEGER NOT NULL
+);
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.

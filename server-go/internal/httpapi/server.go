@@ -27,6 +27,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
+	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 )
@@ -68,6 +69,8 @@ type Deps struct {
 	// ServerFP: fingerprint SPKI del servidor (hex). Vacío si no es on-box.
 	// Se devuelve en /api/agents/pair para que el agentepine el TLS.
 	ServerFP string
+	// Orchestr: motor de plan/apply (Fase 10). nil → sin rutas /api/plans.
+	Orchestr *orchestr.Manager
 }
 
 type server struct {
@@ -223,6 +226,9 @@ func NewHandler(d Deps) http.Handler {
 	if d.Updater != nil {
 		s.registerUpdateRoutes(mux, d.Updater)
 	}
+
+	// --- Orquestación (Fase 10; solo admin) ---
+	s.registerOrchestrRoutes(mux, d.Orchestr)
 
 	// --- SSE ---
 	mux.HandleFunc("GET /api/stream", s.hub.HandleStream)

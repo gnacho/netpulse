@@ -54,7 +54,7 @@ func RequireAuth(d *db.DB, secret string, next http.Handler) http.Handler {
 		path := r.URL.Path
 		if !strings.HasPrefix(path, "/api/") || path == "/api/health" || path == "/api/auth/login" ||
 			path == "/api/ingest/agent" || path == "/api/agents/pair" ||
-			(strings.HasPrefix(path, "/api/agents/") && (strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream"))) {
+			(strings.HasPrefix(path, "/api/agents/") && (strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") || strings.HasSuffix(path, "/apply-result"))) {
 			next.ServeHTTP(w, r)
 			return
 		}
