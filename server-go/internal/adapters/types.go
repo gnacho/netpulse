@@ -273,6 +273,11 @@ type Overview struct {
 	// Topology: semántica de topología precalculada (SPEC-65 D65-3). Puntero:
 	// ausente en snapshots viejos → la app usa su cálculo actual como fallback.
 	Topology *TopoSemantics `json:"topology,omitempty"`
+	// Devices: lista completa de dispositivos (misma snapshot que topology.rings).
+	// Omitido en snapshots viejos → el frontend sigue usando /api/devices.
+	// Cuando está presente, el frontend lo usa en vez de fetch independiente
+	// para garantizar consistencia con los anillos de topología.
+	Devices []Device `json:"devices,omitempty"`
 	// Dawn: disponibilidad de DAWN (roaming/band-steering) para decidir si la
 	// app muestra la entrada /roaming. Puntero: ausente en snapshots viejos y
 	// cuando ningún router tiene DAWN → nil = no mostrar la página.
