@@ -7,6 +7,51 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-08-08
+
+### Added
+
+- **Fase 14.3 — Estado 802.11r en /roaming**: nueva pestaña que muestra por
+  SSID y por router si Fast BSS Transition está activo, con mobility_domain,
+  modo FT (over-the-air/over-the-DS), tipo de auth (PSK local vs RADIUS
+  externo) y banderas 802.11k/v/w (PMF). Datos leídos por SSH de
+  `uci show wireless`. Endpoint `GET /api/dot11r` (503 si ningún router lo
+  soporta). #105 / #106
+
+- **Fase 14.4 — Utilización por canal WiFi en /roaming**: nueva pestaña
+  Survey con noise floor y % de ocupación por canal, leído de
+  `iw dev wlanX survey dump`. Los canales congestionados son la causa más
+  habitual de WiFi lento en casa. Endpoint `GET /api/survey`. #111 / #113
+
+- **Fase 14.5 — Eventos de roaming con histórico en /roaming**: nueva
+  pestaña Eventos con feed persistente de 30 días de conexiones,
+  desconexiones y decisiones DAWN. Ingesta continua cada 60s vía SSH
+  `logread | grep`, deduplicación por hash. Endpoint
+  `GET /api/roam-events`. #114 / #115
+
+- **Editar configuración de router**: nuevo endpoint
+  `PUT /api/config/routers/{id}` que permite editar host, nombre, tipo,
+  gateway y `agent_only` sin borrar y recrear (lo cual perdía el ID y el
+  histórico de métricas). UI de edición inline en Ajustes. #109 / #110
+
+### Fixed
+
+- **GetDawn timeout en routers agent-only**: el handler intentaba SSH a
+  switches sin SSH (switch16), perdiendo 4s por cada llamada. Ahora se
+  saltan los routers `agent_only`.
+
+- **Survey filtraba interfaces no-wlan**: el parser solo aceptaba
+  `wlan0/wlan1`, descartando silenciosamente todos los radios de los
+  Redmi AX6 (driver mt76, interfaces `phy0-ap0`/`phy1-ap0`). Acepta
+  cualquier interfaz listada por `iw dev`.
+
+### Changed
+
+- **Routers agent-only (Phase 14.3 bundled)**: mergeada la rama limpia
+  `fix/agent-only-switches` con `RouterConfig.AgentOnly`, `StalePayload`,
+  rol Switch, gate en topología y migración de BD. Antes no estaba en
+  main y bloqueaba la compilación de la Fase 14.3.
+
 ## [2.7.2] - 2026-08-07
 
 ### Fixed
