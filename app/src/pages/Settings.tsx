@@ -32,6 +32,7 @@ import {
   UserCog,
   Users,
   Volume2,
+  Wifi,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
@@ -1607,7 +1608,75 @@ function UpdateCheckInline() {
         <span role="alert" className="text-[10px] font-medium text-rose-500">
           {t('settings.about.updateError')}
         </span>
-      ) : null}
+       ) : null}
+    </div>
+  )
+}
+
+function AdoptionCard() {
+  const { t } = useTranslation()
+  const [data, setData] = useState<{ token: string; server_fp: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const fetchToken = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/pairing/token')
+      if (res.ok) setData(await res.json())
+    } catch { /* ignore */ } finally { setBusy(false) }
+  }
+
+  useEffect(() => { void fetchToken() }, [])
+
+  const rotate = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/pairing/rotate', { method: 'POST' })
+      if (res.ok) setData(await res.json())
+    } catch { /* ignore */ } finally { setBusy(false) }
+  }
+
+  const copy = (val: string, label: string) => {
+    navigator.clipboard?.writeText(val)
+    setCopied(label)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  if (!data?.token) return null
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Wifi className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
+        <h3 className="text-sm font-semibold text-text-primary">{t('settings.adoption.title')}</h3>
+      </div>
+      <p className="mb-3 text-xs text-text-secondary">{t('settings.adoption.hint')}</p>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <code className="flex-1 truncate rounded-lg bg-elevated px-2.5 py-1.5 font-mono text-xs text-text-primary">{data.token}</code>
+          <button type="button" onClick={() => copy(data.token, 'token')} className="rounded-lg border border-border px-2 py-1.5 text-xs text-text-secondary hover:bg-hover" title={t('common.copy')}>
+            <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </button>
+          {copied === 'token' && <span className="text-[10px] text-ok">✓</span>}
+        </div>
+
+        {data.server_fp && (
+          <div className="flex items-center gap-2">
+            <code className="flex-1 truncate rounded-lg bg-elevated px-2.5 py-1.5 font-mono text-xs text-text-primary">{data.server_fp}</code>
+            <button type="button" onClick={() => copy(data.server_fp, 'fp')} className="rounded-lg border border-border px-2 py-1.5 text-xs text-text-secondary hover:bg-hover" title={t('common.copy')}>
+              <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </button>
+            {copied === 'fp' && <span className="text-[10px] text-ok">✓</span>}
+          </div>
+        )}
+      </div>
+
+      <button type="button" onClick={() => void rotate()} disabled={busy} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60">
+        <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+        {t('settings.adoption.rotate')}
+      </button>
     </div>
   )
 }
@@ -2333,6 +2402,13 @@ export default function Settings() {
         {!isDemo && auth?.role === 'admin' && (
           <div className="lg:col-span-12">
             <RoutersManager reduce={reduce} onSaved={notify} />
+          </div>
+        )}
+
+        {/* Adopción de agentes (pairing token + server fingerprint) */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <AdoptionCard />
           </div>
         )}
 

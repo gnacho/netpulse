@@ -552,6 +552,11 @@
     "admin": {
       "title": "Administración"
     },
+    "adoption": {
+      "title": "Adopción de agentes",
+      "hint": "Usa este token de pairing y el fingerprint para instalar agentes nuevos. Tras emparejarse, el agente obtiene su token real automáticamente.",
+      "rotate": "Rotar token"
+    },
     "about": {
       "changelog": "Registro de cambios",
       "code": "Código",
