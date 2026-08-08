@@ -120,17 +120,24 @@ Other OpenWrt devices should work, but yours would be the first to tell.
 
 | Phase | Status | Highlights |
 |---|---|---|
-| **1 — Read-only base** | ✅ | React PWA, read-only SSH polling (ubus, `/proc`, iwinfo), AdGuard Home + WireGuard, multi-user auth, LAN discovery, backend migrated from Node to Go (single binary with embedded app) |
-| **2 — Topology v5** | ✅ | Real semantic map: live FDB + LLDP, backhaul, managed vs. inferred switches, hypervisors with nested CTs, time-series collector |
-| **3 — Alerts, Push & agent (pilot)** | ✅ | Alerts with 6 categories and per-category config (urgent/all/none), native Web Push (VAPID), on-demand refresh, switch/bridge audit with reconciled data canon, OpenWrt agent pilot (token ingest, SSH fallback, procd) |
-| **4 — Versioned view-model** | ✅ | API as a presentation view-model (`vm: 1`), single-sourced demo canon in Go → JSON, server-stamped `Device.infra`, semantic topology in the snapshot, Settings revamp |
+| **1 — Topology v5** | ✅ | Semantic map: live FDB + LLDP, backhaul, managed vs. inferred switches, hypervisors with nested CTs, time-series collector |
+| **2 — Alerts, Push & agent pilot** | ✅ | 6-category alerts, native Web Push (VAPID), on-demand refresh, OpenWrt agent pilot (token ingest, SSH fallback, procd) |
+| **3 — Read-only base + Node→Go** | ✅ | React PWA, read-only SSH polling (ubus, /proc, iwinfo), AdGuard + WireGuard, multi-user auth, backend migrated to a single Go binary |
+| **4 — View-model + Settings revamp** | ✅ | API as a presentation view-model (`vm: 1`), single-sourced demo canon, semantic topology in the snapshot |
 | **5 — Agent resilience** | ✅ | Router-side watchdog + heartbeat, server-side manual rearm, TTL auto-rearm, admin-only mutation routes |
 | **6 — Agent security** | ✅ | HMAC-SHA256 on agent ingest, serve the agent binary from the server itself |
-| **7 — Agent deep dive** | ✅ | Real-time wifi events (`iw event`), bidirectional SSE (AgentHub + refresh), `.ipk` packaging, profiling (11-12 MB RSS, <1% CPU) |
-| **8 — Consolidation** | ✅ | Operational metrics in `/api/health`, persistent agent registry, long-term retention (5-min buckets → 1 year + daily), recharts v3, outgoing alert webhooks (HMAC + retry + DLQ) |
-| **9 — Embedded on-router app** | 🔮 | On-box server on the gateway (the app URL IS the router's IP), zero-friction pairing, optional `luci-app-netpulse` |
-| **10 — Write/orchestration** | 🔮 | Plan → apply → state (Terraform pattern), transactional `uci`, strict allowlist; starts with AdGuard Home |
-| **11 — LuCI package** | 🔮 | `luci-app-netpulse`: local agent status/view (procd, UCI, logs, restart/rearm) + bridge to the web app |
+| **7 — Agent deep dive** | ✅ | Real-time wifi events (`iw event`), bidirectional SSE, `.ipk` packaging (11-12 MB RSS, <1% CPU) |
+| **8 — Consolidation** | ✅ | `/api/health` metrics, persistent agent registry, retention ladder (raw 7d → 5min buckets 1y → daily ∞), recharts v3, outgoing alert webhooks |
+| **9 — On-box** | ✅ | UCI config, AUTH_PASS bootstrap, TLS self-signed + SPKI pinning, pairing token, OpenWrt server package |
+| **10 — Orchestration** | 🔄 | Plan→apply→state engine + sandboxed agent executor (10.1), AdGuard module (10.2). WireGuard/DAWN-write deferred to Phase 17 |
+| **11 — LuCI package** | ✅ | `luci-app-netpulse`: local agent status/view (procd, UCI, logs, restart/rearm) + bridge to the web app |
+| **12 — Security audit** | ✅ | TRUST_PROXY, anti-replay on ingest, body cap, password min 10 |
+| **13 — Robustness audit** | ✅ | Single-flight GetOverview, SSE write deadline, sshpool dial race, error wrapping |
+| **14 — WiFi/roaming visibility** | ✅ | DAWN signal matrix, 802.11r status per SSID, channel utilization survey, persistent roaming events feed (30d) |
+| **15 — Reports** | 🔄 | Daily/week/month availability. Pending: traffic, activity, alert summary, export |
+| **16 — Advanced alerts** | 🔮 | Custom threshold rules, new alert types (roaming failure, channel congestion), scheduled silence, email |
+| **17 — Write to routers (skeleton)** | 🔮 | Common deploy engine + 11 modules index (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, DAWN-write, Batman, DPI) |
+| **18-20 — Beta-testing program** | 🔮 | Module groups by risk (low / medium / high) with stable + unstable release channels and external beta-testers |
 
 Full detail in [docs/ROADMAP.md](docs/ROADMAP.md).
 

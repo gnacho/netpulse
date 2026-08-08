@@ -122,17 +122,24 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 
 | Fase | Estado | Highlights |
 |---|---|---|
-| **1 — Base read-only** | ✅ | PWA en React, sondeo SSH de solo lectura (ubus, `/proc`, iwinfo), AdGuard Home + WireGuard, auth multi-usuario, discovery LAN, backend migrado de Node a Go (binario único con la app embebida) |
-| **2 — Topología v5** | ✅ | Mapa semántico real: FDB + LLDP en vivo, backhaul, switches gestionados vs. inferidos, hipervisores con sus CTs anidados, collector de series temporales |
-| **3 — Alertas, Push y agente (piloto)** | ✅ | Alertas con 6 categorías y config por categoría (urgente/todo/nada), Web Push nativo (VAPID), refresco bajo demanda, auditoría switch/bridge con canon de datos reconciliado, agente OpenWrt piloto (ingesta con tokens, fallback SSH, procd) |
-| **4 — View-model versionado** | ✅ | API como view-model de presentación (`vm: 1`), canon demo single-source en Go → JSON, `Device.infra` sellado server-side, topología semántica en el snapshot, remodel de Preferencias |
+| **1 — Topología v5** | ✅ | Mapa semántico real: FDB + LLDP en vivo, backhaul, switches gestionados vs. inferidos, hipervisores con sus CTs anidados, collector de series temporales |
+| **2 — Alertas, Push y agente (piloto)** | ✅ | Alertas con 6 categorías y config por categoría, Web Push nativo (VAPID), refresco bajo demanda, agente OpenWrt piloto (ingesta con tokens, fallback SSH, procd) |
+| **3 — Base read-only + Node→Go** | ✅ | PWA en React, sondeo SSH de solo lectura (ubus, /proc, iwinfo), AdGuard Home + WireGuard, auth multi-usuario, backend migrado a un binario Go único |
+| **4 — View-model + Ajustes remodel** | ✅ | API como view-model de presentación (`vm: 1`), canon demo single-source, topología semántica en el snapshot |
 | **5 — Resiliencia del agente** | ✅ | Watchdog + heartbeat en el router, rearme manual desde el servidor, auto-rearme tras TTL, rutas de mutación solo-admin |
 | **6 — Seguridad del agente** | ✅ | HMAC-SHA256 en la ingesta del agente, binario del agente servido desde el propio servidor |
-| **7 — Agente a fondo** | ✅ | Eventos wifi en tiempo real (`iw event`), SSE bidireccional (AgentHub + refresh), paquete `.ipk`, profiling (RSS 11-12 MB, CPU <1%) |
-| **8 — Consolidación** | ✅ | Métricas operativas en `/api/health`, registry de agentes persistente, retención larga (buckets 5 min → 1 año + daily), recharts v3, webhooks de alerta salientes (HMAC + retry + DLQ) |
-| **9 — App embebida en routers** | 🔮 | Server on-box en el gateway (la URL de la app ES la IP del router), pairing cero-fricción, `luci-app-netpulse` opcional |
-| **10 — Escritura/orquestación** | 🔮 | Plan → apply → state (patrón Terraform), `uci` transaccional, allowlist estricta; empieza por AdGuard Home |
-| **11 — Paquete LuCI** | 🔮 | `luci-app-netpulse`: estado local del agente (procd, UCI, logs, restart/rearm) + puente a la webapp |
+| **7 — Agente a fondo** | ✅ | Eventos wifi en tiempo real (`iw event`), SSE bidireccional, paquete `.ipk`, profiling (RSS 11-12 MB, CPU <1%) |
+| **8 — Consolidación** | ✅ | Métricas operativas en `/api/health`, registry de agentes persistente, escalera de retención (raw 7d → buckets 5min 1año → daily ∞), recharts v3, webhooks salientes |
+| **9 — On-box** | ✅ | Config UCI, bootstrap AUTH_PASS, TLS autofirmado + SPKI pinning, token de pairing, paquete server OpenWrt |
+| **10 — Orquestación** | 🔄 | Motor plan→apply→state + executor sandboxeado en el agente (10.1), módulo AdGuard (10.2). WireGuard/DAWN-write aplazados a la Fase 17 |
+| **11 — Paquete LuCI** | ✅ | `luci-app-netpulse`: estado local del agente (procd, UCI, logs, restart/rearm) + test connection + puente a la webapp |
+| **12 — Auditoría de seguridad** | ✅ | TRUST_PROXY, anti-replay en ingesta, body cap, password mínima 10 |
+| **13 — Auditoría de robustez** | ✅ | Single-flight GetOverview, SSE write deadline, race en sshpool.dial, %w wrapping |
+| **14 — Visibilidad WiFi/roaming** | ✅ | Matriz de señal DAWN, estado 802.11r por SSID, utilización por canal survey, feed persistente de eventos de roaming (30 días) |
+| **15 — Informes** | 🔄 | Disponibilidad día/semana/mes. Pendiente: tráfico, actividad, resumen de alertas, exportación |
+| **16 — Alertas avanzadas** | 🔮 | Reglas custom por umbral, tipos nuevos (fallo de roaming, congestión de canal), silencio programado, email |
+| **17 — Escribir en routers (esqueleto)** | 🔮 | Motor común de despliegue + índice de 11 módulos (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, DAWN-write, Batman, DPI) |
+| **18-20 — Programa de beta-testing** | 🔮 | Grupos de módulos por riesgo (bajo / medio / alto) con canales stable + unstable y beta-testers externos |
 
 Detalle completo en [docs/ROADMAP.md](docs/ROADMAP.md).
 
