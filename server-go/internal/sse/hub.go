@@ -39,7 +39,9 @@ func (c *client) write(payload string) error {
 	if _, err := fmt.Fprint(c.w, payload); err != nil {
 		return err
 	}
-	c.flusher.Flush()
+	if err := rc.Flush(); err != nil {
+		return err
+	}
 	return nil
 }
 
