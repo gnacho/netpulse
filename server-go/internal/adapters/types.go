@@ -422,6 +422,74 @@ type Dawn struct {
 	Mesh []DawnMesh `json:"mesh"`
 }
 
+// ---------------------------------------------------------------------------
+// 802.11r (Fast BSS Transition) — Fase 14.3
+// ---------------------------------------------------------------------------
+
+// Dot11rIface es una sección wifi-iface de `uci show wireless` con los campos
+// relevantes para 802.11r (FT) y sus estándares compañeros (k/v/w) que together
+// habilitan el roaming suave en una malla DAWN/hostapd.
+type Dot11rIface struct {
+	Section string `json:"section"` // uci section name (wifi2g, wifi5g, guest, ...)
+	Device  string `json:"device"`  // radio0, radio1
+	Ifname  string `json:"ifname"`  // wlan0, wlan1 (puede estar vacío en configs muy nuevas)
+	SSID    string `json:"ssid"`
+	MAC     string `json:"mac"`               // macaddr (BSSID del BSS)
+	Channel int   `json:"channel,omitempty"` // mapeado desde radio.channel
+	Band    string `json:"band,omitempty"`   // "2.4 GHz"|"5 GHz" desde radio.band
+
+	Encryption string `json:"encryption,omitempty"` // psk2/sae/psk2-mixed...
+
+	// 802.11r (Fast BSS Transition)
+	Dot11REnabled      bool   `json:"dot11rEnabled"`
+	MobilityDomain     string `json:"mobilityDomain,omitempty"` // 4 hex
+	FTOverDS           bool   `json:"ftOverDs"`                 // true=over-the-ds, false=over-the-air
+	FTPSKGenerateLocal bool   `json:"ftPskGenerateLocal"`       // true=local PSK, false=RADIUS externo
+	PMKR1Push          bool   `json:"pmkR1Push,omitempty"`      // push PMK R1 a otros APs
+	NASID              string `json:"nasid,omitempty"`          // solo configs con RADIUS externo
+
+	// 802.11k (Radio Resource Measurement) — vecino de 802.11r para que el
+	// cliente sepa a qué AP saltar (beacon report, neighbor report).
+	Dot11KEnabled bool `json:"dot11kEnabled,omitempty"`
+	// 802.11v (BSS Transition Management) — el AP sugiere al cliente saltar.
+	Dot11VEnabled bool `json:"dot11vEnabled,omitempty"`
+	BSSTransition bool `json:"bssTransition,omitempty"`
+	// 802.11w (Management Frame Protection / PMF) — required por WPA3.
+	MFP bool `json:"mfp,omitempty"`
+}
+
+// Dot11rRouter es el estado 802.11r de un router: lista de ifaces wifi-iface
+// parseadas de su `uci show wireless`. Available=false si SSH falló.
+type Dot11rRouter struct {
+	RouterID  string         `json:"routerId"`
+	Name      string         `json:"name"`
+	Available bool           `json:"available"`
+	Ifaces    []Dot11rIface `json:"ifaces"`
+}
+
+// Dot11rSSID agrega el estado 802.11r por SSID. Lo construye el servidor a
+// partir de los ifaces de todos los routers: EnabledEverywhere=true solo si
+// TODOS los ifaces con ese SSID tienen ieee80211r=1.
+type Dot11rSSID struct {
+	SSID               string   `json:"ssid"`
+	EnabledEverywhere  bool     `json:"enabledEverywhere"`
+	EnabledCount       int      `json:"enabledCount"`
+	TotalCount         int      `json:"totalCount"`
+	MobilityDomain     string   `json:"mobilityDomain,omitempty"`
+	FTOverDS           bool     `json:"ftOverDs"`
+	FTPSKGenerateLocal bool     `json:"ftPskGenerateLocal"`
+	IfaceCount         int      `json:"ifaceCount"`
+	RouterIDs          []string `json:"routerIds"`
+}
+
+// Dot11rOverview es la respuesta de GET /api/dot11r. Available=false si ningún
+// router tiene 802.11r (el handler devuelve 503 en ese caso, igual que /dawn).
+type Dot11rOverview struct {
+	Available bool           `json:"available"`
+	SSIDs     []Dot11rSSID   `json:"ssids"`
+	Routers   []Dot11rRouter `json:"routers"`
+}
+
 // AdguardClient es un cliente configurado en AdGuard GL.iNet (§2.13).
 type AdguardClient struct {
 	Name              string `json:"name"`
@@ -454,6 +522,7 @@ type RouterConfig struct {
 	Host      string `json:"host"`
 	Type      string `json:"type"` // "glinet"|"openwrt"
 	IsGateway bool   `json:"is_gateway"`
+	AgentOnly bool   `json:"agent_only"`
 	CreatedAt int64  `json:"created_at"` // epoch ms
 }
 
@@ -463,12 +532,13 @@ type RouterConfig struct {
 
 // Snapshotter es el contrato del adapter de datos (paridad con la interfaz JS
 // de SPEC §7: mode/tick/setRouters/getOverview/getRouters/getRouterDetail/
-// getDevices/getAlerts/getMetricsRows/getDawn/getAdguardClients/close;
+// getDevices/getAlerts/getMetricsRows/getDawn/getDot11r/getAdguardClients/close;
 // getAdguardRow() está muerto en Node y NO se porta).
 //
 // Convenciones de retorno (consumidas por internal/httpapi):
 //   - GetRouterDetail: (nil, nil) → 404 {"error":"not_found"}.
 //   - GetDawn: (nil, nil) → 503 {"error":"unavailable"}.
+//   - GetDot11r: (nil, nil) → 503 {"error":"unavailable"}.
 //   - GetAdguardClients: (nil, nil) → 404 {"error":"not_configured"};
 //     (x, err) → 502 {"error":"adguard_error","message":err}.
 //   - GetOverview nunca devuelve nil sin error; el handler lo serializa tal
@@ -501,6 +571,9 @@ type Snapshotter interface {
 	GetMetricsRows(ctx context.Context) []MetricsRow
 	// GetDawn devuelve la malla DAWN o (nil, nil) si no hay DAWN.
 	GetDawn(ctx context.Context) (*Dawn, error)
+	// GetDot11r devuelve el estado 802.11r (FT) por router y SSID, o
+	// (nil, nil) si ningún router lo soporta → el handler responde 503.
+	GetDot11r(ctx context.Context) (*Dot11rOverview, error)
 	// GetAdguardClients devuelve los clientes AdGuard, (nil, nil) si no hay
 	// cliente configurado o no soporta queryClients, o error → 502.
 	GetAdguardClients(ctx context.Context) ([]AdguardClient, error)

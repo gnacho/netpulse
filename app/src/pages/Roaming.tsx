@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { RefreshCw, Wifi } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, RefreshCw, Wifi, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNetPulse } from '@/data/DataProvider'
 
@@ -42,6 +42,53 @@ interface Dawn {
   mesh: DawnMesh[]
 }
 
+// ---------------------------------------------------------------------------
+// Tipos del contrato GET /api/dot11r (server-go/internal/adapters/types.go).
+// ---------------------------------------------------------------------------
+
+interface Dot11rIface {
+  section: string
+  device: string
+  ifname: string
+  ssid: string
+  mac: string
+  channel?: number
+  band?: string
+  encryption?: string
+  dot11rEnabled: boolean
+  mobilityDomain?: string
+  ftOverDs: boolean
+  ftPskGenerateLocal: boolean
+  pmkR1Push?: boolean
+  nasid?: string
+  dot11kEnabled?: boolean
+  dot11vEnabled?: boolean
+  bssTransition?: boolean
+  mfp?: boolean
+}
+interface Dot11rRouter {
+  routerId: string
+  name: string
+  available: boolean
+  ifaces: Dot11rIface[]
+}
+interface Dot11rSSID {
+  ssid: string
+  enabledEverywhere: boolean
+  enabledCount: number
+  totalCount: number
+  mobilityDomain?: string
+  ftOverDs: boolean
+  ftPskGenerateLocal: boolean
+  ifaceCount: number
+  routerIds: string[]
+}
+interface Dot11rOverview {
+  available: boolean
+  ssids: Dot11rSSID[]
+  routers: Dot11rRouter[]
+}
+
 type Band = 'all' | '2.4 GHz' | '5 GHz'
 type Tab = 'matrix' | '11r' | 'survey' | 'events'
 
@@ -60,6 +107,9 @@ export default function Roaming() {
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
   const [dawn, setDawn] = useState<Dawn | null>(null)
+  const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
+  const [dot11rLoading, setDot11rLoading] = useState(false)
+  const [dot11rError, setDot11rError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [spin, setSpin] = useState(false)
@@ -88,9 +138,35 @@ export default function Roaming() {
     }
   }
 
+  // Carga perezosa de /api/dot11r solo cuando se abre la pestaña 11r (es un
+  // SSH a cada router con wifi, más caro que la matriz DAWN que ya está cache
+  // en el primer router). Recarga también al pulsar Refresh con 11r abierta.
+  async function loadDot11r() {
+    setDot11rLoading(true)
+    setDot11rError(false)
+    try {
+      const res = await fetch('/api/dot11r')
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      setDot11r((await res.json()) as Dot11rOverview)
+    } catch {
+      setDot11rError(true)
+      setDot11r(null)
+    } finally {
+      setDot11rLoading(false)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [])
+
+  // Al cambiar a 11r, carga si aún no se ha hecho. Si vuelve a matrix no
+  // invalidamos (los datos siguen siendo buenos hasta el próximo refresh).
+  useEffect(() => {
+    if (tab === '11r' && dot11r === null && !dot11rLoading && !dot11rError) {
+      void loadDot11r()
+    }
+  }, [tab, dot11r, dot11rLoading, dot11rError])
 
   // APs visibles según el filtro de banda.
   const aps = useMemo(() => {
@@ -131,7 +207,7 @@ export default function Roaming() {
   const bandOptions: Band[] = ['all', '2.4 GHz', '5 GHz']
   const tabs: { id: Tab; label: string; soon: boolean }[] = [
     { id: 'matrix', label: t('roaming.tabMatrix'), soon: false },
-    { id: '11r', label: t('roaming.tab11r'), soon: true },
+    { id: '11r', label: t('roaming.tab11r'), soon: false },
     { id: 'survey', label: t('roaming.tabSurvey'), soon: true },
     { id: 'events', label: t('roaming.tabEvents'), soon: true },
   ]
@@ -168,6 +244,7 @@ export default function Roaming() {
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.12 }}
             onClick={() => {
               void load()
+              if (tab === '11r') void loadDot11r()
               if (reduce) return
               setSpin(true)
               window.setTimeout(() => setSpin(false), 650)
@@ -199,11 +276,13 @@ export default function Roaming() {
       </div>
 
       {/* ③ Contenido */}
-      {tab !== 'matrix' && (
+      {tab !== 'matrix' && tab !== '11r' && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('roaming.comingSoon')}
         </div>
       )}
+
+      {tab === '11r' && <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />}
 
       {tab === 'matrix' && (
         <>
@@ -351,5 +430,255 @@ export default function Roaming() {
         </>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Pestaña 802.11r (Fase 14.3) — estado global + tabla por SSID + detalle router
+// ---------------------------------------------------------------------------
+
+function Dot11rPanel({
+  overview,
+  loading,
+  error,
+}: {
+  overview: Dot11rOverview | null
+  loading: boolean
+  error: boolean
+}) {
+  const { t } = useTranslation()
+  const reduce = useReducedMotion()
+  const initial = reduce ? false : { opacity: 0, y: 12 }
+
+  if (loading && !overview) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.error')}
+      </div>
+    )
+  }
+  if (!overview || !overview.available || overview.ssids.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.dot11r.empty')}
+      </div>
+    )
+  }
+
+  const ssidsEnabled = overview.ssids.filter((s) => s.enabledCount > 0).length
+  const ssidsEverywhere = overview.ssids.filter((s) => s.enabledEverywhere).length
+
+  return (
+    <motion.section
+      initial={initial}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
+      className="space-y-4"
+    >
+      {/* ① Estado global */}
+      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+            <div>
+              <h2 className="font-display text-h2 text-text-primary">{t('roaming.dot11r.title')}</h2>
+              <p className="mt-0.5 max-w-2xl text-caption text-text-muted">{t('roaming.dot11r.description')}</p>
+            </div>
+          </div>
+          <StateBadge
+            kind={ssidsEverywhere === overview.ssids.length ? 'ok' : ssidsEnabled > 0 ? 'warn' : 'bad'}
+            text={
+              ssidsEverywhere === overview.ssids.length
+                ? t('roaming.dot11r.allOn', { n: overview.ssids.length })
+                : ssidsEnabled > 0
+                  ? t('roaming.dot11r.partial', { on: ssidsEnabled, total: overview.ssids.length })
+                  : t('roaming.dot11r.allOff')
+            }
+          />
+        </div>
+      </div>
+
+      {/* ② Tabla por SSID */}
+      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+        <h3 className="mb-3 font-display text-h3 text-text-primary">{t('roaming.dot11r.bySsid')}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full border-separate border-spacing-0 text-left text-sm">
+            <thead>
+              <tr className="text-label uppercase text-text-muted">
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colSsid')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colState')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colCoverage')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colMobility')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colFtMode')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colAuth')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colRouters')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.ssids.map((s) => (
+                <tr key={s.ssid} className="group">
+                  <th scope="row" className="border-b border-border/60 py-2 pr-3 text-left font-medium text-text-primary">
+                    {s.ssid}
+                  </th>
+                  <td className="border-b border-border/60 py-2 pr-3">
+                    <StatePill
+                      kind={s.enabledEverywhere ? 'ok' : s.enabledCount > 0 ? 'warn' : 'bad'}
+                      text={
+                        s.enabledEverywhere
+                          ? t('roaming.dot11r.stateOn')
+                          : s.enabledCount > 0
+                            ? t('roaming.dot11r.statePartial')
+                            : t('roaming.dot11r.stateOff')
+                      }
+                    />
+                  </td>
+                  <td className="border-b border-border/60 py-2 pr-3 font-mono text-mono-sm text-text-secondary">
+                    {s.enabledCount}/{s.totalCount}
+                  </td>
+                  <td className="border-b border-border/60 py-2 pr-3 font-mono text-mono-sm text-text-secondary">
+                    {s.mobilityDomain || '—'}
+                  </td>
+                  <td className="border-b border-border/60 py-2 pr-3 text-text-secondary">
+                    {s.enabledCount > 0
+                      ? s.ftOverDs
+                        ? t('roaming.dot11r.ftOverDs')
+                        : t('roaming.dot11r.ftOverAir')
+                      : '—'}
+                  </td>
+                  <td className="border-b border-border/60 py-2 pr-3 text-text-secondary">
+                    {s.enabledCount > 0 ? (s.ftPskGenerateLocal ? t('roaming.dot11r.pskLocal') : t('roaming.dot11r.radius')) : '—'}
+                  </td>
+                  <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">
+                    {s.ifaceCount}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-caption text-text-muted">{t('roaming.dot11r.coverageHint')}</p>
+      </div>
+
+      {/* ③ Detalle por router */}
+      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+        <h3 className="mb-3 font-display text-h3 text-text-primary">{t('roaming.dot11r.byRouter')}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full border-separate border-spacing-0 text-left text-sm">
+            <thead>
+              <tr className="text-label uppercase text-text-muted">
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colRouter')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colIface')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colSsidR')}</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colBandCh')}</th>
+                <th className="pb-2.5 pr-3 font-medium">11r</th>
+                <th className="pb-2.5 pr-3 font-medium">11k</th>
+                <th className="pb-2.5 pr-3 font-medium">11v</th>
+                <th className="pb-2.5 pr-3 font-medium">PMF</th>
+                <th className="pb-2.5 pr-3 font-medium">{t('roaming.dot11r.colMac')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.routers.flatMap((r) => {
+                if (r.ifaces.length === 0) {
+                  return [
+                    <tr key={`${r.routerId}-none`}>
+                      <th scope="row" className="border-b border-border/60 py-2 pr-3 text-left font-medium text-text-primary">
+                        {r.name}
+                      </th>
+                      <td colSpan={8} className="border-b border-border/60 py-2 pr-3 text-caption text-text-muted">
+                        {r.available ? t('roaming.dot11r.noIfaces') : t('roaming.dot11r.unreachable')}
+                      </td>
+                    </tr>,
+                  ]
+                }
+                return r.ifaces.map((ifc, idx) => (
+                  <tr key={`${r.routerId}-${ifc.section}`}>
+                    <th
+                      scope="row"
+                      className={cn(
+                        'border-b border-border/60 py-2 pr-3 text-left font-medium text-text-primary',
+                        idx > 0 && 'text-text-muted',
+                      )}
+                    >
+                      {idx === 0 ? r.name : ''}
+                    </th>
+                    <td className="border-b border-border/60 py-2 pr-3 font-mono text-mono-sm text-text-secondary">
+                      {ifc.ifname || ifc.section}
+                      <span className="text-text-muted"> · {ifc.device}</span>
+                    </td>
+                    <td className="border-b border-border/60 py-2 pr-3 text-text-secondary">{ifc.ssid || '—'}</td>
+                    <td className="border-b border-border/60 py-2 pr-3 font-mono text-mono-sm text-text-secondary">
+                      {ifc.band ? ifc.band.replace(' GHz', 'G') : '—'}
+                      {ifc.channel ? ` · ch${ifc.channel}` : ''}
+                    </td>
+                    <td className="border-b border-border/60 py-2 pr-3">
+                      <Flag on={ifc.dot11rEnabled} label={ifc.dot11rEnabled ? (ifc.mobilityDomain || '✓') : '✕'} />
+                    </td>
+                    <td className="border-b border-border/60 py-2 pr-3">
+                      <Flag on={!!ifc.dot11kEnabled} />
+                    </td>
+                    <td className="border-b border-border/60 py-2 pr-3">
+                      <Flag on={!!ifc.dot11vEnabled} />
+                    </td>
+                    <td className="border-b border-border/60 py-2 pr-3">
+                      <Flag on={!!ifc.mfp} />
+                    </td>
+                    <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{ifc.mac || '—'}</td>
+                  </tr>
+                ))
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
+type StateKind = 'ok' | 'warn' | 'bad'
+
+function StateBadge({ kind, text }: { kind: StateKind; text: string }) {
+  const cls = {
+    ok: 'bg-ok/15 text-ok ring-ok/30',
+    warn: 'bg-warn/15 text-warn ring-warn/30',
+    bad: 'bg-danger/15 text-danger ring-danger/30',
+  }[kind]
+  const Icon = kind === 'ok' ? CheckCircle2 : kind === 'warn' ? AlertTriangle : XCircle
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset', cls)}>
+      <Icon className="h-4 w-4" strokeWidth={1.75} />
+      {text}
+    </span>
+  )
+}
+
+function StatePill({ kind, text }: { kind: StateKind; text: string }) {
+  const cls = {
+    ok: 'bg-ok/15 text-ok ring-ok/30',
+    warn: 'bg-warn/15 text-warn ring-warn/30',
+    bad: 'bg-danger/15 text-danger ring-danger/30',
+  }[kind]
+  return (
+    <span className={cn('inline-block rounded-md px-2 py-0.5 text-caption font-medium ring-1 ring-inset', cls)}>{text}</span>
+  )
+}
+
+function Flag({ on, label }: { on: boolean; label?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-block min-w-[2rem] rounded-md px-2 py-0.5 text-center font-mono text-mono-sm ring-1 ring-inset',
+        on ? 'bg-ok/15 text-ok ring-ok/30' : 'bg-elevated text-text-muted ring-border',
+      )}
+    >
+      {label ?? (on ? '✓' : '✕')}
+    </span>
   )
 }

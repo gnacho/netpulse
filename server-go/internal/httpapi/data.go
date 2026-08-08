@@ -303,6 +303,20 @@ func (s *server) handleDawn(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dawn)
 }
 
+// handleDot11r: 503 {error:'unavailable'} si ningún router tiene 802.11r.
+func (s *server) handleDot11r(w http.ResponseWriter, r *http.Request) {
+	dot11r, err := s.adapter.GetDot11r(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if dot11r == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, dot11r)
+}
+
 // handleAdguardClients: 404 not_configured · 502 adguard_error.
 func (s *server) handleAdguardClients(w http.ResponseWriter, r *http.Request) {
 	clients, err := s.adapter.GetAdguardClients(r.Context())

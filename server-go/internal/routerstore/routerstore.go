@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, created_at FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, created_at FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -35,13 +35,14 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw int
+		var gw, ao int
 		var name sql.NullString
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &r.CreatedAt); err != nil {
 			continue
 		}
 		r.Name = name.String
 		r.IsGateway = gw == 1
+		r.AgentOnly = ao == 1
 		out = append(out, r)
 	}
 	return out
@@ -117,6 +118,7 @@ type AddInput struct {
 	Host      string
 	Type      string // default "openwrt"
 	IsGateway bool
+	AgentOnly bool
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -145,9 +147,13 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if in.IsGateway {
 		gw = 1
 	}
+	ao := 0
+	if in.AgentOnly {
+		ao = 1
+	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, now,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, now,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
