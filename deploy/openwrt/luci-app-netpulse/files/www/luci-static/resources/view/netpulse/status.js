@@ -107,7 +107,7 @@ function updateView(st, logs) {
 
 function handleRestart() {
 	ui.showModal(_('Restarting'), [
-		E('p', { 'class': 'spinning' }, _('Restarting the NetPulse agent…'))
+		E('p', { 'class': 'cbi-modal-text' }, _('Restarting the NetPulse agent…'))
 	]);
 	return callRestart().then(function(res) {
 		ui.hideModal();

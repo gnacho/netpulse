@@ -22,8 +22,9 @@ return view.extend({
 
 		o = s.option(form.Value, 'server', _('Server URL'),
 			_('Base URL of the NetPulse server, e.g. http://192.168.1.226:3000.'));
-		o.placeholder = 'http://192.168.1.226:3000';
-		o.rmempty = false;
+	o.placeholder = 'http://192.168.1.226:3000';
+	o.rmempty = false;
+	o.datatype = 'url';
 
 		o = s.option(form.Value, 'slug', _('Slug'),
 			_('Identifier of this router in NetPulse (as created in Settings → Agents).'));
