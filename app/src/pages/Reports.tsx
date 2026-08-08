@@ -6,15 +6,15 @@ import { CalendarDays, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
-// Tipos del contrato GET /api/reports/weekly (server-go/internal/httpapi/reports.go)
+// Tipos del contrato GET /api/reports/availability (server-go/internal/httpapi/reports.go)
 // ---------------------------------------------------------------------------
 
-interface WeeklyEntry {
+interface AvailabilityEntry {
   routerId: string
-  week: string // "2026-W31" (semana ISO, lunes-domingo)
+  bucket: string // day "2026-08-07" | week "2026-W31" | month "2026-07"
   days: number
-  upMin: number // minutos de recolección en la semana
-  upPct: number // % de disponibilidad sobre los días con datos
+  upMin: number
+  upPct: number
   latAvg: number | null
   rxTotal: number
   txTotal: number
@@ -22,7 +22,16 @@ interface WeeklyEntry {
   ramAvg: number
 }
 
-const WEEK_OPTIONS = [2, 4, 8, 12]
+type Range = 'day' | 'week' | 'month'
+
+const N_OPTIONS: Record<Range, number[]> = {
+  day: [7, 14, 30, 60],
+  week: [2, 4, 8, 12],
+  month: [3, 6, 12, 24],
+}
+const DEFAULT_N: Record<Range, number> = { day: 30, week: 8, month: 12 }
+const SUFFIX: Record<Range, string> = { day: 'd', week: 'w', month: 'm' }
+const RANGE_TABS: Range[] = ['day', 'week', 'month']
 
 /** Formatea bytes a unidad legible (mismo estilo que fmtEs de tráfico). */
 function fmtBytes(b: number): string {
@@ -51,23 +60,24 @@ function AvailabilityBar({ pct }: { pct: number }) {
   )
 }
 
-/** Página `/reports` — Informe semanal de disponibilidad (reports.md) */
+/** Página `/reports` — Informe de disponibilidad (reports.md). */
 export default function Reports() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const [weeks, setWeeks] = useState(4)
-  const [items, setItems] = useState<WeeklyEntry[]>([])
+  const [range, setRange] = useState<Range>('week')
+  const [n, setN] = useState<number>(DEFAULT_N.week)
+  const [items, setItems] = useState<AvailabilityEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [spin, setSpin] = useState(false)
 
-  async function load(n: number) {
+  async function load(r: Range, count: number) {
     setLoading(true)
     setError(false)
     try {
-      const res = await fetch(`/api/reports/weekly?weeks=${n}`)
+      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`)
       if (!res.ok) throw new Error(`status ${res.status}`)
-      const env = (await res.json()) as { items: WeeklyEntry[] }
+      const env = (await res.json()) as { items: AvailabilityEntry[] }
       setItems(env.items)
     } catch {
       setError(true)
@@ -78,20 +88,28 @@ export default function Reports() {
   }
 
   useEffect(() => {
-    void load(weeks)
-  }, [weeks])
+    void load(range, n)
+  }, [range, n])
 
-  // Agrupa por router y coloca las semanas en columnas (fila = router).
+  function changeRange(r: Range) {
+    if (r === range) return
+    setRange(r)
+    setN(DEFAULT_N[r])
+  }
+
+  // Agrupa por router y coloca los buckets en columnas (fila = router).
   const routerIds = [...new Set(items.map((i) => i.routerId))].sort()
-  const weeksPresent = [...new Set(items.map((i) => i.week))].sort().reverse()
+  const buckets = [...new Set(items.map((i) => i.bucket))].sort().reverse()
   const byRouter = (id: string) => items.filter((i) => i.routerId === id)
+
+  const initial = reduce ? false : { opacity: 0, y: 12 }
 
   return (
     <div className="space-y-4 md:space-y-5">
       {/* ① Page header */}
       <header>
         <motion.nav
-          initial={reduce ? false : { opacity: 0, y: 12 }}
+          initial={initial}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           aria-label={t('common.breadcrumb')}
@@ -103,7 +121,7 @@ export default function Reports() {
         </motion.nav>
         <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <motion.div
-            initial={reduce ? false : { opacity: 0, y: 12 }}
+            initial={initial}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
@@ -111,28 +129,28 @@ export default function Reports() {
             <p className="text-caption text-text-muted">{t('reports.subtitle')}</p>
           </motion.div>
           <motion.div
-            initial={reduce ? false : { opacity: 0, y: 12 }}
+            initial={initial}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.12 }}
             className="flex items-center gap-3"
           >
-            <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="group" aria-label={t('reports.weeksLabel')}>
-              {WEEK_OPTIONS.map((n) => (
+            <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="group" aria-label={t('reports.rangeLabel')}>
+              {N_OPTIONS[range].map((opt) => (
                 <button
-                  key={n}
-                  onClick={() => setWeeks(n)}
+                  key={opt}
+                  onClick={() => setN(opt)}
                   className={cn(
                     'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                    weeks === n ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+                    n === opt ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
                   )}
                 >
-                  {n}w
+                  {opt}{SUFFIX[range]}
                 </button>
               ))}
             </div>
             <button
               onClick={() => {
-                void load(weeks)
+                void load(range, n)
                 if (reduce) return
                 setSpin(true)
                 window.setTimeout(() => setSpin(false), 650)
@@ -146,7 +164,25 @@ export default function Reports() {
         </div>
       </header>
 
-      {/* ② Contenido */}
+      {/* ② Pestañas de rango */}
+      <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="tablist">
+        {RANGE_TABS.map((r) => (
+          <button
+            key={r}
+            role="tab"
+            aria-selected={range === r}
+            onClick={() => changeRange(r)}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              range === r ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+            )}
+          >
+            {r === 'day' ? t('reports.tabDay') : r === 'week' ? t('reports.tabWeek') : t('reports.tabMonth')}
+          </button>
+        ))}
+      </div>
+
+      {/* ③ Contenido */}
       {loading && items.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('reports.loading')}
@@ -174,8 +210,8 @@ export default function Reports() {
               <thead>
                 <tr className="border-b border-border">
                   <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('reports.colRouter')}</th>
-                  {weeksPresent.map((w) => (
-                    <th key={w} className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{w}</th>
+                  {buckets.map((b) => (
+                    <th key={b} className="pb-2.5 pr-3 font-mono text-caption font-medium normal-case text-text-muted">{b}</th>
                   ))}
                   <th className="pb-2.5 text-label font-medium uppercase text-text-muted">{t('reports.colAvg')}</th>
                 </tr>
@@ -187,10 +223,10 @@ export default function Reports() {
                   return (
                     <tr key={id} className="border-b border-border/60 last:border-0 hover:bg-hover">
                       <td className="py-3 pr-3 font-medium text-text-primary">{id}</td>
-                      {weeksPresent.map((w) => {
-                        const e = rows.find((r) => r.week === w)
+                      {buckets.map((b) => {
+                        const e = rows.find((r) => r.bucket === b)
                         return (
-                          <td key={w} className="py-3 pr-3">
+                          <td key={b} className="py-3 pr-3">
                             {e ? <AvailabilityBar pct={e.upPct} /> : <span className="text-caption text-text-muted">—</span>}
                           </td>
                         )
@@ -205,17 +241,17 @@ export default function Reports() {
             </table>
           </div>
 
-          {/* ③ Detalle por router: últimas semanas con tráfico/latencia */}
+          {/* ④ Detalle por router: últimos buckets con tráfico/latencia */}
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             {routerIds.map((id) => {
-              const rows = [...byRouter(id)].sort((a, b) => b.week.localeCompare(a.week))
+              const rows = [...byRouter(id)].sort((a, b) => b.bucket.localeCompare(a.bucket))
               return (
                 <div key={id} className="rounded-xl border border-border bg-elevated p-4">
                   <h3 className="mb-3 font-display text-h3 text-text-primary">{id}</h3>
                   <div className="space-y-2">
                     {rows.map((r) => (
-                      <div key={r.week} className="flex items-center justify-between gap-2 text-caption">
-                        <span className="font-mono text-text-muted">{r.week}</span>
+                      <div key={r.bucket} className="flex items-center justify-between gap-2 text-caption">
+                        <span className="font-mono text-text-muted">{r.bucket}</span>
                         <span className="flex items-center gap-3 font-mono text-mono-sm text-text-secondary">
                           <span title={t('reports.latency')}>
                             {r.latAvg !== null ? `${r.latAvg.toFixed(1)} ms` : '—'}
