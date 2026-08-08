@@ -2074,3 +2074,217 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 	}
 	return &out, nil
 }
+
+// ---------------------------------------------------------------------------
+// WiFi Survey (canal utilization) — Fase 14.4
+// ---------------------------------------------------------------------------
+
+// freqToChannel mapea frecuencia MHz → número de canal IEEE 802.11.
+// 2.4 GHz: 2412-2472 → 1-13; 2484 → 14. 5 GHz: 5000+5*N → N (5180=36, ...).
+// 60 GHz: 56160+2160*N → N+1.
+func freqToChannel(freq int) int {
+	switch {
+	case freq >= 2412 && freq <= 2472:
+		return (freq-2412)/5 + 1
+	case freq == 2484:
+		return 14
+	case freq >= 5160 && freq <= 5885:
+		// Canales UNII: 5160=ch32 ... 5885=ch177. Fórmula general (freq-5000)/5.
+		return (freq - 5000) / 5
+	case freq >= 5940 && freq <= 7115:
+		// 6 GHz (Wi-Fi 6E): 5950=ch1 ... 7115=ch233. Mismo (freq-5000)/5, con offset.
+		return (freq - 5950) / 5 + 1
+	case freq == 56160:
+		return 1
+	case freq >= 56160:
+		return (freq-56160)/2160 + 1
+	}
+	return 0
+}
+
+// freqToBand devuelve "2.4 GHz"|"5 GHz"|"6 GHz"|"60 GHz"|"" según la frecuencia.
+func freqToBand(freq int) string {
+	switch {
+	case freq >= 2412 && freq <= 2484:
+		return "2.4 GHz"
+	case freq >= 5160 && freq <= 5885:
+		return "5 GHz"
+	case freq >= 5945 && freq <= 7115:
+		return "6 GHz"
+	case freq >= 56160:
+		return "60 GHz"
+	}
+	return ""
+}
+
+// parseIwSurvey parsea la salida de `iw dev wlanX survey dump` y devuelve
+// un map device → lista de SurveyChannel (uno por frecuencia). Función pura
+// para testear con fixtures reales sin SSH.
+//
+// Formato (ejemplo Flint2):
+//
+//	Survey data from wlan0
+//		frequency:			2412 MHz [in use]
+//		noise:				-90 dBm
+//		channel active time:		3632796925 ms
+//		channel busy time:		878259766 ms
+//		channel receive time:		440957725 ms
+//		channel transmit time:		340995043 ms
+//	Survey data from wlan0
+//		frequency:			2417 MHz
+//		noise:				-92 dBm
+//		channel active time:		72 ms
+//		channel busy time:		20 ms
+//		...
+//
+// Cada bloque empieza con "Survey data from <dev>". Los valores están
+// tabulados y separados por ":". El "[in use]" marca el canal operativo.
+func parseIwSurvey(out string) map[string][]SurveyChannel {
+	type rawChannel struct {
+		freq     int
+		inUse    bool
+		noise    int
+		activeMs float64
+		busyMs   float64
+		rxMs     float64
+		txMs     float64
+	}
+	result := map[string][]SurveyChannel{}
+	var currentDev string
+	var current *rawChannel
+
+	flush := func() {
+		if currentDev == "" || current == nil {
+			return
+		}
+		ch := SurveyChannel{
+			Freq:     current.freq,
+			Channel:  freqToChannel(current.freq),
+			InUse:    current.inUse,
+			NoiseDbm: current.noise,
+		}
+		if current.activeMs > 0 {
+			ch.BusyPct = current.busyMs / current.activeMs * 100
+			ch.RxPct = current.rxMs / current.activeMs * 100
+			ch.TxPct = current.txMs / current.activeMs * 100
+		}
+		result[currentDev] = append(result[currentDev], ch)
+		current = nil
+	}
+
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "Survey data from ") {
+			flush()
+			currentDev = strings.TrimPrefix(trimmed, "Survey data from ")
+			continue
+		}
+		if currentDev == "" {
+			continue
+		}
+		parts := strings.SplitN(trimmed, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		// Solo inicializamos el canal si la línea tiene un campo válido.
+		// Evita crear un canal vacío al final de cada bloque (línea "" final).
+		if current == nil {
+			current = &rawChannel{}
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "frequency":
+			fmt.Sscanf(val, "%d MHz", &current.freq)
+			if strings.Contains(val, "[in use]") {
+				current.inUse = true
+			}
+		case "noise":
+			fmt.Sscanf(val, "%d dBm", &current.noise)
+		case "channel active time":
+			fmt.Sscanf(val, "%f ms", &current.activeMs)
+		case "channel busy time":
+			fmt.Sscanf(val, "%f ms", &current.busyMs)
+		case "channel receive time":
+			fmt.Sscanf(val, "%f ms", &current.rxMs)
+		case "channel transmit time":
+			fmt.Sscanf(val, "%f ms", &current.txMs)
+		}
+	}
+	flush()
+	return result
+}
+
+// GetSurvey: utilización por canal wifi (iw survey dump) por router y radio.
+// Recorre los routers (saltando agent-only, que no tienen wifi) y hace SSH
+// `iw dev` para listar interfaces, luego `iw dev wlanX survey dump` por cada
+// una. Devuelve (nil, nil) si ningún router responde → el handler 503.
+func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
+	l.mu.Lock()
+	routers := append([]RouterConfig(nil), l.routers...)
+	l.mu.Unlock()
+
+	out := SurveyOverview{Routers: []SurveyRouter{}}
+	any := false
+	for _, cfg := range routers {
+		name := cfg.Name
+		if name == "" {
+			name = cfg.ID
+		}
+		r := SurveyRouter{RouterID: cfg.ID, Name: name, Radios: []SurveyRadio{}}
+		if cfg.AgentOnly {
+			out.Routers = append(out.Routers, r)
+			continue
+		}
+		// Lista de interfaces wifi (wlanX).
+		devsOut, err := l.pool.Run(cfg.Host, "iw dev 2>/dev/null | awk '/Interface/ {print $2}'", 0)
+		if err != nil {
+			out.Routers = append(out.Routers, r)
+			continue
+		}
+		devs := []string{}
+		for _, line := range strings.Split(devsOut, "\n") {
+			d := strings.TrimSpace(line)
+			if d != "" && strings.HasPrefix(d, "wlan") {
+				devs = append(devs, d)
+			}
+		}
+		if len(devs) == 0 {
+			out.Routers = append(out.Routers, r)
+			continue
+		}
+		r.Available = true
+		any = true
+		for _, dev := range devs {
+			surveyOut, err := l.pool.Run(cfg.Host, "iw dev "+dev+" survey dump 2>/dev/null", 0)
+			if err != nil {
+				continue
+			}
+			channels := parseIwSurvey(surveyOut)[dev]
+			if len(channels) == 0 {
+				continue
+			}
+			band := ""
+			// El canal in use define la banda del radio.
+			for _, c := range channels {
+				if c.InUse {
+					band = freqToBand(c.Freq)
+					break
+				}
+			}
+			if band == "" {
+				band = freqToBand(channels[0].Freq)
+			}
+			r.Radios = append(r.Radios, SurveyRadio{Device: dev, Band: band, Channels: channels})
+		}
+		out.Routers = append(out.Routers, r)
+	}
+	if !any {
+		return nil, nil
+	}
+	out.Available = true
+	return &out, nil
+}

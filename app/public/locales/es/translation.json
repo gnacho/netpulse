@@ -367,6 +367,22 @@
       "coverageHint": "Cobertura = interfaces con 802.11r / total de interfaces en ese SSID. Para roaming fluido debe ser 100% en cada SSID.",
       "noIfaces": "Sin interfaces wifi.",
       "unreachable": "Router no accesible por SSH."
+    },
+    "survey": {
+      "title": "Utilización por canal",
+      "description": "Noise floor y ocupación de cada canal wifi (iw survey dump). Los canales congestionados son la causa más habitual de WiFi lento en casa.",
+      "empty": "Ningún router devolvió datos de survey. Verifica que el comando `iw dev wlanX survey dump` funciona en tus routers.",
+      "unreachable": "Router no accesible por SSH o sin interfaces wifi.",
+      "colChannel": "Canal",
+      "colFreq": "MHz",
+      "colNoise": "Noise",
+      "colBusy": "Ocupación",
+      "colRx": "RX",
+      "colTx": "TX",
+      "inUse": "En uso",
+      "legendFree": "< 40% (libre)",
+      "legendBusy": "40-70% (ocupado)",
+      "legendCongested": "≥ 70% (congestionado)"
     }
   },
   "notFound": {

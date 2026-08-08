@@ -317,6 +317,20 @@ func (s *server) handleDot11r(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dot11r)
 }
 
+// handleSurvey: 503 {error:'unavailable'} si ningún router responde.
+func (s *server) handleSurvey(w http.ResponseWriter, r *http.Request) {
+	survey, err := s.adapter.GetSurvey(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if survey == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, survey)
+}
+
 // handleAdguardClients: 404 not_configured · 502 adguard_error.
 func (s *server) handleAdguardClients(w http.ResponseWriter, r *http.Request) {
 	clients, err := s.adapter.GetAdguardClients(r.Context())

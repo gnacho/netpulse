@@ -367,6 +367,22 @@
       "coverageHint": "Coverage = interfaces with 802.11r / total interfaces on that SSID. For smooth roaming it should be 100% on every SSID.",
       "noIfaces": "No wireless interfaces.",
       "unreachable": "Router not reachable over SSH."
+    },
+    "survey": {
+      "title": "Channel utilization",
+      "description": "Noise floor and load on each WiFi channel (iw survey dump). Congested channels are the most common cause of slow home WiFi.",
+      "empty": "No router returned survey data. Verify that `iw dev wlanX survey dump` works on your routers.",
+      "unreachable": "Router not reachable over SSH or no wireless interfaces.",
+      "colChannel": "Channel",
+      "colFreq": "MHz",
+      "colNoise": "Noise",
+      "colBusy": "Busy",
+      "colRx": "RX",
+      "colTx": "TX",
+      "inUse": "In use",
+      "legendFree": "< 40% (free)",
+      "legendBusy": "40-70% (busy)",
+      "legendCongested": "≥ 70% (congested)"
     }
   },
   "notFound": {
