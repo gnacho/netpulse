@@ -48,10 +48,10 @@ load_config() {
 	[ -n "$wan_target" ] && export NETPULSE_WAN_TARGET="$wan_target"
 	[ -n "$gw_target" ]  && export NETPULSE_GW_TARGET="$gw_target"
 
-	# TLS inseguro (LAN con cert autofirmado)
-	local insecure_tls
-	config_get insecure_tls main insecure_tls "0"
-	[ "$insecure_tls" = "1" ] && export NETPULSE_INSECURE_TLS=1
+	# Fingerprint SPKI del servidor (obligatorio si server es https://)
+	local server_fp
+	config_get server_fp main server_fp ""
+	[ -n "$server_fp" ] && export NETPULSE_SERVER_FP="$server_fp"
 }
 
 start_service() {

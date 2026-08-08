@@ -14,6 +14,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
+	"github.com/gnacho/netpulse/server-go/internal/tlscert"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 	"github.com/gnacho/netpulse/server-go/internal/webhook"
 )
@@ -284,6 +286,33 @@ func run() error {
 		Started: time.Now(),
 	})
 
+	// Fase 9 R2: TLS autofirmado on-box. En modo on-box se genera/carga un
+	// cert autofirmado, se registra GET /fingerprint (sin auth, para que el
+	// agente pueda pinear el SPKI) y se sirve HTTPS. Sin ONBOX: HTTP plano.
+	var (
+		serverFP string
+		tlsConf  *tls.Config
+	)
+	if cfg.Onbox {
+		certPath := filepath.Join(cfg.DataDir, "cert.pem")
+		keyPath := filepath.Join(cfg.DataDir, "key.pem")
+		var err2 error
+		tlsConf, serverFP, err2 = tlscert.Ensure(certPath, keyPath)
+		if err2 != nil {
+			return fmt.Errorf("cert on-box: %w", err2)
+		}
+		log.Printf("[netpulse] TLS autofirmado on-box: %s", certPath)
+		log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", serverFP)
+		// Envolver el handler con el endpoint /fingerprint (sin auth).
+		fpMux := http.NewServeMux()
+		fpMux.HandleFunc("GET /fingerprint", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"spki_sha256":%q}`, serverFP)
+		})
+		fpMux.Handle("/", handler)
+		handler = fpMux
+	}
+
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
 		Handler:           handler,
@@ -293,7 +322,12 @@ func run() error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("[netpulse] v%s · modo %s · http://localhost:%d", httpapi.Version, adapter.Mode(), cfg.Port)
+		scheme := "http"
+		if cfg.Onbox {
+			scheme = "https"
+			srv.TLSConfig = tlsConf
+		}
+		log.Printf("[netpulse] v%s · modo %s · %s://localhost:%d", httpapi.Version, adapter.Mode(), scheme, cfg.Port)
 		staticDesc := staticDir
 		if staticDesc == "" {
 			staticDesc = "(embed)"
@@ -301,7 +335,11 @@ func run() error {
 		log.Printf("[netpulse] datos: %s · estáticos: %s", cfg.DataDir, staticDesc)
 		p.Start()
 		upd.Start()
-		errCh <- srv.ListenAndServe()
+		if cfg.Onbox {
+			errCh <- srv.ListenAndServeTLS("", "")
+		} else {
+			errCh <- srv.ListenAndServe()
+		}
 	}()
 
 	sigCh := make(chan os.Signal, 1)
