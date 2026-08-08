@@ -19,7 +19,7 @@ import type { Band, Device, DistributionNode, Router, TopoSemantics, TopoSemLink
 
 /** viewBox del lienzo SVG */
 export const VB_W = 1000
-export const VB_H = 680
+export const VB_H = 750
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -207,7 +207,7 @@ const GATEWAY_COORD = { x: 500, y: 250, r: 40, label: { x: 446, y: 312, anchor: 
 const AP_RADIUS = 32
 const AP_ARC_CENTER = 90
 const AP_ARC_HALF = 70
-const AP_BASE_Y = 480
+const AP_BASE_Y = 510
 
 function apCoords(n: number, total: number): { x: number; y: number; r: number; label: { x: number; y: number; anchor: 'end' | 'start' } } {
   let angle: number
@@ -224,7 +224,7 @@ function apCoords(n: number, total: number): { x: number; y: number; r: number; 
     label: { x: isLeft ? x - AP_RADIUS - 6 : x + AP_RADIUS + 6, y: y - 6, anchor: isLeft ? 'end' as const : 'start' as const },
   }
 }
-const INTERNET_COORD = { x: 500, y: 58 }
+const INTERNET_COORD = { x: 500, y: 68 }
 const PEER_COORDS = [
   { x: 265, y: 26 },
   { x: 735, y: 26 },
@@ -238,12 +238,12 @@ const WG_PATHS = [
 ]
 /** Anillos wifi (v5: separados de los nodos; chips no "tocan" el router) */
 const GATEWAY_RINGS = [
-  { r: 96, cap: 5 },
-  { r: 130, cap: 8 },
+  { r: 100, cap: 6 },
+  { r: 140, cap: 10 },
 ]
 const AP_RINGS = [
-  { r: 82, cap: 7 },
-  { r: 120, cap: 13 },
+  { r: 88, cap: 8 },
+  { r: 130, cap: 14 },
 ]
 /** Abanicos cableados: gateway tiene sector este (switch inferido) y oeste */
 const GW_EAST_FAN: [number, number] = [336, 24] // wrap (a1 < a0)
@@ -255,8 +255,8 @@ const DIST_FAN_RADIUS = 96
  *  mismo puerto) → anillos concéntricos alrededor del círculo dashed. */
 const DIST_FAN_MAX = 5
 const DIST_RINGS = [
-  { r: 72, cap: 7 },
-  { r: 118, cap: 12 },
+  { r: 78, cap: 8 },
+  { r: 128, cap: 14 },
 ]
 const HUB_FAN_RADIUS = 68
 const ROUTER_FAN_RADIUS = 150
@@ -385,13 +385,28 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // `topology` presente; sin ella, fallback EXACTO al cálculo local.
   const sem = topology && (vm ?? 1) >= 1 ? topology : undefined
   const gateway = routers.find((r) => r.roleBadge === 'Principal') ?? routers[0]
-  const aps = routers.filter((r) => r.id !== gateway?.id)
+  const aps = routers.filter((r) => r.id !== gateway?.id && r.roleBadge !== 'SW')
+  const switches = routers.filter((r) => r.roleBadge === 'SW')
 
   const gatewayNode: RouterNode | null = gateway
     ? { kind: 'router', id: gateway.id, router: gateway, ...GATEWAY_COORD }
     : null
   const apNodes: RouterNode[] = aps.map((router, i) => ({ kind: 'router', id: router.id, router, ...apCoords(i, aps.length) }))
-  const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes] : apNodes
+  // Switches gestionados: posición fija al sureste del gateway, uno debajo de otro
+  // (coordenadas deterministas para máximo 3 switches; el 4+ no se pinta).
+  const SW_BASE_X = 720
+  const SW_BASE_Y = 350
+  const SW_GAP_Y = 100
+  const switchNodes: RouterNode[] = switches.slice(0, 3).map((router, i) => ({
+    kind: 'router' as const,
+    id: router.id,
+    router,
+    x: SW_BASE_X,
+    y: SW_BASE_Y + i * SW_GAP_Y,
+    r: 28,
+    label: { x: SW_BASE_X + 34, y: SW_BASE_Y + i * SW_GAP_Y - 6, anchor: 'start' as const },
+  }))
+  const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes, ...switchNodes] : [...apNodes, ...switchNodes]
   const routerById = new Map(routerNodes.map((n) => [n.id, n]))
 
   const internetNode = { id: 'internet' as const, ...INTERNET_COORD }
@@ -705,10 +720,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       from: 'internet', to: gatewayNode.id,
     })
   }
-  apNodes.forEach((node) => {
+  const makeUplink = (node: RouterNode) => {
     const isWifi = node.router.backhaul === 'wifi'
+    const isSwitch = node.router.roleBadge === 'SW'
     const traffic = subtreeTraffic(node.id)
-    const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
+    const label = isWifi
+      ? 'WiFi uplink'
+      : isSwitch
+        ? `Switch ${node.router.name}${node.router.lldp ? ' · LLDP' : ''}`
+        : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
     const from = gatewayNode ?? null
     let d = ''
     let lx = 0, ly = 0
@@ -724,10 +744,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
       d, lx, ly,
       label,
-      width: isWifi ? 2 : 3, ...flowFor(Math.max(traffic, isWifi ? 40 : 120)),
+      width: isSwitch ? 2 : isWifi ? 2 : 3, ...flowFor(Math.max(traffic, isWifi ? 40 : isSwitch ? 60 : 120)),
       from: from?.id ?? 'internet', to: node.id,
     })
-  })
+  }
+  apNodes.forEach(makeUplink)
+  switchNodes.forEach(makeUplink)
   // enlaces router → distnode / device-hub / cableado directo
   for (const dv of distNodes) {
     const rn = routerById.get(dv.node.routerId)

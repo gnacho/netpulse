@@ -1086,13 +1086,33 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	if gw != nil {
 		gwID = gw.ID
 	}
-	// (2) FDB de satélites: pista solo de ESTE tick (no se guarda)
+	// (2) FDB de satélites: pista solo de ESTE tick (no se guarda).
+	// REGLA DE RECONCILIACIÓN: si una MAC cableada aparece tanto en el FDB
+	// del gateway como en el FDB de un satélite, el satélite la ve porque
+	// está bridged al mismo segmento L2 — NO es un cliente directo del
+	// satélite. Solo cuentan como clientes del satélite las MACs que el
+	// gateway NO ve (dispositivos realmente tras ese satélite, sin bridge
+	// al gateway).
+	// EXCEPCIÓN: los routers agent-only (switches con agente propio) son la
+	// fuente más específica — sus dispositivos se conservan con RouterID
+	// del switch, aunque el gateway también los vea en su FDB.
+	gwFDB := map[string]bool{}
+	if gwID != "" {
+		if gwPolled := polled[gwID]; gwPolled != nil {
+			for mac := range gwPolled.fdb {
+				gwFDB[mac] = true
+			}
+		}
+	}
 	for routerID, p := range polled {
 		if routerID == gwID {
 			continue
 		}
 		for mac := range p.fdb {
 			if _, ok := seen[mac]; !ok {
+				if gwFDB[mac] && !p.cfg.AgentOnly {
+					continue // gateway bridge pasivo, no es cliente del satélite
+				}
 				seen[mac] = seenInfo{routerID, "cable", nil}
 			}
 		}

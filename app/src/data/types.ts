@@ -21,8 +21,8 @@ export interface Router {
   /** Modelo corto para captions: "GL.iNet Flint 2" */
   modelShort: string
   role: string
-  /** Pill de rol: "Principal" | "AP" */
-  roleBadge: 'Principal' | 'AP'
+  /** Pill de rol: "Principal" | "AP" | "SW" */
+  roleBadge: 'Principal' | 'AP' | 'SW'
   ip: string
   /** MAC del bridge br-lan (live) */
   mac?: string
