@@ -65,6 +65,9 @@ type Deps struct {
 	// AgentHub: SSE bidireccional para agentes (Fase 7.3). nil → endpoint
 	// de stream devuelve 503.
 	AgentHub *sse.AgentHub
+	// ServerFP: fingerprint SPKI del servidor (hex). Vacío si no es on-box.
+	// Se devuelve en /api/agents/pair para que el agentepine el TLS.
+	ServerFP string
 }
 
 type server struct {
@@ -82,6 +85,9 @@ type server struct {
 
 	// SSE bidireccional para agentes (Fase 7.3).
 	agentHub *sse.AgentHub
+
+	// Fingerprint SPKI del servidor (vacío si no es on-box).
+	serverFP string
 
 	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
 	refreshMu   sync.Mutex
@@ -101,6 +107,7 @@ func NewHandler(d Deps) http.Handler {
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 		agentHub:    d.AgentHub,
+		serverFP:    d.ServerFP,
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
@@ -181,6 +188,13 @@ func NewHandler(d Deps) http.Handler {
 		// Forzar refresh del agente vía SSE (admin; útil para depuración y futuro UI)
 		mux.Handle("POST /api/agents/{slug}/refresh", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRefresh)))
 	}
+
+	// --- Fase 9 R3: Pairing / adopción de agentes ---
+	// POST /api/agents/pair: sin sesión (el pairing token ES la auth), rate limited.
+	mux.HandleFunc("POST /api/agents/pair", s.handleAgentPair)
+	// Gestión del pairing token (admin).
+	mux.Handle("GET /api/pairing/token", auth.RequireAdmin(http.HandlerFunc(s.handlePairingToken)))
+	mux.Handle("POST /api/pairing/rotate", auth.RequireAdmin(http.HandlerFunc(s.handlePairingRotate)))
 
 	// --- Web Push (Fase 3 Bloque C; tras sesión como el resto del API) ---
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)

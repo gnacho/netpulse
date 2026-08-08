@@ -551,6 +551,11 @@
     "admin": {
       "title": "Administration"
     },
+    "adoption": {
+      "title": "Agent adoption",
+      "hint": "Use this pairing token and fingerprint to install new agents. After pairing, the agent gets its real token automatically.",
+      "rotate": "Rotate token"
+    },
     "about": {
       "changelog": "Changelog",
       "code": "Source code",

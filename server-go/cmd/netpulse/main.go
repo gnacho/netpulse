@@ -267,28 +267,8 @@ func run() error {
 		return checkAgentToken(dbHandle, slug, token)
 	})
 
-	handler := httpapi.NewHandler(httpapi.Deps{
-		Config:   cfg,
-		DB:       dbHandle,
-		Adapter:  adapter,
-		Hub:      hub,
-		Secret:   secret,
-		Static:   static,
-		Updater:  upd,
-		Agents:   agentReg,
-		Pool:     sshPool,
-		Rearmer:  arm,
-		AgentHub: agentHub,
-		LastOverview: func() *adapters.Overview {
-			return p.LastOverview()
-		},
-		PollNow: p.PollNow,
-		Started: time.Now(),
-	})
-
-	// Fase 9 R2: TLS autofirmado on-box. En modo on-box se genera/carga un
-	// cert autofirmado, se registra GET /fingerprint (sin auth, para que el
-	// agente pueda pinear el SPKI) y se sirve HTTPS. Sin ONBOX: HTTP plano.
+	// Fase 9 R2/R3: TLS autofirmado + pairing token (on-box only).
+	// Se generan ANTES del handler para que serverFP esté disponible en Deps.
 	var (
 		serverFP string
 		tlsConf  *tls.Config
@@ -303,11 +283,42 @@ func run() error {
 		}
 		log.Printf("[netpulse] TLS autofirmado on-box: %s", certPath)
 		log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", serverFP)
-		// Envolver el handler con el endpoint /fingerprint (sin auth).
+
+		// Pairing token (generado en primer arranque, logueado).
+		pairTok, perr := httpapi.EnsurePairingToken(dbHandle)
+		if perr != nil {
+			return fmt.Errorf("pairing token: %w", perr)
+		}
+		log.Printf("[netpulse] PAIRING TOKEN: %s", pairTok)
+	}
+
+	handler := httpapi.NewHandler(httpapi.Deps{
+		Config:   cfg,
+		DB:       dbHandle,
+		Adapter:  adapter,
+		Hub:      hub,
+		Secret:   secret,
+		Static:   static,
+		Updater:  upd,
+		Agents:   agentReg,
+		Pool:     sshPool,
+		Rearmer:  arm,
+		AgentHub: agentHub,
+		ServerFP: serverFP,
+		LastOverview: func() *adapters.Overview {
+			return p.LastOverview()
+		},
+		PollNow: p.PollNow,
+		Started: time.Now(),
+	})
+
+	// Envolver el handler con GET /fingerprint (sin auth) si on-box.
+	if cfg.Onbox {
+		fp := serverFP
 		fpMux := http.NewServeMux()
 		fpMux.HandleFunc("GET /fingerprint", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `{"spki_sha256":%q}`, serverFP)
+			fmt.Fprintf(w, `{"spki_sha256":%q}`, fp)
 		})
 		fpMux.Handle("/", handler)
 		handler = fpMux

@@ -17,7 +17,10 @@
 #   --host X        IP/host del router (obligatorio)
 #   --server X      URL del servidor NetPulse (obligatoria salvo --uninstall)
 #   --slug X        slug del equipo en NetPulse (obligatorio salvo --uninstall)
-#   --token X       token del equipo (obligatorio salvo --uninstall)
+#   --token X       token del equipo (obligatorio salvo --uninstall y --pairing-token)
+#   --pairing-token X  token de pairing (bootstrap: el agente contacta al servidor
+#                   y obtiene el token real automáticamente; Fase 9 R3)
+#   --server-fp X   SHA-256 SPKI del servidor en hex (obligatorio si --server es https://)
 #   --ssh-user X    usuario SSH del router (default: root)
 #   --binary X      binario local a copiar (default: descarga de la release)
 #   --version X.Y.Z versión a descargar (default: latest)
@@ -37,7 +40,7 @@ ENV_FILE="/etc/netpulse-agent.env"
 INIT_NAME="netpulse-agent"
 INIT_DST="/etc/init.d/$INIT_NAME"
 
-HOST=""; SERVER=""; SLUG=""; TOKEN=""; SSH_USER="root"; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0
+HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; SSH_USER="root"; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     C_G=$(printf '\033[32m'); C_R=$(printf '\033[31m'); C_Y=$(printf '\033[33m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
@@ -55,6 +58,8 @@ for arg in "$@"; do
         --server=*)   SERVER="${arg#*=}" ;;
         --slug=*)     SLUG="${arg#*=}" ;;
         --token=*)    TOKEN="${arg#*=}" ;;
+        --pairing-token=*) PAIRING_TOKEN="${arg#*=}" ;;
+        --server-fp=*) SERVER_FP="${arg#*=}" ;;
         --ssh-user=*) SSH_USER="${arg#*=}" ;;
         --binary=*)   BINARY="${arg#*=}" ;;
         --version=*)  NETPULSE_VERSION="${arg#*=}" ;;
@@ -89,7 +94,10 @@ fi
 
 [ -n "$SERVER" ] || fatal 11 "falta --server (URL de NetPulse)"
 [ -n "$SLUG" ]   || fatal 11 "falta --slug"
-[ -n "$TOKEN" ]  || fatal 11 "falta --token (se muestra una vez al crearlo: POST /api/agents)"
+# Token: obligatorio --token o --pairing-token (no ambos)
+if [ -z "$TOKEN" ] && [ -z "$PAIRING_TOKEN" ]; then
+    fatal 11 "falta --token (o --pairing-token para bootstrap)"
+fi
 SERVER="${SERVER%/}"
 
 ssh -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true \
@@ -158,15 +166,26 @@ ok "binario en $BIN_DST"
 
 # Config (chmod 600: el token solo lo lee root)
 info "escribiendo $ENV_FILE (chmod 600)"
+# Construir la línea de token: PAIRING_TOKEN (bootstrap) o TOKEN (normal)
+if [ -n "$PAIRING_TOKEN" ]; then
+    TOKEN_LINE="NETPULSE_PAIRING_TOKEN=$PAIRING_TOKEN"
+else
+    TOKEN_LINE="NETPULSE_TOKEN=$TOKEN"
+fi
+# Server fingerprint (si se proporciona)
+FP_LINE=""
+if [ -n "$SERVER_FP" ]; then
+    FP_LINE="NETPULSE_SERVER_FP=$SERVER_FP"
+fi
 ssh "$SSH" "cat > $ENV_FILE && chmod 600 $ENV_FILE" <<EOF
 # netpulse-agent — config (generado por install-agent.sh)
 NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
-NETPULSE_TOKEN=$TOKEN
+$TOKEN_LINE
+$FP_LINE
 # NETPULSE_INTERVAL=15
 # NETPULSE_WAN_TARGET=1.1.1.1      # solo si este equipo es el gateway
 # NETPULSE_GW_TARGET=192.168.8.1   # ping al gateway (APs)
-# NETPULSE_SERVER_FP=<sha256 hex>  # obligatorio si SERVER es https:// (pinning SPKI)
 EOF
 ok "config escrita"
 

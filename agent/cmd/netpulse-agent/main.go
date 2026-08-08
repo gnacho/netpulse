@@ -9,20 +9,24 @@
 //
 // Config (env o /etc/netpulse-agent.env; el env gana):
 //
-//	NETPULSE_SERVER    URL del servidor (https://... o http://...:3000) [obligatoria]
-//	NETPULSE_TOKEN     token del equipo (64 hex; se muestra una vez al crearlo)
-//	NETPULSE_SLUG      slug del equipo (agent.token.<slug> en el servidor)
-//	NETPULSE_SERVER_FP SHA-256 del SPKI del servidor en hex (obligatorio si la URL es https://)
-//	NETPULSE_INTERVAL  intervalo de push (default 30s; "30", "15s", "1m")
-//	NETPULSE_ENV_FILE  fichero env alternativo (default /etc/netpulse-agent.env)
+//	NETPULSE_SERVER        URL del servidor (https://... o http://...:3000) [obligatoria]
+//	NETPULSE_TOKEN         token del equipo (64 hex; se muestra una vez al crearlo)
+//	NETPULSE_SLUG          slug del equipo (agent.token.<slug> en el servidor)
+//	NETPULSE_SERVER_FP     SHA-256 del SPKI del servidor en hex (obligatorio si la URL es https://)
+//	NETPULSE_PAIRING_TOKEN token de pairing (modo bootstrap: contacta /api/agents/pair para
+//	                       obtener el token real, lo escribe al env file y sale — procd reinicia)
+//	NETPULSE_INTERVAL      intervalo de push (default 30s; "30", "15s", "1m")
+//	NETPULSE_ENV_FILE      fichero env alternativo (default /etc/netpulse-agent.env)
 //	NETPULSE_WAN_TARGET    ping WAN con pérdida (gateway; p. ej. 1.1.1.1)
 //	NETPULSE_GW_TARGET     ping corto al gateway (APs; p. ej. 192.168.8.1)
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -57,9 +61,11 @@ const (
 type config struct {
 	server, token, slug string
 	serverFP            string // SPKI hash hex (obligatorio si la URL es https://)
+	pairingToken        string // si está puesto: modo bootstrap (pairing)
 	interval            time.Duration
 	wanTarget, gwTarget string
 	heartbeatFile       string
+	envFile             string // ruta del env file (para escribir el token tras pairing)
 }
 
 // loadEnvFile lee KEY=VALUE de un fichero env (líneas # = comentario).
@@ -83,7 +89,7 @@ func loadEnvFile(path string) map[string]string {
 	return out
 }
 
-// loadConfig: env del proceso > fichero env; fail-fast si falta lo obligatorio.
+	// loadConfig: env del proceso > fichero env; fail-fast si falta lo obligatorio.
 func loadConfig() (config, error) {
 	file := os.Getenv("NETPULSE_ENV_FILE")
 	if file == "" {
@@ -101,10 +107,12 @@ func loadConfig() (config, error) {
 		token:         get("NETPULSE_TOKEN"),
 		slug:          get("NETPULSE_SLUG"),
 		serverFP:      tlspin.Normalize(get("NETPULSE_SERVER_FP")),
+		pairingToken:  get("NETPULSE_PAIRING_TOKEN"),
 		interval:      pollInterval,
 		wanTarget:     get("NETPULSE_WAN_TARGET"),
 		gwTarget:      get("NETPULSE_GW_TARGET"),
 		heartbeatFile: get("NETPULSE_HEARTBEAT_FILE"),
+		envFile:       file,
 	}
 	if v := get("NETPULSE_INTERVAL"); v != "" {
 		if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
@@ -115,14 +123,18 @@ func loadConfig() (config, error) {
 			log.Printf("[netpulse-agent] NETPULSE_INTERVAL %q inválido; usando 30s", v)
 		}
 	}
+	// Validación: SERVER y SLUG siempre obligatorios. TOKEN obligatorio salvo
+	// en modo pairing (donde PAIRING_TOKEN sustituye a TOKEN).
 	for _, kv := range [][2]string{
 		{"NETPULSE_SERVER", cfg.server},
-		{"NETPULSE_TOKEN", cfg.token},
 		{"NETPULSE_SLUG", cfg.slug},
 	} {
 		if kv[1] == "" {
 			return config{}, &configError{kv[0]}
 		}
+	}
+	if cfg.token == "" && cfg.pairingToken == "" {
+		return config{}, &configError{"NETPULSE_TOKEN (o NETPULSE_PAIRING_TOKEN para bootstrap)"}
 	}
 	return cfg, nil
 }
@@ -166,6 +178,13 @@ func run() error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
+	}
+
+	// Fase 9 R3: modo pairing (bootstrap). Si hay pairing_token en vez de
+	// token, contactar al servidor una vez, obtener el token real, escribirlo
+	// al env file y salir. procd reinicia el agente, que arranca en modo normal.
+	if cfg.pairingToken != "" {
+		return pairWithServer(cfg)
 	}
 
 	transport, err := tlspin.BuildTransport(cfg.server, cfg.serverFP)
@@ -250,4 +269,95 @@ func run() error {
 		case <-time.After(client.Delay(cfg.interval)):
 		}
 	}
+}
+
+// pairWithServer contacta POST /api/agents/pair con el pairing token, recibe
+// el token real del agente, lo escribe al env file y sale (procd reinicia).
+// Usa el server_fp para validar TLS (el admin lo proporciona junto con el
+// pairing token).
+func pairWithServer(cfg config) error {
+	transport, err := tlspin.BuildTransport(cfg.server, cfg.serverFP)
+	if err != nil {
+		return err
+	}
+
+	body := fmt.Sprintf(`{"pairing_token":%q,"slug":%q}`, cfg.pairingToken, cfg.slug)
+	req, err := http.NewRequest("POST", cfg.server+"/api/agents/pair", strings.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	hc := &http.Client{Transport: transport, Timeout: 15 * time.Second}
+	log.Printf("[netpulse-agent] pairing con %s (slug=%s)…", cfg.server, cfg.slug)
+	res, err := hc.Do(req)
+	if err != nil {
+		return fmt.Errorf("pairing: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 201 {
+		respBody, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return fmt.Errorf("pairing fallido (HTTP %d): %s", res.StatusCode, respBody)
+	}
+
+	var pr struct {
+		Slug     string `json:"slug"`
+		Token    string `json:"token"`
+		ServerFP string `json:"server_fp"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&pr); err != nil {
+		return fmt.Errorf("parsear respuesta pairing: %w", err)
+	}
+	if pr.Token == "" {
+		return fmt.Errorf("pairing: token vacío en respuesta")
+	}
+
+	// Escribir el token real al env file (reemplaza PAIRING_TOKEN por TOKEN).
+	if err := writePairedToken(cfg.envFile, pr.Token); err != nil {
+		return fmt.Errorf("escribir token al env file: %w", err)
+	}
+
+	log.Printf("[netpulse-agent] pairing OK (slug=%s). Token escrito a %s. Reiniciando…", pr.Slug, cfg.envFile)
+	// Salir limpiamente: procd reinicia el agente, que ahora lee NETPULSE_TOKEN
+	// del env file y arranca en modo normal.
+	return nil
+}
+
+// writePairedToken reescribe el env file: quita NETPULSE_PAIRING_TOKEN y
+// añade/actualiza NETPULSE_TOKEN. Conserva el resto de líneas.
+func writePairedToken(path, token string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// Si no existe, crear uno nuevo con el token.
+		return os.WriteFile(path, []byte("NETPULSE_TOKEN="+token+"\n"), 0o600)
+	}
+	var out []string
+	haveToken := false
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			out = append(out, line)
+			continue
+		}
+		k, _, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			out = append(out, line)
+			continue
+		}
+		key := strings.TrimSpace(k)
+		if key == "NETPULSE_PAIRING_TOKEN" {
+			continue // eliminar
+		}
+		if key == "NETPULSE_TOKEN" {
+			out = append(out, "NETPULSE_TOKEN="+token)
+			haveToken = true
+			continue
+		}
+		out = append(out, line)
+	}
+	if !haveToken {
+		out = append(out, "NETPULSE_TOKEN="+token)
+	}
+	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0o600)
 }
