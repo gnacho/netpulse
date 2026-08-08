@@ -38,6 +38,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/executor"
 	"github.com/gnacho/netpulse/agent/internal/heartbeat"
 	"github.com/gnacho/netpulse/agent/internal/iwevents"
 	"github.com/gnacho/netpulse/agent/internal/push"
@@ -241,6 +242,9 @@ func run() error {
 		}()
 	}
 
+	// Fase 10: ejecutor de Ops (allowlist UCI/servicio con snapshot+rollback).
+	ex := executor.New(cfg.gwTarget, cfg.wanTarget)
+
 	// Fase 7.3: SSE bidireccional — el servidor envía comandos al agente.
 	// El SSE reutiliza el mismo transporte (mismo pinning SPKI que el push).
 	refreshCh := make(chan struct{}, 1)
@@ -253,6 +257,9 @@ func run() error {
 				case refreshCh <- struct{}{}:
 				default:
 				}
+			}
+			if ev.Name == "apply" && ev.Data != "" {
+				go handleApply(cfg, ex, transport, ev.Data)
 			}
 			slog.Debug("[netpulse-agent] SSE evento", "event", ev.Name)
 		})
@@ -364,4 +371,41 @@ func writePairedToken(path, token string) error {
 		out = append(out, "NETPULSE_TOKEN="+token)
 	}
 	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0o600)
+}
+
+// handleApply procesa un comando apply del servidor (Fase 10): parsea las
+// Ops, las ejecuta con snapshot+healthcheck+rollback, y POSTea el resultado.
+func handleApply(cfg config, ex *executor.Executor, transport http.RoundTripper, data string) {
+	var payload struct {
+		PlanID string        `json:"plan_id"`
+		Ops    []executor.Op `json:"ops"`
+	}
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		slog.Warn("[netpulse-agent] apply: parse error", "err", err)
+		return
+	}
+	if len(payload.Ops) == 0 {
+		slog.Warn("[netpulse-agent] apply: sin ops", "plan_id", payload.PlanID)
+		return
+	}
+
+	slog.Info("[netpulse-agent] apply iniciado", "plan_id", payload.PlanID, "ops", len(payload.Ops))
+	result := ex.Apply(payload.Ops)
+	slog.Info("[netpulse-agent] apply resultado", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
+
+	// POST del resultado al servidor.
+	resultBody, _ := json.Marshal(map[string]any{"planId": payload.PlanID, "result": result})
+	req, err := http.NewRequest("POST", cfg.server+"/api/agents/"+cfg.slug+"/apply-result", strings.NewReader(string(resultBody)))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.token)
+	hc := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		slog.Warn("[netpulse-agent] apply: result POST falló", "err", err)
+		return
+	}
+	resp.Body.Close()
 }

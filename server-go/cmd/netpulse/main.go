@@ -34,6 +34,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
+	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/poller"
 	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
@@ -246,6 +247,9 @@ func run() error {
 	// último release tag en modo estable (layout install.sh).
 	upd := updater.New(filepath.Clean(filepath.Join(cfg.ServerRoot, "..")), cfg.GithubRepo, cfg.GithubToken, httpapi.Version)
 
+	// Fase 10: motor de orquestación (plan→apply→state).
+	orchMgr := orchestr.New(dbHandle)
+
 	// Rearmer compartido (endpoint manual + supervisor de auto-rearme).
 	// El supervisor solo arranca con NETPULSE_AUTO_REARM=1 y en modo live
 	// con pool SSH: nada autónomo sobre equipamiento de red sin opt-in
@@ -312,6 +316,7 @@ func run() error {
 		Rearmer:  arm,
 		AgentHub: agentHub,
 		ServerFP: serverFP,
+		Orchestr: orchMgr,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
