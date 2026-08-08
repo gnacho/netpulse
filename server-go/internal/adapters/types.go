@@ -375,17 +375,28 @@ type WGTotals struct {
 // DAWN (GET /api/dawn; SPEC §7.6) y AdGuard clients (§2.13)
 // ---------------------------------------------------------------------------
 
+// DawnClient es un cliente visto por un AP en el hearing map de DAWN.
+// Signal en -dBm (más cercano a 0 = mejor). Un cliente puede aparecer bajo
+// varios BSSIDs: cada AP que lo ve reporta su propia medición de señal.
+type DawnClient struct {
+	MAC    string `json:"mac"`
+	Signal int    `json:"signal"` // -dBm (ej. -65)
+	HT     bool   `json:"ht"`
+	VHT    bool   `json:"vht"`
+}
+
 // DawnAP es un punto de acceso visto por DAWN.
 type DawnAP struct {
-	SSID           string  `json:"ssid"`
-	BSSID          string  `json:"bssid"`
-	Hostname       string  `json:"hostname"`
-	Band           string  `json:"band"` // freq >= 5000 ? "5 GHz" : "2.4 GHz"
-	Channel        int     `json:"channel"`
-	UtilizationPct float64 `json:"utilizationPct"`
-	Clients        int     `json:"clients"`
-	Local          bool    `json:"local"`
-	Iface          string  `json:"iface"`
+	SSID           string        `json:"ssid"`
+	BSSID          string        `json:"bssid"`
+	Hostname       string        `json:"hostname"`
+	Band           string        `json:"band"` // freq >= 5000 ? "5 GHz" : "2.4 GHz"
+	Channel        int           `json:"channel"`
+	UtilizationPct float64       `json:"utilizationPct"`
+	ClientCount    int           `json:"clientCount"` // num_sta reportado por DAWN
+	Clients        []DawnClient  `json:"clients"`     // clientes vistos por este AP (hearing map)
+	Local          bool          `json:"local"`
+	Iface          string        `json:"iface"`
 }
 
 // DawnMesh marca por router si tiene DAWN y cuántos APs ve.
