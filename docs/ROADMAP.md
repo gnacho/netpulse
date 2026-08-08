@@ -1,45 +1,38 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-07 (v2.7.2, **Fase 13 — Auditoría Fable de robustez COMPLETA**).
+> Actualizada: 2026-08-08 (**Fase 10 en curso** + Fases 14-16 planificadas).
 
-## Estado actual (v2.7.2) ✅
+## Estado actual ✅
 
-Hecho y en producción (CT 226 + 4 routers):
-- **Fase 13 — Auditoría Fable de robustez de código** (v2.7.2): single-flight
-  de GetOverview con recover y broadcast correcto para N seguidores (#69),
-  write deadline en SSE Broadcast + ReadHeaderTimeout (#70), single-flight en
-  SSHPool.dial + chequeo de p.closed (#71), %v → %w en envolturas de error
-  (#73). Todos con tests de regresión (`-race` verde).
-- **Fase 12 — Auditoría de seguridad y robustez** (v2.7.0): TRUST_PROXY
-  (anti-bypass de rate-limit), anti-replay de ingesta, body cap en JSON,
-  password mínima 10, CHANGELOG.md. Cada fix con test propio.
-- **Fase 1 — Topología v5** (v2.1.0): FDB + LLDP en vivo, backhaul real,
-  switches gestionados/inferidos, hipervisores con CTs anidados, collector.
-- **Fase 2 — Alertas, Push y agente piloto** (v2.2.0): motor de alertas,
-  Web Push VAPID, agente OpenWrt con tokens, refresh bajo demanda.
-- **Fase 3 — Base read-only y refactor Node → Go** (v2.0.0): backend Go,
-  collector Go, PWA React, auth multi-usuario, install.sh.
-- **Fase 4 — View-model semántico + Ajustes remodel** (v2.2.0): `vm:1`,
-  canon demo Go, `Device.infra`, displayName.
-- **Fase 5 — Resiliencia del agente** (v2.3.0/v2.4.0/v2.4.1): watchdog,
-  rearme, auto-rearme TTL, endurecimiento rutas admin.
-- **Fase 6 — Seguridad del agente** (v2.5.0): HMAC-SHA256 en ingesta,
-  binario del agente servido desde el propio servidor.
-- **Fase 7 — Agente a fondo** (v2.6.0, hoy): ✅ iw events en tiempo real,
-  ✅ SSE bidireccional (AgentHub + refresh), ✅ .ipk vía opkg en gateway,
-  ✅ profiling (RSS 11-12 MB, CPU <1%), ✅ CI de empaquetado .ipk/.apk,
-  ✅ landing web con posicionamiento OpenWrt nativo.
+Hecho y en producción (CT 226 + 4 routers, agentes v2.8.0):
+- **Fase 9 — On-box** (v2.7.2): config UCI, bootstrap AUTH_PASS, journal
+  DELETE (R4/R5/R6), TLS autofirmado + SPKI pinning (R2), pairing token (R3),
+  paquete server OpenWrt (R1).
+- **Fase 10 — Orquestación** (en curso): motor plan→apply→state + agent
+  executor (10.1), módulo AdGuard Home (10.2, E2E verificado). WireGuard y
+  DAWN-write pendientes.
+- **Fase 13 — Auditoría Fable de robustez** (v2.7.2): single-flight, SSE
+  deadline, sshpool race, %w wrapping.
+- **Fase 12 — Auditoría de seguridad** (v2.7.0): TRUST_PROXY, anti-replay,
+  body cap, password mínima 10.
+- **Fase 11 — LuCI** (v2.7.2): `luci-app-netpulse` vista de nodo + test
+  connection + server on-box package.
+- **Fase 1-8**: topología v5, alertas, agente nativo, Node→Go, view-model,
+  resiliencia, seguridad HMAC, consolidación, retención, recharts v3,
+  actualización de stack (TS7/Vite8/Tailwind4/RR8).
+- **Dead Man's Switch** (P6): histéresis 3 min en alertas de agente caído.
+- **slog log levels** (P7): Info/Debug en agente.
+- **Updater layout-aware**: rolling (git) vs stable (install.sh), release tags.
+- **Tooltip fix**: topología no recorta hover cards.
+- **WAN traffic header fix**: selector de rango no se amontona.
 
 Dormido en producción:
-- **Web Push**: sin HTTPS en CT 226 → bloqueante para notificaciones.
-- **.apk para 25.12**: routers .2-.4 con instalación manual; CI listo
-  (workflow `openwrt-package.yml`) para la próxima release.
+- **Web Push**: sin HTTPS en CT 226 → bloqueante para notificaciones push.
+- **.apk para 25.12**: routers .2-.4 con instalación manual; CI listo.
 
-Deuda sin fase:
-- Web Push dormido (sin HTTPS en servidor; decisión de despliegue del usuario).
-- Agentes reportan versión 0.1.0 (reinstalar con release nueva para el fix de goreleaser `-X main.Version`).
-- Collector sidecar sin integrar con server-go.
-- recharts v2 deprecated.
+Deuda menor:
+- npm run lint roto (typescript-eslint no soporta TS7).
+- Informe semanal de disponibilidad (daily ya tiene up_min/up_count).
 
 ---
 
@@ -511,6 +504,84 @@ en server-go. Cada hallazgo con mecanismo completo, test de regresión y fix.
 - **Retirar `NETPULSE_INSECURE_TLS`** cuando TLS esté consolidado (R5).
 - Registry de agentes persistente (hoy `lastSeen` se pierde al reiniciar el
   servidor) y adopción solo de slugs conocidos (evitar huérfanos, R8).
+
+---
+
+## Fase 14 — Visibilidad WiFi y roaming (solo lectura, cero riesgo)
+
+Objetivo: dar visibilidad del estado del roaming y WiFi que hoy solo es
+accesible por SSH. El diagnóstico del incidente DAWN (22-Jul, 30-45s de
+corte) habría sido trivial con esta visibilidad.
+
+**Todo es lectura**: no se modifica config de router. Cero riesgo.
+
+1. **14.1 — DAWN probe en agente**: el agente añade `ubus call dawn
+   get_network` + `get_hearing_map` al payload de push. Nuevo campo
+   `data.dawn` con APs vistos, clientes, matriz de señal. Solo si DAWN
+   está instalado (fail-soft silencioso si no).
+2. **14.2 — Roaming matrix** (UI): heatmap clientes × APs con señal
+   (-dBm). Verde ≤-65, ámbar -75, rojo ≥-85. Identifica clientes en
+   zonas límite candidatos a roaming.
+3. **14.3 — 802.11r status**: por AP: ieee80211r on/off, mobility_domain,
+   ft_over_ds. Alerta visual si los APs tienen domains distintos
+   (inconsistencia = roaming roto).
+4. **14.4 — WiFi survey**: por radio: canal, anchura, potencia,
+   utilización (`ubus call iwinfo scan` para redes vecinas). Detecta
+   solapamiento de canales.
+5. **14.5 — Eventos de roaming**: timeline con assoc/disassoc/roam
+   (cruzando hearing maps consecutivos + iw events ya capturados).
+
+**Deploy**: agentes actualizados (ya en v2.8.0). UI nueva sin tocar routers.
+
+---
+
+## Fase 15 — Informes y analítica
+
+Objetivo: convertir los datos acumulados (7d raw + 1año buckets + ∞ daily)
+en informes accionables.
+
+1. **15.1 — Disponibilidad ampliada**: vista diaria/mensual (no solo
+   semanal). % uptime por router, detalles de caídas. Datos: `metrics_daily`
+   (ya tiene `up_min`/`up_count`).
+2. **15.2 — Tráfico histórico**: tendencias WAN (down/up por día/semana/mes).
+   Top N dispositivos por consumo. Datos: `metrics_buckets`.
+3. **15.3 — Actividad de dispositivos**: cuándo conecta/desconecta cada
+   dispositivo. Horas activo/día. Datos: FDB/DHCP histórico.
+4. **15.4 — Resumen de alertas**: conteo por categoría/severidad/tiempo.
+   Tendencia (¿va mejorando la red?).
+5. **15.5 — Exportación**: CSV de tablas, PNG de gráficas.
+
+**Deploy**: sin cambios en routers (los datos ya se colectan).
+
+---
+
+## Fase 16 — Alertas avanzadas
+
+Objetivo: alertas más inteligentes y menos ruidosas.
+
+1. **16.1 — Reglas custom**: umbrales configurables por router/dispositivo
+   (CPU >80%, señal < -75, etc.).
+2. **16.2 — Tipos nuevos**: fallo de roaming (cliente rebota entre APs),
+   congestión de canal (utilización >70%), dispositivo offline >Xh,
+   DAWN kick detectado.
+3. **16.3 — Historial filtrable**: filtro por fecha, router, severidad.
+   Búsqueda libre. Exportación.
+4. **16.4 — Silencio programado**: "no molestar" en ventanas de
+   mantenimiento.
+5. **16.5 — Email**: SMTP además de webhook (skill `email-webhook-notifications`).
+
+---
+
+## Fase 10 — Orquestación (continuación)
+
+La fundación (10.1) y el módulo AdGuard (10.2) están hechos y verificados
+E2E. Pendiente:
+
+3. **10.3 — WireGuard peers**: alta/baja de peers desde la app. Riesgo medio.
+4. **10.4 — DAWN/802.11r config** (write): modificar config de roaming
+   desde la app con snapshot+rollback. **Solo tras Fase 14 estabilice**
+   (necesitamos la visibilidad para diagnosticar si algo va mal).
+5. **10.5 — Batman-adv** (futuro lejano): mesh sobre LAN. Dry-run obligatorio.
 
 ---
 
