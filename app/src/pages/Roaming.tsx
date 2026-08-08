@@ -89,6 +89,35 @@ interface Dot11rOverview {
   routers: Dot11rRouter[]
 }
 
+// ---------------------------------------------------------------------------
+// Tipos del contrato GET /api/survey (server-go/internal/adapters/types.go).
+// ---------------------------------------------------------------------------
+
+interface SurveyChannel {
+  freq: number
+  channel: number
+  inUse: boolean
+  noiseDbm: number
+  busyPct: number
+  rxPct: number
+  txPct: number
+}
+interface SurveyRadio {
+  device: string
+  band: string
+  channels: SurveyChannel[]
+}
+interface SurveyRouter {
+  routerId: string
+  name: string
+  available: boolean
+  radios: SurveyRadio[]
+}
+interface SurveyOverview {
+  available: boolean
+  routers: SurveyRouter[]
+}
+
 type Band = 'all' | '2.4 GHz' | '5 GHz'
 type Tab = 'matrix' | '11r' | 'survey' | 'events'
 
@@ -110,6 +139,10 @@ export default function Roaming() {
   const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
   const [dot11rLoading, setDot11rLoading] = useState(false)
   const [dot11rError, setDot11rError] = useState(false)
+  const [survey, setSurvey] = useState<SurveyOverview | null>(null)
+  const [surveyLoading, setSurveyLoading] = useState(false)
+  const [surveyError, setSurveyError] = useState(false)
+  const [surveyBand, setSurveyBand] = useState<'all' | '2.4 GHz' | '5 GHz'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [spin, setSpin] = useState(false)
@@ -168,6 +201,28 @@ export default function Roaming() {
     }
   }, [tab, dot11r, dot11rLoading, dot11rError])
 
+  // Carga perezosa de /api/survey: igual que dot11r, un SSH por router con wifi.
+  async function loadSurvey() {
+    setSurveyLoading(true)
+    setSurveyError(false)
+    try {
+      const res = await fetch('/api/survey')
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      setSurvey((await res.json()) as SurveyOverview)
+    } catch {
+      setSurveyError(true)
+      setSurvey(null)
+    } finally {
+      setSurveyLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab === 'survey' && survey === null && !surveyLoading && !surveyError) {
+      void loadSurvey()
+    }
+  }, [tab, survey, surveyLoading, surveyError])
+
   // APs visibles según el filtro de banda.
   const aps = useMemo(() => {
     if (!dawn) return []
@@ -208,7 +263,7 @@ export default function Roaming() {
   const tabs: { id: Tab; label: string; soon: boolean }[] = [
     { id: 'matrix', label: t('roaming.tabMatrix'), soon: false },
     { id: '11r', label: t('roaming.tab11r'), soon: false },
-    { id: 'survey', label: t('roaming.tabSurvey'), soon: true },
+    { id: 'survey', label: t('roaming.tabSurvey'), soon: false },
     { id: 'events', label: t('roaming.tabEvents'), soon: true },
   ]
 
@@ -245,6 +300,7 @@ export default function Roaming() {
             onClick={() => {
               void load()
               if (tab === '11r') void loadDot11r()
+              if (tab === 'survey') void loadSurvey()
               if (reduce) return
               setSpin(true)
               window.setTimeout(() => setSpin(false), 650)
@@ -276,13 +332,15 @@ export default function Roaming() {
       </div>
 
       {/* ③ Contenido */}
-      {tab !== 'matrix' && tab !== '11r' && (
+      {tab !== 'matrix' && tab !== '11r' && tab !== 'survey' && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('roaming.comingSoon')}
         </div>
       )}
 
       {tab === '11r' && <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />}
+
+      {tab === 'survey' && <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} band={surveyBand} setBand={setSurveyBand} />}
 
       {tab === 'matrix' && (
         <>
@@ -680,5 +738,185 @@ function Flag({ on, label }: { on: boolean; label?: string }) {
     >
       {label ?? (on ? '✓' : '✕')}
     </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Pestaña Survey (Fase 14.4) — utilización por canal, por router y radio
+// ---------------------------------------------------------------------------
+
+type SurveyBand = 'all' | '2.4 GHz' | '5 GHz'
+
+function busyClass(p: number): string {
+  if (p >= 70) return 'bg-danger/15 text-danger ring-danger/30'
+  if (p >= 40) return 'bg-warn/15 text-warn ring-warn/30'
+  return 'bg-ok/15 text-ok ring-ok/30'
+}
+
+function noiseClass(dbm: number): string {
+  // Más cercano a 0 = peor. -90 óptimo, -70 malo.
+  if (dbm >= -75) return 'text-danger'
+  if (dbm >= -85) return 'text-warn'
+  return 'text-ok'
+}
+
+function SurveyPanel({
+  overview,
+  loading,
+  error,
+  band,
+  setBand,
+}: {
+  overview: SurveyOverview | null
+  loading: boolean
+  error: boolean
+  band: SurveyBand
+  setBand: (b: SurveyBand) => void
+}) {
+  const { t } = useTranslation()
+  const reduce = useReducedMotion()
+  const initial = reduce ? false : { opacity: 0, y: 12 }
+
+  if (loading && !overview) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.error')}
+      </div>
+    )
+  }
+  if (!overview || !overview.available || overview.routers.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.survey.empty')}
+      </div>
+    )
+  }
+
+  const bandOptions: SurveyBand[] = ['all', '2.4 GHz', '5 GHz']
+
+  return (
+    <motion.section
+      initial={initial}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
+      className="space-y-4"
+    >
+      {/* Header + filtro banda */}
+      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+            <div>
+              <h2 className="font-display text-h2 text-text-primary">{t('roaming.survey.title')}</h2>
+              <p className="mt-0.5 max-w-2xl text-caption text-text-muted">{t('roaming.survey.description')}</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
+            {bandOptions.map((b) => (
+              <button
+                key={b}
+                onClick={() => setBand(b)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
+                  band === b ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+                )}
+              >
+                {b === 'all' ? t('roaming.matrix.allBands') : b}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla por router */}
+      {overview.routers.map((r) => {
+        const radios = r.radios.filter((rd) => band === 'all' || rd.band === band)
+        if (!r.available || radios.length === 0) {
+          return (
+            <div key={r.routerId} className="rounded-2xl border border-border bg-surface p-5">
+              <h3 className="font-display text-h3 text-text-primary">{r.name}</h3>
+              <p className="mt-2 text-caption text-text-muted">{t('roaming.survey.unreachable')}</p>
+            </div>
+          )
+        }
+        return (
+          <div key={r.routerId} className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+            <h3 className="mb-3 font-display text-h3 text-text-primary">{r.name}</h3>
+            {radios.map((radio) => (
+              <div key={radio.device} className="mb-4 last:mb-0">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="rounded-md bg-elevated px-2 py-0.5 font-mono text-caption text-text-secondary">{radio.device}</span>
+                  <span className="text-caption text-text-muted">{radio.band}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-separate border-spacing-0 text-left text-sm">
+                    <thead>
+                      <tr className="text-label uppercase text-text-muted">
+                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
+                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
+                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colNoise')}</th>
+                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBusy')}</th>
+                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colRx')}</th>
+                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colTx')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {radio.channels.map((c) => (
+                        <tr key={c.freq} className={cn(c.inUse && 'bg-accent/5')}>
+                          <td className="border-b border-border/60 py-2 pr-3">
+                            <span className="font-mono text-text-primary">
+                              {c.channel || '—'}
+                              {c.inUse && (
+                                <span className="ml-1.5 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                                  {t('roaming.survey.inUse')}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{c.freq}</td>
+                          <td className={cn('border-b border-border/60 py-2 pr-3 font-mono text-mono-sm', noiseClass(c.noiseDbm))}>
+                            {c.noiseDbm} dBm
+                          </td>
+                          <td className="border-b border-border/60 py-2 pr-3">
+                            <span className={cn('inline-block min-w-[3.5rem] rounded-md px-2 py-0.5 text-center font-mono text-mono-sm ring-1 ring-inset', busyClass(c.busyPct))}>
+                              {c.busyPct.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-secondary">{c.rxPct.toFixed(1)}%</td>
+                          <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-secondary">{c.txPct.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+
+      {/* Leyenda */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ok/40 ring-1 ring-inset ring-ok/40" />
+          {t('roaming.survey.legendFree')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warn/40 ring-1 ring-inset ring-warn/40" />
+          {t('roaming.survey.legendBusy')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger/40 ring-1 ring-inset ring-danger/40" />
+          {t('roaming.survey.legendCongested')}
+        </span>
+      </div>
+    </motion.section>
   )
 }

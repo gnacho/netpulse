@@ -490,6 +490,46 @@ type Dot11rOverview struct {
 	Routers   []Dot11rRouter `json:"routers"`
 }
 
+// ---------------------------------------------------------------------------
+// WiFi Survey (canal utilization) — Fase 14.4
+// ---------------------------------------------------------------------------
+
+// SurveyChannel es un canal visto por `iw dev wlanX survey dump`: noise floor
+// + contadores busy/active/rx/tx. BusyPct = busy/active (uso del canal),
+// RxPct/TxPct desglosan parte de ese uso.
+type SurveyChannel struct {
+	Freq     int     `json:"freq"`     // MHz (2412, 5180, ...)
+	Channel  int     `json:"channel"`  // 1, 6, 11, 36, ... (computado desde freq)
+	InUse    bool    `json:"inUse"`    // true si la radio está operando en este canal
+	NoiseDbm int     `json:"noiseDbm"` // -90, -76, ... (más cercano a 0 = peor)
+	BusyPct  float64 `json:"busyPct"`  // busy_time / active_time * 100
+	RxPct    float64 `json:"rxPct"`
+	TxPct    float64 `json:"txPct"`
+}
+
+// SurveyRadio agrupa los canales survey de un device wifi (wlan0, wlan1).
+type SurveyRadio struct {
+	Device   string           `json:"device"` // wlan0, wlan1
+	Band     string           `json:"band"`   // "2.4 GHz"|"5 GHz" (inferido del primer canal)
+	Channels []SurveyChannel  `json:"channels"`
+}
+
+// SurveyRouter es el survey de un router: lista de radios wifi-iface.
+// Available=false si SSH falló.
+type SurveyRouter struct {
+	RouterID  string         `json:"routerId"`
+	Name      string         `json:"name"`
+	Available bool           `json:"available"`
+	Radios    []SurveyRadio  `json:"radios"`
+}
+
+// SurveyOverview es la respuesta de GET /api/survey. Available=false si
+// ningún router responde → el handler devuelve 503.
+type SurveyOverview struct {
+	Available bool            `json:"available"`
+	Routers   []SurveyRouter  `json:"routers"`
+}
+
 // AdguardClient es un cliente configurado en AdGuard GL.iNet (§2.13).
 type AdguardClient struct {
 	Name              string `json:"name"`
@@ -532,13 +572,14 @@ type RouterConfig struct {
 
 // Snapshotter es el contrato del adapter de datos (paridad con la interfaz JS
 // de SPEC §7: mode/tick/setRouters/getOverview/getRouters/getRouterDetail/
-// getDevices/getAlerts/getMetricsRows/getDawn/getDot11r/getAdguardClients/close;
+// getDevices/getAlerts/getMetricsRows/getDawn/getDot11r/getSurvey/getAdguardClients/close;
 // getAdguardRow() está muerto en Node y NO se porta).
 //
 // Convenciones de retorno (consumidas por internal/httpapi):
 //   - GetRouterDetail: (nil, nil) → 404 {"error":"not_found"}.
 //   - GetDawn: (nil, nil) → 503 {"error":"unavailable"}.
 //   - GetDot11r: (nil, nil) → 503 {"error":"unavailable"}.
+//   - GetSurvey: (nil, nil) → 503 {"error":"unavailable"}.
 //   - GetAdguardClients: (nil, nil) → 404 {"error":"not_configured"};
 //     (x, err) → 502 {"error":"adguard_error","message":err}.
 //   - GetOverview nunca devuelve nil sin error; el handler lo serializa tal
@@ -574,6 +615,9 @@ type Snapshotter interface {
 	// GetDot11r devuelve el estado 802.11r (FT) por router y SSID, o
 	// (nil, nil) si ningún router lo soporta → el handler responde 503.
 	GetDot11r(ctx context.Context) (*Dot11rOverview, error)
+	// GetSurvey devuelve la utilización por canal wifi (iw survey dump)
+	// por router y radio, o (nil, nil) si ningún router responde → 503.
+	GetSurvey(ctx context.Context) (*SurveyOverview, error)
 	// GetAdguardClients devuelve los clientes AdGuard, (nil, nil) si no hay
 	// cliente configurado o no soporta queryClients, o error → 502.
 	GetAdguardClients(ctx context.Context) ([]AdguardClient, error)
