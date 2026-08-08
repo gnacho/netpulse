@@ -137,7 +137,8 @@
     "uptime_other": "{{d}} days, {{h}}h",
     "viewAll": "View all",
     "viewDetail": "View {{name}} detail",
-    "viewDetailShort": "View detail"
+    "viewDetailShort": "View detail",
+    "adminOnly": "Admin only"
   },
   "devices": {
     "badges": {
@@ -305,7 +306,8 @@
     "topology": "Topology",
     "topologyDesc": "Visual network map",
     "collapse": "Collapse menu",
-    "expand": "Expand menu"
+    "expand": "Expand menu",
+    "orchestration": "Orchestration"
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."
@@ -810,5 +812,21 @@
   "demo": {
     "banner": "Demo mode — changes are not applied to the system",
     "exit": "Exit demo"
+  },
+  "orchestration": {
+    "title": "Orchestration",
+    "subtitle": "Configure network services declaratively. Every change goes through a reviewable plan before applying.",
+    "router": "Router",
+    "generatePlan": "Generate plan",
+    "plan": "Plan",
+    "apply": "Apply",
+    "applying": "Applying…",
+    "applied": "Applied successfully",
+    "failed": "Failed",
+    "adguard": {
+      "enable": "Enable AdGuard Home",
+      "port": "Port",
+      "upstream": "Upstream DNS"
+    }
   }
 }
