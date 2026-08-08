@@ -299,6 +299,7 @@
     "moreOptions": "Más opciones",
     "overview": "Resumen",
     "reports": "Informes",
+    "roaming": "Roaming WiFi",
     "routerDetail": "Detalle de router",
     "routers": "Routers",
     "settings": "Ajustes",
@@ -309,6 +310,32 @@
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
     "orchestration": "Orquestación"
+  },
+  "roaming": {
+    "subtitle": "Estado del roaming y la malla WiFi",
+    "loading": "Cargando datos de DAWN…",
+    "error": "No se pudo cargar el estado de DAWN. Comprueba que el servicio corre en tus routers.",
+    "empty": "Ningún router tiene DAWN activo. Instálalo en OpenWrt para ver la malla de roaming.",
+    "tabMatrix": "Matriz",
+    "tab11r": "802.11r",
+    "tabSurvey": "Survey",
+    "tabEvents": "Eventos",
+    "comingSoon": "Próximamente",
+    "matrix": {
+      "title": "Matriz de señal",
+      "description": "Señal de cada cliente vista por cada AP (hearing map de DAWN). Los clientes en zona límite son candidatos a roaming.",
+      "colClient": "Cliente",
+      "colAp": "Punto de acceso",
+      "filterBand": "Banda",
+      "allBands": "Todas",
+      "filterWeak": "Solo señal débil (< -70 dBm)",
+      "noClients": "Sin clientes asociados a estos APs.",
+      "clients": "{{count}} clientes",
+      "aps": "{{count}} APs",
+      "legendGood": "≤ -65 dBm (óptimo)",
+      "legendFair": "-70 a -80 dBm (aceptable)",
+      "legendWeak": "≥ -85 dBm (límite)"
+    }
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."
