@@ -135,6 +135,12 @@ type Live struct {
 	wgActive       map[string]bool
 	weakAlerted    map[string]int64
 	onlineMacs     map[string]bool
+	// dawnAvailable: cache de "¿hay DAWN en algún router?" para el flag del
+	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
+	// al gateway) por dawnAvailableCached para no bloquear buildOverview.
+	dawnAvailable bool
+	dawnCheckedAt time.Time
+	dawnChecking  bool
 	seenOnlineMacs bool
 	wanDown        map[string]int
 	backhaulCache  map[string]backhaulCacheEntry
@@ -1360,9 +1366,42 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
+		Dawn:              &DawnOverview{Available: l.dawnAvailableCached()},
 		VM:                ViewModelVersion,                                            // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
+}
+
+// dawnAvailableCached devuelve si hay DAWN en la red (cacheado). Lanza un
+// refresco asíncrono (1 SSH al gateway, TTL 30s) cuando el cache está stale,
+// sin bloquear el overview: la primera llamada devuelve false y el flag llega
+// en el overview siguiente una vez refrescado.
+func (l *Live) dawnAvailableCached() bool {
+	l.mu.Lock()
+	avail := l.dawnAvailable
+	checked := l.dawnCheckedAt
+	checking := l.dawnChecking
+	gw := l.gatewayCfg
+	l.mu.Unlock()
+	if gw == nil {
+		return false
+	}
+	if checking || time.Since(checked) < 30*time.Second {
+		return avail
+	}
+	l.mu.Lock()
+	l.dawnChecking = true
+	host := gw.Host
+	l.mu.Unlock()
+	go func() {
+		out, err := l.pool.Run(host, "ubus call dawn get_network", 4*time.Second)
+		l.mu.Lock()
+		l.dawnChecking = false
+		l.dawnCheckedAt = time.Now()
+		l.dawnAvailable = err == nil && len(out) > 10
+		l.mu.Unlock()
+	}()
+	return avail
 }
 
 // GetRouters: tarjetas desde la caché del último tick (index.js:600-610).

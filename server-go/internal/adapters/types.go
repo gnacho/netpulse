@@ -273,12 +273,21 @@ type Overview struct {
 	// Topology: semántica de topología precalculada (SPEC-65 D65-3). Puntero:
 	// ausente en snapshots viejos → la app usa su cálculo actual como fallback.
 	Topology *TopoSemantics `json:"topology,omitempty"`
+	// Dawn: disponibilidad de DAWN (roaming/band-steering) para decidir si la
+	// app muestra la entrada /roaming. Puntero: ausente en snapshots viejos y
+	// cuando ningún router tiene DAWN → nil = no mostrar la página.
+	Dawn *DawnOverview `json:"dawn,omitempty"`
 	// VM: versión del view-model (SPEC-65 D65-4). SIEMPRE presente.
 	VM int   `json:"vm"`
 	Ts int64 `json:"ts"` // floor(now/1000) — SEGUNDOS
 }
 
-// ---------------------------------------------------------------------------
+// DawnOverview indica si la red tiene DAWN (roaming/band-steering) disponible.
+// Lo usa el frontend para mostrar/ocultar la entrada /roaming del menú.
+type DawnOverview struct {
+	Available bool `json:"available"`
+}
+
 // RouterDetail (GET /api/routers/:id; SPEC §7.8 y demo §7.1)
 // ---------------------------------------------------------------------------
 
