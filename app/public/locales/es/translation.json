@@ -470,18 +470,21 @@
     "trafficAria": "Tráfico de {{name}} en las últimas 24 horas"
   },
   "reports": {
-    "availability": "Disponibilidad semanal",
+    "availability": "Disponibilidad",
     "colAvg": "Media",
     "colRouter": "Router",
     "empty": "Todavía no hay datos para este período. El rollup nocturno rellena el informe cada día.",
     "error": "No se pudo cargar el informe. Comprueba la conexión e inténtalo de nuevo.",
-    "footnote": "Disponibilidad = minutos con datos sobre el total de los días con registro. La semana en curso se muestra parcial.",
+    "footnote": "Disponibilidad = minutos con datos sobre el total del período. El período en curso se muestra parcial.",
     "latency": "Latencia media",
     "loading": "Cargando informe…",
-    "subtitle": "Disponibilidad y rendimiento por router, en semanas ISO (lunes-domingo).",
+    "rangeLabel": "Rango a mostrar",
+    "subtitle": "Disponibilidad y rendimiento por router.",
+    "tabDay": "Diario",
+    "tabWeek": "Semanal",
+    "tabMonth": "Mensual",
     "traffic": "Tráfico total (↓+↑)",
-    "upMin": "Minutos con datos",
-    "weeksLabel": "Semanas a mostrar"
+    "upMin": "Minutos con datos"
   },
   "topology": {
     "animateFlow": "Animar flujo de paquetes",

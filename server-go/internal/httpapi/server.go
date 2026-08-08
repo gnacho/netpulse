@@ -163,6 +163,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
 	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	mux.HandleFunc("GET /api/reports/weekly", s.handleWeeklyReport)
+	mux.HandleFunc("GET /api/reports/availability", s.handleAvailabilityReport)
 
 	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
