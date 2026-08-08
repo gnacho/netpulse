@@ -31,6 +31,12 @@ var callRestart = rpc.declare({
 	expect: { }
 });
 
+var callTest = rpc.declare({
+	object: 'luci.netpulse',
+	method: 'test',
+	expect: { }
+});
+
 var LOG_LINES = 80;
 
 function fmtDuration(s) {
@@ -121,6 +127,22 @@ function handleRestart() {
 	});
 }
 
+function handleTest() {
+	ui.showModal(_('Testing'), [
+		E('p', { 'class': 'cbi-modal-text' }, _('Testing connection to the server…'))
+	]);
+	return callTest().then(function(res) {
+		ui.hideModal();
+		if (res && res.ok)
+			ui.addNotification(null, E('p', _('Connection OK (HTTP 200).')), 'info');
+		else
+			ui.addNotification(null, E('p', _('Connection failed (%s).').format(res ? (res.code || res.error || 'unknown') : 'unknown')), 'error');
+	}).catch(function(err) {
+		ui.hideModal();
+		ui.addNotification(null, E('p', _('Test failed: %s').format(err.message)), 'error');
+	});
+}
+
 function row(label, id, initial) {
 	return E('tr', { 'class': 'tr' }, [
 		E('td', { 'class': 'td left', 'width': '33%' }, label),
@@ -151,7 +173,11 @@ return view.extend({
 			E('button', {
 				'class': 'btn cbi-button cbi-button-action',
 				'click': function() { handleRestart(); }
-			}, _('Restart agent'))
+			}, _('Restart agent')),
+			E('button', {
+				'class': 'btn cbi-button cbi-button-neutral',
+				'click': function() { handleTest(); }
+			}, _('Test connection'))
 		];
 		if (server != '') {
 			buttons.push(' ');
