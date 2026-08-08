@@ -383,6 +383,20 @@
       "legendFree": "< 40% (free)",
       "legendBusy": "40-70% (busy)",
       "legendCongested": "≥ 70% (congested)"
+    },
+    "events": {
+      "title": "Roaming events",
+      "description": "Client connections, disconnections and DAWN decisions. 30-day history, ingested every 60 s.",
+      "empty": "No events yet. Routers start reporting as soon as the poller reaches them.",
+      "filterType": "Filter by type",
+      "type_all": "All",
+      "type_connected": "Connects",
+      "type_disconnected": "Disconnects",
+      "type_dawn_decision": "DAWN",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "dawn": "DAWN",
+      "other": "Other"
     }
   },
   "notFound": {

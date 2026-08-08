@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { AlertTriangle, CheckCircle2, RefreshCw, Wifi, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNetPulse } from '@/data/DataProvider'
 
@@ -118,6 +118,20 @@ interface SurveyOverview {
   routers: SurveyRouter[]
 }
 
+// ---------------------------------------------------------------------------
+// Tipos del contrato GET /api/roam-events (server-go/internal/roamevents).
+// ---------------------------------------------------------------------------
+
+interface RoamEvent {
+  id: number
+  ts_ms: number
+  router_id: string
+  type: 'connected' | 'disconnected' | 'dawn_decision'
+  mac?: string
+  iface?: string
+  detail?: string
+}
+
 type Band = 'all' | '2.4 GHz' | '5 GHz'
 type Tab = 'matrix' | '11r' | 'survey' | 'events'
 
@@ -143,6 +157,10 @@ export default function Roaming() {
   const [surveyLoading, setSurveyLoading] = useState(false)
   const [surveyError, setSurveyError] = useState(false)
   const [surveyBand, setSurveyBand] = useState<'all' | '2.4 GHz' | '5 GHz'>('all')
+  const [events, setEvents] = useState<RoamEvent[]>([])
+  const [eventsLoading, setEventsLoading] = useState(false)
+  const [eventsError, setEventsError] = useState(false)
+  const [eventsTypeFilter, setEventsTypeFilter] = useState<'all' | 'connected' | 'disconnected' | 'dawn_decision'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [spin, setSpin] = useState(false)
@@ -223,6 +241,32 @@ export default function Roaming() {
     }
   }, [tab, survey, surveyLoading, surveyError])
 
+  // Carga perezosa de /api/roam-events. Polling cada 30s mientras la pestaña
+  // está activa (los eventos llegan por ingest continua al SQLite).
+  async function loadEvents() {
+    setEventsLoading(true)
+    setEventsError(false)
+    try {
+      const res = await fetch('/api/roam-events?limit=100')
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      const json = (await res.json()) as { events: RoamEvent[] }
+      setEvents(json.events ?? [])
+    } catch {
+      setEventsError(true)
+      setEvents([])
+    } finally {
+      setEventsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== 'events') return
+    void loadEvents()
+    const id = window.setInterval(() => void loadEvents(), 30_000)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
   // APs visibles según el filtro de banda.
   const aps = useMemo(() => {
     if (!dawn) return []
@@ -264,7 +308,7 @@ export default function Roaming() {
     { id: 'matrix', label: t('roaming.tabMatrix'), soon: false },
     { id: '11r', label: t('roaming.tab11r'), soon: false },
     { id: 'survey', label: t('roaming.tabSurvey'), soon: false },
-    { id: 'events', label: t('roaming.tabEvents'), soon: true },
+    { id: 'events', label: t('roaming.tabEvents'), soon: false },
   ]
 
   const initial = reduce ? false : { opacity: 0, y: 12 }
@@ -301,6 +345,7 @@ export default function Roaming() {
               void load()
               if (tab === '11r') void loadDot11r()
               if (tab === 'survey') void loadSurvey()
+              if (tab === 'events') void loadEvents()
               if (reduce) return
               setSpin(true)
               window.setTimeout(() => setSpin(false), 650)
@@ -332,7 +377,7 @@ export default function Roaming() {
       </div>
 
       {/* ③ Contenido */}
-      {tab !== 'matrix' && tab !== '11r' && tab !== 'survey' && (
+      {tab !== 'matrix' && tab !== '11r' && tab !== 'survey' && tab !== 'events' && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('roaming.comingSoon')}
         </div>
@@ -341,6 +386,8 @@ export default function Roaming() {
       {tab === '11r' && <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />}
 
       {tab === 'survey' && <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} band={surveyBand} setBand={setSurveyBand} />}
+
+      {tab === 'events' && <EventsPanel events={events} loading={eventsLoading} error={eventsError} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />}
 
       {tab === 'matrix' && (
         <>
@@ -917,6 +964,154 @@ function SurveyPanel({
           {t('roaming.survey.legendCongested')}
         </span>
       </div>
+    </motion.section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Pestaña Eventos (Fase 14.5) — feed temporal de hostapd/DAWN con histórico
+// ---------------------------------------------------------------------------
+
+type EventTypeFilter = 'all' | 'connected' | 'disconnected' | 'dawn_decision'
+
+function eventMeta(type: string): { icon: typeof Wifi; cls: string; label: string } {
+  switch (type) {
+    case 'connected':
+      return { icon: ArrowDownToLine, cls: 'text-ok', label: 'roaming.events.connected' }
+    case 'disconnected':
+      return { icon: ArrowUpFromLine, cls: 'text-text-muted', label: 'roaming.events.disconnected' }
+    case 'dawn_decision':
+      return { icon: GitFork, cls: 'text-warn', label: 'roaming.events.dawn' }
+    default:
+      return { icon: Wifi, cls: 'text-text-muted', label: 'roaming.events.other' }
+  }
+}
+
+function formatEventTime(tsMs: number): string {
+  const d = new Date(tsMs)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  if (sameDay) return `${hh}:${mm}:${ss}`
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dd}/${mo} ${hh}:${mm}`
+}
+
+function EventsPanel({
+  events,
+  loading,
+  error,
+  typeFilter,
+  setTypeFilter,
+  nameByMac,
+}: {
+  events: RoamEvent[]
+  loading: boolean
+  error: boolean
+  typeFilter: EventTypeFilter
+  setTypeFilter: (t: EventTypeFilter) => void
+  nameByMac: Map<string, string>
+}) {
+  const { t } = useTranslation()
+  const reduce = useReducedMotion()
+  const initial = reduce ? false : { opacity: 0, y: 12 }
+
+  const filtered = useMemo(() => {
+    if (typeFilter === 'all') return events
+    return events.filter((e) => e.type === typeFilter)
+  }, [events, typeFilter])
+
+  if (loading && events.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.error')}
+      </div>
+    )
+  }
+
+  const typeOptions: EventTypeFilter[] = ['all', 'connected', 'disconnected', 'dawn_decision']
+
+  return (
+    <motion.section
+      initial={initial}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
+      className="space-y-4"
+    >
+      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <History className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+            <div>
+              <h2 className="font-display text-h2 text-text-primary">{t('roaming.events.title')}</h2>
+              <p className="mt-0.5 max-w-2xl text-caption text-text-muted">{t('roaming.events.description')}</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.events.filterType')}>
+            {typeOptions.map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTypeFilter(tf)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
+                  typeFilter === tf ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+                )}
+              >
+                {t(`roaming.events.type_${tf}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+          {t('roaming.events.empty')}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border bg-surface">
+          <ul className="divide-y divide-border/60">
+            {filtered.map((ev) => {
+              const meta = eventMeta(ev.type)
+              const Icon = meta.icon
+              const clientName = ev.mac ? nameByMac.get(ev.mac.toUpperCase()) ?? ev.mac : ''
+              return (
+                <li key={ev.id} className="flex items-start gap-3 px-4 py-3 md:px-5">
+                  <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', meta.cls)} strokeWidth={1.75} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className={cn('text-sm font-medium', meta.cls)}>{t(meta.label)}</span>
+                      {clientName && (
+                        <span className="truncate text-sm text-text-primary">{clientName}</span>
+                      )}
+                      {ev.iface && (
+                        <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">{ev.iface}</span>
+                      )}
+                      <span className="font-mono text-caption text-text-muted">{ev.router_id}</span>
+                    </div>
+                    {ev.detail && (
+                      <p className="mt-0.5 truncate text-caption text-text-muted">{ev.detail}</p>
+                    )}
+                  </div>
+                  <time className="shrink-0 font-mono text-caption text-text-muted" title={new Date(ev.ts_ms).toLocaleString()}>
+                    {formatEventTime(ev.ts_ms)}
+                  </time>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </motion.section>
   )
 }
