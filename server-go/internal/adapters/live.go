@@ -142,8 +142,9 @@ type Live struct {
 
 	// Agentes nativos (Tier 2): último payload por slug + flag de caída
 	// (degradado a SSH tras emitir la alerta, SPEC-AGENTE-PILOTO §1).
-	agents    *AgentRegistry
-	agentDown map[string]bool
+	agents           *AgentRegistry
+	agentDown        map[string]bool
+	agentDownConfirm time.Duration // Dead Man's Switch: confirmar caída tras este periodo sin alertar
 
 	agStd *AdGuardClient
 	agGL  *AdGuardGlinetClient
@@ -179,7 +180,8 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		wanDown:       map[string]int{},
 		backhaulCache: map[string]backhaulCacheEntry{},
 		lldpCache:     map[string]lldpCacheEntry{},
-		agentDown:     map[string]bool{},
+		agentDown:        map[string]bool{},
+		agentDownConfirm: 3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
 	}
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {

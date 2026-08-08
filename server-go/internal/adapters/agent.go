@@ -93,6 +93,19 @@ func (r *AgentRegistry) Expired(slug string) bool {
 	return ok && r.now().Sub(st.LastSeen) > r.ttl
 }
 
+// StaleFor reporta si el slug lleva más de threshold sin empujar datos.
+// Se usa para el Dead Man's Switch (P6): confirmar que un agente está
+// realmente caído antes de disparar la alerta, evitando spam en flapeos.
+func (r *AgentRegistry) StaleFor(slug string, threshold time.Duration) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, ok := r.states[slug]
+	if !ok || st.LastSeen.IsZero() {
+		return false
+	}
+	return r.now().Sub(st.LastSeen) > threshold
+}
+
 // ActiveCount devuelve cuántos agentes tienen su último push dentro del TTL
 // (métricas operativas de /api/health).
 func (r *AgentRegistry) ActiveCount() int {
@@ -145,8 +158,18 @@ func (r *AgentRegistry) Forget(slug string) {
 // soporte de agentes; todo va por SSH como antes).
 func (l *Live) SetAgents(r *AgentRegistry) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	l.agents = r
+	l.mu.Unlock()
+}
+
+// SetAgentDownConfirm fija el periodo de confirmación del Dead Man's Switch
+// (P6): tiempo sin push tras el cual se confirma la caída de un agente.
+func (l *Live) SetAgentDownConfirm(d time.Duration) {
+	l.mu.Lock()
+	if d > 0 {
+		l.agentDownConfirm = d
+	}
+	l.mu.Unlock()
 }
 
 // agentName: nombre para las alertas (cfg.Name o Host como el resto).
@@ -187,20 +210,31 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 		return true, l.polledFromAgent(cfg, p)
 	}
 	if reg.Expired(cfg.ID) {
-		l.mu.Lock()
-		if !l.agentDown[cfg.ID] {
-			l.agentDown[cfg.ID] = true
-			name := agentName(cfg)
-			l.engine.Emit(AlertEvent{
-				ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
-				Category: alerts.CatSystem, Urgent: false,
-				Severity:    "warn",
-				Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
-				Description: fmt.Sprintf("Sin datos del agente de %s — sondeo SSH reanudado", name),
-				Time:        "ahora mismo", RouterID: cfg.ID,
-			})
+		// Dead Man's Switch (P6): el agente está stale (más allá del TTL),
+		// pero solo disparamos la alerta de caída si lleva más de
+		// agentDownConfirm sin empujar. Entre TTL y agentDownConfirm el
+		// router degrada a SSH silenciosamente (sin alertar), evitando
+		// spam en flapeos breves de fibra/WiFi.
+		confirm := l.agentDownConfirm
+		if confirm <= 0 {
+			confirm = 3 * time.Minute
 		}
-		l.mu.Unlock()
+		if reg.StaleFor(cfg.ID, confirm) {
+			l.mu.Lock()
+			if !l.agentDown[cfg.ID] {
+				l.agentDown[cfg.ID] = true
+				name := agentName(cfg)
+				l.engine.Emit(AlertEvent{
+					ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
+					Category: alerts.CatSystem, Urgent: false,
+					Severity:    "warn",
+					Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
+					Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
+					Time:        "ahora mismo", RouterID: cfg.ID,
+				})
+			}
+			l.mu.Unlock()
+		}
 	}
 	return false, nil
 }
