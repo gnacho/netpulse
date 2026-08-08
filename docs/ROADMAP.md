@@ -1,16 +1,23 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-08 (**Fase 10 en curso** + Fases 14-16 planificadas).
+> Actualizada: 2026-08-08 (**v2.8.0**: Fase 14 completa + Fase 15 parcial;
+> Fases 15-16 pendientes; **Fase 17 "escribir en routers"** + programa de
+> beta-testing Fases 18-20 esqueleto acordado).
 
 ## Estado actual ✅
 
 Hecho y en producción (CT 226 + 4 routers, agentes v2.8.0):
+- **Fase 14 — Visibilidad WiFi/roaming** ✅ **COMPLETA (v2.8.0)**: matriz
+  clientes×APs (14.2b), estado 802.11r por SSID (14.3), utilización por canal
+  (14.4), eventos de roaming persistentes con 30 días de histórico (14.5).
+- **Fase 15.1 — Informes de disponibilidad**: pestañas día/semana/mes sobre
+  `metrics_daily`.
 - **Fase 9 — On-box** (v2.7.2): config UCI, bootstrap AUTH_PASS, journal
   DELETE (R4/R5/R6), TLS autofirmado + SPKI pinning (R2), pairing token (R3),
   paquete server OpenWrt (R1).
-- **Fase 10 — Orquestación** (en curso): motor plan→apply→state + agent
-  executor (10.1), módulo AdGuard Home (10.2, E2E verificado). WireGuard y
-  DAWN-write pendientes.
+- **Fase 10 — Orquestación** (fundación hecha): motor plan→apply→state + agent
+  executor (10.1), módulo AdGuard Home (10.2, E2E verificado). **La Fase 17
+  amplía este motor a despliegues completos (instalador + scripts + firewall)**.
 - **Fase 13 — Auditoría Fable de robustez** (v2.7.2): single-flight, SSE
   deadline, sshpool race, %w wrapping.
 - **Fase 12 — Auditoría de seguridad** (v2.7.0): TRUST_PROXY, anti-replay,
@@ -25,6 +32,8 @@ Hecho y en producción (CT 226 + 4 routers, agentes v2.8.0):
 - **Updater layout-aware**: rolling (git) vs stable (install.sh), release tags.
 - **Tooltip fix**: topología no recorta hover cards.
 - **WAN traffic header fix**: selector de rango no se amontona.
+- **Editar router** (v2.8.0): `PUT /api/config/routers/{id}` + UI, evita
+  borrar+recrear para cambiar host/agent_only/gateway.
 
 Dormido en producción:
 - **Web Push**: sin HTTPS en CT 226 → bloqueante para notificaciones push.
@@ -507,7 +516,7 @@ en server-go. Cada hallazgo con mecanismo completo, test de regresión y fix.
 
 ---
 
-## Fase 14 — Visibilidad WiFi y roaming (solo lectura, cero riesgo)
+## Fase 14 — Visibilidad WiFi y roaming ✅ COMPLETA (v2.8.0, solo lectura, cero riesgo)
 
 Objetivo: dar visibilidad del estado del roaming y WiFi que hoy solo es
 accesible por SSH. El diagnóstico del incidente DAWN (22-Jul, 30-45s de
@@ -582,6 +591,119 @@ E2E. Pendiente:
    desde la app con snapshot+rollback. **Solo tras Fase 14 estabilice**
    (necesitamos la visibilidad para diagnosticar si algo va mal).
 5. **10.5 — Batman-adv** (futuro lejano): mesh sobre LAN. Dry-run obligatorio.
+
+---
+
+## Fase 17 — Escribir en los routers (esqueleto, por rellenar)
+
+> **Por definir**. Esqueleto acordado 8-Ago-2026; el detalle de cada módulo
+> vivirá en su propio issue cuando se arranque (Fases 18-20).
+
+Objetivo: NetPulse pasa de **monitor** a **gestor completo** de la red
+OpenWrt. Cada módulo no solo configura UCI sino que **despliega el servicio
+enterero**: instala paquetes, escribe scripts de soporte, configura
+firewall/dnsmasq/network, activa el servicio y deja todo revertible.
+
+Continúa la Fase 10 (motor plan→apply→state ✅) ampliándola a despliegues
+completos (instalador unificado + provisioner de scripts + healthcheck con
+auto-rollback). Los módulos concretos se agrupan por riesgo en Fases 18-20.
+
+**índice de módulos** (cada uno es un issue independiente):
+
+| # | Módulo | Fase | Riesgo |
+|---|---|---|---|
+| 17.1 | AdGuard Home (full) | 18 | Bajo |
+| 17.2 | WiFi guest / aislada | 18 | Bajo |
+| 17.3 | DDNS (ddns-scripts) | 18 | Bajo |
+| 17.4 | QoS (sqm-scripts) | 18 | Bajo |
+| 17.5 | WireGuard peers | 19 | Medio |
+| 17.6 | WireGuard túnel nuevo | 19 | Medio |
+| 17.7 | OpenVPN | 19 | Medio |
+| 17.8 | Tailscale | 19 | Medio |
+| 17.9 | DAWN + 802.11r (write) | 20 | Alto |
+| 17.10 | Batman-adv mesh | 20 | Muy alto |
+| 17.11 | DPI (nDPI / ntopng) | 20 | Alto |
+
+**Prerrequisitos comunes** (se estabilizan al implementar 17.1 como spike):
+- Instalador de paquetes unificado: `opkg` (24.10), `apk` (25.12), binario
+  oficial (AdGuard/Tailscale) o scripts firmware- específicos (GL.iNet).
+- Provisioner de scripts `/etc/init.d/`, `/etc/uci-defaults/`, helpers.
+- Healthcheck post-apply robusto (SSH + WAN + WiFi) con auto-rollback <60s.
+- Auditoría en `orchestr_audit` + rollback manual `POST /api/plans/{id}/rollback`.
+- Modo `dry_run` que muestra el plan completo sin tocar nada.
+
+---
+
+## Fases 18-20 — Programa de beta-testing y release escalonado
+
+Los módulos de "escritura en router" son los más arriesgados del proyecto:
+un bug puede dejar la red incomunicada, requiriendo acceso físico o consola
+serie. Para llevarlos a producción segura necesitamos **beta-testers
+externos** con hardware variado antes de marcarlos como estables.
+
+### Estrategia
+
+**Canal de release dual**:
+- `stable` (tag `vX.Y.Z`): solo módulos que han pasado el ciclo completo
+  de beta-testing.
+- `unstable` (prerelease rolling): todos los módulos disponibles, warning
+  claro en la UI antes de apply, sin garantía de no romper la red.
+
+**Reclutamiento de beta-testers**:
+- Anuncio en r/openwrt, foro GL.iNet, foro OpenWrt y Discord de self-hosted.
+- Criterios: hardware variado (GL.iNet, Xiaomi, Raspberry, x86_64), red real
+  en uso, dispuesto a reportar fallos con logs, idealmente con consola serie
+  o acceso físico para recuperación.
+- Grupo pequeño inicial (5-10 personas) con canal directo (Matrix o Discord).
+- Cada beta-tester recibe release notes + checklist + procedimiento de
+  rollback documentado.
+
+**Ciclo de release por módulo**:
+1. **Sandbox** (autor): development + tests en su propia red.
+2. **Alpha** (1-2 beta-testers de confianza): primer deploy en hardware
+   distinto al del autor. Auto-rollback obligatorio.
+3. **Beta** (3-5 beta-testers): refinamiento de UX y manejo de errores.
+4. **RC** (release candidate, público `unstable`): cualquier interesado.
+5. **Stable**: tras 2 semanas sin incidentes en `unstable`.
+
+### Fase 18 — Despliegues de bajo riesgo
+
+Sandbox + alpha suficiente, sin beta-tester estricto. Estabiliza el motor
+común de la Fase 17 (instalador, provisioner, healthcheck).
+
+- **17.1 AdGuard Home (full)** — spike inicial, patrón referencia.
+- **17.2 WiFi guest / aislada**.
+- **17.3 DDNS**.
+- **17.4 QoS (sqm-scripts)**.
+
+### Fase 19 — Despliegues de riesgo medio
+
+Beta obligatorio antes de `unstable`.
+
+- **17.5 WireGuard peers**.
+- **17.6 WireGuard túnel nuevo**.
+- **17.7 OpenVPN**.
+- **17.8 Tailscale**.
+
+### Fase 20 — Despliegues de riesgo alto
+
+RC + 2 semanas en `unstable` sin incidentes antes de `stable`.
+
+- **17.9 DAWN + 802.11r (write)**.
+- **17.10 Batman-adv mesh**.
+- **17.11 DPI (nDPI / ntopng)**.
+
+### Carga estimada
+
+| Fase | Módulos | Estimación | Beta-testers |
+|---|---|---|---|
+| 18 | 4 | ~6-8 semanas | 1-2 (alpha) |
+| 19 | 4 | ~8-10 semanas | 3-5 |
+| 20 | 3 | ~10-12 semanas | 5+ (+ ciclo RC de 2 sem) |
+
+Dentro de cada fase los módulos son independientes y pueden paralelizarse.
+Conviene empezar por la Fase 18 porque sus módulos estabilizan el motor
+común que las Fases 19-20 reusan.
 
 ---
 
