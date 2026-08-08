@@ -8,6 +8,8 @@
 //             heartbeat (/tmp, epoch s) y si el servicio está habilitado.
 //   logs    → últimas N líneas de `logread -e netpulse` (10..300).
 //   restart → /etc/init.d/netpulse-agent restart (el "rearme" local).
+//   test    → curl al /api/health del servidor desde este router (valida
+//             conectividad real: DNS, ruta, puerto, server vivo).
 //
 // rpcd lo invoca como ejecutable: `list` imprime la firma de métodos;
 // `call <método>` recibe los argumentos JSON por stdin e imprime el
@@ -160,9 +162,27 @@ function do_restart() {
 	return { ok: rc == 0, code: rc };
 }
 
+// do_test: valida conectividad real desde este router al servidor NetPulse.
+// Lee la URL de UCI y hace curl al /api/health (sin auth, solo reachability).
+function do_test() {
+	let server = trim(popen_all('uci -q get netpulse-agent.main.server 2>/dev/null') || '');
+	if (!server)
+		return { ok: false, error: 'no_server' };
+
+	// curl: -sf silencia progreso y errores HTTP; -m 5 timeout 5s;
+	// -o /dev/null descarta body; -w "%{http_code}" captura el código.
+	let url = server + '/api/health';
+	let cmd = sprintf('curl -sf -m 5 -o /dev/null -w "%%{http_code}" %s 2>/dev/null', url);
+	let code = trim(popen_all(cmd) || '');
+
+	if (code == '200')
+		return { ok: true, code: 200 };
+	return { ok: false, code: code || 'unreachable' };
+}
+
 // ── Dispatcher del protocolo exec de rpcd ────────────────────────────────
 if (ARGV[0] == 'list') {
-	printf('%J\n', { status: {}, logs: { lines: 50 }, restart: {} });
+	printf('%J\n', { status: {}, logs: { lines: 50 }, restart: {}, test: {} });
 	exit(0);
 }
 
@@ -187,6 +207,10 @@ if (ARGV[0] == 'call') {
 	}
 	if (ARGV[1] == 'restart') {
 		printf('%J\n', do_restart());
+		exit(0);
+	}
+	if (ARGV[1] == 'test') {
+		printf('%J\n', do_test());
 		exit(0);
 	}
 }

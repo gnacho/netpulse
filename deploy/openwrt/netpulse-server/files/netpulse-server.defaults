@@ -1,0 +1,19 @@
+#!/bin/sh
+# netpulse-server uci-defaults — primer arranque (Fase 9 R1/R4)
+# Asegura que la sección UCI del servidor existe con valores sanos.
+# El propio binario genera AUTH_PASS (R4), cert TLS (R2) y pairing token
+# (R3) al arrancar si no los encuentra — este script solo prepara UCI.
+
+# Crear la sección server si no existe
+if ! uci -q get netpulse.server >/dev/null 2>&1; then
+	uci -q set netpulse.server=server
+	uci -q set netpulse.server.port=3000
+	uci -q set netpulse.server.data_dir=/usr/local/netpulse-data
+	uci -q set netpulse.server.auth_user=admin
+	uci -q commit netpulse
+fi
+
+# Habilitar el servicio al instalar
+/etc/init.d/netpulse enabled 2>/dev/null || /etc/init.d/netpulse enable
+
+exit 0
