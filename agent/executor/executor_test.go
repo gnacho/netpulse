@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -80,13 +81,174 @@ func TestValidateRejectsMissingArg(t *testing.T) {
 }
 
 func TestValidateServiceAction(t *testing.T) {
-	// Acción válida
-	if err := Validate(Op{Kind: "service", Args: map[string]string{"name": "dnsmasq", "action": "restart"}}); err != nil {
-		t.Fatalf("valid service: %v", err)
+	// Acciones válidas (start/stop añadidos en Fase 17.1 para módulos que
+	// escuchan en puerto, p. ej. parar AdGuard antes de reconfigurarlo).
+	for _, action := range []string{"restart", "reload", "enable", "disable", "start", "stop"} {
+		if err := Validate(Op{Kind: "service", Args: map[string]string{"name": "dnsmasq", "action": action}}); err != nil {
+			t.Fatalf("action %q should be accepted: %v", action, err)
+		}
 	}
 	// Acción inválida
-	if err := Validate(Op{Kind: "service", Args: map[string]string{"name": "dnsmasq", "action": "stop"}}); err == nil {
-		t.Fatal("action 'stop' should be rejected (not in allowlist)")
+	if err := Validate(Op{Kind: "service", Args: map[string]string{"name": "dnsmasq", "action": "restart;;rm"}}); err == nil {
+		t.Fatal("action with shell metachars should be rejected")
+	}
+}
+
+// --- Fase 17.1: validación de los nuevos Kinds ---
+
+func TestValidateDownloadURLAllowlist(t *testing.T) {
+	// URL oficial válida
+	valid := Op{Kind: "download", Args: map[string]string{
+		"url":  "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+		"dest": "/tmp/AdGuardHome.tar.gz",
+	}}
+	if err := Validate(valid); err != nil {
+		t.Fatalf("valid download URL rejected: %v", err)
+	}
+	// URL maliciosa (dominio distinto) → rechazo
+	bad := Op{Kind: "download", Args: map[string]string{
+		"url":  "https://evil.example.com/AdGuardHome.tar.gz",
+		"dest": "/tmp/x.tar.gz",
+	}}
+	if err := Validate(bad); err == nil {
+		t.Fatal("non-allowlisted download URL should be rejected")
+	}
+	// URL oficial pero path fuera de allowlist (otro repo) → rechazo
+	bad2 := Op{Kind: "download", Args: map[string]string{
+		"url":  "https://github.com/evil/repo/releases/download/v1.0/payload",
+		"dest": "/tmp/x.tar.gz",
+	}}
+	if err := Validate(bad2); err == nil {
+		t.Fatal("non-AdguardTeam github path should be rejected")
+	}
+}
+
+func TestValidateFilePathAllowlist(t *testing.T) {
+	for _, p := range []string{"/etc/AdGuardHome.yaml", "/tmp/agh.tar.gz", "/usr/bin/AdGuardHome", "/usr/lib/AdGuardHome/dns"} {
+		if err := Validate(Op{Kind: "write_file", Args: map[string]string{"path": p, "content_b64": "Zm9v"}}); err != nil {
+			t.Errorf("path %q should be accepted: %v", p, err)
+		}
+	}
+	for _, p := range []string{"/etc/passwd;rm", "/etc/../etc/shadow", "/root/.ssh/id_rsa", "/var/log/x", "/home/nacho/x"} {
+		if err := Validate(Op{Kind: "write_file", Args: map[string]string{"path": p, "content_b64": "Zm9v"}}); err == nil {
+			t.Errorf("path %q should be rejected", p)
+		}
+	}
+}
+
+func TestValidateChmodMode(t *testing.T) {
+	for _, m := range []string{"755", "644", "600", "0755", "1777"} {
+		if err := Validate(Op{Kind: "chmod", Args: map[string]string{"mode": m, "path": "/usr/bin/AdGuardHome"}}); err != nil {
+			t.Errorf("mode %q should be accepted: %v", m, err)
+		}
+	}
+	for _, m := range []string{"999", "rwxr-xr-x", "755;rm", "abc"} {
+		if err := Validate(Op{Kind: "chmod", Args: map[string]string{"mode": m, "path": "/usr/bin/AdGuardHome"}}); err == nil {
+			t.Errorf("mode %q should be rejected", m)
+		}
+	}
+}
+
+func TestValidateApkInstall(t *testing.T) {
+	if err := Validate(Op{Kind: "apk_install", Args: map[string]string{"package": "adguard-home"}}); err != nil {
+		t.Fatalf("valid apk_install rejected: %v", err)
+	}
+	if err := Validate(Op{Kind: "apk_install", Args: map[string]string{"package": "adguard-home;rm"}}); err == nil {
+		t.Fatal("apk_install with shell metachars should be rejected")
+	}
+}
+
+func TestValidateExtractTarball(t *testing.T) {
+	if err := Validate(Op{Kind: "extract_tarball", Args: map[string]string{"src": "/tmp/agh.tar.gz", "dest": "/tmp/agh"}}); err != nil {
+		t.Fatalf("valid extract_tarball rejected: %v", err)
+	}
+	// dest fuera de allowlist
+	if err := Validate(Op{Kind: "extract_tarball", Args: map[string]string{"src": "/tmp/agh.tar.gz", "dest": "/home/nacho"}}); err == nil {
+		t.Fatal("extract_tarball dest outside allowlist should be rejected")
+	}
+}
+
+// TestWriteFileExec verifica el exec de write_file escribe el contenido real.
+// Usa un tmpdir (no fakeRunner) porque exec usa os.WriteFile directamente.
+func TestWriteFileExec(t *testing.T) {
+	// Invoco exec directamente con un path /tmp real y limpio después.
+	// El path debe casar con reFilePath (^/tmp/...).
+	path := "/tmp/netpulse-exec-test-" + t.Name()
+	defer os.Remove(path)
+
+	content := "bind_port: 3000\n"
+	b64 := "YmluZF9wb3J0OiAzMDAwCg==" // base64 de content
+	spec := allowlist["write_file"]
+	if spec.exec == nil {
+		t.Fatal("write_file has no exec")
+	}
+	if code := spec.exec(nil, map[string]string{"path": path, "content_b64": b64}); code != 0 {
+		t.Fatalf("write_file exec failed: exit %d", code)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("file not written: %v", err)
+	}
+	if string(data) != content {
+		t.Fatalf("content mismatch: got %q want %q", data, content)
+	}
+}
+
+// TestWriteFileRejectsTraversal: path con .. debe ser rechazado por exec
+// (defense in depth: aunque el regex lo pille, exec lo revalida).
+func TestWriteFileRejectsTraversal(t *testing.T) {
+	spec := allowlist["write_file"]
+	// "/tmp/../../../etc/x" no casa el regex → Validate lo rechaza.
+	// Pero comprobemos exec con un path que SÍ casa el regex pero tiene ..:
+	// filepath.Clean("/tmp/a/../b") = "/tmp/b" (válido). Para forzar el
+	// rechazo en exec, pasamos un path que Clean cambie (no debería casar
+	// el regex, pero si alguien lo bypassa, exec lo para).
+	// Como no podemos bypassar el regex desde Validate, este test documenta
+	// la defensa: si path != Clean(path), exit 1.
+	path := "/tmp/a/./b"
+	if code := spec.exec(nil, map[string]string{"path": path, "content_b64": "Zm9v"}); code == 0 {
+		t.Fatal("exec should reject path where Clean(path) != path")
+	}
+}
+
+// TestApplyPlanConDownloadWriteChmod: plan que mezcla los nuevos Kinds con
+// los existentes, verificando que Apply despacha exec vs build correctamente.
+func TestApplyPlanConDownloadWriteChmod(t *testing.T) {
+	fr := newFakeRunner()
+	// download/extract/chmod via fakeRunner (build path). write_file via exec
+	// (escribe de verdad en /tmp). service via fakeRunner.
+	tmpFile := "/tmp/netpulse-plan-test-" + t.Name()
+	defer os.Remove(tmpFile)
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "download", Args: map[string]string{
+			"url":  "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+			"dest": tmpFile,
+		}, Desc: "Download AdGuard tarball"},
+		{Kind: "write_file", Args: map[string]string{
+			"path":       "/tmp/netpulse-plan-test-cfg.yaml",
+			"content_b64": "YmluZF9wb3J0OiAzMDAwCg==",
+		}, Desc: "Write AdGuard config"},
+		{Kind: "chmod", Args: map[string]string{"mode": "755", "path": tmpFile}, Desc: "Make executable"},
+		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "start"}, Desc: "Start AdGuard"},
+	}
+	defer os.Remove("/tmp/netpulse-plan-test-cfg.yaml")
+
+	res := e.Apply(ops)
+	if res.Status != "applied" {
+		t.Fatalf("expected applied, got %s: %s", res.Status, res.Error)
+	}
+	// Verifica que los comandos build se ejecutaron (download, chmod, service).
+	got := strings.Join(fr.calls, "\n")
+	for _, want := range []string{"uclient-fetch https:", "chmod 755", "/etc/init.d/adguardhome start"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing call %q in:\n%s", want, got)
+		}
+	}
+	// Y que write_file escribió el fichero config.
+	if _, err := os.ReadFile("/tmp/netpulse-plan-test-cfg.yaml"); err != nil {
+		t.Errorf("config file not written: %v", err)
 	}
 }
 
