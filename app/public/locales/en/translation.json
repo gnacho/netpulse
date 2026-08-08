@@ -783,7 +783,13 @@
       "sshKeyTitle": "Server SSH key",
       "sshKeyCaption": "Authorize it on each router (System → Administration → SSH keys, or /etc/dropbear/authorized_keys). NetPulse is read-only: status, clients and traffic.",
       "copy": "Copy",
-      "copied": "Copied"
+      "copied": "Copied",
+      "agentOnly": "Agent only (no SSH)",
+      "agentOnlyBadge": "Agent only",
+      "edit": "Edit",
+      "editTitle": "Edit {{id}}",
+      "save": "Save",
+      "saving": "Saving…"
     },
     "saved": "Preferences saved",
     "services": {

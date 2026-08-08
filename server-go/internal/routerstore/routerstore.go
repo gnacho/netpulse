@@ -178,6 +178,85 @@ func RemoveRouter(db *sql.DB, id string) bool {
 	return n > 0
 }
 
+// UpdateInput son los campos editables de un router. Todos opcionales:
+// nil = no tocar el campo. Se usa desde PUT /api/config/routers/{id}.
+type UpdateInput struct {
+	Name      *string // "" = limpiar (usar host)
+	Host      *string
+	Type      *string
+	IsGateway *bool
+	AgentOnly *bool
+}
+
+// UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
+// el flag se quita del resto (un solo gateway, transacción). Si el router no
+// existe devuelve false (caller responde 404).
+func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig, bool) {
+	tx, err := db.Begin()
+	if err != nil {
+		return adapters.RouterConfig{}, false
+	}
+	defer tx.Rollback()
+
+	var exists int
+	if err := tx.QueryRow("SELECT 1 FROM routers WHERE id = ?", id).Scan(&exists); err != nil {
+		return adapters.RouterConfig{}, false
+	}
+
+	if in.IsGateway != nil && *in.IsGateway {
+		if _, err := tx.Exec("UPDATE routers SET is_gateway = 0 WHERE id != ?", id); err != nil {
+			return adapters.RouterConfig{}, false
+		}
+	}
+
+	sets := []string{}
+	args := []any{}
+	if in.Name != nil {
+		sets = append(sets, "name = ?")
+		args = append(args, *in.Name)
+	}
+	if in.Host != nil {
+		sets = append(sets, "host = ?")
+		args = append(args, *in.Host)
+	}
+	if in.Type != nil {
+		sets = append(sets, "type = ?")
+		args = append(args, *in.Type)
+	}
+	if in.IsGateway != nil {
+		gw := 0
+		if *in.IsGateway {
+			gw = 1
+		}
+		sets = append(sets, "is_gateway = ?")
+		args = append(args, gw)
+	}
+	if in.AgentOnly != nil {
+		ao := 0
+		if *in.AgentOnly {
+			ao = 1
+		}
+		sets = append(sets, "agent_only = ?")
+		args = append(args, ao)
+	}
+	if len(sets) > 0 {
+		args = append(args, id)
+		if _, err := tx.Exec("UPDATE routers SET "+strings.Join(sets, ", ")+" WHERE id = ?", args...); err != nil {
+			return adapters.RouterConfig{}, false
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return adapters.RouterConfig{}, false
+	}
+	for _, r := range ListRouters(db) {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return adapters.RouterConfig{}, false
+}
+
 // ---------------------------------------------------------------------------
 // Autodetección de la puerta de enlace
 // ---------------------------------------------------------------------------

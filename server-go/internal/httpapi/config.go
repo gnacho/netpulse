@@ -28,6 +28,7 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/config/discover", auth.RequireAdmin(http.HandlerFunc(s.handleDiscover)))
 	mux.HandleFunc("GET /api/config/routers", s.handleListConfigRouters)
 	mux.Handle("POST /api/config/routers", auth.RequireAdmin(http.HandlerFunc(s.handleAddConfigRouter)))
+	mux.Handle("PUT /api/config/routers/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleUpdateConfigRouter)))
 	mux.Handle("DELETE /api/config/routers/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteConfigRouter)))
 	mux.Handle("GET /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleGetAdguardConfig)))
 	mux.Handle("PUT /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handlePutAdguardConfig)))
@@ -147,6 +148,67 @@ func (s *server) handleDeleteConfigRouter(w http.ResponseWriter, r *http.Request
 	}
 	s.syncRouters()
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// PUT /api/config/routers/:id — edita host/name/type/gateway/agent_only.
+// Campos omitidos (nil) no se tocan. 404 si el router no existe.
+func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var in routerInput
+	if !readJSONBody(r, &in) {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	var name *string
+	if in.Name != nil {
+		n := strings.TrimSpace(*in.Name)
+		if len(n) < 1 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "String must contain at least 1 character(s)")
+			return
+		}
+		if len(n) > 60 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "String must contain at most 60 character(s)")
+			return
+		}
+		name = &n
+	}
+	var host *string
+	if in.Host != nil {
+		h, msg := validateHost(*in.Host)
+		if msg != "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", msg)
+			return
+		}
+		// Duplicado: otro router con ese host (excluyendo el propio id).
+		for _, rt := range routerstore.ListRouters(s.db.DB) {
+			if rt.Host == h && rt.ID != id {
+				writeError(w, http.StatusConflict, "duplicate_host", "Ya hay un router con "+h)
+				return
+			}
+		}
+		host = &h
+	}
+	var typ *string
+	if in.Type != "" {
+		t := in.Type
+		if t != "glinet" && t != "openwrt" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt'")
+			return
+		}
+		typ = &t
+	}
+	gw := in.Gateway
+	ao := in.AgentOnly
+	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
+		Name: name, Host: host, Type: typ,
+		IsGateway: &gw, AgentOnly: &ao,
+	})
+	if !ok {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	s.syncRouters()
+	writeJSON(w, http.StatusOK, map[string]any{"router": updated})
 }
 
 // --- AdGuard Home (GL.iNet) — solo admin; la contraseña NO se devuelve ---

@@ -783,7 +783,13 @@
       "sshKeyTitle": "Clave SSH del servidor",
       "sshKeyCaption": "Autorízala en cada router (Sistema → Administración → claves SSH, o /etc/dropbear/authorized_keys). NetPulse solo lee: estado, clientes y tráfico.",
       "copy": "Copiar",
-      "copied": "Copiada"
+      "copied": "Copiada",
+      "agentOnly": "Solo agente (sin SSH)",
+      "agentOnlyBadge": "Solo agente",
+      "edit": "Editar",
+      "editTitle": "Editar {{id}}",
+      "save": "Guardar",
+      "saving": "Guardando…"
     },
     "saved": "Preferencias guardadas",
     "services": {
