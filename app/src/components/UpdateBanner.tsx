@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import { DownloadCloud, Loader2, X } from 'lucide-react'
+import { DownloadCloud, ExternalLink, Loader2, X } from 'lucide-react'
 import { useAuth } from '@/data/AuthContext'
 
 interface UpdateStatus {
@@ -15,6 +15,9 @@ interface UpdateStatus {
   latest: string | null
   latestMsg: string | null
   updateAvailable: boolean
+  canApply: boolean
+  mode: string
+  repo: string
   updating: false | { step: string }
   hasToken: boolean
 }
@@ -154,14 +157,27 @@ export function UpdateBanner() {
         </p>
         {!updating ? (
           <>
-            <button
-              type="button"
-              onClick={() => void apply()}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
-            >
-              <DownloadCloud className="h-3.5 w-3.5" strokeWidth={2} />
-              {t('update.button')}
-            </button>
+            {status.canApply ? (
+              <button
+                type="button"
+                onClick={() => void apply()}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+              >
+                <DownloadCloud className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('update.button')}
+              </button>
+            ) : (
+              <a
+                href={`https://github.com/${status.repo || 'gnacho/netpulse'}/releases`}
+                target="_blank"
+                rel="noreferrer"
+                title={t('update.stableHint')}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-2"
+              >
+                <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('update.getRelease')}
+              </a>
+            )}
             <button
               type="button"
               onClick={() => status.latest && setDismissed(status.latest)}

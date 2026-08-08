@@ -789,6 +789,8 @@
   "update": {
     "available": "New version available: {{version}} — {{msg}}",
     "button": "Update",
+    "getRelease": "View on GitHub",
+    "stableHint": "Stable install: re-run install.sh to update",
     "updating": "Updating… {{step}}",
     "dismiss": "Dismiss notice",
     "step": {

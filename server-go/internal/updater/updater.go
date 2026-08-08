@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +47,8 @@ type Status struct {
 	Latest          *string `json:"latest"`
 	LatestMsg       *string `json:"latestMsg"`
 	UpdateAvailable bool    `json:"updateAvailable"`
+	CanApply        bool    `json:"canApply"`
+	Mode            string  `json:"mode"`
 	LastCheck       *int64  `json:"lastCheck"`
 	Updating        any     `json:"updating"` // false | {"step": ...}
 	Error           *string `json:"error"`
@@ -59,6 +62,9 @@ type Updater struct {
 	repoRoot string
 	repo     string
 	token    string
+	version  string // semver embebido (httpapi.Version) para comparar en estable
+	canApply bool   // true si existe deploy/update.sh (layout git)
+	mode     string // "rolling" (git layout) | "stable" (install.sh)
 
 	mu           sync.Mutex
 	current      string
@@ -75,15 +81,36 @@ type Updater struct {
 	wg     sync.WaitGroup
 }
 
-// New crea el updater (repoRoot = padre de serverRoot, como index.js).
-func New(repoRoot, repo, token string) *Updater {
+// New crea el updater. version es el semver embebido (httpapi.Version) usado
+// para comparar contra el último release tag en modo estable. La detección de
+// layout es automática: si existe deploy/update.sh junto a repoRoot, el modo
+// es "rolling" (compara contra main HEAD y puede auto-aplicar); si no, es
+// "stable" (compara contra release tags y NO puede auto-aplicar — el usuario
+// debe re-ejecutar install.sh).
+func New(repoRoot, repo, token, version string) *Updater {
+	canApply := fileExists(filepath.Join(repoRoot, "deploy", "update.sh"))
+	mode := "stable"
+	if canApply {
+		mode = "rolling"
+	}
 	return &Updater{
 		repoRoot: repoRoot,
 		repo:     repo,
 		token:    token,
+		version:  version,
+		canApply: canApply,
+		mode:     mode,
 		current:  "desconocido",
 		stopCh:   make(chan struct{}),
 	}
+}
+
+// CanApply indica si el updater puede auto-aplicar en este layout.
+func (u *Updater) CanApply() bool { return u.canApply }
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func gitShort(repoRoot string) string {
@@ -97,8 +124,9 @@ func gitShort(repoRoot string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// fetchLatest consulta el último commit de main (errores → {error: ...}).
-func (u *Updater) fetchLatest(ctx context.Context) (sha, msg string, errCode string) {
+// fetchLatestCommit consulta el último commit de main (modo rolling).
+// Errores → {error: ...}.
+func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCode string) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s/repos/%s/commits/main", APIBase, u.repo), nil)
 	if err != nil {
@@ -160,13 +188,102 @@ func (u *Updater) fetchLatest(ctx context.Context) (sha, msg string, errCode str
 	return sha, msg, ""
 }
 
-// Check fuerza un chequeo contra GitHub y devuelve el estado.
-func (u *Updater) Check(ctx context.Context) Status {
-	current := gitShort(u.repoRoot)
-	if current == "" {
-		current = "desconocido"
+// fetchLatestRelease consulta el último release tag (modo stable). Devuelve
+// tag_name (ej. "v2.7.3") y el nombre del release. Errores → {error: ...}.
+func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name string, errCode string) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s/repos/%s/releases/latest", APIBase, u.repo), nil)
+	if err != nil {
+		return "", "", "network"
 	}
-	sha, msg, errCode := u.fetchLatest(ctx)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "netpulse-updater")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if u.token != "" {
+		req.Header.Set("Authorization", "Bearer "+u.token)
+	}
+	client := &http.Client{Timeout: httpTimeout}
+	res, err := client.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", "", "timeout"
+		}
+		return "", "", "network"
+	}
+	defer res.Body.Close()
+	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 404 {
+		if u.token != "" {
+			return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+		}
+		return "", "", "no_token"
+	}
+	if res.StatusCode != 200 {
+		return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+	}
+	var data struct {
+		TagName string `json:"tag_name"`
+		Name    string `json:"name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&data); err != nil {
+		return "", "", "network"
+	}
+	tag = data.TagName
+	name = data.Name
+	if name == "" {
+		name = tag
+	}
+	return tag, name, ""
+}
+
+// compareSemver compara dos strings semver (con o sin prefijo "v").
+// Devuelve >0 si a > b, 0 si iguales, <0 si a < b. No-parseable → 0.
+func compareSemver(a, b string) int {
+	av := parseSemver(a)
+	bv := parseSemver(b)
+	for i := 0; i < 3; i++ {
+		if av[i] != bv[i] {
+			return av[i] - bv[i]
+		}
+	}
+	return 0
+}
+
+func parseSemver(s string) [3]int {
+	s = strings.TrimPrefix(s, "v")
+	parts := strings.SplitN(s, ".", 3)
+	var out [3]int
+	for i := 0; i < len(parts) && i < 3; i++ {
+		p := parts[i]
+		// descartar sufijos pre-release/build (-rc1, +build, etc.)
+		if idx := strings.IndexAny(p, "-+"); idx >= 0 {
+			p = p[:idx]
+		}
+		n, _ := strconv.Atoi(p)
+		out[i] = n
+	}
+	return out
+}
+
+// Check fuerza un chequeo contra GitHub y devuelve el estado. En modo
+// rolling compara contra el último commit de main; en modo estable contra
+// el último release tag (semver).
+func (u *Updater) Check(ctx context.Context) Status {
+	var current, latest, latestMsg, errCode string
+
+	if u.mode == "stable" {
+		current = u.version
+		if current == "" {
+			current = "desconocido"
+		}
+		latest, latestMsg, errCode = u.fetchLatestRelease(ctx)
+	} else {
+		current = gitShort(u.repoRoot)
+		if current == "" {
+			current = "desconocido"
+		}
+		latest, latestMsg, errCode = u.fetchLatestCommit(ctx)
+	}
+
 	now := time.Now().UnixMilli()
 
 	u.mu.Lock()
@@ -178,11 +295,15 @@ func (u *Updater) Check(ctx context.Context) Status {
 		return u.statusLocked()
 	}
 	u.err = nil
-	u.latest = &sha
-	u.latestMsg = &msg
-	u.updateAvail = sha != "" && current != "desconocido" && sha != current
+	u.latest = &latest
+	u.latestMsg = &latestMsg
+	if u.mode == "stable" {
+		u.updateAvail = latest != "" && current != "desconocido" && compareSemver(latest, current) > 0
+	} else {
+		u.updateAvail = latest != "" && current != "desconocido" && latest != current
+	}
 	if u.updateAvail {
-		fmt.Printf("[netpulse] nueva versión disponible: %s → %s (%s)\n", current, sha, msg)
+		fmt.Printf("[netpulse] nueva versión disponible: %s → %s (%s)\n", current, latest, latestMsg)
 	}
 	return u.statusLocked()
 }
@@ -326,6 +447,8 @@ func (u *Updater) statusLocked() Status {
 		Latest:          u.latest,
 		LatestMsg:       u.latestMsg,
 		UpdateAvailable: u.updateAvail,
+		CanApply:        u.canApply,
+		Mode:            u.mode,
 		LastCheck:       u.lastCheck,
 		Updating:        updating,
 		Error:           u.err,

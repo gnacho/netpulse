@@ -26,9 +26,14 @@ func (s *server) registerUpdateRoutes(mux *http.ServeMux, u *updater.Updater) {
 		writeJSON(w, http.StatusOK, u.Check(ctx))
 	})))
 	mux.Handle("POST /api/update/apply", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !u.CanApply() {
+			// Layout install.sh (single-binary): sin deploy/update.sh ni
+			// permisos para swap del binario. El usuario debe re-ejecutar
+			// install.sh (la vía documentada para estables).
+			writeError(w, http.StatusConflict, "update_unavailable")
+			return
+		}
 		if !u.Apply() {
-			// already_updating (o update_copy_failed: mismo 409 que el JS,
-			// que solo devuelve false en ambos casos)
 			writeError(w, http.StatusConflict, "already_updating")
 			return
 		}
