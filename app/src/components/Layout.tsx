@@ -172,10 +172,21 @@ function GatewayStatus() {
 // Sidebar desktop (≥1024px) — 232px
 // ---------------------------------------------------------------------------
 
+/** Items de nav visibles según el overview. /roaming solo si hay DAWN. */
+function useVisibleNavItems(): NavItem[] {
+  const { dawn } = useNetPulse()
+  const dawnAvailable = !!dawn?.available
+  return useMemo(
+    () => NAV_ITEMS.filter((it) => it.to !== '/roaming' || dawnAvailable),
+    [dawnAvailable],
+  )
+}
+
 function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
   const { t } = useTranslation()
-  const main = NAV_ITEMS.filter((i) => i.to !== '/settings')
-  const settings = NAV_ITEMS[NAV_ITEMS.length - 1]
+  const items = useVisibleNavItems()
+  const main = items.filter((i) => i.to !== '/settings')
+  const settings = items[items.length - 1]
 
   if (collapsed) {
     // Sidebar colapsado = raíl de iconos en lg (persiste en localStorage)
@@ -185,7 +196,7 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
           <Logo compact />
         </div>
         <nav className="flex-1 space-y-1 py-2" aria-label={t('nav.mainNav')}>
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -291,13 +302,14 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
 
 function Rail() {
   const { t } = useTranslation()
+  const items = useVisibleNavItems()
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-16 flex-col items-center border-r border-border bg-surface md:flex lg:hidden">
       <div className="flex h-16 items-center pt-safe">
         <Logo compact />
       </div>
       <nav className="flex-1 space-y-1 py-2" aria-label={t('nav.mainNav')}>
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

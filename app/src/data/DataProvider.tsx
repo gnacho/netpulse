@@ -96,6 +96,8 @@ export interface NetPulseData {
    * Ausente en demo y con servidores viejos → model.ts usa su cálculo local.
    */
   topology?: TopoSemantics
+  /** Disponibilidad de DAWN (roaming); ausente = no mostrar /roaming. */
+  dawn?: { available: boolean }
 }
 
 export interface NetPulseApi extends NetPulseData {
@@ -371,6 +373,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       unreadAlerts: o.unreadAlerts,
       vm,
       topology: o.topology,
+      dawn: o.dawn,
     }))
   }, [])
 
