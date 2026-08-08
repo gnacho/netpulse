@@ -2248,7 +2248,11 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 		devs := []string{}
 		for _, line := range strings.Split(devsOut, "\n") {
 			d := strings.TrimSpace(line)
-			if d != "" && strings.HasPrefix(d, "wlan") {
+			// iw dev solo lista interfaces wifi, pero el nombre puede ser
+			// wlan0/wlan1 (driver estándar) o phy0-ap0/phy1-ap0 (mt76,
+			// Xiaomi AX6). Aceptamos cualquier token no vacío que awk haya
+			// extraído de la línea "Interface <name>".
+			if d != "" {
 				devs = append(devs, d)
 			}
 		}
