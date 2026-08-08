@@ -1309,7 +1309,6 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		routerList = append(routerList, router)
 	}
 	devices := l.buildDevices(polled)
-	// Topología v5: puertos FDB + switches/hipervisores inferidos
 	devices, distNodes := inferTopology(polled, devices)
 	// Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
 	for _, d := range devices {

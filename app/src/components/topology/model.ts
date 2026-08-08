@@ -204,23 +204,32 @@ export function linkColor(link: Pick<TopoLink, 'kind' | 'wifi'>): string {
 // ---------------------------------------------------------------------------
 
 const GATEWAY_COORD = { x: 500, y: 250, r: 40, label: { x: 446, y: 312, anchor: 'end' as const } }
-const AP_COORDS = [
-  { x: 195, y: 470, r: 32, label: { x: 124, y: 464, anchor: 'end' as const } },
-  { x: 500, y: 505, r: 32, label: { x: 554, y: 500, anchor: 'start' as const } },
-  { x: 805, y: 470, r: 32, label: { x: 858, y: 464, anchor: 'start' as const } },
-]
+const AP_RADIUS = 32
+const AP_ARC_CENTER = 90
+const AP_ARC_HALF = 70
+const AP_BASE_Y = 480
+
+function apCoords(n: number, total: number): { x: number; y: number; r: number; label: { x: number; y: number; anchor: 'end' | 'start' } } {
+  let angle: number
+  if (total === 1) {
+    angle = AP_ARC_CENTER
+  } else {
+    angle = AP_ARC_CENTER - AP_ARC_HALF + (2 * AP_ARC_HALF * n) / (total - 1)
+  }
+  const x = Math.round(GATEWAY_COORD.x + 305 * Math.cos(rad(angle)))
+  const y = Math.round(AP_BASE_Y + 25 * Math.sin(rad(angle - AP_ARC_CENTER)))
+  const isLeft = x < GATEWAY_COORD.x
+  return {
+    x, y, r: AP_RADIUS,
+    label: { x: isLeft ? x - AP_RADIUS - 6 : x + AP_RADIUS + 6, y: y - 6, anchor: isLeft ? 'end' as const : 'start' as const },
+  }
+}
 const INTERNET_COORD = { x: 500, y: 58 }
 const PEER_COORDS = [
   { x: 265, y: 26 },
   { x: 735, y: 26 },
   { x: 140, y: 26 },
   { x: 860, y: 26 },
-]
-/** Uplinks canónicos gateway→AP (cúbicas QA-das en el mockup) */
-const UPLINK_PATHS = [
-  { d: 'M 464 282 C 390 340, 290 400, 224 440', lx: 292, ly: 366 },
-  { d: 'M 500 292 C 500 360, 500 420, 500 468', lx: 514, ly: 418 },
-  { d: 'M 536 282 C 610 340, 710 400, 776 440', lx: 664, ly: 366 },
 ]
 /** Túneles WG canónicos peer→Internet */
 const WG_PATHS = [
@@ -376,12 +385,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // `topology` presente; sin ella, fallback EXACTO al cálculo local.
   const sem = topology && (vm ?? 1) >= 1 ? topology : undefined
   const gateway = routers.find((r) => r.roleBadge === 'Principal') ?? routers[0]
-  const aps = routers.filter((r) => r.id !== gateway?.id).slice(0, AP_COORDS.length)
+  const aps = routers.filter((r) => r.id !== gateway?.id)
 
   const gatewayNode: RouterNode | null = gateway
     ? { kind: 'router', id: gateway.id, router: gateway, ...GATEWAY_COORD }
     : null
-  const apNodes: RouterNode[] = aps.map((router, i) => ({ kind: 'router', id: router.id, router, ...AP_COORDS[i] }))
+  const apNodes: RouterNode[] = aps.map((router, i) => ({ kind: 'router', id: router.id, router, ...apCoords(i, aps.length) }))
   const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes] : apNodes
   const routerById = new Map(routerNodes.map((n) => [n.id, n]))
 
@@ -696,20 +705,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       from: 'internet', to: gatewayNode.id,
     })
   }
-  apNodes.forEach((node, i) => {
-    const p = UPLINK_PATHS[i]
-    // C1: backhaul real del router (ausente = cable); sin hardcode por id.
+  apNodes.forEach((node) => {
     const isWifi = node.router.backhaul === 'wifi'
     const traffic = subtreeTraffic(node.id)
-    // Etiqueta wifi: genérica (no hay dato de señal en el contrato Router);
-    // cable: sufijo "· LLDP" si el AP se anuncia en el puerto del uplink (C2).
     const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
+    const from = gatewayNode ?? null
+    let d = ''
+    let lx = 0, ly = 0
+    if (from) {
+      const edge = pos(from.x, from.y, angleTo(from.x, from.y, node.x, node.y), from.r + 2)
+      const dx = node.x - edge.x
+      const dy = node.y - edge.y
+      d = `M ${edge.x} ${edge.y} C ${edge.x + dx * 0.35} ${edge.y + dy * 0.15}, ${node.x - dx * 0.15} ${node.y - dy * 0.35}, ${node.x} ${node.y}`
+      lx = Math.round((edge.x + node.x) / 2)
+      ly = Math.round((edge.y + node.y) / 2)
+    }
     links.push({
       id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
-      d: p.d, lx: p.lx, ly: p.ly,
+      d, lx, ly,
       label,
       width: isWifi ? 2 : 3, ...flowFor(Math.max(traffic, isWifi ? 40 : 120)),
-      from: gatewayNode?.id ?? 'internet', to: node.id,
+      from: from?.id ?? 'internet', to: node.id,
     })
   })
   // enlaces router → distnode / device-hub / cableado directo
@@ -812,12 +828,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
           if (!node) return null
           const isWifi = node.router.backhaul === 'wifi'
           const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
-          const p = i >= 0 ? UPLINK_PATHS[i] : null
           const from = gatewayNode ?? null
+          const d = from ? curve(from, node) : ''
           return {
             id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
-            d: p?.d ?? (from ? curve(from, node) : ''),
-            lx: p?.lx ?? 0, ly: p?.ly ?? 0,
+            d,
+            lx: 0, ly: 0,
             label,
             width: isWifi ? 2 : 3, ...flowFor(Math.max(subtreeTraffic(node.id), isWifi ? 40 : 120)),
             from: sl.from, to: sl.to,

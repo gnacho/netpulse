@@ -70,13 +70,6 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			routerMACs[p.brMac] = true
 		}
 	}
-	for _, p := range polled {
-		if p.cfg.AgentOnly && p.fdb != nil {
-			for mac := range p.fdb {
-				routerMACs[mac] = true
-			}
-		}
-	}
 
 	var dists []DistributionNode
 	// routers en orden determinista (el mapa polled no lo es)
@@ -113,15 +106,15 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			var kept []string
 			for _, mac := range byPort[port] {
 				if routerMACs[mac] {
-					continue // el propio router/AP no es un cliente
+					continue
 				}
 				if idx, ok := byMAC[mac]; ok {
 					d := devices[idx]
 					if d.RouterID != routerID {
-						continue // cliente de otro router (visto por el uplink)
+						continue
 					}
 					if d.Band != "cable" && d.Band != "—" {
-						continue // wifi no cuelga de un puerto físico
+						continue
 					}
 				}
 				kept = append(kept, mac)
