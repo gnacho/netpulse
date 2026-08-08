@@ -38,6 +38,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/poller"
 	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
+	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
@@ -164,6 +165,7 @@ func run() error {
 	agentReg := adapters.NewAgentRegistry(agentTTL)
 	var adapter adapters.Snapshotter
 	var sshPool *adapters.SSHPool
+	var eventsCollector *roamevents.Collector
 	if cfg.DemoMode {
 		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
 	} else {
@@ -188,6 +190,18 @@ func run() error {
 				}
 			}
 			adapter = live
+			// Fase 14.5: collector continuo de eventos hostapd/DAWN.
+			// Goroutine dedicada cada 60s, lee logread por router y
+			// persiste en roam_events con dedup. Solo en modo live.
+			eventsCollector = roamevents.NewCollector(dbHandle.DB, sshPool, func() []roamevents.RouterHost {
+				out := []roamevents.RouterHost{}
+				for _, r := range routerstore.ListRouters(dbHandle.DB) {
+					out = append(out, roamevents.RouterHost{
+						ID: r.ID, Host: r.Host, Name: r.Name, AgentOnly: r.AgentOnly,
+					})
+				}
+				return out
+			})
 		}
 	}
 
@@ -358,6 +372,9 @@ func run() error {
 		log.Printf("[netpulse] datos: %s · estáticos: %s", cfg.DataDir, staticDesc)
 		p.Start()
 		upd.Start()
+		if eventsCollector != nil {
+			eventsCollector.Start()
+		}
 		if cfg.Onbox {
 			errCh <- srv.ListenAndServeTLS("", "")
 		} else {
@@ -384,6 +401,9 @@ func run() error {
 		}
 		p.Stop()
 		upd.Stop()
+		if eventsCollector != nil {
+			eventsCollector.Stop()
+		}
 		hub.NotifyShutdown()
 		_ = adapter.Close()
 		// Tras parar poller y adapter ya nadie emite alertas: se puede

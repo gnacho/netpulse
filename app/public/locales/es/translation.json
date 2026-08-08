@@ -383,6 +383,20 @@
       "legendFree": "< 40% (libre)",
       "legendBusy": "40-70% (ocupado)",
       "legendCongested": "≥ 70% (congestionado)"
+    },
+    "events": {
+      "title": "Eventos de roaming",
+      "description": "Conexiones, desconexiones y decisiones de DAWN por cliente. Histórico de 30 días, ingesta cada 60 s.",
+      "empty": "Sin eventos todavía. Los routers empiezan a reportar en cuanto el poller los alcanza.",
+      "filterType": "Filtrar por tipo",
+      "type_all": "Todos",
+      "type_connected": "Conexiones",
+      "type_disconnected": "Desconexiones",
+      "type_dawn_decision": "DAWN",
+      "connected": "Conectado",
+      "disconnected": "Desconectado",
+      "dawn": "DAWN",
+      "other": "Otro"
     }
   },
   "notFound": {

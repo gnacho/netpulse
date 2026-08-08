@@ -156,6 +156,22 @@ CREATE TABLE IF NOT EXISTS orchestr_audit (
   detail     TEXT,
   ts         INTEGER NOT NULL
 );
+
+-- roam_events: feed continuo de eventos hostapd/DAWN (Fase 14.5).
+-- Ingesta cada 60s via logread grep; dedup por content_hash.
+CREATE TABLE IF NOT EXISTS roam_events (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts_ms         INTEGER NOT NULL,
+  router_id     TEXT NOT NULL,
+  type          TEXT NOT NULL,
+  mac           TEXT,
+  iface         TEXT,
+  detail        TEXT,
+  content_hash  TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_roam_events_dedup ON roam_events(content_hash);
+CREATE INDEX IF NOT EXISTS idx_roam_events_ts ON roam_events(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_roam_events_router_ts ON roam_events(router_id, ts_ms DESC);
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
@@ -360,6 +376,14 @@ func (d *DB) NightlyJob() {
 			log.Printf("[netpulse] aviso: VACUUM falló: %v", err)
 		} else {
 			log.Printf("[netpulse] rollup nocturno: VACUUM tras freelist=%d", freelist)
+		}
+	}
+
+	// 6) roam_events: retención 30 días (Fase 14.5).
+	cutoff := NowMS() - 30*24*60*60*1000
+	if res, err := d.Exec("DELETE FROM roam_events WHERE ts_ms < ?", cutoff); err == nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			log.Printf("[netpulse] roam_events: purgados %d eventos >30d", n)
 		}
 	}
 

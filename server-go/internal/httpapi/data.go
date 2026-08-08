@@ -10,6 +10,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 )
 
 var bands = []string{"5 GHz", "2.4 GHz", "cable"}
@@ -329,6 +330,34 @@ func (s *server) handleSurvey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, survey)
+}
+
+// handleRoamEvents: lista paginada de eventos hostapd/DAWN desde SQLite.
+// Query params: limit (default 100, máx 1000), since (epoch ms), router, type.
+func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	var since int64
+	if v := r.URL.Query().Get("since"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			since = n
+		}
+	}
+	routerID := r.URL.Query().Get("router")
+	eventType := r.URL.Query().Get("type")
+	events, err := roamevents.ListEvents(s.db.DB, limit, since, routerID, eventType)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if events == nil {
+		events = []roamevents.Event{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
 
 // handleAdguardClients: 404 not_configured · 502 adguard_error.
