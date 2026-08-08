@@ -44,6 +44,7 @@ var hypervisorOUI = []string{
 	"00:0C:29", // VMware
 	"00:15:5D", // Hyper-V
 	"52:54:00", // KVM/QEMU
+	"08:00:27", // VirtualBox
 }
 
 func isHypervisorMAC(mac string) bool {
@@ -67,6 +68,13 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	for _, p := range polled {
 		if p.brMac != "" {
 			routerMACs[p.brMac] = true
+		}
+	}
+	for _, p := range polled {
+		if p.cfg.AgentOnly && p.fdb != nil {
+			for mac := range p.fdb {
+				routerMACs[mac] = true
+			}
 		}
 	}
 
@@ -219,9 +227,33 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			// Gateway, OUI heterogéneo (o hipervisor ambiguo sin host claro):
 			// algo multiplexa ese puerto → nodo inferido colgando del gateway.
 			setPort()
-			dists = append(dists, DistributionNode{
+			dn := DistributionNode{
 				ID: id, Kind: "inferred", RouterID: routerID, Port: port, MacCount: len(kept),
-			})
+			}
+			if routerID == gatewayID {
+				for _, rp := range polled {
+					if !rp.cfg.AgentOnly {
+						continue
+					}
+					swMacs := map[string]bool{}
+					for mac := range rp.fdb {
+						swMacs[mac] = true
+					}
+					allKnown := true
+					for _, mac := range kept {
+						if !swMacs[mac] {
+							allKnown = false
+							break
+						}
+					}
+					if allKnown && len(kept) > 0 {
+						dn.Name = rp.cfg.Name
+						dn.Ip = rp.cfg.Host
+						break
+					}
+				}
+			}
+			dists = append(dists, dn)
 			for _, mac := range kept {
 				if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 					devices[idx].AttachTo = id
