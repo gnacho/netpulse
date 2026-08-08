@@ -17,6 +17,7 @@
 //	                       obtener el token real, lo escribe al env file y sale — procd reinicia)
 //	NETPULSE_INTERVAL      intervalo de push (default 30s; "30", "15s", "1m")
 //	NETPULSE_ENV_FILE      fichero env alternativo (default /etc/netpulse-agent.env)
+//	NETPULSE_LOG_LEVEL     nivel de log: "info" (default) o "debug"
 //	NETPULSE_WAN_TARGET    ping WAN con pérdida (gateway; p. ej. 1.1.1.1)
 //	NETPULSE_GW_TARGET     ping corto al gateway (APs; p. ej. 192.168.8.1)
 package main
@@ -27,7 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -120,7 +121,7 @@ func loadConfig() (config, error) {
 		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			cfg.interval = d
 		} else {
-			log.Printf("[netpulse-agent] NETPULSE_INTERVAL %q inválido; usando 30s", v)
+			slog.Warn("[netpulse-agent] NETPULSE_INTERVAL inválido, usando 30s", "value", v)
 		}
 	}
 	// Validación: SERVER y SLUG siempre obligatorios. TOKEN obligatorio salvo
@@ -146,8 +147,12 @@ func (e *configError) Error() string {
 }
 
 func main() {
-	log.SetOutput(os.Stderr)
-	log.SetPrefix("")
+	// Niveles de log (P7): Info por defecto, Debug con NETPULSE_LOG_LEVEL=debug.
+	level := slog.LevelInfo
+	if strings.EqualFold(os.Getenv("NETPULSE_LOG_LEVEL"), "debug") {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -157,7 +162,7 @@ func main() {
 	}
 
 	if err := run(); err != nil {
-		log.Printf("[netpulse-agent] error fatal: %v", err)
+		slog.Error("[netpulse-agent] error fatal", "err", err)
 		os.Exit(1)
 	}
 }
@@ -165,12 +170,11 @@ func main() {
 // pushOnce envía el payload y toca el heartbeat; si falla, lo loguea.
 func pushOnce(ctx context.Context, client *push.Client, payload *probe.Payload, hbFile string) {
 	if err := client.Push(ctx, payload); err != nil {
-		log.Printf("[netpulse-agent] push falló (%v); buffered=%d descartados=%d",
-			err, client.Buffered(), client.Dropped())
+		slog.Warn("[netpulse-agent] push falló", "err", err, "buffered", client.Buffered(), "dropped", client.Dropped())
 		return
 	}
 	if err := heartbeat.Touch(hbFile, time.Now()); err != nil {
-		log.Printf("[netpulse-agent] heartbeat: %v", err)
+		slog.Warn("[netpulse-agent] heartbeat error", "err", err)
 	}
 }
 
@@ -192,7 +196,7 @@ func run() error {
 		return err
 	}
 	client := push.New(cfg.server, cfg.token, &http.Client{Timeout: 10 * time.Second, Transport: transport})
-	client.SetLogger(func(format string, args ...any) { log.Printf(format, args...) })
+	client.SetLogger(func(format string, args ...any) { slog.Debug("[netpulse-agent] "+fmt.Sprintf(format, args...)) })
 
 	prober := probe.NewProber(probe.ShellRunner{}, probe.Options{
 		WanPingTarget: cfg.wanTarget,
@@ -202,7 +206,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	log.Printf("[netpulse-agent] v%s · %s → %s cada %s", Version, cfg.slug, cfg.server, cfg.interval)
+	slog.Info("[netpulse-agent] agente iniciado", "version", Version, "slug", cfg.slug, "server", cfg.server, "interval", cfg.interval)
 
 	hbFile := cfg.heartbeatFile
 	if hbFile == "" {
@@ -211,7 +215,7 @@ func run() error {
 
 	// Fase 7.1: eventos nl80211 en tiempo real (new/del station).
 	if iwevents.Available() {
-		log.Printf("[netpulse-agent] iw detectado: suscribiendo a eventos nl80211")
+		slog.Info("[netpulse-agent] iw detectado: suscribiendo a eventos nl80211")
 		var lastEventPush time.Time
 		var evMu sync.Mutex
 		go func() {
@@ -228,11 +232,11 @@ func run() error {
 				if !ev.Connected {
 					action = "disassoc"
 				}
-				log.Printf("[netpulse-agent] iw: %s %s (%s)", action, ev.MAC, ev.Iface)
+				slog.Info("[netpulse-agent] iw evento", "action", action, "mac", ev.MAC, "iface", ev.Iface)
 				payload := prober.BuildWireless(ctx, cfg.slug, Version)
 				pushOnce(ctx, client, payload, hbFile)
 			}); err != nil {
-				log.Printf("[netpulse-agent] iw event terminó: %v", err)
+				slog.Warn("[netpulse-agent] iw event terminó", "err", err)
 			}
 		}()
 	}
@@ -250,9 +254,9 @@ func run() error {
 				default:
 				}
 			}
-			log.Printf("[netpulse-agent] SSE: %s", ev.Name)
+			slog.Debug("[netpulse-agent] SSE evento", "event", ev.Name)
 		})
-		sse.SetLogger(func(format string, args ...any) { log.Printf(format, args...) })
+		sse.SetLogger(func(format string, args ...any) { slog.Debug("[netpulse-agent] "+fmt.Sprintf(format, args...)) })
 		sse.Run(ctx)
 	}()
 
@@ -262,7 +266,7 @@ func run() error {
 		pushOnce(ctx, client, payload, hbFile)
 		select {
 		case <-ctx.Done():
-			log.Printf("[netpulse-agent] saliendo")
+			slog.Info("[netpulse-agent] saliendo")
 			return nil
 		case <-refreshCh:
 			// refresh inmediato pedido por el servidor
@@ -289,7 +293,7 @@ func pairWithServer(cfg config) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	hc := &http.Client{Transport: transport, Timeout: 15 * time.Second}
-	log.Printf("[netpulse-agent] pairing con %s (slug=%s)…", cfg.server, cfg.slug)
+	slog.Info("[netpulse-agent] pairing", "server", cfg.server, "slug", cfg.slug)
 	res, err := hc.Do(req)
 	if err != nil {
 		return fmt.Errorf("pairing: %w", err)
@@ -318,7 +322,7 @@ func pairWithServer(cfg config) error {
 		return fmt.Errorf("escribir token al env file: %w", err)
 	}
 
-	log.Printf("[netpulse-agent] pairing OK (slug=%s). Token escrito a %s. Reiniciando…", pr.Slug, cfg.envFile)
+	slog.Info("[netpulse-agent] pairing OK", "slug", pr.Slug, "env_file", cfg.envFile)
 	// Salir limpiamente: procd reinicia el agente, que ahora lee NETPULSE_TOKEN
 	// del env file y arranca en modo normal.
 	return nil

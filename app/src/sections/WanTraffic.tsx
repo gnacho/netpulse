@@ -98,7 +98,7 @@ export function WanTraffic() {
         <SectionHeader title={t('home.traffic.title')}>
           <StatusPill tone="ok" label={t('topbar.live')} pulse />
         </SectionHeader>
-        <div className="overflow-x-auto">
+        <div className="shrink-0">
           <SegmentedControl
             options={TIME_RANGE_OPTIONS}
             value={range}
