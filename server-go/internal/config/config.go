@@ -63,6 +63,7 @@ type Config struct {
 	GithubToken   string
 	ServerRoot    string
 	AutoRearm     bool // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	Onbox         bool // NETPULSE_ONBOX=1: modo on-box (Fase 9 — config UCI, bootstrap AUTH_PASS)
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -166,11 +167,27 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		authUser = v
 	}
 
-	// AUTH_PASS: obligatoria (fail-fast) aunque ya existan usuarios
+	// NETPULSE_ONBOX: '0'|'1', opcional — modo on-box (Fase 9, SPEC R4/R5):
+	// la config llega vía UCI (LoadUCIEnv) y AUTH_PASS pasa a ser opcional
+	// (bootstrap con contraseña aleatoria en el primer arranque). Sin la
+	// variable, el binario se comporta exactamente como hoy (CT).
+	onbox := false
+	if v, ok := env["NETPULSE_ONBOX"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			onbox = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_ONBOX", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
+	// AUTH_PASS: obligatoria (fail-fast) aunque ya existan usuarios — salvo
+	// en on-box, donde el bootstrap R4 genera una si falta (cmd/netpulse).
 	authPass := ""
 	if v, ok := env["AUTH_PASS"]; ok && v != "" {
 		authPass = v
-	} else {
+	} else if !onbox {
 		errs.issues = append(errs.issues, issue{"AUTH_PASS", "Required"})
 	}
 
@@ -373,6 +390,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		GithubToken:   githubToken,
 		ServerRoot:    serverRoot,
 		AutoRearm:     autoRearm,
+		Onbox:         onbox,
 	}, nil
 }
 

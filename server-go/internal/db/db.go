@@ -143,15 +143,39 @@ type DB struct {
 	stop  chan struct{}
 	wg    sync.WaitGroup
 	close sync.Once
+	// rollbackJournal: journal DELETE en vez de WAL (modo on-box, Fase 9 R6).
+	// Los wal_checkpoint de mantenimiento se omiten en este modo.
+	rollbackJournal bool
 }
 
 // NowMS devuelve el epoch actual en milisegundos (como Date.now()).
 func NowMS() int64 { return time.Now().UnixMilli() }
 
+// OpenOption configura Open (variádica: los callers existentes no cambian).
+type OpenOption func(*openOptions)
+
+type openOptions struct {
+	rollbackJournal bool
+}
+
+// WithRollbackJournal (Fase 9 R6, modo on-box): `journal_mode=DELETE` +
+// `synchronous=FULL` en vez de WAL+NORMAL, y sin wal_checkpoint en los jobs.
+// Motivo: en la flash de un router el fichero -wal y sus checkpoints son
+// churn de escritura evitable; y en rollback-journal, NORMAL deja una
+// ventana de corrupción ante un corte de luz (frecuente en un router) que
+// WAL+NORMAL no tiene — de ahí FULL (docs de PRAGMA synchronous).
+func WithRollbackJournal() OpenOption {
+	return func(o *openOptions) { o.rollbackJournal = true }
+}
+
 // Open abre (o crea) DATA_DIR/netpulse.db, ejecuta la migración Node→Go si la
 // DB ya existía con esquema Node (backup atómico antes de tocar nada),
 // aplica pragmas, crea el schema y arranca el mantenimiento horario.
-func Open(dataDir string) (*DB, error) {
+func Open(dataDir string, opts ...OpenOption) (*DB, error) {
+	var o openOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, err
 	}
@@ -175,11 +199,21 @@ func Open(dataDir string) (*DB, error) {
 	}
 	sqldb.SetMaxOpenConns(1)
 
-	for _, p := range []string{
+	pragmas := []string{
 		"PRAGMA journal_mode = WAL",
 		"PRAGMA synchronous = NORMAL",
 		"PRAGMA foreign_keys = ON",
-	} {
+	}
+	if o.rollbackJournal {
+		// Una DB previa en WAL se convierte sola: con una única conexión el
+		// cambio de journal_mode hace checkpoint y elimina el -wal.
+		pragmas = []string{
+			"PRAGMA journal_mode = DELETE",
+			"PRAGMA synchronous = FULL",
+			"PRAGMA foreign_keys = ON",
+		}
+	}
+	for _, p := range pragmas {
 		if _, err := sqldb.Exec(p); err != nil {
 			sqldb.Close()
 			return nil, fmt.Errorf("pragma %q: %w", p, err)
@@ -207,7 +241,7 @@ func Open(dataDir string) (*DB, error) {
 		)
 	}
 
-	d := &DB{DB: sqldb, Path: dbPath, stop: make(chan struct{})}
+	d := &DB{DB: sqldb, Path: dbPath, stop: make(chan struct{}), rollbackJournal: o.rollbackJournal}
 	d.wg.Add(1)
 	go d.maintenanceLoop()
 	return d, nil
@@ -257,8 +291,10 @@ func (d *DB) Maintenance() {
 	if _, err := d.Exec("DELETE FROM metrics_buckets WHERE bucket_ts < ?", bucketCutoff); err != nil {
 		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
 	}
-	if _, err := d.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+	if !d.rollbackJournal {
+		if _, err := d.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+			log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+		}
 	}
 }
 
@@ -284,8 +320,11 @@ func (d *DB) NightlyJob() {
 		log.Printf("[netpulse] rollup buckets→daily OK (%s)", time.Since(start).Round(time.Millisecond))
 	}
 
-	// 3) checkpoint tras los DELETE/INSERT grandes (concentra el WAL)
-	_, _ = d.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	// 3) checkpoint tras los DELETE/INSERT grandes (concentra el WAL);
+	// en rollback-journal (on-box) no hay WAL que consolidar.
+	if !d.rollbackJournal {
+		_, _ = d.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	}
 
 	// 4) optimize + ANALYZE (estadísticas del planner tras la purga)
 	_, _ = d.Exec("PRAGMA optimize")
