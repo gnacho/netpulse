@@ -286,6 +286,7 @@ func run() error {
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	errCh := make(chan error, 1)

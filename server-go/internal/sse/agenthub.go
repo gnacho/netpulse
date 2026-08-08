@@ -25,6 +25,7 @@ type agentConn struct {
 	slug    string
 	w       http.ResponseWriter
 	flusher http.Flusher
+	wmu     sync.Mutex
 	done    chan struct{}
 	once    sync.Once
 }
@@ -79,12 +80,16 @@ func (h *AgentHub) remove(slug string) {
 }
 
 func (c *agentConn) write(payload string) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
 	rc := http.NewResponseController(c.w)
 	_ = rc.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if _, err := fmt.Fprint(c.w, payload); err != nil {
 		return err
 	}
-	c.flusher.Flush()
+	if err := rc.Flush(); err != nil {
+		return err
+	}
 	return nil
 }
 
