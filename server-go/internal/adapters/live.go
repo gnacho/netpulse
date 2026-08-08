@@ -1371,6 +1371,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
+		Devices:           devices,
 		Dawn:              &DawnOverview{Available: l.dawnAvailableCached()},
 		VM:                ViewModelVersion,                                            // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),

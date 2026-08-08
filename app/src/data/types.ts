@@ -309,6 +309,10 @@ export interface OverviewBundle {
   topology?: TopoSemantics
   /** Disponibilidad de DAWN (roaming/band-steering); ausente = no mostrar /roaming. */
   dawn?: { available: boolean }
+  /** Devices from the same polled snapshot as topology.rings. When present,
+   *  the frontend uses this instead of the separate /api/devices fetch
+   *  to guarantee ID consistency with topology rings. */
+  devices?: Device[]
   ts: number
 }
 
