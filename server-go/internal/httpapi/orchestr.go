@@ -31,15 +31,25 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 		}
 		if !readJSONBody(r, &body) || body.RouterID == "" || body.Resource == "" {
 			writeError(w, http.StatusBadRequest, "invalid_body",
-				`Se esperaba { "routerId": "...", "resource": "...", "diff": [...] }`)
+				`Se esperaba { "routerId": "...", "resource": "adguard", "desired": {...} }`)
 			return
+		}
+		// Si no hay diff explícito, calcularlo desde desired vía el módulo.
+		diff := body.Diff
+		if len(diff) == 0 && len(body.Desired) > 0 {
+			computed, _, err := orchestr.ModuleDiff(body.Resource, body.Desired)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "unknown_module", err.Error())
+				return
+			}
+			diff = computed
 		}
 		user := auth.UserFromContext(r.Context())
 		username := ""
 		if user != nil {
 			username = user.Username
 		}
-		plan, err := mgr.CreatePlan(body.RouterID, body.Resource, body.Desired, body.Diff, username)
+		plan, err := mgr.CreatePlan(body.RouterID, body.Resource, body.Desired, diff, username)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "plan_error")
 			return

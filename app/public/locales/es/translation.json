@@ -137,7 +137,8 @@
     "uptime_other": "{{d}} días, {{h}} h",
     "viewAll": "Ver todos",
     "viewDetail": "Ver detalle de {{name}}",
-    "viewDetailShort": "Ver detalle"
+    "viewDetailShort": "Ver detalle",
+    "adminOnly": "Solo administrador"
   },
   "devices": {
     "badges": {
@@ -306,7 +307,8 @@
     "topology": "Topología",
     "topologyDesc": "Mapa visual de la red",
     "collapse": "Plegar menú",
-    "expand": "Desplegar menú"
+    "expand": "Desplegar menú",
+    "orchestration": "Orquestación"
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."
@@ -811,5 +813,21 @@
   "demo": {
     "banner": "Modo demo — los cambios no se aplican al sistema",
     "exit": "Salir del demo"
+  },
+  "orchestration": {
+    "title": "Orquestación",
+    "subtitle": "Configura servicios de red de forma declarativa. Cada cambio pasa por un plan revisable antes de aplicarse.",
+    "router": "Router",
+    "generatePlan": "Generar plan",
+    "plan": "Plan",
+    "apply": "Aplicar",
+    "applying": "Aplicando…",
+    "applied": "Aplicado correctamente",
+    "failed": "Falló",
+    "adguard": {
+      "enable": "Activar AdGuard Home",
+      "port": "Puerto",
+      "upstream": "DNS upstream"
+    }
   }
 }

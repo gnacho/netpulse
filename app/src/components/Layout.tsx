@@ -15,6 +15,7 @@ import {
   Router as RouterIcon,
   Settings,
   Waypoints,
+  Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
@@ -35,6 +36,7 @@ interface NavItem {
   labelKey: string
   icon: LucideIcon
   end?: boolean
+  adminOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -44,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
+  { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
