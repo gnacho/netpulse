@@ -182,10 +182,10 @@ export default function Topology() {
 
       {/* ② Map canvas */}
       <section
-        className="relative h-[70dvh] min-h-[420px] overflow-hidden rounded-2xl border border-border bg-canvas lg:h-[600px]"
+        className="relative h-[70dvh] min-h-[420px] rounded-2xl border border-border bg-canvas lg:h-[600px]"
         aria-label={t('topology.interactiveMap')}
       >
-        <div className="mesh-bg pointer-events-none absolute inset-0" aria-hidden />
+        <div className="mesh-bg pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden />
         <TopologyMap
           model={model}
           apiRef={mapApi}
