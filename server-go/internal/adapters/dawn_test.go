@@ -124,6 +124,13 @@ func TestDawnAPsFromNetwork(t *testing.T) {
 			t.Errorf("MAC no normalizada: %s", c.MAC)
 		}
 	}
+
+	// clients nunca nil (serializa [] en JSON, no null): el frontend itera sin
+	// guardarse de null.
+	guest := aps[0] // ap-guest, sin clientes
+	if guest.Clients == nil {
+		t.Fatalf("AP sin clientes tiene Clients nil; debe ser []")
+	}
 }
 
 func upperMAC(s string) string {

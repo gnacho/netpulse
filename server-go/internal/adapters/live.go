@@ -1758,7 +1758,7 @@ func dawnAPsFromNetwork(firstData map[string]map[string]json.RawMessage) []DawnA
 			if channel == 0 {
 				continue
 			}
-			ap := DawnAP{SSID: ssid, BSSID: bssid, Channel: channel}
+			ap := DawnAP{SSID: ssid, BSSID: bssid, Channel: channel, Clients: []DawnClient{}}
 			var freq float64
 			json.Unmarshal(fields["freq"], &freq)
 			json.Unmarshal(fields["channel_utilization"], &ap.UtilizationPct)
