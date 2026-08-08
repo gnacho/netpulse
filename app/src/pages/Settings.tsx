@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Copy,
   Download,
+  ExternalLink,
   FileText,
   FlaskConical,
   Github,
@@ -1525,6 +1526,8 @@ interface NetPulseUpdateStatus {
   latest: string | null
   latestMsg: string | null
   updateAvailable: boolean
+  canApply: boolean
+  repo: string
   updating: false | { step: string }
 }
 
@@ -1562,15 +1565,27 @@ function UpdateCheckInline() {
   return (
     <div className="flex flex-col gap-1">
       {status?.updateAvailable && status.latest ? (
-        <button
-          type="button"
-          onClick={() => void apply()}
-          disabled={busy}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:opacity-60"
-        >
-          <Download className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-          <span className="hidden sm:inline">{t('update.button')}</span>
-        </button>
+        status.canApply ? (
+          <button
+            type="button"
+            onClick={() => void apply()}
+            disabled={busy}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:opacity-60"
+          >
+            <Download className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            <span className="hidden sm:inline">{t('update.button')}</span>
+          </button>
+        ) : (
+          <a
+            href={`https://github.com/${status.repo || 'gnacho/netpulse'}/releases`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-hover"
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            <span className="hidden sm:inline">{t('update.getRelease')}</span>
+          </a>
+        )
       ) : (
         <button
           type="button"

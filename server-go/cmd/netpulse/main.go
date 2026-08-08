@@ -232,8 +232,10 @@ func run() error {
 	}
 	static := staticspa.New(staticDir)
 
-	// Actualizador: repoRoot = padre de serverRoot (paridad index.js:49-53)
-	upd := updater.New(filepath.Clean(filepath.Join(cfg.ServerRoot, "..")), cfg.GithubRepo, cfg.GithubToken)
+	// Actualizador: repoRoot = padre de serverRoot (paridad index.js:49-53).
+	// La versión embebida (httpapi.Version) se usa para comparar contra el
+	// último release tag en modo estable (layout install.sh).
+	upd := updater.New(filepath.Clean(filepath.Join(cfg.ServerRoot, "..")), cfg.GithubRepo, cfg.GithubToken, httpapi.Version)
 
 	// Rearmer compartido (endpoint manual + supervisor de auto-rearme).
 	// El supervisor solo arranca con NETPULSE_AUTO_REARM=1 y en modo live
