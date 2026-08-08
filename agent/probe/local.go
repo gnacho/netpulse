@@ -90,6 +90,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.Wireless = p.probeWireless(ctx)
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	pl.Data.FDB = p.probeFDB(ctx)
+	pl.Data.Dawn = p.probeDawn(ctx)
 	return pl
 }
 
@@ -271,4 +272,93 @@ func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 		fd.Ports = []EthPort{}
 	}
 	return fd
+}
+
+// probeDawn: lee el estado de DAWN (roaming/band-steering, Fase 14) vía
+// `ubus call dawn get_network`. Devuelve nil si DAWN no está instalado
+// (fail-soft silencioso — la sección queda ausente en el payload).
+//
+// El output de ubus mezcla campos del AP (channel, freq, etc.) con clientes
+// anidados (MAC → {signal, ht, ...}) en el mismo objeto por BSSID. Los
+// distinguimos por tipo: escalares = metadata del AP, objetos = clientes.
+func (p *Prober) probeDawn(ctx context.Context) *DawnData {
+	out := p.runBest(ctx, "ubus call dawn get_network", 5*time.Second)
+	if out == "" {
+		return nil
+	}
+
+	// SSID → BSSID → {campos mixtos}
+	var raw map[string]map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		return nil
+	}
+
+	ssids := make(map[string]DawnSSID, len(raw))
+	for ssid, bssids := range raw {
+		var aps []DawnAP
+		clients := make(map[string]DawnClient)
+
+		for bssidKey, bssidRaw := range bssids {
+			// Parsear todos los campos del BSSID como mapa flexible.
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(bssidRaw, &fields); err != nil {
+				continue
+			}
+
+			// ¿Tiene "channel"? → es un AP.
+			chRaw, hasChannel := fields["channel"]
+			if !hasChannel {
+				continue
+			}
+			var channel int
+			json.Unmarshal(chRaw, &channel)
+			if channel == 0 {
+				continue
+			}
+
+			ap := DawnAP{BSSID: bssidKey, Channel: channel}
+			json.Unmarshal(fields["freq"], &ap.Freq)
+			json.Unmarshal(fields["channel_utilization"], &ap.Utilization)
+			json.Unmarshal(fields["num_sta"], &ap.Clients)
+			json.Unmarshal(fields["ht_support"], &ap.HT)
+			json.Unmarshal(fields["vht_support"], &ap.VHT)
+			json.Unmarshal(fields["local"], &ap.Local)
+			json.Unmarshal(fields["hostname"], &ap.Hostname)
+			aps = append(aps, ap)
+
+			// Buscar clientes anidados: cualquier key cuyo valor sea un
+			// objeto (empieza con '{') y tenga "signal".
+			for mac, valRaw := range fields {
+				if mac == "channel" || mac == "freq" || mac == "channel_utilization" ||
+					mac == "num_sta" || mac == "ht_support" || mac == "vht_support" ||
+					mac == "local" || mac == "hostname" || mac == "iface" ||
+					mac == "neighbor_report" || mac == "op_class" {
+					continue
+				}
+				s := strings.TrimSpace(string(valRaw))
+				if !strings.HasPrefix(s, "{") {
+					continue
+				}
+				var c struct {
+					Signal int  `json:"signal"`
+					HT     bool `json:"ht"`
+					VHT    bool `json:"vht"`
+				}
+				if json.Unmarshal(valRaw, &c) == nil && c.Signal < 0 {
+					clients[strings.ToUpper(mac)] = DawnClient{
+						BSSID: bssidKey, Signal: c.Signal, HT: c.HT, VHT: c.VHT,
+					}
+				}
+			}
+		}
+
+		if len(aps) > 0 {
+			ssids[ssid] = DawnSSID{APs: aps, Clients: clients}
+		}
+	}
+
+	if len(ssids) == 0 {
+		return nil
+	}
+	return &DawnData{SSIDs: ssids}
 }

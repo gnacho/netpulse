@@ -12,7 +12,7 @@ type Payload struct {
 	Data    PayloadData `json:"data"`
 }
 
-// PayloadData agrupa las 4 secciones del tier rápido. Punteros/mapas nil =
+// PayloadData agrupa las secciones del tier rápido. Punteros/mapas nil =
 // sonda fallida en este push (el servidor conserva el último dato bueno,
 // mismo anti-parpadeo que el pipeline SSH).
 type PayloadData struct {
@@ -20,6 +20,7 @@ type PayloadData struct {
 	Wireless *WirelessData `json:"wireless,omitempty"`
 	DHCP     *DHCPData     `json:"dhcp,omitempty"`
 	FDB      *FDBData      `json:"fdb,omitempty"`
+	Dawn     *DawnData     `json:"dawn,omitempty"` // Fase 14: DAWN roaming (solo si instalado)
 }
 
 // SystemData: salud del equipo + tráfico + latencias.
@@ -55,4 +56,38 @@ type DHCPData struct {
 type FDBData struct {
 	MACs  map[string]string `json:"macs"` // {} = sin entradas; ausente = sonda fallida
 	Ports []EthPort         `json:"ports"`
+}
+
+// DawnData: estado de DAWN (roaming/band-steering, Fase 14). Solo si DAWN
+// está instalado en el router. Trimmed del output de `ubus call dawn
+// get_network` — solo lo que la UI necesita (APs + señal por cliente).
+type DawnData struct {
+	SSIDs map[string]DawnSSID `json:"ssids"`
+}
+
+// DawnSSID: por red WiFi (p. ej. "temiscira").
+type DawnSSID struct {
+	APs     []DawnAP              `json:"aps"`
+	Clients map[string]DawnClient `json:"clients"` // MAC upper → cliente
+}
+
+// DawnAP: un punto de acceso (BSSID) visto por DAWN en este SSID.
+type DawnAP struct {
+	BSSID       string `json:"bssid"`
+	Hostname    string `json:"hostname,omitempty"`
+	Channel     int    `json:"channel"`
+	Freq        int    `json:"freq"`
+	Utilization int    `json:"utilization"` // %
+	Clients     int    `json:"clients"`
+	Local       bool   `json:"local"` // true si es este router
+	HT          bool   `json:"ht"`
+	VHT         bool   `json:"vht"`
+}
+
+// DawnClient: un cliente WiFi visto por DAWN con señal al AP asociado.
+type DawnClient struct {
+	BSSID  string `json:"bssid"`
+	Signal int    `json:"signal"` // dBm (negativo)
+	HT     bool   `json:"ht"`
+	VHT    bool   `json:"vht"`
 }
