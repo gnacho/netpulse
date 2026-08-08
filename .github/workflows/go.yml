@@ -79,7 +79,10 @@ jobs:
           CGO_ENABLED: 0
           GOOS: linux
           GOARCH: ${{ matrix.arch }}
-        run: go build -trimpath -ldflags "-s -w" -o netpulse ./cmd/netpulse
+        # -X updater.BuildCommit: sin esto el updater del CT cae a git rev-parse
+        # (repo stale dubious-ownership) y reporta un SHA viejo → falso "update
+        # available" permanente aunque el binario sea el de main HEAD.
+        run: go build -trimpath -ldflags "-s -w -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${GITHUB_SHA::7}" -o netpulse ./cmd/netpulse
 
       - name: Empaqueta binario + despliegue
         run: tar czf netpulse-server-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz -C server-go netpulse .env.example -C .. deploy
