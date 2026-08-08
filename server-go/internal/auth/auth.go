@@ -48,10 +48,18 @@ type User struct {
 	Role     string
 }
 
+// CountUsers devuelve el número de filas de users. Lo usa el bootstrap
+// on-box (Fase 9 R4) para decidir si toca generar la contraseña inicial.
+func CountUsers(d *db.DB) (int, error) {
+	var count int
+	err := d.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
+}
+
 // EnsureUsers crea el admin inicial (AUTH_USER/AUTH_PASS) si users está vacía.
 func EnsureUsers(d *db.DB, cfg *config.Config) error {
-	var count int
-	if err := d.QueryRow("SELECT COUNT(*) FROM users").Scan(&count); err != nil {
+	count, err := CountUsers(d)
+	if err != nil {
 		return err
 	}
 	if count > 0 {

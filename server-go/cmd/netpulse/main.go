@@ -57,6 +57,14 @@ func run() error {
 		return err
 	}
 	config.LoadDotEnv(serverRoot + "/.env")
+	// Fase 9 (R5): en on-box la config vive en /etc/config/netpulse. El
+	// loader la traduce a entorno SIN pisar lo ya presente — precedencia:
+	// entorno real > .env > UCI > defaults. Fail-soft: sin uci se sigue.
+	if os.Getenv("NETPULSE_ONBOX") == "1" {
+		if err := config.LoadUCIEnv(); err != nil {
+			log.Printf("[netpulse] aviso: config UCI no cargada (%v); siguiendo con entorno/defaults", err)
+		}
+	}
 	envMap := config.FromEnviron()
 	cfg, err := config.Load(envMap, serverRoot)
 	if err != nil {
@@ -66,7 +74,12 @@ func run() error {
 	// Auditoría de seguridad #1: la IP confiable (XFF) solo si TRUST_PROXY.
 	auth.SetTrustProxy(cfg.TrustProxy)
 
-	dbHandle, err := db.Open(cfg.DataDir)
+	// Fase 9 (R6): on-box la DB va en journal DELETE (sin -wal en flash).
+	var dbOpts []db.OpenOption
+	if cfg.Onbox {
+		dbOpts = append(dbOpts, db.WithRollbackJournal())
+	}
+	dbHandle, err := db.Open(cfg.DataDir, dbOpts...)
 	if err != nil {
 		return err
 	}
@@ -94,6 +107,34 @@ func run() error {
 	secret, err := auth.EnsureSessionSecret(dbHandle, cfg)
 	if err != nil {
 		return err
+	}
+	// Fase 9 (R4): bootstrap on-box sin AUTH_PASS. Solo en el PRIMER
+	// arranque (sin usuarios): se genera una contraseña aleatoria, se
+	// intenta persistir en UCI (netpulse.server.auth_pass) y se imprime UNA
+	// vez en el log (logread). Con usuarios ya creados no se toca nada:
+	// EnsureUsers es no-op y el login usa el hash de la DB.
+	if cfg.Onbox && cfg.AuthPass == "" {
+		n, err := auth.CountUsers(dbHandle)
+		if err != nil {
+			return fmt.Errorf("onbox: contando usuarios: %w", err)
+		}
+		if n == 0 {
+			pass, err := config.GenerateInitialPassword()
+			if err != nil {
+				return fmt.Errorf("onbox: generando contraseña inicial: %w", err)
+			}
+			cfg.AuthPass = pass
+			if err := config.PersistUCIAuthPass(pass); err != nil {
+				log.Printf("[netpulse] onbox: auth_pass NO persistida en UCI (%v): apúntala del log AHORA", err)
+			} else {
+				log.Print("[netpulse] onbox: auth_pass guardada en UCI (uci get netpulse.server.auth_pass)")
+			}
+			log.Print("[netpulse] ==================================================")
+			log.Print("[netpulse] ONBOX primer arranque — credenciales de la webapp")
+			log.Printf("[netpulse]   usuario:    %s", cfg.AuthUser)
+			log.Printf("[netpulse]   contraseña: %s", pass)
+			log.Print("[netpulse] ==================================================")
+		}
 	}
 	if err := auth.EnsureUsers(dbHandle, cfg); err != nil {
 		return err
