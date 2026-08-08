@@ -160,6 +160,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/alerts/read-all", s.handleAlertsReadAll)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
+	mux.HandleFunc("GET /api/dot11r", s.handleDot11r)
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
 	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	mux.HandleFunc("GET /api/reports/weekly", s.handleWeeklyReport)

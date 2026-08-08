@@ -15,6 +15,7 @@ import (
 	"math"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -222,7 +223,9 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	l.gatewayCfg = pickGateway(l.routers)
 	l.clients = map[string]*OpenWrtClient{}
 	for _, c := range l.routers {
-		l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
+		if !c.AgentOnly {
+			l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
+		}
 	}
 	ids := map[string]bool{}
 	for _, r := range l.routers {
@@ -668,6 +671,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
+	} else if p.cfg.AgentOnly {
+		r.Role, r.RoleBadge = "Switch", "SW"
 	} else {
 		r.Role, r.RoleBadge = "Punto de acceso", "AP"
 	}
@@ -1750,6 +1755,14 @@ func (l *Live) GetDawn(context.Context) (*Dawn, error) {
 		if name == "" {
 			name = cfg.ID
 		}
+		// Los routers agent-only (switches sin SSH, p.ej. switch16) no tienen
+		// DAWN: saltar el SSH evita un timeout de probeTimeout (4s) por cada
+		// llamada a GetDawn. Aparecen en el mesh como Dawn=false para que la
+		// UI siga mostrándolos en la tabla.
+		if cfg.AgentOnly {
+			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
+			continue
+		}
 		out, err := l.pool.Run(cfg.Host, "ubus call dawn get_network", 0)
 		if err != nil {
 			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
@@ -1841,4 +1854,223 @@ func dawnAPsFromNetwork(firstData map[string]map[string]json.RawMessage) []DawnA
 		return aps[i].Band < aps[j].Band
 	})
 	return aps
+}
+
+// ---------------------------------------------------------------------------
+// 802.11r (Fast BSS Transition) — Fase 14.3
+// ---------------------------------------------------------------------------
+
+// parseUciWireless parsea la salida de `uci show wireless` (líneas
+// `wireless.SECTION.FIELD='VALUE'` y `wireless.SECTION=TYPE`) y devuelve los
+// wifi-iface con sus campos relevantes para 802.11r. Ignora wifi-device y
+// cualquier otra sección que no sea wifi-iface (pero usa wifi-device para
+// mapear device → {channel, band}). Función pura — fácil de testear.
+//
+// Formato uci: las comillas simples envuelven los valores; los campos lista
+// (como rrm_nr_list) se emiten como varias líneas con el mismo nombre — aquí
+// nos quedamos con el último valor escalar (no nos interesan las listas).
+func parseUciWireless(out string) []Dot11rIface {
+	type sec struct {
+		typ    string
+		fields map[string]string
+	}
+	sections := map[string]*sec{}
+	order := []string{}
+
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if !strings.HasPrefix(line, "wireless.") {
+			continue
+		}
+		rest := line[len("wireless."):]
+		// Caso 1: wireless.SECTION=TYPE (declaración de sección, sin punto en SECTION).
+		if eq := strings.IndexByte(rest, '='); eq > 0 {
+			head := rest[:eq]
+			if !strings.Contains(head, ".") {
+				if _, ok := sections[head]; !ok {
+					sections[head] = &sec{fields: map[string]string{}}
+					order = append(order, head)
+				}
+				sections[head].typ = unquoteUci(rest[eq+1:])
+				continue
+			}
+		}
+		// Caso 2: wireless.SECTION.FIELD='VALUE'
+		parts := strings.SplitN(rest, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		section, field := parts[0], parts[1]
+		if _, ok := sections[section]; !ok {
+			sections[section] = &sec{fields: map[string]string{}}
+			order = append(order, section)
+		}
+		if eq := strings.IndexByte(field, '='); eq > 0 {
+			fname := field[:eq]
+			fval := field[eq+1:]
+			sections[section].fields[fname] = unquoteUci(fval)
+		}
+	}
+
+	// device → {channel, band} desde las secciones wifi-device.
+	type devInfo struct {
+		channel int
+		band    string
+	}
+	devMap := map[string]devInfo{}
+	for _, name := range order {
+		s := sections[name]
+		if s.typ != "wifi-device" {
+			continue
+		}
+		ch, _ := strconv.Atoi(s.fields["channel"])
+		band := ""
+		switch s.fields["band"] {
+		case "2g":
+			band = "2.4 GHz"
+		case "5g":
+			band = "5 GHz"
+		case "6g":
+			band = "6 GHz"
+		case "60g":
+			band = "60 GHz"
+		}
+		devMap[name] = devInfo{channel: ch, band: band}
+	}
+
+	ifaces := []Dot11rIface{}
+	for _, name := range order {
+		s := sections[name]
+		if s.typ != "wifi-iface" {
+			continue
+		}
+		f := s.fields
+		dev := f["device"]
+		di := devMap[dev]
+		ifaces = append(ifaces, Dot11rIface{
+			Section:            name,
+			Device:             dev,
+			Ifname:             f["ifname"],
+			SSID:               f["ssid"],
+			MAC:                f["macaddr"],
+			Channel:            di.channel,
+			Band:               di.band,
+			Encryption:         f["encryption"],
+			Dot11REnabled:      f["ieee80211r"] == "1",
+			MobilityDomain:     f["mobility_domain"],
+			FTOverDS:           f["ft_over_ds"] == "1",
+			FTPSKGenerateLocal: f["ft_psk_generate_local"] == "1",
+			PMKR1Push:          f["pmk_r1_push"] == "1",
+			NASID:              f["nasid"],
+			Dot11KEnabled:      f["ieee80211k"] == "1",
+			Dot11VEnabled:      f["ieee80211v"] == "1",
+			BSSTransition:      f["bss_transition"] == "1",
+			MFP:                f["ieee80211w"] == "1",
+		})
+	}
+	return ifaces
+}
+
+// unquoteUci quita las comillas simples que uci envuelve a los valores y
+// desescapa \' → '. `uci show` SIEMPRE envuelve en comillas simples.
+func unquoteUci(s string) string {
+	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
+		return strings.ReplaceAll(s[1:len(s)-1], `\'`, `'`)
+	}
+	return s
+}
+
+// GetDot11r: estado 802.11r (Fast BSS Transition) por router y SSID. Recorre
+// los routers (saltando agent-only, que son switches sin wifi) y hace SSH
+// `uci show wireless` a cada uno. Devuelve (nil, nil) si ningún router con
+// wifi tiene 802.11r habilitado → el handler responde 503.
+func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
+	l.mu.Lock()
+	routers := append([]RouterConfig(nil), l.routers...)
+	l.mu.Unlock()
+
+	out := Dot11rOverview{Routers: []Dot11rRouter{}, SSIDs: []Dot11rSSID{}}
+	type ifaceRef struct {
+		routerID string
+		iface    Dot11rIface
+	}
+	ssidIfaces := map[string][]ifaceRef{}
+
+	for _, cfg := range routers {
+		name := cfg.Name
+		if name == "" {
+			name = cfg.ID
+		}
+		r := Dot11rRouter{RouterID: cfg.ID, Name: name, Ifaces: []Dot11rIface{}}
+		// Agent-only (switches sin SSH ni wifi) se listan como Available=false.
+		if cfg.AgentOnly {
+			out.Routers = append(out.Routers, r)
+			continue
+		}
+		uciOut, err := l.pool.Run(cfg.Host, "uci show wireless", 0)
+		if err != nil {
+			out.Routers = append(out.Routers, r)
+			continue
+		}
+		ifaces := parseUciWireless(uciOut)
+		r.Available = true
+		r.Ifaces = ifaces
+		out.Routers = append(out.Routers, r)
+		for _, ifc := range ifaces {
+			if ifc.SSID == "" {
+				continue
+			}
+			ssidIfaces[ifc.SSID] = append(ssidIfaces[ifc.SSID], ifaceRef{routerID: cfg.ID, iface: ifc})
+		}
+	}
+
+	// Agregar por SSID.
+	ssids := make([]Dot11rSSID, 0, len(ssidIfaces))
+	for ssid, refs := range ssidIfaces {
+		enabled := 0
+		mobilityDomain := ""
+		ftOverDS := false
+		ftPSK := false
+		routerSet := map[string]bool{}
+		for _, ref := range refs {
+			if ref.iface.Dot11REnabled {
+				enabled++
+				if mobilityDomain == "" {
+					mobilityDomain = ref.iface.MobilityDomain
+					ftOverDS = ref.iface.FTOverDS
+					ftPSK = ref.iface.FTPSKGenerateLocal
+				}
+			}
+			routerSet[ref.routerID] = true
+		}
+		routerIDs := make([]string, 0, len(routerSet))
+		for id := range routerSet {
+			routerIDs = append(routerIDs, id)
+		}
+		sort.Strings(routerIDs)
+		ssids = append(ssids, Dot11rSSID{
+			SSID:               ssid,
+			EnabledEverywhere:  enabled > 0 && enabled == len(refs),
+			EnabledCount:       enabled,
+			TotalCount:         len(refs),
+			MobilityDomain:     mobilityDomain,
+			FTOverDS:           ftOverDS,
+			FTPSKGenerateLocal: ftPSK,
+			IfaceCount:         len(refs),
+			RouterIDs:          routerIDs,
+		})
+	}
+	sort.Slice(ssids, func(i, j int) bool { return ssids[i].SSID < ssids[j].SSID })
+	out.SSIDs = ssids
+
+	for _, s := range ssids {
+		if s.EnabledCount > 0 {
+			out.Available = true
+			break
+		}
+	}
+	if !out.Available {
+		return nil, nil
+	}
+	return &out, nil
 }

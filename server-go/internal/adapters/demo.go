@@ -187,6 +187,8 @@ func (d *Demo) Close() error              { return nil }
 
 func (d *Demo) GetDawn(context.Context) (*Dawn, error) { return nil, nil }
 
+func (d *Demo) GetDot11r(context.Context) (*Dot11rOverview, error) { return nil, nil }
+
 func (d *Demo) GetAdguardClients(context.Context) ([]AdguardClient, error) { return nil, nil }
 
 // GetOverview: overview completo (ts en SEGUNDOS). Paridad demo.js:132-146.
