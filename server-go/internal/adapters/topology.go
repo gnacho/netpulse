@@ -89,22 +89,8 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	// Gateway con la misma prioridad que pickGateway (is_gateway → glinet →
 	// primero): solo él puede anclar nodos "inferred".
 	gatewayID := ""
-	for _, id := range routerIDs {
-		if polled[id].cfg.IsGateway {
-			gatewayID = id
-			break
-		}
-	}
-	if gatewayID == "" {
-		for _, id := range routerIDs {
-			if polled[id].cfg.Type == "glinet" {
-				gatewayID = id
-				break
-			}
-		}
-	}
-	if gatewayID == "" && len(routerIDs) > 0 {
-		gatewayID = routerIDs[0]
+	if gw := pickGatewayCfg(polled); gw != nil {
+		gatewayID = gw.ID
 	}
 
 	for _, routerID := range routerIDs {

@@ -58,6 +58,29 @@ func pickGateway(routers []RouterConfig) *RouterConfig {
 	return nil
 }
 
+// pickGatewayCfg: same logic as pickGateway but from polled router configs.
+func pickGatewayCfg(polled map[string]*routerPolled) *RouterConfig {
+	ids := make([]string, 0, len(polled))
+	for id := range polled {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if polled[id].cfg.IsGateway {
+			return &polled[id].cfg
+		}
+	}
+	for _, id := range ids {
+		if polled[id].cfg.Type == "glinet" {
+			return &polled[id].cfg
+		}
+	}
+	if len(ids) > 0 {
+		return &polled[ids[0]].cfg
+	}
+	return nil
+}
+
 // routerPolled es el sondeo de un tick de un router.
 type routerPolled struct {
 	cfg       RouterConfig
