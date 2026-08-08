@@ -179,6 +179,13 @@ func run() error {
 			sshPool = pool
 			live := adapters.NewLive(cfg, dbHandle, routers, pool)
 			live.SetAgents(agentReg)
+			// Dead Man's Switch (P6): periodo de confirmación antes de
+			// alertar caída de agente (default 3 min, config por env).
+			if v := os.Getenv("NETPULSE_AGENT_DOWN_CONFIRM_S"); v != "" {
+				if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+					live.SetAgentDownConfirm(time.Duration(sec) * time.Second)
+				}
+			}
 			adapter = live
 		}
 	}

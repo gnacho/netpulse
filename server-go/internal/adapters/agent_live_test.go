@@ -100,6 +100,8 @@ func newLiveAgentTest(t *testing.T, reg *AgentRegistry) *Live {
 		{ID: "patio", Name: "Patio", Host: "127.0.0.1", Type: "openwrt"},
 	}, pool)
 	l.SetAgents(reg)
+	// Tests legacy: confirmación inmediata (sin Dead Man's Switch delay).
+	l.SetAgentDownConfirm(time.Millisecond)
 	return l
 }
 
@@ -213,5 +215,82 @@ func TestLiveAgentAntiFlicker(t *testing.T) {
 	}
 	if len(p.wireless) != 1 || len(p.radios) != 1 || len(p.ports) != 1 || len(p.fdb) != 1 {
 		t.Fatalf("anti-parpadeo: %+v %+v %+v %+v", p.wireless, p.radios, p.ports, p.fdb)
+	}
+}
+
+// TestDeadMansSwitch verifica que la alerta de caída NO se dispara
+// inmediatamente cuando el agente expira, sino solo tras el periodo de
+// confirmación (agentDownConfirm). Un blip breve (< confirm) no genera
+// alerta; el agente degrada a SSH silenciosamente y se recupera sin alerta.
+func TestDeadMansSwitch(t *testing.T) {
+	reg := NewAgentRegistry(50 * time.Millisecond)
+	now := time.Now()
+	reg.SetClock(func() time.Time { return now })
+
+	l := newLiveAgentTest(t, reg)
+	l.SetAgentDownConfirm(200 * time.Millisecond)
+	cfg := RouterConfig{ID: "patio", Name: "Patio", Host: "127.0.0.1"}
+
+	// Push inicial: agente fresco.
+	reg.Ingest(testPayload())
+	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
+		t.Fatalf("agente fresco: %v", err)
+	}
+
+	// Avanzar 60ms: agente expirado (TTL=50ms) pero NO confirmado (< 200ms).
+	now = now.Add(60 * time.Millisecond)
+	if _, err := l.pollRouter(t.Context(), cfg); err == nil {
+		t.Fatal("con agente expirado debería intentar SSH y fallar")
+	}
+	if a := findAlert(l.engine.List(), "Agente caído"); a != nil {
+		t.Fatalf("NO debería haber alerta de caída tras blip breve: %+v", a)
+	}
+
+	// Avanzar otros 200ms (total 260ms > 200ms confirm): ahora SÍ alerta.
+	now = now.Add(200 * time.Millisecond)
+	if _, err := l.pollRouter(t.Context(), cfg); err == nil {
+		t.Fatal("SSH sigue fallando")
+	}
+	down := findAlert(l.engine.List(), "Agente caído en Patio")
+	if down == nil {
+		t.Fatal("debería haber alerta de caída tras confirmación")
+	}
+
+	// Recuperación: el agente vuelve a empujar → alerta ok.
+	reg.Ingest(testPayload())
+	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
+		t.Fatalf("agente recuperado: %v", err)
+	}
+	ok := findAlert(l.engine.List(), "Agente recuperado en Patio")
+	if ok == nil {
+		t.Fatal("debería haber alerta de recuperación")
+	}
+}
+
+// TestDeadMansSwitchBlipNoAlert verifica que un blip breve (expira pero
+// recupera antes del confirm) NO genera NINGUNA alerta.
+func TestDeadMansSwitchBlipNoAlert(t *testing.T) {
+	reg := NewAgentRegistry(50 * time.Millisecond)
+	now := time.Now()
+	reg.SetClock(func() time.Time { return now })
+
+	l := newLiveAgentTest(t, reg)
+	l.SetAgentDownConfirm(200 * time.Millisecond)
+	cfg := RouterConfig{ID: "patio", Name: "Patio", Host: "127.0.0.1"}
+
+	reg.Ingest(testPayload())
+	l.pollRouter(t.Context(), cfg)
+
+	// Blip: expira (60ms) pero recupera antes del confirm (200ms).
+	now = now.Add(60 * time.Millisecond)
+	l.pollRouter(t.Context(), cfg)
+	reg.Ingest(testPayload())
+	l.pollRouter(t.Context(), cfg)
+
+	if a := findAlert(l.engine.List(), "Agente caído"); a != nil {
+		t.Fatalf("blip breve no debería generar alerta de caída: %+v", a)
+	}
+	if a := findAlert(l.engine.List(), "Agente recuperado"); a != nil {
+		t.Fatalf("blip breve no debería generar alerta de recuperación: %+v", a)
 	}
 }
