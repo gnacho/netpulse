@@ -9,6 +9,7 @@ import RouterDetail from '@/pages/RouterDetail'
 import Devices from '@/pages/Devices'
 import Topology from '@/pages/Topology'
 import Alerts from '@/pages/Alerts'
+import Roaming from '@/pages/Roaming'
 import Reports from '@/pages/Reports'
 import Orchestration from '@/pages/Orchestration'
 import Settings from '@/pages/Settings'
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="devices" element={<Devices />} />
         <Route path="topology" element={<Topology />} />
         <Route path="alerts" element={<Alerts />} />
+        <Route path="roaming" element={<Roaming />} />
         <Route path="reports" element={<Reports />} />
         <Route path="orchestration" element={<Orchestration />} />
         <Route path="settings" element={<Settings />} />

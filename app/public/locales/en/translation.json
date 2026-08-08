@@ -298,6 +298,8 @@
     "more": "More",
     "moreOptions": "More options",
     "overview": "Overview",
+    "reports": "Reports",
+    "roaming": "WiFi roaming",
     "routerDetail": "Router detail",
     "routers": "Routers",
     "settings": "Settings",
@@ -308,6 +310,32 @@
     "collapse": "Collapse menu",
     "expand": "Expand menu",
     "orchestration": "Orchestration"
+  },
+  "roaming": {
+    "subtitle": "Roaming and WiFi mesh status",
+    "loading": "Loading DAWN data…",
+    "error": "Could not load DAWN status. Check that the service runs on your routers.",
+    "empty": "No router has DAWN enabled. Install it on OpenWrt to see the roaming mesh.",
+    "tabMatrix": "Matrix",
+    "tab11r": "802.11r",
+    "tabSurvey": "Survey",
+    "tabEvents": "Events",
+    "comingSoon": "Coming soon",
+    "matrix": {
+      "title": "Signal matrix",
+      "description": "Signal of each client as seen by each AP (DAWN hearing map). Clients in the marginal zone are roaming candidates.",
+      "colClient": "Client",
+      "colAp": "Access point",
+      "filterBand": "Band",
+      "allBands": "All",
+      "filterWeak": "Weak signal only (< -70 dBm)",
+      "noClients": "No clients associated with these APs.",
+      "clients": "{{count}} clients",
+      "aps": "{{count}} APs",
+      "legendGood": "≤ -65 dBm (optimal)",
+      "legendFair": "-70 to -80 dBm (fair)",
+      "legendWeak": "≥ -85 dBm (marginal)"
+    }
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."

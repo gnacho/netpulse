@@ -15,6 +15,7 @@ import {
   Router as RouterIcon,
   Settings,
   Waypoints,
+  Wifi,
   Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
+  { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
   { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true },
@@ -62,8 +64,10 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/routers/, 'nav.routers'],
   [/^\/devices/, 'nav.devices'],
   [/^\/topology/, 'nav.topology'],
+  [/^\/roaming/, 'nav.roaming'],
   [/^\/alerts/, 'nav.alerts'],
   [/^\/reports/, 'nav.reports'],
+  [/^\/orchestration/, 'nav.orchestration'],
   [/^\/settings/, 'nav.settings'],
 ]
 

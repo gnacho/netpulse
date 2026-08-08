@@ -1682,30 +1682,31 @@ func (l *Live) GetAdguardClients(ctx context.Context) ([]AdguardClient, error) {
 	return gl.QueryClients(ctx)
 }
 
-// dawnNetwork es la respuesta de `ubus call dawn get_network`.
-type dawnNetwork map[string]map[string]struct {
-	Hostname           string  `json:"hostname"`
-	Freq               float64 `json:"freq"`
-	Channel            int     `json:"channel"`
-	ChannelUtilization float64 `json:"channel_utilization"`
-	NumSta             int     `json:"num_sta"`
-	Local              bool    `json:"local"`
-	Iface              string  `json:"iface"`
+// dawnAPField es el conjunto de keys escalares que describen un AP en la
+// salida de `ubus call dawn get_network`. El resto de keys de un BSSID cuyo
+// valor es un objeto (con "signal") son clientes del hearing map.
+var dawnAPField = map[string]bool{
+	"channel": true, "freq": true, "channel_utilization": true,
+	"num_sta": true, "ht_support": true, "vht_support": true,
+	"local": true, "iface": true, "hostname": true,
+	"neighbor_report": true, "op_class": true,
 }
 
 // GetDawn: red DAWN (roaming/band-steering). nil si ningún router responde.
+//
+// La salida de `ubus call dawn get_network` mezcla, por cada BSSID, los campos
+// del AP (escalares) con los clientes anidados (MAC → {signal, ht, vht, ...}).
+// DAWN distribuye el hearing map entre nodos, así que la respuesta del primer
+// router que contesta ya contiene toda la malla (APs + clientes vistos por
+// cada uno). Por eso solo usamos firstData.
 func (l *Live) GetDawn(context.Context) (*Dawn, error) {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
-	polled := l.lastPolled
 	l.mu.Unlock()
-	var firstData dawnNetwork
+
+	var firstData map[string]map[string]json.RawMessage
 	mesh := []DawnMesh{}
 	for _, cfg := range routers {
-		p := polled[cfg.ID]
-		if p == nil {
-			continue
-		}
 		name := cfg.Name
 		if name == "" {
 			name = cfg.ID
@@ -1715,7 +1716,7 @@ func (l *Live) GetDawn(context.Context) (*Dawn, error) {
 			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
 			continue
 		}
-		var data dawnNetwork
+		var data map[string]map[string]json.RawMessage
 		if json.Unmarshal([]byte(out), &data) != nil {
 			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
 			continue
@@ -1732,18 +1733,66 @@ func (l *Live) GetDawn(context.Context) (*Dawn, error) {
 	if firstData == nil {
 		return nil, nil
 	}
+	aps := dawnAPsFromNetwork(firstData)
+	return &Dawn{APs: aps, Mesh: mesh}, nil
+}
+
+// dawnAPsFromNetwork parsea la salida de `ubus call dawn get_network` ya
+// deserializada a json.RawMessage (SSID → BSSID → campos mixtos). Devuelve los
+// APs con sus clientes del hearing map. Función pura para testear sin SSH.
+func dawnAPsFromNetwork(firstData map[string]map[string]json.RawMessage) []DawnAP {
 	aps := []DawnAP{}
 	for ssid, bssids := range firstData {
-		for bssid, ap := range bssids {
-			band := "2.4 GHz"
-			if ap.Freq >= 5000 {
-				band = "5 GHz"
+		for bssid, raw := range bssids {
+			var fields map[string]json.RawMessage
+			if json.Unmarshal(raw, &fields) != nil {
+				continue
 			}
-			aps = append(aps, DawnAP{
-				SSID: ssid, BSSID: bssid, Hostname: ap.Hostname, Band: band,
-				Channel: ap.Channel, UtilizationPct: ap.ChannelUtilization,
-				Clients: ap.NumSta, Local: ap.Local, Iface: ap.Iface,
-			})
+			// "channel" presente y no cero → es un AP (no un cliente suelto).
+			chRaw, ok := fields["channel"]
+			if !ok {
+				continue
+			}
+			var channel int
+			json.Unmarshal(chRaw, &channel)
+			if channel == 0 {
+				continue
+			}
+			ap := DawnAP{SSID: ssid, BSSID: bssid, Channel: channel, Clients: []DawnClient{}}
+			var freq float64
+			json.Unmarshal(fields["freq"], &freq)
+			json.Unmarshal(fields["channel_utilization"], &ap.UtilizationPct)
+			json.Unmarshal(fields["num_sta"], &ap.ClientCount)
+			json.Unmarshal(fields["local"], &ap.Local)
+			json.Unmarshal(fields["iface"], &ap.Iface)
+			json.Unmarshal(fields["hostname"], &ap.Hostname)
+			if freq >= 5000 {
+				ap.Band = "5 GHz"
+			} else {
+				ap.Band = "2.4 GHz"
+			}
+			// Clientes anidados: cualquier key MAC cuyo valor sea un objeto
+			// con "signal" negativa (en -dBm).
+			for mac, valRaw := range fields {
+				if dawnAPField[mac] {
+					continue
+				}
+				s := strings.TrimSpace(string(valRaw))
+				if !strings.HasPrefix(s, "{") {
+					continue
+				}
+				var c struct {
+					Signal int  `json:"signal"`
+					HT     bool `json:"ht"`
+					VHT    bool `json:"vht"`
+				}
+				if json.Unmarshal(valRaw, &c) == nil && c.Signal < 0 {
+					ap.Clients = append(ap.Clients, DawnClient{
+						MAC: strings.ToUpper(mac), Signal: c.Signal, HT: c.HT, VHT: c.VHT,
+					})
+				}
+			}
+			aps = append(aps, ap)
 		}
 	}
 	sort.Slice(aps, func(i, j int) bool {
@@ -1752,5 +1801,5 @@ func (l *Live) GetDawn(context.Context) (*Dawn, error) {
 		}
 		return aps[i].Band < aps[j].Band
 	})
-	return &Dawn{APs: aps, Mesh: mesh}, nil
+	return aps
 }
