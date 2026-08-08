@@ -140,3 +140,96 @@ func TestConfigRoutersCRUD(t *testing.T) {
 		t.Fatalf("sshkey: %d", res.StatusCode)
 	}
 }
+
+// TestConfigRoutersUpdate cubre PUT /api/config/routers/{id}:
+//   - 404 si no existe
+//   - editar name (200, campo cambiado)
+//   - editar host inválido (400)
+//   - editar host duplicado con otro router (409)
+//   - promover a gateway (200, solo uno con el flag)
+//   - marcar agent_only (200, flag cambiado)
+//   - PUT no-admin → 401/403 (lo cubre admin_gate_test.go)
+func TestConfigRoutersUpdate(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+
+	// Setup: dos routers (rt1 no-gateway, gw gateway).
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"rt1","host":"192.168.8.10","type":"openwrt"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST rt1: %d", res.StatusCode)
+	}
+	res = doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"gw","host":"192.168.8.1","type":"glinet","gateway":true}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST gw: %d", res.StatusCode)
+	}
+
+	// PUT inexistente → 404
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/no-existe", cookie,
+		`{"name":"foo"}`)
+	if res.StatusCode != 404 {
+		t.Fatalf("PUT 404: %d", res.StatusCode)
+	}
+
+	// PUT name → 200, name cambiado
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"name":"Salón Editado","host":"192.168.8.10","type":"openwrt","gateway":false,"agent_only":false}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT name: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	rt := body["router"].(map[string]any)
+	if rt["name"] != "Salón Editado" {
+		t.Errorf("name: %v", rt["name"])
+	}
+
+	// PUT host inválido → 400
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"no es un host"}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("PUT host inválido: %d", res.StatusCode)
+	}
+
+	// PUT host duplicado con gw → 409
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.1"}`)
+	if res.StatusCode != 409 {
+		t.Fatalf("PUT host duplicado: %d", res.StatusCode)
+	}
+
+	// PUT promover rt1 a gateway → 200, ahora rt1 es el único gateway
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.10","gateway":true}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT gateway: %d", res.StatusCode)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/routers", cookie, "")
+	body = readJSON(t, res)
+	gwCount := 0
+	rt1Gw := false
+	for _, r := range body["routers"].([]any) {
+		rm := r.(map[string]any)
+		if rm["is_gateway"] == true {
+			gwCount++
+			if rm["id"] == "rt1" {
+				rt1Gw = true
+			}
+		}
+	}
+	if gwCount != 1 || !rt1Gw {
+		t.Fatalf("gateway mutado: gwCount=%d rt1Gw=%v", gwCount, rt1Gw)
+	}
+
+	// PUT agent_only=true → 200, agent_only cambiado
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.10","agent_only":true}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT agent_only: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	rt = body["router"].(map[string]any)
+	if rt["agent_only"] != true {
+		t.Errorf("agent_only: %v", rt["agent_only"])
+	}
+}

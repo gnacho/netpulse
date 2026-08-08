@@ -22,17 +22,17 @@ import {
   Pencil,
   Plus,
   Lock,
-  Radar,
-  RefreshCw,
-  Router as RouterIcon,
-  Shield,
-  ShieldCheck,
-  Sun,
-  Trash2,
-  UserCog,
-  Users,
-  Volume2,
-  Wifi,
+   Radar,
+   RefreshCw,
+   Router as RouterIcon,
+   Shield,
+   ShieldCheck,
+   Sun,
+   Trash2,
+   UserCog,
+   Users,
+   Volume2,
+   Wifi,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
@@ -254,6 +254,7 @@ interface ConfigRouter {
   host: string
   type: 'glinet' | 'openwrt'
   is_gateway: boolean
+  agent_only: boolean
 }
 
 interface DiscoverCandidate {
@@ -274,8 +275,16 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [name, setName] = useState('')
   const [type, setType] = useState<'glinet' | 'openwrt'>('openwrt')
   const [gateway, setGateway] = useState(false)
+  const [agentOnly, setAgentOnly] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
+  const [editing, setEditing] = useState<ConfigRouter | null>(null)
+  const [editHost, setEditHost] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editType, setEditType] = useState<'glinet' | 'openwrt'>('openwrt')
+  const [editGateway, setEditGateway] = useState(false)
+  const [editAgentOnly, setEditAgentOnly] = useState(false)
+  const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
   const [scanning, setScanning] = useState(false)
@@ -406,6 +415,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           name: name.trim() || undefined,
           type,
           gateway,
+          agent_only: agentOnly,
         }),
       })
       if (res.status === 409) {
@@ -417,6 +427,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setName('')
       setType('openwrt')
       setGateway(false)
+      setAgentOnly(false)
       setShowAddForm(false)
       await load()
       refresh()
@@ -425,6 +436,49 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setError(t('settings.routers.errorGeneric'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openEdit = (r: ConfigRouter) => {
+    setEditing(r)
+    setEditHost(r.host)
+    setEditName(r.name ?? '')
+    setEditType(r.type)
+    setEditGateway(r.is_gateway)
+    setEditAgentOnly(r.agent_only)
+    setError(null)
+  }
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editing || editSubmitting) return
+    setEditSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/config/routers/${encodeURIComponent(editing.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: editHost.trim(),
+          name: editName.trim() || undefined,
+          type: editType,
+          gateway: editGateway,
+          agent_only: editAgentOnly,
+        }),
+      })
+      if (res.status === 409) {
+        setError(t('settings.routers.errorDuplicate'))
+        return
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setEditing(null)
+      await load()
+      refresh()
+      onSaved()
+    } catch {
+      setError(t('settings.routers.errorGeneric'))
+    } finally {
+      setEditSubmitting(false)
     }
   }
 
@@ -465,6 +519,11 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                       {t('settings.routers.gatewayBadge')}
                     </span>
                   )}
+                  {r.agent_only && (
+                    <span className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted ring-1 ring-inset ring-border">
+                      {t('settings.routers.agentOnlyBadge')}
+                    </span>
+                  )}
                 </div>
                 {r.name && r.name !== r.host && (
                   <div className="truncate text-caption text-text-muted">{r.name}</div>
@@ -488,14 +547,24 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   </button>
                 </span>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteFor(r.id)}
-                  aria-label={t('settings.routers.delete')}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
-                >
-                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                </button>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(r)}
+                    aria-label={t('settings.routers.edit')}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                  >
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteFor(r.id)}
+                    aria-label={t('settings.routers.delete')}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                  </button>
+                </span>
               )}
             </li>
           ))}
@@ -611,6 +680,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             <Switch checked={gateway} onCheckedChange={setGateway} />
             {t('settings.routers.gateway')}
           </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+            <Switch checked={agentOnly} onCheckedChange={setAgentOnly} />
+            {t('settings.routers.agentOnly')}
+          </label>
           <button
             type="submit"
             disabled={submitting || !host.trim()}
@@ -625,6 +698,73 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         </form>
         )}
       </div>
+
+      {/* Edición inline: aparece al pulsar Editar en una fila */}
+      {editing && (
+        <form onSubmit={(e) => void saveEdit(e)} className="mt-4 border-t border-border pt-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-accent" strokeWidth={1.75} />
+            <span className="text-sm font-medium text-text-primary">
+              {t('settings.routers.editTitle', { id: editing.id })}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <input
+              type="text"
+              required
+              value={editHost}
+              onChange={(e) => setEditHost(e.target.value)}
+              placeholder={t('settings.routers.host')}
+              aria-label={t('settings.routers.host')}
+              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder={t('settings.routers.name')}
+              aria-label={t('settings.routers.name')}
+              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-3">
+            <SegmentedControl
+              options={[
+                { value: 'openwrt', label: 'OpenWrt' },
+                { value: 'glinet', label: 'GL.iNet' },
+              ]}
+              value={editType}
+              onChange={(v) => setEditType(v as 'glinet' | 'openwrt')}
+              ariaLabel={t('settings.routers.type')}
+            />
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+              <Switch checked={editGateway} onCheckedChange={setEditGateway} />
+              {t('settings.routers.gateway')}
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+              <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
+              {t('settings.routers.agentOnly')}
+            </label>
+            <span className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+              >
+                {t('settings.users.cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={editSubmitting || !editHost.trim()}
+                className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+              >
+                <Pencil className="h-4 w-4" strokeWidth={2} />
+                {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
+              </button>
+            </span>
+          </div>
+        </form>
+      )}
 
       {/* Clave pública SSH del servidor */}
       <div className="mt-4 border-t border-border pt-4">
