@@ -6,15 +6,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ChevronRight, Maximize, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronRight, Maximize, RefreshCw, Tag, ZoomIn, ZoomOut } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { LegendCard, LegendSheet } from '@/components/topology/LegendCard'
 import { LinksTable } from '@/components/topology/LinksTable'
 
 import { TopologyMap } from '@/components/topology/TopologyMap'
 import type { TopologyMapApi } from '@/components/topology/TopologyMap'
+import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
 import { buildTopologyModel } from '@/components/topology/model'
 import { useNetPulse } from '@/data/DataProvider'
+import { useAuth } from '@/data/AuthContext'
+import type { Device } from '@/data/mock'
 
 const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
@@ -46,6 +50,8 @@ function ControlButton({
 export default function Topology() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
+  const { isDemo } = useNetPulse()
+  const auth = useAuth()
   const { routers, devices, wan, wireguard, distributionNodes, topology, vm, lastSnapshotAt, requestServerRefresh } =
     useNetPulse()
   const model = useMemo(
@@ -56,6 +62,17 @@ export default function Topology() {
   const [flow, setFlow] = useState(true)
   const [hoverLink, setHoverLink] = useState<string | null>(null)
   const mapApi = useRef<TopologyMapApi>({})
+
+  // Etiquetado manual (issue #142 Fase B): clic en un chip abre el panel de
+  // overrides con esa MAC preseleccionada. Solo admin y modo live.
+  const canTag = !isDemo && auth?.role === 'admin'
+  const [tagSheetOpen, setTagSheetOpen] = useState(false)
+  const [tagMac, setTagMac] = useState<string | undefined>(undefined)
+
+  const handleTagDevice = (device: Device) => {
+    setTagMac(device.mac ?? device.name)
+    setTagSheetOpen(true)
+  }
 
   // Botón "Refrescar": POST /api/refresh → el backend sondea ya y empuja el
   // snapshot por SSE. El icono gira hasta que llega ese snapshot (sin recargar
@@ -140,6 +157,23 @@ export default function Topology() {
         </motion.div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canTag && (
+            <motion.div {...controlMotion(0)}>
+              <button
+                type="button"
+                onClick={() => {
+                  setTagMac(undefined)
+                  setTagSheetOpen(true)
+                }}
+                aria-label={t('topology.tagDevices')}
+                title={t('topology.tagDevices')}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+              >
+                <Tag className="h-4 w-4" strokeWidth={1.75} />
+                <span className="hidden sm:inline">{t('topology.tagDevices')}</span>
+              </button>
+            </motion.div>
+          )}
           <motion.div
             {...controlMotion(0)}
             className="flex items-center gap-0.5 rounded-xl border border-border bg-surface p-1"
@@ -193,6 +227,7 @@ export default function Topology() {
           flow={flow}
           hoverLink={hoverLink}
           onHoverLink={setHoverLink}
+          onTagDevice={canTag ? handleTagDevice : undefined}
         />
         {/* Zoom flotante (móvil: los controles del header quedan lejos del mapa) */}
         <div
@@ -216,6 +251,22 @@ export default function Topology() {
           <LinksTable model={model} hoverLink={hoverLink} onHoverLink={setHoverLink} />
         </div>
       </div>
+
+      {/* Etiquetado manual de hardware (issue #142 Fase B): clic en un chip
+          abre este panel con la MAC preseleccionada; también se abre desde el
+          botón "Etiquetar" del header (sin preselección). */}
+      <Sheet open={tagSheetOpen} onOpenChange={setTagSheetOpen}>
+        <SheetContent side="right" className="w-full max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-accent" strokeWidth={1.75} />
+              {t('topology.tagDevices')}
+            </SheetTitle>
+            <SheetDescription>{t('settings.overrides.caption')}</SheetDescription>
+          </SheetHeader>
+          <TopologyOverridesManager initialMac={tagMac} />
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

@@ -37,6 +37,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
@@ -2587,6 +2588,22 @@ export default function Settings() {
         {!isDemo && auth?.role === 'admin' && (
           <div className="lg:col-span-12">
             <RoutersManager reduce={reduce} onSaved={notify} />
+          </div>
+        )}
+
+        {/* Overrides manuales de topología (issue #142): etiquetar hardware
+            como hipervisor/switch y asignar dispositivos a hosts. Solo admin
+            y modo live; los cambios se aplican server-side en el overview. */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <Card
+              title={t('settings.overrides.title')}
+              caption={t('settings.overrides.caption')}
+              index={5}
+              reduce={reduce}
+            >
+              <TopologyOverridesManager onSaved={notify} />
+            </Card>
           </div>
         )}
 

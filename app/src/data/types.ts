@@ -269,6 +269,29 @@ export interface TopoSemLink {
 }
 
 /**
+ * Override manual de topología (issue #142, Fase A/B): capa 2 sobre el
+ * autodiscover aplicada server-side. El admin etiqueta hardware sin tocar
+ * la inferencia automática.
+ *   - kind 'hypervisor': el host es un hipervisor; los CTs del mismo puerto
+ *     se anidan bajo él.
+ *   - kind 'switch': el equipo es un switch gestionado (aunque sin LLDP).
+ *   - kind 'attach': el dispositivo cuelga de `parent` (VM con MAC random).
+ */
+export type TopologyOverrideKind = 'hypervisor' | 'switch' | 'attach'
+
+export interface TopologyOverride {
+  /** id = mac normalizada */
+  id: string
+  mac: string
+  kind: TopologyOverrideKind
+  name?: string
+  parent?: string
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/**
  * Modelo SEMÁNTICO de la topología (SPEC-65 D65-3): asignaciones de anillo,
  * enlaces y conteos de peers ocultos llegan calculados del servidor; la app
  * conserva solo la geometría de píxeles. Ausente en snapshots viejos → la
