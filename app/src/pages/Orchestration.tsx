@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
-import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, Ban } from 'lucide-react'
+import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+
+type Module = 'adguard' | 'guestwifi' | 'ddns'
 
 interface Op {
   kind: string
@@ -22,13 +24,16 @@ interface Plan {
   result?: { status: string; error?: string; duration_ms?: number }
 }
 
-// methodLabel devuelve la clave i18n para el método detectado.
-const methodLabel = (method: string) => {
+// methodLabel devuelve la clave i18n para el método detectado del módulo.
+const methodLabel = (module: Module, method: string) => {
+  const base = `orchestration.${module}.method`
   switch (method) {
-    case 'apk': return 'orchestration.adguard.method.apk'
-    case 'opkg': return 'orchestration.adguard.method.opkg'
-    case 'none': return 'orchestration.adguard.method.none'
-    case 'binary': return 'orchestration.adguard.method.binary'
+    case 'apk': return `${base}.apk`
+    case 'opkg': return `${base}.opkg`
+    case 'none': return `${base}.none`
+    case 'binary': return `${base}.binary`
+    case 'enabled': return `${base}.enabled`
+    case 'disabled': return `${base}.disabled`
     default: return ''
   }
 }
@@ -37,30 +42,45 @@ export default function Orchestration() {
   const { t } = useTranslation()
   const { agents, routers } = useNetPulse()
   const auth = useAuth()
+  // Módulo activo de orquestación (Fase 18).
+  const [module, setModule] = useState<Module>('adguard')
   const [routerId, setRouterId] = useState('')
+
+  // AdGuard (17.1): puerto + DNS upstream.
   const [agEnabled, setAgEnabled] = useState(true)
   const [agPort, setAgPort] = useState('3000')
   const [agDns, setAgDns] = useState('1.1.1.1')
-  // issue #120: AdGuard filtra el DNS de la red → por defecto solo el gateway.
-  // El toggle "advanced" permite un router no-gateway (con warning + checks).
-  const [agAllowNonGateway, setAgAllowNonGateway] = useState(false)
+  // Guest WiFi (17.2): SSID + password + banda.
+  const [gwEnabled, setGwEnabled] = useState(true)
+  const [gwSsid, setGwSsid] = useState('NetPulse-Guest')
+  const [gwPassword, setGwPassword] = useState('')
+  const [gwBand, setGwBand] = useState('2g')
+  // DDNS (17.3): proveedor + dominio + credenciales.
+  const [ddEnabled, setDdEnabled] = useState(true)
+  const [ddService, setDdService] = useState('duckdns.org')
+  const [ddDomain, setDdDomain] = useState('')
+  const [ddUser, setDdUser] = useState('')
+  const [ddPass, setDdPass] = useState('')
+
+  // issue #120: todos los módulos son gateway-only por defecto. El toggle
+  // "advanced" permite un router no-gateway (con warning + checks).
+  const [allowNonGateway, setAllowNonGateway] = useState(false)
   const [plan, setPlan] = useState<Plan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // firmwareManaged: el último generate recibió 422 managed_by_firmware
-  // (el router trae un fork de fabricante). Banner ámbar específico, no
-  // un error rojo genérico.
-  const [firmwareManaged, setFirmwareManaged] = useState(false)
+  // warnCode: el último generate recibió un 422 con código conocido
+  // (managed_by_firmware / gateway_only) → banner ámbar específico.
+  const [warnCode, setWarnCode] = useState('')
 
   // El gateway del view-model (roleBadge 'Principal'); el selector lo lista
   // solo por defecto (gateway-only, #120).
   const gatewayId = routers.find((r) => r.roleBadge === 'Principal')?.id
   // Routers del dropdown: solo el gateway por defecto; todos si el toggle
   // advanced está activo. Se listan los AGENTES conectados (el apply usa SSE).
-  const visibleRouters = agAllowNonGateway
+  const visibleRouters = allowNonGateway
     ? agents
     : agents.filter((a) => a.slug === gatewayId)
-  const nonGatewaySelected = agAllowNonGateway && routerId !== gatewayId
+  const nonGatewaySelected = allowNonGateway && routerId !== gatewayId
 
   // Auto-seleccionar: gateway por defecto (o el primer agente visible).
   useEffect(() => {
@@ -68,35 +88,47 @@ export default function Orchestration() {
       const first = visibleRouters[0]
       if (first) setRouterId(first.slug)
     }
-  }, [agents, gatewayId, agAllowNonGateway, routerId, visibleRouters])
+  }, [agents, gatewayId, allowNonGateway, routerId, visibleRouters])
+
+  // desiredForModule construye el objeto "desired" del módulo activo.
+  const desiredForModule = (): Record<string, unknown> => {
+    switch (module) {
+      case 'guestwifi':
+        return { enabled: gwEnabled, ssid: gwSsid, password: gwPassword, band: gwBand, allowNonGateway }
+      case 'ddns':
+        return { enabled: ddEnabled, serviceName: ddService, domain: ddDomain, username: ddUser, password: ddPass, allowNonGateway }
+      default:
+        return { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway }
+    }
+  }
 
   const createPlan = async () => {
     setBusy(true)
     setError('')
     setPlan(null)
-    setFirmwareManaged(false)
+    setWarnCode('')
     try {
       const res = await fetch('/api/plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           routerId,
-          resource: 'adguard',
-          desired: { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway: agAllowNonGateway },
+          resource: module,
+          desired: desiredForModule(),
         }),
       })
       if (!res.ok) {
-        // Parsear el envelope de error de writeError ({code, message}).
+        // Parsear el envelope de error de writeError ({error, message}).
         let code = '', message = ''
         try {
           const body = await res.json()
-          code = body.code || ''
+          code = body.error || body.code || ''
           message = body.message || ''
         } catch {
           message = await res.text().catch(() => res.statusText)
         }
-        if (code === 'managed_by_firmware') {
-          setFirmwareManaged(true)
+        if (code === 'managed_by_firmware' || code === 'gateway_only') {
+          setWarnCode(code)
         } else {
           setError(message || res.statusText)
         }
@@ -155,10 +187,30 @@ export default function Orchestration() {
         <p className="mt-0.5 text-sm text-text-secondary">{t('orchestration.subtitle')}</p>
       </header>
 
+      {/* Selector de módulo */}
+      <div className="flex flex-wrap gap-2">
+        {(['adguard', 'guestwifi', 'ddns'] as Module[]).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => { setModule(m); setPlan(null); setError(''); setWarnCode('') }}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              module === m
+                ? 'bg-accent text-canvas'
+                : 'border border-border bg-surface text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {t(`orchestration.module.${m}`)}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-2xl border border-border bg-surface p-5">
         <div className="mb-4 flex items-center gap-2">
           <Wand2 className="h-4 w-4 text-accent" strokeWidth={1.75} />
-          <h2 className="text-sm font-semibold text-text-primary">AdGuard Home</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            {t(`orchestration.module.${module}`)}
+          </h2>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -181,11 +233,11 @@ export default function Orchestration() {
           <label className="flex items-center gap-2 pt-6">
             <input
               type="checkbox"
-              checked={agAllowNonGateway}
-              onChange={(e) => setAgAllowNonGateway(e.target.checked)}
+              checked={allowNonGateway}
+              onChange={(e) => setAllowNonGateway(e.target.checked)}
               className="h-4 w-4 rounded border-border"
             />
-            <span className="text-sm text-text-primary">{t('orchestration.adguard.allowNonGateway')}</span>
+            <span className="text-sm text-text-primary">{t(`orchestration.${module}.allowNonGateway`)}</span>
           </label>
 
           {nonGatewaySelected && (
@@ -193,40 +245,148 @@ export default function Orchestration() {
               role="alert"
               className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 lg:col-span-4"
             >
-              {t('orchestration.adguard.nonGatewayWarning')}
+              {t(`orchestration.${module}.nonGatewayWarning`)}
             </div>
           )}
 
-          <label className="flex items-center gap-2 pt-6">
-            <input
-              type="checkbox"
-              checked={agEnabled}
-              onChange={(e) => setAgEnabled(e.target.checked)}
-              className="h-4 w-4 rounded border-border"
-            />
-            <span className="text-sm text-text-primary">{t('orchestration.adguard.enable')}</span>
-          </label>
-
-          {agEnabled && (
+          {module === 'adguard' && (
             <>
-              <label className="flex flex-col gap-1">
-                <span className="text-caption font-medium text-text-secondary">{t('orchestration.adguard.port')}</span>
+              <label className="flex items-center gap-2 pt-6">
                 <input
-                  type="text"
-                  value={agPort}
-                  onChange={(e) => setAgPort(e.target.value)}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                  type="checkbox"
+                  checked={agEnabled}
+                  onChange={(e) => setAgEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
                 />
+                <span className="text-sm text-text-primary">{t('orchestration.adguard.enable')}</span>
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-caption font-medium text-text-secondary">{t('orchestration.adguard.upstream')}</span>
+
+              {agEnabled && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.adguard.port')}</span>
+                    <input
+                      type="text"
+                      value={agPort}
+                      onChange={(e) => setAgPort(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.adguard.upstream')}</span>
+                    <input
+                      type="text"
+                      value={agDns}
+                      onChange={(e) => setAgDns(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                </>
+              )}
+            </>
+          )}
+
+          {module === 'guestwifi' && (
+            <>
+              <label className="flex items-center gap-2 pt-6">
                 <input
-                  type="text"
-                  value={agDns}
-                  onChange={(e) => setAgDns(e.target.value)}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                  type="checkbox"
+                  checked={gwEnabled}
+                  onChange={(e) => setGwEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
                 />
+                <span className="text-sm text-text-primary">{t('orchestration.guestwifi.enable')}</span>
               </label>
+
+              {gwEnabled && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.guestwifi.ssid')}</span>
+                    <input
+                      type="text"
+                      value={gwSsid}
+                      onChange={(e) => setGwSsid(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.guestwifi.password')}</span>
+                    <input
+                      type="text"
+                      value={gwPassword}
+                      onChange={(e) => setGwPassword(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.guestwifi.band')}</span>
+                    <select
+                      value={gwBand}
+                      onChange={(e) => setGwBand(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    >
+                      <option value="2g">{t('orchestration.guestwifi.band2g')}</option>
+                      <option value="5g">{t('orchestration.guestwifi.band5g')}</option>
+                      <option value="auto">{t('orchestration.guestwifi.bandAuto')}</option>
+                    </select>
+                  </label>
+                </>
+              )}
+            </>
+          )}
+
+          {module === 'ddns' && (
+            <>
+              <label className="flex items-center gap-2 pt-6">
+                <input
+                  type="checkbox"
+                  checked={ddEnabled}
+                  onChange={(e) => setDdEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <span className="text-sm text-text-primary">{t('orchestration.ddns.enable')}</span>
+              </label>
+
+              {ddEnabled && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.ddns.service')}</span>
+                    <input
+                      type="text"
+                      value={ddService}
+                      onChange={(e) => setDdService(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.ddns.domain')}</span>
+                    <input
+                      type="text"
+                      value={ddDomain}
+                      onChange={(e) => setDdDomain(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.ddns.username')}</span>
+                    <input
+                      type="text"
+                      value={ddUser}
+                      onChange={(e) => setDdUser(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.ddns.password')}</span>
+                    <input
+                      type="password"
+                      value={ddPass}
+                      onChange={(e) => setDdPass(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                </>
+              )}
             </>
           )}
         </div>
@@ -250,10 +410,10 @@ export default function Orchestration() {
         </div>
       )}
 
-      {firmwareManaged && (
+      {warnCode && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-          <Ban className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden />
-          <span>{t('orchestration.adguard.managedByFirmware')}</span>
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden />
+          <span>{t(`orchestration.warn.${warnCode}`)}</span>
         </div>
       )}
 
@@ -268,9 +428,9 @@ export default function Orchestration() {
               {t('orchestration.plan')} · {plan.id.slice(0, 8)}
             </h3>
             <div className="flex items-center gap-2">
-              {plan.method && methodLabel(plan.method) && (
+              {plan.method && methodLabel(module, plan.method) && (
                 <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">
-                  {t('orchestration.adguard.methodLabel')}: {t(methodLabel(plan.method)!)}
+                  {t('orchestration.methodLabel')}: {t(methodLabel(module, plan.method)!)}
                 </span>
               )}
               <PlanStatusBadge status={plan.status} />
