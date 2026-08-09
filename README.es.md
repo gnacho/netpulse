@@ -200,6 +200,13 @@ base de datos ocurre automáticamente en el primer arranque Go.
 cd server-go && go test ./...
 ```
 
+## Gracias enormes
+
+NetPulse no existiría sin [OpenWrt](https://openwrt.org/). Toda la premisa
+del proyecto, que el hardware de tu red sea realmente tuyo y no dependa del
+firmware cerrado de un fabricante, solo es posible porque OpenWrt existe. Si
+NetPulse te sirve, el mérito real es de la comunidad de OpenWrt.
+
 ## Licencia
 
 [AGPL-3.0](LICENSE)

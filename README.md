@@ -196,6 +196,14 @@ its database happens automatically on the first Go boot.
 cd server-go && go test ./...
 ```
 
+## Big thanks
+
+NetPulse wouldn't exist without [OpenWrt](https://openwrt.org/). The whole
+premise of the project, that you can own and control your network hardware
+instead of depending on a vendor's closed firmware, only works because
+OpenWrt exists. If NetPulse is useful to you, the real credit goes to the
+OpenWrt community.
+
 ## License
 
 [AGPL-3.0](LICENSE)
