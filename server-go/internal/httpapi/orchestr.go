@@ -27,10 +27,10 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 
 	mux.Handle("POST /api/plans", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			RouterID string             `json:"routerId"`
-			Resource string             `json:"resource"`
-			Diff     []executor.Op      `json:"diff"`
-			Desired  json.RawMessage    `json:"desired"`
+			RouterID string          `json:"routerId"`
+			Resource string          `json:"resource"`
+			Diff     []executor.Op   `json:"diff"`
+			Desired  json.RawMessage `json:"desired"`
 		}
 		if !readJSONBody(r, &body) || body.RouterID == "" || body.Resource == "" {
 			writeError(w, http.StatusBadRequest, "invalid_body",
@@ -166,8 +166,8 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 		}
 
 		var body struct {
-			PlanID string                 `json:"planId"`
-			Result executor.ApplyResult  `json:"result"`
+			PlanID string               `json:"planId"`
+			Result executor.ApplyResult `json:"result"`
 		}
 		if !readJSONBody(r, &body) || body.PlanID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_body")
@@ -205,10 +205,10 @@ func bearerToken(r *http.Request) string {
 // Errores sentinelas del cálculo de diff (mapeados a códigos HTTP por
 // writeModuleErr).
 var (
-	errRouterNotFound           = errors.New("router_not_found")
-	errUnknownModule            = errors.New("unknown_module")
-	errProbeFailed              = errors.New("probe_failed")
-	errInvalidDesired           = errors.New("invalid_desired")
+	errRouterNotFound          = errors.New("router_not_found")
+	errUnknownModule           = errors.New("unknown_module")
+	errProbeFailed             = errors.New("probe_failed")
+	errInvalidDesired          = errors.New("invalid_desired")
 	errAdGuardGatewayOnly      = errors.New("adguard_gateway_only")
 	errAdGuardAlreadyOnGateway = errors.New("adguard_already_on_gateway")
 	errAdGuardInsufficientRAM  = errors.New("adguard_insufficient_ram")
@@ -301,6 +301,26 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
 		}
 		ops := orchestr.DdnsOps(d, sc)
+		return ops, guestWiFiMethod(d.Enabled), nil
+	case "sqm":
+		var d orchestr.SqmDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
+		}
+		host := s.hostOfRouter(routerID)
+		if host == "" {
+			return nil, "", errRouterNotFound
+		}
+		// Gateway-only por defecto (patrón #120/#17.2).
+		isGateway, _ := s.gatewayInfo(routerID)
+		if !isGateway && !d.AllowNonGateway {
+			return nil, "", errGatewayOnly
+		}
+		sc, err := orchestr.DetectSqm(s.pool, host)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
+		}
+		ops := orchestr.SqmOps(d, sc)
 		return ops, guestWiFiMethod(d.Enabled), nil
 	default:
 		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
@@ -396,6 +416,13 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 		return json.Marshal(d)
 	case "ddns":
 		var d orchestr.DdnsDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, fmt.Errorf("desired inválido: %w", err)
+		}
+		d.Enabled = !d.Enabled
+		return json.Marshal(d)
+	case "sqm":
+		var d orchestr.SqmDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
 			return nil, fmt.Errorf("desired inválido: %w", err)
 		}

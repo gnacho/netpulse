@@ -59,12 +59,13 @@ func (shellRunner) Run(name string, args ...string) (string, int) {
 
 // patrones de validación por campo (sin shell metachars).
 var (
-	reConfig  = regexp.MustCompile(`^[a-z_]+$`)
-	// section: nombre de sección (wifi-iface, interface) o referencia
-	// `@tipo[idx]` / `@tipo[-1]`. `[-1]` referencia la ÚLTIMA sección del
-	// tipo — usado tras un uci_add para setear los campos de la sección recién
+	reConfig = regexp.MustCompile(`^[a-z_]+$`)
+	// section: nombre de sección (wifi-iface, interface, eth1) o referencia
+	// `@tipo[idx]` / `@tipo[-1]`. Los dígitos cubren interfaces UCI reales
+	// (eth1, wlan0, br-lan). `[-1]` referencia la ÚLTIMA sección del tipo —
+	// usado tras un uci_add para setear los campos de la sección recién
 	// creada (patrón OpenWrt estándar).
-	reSection = regexp.MustCompile(`^(@[a-z_-]+(\[\d+\]|\[-1\])|[a-z_-]+)$`)
+	reSection = regexp.MustCompile(`^(@[a-z0-9_-]+(\[\d+\]|\[-1\])|[a-z0-9_-]+)$`)
 	reOption  = regexp.MustCompile(`^[a-z_]+$`)
 	// value: alfanumérico + puntos, dos-puntos, barras, hashes, guiones.
 	// Cubre IPs (192.168.1.1), DNS (1.1.1.1#3001), rutas, MACs, puertos.
@@ -296,10 +297,10 @@ var (
 
 // Executor aplica Ops allowlistedas con snapshot + healthcheck + rollback.
 type Executor struct {
-	run        Runner
-	now        func() time.Time
-	gwTarget   string // IP del gateway para healthcheck (APs)
-	wanTarget  string // IP WAN para healthcheck (gateway)
+	run       Runner
+	now       func() time.Time
+	gwTarget  string // IP del gateway para healthcheck (APs)
+	wanTarget string // IP WAN para healthcheck (gateway)
 }
 
 // New crea un ejecutor. gwTarget/wanTarget se usan para el healthcheck
