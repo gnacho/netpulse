@@ -101,6 +101,56 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "applying", "planId": id})
 	})))
 
+	// POST /api/plans/{id}/rollback — revertir un plan ya aplicado.
+	//
+	// Calcula el "desired inverso" del módulo (p. ej. AdGuard: si el plan era
+	// enabled=true, el inverso es enabled=false), vuelve a sondear el router
+	// (para detectar el escenario actual) y envía las Ops inversas al agente
+	// vía SSE. El agente las ejecuta con su snapshot+healthcheck+rollback
+	// automático. El resultado llega por POST /api/agents/{slug}/apply-result.
+	mux.Handle("POST /api/plans/{id}/rollback", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		plan, err := mgr.GetPlan(id)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if plan.Status != "applied" {
+			writeError(w, http.StatusConflict, "plan_not_applied",
+				"Solo se puede revertir un plan aplicado (estado actual: "+plan.Status+")")
+			return
+		}
+		inverseDesired, err := invertDesired(plan.Resource, plan.Desired)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "rollback_unsupported", err.Error())
+			return
+		}
+		// Recalcular ops inversas (vuelve a sondear el escenario del router).
+		diff, _, err := s.computeModuleDiff(plan.Resource, plan.RouterID, inverseDesired)
+		if err != nil {
+			s.writeModuleErr(w, err)
+			return
+		}
+		if s.agentHub == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
+			return
+		}
+		applyData, _ := json.Marshal(map[string]any{"plan_id": id, "ops": diff})
+		sent := s.agentHub.Send(plan.RouterID, "rollback", json.RawMessage(applyData))
+		if !sent {
+			writeError(w, http.StatusServiceUnavailable, "agent_not_connected",
+				"El agente no está conectado vía SSE")
+			return
+		}
+		user := auth.UserFromContext(r.Context())
+		actor := ""
+		if user != nil {
+			actor = user.Username
+		}
+		mgr.SetRollingBack(id, actor)
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "rolling_back", "planId": id})
+	})))
+
 	// El agente reporta el resultado del apply. Auth por token de agente
 	// (Bearer, mismo que ingesta — ya validado por RequireAuth bypass).
 	mux.HandleFunc("POST /api/agents/{slug}/apply-result", func(w http.ResponseWriter, r *http.Request) {
@@ -223,5 +273,23 @@ func (s *server) writeModuleErr(w http.ResponseWriter, err error) {
 			"No se pudo sondear el router por SSH para detectar el escenario: "+err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "module_error", err.Error())
+	}
+}
+
+// invertDesired devuelve el estado deseado opuesto para un módulo, de forma
+// que computeModuleDiff(inverseDesired) genere las Ops que deshacen el plan
+// original. Solo los módulos que saben invertirse lo soportan (hoy AdGuard:
+// toggle Enabled; el rollback de enabled=true es disable).
+func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, error) {
+	switch resource {
+	case "adguard":
+		var d orchestr.AdGuardDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, fmt.Errorf("desired inválido: %w", err)
+		}
+		d.Enabled = !d.Enabled
+		return json.Marshal(d)
+	default:
+		return nil, fmt.Errorf("rollback no soportado para el módulo %q", resource)
 	}
 }

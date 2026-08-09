@@ -67,6 +67,8 @@ func AdGuardOps(desired AdGuardDesired, sc AdGuardScenario) ([]executor.Op, erro
 
 // adGuardConfigOps: asume AdGuard ya instalado (opkg/apk/binario presente).
 // Solo configura el DNS forwarding de dnsmasq y arranca el servicio procd.
+// tcp_check al puerto de la UI verifica que el servicio levantó de verdad
+// (si no, el executor revierte staged).
 func adGuardConfigOps(port, dns string) []executor.Op {
 	return []executor.Op{
 		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "no_resolv", "value": "1"}, Desc: "Don't use /etc/resolv.conf"},
@@ -74,6 +76,7 @@ func adGuardConfigOps(port, dns string) []executor.Op {
 		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}, Desc: "Commit DHCP changes"},
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "enable"}, Desc: "Enable AdGuard Home on boot"},
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "start"}, Desc: "Start AdGuard Home"},
+		{Kind: "tcp_check", Args: map[string]string{"host": "127.0.0.1", "port": port}, Desc: "Check AdGuard Home UI is listening"},
 		{Kind: "service", Args: map[string]string{"name": "dnsmasq", "action": "restart"}, Desc: "Restart dnsmasq to apply DNS forwarding"},
 	}
 }
@@ -92,9 +95,9 @@ func adGuardDisableOps() []executor.Op {
 }
 
 // adGuardBinaryOps: escenario "binary" (download oficial de GitHub + init procd).
-// Plan (13 ops): download → extract → mv binario → chmod → write config →
-// write init.d → chmod init.d → enable + start service → DNS forward + commit
-// + dnsmasq restart.
+// Plan (14 ops): download → extract → mv binario → chmod → write config →
+// write init.d → chmod init.d → enable + start service → tcp_check UI →
+// DNS forward + commit + dnsmasq restart.
 //
 // La estructura del tarball oficial es `AdGuardHome/AdGuardHome` (binario) +
 // README/LICENSE/homepage; por eso se extrae a /tmp y se mueve solo el binario.
@@ -115,6 +118,7 @@ func adGuardBinaryOps(sc AdGuardScenario, port, dns string) []executor.Op {
 		{Kind: "chmod", Args: map[string]string{"mode": "0755", "path": "/etc/init.d/adguardhome"}, Desc: "Make init script executable"},
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "enable"}, Desc: "Enable AdGuard Home on boot"},
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "start"}, Desc: "Start AdGuard Home"},
+		{Kind: "tcp_check", Args: map[string]string{"host": "127.0.0.1", "port": port}, Desc: "Check AdGuard Home UI is listening"},
 		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "no_resolv", "value": "1"}, Desc: "Don't use /etc/resolv.conf"},
 		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "127.0.0.1#" + port}, Desc: "Forward DNS to AdGuard on port " + port},
 		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}, Desc: "Commit DHCP changes"},

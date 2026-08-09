@@ -99,17 +99,43 @@ func (m *Manager) SetApplying(id string) error {
 	return err
 }
 
+// SetRollingBack marca el plan como en revertido en curso (un admin disparó
+// POST /api/plans/{id}/rollback). Registra auditoría.
+func (m *Manager) SetRollingBack(id, actor string) error {
+	_, err := m.db.Exec(`UPDATE orchestr_plans SET status = 'rolling_back' WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	m.audit(id, "rollback", actor, "manual rollback triggered")
+	return nil
+}
+
 // SetResult actualiza el plan con el resultado del agente y registra auditoría.
+// Si el plan estaba en 'rolling_back', traduce el resultado del agente al
+// estado semántico del plan (applied → rolled_back, fallido → failed).
 func (m *Manager) SetResult(id string, res ApplyResult) error {
+	var prev string
+	if err := m.db.QueryRow(`SELECT status FROM orchestr_plans WHERE id = ?`, id).Scan(&prev); err != nil {
+		return err
+	}
+	final := res.Status
+	if prev == "rolling_back" {
+		switch res.Status {
+		case "applied":
+			final = "rolled_back"
+		case "rolled_back":
+			final = "failed" // el propio rollback no pudo revertir
+		}
+	}
 	resJSON, _ := json.Marshal(res)
 	now := time.Now().Unix()
 	_, err := m.db.Exec(
 		`UPDATE orchestr_plans SET status = ?, applied_at = ?, result = ? WHERE id = ?`,
-		res.Status, now, string(resJSON), id)
+		final, now, string(resJSON), id)
 	if err != nil {
 		return err
 	}
-	m.audit(id, res.Status, "agent", res.Error)
+	m.audit(id, final, "agent", res.Error)
 	return nil
 }
 
