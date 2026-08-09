@@ -8,9 +8,12 @@
 package executor
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -62,14 +65,33 @@ var (
 	// Cubre IPs (192.168.1.1), DNS (1.1.1.1#3001), rutas, MACs, puertos.
 	reValue      = regexp.MustCompile(`^[a-zA-Z0-9_.:/#,-]+$`)
 	reService    = regexp.MustCompile(`^[a-z_-]+$`)
-	reServiceAct = regexp.MustCompile(`^(restart|reload|enable|disable)$`)
+	reServiceAct = regexp.MustCompile(`^(restart|reload|enable|disable|start|stop)$`)
 	rePackage    = regexp.MustCompile(`^[a-z0-9_-]+$`)
+	// Rutas de fichero permitidas para write_file/download/extract/chmod.
+	// "/root" excluido a propósito (no hace falta para AdGuard y reduce la
+	// superficie: .ssh/id_rsa etc. no deben ser escribibles).
+	// Además del regex, Validate aplica filepath.Clean + rechazo de ".." a los
+	// args marcados como path en opSpec (defense in depth: ".." casa el charset).
+	reFilePath = regexp.MustCompile(`^/(etc|tmp|usr/bin|usr/lib|var/etc)/[A-Za-z0-9_./-]+$`)
+	reDirPath  = regexp.MustCompile(`^/(etc|tmp|usr/bin|usr/lib|opt|var/etc)/[A-Za-z0-9_./-]+$`)
+	// Allowlist de dominios de descarga: SOLO releases oficiales de AdGuard.
+	// Cualquier otra URL (incluida un attacker que controle el plan) se rechaza.
+	reDownloadURL = regexp.MustCompile(`^https://github\.com/AdguardTeam/AdGuardHome/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/AdGuardHome_linux_[a-z0-9]+\.tar\.gz$`)
+	reMode        = regexp.MustCompile(`^[0-7]{3,4}$`)
+	// base64 estándar (sin newlines). La validación final la hace base64.Decode.
+	reBase64 = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
 )
 
 // opSpec define los args requeridos y su validación para cada Kind.
 type opSpec struct {
 	required map[string]*regexp.Regexp
 	build    func(args map[string]string) (cmd string, cmdArgs []string)
+	// exec, si está presente, reemplaza a build. Para Kinds que no son un
+	// simple exec.Command (p. ej. write_file escribe el fichero en Go).
+	exec func(run Runner, args map[string]string) int
+	// pathArgs: args que son rutas de fichero/directorio. Validate les aplica
+	// un check anti-traversal además del regex (filepath.Clean + sin "..").
+	pathArgs []string
 	configs  func(args map[string]string) []string // UCI configs afectados (para snapshot)
 }
 
@@ -116,6 +138,83 @@ var allowlist = map[string]opSpec{
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
+	// apk_install: OpenWrt 24+ usa apk en vez de opkg.
+	"apk_install": {
+		required: map[string]*regexp.Regexp{"package": rePackage},
+		build: func(a map[string]string) (string, []string) {
+			return "apk", []string{"add", a["package"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// download: uclient-fetch (presente en OpenWrt por defecto) con allowlist
+	// estricta de URL (solo releases oficiales de AdGuard).  El dest se valida
+	// con reFilePath. No shell libre: la URL va como arg, no interpolada.
+	"download": {
+		required: map[string]*regexp.Regexp{"url": reDownloadURL, "dest": reFilePath},
+		pathArgs: []string{"dest"},
+		build: func(a map[string]string) (string, []string) {
+			return "uclient-fetch", []string{a["url"], "-O", a["dest"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// write_file: escribe contenido base64 a path. Se hace en Go (no shell)
+	// para evitar inyección vía base64 -d | sh. Path sanitizado + re-chequeo.
+	// Crea el directorio padre si no existe (MkdirAll, modo 0755) — necesario
+	// para /etc/AdGuardHome/AdGuardHome.yaml donde el dir no existe aún.
+	"write_file": {
+		required: map[string]*regexp.Regexp{"path": reFilePath, "content_b64": reBase64},
+		pathArgs: []string{"path"},
+		exec: func(_ Runner, a map[string]string) int {
+			path := a["path"]
+			clean := filepath.Clean(path)
+			if clean != path || !reFilePath.MatchString(clean) || strings.Contains(clean, "..") {
+				return 1
+			}
+			data, err := base64.StdEncoding.DecodeString(a["content_b64"])
+			if err != nil {
+				return 1
+			}
+			if dir := filepath.Dir(clean); dir != "" && dir != "/" {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return 1
+				}
+			}
+			if err := os.WriteFile(clean, data, 0644); err != nil {
+				return 1
+			}
+			return 0
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// mv: mueve un fichero. src y dest en path allowlist. Necesario para el
+	// escenario "binary" de AdGuard (extraer tarball y mover el binario a
+	// /usr/bin/AdGuardHome).
+	"mv": {
+		required: map[string]*regexp.Regexp{"src": reFilePath, "dest": reFilePath},
+		pathArgs: []string{"src", "dest"},
+		build: func(a map[string]string) (string, []string) {
+			return "mv", []string{a["src"], a["dest"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// extract_tarball: tar -xzf SRC -C DEST.
+	"extract_tarball": {
+		required: map[string]*regexp.Regexp{"src": reFilePath, "dest": reDirPath},
+		pathArgs: []string{"src", "dest"},
+		build: func(a map[string]string) (string, []string) {
+			return "tar", []string{"-xzf", a["src"], "-C", a["dest"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// chmod: modo octal (3-4 dígitos) + path.
+	"chmod": {
+		required: map[string]*regexp.Regexp{"mode": reMode, "path": reFilePath},
+		pathArgs: []string{"path"},
+		build: func(a map[string]string) (string, []string) {
+			return "chmod", []string{a["mode"], a["path"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
 }
 
 // Executor aplica Ops allowlistedas con snapshot + healthcheck + rollback.
@@ -153,6 +252,14 @@ func Validate(op Op) error {
 			return fmt.Errorf("arg %q=%q no válido para %s (no casa con %s)", arg, val, op.Kind, re)
 		}
 	}
+	// Defense in depth: args marcados como path no pueden contener ".." ni
+	// resolverse a algo distinto tras filepath.Clean (p. ej. "/etc/../x").
+	for _, arg := range spec.pathArgs {
+		val := op.Args[arg]
+		if strings.Contains(val, "..") || filepath.Clean(val) != val {
+			return fmt.Errorf("arg %q=%q contiene traversal (..) para %s", arg, val, op.Kind)
+		}
+	}
 	return nil
 }
 
@@ -182,8 +289,13 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 	// 3. Ejecutar Ops (staged, sin commit aún).
 	for _, op := range ops {
 		spec := allowlist[op.Kind]
-		cmd, cmdArgs := spec.build(op.Args)
-		_, code := e.run.Run(cmd, cmdArgs...)
+		var code int
+		if spec.exec != nil {
+			code = spec.exec(e.run, op.Args)
+		} else {
+			cmd, cmdArgs := spec.build(op.Args)
+			_, code = e.run.Run(cmd, cmdArgs...)
+		}
 		if code != 0 {
 			// Revert staged changes y salir.
 			e.revertStaged(affected)

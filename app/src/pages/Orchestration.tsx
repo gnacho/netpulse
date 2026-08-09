@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
-import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2 } from 'lucide-react'
+import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, Ban } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
@@ -18,7 +18,19 @@ interface Plan {
   resource: string
   diff: Op[]
   status: string
+  method?: string
   result?: { status: string; error?: string; duration_ms?: number }
+}
+
+// methodLabel devuelve la clave i18n para el método detectado.
+const methodLabel = (method: string) => {
+  switch (method) {
+    case 'apk': return 'orchestration.adguard.method.apk'
+    case 'opkg': return 'orchestration.adguard.method.opkg'
+    case 'none': return 'orchestration.adguard.method.none'
+    case 'binary': return 'orchestration.adguard.method.binary'
+    default: return ''
+  }
 }
 
 export default function Orchestration() {
@@ -32,6 +44,10 @@ export default function Orchestration() {
   const [plan, setPlan] = useState<Plan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // firmwareManaged: el último generate recibió 422 managed_by_firmware
+  // (el router trae un fork de fabricante). Banner ámbar específico, no
+  // un error rojo genérico.
+  const [firmwareManaged, setFirmwareManaged] = useState(false)
 
   // Auto-seleccionar el primer router
   useEffect(() => {
@@ -42,6 +58,7 @@ export default function Orchestration() {
     setBusy(true)
     setError('')
     setPlan(null)
+    setFirmwareManaged(false)
     try {
       const res = await fetch('/api/plans', {
         method: 'POST',
@@ -52,7 +69,23 @@ export default function Orchestration() {
           desired: { enabled: agEnabled, port: agPort, upstreamDns: agDns },
         }),
       })
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) {
+        // Parsear el envelope de error de writeError ({code, message}).
+        let code = '', message = ''
+        try {
+          const body = await res.json()
+          code = body.code || ''
+          message = body.message || ''
+        } catch {
+          message = await res.text().catch(() => res.statusText)
+        }
+        if (code === 'managed_by_firmware') {
+          setFirmwareManaged(true)
+        } else {
+          setError(message || res.statusText)
+        }
+        return
+      }
       setPlan(await res.json())
     } catch (e) {
       setError(String(e))
@@ -179,6 +212,13 @@ export default function Orchestration() {
         </div>
       )}
 
+      {firmwareManaged && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <Ban className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden />
+          <span>{t('orchestration.adguard.managedByFirmware')}</span>
+        </div>
+      )}
+
       {plan && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -189,7 +229,14 @@ export default function Orchestration() {
             <h3 className="text-sm font-semibold text-text-primary">
               {t('orchestration.plan')} · {plan.id.slice(0, 8)}
             </h3>
-            <PlanStatusBadge status={plan.status} />
+            <div className="flex items-center gap-2">
+              {plan.method && methodLabel(plan.method) && (
+                <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">
+                  {t('orchestration.adguard.methodLabel')}: {t(methodLabel(plan.method)!)}
+                </span>
+              )}
+              <PlanStatusBadge status={plan.status} />
+            </div>
           </div>
 
           <div className="space-y-1">

@@ -9,11 +9,14 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gnacho/netpulse/agent/executor"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
+	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
 // registerOrchestrRoutes registra las rutas de orquestación (solo admin).
@@ -35,14 +38,18 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			return
 		}
 		// Si no hay diff explícito, calcularlo desde desired vía el módulo.
+		// El módulo AdGuard ejecuta un probe SSH (Fase 17.1) y aborta con
+		// managed_by_firmware si el router trae un fork de fabricante.
 		diff := body.Diff
+		var method string
 		if len(diff) == 0 && len(body.Desired) > 0 {
-			computed, _, err := orchestr.ModuleDiff(body.Resource, body.Desired)
+			computed, m, err := s.computeModuleDiff(body.Resource, body.RouterID, body.Desired)
 			if err != nil {
-				writeError(w, http.StatusBadRequest, "unknown_module", err.Error())
+				s.writeModuleErr(w, err)
 				return
 			}
 			diff = computed
+			method = m
 		}
 		user := auth.UserFromContext(r.Context())
 		username := ""
@@ -54,6 +61,7 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			writeError(w, http.StatusInternalServerError, "plan_error")
 			return
 		}
+		plan.Method = method // metadato no persistido (escenario detectado)
 		writeJSON(w, http.StatusCreated, plan)
 	})))
 
@@ -142,4 +150,78 @@ func bearerToken(r *http.Request) string {
 		return t[len(prefix):]
 	}
 	return ""
+}
+
+// Errores sentinelas del cálculo de diff (mapeados a códigos HTTP por
+// writeModuleErr).
+var (
+	errRouterNotFound = errors.New("router_not_found")
+	errUnknownModule  = errors.New("unknown_module")
+	errProbeFailed    = errors.New("probe_failed")
+	errInvalidDesired = errors.New("invalid_desired")
+)
+
+// computeModuleDiff despacha al módulo correcto, ejecutando el probe SSH si
+// el módulo lo requiere (AdGuard). Devuelve las Ops, el método detectado
+// (apk|opkg|none|binary, para mostrarlo en el plan) y errores sentinelas
+// para que el handler los mapee a códigos HTTP adecuados (422
+// managed_by_firmware, etc.).
+//
+// s.pool es httpapi.SSHRunner; como orchestr.CommandRunner tiene la misma
+// firma (Run(host, cmd, timeout)), Go lo acepta por satisfacción estructural.
+func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMessage) ([]executor.Op, string, error) {
+	switch resource {
+	case "adguard":
+		var d orchestr.AdGuardDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
+		}
+		host := s.hostOfRouter(routerID)
+		if host == "" {
+			return nil, "", errRouterNotFound
+		}
+		sc, err := orchestr.DetectAdGuard(s.pool, host)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
+		}
+		ops, err := orchestr.AdGuardOps(d, sc)
+		if err != nil {
+			return nil, "", err
+		}
+		return ops, sc.InstallMethod(), nil
+	default:
+		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
+	}
+}
+
+// hostOfRouter busca el host SSH de un router por ID (scan de ListRouters).
+// Vacío si no existe o es agent-only (sin SSH).
+func (s *server) hostOfRouter(routerID string) string {
+	for _, r := range routerstore.ListRouters(s.db.DB) {
+		if r.ID == routerID && !r.AgentOnly && r.Host != "" {
+			return r.Host
+		}
+	}
+	return ""
+}
+
+// writeModuleErr mapea errores de computeModuleDiff a respuestas HTTP.
+func (s *server) writeModuleErr(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, orchestr.ErrManagedByFirmware):
+		writeError(w, http.StatusUnprocessableEntity, "managed_by_firmware",
+			"El router trae un AdGuard Home del fabricante (GL.iNet). Configúralo desde su propia UI; NetPulse no lo gestiona.")
+	case errors.Is(err, errRouterNotFound):
+		writeError(w, http.StatusNotFound, "router_not_found",
+			"Router no encontrado o sin SSH (agent-only).")
+	case errors.Is(err, errUnknownModule):
+		writeError(w, http.StatusBadRequest, "unknown_module", err.Error())
+	case errors.Is(err, errInvalidDesired):
+		writeError(w, http.StatusBadRequest, "invalid_desired", err.Error())
+	case errors.Is(err, errProbeFailed):
+		writeError(w, http.StatusServiceUnavailable, "probe_failed",
+			"No se pudo sondear el router por SSH para detectar el escenario: "+err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, "module_error", err.Error())
+	}
 }
