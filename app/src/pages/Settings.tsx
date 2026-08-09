@@ -1413,7 +1413,7 @@ type PushCardState =
   | 'enabled' // suscripción push activa
   | 'disabled' // todo listo, falta activar
 
-function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; onSaved: () => void; compact?: boolean }) {
   const { t } = useTranslation()
   const { isDemo } = useNetPulse()
   const [state, setState] = useState<PushCardState>('loading')
@@ -1521,10 +1521,10 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
   }, [busy, t, onSaved])
 
   const btnBase =
-    'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50'
+    'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50'
 
-  return (
-    <Card title={t('settings.push.title')} caption={t('settings.push.caption')} index={4} reduce={reduce}>
+  const inner = (
+    <>
       {state === 'loading' && <p className="text-caption text-text-muted">{t('settings.push.checking')}</p>}
 
       {state === 'enabled' && (
@@ -1534,7 +1534,7 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
               <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
               {t('settings.push.stateOn')}
             </span>
-            <p className="text-caption leading-snug text-text-muted">{t('settings.push.stateOnCaption')}</p>
+            {!compact && <p className="text-caption leading-snug text-text-muted">{t('settings.push.stateOnCaption')}</p>}
           </div>
           <button type="button" disabled={busy} onClick={() => void disable()} className={cn(btnBase, 'border border-border bg-elevated text-text-primary')}>
             <BellOff className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1545,7 +1545,7 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
 
       {state === 'disabled' && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-caption leading-snug text-text-secondary">{t('settings.push.stateOffCaption')}</p>
+          {!compact && <p className="min-w-0 flex-1 text-caption leading-snug text-text-secondary">{t('settings.push.stateOffCaption')}</p>}
           <button type="button" disabled={busy} onClick={() => void enable()} className={cn(btnBase, 'bg-accent text-canvas')}>
             <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
             {busy ? t('settings.push.enabling') : t('settings.push.enable')}
@@ -1554,25 +1554,25 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
       )}
 
       {state === 'denied' && (
-        <p className="rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-relaxed text-warn">
+        <p className="rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
           {t('settings.push.denied')}
         </p>
       )}
 
       {state === 'unsupported' && (
-        <p className="rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+        <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
           {t('settings.push.unsupported')}
         </p>
       )}
 
       {state === 'insecure' && (
-        <p className="rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-relaxed text-warn">
+        <p className="rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
           {t('settings.push.insecure')}
         </p>
       )}
 
       {state === 'demo' && (
-        <p className="rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
+        <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
           {t('settings.push.demoNote')}
         </p>
       )}
@@ -1583,9 +1583,17 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
         </p>
       )}
 
-      {(state === 'enabled' || state === 'disabled') && (
+      {!compact && (state === 'enabled' || state === 'disabled') && (
         <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.push.note')}</p>
       )}
+    </>
+  )
+
+  if (compact) return inner
+
+  return (
+    <Card title={t('settings.push.title')} caption={t('settings.push.caption')} index={4} reduce={reduce}>
+      {inner}
     </Card>
   )
 }
@@ -1894,7 +1902,7 @@ interface ExternalDevice {
   hasToken: boolean
 }
 
-function ExternalDevicesManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+function ExternalDevicesManager({ reduce: _reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
   const { t, i18n } = useTranslation()
   const { refresh } = useNetPulse()
   const [devices, setDevices] = useState<ExternalDevice[]>([])
@@ -2921,45 +2929,6 @@ export default function Settings() {
           </Card>
         </div>
 
-        {/* Notificaciones push (Web Push nativo, SPEC-PUSH §2) — media anchura
-            junto a la tarjeta de instalación PWA (issue #119). */}
-        <div className="lg:col-span-6">
-          <PushNotificationsCard reduce={reduce} onSaved={notify} />
-        </div>
-
-        {/* Instalación PWA (issue #119): propia card, media anchura junto a
-            Web Push; fuera de Acerca de. */}
-        <div className="lg:col-span-6">
-          <Card title={t('settings.pwa.title')} index={4} reduce={reduce}>
-            <div className="relative">
-              <Confetti burstKey={confettiKey} reduce={reduce} />
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-4 py-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <Download className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-                  <p className="text-caption leading-snug text-text-secondary">{t('settings.pwa.compact')}</p>
-                </div>
-                {installed ? (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-                    <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
-                    {t('settings.pwa.installed')}
-                  </span>
-                ) : isIOS ? (
-                  <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
-                ) : deferred ? (
-                  <button
-                    type="button"
-                    onClick={() => void install()}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
-                  >
-                    <Download className="h-3.5 w-3.5" strokeWidth={2} />
-                    {t('settings.pwa.install')}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </Card>
-        </div>
-
         {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
             Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
             Routers y AdGuard son tarjetas de dominio que siguen en el grid. */}
@@ -3340,6 +3309,32 @@ export default function Settings() {
                 })}
               </div>
             </div>
+
+            {/* Push + PWA compactos (issue #156): botones bajo Acerca de, antes de Sistema */}
+            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+              <PushNotificationsCard reduce={reduce} onSaved={notify} compact />
+              {!installed && (
+                <Confetti burstKey={confettiKey} reduce={reduce} />
+              )}
+              {installed ? (
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                  <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                  {t('settings.pwa.installed')}
+                </span>
+              ) : isIOS ? (
+                <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
+              ) : deferred ? (
+                <button
+                  type="button"
+                  onClick={() => void install()}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                >
+                  <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                  {t('settings.pwa.install')}
+                </button>
+              ) : null}
+            </div>
+
             {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
             <SystemInfoBlock />
           </Card>
