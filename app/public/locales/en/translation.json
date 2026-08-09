@@ -929,7 +929,8 @@
     "module": {
       "adguard": "AdGuard Home",
       "guestwifi": "Guest WiFi",
-      "ddns": "DDNS"
+      "ddns": "DDNS",
+      "sqm": "QoS (SQM)"
     },
     "warn": {
       "managed_by_firmware": "This router ships a vendor AdGuard Home (GL.iNet). NetPulse won't manage it to avoid breaking its UI: configure it from the router's own interface.",
@@ -971,6 +972,27 @@
       "domain": "Domain",
       "username": "Username",
       "password": "Password",
+      "method": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      }
+    },
+    "sqm": {
+      "enable": "Enable QoS (SQM)",
+      "allowNonGateway": "Allow QoS on non-gateway routers",
+      "nonGatewayWarning": "SQM prioritizes traffic and reduces latency under congestion on the selected interface. On a non-gateway router it only applies to its own link.",
+      "interface": "Interface",
+      "download": "Download (kbit/s)",
+      "upload": "Upload (kbit/s)",
+      "qdisc": "Discipline",
+      "qdiscCake": "CAKE",
+      "qdiscFqCodel": "fq_codel",
+      "script": "Script",
+      "linklayer": "Link layer",
+      "linkEthernet": "Ethernet",
+      "linkNone": "None",
+      "linkAtm": "ATM",
+      "overhead": "Overhead (bytes)",
       "method": {
         "enabled": "Enabled",
         "disabled": "Disabled"

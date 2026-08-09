@@ -11,7 +11,7 @@ import (
 
 // fakeRunner registra los comandos ejecutados y devuelve respuestas canned.
 type fakeRunner struct {
-	calls    []string
+	calls     []string
 	responses map[string]int // prefix → exitCode (0 si no está)
 }
 
@@ -139,6 +139,22 @@ func TestValidateSectionLastIndex(t *testing.T) {
 	op3 := Op{Kind: "uci_set", Args: map[string]string{"config": "wireless", "section": "@wifi-iface[-2]", "option": "ssid", "value": "X"}}
 	if err := Validate(op3); err == nil {
 		t.Fatal("@wifi-iface[-2] debería rechazarse (solo -1)")
+	}
+}
+
+// TestValidateSectionWithDigits (17.4): las secciones UCI de interfaces reales
+// llevan dígitos (eth1, wlan0, br-lan) — el nombre de sección debe aceptarlos.
+func TestValidateSectionWithDigits(t *testing.T) {
+	for _, sec := range []string{"eth1", "wlan0", "br-lan", "wan6"} {
+		op := Op{Kind: "uci_set", Args: map[string]string{"config": "sqm", "section": sec, "option": "enabled", "value": "1"}}
+		if err := Validate(op); err != nil {
+			t.Errorf("section %q debería aceptarse (interfaz UCI): %v", sec, err)
+		}
+	}
+	// @tipo[-1] con tipo que lleva dígito
+	op := Op{Kind: "uci_set", Args: map[string]string{"config": "sqm", "section": "@queue[-1]", "option": "interface", "value": "eth1"}}
+	if err := Validate(op); err != nil {
+		t.Errorf("@queue[-1] debería aceptarse: %v", err)
 	}
 }
 
@@ -304,7 +320,7 @@ func TestApplyPlanConDownloadWriteChmod(t *testing.T) {
 			"dest": tmpFile,
 		}, Desc: "Download AdGuard tarball"},
 		{Kind: "write_file", Args: map[string]string{
-			"path":       "/tmp/netpulse-plan-test-cfg.yaml",
+			"path":        "/tmp/netpulse-plan-test-cfg.yaml",
 			"content_b64": "YmluZF9wb3J0OiAzMDAwCg==",
 		}, Desc: "Write AdGuard config"},
 		{Kind: "chmod", Args: map[string]string{"mode": "755", "path": tmpFile}, Desc: "Make executable"},
