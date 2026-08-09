@@ -885,7 +885,8 @@
       "pwSubmit": "Cambiar contraseña",
       "pwSubmitting": "Cambiando…",
       "pwChanged": "Contraseña actualizada",
-      "pwError": "No se pudo cambiar la contraseña"
+      "pwError": "No se pudo cambiar la contraseña",
+      "editName": "Editar nombre"
     },
     "subtitle": "Preferencias locales de NetPulse — nada aquí modifica tu red",
     "demoReadOnly": "Modo demo — la configuración de la red está deshabilitada (solo lectura). Explora los datos simulados.",

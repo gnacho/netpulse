@@ -885,7 +885,8 @@
       "pwSubmit": "Change password",
       "pwSubmitting": "Changing…",
       "pwChanged": "Password updated",
-      "pwError": "Could not change password"
+      "pwError": "Could not change password",
+      "editName": "Edit name"
     },
     "subtitle": "NetPulse local preferences — nothing here modifies your network",
     "demoReadOnly": "Demo mode — network configuration is disabled (read-only). Explore the simulated data.",

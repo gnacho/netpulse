@@ -35,6 +35,7 @@ import {
    Users,
    Volume2,
    Wifi,
+   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
@@ -1992,6 +1993,9 @@ export default function Settings() {
   const [nameBaseline, setNameBaseline] = useState('')
   const [nameBusy, setNameBusy] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
+  // Patrón shared-shell (#119): el nombre es texto clickable; al editar se
+  // muestra un input inline con ✓/✕.
+  const [editingName, setEditingName] = useState(false)
   useEffect(() => {
     let v = auth?.displayName ?? ''
     if (isDemo) {
@@ -2691,11 +2695,11 @@ export default function Settings() {
         )}
 
         {/* Mi perfil (issue #119): card canónica del shared-shell — avatar,
-            nombre editable, idioma, contraseña y salir en una sola fila en
-            desktop (dos filas en móvil; botones icon-only en móvil). */}
+            nombre editable (clic → input inline ✓/✕), idioma, contraseña y
+            salir en UNA línea en desktop (envuelve en móvil). */}
         <div className="lg:col-span-12">
           <Card title={t('settings.session.title')} index={5} reduce={reduce}>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-4 lg:flex-nowrap">
               {/* Avatar */}
               <div
                 aria-hidden="true"
@@ -2704,30 +2708,71 @@ export default function Settings() {
                 {(nameBaseline || auth?.user || 'N').slice(0, 1)}
               </div>
 
-              {/* Nombre editable */}
-              <div className="min-w-0 flex-1 basis-52">
-                <label htmlFor="session-display-name" className="text-caption font-medium text-text-primary">
-                  {t('settings.session.name')}
-                </label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    id="session-display-name"
-                    type="text"
-                    value={nameDraft}
-                    maxLength={40}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    placeholder={auth?.user ?? ''}
-                    className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                  />
+              {/* Nombre editable inline (patrón shared-shell) */}
+              <div className="min-w-0 flex-1">
+                {editingName ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="session-display-name"
+                      type="text"
+                      value={nameDraft}
+                      maxLength={40}
+                      autoFocus
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void saveDisplayName()
+                        }
+                        if (e.key === 'Escape') {
+                          setNameDraft(nameBaseline)
+                          setEditingName(false)
+                        }
+                      }}
+                      placeholder={auth?.user ?? ''}
+                      className="h-9 w-full min-w-[140px] rounded-lg border border-border bg-elevated px-3 text-sm font-medium text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveDisplayName()}
+                      disabled={nameBusy || nameDraft.trim() === nameBaseline}
+                      aria-label={t('settings.adguard.save')}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      <Check className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNameDraft(nameBaseline)
+                        setEditingName(false)
+                      }}
+                      aria-label={t('settings.users.cancel')}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors hover:bg-hover hover:text-text-primary"
+                    >
+                      <X className="h-4 w-4" strokeWidth={2} />
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => void saveDisplayName()}
-                    disabled={nameBusy || nameDraft.trim() === nameBaseline}
-                    className="flex h-9 shrink-0 items-center rounded-lg bg-accent px-3.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+                    onClick={() => {
+                      setNameDraft(nameBaseline)
+                      setEditingName(true)
+                    }}
+                    title={t('settings.session.editName')}
+                    className="group flex min-w-0 items-center gap-1.5 text-left"
                   >
-                    {t('settings.adguard.save')}
+                    <span className="truncate text-base font-semibold leading-tight text-text-primary">
+                      {nameBaseline || auth?.user || '—'}
+                    </span>
+                    <Pencil
+                      className="h-3.5 w-3.5 shrink-0 text-text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                      strokeWidth={1.75}
+                      aria-hidden="true"
+                    />
                   </button>
-                </div>
+                )}
                 {nameError && (
                   <p role="alert" className="mt-1.5 text-caption text-danger">
                     {nameError}
@@ -2736,22 +2781,19 @@ export default function Settings() {
               </div>
 
               {/* Idioma (única fuente de verdad; movido de Apariencia, #119) */}
-              <div className="shrink-0">
-                <div className="text-caption font-medium text-text-primary">{t('settings.language')}</div>
-                <select
-                  aria-label={t('settings.language')}
-                  value={lang}
-                  onChange={(e) => {
-                    setLanguage(e.target.value as 'auto' | 'es' | 'en')
-                    notify()
-                  }}
-                  className="mt-1 h-9 rounded-lg border border-border bg-elevated px-2.5 text-sm text-text-primary"
-                >
-                  <option value="auto">🌐 {t('settings.languageAuto')}</option>
-                  <option value="es">🇪🇸 Español</option>
-                  <option value="en">🇬🇧 English</option>
-                </select>
-              </div>
+              <select
+                aria-label={t('settings.language')}
+                value={lang}
+                onChange={(e) => {
+                  setLanguage(e.target.value as 'auto' | 'es' | 'en')
+                  notify()
+                }}
+                className="h-9 shrink-0 rounded-lg border border-border bg-elevated px-2.5 text-sm text-text-primary"
+              >
+                <option value="auto">🌐 {t('settings.languageAuto')}</option>
+                <option value="es">🇪🇸 Español</option>
+                <option value="en">🇬🇧 English</option>
+              </select>
 
               {/* Contraseña */}
               {!isDemo && (
@@ -2759,7 +2801,7 @@ export default function Settings() {
                   type="button"
                   aria-expanded={showPwdForm}
                   onClick={() => setShowPwdForm((v) => !v)}
-                  className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-hover"
+                  className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-hover"
                 >
                   <KeyRound className="h-4 w-4" strokeWidth={1.75} />
                   <span className="hidden sm:inline">{t('settings.session.changePassword')}</span>
@@ -2781,7 +2823,7 @@ export default function Settings() {
                       window.location.assign('/login')
                     })
                 }}
-                className="ml-auto flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
+                className="ml-auto flex h-9 shrink-0 items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
               >
                 <LogOut className="h-4 w-4" strokeWidth={1.75} />
                 <span className="hidden sm:inline">{isDemo ? t('demo.exit') : t('settings.session.logout')}</span>
