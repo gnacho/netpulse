@@ -2455,12 +2455,13 @@ export default function Settings() {
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
   const [orchOn, setOrchOn] = useState(false)
   const [orchBusy, setOrchBusy] = useState(false)
+  const orchTouched = useRef(false)
   useEffect(() => {
     let alive = true
     void fetch('/api/settings/orchestration')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (alive && d) setOrchOn(!!d.enabled)
+        if (alive && d && !orchTouched.current) setOrchOn(!!d.enabled)
       })
       .catch(() => undefined)
     return () => {
@@ -2468,6 +2469,8 @@ export default function Settings() {
     }
   }, [])
   const toggleOrchestration = useCallback(async (enabled: boolean) => {
+    orchTouched.current = true
+    setOrchOn(enabled)
     setOrchBusy(true)
     try {
       const res = await fetch('/api/settings/orchestration', {
@@ -2475,8 +2478,10 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled }),
       })
-      if (!res.ok) return
-      setOrchOn(enabled)
+      if (!res.ok) {
+        setOrchOn(!enabled)
+        return
+      }
       refreshOverview() // el overview propaga el flag → el nav se actualiza
     } finally {
       setOrchBusy(false)
