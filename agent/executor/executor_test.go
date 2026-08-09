@@ -96,6 +96,52 @@ func TestValidateServiceAction(t *testing.T) {
 	}
 }
 
+// --- Fase 17.2: uci_add + secciones @[-1] ---
+
+func TestValidateUciAdd(t *testing.T) {
+	valid := Op{Kind: "uci_add", Args: map[string]string{"config": "wireless", "type": "wifi-iface"}}
+	if err := Validate(valid); err != nil {
+		t.Fatalf("uci_add válido rechazado: %v", err)
+	}
+	// type con shell metachars → rechazado
+	bad := Op{Kind: "uci_add", Args: map[string]string{"config": "wireless", "type": "wifi-iface; rm -rf /"}}
+	if err := Validate(bad); err == nil {
+		t.Fatal("uci_add type con metachars debería rechazarse")
+	}
+	// config inválido
+	bad2 := Op{Kind: "uci_add", Args: map[string]string{"config": "wireless;", "type": "wifi-iface"}}
+	if err := Validate(bad2); err == nil {
+		t.Fatal("uci_add config inválido debería rechazarse")
+	}
+	// uci_delete_section válido (sección nombrada y @referencia)
+	del := Op{Kind: "uci_delete_section", Args: map[string]string{"config": "network", "section": "guest"}}
+	if err := Validate(del); err != nil {
+		t.Fatalf("uci_delete_section válido rechazado: %v", err)
+	}
+	del2 := Op{Kind: "uci_delete_section", Args: map[string]string{"config": "firewall", "section": "@zone[2]"}}
+	if err := Validate(del2); err != nil {
+		t.Fatalf("uci_delete_section @referencia rechazado: %v", err)
+	}
+}
+
+func TestValidateSectionLastIndex(t *testing.T) {
+	// @wifi-iface[-1] (última sección) válido para uci_set tras uci_add
+	op := Op{Kind: "uci_set", Args: map[string]string{"config": "wireless", "section": "@wifi-iface[-1]", "option": "ssid", "value": "NetPulse-Guest"}}
+	if err := Validate(op); err != nil {
+		t.Fatalf("@wifi-iface[-1] debería aceptarse: %v", err)
+	}
+	// índice numérico sigue válido
+	op2 := Op{Kind: "uci_set", Args: map[string]string{"config": "wireless", "section": "@wifi-iface[0]", "option": "ssid", "value": "Main"}}
+	if err := Validate(op2); err != nil {
+		t.Fatalf("@wifi-iface[0] debería aceptarse: %v", err)
+	}
+	// negativo distinto de -1 → rechazado
+	op3 := Op{Kind: "uci_set", Args: map[string]string{"config": "wireless", "section": "@wifi-iface[-2]", "option": "ssid", "value": "X"}}
+	if err := Validate(op3); err == nil {
+		t.Fatal("@wifi-iface[-2] debería rechazarse (solo -1)")
+	}
+}
+
 // --- Fase 17.1: validación de los nuevos Kinds ---
 
 func TestValidateDownloadURLAllowlist(t *testing.T) {
