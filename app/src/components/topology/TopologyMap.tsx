@@ -292,10 +292,15 @@ function ChipTooltip({
         {d.manufacturer} · {d.mac}
       </div>
       <div className="mt-2 space-y-1.5">
-        {/* IP a ancho completo: no se trunca (issue #149) */}
+        {/* Conexión + IP en una horizontal; la IP no se trunca (issue #149) */}
         <div className="flex items-center justify-between gap-2 rounded-lg bg-canvas/60 px-2 py-1.5">
-          <span className="text-caption uppercase tracking-[0.06em] text-text-muted">IP</span>
-          <span className="font-mono text-mono-sm text-text-primary">{d.ip || '—'}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="font-mono text-mono-sm font-semibold text-text-primary">
+              {chip.wired ? 'Ethernet' : 'Wi-Fi'}
+            </span>
+            <span className="shrink-0 text-caption uppercase tracking-[0.06em] text-text-muted">IP</span>
+          </span>
+          <span className="truncate font-mono text-mono-sm text-text-primary">{d.ip || '—'}</span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           <MiniStat
@@ -304,7 +309,6 @@ function ChipTooltip({
             hot={!chip.wired && chip.weak}
           />
           <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
-          <MiniStat label={t('topology.connection')} value={chip.wired ? 'Ethernet' : 'Wi-Fi'} />
         </div>
       </div>
       {d.lldp && (
