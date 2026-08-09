@@ -60,7 +60,11 @@ func (shellRunner) Run(name string, args ...string) (string, int) {
 // patrones de validación por campo (sin shell metachars).
 var (
 	reConfig  = regexp.MustCompile(`^[a-z_]+$`)
-	reSection = regexp.MustCompile(`^(@[a-z_]+\[\d+\]|[a-z_]+)$`)
+	// section: nombre de sección (wifi-iface, interface) o referencia
+	// `@tipo[idx]` / `@tipo[-1]`. `[-1]` referencia la ÚLTIMA sección del
+	// tipo — usado tras un uci_add para setear los campos de la sección recién
+	// creada (patrón OpenWrt estándar).
+	reSection = regexp.MustCompile(`^(@[a-z_-]+(\[\d+\]|\[-1\])|[a-z_-]+)$`)
 	reOption  = regexp.MustCompile(`^[a-z_]+$`)
 	// value: alfanumérico + puntos, dos-puntos, barras, hashes, guiones.
 	// Cubre IPs (192.168.1.1), DNS (1.1.1.1#3001), rutas, MACs, puertos.
@@ -127,6 +131,40 @@ var allowlist = map[string]opSpec{
 		required: map[string]*regexp.Regexp{"config": reConfig},
 		build: func(a map[string]string) (string, []string) {
 			return "uci", []string{"commit", a["config"]}
+		},
+		configs: func(a map[string]string) []string { return []string{a["config"]} },
+	},
+	// uci_add: crea una sección nueva. `uci add <config> <type>` imprime el
+	// nombre; luego uci_set sobre @<type>[-1] setea sus campos. Necesario para
+	// crear wifi-iface / network / firewall zone en módulos como WiFi guest.
+	// type: nombre de sección (wifi-iface, interface, zone, forwarding).
+	"uci_add": {
+		required: map[string]*regexp.Regexp{"config": reConfig, "type": reSection},
+		build: func(a map[string]string) (string, []string) {
+			return "uci", []string{"add", a["config"], a["type"]}
+		},
+		configs: func(a map[string]string) []string { return []string{a["config"]} },
+	},
+	// uci_delete_section: borra una sección completa (`uci delete <cfg>.<sec>`),
+	// a diferencia de uci_delete que quita una option. Útil para revertir un
+	// módulo que creó secciones (guest network: quitar la wifi-iface, la
+	// interface, la zone y el forwarding creados al habilitar).
+	"uci_delete_section": {
+		required: map[string]*regexp.Regexp{"config": reConfig, "section": reSection},
+		build: func(a map[string]string) (string, []string) {
+			return "uci", []string{"delete", a["config"] + "." + a["section"]}
+		},
+		configs: func(a map[string]string) []string { return []string{a["config"]} },
+	},
+	// uci_set_named: crea una SECCIÓN NOMBRADA de un tipo: `uci set
+	// <config>.<section>=<type>`. Diferencia con uci_add (sección anónima):
+	// las network interfaces se identifican por su nombre de sección
+	// (network.guest=interface), mientras que wifi-iface/zone/forwarding
+	// pueden ser anónimas (referenciadas por índice @tipo[i]).
+	"uci_set_named": {
+		required: map[string]*regexp.Regexp{"config": reConfig, "section": reSection, "type": reSection},
+		build: func(a map[string]string) (string, []string) {
+			return "uci", []string{"set", a["config"] + "." + a["section"] + "=" + a["type"]}
 		},
 		configs: func(a map[string]string) []string { return []string{a["config"]} },
 	},
