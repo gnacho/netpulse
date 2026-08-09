@@ -11,6 +11,8 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FileText,
   FlaskConical,
   Github,
@@ -38,6 +40,8 @@ import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
@@ -505,33 +509,35 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           {t('settings.routers.empty')}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((r) => (
             <li
               key={r.id}
-              className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5"
+              className="flex flex-col gap-2.5 rounded-xl border border-border bg-elevated p-3.5"
             >
-              <RouterIcon className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-mono text-sm font-medium text-text-primary">{r.host}</span>
-                  {r.is_gateway && (
-                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                      {t('settings.routers.gatewayBadge')}
-                    </span>
-                  )}
-                  {r.agent_only && (
-                    <span className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted ring-1 ring-inset ring-border">
-                      {t('settings.routers.agentOnlyBadge')}
-                    </span>
+              <div className="flex items-start gap-2.5">
+                <RouterIcon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate font-mono text-sm font-medium text-text-primary">{r.host}</span>
+                    {r.is_gateway && (
+                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                        {t('settings.routers.gatewayBadge')}
+                      </span>
+                    )}
+                    {r.agent_only && (
+                      <span className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted ring-1 ring-inset ring-border">
+                        {t('settings.routers.agentOnlyBadge')}
+                      </span>
+                    )}
+                  </div>
+                  {r.name && r.name !== r.host && (
+                    <div className="mt-0.5 truncate text-caption text-text-muted">{r.name}</div>
                   )}
                 </div>
-                {r.name && r.name !== r.host && (
-                  <div className="truncate text-caption text-text-muted">{r.name}</div>
-                )}
               </div>
               {confirmDeleteFor === r.id ? (
-                <span className="flex shrink-0 items-center gap-1.5">
+                <span className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => void remove(r)}
@@ -548,7 +554,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   </button>
                 </span>
               ) : (
-                <span className="flex shrink-0 items-center gap-1.5">
+                <span className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => openEdit(r)}
@@ -572,19 +578,31 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         </ul>
       )}
 
-      {/* Descubrimiento en la LAN */}
+      {/* Descubrimiento en la LAN + alta manual (issue #144): los dos botones
+          en la misma fila; debajo, candidatos y form de alta. */}
       <div className="mt-4 border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-caption text-text-muted">{t('settings.routers.discoverCaption')}</p>
-          <button
-            type="button"
-            onClick={() => void discover()}
-            disabled={scanning}
-            className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
-          >
-            <Radar className={cn('h-4 w-4', scanning && 'animate-pulse')} strokeWidth={1.75} />
-            {scanning ? t('settings.routers.discovering') : t('settings.routers.discover')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void discover()}
+              disabled={scanning}
+              className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+            >
+              <Radar className={cn('h-4 w-4', scanning && 'animate-pulse')} strokeWidth={1.75} />
+              {scanning ? t('settings.routers.discovering') : t('settings.routers.discover')}
+            </button>
+            <button
+              type="button"
+              aria-expanded={showAddForm}
+              onClick={() => setShowAddForm((v) => !v)}
+              className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+            >
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
+              {t('settings.routers.addDevice')}
+            </button>
+          </div>
         </div>
         {candidates !== null && (
           <ul className="mt-3 flex flex-col gap-2">
@@ -633,19 +651,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             ))}
           </ul>
         )}
-      </div>
 
-      {/* Alta manual colapsada tras botón (SPEC-65 D65-7a) */}
-      <div className="mt-4 border-t border-border pt-4">
-        <button
-          type="button"
-          aria-expanded={showAddForm}
-          onClick={() => setShowAddForm((v) => !v)}
-          className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-        >
-          <Plus className="h-4 w-4" strokeWidth={1.75} />
-          {t('settings.routers.addDevice')}
-        </button>
         {showAddForm && (
         <form onSubmit={(e) => void add(e)} className="mt-3">
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -700,72 +706,79 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         )}
       </div>
 
-      {/* Edición inline: aparece al pulsar Editar en una fila */}
-      {editing && (
-        <form onSubmit={(e) => void saveEdit(e)} className="mt-4 border-t border-border pt-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Pencil className="h-4 w-4 text-accent" strokeWidth={1.75} />
-            <span className="text-sm font-medium text-text-primary">
-              {t('settings.routers.editTitle', { id: editing.id })}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <input
-              type="text"
-              required
-              value={editHost}
-              onChange={(e) => setEditHost(e.target.value)}
-              placeholder={t('settings.routers.host')}
-              aria-label={t('settings.routers.host')}
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-            />
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder={t('settings.routers.name')}
-              aria-label={t('settings.routers.name')}
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-            />
-          </div>
-          <div className="mt-2.5 flex flex-wrap items-center gap-3">
-            <SegmentedControl
-              options={[
-                { value: 'openwrt', label: 'OpenWrt' },
-                { value: 'glinet', label: 'GL.iNet' },
-              ]}
-              value={editType}
-              onChange={(v) => setEditType(v as 'glinet' | 'openwrt')}
-              ariaLabel={t('settings.routers.type')}
-            />
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-              <Switch checked={editGateway} onCheckedChange={setEditGateway} />
-              {t('settings.routers.gateway')}
-            </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-              <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
-              {t('settings.routers.agentOnly')}
-            </label>
-            <span className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setEditing(null)}
-                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
-              >
-                {t('settings.users.cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={editSubmitting || !editHost.trim()}
-                className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
-              >
-                <Pencil className="h-4 w-4" strokeWidth={2} />
-                {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
-              </button>
-            </span>
-          </div>
-        </form>
-      )}
+      {/* Edición en popup (issue #144): el form de edición ya no se cuela al
+          fondo de la tarjeta; abre un diálogo centrado. */}
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        {editing && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="h-4 w-4 text-accent" strokeWidth={1.75} />
+                {t('settings.routers.editTitle', { id: editing.id })}
+              </DialogTitle>
+              <DialogDescription>{t('settings.routers.editHint')}</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={(e) => void saveEdit(e)} className="space-y-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <input
+                  type="text"
+                  required
+                  value={editHost}
+                  onChange={(e) => setEditHost(e.target.value)}
+                  placeholder={t('settings.routers.host')}
+                  aria-label={t('settings.routers.host')}
+                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder={t('settings.routers.name')}
+                  aria-label={t('settings.routers.name')}
+                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <SegmentedControl
+                  options={[
+                    { value: 'openwrt', label: 'OpenWrt' },
+                    { value: 'glinet', label: 'GL.iNet' },
+                  ]}
+                  value={editType}
+                  onChange={(v) => setEditType(v as 'glinet' | 'openwrt')}
+                  ariaLabel={t('settings.routers.type')}
+                />
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                  <Switch checked={editGateway} onCheckedChange={setEditGateway} />
+                  {t('settings.routers.gateway')}
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                  <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
+                  {t('settings.routers.agentOnly')}
+                </label>
+              </div>
+              {error && <p className="text-caption text-danger">{error}</p>}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(null)}
+                  className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+                >
+                  {t('settings.users.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting || !editHost.trim()}
+                  className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+                >
+                  <Pencil className="h-4 w-4" strokeWidth={2} />
+                  {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
+                </button>
+              </div>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* Clave pública SSH del servidor */}
       <div className="mt-4 border-t border-border pt-4">
@@ -1759,6 +1772,8 @@ function AdoptionCard() {
   const [data, setData] = useState<{ token: string; server_fp: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [reveal, setReveal] = useState(false)
+  const [confirmRotate, setConfirmRotate] = useState(false)
 
   const fetchToken = async () => {
     setBusy(true)
@@ -1786,6 +1801,10 @@ function AdoptionCard() {
 
   if (!data?.token) return null
 
+  // Máscara: solo los últimos 4 caracteres visibles (issue #145). El token
+  // completo se copia sin necesidad de revelarlo.
+  const masked = `••••••••••••${data.token.slice(-4)}`
+
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center gap-2">
@@ -1796,7 +1815,18 @@ function AdoptionCard() {
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-lg bg-elevated px-2.5 py-1.5 font-mono text-xs text-text-primary">{data.token}</code>
+          <code className="flex-1 truncate rounded-lg bg-elevated px-2.5 py-1.5 font-mono text-xs text-text-primary">
+            {reveal ? data.token : masked}
+          </code>
+          <button
+            type="button"
+            onClick={() => setReveal((v) => !v)}
+            aria-label={reveal ? t('settings.adoption.hide') : t('settings.adoption.reveal')}
+            title={reveal ? t('settings.adoption.hide') : t('settings.adoption.reveal')}
+            className="rounded-lg border border-border px-2 py-1.5 text-text-secondary hover:bg-hover"
+          >
+            {reveal ? <EyeOff className="h-3.5 w-3.5" strokeWidth={1.75} /> : <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />}
+          </button>
           <button type="button" onClick={() => copy(data.token, 'token')} className="rounded-lg border border-border px-2 py-1.5 text-xs text-text-secondary hover:bg-hover" title={t('common.copy')}>
             <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
@@ -1814,10 +1844,38 @@ function AdoptionCard() {
         )}
       </div>
 
-      <button type="button" onClick={() => void rotate()} disabled={busy} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60">
+      <button
+        type="button"
+        onClick={() => setConfirmRotate(true)}
+        disabled={busy}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60"
+      >
         <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
         {t('settings.adoption.rotate')}
       </button>
+
+      {/* Confirmación de rotación (issue #145): invalida todos los pairings
+          pendientes, no puede ser un clic suelto. */}
+      <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.adoption.rotateTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.adoption.rotateDesc')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmRotate(false)
+                void rotate()
+              }}
+              className="bg-danger text-canvas hover:bg-danger/90"
+            >
+              {t('settings.adoption.rotateConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -2399,7 +2457,7 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Densidad + idioma + animaciones */}
+            {/* Densidad + animaciones */}
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
               <div>
                 <div className="text-sm font-medium text-text-primary">{t('settings.density')}</div>
@@ -2417,26 +2475,6 @@ export default function Settings() {
                 }}
                 ariaLabel={t('settings.density')}
               />
-            </div>
-            {/* Idioma */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.language')}</div>
-                <div className="text-caption text-text-muted">{t('settings.languageCaption')}</div>
-              </div>
-              <select
-                aria-label={t('settings.language')}
-                value={lang}
-                onChange={(e) => {
-                  setLanguage(e.target.value as 'auto' | 'es' | 'en')
-                  notify()
-                }}
-                className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary"
-              >
-                <option value="auto">🌐 {t('settings.languageAuto')}</option>
-                <option value="es">🇪🇸 Español</option>
-                <option value="en">🇬🇧 English</option>
-              </select>
             </div>
             <div className="border-t border-border pt-2">
               <SwitchRow
@@ -2513,9 +2551,43 @@ export default function Settings() {
           </Card>
         </div>
 
-        {/* Notificaciones push (Web Push nativo, SPEC-PUSH §2) */}
-        <div className="lg:col-span-7">
+        {/* Notificaciones push (Web Push nativo, SPEC-PUSH §2) — media anchura
+            junto a la tarjeta de instalación PWA (issue #119). */}
+        <div className="lg:col-span-6">
           <PushNotificationsCard reduce={reduce} onSaved={notify} />
+        </div>
+
+        {/* Instalación PWA (issue #119): propia card, media anchura junto a
+            Web Push; fuera de Acerca de. */}
+        <div className="lg:col-span-6">
+          <Card title={t('settings.pwa.title')} index={4} reduce={reduce}>
+            <div className="relative">
+              <Confetti burstKey={confettiKey} reduce={reduce} />
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Download className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+                  <p className="text-caption leading-snug text-text-secondary">{t('settings.pwa.compact')}</p>
+                </div>
+                {installed ? (
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                    <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                    {t('settings.pwa.installed')}
+                  </span>
+                ) : isIOS ? (
+                  <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
+                ) : deferred ? (
+                  <button
+                    type="button"
+                    onClick={() => void install()}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                  >
+                    <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                    {t('settings.pwa.install')}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </Card>
         </div>
 
         {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
@@ -2607,66 +2679,99 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Adopción de agentes (pairing token + server fingerprint) */}
+        {/* Adopción de agentes (pairing token + server fingerprint) — media
+            anchura junto a AdGuard Home (issue #146). */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="lg:col-span-6">
             <AdoptionCard />
           </div>
         )}
 
-        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
+        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible;
+            media anchura, en la misma fila que la adopción de agentes. */}
         {!isDemo && auth?.role === 'admin' && services.adguard && (
-          <div className="lg:col-span-12">
+          <div className="lg:col-span-6">
             <AdGuardManager reduce={reduce} onSaved={notify} />
           </div>
         )}
 
-        {/* Mi sesión: cambiar contraseña + cerrar sesión (patrón easyzfs) */}
+        {/* Mi perfil (issue #119): card canónica del shared-shell — avatar,
+            nombre editable, idioma, contraseña y salir en una sola fila en
+            desktop (dos filas en móvil; botones icon-only en móvil). */}
         <div className="lg:col-span-12">
           <Card title={t('settings.session.title')} index={5} reduce={reduce}>
-            {/* Nombre para el saludo del Resumen (SPEC-65 D65-7d) */}
-            <div className="mb-4 max-w-md">
-              <label htmlFor="session-display-name" className="text-sm font-medium text-text-primary">
-                {t('settings.session.name')}
-              </label>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  id="session-display-name"
-                  type="text"
-                  value={nameDraft}
-                  maxLength={40}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  placeholder={auth?.user ?? ''}
-                  className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => void saveDisplayName()}
-                  disabled={nameBusy || nameDraft.trim() === nameBaseline}
-                  className="flex h-10 shrink-0 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  {t('settings.adguard.save')}
-                </button>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+              {/* Avatar */}
+              <div
+                aria-hidden="true"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-soft font-display text-lg font-bold uppercase text-accent"
+              >
+                {(nameBaseline || auth?.user || 'N').slice(0, 1)}
               </div>
-              <p className="mt-1.5 text-caption text-text-muted">{t('settings.session.nameHint')}</p>
-              {nameError && (
-                <p role="alert" className="mt-1.5 text-caption text-danger">
-                  {nameError}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
+
+              {/* Nombre editable */}
+              <div className="min-w-0 flex-1 basis-52">
+                <label htmlFor="session-display-name" className="text-caption font-medium text-text-primary">
+                  {t('settings.session.name')}
+                </label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    id="session-display-name"
+                    type="text"
+                    value={nameDraft}
+                    maxLength={40}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    placeholder={auth?.user ?? ''}
+                    className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveDisplayName()}
+                    disabled={nameBusy || nameDraft.trim() === nameBaseline}
+                    className="flex h-9 shrink-0 items-center rounded-lg bg-accent px-3.5 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {t('settings.adguard.save')}
+                  </button>
+                </div>
+                {nameError && (
+                  <p role="alert" className="mt-1.5 text-caption text-danger">
+                    {nameError}
+                  </p>
+                )}
+              </div>
+
+              {/* Idioma (única fuente de verdad; movido de Apariencia, #119) */}
+              <div className="shrink-0">
+                <div className="text-caption font-medium text-text-primary">{t('settings.language')}</div>
+                <select
+                  aria-label={t('settings.language')}
+                  value={lang}
+                  onChange={(e) => {
+                    setLanguage(e.target.value as 'auto' | 'es' | 'en')
+                    notify()
+                  }}
+                  className="mt-1 h-9 rounded-lg border border-border bg-elevated px-2.5 text-sm text-text-primary"
+                >
+                  <option value="auto">🌐 {t('settings.languageAuto')}</option>
+                  <option value="es">🇪🇸 Español</option>
+                  <option value="en">🇬🇧 English</option>
+                </select>
+              </div>
+
+              {/* Contraseña */}
               {!isDemo && (
                 <button
                   type="button"
                   aria-expanded={showPwdForm}
                   onClick={() => setShowPwdForm((v) => !v)}
-                  className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-4 py-2 text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-hover"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-hover"
                 >
-                  <LogOut className="hidden h-4 w-4" strokeWidth={1.75} />
-                  {t('settings.session.changePassword')}
+                  <KeyRound className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="hidden sm:inline">{t('settings.session.changePassword')}</span>
                 </button>
               )}
+
+              {/* Salir (derecha, destructivo) */}
               <button
                 type="button"
                 onClick={() => {
@@ -2681,12 +2786,13 @@ export default function Settings() {
                       window.location.assign('/login')
                     })
                 }}
-                className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
+                className="ml-auto flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
               >
                 <LogOut className="h-4 w-4" strokeWidth={1.75} />
-                {isDemo ? t('demo.exit') : t('settings.session.logout')}
+                <span className="hidden sm:inline">{isDemo ? t('demo.exit') : t('settings.session.logout')}</span>
               </button>
             </div>
+
             {showPwdForm && !isDemo && (
               <form
                 className="mt-4 flex max-w-md flex-col gap-3 border-t border-border pt-4"
@@ -2801,35 +2907,6 @@ export default function Settings() {
                 })}
               </div>
             </div>
-            {/* Instalación PWA compacta */}
-            <div className="relative mt-5">
-              <Confetti burstKey={confettiKey} reduce={reduce} />
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-4 py-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <Download className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-                  <p className="text-caption leading-snug text-text-secondary">{t('settings.pwa.compact')}</p>
-                </div>
-                {installed ? (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-                    <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
-                    {t('settings.pwa.installed')}
-                  </span>
-                ) : isIOS ? (
-                  <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
-                ) : deferred ? (
-                  <button
-                    type="button"
-                    onClick={() => void install()}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
-                  >
-                    <Download className="h-3.5 w-3.5" strokeWidth={2} />
-                    {t('settings.pwa.install')}
-                  </button>
-                ) : null}
-              </div>
-
-            </div>
-
             {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
             <SystemInfoBlock />
           </Card>
