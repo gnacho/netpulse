@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   BarChart3,
   Bell,
+  Bug,
   ChevronsLeft,
   ChevronsRight,
   Download,
@@ -38,6 +39,8 @@ interface NavItem {
   icon: LucideIcon
   end?: boolean
   adminOnly?: boolean
+  /** Badge de etiqueta junto al ítem (p. ej. "labs" para experimentos). */
+  badge?: string
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -48,7 +51,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
-  { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true },
+  { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true, badge: 'labs' },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
@@ -216,9 +219,13 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
               }
             >
               <item.icon className="h-5 w-5" strokeWidth={1.75} />
+              {item.badge && (
+                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
+              )}
               <NavItemBadge to={item.to} variant="rail" />
               <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-lg border border-border-strong bg-elevated px-2.5 py-1.5 text-caption font-medium text-text-primary shadow-lg group-hover:block">
                 {t(item.labelKey)}
+                {item.badge && <span className="ml-1.5 text-danger">· {item.badge}</span>}
               </span>
             </NavLink>
           ))}
@@ -266,6 +273,12 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
                 )}
                 <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
                 {t(item.labelKey)}
+                {item.badge && (
+                  <span className="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-danger/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-danger">
+                    <Bug className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
+                    {item.badge}
+                  </span>
+                )}
                 <NavItemBadge to={item.to} variant="sidebar" />
               </>
             )}
@@ -329,9 +342,13 @@ function Rail() {
             }
           >
             <item.icon className="h-5 w-5" strokeWidth={1.75} />
+            {item.badge && (
+              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
+            )}
             <NavItemBadge to={item.to} variant="rail" />
             <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-lg border border-border-strong bg-elevated px-2.5 py-1.5 text-caption font-medium text-text-primary shadow-lg group-hover:block">
               {t(item.labelKey)}
+              {item.badge && <span className="ml-1.5 text-danger">· {item.badge}</span>}
             </span>
           </NavLink>
         ))}
