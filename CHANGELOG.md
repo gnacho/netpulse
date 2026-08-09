@@ -7,6 +7,35 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-08-09
+
+### Added
+
+- **Fase 17.1 — Módulo AdGuard Home (despliegue completo)**: el motor de
+  orquestación (Fase 10) pasa de configurar UCI a desplegar un servicio
+  entero. Un probe SSH detecta el escenario del router (firmware GL.iNet
+  con fork propio → abort; apk/opkg en feeds; binario ya presente; binario
+  oficial de GitHub) y genera el plan correspondiente. Nuevos Kinds del
+  executor: `apk_install`, `download` (allowlist URL), `write_file`,
+  `extract_tarball`, `chmod`, `service start/stop`, `mv`. El endpoint
+  `POST /api/plans` devuelve 422 `managed_by_firmware` para routers con
+  AdGuard de fabricante. UI `/orchestration` muestra el método detectado.
+  #116 / #122
+
+### Fixed
+
+- **Discover responde a la cancelación del cliente**: el scan de la LAN
+  propagaba el `context.Context` de la request HTTP, así que cancelar la
+  petición (cerrar la pestaña, corte de red) dejaba el barrido corriendo
+  con el lock de caché tomado. Ahora `pool`, `tcpOpen`, `postUbus`,
+  `getRoot` y `probeSsh` respetan `ctx` y el scan aborta en cuanto el
+  cliente se desconecta. #107 / #123
+
+- **Home: el tráfico WAN ya no aparece duplicado**: HeroStrip mostraba
+  `↓ down / ↑ up` instantáneos junto a WanTraffic, que ya pinta el gráfico
+  down/up y las métricas 24h. HeroStrip pasa a mostrar solo saludo +
+  HealthRing + latencia (y nº de dispositivos en móvil). #108 / #124
+
 ## [2.8.0] - 2026-08-08
 
 ### Added
