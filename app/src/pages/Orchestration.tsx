@@ -6,7 +6,7 @@ import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert } 
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
-type Module = 'adguard' | 'guestwifi' | 'ddns'
+type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm'
 
 interface Op {
   kind: string
@@ -61,6 +61,15 @@ export default function Orchestration() {
   const [ddDomain, setDdDomain] = useState('')
   const [ddUser, setDdUser] = useState('')
   const [ddPass, setDdPass] = useState('')
+  // QoS / SQM (17.4): interfaz + ancho de banda + qdisc.
+  const [sqEnabled, setSqEnabled] = useState(true)
+  const [sqInterface, setSqInterface] = useState('eth1')
+  const [sqDownload, setSqDownload] = useState('100000')
+  const [sqUpload, setSqUpload] = useState('20000')
+  const [sqQdisc, setSqQdisc] = useState('cake')
+  const [sqScript, setSqScript] = useState('piece_of_cake.qos')
+  const [sqLinklayer, setSqLinklayer] = useState('ethernet')
+  const [sqOverhead, setSqOverhead] = useState('44')
 
   // issue #120: todos los módulos son gateway-only por defecto. El toggle
   // "advanced" permite un router no-gateway (con warning + checks).
@@ -97,6 +106,12 @@ export default function Orchestration() {
         return { enabled: gwEnabled, ssid: gwSsid, password: gwPassword, band: gwBand, allowNonGateway }
       case 'ddns':
         return { enabled: ddEnabled, serviceName: ddService, domain: ddDomain, username: ddUser, password: ddPass, allowNonGateway }
+      case 'sqm':
+        return {
+          enabled: sqEnabled, interface: sqInterface, download: sqDownload, upload: sqUpload,
+          qdisc: sqQdisc, script: sqScript, linklayer: sqLinklayer, overhead: sqOverhead,
+          allowNonGateway,
+        }
       default:
         return { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway }
     }
@@ -189,7 +204,7 @@ export default function Orchestration() {
 
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
-        {(['adguard', 'guestwifi', 'ddns'] as Module[]).map((m) => (
+        {(['adguard', 'guestwifi', 'ddns', 'sqm'] as Module[]).map((m) => (
           <button
             key={m}
             type="button"
@@ -382,6 +397,93 @@ export default function Orchestration() {
                       type="password"
                       value={ddPass}
                       onChange={(e) => setDdPass(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                </>
+              )}
+            </>
+          )}
+
+          {module === 'sqm' && (
+            <>
+              <label className="flex items-center gap-2 pt-6">
+                <input
+                  type="checkbox"
+                  checked={sqEnabled}
+                  onChange={(e) => setSqEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <span className="text-sm text-text-primary">{t('orchestration.sqm.enable')}</span>
+              </label>
+
+              {sqEnabled && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.interface')}</span>
+                    <input
+                      type="text"
+                      value={sqInterface}
+                      onChange={(e) => setSqInterface(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.download')}</span>
+                    <input
+                      type="text"
+                      value={sqDownload}
+                      onChange={(e) => setSqDownload(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.upload')}</span>
+                    <input
+                      type="text"
+                      value={sqUpload}
+                      onChange={(e) => setSqUpload(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.qdisc')}</span>
+                    <select
+                      value={sqQdisc}
+                      onChange={(e) => setSqQdisc(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    >
+                      <option value="cake">{t('orchestration.sqm.qdiscCake')}</option>
+                      <option value="fq_codel">{t('orchestration.sqm.qdiscFqCodel')}</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.script')}</span>
+                    <input
+                      type="text"
+                      value={sqScript}
+                      onChange={(e) => setSqScript(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.linklayer')}</span>
+                    <select
+                      value={sqLinklayer}
+                      onChange={(e) => setSqLinklayer(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    >
+                      <option value="ethernet">{t('orchestration.sqm.linkEthernet')}</option>
+                      <option value="none">{t('orchestration.sqm.linkNone')}</option>
+                      <option value="atm">{t('orchestration.sqm.linkAtm')}</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.sqm.overhead')}</span>
+                    <input
+                      type="text"
+                      value={sqOverhead}
+                      onChange={(e) => setSqOverhead(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
