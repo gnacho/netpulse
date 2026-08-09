@@ -159,6 +159,8 @@ var allowlist = map[string]opSpec{
 	},
 	// write_file: escribe contenido base64 a path. Se hace en Go (no shell)
 	// para evitar inyección vía base64 -d | sh. Path sanitizado + re-chequeo.
+	// Crea el directorio padre si no existe (MkdirAll, modo 0755) — necesario
+	// para /etc/AdGuardHome/AdGuardHome.yaml donde el dir no existe aún.
 	"write_file": {
 		required: map[string]*regexp.Regexp{"path": reFilePath, "content_b64": reBase64},
 		pathArgs: []string{"path"},
@@ -172,10 +174,26 @@ var allowlist = map[string]opSpec{
 			if err != nil {
 				return 1
 			}
+			if dir := filepath.Dir(clean); dir != "" && dir != "/" {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return 1
+				}
+			}
 			if err := os.WriteFile(clean, data, 0644); err != nil {
 				return 1
 			}
 			return 0
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// mv: mueve un fichero. src y dest en path allowlist. Necesario para el
+	// escenario "binary" de AdGuard (extraer tarball y mover el binario a
+	// /usr/bin/AdGuardHome).
+	"mv": {
+		required: map[string]*regexp.Regexp{"src": reFilePath, "dest": reFilePath},
+		pathArgs: []string{"src", "dest"},
+		build: func(a map[string]string) (string, []string) {
+			return "mv", []string{a["src"], a["dest"]}
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},

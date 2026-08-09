@@ -168,6 +168,35 @@ func TestValidateExtractTarball(t *testing.T) {
 	}
 }
 
+func TestValidateMv(t *testing.T) {
+	if err := Validate(Op{Kind: "mv", Args: map[string]string{"src": "/tmp/agh-x/AdGuardHome", "dest": "/usr/bin/AdGuardHome"}}); err != nil {
+		t.Fatalf("valid mv rejected: %v", err)
+	}
+	// dest fuera de allowlist
+	if err := Validate(Op{Kind: "mv", Args: map[string]string{"src": "/tmp/x", "dest": "/etc/passwd;rm"}}); err == nil {
+		t.Fatal("mv with malicious dest should be rejected")
+	}
+	// src con traversal
+	if err := Validate(Op{Kind: "mv", Args: map[string]string{"src": "/tmp/../etc/shadow", "dest": "/tmp/x"}}); err == nil {
+		t.Fatal("mv src with traversal should be rejected")
+	}
+}
+
+// TestWriteFileCreatesParentDir: write_file debe crear /etc/AdGuardHome/ si
+// no existe (MkdirAll del dir padre).
+func TestWriteFileCreatesParentDir(t *testing.T) {
+	parent := "/tmp/netpulse-mkdir-test-" + t.Name()
+	defer os.RemoveAll(parent)
+	path := parent + "/AdGuardHome/AdGuardHome.yaml"
+	spec := allowlist["write_file"]
+	if code := spec.exec(nil, map[string]string{"path": path, "content_b64": "Zm9v"}); code != 0 {
+		t.Fatalf("write_file exec failed: exit %d", code)
+	}
+	if _, err := os.ReadFile(path); err != nil {
+		t.Fatalf("file not written (dir padre no creado?): %v", err)
+	}
+}
+
 // TestWriteFileExec verifica el exec de write_file escribe el contenido real.
 // Usa un tmpdir (no fakeRunner) porque exec usa os.WriteFile directamente.
 func TestWriteFileExec(t *testing.T) {
