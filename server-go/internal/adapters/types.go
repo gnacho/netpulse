@@ -234,6 +234,25 @@ type AlertEvent = alerts.AlertEvent
 // de forma (añadir campos opcionales NO bumpea).
 const ViewModelVersion = 1
 
+// TopologyOverride: capa 2 manual sobre el autodiscover (issue #142). El
+// builder la aplica tras inferTopology y antes de BuildTopoSemantics.
+//   - Kind "hypervisor" (MAC): ese host es un hipervisor; las MACs con OUI
+//     de hipervisor del mismo puerto+router se anidan bajo él.
+//   - Kind "switch" (MAC): ese equipo es un switch gestionado (aunque sin
+//     LLDP); su puerto se convierte en distnode managed.
+//   - Kind "attach" (MAC + Parent): el target cuelga de `parent` (hipervisor
+//     o switch manual).
+type TopologyOverride struct {
+	ID        string `json:"id"`
+	MAC       string `json:"mac"` // target normalizado (minúsculas, ':')
+	Kind      string `json:"kind"`
+	Name      string `json:"name,omitempty"`
+	Parent    string `json:"parent,omitempty"`
+	Enabled   bool   `json:"enabled"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
 // TopoSemantics: modelo semántico de la topología (Fase 4). La app conserva
 // SOLO la geometría de píxeles; asignaciones de anillo, enlaces y conteos de
 // peers ocultos llegan calculados.

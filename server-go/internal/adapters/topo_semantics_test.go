@@ -149,3 +149,43 @@ func TestTopoSemanticsSinRouters(t *testing.T) {
 		t.Fatalf("sin routers no hay links ni anillos: %+v", sem)
 	}
 }
+
+// TestTopoSemanticsDeviceHubBajoDistnode: un device-hub (host con CTs
+// anidados por override, issue #142) que cuelga de un distnode inferred NO
+// debe duplicar su cable: lo genera solo el bucle de hijos de distnodes.
+func TestTopoSemanticsDeviceHubBajoDistnode(t *testing.T) {
+	devices := []Device{
+		{RouterID: "gateway", Band: "cable", Port: "lan1", ID: "host", MAC: "c8:ff:bf:08:6f:ba", AttachTo: "dist-gateway-lan1", Online: true, Infra: "hypervisor"},
+		{RouterID: "gateway", Band: "cable", Port: "lan1", ID: "ct1", MAC: "bc:24:11:00:00:01", AttachTo: "host", Online: true, Infra: "ct"},
+		{RouterID: "gateway", Band: "cable", Port: "lan1", ID: "ct2", MAC: "bc:24:11:00:00:02", AttachTo: "host", Online: true, Infra: "ct"},
+	}
+	routers := []Router{{ID: "gateway", Name: "gateway", RoleBadge: "Principal", Status: "online"}}
+	dists := []DistributionNode{{ID: "dist-gateway-lan1", Kind: "inferred", RouterID: "gateway", Port: "lan1"}}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists)
+
+	var toHost []TopoLink
+	for _, l := range sem.Links {
+		if l.To == "host" {
+			toHost = append(toHost, l)
+		}
+	}
+	// Un solo cable host→su hub (dist-gateway-lan1), no duplicado.
+	if len(toHost) != 1 {
+		t.Fatalf("cable del device-hub duplicado (%d): %+v", len(toHost), toHost)
+	}
+	if toHost[0].From != "dist-gateway-lan1" {
+		t.Errorf("host debe colgar de su distnode: %+v", toHost[0])
+	}
+	// Los CTs cuelgan del host exactamente una vez cada uno.
+	ctLinks := map[string]int{}
+	for _, l := range sem.Links {
+		if l.From == "host" {
+			ctLinks[l.To]++
+		}
+	}
+	for _, ct := range []string{"ct1", "ct2"} {
+		if ctLinks[ct] != 1 {
+			t.Errorf("CT %s debe colgar del host una vez, got %d", ct, ctLinks[ct])
+		}
+	}
+}
