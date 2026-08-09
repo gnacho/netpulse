@@ -69,6 +69,7 @@ type TooltipData =
   | { kind: 'internet'; id: string; x: number; y: number }
   | { kind: 'peer'; id: string; peer: WGPeer; x: number; y: number }
   | { kind: 'peersOverflow'; id: string; peers: WGPeer[]; x: number; y: number }
+  | { kind: 'ringOverflow'; id: string; routerName: string; devices: Device[]; x: number; y: number }
   | {
       kind: 'chip'
       id: string
@@ -182,6 +183,33 @@ function TooltipCard({
                 <span className="font-mono text-text-muted">Handshake {relTime(p.lastHandshake)}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {tip.kind === 'ringOverflow' && (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-text-primary">
+              {t('topology.ring.overflowTitle', { count: tip.devices.length, router: tip.routerName })}
+            </span>
+            <StatusPill tone="accent" label="+N" />
+          </div>
+          <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
+            {tip.devices.length === 0 && <div className="text-caption text-text-muted">—</div>}
+            {tip.devices.map((d) => {
+              const Icon = DEVICE_ICONS[d.type] ?? Laptop
+              return (
+                <div key={d.id} className="flex items-center gap-2 text-caption">
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.75} />
+                  <span className="min-w-0 flex-1 truncate font-semibold text-text-primary">{d.name}</span>
+                  <span className="shrink-0 text-text-muted">{d.band === 'cable' ? t('common.cable') : d.band}</span>
+                  {d.ip && <span className="shrink-0 font-mono text-text-muted">{d.ip}</span>}
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-2 border-t border-border pt-1.5 text-caption font-semibold text-accent">
+            {touch ? t('topology.tapAgainDetail') : t('topology.clickDetail')}
           </div>
         </div>
       )}
@@ -1027,6 +1055,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         {/* --------- Clientes ocultos del anillo ("+N", semántica server) ------ */}
         {ringOverflowChips.map((chip, i) => {
           const routerName = routerNodes.find((n) => n.id === chip.routerId)?.router.name ?? chip.routerId
+          const tip: Extract<TooltipData, { kind: 'ringOverflow' }> = {
+            kind: 'ringOverflow',
+            id: `ring-overflow-${chip.routerId}`,
+            routerName,
+            devices: chip.devices,
+            x: chip.x,
+            y: chip.y + 30,
+          }
           return (
             <g key={`ring-overflow-${chip.routerId}`} transform={`translate(${chip.x} ${chip.y})`}>
               <motion.g
@@ -1035,8 +1071,21 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 transition={reduce ? { duration: 0 } : { delay: (2.2 + i * 0.1) * T, duration: 0.35 }}
                 style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
               >
-                <g role="img" aria-label={t('topology.ring.overflowAria', { count: chip.count, router: routerName })}>
-                  <title>{t('topology.ring.overflowAria', { count: chip.count, router: routerName })}</title>
+                <g
+                  className="cursor-pointer outline-none"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('topology.ring.overflowAria', { count: chip.count, router: routerName })}
+                  onPointerEnter={(e) => handleNodeHover(tip, e)}
+                  onPointerLeave={closeHover}
+                  onClick={(e) => nodeClick(e, tip)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleNodeClick(tip)
+                    }
+                  }}
+                >
                   <rect x={-15} y={-11} width={30} height={22} rx={8} fill="rgb(var(--elevated))" stroke={COLOR.accent} strokeWidth={1.5} />
                   <text x={0} y={3.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={COLOR.accent}>
                     +{chip.count}

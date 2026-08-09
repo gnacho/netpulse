@@ -1589,7 +1589,7 @@ function PushNotificationsCard({ reduce, onSaved }: { reduce: boolean; onSaved: 
 // vía de explorarla después. Solo visible para admin con backend real (en el
 // demo local sin backend no hay .env que tocar).
 // ---------------------------------------------------------------------------
-function DemoCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+function DemoCard({ onSaved }: { reduce?: boolean; onSaved: () => void }) {
   const { t } = useTranslation()
   const [serverMode, setServerMode] = useState<'demo' | 'live' | null>(null)
   const [busy, setBusy] = useState(false)
@@ -1639,33 +1639,28 @@ function DemoCard({ reduce, onSaved }: { reduce: boolean; onSaved: () => void })
 
   if (serverMode === null) return null
 
-  const enabling = serverMode === 'live'
+  // Switch compacto de la AdminBar (issue #118): el checkbox de la tarjeta
+  // grande se sustituye por este toggle de una línea.
   return (
-    <Card title={t('settings.demo.title')} caption={t('settings.demo.caption')} index={5} reduce={reduce}>
-      <div className="flex flex-col gap-3">
-        <p className="text-caption leading-relaxed text-text-muted">
-          {enabling ? t('settings.demo.enableDesc') : t('settings.demo.disableDesc')}
-        </p>
-        {busy ? (
-          <div className="flex items-center gap-2 rounded-xl bg-elevated px-3.5 py-2.5 text-caption text-text-secondary">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping-soft rounded-full bg-accent opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
-            </span>
-            {t('settings.demo.restarting')}
-          </div>
-        ) : (
-          <button
-            onClick={() => void switchMode(enabling)}
-            className="inline-flex w-fit items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
-          >
-            <FlaskConical className="h-4 w-4" strokeWidth={1.75} />
-            {enabling ? t('settings.demo.enable') : t('settings.demo.disable')}
-          </button>
-        )}
-        {error && <p className="text-caption text-red-500">{error}</p>}
-      </div>
-    </Card>
+    <label
+      className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+      title={t('settings.demo.caption')}
+    >
+      <FlaskConical className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
+      <span className="hidden sm:inline">{t('settings.demo.title')}</span>
+      <Switch
+        checked={serverMode === 'demo'}
+        onCheckedChange={(v) => void switchMode(v)}
+        disabled={busy}
+        aria-label={t('settings.demo.title')}
+      />
+      {busy && <span className="h-2 w-2 animate-ping-soft rounded-full bg-accent" aria-hidden="true" />}
+      {error && (
+        <span role="alert" className="text-caption text-danger">
+          {error}
+        </span>
+      )}
+    </label>
   )
 }
 
@@ -2642,7 +2637,7 @@ export default function Settings() {
 
                 {/* 4. Modo demo a la derecha */}
                 <div className="ml-auto">
-                  <DemoCard reduce={reduce} onSaved={notify} />
+                  <DemoCard onSaved={notify} />
                 </div>
               </div>
 

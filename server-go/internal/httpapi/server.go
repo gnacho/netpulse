@@ -254,7 +254,7 @@ func NewHandler(d Deps) http.Handler {
 		mux.Handle("/", static)
 	}
 
-	return requestID(security.Middleware(auth.RequireAuth(s.db, s.secret, noStoreMux(mux))))
+	return requestID(security.Middleware(auth.RequireAuth(s.db, s.secret, s.demoReadOnly(noStoreMux(mux)))))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en

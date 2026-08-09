@@ -27,17 +27,36 @@ type testServer struct {
 }
 
 // makeTestServer replica tests/helpers.js: app real con adapter demo stub y
-// DB temporal, config AUTH_USER=admin AUTH_PASS=test1234 DEMO_MODE=1.
+// DB temporal. DEMO_MODE=0 → la API permite mutaciones (tests de CRUD de
+// users/routers/agents). Para probar el modo demo read-only (issue #118) usar
+// makeDemoTestServer. El adapter sigue siendo NewDemo: /api/health y /api/auth/me
+// reportan mode:"demo" como esperan algunos tests de contrato.
 func makeTestServer(t *testing.T) *testServer {
+	t.Helper()
+	return makeTestServerWithMode(t, false)
+}
+
+// makeDemoTestServer: igual que makeTestServer pero con DEMO_MODE=1 (issue
+// #118) — las mutaciones fuera de la allowlist se rechazan con 409.
+func makeDemoTestServer(t *testing.T) *testServer {
+	t.Helper()
+	return makeTestServerWithMode(t, true)
+}
+
+func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 	t.Helper()
 	// Los helpers de test simulan IPs distintas vía X-Forwarded-For (rate
 	// limit); por defecto en producción NO se confía en XFF (auditoría #1).
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
+	demo := "0"
+	if demoMode {
+		demo = "1"
+	}
 	cfg, err := config.Load(map[string]string{
 		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
-		"DEMO_MODE": "1", "DATA_DIR": dataDir, "NODE_ENV": "test",
+		"DEMO_MODE": demo, "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
 		t.Fatalf("config: %v", err)

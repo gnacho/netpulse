@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
+import PullToRefresh from '@/components/PullToRefresh'
 import {
   BarChart3,
   Bell,
@@ -636,17 +637,22 @@ function Shell() {
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
           {isDemo && <DemoBanner />}
           <UpdateBanner />
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={key}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          {/* Pull-to-refresh (issue #139): gesto móvil recarga la vista para
+              coger un deploy nuevo sin reabrir la app. Solo actúa en touch y
+              con scroll arriba; no interfiere con carruseles/tablas. */}
+          <PullToRefresh>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={key}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </PullToRefresh>
         </main>
       </div>
       <TabBar />
