@@ -647,6 +647,21 @@
   "settings": {
     "admin": {
       "title": "Administration",
+      "backup": {
+        "button": "Backups",
+        "autoBackup": "Automatic backup",
+        "runNow": "Backup now",
+        "running": "Backing up…",
+        "export": "Export",
+        "frequency": "Frequency:",
+        "retention": "Retention:",
+        "days": "days",
+        "lastRun": "Last: {{date}}",
+        "noBackups": "No backups yet",
+        "saveError": "Could not save settings",
+        "error": "Could not create backup",
+        "done": "Backup created successfully"
+      },
       "orchestration": "Network orchestration",
       "orchestrationDesc": "Shows the orchestration menu (apply and roll back changes on routers). It is a write surface, so it is off until you enable it."
     },

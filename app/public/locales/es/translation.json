@@ -647,6 +647,21 @@
   "settings": {
     "admin": {
       "title": "Administración",
+      "backup": {
+        "button": "Respaldos",
+        "autoBackup": "Respaldo automático",
+        "runNow": "Respaldar ahora",
+        "running": "Respaldando…",
+        "export": "Exportar",
+        "frequency": "Frecuencia:",
+        "retention": "Retención:",
+        "days": "días",
+        "lastRun": "Último: {{date}}",
+        "noBackups": "Sin respaldos todavía",
+        "saveError": "No se pudieron guardar los ajustes",
+        "error": "No se pudo hacer el respaldo",
+        "done": "Respaldo creado correctamente"
+      },
       "orchestration": "Orquestación de red",
       "orchestrationDesc": "Muestra el menú de orquestación (aplicar y revertir cambios en routers). Es una superficie de escritura; se activa solo si lo quieres."
     },

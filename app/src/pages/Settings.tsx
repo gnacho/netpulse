@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Database,
   Download,
   ExternalLink,
   Eye,
@@ -16,6 +17,7 @@ import {
   FileText,
   FlaskConical,
   Github,
+  HardDrive,
   Heart,
   KeyRound,
   LogOut,
@@ -1364,6 +1366,144 @@ function SystemInfoBlock() {
   )
 }
 
+function BackupsPanel() {
+  const { t, i18n } = useTranslation()
+  const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [okMsg, setOkMsg] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/backup')
+      if (res.ok) setCfg(await res.json())
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const save = async (patch: Record<string, unknown>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/settings/backup', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setCfg(await res.json())
+    } catch {
+      setError(t('settings.admin.backup.saveError'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runBackup = async () => {
+    setBackupBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/backup/run', { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setOkMsg(t('settings.admin.backup.done'))
+      setTimeout(() => setOkMsg(null), 3000)
+      await load()
+    } catch {
+      setError(t('settings.admin.backup.error'))
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  const locale = i18n.language?.startsWith('en') ? 'en' : 'es'
+
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return '—'
+    try {
+      return new Date(iso).toLocaleString(locale === 'en' ? 'en-GB' : 'es-ES', {
+        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      })
+    } catch { return iso }
+  }
+
+  if (!cfg) return <div className="animate-pulse space-y-3"><div className="h-6 w-48 rounded bg-elevated" /><div className="h-6 w-32 rounded bg-elevated" /></div>
+
+  return (
+    <div className="w-full space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Switch
+            checked={cfg.enabled}
+            onCheckedChange={() => void save({ enabled: !cfg.enabled })}
+            disabled={busy}
+          />
+          <span className="text-sm text-text-primary">{t('settings.admin.backup.autoBackup')}</span>
+        </label>
+
+        <button
+          type="button"
+          disabled={backupBusy}
+          onClick={() => void runBackup()}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:opacity-60"
+        >
+          <HardDrive className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {backupBusy ? t('settings.admin.backup.running') : t('settings.admin.backup.runNow')}
+        </button>
+
+        <a
+          href="/api/backup/download"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+        >
+          <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {t('settings.admin.backup.export')}
+        </a>
+      </div>
+
+      {cfg.enabled && (
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-caption text-text-muted">
+            <span>{t('settings.admin.backup.frequency')}</span>
+            <select
+              value={cfg.frequency_h}
+              disabled={busy}
+              onChange={(e) => void save({ frequency_h: parseInt(e.target.value, 10) })}
+              className="rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-text-primary"
+            >
+              {[1, 6, 12, 24, 48, 72].map((h) => (
+                <option key={h} value={h}>{h}h</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-caption text-text-muted">
+            <span>{t('settings.admin.backup.retention')}</span>
+            <select
+              value={cfg.retention_days}
+              disabled={busy}
+              onChange={(e) => void save({ retention_days: parseInt(e.target.value, 10) })}
+              className="rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-text-primary"
+            >
+              {[1, 3, 7, 14, 30].map((d) => (
+                <option key={d} value={d}>{d} {t('settings.admin.backup.days')}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      <p className="text-caption text-text-muted">
+        {cfg.last_run
+          ? t('settings.admin.backup.lastRun', { date: fmtDate(cfg.last_run) })
+          : t('settings.admin.backup.noBackups')}
+      </p>
+
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      {okMsg && <p role="status" className="text-xs text-ok">{okMsg}</p>}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
@@ -2310,7 +2450,7 @@ export default function Settings() {
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
-  const [adminPanel, setAdminPanel] = useState<'users' | null>(null)
+  const [adminPanel, setAdminPanel] = useState<'users' | 'backups' | null>(null)
 
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
   const [orchOn, setOrchOn] = useState(false)
@@ -2993,7 +3133,27 @@ export default function Settings() {
                 {/* 1. Comprobar actualizaciones (widget inline) */}
                 <UpdateCheckInline />
 
-                {/* 2. Usuarios (desplegable) */}
+                {/* 2. Respaldos (desplegable) */}
+                <button
+                  type="button"
+                  aria-expanded={adminPanel === 'backups'}
+                  onClick={() => setAdminPanel(adminPanel === 'backups' ? null : 'backups')}
+                  className={[
+                    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition-colors',
+                    adminPanel === 'backups'
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
+                  ].join(' ')}
+                >
+                  <Database className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span className="hidden sm:inline">{t('settings.admin.backup.button')}</span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${adminPanel === 'backups' ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {/* 3. Usuarios (desplegable) */}
                 <button
                   type="button"
                   aria-expanded={adminPanel === 'users'}
@@ -3013,12 +3173,17 @@ export default function Settings() {
                   />
                 </button>
 
-                {/* 3. Modo demo a la derecha */}
+                {/* 4. Modo demo a la derecha */}
                 <div className="ml-auto">
                   <DemoCard onSaved={notify} />
                 </div>
               </div>
 
+              {adminPanel === 'backups' && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <BackupsPanel />
+                </div>
+              )}
               {adminPanel === 'users' && (
                 <div className="mt-4 border-t border-border pt-4">
                   <UsersManager reduce={reduce} onSaved={notify} />
