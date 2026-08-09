@@ -652,7 +652,12 @@
     "adoption": {
       "title": "Agent adoption",
       "hint": "Use this pairing token and fingerprint to install new agents. After pairing, the agent gets its real token automatically.",
-      "rotate": "Rotate token"
+      "rotate": "Rotate token",
+      "reveal": "Show token",
+      "hide": "Hide token",
+      "rotateTitle": "Rotate the pairing token?",
+      "rotateDesc": "Rotation invalidates EVERY pending pairing. Already-adopted agents keep their real token; ones mid-pairing will need to start over.",
+      "rotateConfirm": "Yes, rotate"
     },
     "about": {
       "changelog": "Changelog",
@@ -821,6 +826,7 @@
       "agentOnlyBadge": "Agent only",
       "edit": "Edit",
       "editTitle": "Edit {{id}}",
+      "editHint": "Modify the router details. Saving hot-reloads the configuration.",
       "save": "Save",
       "saving": "Saving…"
     },
@@ -834,15 +840,14 @@
       "addDevice": "Tag another device",
       "mac": "MAC address",
       "name": "Name (optional)",
-      "kind": "Type",
-      "kindHypervisor": "Hypervisor",
-      "kindSwitch": "Switch",
-      "kindAttach": "Attach",
       "kind": {
         "hypervisor": "Hypervisor",
         "switch": "Switch",
         "attach": "Attach"
       },
+      "kindHypervisor": "Hypervisor",
+      "kindSwitch": "Switch",
+      "kindAttach": "Attach",
       "parent": "Host MAC to hang from",
       "enabled": "Enabled",
       "edit": "Edit",
@@ -864,7 +869,7 @@
       "active": "Active session on this device",
       "activeCaption": "You will have to enter the password again to sign in.",
       "logout": "Sign out",
-      "title": "My session",
+      "title": "My profile",
       "demoActive": "Demo mode active",
       "demoCaption": "Local simulated data, no connection to your network.",
       "exitDemo": "Exit demo mode",
