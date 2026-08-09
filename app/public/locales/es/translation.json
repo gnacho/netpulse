@@ -925,19 +925,55 @@
     "applying": "Aplicando…",
     "applied": "Aplicado correctamente",
     "failed": "Falló",
+    "methodLabel": "Método detectado",
+    "module": {
+      "adguard": "AdGuard Home",
+      "guestwifi": "WiFi invitados",
+      "ddns": "DDNS"
+    },
+    "warn": {
+      "managed_by_firmware": "Este router trae un AdGuard Home del fabricante (GL.iNet). NetPulse no lo gestiona para no romper su UI: configúralo desde la interfaz del router.",
+      "gateway_only": "Este módulo solo está disponible en el router principal (gateway). Activa el permiso para routers no-gateway para probarlo en otro equipo."
+    },
     "adguard": {
       "enable": "Activar AdGuard Home",
       "allowNonGateway": "Permitir AdGuard en routers no-gateway",
       "nonGatewayWarning": "AdGuard solo filtra el DNS de toda la red desde el gateway. En otro router solo filtraría a sus clientes; además el despliegue exige RAM libre suficiente y que el gateway no lo tenga ya activo.",
       "port": "Puerto",
       "upstream": "DNS upstream",
-      "managedByFirmware": "Este router trae un AdGuard Home del fabricante (GL.iNet). NetPulse no lo gestiona para no romper su UI: configúralo desde la interfaz del router.",
-      "methodLabel": "Método detectado",
       "method": {
         "apk": "Paquete (apk)",
         "opkg": "Paquete (opkg)",
         "none": "Ya instalado",
         "binary": "Binario oficial (GitHub)"
+      }
+    },
+    "guestwifi": {
+      "enable": "Activar red WiFi de invitados",
+      "allowNonGateway": "Permitir WiFi de invitados en routers no-gateway",
+      "nonGatewayWarning": "La red de invitados se crea en este router con subred y firewall propios, aislada de la LAN.",
+      "ssid": "SSID",
+      "password": "Contraseña",
+      "band": "Banda",
+      "band2g": "2,4 GHz",
+      "band5g": "5 GHz",
+      "bandAuto": "Automática",
+      "method": {
+        "enabled": "Activada",
+        "disabled": "Desactivada"
+      }
+    },
+    "ddns": {
+      "enable": "Activar DDNS",
+      "allowNonGateway": "Permitir DDNS en routers no-gateway",
+      "nonGatewayWarning": "El DDNS apunta un dominio a la IP pública. En un router no-gateway el alcance depende de la configuración de red.",
+      "service": "Proveedor",
+      "domain": "Dominio",
+      "username": "Usuario",
+      "password": "Contraseña",
+      "method": {
+        "enabled": "Activado",
+        "disabled": "Desactivado"
       }
     }
   }
