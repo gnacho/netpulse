@@ -243,3 +243,51 @@ func TestDetectAdGuardUsaRunner(t *testing.T) {
 		t.Errorf("DetectAdGuard no parseó arch: %+v", sc)
 	}
 }
+
+// TestParseFreeMem: extrae la columna available de `free -m` (busybox).
+func TestParseFreeMem(t *testing.T) {
+	cases := []struct {
+		name, out string
+		want      int
+	}{
+		{
+			"busybox_con_available",
+			"              total        used        free      shared  buff/cache   available\nMem:           512         300          80          10         132         212\nSwap:            0           0           0",
+			212,
+		},
+		{
+			"free_antiguo_sin_available_fallback_free",
+			"             total       used       free     shared    buffers     cached\nMem:           512        300        200         10          0          0\n-/+ buffers/cache:        300        212\nSwap:            0          0          0",
+			200, // fallback a columna free
+		},
+		{
+			"sin_mem",
+			"===END===",
+			0,
+		},
+		{
+			"mem_vacio_entre_marcadores",
+			"===MEM===\n===END===",
+			0,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := parseFreeMem(c.out); got != c.want {
+				t.Errorf("parseFreeMem: got %d want %d", got, c.want)
+			}
+		})
+	}
+}
+
+// TestParseAdGuardProbeMembríaIncluyeAvailableRAM: el probe parsea RAM.
+func TestParseAdGuardProbeIncluyeAvailableRAM(t *testing.T) {
+	out := `===MEM===
+              total        used        free      shared  buff/cache   available
+Mem:           512         300          80          10         132         212
+===END===`
+	sc := parseAdGuardProbe(out)
+	if sc.AvailableRAM != 212 {
+		t.Errorf("AvailableRAM: got %d want 212", sc.AvailableRAM)
+	}
+}

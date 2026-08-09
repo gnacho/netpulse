@@ -12,6 +12,7 @@
 package orchestr
 
 import (
+	"strconv"
 	"strings"
 	"time"
 )
@@ -41,6 +42,9 @@ type AdGuardScenario struct {
 	// BinaryPresent: /usr/bin/AdGuardHome es ejecutable (instalación oficial
 	// previa nuestra; distinguir del fork GL.iNet vía ManagedByFirmware).
 	BinaryPresent bool
+	// AvailableRAM: MB disponibles (`free -m`, columna available). Usado para
+	// el chequeo de recursos de AdGuard (necesita ~150-200 MB, issue #120).
+	AvailableRAM int
 }
 
 // probeCmd es el comando combinado de detección. Una sola sesión SSH.
@@ -58,6 +62,8 @@ echo '===APK_AVAIL==='
 apk search adguard-home 2>/dev/null
 echo '===BINARY==='
 test -x /usr/bin/AdGuardHome && echo present || echo absent
+echo '===MEM==='
+free -m
 echo '===END==='`
 
 // DetectAdGuard ejecuta el comando combinado vía SSH y parsea el estado.
@@ -114,7 +120,41 @@ func parseAdGuardProbe(out string) AdGuardScenario {
 	if bin := firstNonEmpty(sections["BINARY"]); strings.Contains(strings.ToLower(bin), "present") {
 		sc.BinaryPresent = true
 	}
+	sc.AvailableRAM = parseFreeMem(strings.Join(sections["MEM"], "\n"))
 	return sc
+}
+
+// parseFreeMem extrae la RAM disponible (MB) de la salida de `free -m`.
+// Busca la línea "Mem:" y la columna available (la de la cabecera). Si la
+// cabecera no tiene "available" (free -m antiguo/procps), cae a la columna
+// free (f[3]). Distingue por cabecera porque el free antiguo tiene 7 campos
+// pero el 7º es "cached", no "available".
+func parseFreeMem(out string) int {
+	lines := strings.Split(out, "\n")
+	headerHasAvailable := false
+	for _, line := range lines {
+		if strings.Contains(line, "total") && strings.Contains(line, "used") {
+			headerHasAvailable = strings.Contains(line, "available")
+			break
+		}
+	}
+	for _, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "Mem:") {
+			continue
+		}
+		f := strings.Fields(line)
+		if headerHasAvailable && len(f) >= 7 {
+			if v, err := strconv.Atoi(f[6]); err == nil {
+				return v
+			}
+		}
+		if len(f) >= 4 {
+			if v, err := strconv.Atoi(f[3]); err == nil {
+				return v
+			}
+		}
+	}
+	return 0
 }
 
 // splitSections parte el output por marcadores ===NAME=== en un map nombre→líneas.

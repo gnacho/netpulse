@@ -35,12 +35,15 @@ const methodLabel = (method: string) => {
 
 export default function Orchestration() {
   const { t } = useTranslation()
-  const { agents } = useNetPulse()
+  const { agents, routers } = useNetPulse()
   const auth = useAuth()
   const [routerId, setRouterId] = useState('')
   const [agEnabled, setAgEnabled] = useState(true)
   const [agPort, setAgPort] = useState('3000')
   const [agDns, setAgDns] = useState('1.1.1.1')
+  // issue #120: AdGuard filtra el DNS de la red → por defecto solo el gateway.
+  // El toggle "advanced" permite un router no-gateway (con warning + checks).
+  const [agAllowNonGateway, setAgAllowNonGateway] = useState(false)
   const [plan, setPlan] = useState<Plan | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -49,10 +52,23 @@ export default function Orchestration() {
   // un error rojo genérico.
   const [firmwareManaged, setFirmwareManaged] = useState(false)
 
-  // Auto-seleccionar el primer router
+  // El gateway del view-model (roleBadge 'Principal'); el selector lo lista
+  // solo por defecto (gateway-only, #120).
+  const gatewayId = routers.find((r) => r.roleBadge === 'Principal')?.id
+  // Routers del dropdown: solo el gateway por defecto; todos si el toggle
+  // advanced está activo. Se listan los AGENTES conectados (el apply usa SSE).
+  const visibleRouters = agAllowNonGateway
+    ? agents
+    : agents.filter((a) => a.slug === gatewayId)
+  const nonGatewaySelected = agAllowNonGateway && routerId !== gatewayId
+
+  // Auto-seleccionar: gateway por defecto (o el primer agente visible).
   useEffect(() => {
-    if (!routerId && agents.length > 0) setRouterId(agents[0].slug)
-  }, [agents, routerId])
+    if (!routerId || !visibleRouters.some((a) => a.slug === routerId)) {
+      const first = visibleRouters[0]
+      if (first) setRouterId(first.slug)
+    }
+  }, [agents, gatewayId, agAllowNonGateway, routerId, visibleRouters])
 
   const createPlan = async () => {
     setBusy(true)
@@ -66,7 +82,7 @@ export default function Orchestration() {
         body: JSON.stringify({
           routerId,
           resource: 'adguard',
-          desired: { enabled: agEnabled, port: agPort, upstreamDns: agDns },
+          desired: { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway: agAllowNonGateway },
         }),
       })
       if (!res.ok) {
@@ -153,11 +169,33 @@ export default function Orchestration() {
               onChange={(e) => setRouterId(e.target.value)}
               className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
             >
-              {agents.map((a) => (
-                <option key={a.slug} value={a.slug}>{a.slug}</option>
+              {visibleRouters.map((a) => (
+                <option key={a.slug} value={a.slug}>
+                  {a.slug}{a.slug === gatewayId ? ` (${t('orchestration.gateway')})` : ''}
+                </option>
               ))}
             </select>
           </label>
+
+          {/* Toggle advanced (#120): permitir un router no-gateway */}
+          <label className="flex items-center gap-2 pt-6">
+            <input
+              type="checkbox"
+              checked={agAllowNonGateway}
+              onChange={(e) => setAgAllowNonGateway(e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            <span className="text-sm text-text-primary">{t('orchestration.adguard.allowNonGateway')}</span>
+          </label>
+
+          {nonGatewaySelected && (
+            <div
+              role="alert"
+              className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 lg:col-span-4"
+            >
+              {t('orchestration.adguard.nonGatewayWarning')}
+            </div>
+          )}
 
           <label className="flex items-center gap-2 pt-6">
             <input

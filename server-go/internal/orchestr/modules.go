@@ -30,6 +30,10 @@ type AdGuardDesired struct {
 	Enabled     bool   `json:"enabled"`
 	Port        string `json:"port"`        // puerto HTTP de la UI de AdGuard (default "3000")
 	UpstreamDNS string `json:"upstreamDns"` // DNS upstream (default "1.1.1.1")
+	// AllowNonGateway: permitir AdGuard en un router que no es el gateway.
+	// El servidor lo exige para no rechazar con 422 adguard_gateway_only
+	// (issue #120). El frontend lo expone como toggle "advanced".
+	AllowNonGateway bool `json:"allowNonGateway,omitempty"`
 }
 
 // AdGuardOps genera las Ops para activar/desactivar AdGuard Home según el
