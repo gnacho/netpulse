@@ -117,12 +117,13 @@ func TestAdGuardOpsEscenarioBinary(t *testing.T) {
 		t.Fatalf("binary inesperado error: %v", err)
 	}
 	// Secuencia esperada: download → extract → mv → chmod → write_file config
-	// → write_file init.d → chmod init.d → enable → start → uci_set ×2 → commit → dnsmasq restart.
+	// → write_file init.d → chmod init.d → enable → start → tcp_check UI →
+	// uci_set ×2 → commit → dnsmasq restart.
 	kinds := make([]string, len(ops))
 	for i, op := range ops {
 		kinds[i] = op.Kind
 	}
-	wantSeq := []string{"download", "extract_tarball", "mv", "chmod", "write_file", "write_file", "chmod", "service", "service", "uci_set", "uci_set", "uci_commit", "service"}
+	wantSeq := []string{"download", "extract_tarball", "mv", "chmod", "write_file", "write_file", "chmod", "service", "service", "tcp_check", "uci_set", "uci_set", "uci_commit", "service"}
 	if len(kinds) != len(wantSeq) {
 		t.Fatalf("binary plan length: got %d want %d\nkinds: %v", len(kinds), len(wantSeq), kinds)
 	}
