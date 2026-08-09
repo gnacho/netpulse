@@ -53,7 +53,7 @@ func (s *server) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/config/discover?force=1 — escaneo de la LAN (cacheado 60 s).
 func (s *server) handleDiscover(w http.ResponseWriter, r *http.Request) {
-	result := discover.Routers(s.db.DB, s.cfg.SSHKeyPath, r.URL.Query().Get("force") == "1")
+	result := discover.Routers(r.Context(), s.db.DB, s.cfg.SSHKeyPath, r.URL.Query().Get("force") == "1")
 	writeJSON(w, http.StatusOK, result)
 }
 

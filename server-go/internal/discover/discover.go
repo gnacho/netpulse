@@ -12,6 +12,7 @@ package discover
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"database/sql"
 	"io"
@@ -61,8 +62,10 @@ var (
 )
 
 // tcpOpen: true si el puerto TCP responde antes del timeout.
-func tcpOpen(host string, port int, timeout time.Duration) bool {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, itoa(port)), timeout)
+// Respeta ctx: DialContext aborta el intento en cuanto ctx se cancela.
+func tcpOpen(ctx context.Context, host string, port int, timeout time.Duration) bool {
+	d := net.Dialer{Timeout: timeout}
+	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, itoa(port)))
 	if err != nil {
 		return false
 	}
@@ -82,7 +85,10 @@ func itoa(n int) string {
 }
 
 // pool ejecuta fn sobre items con concurrencia limitada.
-func pool[T any](items []T, size int, fn func(T) *T) []*T {
+// Los workers comprueban ctx.Err() antes de tomar cada item: si el contexto
+// se cancela (p.ej. el cliente cerró la request HTTP), dejan de aceptar trabajo
+// y pool devuelve lo recolectado hasta ese momento.
+func pool[T any](ctx context.Context, items []T, size int, fn func(T) *T) []*T {
 	out := make([]*T, len(items))
 	var idx int64
 	var mu sync.Mutex
@@ -96,6 +102,9 @@ func pool[T any](items []T, size int, fn func(T) *T) []*T {
 		go func() {
 			defer wg.Done()
 			for {
+				if ctx.Err() != nil {
+					return
+				}
 				mu.Lock()
 				if idx >= int64(len(items)) {
 					mu.Unlock()
@@ -141,14 +150,14 @@ type probeResp struct {
 var ubusProbeBody = `{"jsonrpc":"2.0","id":1,"method":"call","params":["00000000000000000000000000000000","session","login",{"username":"netpulse-probe","password":""}]}`
 
 // postUbus: POST /ubus crudo (http u https) — {status, body} o nil.
-func postUbus(host string, useHTTPS bool) *probeResp {
+func postUbus(ctx context.Context, host string, useHTTPS bool) *probeResp {
 	scheme := "http"
 	port := "80"
 	if useHTTPS {
 		scheme = "https"
 		port = "443"
 	}
-	req, err := http.NewRequest("POST", scheme+"://"+host+":"+port+"/ubus", bytes.NewReader([]byte(ubusProbeBody)))
+	req, err := http.NewRequestWithContext(ctx, "POST", scheme+"://"+host+":"+port+"/ubus", bytes.NewReader([]byte(ubusProbeBody)))
 	if err != nil {
 		return nil
 	}
@@ -163,14 +172,18 @@ func postUbus(host string, useHTTPS bool) *probeResp {
 }
 
 // getRoot: GET / (http/https) — {status, body} o nil.
-func getRoot(host string, useHTTPS bool) *probeResp {
+func getRoot(ctx context.Context, host string, useHTTPS bool) *probeResp {
 	scheme := "http"
 	port := "80"
 	if useHTTPS {
 		scheme = "https"
 		port = "443"
 	}
-	res, err := httpClient().Get(scheme + "://" + host + ":" + port + "/")
+	req, err := http.NewRequestWithContext(ctx, "GET", scheme+"://"+host+":"+port+"/", nil)
+	if err != nil {
+		return nil
+	}
+	res, err := httpClient().Do(req)
 	if err != nil {
 		return nil
 	}
@@ -182,19 +195,19 @@ func getRoot(host string, useHTTPS bool) *probeResp {
 var glUIRe = regexp.MustCompile(`(?i)gl-ui|GL\.iNet|glinet`)
 
 // probeUbus: true si el host huele a OpenWrt/GL.iNet.
-func probeUbus(host string) bool {
+func probeUbus(ctx context.Context, host string) bool {
 	isUbus := func(r *probeResp) bool {
 		return r != nil && (strings.Contains(r.body, "jsonrpc") || strings.Contains(r.body, "ubus_rpc_session"))
 	}
-	httpRes := postUbus(host, false)
+	httpRes := postUbus(ctx, host, false)
 	if isUbus(httpRes) {
 		return true
 	}
 	if httpRes != nil && (httpRes.status == 301 || httpRes.status == 302 || httpRes.status == 307 || httpRes.status == 308) {
-		if isUbus(postUbus(host, true)) {
+		if isUbus(postUbus(ctx, host, true)) {
 			return true
 		}
-		if root := getRoot(host, true); root != nil && glUIRe.MatchString(root.body) {
+		if root := getRoot(ctx, host, true); root != nil && glUIRe.MatchString(root.body) {
 			return true
 		}
 	}
@@ -202,14 +215,17 @@ func probeUbus(host string) bool {
 }
 
 // probeSsh prueba SSH con la clave propia; devuelve (authorized, model).
-func probeSsh(host, keyPath string) (bool, *string) {
+// exec.CommandContext mata el proceso ssh si ctx se cancela (además del
+// timeout propio de sshTimeout), así la cancelación de la request HTTP
+// libera el worker sin esperar al timeout de 4 s.
+func probeSsh(ctx context.Context, host, keyPath string) (bool, *string) {
 	args := append(sshkey.BaseArgs(keyPath),
 		"-o", "ConnectTimeout=2",
 		"-o", "ControlMaster=no",
 		"root@"+host,
 		"ubus call system board | jsonfilter -e @.model",
 	)
-	cmd := exec.Command("ssh", args...)
+	cmd := exec.CommandContext(ctx, "ssh", args...)
 	type result struct {
 		out []byte
 		err error
@@ -220,6 +236,9 @@ func probeSsh(host, keyPath string) (bool, *string) {
 		ch <- result{out, err}
 	}()
 	select {
+	case <-ctx.Done():
+		_ = cmd.Process.Kill()
+		return false, nil
 	case <-time.After(sshTimeout):
 		_ = cmd.Process.Kill()
 		return false, nil
@@ -252,7 +271,14 @@ func selfIPs() map[string]bool {
 
 // Routers escanea la LAN y devuelve candidatos (paridad discoverRouters).
 // db se usa solo para marcar los ya configurados.
-func Routers(db *sql.DB, keyPath string, force bool) Response {
+//
+// ctx permite cancelar el barrido en vuelo: cuando el cliente cierra la
+// request HTTP, los workers dejan de tomar items y las probes en curso
+// (TCP/HTTP/SSH) abortan vía DialContext / NewRequestWithContext /
+// CommandContext. Si ctx se cancela, Routers devuelve una Response con
+// Error="cancelled" SIN pisar la caché (no se quiere guardar un barrido
+// parcial). El siguiente llamador podrá reintentar o usar la caché previa.
+func Routers(ctx context.Context, db *sql.DB, keyPath string, force bool) Response {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
 	now := time.Now().UnixMilli()
@@ -278,12 +304,15 @@ func Routers(db *sql.DB, keyPath string, force bool) Response {
 			hosts = append(hosts, h)
 		}
 	}
-	alive := pool(hosts, scanWorkers, func(h string) *string {
-		if tcpOpen(h, 22, tcpTimeout) {
+	alive := pool(ctx, hosts, scanWorkers, func(h string) *string {
+		if tcpOpen(ctx, h, 22, tcpTimeout) {
 			return &h
 		}
 		return nil
 	})
+	if ctx.Err() != nil {
+		return Response{Subnet: &subnet, Results: []Result{}, Cached: false, Error: "cancelled"}
+	}
 
 	configured := map[string]bool{}
 	for _, r := range routerstore.ListRouters(db) {
@@ -294,16 +323,22 @@ func Routers(db *sql.DB, keyPath string, force bool) Response {
 	for _, h := range alive {
 		cands = append(cands, candidate{*h})
 	}
-	found := pool(cands, probeWorkers, func(c candidate) *candidate {
-		if !probeUbus(c.h) {
+	found := pool(ctx, cands, probeWorkers, func(c candidate) *candidate {
+		if !probeUbus(ctx, c.h) {
 			return nil
 		}
 		return &c
 	})
+	if ctx.Err() != nil {
+		return Response{Subnet: &subnet, Results: []Result{}, Cached: false, Error: "cancelled"}
+	}
 
 	results := make([]Result, 0, len(found))
 	for _, c := range found {
-		authorized, model := probeSsh(c.h, keyPath)
+		if ctx.Err() != nil {
+			return Response{Subnet: &subnet, Results: []Result{}, Cached: false, Error: "cancelled"}
+		}
+		authorized, model := probeSsh(ctx, c.h, keyPath)
 		results = append(results, Result{
 			Host:       c.h,
 			IsGateway:  c.h == gwIP,
