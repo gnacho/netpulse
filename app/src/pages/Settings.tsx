@@ -1368,7 +1368,21 @@ function SystemInfoBlock() {
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
-function ServicesCard({ reduce, onSaved, disabled = false }: { reduce: boolean; onSaved: () => void; disabled?: boolean }) {
+function ServicesCard({
+  reduce,
+  onSaved,
+  disabled = false,
+  orchOn,
+  orchBusy,
+  toggleOrchestration,
+}: {
+  reduce: boolean
+  onSaved: () => void
+  disabled?: boolean
+  orchOn: boolean
+  orchBusy: boolean
+  toggleOrchestration: (enabled: boolean) => void
+}) {
   const { t } = useTranslation()
   const [services, setService] = useServicesVisibility()
   const rows: { key: keyof ServicesVisibility; label: string; caption: string }[] = [
@@ -1392,7 +1406,41 @@ function ServicesCard({ reduce, onSaved, disabled = false }: { reduce: boolean; 
             }}
           />
         ))}
+        <div className="py-3">
+          <SwitchRow
+            label={t('settings.services.labs')}
+            caption={t('settings.services.labsCaption')}
+            checked={services.labs}
+            disabled={disabled}
+            onCheckedChange={(v) => {
+              setService('labs', v)
+              onSaved()
+            }}
+          />
+        </div>
       </div>
+
+      {services.labs && (
+        <div className="mt-4 space-y-3 border-t border-border pt-4">
+          <div className="rounded-xl bg-elevated px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-sm font-medium text-text-primary">{t('settings.admin.orchestration')}</span>
+                <p className="text-caption text-text-muted">{t('settings.services.orchestrationHint')}</p>
+              </div>
+              <Switch
+                checked={orchOn}
+                onCheckedChange={(v) => void toggleOrchestration(v)}
+                disabled={orchBusy || disabled}
+                aria-label={t('settings.admin.orchestration')}
+              />
+            </div>
+          </div>
+
+          <ExternalDevicesManager onSaved={onSaved} />
+        </div>
+      )}
+
       <p className="mt-3 rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
         {t('settings.services.note')}
       </p>
@@ -1902,7 +1950,7 @@ interface ExternalDevice {
   hasToken: boolean
 }
 
-function ExternalDevicesManager({ reduce: _reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+function ExternalDevicesManager({ reduce: _reduce, onSaved }: { reduce?: boolean; onSaved: () => void }) {
   const { t, i18n } = useTranslation()
   const { refresh } = useNetPulse()
   const [devices, setDevices] = useState<ExternalDevice[]>([])
@@ -2262,7 +2310,7 @@ export default function Settings() {
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
-  const [adminPanel, setAdminPanel] = useState<'users' | 'labs' | null>(null)
+  const [adminPanel, setAdminPanel] = useState<'users' | null>(null)
 
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
   const [orchOn, setOrchOn] = useState(false)
@@ -2870,7 +2918,7 @@ export default function Settings() {
 
         {/* Servicios visibles (checks) */}
         <div className="lg:col-span-7">
-          <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} />
+          <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} orchOn={orchOn} orchBusy={orchBusy} toggleOrchestration={toggleOrchestration} />
         </div>
 
         {/* ⑤ Notificaciones visuales */}
@@ -2965,41 +3013,7 @@ export default function Settings() {
                   />
                 </button>
 
-                {/* 3. Labs: dispositivos externos / scrapers (issue #154) */}
-                <button
-                  type="button"
-                  aria-expanded={adminPanel === 'labs'}
-                  onClick={() => setAdminPanel(adminPanel === 'labs' ? null : 'labs')}
-                  className={[
-                    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition-colors',
-                    adminPanel === 'labs'
-                      ? 'border-accent bg-accent-soft text-accent'
-                      : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
-                  ].join(' ')}
-                >
-                  <FlaskConical className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                  <span className="hidden sm:inline">{t('settings.labs.title')}</span>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${adminPanel === 'labs' ? 'rotate-180' : ''}`}
-                    aria-hidden="true"
-                  />
-                </button>
-
-                {/* 4. Orquestación (issue #121): opt-in, oculto por defecto */}
-                <label
-                  className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
-                  title={t('settings.admin.orchestrationDesc')}
-                >
-                  <span className="hidden sm:inline">{t('settings.admin.orchestration')}</span>
-                  <Switch
-                    checked={orchOn}
-                    onCheckedChange={(v) => void toggleOrchestration(v)}
-                    disabled={orchBusy}
-                    aria-label={t('settings.admin.orchestration')}
-                  />
-                </label>
-
-                {/* 4. Modo demo a la derecha */}
+                {/* 3. Modo demo a la derecha */}
                 <div className="ml-auto">
                   <DemoCard onSaved={notify} />
                 </div>
@@ -3008,11 +3022,6 @@ export default function Settings() {
               {adminPanel === 'users' && (
                 <div className="mt-4 border-t border-border pt-4">
                   <UsersManager reduce={reduce} onSaved={notify} />
-                </div>
-              )}
-              {adminPanel === 'labs' && (
-                <div className="mt-4 border-t border-border pt-4">
-                  <ExternalDevicesManager reduce={reduce} onSaved={notify} />
                 </div>
               )}
             </div>

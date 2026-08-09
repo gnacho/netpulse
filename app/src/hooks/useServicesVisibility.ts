@@ -9,10 +9,11 @@ export interface ServicesVisibility {
   adguard: boolean
   wireguard: boolean
   openvpn: boolean
+  labs: boolean
 }
 
 const KEY = 'netpulse-services'
-const DEFAULTS: ServicesVisibility = { adguard: true, wireguard: true, openvpn: false }
+const DEFAULTS: ServicesVisibility = { adguard: true, wireguard: true, openvpn: false, labs: false }
 
 export function getServicesVisibility(): ServicesVisibility {
   try {

@@ -887,6 +887,9 @@
       "adguardCaption": "DNS filtrado en el gateway",
       "wireguardCaption": "Túneles VPN WireGuard",
       "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
+      "labs": "Labs (aplicaciones experimentales)",
+      "labsCaption": "Activa funcionalidades en desarrollo: orquestación, scrapers y más",
+      "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
       "note": "Solo se muestran las tarjetas marcadas. Más servicios próximamente."
     },
     "session": {

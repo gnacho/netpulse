@@ -887,6 +887,9 @@
       "adguardCaption": "Filtered DNS on the gateway",
       "wireguardCaption": "WireGuard VPN tunnels",
       "openvpnCaption": "OpenVPN tunnels (coming soon)",
+      "labs": "Labs (experimental features)",
+      "labsCaption": "Enable features in development: orchestration, scrapers, and more",
+      "orchestrationHint": "Manage routers from the UI (AdGuard, guest Wi-Fi, DDNS…)",
       "note": "Only checked cards are shown. More services coming soon."
     },
     "session": {
