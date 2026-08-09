@@ -925,7 +925,15 @@
     "adguard": {
       "enable": "Enable AdGuard Home",
       "port": "Port",
-      "upstream": "Upstream DNS"
+      "upstream": "Upstream DNS",
+      "managedByFirmware": "This router ships a vendor AdGuard Home (GL.iNet). NetPulse won't manage it to avoid breaking its UI: configure it from the router's own interface.",
+      "methodLabel": "Detected method",
+      "method": {
+        "apk": "Package (apk)",
+        "opkg": "Package (opkg)",
+        "none": "Already installed",
+        "binary": "Official binary (GitHub)"
+      }
     }
   }
 }

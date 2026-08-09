@@ -26,6 +26,10 @@ type Plan struct {
 	CreatedAt int64              `json:"createdAt"`
 	AppliedAt *int64             `json:"appliedAt,omitempty"`
 	Result    *ApplyResult       `json:"result,omitempty"`
+	// Method NO se persiste: es metadato de la respuesta del POST /api/plans
+	// que indica el escenario detectado (apk|opkg|none|binary) para que el
+	// frontend lo muestre. Vacío en GET /api/plans/{id}.
+	Method string `json:"method,omitempty"`
 }
 
 // ApplyResult es lo que el agente reporta tras ejecutar el plan.

@@ -41,13 +41,15 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 		// El módulo AdGuard ejecuta un probe SSH (Fase 17.1) y aborta con
 		// managed_by_firmware si el router trae un fork de fabricante.
 		diff := body.Diff
+		var method string
 		if len(diff) == 0 && len(body.Desired) > 0 {
-			computed, err := s.computeModuleDiff(body.Resource, body.RouterID, body.Desired)
+			computed, m, err := s.computeModuleDiff(body.Resource, body.RouterID, body.Desired)
 			if err != nil {
 				s.writeModuleErr(w, err)
 				return
 			}
 			diff = computed
+			method = m
 		}
 		user := auth.UserFromContext(r.Context())
 		username := ""
@@ -59,6 +61,7 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			writeError(w, http.StatusInternalServerError, "plan_error")
 			return
 		}
+		plan.Method = method // metadato no persistido (escenario detectado)
 		writeJSON(w, http.StatusCreated, plan)
 	})))
 
@@ -159,29 +162,35 @@ var (
 )
 
 // computeModuleDiff despacha al módulo correcto, ejecutando el probe SSH si
-// el módulo lo requiere (AdGuard). Devuelve errores sentinelas para que el
-// handler los mapee a códigos HTTP adecuados (422 managed_by_firmware, etc.).
+// el módulo lo requiere (AdGuard). Devuelve las Ops, el método detectado
+// (apk|opkg|none|binary, para mostrarlo en el plan) y errores sentinelas
+// para que el handler los mapee a códigos HTTP adecuados (422
+// managed_by_firmware, etc.).
 //
 // s.pool es httpapi.SSHRunner; como orchestr.CommandRunner tiene la misma
 // firma (Run(host, cmd, timeout)), Go lo acepta por satisfacción estructural.
-func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMessage) ([]executor.Op, error) {
+func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMessage) ([]executor.Op, string, error) {
 	switch resource {
 	case "adguard":
 		var d orchestr.AdGuardDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
-			return nil, fmt.Errorf("%w: %v", errInvalidDesired, err)
+			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
 		}
 		host := s.hostOfRouter(routerID)
 		if host == "" {
-			return nil, errRouterNotFound
+			return nil, "", errRouterNotFound
 		}
 		sc, err := orchestr.DetectAdGuard(s.pool, host)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", errProbeFailed, err)
+			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
 		}
-		return orchestr.AdGuardOps(d, sc)
+		ops, err := orchestr.AdGuardOps(d, sc)
+		if err != nil {
+			return nil, "", err
+		}
+		return ops, sc.InstallMethod(), nil
 	default:
-		return nil, fmt.Errorf("%w: %s", errUnknownModule, resource)
+		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
 	}
 }
 
