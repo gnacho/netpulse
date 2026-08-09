@@ -918,6 +918,7 @@
     "title": "Orchestration",
     "subtitle": "Configure network services declaratively. Every change goes through a reviewable plan before applying.",
     "router": "Router",
+    "gateway": "Gateway",
     "generatePlan": "Generate plan",
     "plan": "Plan",
     "apply": "Apply",
@@ -926,6 +927,8 @@
     "failed": "Failed",
     "adguard": {
       "enable": "Enable AdGuard Home",
+      "allowNonGateway": "Allow AdGuard on non-gateway routers",
+      "nonGatewayWarning": "AdGuard only filters DNS for the whole network from the gateway. Elsewhere it would only cover that router's clients, and deploying there requires enough free RAM and a gateway that does not already run AdGuard.",
       "port": "Port",
       "upstream": "Upstream DNS",
       "managedByFirmware": "This router ships a vendor AdGuard Home (GL.iNet). NetPulse won't manage it to avoid breaking its UI: configure it from the router's own interface.",
