@@ -110,7 +110,7 @@ function TooltipCard({
   return (
     <div
       className={cn(
-        'pointer-events-none absolute z-20 w-60 -translate-x-1/2 rounded-xl border border-border-strong bg-elevated p-3 shadow-lg',
+        'pointer-events-none absolute z-20 w-72 -translate-x-1/2 rounded-xl border border-border-strong bg-elevated p-3 shadow-lg',
         tip.below ? 'translate-y-[14px]' : '-translate-y-[calc(100%+14px)]',
       )}
       style={{ left: tip.left, top: tip.top }}
@@ -291,15 +291,21 @@ function ChipTooltip({
       <div className="mt-0.5 font-mono text-caption text-text-muted">
         {d.manufacturer} · {d.mac}
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        <MiniStat label="IP" value={d.ip} />
-        <MiniStat
-          label={chip.wired ? t('topology.port') : t('topology.signal')}
-          value={chip.wired ? (d.port ?? '—') : `${d.signalDbm ?? '—'} dBm`}
-          hot={!chip.wired && chip.weak}
-        />
-        <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
-        <MiniStat label={t('topology.connection')} value={chip.wired ? 'Ethernet' : 'Wi-Fi'} />
+      <div className="mt-2 space-y-1.5">
+        {/* IP a ancho completo: no se trunca (issue #149) */}
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-canvas/60 px-2 py-1.5">
+          <span className="text-caption uppercase tracking-[0.06em] text-text-muted">IP</span>
+          <span className="font-mono text-mono-sm text-text-primary">{d.ip || '—'}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <MiniStat
+            label={chip.wired ? t('topology.port') : t('topology.signal')}
+            value={chip.wired ? (d.port ?? '—') : `${d.signalDbm ?? '—'} dBm`}
+            hot={!chip.wired && chip.weak}
+          />
+          <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
+          <MiniStat label={t('topology.connection')} value={chip.wired ? 'Ethernet' : 'Wi-Fi'} />
+        </div>
       </div>
       {d.lldp && (
         <div className="mt-2 text-caption font-semibold text-accent">
