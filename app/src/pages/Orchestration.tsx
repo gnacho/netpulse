@@ -118,11 +118,11 @@ export default function Orchestration() {
         }),
       })
       if (!res.ok) {
-        // Parsear el envelope de error de writeError ({code, message}).
+        // Parsear el envelope de error de writeError ({error, message}).
         let code = '', message = ''
         try {
           const body = await res.json()
-          code = body.code || ''
+          code = body.error || body.code || ''
           message = body.message || ''
         } catch {
           message = await res.text().catch(() => res.statusText)
