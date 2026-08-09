@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { Fragment, useEffect, useState } from 'react'
-import { ArrowDown, ArrowUp, Gauge, MonitorSmartphone } from 'lucide-react'
+import { Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { healthLabel } from '@/i18n'
 import { CountUp } from '@/components/CountUp'
@@ -137,19 +137,15 @@ export function HeroStrip() {
           <span className="text-caption text-text-muted">{t('common.healthCaption')}</span>
         </div>
 
-        {/* Quick stats WAN: columna desktop / grid 2×2 móvil */}
+        {/* Quick stats WAN: solo latencia (el tráfico down/up vive en
+            WanTraffic, evitando la duplicación visual reportada en #108).
+            En móvil añadimos devices para aprovechar el grid 2×2. */}
         <div className="grid w-full grid-cols-2 gap-4 md:w-auto md:grid-cols-1 md:gap-3">
-          <MiniStat icon={ArrowDown} label={t('home.download')} colorClass="text-accent" index={0}>
-            ↓ <CountUp value={wan.downMbps} decimals={1} nonce={refreshKey} /> Mbps
-          </MiniStat>
-          <MiniStat icon={ArrowUp} label={t('home.upload')} colorClass="text-tunnel" index={1}>
-            ↑ <CountUp value={wan.upMbps} decimals={1} nonce={refreshKey} /> Mbps
-          </MiniStat>
-          <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={2}>
+          <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
             <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
           </MiniStat>
           <div className="md:hidden">
-            <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={3}>
+            <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
               <CountUp value={deviceTotals.total} nonce={refreshKey} />
             </MiniStat>
           </div>
