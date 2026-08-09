@@ -74,7 +74,7 @@ func makeRearmTestServer(t *testing.T, pool *fakeSSH, pollWait time.Duration) *r
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
 		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
-		"DEMO_MODE": "1", "DATA_DIR": dataDir, "NODE_ENV": "test",
+		"DEMO_MODE": "0", "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
 		t.Fatalf("config: %v", err)

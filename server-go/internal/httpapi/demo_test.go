@@ -35,7 +35,7 @@ func TestDemoEnable401SinSesion(t *testing.T) {
 }
 
 func TestDemoEnable409CuandoYaDemo(t *testing.T) {
-	ts := makeTestServer(t) // DEMO_MODE=1
+	ts := makeDemoTestServer(t) // DEMO_MODE=1
 	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
 	res := do(t, "POST", ts.URL, "/api/demo/enable", adminCookie)
 	if res.StatusCode != http.StatusConflict {

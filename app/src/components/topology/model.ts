@@ -128,10 +128,13 @@ export interface TopologyInput {
   vm?: number
 }
 
-/** Chip "+N" de un anillo desbordado (posición ya calculada, geometría local). */
+/** Chip "+N" de un anillo desbordado (posición ya calculada, geometría local).
+ *  `devices` = clientes ocultos del anillo (los que el "+N" resume), para que
+ *  el chip sea interactivo y los liste (issue #117). */
 export interface RingOverflowChip {
   routerId: string
   count: number
+  devices: Device[]
   x: number
   y: number
 }
@@ -956,7 +959,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const radii = ringRadii.get(routerId)
     const isGw = routerId === gatewayNode?.id
     const r = radii?.[radii.length - 1] ?? (isGw ? GATEWAY_RINGS : AP_RINGS)[(isGw ? GATEWAY_RINGS : AP_RINGS).length - 1].r
-    ringOverflowChips.push({ routerId, count, ...pos(node.x, node.y, isGw ? 60 : 250, r) })
+    // Clientes ocultos = miembros del anillo que exceden el aforo visible
+    // (issue #117: el chip "+N" los lista al hacer clic, como peers-overflow).
+    const hidden = online.filter((d) => hubOf(d) === routerId && !isVisibleInRing(d))
+    ringOverflowChips.push({ routerId, count, devices: hidden, ...pos(node.x, node.y, isGw ? 60 : 250, r) })
   }
 
   // -- peers WireGuard (arriba; túnel trazado vía Internet) -------------------
