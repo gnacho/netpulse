@@ -282,6 +282,26 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 		}
 		ops := orchestr.GuestWiFiOps(d, sc)
 		return ops, guestWiFiMethod(d.Enabled), nil
+	case "ddns":
+		var d orchestr.DdnsDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
+		}
+		host := s.hostOfRouter(routerID)
+		if host == "" {
+			return nil, "", errRouterNotFound
+		}
+		// Gateway-only por defecto (patrón #120/#17.2).
+		isGateway, _ := s.gatewayInfo(routerID)
+		if !isGateway && !d.AllowNonGateway {
+			return nil, "", errGatewayOnly
+		}
+		sc, err := orchestr.DetectDdns(s.pool, host)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
+		}
+		ops := orchestr.DdnsOps(d, sc)
+		return ops, guestWiFiMethod(d.Enabled), nil
 	default:
 		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
 	}
@@ -369,6 +389,13 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 		return json.Marshal(d)
 	case "guestwifi":
 		var d orchestr.GuestWiFiDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, fmt.Errorf("desired inválido: %w", err)
+		}
+		d.Enabled = !d.Enabled
+		return json.Marshal(d)
+	case "ddns":
+		var d orchestr.DdnsDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
 			return nil, fmt.Errorf("desired inválido: %w", err)
 		}
