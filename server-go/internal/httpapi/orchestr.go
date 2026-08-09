@@ -205,10 +205,13 @@ func bearerToken(r *http.Request) string {
 // Errores sentinelas del cálculo de diff (mapeados a códigos HTTP por
 // writeModuleErr).
 var (
-	errRouterNotFound = errors.New("router_not_found")
-	errUnknownModule  = errors.New("unknown_module")
-	errProbeFailed    = errors.New("probe_failed")
-	errInvalidDesired = errors.New("invalid_desired")
+	errRouterNotFound           = errors.New("router_not_found")
+	errUnknownModule            = errors.New("unknown_module")
+	errProbeFailed              = errors.New("probe_failed")
+	errInvalidDesired           = errors.New("invalid_desired")
+	errAdGuardGatewayOnly       = errors.New("adguard_gateway_only")
+	errAdGuardAlreadyOnGateway  = errors.New("adguard_already_on_gateway")
+	errAdGuardInsufficientRAM   = errors.New("adguard_insufficient_ram")
 )
 
 // computeModuleDiff despacha al módulo correcto, ejecutando el probe SSH si
@@ -230,9 +233,27 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 		if host == "" {
 			return nil, "", errRouterNotFound
 		}
+		// AdGuard filtra el DNS de la red → por defecto solo el gateway
+		// (#120). El resto de checks aplican a un target no-gateway.
+		isGateway, gwHost := s.gatewayInfo(routerID)
+		if !isGateway && !d.AllowNonGateway {
+			return nil, "", errAdGuardGatewayOnly
+		}
 		sc, err := orchestr.DetectAdGuard(s.pool, host)
 		if err != nil {
 			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
+		}
+		// Solo se despliega (enabled) en no-gateway con RAM suficiente.
+		if !isGateway && d.Enabled && sc.AvailableRAM > 0 && sc.AvailableRAM < 150 {
+			return nil, "", errAdGuardInsufficientRAM
+		}
+		// Si el gateway ya tiene AdGuard (fork de fabricante o binario
+		// nuestro), desplegar en otro router es redundante.
+		if !isGateway && gwHost != "" && gwHost != host {
+			if gwSc, err := orchestr.DetectAdGuard(s.pool, gwHost); err == nil &&
+				(gwSc.ManagedByFirmware || gwSc.BinaryPresent) {
+				return nil, "", errAdGuardAlreadyOnGateway
+			}
 		}
 		ops, err := orchestr.AdGuardOps(d, sc)
 		if err != nil {
@@ -242,6 +263,21 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 	default:
 		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
 	}
+}
+
+// gatewayInfo devuelve (esGateway, gwHost). esGateway: si routerID ES el
+// gateway. gwHost: host del gateway (vacío si no hay gateway configurado).
+func (s *server) gatewayInfo(routerID string) (bool, string) {
+	gwHost := ""
+	for _, r := range routerstore.ListRouters(s.db.DB) {
+		if r.IsGateway {
+			gwHost = r.Host
+			if r.ID == routerID {
+				return true, r.Host
+			}
+		}
+	}
+	return false, gwHost
 }
 
 // hostOfRouter busca el host SSH de un router por ID (scan de ListRouters).
@@ -264,6 +300,15 @@ func (s *server) writeModuleErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, errRouterNotFound):
 		writeError(w, http.StatusNotFound, "router_not_found",
 			"Router no encontrado o sin SSH (agent-only).")
+	case errors.Is(err, errAdGuardGatewayOnly):
+		writeError(w, http.StatusUnprocessableEntity, "adguard_gateway_only",
+			"AdGuard filtra el DNS de la red: por defecto solo se despliega en el gateway. Activa 'permitir en otros routers' en el módulo AdGuard para usar un no-gateway.")
+	case errors.Is(err, errAdGuardAlreadyOnGateway):
+		writeError(w, http.StatusUnprocessableEntity, "adguard_already_on_gateway",
+			"El gateway ya tiene AdGuard Home activo (fork de fabricante o binario instalado). Desplegarlo en otro router es redundante.")
+	case errors.Is(err, errAdGuardInsufficientRAM):
+		writeError(w, http.StatusUnprocessableEntity, "adguard_insufficient_ram",
+			"El router no tiene suficiente RAM libre (<150 MB) para AdGuard Home y sus listas de filtros.")
 	case errors.Is(err, errUnknownModule):
 		writeError(w, http.StatusBadRequest, "unknown_module", err.Error())
 	case errors.Is(err, errInvalidDesired):
