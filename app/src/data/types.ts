@@ -309,6 +309,8 @@ export interface OverviewBundle {
   topology?: TopoSemantics
   /** Disponibilidad de DAWN (roaming/band-steering); ausente = no mostrar /roaming. */
   dawn?: { available: boolean }
+  /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
+  orchestration?: boolean
   ts: number
 }
 

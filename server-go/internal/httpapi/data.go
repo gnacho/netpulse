@@ -114,6 +114,9 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	engine := s.adapter.AlertsEngine()
 	out.Alerts = engine.List()
 	out.UnreadAlerts = engine.UnreadCount()
+	// Menú de orquestación: opt-in por admin (#121). Se expone aquí (no en el
+	// adapter) porque el kv vive en el server, no en el poller.
+	out.Orchestration = kvGetBool(s.db.DB, orchestrationKey)
 	writeJSON(w, http.StatusOK, &out)
 }
 

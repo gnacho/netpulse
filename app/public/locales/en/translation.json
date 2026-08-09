@@ -644,7 +644,9 @@
   },
   "settings": {
     "admin": {
-      "title": "Administration"
+      "title": "Administration",
+      "orchestration": "Network orchestration",
+      "orchestrationDesc": "Shows the orchestration menu (apply and roll back changes on routers). It is a write surface, so it is off until you enable it."
     },
     "adoption": {
       "title": "Agent adoption",
