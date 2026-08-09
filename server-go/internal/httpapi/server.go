@@ -237,6 +237,9 @@ func NewHandler(d Deps) http.Handler {
 	// --- Ajustes globales en kv (issue #121: orchestration opt-in) ---
 	s.registerSettingsRoutes(mux)
 
+	// --- Overrides manuales de topología (issue #142; solo admin) ---
+	s.registerTopologyOverrideRoutes(mux)
+
 	// --- SSE ---
 	mux.HandleFunc("GET /api/stream", s.hub.HandleStream)
 

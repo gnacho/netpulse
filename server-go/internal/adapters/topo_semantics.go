@@ -174,7 +174,16 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 	}
 	// el cable del propio hub (chip con hijos; el hipervisor entre ellos)
 	for _, hubID := range deviceHubOrder {
-		wiredLink(hubOf(deviceByID[hubID]), deviceByID[hubID])
+		hub := deviceByID[hubID]
+		h := hubOf(hub)
+		// Si el hub cuelga de un distnode inferred|managed, su cable ya lo
+		// genera el bucle de hijos de distnodes (más abajo): no duplicar.
+		// (Caso issue #142: host con CTs anidados por override que cuelga de
+		// un distnode inferred — el host es device-hub Y cliente del distnode.)
+		if dn, ok := distByID[h]; ok && (dn.Kind == "inferred" || dn.Kind == "managed") {
+			continue
+		}
+		wiredLink(h, hub)
 	}
 	// hijos cableados de distnodes (abanico alrededor del círculo)
 	for _, rn := range routerNodes {

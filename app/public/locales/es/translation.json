@@ -601,6 +601,7 @@
     "tunnel": "Túnel",
     "weakSignal": "Señal débil",
     "zoomControls": "Controles de zoom del mapa",
+    "tagDevices": "Etiquetar dispositivos",
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
     "dawn": {
@@ -822,6 +823,33 @@
       "editTitle": "Editar {{id}}",
       "save": "Guardar",
       "saving": "Guardando…"
+    },
+    "overrides": {
+      "title": "Topología — etiquetado manual",
+      "caption": "Capa manual sobre el autodiscover: marca un equipo como hipervisor o switch, o asigna un dispositivo a un host. Los cambios se aplican en el mapa al refrescar.",
+      "hint": "El autodiscover (FDB/LLDP) no siempre sabe qué host real hay tras un puerto compartido. Etiquetar a mano lo aclara: un hipervisor agrupa sus CTs bajo él, un switch gestiona su puerto y «asignar» cuelga un dispositivo de un host.",
+      "empty": "Sin overrides todavía. Añade el primero con el botón «Añadir».",
+      "add": "Añadir",
+      "adding": "Añadiendo…",
+      "addDevice": "Etiquetar otro equipo",
+      "mac": "Dirección MAC",
+      "name": "Nombre (opcional)",
+      "kind": "Tipo",
+      "kindHypervisor": "Hipervisor",
+      "kindSwitch": "Switch",
+      "kindAttach": "Asignar",
+      "kind": {
+        "hypervisor": "Hipervisor",
+        "switch": "Switch",
+        "attach": "Asignar"
+      },
+      "parent": "MAC del host del que cuelga",
+      "enabled": "Activado",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "errorGeneric": "No se pudo guardar el override."
     },
     "saved": "Preferencias guardadas",
     "services": {

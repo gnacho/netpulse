@@ -48,8 +48,9 @@ var hypervisorOUI = []string{
 }
 
 func isHypervisorMAC(mac string) bool {
+	upper := strings.ToUpper(mac)
 	for _, p := range hypervisorOUI {
-		if strings.HasPrefix(mac, p) {
+		if strings.HasPrefix(upper, p) {
 			return true
 		}
 	}

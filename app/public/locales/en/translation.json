@@ -601,6 +601,7 @@
     "tunnel": "Tunnel",
     "weakSignal": "Weak signal",
     "zoomControls": "Map zoom controls",
+    "tagDevices": "Tag devices",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "dawn": {
@@ -822,6 +823,33 @@
       "editTitle": "Edit {{id}}",
       "save": "Save",
       "saving": "Saving…"
+    },
+    "overrides": {
+      "title": "Topology — manual tagging",
+      "caption": "Manual layer on top of auto-discovery: tag a device as hypervisor or switch, or attach a device to a host. Changes show up on the map after refresh.",
+      "hint": "Auto-discovery (FDB/LLDP) can't always tell which real host sits behind a shared port. Tagging by hand clears it up: a hypervisor nests its CTs under it, a switch manages its port, and \"attach\" hangs a device from a host.",
+      "empty": "No overrides yet. Add the first one with the \"Add\" button.",
+      "add": "Add",
+      "adding": "Adding…",
+      "addDevice": "Tag another device",
+      "mac": "MAC address",
+      "name": "Name (optional)",
+      "kind": "Type",
+      "kindHypervisor": "Hypervisor",
+      "kindSwitch": "Switch",
+      "kindAttach": "Attach",
+      "kind": {
+        "hypervisor": "Hypervisor",
+        "switch": "Switch",
+        "attach": "Attach"
+      },
+      "parent": "Host MAC to hang from",
+      "enabled": "Enabled",
+      "edit": "Edit",
+      "delete": "Delete",
+      "save": "Save",
+      "saving": "Saving…",
+      "errorGeneric": "Could not save the override."
     },
     "saved": "Preferences saved",
     "services": {

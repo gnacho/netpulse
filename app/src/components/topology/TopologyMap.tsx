@@ -368,9 +368,15 @@ interface TopologyMapProps {
   flow: boolean
   hoverLink: string | null
   onHoverLink: (id: string | null) => void
+  /**
+   * Modo etiquetado (issue #142 Fase B): si se pasa, el clic en un chip NO
+   * navega a /devices sino que notifica el dispositivo para abrir el panel
+   * de overrides manuales. Ausente → comportamiento normal.
+   */
+  onTagDevice?: (device: Device) => void
 }
 
-export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHoverLink }: TopologyMapProps) {
+export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHoverLink, onTagDevice }: TopologyMapProps) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
@@ -1067,6 +1073,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             onHover={(e) => handleNodeHover(chipTip(chip), e)}
             onLeave={closeHover}
             onClick={(e) => {
+              if (onTagDevice) {
+                nodeClick(e, chipTip(chip))
+                onTagDevice(chip.device)
+                return
+              }
               if (chip.isCt) {
                 nodeClick(e, chipTip(chip))
                 return

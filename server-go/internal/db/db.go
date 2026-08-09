@@ -172,6 +172,25 @@ CREATE TABLE IF NOT EXISTS roam_events (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_roam_events_dedup ON roam_events(content_hash);
 CREATE INDEX IF NOT EXISTS idx_roam_events_ts ON roam_events(ts_ms DESC);
 CREATE INDEX IF NOT EXISTS idx_roam_events_router_ts ON roam_events(router_id, ts_ms DESC);
+
+-- Overrides manuales de topología (issue #142, Fase A): capa 2 sobre el
+-- autodiscover. El builder los aplica DESPUÉS de inferTopology.
+--   kind 'hypervisor' (target MAC): el dispositivo es un hipervisor; los CTs
+--     con OUI de hipervisor del mismo puerto se anidan bajo él.
+--   kind 'switch' (target MAC): el dispositivo es un switch manual (sin LLDP);
+--     el puerto del target pasa a ser nodo managed con esa MAC.
+--   kind 'attach' (target MAC, parent MAC): el target cuelga del parent.
+CREATE TABLE IF NOT EXISTS topology_overrides (
+  id         TEXT PRIMARY KEY,
+  mac        TEXT NOT NULL,            -- target normalizado (minúsculas, '-')
+  kind       TEXT NOT NULL,            -- 'hypervisor' | 'switch' | 'attach'
+  name       TEXT,                     -- nombre personalizado (opcional)
+  parent     TEXT,                     -- kind='attach': MAC del padre
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_topo_overrides_mac ON topology_overrides(mac);
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.

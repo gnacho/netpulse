@@ -1330,6 +1330,11 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	}
 	devices := l.buildDevices(polled)
 	devices, distNodes := inferTopology(polled, devices)
+	// Capa 2 manual (issue #142): overrides de topología tras el autodiscover.
+	// Sin BD (tests/demo) → no-op.
+	if l.db != nil {
+		devices, distNodes = applyTopologyOverrides(devices, distNodes, loadTopologyOverrides(l.db))
+	}
 	// Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
 	for _, d := range devices {
 		if d.Online && d.SignalDbm != nil && *d.SignalDbm < -70 {
