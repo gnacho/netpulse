@@ -254,11 +254,13 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
 // Gestión de routers (modo live): CRUD contra /api/config/routers
 // ---------------------------------------------------------------------------
 
+type RouterType = 'glinet' | 'openwrt' | 'managed-switch' | 'external'
+
 interface ConfigRouter {
   id: string
   name: string | null
   host: string
-  type: 'glinet' | 'openwrt'
+  type: RouterType
   is_gateway: boolean
   agent_only: boolean
 }
@@ -279,7 +281,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [error, setError] = useState<string | null>(null)
   const [host, setHost] = useState('')
   const [name, setName] = useState('')
-  const [type, setType] = useState<'glinet' | 'openwrt'>('openwrt')
+  const [type, setType] = useState<RouterType>('openwrt')
   const [gateway, setGateway] = useState(false)
   const [agentOnly, setAgentOnly] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -287,7 +289,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editing, setEditing] = useState<ConfigRouter | null>(null)
   const [editHost, setEditHost] = useState('')
   const [editName, setEditName] = useState('')
-  const [editType, setEditType] = useState<'glinet' | 'openwrt'>('openwrt')
+  const [editType, setEditType] = useState<RouterType>('openwrt')
   const [editGateway, setEditGateway] = useState(false)
   const [editAgentOnly, setEditAgentOnly] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
@@ -679,9 +681,11 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             options={[
               { value: 'openwrt', label: 'OpenWrt' },
               { value: 'glinet', label: 'GL.iNet' },
+              { value: 'managed-switch', label: t('settings.routers.typeManaged') },
+              { value: 'external', label: t('settings.routers.typeExternal') },
             ]}
             value={type}
-            onChange={(v) => setType(v as 'glinet' | 'openwrt')}
+            onChange={(v) => setType(v as RouterType)}
             ariaLabel={t('settings.routers.type')}
           />
           <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
@@ -744,9 +748,11 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   options={[
                     { value: 'openwrt', label: 'OpenWrt' },
                     { value: 'glinet', label: 'GL.iNet' },
+                    { value: 'managed-switch', label: t('settings.routers.typeManaged') },
+                    { value: 'external', label: t('settings.routers.typeExternal') },
                   ]}
                   value={editType}
-                  onChange={(v) => setEditType(v as 'glinet' | 'openwrt')}
+                  onChange={(v) => setEditType(v as RouterType)}
                   ariaLabel={t('settings.routers.type')}
                 />
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
@@ -1876,6 +1882,371 @@ function AdoptionCard() {
   )
 }
 
+// --- External devices / scrapers (Labs, issue #154) ---
+
+interface ExternalDevice {
+  slug: string
+  host: string
+  type: RouterType
+  lastSeen: number | null
+  version: string
+  fresh: boolean
+  hasToken: boolean
+}
+
+function ExternalDevicesManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
+  const { t, i18n } = useTranslation()
+  const { refresh } = useNetPulse()
+  const [devices, setDevices] = useState<ExternalDevice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  // Add form
+  const [showAdd, setShowAdd] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addHost, setAddHost] = useState('')
+  const [addType, setAddType] = useState<RouterType>('managed-switch')
+  const [submitting, setSubmitting] = useState(false)
+
+  // Token reveal state
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null)
+  const [revealed, setRevealed] = useState<{ slug: string; token: string } | null>(null)
+
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const [rRes, aRes] = await Promise.all([fetch('/api/config/routers'), fetch('/api/agents')])
+      if (!rRes.ok || !aRes.ok) throw new Error(`HTTP ${rRes.status}/${aRes.status}`)
+      const { routers } = (await rRes.json()) as { routers: ConfigRouter[] }
+      const { agents } = (await aRes.json()) as {
+        agents: Array<{ slug: string; lastSeen: number | null; version: string; fresh: boolean }>
+      }
+      const agentMap = new Map(agents.map((a) => [a.slug, a]))
+      const ext: ExternalDevice[] = []
+      for (const r of routers) {
+        if (!r.agent_only) continue
+        const a = agentMap.get(r.id)
+        ext.push({
+          slug: r.id,
+          host: r.host,
+          type: r.type,
+          lastSeen: a?.lastSeen ?? null,
+          version: a?.version ?? '',
+          fresh: a?.fresh ?? false,
+          hasToken: agentMap.has(r.id),
+        })
+      }
+      for (const a of agents) {
+        if (!ext.some((d) => d.slug === a.slug)) {
+          ext.push({
+            slug: a.slug,
+            host: '',
+            type: 'external',
+            lastSeen: a.lastSeen,
+            version: a.version,
+            fresh: a.fresh,
+            hasToken: true,
+          })
+        }
+      }
+      setDevices(ext)
+      setError(null)
+    } catch {
+      setError(t('settings.routers.errorGeneric'))
+    } finally {
+      setLoading(false)
+    }
+  }, [t])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!addHost.trim() || submitting) return
+    const name = addName.trim() || addHost.trim()
+    setSubmitting(true)
+    setError(null)
+    try {
+      const rRes = await fetch('/api/config/routers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, host: addHost.trim(), type: addType, agent_only: true }),
+      })
+      if (rRes.status === 409) {
+        setError(t('settings.routers.errorDuplicate'))
+        setSubmitting(false)
+        return
+      }
+      if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`)
+      const { router } = (await rRes.json()) as { router: { id: string } }
+
+      const aRes = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: router.id }),
+      })
+      if (!aRes.ok) throw new Error(`HTTP ${aRes.status}`)
+      const agent = (await aRes.json()) as { slug: string; token: string; install: string }
+
+      setAddName('')
+      setAddHost('')
+      setAddType('managed-switch')
+      setShowAdd(false)
+      setRevealed({ slug: agent.slug, token: agent.token })
+      await load()
+      refresh()
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('settings.routers.errorGeneric'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const regenerate = async (slug: string) => {
+    setGeneratingFor(slug)
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const agent = (await res.json()) as { slug: string; token: string; install: string }
+      setRevealed({ slug: agent.slug, token: agent.token })
+      await load()
+      onSaved()
+    } catch {
+      setError(t('settings.routers.errorGeneric'))
+    } finally {
+      setGeneratingFor(null)
+    }
+  }
+
+  const remove = async (slug: string) => {
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+      if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`)
+      setConfirmDelete(null)
+      await load()
+      refresh()
+      onSaved()
+    } catch {
+      setError(t('settings.routers.errorGeneric'))
+    }
+  }
+
+  const copy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(label)
+      window.setTimeout(() => setCopied(null), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  const fmtLastSeen = (ts: number | null): string => {
+    if (!ts) return '\u2014'
+    const diff = Date.now() - ts * 1000
+    if (diff < 60_000) return t('settings.labs.justNow')
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
+    return new Date(ts * 1000).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' })
+  }
+
+  if (loading) return <p className="py-3 text-caption text-text-muted">{t('settings.labs.loading')}</p>
+
+  return (
+    <div className="space-y-4">
+      {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">{error}</p>}
+
+      {/* New token reveal */}
+      {revealed && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-semibold text-text-primary">
+              {t('settings.labs.tokenFor', { slug: revealed.slug })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setRevealed(null)}
+              className="rounded-lg p-1 text-text-muted hover:text-text-primary"
+              aria-label={t('settings.labs.dismiss')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mb-2 text-caption text-amber-600 dark:text-amber-400">{t('settings.labs.tokenOnce')}</p>
+          <div className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs break-all text-text-primary">
+            <span className="flex-1 select-all">{revealed.token}</span>
+            <button
+              type="button"
+              onClick={() => copy(revealed.token, 'token')}
+              className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-hover hover:text-accent"
+              aria-label={t('settings.labs.copyToken')}
+            >
+              {copied === 'token' ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          <p className="mt-2 text-caption text-text-muted">{t('settings.labs.ingestHint')}</p>
+          <pre className="mt-1 overflow-x-auto rounded-lg bg-elevated p-3 text-[11px] text-text-secondary">
+            {`curl -X POST http://${window.location.hostname}:3000/api/ingest/agent \\
+  -H 'Authorization: Bearer ${revealed.token}' \\
+  -H 'Content-Type: application/json' \\
+  -d '{...}'`}
+          </pre>
+        </div>
+      )}
+
+      {/* Device list */}
+      {devices.length === 0 ? (
+        <p className="py-2 text-caption text-text-muted">{t('settings.labs.empty')}</p>
+      ) : (
+        <div className="space-y-2">
+          {devices.map((d) => (
+            <div
+              key={d.slug}
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-elevated px-4 py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-medium text-text-primary">{d.slug}</span>
+                  {d.fresh && (
+                    <span className="inline-flex h-2 w-2 rounded-full bg-ok" title={t('settings.labs.fresh')} />
+                  )}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
+                  <span>{d.host || '\u2014'}</span>
+                  <span className="inline-flex rounded-full bg-elevated-alt px-2 py-0.5 text-[10px] font-medium text-text-secondary">
+                    {d.type}
+                  </span>
+                  <span>{t('settings.labs.lastSeen')}: {fmtLastSeen(d.lastSeen)}</span>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {d.hasToken ? (
+                  <button
+                    type="button"
+                    disabled={generatingFor === d.slug}
+                    onClick={() => regenerate(d.slug)}
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-accent disabled:opacity-50"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    {generatingFor === d.slug ? '\u2026' : t('settings.labs.rotateToken')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => regenerate(d.slug)}
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-amber-600 transition-colors hover:bg-amber-500/10"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    {t('settings.labs.noToken')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(d.slug)}
+                  className="rounded-lg p-1.5 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                  aria-label={`${t('settings.routers.delete')} ${d.slug}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add button */}
+      {showAdd ? (
+        <form onSubmit={create} className="space-y-3 rounded-xl border border-border bg-elevated p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              type="text"
+              className="h-9 rounded-lg border border-border bg-canvas px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+              placeholder={t('settings.labs.namePlaceholder')}
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              autoFocus
+            />
+            <input
+              type="text"
+              className="h-9 rounded-lg border border-border bg-canvas px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+              placeholder={t('settings.routers.host')}
+              value={addHost}
+              onChange={(e) => setAddHost(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <SegmentedControl
+              options={[
+                { value: 'managed-switch', label: t('settings.routers.typeManaged') },
+                { value: 'external', label: t('settings.routers.typeExternal') },
+              ]}
+              value={addType}
+              onChange={(v) => setAddType(v as RouterType)}
+              ariaLabel={t('settings.routers.type')}
+            />
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdd(false)}
+                className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-text-muted hover:text-text-primary"
+              >
+                {t('settings.labs.cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !addHost.trim()}
+                className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-canvas transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                <Plus className="h-4 w-4" />
+                {submitting ? t('settings.routers.adding') : t('settings.labs.addDevice')}
+              </button>
+            </div>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-elevated/50 py-3 text-[13px] font-medium text-text-muted transition-colors hover:border-accent/50 hover:text-accent"
+        >
+          <Plus className="h-4 w-4" />
+          {t('settings.labs.addDevice')}
+        </button>
+      )}
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <AlertDialog open onOpenChange={() => setConfirmDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('settings.labs.deleteTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('settings.labs.deleteDesc', { slug: confirmDelete })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('settings.labs.cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => remove(confirmDelete)} className="bg-danger text-white hover:bg-danger/90">
+                {t('settings.routers.delete')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
@@ -1883,7 +2254,7 @@ export default function Settings() {
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
-  const [adminPanel, setAdminPanel] = useState<'users' | null>(null)
+  const [adminPanel, setAdminPanel] = useState<'users' | 'labs' | null>(null)
 
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
   const [orchOn, setOrchOn] = useState(false)
@@ -2625,7 +2996,27 @@ export default function Settings() {
                   />
                 </button>
 
-                {/* 3. Orquestación (issue #121): opt-in, oculto por defecto */}
+                {/* 3. Labs: dispositivos externos / scrapers (issue #154) */}
+                <button
+                  type="button"
+                  aria-expanded={adminPanel === 'labs'}
+                  onClick={() => setAdminPanel(adminPanel === 'labs' ? null : 'labs')}
+                  className={[
+                    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition-colors',
+                    adminPanel === 'labs'
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
+                  ].join(' ')}
+                >
+                  <FlaskConical className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span className="hidden sm:inline">{t('settings.labs.title')}</span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${adminPanel === 'labs' ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {/* 4. Orquestación (issue #121): opt-in, oculto por defecto */}
                 <label
                   className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
                   title={t('settings.admin.orchestrationDesc')}
@@ -2648,6 +3039,11 @@ export default function Settings() {
               {adminPanel === 'users' && (
                 <div className="mt-4 border-t border-border pt-4">
                   <UsersManager reduce={reduce} onSaved={notify} />
+                </div>
+              )}
+              {adminPanel === 'labs' && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <ExternalDevicesManager reduce={reduce} onSaved={notify} />
                 </div>
               )}
             </div>
