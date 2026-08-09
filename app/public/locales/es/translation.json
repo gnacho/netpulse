@@ -644,7 +644,9 @@
   },
   "settings": {
     "admin": {
-      "title": "Administración"
+      "title": "Administración",
+      "orchestration": "Orquestación de red",
+      "orchestrationDesc": "Muestra el menú de orquestación (aplicar y revertir cambios en routers). Es una superficie de escritura; se activa solo si lo quieres."
     },
     "adoption": {
       "title": "Adopción de agentes",

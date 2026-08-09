@@ -174,11 +174,17 @@ function GatewayStatus() {
 
 /** Items de nav visibles según el overview. /roaming solo si hay DAWN. */
 function useVisibleNavItems(): NavItem[] {
-  const { dawn } = useNetPulse()
+  const { dawn, orchestration } = useNetPulse()
   const dawnAvailable = !!dawn?.available
   return useMemo(
-    () => NAV_ITEMS.filter((it) => it.to !== '/roaming' || dawnAvailable),
-    [dawnAvailable],
+    () =>
+      NAV_ITEMS.filter(
+        (it) =>
+          (it.to !== '/roaming' || dawnAvailable) &&
+          // Orquestación: opt-in del admin (#121). Oculto por defecto.
+          (it.to !== '/orchestration' || !!orchestration),
+      ),
+    [dawnAvailable, orchestration],
   )
 }
 

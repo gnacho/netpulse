@@ -277,6 +277,10 @@ type Overview struct {
 	// app muestra la entrada /roaming. Puntero: ausente en snapshots viejos y
 	// cuando ningún router tiene DAWN → nil = no mostrar la página.
 	Dawn *DawnOverview `json:"dawn,omitempty"`
+	// Orchestration: el menú de orquestación (escritura en routers) está
+	// oculto por defecto y solo se muestra si el admin lo activa en Ajustes
+	// (#121). Default false (omitempty).
+	Orchestration bool `json:"orchestration,omitempty"`
 	// VM: versión del view-model (SPEC-65 D65-4). SIEMPRE presente.
 	VM int   `json:"vm"`
 	Ts int64 `json:"ts"` // floor(now/1000) — SEGUNDOS

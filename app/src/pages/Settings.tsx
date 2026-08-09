@@ -1824,11 +1824,42 @@ function AdoptionCard() {
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
-  const { devices, routers, wan, isDemo } = useNetPulse()
+  const { devices, routers, wan, isDemo, refresh: refreshOverview } = useNetPulse()
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
   const [adminPanel, setAdminPanel] = useState<'users' | null>(null)
+
+  // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
+  const [orchOn, setOrchOn] = useState(false)
+  const [orchBusy, setOrchBusy] = useState(false)
+  useEffect(() => {
+    let alive = true
+    void fetch('/api/settings/orchestration')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d) setOrchOn(!!d.enabled)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
+  const toggleOrchestration = useCallback(async (enabled: boolean) => {
+    setOrchBusy(true)
+    try {
+      const res = await fetch('/api/settings/orchestration', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      })
+      if (!res.ok) return
+      setOrchOn(enabled)
+      refreshOverview() // el overview propaga el flag → el nav se actualiza
+    } finally {
+      setOrchBusy(false)
+    }
+  }, [refreshOverview])
 
   // ——— Idioma ('auto' por defecto sigue al navegador; elección explícita persistida) ———
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
@@ -2522,7 +2553,21 @@ export default function Settings() {
                   />
                 </button>
 
-                {/* 3. Modo demo a la derecha */}
+                {/* 3. Orquestación (issue #121): opt-in, oculto por defecto */}
+                <label
+                  className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+                  title={t('settings.admin.orchestrationDesc')}
+                >
+                  <span className="hidden sm:inline">{t('settings.admin.orchestration')}</span>
+                  <Switch
+                    checked={orchOn}
+                    onCheckedChange={(v) => void toggleOrchestration(v)}
+                    disabled={orchBusy}
+                    aria-label={t('settings.admin.orchestration')}
+                  />
+                </label>
+
+                {/* 4. Modo demo a la derecha */}
                 <div className="ml-auto">
                   <DemoCard reduce={reduce} onSaved={notify} />
                 </div>

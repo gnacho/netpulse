@@ -98,6 +98,8 @@ export interface NetPulseData {
   topology?: TopoSemantics
   /** Disponibilidad de DAWN (roaming); ausente = no mostrar /roaming. */
   dawn?: { available: boolean }
+  /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
+  orchestration?: boolean
 }
 
 export interface NetPulseApi extends NetPulseData {
@@ -374,6 +376,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       vm,
       topology: o.topology,
       dawn: o.dawn,
+      orchestration: o.orchestration,
     }))
   }, [])
 

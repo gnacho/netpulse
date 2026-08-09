@@ -234,6 +234,9 @@ func NewHandler(d Deps) http.Handler {
 	// --- Orquestación (Fase 10; solo admin) ---
 	s.registerOrchestrRoutes(mux, d.Orchestr)
 
+	// --- Ajustes globales en kv (issue #121: orchestration opt-in) ---
+	s.registerSettingsRoutes(mux)
+
 	// --- SSE ---
 	mux.HandleFunc("GET /api/stream", s.hub.HandleStream)
 
