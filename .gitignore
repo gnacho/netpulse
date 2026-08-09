@@ -17,6 +17,7 @@ legacy/server-node/.env
 # Binarios compilados
 netpulse-agent*
 server-go/netpulse
+server-go/netpulse-server
 collector/netpulse-collector
 bin/
 
