@@ -224,7 +224,7 @@ function apCoords(n: number, total: number): { x: number; y: number; r: number; 
     label: { x: isLeft ? x - AP_RADIUS - 6 : x + AP_RADIUS + 6, y: y - 6, anchor: isLeft ? 'end' as const : 'start' as const },
   }
 }
-const INTERNET_COORD = { x: 500, y: 68 }
+const INTERNET_COORD = { x: 500, y: 26 }
 const PEER_COORDS = [
   { x: 265, y: 26 },
   { x: 735, y: 26 },
@@ -236,32 +236,50 @@ const WG_PATHS = [
   { d: 'M 272 44 C 330 82, 410 94, 474 80', dur: 3 },
   { d: 'M 728 44 C 670 82, 590 94, 526 80', dur: 3.4 },
 ]
-/** Anillos wifi: pocos chips por anillo + radios amplios = sin solape */
+/** Anillos wifi: radios ajustados para caber muchos chips (el resolver de
+ *  colisiones mantiene 0 solapes). Suma de caps = topoGatewayRingCap (60) /
+ *  topoAPRingCap (40) del server — deben coincidir para que GW_RING_VISIBLE
+ *  no corte antes de tiempo. */
 const GATEWAY_RINGS = [
-  { r: 100, cap: 4 },
-  { r: 155, cap: 6 },
+  { r: 92, cap: 8 },
+  { r: 130, cap: 14 },
+  { r: 168, cap: 18 },
+  { r: 200, cap: 20 },
 ]
 const AP_RINGS = [
-  { r: 95, cap: 4 },
-  { r: 145, cap: 6 },
+  { r: 84, cap: 8 },
+  { r: 124, cap: 14 },
+  { r: 162, cap: 18 },
 ]
 /** Abanicos cableados: gateway tiene sector este (switch inferido) y oeste */
 const GW_EAST_FAN: [number, number] = [336, 24] // wrap (a1 < a0)
 const GW_WEST_FAN: [number, number] = [150, 210]
 const AP_WIRED_FAN: [number, number] = [150, 210]
-const DIST_FAN_RADIUS = 140
+const DIST_FAN_RADIUS = 120
 /** distnodes: hasta DIST_FAN_MAX hijos en abanico de 136°; con más, el arco
  *  de radio fijo los amontona (issue #5 bug 2: 8 bocas tras un switch en el
  *  mismo puerto) → anillos concéntricos alrededor del círculo dashed. */
 const DIST_FAN_MAX = 5
 const DIST_RINGS = [
-  { r: 78, cap: 8 },
-  { r: 128, cap: 14 },
+  { r: 70, cap: 8 },
+  { r: 116, cap: 14 },
 ]
-const HUB_FAN_RADIUS = 120
-const ROUTER_FAN_RADIUS = 250
+const HUB_FAN_RADIUS = 100
+/** device-hubs (switch gestionado): con más de HUB_FAN_MAX hijos, el abanico
+ *  fijo de 90° a r=HUB_FAN_RADIUS los apiña (muchos puertos en el mismo
+ *  switch) → anillos concéntricos, igual que los distnodes. */
+const HUB_FAN_MAX = 8
+const HUB_RINGS = [
+  { r: 62, cap: 6 },
+  { r: 100, cap: 12 },
+]
+const ROUTER_FAN_RADIUS = 185
 /** Hosts hipervisores del gateway: lejos (su grid de CTs necesita espacio) */
-const HYPERVISOR_FAN_RADIUS = 320
+const HYPERVISOR_FAN_RADIUS = 260
+/** Host hipervisor de un switch/AP (no-gateway): radio desde su switch/AP.
+ *  > ROUTER_FAN_RADIUS para quedar fuera del abanico de cableados directos;
+ *  el resolver de colisiones lo acomoda si algún vecino está demasiado cerca. */
+const HUB_HOST_RADIUS = 240
 /** Grid de CTs bajo el host hipervisor */
 const CT_COLS = 5
 const CT_DX = 46
@@ -294,6 +312,39 @@ function arcAround(center: number, half: number): [number, number][] {
   return s <= e ? [[s, e]] : [[s, 360], [0, e]]
 }
 
+/** Hueco angular más grande cuya posición a `radius` de `origin` quede DENTRO
+ *  del viewport (margen `m`). Si el hueco más grande apunta fuera del lienzo
+ *  (p. ej. un switch en la esquina), se prueba el siguiente. Portable. */
+function widestGapCenterInView(
+  origin: { x: number; y: number },
+  points: { x: number; y: number }[],
+  radius: number,
+  m = 30,
+): number {
+  if (points.length === 0) return 0
+  const angles = points.map((p) => angleTo(origin.x, origin.y, p.x, p.y)).sort((a, b) => a - b)
+  const gaps: { start: number; gap: number }[] = []
+  for (let i = 0; i < angles.length; i++) {
+    const next = angles[(i + 1) % angles.length] + (i === angles.length - 1 ? 360 : 0)
+    gaps.push({ start: angles[i], gap: next - angles[i] })
+  }
+  gaps.sort((a, b) => b.gap - a.gap)
+  const inView = (a: number) => {
+    const p = pos(origin.x, origin.y, a, radius)
+    return p.x >= m && p.x <= VB_W - m && p.y >= m && p.y <= VB_H - m
+  }
+  const fallback = gaps[0] ? norm(gaps[0].start + gaps[0].gap / 2) : 0
+  for (const g of gaps) {
+    const center = norm(g.start + g.gap / 2)
+    if (inView(center)) return center
+  }
+  // ningún hueco está dentro: probar ángulos cardinales, y si nada, el primero
+  for (const a of [90, 180, 270, 0, 135, 225]) {
+    if (inView(a)) return a
+  }
+  return fallback
+}
+
 /** arcos libres = [0,360) menos exclusiones (intervalos sin wrap) */
 function freeArcs(excludes: [number, number][]): [number, number][] {
   const ex = excludes
@@ -312,15 +363,15 @@ function freeArcs(excludes: [number, number][]): [number, number][] {
 
 /** reparte items en anillos concéntricos evitando arcos prohibidos */
 const CHIP_GAP = 6
-function ringLayout<T extends { x: number; y: number; size?: number }>(
+function ringLayoutCount<T extends { x: number; y: number; size?: number }>(
   items: T[],
   node: { x: number; y: number },
   rings: { r: number; cap: number }[],
   excludes: [number, number][],
-): void {
+): number {
   const free = freeArcs(excludes)
   const totalFree = free.reduce((a, [s, e]) => a + (e - s), 0)
-  if (totalFree <= 0) return
+  if (totalFree <= 0) return 0
   let idx = 0
   for (const ring of rings) {
     if (idx >= items.length) break
@@ -339,6 +390,32 @@ function ringLayout<T extends { x: number; y: number; size?: number }>(
         Object.assign(items[idx++], p)
         ringPlaced++
       }
+    }
+  }
+  return idx
+}
+
+function ringLayout<T extends { x: number; y: number; size?: number }>(
+  items: T[],
+  node: { x: number; y: number },
+  rings: { r: number; cap: number }[],
+  excludes: [number, number][],
+): void {
+  ringLayoutCount(items, node, rings, excludes)
+  // Fallback anti (0,0): los que no cupieron se colocan en el primer arco libre
+  // del anillo más externo (mejor que quedar apilados en el origen).
+  const free = freeArcs(excludes)
+  const outer = rings[rings.length - 1]
+  const freeArr = free.filter(([s, e]) => e - s > 0)
+  if (freeArr.length === 0) return
+  const [s0, e0] = freeArr[0]
+  let placed = 0
+  for (const item of items) {
+    if (item.x === 0 && item.y === 0) {
+      const n = placed
+      const a = s0 + ((e0 - s0) * (n + 0.5)) / Math.max(1, items.filter((i) => i.x === 0 && i.y === 0).length)
+      Object.assign(item, pos(node.x, node.y, a, outer.r))
+      placed++
     }
   }
 }
@@ -373,12 +450,26 @@ function gridLayoutWest<T extends { x: number; y: number }>(items: T[], node: { 
 }
 
 /** Resolución de colisiones por empuje iterativo + fuerza centrípeta.
- *  Cada chip tiene opcionalmente un hubId que lo atrae suavemente hacia su padre.
- *  Los nodos fijos (routers, distnodes) no se mueven. */
+ *  Cada chip tiene opcionalmente un hubId que lo atrae suavemente hacia su
+ *  padre. Los nodos fijos (routers, distnodes) no se mueven.
+ *  La fuerza centrípeta usa un RADIO OBJETIVO (restDist = la distancia que el
+ *  layout inicial le asignó al chip respecto a su hub): atrae si el chip se
+ *  ha separado (colisión lo empujó lejos) y empuja si se ha amontonado sobre
+ *  el hub. Así los chips "respiran" alrededor de su posición canónica sin
+ *  dispersarse ni amontonarse.
+ *
+ *  NORMA DE SEPARACIÓN (9-Ago-2026): los items fijos (routers, Internet,
+ *  distnodes, switches) llevan un `margin` extra además de su radio — un chip
+ *  no puede quedar a menos de `r_nodo + r_chip + margin + padding`. Antes solo
+ *  evitaba que quedaran DENTRO del radio, así que un chip podía quedar pegado
+ *  visualmente al borde de un router (p. ej. el host del switch a 85px del
+ *  gateway parecía "pegado"). */
 function resolveCollisions(
-  items: { x: number; y: number; r: number; fixed?: boolean; hubX?: number; hubY?: number }[],
+  items: { x: number; y: number; r: number; fixed?: boolean; margin?: number; hubX?: number; hubY?: number; restDist?: number; id?: string }[],
   iterations = 80,
   padding = 14,
+  segments: { x1: number; y1: number; x2: number; y2: number; ownerId?: string }[] = [],
+  cableMargin = 6,
 ): void {
   for (let iter = 0; iter < iterations; iter++) {
     let moved = false
@@ -389,7 +480,15 @@ function resolveCollisions(
         const dx = b.x - a.x
         const dy = b.y - a.y
         const dist = Math.sqrt(dx * dx + dy * dy) || 0.001
-        const minDist = a.r + b.r + padding
+        // El margen de un nodo fijo SOLO aplica a chips de OTRO hub (no a los
+        // propios de su anillo — si no, empuja todo el anillo del router hacia
+        // fuera y el layout se expande). isOwn = el chip no-fijo tiene este
+        // nodo como hub (hubX/hubY coinciden con las coords del fijo).
+        const ownOfA = (b.hubX !== undefined && b.hubY !== undefined && Math.abs(b.hubX - a.x) < 0.5 && Math.abs(b.hubY - a.y) < 0.5)
+        const ownOfB = (a.hubX !== undefined && a.hubY !== undefined && Math.abs(a.hubX - b.x) < 0.5 && Math.abs(a.hubY - b.y) < 0.5)
+        const aSpace = a.r + (a.fixed && !ownOfB ? (a.margin ?? 0) : 0)
+        const bSpace = b.r + (b.fixed && !ownOfA ? (b.margin ?? 0) : 0)
+        const minDist = aSpace + bSpace + padding
         if (dist < minDist) {
           const overlap = (minDist - dist) * 0.45
           const nx = dx / dist
@@ -400,15 +499,37 @@ function resolveCollisions(
         }
       }
     }
-    // fuerza centrípeta leve: cada chip no-fijo es atraído hacia su hub
+    // repulsión de segmentos (cables ajenos): empuje perpendicular al cable
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]
+      if (it.fixed || it.id === undefined) continue
+      for (const seg of segments) {
+        if (seg.ownerId === it.id) continue // el propio cable no se auto-repele
+        const px = it.x, py = it.y
+        const d = distToSegment(px, py, seg.x1, seg.y1, seg.x2, seg.y2)
+        if (d >= it.r + cableMargin) continue
+        const vx = seg.x2 - seg.x1
+        const vy = seg.y2 - seg.y1
+        const len = Math.hypot(vx, vy) || 1
+        const t = clamp(((px - seg.x1) * vx + (py - seg.y1) * vy) / (len * len), 0, 1)
+        const projX = seg.x1 + t * vx
+        const projY = seg.y1 + t * vy
+        const nx = (px - projX) / (d || 0.001)
+        const ny = (py - projY) / (d || 0.001)
+        const push = (it.r + cableMargin - d) * 0.4
+        it.x += nx * push
+        it.y += ny * push
+        moved = true
+      }
+    }
+    // fuerza centrípeta hacia el radio objetivo: proporcional a la desviación
     for (const item of items) {
-      if (item.fixed || item.hubX === undefined) continue
+      if (item.fixed || item.hubX === undefined || item.restDist === undefined) continue
       const dx = item.hubX! - item.x
       const dy = item.hubY! - item.y
       const dist = Math.sqrt(dx * dx + dy * dy) || 0.001
-      // solo tira si está demasiado lejos (> 350px) para evitar que se amontone
-      if (dist > 350) {
-        const pull = (dist - 350) * 0.02
+      const pull = (dist - item.restDist) * 0.04
+      if (Math.abs(pull) > 0.02) {
         item.x += (dx / dist) * pull
         item.y += (dy / dist) * pull
         moved = true
@@ -416,6 +537,19 @@ function resolveCollisions(
     }
     if (!moved) break
   }
+}
+
+/** distancia mínima del punto (px,py) al segmento (x1,y1)-(x2,y2) */
+function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const vx = x2 - x1, vy = y2 - y1
+  const len2 = vx * vx + vy * vy || 1
+  const t = clamp(((px - x1) * vx + (py - y1) * vy) / len2, 0, 1)
+  const qx = x1 + t * vx, qy = y1 + t * vy
+  return Math.hypot(px - qx, py - qy)
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v
 }
 
 /** flujo de paquetes ∝ tráfico (mockup: umbrales 35/15/2 Mbps, guardrail 60).
@@ -441,30 +575,38 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const gatewayNode: RouterNode | null = gateway
     ? { kind: 'router', id: gateway.id, router: gateway, ...GATEWAY_COORD }
     : null
+  const internetNode = { id: 'internet' as const, ...INTERNET_COORD, r: 42 }
   const apNodes: RouterNode[] = aps.map((router, i) => ({ kind: 'router', id: router.id, router, ...apCoords(i, aps.length) }))
-  // Switches gestionados: al NOROESTE del gateway (esquina sup. izq.), uno debajo
-  // de otro. Antes al sureste (x=720); al moverlo arriba-izq. libera la banda
-  // este para los APs y no choca con el hipervisor (far-west, más abajo).
-  // Coordenadas deterministas para máximo 3 switches; el 4+ no se pinta.
-  const SW_BASE_X = 280
-  const SW_BASE_Y = 140
-  const SW_GAP_Y = 90
-  const switchNodes: RouterNode[] = switches.slice(0, 3).map((router, i) => ({
-    kind: 'router' as const,
-    id: router.id,
-    router,
-    x: SW_BASE_X,
-    y: SW_BASE_Y + i * SW_GAP_Y,
-    r: 28,
-    // label a la IZQUIERDA del icono (anchor end): el gateway está a la derecha
-    // y su anillo wifi llegaría hasta ~x310; un label a la derecha del switch
-    // (x~314) quedaría pegado al anillo.
-    label: { x: SW_BASE_X - 34, y: SW_BASE_Y + i * SW_GAP_Y - 6, anchor: 'end' as const },
-  }))
+  // Switches gestionados: REFACTOR PORTABLE (9-Ago-2026).
+  // Se colocan en el HUECO ANGULAR MÁS GRANDE alrededor del gateway (lejos de
+  // los APs y del Internet), apilados radialmente. Antes se fijaban en una
+  // esquina (190,120) — coordenadas específicas de la red del autor que no
+  // funcionan con otras topologías (más/menos APs, otro switch...).
+  const switchAnchor = gatewayNode
+    ? (() => {
+        const others = [...apNodes, internetNode].map((p) => ({ x: p.x, y: p.y }))
+        const r = GATEWAY_RINGS[GATEWAY_RINGS.length - 1].r + 120
+        const a = widestGapCenterInView(gatewayNode, others, r)
+        return { x: Math.round(gatewayNode.x + r * Math.cos(rad(a))), y: Math.round(gatewayNode.y + r * Math.sin(rad(a))), angle: a }
+      })()
+    : { x: 190, y: 120, angle: 180 }
+  const switchNodes: RouterNode[] = switches.slice(0, 3).map((router, i) => {
+    const off = i * 55
+    const x = Math.round(switchAnchor.x - off * Math.cos(rad(switchAnchor.angle)))
+    const y = Math.round(switchAnchor.y - off * Math.sin(rad(switchAnchor.angle)))
+    const isLeft = x < (gatewayNode?.x ?? 500)
+    return {
+      kind: 'router' as const,
+      id: router.id,
+      router,
+      x,
+      y,
+      r: 28,
+      label: { x: isLeft ? x - 34 : x + 34, y: y - 6, anchor: isLeft ? 'end' as const : 'start' as const },
+    }
+  })
   const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes, ...switchNodes] : [...apNodes, ...switchNodes]
   const routerById = new Map(routerNodes.map((n) => [n.id, n]))
-
-  const internetNode = { id: 'internet' as const, ...INTERNET_COORD }
 
   // D1: el switch gestionado existe como Device Y como distnode managed, pero
   // en el mapa se representa SOLO como nodo managed: se excluye de los chips
@@ -564,7 +706,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       const eastItems = east.map((a) => ({ ...a, x: 0, y: 0 }))
       const farWestItems = farWest.map((a) => ({ ...a, x: 0, y: 0 }))
       const westItems = west.map((a) => ({ ...a, x: 0, y: 0 }))
-      fanLayout(eastItems, node, ROUTER_FAN_RADIUS, GW_EAST_FAN[0], GW_EAST_FAN[1])
+      // distnodes del gateway (switch inferido al ESTE): fuera del círculo
+      // virtual wifi (radio base máximo + margen) para no invadir la zona de
+      // clientes wifi del Flint.
+      fanLayout(eastItems, node, GATEWAY_RINGS[GATEWAY_RINGS.length - 1].r + 50, GW_EAST_FAN[0], GW_EAST_FAN[1])
       fanLayout(farWestItems, node, HYPERVISOR_FAN_RADIUS, 160, 200)
       if (westItems.length >= GW_GRID_MIN) {
         gridLayoutWest(westItems, node)
@@ -574,9 +719,29 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       placed.push(...eastItems, ...farWestItems, ...westItems)
       fanArcByRouter.set(node.id, [...arcAround(0, 26), [GW_WEST_FAN[0] - 8, GW_WEST_FAN[1] + 8]])
     } else {
-      const items = anchors.map((a) => ({ ...a, x: 0, y: 0 }))
-      fanLayout(items, node, ROUTER_FAN_RADIUS, AP_WIRED_FAN[0], AP_WIRED_FAN[1])
-      placed.push(...items)
+      // No-gateway (AP o switch): separar los hosts hipervisores (necesitan
+      // espacio para su grid de CTs) del resto de cableados directos.
+      // REFACTOR PORTABLE (9-Ago-2026): el host se coloca en el CENTRO del
+      // hueco angular más grande entre los vecinos (gateway, distnodes de este
+      // router y otros routers) — regla de máxima distancia, sin arcos
+      // hardcodeados por red. El radio se ajusta para que quede fuera del
+      // círculo de sus propios cableados y dentro del viewport.
+      const farWest = anchors.filter((a) => a.kind === 'hub' && hypervisorHosts.has(a.id))
+      const rest = anchors.filter((a) => !farWest.includes(a))
+      const farWestItems = farWest.map((a) => ({ ...a, x: 0, y: 0 }))
+      const restItems = rest.map((a) => ({ ...a, x: 0, y: 0 }))
+      fanLayout(restItems, node, ROUTER_FAN_RADIUS, AP_WIRED_FAN[0], AP_WIRED_FAN[1])
+      // Vecinos desde los que alejarse: gateway, los distnodes del switch/AP y
+      // los demás routers (APs/switches) — el host se abre paso en el hueco.
+      const neighbors: { x: number; y: number }[] = []
+      if (gatewayNode) neighbors.push(gatewayNode)
+      for (const other of routerNodes) {
+        if (other.id !== node.id) neighbors.push(other)
+      }
+      for (const dv of distNodes) neighbors.push(dv)
+      const gapAngle = widestGapCenterInView(node, neighbors, HUB_HOST_RADIUS)
+      fanLayout(farWestItems, node, HUB_HOST_RADIUS, gapAngle - 20, gapAngle + 20)
+      placed.push(...restItems, ...farWestItems)
       fanArcByRouter.set(node.id, [[AP_WIRED_FAN[0] - 8, AP_WIRED_FAN[1] + 8]])
     }
 
@@ -615,7 +780,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (wifi.length === 0) continue
     const excludes: [number, number][] = []
     if (isGw) {
-      excludes.push(...arcAround(270, 14)) // WAN hacia Internet
+      // WAN hacia Internet: arco amplio (el icono de Internet está sobre el
+      // gateway y su halo ocupa ±35°; sin esto un chip del anillo exterior
+      // quedaría a ~80px del icono).
+      excludes.push(...arcAround(270, 35))
       if (gatewayNode) excludes.push(...arcAround(angleTo(gatewayNode.x, gatewayNode.y, gatewayNode.label.x, gatewayNode.label.y), 22))
       for (const ap of apNodes) excludes.push(...arcAround(angleTo(node.x, node.y, ap.x, ap.y), 15))
       // switches gestionados: ahora al NW del gateway; sin este exclude los
@@ -628,11 +796,19 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     excludes.push(...(fanArcByRouter.get(node.id) ?? []))
     const baseRings = isGw ? GATEWAY_RINGS : AP_RINGS
     const rings = [...baseRings]
-    let cap = rings.reduce((a, r) => a + r.cap, 0)
-    while (cap < wifi.length) {
+    // Anillos extra: la capacidad REAL por anillo depende del arco libre (los
+    // excludes —WAN, APs, switches, label, fan cableado— restan grados). El cap
+    // nominal (360°) sobrestima y deja chips en (0,0); por eso se añaden anillos
+    // hasta que ringLayout coloque TODOS los chips (devuelve cuántos colocó).
+    const extraCap = (r: number) => Math.max(10, Math.floor(360 / ((20 + CHIP_GAP) * 180) * (Math.PI * r)))
+    let placed = 0
+    for (let guard = 0; guard < 8 && placed < wifi.length; guard++) {
       const last = rings[rings.length - 1]
-      rings.push({ r: last.r + 38, cap: Math.min(last.cap + 3, 10) })
-      cap = rings.reduce((a, r) => a + r.cap, 0)
+      const cap = rings[rings.length - 1].cap + 2
+      rings.push({ r: last.r + 40, cap: Math.max(extraCap(last.r + 40), cap) })
+      // re-colocar desde el principio (las posiciones parciales se recalcular)
+      wifi.forEach((c) => { c.x = 0; c.y = 0 })
+      placed = ringLayoutCount(wifi, node, rings, excludes)
     }
     ringRadii.set(node.id, rings.map((r) => r.r))
     ringLayout(wifi, node, rings, excludes)
@@ -640,6 +816,43 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       if (i >= baseRings[0].cap) c.size = 20
     })
     chips.push(...wifi)
+
+    // -- CÍRCULO VIRTUAL del gateway (9-Ago-2026) ---------------------------
+    // El gateway se procesa primero (routerNodes = [gateway, ...APs, ...switches]).
+    // Conocido su radio wifi real, se reposicionan los APs y switches a partir
+    // del BORDE del círculo (radio + margen), de modo que ningún AP/switch
+    // invada la zona de los clientes wifi del gateway. Internet también se aleja.
+    if (isGw && gatewayNode) {
+      // El círculo virtual usa el radio del anillo wifi BASE del gateway (el
+      // anillo exterior canónico), no el radio real con anillos extra — los
+      // anillos extra solo crecen en arcos libres parciales, no alrededor de
+      // los APs. Así un AP/switch nunca invade la zona de clientes wifi sin
+      // ser empujado absurdamente lejos.
+      const ringRadiiGw = ringRadii.get(node.id)
+      const baseMax = GATEWAY_RINGS[GATEWAY_RINGS.length - 1].r
+      const gwRingRadius = ringRadiiGw?.[ringRadiiGw.length - 1] ?? baseMax
+      const clearDist = Math.max(baseMax, Math.min(gwRingRadius, baseMax + 80)) + 36
+      // Internet: sobre el gateway (misma x), empujado hacia arriba del viewport.
+      const targetY = Math.max(24, gatewayNode.y - clearDist)
+      internetNode.y = targetY
+      // APs y switches: a lo largo del vector desde el gateway hasta su posición
+      // canónica, empujados hasta quedar a >= clearDist (fuera del círculo).
+      const pushOut = (rn: RouterNode) => {
+        const dx = rn.x - gatewayNode.x
+        const dy = rn.y - gatewayNode.y
+        const d = Math.sqrt(dx * dx + dy * dy) || 1
+        if (d >= clearDist) return
+        const k = clearDist / d
+        rn.x = Math.round(gatewayNode.x + dx * k)
+        rn.y = Math.round(gatewayNode.y + dy * k)
+        const isLeft = rn.x < gatewayNode.x
+        rn.label.x = isLeft ? rn.x - rn.r - 6 : rn.x + rn.r + 6
+        rn.label.y = rn.y - 6
+        rn.label.anchor = isLeft ? 'end' as const : 'start' as const
+      }
+      for (const ap of apNodes) pushOut(ap)
+      for (const sw of switchNodes) pushOut(sw)
+    }
   }
 
   // cableados directos del router: ya tienen anchorPos
@@ -670,7 +883,22 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     // chips (key ct-*) y enlaces (key wired-ct-*).
     const kids = hypervisorHosts.has(hubId) ? [] : childrenOf(hubId).map((d) => mkChip(d, hubId))
     const center = angleTo(routerById.get(parentHub)?.x ?? p.x, routerById.get(parentHub)?.y ?? p.y, p.x, p.y)
-    fanLayout(kids, p, HUB_FAN_RADIUS, center - 45, center + 45)
+    if (kids.length > HUB_FAN_MAX) {
+      // Muchos hijos cableados (switch con varios puertos): anillos concéntricos
+      // alrededor del hub, excluyendo el sector por donde entra el enlace desde
+      // el router padre (para que las líneas no crucen los chips).
+      const excludes = arcAround(center, 25)
+      const rings = [...HUB_RINGS]
+      let cap = rings.reduce((a, r) => a + r.cap, 0)
+      while (cap < kids.length) {
+        const last = rings[rings.length - 1]
+        rings.push({ r: last.r + 34, cap: last.cap + 5 })
+        cap = rings.reduce((a, r) => a + r.cap, 0)
+      }
+      ringLayout(kids, p, rings, excludes)
+    } else {
+      fanLayout(kids, p, HUB_FAN_RADIUS, center - 45, center + 45)
+    }
     chips.push(...kids)
   }
   chips.push(...hubChips)
@@ -768,10 +996,16 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // -- enlaces -----------------------------------------------------------------
   const links: TopoLink[] = []
   if (gatewayNode) {
+    // WAN Internet→gateway: path DINÁMICO desde el borde del icono de Internet
+    // hasta el borde del gateway (antes estaba hardcodeado a la posición vieja
+    // de Internet y quedaba colgando al moverlo).
+    const wanEdge = pos(internetNode.x, internetNode.y, 90, internetNode.r + 4)
+    const gwTop = { x: gatewayNode.x, y: gatewayNode.y - gatewayNode.r }
+    const d = `M ${wanEdge.x} ${wanEdge.y} C ${wanEdge.x} ${(wanEdge.y + gwTop.y) / 2}, ${gwTop.x} ${(wanEdge.y + gwTop.y) / 2}, ${gwTop.x} ${gwTop.y}`
     links.push({
       id: 'wan', kind: 'wan',
-      d: 'M 500 92 C 500 122, 500 162, 500 208',
-      lx: 518, ly: 162, label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
+      d,
+      lx: 518, ly: Math.round((wanEdge.y + gwTop.y) / 2), label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
       width: 3, ...flowFor(600),
       from: 'internet', to: gatewayNode.id,
     })
@@ -1097,27 +1331,69 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const relatedTo = (nodeId: string) =>
     adjacency.get(nodeId) ?? { nodes: new Set([nodeId]), links: new Set<string>() }
 
+  // --- NORMA DE SEPARACIÓN DE CABLES (9-Ago-2026) ---
+  // Se recogen los segmentos hub→chip de todos los enlaces (uplinks, dist,
+  // wired, CTs). El resolver empuja cada chip fuera de los cables AJENOS (los
+  // que no le pertenecen) con un margen, para que ningún dispositivo quede
+  // encima de un cable de otro.
+  const repelSegments: { x1: number; y1: number; x2: number; y2: number; ownerId?: string }[] = []
+  for (const c of chips) {
+    if (!c.wired || c.isCt) continue
+    const hub = routerNodes.find(rn => rn.id === c.hubId) ?? distNodes.find(dn => dn.id === c.hubId)
+    if (!hub) continue
+    repelSegments.push({ x1: hub.x, y1: hub.y, x2: c.x, y2: c.y, ownerId: c.id })
+  }
+  for (const [hostId, cts] of ctsByHost) {
+    const hostChip = chips.find((c) => c.id === hostId)
+    if (!hostChip) continue
+    for (const ct of cts) repelSegments.push({ x1: hostChip.x, y1: hostChip.y, x2: ct.x, y2: ct.y, ownerId: ct.id })
+  }
+  for (const dn of distNodes) {
+    const rn = routerById.get(dn.node.routerId)
+    if (rn) repelSegments.push({ x1: rn.x, y1: rn.y, x2: dn.x, y2: dn.y })
+  }
+  for (const rn of routerNodes) {
+    if (rn.id === gatewayNode?.id || !gatewayNode) continue
+    repelSegments.push({ x1: gatewayNode.x, y1: gatewayNode.y, x2: rn.x, y2: rn.y })
+  }
+
   // --- Resolución de colisiones ---
   // Routers fijos (no se mueven); chips se empujan y atraen hacia su hub padre.
-  const collidables: { x: number; y: number; r: number; fixed?: boolean; hubX?: number; hubY?: number }[] = [
-    ...routerNodes.map((rn) => ({ x: rn.x, y: rn.y, r: rn.r, fixed: true })),
+  // restDist = distancia inicial hub→chip (la posición canónica del layout);
+  // el resolver la usa como radio objetivo para que los chips no se dispersen
+  // tras una colisión ni se amontonen sobre el hub.
+  // Los nodos fijos llevan MARGEN (norma de separación): un chip no puede
+  // quedar pegado al borde de un router/distnode/Internet — mínimo
+  // r_nodo + r_chip + margin + padding. El gateway (r40) usa margen mayor.
+  const collidables: { x: number; y: number; r: number; fixed?: boolean; margin?: number; hubX?: number; hubY?: number; restDist?: number; id?: string }[] = [
+    ...routerNodes.map((rn) => ({ x: rn.x, y: rn.y, r: rn.r, fixed: true, margin: rn.id === gatewayNode?.id ? 40 : 26 })),
+    { x: internetNode.x, y: internetNode.y, r: 30, fixed: true, margin: 30 },
   ]
   // chips: buscar coords del hub padre
   for (const c of chips) {
     const hub = routerNodes.find(rn => rn.id === c.hubId) ?? distNodes.find(dn => dn.id === c.hubId)
-    collidables.push({
-      x: c.x, y: c.y, r: c.size / 2,
-      hubX: hub ? hub.x : undefined,
-      hubY: hub ? hub.y : undefined,
-    })
+    const isHost = hypervisorHosts.has(c.id)
+    if (hub) {
+      const restDist = Math.sqrt((c.x - hub.x) ** 2 + (c.y - hub.y) ** 2)
+      // Los hosts hipervisores son NODOS con hijos (CTs): fijos, como los
+      // distnodes — no deben ser desplazados por los cables ajenos (si no, el
+      // resolver los lanza a la esquina). Sus CTs sí se acomodan a su alrededor.
+      collidables.push({
+        id: c.id, x: c.x, y: c.y, r: c.size / 2,
+        fixed: isHost, margin: isHost ? 16 : undefined,
+        hubX: hub.x, hubY: hub.y, restDist,
+      })
+    } else {
+      collidables.push({ id: c.id, x: c.x, y: c.y, r: c.size / 2, fixed: isHost, margin: isHost ? 16 : undefined })
+    }
   }
   // distnodes fijos
   for (const dn of distNodes) {
-    collidables.push({ x: dn.x, y: dn.y, r: dn.r, fixed: true })
+    collidables.push({ x: dn.x, y: dn.y, r: dn.r, fixed: true, margin: 14 })
   }
-  resolveCollisions(collidables)
+  resolveCollisions(collidables, 80, 14, repelSegments)
   // Escribir posiciones de vuelta (solo chips; routers y distnodes son fixed)
-  let ci = routerNodes.length
+  let ci = routerNodes.length + 1 // +1 = Internet (añadido tras los routers)
   for (const c of chips) { c.x = collidables[ci].x; c.y = collidables[ci].y; ci++ }
 
   return {

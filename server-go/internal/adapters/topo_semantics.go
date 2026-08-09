@@ -18,12 +18,14 @@ package adapters
 
 import "strings"
 
-// Capacidad de los anillos canónicos de model.ts (GATEWAY_RINGS 5+8,
-// AP_RINGS 7+13): el límite de chips visibles por anillo que aplica la app.
+// Capacidad de los anillos canónicos de model.ts (GATEWAY_RINGS 8+12+16+24,
+// AP_RINGS 8+14+18): el límite de chips visibles por anillo que aplica la app.
 // HiddenPeers = clientes del anillo - visibles con este mismo límite.
+// (9-Ago-2026: subido desde 13/20 — el gateway con ~60 clientes ocultaba
+// casi todo; el resolver de colisiones mantiene 0 solapes con anillos densos.)
 const (
-	topoGatewayRingCap = 13
-	topoAPRingCap      = 20
+	topoGatewayRingCap = 60
+	topoAPRingCap      = 40
 )
 
 // maxTopoPeerChips: coordenadas canónicas de peers WG en model.ts (4); los
