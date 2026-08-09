@@ -829,7 +829,9 @@
       "editTitle": "Editar {{id}}",
       "editHint": "Modifica los datos del router. Guardar actualiza la configuración en caliente.",
       "save": "Guardar",
-      "saving": "Guardando…"
+      "saving": "Guardando…",
+      "typeManaged": "Switch managed",
+      "typeExternal": "Externo"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",
@@ -856,6 +858,27 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "errorGeneric": "No se pudo guardar el override."
+    },
+    "labs": {
+      "title": "Labs",
+      "caption": "Dispositivos externos que envían datos vía API (scrapers, switches no OpenWrt\u2026). No se sondean por SSH.",
+      "empty": "Sin dispositivos externos. Añade tu primer dispositivo.",
+      "addDevice": "Añadir dispositivo externo",
+      "namePlaceholder": "Nombre (ser\u00e1 el slug del dispositivo)",
+      "cancel": "Cancelar",
+      "loading": "Cargando dispositivos\u2026",
+      "lastSeen": "Visto",
+      "justNow": "ahora",
+      "fresh": "Conectado",
+      "rotateToken": "Regenerar token",
+      "noToken": "Crear token",
+      "tokenFor": "Token para {{slug}}",
+      "tokenOnce": "Copia el token ahora. No se volver\u00e1 a mostrar.",
+      "copyToken": "Copiar token",
+      "ingestHint": "Usa este token para autenticar la ingesta del scraper:",
+      "dismiss": "Cerrar",
+      "deleteTitle": "Revocar token del dispositivo",
+      "deleteDesc": "Se revocar\u00e1 el token de \"{{slug}}\". El scraper dejar\u00e1 de poder enviar datos hasta que regeneres el token."
     },
     "saved": "Preferencias guardadas",
     "services": {

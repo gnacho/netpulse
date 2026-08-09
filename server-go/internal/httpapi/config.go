@@ -119,8 +119,8 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	if typ == "" {
 		typ = "openwrt"
 	}
-	if typ != "glinet" && typ != "openwrt" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt'")
+	if typ != "glinet" && typ != "openwrt" && typ != "managed-switch" && typ != "external" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
 		return
 	}
 	for _, rt := range routerstore.ListRouters(s.db.DB) {
@@ -191,8 +191,8 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	var typ *string
 	if in.Type != "" {
 		t := in.Type
-		if t != "glinet" && t != "openwrt" {
-			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt'")
+		if t != "glinet" && t != "openwrt" && t != "managed-switch" && t != "external" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
 			return
 		}
 		typ = &t

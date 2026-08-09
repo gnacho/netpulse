@@ -829,7 +829,9 @@
       "editTitle": "Edit {{id}}",
       "editHint": "Modify the router details. Saving hot-reloads the configuration.",
       "save": "Save",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "typeManaged": "Managed switch",
+      "typeExternal": "External"
     },
     "overrides": {
       "title": "Topology — manual tagging",
@@ -856,6 +858,27 @@
       "save": "Save",
       "saving": "Saving…",
       "errorGeneric": "Could not save the override."
+    },
+    "labs": {
+      "title": "Labs",
+      "caption": "External devices that push data via API (scrapers, non-OpenWrt switches\u2026). Not polled via SSH.",
+      "empty": "No external devices yet. Add your first device.",
+      "addDevice": "Add external device",
+      "namePlaceholder": "Name (becomes the device slug)",
+      "cancel": "Cancel",
+      "loading": "Loading devices\u2026",
+      "lastSeen": "Seen",
+      "justNow": "now",
+      "fresh": "Connected",
+      "rotateToken": "Regenerate token",
+      "noToken": "Create token",
+      "tokenFor": "Token for {{slug}}",
+      "tokenOnce": "Copy the token now. It won\u2019t be shown again.",
+      "copyToken": "Copy token",
+      "ingestHint": "Use this token to authenticate the scraper\u2019s ingest:",
+      "dismiss": "Dismiss",
+      "deleteTitle": "Revoke device token",
+      "deleteDesc": "The token for \u201c{{slug}}\u201d will be revoked. The scraper will stop sending data until you regenerate the token."
     },
     "saved": "Preferences saved",
     "services": {
