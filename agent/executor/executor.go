@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,6 +81,11 @@ var (
 	reMode        = regexp.MustCompile(`^[0-7]{3,4}$`)
 	// base64 estándar (sin newlines). La validación final la hace base64.Decode.
 	reBase64 = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
+
+	// tcp_check: host (IPv4 o hostname simple) + puerto (1-65535).
+	reHost = regexp.MustCompile(`^([0-9]{1,3}[.]){3}[0-9]{1,3}$|^[a-zA-Z0-9.-]{1,253}$`)
+	// rePort valida 1-65535 sin ceros a la izquierda.
+	rePort = regexp.MustCompile(`^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$`)
 )
 
 // opSpec define los args requeridos y su validación para cada Kind.
@@ -215,7 +221,40 @@ var allowlist = map[string]opSpec{
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
+	// tcp_check: abre una conexión TCP al host:port. Éxito (exit 0) si conecta
+	// dentro del budget; fallo (exit 1) si no. Es un healthcheck real de
+	// servicio (el ping del executor solo confirma red). Usado por módulos que
+	// abren puerto (AdGuard :3000, Tailscale, OpenVPN...): si el servicio no
+	// levanta, esta op falla → el executor revierte staged.
+	// Se hace en Go (no shell) para no depender de nc, que no siempre está en
+	// OpenWrt stock. Reintenta durante tcpCheckBudget (10 s por defecto) cada
+	// tcpCheckRetry: un servicio puede tardar unos segundos en abrir puerto
+	// tras `service start` (AdGuard, Tailscale...).
+	"tcp_check": {
+		required: map[string]*regexp.Regexp{"host": reHost, "port": rePort},
+		exec: func(_ Runner, a map[string]string) int {
+			addr := net.JoinHostPort(a["host"], a["port"])
+			start := time.Now()
+			for time.Since(start) < tcpCheckBudget {
+				conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+				if err == nil {
+					_ = conn.Close()
+					return 0
+				}
+				time.Sleep(tcpCheckRetry)
+			}
+			return 1
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
 }
+
+// tcpCheckBudget / tcpCheckRetry controlan los reintentos del Kind tcp_check.
+// Son vars de paquete (no const) para poder acortarlos en tests.
+var (
+	tcpCheckBudget = 10 * time.Second
+	tcpCheckRetry  = 500 * time.Millisecond
+)
 
 // Executor aplica Ops allowlistedas con snapshot + healthcheck + rollback.
 type Executor struct {

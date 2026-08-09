@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -413,5 +415,61 @@ func TestMarshalUnmarshalOps(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Kind != "uci_set" || got[0].Args["value"] != "1.2.3.4" {
 		t.Fatalf("roundtrip failed: %+v", got)
+	}
+}
+
+// TestValidateTcpCheck: args host/port validados por regex.
+func TestValidateTcpCheck(t *testing.T) {
+	cases := []struct {
+		name, host, port string
+		ok               bool
+	}{
+		{"ipv4", "127.0.0.1", "3000", true},
+		{"localhost", "localhost", "53", true},
+		{"lan-ip", "192.168.1.1", "80", true},
+		{"port-zero", "127.0.0.1", "0", false},
+		{"port-too-high", "127.0.0.1", "65536", false},
+		{"port-leading-zero", "127.0.0.1", "03000", false},
+		{"host-space", "127.0.0.1 ", "3000", false},
+		{"host-shell-chars", "127.0.0.1; rm -rf /", "3000", false},
+		{"missing-port", "127.0.0.1", "", false},
+	}
+	for _, c := range cases {
+		op := Op{Kind: "tcp_check", Args: map[string]string{"host": c.host, "port": c.port}}
+		err := Validate(op)
+		if (err == nil) != c.ok {
+			t.Errorf("%s: esperaba ok=%v, got err=%v", c.name, c.ok, err)
+		}
+	}
+}
+
+// TestTcpCheckExecOpenThenClosed: el exec de tcp_check devuelve 0 si el
+// puerto está abierto y 1 si está cerrado (healthcheck real de servicio).
+func TestTcpCheckExecOpenThenClosed(t *testing.T) {
+	// Acortar el budget para que el caso "cerrado" no tarde 10 s en el test.
+	prev := tcpCheckBudget
+	tcpCheckBudget = 300 * time.Millisecond
+	defer func() { tcpCheckBudget = prev }()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("no pude abrir listener: %v", err)
+	}
+	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+
+	spec, ok := allowlist["tcp_check"]
+	if !ok {
+		t.Fatal("tcp_check no está en allowlist")
+	}
+
+	// Puerto abierto → 0
+	if rc := spec.exec(nil, map[string]string{"host": "127.0.0.1", "port": port}); rc != 0 {
+		t.Errorf("puerto abierto: esperaba 0, got %d", rc)
+	}
+
+	// Cerrar el listener → puerto cerrado → 1 (tras exhausting el budget corto)
+	ln.Close()
+	if rc := spec.exec(nil, map[string]string{"host": "127.0.0.1", "port": port}); rc != 1 {
+		t.Errorf("puerto cerrado: esperaba 1, got %d", rc)
 	}
 }
