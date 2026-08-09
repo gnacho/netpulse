@@ -44,6 +44,7 @@ var hypervisorOUI = []string{
 	"00:0C:29", // VMware
 	"00:15:5D", // Hyper-V
 	"52:54:00", // KVM/QEMU
+	"08:00:27", // VirtualBox
 }
 
 func isHypervisorMAC(mac string) bool {
@@ -81,22 +82,8 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	// Gateway con la misma prioridad que pickGateway (is_gateway → glinet →
 	// primero): solo él puede anclar nodos "inferred".
 	gatewayID := ""
-	for _, id := range routerIDs {
-		if polled[id].cfg.IsGateway {
-			gatewayID = id
-			break
-		}
-	}
-	if gatewayID == "" {
-		for _, id := range routerIDs {
-			if polled[id].cfg.Type == "glinet" {
-				gatewayID = id
-				break
-			}
-		}
-	}
-	if gatewayID == "" && len(routerIDs) > 0 {
-		gatewayID = routerIDs[0]
+	if gw := pickGatewayCfg(polled); gw != nil {
+		gatewayID = gw.ID
 	}
 
 	for _, routerID := range routerIDs {
@@ -119,15 +106,15 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			var kept []string
 			for _, mac := range byPort[port] {
 				if routerMACs[mac] {
-					continue // el propio router/AP no es un cliente
+					continue
 				}
 				if idx, ok := byMAC[mac]; ok {
 					d := devices[idx]
 					if d.RouterID != routerID {
-						continue // cliente de otro router (visto por el uplink)
+						continue
 					}
 					if d.Band != "cable" && d.Band != "—" {
-						continue // wifi no cuelga de un puerto físico
+						continue
 					}
 				}
 				kept = append(kept, mac)
@@ -219,9 +206,33 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			// Gateway, OUI heterogéneo (o hipervisor ambiguo sin host claro):
 			// algo multiplexa ese puerto → nodo inferido colgando del gateway.
 			setPort()
-			dists = append(dists, DistributionNode{
+			dn := DistributionNode{
 				ID: id, Kind: "inferred", RouterID: routerID, Port: port, MacCount: len(kept),
-			})
+			}
+			if routerID == gatewayID {
+				for _, rp := range polled {
+					if !rp.cfg.AgentOnly {
+						continue
+					}
+					swMacs := map[string]bool{}
+					for mac := range rp.fdb {
+						swMacs[mac] = true
+					}
+					allKnown := true
+					for _, mac := range kept {
+						if !swMacs[mac] {
+							allKnown = false
+							break
+						}
+					}
+					if allKnown && len(kept) > 0 {
+						dn.Name = rp.cfg.Name
+						dn.Ip = rp.cfg.Host
+						break
+					}
+				}
+			}
+			dists = append(dists, dn)
 			for _, mac := range kept {
 				if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 					devices[idx].AttachTo = id

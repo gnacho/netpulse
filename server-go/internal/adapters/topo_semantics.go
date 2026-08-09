@@ -38,8 +38,10 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		return sem
 	}
 
-	// Gateway y APs como model.ts: roleBadge "Principal" → gateway (si no,
-	// el primero); el resto (máx 3 = coordenadas canónicas de AP) son APs.
+	// Gateway y APs/switches como model.ts: roleBadge "Principal" → gateway
+	// (si no, el primero); el resto son routers (APs y switches gestionados).
+	// Sin límite de 3 APs — el frontend decide cuántos dibujar con coordenadas
+	// canónicas y cuáles como "extra" (switches, APs adicionales).
 	gateway := routers[0]
 	for _, r := range routers {
 		if r.RoleBadge == "Principal" {
@@ -47,17 +49,13 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 			break
 		}
 	}
-	aps := make([]Router, 0, 3)
+	nonGateway := make([]Router, 0, len(routers)-1)
 	for _, r := range routers {
-		if r.ID == gateway.ID {
-			continue
+		if r.ID != gateway.ID {
+			nonGateway = append(nonGateway, r)
 		}
-		if len(aps) >= 3 {
-			break
-		}
-		aps = append(aps, r)
 	}
-	routerNodes := append([]Router{gateway}, aps...)
+	routerNodes := append([]Router{gateway}, nonGateway...)
 	inRouter := map[string]bool{}
 	for _, r := range routerNodes {
 		inRouter[r.ID] = true
@@ -135,7 +133,7 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 
 	// -- enlaces (mismo orden que model.ts) --------------------------------
 	sem.Links = append(sem.Links, TopoLink{From: "internet", To: gateway.ID, Kind: "wan"})
-	for _, ap := range aps {
+	for _, ap := range nonGateway {
 		l := TopoLink{From: gateway.ID, To: ap.ID, Kind: "uplink"}
 		if ap.Lldp != nil {
 			l.Port = ap.Lldp.PortDesc // puerto del uplink en el gateway (C2)

@@ -377,6 +377,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       topology: o.topology,
       dawn: o.dawn,
       orchestration: o.orchestration,
+      ...(o.devices ? { devices: o.devices } : {}),
     }))
   }, [])
 
