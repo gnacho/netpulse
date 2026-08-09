@@ -58,6 +58,29 @@ func pickGateway(routers []RouterConfig) *RouterConfig {
 	return nil
 }
 
+// pickGatewayCfg: same logic as pickGateway but from polled router configs.
+func pickGatewayCfg(polled map[string]*routerPolled) *RouterConfig {
+	ids := make([]string, 0, len(polled))
+	for id := range polled {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if polled[id].cfg.IsGateway {
+			return &polled[id].cfg
+		}
+	}
+	for _, id := range ids {
+		if polled[id].cfg.Type == "glinet" {
+			return &polled[id].cfg
+		}
+	}
+	if len(ids) > 0 {
+		return &polled[ids[0]].cfg
+	}
+	return nil
+}
+
 // routerPolled es el sondeo de un tick de un router.
 type routerPolled struct {
 	cfg       RouterConfig
@@ -1063,13 +1086,33 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	if gw != nil {
 		gwID = gw.ID
 	}
-	// (2) FDB de satélites: pista solo de ESTE tick (no se guarda)
+	// (2) FDB de satélites: pista solo de ESTE tick (no se guarda).
+	// REGLA DE RECONCILIACIÓN: si una MAC cableada aparece tanto en el FDB
+	// del gateway como en el FDB de un satélite, el satélite la ve porque
+	// está bridged al mismo segmento L2 — NO es un cliente directo del
+	// satélite. Solo cuentan como clientes del satélite las MACs que el
+	// gateway NO ve (dispositivos realmente tras ese satélite, sin bridge
+	// al gateway).
+	// EXCEPCIÓN: los routers agent-only (switches con agente propio) son la
+	// fuente más específica — sus dispositivos se conservan con RouterID
+	// del switch, aunque el gateway también los vea en su FDB.
+	gwFDB := map[string]bool{}
+	if gwID != "" {
+		if gwPolled := polled[gwID]; gwPolled != nil {
+			for mac := range gwPolled.fdb {
+				gwFDB[mac] = true
+			}
+		}
+	}
 	for routerID, p := range polled {
 		if routerID == gwID {
 			continue
 		}
 		for mac := range p.fdb {
 			if _, ok := seen[mac]; !ok {
+				if gwFDB[mac] && !p.cfg.AgentOnly {
+					continue // gateway bridge pasivo, no es cliente del satélite
+				}
 				seen[mac] = seenInfo{routerID, "cable", nil}
 			}
 		}
@@ -1286,7 +1329,6 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		routerList = append(routerList, router)
 	}
 	devices := l.buildDevices(polled)
-	// Topología v5: puertos FDB + switches/hipervisores inferidos
 	devices, distNodes := inferTopology(polled, devices)
 	// Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
 	for _, d := range devices {
@@ -1371,6 +1413,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
+		Devices:           devices,
 		Dawn:              &DawnOverview{Available: l.dawnAvailableCached()},
 		VM:                ViewModelVersion,                                            // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),

@@ -471,7 +471,7 @@ PR (convención issue→PR).
 
 ---
 
-## Fase 13 — Auditoría Fable de robustez de código (COMPLETA, v2.7.2)
+## Fase 13 — Auditoría de robustez de código (COMPLETA, v2.7.2)
 
 Objetivo: auditoría dirigida de concurrencia, manejo de errores y fronteras
 en server-go. Cada hallazgo con mecanismo completo, test de regresión y fix.

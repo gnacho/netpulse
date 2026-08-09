@@ -10,7 +10,7 @@ import { ChevronRight, Maximize, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react
 import { Switch } from '@/components/ui/switch'
 import { LegendCard, LegendSheet } from '@/components/topology/LegendCard'
 import { LinksTable } from '@/components/topology/LinksTable'
-import { DawnPanel } from '@/components/topology/DawnPanel'
+
 import { TopologyMap } from '@/components/topology/TopologyMap'
 import type { TopologyMapApi } from '@/components/topology/TopologyMap'
 import { buildTopologyModel } from '@/components/topology/model'
@@ -205,8 +205,7 @@ export default function Topology() {
         <LegendSheet model={model} />
       </section>
 
-      {/* ⑤ DAWN (roaming/band-steering) */}
-      <DawnPanel />
+
 
       {/* ③ + ④ Leyenda y enlaces (desktop: 5/7 cols; móvil: solo enlaces en lista) */}
       <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">

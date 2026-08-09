@@ -18,6 +18,7 @@ legacy/server-node/.env
 netpulse-agent*
 server-go/netpulse
 collector/netpulse-collector
+bin/
 
 # Binarios de agente embebidos (construidos por CI)
 server-go/internal/agentbin/agents/netpulse-agent-*

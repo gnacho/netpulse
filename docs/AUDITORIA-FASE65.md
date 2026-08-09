@@ -19,7 +19,7 @@ E2E demo local (login → overview → agents → push → alerts config).
 
 ## 1. Incidente de seguridad durante la integración (RESUELTO)
 
-El bundle de Kimi traía commiteada por error **una clave privada SSH**
+El bundle de integración traía commiteada por error **una clave privada SSH**
 (`app/data/.ssh/id_ed25519`, commit 5f7a74c) junto a una BD demo. Gitleaks lo
 detectó al pushear el tag. Acciones tomadas:
 

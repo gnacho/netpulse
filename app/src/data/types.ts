@@ -21,8 +21,8 @@ export interface Router {
   /** Modelo corto para captions: "GL.iNet Flint 2" */
   modelShort: string
   role: string
-  /** Pill de rol: "Principal" | "AP" */
-  roleBadge: 'Principal' | 'AP'
+  /** Pill de rol: "Principal" | "AP" | "SW" */
+  roleBadge: 'Principal' | 'AP' | 'SW'
   ip: string
   /** MAC del bridge br-lan (live) */
   mac?: string
@@ -311,6 +311,10 @@ export interface OverviewBundle {
   dawn?: { available: boolean }
   /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
   orchestration?: boolean
+  /** Devices from the same polled snapshot as topology.rings. When present,
+   *  the frontend uses this instead of the separate /api/devices fetch
+   *  to guarantee ID consistency with topology rings. */
+  devices?: Device[]
   ts: number
 }
 
