@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -88,32 +89,32 @@ func TestTopoSemanticsGoldenCanon(t *testing.T) {
 	}
 }
 
-// HiddenPeers: superado el límite de chips visibles del anillo (gateway 13,
-// AP 20), el exceso se reporta como "+N" por router.
+// HiddenPeers: superado el límite de chips visibles del anillo (gateway 60,
+// AP 40), el exceso se reporta como "+N" por router.
 func TestTopoSemanticsHiddenPeers(t *testing.T) {
 	routers := []Router{
 		{ID: "gw", RoleBadge: "Principal"},
 		{ID: "ap", RoleBadge: "AP"},
 	}
-	devices := make([]Device, 0, 15+22)
-	for i := 0; i < 15; i++ {
+	devices := make([]Device, 0, 62+42)
+	for i := 0; i < 62; i++ {
 		devices = append(devices, Device{
-			ID: "gw-" + string(rune('a'+i)), MAC: "00:00:00:00:01:" + string(rune('A'+i)),
+			ID: fmt.Sprintf("gw-%02d", i), MAC: fmt.Sprintf("00:00:00:00:01:%02d", i),
 			RouterID: "gw", Band: "5 GHz", Online: true,
 		})
 	}
-	for i := 0; i < 22; i++ {
+	for i := 0; i < 42; i++ {
 		devices = append(devices, Device{
-			ID: "ap-" + string(rune('a'+i)), MAC: "00:00:00:00:02:" + string(rune('A'+i)),
+			ID: fmt.Sprintf("ap-%02d", i), MAC: fmt.Sprintf("00:00:00:00:02:%02d", i),
 			RouterID: "ap", Band: "2.4 GHz", Online: true,
 		})
 	}
 	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil)
-	want := map[string]int{"gw": 2, "ap": 2} // 15-13 y 22-20
+	want := map[string]int{"gw": 2, "ap": 2} // 62-60 y 42-40
 	if !reflect.DeepEqual(sem.HiddenPeers, want) {
 		t.Fatalf("hiddenPeers: got %+v want %+v", sem.HiddenPeers, want)
 	}
-	if got := len(sem.Rings["gw"]); got != 15 {
+	if got := len(sem.Rings["gw"]); got != 62 {
 		t.Fatalf("el anillo conserva TODOS los clientes (visibles+ocultos): %d", got)
 	}
 }
