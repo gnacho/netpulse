@@ -209,9 +209,10 @@ var (
 	errUnknownModule            = errors.New("unknown_module")
 	errProbeFailed              = errors.New("probe_failed")
 	errInvalidDesired           = errors.New("invalid_desired")
-	errAdGuardGatewayOnly       = errors.New("adguard_gateway_only")
-	errAdGuardAlreadyOnGateway  = errors.New("adguard_already_on_gateway")
-	errAdGuardInsufficientRAM   = errors.New("adguard_insufficient_ram")
+	errAdGuardGatewayOnly      = errors.New("adguard_gateway_only")
+	errAdGuardAlreadyOnGateway = errors.New("adguard_already_on_gateway")
+	errAdGuardInsufficientRAM  = errors.New("adguard_insufficient_ram")
+	errGatewayOnly             = errors.New("gateway_only")
 )
 
 // computeModuleDiff despacha al módulo correcto, ejecutando el probe SSH si
@@ -260,9 +261,38 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 			return nil, "", err
 		}
 		return ops, sc.InstallMethod(), nil
+	case "guestwifi":
+		var d orchestr.GuestWiFiDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
+		}
+		host := s.hostOfRouter(routerID)
+		if host == "" {
+			return nil, "", errRouterNotFound
+		}
+		// La guest red solo tiene sentido en el gateway (distribuye la red)
+		// o en un AP de distribución. Por defecto gateway-only, como AdGuard.
+		isGateway, _ := s.gatewayInfo(routerID)
+		if !isGateway && !d.AllowNonGateway {
+			return nil, "", errGatewayOnly
+		}
+		sc, err := orchestr.DetectGuestWiFi(s.pool, host)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
+		}
+		ops := orchestr.GuestWiFiOps(d, sc)
+		return ops, guestWiFiMethod(d.Enabled), nil
 	default:
 		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
 	}
+}
+
+// guestWiFiMethod es la etiqueta del método (para la UI): enabled/disabled.
+func guestWiFiMethod(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "disabled"
 }
 
 // gatewayInfo devuelve (esGateway, gwHost). esGateway: si routerID ES el
@@ -309,6 +339,9 @@ func (s *server) writeModuleErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, errAdGuardInsufficientRAM):
 		writeError(w, http.StatusUnprocessableEntity, "adguard_insufficient_ram",
 			"El router no tiene suficiente RAM libre (<150 MB) para AdGuard Home y sus listas de filtros.")
+	case errors.Is(err, errGatewayOnly):
+		writeError(w, http.StatusUnprocessableEntity, "gateway_only",
+			"Este módulo por defecto solo se despliega en el gateway. Activa 'permitir en otros routers' para usar un no-gateway.")
 	case errors.Is(err, errUnknownModule):
 		writeError(w, http.StatusBadRequest, "unknown_module", err.Error())
 	case errors.Is(err, errInvalidDesired):
@@ -329,6 +362,13 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 	switch resource {
 	case "adguard":
 		var d orchestr.AdGuardDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, fmt.Errorf("desired inválido: %w", err)
+		}
+		d.Enabled = !d.Enabled
+		return json.Marshal(d)
+	case "guestwifi":
+		var d orchestr.GuestWiFiDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
 			return nil, fmt.Errorf("desired inválido: %w", err)
 		}
