@@ -7,6 +7,32 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-08-11
+
+### Added
+
+- **Orquestación Fase 18 (17.2–17.4)**: módulos de WiFi invitado (SSID
+  aislado con subred propia), DDNS (ddns-scripts vía UCI) y QoS/SQM
+  (sqm-scripts con cake) con UI unificada en `/orchestration`. El motor
+  gana los Kinds `uci_add`, `uci_set_named`, `uci_delete_section` y
+  `tcp_check` (healthcheck de puerto con reintentos). #131 / #133 / #136
+
+- **Topología portable**: refactor del layout (anillos densos, resolver de
+  colisiones, círculo virtual) sin coordenadas hardcodeadas de una red
+  concreta. #138 / #140
+
+- **Ajustes → Acerca de**: los cuatro tiles enlazan ahora a su destino
+  (GitHub, la web del proyecto, Ko-fi y el Club Cloudless). #162
+
+### Fixed
+
+- **AdGuard solo en el gateway**: el plan se rechaza (422) si el router
+  destino no es el gateway, ya está el fork de fábrica o no hay RAM
+  suficiente, salvo opt-in explícito. #120 / #130
+
+- **Orquestación oculta por defecto**: el menú `/orchestration` solo se
+  muestra si el admin lo activa en Ajustes. #121 / #129
+
 ## [2.9.0] - 2026-08-09
 
 ### Added
