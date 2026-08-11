@@ -3460,9 +3460,9 @@ export default function Settings() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {[
                   { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
-                  { icon: FileText, label: t('settings.about.changelog'), href: 'https://github.com/gnacho/netpulse/commits/main' },
-                  { icon: Heart, label: t('settings.about.madeAtHome') },
-                  { icon: ShieldCheck, label: t('settings.about.privacy') },
+                  { icon: FileText, label: t('settings.about.changelog'), href: 'https://netpulse.cloudless.club' },
+                  { icon: Heart, label: t('settings.about.madeAtHome'), href: 'https://ko-fi.com/gnacho' },
+                  { icon: ShieldCheck, label: t('settings.about.privacy'), href: 'https://cloudless.club' },
                 ].map((item, i) => {
                   const cls = "flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
                   return (
