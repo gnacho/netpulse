@@ -2090,7 +2090,7 @@ interface ExternalDevice {
   hasToken: boolean
 }
 
-function ExternalDevicesManager({ reduce: _reduce, onSaved }: { reduce?: boolean; onSaved: () => void }) {
+function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
   const { t, i18n } = useTranslation()
   const { refresh } = useNetPulse()
   const [devices, setDevices] = useState<ExternalDevice[]>([])
