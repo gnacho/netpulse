@@ -176,6 +176,10 @@ type Live struct {
 	agentDown        map[string]bool
 	agentDownConfirm time.Duration // Dead Man's Switch: confirmar caída tras este periodo sin alertar
 
+	// now: reloj inyectable para tests deterministas (nil → time.Now).
+	// Mismo patrón que AgentRegistry.SetClock.
+	now func() time.Time
+
 	agStd *AdGuardClient
 	agGL  *AdGuardGlinetClient
 	agKey string
@@ -507,6 +511,56 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 			hp.temp = int(math.Round(temp.Float64))
 		}
 		out = append(out, hp)
+	}
+	return out
+}
+
+// wanDayStats rellena los campos del resumen WAN que solo el modo demo
+// calculaba (issue #169): pico de hoy (Mbps + hora), media de bajada y total
+// de 24 h, todo desde la tabla raw de métricas del gateway. La hora del pico
+// usa el ts de la fila del máximo; el total estima bytes como
+// SUM(rx_bps) × Δt (Δt = 86400/N s entre muestras, luego /8 bits→bytes).
+// Sin BD, sin gateway o sin datos devuelve los valores cero/"—" de partida.
+type wanDayStatsResult struct {
+	peakMbps float64
+	peakTime string
+	avgMbps  float64
+	totalStr string
+}
+
+func (l *Live) wanDayStats(gwID string) wanDayStatsResult {
+	out := wanDayStatsResult{peakTime: "—", totalStr: "—"}
+	if l.db == nil || gwID == "" {
+		return out
+	}
+	now := time.Now()
+	if l.now != nil {
+		now = l.now()
+	}
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
+	start24h := now.Add(-24 * time.Hour).UnixMilli()
+
+	// Pico de hoy: fila con MAX(rx_bps) y su ts (la hora del pico).
+	row := l.db.QueryRow(
+		`SELECT rx_bps, ts FROM metrics WHERE router_id = ? AND ts >= ? AND rx_bps IS NOT NULL
+		 ORDER BY rx_bps DESC LIMIT 1`, gwID, startOfDay)
+	var peakBps float64
+	var peakTs int64
+	if err := row.Scan(&peakBps, &peakTs); err == nil {
+		out.peakMbps = math.Round(peakBps/1e6*10) / 10
+		out.peakTime = time.UnixMilli(peakTs).Local().Format("15:04")
+	}
+
+	// Media 24h + total: AVG(rx_bps) y bytes estimados con el Δt medio.
+	row = l.db.QueryRow(
+		`SELECT AVG(rx_bps), SUM(rx_bps), COUNT(rx_bps) FROM metrics
+		 WHERE router_id = ? AND ts >= ? AND rx_bps IS NOT NULL`, gwID, start24h)
+	var avg, sum sql.NullFloat64
+	var n sql.NullInt64
+	if err := row.Scan(&avg, &sum, &n); err == nil && avg.Valid && sum.Valid && n.Valid && n.Int64 > 0 {
+		out.avgMbps = math.Round(avg.Float64/1e6*10) / 10
+		dt := float64(86400) / float64(n.Int64) // s entre muestras
+		out.totalStr = fmtBytes(sum.Float64 * dt / 8)
 	}
 	return out
 }
@@ -1257,6 +1311,15 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 		if p.lossPct != nil {
 			wan.LossPct = *p.lossPct
 		}
+	}
+	// Resumen del día desde la BD (issue #169): pico de hoy, media y total
+	// 24h solo los poblaba el modo demo; aquí se calculan con la tabla raw.
+	if gw != nil {
+		ds := l.wanDayStats(gw.ID)
+		wan.PeakTodayMbps = ds.peakMbps
+		wan.PeakTodayTime = ds.peakTime
+		wan.AvgDownMbps = ds.avgMbps
+		wan.Total24h = ds.totalStr
 	}
 	return wan
 }

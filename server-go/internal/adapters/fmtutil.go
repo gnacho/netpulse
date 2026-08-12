@@ -31,8 +31,16 @@ func parseBytes(str string) float64 {
 }
 
 // fmtBytes formatea bytes al estilo ES del contrato (wireguard.js:38-46):
-// ≥1e9 → entero "N GB" o 1 decimal con coma; ≥1e6 → "N MB"; ≥1e3 → "N KB".
+// ≥1e12 → entero "N TB" o 1 decimal con coma; ≥1e9 → "N GB"; ≥1e6 → "N MB";
+// ≥1e3 → "N KB". La rama TB la pide el total 24h del WAN (issue #169).
 func fmtBytes(bytes float64) string {
+	if bytes >= 1e12 {
+		v := bytes / 1e12
+		if v == math.Trunc(v) {
+			return fmt.Sprintf("%d TB", int64(v))
+		}
+		return strings.Replace(strconv.FormatFloat(v, 'f', 1, 64), ".", ",", 1) + " TB"
+	}
 	if bytes >= 1e9 {
 		v := bytes / 1e9
 		if v == math.Trunc(v) {
