@@ -7,6 +7,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.9.3] - 2026-08-12
+
+### Fixed
+
+- **Resumen WAN en modo live**: "Pico hoy", "Media" y "Total 24h" se
+  calculaban solo en el modo demo; en live quedaban siempre a 0 / "—".
+  Ahora se calculan desde las métricas almacenadas del gateway (pico del
+  día con su hora, media de bajada 24h y volumen total 24h). #169
+
 ## [2.9.1] - 2026-08-11
 
 ### Added
