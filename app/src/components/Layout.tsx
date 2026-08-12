@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -91,10 +91,10 @@ function DemoPill() {
   )
 }
 
-function Logo({ compact = false }: { compact?: boolean }) {
+function Logo({ compact = false, onClick }: { compact?: boolean; onClick?: () => void }) {
   const { t } = useTranslation()
   return (
-    <Link to="/" className="flex items-center gap-2.5" aria-label={`NetPulse — ${t('nav.overview')}`}>
+    <Link to="/" onClick={onClick} className="flex items-center gap-2.5" aria-label={`NetPulse — ${t('nav.overview')}`}>
       <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent/20 to-tunnel/20 ring-1 ring-accent/30">
         <img src="/logo.svg" alt="" className="h-6 w-6" />
       </span>
@@ -459,9 +459,17 @@ function Topbar() {
 function MobileHeader() {
   const { t } = useTranslation()
   const { health: healthScore } = useNetPulse()
+  const location = useLocation()
+  const reduceMotion = () =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const scrollTopIfActive = (to: string) => () => {
+    if (location.pathname === to && window.scrollY > 0) {
+      window.scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' })
+    }
+  }
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
-      <Logo />
+      <Logo onClick={scrollTopIfActive('/')} />
       <div className="flex items-center gap-3">
         <Link to="/" aria-label={t('topbar.networkHealth100', { score: healthScore.score })}>
           <motion.div layoutId="health-ring">
@@ -554,6 +562,14 @@ function MoreSheet() {
 
 function TabBar() {
   const { t } = useTranslation()
+  const location = useLocation()
+  const reduceMotion = () =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const scrollTopIfActive = (to: string) => () => {
+    if (location.pathname === to && window.scrollY > 0) {
+      window.scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' })
+    }
+  }
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-elevated/90 backdrop-blur-md md:hidden"
@@ -565,6 +581,7 @@ function TabBar() {
             key={item.to}
             to={item.to}
             end={item.end}
+            onClick={scrollTopIfActive(item.to)}
             className={({ isActive }) =>
               cn(
                 'flex h-full min-w-[56px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
@@ -619,6 +636,11 @@ function Shell() {
   const key = useMemo(() => location.pathname, [location.pathname])
   const { isDemo } = useNetPulse()
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('netpulse-sidebar-collapsed') === '1')
+
+  // Cada cambio de ruta resetea el scroll al principio (no hay ScrollRestoration).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
