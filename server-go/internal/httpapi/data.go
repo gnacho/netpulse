@@ -117,6 +117,14 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	// Menú de orquestación: opt-in por admin (#121). Se expone aquí (no en el
 	// adapter) porque el kv vive en el server, no en el poller.
 	out.Orchestration = kvGetBool(s.db.DB, orchestrationKey)
+	// Velocidad WAN contratada (#151): declarada por el admin en Ajustes y
+	// persistida en kv. Se inyecta aquí por el mismo motivo que orchestration.
+	if v, ok := kvGetFloat(s.db.DB, wanSpeedDownKey); ok {
+		out.WAN.ContractDownMbps = &v
+	}
+	if v, ok := kvGetFloat(s.db.DB, wanSpeedUpKey); ok {
+		out.WAN.ContractUpMbps = &v
+	}
 	writeJSON(w, http.StatusOK, &out)
 }
 
