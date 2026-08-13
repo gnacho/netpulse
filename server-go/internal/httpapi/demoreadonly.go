@@ -17,12 +17,14 @@ import (
 //   - /api/refresh : no escribe en BD; el botón "Refrescar" sigue vivo
 //   - /api/push/* y /api/users/me/* : preferencias de usuario/UI (idioma,
 //     nombre, push), no tocan el dataset canónico
+//   - /api/ingest/agent : los colectores/scrapers externos siguen empujando;
+//     en demo el handler los acepta (202) como no-op sin escribir (issue #168)
 func demoAllowlist(path string) bool {
 	if strings.HasPrefix(path, "/api/auth/") {
 		return true
 	}
 	switch path {
-	case "/api/demo/enable", "/api/refresh":
+	case "/api/demo/enable", "/api/refresh", "/api/ingest/agent":
 		return true
 	}
 	if strings.HasPrefix(path, "/api/push/") || strings.HasPrefix(path, "/api/users/me/") {

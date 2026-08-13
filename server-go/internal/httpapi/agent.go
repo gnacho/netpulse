@@ -216,6 +216,13 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 			"el servidor no tiene registry de agentes")
 		return
 	}
+	// En modo demo los scrapers/colectores externos siguen empujando (issue
+	// #168): se acepta como no-op (202) sin tocar el registry ni la BD. La
+	// demo sirve un dataset canónico en memoria; los datos reales no existen.
+	if s.cfg != nil && s.cfg.DemoMode {
+		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "demo": true})
+		return
+	}
 	s.agents.Ingest(&p)
 	// Fase 8.2 (R8): persistir el último push en kv (agent.state.<slug>) para
 	// que lastSeen/versión/payload sobrevivan a un reinicio del servidor.
