@@ -1183,5 +1183,12 @@
         "disabled": "Disabled"
       }
     }
+  },
+  "installPrompt": {
+    "title": "Install NetPulse as an app?",
+    "desc": "Launch it from your home screen, no browser bar.",
+    "iosDesc": "On iOS: open the Share menu and choose Add to Home Screen.",
+    "install": "Install",
+    "later": "Not now"
   }
 }

@@ -25,6 +25,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { DashboardProvider, useDashboard } from '@/hooks/useDashboard'
 import { CommandPalette } from '@/components/CommandPalette'
 import { HealthRing } from '@/components/HealthRing'
+import InstallPrompt from '@/components/InstallPrompt'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
@@ -694,6 +695,7 @@ function Shell() {
       </div>
       <TabBar />
       <CommandPalette />
+      <InstallPrompt />
     </div>
   )
 }
