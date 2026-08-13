@@ -23,6 +23,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -159,6 +160,13 @@ type Live struct {
 	wgActive       map[string]bool
 	weakAlerted    map[string]int64
 	onlineMacs     map[string]bool
+	// Presencia wireless (issue #184): devicePresence = MAC → online del
+	// último ciclo evaluado; presenceMisses = ticks seguidos sin verse.
+	// presenceSeen evita la avalancha del primer ciclo (anti-arranque).
+	presenceSeen        bool
+	devicePresence      map[string]bool
+	presenceMisses      map[string]int
+	presenceOfflineAfter int // ticks sin verse antes de declarar offline (default 3)
 	// dawnAvailable: cache de "¿hay DAWN en algún router?" para el flag del
 	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
 	// al gateway) por dawnAvailableCached para no bloquear buildOverview.
@@ -211,6 +219,9 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		wgActive:      map[string]bool{},
 		weakAlerted:   map[string]int64{},
 		onlineMacs:    map[string]bool{},
+		devicePresence: map[string]bool{},
+		presenceMisses: map[string]int{},
+		presenceOfflineAfter: 3,
 		wanDown:       map[string]int{},
 		backhaulCache: map[string]backhaulCacheEntry{},
 		lldpCache:     map[string]lldpCacheEntry{},
@@ -989,6 +1000,67 @@ func (l *Live) emitUnknownDevice(d Device) {
 	})
 }
 
+// trackDevicePresence emite device_offline/device_online cuando una MAC
+// wireless pasa de vista a no-vista (N ticks) o viceversa (issue #184).
+// Solo se rastrean MACs wireless (Band != "cable"): el FDB de cableados es
+// volátil y daría falsos offline. Anti-falsos positivos: un tick perdido no
+// dispara — hace falta `presenceOfflineAfter` ticks seguidos sin verse.
+// Anti-arranque: el primer ciclo solo puebla el estado (todo lo ya conectado
+// en boot no genera online). Toma l.mu.
+func (l *Live) trackDevicePresence(devices []Device, nowMs int64) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	seen := map[string]bool{}
+	for _, d := range devices {
+		if !d.Online || d.Band == "cable" {
+			continue
+		}
+		seen[d.MAC] = true
+		if l.presenceSeen && !l.devicePresence[d.MAC] {
+			l.insertDeviceEvent(d.MAC, d.RouterID, deviceevents.StateOnline, d.SignalDbm, nowMs)
+		}
+		l.devicePresence[d.MAC] = true
+		l.presenceMisses[d.MAC] = 0
+	}
+	for mac, wasOnline := range l.devicePresence {
+		if !wasOnline {
+			continue
+		}
+		if seen[mac] {
+			continue
+		}
+		l.presenceMisses[mac]++
+		if l.presenceMisses[mac] >= l.presenceOfflineAfter {
+			l.insertDeviceEvent(mac, l.lastRouterFor(mac), deviceevents.StateOffline, nil, nowMs)
+			l.devicePresence[mac] = false
+		}
+	}
+	l.presenceSeen = true
+}
+
+// insertDeviceEvent persiste una transición de presencia. Con db nil
+// (demo/tests sin BD) es no-op. Debe llamarse con l.mu tomado.
+func (l *Live) insertDeviceEvent(mac, routerID, state string, signalDbm *int, nowMs int64) {
+	if l.db == nil {
+		return
+	}
+	_ = deviceevents.Insert(l.db.DB, deviceevents.Event{
+		TsMs: nowMs, MAC: mac, RouterID: routerID, State: state,
+		SignalDbm: signalDbm,
+	})
+}
+
+// lastRouterFor devuelve el último router conocido de una MAC desde
+// device_attrib (o vacío si no hay registro). Debe llamarse con l.mu tomado.
+func (l *Live) lastRouterFor(mac string) string {
+	if l.db == nil {
+		return ""
+	}
+	var routerID string
+	_ = l.db.QueryRow("SELECT router_id FROM device_attrib WHERE mac = ?", mac).Scan(&routerID)
+	return routerID
+}
+
 // pollAdGuard: stats del cliente configurado; fallback inactivo si falla.
 func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
 	std, gl := l.getAdguardClient()
@@ -1417,6 +1489,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		}
 	}
 	l.trackUnknownDevices(devices)
+	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	for i := range routerList {
 		n := 0
