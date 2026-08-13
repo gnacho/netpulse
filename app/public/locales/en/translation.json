@@ -272,7 +272,10 @@
       "time": "Time",
       "title": "Network traffic",
       "total24h": "Total 24h",
-      "uploadMbps": "Upload (Mbps)"
+      "uploadMbps": "Upload (Mbps)",
+      "contracted": "Contracted: ↓ {{down}} / ↑ {{up}} Mbps",
+      "contractedLine": "↓ {{mbps}} Mbps",
+      "utilization": "Today's peak: {{pct}} % of contracted"
     },
     "upload": "Upload",
     "greetingName": ", {{name}}"
@@ -876,24 +879,24 @@
     },
     "labs": {
       "title": "Labs",
-      "caption": "External devices that push data via API (scrapers, non-OpenWrt switches\u2026). Not polled via SSH.",
+      "caption": "External devices that push data via API (scrapers, non-OpenWrt switches…). Not polled via SSH.",
       "empty": "No external devices yet. Add your first device.",
       "addDevice": "Add external device",
       "namePlaceholder": "Name (becomes the device slug)",
       "cancel": "Cancel",
-      "loading": "Loading devices\u2026",
+      "loading": "Loading devices…",
       "lastSeen": "Seen",
       "justNow": "now",
       "fresh": "Connected",
       "rotateToken": "Regenerate token",
       "noToken": "Create token",
       "tokenFor": "Token for {{slug}}",
-      "tokenOnce": "Copy the token now. It won\u2019t be shown again.",
+      "tokenOnce": "Copy the token now. It won’t be shown again.",
       "copyToken": "Copy token",
-      "ingestHint": "Use this token to authenticate the scraper\u2019s ingest:",
+      "ingestHint": "Use this token to authenticate the scraper’s ingest:",
       "dismiss": "Dismiss",
       "deleteTitle": "Revoke device token",
-      "deleteDesc": "The token for \u201c{{slug}}\u201d will be revoked. The scraper will stop sending data until you regenerate the token."
+      "deleteDesc": "The token for “{{slug}}” will be revoked. The scraper will stop sending data until you regenerate the token."
     },
     "saved": "Preferences saved",
     "services": {
@@ -954,6 +957,18 @@
       "cancel": "Cancel",
       "newPassword": "New password (min. 6)",
       "savePassword": "Save"
+    },
+    "wanSpeed": {
+      "title": "Contracted WAN link speed",
+      "caption": "Compare measured traffic against your plan",
+      "down": "Download (Mbps)",
+      "up": "Upload (Mbps)",
+      "hint": "Declared by you; not auto-detected. Used to mark capacity on the traffic chart and compute utilization.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "invalid": "Enter speeds greater than 0 and at most 100000 Mbps",
+      "saveError": "Could not save the speed"
     }
   },
   "statcard": {
