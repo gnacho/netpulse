@@ -173,6 +173,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_roam_events_dedup ON roam_events(content_h
 CREATE INDEX IF NOT EXISTS idx_roam_events_ts ON roam_events(ts_ms DESC);
 CREATE INDEX IF NOT EXISTS idx_roam_events_router_ts ON roam_events(router_id, ts_ms DESC);
 
+-- device_events: transiciones offline/online detectadas por el poller (issue #184).
+-- Generados por el adapter Live en el ciclo de buildDevices; consultables por API.
+CREATE TABLE IF NOT EXISTS device_events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts_ms      INTEGER NOT NULL,
+  mac        TEXT NOT NULL,
+  router_id  TEXT,
+  state      TEXT NOT NULL,          -- 'offline' | 'online'
+  signal_dbm INTEGER,
+  detail     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_device_events_ts ON device_events(ts_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_device_events_mac_ts ON device_events(mac, ts_ms DESC);
+
 -- Overrides manuales de topología (issue #142, Fase A): capa 2 sobre el
 -- autodiscover. El builder los aplica DESPUÉS de inferTopology.
 --   kind 'hypervisor' (target MAC): el dispositivo es un hipervisor; los CTs
@@ -422,6 +436,12 @@ func (d *DB) NightlyJob() {
 	if res, err := d.Exec("DELETE FROM roam_events WHERE ts_ms < ?", cutoff); err == nil {
 		if n, _ := res.RowsAffected(); n > 0 {
 			log.Printf("[netpulse] roam_events: purgados %d eventos >30d", n)
+		}
+	}
+	// 7) device_events: misma retención 30 días (issue #184).
+	if res, err := d.Exec("DELETE FROM device_events WHERE ts_ms < ?", cutoff); err == nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			log.Printf("[netpulse] device_events: purgados %d eventos >30d", n)
 		}
 	}
 
