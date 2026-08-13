@@ -103,12 +103,15 @@ func (u *Updater) checkDisk() CheckResult {
 }
 
 // checkGit verifica que el working tree está limpio (update.sh hace
-// git reset --hard: cualquier cambio sin commitear se perdería).
+// git reset --hard: cualquier cambio sin commitear se perdería). Se ignoran
+// los untracked (--untracked-files=no): artefactos runtime del servidor
+// (.env, data/, binarios, backups) viven fuera de git y un reset --hard no
+// los toca — de otro modo el apply quedaría bloqueado para siempre.
 func (u *Updater) checkGit() CheckResult {
 	if u.mode != "rolling" {
 		return CheckResult{OK: true, Detail: "no aplica (layout estable)"}
 	}
-	out, err := exec.Command("git", "-C", u.repoRoot, "status", "--porcelain").Output()
+	out, err := exec.Command("git", "-C", u.repoRoot, "status", "--porcelain", "--untracked-files=no").Output()
 	if err != nil {
 		return CheckResult{OK: false, Detail: "no se pudo leer el estado de git"}
 	}

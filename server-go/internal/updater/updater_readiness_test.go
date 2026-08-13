@@ -49,18 +49,43 @@ func TestReadinessGitDirty(t *testing.T) {
 	root := t.TempDir()
 	writeDeployScript(t, root)
 	writeGitHead(t, root)
-	// Ensuciar el working tree: el update hace git reset --hard y lo perdería.
+	// Un archivo untracked NO debe bloquear: los artefactos runtime del
+	// servidor (.env, data/, binarios, backups) viven fuera de git y un
+	// `git reset --hard` del update.sh no los toca. De lo contrario el
+	// apply quedaría bloqueado para siempre en un layout real.
 	if err := os.WriteFile(filepath.Join(root, "untracked.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	withAPI(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	u := New(root, "owner/netpulse", "", "2.0.0", nil)
 	r := u.Readiness()
+	if !r.Git.OK {
+		t.Errorf("git NO debería fallar con solo untracked: %+v", r.Git)
+	}
+	if !r.Ready {
+		t.Error("ready debería ser true con solo untracked")
+	}
+}
+
+func TestReadinessGitTrackedModificado(t *testing.T) {
+	if !gitAvailable() {
+		t.Skip("git no disponible")
+	}
+	root := t.TempDir()
+	writeDeployScript(t, root)
+	writeGitHead(t, root)
+	// Un cambio en un archivo tracked SÍ se perdería con git reset --hard.
+	if err := os.WriteFile(filepath.Join(root, "f"), []byte("modificado"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withAPI(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
+	r := u.Readiness()
 	if r.Git.OK {
-		t.Errorf("git debería fallar con cambios sin commitear: %+v", r.Git)
+		t.Errorf("git debería fallar con un tracked modificado: %+v", r.Git)
 	}
 	if r.Ready {
-		t.Error("ready debería ser false con git sucio")
+		t.Error("ready debería ser false con tracked modificado")
 	}
 }
 
