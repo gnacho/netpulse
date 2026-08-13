@@ -128,7 +128,7 @@ export function LinksTable({ model, hoverLink, onHoverLink }: LinksTableProps) {
               <th scope="col" className="pb-2 pr-4 font-medium">{t('topology.links.colSpeed')}</th>
               <th scope="col" className="pb-2 pr-4 font-medium">{t('devices.colSignal')}</th>
               <th scope="col" className="pb-2 pr-4 font-medium">{t('routers.colStatus')}</th>
-              <th scope="col" className="pb-2 font-medium">
+              <th scope="col" className="relative pb-2 font-medium">
                 <span className="sr-only">{t('topology.links.throughput')}</span>
               </th>
             </tr>

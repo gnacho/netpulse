@@ -212,7 +212,7 @@ export function LegendSheet({ model }: { model: TopologyModel }) {
   const dragged = useRef(false)
   return (
     <motion.div
-      className="absolute inset-x-0 bottom-0 z-10 rounded-t-2xl border-t border-border-strong bg-elevated/95 backdrop-blur-md lg:hidden"
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 rounded-t-2xl border-t border-border-strong bg-elevated/95 backdrop-blur-md lg:hidden"
       style={{ height: SHEET_H }}
       onPointerDown={(e) => e.stopPropagation()}
       initial={false}
