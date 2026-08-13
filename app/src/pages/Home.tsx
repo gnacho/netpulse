@@ -17,6 +17,11 @@ export default function Home() {
     <RecentAlerts key="alerts" />,
   ].filter(Boolean)
   const span = Math.max(4, Math.floor(12 / cards.length))
+  const spanCls = {
+    4: 'lg:col-span-4',
+    6: 'lg:col-span-6',
+    12: 'lg:col-span-12',
+  }[span]
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
       {/* ① Hero 50% + Tráfico 50% */}
@@ -28,7 +33,7 @@ export default function Home() {
       </div>
       {/* ② Servicios marcados en Ajustes + Alertas en una fila */}
       {cards.map((card, i) => (
-        <div key={i} className={`lg:col-span-${span} lg:col-span-4 xl:col-span-${span}`} style={{ gridColumn: `span ${span} / span ${span}` }}>
+        <div key={i} className={spanCls}>
           {card}
         </div>
       ))}
