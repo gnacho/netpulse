@@ -996,6 +996,7 @@
       "ok": "OK",
       "fail": "Failed"
     },
+    "confirmed": "Updated to {{sha}}",
     "history": {
       "title": "Update history",
       "empty": "No updates recorded yet",

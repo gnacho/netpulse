@@ -59,6 +59,9 @@ type Status struct {
 	// Readiness: pre-flight checks del apply (issue #160). Null en layout
 	// estable (sin auto-apply) o hasta el primer Status().
 	Readiness *Readiness `json:"readiness,omitempty"`
+	// PendingApply: confirmación de que el último update aplicó y el servicio
+	// arrancó con el commit nuevo (issue #161). Null sin confirmación.
+	PendingApply *PendingApply `json:"pendingApply,omitempty"`
 }
 
 // Updater mantiene el estado y los timers (como createUpdater).
@@ -89,6 +92,9 @@ type Updater struct {
 	readiness   *Readiness
 	readinessAt time.Time
 
+	// pendingApply en memoria (issue #161): confirmación post-update.
+	pendingApply *PendingApply
+
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
@@ -116,9 +122,9 @@ func New(repoRoot, repo, token, version string, db *sql.DB) *Updater {
 		current:  "desconocido",
 		stopCh:   make(chan struct{}),
 	}
-	// Issue #159: al arrancar, marca como fallidas las entradas de historial
-	// que quedaron 'running' por un reinicio a mitad de apply.
-	u.finalizeInterrupted()
+	// Issue #161: procesar el marcador pendiente (confirmación post-update)
+	// y finalizar historial interrumpido en cada arranque.
+	u.loadPendingApply()
 	return u
 }
 
@@ -347,7 +353,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	u.updatingLog = ""
 	u.mu.Unlock()
 
-	// Historial (issue #159): version_from es el commit actual, version_to el
+	// Historial + marcador: version_from es el commit actual, version_to el
 	// objetivo (latest de GitHub si ya se consultó).
 	from := u.current
 	if from == "" || from == "desconocido" {
@@ -361,6 +367,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	}
 	u.mu.Unlock()
 	historyID := u.recordStart(from, to, initiatedBy)
+	u.persistPendingApply(from, to)
 	startedAt := time.Now()
 
 	tmpScript := filepath.Join(os.TempDir(), fmt.Sprintf("netpulse-update-%d.sh", time.Now().UnixMilli()))
@@ -434,6 +441,8 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 				u.err = &code
 			}
 			u.finishHistory(historyID, "failed", code, dur)
+			// Issue #161: el apply falló → sin confirmación post-update.
+			u.clearPendingApply()
 		}
 	}()
 	return true
@@ -468,8 +477,8 @@ func (w *tailWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Status devuelve el estado actual (shape de la API), incluyendo el
-// readiness (issue #160).
+// Status devuelve el estado actual (shape de la API), incluyendo readiness
+// (issue #160) y la confirmación pendingApply (issue #161).
 func (u *Updater) Status() Status {
 	u.mu.Lock()
 	st := u.statusLocked()
@@ -504,6 +513,7 @@ func (u *Updater) statusLocked() Status {
 		LastLog:         lastLog,
 		Repo:            u.repo,
 		HasToken:        u.token != "",
+		PendingApply:    u.pendingApply,
 	}
 }
 

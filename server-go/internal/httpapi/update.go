@@ -1,10 +1,11 @@
 // update.go — rutas /api/update/* (paridad src/routes/update.js, SPEC §2.18,
 // solo admin):
 //
-//	GET  /api/update/status   → estado actual
-//	POST /api/update/check    → fuerza un chequeo contra GitHub
-//	POST /api/update/apply    → aplica la actualización (202 | 409)
-//	GET  /api/updates/history → historial de updates (issue #159)
+//	GET  /api/update/status          → estado actual (incl. readiness + pendingApply)
+//	POST /api/update/check           → fuerza un chequeo contra GitHub
+//	POST /api/update/apply           → aplica la actualización (202 | 409)
+//	GET  /api/updates/history        → historial de updates (issue #159)
+//	POST /api/update/pending-confirm → descarta la confirmación post-update (issue #161)
 package httpapi
 
 import (
@@ -49,5 +50,10 @@ func (s *server) registerUpdateRoutes(mux *http.ServeMux, u *updater.Updater) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"history": history})
+	})))
+	// Descarta la confirmación post-update tras mostrarla (issue #161).
+	mux.Handle("POST /api/update/pending-confirm", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u.AckPending()
+		w.WriteHeader(http.StatusNoContent)
 	})))
 }
