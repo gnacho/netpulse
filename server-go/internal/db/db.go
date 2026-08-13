@@ -191,7 +191,26 @@ CREATE TABLE IF NOT EXISTS topology_overrides (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_topo_overrides_mac ON topology_overrides(mac);
+
+-- Historial de actualizaciones (issue #159): registro de cada apply del
+-- updater. En canal rolling main version_from/to son SHAs de commit.
+CREATE TABLE IF NOT EXISTS update_history (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id     TEXT NOT NULL,
+  ts           INTEGER NOT NULL,
+  action       TEXT NOT NULL,
+  channel      TEXT NOT NULL,
+  version_from TEXT,
+  version_to   TEXT,
+  initiated_by TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'running',
+  duration_ms  INTEGER,
+  backup_path  TEXT,
+  error        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_update_history_ts ON update_history(ts DESC);
 `
+
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
 type DB struct {

@@ -984,6 +984,31 @@
       "frontend-build": "compilando la interfaz",
       "restart": "reiniciando el servicio",
       "done": "completado, recargando"
+    },
+    "checks": {
+      "title": "Comprobaciones previas",
+      "ready": "Todo listo para actualizar",
+      "notReady": "Revisa las comprobaciones antes de actualizar",
+      "disk": "Espacio en disco",
+      "git": "Working tree limpio",
+      "network": "Conexión con GitHub",
+      "concurrent": "Sin actualización en curso",
+      "ok": "OK",
+      "fail": "Fallo"
+    },
+    "confirmed": "Actualizado a {{sha}}",
+    "history": {
+      "title": "Historial de actualizaciones",
+      "empty": "Sin actualizaciones registradas",
+      "from": "Desde",
+      "to": "Hasta",
+      "date": "Fecha",
+      "initiatedBy": "Iniciado por",
+      "status": "Estado",
+      "duration": "Duración",
+      "success": "Correcto",
+      "failed": "Falló",
+      "running": "En curso"
     }
   },
   "demo": {

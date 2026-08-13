@@ -39,7 +39,7 @@ func TestCheckUpdateAvailable(t *testing.T) {
 	root := t.TempDir()
 	writeDeployScript(t, root)
 	writeGitHead(t, root)
-	u := New(root, "owner/netpulse", "", "2.0.0")
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
 	st := u.Check(context.Background())
 	if st.Error != nil {
 		t.Fatalf("error: %v", *st.Error)
@@ -70,7 +70,7 @@ func TestCheckNoToken(t *testing.T) {
 	})
 	// Sin deploy/update.sh → modo estable. El 404 llega tanto a /releases/latest
 	// como a /commits/main; el error es el mismo.
-	u := New(t.TempDir(), "owner/netpulse", "", "2.0.0")
+	u := New(t.TempDir(), "owner/netpulse", "", "2.0.0", nil)
 	st := u.Check(context.Background())
 	if st.Error == nil || *st.Error != "no_token" {
 		t.Fatalf("error: %v", st.Error)
@@ -87,7 +87,7 @@ func TestCheckMismaVersion(t *testing.T) {
 	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"sha":"%sffffffffff","commit":{"message":"x"}}`, short)
 	})
-	u := New(root, "owner/netpulse", "", "2.0.0")
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
 	st := u.Check(context.Background())
 	if st.UpdateAvailable {
 		t.Fatal("no debería haber update")
@@ -145,7 +145,7 @@ func TestApplyYaEnCursoYScript(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "deploy", "update.sh"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	u := New(root, "owner/netpulse", "", "2.0.0")
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
 	if !u.Apply() {
 		t.Fatal("apply debería arrancar")
 	}
@@ -179,7 +179,7 @@ func TestStableModeUpdateAvailable(t *testing.T) {
 		fmt.Fprint(w, `{"tag_name":"v2.7.3","name":"v2.7.3"}`)
 	})
 	// Sin deploy/update.sh → modo estable. Versión embebida 2.7.2 < 2.7.3.
-	u := New(t.TempDir(), "owner/netpulse", "", "2.7.2")
+	u := New(t.TempDir(), "owner/netpulse", "", "2.7.2", nil)
 	st := u.Check(context.Background())
 	if st.Error != nil {
 		t.Fatalf("error: %v", *st.Error)
@@ -202,7 +202,7 @@ func TestStableModeNoUpdateWhenSameVersion(t *testing.T) {
 	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"tag_name":"v2.7.2","name":"v2.7.2"}`)
 	})
-	u := New(t.TempDir(), "owner/netpulse", "", "2.7.2")
+	u := New(t.TempDir(), "owner/netpulse", "", "2.7.2", nil)
 	st := u.Check(context.Background())
 	if st.UpdateAvailable {
 		t.Fatal("no debería haber update (misma versión)")
@@ -213,7 +213,7 @@ func TestStableModeNoUpdateWhenOlder(t *testing.T) {
 	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"tag_name":"v2.7.0","name":"v2.7.0"}`)
 	})
-	u := New(t.TempDir(), "owner/netpulse", "", "2.7.2")
+	u := New(t.TempDir(), "owner/netpulse", "", "2.7.2", nil)
 	st := u.Check(context.Background())
 	if st.UpdateAvailable {
 		t.Fatal("no debería haber update (2.7.0 < 2.7.2)")
@@ -246,14 +246,14 @@ func TestCompareSemver(t *testing.T) {
 
 func TestCanApplyDetection(t *testing.T) {
 	// Sin deploy/update.sh → stable, !canApply
-	u1 := New(t.TempDir(), "owner/netpulse", "", "1.0.0")
+	u1 := New(t.TempDir(), "owner/netpulse", "", "1.0.0", nil)
 	if u1.CanApply() || u1.mode != "stable" {
 		t.Fatal("sin deploy/update.sh debería ser stable/!canApply")
 	}
 	// Con deploy/update.sh → rolling, canApply
 	root := t.TempDir()
 	writeDeployScript(t, root)
-	u2 := New(root, "owner/netpulse", "", "1.0.0")
+	u2 := New(root, "owner/netpulse", "", "1.0.0", nil)
 	if !u2.CanApply() || u2.mode != "rolling" {
 		t.Fatal("con deploy/update.sh debería ser rolling/canApply")
 	}

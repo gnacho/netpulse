@@ -7,6 +7,7 @@ package updater
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,6 +56,12 @@ type Status struct {
 	LastLog         *string `json:"lastLog"`
 	Repo            string  `json:"repo"`
 	HasToken        bool    `json:"hasToken"`
+	// Readiness: pre-flight checks del apply (issue #160). Null en layout
+	// estable (sin auto-apply) o hasta el primer Status().
+	Readiness *Readiness `json:"readiness,omitempty"`
+	// PendingApply: confirmación de que el último update aplicó y el servicio
+	// arrancó con el commit nuevo (issue #161). Null sin confirmación.
+	PendingApply *PendingApply `json:"pendingApply,omitempty"`
 }
 
 // Updater mantiene el estado y los timers (como createUpdater).
@@ -65,6 +72,9 @@ type Updater struct {
 	version  string // semver embebido (httpapi.Version) para comparar en estable
 	canApply bool   // true si existe deploy/update.sh (layout git)
 	mode     string // "rolling" (git layout) | "stable" (install.sh)
+	// db: SQLite para historial (#159) y marcador pendingApply (#161). nil →
+	// persistencia deshabilitada (tests sin BD).
+	db *sql.DB
 
 	mu           sync.Mutex
 	current      string
@@ -77,6 +87,14 @@ type Updater struct {
 	lastLog      *string
 	err          *string
 
+	// readiness cacheado (issue #160): el network check toca red y no debe
+	// bloquear el polling de status.
+	readiness   *Readiness
+	readinessAt time.Time
+
+	// pendingApply en memoria (issue #161): confirmación post-update.
+	pendingApply *PendingApply
+
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
@@ -86,23 +104,28 @@ type Updater struct {
 // layout es automática: si existe deploy/update.sh junto a repoRoot, el modo
 // es "rolling" (compara contra main HEAD y puede auto-aplicar); si no, es
 // "stable" (compara contra release tags y NO puede auto-aplicar — el usuario
-// debe re-ejecutar install.sh).
-func New(repoRoot, repo, token, version string) *Updater {
+// debe re-ejecutar install.sh). db puede ser nil (persistencia deshabilitada).
+func New(repoRoot, repo, token, version string, db *sql.DB) *Updater {
 	canApply := fileExists(filepath.Join(repoRoot, "deploy", "update.sh"))
 	mode := "stable"
 	if canApply {
 		mode = "rolling"
 	}
-	return &Updater{
+	u := &Updater{
 		repoRoot: repoRoot,
 		repo:     repo,
 		token:    token,
 		version:  version,
 		canApply: canApply,
 		mode:     mode,
+		db:       db,
 		current:  "desconocido",
 		stopCh:   make(chan struct{}),
 	}
+	// Issue #161: procesar el marcador pendiente (confirmación post-update)
+	// y finalizar historial interrumpido en cada arranque.
+	u.loadPendingApply()
+	return u
 }
 
 // CanApply indica si el updater puede auto-aplicar en este layout.
@@ -310,9 +333,16 @@ func (u *Updater) Check(ctx context.Context) Status {
 
 var stepRe = regexp.MustCompile(`STEP:(\w+)`)
 
-// Apply lanza update.sh en segundo plano. Devuelve false si ya hay una
-// actualización en curso (→ 409 already_updating) o si no se pudo copiar.
-func (u *Updater) Apply() bool {
+// Apply lanza update.sh en segundo plano (iniciado manualmente desde la UI,
+// rol admin). Devuelve false si ya hay una actualización en curso (→ 409
+// already_updating) o si no se pudo copiar.
+func (u *Updater) Apply() bool { return u.ApplyBy("admin") }
+
+// ApplyBy lanza update.sh en segundo plano con el iniciador dado ("admin"
+// manual o "auto" para el rolling main). Antes de lanzar registra la entrada
+// 'running' del historial (#159) y persiste el marcador pendingApply (#161);
+// la goroutine finaliza ambos según el resultado del script.
+func (u *Updater) ApplyBy(initiatedBy string) bool {
 	u.mu.Lock()
 	if u.updatingStep != nil {
 		u.mu.Unlock()
@@ -322,6 +352,23 @@ func (u *Updater) Apply() bool {
 	u.updatingStep = &startStep
 	u.updatingLog = ""
 	u.mu.Unlock()
+
+	// Historial + marcador: version_from es el commit actual, version_to el
+	// objetivo (latest de GitHub si ya se consultó).
+	from := u.current
+	if from == "" || from == "desconocido" {
+		from = gitShort(u.repoRoot)
+	}
+	u.mu.Lock()
+	var to *string
+	if u.latest != nil {
+		c := *u.latest
+		to = &c
+	}
+	u.mu.Unlock()
+	historyID := u.recordStart(from, to, initiatedBy)
+	u.persistPendingApply(from, to)
+	startedAt := time.Now()
 
 	tmpScript := filepath.Join(os.TempDir(), fmt.Sprintf("netpulse-update-%d.sh", time.Now().UnixMilli()))
 	src, err := os.ReadFile(filepath.Join(u.repoRoot, "deploy", "update.sh"))
@@ -334,6 +381,7 @@ func (u *Updater) Apply() bool {
 		code := "update_copy_failed"
 		u.err = &code
 		u.mu.Unlock()
+		u.finishHistory(historyID, "failed", code, time.Since(startedAt))
 		fmt.Printf("[netpulse] no se pudo copiar update.sh: %v\n", err)
 		return false
 	}
@@ -345,6 +393,7 @@ func (u *Updater) Apply() bool {
 		u.mu.Lock()
 		u.updatingStep = nil
 		u.mu.Unlock()
+		u.finishHistory(historyID, "failed", "update_pipe_failed", time.Since(startedAt))
 		return false
 	}
 	cmd.Stderr = &tailWriter{u: u}
@@ -352,6 +401,7 @@ func (u *Updater) Apply() bool {
 		u.mu.Lock()
 		u.updatingStep = nil
 		u.mu.Unlock()
+		u.finishHistory(historyID, "failed", "update_start_failed", time.Since(startedAt))
 		return false
 	}
 	u.wg.Add(1)
@@ -368,6 +418,7 @@ func (u *Updater) Apply() bool {
 			}
 		}
 		waitErr := cmd.Wait()
+		dur := time.Since(startedAt)
 		u.mu.Lock()
 		defer u.mu.Unlock()
 		if waitErr == nil {
@@ -376,18 +427,22 @@ func (u *Updater) Apply() bool {
 			log := u.updatingLog
 			u.lastLog = &log
 			u.updateAvail = false
+			u.finishHistory(historyID, "success", "", dur)
 		} else {
+			code := "update_exit_-1"
 			if ee, ok := waitErr.(*exec.ExitError); ok {
 				log := u.updatingLog
 				u.lastLog = &log
 				u.updatingStep = nil
-				code := fmt.Sprintf("update_exit_%d", ee.ExitCode())
+				code = fmt.Sprintf("update_exit_%d", ee.ExitCode())
 				u.err = &code
 			} else {
 				u.updatingStep = nil
-				code := "update_exit_-1"
 				u.err = &code
 			}
+			u.finishHistory(historyID, "failed", code, dur)
+			// Issue #161: el apply falló → sin confirmación post-update.
+			u.clearPendingApply()
 		}
 	}()
 	return true
@@ -422,11 +477,14 @@ func (w *tailWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Status devuelve el estado actual (shape de la API).
+// Status devuelve el estado actual (shape de la API), incluyendo readiness
+// (issue #160) y la confirmación pendingApply (issue #161).
 func (u *Updater) Status() Status {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-	return u.statusLocked()
+	st := u.statusLocked()
+	u.mu.Unlock()
+	st.Readiness = u.Readiness()
+	return st
 }
 
 func (u *Updater) statusLocked() Status {
@@ -455,6 +513,7 @@ func (u *Updater) statusLocked() Status {
 		LastLog:         lastLog,
 		Repo:            u.repo,
 		HasToken:        u.token != "",
+		PendingApply:    u.pendingApply,
 	}
 }
 

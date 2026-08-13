@@ -27,6 +27,7 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { HealthRing } from '@/components/HealthRing'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
+import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn, exitDemo } from '@/lib/utils'
 
@@ -659,6 +660,9 @@ function Shell() {
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
           {isDemo && <DemoBanner />}
           <UpdateBanner />
+          {/* Confirmación post-update (issue #161): toast al cargar si el
+              último apply llegó a arrancar con el commit nuevo. */}
+          <UpdateConfirmToast />
           {/* Pull-to-refresh (issue #139): gesto móvil recarga la vista para
               coger un deploy nuevo sin reabrir la app. Solo actúa en touch y
               con scroll arriba; no interfiere con carruseles/tablas. */}
