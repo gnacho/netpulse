@@ -64,6 +64,9 @@ export interface WanInfo {
   peakTodayTime: string
   avgDownMbps: number
   total24h: string
+  /** Velocidad contratada declarada por el admin (Mbps, issue #151). Ausente si no configurada. */
+  contractDownMbps?: number
+  contractUpMbps?: number
 }
 
 export interface TrafficPoint {

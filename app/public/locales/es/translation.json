@@ -272,7 +272,10 @@
       "time": "Hora",
       "title": "Tráfico de red",
       "total24h": "Total 24h",
-      "uploadMbps": "Subida (Mbps)"
+      "uploadMbps": "Subida (Mbps)",
+      "contracted": "Contratado: ↓ {{down}} / ↑ {{up}} Mbps",
+      "contractedLine": "↓ {{mbps}} Mbps",
+      "utilization": "Pico hoy: {{pct}} % del contratado"
     },
     "upload": "Subida",
     "greetingName": ", {{name}}"
@@ -876,24 +879,24 @@
     },
     "labs": {
       "title": "Labs",
-      "caption": "Dispositivos externos que envían datos vía API (scrapers, switches no OpenWrt\u2026). No se sondean por SSH.",
+      "caption": "Dispositivos externos que envían datos vía API (scrapers, switches no OpenWrt…). No se sondean por SSH.",
       "empty": "Sin dispositivos externos. Añade tu primer dispositivo.",
       "addDevice": "Añadir dispositivo externo",
-      "namePlaceholder": "Nombre (ser\u00e1 el slug del dispositivo)",
+      "namePlaceholder": "Nombre (será el slug del dispositivo)",
       "cancel": "Cancelar",
-      "loading": "Cargando dispositivos\u2026",
+      "loading": "Cargando dispositivos…",
       "lastSeen": "Visto",
       "justNow": "ahora",
       "fresh": "Conectado",
       "rotateToken": "Regenerar token",
       "noToken": "Crear token",
       "tokenFor": "Token para {{slug}}",
-      "tokenOnce": "Copia el token ahora. No se volver\u00e1 a mostrar.",
+      "tokenOnce": "Copia el token ahora. No se volverá a mostrar.",
       "copyToken": "Copiar token",
       "ingestHint": "Usa este token para autenticar la ingesta del scraper:",
       "dismiss": "Cerrar",
       "deleteTitle": "Revocar token del dispositivo",
-      "deleteDesc": "Se revocar\u00e1 el token de \"{{slug}}\". El scraper dejar\u00e1 de poder enviar datos hasta que regeneres el token."
+      "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token."
     },
     "saved": "Preferencias guardadas",
     "services": {
@@ -954,6 +957,18 @@
       "cancel": "Cancelar",
       "newPassword": "Nueva contraseña (mín. 6)",
       "savePassword": "Guardar"
+    },
+    "wanSpeed": {
+      "title": "Velocidad WAN contratada",
+      "caption": "Para comparar el tráfico medido con tu plan",
+      "down": "Descarga (Mbps)",
+      "up": "Subida (Mbps)",
+      "hint": "Declarada por ti; no se detecta automáticamente. Se usa para marcar la capacidad en el gráfico de tráfico y calcular la utilización.",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "saved": "Guardada",
+      "invalid": "Introduce velocidades mayores que 0 y como máximo 100000 Mbps",
+      "saveError": "No se pudo guardar la velocidad"
     }
   },
   "statcard": {

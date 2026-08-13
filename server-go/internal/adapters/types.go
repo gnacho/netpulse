@@ -49,6 +49,12 @@ type WAN struct {
 	PeakTodayTime string  `json:"peakTodayTime"`
 	AvgDownMbps   float64 `json:"avgDownMbps"`
 	Total24h      string  `json:"total24h"`
+	// ContractDownMbps/ContractUpMbps: velocidad contratada declarada por el
+	// admin en Ajustes (issue #151). Punteros: ausentes (null) si no está
+	// configurado. Los inyecta el server en handleOverview desde el kv — el
+	// adapter no los conoce.
+	ContractDownMbps *float64 `json:"contractDownMbps,omitempty"`
+	ContractUpMbps   *float64 `json:"contractUpMbps,omitempty"`
 }
 
 // TrafficPoint es un punto {t, down, up} de las series de tráfico WAN.

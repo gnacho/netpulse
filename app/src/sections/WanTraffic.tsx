@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import type { TimeRange, TrafficPoint } from '@/data/mock'
@@ -63,7 +63,6 @@ export function WanTraffic() {
     { label: t('home.traffic.total24h'), value: wan.total24h },
     { label: t('home.traffic.loss'), value: `${wan.lossPct} %` },
   ] as const
-
   // Carga de datos por rango (crossfade vía key en el chart)
   useEffect(() => {
     setLiveData(trafficByRange[range])
@@ -139,6 +138,21 @@ export function WanTraffic() {
               minTickGap={40}
             />
             <Tooltip content={<TrafficTooltip />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
+            {wan.contractDownMbps ? (
+              <ReferenceLine
+                y={wan.contractDownMbps}
+                stroke="#FBBF24"
+                strokeDasharray="4 4"
+                strokeOpacity={0.7}
+                label={{
+                  value: t('home.traffic.contractedLine', { mbps: fmtEs(wan.contractDownMbps, 0) }),
+                  position: 'insideTopRight',
+                  fill: '#FBBF24',
+                  fontSize: 9,
+                  fontFamily: '"JetBrains Mono", monospace',
+                }}
+              />
+            ) : null}
             <Area
               type="monotone"
               dataKey="down"
@@ -193,6 +207,21 @@ export function WanTraffic() {
           </motion.div>
         ))}
       </div>
+
+      {/* Utilización vs velocidad contratada (issue #151). Solo se muestra
+          cuando el admin ha declarado la velocidad en Ajustes. */}
+      {wan.contractDownMbps ? (
+        <p className="mt-3 border-t border-border pt-3 text-caption text-text-muted">
+          {t('home.traffic.contracted', {
+            down: fmtEs(wan.contractDownMbps, 0),
+            up: fmtEs(wan.contractUpMbps ?? 0, 0),
+          })}
+          {' · '}
+          {t('home.traffic.utilization', {
+            pct: fmtEs(wan.peakTodayMbps > 0 ? (wan.peakTodayMbps / wan.contractDownMbps) * 100 : 0, 1),
+          })}
+        </p>
+      ) : null}
     </section>
   )
 }

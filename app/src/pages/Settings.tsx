@@ -1508,6 +1508,138 @@ function BackupsPanel() {
 }
 
 // ---------------------------------------------------------------------------
+// Velocidad WAN contratada (issue #151) — declarada por el admin en kv y
+// persistida vía GET/PUT /api/settings/wanspeed. Se muestra como sub-sección
+// de la tarjeta «Datos y umbrales» (mismo ámbito: métricas WAN).
+// ---------------------------------------------------------------------------
+
+function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disabled?: boolean }) {
+  const { t } = useTranslation()
+  const { refresh: refreshOverview } = useNetPulse()
+  const [down, setDown] = useState('')
+  const [up, setUp] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const loaded = useRef(false)
+
+  // Carga el valor persistido una sola vez al montar (no se pisa al guardar).
+  useEffect(() => {
+    let alive = true
+    void fetch('/api/settings/wanspeed')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d || loaded.current) return
+        loaded.current = true
+        if (typeof d.downMbps === 'number') setDown(String(d.downMbps))
+        if (typeof d.upMbps === 'number') setUp(String(d.upMbps))
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const invalid = (v: string) => {
+    const n = Number(v)
+    return !Number.isFinite(n) || n <= 0 || n > 100000
+  }
+
+  const save = useCallback(async () => {
+    if (invalid(down) || invalid(up)) {
+      setError(t('settings.wanSpeed.invalid'))
+      return
+    }
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await fetch('/api/settings/wanspeed', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ downMbps: Number(down), upMbps: Number(up) }),
+      })
+      if (!res.ok) {
+        setError(t('settings.wanSpeed.saveError'))
+        return
+      }
+      loaded.current = true
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+      refreshOverview() // la capacidad contratada del gráfico WAN se actualiza en vivo
+      onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }, [down, up, onSaved, refreshOverview, t])
+
+  return (
+    <div className="mt-4 space-y-3 border-t border-border pt-4">
+      <div>
+        <div className="text-sm font-medium text-text-primary">{t('settings.wanSpeed.title')}</div>
+        <div className="text-caption text-text-muted">{t('settings.wanSpeed.caption')}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.down')}</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0.1"
+            max="100000"
+            step="any"
+            value={down}
+            onChange={(e) => setDown(e.target.value)}
+            disabled={disabled || loading}
+            aria-label={t('settings.wanSpeed.down')}
+            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+        </label>
+        <label className="block">
+          <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.up')}</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0.1"
+            max="100000"
+            step="any"
+            value={up}
+            onChange={(e) => setUp(e.target.value)}
+            disabled={disabled || loading}
+            aria-label={t('settings.wanSpeed.up')}
+            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+        </label>
+      </div>
+      <p className="text-caption text-text-muted">{t('settings.wanSpeed.hint')}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={disabled || busy || loading}
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? t('settings.wanSpeed.saving') : t('settings.wanSpeed.save')}
+        </button>
+        {saved && (
+          <span role="status" className="text-caption text-ok">
+            {t('settings.wanSpeed.saved')}
+          </span>
+        )}
+        {error && (
+          <span role="alert" className="text-caption text-danger">
+            {error}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -3042,6 +3174,9 @@ export default function Settings() {
                 </div>
               ))}
             </div>
+
+            {/* Velocidad WAN contratada (issue #151) — sub-sección del mismo ámbito */}
+            <WanSpeedCard onSaved={notify} disabled={isDemo} />
           </Card>
         </div>
 
