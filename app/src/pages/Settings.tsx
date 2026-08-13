@@ -44,6 +44,7 @@ import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
+import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
@@ -1875,7 +1876,8 @@ function DemoCard({ onSaved }: { reduce?: boolean; onSaved: () => void }) {
 
 /** Widget inline de "Comprobar actualizaciones" para la AdminBar. Usa los
  *  endpoints /api/update/status y /api/update/apply (misma lógica que
- *  UpdateBanner, sin banner): al pulsar comprueba y muestra estado compacto. */
+ *  UpdateBanner, sin banner): al pulsar comprueba y muestra estado compacto.
+ *  Con readiness (issue #160): los checks previos bloquean el botón. */
 interface NetPulseUpdateStatus {
   current: string
   latest: string | null
@@ -1884,6 +1886,7 @@ interface NetPulseUpdateStatus {
   canApply: boolean
   repo: string
   updating: false | { step: string }
+  readiness?: UpdateReadiness | null
 }
 
 function UpdateCheckInline() {
@@ -1917,6 +1920,8 @@ function UpdateCheckInline() {
     }
   }
 
+  const ready = status?.readiness ? status.readiness.ready : true
+
   return (
     <div className="flex flex-col gap-1">
       {status?.updateAvailable && status.latest ? (
@@ -1924,8 +1929,8 @@ function UpdateCheckInline() {
           <button
             type="button"
             onClick={() => void apply()}
-            disabled={busy}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:opacity-60"
+            disabled={busy || !ready}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Download className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             <span className="hidden sm:inline">{t('update.button')}</span>
@@ -1963,6 +1968,11 @@ function UpdateCheckInline() {
           {t('settings.about.updateError')}
         </span>
        ) : null}
+      {status?.updateAvailable && status.canApply && status.readiness && (
+        <div className="mt-2 w-[260px]">
+          <ReadinessPanel readiness={status.readiness} compact />
+        </div>
+      )}
     </div>
   )
 }

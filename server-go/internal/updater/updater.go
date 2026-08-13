@@ -56,6 +56,9 @@ type Status struct {
 	LastLog         *string `json:"lastLog"`
 	Repo            string  `json:"repo"`
 	HasToken        bool    `json:"hasToken"`
+	// Readiness: pre-flight checks del apply (issue #160). Null en layout
+	// estable (sin auto-apply) o hasta el primer Status().
+	Readiness *Readiness `json:"readiness,omitempty"`
 }
 
 // Updater mantiene el estado y los timers (como createUpdater).
@@ -80,6 +83,11 @@ type Updater struct {
 	updatingLog  string
 	lastLog      *string
 	err          *string
+
+	// readiness cacheado (issue #160): el network check toca red y no debe
+	// bloquear el polling de status.
+	readiness   *Readiness
+	readinessAt time.Time
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -460,11 +468,14 @@ func (w *tailWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Status devuelve el estado actual (shape de la API).
+// Status devuelve el estado actual (shape de la API), incluyendo el
+// readiness (issue #160).
 func (u *Updater) Status() Status {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-	return u.statusLocked()
+	st := u.statusLocked()
+	u.mu.Unlock()
+	st.Readiness = u.Readiness()
+	return st
 }
 
 func (u *Updater) statusLocked() Status {

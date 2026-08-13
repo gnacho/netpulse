@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { DownloadCloud, ExternalLink, Loader2, X } from 'lucide-react'
 import { useAuth } from '@/data/AuthContext'
+import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 
 interface UpdateStatus {
   current: string
@@ -20,6 +21,7 @@ interface UpdateStatus {
   repo: string
   updating: false | { step: string }
   hasToken: boolean
+  readiness?: UpdateReadiness | null
 }
 
 const POLL_MS = 60 * 60 * 1000
@@ -138,6 +140,7 @@ export function UpdateBanner() {
 
   const updating = Boolean(status.updating)
   const step = status.updating ? status.updating.step : 'start'
+  const ready = status.readiness ? status.readiness.ready : true
 
   return (
     <AnimatePresence>
@@ -147,48 +150,56 @@ export function UpdateBanner() {
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
         role="status"
-        className="mb-4 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft px-4 py-2.5"
+        className="mb-4 flex flex-col gap-2"
       >
-        <DownloadCloud className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-        <p className="min-w-0 flex-1 truncate text-sm text-text-primary">
-          {updating
-            ? t('update.updating', { step: t(`update.step.${step}`) })
-            : t('update.available', { version: status.latest, msg: status.latestMsg ?? '' })}
-        </p>
-        {!updating ? (
-          <>
-            {status.canApply ? (
+        <div className="flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft px-4 py-2.5">
+          <DownloadCloud className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+          <p className="min-w-0 flex-1 truncate text-sm text-text-primary">
+            {updating
+              ? t('update.updating', { step: t(`update.step.${step}`) })
+              : t('update.available', { version: status.latest, msg: status.latestMsg ?? '' })}
+          </p>
+          {!updating ? (
+            <>
+              {status.canApply ? (
+                <button
+                  type="button"
+                  onClick={() => void apply()}
+                  disabled={!ready}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <DownloadCloud className="h-3.5 w-3.5" strokeWidth={2} />
+                  {t('update.button')}
+                </button>
+              ) : (
+                <a
+                  href={`https://github.com/${status.repo || 'gnacho/netpulse'}/releases`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={t('update.stableHint')}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-2"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+                  {t('update.getRelease')}
+                </a>
+              )}
               <button
                 type="button"
-                onClick={() => void apply()}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                onClick={() => status.latest && setDismissed(status.latest)}
+                aria-label={t('update.dismiss')}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:text-text-primary"
               >
-                <DownloadCloud className="h-3.5 w-3.5" strokeWidth={2} />
-                {t('update.button')}
+                <X className="h-4 w-4" strokeWidth={1.75} />
               </button>
-            ) : (
-              <a
-                href={`https://github.com/${status.repo || 'gnacho/netpulse'}/releases`}
-                target="_blank"
-                rel="noreferrer"
-                title={t('update.stableHint')}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-2"
-              >
-                <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
-                {t('update.getRelease')}
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={() => status.latest && setDismissed(status.latest)}
-              aria-label={t('update.dismiss')}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:text-text-primary"
-            >
-              <X className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-          </>
-        ) : (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent" strokeWidth={1.75} />
+            </>
+          ) : (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent" strokeWidth={1.75} />
+          )}
+        </div>
+        {/* Pre-flight checks (issue #160): se muestran antes de permitir aplicar
+            y deshabilitan el botón si alguno falla. */}
+        {!updating && status.canApply && status.readiness && (
+          <ReadinessPanel readiness={status.readiness} compact className="mx-0.5" />
         )}
       </motion.div>
     </AnimatePresence>

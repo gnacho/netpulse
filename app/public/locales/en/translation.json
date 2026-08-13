@@ -985,6 +985,17 @@
       "restart": "restarting the service",
       "done": "done, reloading"
     },
+    "checks": {
+      "title": "Pre-flight checks",
+      "ready": "Ready to update",
+      "notReady": "Review the checks before updating",
+      "disk": "Disk space",
+      "git": "Clean working tree",
+      "network": "GitHub reachable",
+      "concurrent": "No update in progress",
+      "ok": "OK",
+      "fail": "Failed"
+    },
     "history": {
       "title": "Update history",
       "empty": "No updates recorded yet",
