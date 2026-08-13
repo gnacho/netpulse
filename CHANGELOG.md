@@ -7,6 +7,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.9.5] - 2026-08-13
+
+### Fixed
+
+- **Ingesta externa en modo demo**: los colectores/scrapers externos (p. ej.
+  un scraper de switch vía timer) recibían `409 demo_read_only` al empujar
+  datos en modo demo y reportaban fallos de un estado esperado. Ahora la
+  ingesta se acepta como no-op benigno (`202` + `demo:true`) sin tocar la BD,
+  manteniendo la validación de token y firma HMAC. #168
+
 ## [2.9.4] - 2026-08-13
 
 ### Fixed
