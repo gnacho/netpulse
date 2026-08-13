@@ -7,6 +7,36 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.9.6] - 2026-08-13
+
+### Added
+
+- **Historial de actualizaciones**: nueva tabla `update_history` y endpoint
+  `GET /api/updates/history` (admin) con el registro de cada apply (cuándo,
+  SHA desde/hacia, iniciador, duración, estado). Visible en Ajustes. #159
+
+- **Velocidad WAN contratada**: campo en Ajustes para declarar el ancho de
+  bajada/subida contratado (Mbps). Se persiste y el gráfico de tráfico WAN
+  muestra una línea de referencia al nivel contratado y la utilización
+  ("Pico hoy X % del contratado"). `GET/PUT /api/settings/wanspeed` (admin)
+  y `wan.contractDownMbps/contractUpMbps` en el overview. #151
+
+### Changed
+
+- **Readiness checks antes de aplicar actualizaciones**: `GET /api/update/status`
+  expone pre-flight checks (disco, git limpio, red a GitHub, sin update en
+  curso); la UI bloquea el botón de aplicar si no están listos. #160
+
+- **Confirmación post-update**: tras aplicar y reiniciar, si el commit cambió
+  se muestra un aviso de una sola vez "Actualizado a <sha>". #161
+
+### Fixed
+
+- **Readiness git**: el check de working tree limpio ignoraba los ficheros
+  untracked (`.env`, `data/`, binarios, backups), bloqueando el apply para
+  siempre en un layout real. Ahora usa `--untracked-files=no` (un
+  `git reset --hard` no toca untracked). #160
+
 ## [2.9.5] - 2026-08-13
 
 ### Fixed
