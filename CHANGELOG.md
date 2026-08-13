@@ -7,6 +7,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.9.4] - 2026-08-13
+
+### Fixed
+
+- **Resumen en móvil**: las tarjetas de servicios forzaban columnas
+  implícitas en la rejilla de 1 columna, dejando el saludo y el tráfico
+  montados en la misma línea horizontal (el saludo colapsaba a ancho 0).
+  Ahora usan clases de columna estáticas solo a partir de `lg`. #173
+
 ## [2.9.3] - 2026-08-12
 
 ### Fixed
