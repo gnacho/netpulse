@@ -70,7 +70,7 @@ export function UpdateConfirmToast() {
           key={pending.to}
           initial={reduce ? false : { opacity: 0, y: 16, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={reduce ? false : { opacity: 0, y: 8, scale: 0.95 }}
+          exit={reduce ? undefined : { opacity: 0, y: 8, scale: 0.95 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           role="status"
           className="flex items-center gap-2 rounded-xl border border-border-strong bg-elevated py-2 pl-3 pr-2 text-sm font-medium text-text-primary shadow-soft"
