@@ -19,6 +19,7 @@ import {
   Github,
   HardDrive,
   Heart,
+  History,
   KeyRound,
   LogOut,
   MonitorSmartphone,
@@ -52,6 +53,7 @@ import { useAuth } from '@/data/AuthContext'
 import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
+import { relTimeFromTs } from '@/i18n'
 import { cn, exitDemo } from '@/lib/utils'
 import { ACCENTS, type AccentId, type ThemeMode } from '@/lib/theme-boot'
 import pkg from '../../package.json'
@@ -1965,6 +1967,89 @@ function UpdateCheckInline() {
   )
 }
 
+/** Historial de actualizaciones (issue #159): tabla con los últimos applies
+ *  (SHA from→to, fecha, estado, duración) servida por GET /api/updates/history. */
+interface UpdateHistoryRow {
+  id: number
+  ts: number
+  action: string
+  channel: string
+  versionFrom?: string
+  versionTo?: string
+  initiatedBy: string
+  status: string
+  durationMs?: number
+  error?: string
+}
+
+function UpdateHistoryCard() {
+  const { t } = useTranslation()
+  const [rows, setRows] = useState<UpdateHistoryRow[] | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/updates/history')
+      if (!res.ok) return
+      const json = (await res.json()) as { history?: UpdateHistoryRow[] }
+      setRows(json.history ?? [])
+    } catch {
+      /* sin historial: la tarjeta muestra el estado vacío */
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const statusLabel = (s: string) =>
+    s === 'success' ? t('update.history.success') : s === 'failed' ? t('update.history.failed') : t('update.history.running')
+  const statusCls = (s: string) =>
+    s === 'success' ? 'text-ok' : s === 'failed' ? 'text-rose-500' : 'text-amber-600 dark:text-amber-400'
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4 md:p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <History className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
+        <h3 className="text-sm font-semibold text-text-primary">{t('update.history.title')}</h3>
+      </div>
+      {rows === null ? (
+        <p className="text-xs text-text-muted">{t('settings.about.checking')}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-text-secondary">{t('update.history.empty')}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[540px] text-left text-xs">
+            <thead>
+              <tr className="border-b border-border text-text-muted">
+                <th className="py-2 pr-3 font-medium">{t('update.history.date')}</th>
+                <th className="py-2 pr-3 font-medium">{t('update.history.from')}</th>
+                <th className="py-2 pr-3 font-medium">{t('update.history.to')}</th>
+                <th className="py-2 pr-3 font-medium">{t('update.history.initiatedBy')}</th>
+                <th className="py-2 pr-3 font-medium">{t('update.history.duration')}</th>
+                <th className="py-2 font-medium">{t('update.history.status')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 last:border-0">
+                  <td className="whitespace-nowrap py-2 pr-3 text-text-secondary">
+                    {relTimeFromTs(r.ts) ?? new Date(r.ts).toLocaleString()}
+                  </td>
+                  <td className="py-2 pr-3 font-mono text-text-primary">{r.versionFrom ?? '—'}</td>
+                  <td className="py-2 pr-3 font-mono text-text-primary">{r.versionTo ?? '—'}</td>
+                  <td className="py-2 pr-3 text-text-secondary">{r.initiatedBy || '—'}</td>
+                  <td className="py-2 pr-3 text-text-secondary">
+                    {r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)} s` : '—'}
+                  </td>
+                  <td className={cn('py-2 font-semibold', statusCls(r.status))}>{statusLabel(r.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AdoptionCard() {
   const { t } = useTranslation()
   const [data, setData] = useState<{ token: string; server_fp: string } | null>(null)
@@ -3195,6 +3280,14 @@ export default function Settings() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Historial de actualizaciones (issue #159) — solo admin y modo live;
+            el updater es un mecanismo de auto-aplicación que no existe en demo */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <UpdateHistoryCard />
           </div>
         )}
 

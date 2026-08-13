@@ -984,6 +984,19 @@
       "frontend-build": "compilando la interfaz",
       "restart": "reiniciando el servicio",
       "done": "completado, recargando"
+    },
+    "history": {
+      "title": "Historial de actualizaciones",
+      "empty": "Sin actualizaciones registradas",
+      "from": "Desde",
+      "to": "Hasta",
+      "date": "Fecha",
+      "initiatedBy": "Iniciado por",
+      "status": "Estado",
+      "duration": "Duración",
+      "success": "Correcto",
+      "failed": "Falló",
+      "running": "En curso"
     }
   },
   "demo": {

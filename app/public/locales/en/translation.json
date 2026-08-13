@@ -984,6 +984,19 @@
       "frontend-build": "building the UI",
       "restart": "restarting the service",
       "done": "done, reloading"
+    },
+    "history": {
+      "title": "Update history",
+      "empty": "No updates recorded yet",
+      "from": "From",
+      "to": "To",
+      "date": "Date",
+      "initiatedBy": "Started by",
+      "status": "Status",
+      "duration": "Duration",
+      "success": "Success",
+      "failed": "Failed",
+      "running": "Running"
     }
   },
   "demo": {

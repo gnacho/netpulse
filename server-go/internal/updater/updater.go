@@ -7,6 +7,7 @@ package updater
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -65,6 +66,9 @@ type Updater struct {
 	version  string // semver embebido (httpapi.Version) para comparar en estable
 	canApply bool   // true si existe deploy/update.sh (layout git)
 	mode     string // "rolling" (git layout) | "stable" (install.sh)
+	// db: SQLite para historial (#159) y marcador pendingApply (#161). nil →
+	// persistencia deshabilitada (tests sin BD).
+	db *sql.DB
 
 	mu           sync.Mutex
 	current      string
@@ -86,23 +90,28 @@ type Updater struct {
 // layout es automática: si existe deploy/update.sh junto a repoRoot, el modo
 // es "rolling" (compara contra main HEAD y puede auto-aplicar); si no, es
 // "stable" (compara contra release tags y NO puede auto-aplicar — el usuario
-// debe re-ejecutar install.sh).
-func New(repoRoot, repo, token, version string) *Updater {
+// debe re-ejecutar install.sh). db puede ser nil (persistencia deshabilitada).
+func New(repoRoot, repo, token, version string, db *sql.DB) *Updater {
 	canApply := fileExists(filepath.Join(repoRoot, "deploy", "update.sh"))
 	mode := "stable"
 	if canApply {
 		mode = "rolling"
 	}
-	return &Updater{
+	u := &Updater{
 		repoRoot: repoRoot,
 		repo:     repo,
 		token:    token,
 		version:  version,
 		canApply: canApply,
 		mode:     mode,
+		db:       db,
 		current:  "desconocido",
 		stopCh:   make(chan struct{}),
 	}
+	// Issue #159: al arrancar, marca como fallidas las entradas de historial
+	// que quedaron 'running' por un reinicio a mitad de apply.
+	u.finalizeInterrupted()
+	return u
 }
 
 // CanApply indica si el updater puede auto-aplicar en este layout.
@@ -310,9 +319,16 @@ func (u *Updater) Check(ctx context.Context) Status {
 
 var stepRe = regexp.MustCompile(`STEP:(\w+)`)
 
-// Apply lanza update.sh en segundo plano. Devuelve false si ya hay una
-// actualización en curso (→ 409 already_updating) o si no se pudo copiar.
-func (u *Updater) Apply() bool {
+// Apply lanza update.sh en segundo plano (iniciado manualmente desde la UI,
+// rol admin). Devuelve false si ya hay una actualización en curso (→ 409
+// already_updating) o si no se pudo copiar.
+func (u *Updater) Apply() bool { return u.ApplyBy("admin") }
+
+// ApplyBy lanza update.sh en segundo plano con el iniciador dado ("admin"
+// manual o "auto" para el rolling main). Antes de lanzar registra la entrada
+// 'running' del historial (#159) y persiste el marcador pendingApply (#161);
+// la goroutine finaliza ambos según el resultado del script.
+func (u *Updater) ApplyBy(initiatedBy string) bool {
 	u.mu.Lock()
 	if u.updatingStep != nil {
 		u.mu.Unlock()
@@ -322,6 +338,22 @@ func (u *Updater) Apply() bool {
 	u.updatingStep = &startStep
 	u.updatingLog = ""
 	u.mu.Unlock()
+
+	// Historial (issue #159): version_from es el commit actual, version_to el
+	// objetivo (latest de GitHub si ya se consultó).
+	from := u.current
+	if from == "" || from == "desconocido" {
+		from = gitShort(u.repoRoot)
+	}
+	u.mu.Lock()
+	var to *string
+	if u.latest != nil {
+		c := *u.latest
+		to = &c
+	}
+	u.mu.Unlock()
+	historyID := u.recordStart(from, to, initiatedBy)
+	startedAt := time.Now()
 
 	tmpScript := filepath.Join(os.TempDir(), fmt.Sprintf("netpulse-update-%d.sh", time.Now().UnixMilli()))
 	src, err := os.ReadFile(filepath.Join(u.repoRoot, "deploy", "update.sh"))
@@ -334,6 +366,7 @@ func (u *Updater) Apply() bool {
 		code := "update_copy_failed"
 		u.err = &code
 		u.mu.Unlock()
+		u.finishHistory(historyID, "failed", code, time.Since(startedAt))
 		fmt.Printf("[netpulse] no se pudo copiar update.sh: %v\n", err)
 		return false
 	}
@@ -345,6 +378,7 @@ func (u *Updater) Apply() bool {
 		u.mu.Lock()
 		u.updatingStep = nil
 		u.mu.Unlock()
+		u.finishHistory(historyID, "failed", "update_pipe_failed", time.Since(startedAt))
 		return false
 	}
 	cmd.Stderr = &tailWriter{u: u}
@@ -352,6 +386,7 @@ func (u *Updater) Apply() bool {
 		u.mu.Lock()
 		u.updatingStep = nil
 		u.mu.Unlock()
+		u.finishHistory(historyID, "failed", "update_start_failed", time.Since(startedAt))
 		return false
 	}
 	u.wg.Add(1)
@@ -368,6 +403,7 @@ func (u *Updater) Apply() bool {
 			}
 		}
 		waitErr := cmd.Wait()
+		dur := time.Since(startedAt)
 		u.mu.Lock()
 		defer u.mu.Unlock()
 		if waitErr == nil {
@@ -376,18 +412,20 @@ func (u *Updater) Apply() bool {
 			log := u.updatingLog
 			u.lastLog = &log
 			u.updateAvail = false
+			u.finishHistory(historyID, "success", "", dur)
 		} else {
+			code := "update_exit_-1"
 			if ee, ok := waitErr.(*exec.ExitError); ok {
 				log := u.updatingLog
 				u.lastLog = &log
 				u.updatingStep = nil
-				code := fmt.Sprintf("update_exit_%d", ee.ExitCode())
+				code = fmt.Sprintf("update_exit_%d", ee.ExitCode())
 				u.err = &code
 			} else {
 				u.updatingStep = nil
-				code := "update_exit_-1"
 				u.err = &code
 			}
+			u.finishHistory(historyID, "failed", code, dur)
 		}
 	}()
 	return true

@@ -259,7 +259,7 @@ func run() error {
 	// Actualizador: repoRoot = padre de serverRoot (paridad index.js:49-53).
 	// La versión embebida (httpapi.Version) se usa para comparar contra el
 	// último release tag en modo estable (layout install.sh).
-	upd := updater.New(filepath.Clean(filepath.Join(cfg.ServerRoot, "..")), cfg.GithubRepo, cfg.GithubToken, httpapi.Version)
+	upd := updater.New(filepath.Clean(filepath.Join(cfg.ServerRoot, "..")), cfg.GithubRepo, cfg.GithubToken, httpapi.Version, dbHandle.DB)
 
 	// Fase 10: motor de orquestación (plan→apply→state).
 	orchMgr := orchestr.New(dbHandle)
