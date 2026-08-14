@@ -7,6 +7,18 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-08-14
+
+### Added
+
+- **Eventos offline/online de dispositivos**: el poller registra las
+  transiciones de presencia wireless (un dispositivo que deja de verse 3
+  ticks seguidos = `offline`; al reaparecer = `online`) con timestamp, router
+  y última señal. Nueva tabla `device_events` (retención 30 días) y endpoint
+  `GET /api/device-events` con filtros `limit/since/router/mac/state`.
+  Permite correlacionar incidentes (qué cayó, cuándo, cuánto tardó en volver).
+  #184
+
 ## [2.9.6] - 2026-08-13
 
 ### Added
