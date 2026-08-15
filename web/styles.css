@@ -157,6 +157,7 @@ html[dir="rtl"] #langSelect { margin-left: 0; margin-right: 0.5rem; }
   box-shadow: 0 0 24px -4px rgb(var(--accent) / 0.5);
 }
 .btn-primary:hover { filter: brightness(1.12); transform: translateY(-2px); text-decoration: none; box-shadow: 0 0 36px -2px rgb(var(--accent) / 0.55); }
+.btn-primary:active { transform: translateY(0) scale(0.97); }
 .btn-ghost {
   display: inline-flex; align-items: center; gap: 0.5rem;
   color: rgb(var(--text-secondary)); font-weight: 600; font-size: 1rem;
@@ -164,6 +165,7 @@ html[dir="rtl"] #langSelect { margin-left: 0; margin-right: 0.5rem; }
   background: rgb(var(--surface) / 0.5);
 }
 .btn-ghost:hover { color: rgb(var(--text-primary)); border-color: rgb(var(--accent) / 0.5); background: rgb(var(--accent) / 0.08); text-decoration: none; }
+.btn-ghost:active { transform: translateY(0) scale(0.97); }
 
 .hero-facts { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-top: 2.75rem; }
 .chip {
@@ -511,6 +513,7 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
 .thumb img { width: 100%; height: auto; display: block; }
 .thumb:hover { opacity: 1; }
 .thumb.active { border-color: rgb(var(--accent)); opacity: 1; }
+.thumb:active { transform: translateY(0) scale(0.97); }
 @media (max-width: 720px) {
   .slider-thumbs { justify-content: flex-start; overflow-x: auto; padding-bottom: 0.5rem; }
   .thumb { width: 110px; flex: none; }
