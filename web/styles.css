@@ -525,6 +525,21 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
   flex-direction: column; gap: 1rem;
   padding: 2rem;
   cursor: zoom-out;
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+.lightbox.open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.lightbox.closing {
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 150ms cubic-bezier(0.4, 0, 1, 1), transform 150ms cubic-bezier(0.4, 0, 1, 1);
+  pointer-events: none;
 }
 .lightbox:not([hidden]) { display: flex; }
 .lightbox[hidden] { display: none; }
