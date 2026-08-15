@@ -190,9 +190,9 @@ npm install
 npm run dev
 ```
 
-El backend Node legado se conserva en `legacy/server-node/` solo como histórico
-(decisión 5-Ago-2026: no se despliega ni se actualiza); la migración desde su
-base de datos ocurre automáticamente en el primer arranque Go.
+El backend Node legado fue eliminado (decisión 5-Ago-2026: no se despliega ni se
+actualiza); su historial git se conserva. La migración desde su base de datos
+ocurre automáticamente en el primer arranque Go.
 
 ## Tests
 

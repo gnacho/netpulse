@@ -1,8 +1,8 @@
 # NetPulse — Arquitectura
 
-> v2.0.0 (era Go). El backend Node legado vive en `legacy/server-node/` como
-> histórico (decisión 5-Ago-2026: no se despliega ni se actualiza; ver README).
-> El backend activo es `server-go/`.
+> v2.0.0 (era Go). El backend Node legado fue eliminado (decisión 5-Ago-2026: no
+> se despliega ni se actualiza; su historial git se conserva). El backend activo
+> es `server-go/`.
 
 ## Vista de capas
 

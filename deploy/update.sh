@@ -3,8 +3,8 @@
 # como netpulse). Único flujo soportado: Go.
 #   - Go   (/opt/netpulse/server-go/netpulse): git pull → binario precompilado
 #          de CI (go-latest) → swap atómico → reinicio diferido.
-# El backend Node (legacy/server-node/) se conserva solo como histórico; NO se
-# despliega ni actualiza (decisión 5-Ago-2026).
+# El backend Node legado fue eliminado; solo existe el flujo Go (decisión
+# 5-Ago-2026).
 set -e
 cd /opt/netpulse
 
