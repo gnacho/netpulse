@@ -186,9 +186,9 @@ npm install
 npm run dev
 ```
 
-The legacy Node backend is kept under `legacy/server-node/` as history only
-(decision 5-Ago-2026: it is not deployed or updated anymore); migration from
-its database happens automatically on the first Go boot.
+The legacy Node backend was removed (it is not deployed or updated anymore,
+decision 5-Ago-2026); its git history is preserved. Migration from its
+database happens automatically on the first Go boot.
 
 ## Tests
 
