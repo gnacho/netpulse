@@ -241,3 +241,75 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Transición móvil entre vistas: el contenido (<main>) se desliza y el shell
+ * (header móvil + bottom nav) permanece estático. Se capturan como grupos de
+ * view-transition PROPIO (netpulse-header/netpulse-nav) para no depender de
+ * cómo el navegador capture el grupo root con position:fixed (falla en
+ * dispositivos). */
+@media (max-width: 767px) {
+  main {
+    view-transition-name: netpulse-content;
+  }
+  /* El shell queda estático: anulamos las 4 animaciones UA de cada grupo
+   * (group/image-pair arrancan en opacity 0 en la hoja UA del navegador). */
+  ::view-transition-group(root),
+  ::view-transition-image-pair(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(netpulse-header),
+  ::view-transition-image-pair(netpulse-header),
+  ::view-transition-old(netpulse-header),
+  ::view-transition-new(netpulse-header),
+  ::view-transition-group(netpulse-nav),
+  ::view-transition-image-pair(netpulse-nav),
+  ::view-transition-old(netpulse-nav),
+  ::view-transition-new(netpulse-nav) {
+    animation: none;
+  }
+  html[data-nav-dir='forward']::view-transition-old(netpulse-content) {
+    animation: netpulse-vt-out-left 0.3s ease-in-out both;
+  }
+  html[data-nav-dir='forward']::view-transition-new(netpulse-content) {
+    animation: netpulse-vt-in-right 0.3s ease-in-out both;
+  }
+  html[data-nav-dir='back']::view-transition-old(netpulse-content) {
+    animation: netpulse-vt-out-right 0.3s ease-in-out both;
+  }
+  html[data-nav-dir='back']::view-transition-new(netpulse-content) {
+    animation: netpulse-vt-in-left 0.3s ease-in-out both;
+  }
+}
+
+@keyframes netpulse-vt-out-left {
+  to {
+    transform: translateX(-24%);
+    opacity: 0.7;
+  }
+}
+@keyframes netpulse-vt-in-right {
+  from {
+    transform: translateX(24%);
+    opacity: 0.7;
+  }
+}
+@keyframes netpulse-vt-out-right {
+  to {
+    transform: translateX(24%);
+    opacity: 0.7;
+  }
+}
+@keyframes netpulse-vt-in-left {
+  from {
+    transform: translateX(-24%);
+    opacity: 0.7;
+  }
+}
+
+/* Reducir animaciones para las view transitions (SO) */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
