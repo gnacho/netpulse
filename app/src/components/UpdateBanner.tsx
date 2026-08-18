@@ -11,6 +11,10 @@ import { DownloadCloud, ExternalLink, Loader2, X } from 'lucide-react'
 import { useAuth } from '@/data/AuthContext'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 
+function normalizeVersion(s: string) {
+  return s.trim().toLowerCase().replace(/^v/, '')
+}
+
 interface UpdateStatus {
   current: string
   latest: string | null
@@ -142,6 +146,15 @@ export function UpdateBanner() {
   const step = status.updating ? status.updating.step : 'start'
   const ready = status.readiness ? status.readiness.ready : true
 
+  const latest = status.latest
+  const latestMsg = status.latestMsg ?? ''
+  const showMsg = latestMsg && normalizeVersion(latestMsg) !== normalizeVersion(latest)
+  const message = updating
+    ? t('update.updating', { step: t(`update.step.${step}`) })
+    : showMsg
+      ? t('update.availableWithMsg', { version: latest, msg: latestMsg })
+      : t('update.available', { version: latest })
+
   return (
     <AnimatePresence>
       <motion.div
@@ -154,11 +167,12 @@ export function UpdateBanner() {
       >
         <div className="flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft px-4 py-2.5">
           <DownloadCloud className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-          <p className="min-w-0 flex-1 truncate text-sm text-text-primary">
-            {updating
-              ? t('update.updating', { step: t(`update.step.${step}`) })
-              : t('update.available', { version: status.latest, msg: status.latestMsg ?? '' })}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-text-primary">{message}</p>
+            {!updating && !status.canApply && (
+              <p className="text-xs text-text-muted">{t('update.stableHint')}</p>
+            )}
+          </div>
           {!updating ? (
             <>
               {status.canApply ? (
