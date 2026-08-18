@@ -7,6 +7,21 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-08-18
+
+### Fixed
+
+- **Aviso de actualización sin versión duplicada**: cuando GitHub publica una
+  release cuyo nombre coincide con el tag (p. ej. `v2.10.0`), el banner ya no
+  muestra "Nueva versión disponible: v2.10.0 — v2.10.0". Ahora solo aparece la
+  versión una vez. #191
+
+- **Hint visible en instalaciones estables**: en despliegues que usan
+  `install.sh` (modo estable), el banner ahora muestra debajo del mensaje
+  "Instalación estable: re-ejecuta install.sh para actualizar", haciendo
+  explícito por qué no hay botón "Actualizar" y clarificando el enlace
+  "Ver en GitHub" como siguiente paso. #191
+
 ## [2.10.0] - 2026-08-14
 
 ### Added
