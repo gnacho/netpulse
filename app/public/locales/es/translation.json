@@ -986,7 +986,8 @@
     "timeRange": "Rango temporal"
   },
   "update": {
-    "available": "Nueva versión disponible: {{version}} — {{msg}}",
+    "available": "Nueva versión disponible: {{version}}",
+    "availableWithMsg": "Nueva versión disponible: {{version}} — {{msg}}",
     "button": "Actualizar",
     "getRelease": "Ver en GitHub",
     "stableHint": "Instalación estable: re-ejecuta install.sh para actualizar",

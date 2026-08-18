@@ -986,7 +986,8 @@
     "timeRange": "Time range"
   },
   "update": {
-    "available": "New version available: {{version}} — {{msg}}",
+    "available": "New version available: {{version}}",
+    "availableWithMsg": "New version available: {{version}} — {{msg}}",
     "button": "Update",
     "getRelease": "View on GitHub",
     "stableHint": "Stable install: re-run install.sh to update",
