@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -149,4 +150,76 @@ func TestOKNoVaADLQ(t *testing.T) {
 	if cnt != 0 {
 		t.Fatalf("2xx no debería ir a DLQ, tiene %d", cnt)
 	}
+}
+
+// TestTransportErrorReintentaConBackoff reproduce el bug #203: un error de
+// transporte (conexión rehusada) antes se reintentaba EN RÁFAGA sin espera
+// (retryable solo se ponía para respuestas HTTP, no para fallos de red).
+// Tras el fix, entre reintentos debe haber backoff (>= RetryDelay), de modo
+// que el envío completo de un transporte caído dura >= Retries*RetryDelay.
+func TestTransportErrorReintentaConBackoff(t *testing.T) {
+	// Puerto cerrado: el client.Do devuelve error de transporte.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	deadURL := srv.URL
+	srv.Close() // el puerto ya no acepta conexiones
+
+	d := openWebhookDB(t)
+	cfg := testConfig()
+	cfg.URL = deadURL
+	cfg.Retries = 2
+	cfg.RetryDelay = 60 * time.Millisecond
+	n := NewNotifier(cfg, d)
+	defer n.Close()
+
+	start := time.Now()
+	n.Notify(testAlert())
+	// El worker es asíncrono: esperamos hasta que la DLQ tenga la fila.
+	var cnt int
+	for i := 0; i < 40; i++ {
+		time.Sleep(25 * time.Millisecond)
+		_ = d.QueryRow("SELECT COUNT(*) FROM webhook_events").Scan(&cnt)
+		if cnt == 1 {
+			break
+		}
+	}
+	elapsed := time.Since(start)
+
+	if cnt != 1 {
+		t.Fatalf("el transporte fallido debería acabar en DLQ (1 fila), tiene %d", cnt)
+	}
+	// Sin fix esto acababa casi instantáneo (ráfaga sin backoff). Con el fix,
+	// 2 reintentos x 60ms + el intento inicial: >= 120ms de espera total.
+	minExpected := time.Duration(cfg.Retries) * cfg.RetryDelay
+	if elapsed < minExpected {
+		t.Fatalf("los reintentos de transporte deberían tener backoff: tardó %v, esperaba >= %v", elapsed, minExpected)
+	}
+}
+
+// TestCloseConNotifyConcurrentesNoPanic reproduce el bug #202: Close() cerraba
+// el canal de la cola y un Notify concurrente podía elegir la rama de envío
+// tras el close → panic "send on closed channel". Con -race y repeticiones
+// debe quedar limpio (el worker sale por done, no por range sobre canal cerrado).
+func TestCloseConNotifyConcurrentesNoPanic(t *testing.T) {
+	d := openWebhookDB(t)
+	n := NewNotifier(testConfig(), d)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					n.Notify(testAlert())
+				}
+			}
+		}()
+	}
+	time.Sleep(5 * time.Millisecond)
+	n.Close()
+	close(done)
+	wg.Wait()
 }

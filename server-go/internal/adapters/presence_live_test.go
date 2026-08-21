@@ -2,6 +2,8 @@ package adapters
 
 import (
 	"testing"
+
+	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
 // testLivePresence: Live con DB real y estado de presencia inicializado.
@@ -131,5 +133,52 @@ func TestTrackDevicePresenceCableSkip(t *testing.T) {
 	l.trackDevicePresence([]Device{}, 13000)
 	if n := countDeviceEvents(t, l); n != 0 {
 		t.Fatalf("cableado: %d eventos, esperaba 0", n)
+	}
+}
+
+// TestTrackDevicePresencePrune reproduce el bug #206: los mapas de presencia
+// crecían sin límite con cada MAC wireless histórica. Tras superar
+// presencePruneAfter ticks sin verse, la MAC debe eliminarse de ambos mapas.
+func TestTrackDevicePresencePrune(t *testing.T) {
+	l := testLivePresence(t)
+	l.presencePruneAfter = 5 // bajar el umbral para el test
+	d := Device{MAC: "AA:BB:CC:DD:EE:03", RouterID: "rt1", Online: true, Band: "5 GHz"}
+
+	l.trackDevicePresence([]Device{d}, 1000) // siembra (entra en el mapa)
+	if _, ok := l.devicePresence[d.MAC]; !ok {
+		t.Fatal("la MAC debería estar en devicePresence tras sembrar")
+	}
+
+	// Ticks vacíos: supera offlineAfter (3) → offline, y luego pruneAfter (5).
+	for i := 1; i <= 5; i++ {
+		l.trackDevicePresence([]Device{}, int64(i)*1000+1000)
+	}
+
+	l.mu.Lock()
+	_, inPresence := l.devicePresence[d.MAC]
+	_, inMisses := l.presenceMisses[d.MAC]
+	l.mu.Unlock()
+	if inPresence || inMisses {
+		t.Fatalf("tras la poda la MAC debería haber desaparecido de los mapas (presence=%v misses=%v)", inPresence, inMisses)
+	}
+}
+
+// TestMaintenancePurgaDeviceAttrib: la pasada de mantenimiento borra los
+// atributos de dispositivos sin verse desde hace > AttribRetentionMS.
+func TestMaintenancePurgaDeviceAttrib(t *testing.T) {
+	d := openLiveTestDB(t)
+	_, _ = d.Exec("INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)",
+		"AA:BB:CC:DD:EE:04", "rt1", "5 GHz", -40, db.NowMS()-db.AttribRetentionMS-1000)
+	_, _ = d.Exec("INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)",
+		"AA:BB:CC:DD:EE:05", "rt1", "5 GHz", -40, db.NowMS()-1000)
+
+	d.Maintenance()
+
+	var n int
+	if err := d.QueryRow("SELECT COUNT(*) FROM device_attrib").Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("device_attrib tras maintenance: %d filas, esperaba 1 (solo la reciente)", n)
 	}
 }
