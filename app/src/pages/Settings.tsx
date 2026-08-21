@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
+import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
@@ -3456,6 +3457,21 @@ export default function Settings() {
               reduce={reduce}
             >
               <TopologyOverridesManager onSaved={notify} />
+            </Card>
+          </div>
+        )}
+
+        {/* Dispositivos de confianza (issue #196): allowlist de MACs que no
+            avisan como «desconocido» y cuyo nombre se usa como alias. */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="lg:col-span-12">
+            <Card
+              title={t('settings.knownMacs.title')}
+              caption={t('settings.knownMacs.caption')}
+              index={5}
+              reduce={reduce}
+            >
+              <KnownMacsManager onSaved={notify} />
             </Card>
           </div>
         )}

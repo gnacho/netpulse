@@ -969,6 +969,25 @@
       "saved": "Guardada",
       "invalid": "Introduce velocidades mayores que 0 y como máximo 100000 Mbps",
       "saveError": "No se pudo guardar la velocidad"
+    },
+    "knownMacs": {
+      "title": "Dispositivos de confianza",
+      "caption": "La MAC no se avisa como «dispositivo desconocido» y su nombre se usa como alias",
+      "hint": "Dispositivos propios (routers, TV, básculas…) que entran y salen de la red con normalidad. Al marcarlos aquí dejan de generar alertas de desconocido.",
+      "empty": "Sin dispositivos de confianza todavía. Añade uno con el botón «Añadir».",
+      "add": "Añadir",
+      "adding": "Añadiendo…",
+      "mac": "Dirección MAC",
+      "macPlaceholder": "AA:BB:CC:DD:EE:FF",
+      "name": "Nombre (alias)",
+      "namePlaceholder": "p. ej. Báscula Withings",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "delete": "Quitar",
+      "invalidMac": "Dirección MAC inválida (formato AA:BB:CC:DD:EE:FF)",
+      "saveError": "No se pudo guardar el dispositivo",
+      "deleteError": "No se pudo quitar el dispositivo",
+      "loadError": "No se pudieron cargar los dispositivos de confianza"
     }
   },
   "statcard": {

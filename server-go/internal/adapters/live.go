@@ -877,6 +877,12 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		if res.err == nil {
 			polled[res.cfg.ID] = res.p
 			l.failCount[res.cfg.ID] = 0
+			// Persiste la bridgeMAC del router (issue #196): la exclusión de
+			// "dispositivo desconocido" no debe depender de que este router se
+			// sondee bien en el tick actual.
+			if l.db != nil && res.p.brMac != "" {
+				_, _ = l.db.Exec("UPDATE routers SET mac = ? WHERE id = ?", res.p.brMac, res.cfg.ID)
+			}
 			// Router recuperado (offline→online, SPEC-ALERTAS §1)
 			if l.lastStatus[res.cfg.ID] == "offline" {
 				name := res.cfg.Name
@@ -967,16 +973,33 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 // cliente SIN nombre (Name == MAC, sin hostname DHCP ni alias — device_attrib
 // no guarda alias) pasa de no-online a online. El primer ciclo de sondeo del
 // proceso NO alerta (evita la avalancha de arranque: todo lo ya conectado
-// sería "nuevo"). Toma l.mu internamente.
+// sería "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca
+// alertan, haya alias o no. Toma l.mu internamente.
 func (l *Live) trackUnknownDevices(devices []Device) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// issue #196: MACs de la allowlist (confiables) → nunca "desconocido".
+	trusted := map[string]bool{}
+	if l.db != nil {
+		if rows, err := l.db.Query("SELECT mac FROM known_macs"); err == nil {
+			for rows.Next() {
+				var mac string
+				if rows.Scan(&mac) == nil {
+					trusted[mac] = true
+				}
+			}
+			rows.Close()
+		}
+	}
 	nowOnline := map[string]bool{}
 	for _, d := range devices {
 		if !d.Online {
 			continue
 		}
 		nowOnline[d.MAC] = true
+		if trusted[d.MAC] {
+			continue
+		}
 		if l.seenOnlineMacs && !l.onlineMacs[d.MAC] && d.Name == d.MAC {
 			l.emitUnknownDevice(d)
 		}
@@ -986,13 +1009,13 @@ func (l *Live) trackUnknownDevices(devices []Device) {
 }
 
 // emitUnknownDevice: evento "dispositivo desconocido se conecta" (category
-// clients, urgent true, warn — SPEC-ALERTAS §1). "Desconocido" = sin nombre/
-// alias: device_attrib no guarda alias, así que la señal práctica es un
-// cliente sin hostname DHCP (Name == MAC). Debe llamarse con l.mu tomado.
+// clients, warn, NO urgente — issue #196). "Desconocido" = sin nombre/alias:
+// device_attrib no guarda alias, así que la señal práctica es un cliente sin
+// hostname DHCP (Name == MAC). Debe llamarse con l.mu tomado.
 func (l *Live) emitUnknownDevice(d Device) {
 	l.engine.Emit(AlertEvent{
 		ID:       fmt.Sprintf("alert-unknown-%s-%d", d.MAC, time.Now().UnixMilli()),
-		Category: alerts.CatClients, Urgent: true,
+		Category: alerts.CatClients, Urgent: false,
 		Severity:    "warn",
 		Title:       "Dispositivo desconocido",
 		Description: fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID),
@@ -1267,9 +1290,36 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		allMacs[mac] = true
 	}
 	routerMacs := map[string]bool{}
+	// issue #196: MACs de bridge de los routers REGISTRADOS (persistidas),
+	// no solo las de los routers que sondeó bien en este tick. Un router que
+	// falló el sondeo sigue sin ser "cliente desconocido".
+	if l.db != nil {
+		if rows, err := l.db.Query("SELECT mac FROM routers WHERE mac IS NOT NULL AND mac != ''"); err == nil {
+			for rows.Next() {
+				var mac string
+				if rows.Scan(&mac) == nil {
+					routerMacs[mac] = true
+				}
+			}
+			rows.Close()
+		}
+	}
 	for _, p := range polled {
 		if p.brMac != "" {
 			routerMacs[p.brMac] = true
+		}
+	}
+	// issue #196: allowlist de dispositivos confiables (mac → alias).
+	knownMacs := map[string]string{}
+	if l.db != nil {
+		if rows, err := l.db.Query("SELECT mac, name FROM known_macs"); err == nil {
+			for rows.Next() {
+				var mac, name string
+				if rows.Scan(&mac, &name) == nil {
+					knownMacs[mac] = name
+				}
+			}
+			rows.Close()
 		}
 	}
 	devices := []Device{}
@@ -1303,6 +1353,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 					d.Name = gl.Hostname
 				}
 			}
+		}
+		// issue #196: la allowlist manda sobre el nombre por defecto. Con
+		// alias (Name != MAC) el dispositivo deja de ser "desconocido".
+		if alias, ok := knownMacs[mac]; ok && alias != "" {
+			d.Name = alias
 		}
 		// Tipo estimado por hostname (el DHCP/FDB no dice qué es el cliente).
 		// Con nombre-MAC (sin hostname) queda "desconocido".

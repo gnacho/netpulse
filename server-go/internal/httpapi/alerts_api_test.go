@@ -101,7 +101,7 @@ func TestAlertsConfigEndpoints(t *testing.T) {
 	if len(cfg) != 6 {
 		t.Fatalf("config: %d claves, esperaba 6", len(cfg))
 	}
-	want := map[string]string{"router": "urgent", "internet": "urgent", "clients": "urgent",
+	want := map[string]string{"router": "urgent", "internet": "urgent", "clients": "all",
 		"signal": "none", "vpn": "none", "system": "all"}
 	for k, v := range want {
 		if cfg[k] != v {

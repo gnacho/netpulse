@@ -969,6 +969,25 @@
       "saved": "Saved",
       "invalid": "Enter speeds greater than 0 and at most 100000 Mbps",
       "saveError": "Could not save the speed"
+    },
+    "knownMacs": {
+      "title": "Trusted devices",
+      "caption": "The MAC no longer warns as an 'unknown device' and its name is used as an alias",
+      "hint": "Devices you own (routers, TVs, scales…) that come and go normally. Marking them here stops unknown-device alerts.",
+      "empty": "No trusted devices yet. Add one with the 'Add' button.",
+      "add": "Add",
+      "adding": "Adding…",
+      "mac": "MAC address",
+      "macPlaceholder": "AA:BB:CC:DD:EE:FF",
+      "name": "Name (alias)",
+      "namePlaceholder": "e.g. Withings scale",
+      "save": "Save",
+      "saving": "Saving…",
+      "delete": "Remove",
+      "invalidMac": "Invalid MAC address (format AA:BB:CC:DD:EE:FF)",
+      "saveError": "Could not save the device",
+      "deleteError": "Could not remove the device",
+      "loadError": "Could not load trusted devices"
     }
   },
   "statcard": {
