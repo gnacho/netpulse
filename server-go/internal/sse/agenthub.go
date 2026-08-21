@@ -61,10 +61,19 @@ func (h *AgentHub) Send(slug, event string, data any) bool {
 	}
 	payload := fmt.Sprintf("event: %s\ndata: %s\n\n", event, raw)
 	if err := c.write(payload); err != nil {
-		h.remove(slug)
+		h.removeConn(c)
 		return false
 	}
 	return true
+}
+
+func (h *AgentHub) removeConn(c *agentConn) {
+	h.mu.Lock()
+	if h.conns[c.slug] == c {
+		delete(h.conns, c.slug)
+	}
+	h.mu.Unlock()
+	c.close()
 }
 
 func (h *AgentHub) remove(slug string) {
@@ -118,15 +127,15 @@ func (h *AgentHub) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cerrar conexión anterior del mismo slug
+	// Cerrar conexión anterior del mismo slug. El write va FUERA del mutex:
+	// un cliente lento no debe bloquear Send/remove de otros (issue #200).
 	h.mu.Lock()
-	if old, ok := h.conns[slug]; ok {
+	old, ok := h.conns[slug]
+	h.mu.Unlock()
+	if ok {
 		_ = old.write("event: bye\ndata: {}\n\n")
-		h.mu.Unlock()
 		time.Sleep(100 * time.Millisecond) // dar tiempo al flush
-		h.remove(slug)
-	} else {
-		h.mu.Unlock()
+		h.removeConn(old)
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -138,7 +147,7 @@ func (h *AgentHub) HandleStream(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	h.conns[slug] = c
 	h.mu.Unlock()
-	defer h.remove(slug)
+	defer h.removeConn(c)
 
 	// Enviar evento "connected" al agente (confirmación)
 	_ = c.write("event: connected\ndata: {}\n\n")

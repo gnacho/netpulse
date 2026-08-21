@@ -81,6 +81,10 @@ func (h *Hub) remove(c *client) {
 // Broadcast envía `event` con `data` (JSON) a todos los clientes. Si la
 // sesión de un cliente ya no existe/expiró → evento `bye` y cierre (la
 // comprobación solo ocurre durante un broadcast, como en Node).
+//
+// Cada escritura corre en su propia goroutine: el broadcast se lanza desde
+// el tick del poller y un cliente lento (ventana TCP llena) no debe
+// bloquear la entrega a los demás ni el ciclo de sondeo (issue #200).
 func (h *Hub) Broadcast(event string, data any) {
 	raw, err := json.Marshal(data)
 	if err != nil {
@@ -96,14 +100,16 @@ func (h *Hub) Broadcast(event string, data any) {
 	h.mu.Unlock()
 
 	for _, c := range list {
-		if auth.GetSession(h.db, c.sessionID) == nil {
-			_ = c.write("event: bye\ndata: {}\n\n")
-			h.remove(c)
-			continue
-		}
-		if err := c.write(payload); err != nil {
-			h.remove(c)
-		}
+		go func(c *client) {
+			if auth.GetSession(h.db, c.sessionID) == nil {
+				_ = c.write("event: bye\ndata: {}\n\n")
+				h.remove(c)
+				return
+			}
+			if err := c.write(payload); err != nil {
+				h.remove(c)
+			}
+		}(c)
 	}
 }
 
