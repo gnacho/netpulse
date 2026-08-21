@@ -9,8 +9,10 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
 // orchestrationKey es la clave kv que activa el menú de orquestación (#121).
@@ -134,5 +136,88 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, http.StatusOK, wanSpeedResponse{DownMbps: body.DownMbps, UpMbps: body.UpMbps})
+	})))
+
+	s.registerKnownMacsRoutes(mux)
+}
+
+// knownMacItem es la forma JSON de una entrada de la allowlist (#196).
+type knownMacItem struct {
+	MAC  string `json:"mac"`
+	Name string `json:"name"`
+	Note string `json:"note,omitempty"`
+}
+
+// validMAC normaliza y valida una dirección MAC (AA:BB:CC:DD:EE:FF).
+func validMAC(raw string) (string, bool) {
+	m := strings.ToUpper(strings.TrimSpace(raw))
+	if len(m) != 17 {
+		return "", false
+	}
+	for i := 0; i < 17; i++ {
+		if i%3 == 2 {
+			if m[i] != ':' {
+				return "", false
+			}
+		} else if !isHex(m[i]) {
+			return "", false
+		}
+	}
+	return m, true
+}
+
+func isHex(c byte) bool {
+	return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')
+}
+
+// registerKnownMacsRoutes: GET/PUT/DELETE /api/settings/known-macs (admin,
+// issue #196) — allowlist de dispositivos confiables que no alertan como
+// "desconocido" y cuyo nombre se usa como alias.
+func (s *server) registerKnownMacsRoutes(mux *http.ServeMux) {
+	// GET /api/settings/known-macs — lista completa de la allowlist.
+	mux.Handle("GET /api/settings/known-macs", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		items, err := s.db.ListKnownMacs()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "db_error")
+			return
+		}
+		out := make([]knownMacItem, 0, len(items))
+		for _, k := range items {
+			out = append(out, knownMacItem{MAC: k.MAC, Name: k.Name, Note: k.Note})
+		}
+		writeJSON(w, http.StatusOK, map[string][]knownMacItem{"items": out})
+	})))
+
+	// PUT /api/settings/known-macs — alta o actualización de una MAC.
+	mux.Handle("PUT /api/settings/known-macs", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body knownMacItem
+		if !readJSONBody(r, &body) {
+			writeError(w, http.StatusBadRequest, "invalid_body")
+			return
+		}
+		mac, ok := validMAC(body.MAC)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid_input", "dirección MAC inválida (AA:BB:CC:DD:EE:FF)")
+			return
+		}
+		if err := s.db.UpsertKnownMac(db.KnownMac{MAC: mac, Name: body.Name, Note: body.Note}); err != nil {
+			writeError(w, http.StatusInternalServerError, "db_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, knownMacItem{MAC: mac, Name: body.Name, Note: body.Note})
+	})))
+
+	// DELETE /api/settings/known-macs/{mac} — baja de la allowlist.
+	mux.Handle("DELETE /api/settings/known-macs/{mac}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mac, ok := validMAC(r.PathValue("mac"))
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid_input", "dirección MAC inválida (AA:BB:CC:DD:EE:FF)")
+			return
+		}
+		if err := s.db.DeleteKnownMac(mac); err != nil {
+			writeError(w, http.StatusInternalServerError, "db_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})))
 }

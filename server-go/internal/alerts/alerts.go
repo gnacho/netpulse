@@ -72,11 +72,13 @@ type Notifier interface {
 }
 
 // DefaultConfig devuelve una copia de los defaults del SPEC §2.
+// clients=all desde issue #196: "dispositivo desconocido" ya no es urgente
+// pero debe seguir siendo visible (con clients:urgent se descartaría entero).
 func DefaultConfig() map[string]string {
 	return map[string]string{
 		CatRouter:   LevelUrgent,
 		CatInternet: LevelUrgent,
-		CatClients:  LevelUrgent,
+		CatClients:  LevelAll,
 		CatSignal:   LevelNone,
 		CatVPN:      LevelNone,
 		CatSystem:   LevelAll,

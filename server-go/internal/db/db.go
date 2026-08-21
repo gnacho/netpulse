@@ -117,6 +117,14 @@ CREATE TABLE IF NOT EXISTS routers (
   is_gateway INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+-- Allowlist de dispositivos confiables (issue #196): una MAC conocida no
+-- dispara "dispositivo desconocido" y su name se usa como alias.
+CREATE TABLE IF NOT EXISTS known_macs (
+  mac TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  note TEXT,
+  created_at INTEGER NOT NULL
+);
 -- Suscripciones Web Push (Fase 3 Bloque C; sin paridad Node: el push es
 -- nuevo en Go). created_at en milisegundos como el resto de epochs.
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -321,6 +329,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// SPEC-65 D65-5: nombre visible por usuario ("" = usar el username).
 	migrate(sqldb, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
 	migrate(sqldb, "routers", "agent_only", "ALTER TABLE routers ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0")
+	// issue #196: bridgeMAC persistido del router (exclusión de "desconocido").
+	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria
@@ -565,4 +575,46 @@ func (d *DB) ShutdownContext(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// KnownMac es una fila de la allowlist (issue #196).
+type KnownMac struct {
+	MAC       string
+	Name      string
+	Note      string
+	CreatedAt int64
+}
+
+// ListKnownMacs devuelve la allowlist ordenada por MAC.
+func (d *DB) ListKnownMacs() ([]KnownMac, error) {
+	rows, err := d.Query("SELECT mac, name, note, created_at FROM known_macs ORDER BY mac")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []KnownMac{}
+	for rows.Next() {
+		var k KnownMac
+		var note sql.NullString
+		if err := rows.Scan(&k.MAC, &k.Name, &note, &k.CreatedAt); err == nil {
+			k.Note = note.String
+			out = append(out, k)
+		}
+	}
+	return out, rows.Err()
+}
+
+// UpsertKnownMac inserta o actualiza una MAC de la allowlist (por MAC).
+func (d *DB) UpsertKnownMac(k KnownMac) error {
+	_, err := d.Exec(
+		`INSERT INTO known_macs (mac, name, note, created_at) VALUES (?, ?, ?, ?)
+		 ON CONFLICT(mac) DO UPDATE SET name=excluded.name, note=excluded.note`,
+		k.MAC, k.Name, k.Note, NowMS())
+	return err
+}
+
+// DeleteKnownMac quita una MAC de la allowlist.
+func (d *DB) DeleteKnownMac(mac string) error {
+	_, err := d.Exec("DELETE FROM known_macs WHERE mac = ?", mac)
+	return err
 }

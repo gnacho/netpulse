@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
 // Las 5 alertas canon pasan por el motor con config default y sobreviven
@@ -154,8 +155,9 @@ func TestLiveUnknownDeviceTaxonomy(t *testing.T) {
 		t.Fatalf("desconocido: %d alertas", len(list))
 	}
 	a := list[0]
-	if a.Category != alerts.CatClients || !a.Urgent || a.Severity != "warn" {
-		t.Fatalf("desconocido: (%s,%v,%s), esperaba (clients,true,warn)", a.Category, a.Urgent, a.Severity)
+	// issue #196: la alerta de desconocido NO es urgente (warn informativa).
+	if a.Category != alerts.CatClients || a.Urgent || a.Severity != "warn" {
+		t.Fatalf("desconocido: (%s,%v,%s), esperaba (clients,false,warn)", a.Category, a.Urgent, a.Severity)
 	}
 }
 
@@ -181,7 +183,7 @@ func TestLiveTrackUnknownDevices(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("reconexión de desconocido: %d alertas", len(list))
 	}
-	if list[0].Category != alerts.CatClients || !list[0].Urgent {
+	if list[0].Category != alerts.CatClients || list[0].Urgent {
 		t.Fatalf("taxonomía: %+v", list[0])
 	}
 	// El dispositivo CON nombre nunca alerta aunque se reconecte
@@ -189,5 +191,22 @@ func TestLiveTrackUnknownDevices(t *testing.T) {
 	l.trackUnknownDevices([]Device{unknown, named})
 	if len(l.engine.List()) != 1 {
 		t.Fatal("dispositivo conocido no debía alertar")
+	}
+}
+
+func TestLiveTrackUnknownDevicesTrustedAllowlist(t *testing.T) {
+	l := liveTestLive()
+	l.db = openLiveTestDB(t) // allowlist en BD real
+	trusted := Device{MAC: "A4:7E:FA:65:0C:AA", Name: "A4:7E:FA:65:0C:AA", RouterID: "living", Online: true}
+	if err := l.db.UpsertKnownMac(db.KnownMac{MAC: "A4:7E:FA:65:0C:AA", Name: "Withings"}); err != nil {
+		t.Fatal(err)
+	}
+	// Primer ciclo siembra; desconexión; reconexión: la MAC de la allowlist
+	// NUNCA alerta, aunque siga sin nombre/lease (issue #196).
+	l.trackUnknownDevices([]Device{trusted})
+	l.trackUnknownDevices([]Device{})
+	l.trackUnknownDevices([]Device{trusted})
+	if len(l.engine.List()) != 0 {
+		t.Fatalf("MAC confiable alertó: %d", len(l.engine.List()))
 	}
 }

@@ -28,9 +28,9 @@ func TestDefaultConfig(t *testing.T) {
 			t.Fatalf("default %s: %q, esperaba %q", cat, cfg[cat], want[cat])
 		}
 	}
-	// Defaults exactos del SPEC §2
+	// Defaults exactos del SPEC §2 (clients=all desde #196)
 	if cfg[CatRouter] != "urgent" || cfg[CatInternet] != "urgent" ||
-		cfg[CatClients] != "urgent" || cfg[CatSignal] != "none" ||
+		cfg[CatClients] != "all" || cfg[CatSignal] != "none" ||
 		cfg[CatVPN] != "none" || cfg[CatSystem] != "all" {
 		t.Fatalf("defaults SPEC: %v", cfg)
 	}
@@ -69,19 +69,26 @@ func TestEmitFiltering(t *testing.T) {
 	if e.Emit(ev("s1", CatSignal, true)) {
 		t.Fatal("signal:none debía descartar")
 	}
-	// urgent → solo urgentes (clients por defecto)
-	if e.Emit(ev("c1", CatClients, false)) {
-		t.Fatal("clients:urgent debía descartar no-urgente")
+	// urgent → solo urgentes (router por defecto)
+	if e.Emit(ev("r1", CatRouter, false)) {
+		t.Fatal("router:urgent debía descartar no-urgente")
+	}
+	if !e.Emit(ev("r2", CatRouter, true)) {
+		t.Fatal("router:urgent debía aceptar urgente")
+	}
+	// all → pasa todo (clients=all desde #196)
+	if !e.Emit(ev("c1", CatClients, false)) {
+		t.Fatal("clients:all debía aceptar no-urgente")
 	}
 	if !e.Emit(ev("c2", CatClients, true)) {
-		t.Fatal("clients:urgent debía aceptar urgente")
+		t.Fatal("clients:all debía aceptar urgente")
 	}
 	// all → pasa todo (system por defecto)
 	if !e.Emit(ev("y1", CatSystem, false)) {
 		t.Fatal("system:all debía aceptar no-urgente")
 	}
-	if got := len(e.List()); got != 2 {
-		t.Fatalf("lista: %d, esperaba 2", got)
+	if got := len(e.List()); got != 4 {
+		t.Fatalf("lista: %d, esperaba 4", got)
 	}
 	// Cambio de nivel reconfigura el filtrado
 	if err := e.SetConfig(map[string]string{"signal": "all"}); err != nil {
