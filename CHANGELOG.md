@@ -7,6 +7,25 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.10.2] - 2026-08-21
+
+### Added
+
+- **Dispositivos de confianza**: nueva allowlist `known_macs` gestionable desde
+  Ajustes ("Dispositivos de confianza"). Una MAC registrada nunca dispara la
+  alerta "Dispositivo desconocido" y su nombre se usa como alias. Endpoints
+  admin `GET/PUT/DELETE /api/settings/known-macs`. #196
+
+### Fixed
+
+- **Falsos positivos de "Dispositivo desconocido"**: la alerta se disparaba
+  con los propios routers de la red y con dispositivos ya conocidos cuando el
+  sondeo del gateway era lento (su bridgeMAC se colaba como cliente de un AP)
+  o el lease DHCP no se resolvía en ese tick. Ahora la bridgeMAC de cada
+  router se persiste en `routers.mac` y se excluye siempre, y la alerta de
+  desconocido deja de ser urgente (warn informativo, categoría `clients`
+  pasa a `all`). #196
+
 ## [2.10.1] - 2026-08-18
 
 ### Fixed

@@ -33,7 +33,7 @@ import (
 )
 
 // Version es la versión del backend (app.js:18).
-const Version = "2.10.1"
+const Version = "2.10.2"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
