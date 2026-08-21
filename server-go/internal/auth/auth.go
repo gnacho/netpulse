@@ -37,6 +37,11 @@ const (
 	LockMS = 5 * 60 * 1000
 )
 
+// dummyPasswordHash se compara contra la password cuando el usuario no
+// existe, para igualar el timing con el camino de usuario válido y no
+// filtrar existencia de usuarios (issue #209).
+const dummyPasswordHash = "$2a$10$JeMmUvg2.LaUqM9Ir68TBegs4ll8r8KqG6x2f0.wA5f7BUBjtW/yq"
+
 // ---------------------------------------------------------------------------
 // Usuarios
 // ---------------------------------------------------------------------------
@@ -442,7 +447,7 @@ func HandleLogin(d *db.DB, secret string, r *http.Request, username, password st
 	if u == nil {
 		// Compare contra un hash conocido para igualar el timing con el
 		// camino de usuario válido y no filtrar existencia de usuarios.
-		_ = bcrypt.CompareHashAndPassword([]byte("$2a$10$dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy_dummy"), []byte(password))
+		_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(password))
 		return nil
 	}
 	if !CheckPassword(password, u.PassHash) {
