@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { CalendarDays, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, fetchJson } from '@/lib/utils'
+import { useNetPulse } from '@/data/DataProvider'
 
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/reports/availability (server-go/internal/httpapi/reports.go)
@@ -65,11 +66,13 @@ function AvailabilityBar({ pct }: { pct: number }) {
 export default function Reports() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
+  const { isDemo } = useNetPulse()
   const [range, setRange] = useState<Range>('week')
   const [n, setN] = useState<number>(DEFAULT_N.week)
   const [items, setItems] = useState<AvailabilityEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [noApi, setNoApi] = useState(false)
   const [spin, setSpin] = useState(false)
 
   // AbortController del fetch actual (#221): un cambio rápido de rango/n o un
@@ -85,18 +88,19 @@ export default function Reports() {
     loadAc.current = ac
     setLoading(true)
     setError(false)
-    try {
-      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`, { signal: ac.signal })
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      const env = (await res.json()) as { items: AvailabilityEntry[] }
-      if (!ac.signal.aborted) setItems(env.items)
-    } catch {
-      if (ac.signal.aborted) return
+    setNoApi(false)
+    const result = await fetchJson<{ items: AvailabilityEntry[] }>(`/api/reports/availability?range=${r}&n=${count}`, { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setItems(result.data.items)
+    } else if (result.kind === 'no-api' && isDemo) {
+      setNoApi(true)
+      setItems([])
+    } else {
       setError(true)
       setItems([])
-    } finally {
-      if (!ac.signal.aborted) setLoading(false)
     }
+    setLoading(false)
   }
 
   useEffect(() => () => {
@@ -242,12 +246,17 @@ export default function Reports() {
           {t('reports.loading')}
         </div>
       )}
+      {noApi && (
+        <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+          {t('reports.noApi')}
+        </div>
+      )}
       {error && items.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('reports.error')}
         </div>
       )}
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && !noApi && items.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('reports.empty')}
         </div>

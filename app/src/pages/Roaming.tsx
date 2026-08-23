@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, XCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 
 // ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ function signalClass(s: number): string {
 export default function Roaming() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { devices } = useNetPulse()
+  const { devices, isDemo } = useNetPulse()
   const [tab, setTab] = useState<Tab>('matrix')
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
@@ -157,16 +157,20 @@ export default function Roaming() {
   const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
   const [dot11rLoading, setDot11rLoading] = useState(false)
   const [dot11rError, setDot11rError] = useState(false)
+  const [dot11rNoApi, setDot11rNoApi] = useState(false)
   const [survey, setSurvey] = useState<SurveyOverview | null>(null)
   const [surveyLoading, setSurveyLoading] = useState(false)
   const [surveyError, setSurveyError] = useState(false)
+  const [surveyNoApi, setSurveyNoApi] = useState(false)
   const [surveyBand, setSurveyBand] = useState<'all' | '2.4 GHz' | '5 GHz'>('all')
   const [events, setEvents] = useState<RoamEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventsError, setEventsError] = useState(false)
+  const [eventsNoApi, setEventsNoApi] = useState(false)
   const [eventsTypeFilter, setEventsTypeFilter] = useState<'all' | 'connected' | 'disconnected' | 'dawn_decision'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [noApi, setNoApi] = useState(false)
   const [spin, setSpin] = useState(false)
 
   // MAC → nombre (resuelto desde la lista de dispositivos del overview).
@@ -195,18 +199,21 @@ export default function Roaming() {
     dawnAc.current = ac
     setLoading(true)
     setError(false)
-    try {
-      const res = await fetch('/api/dawn', { signal: ac.signal })
-      if (res.status === 401) redirectLogin()
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      setDawn((await res.json()) as Dawn)
-    } catch {
-      if (ac.signal.aborted) return
+    setNoApi(false)
+    const result = await fetchJson<Dawn>('/api/dawn', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setDawn(result.data)
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setNoApi(true)
+      setDawn(null)
+    } else {
       setError(true)
       setDawn(null)
-    } finally {
-      if (!ac.signal.aborted) setLoading(false)
     }
+    setLoading(false)
   }
 
   // Carga perezosa de /api/dot11r solo cuando se abre la pestaña 11r (es un
@@ -218,18 +225,21 @@ export default function Roaming() {
     dot11rAc.current = ac
     setDot11rLoading(true)
     setDot11rError(false)
-    try {
-      const res = await fetch('/api/dot11r', { signal: ac.signal })
-      if (res.status === 401) redirectLogin()
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      setDot11r((await res.json()) as Dot11rOverview)
-    } catch {
-      if (ac.signal.aborted) return
+    setDot11rNoApi(false)
+    const result = await fetchJson<Dot11rOverview>('/api/dot11r', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setDot11r(result.data)
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setDot11rNoApi(true)
+      setDot11r(null)
+    } else {
       setDot11rError(true)
       setDot11r(null)
-    } finally {
-      if (!ac.signal.aborted) setDot11rLoading(false)
     }
+    setDot11rLoading(false)
   }
 
   useEffect(() => {
@@ -251,18 +261,21 @@ export default function Roaming() {
     surveyAc.current = ac
     setSurveyLoading(true)
     setSurveyError(false)
-    try {
-      const res = await fetch('/api/survey', { signal: ac.signal })
-      if (res.status === 401) redirectLogin()
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      setSurvey((await res.json()) as SurveyOverview)
-    } catch {
-      if (ac.signal.aborted) return
+    setSurveyNoApi(false)
+    const result = await fetchJson<SurveyOverview>('/api/survey', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setSurvey(result.data)
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setSurveyNoApi(true)
+      setSurvey(null)
+    } else {
       setSurveyError(true)
       setSurvey(null)
-    } finally {
-      if (!ac.signal.aborted) setSurveyLoading(false)
     }
+    setSurveyLoading(false)
   }
 
   useEffect(() => {
@@ -279,19 +292,21 @@ export default function Roaming() {
     eventsAc.current = ac
     setEventsLoading(true)
     setEventsError(false)
-    try {
-      const res = await fetch('/api/roam-events?limit=100', { signal: ac.signal })
-      if (res.status === 401) redirectLogin()
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      const json = (await res.json()) as { events: RoamEvent[] }
-      setEvents(json.events ?? [])
-    } catch {
-      if (ac.signal.aborted) return
+    setEventsNoApi(false)
+    const result = await fetchJson<{ events: RoamEvent[] }>('/api/roam-events?limit=100', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setEvents(result.data.events ?? [])
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setEventsNoApi(true)
+      setEvents([])
+    } else {
       setEventsError(true)
       setEvents([])
-    } finally {
-      if (!ac.signal.aborted) setEventsLoading(false)
     }
+    setEventsLoading(false)
   }
 
   useEffect(() => () => {
@@ -465,19 +480,19 @@ export default function Roaming() {
 
       {tab === '11r' && (
         <div role="tabpanel" id="panel-11r" aria-labelledby="tab-11r" tabIndex={0}>
-          <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />
+          <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} noApi={dot11rNoApi} />
         </div>
       )}
 
       {tab === 'survey' && (
         <div role="tabpanel" id="panel-survey" aria-labelledby="tab-survey" tabIndex={0}>
-          <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} band={surveyBand} setBand={setSurveyBand} />
+          <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} noApi={surveyNoApi} band={surveyBand} setBand={setSurveyBand} />
         </div>
       )}
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
-          <EventsPanel events={events} loading={eventsLoading} error={eventsError} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />
         </div>
       )}
 
@@ -486,6 +501,11 @@ export default function Roaming() {
           {loading && (!dawn || aps.length === 0) && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.loading')}
+            </div>
+          )}
+          {noApi && (
+            <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+              {t('roaming.noApi')}
             </div>
           )}
           {error && (
@@ -638,10 +658,12 @@ function Dot11rPanel({
   overview,
   loading,
   error,
+  noApi,
 }: {
   overview: Dot11rOverview | null
   loading: boolean
   error: boolean
+  noApi: boolean
 }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -651,6 +673,13 @@ function Dot11rPanel({
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (noApi) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.noApi')}
       </div>
     )
   }
@@ -903,12 +932,14 @@ function SurveyPanel({
   overview,
   loading,
   error,
+  noApi,
   band,
   setBand,
 }: {
   overview: SurveyOverview | null
   loading: boolean
   error: boolean
+  noApi: boolean
   band: SurveyBand
   setBand: (b: SurveyBand) => void
 }) {
@@ -920,6 +951,13 @@ function SurveyPanel({
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (noApi) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.noApi')}
       </div>
     )
   }
@@ -1096,6 +1134,7 @@ function EventsPanel({
   events,
   loading,
   error,
+  noApi,
   typeFilter,
   setTypeFilter,
   nameByMac,
@@ -1103,6 +1142,7 @@ function EventsPanel({
   events: RoamEvent[]
   loading: boolean
   error: boolean
+  noApi: boolean
   typeFilter: EventTypeFilter
   setTypeFilter: (t: EventTypeFilter) => void
   nameByMac: Map<string, string>
@@ -1120,6 +1160,13 @@ function EventsPanel({
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (noApi) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.noApi')}
       </div>
     )
   }
