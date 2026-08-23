@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -234,6 +235,32 @@ func TestLogoutRevocaSesion(t *testing.T) {
 	res2.Body.Close()
 	if res2.StatusCode != 401 {
 		t.Fatalf("sesión revocada: got %d want 401", res2.StatusCode)
+	}
+}
+
+func TestMutationsCrossOriginRejected(t *testing.T) {
+	// Issue #213: una mutación con Origin cruzado → 403 cross_origin antes
+	// incluso de la autenticación; el login legítimo con Origin propio pasa.
+	srv := makeTestServer(t)
+
+	req, _ := http.NewRequest("POST", srv.URL+"/api/refresh", strings.NewReader(`{}`))
+	req.Header.Set("Origin", "https://evil.example")
+	res, _ := http.DefaultClient.Do(req)
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("POST cross-origin: got %d want 403", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["error"] != "cross_origin" {
+		t.Fatalf("error: %v", body)
+	}
+
+	u, _ := url.Parse(srv.URL)
+	req2, _ := http.NewRequest("POST", srv.URL+"/api/auth/login",
+		strings.NewReader(`{"username":"admin","password":"test123456"}`))
+	req2.Header.Set("Origin", u.Scheme+"://"+u.Host)
+	res2, _ := http.DefaultClient.Do(req2)
+	if res2.StatusCode != http.StatusNoContent {
+		t.Fatalf("login con Origin propio: got %d want 204", res2.StatusCode)
 	}
 }
 

@@ -24,10 +24,10 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
-	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 )
@@ -271,7 +271,7 @@ func NewHandler(d Deps) http.Handler {
 		mux.Handle("/", static)
 	}
 
-	return requestID(security.Middleware(auth.RequireAuth(s.db, s.secret, s.demoReadOnly(noStoreMux(mux)))))
+	return requestID(security.Middleware(auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, s.demoReadOnly(noStoreMux(mux))))))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en

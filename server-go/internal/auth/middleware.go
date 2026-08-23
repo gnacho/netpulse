@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -81,4 +82,58 @@ func RequireAdmin(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequireSameOrigin es la defensa CSRF (issue #213). SameSite=Lax cubre el
+// envío de cookies cross-site de fetch/XHR, pero no hay defensa en
+// profundidad si la app se sirve desde otro origen o un navegador sin
+// SameSite. En mutaciones (POST/PUT/DELETE) se valida el header Origin contra
+// el host efectivo de la petición (X-Forwarded-Host si TRUST_PROXY, si no
+// r.Host). Un Origin ausente (cliente no-navegador: agente, curl, CLI) se
+// deja pasar; si el navegador envía Sec-Fetch-Site: cross-site sin Origin, se
+// rechaza igualmente. Un Origin que no casa → 403 {error:'cross_origin'}.
+func RequireSameOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete {
+			if !originAllowed(r) {
+				WriteError(w, http.StatusForbidden, "cross_origin")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// originAllowed valida el header Origin (si viene) contra el host efectivo.
+func originAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		if sf := r.Header.Get("Sec-Fetch-Site"); sf != "" {
+			return sf != "cross-site"
+		}
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	// Origin "null" (iframe sandbox / redirect) no tiene host → no casa.
+	if u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Host, effectiveHost(r))
+}
+
+// effectiveHost devuelve el host al que el cliente cree estar llamando:
+// X-Forwarded-Host (si TRUST_PROXY) o r.Host. Sin TRUST_PROXY, un header
+// falseado no puede eludir la comprobación.
+func effectiveHost(r *http.Request) string {
+	if trustProxy {
+		if xfh := r.Header.Get("X-Forwarded-Host"); xfh != "" {
+			if first := strings.TrimSpace(strings.Split(xfh, ",")[0]); first != "" {
+				return first
+			}
+		}
+	}
+	return r.Host
 }

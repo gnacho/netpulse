@@ -243,6 +243,82 @@ func TestLoginAttemptsRearmanTrasBurstNuevo(t *testing.T) {
 	}
 }
 
+func TestRequireSameOrigin(t *testing.T) {
+	// Issue #213: mutaciones (POST/PUT/DELETE) validan Origin contra el host.
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	h := RequireSameOrigin(next)
+
+	// POST sin Origin (cliente no-navegador) → pasa.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("POST sin Origin debe pasar, got %d", rec.Code)
+	}
+
+	// POST con Origin == Host → pasa.
+	req := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req.Header.Set("Origin", "http://192.168.1.226:3000")
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusNoContent {
+		t.Fatalf("POST Origin==Host debe pasar, got %d", rec2.Code)
+	}
+
+	// POST con Origin distinto → 403 cross_origin.
+	req2 := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req2.Header.Set("Origin", "https://evil.example")
+	rec3 := httptest.NewRecorder()
+	h.ServeHTTP(rec3, req2)
+	if rec3.Code != http.StatusForbidden {
+		t.Fatalf("POST Origin distinto debe dar 403, got %d", rec3.Code)
+	}
+
+	// POST con Origin null (iframe sandbox) → 403.
+	req3 := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req3.Header.Set("Origin", "null")
+	rec4 := httptest.NewRecorder()
+	h.ServeHTTP(rec4, req3)
+	if rec4.Code != http.StatusForbidden {
+		t.Fatalf("POST Origin null debe dar 403, got %d", rec4.Code)
+	}
+
+	// GET no se valida (no es mutación).
+	req4 := httptest.NewRequest("GET", "http://192.168.1.226:3000/api/x", nil)
+	req4.Header.Set("Origin", "https://evil.example")
+	rec5 := httptest.NewRecorder()
+	h.ServeHTTP(rec5, req4)
+	if rec5.Code != http.StatusNoContent {
+		t.Fatalf("GET con Origin distinto no debe validarse, got %d", rec5.Code)
+	}
+
+	// Sec-Fetch-Site: cross-site sin Origin → 403.
+	req5 := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req5.Header.Set("Sec-Fetch-Site", "cross-site")
+	rec6 := httptest.NewRecorder()
+	h.ServeHTTP(rec6, req5)
+	if rec6.Code != http.StatusForbidden {
+		t.Fatalf("POST Sec-Fetch-Site=cross-site debe dar 403, got %d", rec6.Code)
+	}
+}
+
+func TestEffectiveHostConfiaEnXFH(t *testing.T) {
+	// Con TRUST_PROXY, X-Forwarded-Host (primer valor) es el host efectivo.
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	r := httptest.NewRequest("POST", "http://internal:3000/api/x", nil)
+	r.Header.Set("X-Forwarded-Host", "netpulse.example.com, internal:3000")
+	if got := effectiveHost(r); got != "netpulse.example.com" {
+		t.Fatalf("effectiveHost con XFH: %q", got)
+	}
+	// Sin TRUST_PROXY, XFH se ignora.
+	SetTrustProxy(false)
+	if got := effectiveHost(r); got != "internal:3000" {
+		t.Fatalf("effectiveHost sin TRUST_PROXY: %q", got)
+	}
+}
+
 func TestBuildSessionCookieFlags(t *testing.T) {
 	// El caso X-Forwarded-Proto=https requiere TRUST_PROXY (auditoría #1).
 	SetTrustProxy(true)

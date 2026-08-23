@@ -31,7 +31,7 @@ func TestMigrationEndToEndHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	secret := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	password := "n0de-p4ss"
+	password := "n0de-p4ss-larga"
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		t.Fatal(err)
