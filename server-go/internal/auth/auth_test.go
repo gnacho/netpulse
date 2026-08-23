@@ -179,6 +179,70 @@ func TestRateLimitFifthFailArmsLock(t *testing.T) {
 	}
 }
 
+func TestLoginAttemptsDecayTrasLockExpired(t *testing.T) {
+	// Issue #211: tras expirar el lockout (5 min), un fallo suelto ya NO
+	// rearma el bloqueo — la cuenta decae a 1.
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	d := testDB(t)
+	newReq := func() *http.Request {
+		r := httptest.NewRequest("POST", "/api/auth/login", nil)
+		r.Header.Set("X-Forwarded-For", "10.9.9.9, 10.0.0.1")
+		return r
+	}
+	for i := 0; i < 5; i++ {
+		RegisterLoginFail(d, newReq())
+	}
+	if limited, _ := LoginRateLimited(d, newReq()); !limited {
+		t.Fatal("tras 5 fallos debe estar bloqueado")
+	}
+	// El lockout expira.
+	_, _ = d.Exec("UPDATE login_attempts SET locked_until = ? WHERE ip = '10.9.9.9'", db.NowMS()-1)
+	// Un fallo suelto tras la expiración no rearma el lockout.
+	RegisterLoginFail(d, newReq())
+	if limited, _ := LoginRateLimited(d, newReq()); limited {
+		t.Fatal("un fallo tras expirar el lockout no debe rearmarlo")
+	}
+	var attempts int
+	var lockedUntil int64
+	if err := d.QueryRow("SELECT attempts, locked_until FROM login_attempts WHERE ip = '10.9.9.9'").
+		Scan(&attempts, &lockedUntil); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 1 || lockedUntil != 0 {
+		t.Fatalf("tras el decay esperaba attempts=1 locked_until=0, got %d %d", attempts, lockedUntil)
+	}
+}
+
+func TestLoginAttemptsRearmanTrasBurstNuevo(t *testing.T) {
+	// Issue #211: tras el decay, una ráfaga nueva de 5 fallos vuelve a
+	// armar el bloqueo (no se queda desarmado para siempre).
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	d := testDB(t)
+	newReq := func() *http.Request {
+		r := httptest.NewRequest("POST", "/api/auth/login", nil)
+		r.Header.Set("X-Forwarded-For", "10.9.9.9, 10.0.0.1")
+		return r
+	}
+	for i := 0; i < 5; i++ {
+		RegisterLoginFail(d, newReq())
+	}
+	_, _ = d.Exec("UPDATE login_attempts SET locked_until = ? WHERE ip = '10.9.9.9'", db.NowMS()-1)
+	// Decay: primer fallo tras la expiración resetea a 1.
+	RegisterLoginFail(d, newReq())
+	if limited, _ := LoginRateLimited(d, newReq()); limited {
+		t.Fatal("el primer fallo tras expirar no debe rearmar")
+	}
+	// Ráfaga nueva completa: 5 fallos seguidos vuelven a armar el lockout.
+	for i := 0; i < 5; i++ {
+		RegisterLoginFail(d, newReq())
+	}
+	if limited, _ := LoginRateLimited(d, newReq()); !limited {
+		t.Fatal("una ráfaga nueva de 5 fallos debe rearmar el lockout")
+	}
+}
+
 func TestBuildSessionCookieFlags(t *testing.T) {
 	// El caso X-Forwarded-Proto=https requiere TRUST_PROXY (auditoría #1).
 	SetTrustProxy(true)

@@ -393,18 +393,28 @@ func LoginRateLimited(d *db.DB, r *http.Request) (limited bool, retryAfterSec in
 
 // RegisterLoginFail registra un fallo: bloquea 5 min cuando el valor ANTERIOR
 // de attempts >= 4 (el bloqueo se arma en el 5º fallo — UPSERT literal).
+// Decay (issue #211): si el bloqueo previo ya expiró (locked_until en el
+// pasado), la cuenta se resetea a 1 y el marcador se limpia — un fallo suelto
+// (o un typo) tras el lockout ya no lo rearma al instante, evitando el
+// lockout casi permanente por IP. Una ráfaga nueva de 5 fallos tras la
+// expiración vuelve a armar el bloqueo.
 func RegisterLoginFail(d *db.DB, r *http.Request) {
 	ip := ClientIP(r)
+	now := db.NowMS()
 	_, _ = d.Exec(`
 		INSERT INTO login_attempts (ip, attempts, locked_until)
 		VALUES (?, 1, 0)
 		ON CONFLICT(ip) DO UPDATE SET
-		  attempts = attempts + 1,
+		  attempts = CASE
+		    WHEN locked_until > 0 AND locked_until <= ? THEN 1
+		    ELSE attempts + 1
+		  END,
 		  locked_until = CASE
+		    WHEN locked_until > 0 AND locked_until <= ? THEN 0
 		    WHEN attempts >= 4 THEN ?
 		    ELSE locked_until
 		  END
-	`, ip, db.NowMS()+LockMS)
+	`, ip, now, now, now+LockMS)
 }
 
 // LoginOk borra la fila de login_attempts de la IP.
