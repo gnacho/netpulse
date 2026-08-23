@@ -33,7 +33,7 @@ func TestPendingConfirmEndpoint(t *testing.T) {
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
-		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
+		"AUTH_USER": "admin", "AUTH_PASS": "test123456",
 		"DEMO_MODE": "0", "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {

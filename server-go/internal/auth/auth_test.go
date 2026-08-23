@@ -21,7 +21,7 @@ func testDB(t *testing.T) *db.DB {
 }
 
 func testCfg() *config.Config {
-	return &config.Config{AuthUser: "admin", AuthPass: "test1234", CookieSecure: "auto"}
+	return &config.Config{AuthUser: "admin", AuthPass: "test123456", CookieSecure: "auto"}
 }
 
 func TestSignVerifyRoundtrip(t *testing.T) {

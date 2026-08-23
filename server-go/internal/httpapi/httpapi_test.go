@@ -55,7 +55,7 @@ func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 		demo = "1"
 	}
 	cfg, err := config.Load(map[string]string{
-		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
+		"AUTH_USER": "admin", "AUTH_PASS": "test123456",
 		"DEMO_MODE": demo, "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestLoginIncorrecto401(t *testing.T) {
 
 func TestLoginCorrectoYMe(t *testing.T) {
 	srv := makeTestServer(t)
-	status, cookie, setCookie := loginCookie(t, srv.URL, "admin", "test1234")
+	status, cookie, setCookie := loginCookie(t, srv.URL, "admin", "test123456")
 	if status != 204 {
 		t.Fatalf("status: got %d want 204", status)
 	}
@@ -190,7 +190,7 @@ func TestOverviewProtegido(t *testing.T) {
 	if body["error"] != "unauthorized" {
 		t.Fatalf("error: %v", body)
 	}
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	res2 := get(t, srv.URL, "/api/overview", cookie)
 	if res2.StatusCode != 200 {
 		t.Fatalf("con cookie: got %d want 200", res2.StatusCode)
@@ -216,7 +216,7 @@ func TestOverviewProtegido(t *testing.T) {
 
 func TestLogoutRevocaSesion(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	req, _ := http.NewRequest("POST", srv.URL+"/api/auth/logout", nil)
 	req.Header.Set("Cookie", "session="+cookie)
 	res, err := http.DefaultClient.Do(req)
@@ -262,7 +262,7 @@ func TestRateLimitQuintoFallo(t *testing.T) {
 		t.Fatalf("retryAfterSec: %v", body)
 	}
 	// Incluso con la password correcta sigue bloqueado.
-	status, _, _ := loginCookie(t, srv.URL, "admin", "test1234", hdr...)
+	status, _, _ := loginCookie(t, srv.URL, "admin", "test123456", hdr...)
 	if status != 429 {
 		t.Fatalf("bloqueado con password correcta: got %d want 429", status)
 	}
@@ -308,7 +308,7 @@ func TestUsersCRUD(t *testing.T) {
 	}
 
 	// Admin: lista con 1 usuario
-	_, adminCookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, adminCookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	res = get(t, srv.URL, "/api/users", adminCookie)
 	body := readJSON(t, res)
 	users := body["users"].([]any)
@@ -485,7 +485,7 @@ func TestUsersCRUD(t *testing.T) {
 
 func TestCacheControl(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	cases := []struct {
 		path    string
@@ -514,7 +514,7 @@ func TestCacheControl(t *testing.T) {
 
 func TestDevicesPaginacionYFiltros(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// Paginación: 65 dispositivos del dataset canónico reconciliado
 	// (SPEC-CANON D1/D3/D5: GS308E de vuelta como Device, sin IDs duplicadas)
@@ -612,7 +612,7 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 
 func TestAlertsEndpoint(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	res := get(t, srv.URL, "/api/alerts", cookie)
 	body := readJSON(t, res)
@@ -633,7 +633,7 @@ func TestAlertsEndpoint(t *testing.T) {
 
 func TestRoutersYDetalle(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	res := get(t, srv.URL, "/api/routers", cookie)
 	body := readJSON(t, res)
@@ -671,7 +671,7 @@ func TestRoutersYDetalle(t *testing.T) {
 
 func TestAPI404JSON(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	for _, path := range []string{"/api/no-existe", "/api/routers/"} {
 		res := get(t, srv.URL, path, cookie)
 		body := readJSON(t, res)
@@ -769,7 +769,7 @@ func TestWriteJSONSinSaltoFinal(t *testing.T) {
 
 func TestWebhookDLQEndpoint(t *testing.T) {
 	srv := makeTestServer(t)
-	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if status != 204 {
 		t.Fatalf("login: %d", status)
 	}

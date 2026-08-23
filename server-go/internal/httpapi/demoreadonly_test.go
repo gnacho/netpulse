@@ -24,7 +24,7 @@ import (
 // refresh, push, users/me) sigue funcionando.
 func TestDemoReadOnly(t *testing.T) {
 	ts := makeDemoTestServer(t)
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	if cookie == "" {
 		t.Fatal("login no devolvió cookie")
 	}
@@ -98,7 +98,7 @@ func makeDemoAgentTestServer(t *testing.T) *agentTestServer {
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
-		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
+		"AUTH_USER": "admin", "AUTH_PASS": "test123456",
 		"DEMO_MODE": "1", "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
@@ -122,7 +122,7 @@ func makeDemoAgentTestServer(t *testing.T) *agentTestServer {
 		Agents: reg, Started: time.Now(),
 	})
 	srv := httptest.NewServer(handler)
-	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if status != 204 {
 		t.Fatalf("login: %d", status)
 	}

@@ -11,7 +11,7 @@ import (
 // TestKnownMacsRoundtrip: GET vacío → PUT → GET lo devuelve → DELETE.
 func TestKnownMacsRoundtrip(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if cookie == "" {
 		t.Fatal("login no devolvió cookie")
 	}
@@ -58,7 +58,7 @@ func TestKnownMacsRoundtrip(t *testing.T) {
 // TestKnownMacsInvalidInput: MAC mal formada → 400; PUT sin admin → 401.
 func TestKnownMacsInvalidInput(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	for _, body := range []string{
 		`{"mac":"A4:7E:FA:65:0C","name":"x"}`,       // corta

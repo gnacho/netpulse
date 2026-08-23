@@ -26,7 +26,7 @@ func TestPushAuthRequired(t *testing.T) {
 
 func TestPushEndpointsContract(t *testing.T) {
 	ts := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 
 	// GET vapid-key: {"key":...} no vacía y ESTABLE entre llamadas; sin '\n'.
 	res := get(t, ts.URL, "/api/push/vapid-key", cookie)

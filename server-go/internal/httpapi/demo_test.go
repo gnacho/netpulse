@@ -12,7 +12,7 @@ import (
 
 func TestDemoEnable403ParaRolUser(t *testing.T) {
 	ts := makeTestServer(t)
-	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	userCookie := createUserAndLogin(t, ts.URL, adminCookie, "viewerdemo", "clave12345", "user")
 
 	res := do(t, "POST", ts.URL, "/api/demo/enable", userCookie)
@@ -36,7 +36,7 @@ func TestDemoEnable401SinSesion(t *testing.T) {
 
 func TestDemoEnable409CuandoYaDemo(t *testing.T) {
 	ts := makeDemoTestServer(t) // DEMO_MODE=1
-	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, adminCookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	res := do(t, "POST", ts.URL, "/api/demo/enable", adminCookie)
 	if res.StatusCode != http.StatusConflict {
 		t.Fatalf("ya en demo: got %d want 409", res.StatusCode)

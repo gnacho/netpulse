@@ -41,15 +41,29 @@ func TestLoadOnboxConAuthPass(t *testing.T) {
 	}
 }
 
+func TestLoadAuthPassMinLength(t *testing.T) {
+	_, err := Load(map[string]string{"AUTH_PASS": "corta"}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "AUTH_PASS") {
+		t.Fatalf("AUTH_PASS corto debe fallar señalando la variable: %v", err)
+	}
+	cfg, err := Load(map[string]string{"AUTH_PASS": "diez-carac-"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("AUTH_PASS de 10 caracteres no debe fallar: %v", err)
+	}
+	if cfg.AuthPass != "diez-carac-" {
+		t.Fatalf("AuthPass = %q, esperaba diez-carac-", cfg.AuthPass)
+	}
+}
+
 func TestLoadOnboxEnumInvalido(t *testing.T) {
-	_, err := Load(map[string]string{"NETPULSE_ONBOX": "2", "AUTH_PASS": "x"}, t.TempDir())
+	_, err := Load(map[string]string{"NETPULSE_ONBOX": "2", "AUTH_PASS": "segura-y-larga"}, t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "NETPULSE_ONBOX") {
 		t.Fatalf("NETPULSE_ONBOX=2 debe fallar señalando la variable: %v", err)
 	}
 }
 
 func TestLoadOnboxCeroEquivaleAHoy(t *testing.T) {
-	cfg, err := Load(map[string]string{"NETPULSE_ONBOX": "0", "AUTH_PASS": "x"}, t.TempDir())
+	cfg, err := Load(map[string]string{"NETPULSE_ONBOX": "0", "AUTH_PASS": "segura-y-larga"}, t.TempDir())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

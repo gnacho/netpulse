@@ -91,7 +91,7 @@ func makeTestServerWithUpdater(t *testing.T, repoRoot string) *testServer {
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
-		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
+		"AUTH_USER": "admin", "AUTH_PASS": "test123456",
 		"DEMO_MODE": "0", "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
@@ -126,7 +126,7 @@ func makeTestServerWithUpdater(t *testing.T, repoRoot string) *testServer {
 
 func adminCookie(t *testing.T, ts *testServer) string {
 	t.Helper()
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	if cookie == "" {
 		t.Fatal("login admin falló")
 	}

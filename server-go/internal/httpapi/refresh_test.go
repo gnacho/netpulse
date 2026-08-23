@@ -23,7 +23,7 @@ func makeRefreshServer(t *testing.T) (*testServer, *atomic.Int32) {
 	t.Helper()
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
-		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
+		"AUTH_USER": "admin", "AUTH_PASS": "test123456",
 		"DEMO_MODE": "1", "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestRefreshSinSesion401(t *testing.T) {
 
 func TestRefreshAutenticado202(t *testing.T) {
 	srv, polls := makeRefreshServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	res := postRefresh(t, srv.URL, cookie)
 	body := readJSON(t, res)
 	if res.StatusCode != 202 || body["ok"] != true {
@@ -104,7 +104,7 @@ func TestRefreshAutenticado202(t *testing.T) {
 
 func TestRefreshRafaga429(t *testing.T) {
 	srv, polls := makeRefreshServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	res := postRefresh(t, srv.URL, cookie)
 	res.Body.Close()
 	if res.StatusCode != 202 {
@@ -131,7 +131,7 @@ func TestRefreshRafaga429(t *testing.T) {
 func TestRefreshSinPollerNoRompe(t *testing.T) {
 	// Deps sin PollNow (modo demo mínimo): 202 igualmente, nunca 500.
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	res := postRefresh(t, srv.URL, cookie)
 	body := readJSON(t, res)
 	if res.StatusCode != 202 || body["ok"] != true {

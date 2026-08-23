@@ -73,7 +73,7 @@ func makeRearmTestServer(t *testing.T, pool *fakeSSH, pollWait time.Duration) *r
 	t.Helper()
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
-		"AUTH_USER": "admin", "AUTH_PASS": "test1234",
+		"AUTH_USER": "admin", "AUTH_PASS": "test123456",
 		"DEMO_MODE": "0", "DATA_DIR": dataDir, "NODE_ENV": "test",
 	}, dataDir)
 	if err != nil {
@@ -107,7 +107,7 @@ func makeRearmTestServer(t *testing.T, pool *fakeSSH, pollWait time.Duration) *r
 		Agents: reg, Pool: runner, RearmPollWait: pollWait, Started: time.Now(),
 	})
 	srv := httptest.NewServer(handler)
-	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if status != 204 {
 		t.Fatalf("login: %d", status)
 	}

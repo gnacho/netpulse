@@ -23,7 +23,7 @@ type availabilityEntry struct {
 
 func getAvailability(t *testing.T, ts *testServer, query string) (int, []availabilityEntry) {
 	t.Helper()
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	url := ts.URL + "/api/reports/availability" + query
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("Cookie", "session="+cookie)

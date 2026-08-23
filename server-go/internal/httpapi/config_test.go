@@ -35,7 +35,7 @@ func doReq(t *testing.T, method, url, cookie, body string) *http.Response {
 // TestConfigRoutersCRUD replica routers.test.js.
 func TestConfigRoutersCRUD(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// GET inicial: lista vacía (200)
 	res := doReq(t, "GET", srv.URL+"/api/config/routers", cookie, "")
@@ -147,7 +147,7 @@ func TestConfigRoutersCRUD(t *testing.T) {
 //   - la respuesta incluye publicKey + fingerprint
 func TestRotateSSHKey(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// Sin admin → 403.
 	res := doReq(t, "POST", srv.URL+"/api/config/sshkey/rotate", "", "")
@@ -189,7 +189,7 @@ func TestRotateSSHKey(t *testing.T) {
 //   - PUT no-admin → 401/403 (lo cubre admin_gate_test.go)
 func TestConfigRoutersUpdate(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// Setup: dos routers (rt1 no-gateway, gw gateway).
 	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
@@ -276,7 +276,7 @@ func TestConfigRoutersUpdate(t *testing.T) {
 // alta con target, PUT que lo actualiza y persistencia en la lista.
 func TestConfigRoutersFirmwareTarget(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// POST con firmware_target → 201 y el router devuelto lo lleva.
 	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
