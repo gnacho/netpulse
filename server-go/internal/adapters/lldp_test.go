@@ -266,9 +266,12 @@ func TestBuildRouterLldpUplink(t *testing.T) {
 	if r := l.buildRouter(ap, nil); r.Lldp != nil {
 		t.Fatalf("anuncio por puerto distinto al del FDB: %+v", r.Lldp)
 	}
-	// Vecino LLDP que NO es un router de la config → sin campo
+	// Vecino LLDP que NO es un router de la config (ni MAC, ni IP, ni nombre)
+	// → sin campo
 	ap.fdb["94:83:C4:00:00:01"] = "lan1"
 	ap.lldp[0].ChassisMac = "28:C6:8E:1D:90:44"
+	ap.lldp[0].Chassis = "GS308E"
+	ap.lldp[0].Mgmt = "192.168.8.13"
 	if r := l.buildRouter(ap, nil); r.Lldp != nil {
 		t.Fatalf("vecino no-router: %+v", r.Lldp)
 	}
@@ -276,5 +279,48 @@ func TestBuildRouterLldpUplink(t *testing.T) {
 	ap.lldp = nil
 	if r := l.buildRouter(ap, nil); r.Lldp != nil {
 		t.Fatalf("sin LLDP: %+v", r.Lldp)
+	}
+}
+
+// Issue #252: en OpenWrt/GLuON lldpd suele anunciar como chassis-ID la MAC de
+// la primera interfaz (eth0/WAN), distinta de la br-lan que aprende el FDB del
+// vecino. El matching por identidad (mgmt-IP = Host del router, o nombre del
+// chasis) descubre el uplink aunque la chassis-MAC no esté entre las bridge
+// MACs de la config.
+func TestUplinkLldpIdentityFallback(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{
+		{ID: "flint2", Host: "192.168.8.1", IsGateway: true},
+		{ID: "living", Host: "192.168.8.2"},
+	}, nil)
+	gw := &routerPolled{cfg: RouterConfig{ID: "flint2", Name: "Flint 2", Host: "192.168.8.1", IsGateway: true},
+		brMac: "94:83:C4:00:00:01", fdb: map[string]string{}, lldp: []LldpNeighbor{}}
+	// El AP anuncia el gateway con chassis-ID = MAC de eth0 (NO la br-lan),
+	// pero su mgmt-IP coincide con el Host del gateway → uplink identificado.
+	ap := &routerPolled{cfg: RouterConfig{ID: "living", Name: "Living", Host: "192.168.8.2"},
+		brMac: "94:83:C4:00:00:02",
+		fdb:   map[string]string{},
+		lldp: []LldpNeighbor{{
+			Port: "lan1", Chassis: "Flint 2", ChassisMac: "94:83:C4:99:99:99",
+			Mgmt: "192.168.8.1", Caps: []string{"Bridge", "Router"}, PortDesc: "lan3",
+		}}}
+	l.lastPolled = map[string]*routerPolled{"flint2": gw, "living": ap}
+	r := l.buildRouter(ap, nil)
+	if r.Lldp == nil {
+		t.Fatal("uplink por mgmt-IP debería identificarse (fallback #252)")
+	}
+	if r.Lldp.Chassis != "Flint 2" || r.Lldp.Mgmt != "192.168.8.1" {
+		t.Fatalf("Router.Lldp: %+v", r.Lldp)
+	}
+	// Fallback por nombre del chasis (sin mgmt-IP anunciada).
+	ap.lldp[0].Mgmt = ""
+	ap.lldp[0].Chassis = "living-2" // hostname del router, no su Name config
+	ap.lldp[0].ChassisMac = "94:83:C4:99:99:98"
+	if r := l.buildRouter(ap, nil); r.Lldp != nil {
+		t.Fatalf("nombre sin coincidir no debe casar: %+v", r.Lldp)
+	}
+	ap.lldp[0].Chassis = "Flint 2"
+	ap.lldp[0].ChassisMac = "94:83:C4:99:99:98"
+	if r := l.buildRouter(ap, nil); r.Lldp == nil {
+		t.Fatal("uplink por nombre del chasis debería identificarse (fallback #252)")
 	}
 }

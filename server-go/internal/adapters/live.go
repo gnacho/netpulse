@@ -867,11 +867,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	return r
 }
 
-// uplinkLldp: vecino LLDP del router que es OTRO router conocido (su
-// chassis-MAC es la bridge MAC de otro router de la config) → el uplink
-// está identificado por LLDP y la app muestra el sufijo "· LLDP". Si el FDB
-// dice dónde se aprendió esa MAC, el anuncio debe llegar por ese puerto
-// (uplink); sin FDB, la MAC ya es evidencia suficiente. nil si no hay dato.
+// uplinkLldp: vecino LLDP del router que es OTRO router conocido → el uplink
+// está identificado por LLDP y la app muestra el sufijo "· LLDP". El vecino se
+// casa por chassis-MAC = bridge MAC de otro router (matching original) o, si
+// el chassis-ID que anuncia lldpd difiere de la br-lan (habitual en OpenWrt,
+// issue #252), por su mgmt-IP o nombre del chasis. Si el FDB dice dónde se
+// aprendió esa MAC, el anuncio debe llegar por ese puerto (uplink); sin FDB,
+// la MAC ya es evidencia suficiente. nil si no hay dato.
 func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 	if len(p.lldp) == 0 {
 		return nil
@@ -879,15 +881,10 @@ func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 	l.mu.Lock()
 	polled := l.lastPolled
 	l.mu.Unlock()
-	routerMacs := map[string]bool{}
-	for id, other := range polled {
-		if id != p.cfg.ID && other.brMac != "" {
-			routerMacs[other.brMac] = true
-		}
-	}
+	routers := routerIdentities(polled)
 	for i := range p.lldp {
 		nb := &p.lldp[i]
-		if nb.ChassisMac == "" || !routerMacs[nb.ChassisMac] {
+		if neighborIsRouter(nb, routers, p.cfg.ID) == nil {
 			continue
 		}
 		if port, ok := p.fdb[nb.ChassisMac]; ok && port != nb.Port {
