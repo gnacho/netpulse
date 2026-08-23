@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useNetPulse } from '@/data/DataProvider'
+import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/dawn (server-go/internal/adapters/types.go).
@@ -193,6 +193,7 @@ export default function Roaming() {
     setError(false)
     try {
       const res = await fetch('/api/dawn', { signal: ac.signal })
+      if (res.status === 401) redirectLogin()
       if (!res.ok) throw new Error(`status ${res.status}`)
       setDawn((await res.json()) as Dawn)
     } catch {
@@ -215,6 +216,7 @@ export default function Roaming() {
     setDot11rError(false)
     try {
       const res = await fetch('/api/dot11r', { signal: ac.signal })
+      if (res.status === 401) redirectLogin()
       if (!res.ok) throw new Error(`status ${res.status}`)
       setDot11r((await res.json()) as Dot11rOverview)
     } catch {
@@ -247,6 +249,7 @@ export default function Roaming() {
     setSurveyError(false)
     try {
       const res = await fetch('/api/survey', { signal: ac.signal })
+      if (res.status === 401) redirectLogin()
       if (!res.ok) throw new Error(`status ${res.status}`)
       setSurvey((await res.json()) as SurveyOverview)
     } catch {
@@ -274,6 +277,7 @@ export default function Roaming() {
     setEventsError(false)
     try {
       const res = await fetch('/api/roam-events?limit=100', { signal: ac.signal })
+      if (res.status === 401) redirectLogin()
       if (!res.ok) throw new Error(`status ${res.status}`)
       const json = (await res.json()) as { events: RoamEvent[] }
       setEvents(json.events ?? [])

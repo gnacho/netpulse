@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Wifi } from 'lucide-react'
 import { SectionHeader } from '@/components/SectionHeader'
+import { redirectLogin } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
 interface DawnAp {
@@ -36,6 +37,7 @@ export function DawnPanel() {
     const load = async () => {
       try {
         const res = await fetch('/api/dawn')
+        if (res.status === 401) redirectLogin()
         if (!res.ok) return
         const json = (await res.json()) as { aps: DawnAp[]; mesh?: DawnMesh[] }
         if (!disposed) {

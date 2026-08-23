@@ -255,7 +255,9 @@ export const EMPTY_EXTRAS: RouterExtras = {
 // Utilidades de red / demo
 // ---------------------------------------------------------------------------
 
-function redirectLogin(): never {
+/** Redirect compartido 401 → /login (evento para AuthGate + assign). Lo usan
+ * el provider y las páginas que hacen fetch directo (Roaming, DawnPanel). */
+export function redirectLogin(): never {
   window.dispatchEvent(new Event('netpulse-unauthorized'))
   window.location.assign('/login')
   throw new Error('unauthorized')
