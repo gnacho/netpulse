@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -124,6 +125,14 @@ func (s *server) registerBackupRoutes(mux *http.ServeMux) {
 		})
 	})))
 
+	// GET /api/backup/download (admin) — descarga la BD COMPLETA, incluidos
+	// los secrets del kv en claro (session_secret, adguard_pass, tokens de
+	// agente/pairing) y webhook_events. Es un backup fiel para restaurar en
+	// otro host: NO se redacta nada (una redacción rompería la restauración).
+	// El riesgo queda acotado a (issue #218): RequireAdmin; el admin ya puede
+	// leer la DB en disco (el mismo acceso); aviso explícito en el header
+	// X-Netpulse-Backup-Contains-Credentials; y una línea de auditoría en el
+	// log on-box con el admin que descargó.
 	mux.Handle("GET /api/backup/download", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		backupDir := filepath.Join(filepath.Dir(s.db.Path), "backups")
 		os.MkdirAll(backupDir, 0755)
@@ -134,6 +143,10 @@ func (s *server) registerBackupRoutes(mux *http.ServeMux) {
 		}
 		defer os.Remove(tmpFile)
 
+		if u := auth.UserFromContext(r.Context()); u != nil {
+			log.Printf("[netpulse] backup: descarga completa de la BD (incluye secrets kv) por admin %s", u.Username)
+		}
+		w.Header().Set("X-Netpulse-Backup-Contains-Credentials", "true")
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-%s.db"`, time.Now().UTC().Format("20060102-150405")))
 		http.ServeFile(w, r, tmpFile)
