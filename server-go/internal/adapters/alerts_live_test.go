@@ -109,6 +109,42 @@ func TestLiveRouterRecoveredTaxonomy(t *testing.T) {
 	}
 }
 
+// Issue #256: la alerta crítica de offline de un router se RESUELVE (marca
+// leída) cuando el router vuelve a responder; con APs que flapean no quedan
+// caídas fantasma "no leídas para siempre".
+func TestLiveRouterOfflineAlertResolvedOnRecovery(t *testing.T) {
+	l := liveTestLive()
+	offlineID := "alert-offline-patio-1"
+	l.engine.Emit(AlertEvent{
+		ID: offlineID, Category: alerts.CatRouter, Urgent: true,
+		Severity: "critical", Title: "Patio offline", RouterID: "patio", Time: "ahora mismo",
+	})
+	if len(l.engine.List()) != 1 {
+		t.Fatalf("alerta de caída: %d", len(l.engine.List()))
+	}
+	// El router vuelve online → las caídas pendientes se resuelven.
+	l.mu.Lock()
+	l.resolveOfflineAlerts("patio")
+	l.mu.Unlock()
+	list := l.engine.List()
+	if len(list) != 1 || !list[0].Read {
+		t.Fatalf("la caída debería quedar leída tras la recuperación: %+v", list)
+	}
+	// Las caídas de OTROS routers no se tocan.
+	l.engine.Emit(AlertEvent{
+		ID: "alert-offline-living-1", Category: alerts.CatRouter, Urgent: true,
+		Severity: "critical", Title: "Living offline", RouterID: "living", Time: "ahora mismo",
+	})
+	l.mu.Lock()
+	l.resolveOfflineAlerts("patio")
+	l.mu.Unlock()
+	for _, ev := range l.engine.List() {
+		if ev.ID == "alert-offline-living-1" && ev.Read {
+			t.Fatal("la caída de living no debía resolverse")
+		}
+	}
+}
+
 func TestLiveWanDownTaxonomyAndDebounce(t *testing.T) {
 	l := liveTestLive()
 	cfg := &RouterConfig{ID: "flint2", Name: "Flint 2", Host: "192.168.8.1"}

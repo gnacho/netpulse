@@ -956,6 +956,10 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 				if name == "" {
 					name = res.cfg.Host
 				}
+				// issue #256: la alerta crítica de offline pendiente se resuelve
+				// (marca leída) al volver online; sin esto queda "no leída" para
+				// siempre y con APs que flapean se acumulan caídas fantasma.
+				l.resolveOfflineAlerts(res.cfg.ID)
 				l.emitRouterRecovered(res.cfg.ID, name)
 			}
 			l.lastStatus[res.cfg.ID] = "online"
@@ -1004,6 +1008,23 @@ func (l *Live) emitRouterRecovered(routerID, name string) {
 		Description: fmt.Sprintf("%s vuelve a responder", name),
 		Time:        "ahora mismo", RouterID: routerID,
 	})
+}
+
+// resolveOfflineAlerts resuelve las alertas de offline pendientes del router
+// (issue #256): al volver online se marcan como leídas, de modo que la caída
+// crítica no queda "no leída para siempre" y un AP que flapea no acumula
+// caídas fantasma. El evento "recuperado" (emitRouterRecovered) es el relevo
+// positivo que sustituye la caída en el feed. Debe llamarse con l.mu tomado.
+func (l *Live) resolveOfflineAlerts(routerID string) {
+	ids := []string{}
+	for _, ev := range l.engine.List() {
+		if ev.RouterID == routerID && strings.HasPrefix(ev.ID, "alert-offline-") {
+			ids = append(ids, ev.ID)
+		}
+	}
+	if len(ids) > 0 {
+		l.engine.MarkRead(ids...)
+	}
 }
 
 // trackWanDown detecta "WAN/Internet caído" (category internet, urgent true,
