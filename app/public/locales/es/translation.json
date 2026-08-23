@@ -555,10 +555,17 @@
     "tempThreshold": "Umbral: 65 °C",
     "traffic24h": "Tráfico 24 h",
     "trafficAria": "Tráfico de {{name}} en las últimas 24 horas",
-    "upgradeAll": "Actualizar todos ({{count}} pendientes)",
     "upgradingAll": "Actualizando…",
     "upgradeAllConfirm": "¿Actualizar los {{count}} agentes con actualización disponible? Cada router descargará el binario nuevo y reiniciará su servicio de agente.",
-    "upgradeAllFail": "No se pudo enviar la actualización de la flota."
+    "upgradeAllFail": "No se pudo enviar la actualización de la flota.",
+    "upgradeProgress": "Actualizando agentes… {{done}}/{{total}} completados",
+    "upgradeProgressDone": "Flota actualizada ({{total}} agentes)",
+    "upgradeProgressAria": "Progreso de actualización de la flota",
+    "upgradeClose": "Cerrar",
+    "upgradeUpdated": "Actualizado",
+    "upgradeWaiting": "Esperando al agente…",
+    "upgradeAllHint": "{{count}} agentes sin actualizar",
+    "upgradeAllShort": "Actualizar"
   },
   "reports": {
     "availability": "Disponibilidad",

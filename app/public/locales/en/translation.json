@@ -555,10 +555,17 @@
     "tempThreshold": "Threshold: 65 °C",
     "traffic24h": "Traffic 24 h",
     "trafficAria": "{{name}} traffic over the last 24 hours",
-    "upgradeAll": "Update all ({{count}} pending)",
     "upgradingAll": "Updating…",
     "upgradeAllConfirm": "Update all {{count}} agents with an available update? Each router will download the new binary and restart its agent service.",
-    "upgradeAllFail": "Could not send the fleet update."
+    "upgradeAllFail": "Could not send the fleet update.",
+    "upgradeProgress": "Updating agents… {{done}}/{{total}} done",
+    "upgradeProgressDone": "Fleet updated ({{total}} agents)",
+    "upgradeProgressAria": "Fleet upgrade progress",
+    "upgradeClose": "Close",
+    "upgradeUpdated": "Updated",
+    "upgradeWaiting": "Waiting for the agent…",
+    "upgradeAllHint": "{{count}} agents need updating",
+    "upgradeAllShort": "Update"
   },
   "reports": {
     "availability": "Availability",

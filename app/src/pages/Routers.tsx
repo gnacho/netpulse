@@ -17,6 +17,8 @@ export default function Routers() {
   const [spinning, setSpinning] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null)
+  /** Slugs a los que se envió el upgrade de flota (para mostrar progreso). */
+  const [upgradeTrack, setUpgradeTrack] = useState<string[]>([])
 
   function handleRefresh() {
     setRefreshKey((k) => k + 1)
@@ -36,12 +38,26 @@ export default function Routers() {
     setUpgrading(false)
     if (res) {
       setUpgradeMsg(res.message)
-      window.setTimeout(() => setUpgradeMsg(null), 8000)
+      // Seguimiento de progreso: los slugs a los que se envió el upgrade
+      // (los "sent") quedan en seguimiento hasta que el poll de agentes los
+      // marque como al día (updateAvailable=false).
+      const sent = res.agents.filter((a) => a.status === 'sent').map((a) => a.slug)
+      setUpgradeTrack(sent)
+      if (sent.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
     } else {
       setUpgradeMsg(t('routers.upgradeAllFail'))
       window.setTimeout(() => setUpgradeMsg(null), 5000)
     }
   }
+
+  // Progreso en vivo: estado por slug basado en el último poll de agentes.
+  const upgradeProgress = upgradeTrack.map((slug) => {
+    const agent = agents.find((a) => a.slug === slug)
+    const done = agent ? !agent.updateAvailable : false
+    return { slug, done, version: agent?.version ?? '…' }
+  })
+  const upgradeDone = upgradeProgress.filter((p) => p.done).length
+  const trackActive = upgradeTrack.length > 0 && upgradeDone < upgradeTrack.length
 
   const online = routers.filter((r) => r.status === 'online').length
   const warned = routers.filter((r) => r.status === 'warn').length
@@ -104,20 +120,69 @@ export default function Routers() {
               {t('common.refresh')}
             </button>
             {pendingAgents > 0 && (
-              <button
-                onClick={() => void handleUpgradeAll()}
-                disabled={upgrading}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
-              >
-                <Rocket className={cn('h-4 w-4', upgrading && 'animate-pulse')} strokeWidth={1.75} />
-                {upgrading ? t('routers.upgradingAll') : t('routers.upgradeAll', { count: pendingAgents })}
-              </button>
+              <span className="inline-flex items-center gap-2 rounded-full border border-warn/40 bg-warn/10 px-3 py-1.5">
+                <span className="inline-flex items-center gap-1.5 text-caption font-medium text-warn">
+                  <Rocket className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {t('routers.upgradeAllHint', { count: pendingAgents })}
+                </span>
+                <button
+                  onClick={() => void handleUpgradeAll()}
+                  disabled={upgrading}
+                  className="inline-flex items-center gap-1 rounded-full bg-warn px-2.5 py-1 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {upgrading ? t('routers.upgradingAll') : t('routers.upgradeAllShort')}
+                </button>
+              </span>
             )}
             <span className="hidden text-caption text-text-muted sm:inline">{t('common.updatedAgo')}</span>
           </motion.div>
         </div>
         {upgradeMsg && <p className="mt-1 text-caption text-text-secondary">{upgradeMsg}</p>}
       </header>
+
+      {/* Panel de progreso de actualización de flota */}
+      {upgradeTrack.length > 0 && (
+        <motion.section
+          initial={reduce ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="rounded-2xl border border-accent/30 bg-accent/5 p-4 md:p-5"
+          aria-label={t('routers.upgradeProgressAria')}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Rocket className={cn('h-4 w-4 text-accent', trackActive && 'animate-pulse')} strokeWidth={1.75} />
+              <span className="text-sm font-semibold text-text-primary">
+                {trackActive
+                  ? t('routers.upgradeProgress', { done: upgradeDone, total: upgradeTrack.length })
+                  : t('routers.upgradeProgressDone', { total: upgradeTrack.length })}
+              </span>
+            </div>
+            <button
+              onClick={() => setUpgradeTrack([])}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+            >
+              {t('routers.upgradeClose')}
+            </button>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {upgradeProgress.map((p) => (
+              <li key={p.slug} className="flex items-center gap-2.5">
+                <span
+                  className={cn(
+                    'h-2 w-2 shrink-0 rounded-full',
+                    p.done ? 'bg-ok' : 'bg-accent animate-pulse',
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate font-mono text-caption text-text-secondary">{p.slug}</span>
+                <span className={cn('text-caption', p.done ? 'text-ok' : 'text-text-muted')}>
+                  {p.done ? t('routers.upgradeUpdated') : t('routers.upgradeWaiting')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </motion.section>
+      )}
 
       {/* ② Fleet cards 2×2 */}
       <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-2">
