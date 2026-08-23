@@ -170,7 +170,9 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
                 ? 'border-ok/40 bg-ok/10 text-ok'
                 : reinstallState === 'fail'
                   ? 'border-danger/40 bg-danger/10 text-danger'
-                  : 'border-danger/40 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20'
+                  : agent.fresh
+                    ? 'border-border text-text-secondary hover:border-accent/40 hover:text-accent'
+                    : 'border-danger/40 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20'
             }`}
           >
             <RotateCcw className={`h-3.5 w-3.5 ${reinstallState === 'busy' ? 'animate-spin' : ''}`} strokeWidth={1.75} />
