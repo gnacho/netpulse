@@ -207,7 +207,8 @@ export const routerExtras: Record<string, RouterExtras> = {
 }
 
 export function getRouterExtras(id: string): RouterExtras {
-  return routerExtras[id] ?? routerExtras.flint2
+  // flint2 es el default canónico y siempre está en el literal de arriba.
+  return routerExtras[id] ?? routerExtras.flint2!
 }
 
 // ---------------------------------------------------------------------------
@@ -268,17 +269,18 @@ export function perfSeries(router: Router, range: '1h' | '24h' | '7d'): PerfPoin
     let temp = Math.max(30, Math.round(router.temp - 5 + wob * 4 + dayShape * 4))
     if (i === peakIdx) cpu = cpuPeak
     if (i === peakIdx) temp = tempPeak
-    points.push({ t: labels[i], cpu, ram, temp })
+    points.push({ t: labels[i]!, cpu, ram, temp })
   }
   // La serie termina SIEMPRE en el valor canónico actual
-  points[n - 1] = { t: labels[n - 1], cpu: router.cpu, ram: router.ram, temp: router.temp }
+  points[n - 1] = { t: labels[n - 1]!, cpu: router.cpu, ram: router.ram, temp: router.temp }
   return points
 }
 
 export function perfCaptions(router: Router, data: PerfPoint[]): { cpu: string; ram: string; temp: string } {
   const extras = getRouterExtras(router.id)
-  const cpuMax = data.reduce((m, p) => (p.cpu > m.cpu ? p : m), data[0])
-  const tempMax = data.reduce((m, p) => (p.temp > m.temp ? p : m), data[0])
+  if (data.length === 0) throw new Error('perfCaptions: empty perf series')
+  const cpuMax = data.reduce((m, p) => (p.cpu > m.cpu ? p : m), data[0]!)
+  const tempMax = data.reduce((m, p) => (p.temp > m.temp ? p : m), data[0]!)
   const ramUsed = Math.round((router.ram / 100) * extras.ramMb)
   return {
     cpu: i18n.t('routerDetail.perf.peakCpu', { pct: cpuMax.cpu, t: cpuMax.t }),
@@ -324,15 +326,15 @@ function buildAdGuardSeriesFrom(stats: { queries24h: number; blocked24h: number 
   const isCanon = totalQ === 84312 && totalB === 15687
   if (isCanon) q[21] = 5412
   const drift = totalQ - q.reduce((a, b) => a + b, 0)
-  q[20] += drift // absorber el redondeo en la hora anterior
+  q[20] = (q[20] ?? 0) + drift // absorber el redondeo en la hora anterior
   const b = q.map((v) => Math.round(v * (totalQ > 0 ? totalB / totalQ : 0)))
   if (isCanon) b[21] = 1031
   const driftB = totalB - b.reduce((a, c) => a + c, 0)
-  b[20] += driftB
+  b[20] = (b[20] ?? 0) + driftB
   return q.map((v, i) => ({
     t: `${String(i).padStart(2, '0')}:00`,
-    permitidas: v - b[i],
-    bloqueadas: b[i],
+    permitidas: v - (b[i] ?? 0),
+    bloqueadas: b[i] ?? 0,
   }))
 }
 

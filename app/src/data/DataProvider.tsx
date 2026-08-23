@@ -301,7 +301,7 @@ function demoTick(prev: NetPulseData): NetPulseData {
     (Object.keys(prev.traffic) as TimeRange[]).map((range) => {
       const series = prev.traffic[range]
       if (series.length === 0) return [range, series]
-      const last = series[series.length - 1]
+      const last = series[series.length - 1]!
       const next = { ...last, down: walkPct(last.down, 5, 1), up: walkPct(last.up, 5, 0.5) }
       return [range, [...series.slice(0, -1), next]]
     }),

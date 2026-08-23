@@ -22,6 +22,7 @@
 
     /* Linting */
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

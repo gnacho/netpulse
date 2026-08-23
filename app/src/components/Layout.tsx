@@ -197,7 +197,9 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
   const { t } = useTranslation()
   const items = useVisibleNavItems()
   const main = items.filter((i) => i.to !== '/settings')
-  const settings = items[items.length - 1]
+  // Settings siempre es el último ítem de NAV_ITEMS y los filtros de
+  // useVisibleNavItems nunca lo quitan → garantizado definido.
+  const settings = items[items.length - 1]!
 
   if (collapsed) {
     // Sidebar colapsado = raíl de iconos en lg (persiste en localStorage)
