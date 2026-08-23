@@ -7,9 +7,11 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Salir del modo demo (frontend estático sin backend): aquí no hay sesión ni
- * login al que volver, así que se intenta cerrar la ventana; si el navegador
- * bloquea window.close() (pestañas no abiertas por script), se vuelve a la
- * landing pública de NetPulse.
+ * login al que volver. Se intenta cerrar la ventana (la demo se abre en una
+ * pestaña propia desde la landing); si el navegador bloquea window.close()
+ * (pestañas no abiertas por script), se vuelve a la pantalla de login de la
+ * propia app, que explica que la demo es de solo lectura y permite volver a
+ * entrar como demo.
  */
 export function exitDemo() {
   try {
@@ -19,7 +21,7 @@ export function exitDemo() {
   }
   window.close()
   window.setTimeout(() => {
-    window.location.href = 'https://netpulse.cloudless.club/'
+    window.location.assign('/login')
   }, 300)
 }
 
