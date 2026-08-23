@@ -149,30 +149,36 @@ type Live struct {
 	gatewayCfg *RouterConfig
 	clients    map[string]*OpenWrtClient
 
-	lastGood       map[string]*Router
-	lastStatus     map[string]string
-	boardCache     map[string]*BoardInfo
-	layoutCache    map[string][]PortLayout
-	extrasCache    map[string]*extrasSnapshot
-	lastPolled     map[string]*routerPolled
-	failCount      map[string]int
-	engine         *alerts.Engine
-	wgActive       map[string]bool
-	weakAlerted    map[string]int64
-	onlineMacs     map[string]bool
+	lastGood    map[string]*Router
+	lastStatus  map[string]string
+	boardCache  map[string]*BoardInfo
+	layoutCache map[string][]PortLayout
+	extrasCache map[string]*extrasSnapshot
+	lastPolled  map[string]*routerPolled
+	failCount   map[string]int
+	engine      *alerts.Engine
+	wgActive    map[string]bool
+	weakAlerted map[string]int64
+	onlineMacs  map[string]bool
+	// unknownGrace: ticks consecutivos online+sin nombre (Name == MAC) por
+	// MAC. unknownAlerted: MACs que ya dispararon la alerta de desconocido
+	// (issue #248, persistido en kv: cada MAC alerta UNA sola vez).
+	unknownGrace    map[string]int
+	unknownAlerted  map[string]bool
+	unknownGraceNum int // ticks antes de declarar desconocido (default 3, #234)
 	// Presencia wireless (issue #184): devicePresence = MAC → online del
 	// último ciclo evaluado; presenceMisses = ticks seguidos sin verse.
 	// presenceSeen evita la avalancha del primer ciclo (anti-arranque).
-	presenceSeen        bool
-	devicePresence      map[string]bool
-	presenceMisses      map[string]int
+	presenceSeen         bool
+	devicePresence       map[string]bool
+	presenceMisses       map[string]int
 	presenceOfflineAfter int // ticks sin verse antes de declarar offline (default 3)
 	// dawnAvailable: cache de "¿hay DAWN en algún router?" para el flag del
 	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
 	// al gateway) por dawnAvailableCached para no bloquear buildOverview.
-	dawnAvailable bool
-	dawnCheckedAt time.Time
-	dawnChecking  bool
+	dawnAvailable  bool
+	dawnCheckedAt  time.Time
+	dawnChecking   bool
 	seenOnlineMacs bool
 	wanDown        map[string]int
 	backhaulCache  map[string]backhaulCacheEntry
@@ -205,28 +211,31 @@ type sfCall struct {
 // NewLive crea el adapter live (db puede ser nil en tests).
 func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool) *Live {
 	l := &Live{
-		cfg:           cfg,
-		db:            d,
-		pool:          pool,
-		lastGood:      map[string]*Router{},
-		lastStatus:    map[string]string{},
-		boardCache:    map[string]*BoardInfo{},
-		layoutCache:   map[string][]PortLayout{},
-		extrasCache:   map[string]*extrasSnapshot{},
-		lastPolled:    map[string]*routerPolled{},
-		failCount:     map[string]int{},
-		engine:        alerts.New(d, nil),
-		wgActive:      map[string]bool{},
-		weakAlerted:   map[string]int64{},
-		onlineMacs:    map[string]bool{},
-		devicePresence: map[string]bool{},
-		presenceMisses: map[string]int{},
+		cfg:                  cfg,
+		db:                   d,
+		pool:                 pool,
+		lastGood:             map[string]*Router{},
+		lastStatus:           map[string]string{},
+		boardCache:           map[string]*BoardInfo{},
+		layoutCache:          map[string][]PortLayout{},
+		extrasCache:          map[string]*extrasSnapshot{},
+		lastPolled:           map[string]*routerPolled{},
+		failCount:            map[string]int{},
+		engine:               alerts.New(d, nil),
+		wgActive:             map[string]bool{},
+		weakAlerted:          map[string]int64{},
+		onlineMacs:           map[string]bool{},
+		unknownGrace:         map[string]int{},
+		unknownAlerted:       map[string]bool{},
+		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
+		devicePresence:       map[string]bool{},
+		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
-		wanDown:       map[string]int{},
-		backhaulCache: map[string]backhaulCacheEntry{},
-		lldpCache:     map[string]lldpCacheEntry{},
-		agentDown:        map[string]bool{},
-		agentDownConfirm: 3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
+		wanDown:              map[string]int{},
+		backhaulCache:        map[string]backhaulCacheEntry{},
+		lldpCache:            map[string]lldpCacheEntry{},
+		agentDown:            map[string]bool{},
+		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
 	}
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
@@ -235,6 +244,18 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 			_, _ = d.Exec("DELETE FROM device_attrib")
 			_, _ = d.Exec("INSERT INTO kv (key, value) VALUES ('attrib_v2', '1')")
 			log.Printf("[netpulse] device_attrib limpiada (attrib_v2: solo wireless persiste)")
+		}
+		// issue #248: memoria per-MAC de "desconocido ya alertado", persistida
+		// en kv para que un reinicio del servidor no vuelva a alertar las
+		// MACs ya conocidas (clave `unknown_alerted:<mac>`).
+		if rows, err := d.Query("SELECT key FROM kv WHERE key LIKE 'unknown_alerted:%'"); err == nil {
+			for rows.Next() {
+				var key string
+				if rows.Scan(&key) == nil {
+					l.unknownAlerted[strings.TrimPrefix(key, "unknown_alerted:")] = true
+				}
+			}
+			rows.Close()
 		}
 	}
 	l.SetRouters(initial)
@@ -303,6 +324,12 @@ func (l *Live) SetRouters(list []RouterConfig) {
 		if !ids[id] {
 			delete(l.failCount, id)
 		}
+	}
+	// unknownGrace es per-MAC (no por router): se poda por ausencia en
+	// trackUnknownDevices; aquí solo se limpia la lista completa si no queda
+	// ningún router (config vacía tras un reset).
+	if len(l.routers) == 0 {
+		l.unknownGrace = map[string]int{}
 	}
 	for id := range l.backhaulCache {
 		if !ids[id] {
@@ -1011,10 +1038,15 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 
 // trackUnknownDevices emite "dispositivo desconocido se conecta" cuando un
 // cliente SIN nombre (Name == MAC, sin hostname DHCP ni alias — device_attrib
-// no guarda alias) pasa de no-online a online. El primer ciclo de sondeo del
-// proceso NO alerta (evita la avalancha de arranque: todo lo ya conectado
-// sería "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca
-// alertan, haya alias o no. Toma l.mu internamente.
+// no guarda alias) pasa de no-online a online y PERMANECE nameless durante
+// `unknownGraceNum` ticks seguidos (issue #234): un dispositivo conocido que
+// reconecta resuelve su lease DHCP en 1-2 ticks y nunca alcanza el umbral.
+// La memoria per-MAC persistida (issue #248) garantiza que cada MAC desconocida
+// alerta UNA sola vez en la vida del servidor, hasta que se confíe en
+// Settings (known_macs) o se resete. El primer ciclo de sondeo del proceso
+// NO alerta (evita la avalancha de arranque: todo lo ya conectado sería
+// "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca alertan,
+// haya alias o no. Toma l.mu internamente.
 func (l *Live) trackUnknownDevices(devices []Device) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1038,14 +1070,52 @@ func (l *Live) trackUnknownDevices(devices []Device) {
 		}
 		nowOnline[d.MAC] = true
 		if trusted[d.MAC] {
+			delete(l.unknownGrace, d.MAC)
 			continue
 		}
-		if l.seenOnlineMacs && !l.onlineMacs[d.MAC] && d.Name == d.MAC {
-			l.emitUnknownDevice(d)
+		// issue #234: con hostname (lease resuelto) el dispositivo es
+		// conocido; se resetea su gracia y nunca alerta.
+		if d.Name != d.MAC {
+			delete(l.unknownGrace, d.MAC)
+			continue
+		}
+		// issue #248: esta MAC ya alertó alguna vez → no vuelve a hacerlo.
+		if l.unknownAlerted[d.MAC] {
+			delete(l.unknownGrace, d.MAC)
+			continue
+		}
+		// Solo los dispositivos que ACABAN de conectarse (o que ya estaban en
+		// gracia) acumulan ticks; los conectados antes del arranque no entran.
+		_, counting := l.unknownGrace[d.MAC]
+		if l.seenOnlineMacs && (counting || !l.onlineMacs[d.MAC]) {
+			l.unknownGrace[d.MAC]++
+			if l.unknownGrace[d.MAC] >= l.unknownGraceNum {
+				l.emitUnknownDevice(d)
+				l.unknownAlerted[d.MAC] = true
+				l.persistUnknownAlerted(d.MAC)
+				delete(l.unknownGrace, d.MAC)
+			}
+		}
+	}
+	// La gracia solo acumula en estado "online + sin nombre": cualquier otra
+	// transición la resetea (una reconexión futura parte de cero).
+	for mac := range l.unknownGrace {
+		if !nowOnline[mac] {
+			delete(l.unknownGrace, mac)
 		}
 	}
 	l.onlineMacs = nowOnline
 	l.seenOnlineMacs = true
+}
+
+// persistUnknownAlerted guarda en kv la memoria per-MAC (issue #248) para que
+// sobreviva a reinicios del servidor. Con db nil (demo/tests) es no-op.
+// Debe llamarse con l.mu tomado.
+func (l *Live) persistUnknownAlerted(mac string) {
+	if l.db == nil {
+		return
+	}
+	_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "unknown_alerted:"+mac)
 }
 
 // emitUnknownDevice: evento "dispositivo desconocido se conecta" (category
@@ -1651,7 +1721,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
 		Devices:           devices,
 		Dawn:              &DawnOverview{Available: l.dawnAvailableCached()},
-		VM:                ViewModelVersion,                                            // SPEC-65 D65-4
+		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
 }
@@ -2372,7 +2442,7 @@ func freqToChannel(freq int) int {
 		return (freq - 5000) / 5
 	case freq >= 5940 && freq <= 7115:
 		// 6 GHz (Wi-Fi 6E): 5950=ch1 ... 7115=ch233. Mismo (freq-5000)/5, con offset.
-		return (freq - 5950) / 5 + 1
+		return (freq-5950)/5 + 1
 	case freq == 56160:
 		return 1
 	case freq >= 56160:
