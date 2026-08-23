@@ -186,8 +186,10 @@ MAKE
   # Minimal feeds so the package index resolves iw; best effort.
   ./scripts/feeds update packages 2>/dev/null || true
   ./scripts/feeds install iw 2>/dev/null || true
+  # Genera un .config válido sin terminal (el SDK 25.12 invoca menuconfig en
+  # cuanto falta .config y muere con 'Error opening terminal' en CI).
+  make defconfig >/dev/null 2>&1 || true
   make package/netpulse-agent/compile V=s 2>&1 | tail -20
-
   find bin/packages -name "netpulse-agent*.apk" -exec cp {} "$OUT_DIR/" \;
   echo "  APK: $(ls "$OUT_DIR"/netpulse-agent*.apk 2>/dev/null || echo 'NOT FOUND')"
 
