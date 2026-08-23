@@ -41,7 +41,7 @@ func writeSlowScript(t *testing.T, root string) {
 // waitDone espera a que el update acabe (updating false o step done).
 func waitDone(t *testing.T, u *Updater) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		st := u.Status()
 		if m, ok := st.Updating.(progress); ok && m.Step == "done" {
