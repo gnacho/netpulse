@@ -7,6 +7,37 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-08-23
+
+### Added
+
+- **Firmware objetivo por router**: versión configurable en Ajustes; si el
+  firmware instalado no la cumple, NetPulse emite una alerta no urgente, marca
+  el router en la lista y penaliza ligeramente su salud. #241
+- **Rotación de la clave SSH del servidor**: `POST /api/config/sshkey/rotate`
+  (admin) con confirmación en la UI; respalda el par anterior y regenera uno
+  nuevo. #242
+- **Actualización del agente desde la app**: `updateAvailable` en la lista de
+  agentes y botón "Actualizar agente" en el detalle del router; el agente
+  descarga el binario nuevo del servidor, lo intercambia y se reinicia solo. #243
+- **Reinstalación del agente desde la app**: botón junto a LuCI/SSH que
+  repara un agente borrado (p. ej. por una actualización de firmware del
+  router) vía SSH: descarga el binario, escribe la config y reactiva el
+  servicio, rotando el token. #246
+- **Estados de agente diferenciados**: "Agente caído" (registrado pero sin
+  respuesta) frente a "Agente no instalado" (router agent-only sin agente),
+  ambos en rojo; se expone `router.agentOnly` en el view-model.
+- **Roadmap**: Fase 17.12 "Firmware update in-app (labs)".
+
+### Fixed
+
+- **Copiar comando SSH en LAN HTTP**: fallback a `execCommand` cuando la
+  Clipboard API no está disponible (HTTP), y el toast solo confirma si la
+  copia tuvo éxito.
+- **`updateAvailable` coherente**: la versión del binario embebido ahora se
+  inyecta por CI con el mismo valor que la versión del agente (antes una
+  constante fija que nunca coincidía).
+
 ## [2.10.2] - 2026-08-21
 
 ### Added
