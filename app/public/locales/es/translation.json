@@ -564,8 +564,8 @@
     "upgradeClose": "Cerrar",
     "upgradeUpdated": "Actualizado",
     "upgradeWaiting": "Esperando al agente…",
-    "upgradeAllHint": "{{count}} agentes sin actualizar",
-    "upgradeAllShort": "Actualizar"
+    "upgradeAllHint": "{{count}} agentes desactualizados",
+    "upgradeAllShort": "Actualizar agentes"
   },
   "reports": {
     "availability": "Disponibilidad",
