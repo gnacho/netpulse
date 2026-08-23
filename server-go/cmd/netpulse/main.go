@@ -354,12 +354,13 @@ func run() error {
 		log.Printf("[netpulse] TLS autofirmado on-box: %s", certPath)
 		log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", serverFP)
 
-		// Pairing token (generado en primer arranque, logueado).
-		pairTok, perr := httpapi.EnsurePairingToken(dbHandle)
-		if perr != nil {
+		// Pairing token (generado en el primer arranque). NO se loguea (issue
+		// #214): está disponible en la UI de Ajustes > Adopción (GET
+		// /api/pairing/token, admin) y un proceso cualquiera con acceso a los
+		// logs podría adoptar agentes con él.
+		if _, perr := httpapi.EnsurePairingToken(dbHandle); perr != nil {
 			return fmt.Errorf("pairing token: %w", perr)
 		}
-		log.Printf("[netpulse] PAIRING TOKEN: %s", pairTok)
 	}
 
 	handler := httpapi.NewHandler(httpapi.Deps{
