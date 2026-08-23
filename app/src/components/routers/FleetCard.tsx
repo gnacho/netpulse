@@ -37,11 +37,11 @@ function MetricRow({
       title={title}
     >
       <Icon className={cn('h-4 w-4 shrink-0', hot ? 'text-warn' : 'text-text-muted')} strokeWidth={1.75} />
-      <span className={cn('w-24 shrink-0 text-caption font-medium uppercase tracking-[0.06em]', hot ? 'text-warn' : 'text-text-muted')}>
+      <span className={cn('w-28 shrink-0 whitespace-nowrap text-caption font-medium uppercase tracking-[0.04em]', hot ? 'text-warn' : 'text-text-muted')}>
         {label}
       </span>
-      <MetricBar value={pct} className="flex-1" />
-      <span className={cn('w-16 shrink-0 text-right font-mono text-mono-sm', hot ? 'text-warn' : 'text-text-primary')}>
+      <MetricBar value={pct} className="min-w-0 flex-1" />
+      <span className={cn('w-16 shrink-0 whitespace-nowrap text-right font-mono text-mono-sm', hot ? 'text-warn' : 'text-text-primary')}>
         {value}
       </span>
     </div>
@@ -62,8 +62,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const agent = useAgentFor(router.id)
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
-  const agentDown = agent !== undefined && !agent.fresh
-  const agentMissing = agent === undefined && router.agentOnly
+  const isOpenWrt = router.type === undefined || router.type === '' || router.type === 'glinet' || router.type === 'openwrt'
+  const agentDown = isOpenWrt && agent !== undefined && !agent.fresh
+  const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
   const isGateway = router.id === 'flint2'
   const traffic = router.sparkline.map((v, i) => ({ i, v }))
@@ -127,7 +128,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h3 className="truncate font-display text-h2 text-text-primary">{router.name}</h3>
-                <AgentBadge agent={agent} agentOnly={router.agentOnly} />
+                <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} />
               </div>
               <div className="truncate text-caption text-text-muted">
                 {isGateway ? 'GL.iNet Flint 2 · GL-MT6000' : `OpenWrt · ${router.modelShort}`}

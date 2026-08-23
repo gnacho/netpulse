@@ -138,7 +138,8 @@
     "viewAll": "Ver todos",
     "viewDetail": "Ver detalle de {{name}}",
     "viewDetailShort": "Ver detalle",
-    "adminOnly": "Solo administrador"
+    "adminOnly": "Solo administrador",
+    "back": "Atrás"
   },
   "devices": {
     "badges": {

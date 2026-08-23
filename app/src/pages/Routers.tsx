@@ -90,6 +90,18 @@ export default function Routers() {
     return () => window.clearTimeout(timer)
   }, [upgradeWaiting, upgradeTrack.length])
 
+  // Tick cada segundo mientras haya agentes en espera: fuerza el re-render
+  // para que el timeout de UPGRADE_TIMEOUT_MS se evalúe en tiempo real (no
+  // dependiendo del poll de agentes de 30 s). Sin esto, un agente que no
+  // responde al comando "upgrade" se quedaría en "Actualizando…" hasta el
+  // siguiente poll.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (upgradeWaiting === 0) return
+    const tick = window.setInterval(() => setTick((n) => n + 1), 1000)
+    return () => window.clearInterval(tick)
+  }, [upgradeWaiting])
+
   const online = routers.filter((r) => r.status === 'online').length
   const warned = routers.filter((r) => r.status === 'warn').length
 
