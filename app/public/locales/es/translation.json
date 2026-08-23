@@ -401,7 +401,8 @@
       "disconnected": "Desconectado",
       "dawn": "DAWN",
       "other": "Otro"
-    }
+    },
+    "tabsLabel": "Vistas de roaming"
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."

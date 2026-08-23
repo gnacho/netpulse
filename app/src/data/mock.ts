@@ -15,7 +15,7 @@
 // aquí solo se re-exportan para no romper imports existentes.
 // ---------------------------------------------------------------------------
 
-import { numLocale } from '@/i18n'
+import i18n, { numLocale } from '@/i18n'
 import canon from '@/data/demo-canon.json'
 import type {
   AdGuardStats,
@@ -126,7 +126,7 @@ export const trafficByRange: Record<TimeRange, TrafficPoint[]> = {
 }
 
 // ---------------------------------------------------------------------------
-// Alertas (canon §11)
+// Alertas (canon §11) — bilingües ES/EN (issue #239)
 // ---------------------------------------------------------------------------
 
 // Ts unix SEGUNDOS escalonados en coherencia con el string legado
@@ -134,26 +134,44 @@ export const trafficByRange: Record<TimeRange, TrafficPoint[]> = {
 // (server-go/internal/adapters/demo_dataset.go canonAlerts, SPEC-ALERTAS §5).
 const alertNow = Math.floor(Date.now() / 1000)
 
+/** Texto bilingüe de alerta demo: es/en según el idioma activo (issue #239). */
+function demoText({ es, en }: { es: string; en: string }): string {
+  return i18n.language?.startsWith('es') ? es : en
+}
+
+// Los títulos/descripciones se resuelven con getters al leerlos: un cambio de
+// idioma re-renderiza (useTranslation) y las alertas se muestran en el idioma
+// activo sin recargar, aunque el bundle ya tenga la referencia al array.
 export const alerts: AlertEvent[] = [
   {
-    id: 'alert-temp-patio', category: 'router', urgent: true, severity: 'warn', title: 'High temperature on Patio',
-    description: '71 °C, above the threshold (65 °C)', time: '12 min ago', ts: alertNow - 12 * 60, read: false, routerId: 'patio',
+    id: 'alert-temp-patio', category: 'router', urgent: true, severity: 'warn',
+    get title() { return demoText({ es: 'Temperatura alta en Patio', en: 'High temperature on Patio' }) },
+    get description() { return demoText({ es: '71 °C, por encima del umbral (65 °C)', en: '71 °C, above the threshold (65 °C)' }) },
+    time: '12 min ago', ts: alertNow - 12 * 60, read: false, routerId: 'patio',
   },
   {
-    id: 'alert-firmware-estudio', category: 'system', urgent: false, severity: 'warn', title: 'Firmware available',
-    description: 'OpenWrt 24.10.1 for Study', time: '3h ago', ts: alertNow - 3 * 3600, read: false, routerId: 'estudio',
+    id: 'alert-firmware-estudio', category: 'system', urgent: false, severity: 'warn',
+    get title() { return demoText({ es: 'Firmware disponible', en: 'Firmware available' }) },
+    get description() { return demoText({ es: 'OpenWrt 24.10.1 para Estudio', en: 'OpenWrt 24.10.1 for Study' }) },
+    time: '3h ago', ts: alertNow - 3 * 3600, read: false, routerId: 'estudio',
   },
   {
-    id: 'alert-nuevo-tab', category: 'clients', urgent: false, severity: 'info', title: 'New device',
-    description: "'Galaxy Tab S9' joined Living Room", time: '26 min ago', ts: alertNow - 26 * 60, read: true, routerId: 'living',
+    id: 'alert-nuevo-tab', category: 'clients', urgent: false, severity: 'info',
+    get title() { return demoText({ es: 'Nuevo dispositivo', en: 'New device' }) },
+    get description() { return demoText({ es: "'Galaxy Tab S9' se ha unido a Salón", en: "'Galaxy Tab S9' joined Living Room" }) },
+    time: '26 min ago', ts: alertNow - 26 * 60, read: true, routerId: 'living',
   },
   {
-    id: 'alert-handshake-wg', category: 'vpn', urgent: false, severity: 'info', title: 'WireGuard handshake',
-    description: 'Pixel 8 Pro connected from 5.224.x.x', time: '38s ago', ts: alertNow - 38, read: true, routerId: 'flint2',
+    id: 'alert-handshake-wg', category: 'vpn', urgent: false, severity: 'info',
+    get title() { return demoText({ es: 'Handshake WireGuard', en: 'WireGuard handshake' }) },
+    get description() { return demoText({ es: 'Pixel 8 Pro conectado desde 5.224.x.x', en: 'Pixel 8 Pro connected from 5.224.x.x' }) },
+    time: '38s ago', ts: alertNow - 38, read: true, routerId: 'flint2',
   },
   {
-    id: 'alert-backup-adguard', category: 'system', urgent: false, severity: 'ok', title: 'AdGuard backup completed',
-    description: 'Configuration and lists backed up to the NAS', time: '1 day ago', ts: alertNow - 24 * 3600, read: true, routerId: 'flint2',
+    id: 'alert-backup-adguard', category: 'system', urgent: false, severity: 'ok',
+    get title() { return demoText({ es: 'Copia de AdGuard completada', en: 'AdGuard backup completed' }) },
+    get description() { return demoText({ es: 'Configuración y listas respaldadas en el NAS', en: 'Configuration and lists backed up to the NAS' }) },
+    time: '1 day ago', ts: alertNow - 24 * 3600, read: true, routerId: 'flint2',
   },
 ]
 
