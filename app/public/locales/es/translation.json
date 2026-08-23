@@ -121,7 +121,7 @@
     "leaseRenews": "renueva en {{h}} h {{min}} min",
     "leaseRenewsH": "renueva en {{h}} h",
     "memory": "Memoria",
-    "refresh": "Actualizar",
+    "refresh": "Refrescar",
     "roleAP": "AP",
     "rolePrimary": "Principal",
     "staticLease": "IP fija (reserva)",
