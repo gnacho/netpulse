@@ -39,6 +39,9 @@ import { VM_SUPPORTED } from '@/data/types'
 import {
   adguard as mockAdGuard,
   alerts as mockAlerts,
+  DEMO_HEALTH_EN,
+  DEMO_NAME_EN,
+  DEMO_ROLE_EN,
   devices as mockDevices,
   deviceTotals as mockDeviceTotals,
   distributionNodes as mockDistributionNodes,
@@ -48,6 +51,7 @@ import {
   wan as mockWan,
   wireguard as mockWireguard,
 } from '@/data/mock'
+import i18n from '@/i18n'
 import {
   countUnreadAlerts,
   loadDemoAlertsConfig,
@@ -167,22 +171,69 @@ export interface NetPulseApi extends NetPulseData {
 // Estado inicial = mock canónico (primer paint idéntico al mockup)
 // ---------------------------------------------------------------------------
 
-function initialBundle(): NetPulseData {
-  return {
-    health: mockHealth,
-    wan: mockWan,
-    traffic: mockTraffic,
-    adguard: mockAdGuard,
-    wireguard: mockWireguard,
-    routers: mockRouters,
-    devices: mockDevices,
-    deviceTotals: mockDeviceTotals,
-    distributionNodes: mockDistributionNodes,
-    topDevices: [...mockDevices].sort((a, b) => b.trafficMbps - a.trafficMbps).slice(0, 5),
-    alerts: mockAlerts,
-    unreadAlerts: mockAlerts.filter((a) => !a.read).length,
-    vm: VM_SUPPORTED,
+/** Canon ES por id: permite restaurar el castellano al volver de EN → ES. */
+const CANON_ROUTER_BY_ID = new Map(mockRouters.map((r) => [r.id, r]))
+const CANON_DEVICE_BY_ID = new Map(mockDevices.map((d) => [d.id, d]))
+
+/**
+ * Traduce los textos propios del canon demo (ES) al idioma activo (issue #238).
+ * SOLO modo demo: en live los nombres llegan del backend y no se tocan.
+ * Idempotente: el ES se restaura siempre desde el canon, nunca del estado
+ * previo, así un EN → ES → EN no degrada datos.
+ */
+function localizeDemoBundle(prev: NetPulseData, lang: string): NetPulseData {
+  const en = lang.startsWith('en')
+  const nameOf = <T extends { id: string; name: string }>(item: T, canonById: Map<string, T>): string => {
+    const esName = canonById.get(item.id)?.name ?? item.name
+    return en ? (DEMO_NAME_EN[item.id] ?? esName) : esName
   }
+  const routers = prev.routers.map((r) => {
+    const esRole = CANON_ROUTER_BY_ID.get(r.id)?.role ?? r.role
+    return {
+      ...r,
+      name: nameOf(r, CANON_ROUTER_BY_ID),
+      role: en ? (DEMO_ROLE_EN[esRole] ?? esRole) : esRole,
+    }
+  })
+  const devices = prev.devices.map((d) => ({ ...d, name: nameOf(d, CANON_DEVICE_BY_ID) }))
+  const deviceNameById = new Map(devices.map((d) => [d.id, d.name]))
+  const health: HealthScore = {
+    ...prev.health,
+    caption: en ? (DEMO_HEALTH_EN[prev.health.caption] ?? prev.health.caption) : mockHealth.caption,
+    note: en ? (DEMO_HEALTH_EN[prev.health.note] ?? prev.health.note) : mockHealth.note,
+    breakdown: prev.health.breakdown.map((b, i) => ({
+      ...b,
+      label: en ? (DEMO_HEALTH_EN[b.label] ?? b.label) : (mockHealth.breakdown[i]?.label ?? b.label),
+    })),
+  }
+  return {
+    ...prev,
+    routers,
+    devices,
+    health,
+    topDevices: prev.topDevices.map((d) => ({ ...d, name: deviceNameById.get(d.id) ?? d.name })),
+  }
+}
+
+function initialBundle(): NetPulseData {
+  return localizeDemoBundle(
+    {
+      health: mockHealth,
+      wan: mockWan,
+      traffic: mockTraffic,
+      adguard: mockAdGuard,
+      wireguard: mockWireguard,
+      routers: mockRouters,
+      devices: mockDevices,
+      deviceTotals: mockDeviceTotals,
+      distributionNodes: mockDistributionNodes,
+      topDevices: [...mockDevices].sort((a, b) => b.trafficMbps - a.trafficMbps).slice(0, 5),
+      alerts: mockAlerts,
+      unreadAlerts: mockAlerts.filter((a) => !a.read).length,
+      vm: VM_SUPPORTED,
+    },
+    i18n.language,
+  )
 }
 
 /**
@@ -577,6 +628,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(agentsPollId)
     }
   }, [applyOverview])
+
+  // -- idioma del dataset demo (issue #238) ------------------------------------
+  // En demo, los textos propios del canon (nombres de routers/devices, roles,
+  // salud) se traducen al idioma activo. En live los datos vienen del backend
+  // y no se tocan.
+  useEffect(() => {
+    const onLang = (lang: string) => {
+      if (modeRef.current === 'live') return
+      setBundle((prev) => localizeDemoBundle(prev, lang))
+    }
+    onLang(i18n.language)
+    i18n.on('languageChanged', onLang)
+    return () => {
+      i18n.off('languageChanged', onLang)
+    }
+  }, [])
 
   // -- API pública --------------------------------------------------------------
 
