@@ -447,7 +447,16 @@
       "openLuci": "Open LuCI",
       "timezone": "Timezone",
       "title": "Information",
-      "updated": "Up to date"
+      "updated": "Up to date",
+      "reinstall": "Reinstall agent",
+      "reinstalling": "Reinstalling…",
+      "reinstalled": "Reinstalled",
+      "reinstallRetry": "Retry reinstall",
+      "reinstallTip": "Reinstall the agent on this router (binary, config and service) via SSH. Use this if the agent was removed by a firmware update or manual uninstall.",
+      "reinstallConfirm": "Reinstall the agent on {{router}}? The current agent (if any) will be replaced and its token rotated.",
+      "reinstallDone": "Agent reinstalled and reporting again.",
+      "reinstallPending": "Agent installed; waiting for it to report (up to 40s).",
+      "reinstallFail": "Reinstall failed"
     },
     "latency": {
       "24h": "Latency 24 h",

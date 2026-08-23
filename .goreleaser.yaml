@@ -26,6 +26,7 @@ builds:
       - -s
       - -w
       - "-X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit={{.ShortCommit}}"
+      - "-X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion={{ .Env.AGENT_VERSION }}"
 
   - id: netpulse-collector
     dir: collector

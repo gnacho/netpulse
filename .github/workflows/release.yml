@@ -17,6 +17,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # Versión del agente embebido en el servidor. Se inyecta igual en el
+      # binario del agente (main.Version) y en el servidor
+      # (agentbin.EmbeddedAgentVersion vía .goreleaser.yaml): alimenta el
+      # campo updateAvailable de GET /api/agents. Bumpear en un solo sitio.
+      AGENT_VERSION: "0.1.0"
     steps:
       - uses: actions/checkout@v4
 
@@ -48,11 +54,6 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOOS: linux
-          # Versión inyectada en el binario del agente embebido. Debe coincidir
-          # con agentbin.EmbeddedAgentVersion (server-go/internal/agentbin):
-          # el campo updateAvailable de GET /api/agents compara la versión del
-          # agente conectado contra esa constante. Bumpear ambos a la vez.
-          AGENT_VERSION: "0.1.0"
         run: |
           set -e
           # amd64

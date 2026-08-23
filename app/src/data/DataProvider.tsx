@@ -150,6 +150,12 @@ export interface NetPulseApi extends NetPulseData {
    * del envío; null si la petición falló (demo siempre null).
    */
   upgradeAgent: (slug: string) => Promise<'sent' | 'not_connected' | null>
+  /**
+   * #246: POST /api/agents/{slug}/reinstall — reinstala el agente en el router
+   * vía SSH (binario, env, servicio procd). Devuelve el resultado; null si
+   * falló (demo siempre null).
+   */
+  reinstallAgent: (slug: string) => Promise<{ recovered: boolean; token?: string; error?: string } | null>
 }
 
 // ---------------------------------------------------------------------------
@@ -727,6 +733,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const reinstallAgent = useCallback(async (slug: string): Promise<{ recovered: boolean; token?: string; error?: string } | null> => {
+    if (modeRef.current !== 'live') return null
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/reinstall`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(90_000),
+      })
+      if (res.status === 401) redirectLogin()
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        return { recovered: false, error: body.message ?? `HTTP ${res.status}` }
+      }
+      const json = (await res.json()) as { recovered: boolean; token?: string }
+      return { recovered: json.recovered, token: json.token }
+    } catch {
+      return { recovered: false, error: 'network' }
+    }
+  }, [])
+
   const getRouterDetail = useCallback(async (id: string): Promise<RouterDetailData | null> => {
     if (modeRef.current === 'live') {
       const res = await fetch(`/api/routers/${encodeURIComponent(id)}`)
@@ -830,8 +855,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAllAlertsRead,
       rearmAgent,
       upgradeAgent,
+      reinstallAgent,
     }),
-    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent, upgradeAgent],
+    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent, upgradeAgent, reinstallAgent],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

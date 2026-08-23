@@ -32,6 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # publicar assets en la prerelease go-latest
+    env:
+      # Versión del agente embebido en el servidor. Se inyecta igual en el
+      # binario del agente (main.Version) y en el servidor
+      # (agentbin.EmbeddedAgentVersion): el campo updateAvailable de
+      # GET /api/agents compara la versión reportada del agente contra esa
+      # versión. Bumpear aquí y en agentbin.md el valor único de verdad.
+      AGENT_VERSION: "0.1.0"
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -64,11 +71,6 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOOS: linux
-          # Versión inyectada en el binario del agente embebido. Debe coincidir
-          # con agentbin.EmbeddedAgentVersion (server-go/internal/agentbin):
-          # el campo updateAvailable de GET /api/agents compara la versión del
-          # agente conectado contra esa constante. Bumpear ambos a la vez.
-          AGENT_VERSION: "0.1.0"
         run: |
           set -e
           # amd64
@@ -87,7 +89,9 @@ jobs:
         # -X updater.BuildCommit: sin esto el updater del CT cae a git rev-parse
         # (repo stale dubious-ownership) y reporta un SHA viejo → falso "update
         # available" permanente aunque el binario sea el de main HEAD.
-        run: go build -trimpath -ldflags "-s -w -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${GITHUB_SHA::7}" -o netpulse ./cmd/netpulse
+        # -X agentbin.EmbeddedAgentVersion: la versión del agente embebido;
+        # alimenta el campo updateAvailable de GET /api/agents.
+        run: go build -trimpath -ldflags "-s -w -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${GITHUB_SHA::7} -X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion=${AGENT_VERSION}" -o netpulse ./cmd/netpulse
 
       - name: Empaqueta binario + despliegue
         run: tar czf netpulse-server-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz -C server-go netpulse .env.example -C .. deploy

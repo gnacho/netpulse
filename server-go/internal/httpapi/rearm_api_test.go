@@ -296,3 +296,58 @@ func TestRearmSinPool503(t *testing.T) {
 		t.Fatalf("quiero 503 ssh_unavailable, tuve %d (%s)", status, body)
 	}
 }
+
+// TestAgentReinstall — #246: POST /api/agents/{slug}/reinstall.
+// Casos: 404 slug inválido, 409 sin router en tabla routers, 200 instalado
+// (el fakeSSH ejecuta el script; sin push de vuelta → recovered=false),
+// y rotación del token (el token en la respuesta difiere del previo).
+func TestAgentReinstall(t *testing.T) {
+	pool := &fakeSSH{}
+	ts := makeRearmTestServer(t, pool, 50*time.Millisecond)
+
+	// 404 slug inválido
+	res := doReq(t, "POST", ts.URL+"/api/agents/BAD%20slug/reinstall", ts.cookie, "")
+	if res.StatusCode != 404 {
+		t.Fatalf("slug inválido: %d", res.StatusCode)
+	}
+
+	// 409 sin router en la tabla (slug "nonexistent" sin token ni router)
+	res = doReq(t, "POST", ts.URL+"/api/agents/nonexistent/reinstall", ts.cookie, "")
+	if res.StatusCode != 409 {
+		t.Fatalf("sin router: %d (esperaba 409)", res.StatusCode)
+	}
+
+	// Token previo de "patio" (el router existe en makeRearmTestServer)
+	status, prevToken := createRearmToken(t, ts, "patio")
+	if status != 201 {
+		t.Fatalf("crear token: %d", status)
+	}
+
+	// 200 instalado: el fakeSSH "ejecuta" el script → Installed=true.
+	res = doReq(t, "POST", ts.URL+"/api/agents/patio/reinstall", ts.cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("reinstall: %d", res.StatusCode)
+	}
+	var body struct {
+		Installed bool   `json:"installed"`
+		Recovered bool   `json:"recovered"`
+		Token     string `json:"token"`
+		Message   string `json:"message"`
+	}
+	data, _ := io.ReadAll(res.Body)
+	_ = json.Unmarshal(data, &body)
+	if !body.Installed {
+		t.Fatalf("reinstall: installed=false (%s)", body.Message)
+	}
+	if body.Token == "" {
+		t.Fatalf("reinstall: sin token nuevo")
+	}
+	if prevToken != "" && body.Token == prevToken {
+		t.Fatalf("reinstall: el token no rotó (prev==new)")
+	}
+
+	// El script SSH se ejecutó en el router (algún comando al host 192.168.1.4).
+	if pool.count() == 0 {
+		t.Fatalf("reinstall: no se ejecutó ningún comando SSH")
+	}
+}

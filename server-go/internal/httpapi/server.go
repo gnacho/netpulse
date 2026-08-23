@@ -184,6 +184,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("DELETE /api/agents/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsDelete)))
 	// Fase 5 (Plan B): rearme del servicio procd del agente vía SSH.
 	mux.Handle("POST /api/agents/{slug}/rearm", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRearm)))
+	// #246: reinstalación completa del agente en el router (binario, env,
+	// servicio procd) vía SSH — recupera un agente borrado por una
+	// actualización de firmware o una desinstalación manual.
+	mux.Handle("POST /api/agents/{slug}/reinstall", auth.RequireAdmin(http.HandlerFunc(s.handleAgentReinstall)))
 	// Fase 6.2: servir binario del agente desde el propio servidor (sin GitHub).
 	// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
 	// instalación incluye el token y se ejecuta en el router, sin sesión admin.
