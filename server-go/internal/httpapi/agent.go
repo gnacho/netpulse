@@ -350,25 +350,46 @@ type agentListItem struct {
 	UpdateAvailable bool `json:"updateAvailable"`
 }
 
-// agentUpgradeable: ¿el agente de este slug es un agente nativo OpenWrt
-// actualizable? Un slug sin router en la tabla (o con type openwrt/glinet) es
+// agentUpgradeable: ¿un agente de un router con este type es actualizable?
+// Un router openwrt/glinet (o sin type) usa el binario netpulse-agent y es
 // actualizable; los de type managed-switch/external NO (son scrapers que no
-// usan el binario netpulse-agent y no entienden el comando "upgrade").
-func (s *server) agentUpgradeable(slug string) bool {
+// usan el agente nativo y no entienden el comando "upgrade").
+func agentUpgradeable(typ string) bool {
+	return typ == "" || typ == "openwrt" || typ == "glinet"
+}
+
+// routerUpgradeable: variante por slug que consulta la tabla routers. NO usar
+// dentro de un bucle con rows abiertos (SetMaxOpenConns(1) → deadlock);
+// para listados precarga los types (ver handleAgentsList).
+func (s *server) routerUpgradeable(slug string) bool {
 	if s.db == nil {
 		return true
 	}
 	var typ string
 	if err := s.db.QueryRow("SELECT type FROM routers WHERE id = ?", slug).Scan(&typ); err != nil {
-		// Sin router registrado: asumir actualizable (comportamiento previo).
 		return true
 	}
-	return typ == "openwrt" || typ == "glinet" || typ == ""
+	return agentUpgradeable(typ)
 }
 
 // handleAgentsList: slugs con token + last_seen + versión.
 func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 	out := []agentListItem{}
+	// Types de routers por slug, precargados en UNA consulta: con
+	// SetMaxOpenConns(1) un QueryRow dentro del bucle de rows de abajo
+	// esperaría la conexión que el rows activo mantiene (deadlock).
+	routerTypes := map[string]string{}
+	if s.db != nil {
+		if rows, err := s.db.Query("SELECT id, type FROM routers"); err == nil {
+			for rows.Next() {
+				var id, typ string
+				if rows.Scan(&id, &typ) == nil {
+					routerTypes[id] = typ
+				}
+			}
+			rows.Close()
+		}
+	}
 	if s.db != nil {
 		rows, err := s.db.Query("SELECT key FROM kv WHERE key LIKE ? ORDER BY key", agentTokenKeyPrefix+"%")
 		if err == nil {
@@ -388,7 +409,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						// Fase 6.3 (issue #243): upgrade disponible si el agente
 						// reporta una versión distinta del binario embebido y es
 						// un agente nativo OpenWrt (no un scraper).
-						item.UpdateAvailable = s.agentUpgradeable(slug) && version != "" && version != agentbin.EmbeddedAgentVersion
+						item.UpdateAvailable = agentUpgradeable(routerTypes[slug]) && version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
@@ -516,7 +537,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	}
 	// Solo agentes nativos OpenWrt: un dispositivo managed-switch/external es
 	// un scraper que no usa el binario netpulse-agent → no se reinstala así.
-	if !s.agentUpgradeable(slug) {
+	if !s.routerUpgradeable(slug) {
 		writeError(w, http.StatusConflict, "not_openwrt",
 			"este dispositivo no usa el agente nativo OpenWrt (scraper); reinstálalo con su propio mecanismo")
 		return
