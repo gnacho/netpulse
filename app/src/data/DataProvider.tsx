@@ -653,9 +653,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const idSet = new Set(ids)
     setBundle((prev) => {
       const alerts = prev.alerts.map((a) => (idSet.has(a.id) ? { ...a, read: true } : a))
+      // En live NO se recalcula el contador localmente: el snapshot/SSE lo
+      // corrige con la config por categoría del servidor (#224). Un filtrado
+      // por `!read` a secas ignoraría categorías silenciadas y mostraría un
+      // badge inconsistente hasta el siguiente snapshot.
       const unreadAlerts =
         modeRef.current === 'live'
-          ? alerts.filter((a) => !a.read).length
+          ? prev.unreadAlerts
           : countUnreadAlerts(alerts, configRef.current)
       return { ...prev, alerts, unreadAlerts }
     })
