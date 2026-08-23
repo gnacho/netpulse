@@ -330,6 +330,52 @@ func TestInferTopologyManagedTrasAP(t *testing.T) {
 	}
 }
 
+// Issue #252: switch gestionado que es un router de la config cuyo chassis-ID
+// anunciado NO está entre las MACs aprendidas (lldpd anuncia la MAC de la 1ª
+// interfaz, no la br-lan), pero su mgmt-IP coincide con su Host → el puerto
+// multi-MAC se promueve a "managed" igualmente.
+func TestInferTopologyManagedPorIdentidad(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+			fdb: map[string]string{
+				"04:D4:C4:8B:30:A7": "lan3", // PC tras el switch
+				"DC:A6:32:4F:77:02": "lan3", // Raspberry tras el switch
+			}},
+		"switch1": {cfg: RouterConfig{ID: "switch1", Name: "LGS352C", Host: "192.168.8.20", Type: "managed-switch", AgentOnly: true},
+			brMac: "94:83:C4:00:00:0A", fdb: map[string]string{}},
+	}
+	// El gateway recibe el anuncio del switch en lan3 con chassis-MAC que NO
+	// está en su FDB, pero con mgmt-IP = Host del switch.
+	polled["flint2"].lldp = []LldpNeighbor{{
+		Port: "lan3", Chassis: "lgs352c", ChassisMac: "AA:BB:CC:DD:EE:0A",
+		Mgmt: "192.168.8.20", Caps: []string{"Bridge"}, PortDesc: "lan3",
+	}}
+	devices := []Device{
+		dev("04:D4:C4:8B:30:A7", "flint2", "cable"),
+		dev("DC:A6:32:4F:77:02", "flint2", "cable"),
+	}
+	devices, dists := inferTopology(polled, devices)
+	if len(dists) != 1 {
+		t.Fatalf("distnodes: %+v", dists)
+	}
+	dn := dists[0]
+	if dn.Kind != "managed" || dn.ID != "dist-flint2-lan3" || dn.Name != "lgs352c" || dn.Ip != "192.168.8.20" {
+		t.Fatalf("managed por identidad: %+v", dn)
+	}
+	for _, d := range devices {
+		if d.AttachTo != "dist-flint2-lan3" {
+			t.Fatalf("%s debería colgar del nodo managed: %q", d.MAC, d.AttachTo)
+		}
+	}
+	// Sin coincidencia de identidad → vuelve a "inferred" (no se afirma nada).
+	polled["flint2"].lldp[0].Mgmt = "192.168.8.99"
+	polled["flint2"].lldp[0].Chassis = "otro-equipo"
+	_, dists = inferTopology(polled, devices)
+	if len(dists) != 1 || dists[0].Kind != "inferred" {
+		t.Fatalf("sin identidad debería seguir inferred: %+v", dists)
+	}
+}
+
 // Vecino LLDP cuya chassis-MAC es un Device conocido en puerto de UNA sola
 // MAC (cableado directo): no hay nodo, pero el Device queda identificado.
 func TestInferTopologyLldpIdentificaDeviceDirecto(t *testing.T) {

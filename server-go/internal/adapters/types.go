@@ -143,8 +143,12 @@ type Router struct {
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
 	Type string `json:"type,omitempty"`
-	Status     string    `json:"status"`             // "online"|"warn"|"offline"
+	Status     string    `json:"status"`             // "online"|"warn"|"offline"|"unreachable"
 	Health     int       `json:"health"`
+	// AccessMissing: el router responde pero el acceso SSH/ubus no está
+	// configurado (clave del servidor no autorizada) — issue #257. La UI lo
+	// pinta como "sin acceso" en vez de "offline" (config issue, no power).
+	AccessMissing bool `json:"accessMissing,omitempty"`
 	CPU        *int      `json:"cpu"`
 	RAM        *int      `json:"ram"`
 	Temp       *int      `json:"temp"`
@@ -159,6 +163,11 @@ type Router struct {
 	// (uplink identificado por LLDP). Ausente si no hay dato — la app lo usa
 	// para el sufijo "· LLDP" en la etiqueta del uplink.
 	Lldp *LldpInfo `json:"lldp,omitempty"`
+	// LldpAvailable: nil = sin dato (lldpd presente o sonda aún no ejecutada);
+	// false = lldpd NO está instalado en el router (ErrLldpUnavailable) — la
+	// UI muestra el hint "instala lldpd" para identificar switches gestionados
+	// (issue #247). Nunca emite true (ausente = OK).
+	LldpAvailable *bool `json:"lldpAvailable,omitempty"`
 }
 
 // DeviceTotals del overview (quirk: NewToday=0 en live).
