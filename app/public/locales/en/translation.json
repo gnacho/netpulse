@@ -440,7 +440,7 @@
     "info": {
       "access": "Access",
       "copied": "Command copied",
-      "copySsh": "SSH (copy command)",
+      "copySsh": "SSH (copy)",
       "firmwareBase": "(base {{base}})",
       "firmwareTarget": "Target: {{target}}",
       "lastReboot": "Last reboot",

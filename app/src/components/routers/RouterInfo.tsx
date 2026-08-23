@@ -39,12 +39,35 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   }, [])
 
   async function copySsh() {
+    const text = `ssh root@${router.ip}`
+    let ok = false
     try {
-      await navigator.clipboard.writeText(`ssh root@${router.ip}`)
+      // Clipboard API solo funciona en contexto seguro (HTTPS/localhost);
+      // en la LAN HTTP lanza → fallback abajo.
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        ok = true
+      }
     } catch {
-      // Portapapeles no disponible (mock) — el toast igualmente confirma la acción
+      ok = false
     }
-    setToast(true)
+    if (!ok) {
+      // Fallback para HTTP: textarea oculta + execCommand('copy').
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.setAttribute('readonly', '')
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        ok = document.execCommand('copy')
+        document.body.removeChild(ta)
+      } catch {
+        ok = false
+      }
+    }
+    setToast(ok)
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setToast(false), 1800)
   }
