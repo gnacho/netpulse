@@ -1,66 +1,80 @@
 #!/bin/bash
-# package.sh — empaqueta netpulse-agent en .ipk y .apk usando el SDK de OpenWrt.
+# package.sh builds the netpulse-agent OpenWrt package as .ipk or .apk
+# using the OpenWrt SDK.
 #
-# Uso:
+# Usage:
 #   package.sh <SDK_VERSION> <SDK_TARGET> <SDK_SUBTARGET> <FORMAT> <BINARY_PATH>
 #
-#   SDK_VERSION:  24.10.5  o  25.12.5
-#   SDK_TARGET:   mediatek/filogic  o  qualcommax/ipq807x
-#   SDK_SUBTARGET: (vacío para 24.10, se detecta solo)
-#   FORMAT:       ipk  o  apk
-#   BINARY_PATH:  ruta al binario netpulse-agent precompilado (arm64)
+#   SDK_VERSION:   24.10.5 or 25.12.5
+#   SDK_TARGET:    mediatek/filogic or qualcommax/ipq807x
+#   SDK_SUBTARGET: (empty, detected automatically)
+#   FORMAT:        ipk or apk
+#   BINARY_PATH:   path to the prebuilt netpulse-agent binary (arm64)
 #
-# Ejemplo:
+# The package version defaults to the netpulse-agent Makefile (PKG_VERSION /
+# PKG_RELEASE) and can be overridden through the PKG_VERSION / PKG_RELEASE env
+# vars, which is what the CI does to match the release tag.
+#
+# Example:
 #   package.sh 24.10.5 mediatek/filogic "" ipk ./netpulse-agent-arm64
-#   package.sh 25.12.5 qualcommax/ipq807x "" apk  ./netpulse-agent-arm64
+#   package.sh 25.12.5 qualcommax/ipq807x "" apk ./netpulse-agent-arm64
 
 set -euo pipefail
 
-SDK_VERSION="${1:?falta SDK_VERSION}"
-SDK_TARGET="${2:?falta SDK_TARGET}"
+SDK_VERSION="${1:?missing SDK_VERSION}"
+SDK_TARGET="${2:?missing SDK_TARGET}"
 SDK_SUBTARGET="${3:-}"
-FORMAT="${4:?falta FORMAT (ipk|apk)}"
-BINARY="${5:?falta BINARY_PATH}"
+FORMAT="${4:?missing FORMAT (ipk|apk)}"
+BINARY="${5:?missing BINARY_PATH}"
 
 if [ ! -f "$BINARY" ]; then
-  echo "ERROR: binario no encontrado: $BINARY" >&2
+  echo "ERROR: binary not found: $BINARY" >&2
   exit 1
 fi
 
-echo "=== package.sh: $FORMAT SDK=$SDK_VERSION target=$SDK_TARGET ==="
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+PKG_VERSION="${PKG_VERSION:-$(sed -n 's/^PKG_VERSION:=//p' "$SCRIPT_DIR/netpulse-agent/Makefile" | head -1)}"
+PKG_RELEASE="${PKG_RELEASE:-$(sed -n 's/^PKG_RELEASE:=//p' "$SCRIPT_DIR/netpulse-agent/Makefile" | head -1)}"
+
+echo "=== package.sh: $FORMAT SDK=$SDK_VERSION target=$SDK_TARGET version=${PKG_VERSION:-0.0.0}-${PKG_RELEASE:-1} ==="
+
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# ── SDK URL ──────────────────────────────────────────────────────────
-SDK_NAME="openwrt-sdk-${SDK_VERSION}-${SDK_TARGET//\//-}_gcc-13.3.0_musl.Linux-x86_64"
-SDK_URL="https://downloads.openwrt.org/releases/${SDK_VERSION}/targets/${SDK_TARGET}/${SDK_NAME}.tar.zst"
+# SDK URL. The toolchain name in the archive differs across OpenWrt releases
+# (24.10 uses gcc-13.3.0, 25.12 uses gcc-14.3.0), so resolve the real name
+# from the download index instead of hardcoding it.
+SDK_DIR_URL="https://downloads.openwrt.org/releases/${SDK_VERSION}/targets/${SDK_TARGET}/"
+SDK_NAME="$(curl -fsSL "$SDK_DIR_URL" 2>/dev/null | grep -o 'openwrt-sdk-[^"]*\.tar\.zst' | head -1 || true)"
+if [ -z "$SDK_NAME" ]; then
+  echo "ERROR: SDK not found under ${SDK_DIR_URL}" >&2
+  exit 1
+fi
+SDK_URL="${SDK_DIR_URL}${SDK_NAME}"
 
 echo "  SDK: $SDK_URL"
 
-# ── Descargar y extraer SDK ──────────────────────────────────────────
+# Download and extract the SDK
 cd "$WORK_DIR"
 curl -fsSL "$SDK_URL" -o sdk.tar.zst
 tar --zstd -xf sdk.tar.zst
-SDK_DIR="$WORK_DIR/$SDK_NAME"
+SDK_DIR="$WORK_DIR/${SDK_NAME%.tar.zst}"
 
-# ── Preparar binario ─────────────────────────────────────────────────
-BIN_SIZE=$(stat -c%s "$BINARY" 2>/dev/null || stat -f%z "$BINARY")
+# Stage the binary and package files
 cp "$BINARY" "$WORK_DIR/netpulse-agent"
 chmod 755 "$WORK_DIR/netpulse-agent"
 
-# ── Crear estructura de paquete ──────────────────────────────────────
 PKG_DIR="$WORK_DIR/netpulse-agent-pkg"
 mkdir -p "$PKG_DIR/CONTROL" "$PKG_DIR/usr/sbin" "$PKG_DIR/etc/init.d" "$PKG_DIR/etc/config" "$PKG_DIR/etc/uci-defaults"
 
 cp "$WORK_DIR/netpulse-agent" "$PKG_DIR/usr/sbin/netpulse-agent"
-cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.init"   "$PKG_DIR/etc/init.d/netpulse-agent"
+cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.init" "$PKG_DIR/etc/init.d/netpulse-agent"
 cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.config" "$PKG_DIR/etc/config/netpulse-agent"
 cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.defaults" "$PKG_DIR/etc/uci-defaults/90-netpulse-agent"
 
-# ── CONTROL files ────────────────────────────────────────────────────
+# CONTROL files
 cat > "$PKG_DIR/CONTROL/control" << CTRL
 Package: netpulse-agent
 Version: ${PKG_VERSION:-0.0.0}-${PKG_RELEASE:-1}
@@ -98,38 +112,87 @@ chmod 755 "$PKG_DIR/CONTROL/prerm"
 
 echo "/etc/config/netpulse-agent" > "$PKG_DIR/CONTROL/conffiles"
 
-# ── Construir paquete ────────────────────────────────────────────────
+# Build the package
 OUT_DIR="$REPO_ROOT/dist/packages"
 mkdir -p "$OUT_DIR"
 
 if [ "$FORMAT" = "ipk" ]; then
-  echo "  Construyendo .ipk..."
+  echo "  Building .ipk..."
   "$SDK_DIR/scripts/ipkg-build" "$PKG_DIR" "$OUT_DIR"
   echo "  IPK: $(ls "$OUT_DIR"/netpulse-agent_*.ipk)"
 
 elif [ "$FORMAT" = "apk" ]; then
-  echo "  Construyendo .apk vía SDK..."
-  # El SDK 25.12+ produce .apk con make. Copiamos el Makefile existente
-  # pero le inyectamos el binario precompilado (sin compilar Go).
-  mkdir -p "$SDK_DIR/package/utils/netpulse-agent/files"
-  cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/Makefile" "$SDK_DIR/package/utils/netpulse-agent/"
-  cp -r "$PKG_DIR/usr" "$PKG_DIR/etc" "$SDK_DIR/package/utils/netpulse-agent/files/" 2>/dev/null || true
+  echo "  Building .apk via SDK..."
+  # SDK 25.12+ builds .apk with make. Generate a source-less Makefile with a
+  # no-op Build/Compile: the prebuilt binary and its files are staged in
+  # files/, so the SDK neither clones the repo nor compiles Go.
+  PKG_DIR_SDK="$SDK_DIR/package/utils/netpulse-agent"
+  mkdir -p "$PKG_DIR_SDK/files"
+  cp -r "$PKG_DIR/usr" "$PKG_DIR/etc" "$PKG_DIR_SDK/files/"
+  cat > "$PKG_DIR_SDK/Makefile" << 'MAKE'
+include $(TOPDIR)/rules.mk
 
-  # Parche: saltar Build/Compile (el binario YA está en files/)
-  sed -i 's/^define Build\/Compile/define Build\/Compile_disabled/' "$SDK_DIR/package/utils/netpulse-agent/Makefile"
+PKG_NAME:=netpulse-agent
+PKG_VERSION:=@PKG_VERSION@
+PKG_RELEASE:=@PKG_RELEASE@
+
+PKG_LICENSE:=AGPL-3.0-only
+PKG_MAINTAINER:=Nacho <netpulse@cloudless.club>
+
+include $(INCLUDE_DIR)/package.mk
+
+define Package/netpulse-agent
+	SECTION:=utils
+	CATEGORY:=Utilities
+	TITLE:=NetPulse native agent for OpenWrt
+	URL:=https://github.com/gnacho/netpulse
+	DEPENDS:=+iw @(aarch64||arm||x86_64)
+endef
+
+define Package/netpulse-agent/description
+	Native OpenWrt agent for NetPulse network monitor. Probes the local
+	router (system, wireless, DHCP, FDB) and pushes data to a NetPulse
+	server. Stateless: no writes to flash.
+endef
+
+define Build/Compile
+endef
+
+define Package/netpulse-agent/install
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) ./files/usr/sbin/netpulse-agent $(1)/usr/sbin/netpulse-agent
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/etc/init.d/netpulse-agent $(1)/etc/init.d/netpulse-agent
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./files/etc/config/netpulse-agent $(1)/etc/config/netpulse-agent
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/etc/uci-defaults/90-netpulse-agent $(1)/etc/uci-defaults/90-netpulse-agent
+endef
+
+define Package/netpulse-agent/postinst
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+	/etc/init.d/netpulse-agent stop 2>/dev/null || true
+	[ -f /etc/uci-defaults/90-netpulse-agent ] && sh /etc/uci-defaults/90-netpulse-agent
+fi
+exit 0
+endef
+
+$(eval $(call BuildPackage,netpulse-agent))
+MAKE
+  sed -i "s/@PKG_VERSION@/${PKG_VERSION:-0.0.0}/; s/@PKG_RELEASE@/${PKG_RELEASE:-1}/" "$PKG_DIR_SDK/Makefile"
 
   cd "$SDK_DIR"
-  # Feeds mínimos para resolver dependencias
+  # Minimal feeds so the package index resolves iw; best effort.
   ./scripts/feeds update packages 2>/dev/null || true
   ./scripts/feeds install iw 2>/dev/null || true
   make package/netpulse-agent/compile V=s 2>&1 | tail -20
 
-  # Recoger .apk
   find bin/packages -name "netpulse-agent*.apk" -exec cp {} "$OUT_DIR/" \;
-  echo "  APK: $(ls "$OUT_DIR"/netpulse-agent*.apk 2>/dev/null || echo 'NO ENCONTRADO')"
+  echo "  APK: $(ls "$OUT_DIR"/netpulse-agent*.apk 2>/dev/null || echo 'NOT FOUND')"
 
 else
-  echo "ERROR: FORMAT debe ser ipk o apk" >&2
+  echo "ERROR: FORMAT must be ipk or apk" >&2
   exit 1
 fi
 
