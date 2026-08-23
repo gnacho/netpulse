@@ -563,7 +563,7 @@
     "upgradeProgressAria": "Fleet upgrade progress",
     "upgradeClose": "Close",
     "upgradeUpdated": "Updated",
-    "upgradeWaiting": "Waiting for the agent…",
+    "upgradeWaiting": "Updating…",
     "upgradeAllHint": "{{count}} agents outdated",
     "upgradeAllShort": "Update agents",
     "upgradeAllTitle": "Update all agents?",

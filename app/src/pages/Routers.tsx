@@ -18,8 +18,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
-/** Tiempo máximo de espera por agente antes de marcarlo como fallido (ms). */
-const UPGRADE_TIMEOUT_MS = 60_000
+/** Tiempo máximo de espera por agente antes de marcarlo como fallido (ms).
+ * El self-update real tarda ~10-20 s (descarga + swap + restart + primer push);
+ * 25 s cubre ese ciclo con margen. Un agente que no marca updateAvailable=false
+ * en ese plazo no entiende el comando "upgrade" (versión previa a #243) y
+ * requiere un reinstall. El poll de agentes (30 s) fuerza el render que lo
+ * marca como fallido. */
+const UPGRADE_TIMEOUT_MS = 25_000
 
 /** Página `/routers` — vista de flota (routers.md) */
 export default function Routers() {
