@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { RefreshCw, Rocket } from 'lucide-react'
@@ -18,6 +18,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
+/** Tiempo máximo de espera por agente antes de marcarlo como fallido (ms). */
+const UPGRADE_TIMEOUT_MS = 60_000
+
 /** Página `/routers` — vista de flota (routers.md) */
 export default function Routers() {
   const { t } = useTranslation()
@@ -28,8 +31,8 @@ export default function Routers() {
   const [upgrading, setUpgrading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null)
-  /** Slugs a los que se envió el upgrade de flota (para mostrar progreso). */
-  const [upgradeTrack, setUpgradeTrack] = useState<string[]>([])
+  /** Slugs en seguimiento del upgrade de flota con su instante de inicio. */
+  const [upgradeTrack, setUpgradeTrack] = useState<{ slug: string; startedAt: number }[]>([])
 
   function handleRefresh() {
     setRefreshKey((k) => k + 1)
@@ -49,11 +52,10 @@ export default function Routers() {
     setUpgrading(false)
     if (res) {
       setUpgradeMsg(res.message)
-      // Seguimiento de progreso: los slugs a los que se envió el upgrade
-      // (los "sent") quedan en seguimiento hasta que el poll de agentes los
-      // marque como al día (updateAvailable=false).
+      // Seguimiento: los "sent" quedan en el panel hasta que el poll de
+      // agentes los marque al día (updateAvailable=false) o expire el timeout.
       const sent = res.agents.filter((a) => a.status === 'sent').map((a) => a.slug)
-      setUpgradeTrack(sent)
+      setUpgradeTrack(sent.map((slug) => ({ slug, startedAt: Date.now() })))
       if (sent.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
     } else {
       setUpgradeMsg(t('routers.upgradeAllFail'))
@@ -61,14 +63,27 @@ export default function Routers() {
     }
   }
 
-  // Progreso en vivo: estado por slug basado en el último poll de agentes.
-  const upgradeProgress = upgradeTrack.map((slug) => {
+  // Progreso en vivo: por slug, 'done' (al día), 'waiting' (en curso) o
+  // 'failed' (timeout sin respuesta del agente).
+  const upgradeProgress = upgradeTrack.map(({ slug, startedAt }) => {
     const agent = agents.find((a) => a.slug === slug)
     const done = agent ? !agent.updateAvailable : false
-    return { slug, done, version: agent?.version ?? '…' }
+    const timedOut = !done && Date.now() - startedAt >= UPGRADE_TIMEOUT_MS
+    const status = done ? 'done' : timedOut ? 'failed' : 'waiting'
+    return { slug, status, version: agent?.version ?? '…' }
   })
-  const upgradeDone = upgradeProgress.filter((p) => p.done).length
-  const trackActive = upgradeTrack.length > 0 && upgradeDone < upgradeTrack.length
+  const upgradeDone = upgradeProgress.filter((p) => p.status === 'done').length
+  const upgradeFailed = upgradeProgress.filter((p) => p.status === 'failed').length
+  const upgradeWaiting = upgradeProgress.filter((p) => p.status === 'waiting').length
+  const trackActive = upgradeTrack.length > 0 && upgradeWaiting > 0
+
+  // Cuando todos los agentes se resolvieron (done o failed), limpiar el
+  // seguimiento tras un breve lapso y dejar el mensaje final.
+  useEffect(() => {
+    if (upgradeTrack.length === 0 || upgradeWaiting > 0) return
+    const timer = window.setTimeout(() => setUpgradeTrack([]), 4000)
+    return () => window.clearTimeout(timer)
+  }, [upgradeWaiting, upgradeTrack.length])
 
   const online = routers.filter((r) => r.status === 'online').length
   const warned = routers.filter((r) => r.status === 'warn').length
@@ -162,11 +177,13 @@ export default function Routers() {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <Rocket className={cn('h-4 w-4 text-accent', trackActive && 'animate-pulse')} strokeWidth={1.75} />
+              <Rocket className={cn('h-4 w-4', trackActive ? 'text-accent animate-pulse' : upgradeFailed > 0 ? 'text-danger' : 'text-ok')} strokeWidth={1.75} />
               <span className="text-sm font-semibold text-text-primary">
                 {trackActive
                   ? t('routers.upgradeProgress', { done: upgradeDone, total: upgradeTrack.length })
-                  : t('routers.upgradeProgressDone', { total: upgradeTrack.length })}
+                  : upgradeFailed > 0
+                    ? t('routers.upgradeProgressFailed', { failed: upgradeFailed, done: upgradeDone, total: upgradeTrack.length })
+                    : t('routers.upgradeProgressDone', { total: upgradeTrack.length })}
               </span>
             </div>
             <button
@@ -182,12 +199,16 @@ export default function Routers() {
                 <span
                   className={cn(
                     'h-2 w-2 shrink-0 rounded-full',
-                    p.done ? 'bg-ok' : 'bg-accent animate-pulse',
+                    p.status === 'done' ? 'bg-ok' : p.status === 'failed' ? 'bg-danger' : 'bg-accent animate-pulse',
                   )}
                 />
                 <span className="min-w-0 flex-1 truncate font-mono text-caption text-text-secondary">{p.slug}</span>
-                <span className={cn('text-caption', p.done ? 'text-ok' : 'text-text-muted')}>
-                  {p.done ? t('routers.upgradeUpdated') : t('routers.upgradeWaiting')}
+                <span className={cn('text-caption', p.status === 'done' ? 'text-ok' : p.status === 'failed' ? 'text-danger' : 'text-text-muted')}>
+                  {p.status === 'done'
+                    ? t('routers.upgradeUpdated')
+                    : p.status === 'failed'
+                      ? t('routers.upgradeFailed')
+                      : t('routers.upgradeWaiting')}
                 </span>
               </li>
             ))}

@@ -567,7 +567,9 @@
     "upgradeAllHint": "{{count}} agents outdated",
     "upgradeAllShort": "Update agents",
     "upgradeAllTitle": "Update all agents?",
-    "upgradeCancel": "Cancel"
+    "upgradeCancel": "Cancel",
+    "upgradeFailed": "No response — reinstall from router detail",
+    "upgradeProgressFailed": "{{failed}} agent(s) did not respond ({{done}}/{{total}} updated)"
   },
   "reports": {
     "availability": "Availability",

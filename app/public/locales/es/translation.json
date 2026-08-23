@@ -567,7 +567,9 @@
     "upgradeAllHint": "{{count}} agentes desactualizados",
     "upgradeAllShort": "Actualizar agentes",
     "upgradeAllTitle": "¿Actualizar todos los agentes?",
-    "upgradeCancel": "Cancelar"
+    "upgradeCancel": "Cancelar",
+    "upgradeFailed": "Sin respuesta — reinstala desde el detalle",
+    "upgradeProgressFailed": "{{failed}} agente(s) sin respuesta ({{done}}/{{total}} actualizados)"
   },
   "reports": {
     "availability": "Disponibilidad",
