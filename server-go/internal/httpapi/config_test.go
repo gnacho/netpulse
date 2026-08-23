@@ -141,6 +141,44 @@ func TestConfigRoutersCRUD(t *testing.T) {
 	}
 }
 
+// TestRotateSSHKey cubre POST /api/config/sshkey/rotate (#242):
+//   - 403 sin admin
+//   - 200 y la nueva pública difiere de la anterior (cuando había clave)
+//   - la respuesta incluye publicKey + fingerprint
+func TestRotateSSHKey(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+
+	// Sin admin → 403.
+	res := doReq(t, "POST", srv.URL+"/api/config/sshkey/rotate", "", "")
+	if res.StatusCode != 403 && res.StatusCode != 401 {
+		t.Fatalf("rotate sin admin: %d (esperaba 403)", res.StatusCode)
+	}
+
+	// Clave previa (puede no existir en el DATA_DIR de test).
+	prev := ""
+	res = doReq(t, "GET", srv.URL+"/api/config/sshkey", cookie, "")
+	if res.StatusCode == 200 {
+		prev = readJSON(t, res)["publicKey"].(string)
+	}
+
+	res = doReq(t, "POST", srv.URL+"/api/config/sshkey/rotate", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("rotate: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	pub, ok := body["publicKey"].(string)
+	if !ok || pub == "" {
+		t.Fatalf("rotate: sin publicKey: %v", body)
+	}
+	if _, ok := body["fingerprint"].(string); !ok {
+		t.Fatalf("rotate: sin fingerprint: %v", body)
+	}
+	if prev != "" && prev == pub {
+		t.Fatalf("rotate: la clave no cambió (prev==new)")
+	}
+}
+
 // TestConfigRoutersUpdate cubre PUT /api/config/routers/{id}:
 //   - 404 si no existe
 //   - editar name (200, campo cambiado)

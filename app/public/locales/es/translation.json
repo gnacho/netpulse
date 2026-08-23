@@ -849,7 +849,12 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "typeManaged": "Switch managed",
-      "typeExternal": "Externo"
+      "typeExternal": "Externo",
+      "rotateKey": "Rotar",
+      "rotateKeyTitle": "¿Rotar la clave SSH del servidor?",
+      "rotateKeyCaption": "Se generará un par nuevo y la clave anterior dejará de funcionar de inmediato. Debes reautorizar la nueva clave pública en cada router. No se puede deshacer.",
+      "rotateKeyConfirm": "Rotar clave",
+      "rotating": "Rotando…"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

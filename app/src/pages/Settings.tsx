@@ -27,9 +27,10 @@ import {
   Pencil,
   Plus,
   Lock,
-   Radar,
-   RefreshCw,
-   Router as RouterIcon,
+  Radar,
+  RefreshCw,
+  RotateCw,
+  Router as RouterIcon,
    Shield,
    ShieldCheck,
    Sun,
@@ -301,6 +302,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [rotating, setRotating] = useState(false)
+  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false)
+  const [rotateError, setRotateError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [candidates, setCandidates] = useState<DiscoverCandidate[] | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -374,6 +378,27 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
       /* portapapeles no disponible */
+    }
+  }
+
+  const rotateKey = async () => {
+    if (rotating) return
+    setRotating(true)
+    setRotateError(null)
+    try {
+      const res = await fetch('/api/config/sshkey/rotate', { method: 'POST' })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      const json = (await res.json()) as { publicKey: string; fingerprint: string }
+      setPubkey({ publicKey: json.publicKey, fingerprint: json.fingerprint })
+      setCopied(false)
+      setRotateConfirmOpen(false)
+    } catch (err) {
+      setRotateError(err instanceof Error ? err.message : t('settings.routers.errorGeneric'))
+    } finally {
+      setRotating(false)
     }
   }
 
@@ -813,9 +838,44 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               {copied ? <Check className="h-3.5 w-3.5 text-ok" strokeWidth={2} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />}
               {copied ? t('settings.routers.copied') : t('settings.routers.copy')}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRotateError(null)
+                setRotateConfirmOpen(true)
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-red-500/40 hover:text-red-500"
+            >
+              <RotateCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {t('settings.routers.rotateKey')}
+            </button>
           </div>
         )}
       </div>
+
+      <AlertDialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.rotateKeyTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.routers.rotateKeyCaption')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {rotateError && <p className="text-sm text-red-500">{rotateError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rotating}>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void rotateKey()
+              }}
+              disabled={rotating}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              <RotateCw className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {rotating ? t('settings.routers.rotating') : t('settings.routers.rotateKeyConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

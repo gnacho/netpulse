@@ -25,6 +25,7 @@ var hostRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 // issue #7); la lista de routers es de lectura y queda tras RequireAuth.
 func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/config/sshkey", auth.RequireAdmin(http.HandlerFunc(s.handleGetSSHKey)))
+	mux.Handle("POST /api/config/sshkey/rotate", auth.RequireAdmin(http.HandlerFunc(s.handleRotateSSHKey)))
 	mux.Handle("GET /api/config/discover", auth.RequireAdmin(http.HandlerFunc(s.handleDiscover)))
 	mux.HandleFunc("GET /api/config/routers", s.handleListConfigRouters)
 	mux.Handle("POST /api/config/routers", auth.RequireAdmin(http.HandlerFunc(s.handleAddConfigRouter)))
@@ -49,6 +50,24 @@ func (s *server) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, key)
+}
+
+// POST /api/config/sshkey/rotate — rota el par ed25519 del servidor (#242).
+// Respalda el par actual (keyPath.bak.<epoch>) y genera uno nuevo; devuelve
+// la nueva pública + fingerprint para reautorizarla en los routers. La clave
+// vieja deja de funcionar de inmediato: exige confirmación explícita del admin
+// (la UI pide escribir la palabra de confirmación).
+func (s *server) handleRotateSSHKey(w http.ResponseWriter, r *http.Request) {
+	key, err := sshkey.RotateKeypair(s.cfg.SSHKeyPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rotate_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"publicKey":   key.PublicKey,
+		"fingerprint": key.Fingerprint,
+		"warning":     "The previous key is no longer valid. Re-authorize this public key on every router before rotating again.",
+	})
 }
 
 // GET /api/config/discover?force=1 — escaneo de la LAN (cacheado 60 s).

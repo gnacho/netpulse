@@ -849,7 +849,12 @@
       "save": "Save",
       "saving": "Saving…",
       "typeManaged": "Managed switch",
-      "typeExternal": "External"
+      "typeExternal": "External",
+      "rotateKey": "Rotate",
+      "rotateKeyTitle": "Rotate server SSH key?",
+      "rotateKeyCaption": "A new keypair will be generated and the old one will stop working immediately. You must re-authorize the new public key on every router. This cannot be undone.",
+      "rotateKeyConfirm": "Rotate key",
+      "rotating": "Rotating…"
     },
     "overrides": {
       "title": "Topology — manual tagging",
