@@ -129,6 +129,12 @@ type Router struct {
 	IP         string    `json:"ip"`
 	MAC        string    `json:"mac,omitempty"`      // ausente si no se conoce (undefined)
 	Firmware   string    `json:"firmware,omitempty"` // ausente si no se conoce
+	// FirmwareTarget: versión objetivo configurada por el admin (issue #241).
+	// Ausente si no está configurado (sin comprobación).
+	FirmwareTarget string `json:"firmwareTarget,omitempty"`
+	// FirmwareOutdated: true si hay target y el firmware instalado no lo
+	// cumple (live buildRouter). Ausente en el resto de casos.
+	FirmwareOutdated bool `json:"firmwareOutdated,omitempty"`
 	Status     string    `json:"status"`             // "online"|"warn"|"offline"
 	Health     int       `json:"health"`
 	CPU        *int      `json:"cpu"`
@@ -598,6 +604,9 @@ type RouterConfig struct {
 	IsGateway bool   `json:"is_gateway"`
 	AgentOnly bool   `json:"agent_only"`
 	CreatedAt int64  `json:"created_at"` // epoch ms
+	// FirmwareTarget: versión objetivo configurada por el admin (issue #241).
+	// "" = sin comprobar (el live no emite aviso de firmware).
+	FirmwareTarget string `json:"firmware_target,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

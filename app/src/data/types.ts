@@ -28,6 +28,10 @@ export interface Router {
   mac?: string
   /** Descripción del firmware (live, system board) */
   firmware?: string
+  /** Versión objetivo configurada por el admin (issue #241). Ausente si no se configura. */
+  firmwareTarget?: string
+  /** true = el firmware instalado no cumple el target configurado (live). */
+  firmwareOutdated?: boolean
   status: Status
   /** Salud 0–100 */
   health: number

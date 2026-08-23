@@ -442,6 +442,7 @@
       "copied": "Comando copiado",
       "copySsh": "SSH (copiar comando)",
       "firmwareBase": "(base {{base}})",
+      "firmwareTarget": "Objetivo: {{target}}",
       "lastReboot": "Último reinicio",
       "openLuci": "Abrir LuCI",
       "timezone": "Zona horaria",
@@ -529,6 +530,8 @@
     "comparison": "Comparativa",
     "comparisonSub": "Métricas actuales por equipo",
     "firmwareAvailable": "Disponible: {{version}}",
+    "firmwareOutdated": "Desactualizado",
+    "firmwareTargetHint": "Objetivo: {{target}}",
     "gatewayLatency": "Latencia al gateway",
     "highTemp": "Temperatura alta: {{temp}} °C · ventilación recomendada",
     "mainGateway": "Gateway principal",
@@ -860,7 +863,10 @@
       "rotateKeyTitle": "¿Rotar la clave SSH del servidor?",
       "rotateKeyCaption": "Se generará un par nuevo y la clave anterior dejará de funcionar de inmediato. Debes reautorizar la nueva clave pública en cada router. No se puede deshacer.",
       "rotateKeyConfirm": "Rotar clave",
-      "rotating": "Rotando…"
+      "rotating": "Rotando…",
+      "firmwareTarget": "Versión de firmware objetivo",
+      "firmwareTargetPlaceholder": "p. ej. 25.12.5",
+      "firmwareTargetHint": "Opcional. Si el firmware instalado no coincide con esta versión, NetPulse lo avisa."
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

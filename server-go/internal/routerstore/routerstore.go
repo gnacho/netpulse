@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, created_at FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -36,11 +36,12 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	for rows.Next() {
 		var r adapters.RouterConfig
 		var gw, ao int
-		var name sql.NullString
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &r.CreatedAt); err != nil {
+		var name, ft sql.NullString
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt); err != nil {
 			continue
 		}
 		r.Name = name.String
+		r.FirmwareTarget = ft.String
 		r.IsGateway = gw == 1
 		r.AgentOnly = ao == 1
 		out = append(out, r)
@@ -119,6 +120,8 @@ type AddInput struct {
 	Type      string // default "openwrt"
 	IsGateway bool
 	AgentOnly bool
+	// FirmwareTarget: versión objetivo (issue #241). "" = sin comprobar.
+	FirmwareTarget string
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -152,8 +155,8 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 		ao = 1
 	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, now,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -186,6 +189,8 @@ type UpdateInput struct {
 	Type      *string
 	IsGateway *bool
 	AgentOnly *bool
+	// FirmwareTarget: versión objetivo (issue #241). nil = no tocar; "" = limpiar.
+	FirmwareTarget *string
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -238,6 +243,10 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 		}
 		sets = append(sets, "agent_only = ?")
 		args = append(args, ao)
+	}
+	if in.FirmwareTarget != nil {
+		sets = append(sets, "firmware_target = ?")
+		args = append(args, *in.FirmwareTarget)
 	}
 	if len(sets) > 0 {
 		args = append(args, id)

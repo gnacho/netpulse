@@ -442,6 +442,7 @@
       "copied": "Command copied",
       "copySsh": "SSH (copy command)",
       "firmwareBase": "(base {{base}})",
+      "firmwareTarget": "Target: {{target}}",
       "lastReboot": "Last reboot",
       "openLuci": "Open LuCI",
       "timezone": "Timezone",
@@ -529,6 +530,8 @@
     "comparison": "Comparison",
     "comparisonSub": "Current metrics per router",
     "firmwareAvailable": "Available: {{version}}",
+    "firmwareOutdated": "Outdated",
+    "firmwareTargetHint": "Target: {{target}}",
     "gatewayLatency": "Gateway latency",
     "highTemp": "High temperature: {{temp}} °C · ventilation recommended",
     "mainGateway": "Main gateway",
@@ -860,7 +863,10 @@
       "rotateKeyTitle": "Rotate server SSH key?",
       "rotateKeyCaption": "A new keypair will be generated and the old one will stop working immediately. You must re-authorize the new public key on every router. This cannot be undone.",
       "rotateKeyConfirm": "Rotate key",
-      "rotating": "Rotating…"
+      "rotating": "Rotating…",
+      "firmwareTarget": "Firmware target version",
+      "firmwareTargetPlaceholder": "e.g. 25.12.5",
+      "firmwareTargetHint": "Optional. If the installed firmware doesn't match this version, NetPulse alerts."
     },
     "overrides": {
       "title": "Topology — manual tagging",

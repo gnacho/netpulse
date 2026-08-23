@@ -87,6 +87,8 @@ type routerInput struct {
 	Type      string  `json:"type"`
 	Gateway   bool    `json:"gateway"`
 	AgentOnly bool    `json:"agent_only"`
+	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
+	FirmwareTarget *string `json:"firmware_target"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -142,6 +144,10 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
 		return
 	}
+	var firmwareTarget string
+	if in.FirmwareTarget != nil {
+		firmwareTarget = strings.TrimSpace(*in.FirmwareTarget)
+	}
 	for _, rt := range routerstore.ListRouters(s.db.DB) {
 		if rt.Host == host {
 			writeError(w, http.StatusConflict, "duplicate_host", "Ya hay un router con "+host)
@@ -150,6 +156,7 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
+		FirmwareTarget: firmwareTarget,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -218,9 +225,15 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	}
 	gw := in.Gateway
 	ao := in.AgentOnly
+	var firmwareTarget *string
+	if in.FirmwareTarget != nil {
+		v := strings.TrimSpace(*in.FirmwareTarget)
+		firmwareTarget = &v
+	}
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
+		FirmwareTarget: firmwareTarget,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

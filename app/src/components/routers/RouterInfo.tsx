@@ -49,10 +49,15 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     {
       label: 'Firmware',
       node: (
-        <span className="inline-flex items-center gap-2">
-          {ex.firmware}
+        <span className="inline-flex flex-wrap items-center justify-end gap-2">
+          <span>{router.firmware ?? ex.firmware}</span>
           {ex.firmwareBase && <span className="text-text-muted">{t('routerDetail.info.firmwareBase', { base: ex.firmwareBase })}</span>}
-          {ex.firmwareUpdated ? (
+          {router.firmwareTarget && (
+            <span className="text-text-muted">{t('routerDetail.info.firmwareTarget', { target: router.firmwareTarget })}</span>
+          )}
+          {router.firmwareOutdated ? (
+            <StatusPill tone="warn" label={t('routers.firmwareOutdated')} />
+          ) : ex.firmwareUpdated ? (
             <StatusPill tone="ok" label={t('routerDetail.info.updated')} />
           ) : (
             <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>

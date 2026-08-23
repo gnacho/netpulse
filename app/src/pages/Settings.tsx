@@ -270,6 +270,7 @@ interface ConfigRouter {
   type: RouterType
   is_gateway: boolean
   agent_only: boolean
+  firmware_target: string
 }
 
 interface DiscoverCandidate {
@@ -299,6 +300,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editType, setEditType] = useState<RouterType>('openwrt')
   const [editGateway, setEditGateway] = useState(false)
   const [editAgentOnly, setEditAgentOnly] = useState(false)
+  const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -485,6 +487,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditType(r.type)
     setEditGateway(r.is_gateway)
     setEditAgentOnly(r.agent_only)
+    setEditFirmwareTarget(r.firmware_target ?? '')
     setError(null)
   }
 
@@ -503,6 +506,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           type: editType,
           gateway: editGateway,
           agent_only: editAgentOnly,
+          firmware_target: editFirmwareTarget.trim(),
         }),
       })
       if (res.status === 409) {
@@ -794,6 +798,21 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
                   {t('settings.routers.agentOnly')}
                 </label>
+              </div>
+              <div>
+                <label htmlFor="firmware-target" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                  {t('settings.routers.firmwareTarget')}
+                </label>
+                <input
+                  id="firmware-target"
+                  type="text"
+                  value={editFirmwareTarget}
+                  onChange={(e) => setEditFirmwareTarget(e.target.value)}
+                  placeholder={t('settings.routers.firmwareTargetPlaceholder')}
+                  aria-label={t('settings.routers.firmwareTarget')}
+                  className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+                <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
               </div>
               {error && <p className="text-caption text-danger">{error}</p>}
               <div className="flex justify-end gap-2">

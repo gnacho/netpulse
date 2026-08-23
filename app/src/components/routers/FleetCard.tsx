@@ -162,6 +162,14 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 title={k === 'Firmware' && extras.firmwareAvailable ? t('routers.firmwareAvailable', { version: extras.firmwareAvailable }) : undefined}
               >
                 {v}
+                {k === 'Firmware' && router.firmwareOutdated && (
+                  <span
+                    className="ml-1.5 rounded-full bg-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-warn"
+                    title={router.firmwareTarget ? t('routers.firmwareTargetHint', { target: router.firmwareTarget }) : undefined}
+                  >
+                    {t('routers.firmwareOutdated')}
+                  </span>
+                )}
                 {k === 'Firmware' && extras.firmwareAvailable && (
                   <span className="ml-1.5 rounded-full bg-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
                     {extras.firmwareAvailable}
