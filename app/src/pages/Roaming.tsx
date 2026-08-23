@@ -182,6 +182,8 @@ export default function Roaming() {
   const dot11rAc = useRef<AbortController | null>(null)
   const surveyAc = useRef<AbortController | null>(null)
   const eventsAc = useRef<AbortController | null>(null)
+  // Timer del spin del botón Refresh (#227): limpiado en unmount.
+  const spinTimer = useRef<number | null>(null)
 
   async function load() {
     dawnAc.current?.abort()
@@ -289,6 +291,7 @@ export default function Roaming() {
     dot11rAc.current?.abort()
     surveyAc.current?.abort()
     eventsAc.current?.abort()
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
   }, [])
 
   useEffect(() => {
@@ -382,7 +385,11 @@ export default function Roaming() {
               if (tab === 'events') void loadEvents()
               if (reduce) return
               setSpin(true)
-              window.setTimeout(() => setSpin(false), 650)
+              if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+              spinTimer.current = window.setTimeout(() => {
+                spinTimer.current = null
+                setSpin(false)
+              }, 650)
             }}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
           >

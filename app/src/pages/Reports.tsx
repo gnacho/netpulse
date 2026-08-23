@@ -75,6 +75,8 @@ export default function Reports() {
   // Refresh doble aborta la carga anterior en vuelo y descarta la respuesta
   // vieja. En unmount se aborta.
   const loadAc = useRef<AbortController | null>(null)
+  // Timer del spin del botón Refresh (#227): limpiado en unmount.
+  const spinTimer = useRef<number | null>(null)
 
   async function load(r: Range, count: number) {
     loadAc.current?.abort()
@@ -96,7 +98,10 @@ export default function Reports() {
     }
   }
 
-  useEffect(() => () => loadAc.current?.abort(), [])
+  useEffect(() => () => {
+    loadAc.current?.abort()
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+  }, [])
 
   useEffect(() => {
     void load(range, n)
@@ -164,7 +169,11 @@ export default function Reports() {
                 void load(range, n)
                 if (reduce) return
                 setSpin(true)
-                window.setTimeout(() => setSpin(false), 650)
+                if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+                spinTimer.current = window.setTimeout(() => {
+                  spinTimer.current = null
+                  setSpin(false)
+                }, 650)
               }}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
             >
