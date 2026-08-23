@@ -18,6 +18,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
@@ -36,11 +37,16 @@ type OpenWrtClient struct {
 
 	pool *SSHPool
 
+	// mu protege el estado mutable del cliente (sid, lastStat, lastNetDev,
+	// lldpDownUntil): los handlers HTTP pueden sondear (p.ej. GetSurvey) en
+	// paralelo con el poller.
+	mu sync.Mutex
+
 	sid        string     // sesión ubus HTTP cacheada
 	lastStat   *cpuSample // /proc/stat previo
 	lastNetDev *netSample // /proc/net/dev previo
 	// lldpDownUntil: indisponibilidad de lldpd cacheada (≥5 min) para no
-	// martillear con un comando que no existe. Solo lo toca el sondeo.
+	// martillear con un comando que no existe. Acceso serializado por mu.
 	lldpDownUntil time.Time
 }
 
