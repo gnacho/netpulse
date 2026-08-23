@@ -1,10 +1,23 @@
 name: openwrt-package
 
-# Disparado cuando se publica un release de GitHub (tag v* → goreleaser).
-# Descarga el binario netpulse-agent arm64 de la release, lo empaqueta
-# en .ipk (SDK 24.10) y .apk (SDK 25.12), y los adjunta a la release.
+# Builds the OpenWrt packages for the released agent and attaches them to the
+# published release:
+#   - netpulse-agent as .ipk (24.10 SDK, mediatek/filogic) and .apk (25.12
+#     SDK, qualcommax/ipq807x).
+#   - luci-app-netpulse (arch all) as .ipk and .apk (#236).
+#
+# Triggered on v* tag pushes, the SAME event that runs release.yml. It does
+# not rely on the `release` event for goreleaser-published releases: goreleaser
+# creates releases with the workflow GITHUB_TOKEN, and events triggered by the
+# GITHUB_TOKEN do not start new workflow runs
+# (https://docs.github.com/en/actions/concepts/security/github_token). So this
+# workflow runs in parallel with release.yml and waits for the agent tarballs
+# before attaching packages. The `release: published` trigger stays for
+# manually published releases.
 
 on:
+  push:
+    tags: ['v*']
   release:
     types: [published]
   workflow_dispatch:
@@ -17,7 +30,7 @@ permissions:
   contents: write
 
 jobs:
-  package:
+  package-agent:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -33,16 +46,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Determinar release tag
+      - name: Resolve release tag
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Descargar binario netpulse-agent arm64
+      - name: Wait for agent tarballs on the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          for i in $(seq 1 80); do
+            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'netpulse-agent_.*_linux_arm64.tar.gz'; then
+              echo "Agent tarballs present after $i attempts"
+              exit 0
+            fi
+            echo "Waiting for agent tarballs ($i/80)..."
+            sleep 15
+          done
+          echo "ERROR: agent tarballs not found on $TAG after 20 min" >&2
+          exit 1
+
+      - name: Download netpulse-agent arm64 binary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
@@ -53,11 +84,13 @@ jobs:
           ls -la netpulse-agent
           file netpulse-agent
 
-      - name: Empaquetar ${{ matrix.format }} (SDK ${{ matrix.sdk-version }})
+      - name: Package ${{ matrix.format }} (SDK ${{ matrix.sdk-version }})
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           chmod +x deploy/openwrt/package.sh
-          PKG_VERSION=$(sed -n 's/^PKG_VERSION:=//p' deploy/openwrt/netpulse-agent/Makefile | head -1)
-          PKG_RELEASE=$(sed -n 's/^PKG_RELEASE:=//p' deploy/openwrt/netpulse-agent/Makefile | head -1)
+          export PKG_VERSION="${TAG#v}"
+          export PKG_RELEASE="1"
           deploy/openwrt/package.sh \
             "${{ matrix.sdk-version }}" \
             "${{ matrix.sdk-target }}" \
@@ -65,11 +98,11 @@ jobs:
             "${{ matrix.format }}" \
             /tmp/agent/netpulse-agent
 
-      - name: Subir a release
+      - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          echo "Paquetes generados:"
+          echo "Packages generated:"
           ls -la dist/packages/
           gh release upload "$TAG" dist/packages/*.${{ matrix.format }} --clobber
