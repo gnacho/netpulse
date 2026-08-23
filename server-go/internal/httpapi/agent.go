@@ -342,6 +342,10 @@ type agentListItem struct {
 	LastSeen *int64 `json:"lastSeen"` // unix SEGUNDOS; null si nunca empujó
 	Version  string `json:"version,omitempty"`
 	Fresh    bool   `json:"fresh"`
+	// UpdateAvailable: true si el agente reportó una versión distinta de la
+	// del binario embebido (agentbin.EmbeddedAgentVersion) → hay upgrade
+	// disponible vía POST /api/agents/{slug}/upgrade (Fase 6.3, issue #243).
+	UpdateAvailable bool `json:"updateAvailable"`
 }
 
 // handleAgentsList: slugs con token + last_seen + versión.
@@ -363,6 +367,9 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						ts := seen.Unix()
 						item.LastSeen = &ts
 						item.Version = version
+						// Fase 6.3 (issue #243): upgrade disponible si el agente
+						// reporta una versión distinta del binario embebido.
+						item.UpdateAvailable = version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
 				}

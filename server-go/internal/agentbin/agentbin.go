@@ -14,6 +14,19 @@ import (
 	"io/fs"
 )
 
+// EmbeddedAgentVersion es la versión del binario de agente que el servidor
+// embebe y sirve por GET /api/agents/{slug}/binary. Se usa para calcular el
+// campo updateAvailable de GET /api/agents: un agente cuya versión reportada
+// difiere de esta constante tiene una actualización pendiente.
+//
+// IMPORTANTE (mantener en sync): este valor DEBE coincidir con la versión que
+// reporta el binario embebido, es decir, main.Version de
+// agent/cmd/netpulse-agent tal y como lo construye el CI. Los workflows
+// release.yml y go.yml inyectan `-X main.Version=<AGENT_VERSION>` en los
+// binarios de agentbin; ese AGENT_VERSION y esta constante deben bumpearse
+// juntos en el mismo commit al publicar una versión nueva del agente.
+const EmbeddedAgentVersion = "0.1.0"
+
 //go:embed agents/*
 var agentsFS embed.FS
 

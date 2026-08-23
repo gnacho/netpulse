@@ -48,14 +48,19 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOOS: linux
+          # Versión inyectada en el binario del agente embebido. Debe coincidir
+          # con agentbin.EmbeddedAgentVersion (server-go/internal/agentbin):
+          # el campo updateAvailable de GET /api/agents compara la versión del
+          # agente conectado contra esa constante. Bumpear ambos a la vez.
+          AGENT_VERSION: "0.1.0"
         run: |
           set -e
           # amd64
-          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
           # arm64
-          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
           # armv7
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
 
       - name: Valida config goreleaser
         uses: goreleaser/goreleaser-action@v6

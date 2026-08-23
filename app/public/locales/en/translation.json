@@ -510,7 +510,13 @@
       "rearming": "Restarting…",
       "rearmOk": "Agent rearmed",
       "rearmPending": "Restarted; waiting for the first push",
-      "rearmFail": "Could not rearm"
+      "rearmFail": "Could not rearm",
+      "upgrade": "Update agent",
+      "upgrading": "Sending…",
+      "upgradeSent": "Update sent",
+      "upgradeNotConnected": "Agent not connected",
+      "upgradeFail": "Could not update",
+      "upgradeTip": "Update from v{{version}} to the server version"
     },
     "colClients": "Clients",
     "colCpu": "CPU",

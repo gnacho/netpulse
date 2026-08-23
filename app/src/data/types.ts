@@ -357,6 +357,11 @@ export interface AgentInfo {
   /** Versión del binario netpulse-agent ("" si aún no se conoce) */
   version?: string
   fresh: boolean
+  /**
+   * true si el agente reporta una versión distinta de la del binario embebido
+   * (Fase 6.3, issue #243): hay upgrade disponible vía POST /api/agents/{slug}/upgrade.
+   */
+  updateAvailable?: boolean
 }
 
 /** Respuesta paginada (`GET /api/devices`, `GET /api/alerts`). */

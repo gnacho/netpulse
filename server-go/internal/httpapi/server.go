@@ -188,6 +188,9 @@ func NewHandler(d Deps) http.Handler {
 	// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
 	// instalación incluye el token y se ejecuta en el router, sin sesión admin.
 	mux.HandleFunc("GET /api/agents/{slug}/binary", s.handleAgentBinary)
+	// Fase 6.3 (issue #243): el agente reporta el resultado del self-upgrade.
+	// Auth por token de agente (Bearer), igual que binary/apply-result.
+	mux.HandleFunc("POST /api/agents/{slug}/upgrade-result", s.handleAgentUpgradeResult)
 	// Fase 7.3: SSE bidireccional agente↔servidor. El agente mantiene una
 	// conexión SSE abierta; el servidor envía comandos (refresh, etc.).
 	// Auth por token de agente (Bearer), igual que ingesta y binary.
@@ -195,6 +198,8 @@ func NewHandler(d Deps) http.Handler {
 		mux.HandleFunc("GET /api/agents/{slug}/stream", s.agentHub.HandleStream)
 		// Forzar refresh del agente vía SSE (admin; útil para depuración y futuro UI)
 		mux.Handle("POST /api/agents/{slug}/refresh", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRefresh)))
+		// Self-update del agente vía SSE (admin; Fase 6.3, issue #243).
+		mux.Handle("POST /api/agents/{slug}/upgrade", auth.RequireAdmin(http.HandlerFunc(s.handleAgentUpgrade)))
 	}
 
 	// --- Fase 9 R3: Pairing / adopción de agentes ---

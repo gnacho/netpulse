@@ -47,14 +47,16 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 // /api/health, /api/auth/login, /api/ingest/agent (auth Bearer por token
 // de equipo), /api/agents/pair (pairing token de un solo uso, Fase 9 R3),
 // /api/agents/{slug}/binary (auth Bearer por token de agente,
-// Fase 6.2) y /api/agents/{slug}/stream (SSE bidireccional, Fase 7.3).
+// Fase 6.2), /api/agents/{slug}/stream (SSE bidireccional, Fase 7.3),
+// /api/agents/{slug}/apply-result y /api/agents/{slug}/upgrade-result
+// (reporte del agente, auth Bearer).
 // Fallo → 401 {error:'unauthorized'}.
 func RequireAuth(d *db.DB, secret string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if !strings.HasPrefix(path, "/api/") || path == "/api/health" || path == "/api/auth/login" ||
 			path == "/api/ingest/agent" || path == "/api/agents/pair" ||
-			(strings.HasPrefix(path, "/api/agents/") && (strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") || strings.HasSuffix(path, "/apply-result"))) {
+			(strings.HasPrefix(path, "/api/agents/") && (strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") || strings.HasSuffix(path, "/apply-result") || strings.HasSuffix(path, "/upgrade-result"))) {
 			next.ServeHTTP(w, r)
 			return
 		}
