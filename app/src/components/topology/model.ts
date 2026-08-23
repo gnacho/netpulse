@@ -328,8 +328,9 @@ function widestGapCenterInView(
   const angles = points.map((p) => angleTo(origin.x, origin.y, p.x, p.y)).sort((a, b) => a - b)
   const gaps: { start: number; gap: number }[] = []
   for (let i = 0; i < angles.length; i++) {
-    const next = angles[(i + 1) % angles.length] + (i === angles.length - 1 ? 360 : 0)
-    gaps.push({ start: angles[i], gap: next - angles[i] })
+    const start = angles[i]!
+    const next = angles[(i + 1) % angles.length]! + (i === angles.length - 1 ? 360 : 0)
+    gaps.push({ start, gap: next - start })
   }
   gaps.sort((a, b) => b.gap - a.gap)
   const inView = (a: number) => {
@@ -382,7 +383,7 @@ function ringLayoutCount<T extends { x: number; y: number; size?: number }>(
     const minArcDeg = ((chipSize + CHIP_GAP) * 180) / (Math.PI * ring.r)
     let ringPlaced = 0
     for (let ai = 0; ai < free.length && ringPlaced < ring.cap && idx < items.length; ai++) {
-      const [s, e] = free[ai]
+      const [s, e] = free[ai]!
       const arcLen = e - s
       const maxFit = Math.max(1, Math.floor(arcLen / minArcDeg))
       const remaining = items.length - idx
@@ -390,7 +391,7 @@ function ringLayoutCount<T extends { x: number; y: number; size?: number }>(
       for (let i = 0; i < k; i++) {
         const a = s + (arcLen * (i + 0.5)) / k
         const p = pos(node.x, node.y, a, ring.r)
-        Object.assign(items[idx++], p)
+        Object.assign(items[idx++]!, p)
         ringPlaced++
       }
     }
@@ -410,8 +411,8 @@ function ringLayout<T extends { x: number; y: number; size?: number }>(
   const free = freeArcs(excludes)
   const outer = rings[rings.length - 1]
   const freeArr = free.filter(([s, e]) => e - s > 0)
-  if (freeArr.length === 0) return
-  const [s0, e0] = freeArr[0]
+  if (!outer || freeArr.length === 0) return
+  const [s0, e0] = freeArr[0]!
   let placed = 0
   for (const item of items) {
     if (item.x === 0 && item.y === 0) {
@@ -478,8 +479,8 @@ function resolveCollisions(
     let moved = false
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
-        const a = items[i]
-        const b = items[j]
+        const a = items[i]!
+        const b = items[j]!
         const dx = b.x - a.x
         const dy = b.y - a.y
         const dist = Math.sqrt(dx * dx + dy * dy) || 0.001
@@ -504,7 +505,7 @@ function resolveCollisions(
     }
     // repulsión de segmentos (cables ajenos): empuje perpendicular al cable
     for (let i = 0; i < items.length; i++) {
-      const it = items[i]
+      const it = items[i]!
       if (it.fixed || it.id === undefined) continue
       for (const seg of segments) {
         if (seg.ownerId === it.id) continue // el propio cable no se auto-repele
@@ -588,7 +589,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const switchAnchor = gatewayNode
     ? (() => {
         const others = [...apNodes, internetNode].map((p) => ({ x: p.x, y: p.y }))
-        const r = GATEWAY_RINGS[GATEWAY_RINGS.length - 1].r + 120
+        const r = GATEWAY_RINGS[GATEWAY_RINGS.length - 1]!.r + 120
         const a = widestGapCenterInView(gatewayNode, others, r)
         return { x: Math.round(gatewayNode.x + r * Math.cos(rad(a))), y: Math.round(gatewayNode.y + r * Math.sin(rad(a))), angle: a }
       })()
@@ -712,7 +713,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // distnodes del gateway (switch inferido al ESTE): fuera del círculo
       // virtual wifi (radio base máximo + margen) para no invadir la zona de
       // clientes wifi del Flint.
-      fanLayout(eastItems, node, GATEWAY_RINGS[GATEWAY_RINGS.length - 1].r + 50, GW_EAST_FAN[0], GW_EAST_FAN[1])
+      fanLayout(eastItems, node, GATEWAY_RINGS[GATEWAY_RINGS.length - 1]!.r + 50, GW_EAST_FAN[0], GW_EAST_FAN[1])
       fanLayout(farWestItems, node, HYPERVISOR_FAN_RADIUS, 160, 200)
       if (westItems.length >= GW_GRID_MIN) {
         gridLayoutWest(westItems, node)
@@ -806,8 +807,8 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const extraCap = (r: number) => Math.max(10, Math.floor(360 / ((20 + CHIP_GAP) * 180) * (Math.PI * r)))
     let placed = 0
     for (let guard = 0; guard < 8 && placed < wifi.length; guard++) {
-      const last = rings[rings.length - 1]
-      const cap = rings[rings.length - 1].cap + 2
+      const last = rings[rings.length - 1]!
+      const cap = rings[rings.length - 1]!.cap + 2
       rings.push({ r: last.r + 40, cap: Math.max(extraCap(last.r + 40), cap) })
       // re-colocar desde el principio (las posiciones parciales se recalcular)
       wifi.forEach((c) => { c.x = 0; c.y = 0 })
@@ -816,7 +817,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     ringRadii.set(node.id, rings.map((r) => r.r))
     ringLayout(wifi, node, rings, excludes)
     wifi.forEach((c, i) => {
-      if (i >= baseRings[0].cap) c.size = 20
+      if (i >= baseRings[0]!.cap) c.size = 20
     })
     chips.push(...wifi)
 
@@ -832,7 +833,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // los APs. Así un AP/switch nunca invade la zona de clientes wifi sin
       // ser empujado absurdamente lejos.
       const ringRadiiGw = ringRadii.get(node.id)
-      const baseMax = GATEWAY_RINGS[GATEWAY_RINGS.length - 1].r
+      const baseMax = GATEWAY_RINGS[GATEWAY_RINGS.length - 1]!.r
       const gwRingRadius = ringRadiiGw?.[ringRadiiGw.length - 1] ?? baseMax
       const clearDist = Math.max(baseMax, Math.min(gwRingRadius, baseMax + 80)) + 36
       // Internet: sobre el gateway (misma x), empujado hacia arriba del viewport.
@@ -894,7 +895,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       const rings = [...HUB_RINGS]
       let cap = rings.reduce((a, r) => a + r.cap, 0)
       while (cap < kids.length) {
-        const last = rings[rings.length - 1]
+        const last = rings[rings.length - 1]!
         rings.push({ r: last.r + 34, cap: last.cap + 5 })
         cap = rings.reduce((a, r) => a + r.cap, 0)
       }
@@ -920,7 +921,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       const rings = [...DIST_RINGS]
       let cap = rings.reduce((a, r) => a + r.cap, 0)
       while (cap < kids.length) {
-        const last = rings[rings.length - 1]
+        const last = rings[rings.length - 1]!
         rings.push({ r: last.r + 34, cap: last.cap + 5 })
         cap = rings.reduce((a, r) => a + r.cap, 0)
       }
@@ -958,7 +959,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (!node) continue
     const radii = ringRadii.get(routerId)
     const isGw = routerId === gatewayNode?.id
-    const r = radii?.[radii.length - 1] ?? (isGw ? GATEWAY_RINGS : AP_RINGS)[(isGw ? GATEWAY_RINGS : AP_RINGS).length - 1].r
+    const r = radii?.[radii.length - 1] ?? (isGw ? GATEWAY_RINGS : AP_RINGS)[(isGw ? GATEWAY_RINGS : AP_RINGS).length - 1]!.r
     // Clientes ocultos = miembros del anillo que exceden el aforo visible
     // (issue #117: el chip "+N" los lista al hacer clic, como peers-overflow).
     const hidden = online.filter((d) => hubOf(d) === routerId && !isVisibleInRing(d))
@@ -973,7 +974,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     kind: 'peer',
     id: `peer-${peer.id}`,
     peer,
-    ...PEER_COORDS[i],
+    ...PEER_COORDS[i]!,
   }))
   const hiddenPeers = activePeers.slice(PEER_COORDS.length)
 
@@ -1400,7 +1401,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   resolveCollisions(collidables, 80, 14, repelSegments)
   // Escribir posiciones de vuelta (solo chips; routers y distnodes son fixed)
   let ci = routerNodes.length + 1 // +1 = Internet (añadido tras los routers)
-  for (const c of chips) { c.x = collidables[ci].x; c.y = collidables[ci].y; ci++ }
+  for (const c of chips) { const ref = collidables[ci]!; c.x = ref.x; c.y = ref.y; ci++ }
 
   return {
     gatewayNode,

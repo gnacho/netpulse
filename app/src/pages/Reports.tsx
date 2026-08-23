@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -71,21 +71,37 @@ export default function Reports() {
   const [error, setError] = useState(false)
   const [spin, setSpin] = useState(false)
 
+  // AbortController del fetch actual (#221): un cambio rápido de rango/n o un
+  // Refresh doble aborta la carga anterior en vuelo y descarta la respuesta
+  // vieja. En unmount se aborta.
+  const loadAc = useRef<AbortController | null>(null)
+  // Timer del spin del botón Refresh (#227): limpiado en unmount.
+  const spinTimer = useRef<number | null>(null)
+
   async function load(r: Range, count: number) {
+    loadAc.current?.abort()
+    const ac = new AbortController()
+    loadAc.current = ac
     setLoading(true)
     setError(false)
     try {
-      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`)
+      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`, { signal: ac.signal })
       if (!res.ok) throw new Error(`status ${res.status}`)
       const env = (await res.json()) as { items: AvailabilityEntry[] }
-      setItems(env.items)
+      if (!ac.signal.aborted) setItems(env.items)
     } catch {
+      if (ac.signal.aborted) return
       setError(true)
       setItems([])
     } finally {
-      setLoading(false)
+      if (!ac.signal.aborted) setLoading(false)
     }
   }
+
+  useEffect(() => () => {
+    loadAc.current?.abort()
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+  }, [])
 
   useEffect(() => {
     void load(range, n)
@@ -153,7 +169,11 @@ export default function Reports() {
                 void load(range, n)
                 if (reduce) return
                 setSpin(true)
-                window.setTimeout(() => setSpin(false), 650)
+                if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+                spinTimer.current = window.setTimeout(() => {
+                  spinTimer.current = null
+                  setSpin(false)
+                }, 650)
               }}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
             >

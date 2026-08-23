@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
@@ -15,6 +15,12 @@ export function RecentAlerts() {
   const { alerts, unreadAlerts } = useNetPulse()
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [spinning, setSpinning] = useState(false)
+  // Timer del spin del botón de recheck: en un ref para limpiarlo en unmount
+  // (#227).
+  const spinTimer = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+  }, [])
   const recent = alerts.slice(0, 4)
   // El badge muestra el total de no leídas (como la campana), no solo de las 4 visibles
   const unread = Math.max(0, unreadAlerts - readIds.size)
@@ -55,7 +61,11 @@ export function RecentAlerts() {
           aria-label={t('home.recentAlerts.recheck')}
           onClick={() => {
             setSpinning(true)
-            window.setTimeout(() => setSpinning(false), 450)
+            if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+            spinTimer.current = window.setTimeout(() => {
+              spinTimer.current = null
+              setSpinning(false)
+            }, 450)
           }}
           className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-hover hover:text-accent"
         >

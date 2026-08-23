@@ -289,16 +289,21 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
       label: t('devices.stats.adguardProtected'),
       icon: ShieldCheck,
       iconClass: 'text-ok',
-      render: () => (
-        <>
-          <div className="font-mono text-stat text-text-primary">
-            <CountUp value={adguardProtected} nonce={refreshKey} />
-            <span className="text-sm font-medium text-text-secondary">/{deviceTotals.total}</span>
-          </div>
-          <MetricBar value={Math.round((adguardProtected / deviceTotals.total) * 100)} className="mt-2 max-w-[140px]" />
-          <div className="mt-1 text-caption text-text-muted">{t('devices.stats.pctClients', { pct: Math.round((adguardProtected / deviceTotals.total) * 100) })}</div>
-        </>
-      ),
+      render: () => {
+        // Guard NaN (#222): antes del primer snapshot live total es 0 y la
+        // división daría NaN en MetricBar y en el texto del porcentaje.
+        const pct = deviceTotals.total > 0 ? Math.round((adguardProtected / deviceTotals.total) * 100) : 0
+        return (
+          <>
+            <div className="font-mono text-stat text-text-primary">
+              <CountUp value={adguardProtected} nonce={refreshKey} />
+              <span className="text-sm font-medium text-text-secondary">/{deviceTotals.total}</span>
+            </div>
+            <MetricBar value={pct} className="mt-2 max-w-[140px]" />
+            <div className="mt-1 text-caption text-text-muted">{t('devices.stats.pctClients', { pct })}</div>
+          </>
+        )
+      },
     },
   ]
   return (

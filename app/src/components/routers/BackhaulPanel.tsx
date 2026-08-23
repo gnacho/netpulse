@@ -22,11 +22,13 @@ function SignalTooltip({
   wireless: boolean
 }) {
   if (!active || !payload?.length) return null
+  const value = payload[0]?.value
+  if (value === undefined) return null
   return (
     <div className="rounded-[10px] border border-border-strong bg-elevated px-3 py-2 shadow-lg">
       <div className="mb-0.5 font-mono text-caption text-text-muted">{label}</div>
       <div className="font-mono text-mono-sm text-text-primary">
-        {payload[0].value} {wireless ? 'dBm' : '% carga enlace'}
+        {value} {wireless ? 'dBm' : '% carga enlace'}
       </div>
     </div>
   )
