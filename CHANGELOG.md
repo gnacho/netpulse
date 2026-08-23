@@ -7,6 +7,32 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-08-23
+
+### Added
+
+- **TLS híbrido post-quantum y auto-actualización de agentes** destacados en la landing (X25519MLKEM768, Go 1.24+; self-update por flota).
+- **Detalle del router**: campo `lldpAvailable` para señalar cuándo falta `lldpd` en el dispositivo sondeado (requisito para detección de switches gestionados).
+- **Empaquetado OpenWrt**: los releases ahora adjuntan `.ipk`/`.apk` del agente y `.ipk` de `luci-app-netpulse` (el workflow no se disparaba por el GITHUB_TOKEN).
+- **Alertas de demo localizadas** al idioma activo (estático y modo demo).
+- **Mensaje amistoso "solo con backend en vivo"** en Reports/Roaming cuando la demo estática sirve HTML para `/api/*`.
+
+### Fixed
+
+- **Seguridad**: `http.Server` con ReadTimeout/WriteTimeout (SSE exento); `login_attempts` se resetea al expirar el bloqueo; verificación de Origin en mutaciones (CSRF defensa en profundidad); el token de pairing ya no se loguea en claro; `413` real para bodies sobredimensionados; `AUTH_PASS` mínimo 10; el webhook se loguea solo por host; el backup descargable documenta que contiene credenciales.
+- **Alerta de dispositivo desconocido**: ya no se re-dispara por cada reconexión (memoria por MAC) ni para dispositivos con hostname conocido.
+- **Alertas offline** de dispositivos conocidos se limpian al recuperar la conexión (flapping IPv6).
+- **Descubrimiento de links LLDP** por identidad de router (fallback mgmt-IP/nombre) cuando la chassis-MAC difiere de la del bridge.
+- **Gateway sin SSH** ya no se muestra como "offline": se distingue de "sin acceso".
+- **Topología**: el popup de detalle ya no desaparece antes de clicar.
+- **WAN**: el jitter simulado solo actúa en modo demo (no corrompe el chart en vivo).
+- **Frontend**: fetch races canceladas (Roaming/Reports), polling con cleanup (applyPlan, banner), NaN en AdGuard card, claves estables en Home, unread coherente, timers limpiados, 401 de `/api/dawn` redirige a login, `noUncheckedIndexedAccess` habilitado.
+- **A11y**: tabs WAI-ARIA con navegación por teclado.
+
+### Changed
+
+- El release v2.11.1 ajustó `AGENT_VERSION` para que derive del tag y `httpapi.Version` sea inyectable; este release lo consolida.
+
 ## [2.11.0] - 2026-08-23
 
 ### Added
