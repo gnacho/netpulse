@@ -1,5 +1,5 @@
 #!/bin/bash
-# package.sh — builds the netpulse-agent OpenWrt package as .ipk or .apk
+# package.sh builds the netpulse-agent OpenWrt package as .ipk or .apk
 # using the OpenWrt SDK.
 #
 # Usage:

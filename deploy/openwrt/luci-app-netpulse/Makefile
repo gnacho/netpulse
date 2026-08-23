@@ -1,4 +1,4 @@
-# luci-app-netpulse — OpenWrt Makefile (Fase 11)
+# luci-app-netpulse OpenWrt Makefile (Fase 11)
 # Paquete LuCI de solo ficheros (JS/JSON/ucode, PKGARCH:=all): vista de nodo
 # del agente NetPulse. Makefile plano a propósito (no luci.mk): construye en
 # el SDK pelado igual que netpulse-agent, sin necesitar el feed luci en el

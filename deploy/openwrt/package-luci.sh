@@ -1,5 +1,5 @@
 #!/bin/bash
-# package-luci.sh — builds luci-app-netpulse as .ipk or .apk with the SDK.
+# package-luci.sh builds luci-app-netpulse as .ipk or .apk with the SDK.
 # Mirror of package.sh (agent) without the binary: the package is files-only
 # (PKGARCH all), so the SAME artifact works for the gateway and the APs.
 #
