@@ -28,6 +28,12 @@ export interface Router {
   mac?: string
   /** Descripción del firmware (live, system board) */
   firmware?: string
+  /** Versión objetivo configurada por el admin (issue #241). Ausente si no se configura. */
+  firmwareTarget?: string
+  /** true = el firmware instalado no cumple el target configurado (live). */
+  firmwareOutdated?: boolean
+  /** Router configurado para funcionar solo con agente (sin SSH). */
+  agentOnly?: boolean
   status: Status
   /** Salud 0–100 */
   health: number
@@ -357,6 +363,11 @@ export interface AgentInfo {
   /** Versión del binario netpulse-agent ("" si aún no se conoce) */
   version?: string
   fresh: boolean
+  /**
+   * true si el agente reporta una versión distinta de la del binario embebido
+   * (Fase 6.3, issue #243): hay upgrade disponible vía POST /api/agents/{slug}/upgrade.
+   */
+  updateAvailable?: boolean
 }
 
 /** Respuesta paginada (`GET /api/devices`, `GET /api/alerts`). */

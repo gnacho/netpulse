@@ -25,6 +25,7 @@ var hostRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 // issue #7); la lista de routers es de lectura y queda tras RequireAuth.
 func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/config/sshkey", auth.RequireAdmin(http.HandlerFunc(s.handleGetSSHKey)))
+	mux.Handle("POST /api/config/sshkey/rotate", auth.RequireAdmin(http.HandlerFunc(s.handleRotateSSHKey)))
 	mux.Handle("GET /api/config/discover", auth.RequireAdmin(http.HandlerFunc(s.handleDiscover)))
 	mux.HandleFunc("GET /api/config/routers", s.handleListConfigRouters)
 	mux.Handle("POST /api/config/routers", auth.RequireAdmin(http.HandlerFunc(s.handleAddConfigRouter)))
@@ -51,6 +52,24 @@ func (s *server) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, key)
 }
 
+// POST /api/config/sshkey/rotate — rota el par ed25519 del servidor (#242).
+// Respalda el par actual (keyPath.bak.<epoch>) y genera uno nuevo; devuelve
+// la nueva pública + fingerprint para reautorizarla en los routers. La clave
+// vieja deja de funcionar de inmediato: exige confirmación explícita del admin
+// (la UI pide escribir la palabra de confirmación).
+func (s *server) handleRotateSSHKey(w http.ResponseWriter, r *http.Request) {
+	key, err := sshkey.RotateKeypair(s.cfg.SSHKeyPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rotate_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"publicKey":   key.PublicKey,
+		"fingerprint": key.Fingerprint,
+		"warning":     "The previous key is no longer valid. Re-authorize this public key on every router before rotating again.",
+	})
+}
+
 // GET /api/config/discover?force=1 — escaneo de la LAN (cacheado 60 s).
 func (s *server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	result := discover.Routers(r.Context(), s.db.DB, s.cfg.SSHKeyPath, r.URL.Query().Get("force") == "1")
@@ -68,6 +87,8 @@ type routerInput struct {
 	Type      string  `json:"type"`
 	Gateway   bool    `json:"gateway"`
 	AgentOnly bool    `json:"agent_only"`
+	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
+	FirmwareTarget *string `json:"firmware_target"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -123,6 +144,10 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
 		return
 	}
+	var firmwareTarget string
+	if in.FirmwareTarget != nil {
+		firmwareTarget = strings.TrimSpace(*in.FirmwareTarget)
+	}
 	for _, rt := range routerstore.ListRouters(s.db.DB) {
 		if rt.Host == host {
 			writeError(w, http.StatusConflict, "duplicate_host", "Ya hay un router con "+host)
@@ -131,6 +156,7 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
+		FirmwareTarget: firmwareTarget,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -199,9 +225,15 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	}
 	gw := in.Gateway
 	ao := in.AgentOnly
+	var firmwareTarget *string
+	if in.FirmwareTarget != nil {
+		v := strings.TrimSpace(*in.FirmwareTarget)
+		firmwareTarget = &v
+	}
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
+		FirmwareTarget: firmwareTarget,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

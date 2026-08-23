@@ -14,6 +14,18 @@ import (
 	"io/fs"
 )
 
+// EmbeddedAgentVersion es la versión del binario de agente que el servidor
+// embebe y sirve por GET /api/agents/{slug}/binary. Se usa para calcular el
+// campo updateAvailable de GET /api/agents: un agente cuya versión reportada
+// difiere de esta versión tiene una actualización pendiente.
+//
+// Es una `var` (no const) porque el CI la inyecta con ldflags
+// (`-X ...agentbin.EmbeddedAgentVersion=$AGENT_VERSION`) usando el MISMO
+// valor que fija `main.Version` del agente, de modo que la constante del
+// server siempre coincide con la versión real de los binarios embebidos.
+// En desarrollo (sin ldflags) queda en el default 0.1.0.
+var EmbeddedAgentVersion = "0.1.0"
+
 //go:embed agents/*
 var agentsFS embed.FS
 

@@ -5,11 +5,13 @@
 package sshkey
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // BaseArgs replica sshBaseArgs (src/sshkey.js:16-24): los args SSH comunes.
@@ -85,4 +87,30 @@ func GetPublicKey(keyPath string) *PublicKey {
 		}
 	}
 	return &PublicKey{PublicKey: pub, Fingerprint: fp}
+}
+
+// RotateKeypair regenera el par de claves (issue #242): respalda el par actual
+// como <keyPath>.bak.<epoch> y genera uno nuevo. known_hosts NO se toca (las
+// host keys de los routers son independientes del par del cliente). Devuelve
+// la nueva clave pública para reautorizarla en los routers. Si el par actual
+// no existe, simplemente genera uno (sin backup).
+func RotateKeypair(keyPath string) (*PublicKey, error) {
+	// Backup del par actual si existe.
+	if _, err := os.Stat(keyPath); err == nil {
+		bak := fmt.Sprintf("%s.bak.%d", keyPath, time.Now().Unix())
+		if err := os.Rename(keyPath, bak); err != nil {
+			return nil, &ExecError{What: "rotate-backup", Err: err}
+		}
+		if _, err := os.Stat(keyPath + ".pub"); err == nil {
+			_ = os.Rename(keyPath+".pub", bak+".pub")
+		}
+	}
+	if err := EnsureKeypair(keyPath); err != nil {
+		return nil, err
+	}
+	key := GetPublicKey(keyPath)
+	if key == nil {
+		return nil, &ExecError{What: "rotate-public-key", Err: os.ErrNotExist}
+	}
+	return key, nil
 }

@@ -8,6 +8,7 @@ import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
+import { AgentUpgradeButton } from '@/components/routers/AgentUpgradeButton'
 import { useAgentFor } from '@/hooks/useAgentFor'
 import { cn } from '@/lib/utils'
 
@@ -83,7 +84,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, delay: 0.15 + pills.length * 0.06 }}
                 >
-                  <AgentBadge agent={agent} />
+                  <AgentBadge agent={agent} agentOnly={router.agentOnly} />
                 </motion.span>
               )}
               {agent && !agent.fresh && (
@@ -93,6 +94,15 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   transition={{ duration: 0.2, delay: 0.15 + (pills.length + 1) * 0.06 }}
                 >
                   <AgentRearmButton agent={agent} />
+                </motion.span>
+              )}
+              {agent && agent.updateAvailable && (
+                <motion.span
+                  initial={reduce ? false : { opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2, delay: 0.15 + (pills.length + 2) * 0.06 }}
+                >
+                  <AgentUpgradeButton agent={agent} />
                 </motion.span>
               )}
             </div>

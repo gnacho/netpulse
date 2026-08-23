@@ -261,6 +261,9 @@ func run() error {
 			if ev.Name == "apply" && ev.Data != "" {
 				go handleApply(cfg, ex, transport, ev.Data)
 			}
+			if ev.Name == "upgrade" {
+				go handleUpgrade(cfg, transport, ev.Data)
+			}
 			slog.Debug("[netpulse-agent] SSE evento", "event", ev.Name)
 		})
 		sse.SetLogger(func(format string, args ...any) { slog.Debug("[netpulse-agent] "+fmt.Sprintf(format, args...)) })

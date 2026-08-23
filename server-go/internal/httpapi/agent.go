@@ -342,6 +342,10 @@ type agentListItem struct {
 	LastSeen *int64 `json:"lastSeen"` // unix SEGUNDOS; null si nunca empujó
 	Version  string `json:"version,omitempty"`
 	Fresh    bool   `json:"fresh"`
+	// UpdateAvailable: true si el agente reportó una versión distinta de la
+	// del binario embebido (agentbin.EmbeddedAgentVersion) → hay upgrade
+	// disponible vía POST /api/agents/{slug}/upgrade (Fase 6.3, issue #243).
+	UpdateAvailable bool `json:"updateAvailable"`
 }
 
 // handleAgentsList: slugs con token + last_seen + versión.
@@ -363,6 +367,9 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						ts := seen.Unix()
 						item.LastSeen = &ts
 						item.Version = version
+						// Fase 6.3 (issue #243): upgrade disponible si el agente
+						// reporta una versión distinta del binario embebido.
+						item.UpdateAvailable = version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
@@ -443,6 +450,175 @@ func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
 	}
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/agents/{slug}/reinstall — #246: reinstalar el agente en el router
+// vía SSH (recupera un agente borrado por update de firmware/desinstalación).
+// Replica el flujo de install-agent.sh sin depender del PC del admin:
+//   1. Verifica slug + router en la tabla routers.
+//   2. Rota el token (genera uno nuevo en claro y persiste su hash en kv).
+//   3. Ejecuta por SSH: detecta arch, descarga el binario del propio server
+//      (GET /api/agents/{slug}/binary con el token nuevo), lo instala,
+//      escribe /etc/netpulse-agent.env, instala el init procd y lo arranca.
+//   4. Espera a que el agente vuelva a empujar (misma lógica que el rearm).
+// ---------------------------------------------------------------------------
+
+type reinstallResponse struct {
+	Slug      string `json:"slug"`
+	Token     string `json:"token"` // en claro UNA vez, para reutilizar en el router
+	Installed bool   `json:"installed"`
+	Recovered bool   `json:"recovered"` // llegó un push nuevo tras la instalación
+	Message   string `json:"message,omitempty"`
+}
+
+func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !agentSlugRe.MatchString(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if s.db == nil || s.pool == nil {
+		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
+		return
+	}
+
+	// Router del slug (tabla routers; mismo host que usa el rearm).
+	host := ""
+	for _, rc := range routerstore.ListRouters(s.db.DB) {
+		if rc.ID == slug {
+			host = rc.Host
+			break
+		}
+	}
+	if host == "" {
+		writeError(w, http.StatusConflict, "router_unknown", "no hay router con ese slug en la tabla routers")
+		return
+	}
+
+	// Rotar el token (el env del router se reescribe con el nuevo).
+	token, err := newAgentToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "token_error")
+		return
+	}
+	if _, err := s.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		agentTokenKey(slug), hashAgentToken(token)); err != nil {
+		writeError(w, http.StatusInternalServerError, "token_error")
+		return
+	}
+
+	// URL base del server (para que el router descargue el binario). Mismo
+	// esquema que agentInstallLine: http en LAN, https si la request es segura.
+	scheme := "http"
+	if auth.IsSecureRequest(r) {
+		scheme = "https"
+	}
+	serverURL := scheme + "://" + r.Host
+
+	// Script de instalación (replica install-agent.sh vía SSH, sin scp).
+	script := reinstallScript(host, slug, token, serverURL)
+
+	before := time.Now()
+	var prevSeen time.Time
+	if s.agents != nil {
+		if seen, _, ok := s.agents.Info(slug); ok {
+			prevSeen = seen
+		}
+	}
+
+	if _, err := s.pool.Run(host, script, 60*time.Second); err != nil {
+		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+		return
+	}
+
+	// Esperar a que el agente vuelva a empujar (poll 2s hasta 40s).
+	recovered := false
+	deadline := time.Now().Add(40 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(2 * time.Second)
+		if s.agents == nil {
+			break
+		}
+		if seen, _, ok := s.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
+			recovered = true
+			break
+		}
+	}
+
+	writeJSON(w, http.StatusOK, reinstallResponse{
+		Slug: slug, Token: token, Installed: true, Recovered: recovered,
+		Message: map[bool]string{true: "agente instalado y empujando", false: "agente instalado; aún no ha empujado en 40 s"}[recovered],
+	})
+}
+
+// reinstallScript construye el script POSIX sh que se ejecuta en el router.
+func reinstallScript(host, slug, token, serverURL string) string {
+	return `#!/bin/sh
+set -e
+INIT=/etc/init.d/netpulse-agent
+BIN=/usr/sbin/netpulse-agent
+ENV_FILE=/etc/netpulse-agent.env
+SERVER="` + serverURL + `"
+SLUG="` + slug + `"
+TOKEN="` + token + `"
+
+# Detectar arquitectura del router
+ARCH=$(uname -m)
+case "$ARCH" in
+	aarch64|arm64) GOARCH=arm64 ;;
+	armv7l|armv7)  GOARCH=armv7 ;;
+	*) echo "arch no soportado: $ARCH"; exit 20 ;;
+esac
+
+# Parar servicio previo si existe (el proceso vivo mantiene el binario abierto)
+[ -f "$INIT" ] && $INIT stop >/dev/null 2>&1 || true
+
+# Descargar el binario del propio server (auth por token)
+if command -v curl >/dev/null 2>&1; then
+	curl -fsSL --connect-timeout 10 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new
+else
+	wget -q -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"
+fi
+chmod 0755 /tmp/netpulse-agent.new
+mv /tmp/netpulse-agent.new "$BIN"
+chmod 0755 "$BIN"
+
+# Config (chmod 600)
+cat > "$ENV_FILE" <<EOF
+# netpulse-agent — config (generado por reinstall)
+NETPULSE_SERVER=$SERVER
+NETPULSE_SLUG=$SLUG
+NETPULSE_TOKEN=$TOKEN
+EOF
+chmod 600 "$ENV_FILE"
+
+# Init script procd (respawn)
+cat > "$INIT" <<'INITEOF'
+#!/bin/sh /etc/rc.common
+# netpulse-agent — agente nativo NetPulse para OpenWrt
+START=99
+STOP=10
+USE_PROCD=1
+
+BIN=/usr/sbin/netpulse-agent
+[ -x "$BIN" ] || BIN=/tmp/netpulse-agent
+
+start_service() {
+    procd_open_instance netpulse-agent
+    procd_set_param command "$BIN"
+    procd_set_param respawn "${respawn_threshold:-3600}" "${respawn_timeout:-5}" "${respawn_retry:-5}"
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_set_param file /etc/netpulse-agent.env
+    procd_close_instance
+}
+INITEOF
+chmod 0755 "$INIT"
+$INIT enable
+$INIT restart
+`
 }
 
 // ---------------------------------------------------------------------------

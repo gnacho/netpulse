@@ -27,9 +27,10 @@ import {
   Pencil,
   Plus,
   Lock,
-   Radar,
-   RefreshCw,
-   Router as RouterIcon,
+  Radar,
+  RefreshCw,
+  RotateCw,
+  Router as RouterIcon,
    Shield,
    ShieldCheck,
    Sun,
@@ -269,6 +270,7 @@ interface ConfigRouter {
   type: RouterType
   is_gateway: boolean
   agent_only: boolean
+  firmware_target: string
 }
 
 interface DiscoverCandidate {
@@ -298,9 +300,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editType, setEditType] = useState<RouterType>('openwrt')
   const [editGateway, setEditGateway] = useState(false)
   const [editAgentOnly, setEditAgentOnly] = useState(false)
+  const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [rotating, setRotating] = useState(false)
+  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false)
+  const [rotateError, setRotateError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [candidates, setCandidates] = useState<DiscoverCandidate[] | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -374,6 +380,27 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
       /* portapapeles no disponible */
+    }
+  }
+
+  const rotateKey = async () => {
+    if (rotating) return
+    setRotating(true)
+    setRotateError(null)
+    try {
+      const res = await fetch('/api/config/sshkey/rotate', { method: 'POST' })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
+      }
+      const json = (await res.json()) as { publicKey: string; fingerprint: string }
+      setPubkey({ publicKey: json.publicKey, fingerprint: json.fingerprint })
+      setCopied(false)
+      setRotateConfirmOpen(false)
+    } catch (err) {
+      setRotateError(err instanceof Error ? err.message : t('settings.routers.errorGeneric'))
+    } finally {
+      setRotating(false)
     }
   }
 
@@ -460,6 +487,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditType(r.type)
     setEditGateway(r.is_gateway)
     setEditAgentOnly(r.agent_only)
+    setEditFirmwareTarget(r.firmware_target ?? '')
     setError(null)
   }
 
@@ -478,6 +506,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           type: editType,
           gateway: editGateway,
           agent_only: editAgentOnly,
+          firmware_target: editFirmwareTarget.trim(),
         }),
       })
       if (res.status === 409) {
@@ -770,6 +799,21 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   {t('settings.routers.agentOnly')}
                 </label>
               </div>
+              <div>
+                <label htmlFor="firmware-target" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                  {t('settings.routers.firmwareTarget')}
+                </label>
+                <input
+                  id="firmware-target"
+                  type="text"
+                  value={editFirmwareTarget}
+                  onChange={(e) => setEditFirmwareTarget(e.target.value)}
+                  placeholder={t('settings.routers.firmwareTargetPlaceholder')}
+                  aria-label={t('settings.routers.firmwareTarget')}
+                  className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+                <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
+              </div>
               {error && <p className="text-caption text-danger">{error}</p>}
               <div className="flex justify-end gap-2">
                 <button
@@ -813,9 +857,44 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               {copied ? <Check className="h-3.5 w-3.5 text-ok" strokeWidth={2} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />}
               {copied ? t('settings.routers.copied') : t('settings.routers.copy')}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRotateError(null)
+                setRotateConfirmOpen(true)
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-red-500/40 hover:text-red-500"
+            >
+              <RotateCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {t('settings.routers.rotateKey')}
+            </button>
           </div>
         )}
       </div>
+
+      <AlertDialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.rotateKeyTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.routers.rotateKeyCaption')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {rotateError && <p className="text-sm text-red-500">{rotateError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rotating}>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void rotateKey()
+              }}
+              disabled={rotating}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              <RotateCw className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {rotating ? t('settings.routers.rotating') : t('settings.routers.rotateKeyConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

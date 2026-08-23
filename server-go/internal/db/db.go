@@ -331,6 +331,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "agent_only", "ALTER TABLE routers ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0")
 	// issue #196: bridgeMAC persistido del router (exclusión de "desconocido").
 	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
+	// issue #241: target de firmware por router (string libre; NULL/"" = sin comprobar).
+	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria

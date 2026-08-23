@@ -141,6 +141,44 @@ func TestConfigRoutersCRUD(t *testing.T) {
 	}
 }
 
+// TestRotateSSHKey cubre POST /api/config/sshkey/rotate (#242):
+//   - 403 sin admin
+//   - 200 y la nueva pública difiere de la anterior (cuando había clave)
+//   - la respuesta incluye publicKey + fingerprint
+func TestRotateSSHKey(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+
+	// Sin admin → 403.
+	res := doReq(t, "POST", srv.URL+"/api/config/sshkey/rotate", "", "")
+	if res.StatusCode != 403 && res.StatusCode != 401 {
+		t.Fatalf("rotate sin admin: %d (esperaba 403)", res.StatusCode)
+	}
+
+	// Clave previa (puede no existir en el DATA_DIR de test).
+	prev := ""
+	res = doReq(t, "GET", srv.URL+"/api/config/sshkey", cookie, "")
+	if res.StatusCode == 200 {
+		prev = readJSON(t, res)["publicKey"].(string)
+	}
+
+	res = doReq(t, "POST", srv.URL+"/api/config/sshkey/rotate", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("rotate: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	pub, ok := body["publicKey"].(string)
+	if !ok || pub == "" {
+		t.Fatalf("rotate: sin publicKey: %v", body)
+	}
+	if _, ok := body["fingerprint"].(string); !ok {
+		t.Fatalf("rotate: sin fingerprint: %v", body)
+	}
+	if prev != "" && prev == pub {
+		t.Fatalf("rotate: la clave no cambió (prev==new)")
+	}
+}
+
 // TestConfigRoutersUpdate cubre PUT /api/config/routers/{id}:
 //   - 404 si no existe
 //   - editar name (200, campo cambiado)
@@ -231,5 +269,53 @@ func TestConfigRoutersUpdate(t *testing.T) {
 	rt = body["router"].(map[string]any)
 	if rt["agent_only"] != true {
 		t.Errorf("agent_only: %v", rt["agent_only"])
+	}
+}
+
+// TestConfigRoutersFirmwareTarget cubre firmware_target (issue #241):
+// alta con target, PUT que lo actualiza y persistencia en la lista.
+func TestConfigRoutersFirmwareTarget(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+
+	// POST con firmware_target → 201 y el router devuelto lo lleva.
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"rt1","host":"192.168.8.10","type":"openwrt","firmware_target":"25.12.5"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	router := body["router"].(map[string]any)
+	if router["firmware_target"] != "25.12.5" {
+		t.Fatalf("firmware_target tras alta: %v", router)
+	}
+
+	// PUT cambia firmware_target → 200 y el campo cambia.
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.10","firmware_target":"24.10.1"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT firmware_target: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	rt := body["router"].(map[string]any)
+	if rt["firmware_target"] != "24.10.1" {
+		t.Fatalf("firmware_target tras PUT: %v", rt)
+	}
+
+	// GET persiste el valor en la lista.
+	res = doReq(t, "GET", srv.URL+"/api/config/routers", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET routers: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	found := ""
+	for _, r := range body["routers"].([]any) {
+		rm := r.(map[string]any)
+		if rm["id"] == "rt1" {
+			found, _ = rm["firmware_target"].(string)
+		}
+	}
+	if found != "24.10.1" {
+		t.Fatalf("firmware_target persistido=%q, esperaba 24.10.1", found)
 	}
 }

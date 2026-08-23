@@ -144,6 +144,18 @@ export interface NetPulseApi extends NetPulseData {
    * (demo siempre null: no hay agentes que rearmar).
    */
   rearmAgent: (slug: string) => Promise<{ recovered: boolean; message?: string } | null>
+  /**
+   * Fase 6.3 (issue #243): POST /api/agents/{slug}/upgrade — ordena al agente
+   * que se actualice con el binario embebido del servidor. Resuelve el estado
+   * del envío; null si la petición falló (demo siempre null).
+   */
+  upgradeAgent: (slug: string) => Promise<'sent' | 'not_connected' | null>
+  /**
+   * #246: POST /api/agents/{slug}/reinstall — reinstala el agente en el router
+   * vía SSH (binario, env, servicio procd). Devuelve el resultado; null si
+   * falló (demo siempre null).
+   */
+  reinstallAgent: (slug: string) => Promise<{ recovered: boolean; token?: string; error?: string } | null>
 }
 
 // ---------------------------------------------------------------------------
@@ -699,6 +711,47 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
+  /**
+   * Fase 6.3 (issue #243): ordena el self-update del agente. La API devuelve
+   * 202 (comando enviado por SSE) o 409 (agente no conectado). null = fallo de
+   * red/4xx-5xx/demo. Tras enviarlo, el agente se reinicia solo; el próximo
+   * poll de agentes (~30 s) refleja la versión nueva y updateAvailable=false.
+   */
+  const upgradeAgent = useCallback(async (slug: string): Promise<'sent' | 'not_connected' | null> => {
+    if (modeRef.current !== 'live') return null
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/upgrade`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (res.status === 401) redirectLogin()
+      if (res.status === 409) return 'not_connected'
+      if (!res.ok) return null
+      return 'sent'
+    } catch {
+      return null
+    }
+  }, [])
+
+  const reinstallAgent = useCallback(async (slug: string): Promise<{ recovered: boolean; token?: string; error?: string } | null> => {
+    if (modeRef.current !== 'live') return null
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/reinstall`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(90_000),
+      })
+      if (res.status === 401) redirectLogin()
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        return { recovered: false, error: body.message ?? `HTTP ${res.status}` }
+      }
+      const json = (await res.json()) as { recovered: boolean; token?: string }
+      return { recovered: json.recovered, token: json.token }
+    } catch {
+      return { recovered: false, error: 'network' }
+    }
+  }, [])
+
   const getRouterDetail = useCallback(async (id: string): Promise<RouterDetailData | null> => {
     if (modeRef.current === 'live') {
       const res = await fetch(`/api/routers/${encodeURIComponent(id)}`)
@@ -801,8 +854,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAlertsRead,
       markAllAlertsRead,
       rearmAgent,
+      upgradeAgent,
+      reinstallAgent,
     }),
-    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent],
+    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent, upgradeAgent, reinstallAgent],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

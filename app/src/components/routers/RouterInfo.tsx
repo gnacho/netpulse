@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ExternalLink, Terminal } from 'lucide-react'
+import { Check, ExternalLink, RotateCcw, Terminal } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { fmtUptime } from '@/i18n'
@@ -9,6 +9,8 @@ import { StatusPill } from '@/components/StatusPill'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
+import { useAuth } from '@/data/AuthContext'
+import { useAgentFor } from '@/hooks/useAgentFor'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -22,10 +24,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 /** ③ Info + Red (router-detail.md §③) — definition list + acciones ghost. */
 export function RouterInfo({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const { isDemo } = useNetPulse()
+  const { isDemo, reinstallAgent } = useNetPulse()
+  const auth = useAuth()
+  const agent = useAgentFor(router.id)
+  const agentMissing = agent === undefined && router.agentOnly
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
+  const [reinstallState, setReinstallState] = useState<'idle' | 'busy' | 'done' | 'fail'>('idle')
+  const [reinstallMsg, setReinstallMsg] = useState('')
   const timer = useRef<number | null>(null)
 
   useEffect(() => () => {
@@ -33,14 +40,53 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   }, [])
 
   async function copySsh() {
+    const text = `ssh root@${router.ip}`
+    let ok = false
     try {
-      await navigator.clipboard.writeText(`ssh root@${router.ip}`)
+      // Clipboard API solo funciona en contexto seguro (HTTPS/localhost);
+      // en la LAN HTTP lanza → fallback abajo.
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        ok = true
+      }
     } catch {
-      // Portapapeles no disponible (mock) — el toast igualmente confirma la acción
+      ok = false
     }
-    setToast(true)
+    if (!ok) {
+      // Fallback para HTTP: textarea oculta + execCommand('copy').
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.setAttribute('readonly', '')
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        ok = document.execCommand('copy')
+        document.body.removeChild(ta)
+      } catch {
+        ok = false
+      }
+    }
+    setToast(ok)
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setToast(false), 1800)
+  }
+
+  const reinstall = async () => {
+    if (reinstallState === 'busy') return
+    if (!window.confirm(t('routerDetail.info.reinstallConfirm', { router: router.name }))) return
+    setReinstallState('busy')
+    setReinstallMsg('')
+    const res = await reinstallAgent(router.id)
+    if (res && !res.error) {
+      setReinstallState('done')
+      setReinstallMsg(res.recovered ? t('routerDetail.info.reinstallDone') : t('routerDetail.info.reinstallPending'))
+    } else {
+      setReinstallState('fail')
+      setReinstallMsg(res?.error ?? t('routerDetail.info.reinstallFail'))
+    }
+    window.setTimeout(() => setReinstallState('idle'), 8000)
   }
 
   const rows: { label: string; node: React.ReactNode }[] = [
@@ -49,10 +95,15 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     {
       label: 'Firmware',
       node: (
-        <span className="inline-flex items-center gap-2">
-          {ex.firmware}
+        <span className="inline-flex flex-wrap items-center justify-end gap-2">
+          <span>{router.firmware ?? ex.firmware}</span>
           {ex.firmwareBase && <span className="text-text-muted">{t('routerDetail.info.firmwareBase', { base: ex.firmwareBase })}</span>}
-          {ex.firmwareUpdated ? (
+          {router.firmwareTarget && (
+            <span className="text-text-muted">{t('routerDetail.info.firmwareTarget', { target: router.firmwareTarget })}</span>
+          )}
+          {router.firmwareOutdated ? (
+            <StatusPill tone="warn" label={t('routers.firmwareOutdated')} />
+          ) : ex.firmwareUpdated ? (
             <StatusPill tone="ok" label={t('routerDetail.info.updated')} />
           ) : (
             <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
@@ -110,7 +161,35 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('routerDetail.info.copySsh')}
         </button>
+        {(agent || router.agentOnly) && auth?.role === 'admin' && (
+          <button
+            onClick={() => void reinstall()}
+            disabled={reinstallState === 'busy'}
+            title={t('routerDetail.info.reinstallTip')}
+            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-caption font-semibold transition-colors disabled:opacity-50 ${
+              reinstallState === 'done'
+                ? 'border-ok/40 bg-ok/10 text-ok'
+                : reinstallState === 'fail'
+                  ? 'border-danger/40 bg-danger/10 text-danger'
+                  : agentMissing || !agent?.fresh
+                    ? 'border-danger/40 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20'
+                    : 'border-border text-text-secondary hover:border-accent/40 hover:text-accent'
+            }`}
+          >
+            <RotateCcw className={`h-3.5 w-3.5 ${reinstallState === 'busy' ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+            {reinstallState === 'busy'
+              ? t('routerDetail.info.reinstalling')
+              : reinstallState === 'done'
+                ? t('routerDetail.info.reinstalled')
+                : reinstallState === 'fail'
+                  ? t('routerDetail.info.reinstallRetry')
+                  : t('routerDetail.info.reinstall')}
+          </button>
+        )}
       </div>
+      {reinstallMsg && reinstallState !== 'idle' && (
+        <p className={`mt-2 text-caption ${reinstallState === 'fail' ? 'text-danger' : 'text-text-muted'}`}>{reinstallMsg}</p>
+      )}
 
       {/* Toast "Comando copiado" */}
       <AnimatePresence>

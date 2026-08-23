@@ -705,6 +705,19 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	}, nil
 }
 
+// firmwareOutdated decide si el firmware instalado no cumple el target
+// configurado por el admin (issue #241). Comparación tolerante e
+// insensible a mayúsculas: el target debe aparecer (Contains) dentro de la
+// descripción del firmware ("OpenWrt 25.12.5 r33051..." contiene "25.12.5").
+// Sin target ("" tras trim) → false (no hay comprobación).
+func firmwareOutdated(installed, target string) bool {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return false
+	}
+	return !strings.Contains(strings.ToLower(strings.TrimSpace(installed)), strings.ToLower(target))
+}
+
 // buildRouter construye el Router del contrato (index.js:221-249).
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
@@ -737,6 +750,12 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.ram > 90 {
 		health -= 15
+	}
+	// issue #241: firmware fuera del target configurado penaliza la salud.
+	outdatedFw := false
+	if p.cfg.FirmwareTarget != "" && p.board != nil && firmwareOutdated(p.board.Release.Description, p.cfg.FirmwareTarget) {
+		health -= 5
+		outdatedFw = true
 	}
 	if health < 0 {
 		health = 0
@@ -775,6 +794,24 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
+	}
+	if p.cfg.FirmwareTarget != "" {
+		r.FirmwareTarget = p.cfg.FirmwareTarget
+	}
+	if p.cfg.AgentOnly {
+		r.AgentOnly = true
+	}
+	if outdatedFw {
+		r.FirmwareOutdated = true
+		// Alerta no urgente (category system); el engine aplica dedup 5 min.
+		l.engine.Emit(AlertEvent{
+			ID:       fmt.Sprintf("alert-firmware-%s-%d", p.cfg.ID, time.Now().UnixMilli()),
+			Category: alerts.CatSystem, Urgent: false,
+			Severity:    "warn",
+			Title:       "Firmware desactualizado",
+			Description: fmt.Sprintf("%s: firmware %q no coincide con el target %q", name, r.Firmware, p.cfg.FirmwareTarget),
+			Time:        "ahora mismo", RouterID: p.cfg.ID,
+		})
 	}
 	if p.temp > 65 {
 		r.HotMetric = "temp"
