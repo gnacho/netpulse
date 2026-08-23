@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -174,18 +174,31 @@ export default function Roaming() {
     return m
   }, [devices])
 
+  // Un AbortController por fuente de datos (#221): cada carga aborta la
+  // anterior en vuelo para que una respuesta vieja y lenta nunca sobrescriba
+  // una más nueva (cambio de pestaña/rango o Refresh repetido). En unmount se
+  // abortan todos.
+  const dawnAc = useRef<AbortController | null>(null)
+  const dot11rAc = useRef<AbortController | null>(null)
+  const surveyAc = useRef<AbortController | null>(null)
+  const eventsAc = useRef<AbortController | null>(null)
+
   async function load() {
+    dawnAc.current?.abort()
+    const ac = new AbortController()
+    dawnAc.current = ac
     setLoading(true)
     setError(false)
     try {
-      const res = await fetch('/api/dawn')
+      const res = await fetch('/api/dawn', { signal: ac.signal })
       if (!res.ok) throw new Error(`status ${res.status}`)
       setDawn((await res.json()) as Dawn)
     } catch {
+      if (ac.signal.aborted) return
       setError(true)
       setDawn(null)
     } finally {
-      setLoading(false)
+      if (!ac.signal.aborted) setLoading(false)
     }
   }
 
@@ -193,17 +206,21 @@ export default function Roaming() {
   // SSH a cada router con wifi, más caro que la matriz DAWN que ya está cache
   // en el primer router). Recarga también al pulsar Refresh con 11r abierta.
   async function loadDot11r() {
+    dot11rAc.current?.abort()
+    const ac = new AbortController()
+    dot11rAc.current = ac
     setDot11rLoading(true)
     setDot11rError(false)
     try {
-      const res = await fetch('/api/dot11r')
+      const res = await fetch('/api/dot11r', { signal: ac.signal })
       if (!res.ok) throw new Error(`status ${res.status}`)
       setDot11r((await res.json()) as Dot11rOverview)
     } catch {
+      if (ac.signal.aborted) return
       setDot11rError(true)
       setDot11r(null)
     } finally {
-      setDot11rLoading(false)
+      if (!ac.signal.aborted) setDot11rLoading(false)
     }
   }
 
@@ -221,17 +238,21 @@ export default function Roaming() {
 
   // Carga perezosa de /api/survey: igual que dot11r, un SSH por router con wifi.
   async function loadSurvey() {
+    surveyAc.current?.abort()
+    const ac = new AbortController()
+    surveyAc.current = ac
     setSurveyLoading(true)
     setSurveyError(false)
     try {
-      const res = await fetch('/api/survey')
+      const res = await fetch('/api/survey', { signal: ac.signal })
       if (!res.ok) throw new Error(`status ${res.status}`)
       setSurvey((await res.json()) as SurveyOverview)
     } catch {
+      if (ac.signal.aborted) return
       setSurveyError(true)
       setSurvey(null)
     } finally {
-      setSurveyLoading(false)
+      if (!ac.signal.aborted) setSurveyLoading(false)
     }
   }
 
@@ -244,27 +265,40 @@ export default function Roaming() {
   // Carga perezosa de /api/roam-events. Polling cada 30s mientras la pestaña
   // está activa (los eventos llegan por ingest continua al SQLite).
   async function loadEvents() {
+    eventsAc.current?.abort()
+    const ac = new AbortController()
+    eventsAc.current = ac
     setEventsLoading(true)
     setEventsError(false)
     try {
-      const res = await fetch('/api/roam-events?limit=100')
+      const res = await fetch('/api/roam-events?limit=100', { signal: ac.signal })
       if (!res.ok) throw new Error(`status ${res.status}`)
       const json = (await res.json()) as { events: RoamEvent[] }
       setEvents(json.events ?? [])
     } catch {
+      if (ac.signal.aborted) return
       setEventsError(true)
       setEvents([])
     } finally {
-      setEventsLoading(false)
+      if (!ac.signal.aborted) setEventsLoading(false)
     }
   }
+
+  useEffect(() => () => {
+    dawnAc.current?.abort()
+    dot11rAc.current?.abort()
+    surveyAc.current?.abort()
+    eventsAc.current?.abort()
+  }, [])
 
   useEffect(() => {
     if (tab !== 'events') return
     void loadEvents()
     const id = window.setInterval(() => void loadEvents(), 30_000)
-    return () => window.clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      window.clearInterval(id)
+      eventsAc.current?.abort()
+    }
   }, [tab])
 
   // APs visibles según el filtro de banda.

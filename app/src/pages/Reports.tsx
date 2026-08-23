@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -71,21 +71,32 @@ export default function Reports() {
   const [error, setError] = useState(false)
   const [spin, setSpin] = useState(false)
 
+  // AbortController del fetch actual (#221): un cambio rápido de rango/n o un
+  // Refresh doble aborta la carga anterior en vuelo y descarta la respuesta
+  // vieja. En unmount se aborta.
+  const loadAc = useRef<AbortController | null>(null)
+
   async function load(r: Range, count: number) {
+    loadAc.current?.abort()
+    const ac = new AbortController()
+    loadAc.current = ac
     setLoading(true)
     setError(false)
     try {
-      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`)
+      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`, { signal: ac.signal })
       if (!res.ok) throw new Error(`status ${res.status}`)
       const env = (await res.json()) as { items: AvailabilityEntry[] }
-      setItems(env.items)
+      if (!ac.signal.aborted) setItems(env.items)
     } catch {
+      if (ac.signal.aborted) return
       setError(true)
       setItems([])
     } finally {
-      setLoading(false)
+      if (!ac.signal.aborted) setLoading(false)
     }
   }
+
+  useEffect(() => () => loadAc.current?.abort(), [])
 
   useEffect(() => {
     void load(range, n)
