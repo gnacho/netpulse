@@ -166,6 +166,7 @@ type Live struct {
 	extrasCache map[string]*extrasSnapshot
 	lastPolled  map[string]*routerPolled
 	failCount   map[string]int
+	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
 	engine      *alerts.Engine
 	wgActive    map[string]bool
 	weakAlerted map[string]int64
@@ -231,6 +232,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		extrasCache:          map[string]*extrasSnapshot{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
+		lastErr:              map[string]error{},
 		engine:               alerts.New(d, nil),
 		wgActive:             map[string]bool{},
 		weakAlerted:          map[string]int64{},
@@ -333,6 +335,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.failCount {
 		if !ids[id] {
 			delete(l.failCount, id)
+		}
+	}
+	for id := range l.lastErr {
+		if !ids[id] {
+			delete(l.lastErr, id)
 		}
 	}
 	// unknownGrace es per-MAC (no por router): se poda por ausencia en
@@ -896,6 +903,9 @@ func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 }
 
 // offlineRouter: último bueno marcado offline o placeholder (index.js:251-272).
+// issue #257: si el último fallo fue de ACCESO (el router responde pero la
+// clave SSH no está autorizada), el estado es "unreachable" + accessMissing,
+// no un "offline" de apagado/inalcanzable (config issue, no power issue).
 func (l *Live) offlineRouter(cfg RouterConfig) Router {
 	l.mu.Lock()
 	prev := l.lastGood[cfg.ID]
@@ -926,7 +936,43 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		}
 	}
 	r.Status = "offline"
+	if l.accessMissing(cfg.ID) {
+		r.Status = "unreachable"
+		r.AccessMissing = true
+	}
 	return r
+}
+
+// accessMissing: el último fallo de sondeo de este router fue de ACCESO
+// (SSH responde pero la clave no está autorizada / ubus rechaza), es decir
+// el router está vivo pero el servidor no puede entrar (issue #257).
+func (l *Live) accessMissing(routerID string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return isAccessError(l.lastErr[routerID])
+}
+
+// isAccessError: ¿el error indica que el router RESPONDE pero el acceso
+// SSH/ubus no está configurado? (handshake SSH que rechaza la clave del
+// servidor). Un fallo de conexión (refused/timeout/red) NO es un fallo de
+// acceso: ahí el router puede estar apagado o inalcanzable (issue #257).
+func isAccessError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, hint := range []string{
+		"unable to authenticate",
+		"no supported methods",
+		"permission denied",
+		"authentication failed",
+		"not authorized",
+	} {
+		if strings.Contains(msg, hint) {
+			return true
+		}
+	}
+	return false
 }
 
 // pollAll sondea todos los routers en paralelo (Promise.allSettled).
@@ -959,6 +1005,7 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		if res.err == nil {
 			polled[res.cfg.ID] = res.p
 			l.failCount[res.cfg.ID] = 0
+			delete(l.lastErr, res.cfg.ID)
 			// Persiste la bridgeMAC del router (issue #196): la exclusión de
 			// "dispositivo desconocido" no debe depender de que este router se
 			// sondee bien en el tick actual.
@@ -987,9 +1034,14 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		}
 		fails := l.failCount[res.cfg.ID] + 1
 		l.failCount[res.cfg.ID] = fails
+		l.lastErr[res.cfg.ID] = res.err
 		log.Printf("[netpulse] router %s inalcanzable (%d): %v", res.cfg.ID, fails, res.err)
-		// Alerta solo tras 2 fallos seguidos (un fallo suelto no es una caída)
-		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" {
+		// Alerta solo tras 2 fallos seguidos (un fallo suelto no es una caída).
+		// issue #257: un fallo de ACCESO (SSH responde pero la clave no está
+		// autorizada) no es una caída — el router está vivo; la UI lo marca
+		// como "sin acceso" y no merece una alerta crítica de offline.
+		accessErr := isAccessError(res.err)
+		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" && !accessErr {
 			name := res.cfg.Name
 			if name == "" {
 				name = res.cfg.Host

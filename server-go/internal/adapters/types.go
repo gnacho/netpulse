@@ -143,8 +143,12 @@ type Router struct {
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
 	Type string `json:"type,omitempty"`
-	Status     string    `json:"status"`             // "online"|"warn"|"offline"
+	Status     string    `json:"status"`             // "online"|"warn"|"offline"|"unreachable"
 	Health     int       `json:"health"`
+	// AccessMissing: el router responde pero el acceso SSH/ubus no está
+	// configurado (clave del servidor no autorizada) — issue #257. La UI lo
+	// pinta como "sin acceso" en vez de "offline" (config issue, no power).
+	AccessMissing bool `json:"accessMissing,omitempty"`
 	CPU        *int      `json:"cpu"`
 	RAM        *int      `json:"ram"`
 	Temp       *int      `json:"temp"`

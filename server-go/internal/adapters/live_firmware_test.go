@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -129,5 +130,60 @@ func TestBuildRouterFirmwareSinBoard(t *testing.T) {
 	}
 	if n := len(l.AlertsEngine().List()); n != 0 {
 		t.Fatalf("alertas=%d, esperaba 0", n)
+	}
+}
+
+// Issue #257: un gateway detectado pero SIN acceso SSH (la clave del server
+// no está autorizada) NO se muestra como "offline": status "unreachable" +
+// accessMissing true (config issue, no power issue). Un fallo de conexión
+// real (refused/timeout) sigue siendo "offline".
+func TestBuildRouterAccessMissing(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{{ID: "gw", Host: "192.168.8.1", IsGateway: true}}, nil)
+	cfg := RouterConfig{ID: "gw", Host: "192.168.8.1", IsGateway: true}
+	l.mu.Lock()
+	l.lastErr["gw"] = errors.New("ssh 192.168.8.1: handshake failed: ssh: unable to authenticate, attempted methods [none publickey]")
+	l.mu.Unlock()
+	r := l.offlineRouter(cfg)
+	if r.Status != "unreachable" || !r.AccessMissing {
+		t.Fatalf("sin acceso: status=%q accessMissing=%v", r.Status, r.AccessMissing)
+	}
+	l.mu.Lock()
+	l.lastErr["gw"] = errors.New("ssh 192.168.8.1: dial tcp 192.168.8.1:22: connect: connection refused")
+	l.mu.Unlock()
+	r = l.offlineRouter(cfg)
+	if r.Status != "offline" || r.AccessMissing {
+		t.Fatalf("caído real: status=%q accessMissing=%v", r.Status, r.AccessMissing)
+	}
+	l.mu.Lock()
+	delete(l.lastErr, "gw")
+	l.mu.Unlock()
+	r = l.offlineRouter(cfg)
+	if r.Status != "offline" {
+		t.Fatalf("sin dato previo: status=%q", r.Status)
+	}
+}
+
+func TestIsAccessError(t *testing.T) {
+	for _, m := range []string{
+		"ssh h: handshake failed: ssh: unable to authenticate, attempted methods [none publickey]",
+		"ssh h: handshake failed: ssh: no supported methods remain",
+		"ssh h: permission denied (publickey)",
+	} {
+		if !isAccessError(errors.New(m)) {
+			t.Fatalf("debería ser access error: %q", m)
+		}
+	}
+	for _, m := range []string{
+		"ssh h: dial tcp h:22: connect: connection refused",
+		"ssh h: timeout (5s)",
+		"ssh h: Process exited with status 127",
+		"",
+	} {
+		if isAccessError(errors.New(m)) {
+			t.Fatalf("no debería ser access error: %q", m)
+		}
+	}
+	if isAccessError(nil) {
+		t.Fatal("nil no es access error")
 	}
 }
