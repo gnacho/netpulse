@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -97,6 +98,27 @@ export default function Reports() {
     setN(DEFAULT_N[r])
   }
 
+  // -- pestañas WAI-ARIA (issue #229): roving tabindex + flechas + Home/End
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const onTablistKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const idx = RANGE_TABS.indexOf(range)
+      let next = idx
+      if (e.key === 'ArrowRight') next = (idx + 1) % RANGE_TABS.length
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + RANGE_TABS.length) % RANGE_TABS.length
+      else if (e.key === 'Home') next = 0
+      else if (e.key === 'End') next = RANGE_TABS.length - 1
+      else return
+      e.preventDefault()
+      const target = RANGE_TABS[next]
+      setRange(target)
+      setN(DEFAULT_N[target])
+      tabRefs.current[next]?.focus()
+    },
+    [range],
+  )
+
   // Agrupa por router y coloca los buckets en columnas (fila = router).
   const routerIds = [...new Set(items.map((i) => i.routerId))].sort()
   const buckets = [...new Set(items.map((i) => i.bucket))].sort().reverse()
@@ -165,12 +187,23 @@ export default function Reports() {
       </header>
 
       {/* ② Pestañas de rango */}
-      <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="tablist">
-        {RANGE_TABS.map((r) => (
+      <div
+        role="tablist"
+        aria-label={t('reports.rangeLabel')}
+        onKeyDown={onTablistKeyDown}
+        className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1"
+      >
+        {RANGE_TABS.map((r, i) => (
           <button
             key={r}
+            ref={(el) => {
+              tabRefs.current[i] = el
+            }}
+            id={`tab-${r}`}
             role="tab"
             aria-selected={range === r}
+            aria-controls={`panel-${r}`}
+            tabIndex={range === r ? 0 : -1}
             onClick={() => changeRange(r)}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -183,6 +216,7 @@ export default function Reports() {
       </div>
 
       {/* ③ Contenido */}
+      <div role="tabpanel" id={`panel-${range}`} aria-labelledby={`tab-${range}`} tabIndex={0}>
       {loading && items.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('reports.loading')}
@@ -274,6 +308,7 @@ export default function Reports() {
           <p className="mt-6 text-caption text-text-muted">{t('reports.footnote')}</p>
         </section>
       )}
+      </div>
     </div>
   )
 }

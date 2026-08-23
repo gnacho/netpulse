@@ -401,7 +401,8 @@
       "disconnected": "Disconnected",
       "dawn": "DAWN",
       "other": "Other"
-    }
+    },
+    "tabsLabel": "Roaming views"
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."

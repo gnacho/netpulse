@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -135,6 +136,9 @@ interface RoamEvent {
 type Band = 'all' | '2.4 GHz' | '5 GHz'
 type Tab = 'matrix' | '11r' | 'survey' | 'events'
 
+/** Orden estable de pestañas (issue #229: navegación por teclado). */
+const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events']
+
 /** Clase de color por señal (-dBm): verde óptimo, ámbar aceptable, rojo límite. */
 function signalClass(s: number): string {
   if (s >= -65) return 'bg-ok/15 text-ok ring-ok/30'
@@ -264,7 +268,6 @@ export default function Roaming() {
     void loadEvents()
     const id = window.setInterval(() => void loadEvents(), 30_000)
     return () => window.clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
   // APs visibles según el filtro de banda.
@@ -310,6 +313,26 @@ export default function Roaming() {
     { id: 'survey', label: t('roaming.tabSurvey'), soon: false },
     { id: 'events', label: t('roaming.tabEvents'), soon: false },
   ]
+
+  // -- pestañas WAI-ARIA (issue #229): roving tabindex + flechas + Home/End
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const onTablistKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const idx = TAB_IDS.indexOf(tab)
+      let next = idx
+      if (e.key === 'ArrowRight') next = (idx + 1) % TAB_IDS.length
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + TAB_IDS.length) % TAB_IDS.length
+      else if (e.key === 'Home') next = 0
+      else if (e.key === 'End') next = TAB_IDS.length - 1
+      else return
+      e.preventDefault()
+      const target = TAB_IDS[next]
+      setTab(target)
+      tabRefs.current[next]?.focus()
+    },
+    [tab],
+  )
 
   const initial = reduce ? false : { opacity: 0, y: 12 }
 
@@ -359,12 +382,23 @@ export default function Roaming() {
       </header>
 
       {/* ② Pestañas */}
-      <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="tablist">
-        {tabs.map((tb) => (
+      <div
+        role="tablist"
+        aria-label={t('roaming.tabsLabel')}
+        onKeyDown={onTablistKeyDown}
+        className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1"
+      >
+        {tabs.map((tb, i) => (
           <button
             key={tb.id}
+            ref={(el) => {
+              tabRefs.current[i] = el
+            }}
+            id={`tab-${tb.id}`}
             role="tab"
             aria-selected={tab === tb.id}
+            aria-controls={`panel-${tb.id}`}
+            tabIndex={tab === tb.id ? 0 : -1}
             onClick={() => setTab(tb.id)}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -383,14 +417,26 @@ export default function Roaming() {
         </div>
       )}
 
-      {tab === '11r' && <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />}
+      {tab === '11r' && (
+        <div role="tabpanel" id="panel-11r" aria-labelledby="tab-11r" tabIndex={0}>
+          <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />
+        </div>
+      )}
 
-      {tab === 'survey' && <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} band={surveyBand} setBand={setSurveyBand} />}
+      {tab === 'survey' && (
+        <div role="tabpanel" id="panel-survey" aria-labelledby="tab-survey" tabIndex={0}>
+          <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} band={surveyBand} setBand={setSurveyBand} />
+        </div>
+      )}
 
-      {tab === 'events' && <EventsPanel events={events} loading={eventsLoading} error={eventsError} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />}
+      {tab === 'events' && (
+        <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />
+        </div>
+      )}
 
       {tab === 'matrix' && (
-        <>
+        <div role="tabpanel" id="panel-matrix" aria-labelledby="tab-matrix" tabIndex={0}>
           {loading && (!dawn || aps.length === 0) && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.loading')}
@@ -532,7 +578,7 @@ export default function Roaming() {
               </div>
             </motion.section>
           )}
-        </>
+        </div>
       )}
     </div>
   )
