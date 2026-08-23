@@ -106,6 +106,7 @@ const I18N = {
       f7t: 'Demo mode', f7p: 'DEMO_MODE=1 gives you a full sample network of 65 devices, no routers required. Try before you install.',
       f8t: 'Latency collector', f8p: 'Optional sidecar that polls TCP latency per router, with its own long-term time series.',
       f9t: 'Native OpenWrt package', f9p: 'The agent ships as a .ipk package installed with opkg. procd init, UCI configuration, a watchdog and iw events: a first-class OpenWrt citizen running on your routers at ~12 MB RSS.',
+      f10t: 'Post-quantum TLS, fleet always current', f10p: 'Hybrid post-quantum TLS (X25519MLKEM768, Go 1.24+) on by default on the transport; fleet agents self-update from the server and the SSH key rotates without touching the routers.',
     },
     install: {
       title: 'One line to install',
@@ -222,6 +223,7 @@ const I18N = {
       f7t: 'Modo demo', f7p: 'DEMO_MODE=1 te da una red de muestra completa con 65 dispositivos, sin routers. Pruébalo antes de instalar.',
       f8t: 'Collector de latencia', f8p: 'Sidecar opcional que sondea latencia TCP por router, con sus propias series temporales de largo plazo.',
       f9t: 'Paquete nativo OpenWrt', f9p: 'El agente se distribuye como paquete .ipk para instalar con opkg. Init procd, configuración UCI, watchdog y eventos iw: un ciudadano OpenWrt de primera clase, corriendo en tus routers a ~12 MB RSS.',
+      f10t: 'TLS post-quantum y flota al día', f10p: 'TLS híbrido post-quantum (X25519MLKEM768, Go 1.24+) activado por defecto en el transporte; los agentes de tu flota se auto-actualizan desde el servidor y la llave SSH rota sin tocar los routers.',
     },
     install: {
       title: 'Una línea para instalar',
