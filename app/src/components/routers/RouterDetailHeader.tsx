@@ -84,7 +84,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, delay: 0.15 + pills.length * 0.06 }}
                 >
-                  <AgentBadge agent={agent} />
+                  <AgentBadge agent={agent} agentOnly={router.agentOnly} />
                 </motion.span>
               )}
               {agent && !agent.fresh && (

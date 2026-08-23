@@ -27,6 +27,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   const { isDemo, reinstallAgent } = useNetPulse()
   const auth = useAuth()
   const agent = useAgentFor(router.id)
+  const agentMissing = agent === undefined && router.agentOnly
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
@@ -73,11 +74,11 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   }
 
   const reinstall = async () => {
-    if (!agent || reinstallState === 'busy') return
+    if (reinstallState === 'busy') return
     if (!window.confirm(t('routerDetail.info.reinstallConfirm', { router: router.name }))) return
     setReinstallState('busy')
     setReinstallMsg('')
-    const res = await reinstallAgent(agent.slug)
+    const res = await reinstallAgent(router.id)
     if (res && !res.error) {
       setReinstallState('done')
       setReinstallMsg(res.recovered ? t('routerDetail.info.reinstallDone') : t('routerDetail.info.reinstallPending'))
@@ -160,7 +161,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('routerDetail.info.copySsh')}
         </button>
-        {agent && auth?.role === 'admin' && (
+        {(agent || router.agentOnly) && auth?.role === 'admin' && (
           <button
             onClick={() => void reinstall()}
             disabled={reinstallState === 'busy'}
@@ -170,9 +171,9 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
                 ? 'border-ok/40 bg-ok/10 text-ok'
                 : reinstallState === 'fail'
                   ? 'border-danger/40 bg-danger/10 text-danger'
-                  : agent.fresh
-                    ? 'border-border text-text-secondary hover:border-accent/40 hover:text-accent'
-                    : 'border-danger/40 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20'
+                  : agentMissing || !agent?.fresh
+                    ? 'border-danger/40 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20'
+                    : 'border-border text-text-secondary hover:border-accent/40 hover:text-accent'
             }`}
           >
             <RotateCcw className={`h-3.5 w-3.5 ${reinstallState === 'busy' ? 'animate-spin' : ''}`} strokeWidth={1.75} />

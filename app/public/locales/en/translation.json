@@ -515,7 +515,7 @@
       "freshTip": "netpulse-agent v{{version}} · pushes every 15 s",
       "freshTipUnknown": "netpulse-agent · pushes every 15 s",
       "stale": "Agent down",
-      "staleTip": "No data from agent — polling via SSH",
+      "staleTip": "Agent registered but not responding — reinstall it from the router detail",
       "rearm": "Rearm",
       "rearming": "Restarting…",
       "rearmOk": "Agent rearmed",
@@ -527,7 +527,10 @@
       "upgradeNotConnected": "Agent not connected",
       "upgradeFail": "Could not update",
       "upgradeTip": "Update from v{{version}} to the server version",
-      "downBanner": "Agent is down — reinstall it from the router detail"
+      "downBanner": "Agent is down — reinstall it from the router detail",
+      "notInstalled": "Agent not installed",
+      "notInstalledTip": "This router is configured to run agent-only, but the agent is not installed. Reinstall it from the router detail.",
+      "notInstalledBanner": "Agent not installed — reinstall it from the router detail"
     },
     "colClients": "Clients",
     "colCpu": "CPU",

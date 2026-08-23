@@ -135,6 +135,10 @@ type Router struct {
 	// FirmwareOutdated: true si hay target y el firmware instalado no lo
 	// cumple (live buildRouter). Ausente en el resto de casos.
 	FirmwareOutdated bool `json:"firmwareOutdated,omitempty"`
+	// AgentOnly: el router está configurado para funcionar SOLO con agente
+	// (sin SSH). El frontend lo usa para marcar "agente no instalado" cuando
+	// no hay agente registrado (certeza: el router no es sondeable por SSH).
+	AgentOnly bool `json:"agentOnly,omitempty"`
 	Status     string    `json:"status"`             // "online"|"warn"|"offline"
 	Health     int       `json:"health"`
 	CPU        *int      `json:"cpu"`

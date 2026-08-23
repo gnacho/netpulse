@@ -32,6 +32,8 @@ export interface Router {
   firmwareTarget?: string
   /** true = el firmware instalado no cumple el target configurado (live). */
   firmwareOutdated?: boolean
+  /** Router configurado para funcionar solo con agente (sin SSH). */
+  agentOnly?: boolean
   status: Status
   /** Salud 0–100 */
   health: number

@@ -63,6 +63,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
   const agentDown = agent !== undefined && !agent.fresh
+  const agentMissing = agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
   const isGateway = router.id === 'flint2'
   const traffic = router.sparkline.map((v, i) => ({ i, v }))
@@ -101,6 +102,14 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
           </div>
         )}
 
+        {/* Banner de agente no instalado (router agent-only sin agente registrado) */}
+        {agentMissing && (
+          <div className="mb-4 -mx-6 -mt-6 flex items-center gap-2 border-b border-danger/30 bg-danger/10 px-6 py-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-danger" strokeWidth={1.75} />
+            <span className="text-caption font-semibold text-danger">{t('routers.agent.notInstalledBanner')}</span>
+          </div>
+        )}
+
         {/* Fila superior */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3.5">
@@ -118,7 +127,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h3 className="truncate font-display text-h2 text-text-primary">{router.name}</h3>
-                <AgentBadge agent={agent} />
+                <AgentBadge agent={agent} agentOnly={router.agentOnly} />
               </div>
               <div className="truncate text-caption text-text-muted">
                 {isGateway ? 'GL.iNet Flint 2 · GL-MT6000' : `OpenWrt · ${router.modelShort}`}

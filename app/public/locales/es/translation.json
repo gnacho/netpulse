@@ -515,7 +515,7 @@
       "freshTip": "netpulse-agent v{{version}} · empuja cada 15 s",
       "freshTipUnknown": "netpulse-agent · empuja cada 15 s",
       "stale": "Agente caído",
-      "staleTip": "Sin datos del agente — sondeando por SSH",
+      "staleTip": "Agente registrado pero sin respuesta — reinstálalo desde el detalle",
       "rearm": "Rearmar",
       "rearming": "Reiniciando…",
       "rearmOk": "Agente rearmado",
@@ -527,7 +527,10 @@
       "upgradeNotConnected": "Agente no conectado",
       "upgradeFail": "No se pudo actualizar",
       "upgradeTip": "Actualizar de v{{version}} a la versión del servidor",
-      "downBanner": "Agente caído — reinstálalo desde el detalle"
+      "downBanner": "Agente caído — reinstálalo desde el detalle",
+      "notInstalled": "Agente no instalado",
+      "notInstalledTip": "El router está configurado para funcionar solo con agente, pero el agente no está instalado. Reinstálalo desde el detalle.",
+      "notInstalledBanner": "Agente no instalado — reinstálalo desde el detalle"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",
