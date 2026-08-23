@@ -62,6 +62,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const agent = useAgentFor(router.id)
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
+  const agentDown = agent !== undefined && !agent.fresh
   const reduce = useReducedMotion()
   const isGateway = router.id === 'flint2'
   const traffic = router.sparkline.map((v, i) => ({ i, v }))
@@ -89,6 +90,14 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
             <span className="text-caption font-semibold text-warn">
               {t('routers.highTemp', { temp: router.temp })}
             </span>
+          </div>
+        )}
+
+        {/* Banner de agente caído (el router tiene agente registrado pero no responde) */}
+        {agentDown && (
+          <div className="mb-4 -mx-6 -mt-6 flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-6 py-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} />
+            <span className="text-caption font-semibold text-warn">{t('routers.agent.downBanner')}</span>
           </div>
         )}
 

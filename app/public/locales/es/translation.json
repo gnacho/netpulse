@@ -526,7 +526,8 @@
       "upgradeSent": "Actualización enviada",
       "upgradeNotConnected": "Agente no conectado",
       "upgradeFail": "No se pudo actualizar",
-      "upgradeTip": "Actualizar de v{{version}} a la versión del servidor"
+      "upgradeTip": "Actualizar de v{{version}} a la versión del servidor",
+      "downBanner": "Agente caído — reinstálalo desde el detalle"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",

@@ -526,7 +526,8 @@
       "upgradeSent": "Update sent",
       "upgradeNotConnected": "Agent not connected",
       "upgradeFail": "Could not update",
-      "upgradeTip": "Update from v{{version}} to the server version"
+      "upgradeTip": "Update from v{{version}} to the server version",
+      "downBanner": "Agent is down — reinstall it from the router detail"
     },
     "colClients": "Clients",
     "colCpu": "CPU",
