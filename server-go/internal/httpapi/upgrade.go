@@ -122,7 +122,11 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 		if s.agents != nil {
 			if _, version, ok := s.agents.Info(slug); ok {
 				item.Version = version
-				if version != "" && version != agentbin.EmbeddedAgentVersion {
+				// Solo agentes nativos OpenWrt: los de type managed-switch/
+				// external son scrapers que no entienden el comando "upgrade".
+				if !s.agentUpgradeable(slug) {
+					item.Status = "not_openwrt"
+				} else if version != "" && version != agentbin.EmbeddedAgentVersion {
 					if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
 						item.Status = "sent"
 						item.Upgraded = true

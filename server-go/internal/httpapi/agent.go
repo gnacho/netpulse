@@ -345,7 +345,25 @@ type agentListItem struct {
 	// UpdateAvailable: true si el agente reportó una versión distinta de la
 	// del binario embebido (agentbin.EmbeddedAgentVersion) → hay upgrade
 	// disponible vía POST /api/agents/{slug}/upgrade (Fase 6.3, issue #243).
+	// SOLO se marca para routers OpenWrt (type openwrt/glinet): los de tipo
+	// managed-switch/external son scrapers que no usan el agente nativo.
 	UpdateAvailable bool `json:"updateAvailable"`
+}
+
+// agentUpgradeable: ¿el agente de este slug es un agente nativo OpenWrt
+// actualizable? Un slug sin router en la tabla (o con type openwrt/glinet) es
+// actualizable; los de type managed-switch/external NO (son scrapers que no
+// usan el binario netpulse-agent y no entienden el comando "upgrade").
+func (s *server) agentUpgradeable(slug string) bool {
+	if s.db == nil {
+		return true
+	}
+	var typ string
+	if err := s.db.QueryRow("SELECT type FROM routers WHERE id = ?", slug).Scan(&typ); err != nil {
+		// Sin router registrado: asumir actualizable (comportamiento previo).
+		return true
+	}
+	return typ == "openwrt" || typ == "glinet" || typ == ""
 }
 
 // handleAgentsList: slugs con token + last_seen + versión.
@@ -368,8 +386,9 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						item.LastSeen = &ts
 						item.Version = version
 						// Fase 6.3 (issue #243): upgrade disponible si el agente
-						// reporta una versión distinta del binario embebido.
-						item.UpdateAvailable = version != "" && version != agentbin.EmbeddedAgentVersion
+						// reporta una versión distinta del binario embebido y es
+						// un agente nativo OpenWrt (no un scraper).
+						item.UpdateAvailable = s.agentUpgradeable(slug) && version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
@@ -493,6 +512,13 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	}
 	if host == "" {
 		writeError(w, http.StatusConflict, "router_unknown", "no hay router con ese slug en la tabla routers")
+		return
+	}
+	// Solo agentes nativos OpenWrt: un dispositivo managed-switch/external es
+	// un scraper que no usa el binario netpulse-agent → no se reinstala así.
+	if !s.agentUpgradeable(slug) {
+		writeError(w, http.StatusConflict, "not_openwrt",
+			"este dispositivo no usa el agente nativo OpenWrt (scraper); reinstálalo con su propio mecanismo")
 		return
 	}
 
