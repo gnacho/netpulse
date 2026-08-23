@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
@@ -91,6 +91,17 @@ export default function Orchestration() {
     : agents.filter((a) => a.slug === gatewayId)
   const nonGatewaySelected = allowNonGateway && routerId !== gatewayId
 
+  // Poll de applyPlan: el id vive en un ref para limpiarlo en unmount y al
+  // generar un plan nuevo / cambiar de módulo (#220).
+  const applyPollRef = useRef<number | null>(null)
+  const stopApplyPoll = () => {
+    if (applyPollRef.current !== null) {
+      window.clearInterval(applyPollRef.current)
+      applyPollRef.current = null
+    }
+  }
+  useEffect(() => stopApplyPoll, [])
+
   // Auto-seleccionar: gateway por defecto (o el primer agente visible).
   useEffect(() => {
     if (!routerId || !visibleRouters.some((a) => a.slug === routerId)) {
@@ -118,6 +129,7 @@ export default function Orchestration() {
   }
 
   const createPlan = async () => {
+    stopApplyPoll()
     setBusy(true)
     setError('')
     setPlan(null)
@@ -159,21 +171,29 @@ export default function Orchestration() {
 
   const applyPlan = async () => {
     if (!plan) return
+    stopApplyPoll()
     setBusy(true)
     setError('')
     try {
       const res = await fetch(`/api/plans/${plan.id}/apply`, { method: 'POST' })
       if (!res.ok) throw new Error(await res.text())
       setPlan({ ...plan, status: 'applying' })
-      // Poll hasta que termine
-      const poll = setInterval(async () => {
-        const r = await fetch(`/api/plans/${plan.id}`)
-        if (!r.ok) return
-        const p: Plan = await r.json()
-        setPlan(p)
-        if (p.status !== 'applying') {
-          clearInterval(poll)
-          setBusy(false)
+      // Poll hasta que termine. El id vive en el ref para limpiarlo en unmount
+      // y al generar un plan nuevo / cambiar de módulo (#220). El cuerpo va en
+      // try/catch: un fetch que rechaza no debe quedar como promise rejection
+      // sin manejar.
+      applyPollRef.current = window.setInterval(async () => {
+        try {
+          const r = await fetch(`/api/plans/${plan.id}`)
+          if (!r.ok) return
+          const p: Plan = await r.json()
+          setPlan(p)
+          if (p.status !== 'applying') {
+            stopApplyPoll()
+            setBusy(false)
+          }
+        } catch {
+          /* el siguiente tick reintenta; no propaga */
         }
       }, 2000)
     } catch (e) {
@@ -208,7 +228,7 @@ export default function Orchestration() {
           <button
             key={m}
             type="button"
-            onClick={() => { setModule(m); setPlan(null); setError(''); setWarnCode('') }}
+            onClick={() => { stopApplyPoll(); setModule(m); setPlan(null); setBusy(false); setError(''); setWarnCode('') }}
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
               module === m
                 ? 'bg-accent text-canvas'
