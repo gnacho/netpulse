@@ -801,6 +801,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.cfg.AgentOnly {
 		r.AgentOnly = true
 	}
+	if p.cfg.Type != "" {
+		r.Type = p.cfg.Type
+	}
 	if outdatedFw {
 		r.FirmwareOutdated = true
 		// Alerta no urgente (category system); el engine aplica dedup 5 min.

@@ -34,6 +34,8 @@ export interface Router {
   firmwareOutdated?: boolean
   /** Router configurado para funcionar solo con agente (sin SSH). */
   agentOnly?: boolean
+  /** Tipo de dispositivo: "glinet"|"openwrt"|"managed-switch"|"external". */
+  type?: string
   status: Status
   /** Salud 0–100 */
   health: number

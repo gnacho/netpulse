@@ -121,7 +121,7 @@
     "leaseRenews": "renueva en {{h}} h {{min}} min",
     "leaseRenewsH": "renueva en {{h}} h",
     "memory": "Memoria",
-    "refresh": "Actualizar",
+    "refresh": "Refrescar",
     "roleAP": "AP",
     "rolePrimary": "Principal",
     "staticLease": "IP fija (reserva)",
@@ -138,7 +138,8 @@
     "viewAll": "Ver todos",
     "viewDetail": "Ver detalle de {{name}}",
     "viewDetailShort": "Ver detalle",
-    "adminOnly": "Solo administrador"
+    "adminOnly": "Solo administrador",
+    "back": "Atrás"
   },
   "devices": {
     "badges": {
@@ -554,7 +555,22 @@
     "summary": "{{total}} equipos · {{online}} online · {{warnings}} con aviso",
     "tempThreshold": "Umbral: 65 °C",
     "traffic24h": "Tráfico 24 h",
-    "trafficAria": "Tráfico de {{name}} en las últimas 24 horas"
+    "trafficAria": "Tráfico de {{name}} en las últimas 24 horas",
+    "upgradingAll": "Actualizando…",
+    "upgradeAllConfirm": "¿Actualizar los {{count}} agentes con actualización disponible? Cada router descargará el binario nuevo y reiniciará su servicio de agente.",
+    "upgradeAllFail": "No se pudo enviar la actualización de la flota.",
+    "upgradeProgress": "Actualizando agentes… {{done}}/{{total}} listos",
+    "upgradeProgressDone": "Flota actualizada ({{total}} agentes)",
+    "upgradeProgressAria": "Progreso de actualización de la flota",
+    "upgradeClose": "Cerrar",
+    "upgradeUpdated": "Actualizado",
+    "upgradeWaiting": "Actualizando…",
+    "upgradeAllHint": "{{count}} agentes desactualizados",
+    "upgradeAllShort": "Actualizar agentes",
+    "upgradeAllTitle": "¿Actualizar todos los agentes?",
+    "upgradeCancel": "Cancelar",
+    "upgradeFailed": "Sin respuesta — reinstala desde el detalle",
+    "upgradeProgressFailed": "{{failed}} agente(s) sin respuesta ({{done}}/{{total}} actualizados)"
   },
   "reports": {
     "availability": "Disponibilidad",

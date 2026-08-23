@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { Router as RouterIcon } from 'lucide-react'
+import { ArrowLeft, Router as RouterIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { roleLabel } from '@/i18n'
@@ -43,13 +43,22 @@ export function RouterDetailHeader({ router }: { router: Router }) {
           style={{ background: 'linear-gradient(90deg, #22D3EE, #A78BFA)' }}
         />
       )}
-      <nav aria-label={t('common.breadcrumb')} className="font-mono text-caption text-text-muted">
-        <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-        <span className="mx-1.5">/</span>
-        <Link to="/routers" className="transition-colors hover:text-accent">{t('nav.routers')}</Link>
-        <span className="mx-1.5">/</span>
-        <span className="text-text-secondary">{router.name}</span>
-      </nav>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          to="/routers"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+          {t('common.back')}
+        </Link>
+        <nav aria-label={t('common.breadcrumb')} className="font-mono text-caption text-text-muted">
+          <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
+          <span className="mx-1.5">/</span>
+          <Link to="/routers" className="transition-colors hover:text-accent">{t('nav.routers')}</Link>
+          <span className="mx-1.5">/</span>
+          <span className="text-text-secondary">{router.name}</span>
+        </nav>
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
@@ -84,7 +93,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, delay: 0.15 + pills.length * 0.06 }}
                 >
-                  <AgentBadge agent={agent} agentOnly={router.agentOnly} />
+                  <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} />
                 </motion.span>
               )}
               {agent && !agent.fresh && (

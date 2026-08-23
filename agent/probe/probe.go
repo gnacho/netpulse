@@ -54,11 +54,17 @@ const (
 	CmdPortStates = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
 		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1)"; done`
 	CmdBoardJSON   = "cat /etc/board.json 2>/dev/null"
-	CmdBrifMembers = "ls /sys/class/net/br-lan/brif/ 2>/dev/null"
+	CmdBrifMembers = "BR=br-lan; [ -d /sys/class/net/$BR ] || BR=br0; ls /sys/class/net/$BR/brif/ 2>/dev/null"
 	// CmdBridgeFDB: "==PORTS==" (port_no ifname) + "==MACS==" (port mac).
-	CmdBridgeFDB = `echo "==PORTS=="; for d in /sys/class/net/br-lan/brif/*; do [ -r "$d/port_no" ] && echo "$(cat $d/port_no) $(basename $d)"; done; ` +
-		`echo "==MACS=="; brctl showmacs br-lan 2>/dev/null | awk 'NR>1 && $3=="no" {print $1, $2}'`
-	CmdBridgeMAC       = "cat /sys/class/net/br-lan/address 2>/dev/null"
+	// No asume `br-lan` ni `brctl`: detecta el bridge real (br-lan o br0) y usa
+	// `bridge fdb show` como fallback cuando brctl no está (OpenWrt/GLuON
+	// modernos usan iproute2). Issue #253.
+	CmdBridgeFDB = `BR=br-lan; [ -d /sys/class/net/$BR ] || BR=br0; ` +
+		`echo "==PORTS=="; for d in /sys/class/net/$BR/brif/*; do [ -r "$d/port_no" ] && echo "$(cat $d/port_no) $(basename $d)"; done; ` +
+		`echo "==MACS=="; if command -v brctl >/dev/null 2>&1; then ` +
+		`brctl showmacs $BR 2>/dev/null | awk 'NR>1 && $3=="no" {print $1, $2}'; ` +
+		`else bridge fdb show br $BR 2>/dev/null | awk 'NF>=3 && $1!="01:" && $1!="33:33:" && $1!="ff:ff:" && $1!="00:00:00:00:00:00" {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1), $1}}'; fi`
+	CmdBridgeMAC       = "cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/br0/address 2>/dev/null"
 	CmdUbusSystemBoard = "ubus call system board"
 	CmdUbusSystemInfo  = "ubus call system info"
 	CmdUbusWireless    = "ubus call network.wireless status"
@@ -537,12 +543,14 @@ func NaturalLess(a, b string) bool {
 	return a < b
 }
 
-var fdbPortRe = regexp.MustCompile(`^(lan\d+|wan)$`)
+var fdbPortRe = regexp.MustCompile(`^(lan\d+|wan|eth\d+|swp\d+|en[a-z0-9]+)$`)
 
 // ParseBridgeFdb parsea la salida ==PORTS==/==MACS== → MAC aprendida → puerto.
+// Acepta dos formatos en ==MACS==: brctl (`<port_no> <mac>`) y
+// `bridge fdb show` (`<ifname> <mac>`, emitido por CmdBridgeFDB).
 func ParseBridgeFdb(out string) map[string]string {
 	m := map[string]string{}
-	portNames := map[string]string{}
+	portNames := map[string]string{} // port_no → ifname
 	section := byte(0)
 	for _, line := range strings.Split(out, "\n") {
 		t := strings.TrimSpace(line)
@@ -567,6 +575,7 @@ func ParseBridgeFdb(out string) map[string]string {
 				}
 			}
 			portNames[no] = name
+			portNames[name] = name // puerto también localizable por nombre (bridge fdb)
 		case 'm':
 			no, mac := p[0], p[1]
 			if port, ok := portNames[no]; ok && mac != "" && fdbPortRe.MatchString(port) {

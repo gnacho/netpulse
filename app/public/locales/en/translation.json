@@ -138,7 +138,8 @@
     "viewAll": "View all",
     "viewDetail": "View {{name}} detail",
     "viewDetailShort": "View detail",
-    "adminOnly": "Admin only"
+    "adminOnly": "Admin only",
+    "back": "Back"
   },
   "devices": {
     "badges": {
@@ -554,7 +555,22 @@
     "summary": "{{total}} routers · {{online}} online · {{warnings}} with warnings",
     "tempThreshold": "Threshold: 65 °C",
     "traffic24h": "Traffic 24 h",
-    "trafficAria": "{{name}} traffic over the last 24 hours"
+    "trafficAria": "{{name}} traffic over the last 24 hours",
+    "upgradingAll": "Updating…",
+    "upgradeAllConfirm": "Update all {{count}} agents with an available update? Each router will download the new binary and restart its agent service.",
+    "upgradeAllFail": "Could not send the fleet update.",
+    "upgradeProgress": "Updating agents… {{done}}/{{total}} done",
+    "upgradeProgressDone": "Fleet updated ({{total}} agents)",
+    "upgradeProgressAria": "Fleet upgrade progress",
+    "upgradeClose": "Close",
+    "upgradeUpdated": "Updated",
+    "upgradeWaiting": "Updating…",
+    "upgradeAllHint": "{{count}} agents outdated",
+    "upgradeAllShort": "Update agents",
+    "upgradeAllTitle": "Update all agents?",
+    "upgradeCancel": "Cancel",
+    "upgradeFailed": "No response — reinstall from router detail",
+    "upgradeProgressFailed": "{{failed}} agent(s) did not respond ({{done}}/{{total}} updated)"
   },
   "reports": {
     "availability": "Availability",

@@ -174,6 +174,35 @@ func TestParseFdbYRadios(t *testing.T) {
 	}
 }
 
+// TestParseFdbBridgeFdb — #253: formato `bridge fdb show` (puerto por nombre,
+// p. ej. eth0/eth1 en GLuON) y puertos ethernet fuera de lanN/wan.
+func TestParseFdbBridgeFdb(t *testing.T) {
+	// bridge fdb show emite "dev <ifname> <mac>" → CmdBridgeFDB lo convierte a
+	// "<ifname> <mac>"; el parser debe casar por nombre contra ==PORTS==.
+	fdb := ParseBridgeFdb("==PORTS==\n0x1 eth0\n0x2 eth1\n0x3 lan1\n==MACS==\neth0 aa:bb:cc:dd:ee:01\neth1 bb:cc:dd:ee:ff:02\nlan1 cc:dd:ee:ff:00:03\n")
+	if len(fdb) != 3 {
+		t.Fatalf("bridge fdb: esperaba 3 MACs, tengo %+v", fdb)
+	}
+	if fdb["AA:BB:CC:DD:EE:01"] != "eth0" || fdb["BB:CC:DD:EE:FF:02"] != "eth1" {
+		t.Fatalf("bridge fdb eth*: %+v", fdb)
+	}
+	if fdb["CC:DD:EE:FF:00:03"] != "lan1" {
+		t.Fatalf("bridge fdb lan1: %+v", fdb)
+	}
+}
+
+// TestParseFdbExcluyeWireless — #253: los puertos inalámbricos (phy*-ap*,
+// wlan*, bat*) no deben entrar como clientes cableados.
+func TestParseFdbExcluyeWireless(t *testing.T) {
+	fdb := ParseBridgeFdb("==PORTS==\n0x1 lan1\n0x5 phy0-ap0\n==MACS==\n1 aa:bb:cc:dd:ee:01\n5 ff:ee:dd:cc:bb:aa\n")
+	if _, ok := fdb["FF:EE:DD:CC:BB:AA"]; ok {
+		t.Fatalf("phy0-ap0 no debería contar como cableado: %+v", fdb)
+	}
+	if fdb["AA:BB:CC:DD:EE:01"] != "lan1" {
+		t.Fatalf("lan1 debería seguir: %+v", fdb)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Prober local con runner fake
 // ---------------------------------------------------------------------------

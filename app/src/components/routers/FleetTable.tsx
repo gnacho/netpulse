@@ -166,7 +166,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                       <span>
                         <span className="flex items-center gap-2">
                           <span className="font-medium text-text-primary">{r.name}</span>
-                          <AgentBadge agent={agentBySlug.get(r.id)} agentOnly={r.agentOnly} />
+                          <AgentBadge agent={agentBySlug.get(r.id)} agentOnly={r.agentOnly} deviceType={r.type} />
                         </span>
                         <span className="block text-caption text-text-muted">{r.modelShort}</span>
                       </span>
@@ -228,7 +228,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-text-primary">{r.name}</span>
-                    <AgentBadge agent={agentBySlug.get(r.id)} agentOnly={r.agentOnly} className="mt-1" />
+                    <AgentBadge agent={agentBySlug.get(r.id)} agentOnly={r.agentOnly} deviceType={r.type} className="mt-1" />
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">

@@ -12,7 +12,13 @@ interface AgentBadgeProps {
    * (rojo); sin agentOnly, simplemente no hay agente (nada que avisar).
    */
   agentOnly?: boolean
+  /** Tipo de dispositivo ("openwrt"/"glinet"/"managed-switch"/"external"). */
+  deviceType?: string
   className?: string
+}
+
+function isOpenWrtDevice(t?: string): boolean {
+  return t === undefined || t === '' || t === 'glinet' || t === 'openwrt'
 }
 
 /**
@@ -21,11 +27,13 @@ interface AgentBadgeProps {
  * - caído  → rojo, tooltip "agente registrado pero no responde" (las alertas
  *   de categoría system ya narran la caída/recuperación; aquí solo el estado).
  * - no instalado (agentOnly sin agente) → rojo, tooltip "reinstalar desde el
- *   detalle".
+ *   detalle". Solo aplica a dispositivos OpenWrt: un managed-switch/external
+ *   es un scraper, no un agente nativo.
  */
-export function AgentBadge({ agent, agentOnly, className }: AgentBadgeProps) {
+export function AgentBadge({ agent, agentOnly, deviceType, className }: AgentBadgeProps) {
   const { t } = useTranslation()
-  if (!agent && !agentOnly) return null
+  const openWrt = isOpenWrtDevice(deviceType)
+  if (!agent && !(openWrt && agentOnly)) return null
   if (!agent) {
     return (
       <span title={t('routers.agent.notInstalledTip')} className={cn('inline-flex', className)}>

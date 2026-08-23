@@ -71,7 +71,7 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
                 <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                   {roleLabel(router.roleBadge)}
                 </span>
-                <AgentBadge agent={agent} agentOnly={router.agentOnly} className="shrink-0" />
+                <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} className="shrink-0" />
               </div>
               <div className="truncate text-caption text-text-muted">{router.modelShort}</div>
             </div>

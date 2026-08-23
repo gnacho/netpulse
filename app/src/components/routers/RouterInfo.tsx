@@ -27,7 +27,10 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   const { isDemo, reinstallAgent } = useNetPulse()
   const auth = useAuth()
   const agent = useAgentFor(router.id)
-  const agentMissing = agent === undefined && router.agentOnly
+  // Solo los dispositivos OpenWrt (glinet/openwrt, o sin tipo conocido) usan
+  // el agente nativo: en managed-switch/external (scrapers) no hay reinstall.
+  const isOpenWrt = router.type === undefined || router.type === '' || router.type === 'glinet' || router.type === 'openwrt'
+  const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
@@ -161,7 +164,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('routerDetail.info.copySsh')}
         </button>
-        {(agent || router.agentOnly) && auth?.role === 'admin' && (
+        {isOpenWrt && (agent || router.agentOnly) && auth?.role === 'admin' && (
           <button
             onClick={() => void reinstall()}
             disabled={reinstallState === 'busy'}

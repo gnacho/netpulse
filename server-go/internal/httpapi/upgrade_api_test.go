@@ -148,9 +148,14 @@ func upgradeIngest(t *testing.T, ts *upgradeTestServer, token, payload string) {
 	}
 }
 
-// upgradePayload construye un payload válido con la versión dada.
+// upgradePayload construye un payload válido con la versión dada (router "patio").
 func upgradePayload(version string) string {
-	return fmt.Sprintf(`{"router":"patio","ts":%d,"version":%q,"data":{"system":{"sysinfo":{"uptime":100,"load":[0,0,0],"memory":{"total":100,"free":50,"buffered":0,"available":50}},"cpu":10,"temp":40},"wireless":{"clients":{}},"dhcp":{"leases":[]},"fdb":{"macs":{}}}}`, time.Now().Unix(), version)
+	return upgradePayloadFor("patio", version)
+}
+
+// upgradePayloadFor: igual que upgradePayload pero para un router arbitrario.
+func upgradePayloadFor(router, version string) string {
+	return fmt.Sprintf(`{"router":%q,"ts":%d,"version":%q,"data":{"system":{"sysinfo":{"uptime":100,"load":[0,0,0],"memory":{"total":100,"free":50,"buffered":0,"available":50}},"cpu":10,"temp":40},"wireless":{"clients":{}},"dhcp":{"leases":[]},"fdb":{"macs":{}}}}`, router, time.Now().Unix(), version)
 }
 
 // openStream registra una conexión SSE falsa del agente en el hub usando un
@@ -308,5 +313,62 @@ func TestAgentsListUpdateAvailable(t *testing.T) {
 	upgradeIngest(t, ts, tok, upgradePayload("9.9.9"))
 	if patio := agentItem(); patio["updateAvailable"] != true {
 		t.Fatalf("versión 9.9.9 debe dar updateAvailable=true: %v", patio)
+	}
+}
+
+// TestAgentsUpgradeAll — #251: POST /api/agents/upgrade-all.
+//   - 403 sin admin.
+//   - Con un agente conectado y desactualizado → status "sent".
+//   - Con un agente desconectado → status "not_connected".
+//   - Con un agente al día (versión == embebida) → status "up_to_date".
+func TestAgentsUpgradeAll(t *testing.T) {
+	ts := makeUpgradeTestServer(t)
+
+	// Sin admin → 403.
+	res := doReq(t, "POST", ts.URL+"/api/agents/upgrade-all", "", "")
+	if res.StatusCode != 403 && res.StatusCode != 401 {
+		t.Fatalf("sin admin: got %d want 403/401", res.StatusCode)
+	}
+
+	// "patio" desactualizado y conectado → sent.
+	st, tok := createUpgradeToken(t, ts, "patio")
+	if st != 201 {
+		t.Fatalf("create patio: %d", st)
+	}
+	upgradeIngest(t, ts, tok, upgradePayload("9.9.9"))
+	cancel, done := openStream(t, ts, "patio", tok)
+	defer func() { cancel(); <-done }()
+
+	// "otro" desactualizado pero SIN conectar → not_connected.
+	if st, tokO := createUpgradeToken(t, ts, "otro"); st != 201 {
+		t.Fatalf("create otro: %d", st)
+	} else {
+		upgradeIngest(t, ts, tokO, upgradePayloadFor("otro", "9.9.9"))
+	}
+	// "aldia" con versión == embebida → up_to_date.
+	st2, tok2 := createUpgradeToken(t, ts, "aldia")
+	if st2 != 201 {
+		t.Fatalf("create aldia: %d", st2)
+	}
+	upgradeIngest(t, ts, tok2, upgradePayloadFor("aldia", "0.1.0"))
+
+	res = doReq(t, "POST", ts.URL+"/api/agents/upgrade-all", ts.cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("upgrade-all: got %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	bySlug := map[string]string{}
+	for _, a := range body["agents"].([]any) {
+		m := a.(map[string]any)
+		bySlug[m["slug"].(string)] = m["status"].(string)
+	}
+	if bySlug["patio"] != "sent" {
+		t.Fatalf("patio debería ser sent: %v", bySlug)
+	}
+	if bySlug["otro"] != "not_connected" {
+		t.Fatalf("otro debería ser not_connected: %v", bySlug)
+	}
+	if bySlug["aldia"] != "up_to_date" {
+		t.Fatalf("al_dia debería ser up_to_date: %v", bySlug)
 	}
 }
