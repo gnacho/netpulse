@@ -62,7 +62,11 @@ func (s *server) handleMyDisplayName(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		DisplayName *string `json:"displayName"`
 	}
-	if !readJSONBody(r, &body) || body.DisplayName == nil {
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_input", `Se esperaba { "displayName": string }`)
+		return
+	}
+	if body.DisplayName == nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", `Se esperaba { "displayName": string }`)
 		return
 	}
@@ -85,8 +89,11 @@ func (s *server) handleMyLanguage(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Language string `json:"language"`
 	}
-	if !readJSONBody(r, &body) ||
-		(body.Language != "auto" && body.Language != "es" && body.Language != "en") {
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_input", "language debe ser auto|es|en")
+		return
+	}
+	if body.Language != "auto" && body.Language != "es" && body.Language != "en" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "language debe ser auto|es|en")
 		return
 	}
@@ -136,8 +143,8 @@ func (s *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Role     *string `json:"role"`
 		Language *string `json:"language"`
 	}
-	if !readJSONBody(r, &body) {
-		writeError(w, http.StatusBadRequest, "invalid_input", "Required")
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_input", "Required")
 		return
 	}
 	// Validación (orden zod: username → password → role → language)
@@ -230,7 +237,11 @@ func (s *server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password *string `json:"password"`
 	}
-	if !readJSONBody(r, &body) || body.Password == nil || len(*body.Password) < 10 || len(*body.Password) > 128 {
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_input", "password mínimo 10 caracteres")
+		return
+	}
+	if body.Password == nil || len(*body.Password) < 10 || len(*body.Password) > 128 {
 		writeError(w, http.StatusBadRequest, "invalid_input", "password mínimo 10 caracteres")
 		return
 	}

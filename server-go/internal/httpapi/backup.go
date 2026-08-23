@@ -58,8 +58,8 @@ func (s *server) registerBackupRoutes(mux *http.ServeMux) {
 			FrequencyH    *int  `json:"frequency_h"`
 			RetentionDays *int  `json:"retention_days"`
 		}
-		if !readJSONBody(r, &body) {
-			writeError(w, http.StatusBadRequest, "invalid_body")
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
 			return
 		}
 

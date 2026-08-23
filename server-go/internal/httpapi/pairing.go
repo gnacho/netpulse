@@ -94,8 +94,8 @@ type pairRequest struct {
 
 // pairResponse es lo que recibe el agente tras un pairing exitoso.
 type pairResponse struct {
-	Slug    string `json:"slug"`
-	Token   string `json:"token"`
+	Slug     string `json:"slug"`
+	Token    string `json:"token"`
 	ServerFP string `json:"server_fp"`
 }
 
@@ -109,7 +109,12 @@ func (s *server) handleAgentPair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body pairRequest
-	if !readJSONBody(r, &body) || !agentSlugRe.MatchString(body.Slug) || body.PairingToken == "" {
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body",
+			`Se esperaba { "pairing_token": "...", "slug": "<equipo>" }`)
+		return
+	}
+	if !agentSlugRe.MatchString(body.Slug) || body.PairingToken == "" {
 		writeError(w, http.StatusBadRequest, "invalid_body",
 			`Se esperaba { "pairing_token": "...", "slug": "<equipo>" }`)
 		return

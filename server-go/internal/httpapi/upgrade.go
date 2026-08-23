@@ -70,8 +70,8 @@ func (s *server) handleAgentUpgradeResult(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var body upgradeResult
-	if !readJSONBody(r, &body) {
-		writeError(w, http.StatusBadRequest, "invalid_body")
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "")
 		return
 	}
 	if body.OK {

@@ -74,8 +74,8 @@ func makeUpgradeTestServer(t *testing.T) *upgradeTestServer {
 	})
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(),
-		Hub:     sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
-		Secret:  secret, Agents: reg, AgentHub: hub, Started: time.Now(),
+		Hub:    sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
+		Secret: secret, Agents: reg, AgentHub: hub, Started: time.Now(),
 	})
 	srv := httptest.NewServer(handler)
 	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")

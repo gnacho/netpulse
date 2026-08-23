@@ -33,8 +33,8 @@ func (s *server) handleTopologyOverrideCreate(w http.ResponseWriter, r *http.Req
 		Name   string `json:"name"`
 		Parent string `json:"parent"`
 	}
-	if !readJSONBody(r, &body) {
-		writeError(w, http.StatusBadRequest, "invalid_body")
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "")
 		return
 	}
 	body.MAC = adapters.NormalizeMAC(body.MAC)
@@ -71,8 +71,8 @@ func (s *server) handleTopologyOverrideUpdate(w http.ResponseWriter, r *http.Req
 		Parent  *string `json:"parent"`
 		Enabled *bool   `json:"enabled"`
 	}
-	if !readJSONBody(r, &body) {
-		writeError(w, http.StatusBadRequest, "invalid_body")
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "")
 		return
 	}
 	if body.Kind != nil && *body.Kind != "hypervisor" && *body.Kind != "switch" && *body.Kind != "attach" {

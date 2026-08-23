@@ -305,6 +305,28 @@ func TestRateLimitQuintoFallo(t *testing.T) {
 	}
 }
 
+func TestOversizedBodyReturns413(t *testing.T) {
+	// Issue #215: un body mayor que maxBodyBytes responde 413 payload_too_large
+	// (no 400 invalid_body) con el writer real en MaxBytesReader.
+	srv := makeTestServer(t)
+	big := `{"username":"admin","password":"` + strings.Repeat("a", (64<<10)+100) + `"}`
+	req, _ := http.NewRequest("POST", srv.URL+"/api/auth/login", strings.NewReader(big))
+	res, _ := http.DefaultClient.Do(req)
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("body > maxBodyBytes: got %d want 413", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["error"] != "payload_too_large" {
+		t.Fatalf("error: %v", body)
+	}
+	// Un JSON mal formado pero pequeño sigue siendo 400 invalid_body.
+	req2, _ := http.NewRequest("POST", srv.URL+"/api/auth/login", strings.NewReader(`not-json`))
+	res2, _ := http.DefaultClient.Do(req2)
+	if res2.StatusCode != http.StatusBadRequest || readJSON(t, res2)["error"] != "invalid_body" {
+		t.Fatalf("JSON inválido: got %d want 400 invalid_body", res2.StatusCode)
+	}
+}
+
 func TestLoginInvalidBody400(t *testing.T) {
 	srv := makeTestServer(t)
 	for _, payload := range []string{`not-json`, `{}`, `{"username":"admin"}`, `{"username":1,"password":"x"}`} {

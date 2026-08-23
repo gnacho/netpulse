@@ -22,7 +22,11 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Username *string `json:"username"`
 		Password *string `json:"password"`
 	}
-	if !readJSONBody(r, &body) || body.Username == nil || body.Password == nil ||
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", `Se esperaba { "username": string, "password": string }`)
+		return
+	}
+	if body.Username == nil || body.Password == nil ||
 		len(*body.Username) < 1 || len(*body.Username) > 64 || len(*body.Password) < 1 {
 		writeError(w, http.StatusBadRequest, "invalid_body",
 			`Se esperaba { "username": string, "password": string }`)

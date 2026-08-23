@@ -32,7 +32,12 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			Diff     []executor.Op   `json:"diff"`
 			Desired  json.RawMessage `json:"desired"`
 		}
-		if !readJSONBody(r, &body) || body.RouterID == "" || body.Resource == "" {
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body",
+				`Se esperaba { "routerId": "...", "resource": "adguard", "desired": {...} }`)
+			return
+		}
+		if body.RouterID == "" || body.Resource == "" {
 			writeError(w, http.StatusBadRequest, "invalid_body",
 				`Se esperaba { "routerId": "...", "resource": "adguard", "desired": {...} }`)
 			return
@@ -169,7 +174,11 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			PlanID string               `json:"planId"`
 			Result executor.ApplyResult `json:"result"`
 		}
-		if !readJSONBody(r, &body) || body.PlanID == "" {
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
+			return
+		}
+		if body.PlanID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_body")
 			return
 		}

@@ -42,8 +42,8 @@ type pushSubscribeBody struct {
 // actualizó una existente (la app solo exige res.ok).
 func (s *server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 	var body pushSubscribeBody
-	if !readJSONBody(r, &body) {
-		writeError(w, http.StatusBadRequest, "invalid_body", "JSON esperado: {endpoint, keys:{auth, p256dh}}")
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "JSON esperado: {endpoint, keys:{auth, p256dh}}")
 		return
 	}
 	body.Endpoint = strings.TrimSpace(body.Endpoint)
@@ -77,7 +77,11 @@ func (s *server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Endpoint string `json:"endpoint"`
 	}
-	if !readJSONBody(r, &body) || strings.TrimSpace(body.Endpoint) == "" {
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "endpoint es obligatorio")
+		return
+	}
+	if strings.TrimSpace(body.Endpoint) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_body", "endpoint es obligatorio")
 		return
 	}

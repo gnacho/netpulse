@@ -28,7 +28,9 @@ func getPairingToken(t *testing.T, ts *agentTestServer) string {
 	if res.StatusCode != 200 {
 		t.Fatalf("pairing token status: %d", res.StatusCode)
 	}
-	var body struct{ Token string `json:"token"` }
+	var body struct {
+		Token string `json:"token"`
+	}
 	json.NewDecoder(res.Body).Decode(&body)
 	if body.Token == "" {
 		t.Fatal("pairing token vacío")
@@ -115,7 +117,9 @@ func TestPairingRotateChangesToken(t *testing.T) {
 	if res.StatusCode != 200 {
 		t.Fatalf("rotate status: %d", res.StatusCode)
 	}
-	var body struct{ Token string `json:"token"` }
+	var body struct {
+		Token string `json:"token"`
+	}
 	json.NewDecoder(res.Body).Decode(&body)
 	if body.Token == "" || body.Token == old {
 		t.Fatalf("rotate should generate a new token: old=%s new=%s", old, body.Token)

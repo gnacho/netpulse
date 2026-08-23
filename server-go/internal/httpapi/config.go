@@ -110,8 +110,8 @@ func validateHost(host string) (string, string) {
 // POST /api/config/routers — añadir router manualmente desde Ajustes.
 func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	var in routerInput
-	if !readJSONBody(r, &in) {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+	if st := readJSONBody(w, r, &in); st != 0 {
+		writeBodyError(w, st, "invalid_json", "")
 		return
 	}
 	// Orden de validación del schema zod: name, host, type
@@ -181,8 +181,8 @@ func (s *server) handleDeleteConfigRouter(w http.ResponseWriter, r *http.Request
 func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var in routerInput
-	if !readJSONBody(r, &in) {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+	if st := readJSONBody(w, r, &in); st != 0 {
+		writeBodyError(w, st, "invalid_json", "")
 		return
 	}
 	var name *string
@@ -275,8 +275,8 @@ type adguardInput struct {
 // PUT /api/config/adguard — upsert en kv (password solo si viene). 204.
 func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) {
 	var in adguardInput
-	if !readJSONBody(r, &in) {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+	if st := readJSONBody(w, r, &in); st != 0 {
+		writeBodyError(w, st, "invalid_json", "")
 		return
 	}
 	if in.Host == nil {
