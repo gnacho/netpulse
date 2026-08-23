@@ -17,12 +17,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      # Versión del agente embebido en el servidor. Se inyecta igual en el
-      # binario del agente (main.Version) y en el servidor
-      # (agentbin.EmbeddedAgentVersion vía .goreleaser.yaml): alimenta el
-      # campo updateAvailable de GET /api/agents. Bumpear en un solo sitio.
-      AGENT_VERSION: "0.1.0"
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +32,20 @@ jobs:
           cache-dependency-path: |
             server-go/go.sum
             collector/go.sum
+
+      # Versión del agente embebido en el servidor. Deriva del tag (v2.11.1 →
+      # 2.11.1) y se inyecta igual en el binario del agente (main.Version) y en
+      # el servidor (agentbin.EmbeddedAgentVersion vía .goreleaser.yaml):
+      # alimenta el campo updateAvailable de GET /api/agents. Con
+      # workflow_dispatch (sin tag) cae a 0.0.0 para snapshots de prueba.
+      - name: Resuelve AGENT_VERSION desde el tag
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "agent=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "agent=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build frontend + copia dist al embed (necesario para go:embed y tests)
         run: |
@@ -57,11 +65,11 @@ jobs:
         run: |
           set -e
           # amd64
-          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
           # arm64
-          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
           # armv7
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
 
       - name: Valida config goreleaser
         uses: goreleaser/goreleaser-action@v6
@@ -77,6 +85,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_VERSION: ${{ steps.version.outputs.agent }}
 
       - name: Release (workflow_dispatch — snapshot sin publicar)
         if: github.ref_type != 'tag'
@@ -86,3 +95,4 @@ jobs:
           args: release --clean --snapshot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_VERSION: ${{ steps.version.outputs.agent }}
