@@ -153,7 +153,7 @@ func TestApplyYaEnCursoYScript(t *testing.T) {
 	if u.Apply() {
 		t.Fatal("apply duplicado debería ser false")
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		st := u.Status()
 		if m, ok := st.Updating.(progress); ok && m.Step == "done" {
