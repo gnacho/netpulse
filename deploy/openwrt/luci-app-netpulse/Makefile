@@ -13,8 +13,10 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-netpulse
-PKG_VERSION:=2.7.2
-PKG_RELEASE:=1
+# ?= so the CI can override the version from the release tag via the env
+# (PKG_VERSION / PKG_RELEASE); falls back to these defaults for local builds.
+PKG_VERSION?=2.7.2
+PKG_RELEASE?=1
 
 PKG_LICENSE:=AGPL-3.0-only
 PKG_MAINTAINER:=Nacho <netpulse@cloudless.club>
