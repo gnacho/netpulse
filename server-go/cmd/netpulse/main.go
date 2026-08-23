@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -47,6 +48,38 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 	"github.com/gnacho/netpulse/server-go/internal/webhook"
 )
+
+// Timeouts de http.Server (issue #210): ReadTimeout/WriteTimeout acotan una
+// conexión lenta (slowloris) sin cuerpo. Los endpoints SSE (/api/stream y
+// /api/agents/{slug}/stream) son conexiones largas que escriben de forma
+// continua: su write deadline se extiende vía http.ResponseController antes
+// de delegar en el handler (con WriteTimeout plano, la conexión moriría a los
+// 15 s aunque hubiera heartbeats).
+const (
+	serverReadTimeout  = 15 * time.Second
+	serverWriteTimeout = 15 * time.Second
+	sseWriteTimeout    = 24 * time.Hour
+)
+
+// isSSEStreamPath devuelve true para los endpoints SSE de larga duración.
+func isSSEStreamPath(p string) bool {
+	if p == "/api/stream" {
+		return true
+	}
+	return strings.HasPrefix(p, "/api/agents/") && strings.HasSuffix(p, "/stream")
+}
+
+// withSSEWriteTimeout extiende el write deadline para los endpoints SSE: el
+// server lo fija a WriteTimeout al leer la petición y, sin este override, una
+// conexión SSE se cerraría a los 15 s.
+func withSSEWriteTimeout(next http.Handler, long time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSSEStreamPath(r.URL.Path) {
+			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(long))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -352,8 +385,10 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           handler,
+		Handler:           withSSEWriteTimeout(handler, sseWriteTimeout),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
 		IdleTimeout:       2 * time.Minute,
 	}
 
