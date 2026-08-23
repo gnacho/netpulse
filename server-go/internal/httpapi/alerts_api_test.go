@@ -46,7 +46,7 @@ func alertItems(t *testing.T, res *http.Response) []map[string]any {
 
 func TestAlertsContractFields(t *testing.T) {
 	ts := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 
 	res := get(t, ts.URL, "/api/alerts", cookie)
 	items := alertItems(t, res)
@@ -94,7 +94,7 @@ func TestAlertsContractFields(t *testing.T) {
 
 func TestAlertsConfigEndpoints(t *testing.T) {
 	ts := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 
 	res := get(t, ts.URL, "/api/alerts/config", cookie)
 	cfg := readJSON(t, res)
@@ -144,7 +144,7 @@ func TestAlertsConfigEndpoints(t *testing.T) {
 
 func TestAlertsReadEndpoints(t *testing.T) {
 	ts := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 
 	unreadOf := func() float64 {
 		res := get(t, ts.URL, "/api/overview", cookie)
@@ -187,7 +187,7 @@ func TestAlertsReadEndpoints(t *testing.T) {
 // writeJSON sin '\n' final (paridad D5, SPEC-ALERTAS §4).
 func TestAlertsNoTrailingNewline(t *testing.T) {
 	ts := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	res := get(t, ts.URL, "/api/alerts/config", cookie)
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)

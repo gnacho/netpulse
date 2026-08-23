@@ -21,7 +21,7 @@ func testDB(t *testing.T) *db.DB {
 }
 
 func testCfg() *config.Config {
-	return &config.Config{AuthUser: "admin", AuthPass: "test1234", CookieSecure: "auto"}
+	return &config.Config{AuthUser: "admin", AuthPass: "test123456", CookieSecure: "auto"}
 }
 
 func TestSignVerifyRoundtrip(t *testing.T) {
@@ -176,6 +176,146 @@ func TestRateLimitFifthFailArmsLock(t *testing.T) {
 	LoginOk(d, newReq())
 	if limited, _ := LoginRateLimited(d, newReq()); limited {
 		t.Fatal("LoginOk debe limpiar el bloqueo")
+	}
+}
+
+func TestLoginAttemptsDecayTrasLockExpired(t *testing.T) {
+	// Issue #211: tras expirar el lockout (5 min), un fallo suelto ya NO
+	// rearma el bloqueo — la cuenta decae a 1.
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	d := testDB(t)
+	newReq := func() *http.Request {
+		r := httptest.NewRequest("POST", "/api/auth/login", nil)
+		r.Header.Set("X-Forwarded-For", "10.9.9.9, 10.0.0.1")
+		return r
+	}
+	for i := 0; i < 5; i++ {
+		RegisterLoginFail(d, newReq())
+	}
+	if limited, _ := LoginRateLimited(d, newReq()); !limited {
+		t.Fatal("tras 5 fallos debe estar bloqueado")
+	}
+	// El lockout expira.
+	_, _ = d.Exec("UPDATE login_attempts SET locked_until = ? WHERE ip = '10.9.9.9'", db.NowMS()-1)
+	// Un fallo suelto tras la expiración no rearma el lockout.
+	RegisterLoginFail(d, newReq())
+	if limited, _ := LoginRateLimited(d, newReq()); limited {
+		t.Fatal("un fallo tras expirar el lockout no debe rearmarlo")
+	}
+	var attempts int
+	var lockedUntil int64
+	if err := d.QueryRow("SELECT attempts, locked_until FROM login_attempts WHERE ip = '10.9.9.9'").
+		Scan(&attempts, &lockedUntil); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 1 || lockedUntil != 0 {
+		t.Fatalf("tras el decay esperaba attempts=1 locked_until=0, got %d %d", attempts, lockedUntil)
+	}
+}
+
+func TestLoginAttemptsRearmanTrasBurstNuevo(t *testing.T) {
+	// Issue #211: tras el decay, una ráfaga nueva de 5 fallos vuelve a
+	// armar el bloqueo (no se queda desarmado para siempre).
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	d := testDB(t)
+	newReq := func() *http.Request {
+		r := httptest.NewRequest("POST", "/api/auth/login", nil)
+		r.Header.Set("X-Forwarded-For", "10.9.9.9, 10.0.0.1")
+		return r
+	}
+	for i := 0; i < 5; i++ {
+		RegisterLoginFail(d, newReq())
+	}
+	_, _ = d.Exec("UPDATE login_attempts SET locked_until = ? WHERE ip = '10.9.9.9'", db.NowMS()-1)
+	// Decay: primer fallo tras la expiración resetea a 1.
+	RegisterLoginFail(d, newReq())
+	if limited, _ := LoginRateLimited(d, newReq()); limited {
+		t.Fatal("el primer fallo tras expirar no debe rearmar")
+	}
+	// Ráfaga nueva completa: 5 fallos seguidos vuelven a armar el lockout.
+	for i := 0; i < 5; i++ {
+		RegisterLoginFail(d, newReq())
+	}
+	if limited, _ := LoginRateLimited(d, newReq()); !limited {
+		t.Fatal("una ráfaga nueva de 5 fallos debe rearmar el lockout")
+	}
+}
+
+func TestRequireSameOrigin(t *testing.T) {
+	// Issue #213: mutaciones (POST/PUT/DELETE) validan Origin contra el host.
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	h := RequireSameOrigin(next)
+
+	// POST sin Origin (cliente no-navegador) → pasa.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("POST sin Origin debe pasar, got %d", rec.Code)
+	}
+
+	// POST con Origin == Host → pasa.
+	req := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req.Header.Set("Origin", "http://192.168.1.226:3000")
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusNoContent {
+		t.Fatalf("POST Origin==Host debe pasar, got %d", rec2.Code)
+	}
+
+	// POST con Origin distinto → 403 cross_origin.
+	req2 := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req2.Header.Set("Origin", "https://evil.example")
+	rec3 := httptest.NewRecorder()
+	h.ServeHTTP(rec3, req2)
+	if rec3.Code != http.StatusForbidden {
+		t.Fatalf("POST Origin distinto debe dar 403, got %d", rec3.Code)
+	}
+
+	// POST con Origin null (iframe sandbox) → 403.
+	req3 := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req3.Header.Set("Origin", "null")
+	rec4 := httptest.NewRecorder()
+	h.ServeHTTP(rec4, req3)
+	if rec4.Code != http.StatusForbidden {
+		t.Fatalf("POST Origin null debe dar 403, got %d", rec4.Code)
+	}
+
+	// GET no se valida (no es mutación).
+	req4 := httptest.NewRequest("GET", "http://192.168.1.226:3000/api/x", nil)
+	req4.Header.Set("Origin", "https://evil.example")
+	rec5 := httptest.NewRecorder()
+	h.ServeHTTP(rec5, req4)
+	if rec5.Code != http.StatusNoContent {
+		t.Fatalf("GET con Origin distinto no debe validarse, got %d", rec5.Code)
+	}
+
+	// Sec-Fetch-Site: cross-site sin Origin → 403.
+	req5 := httptest.NewRequest("POST", "http://192.168.1.226:3000/api/x", nil)
+	req5.Header.Set("Sec-Fetch-Site", "cross-site")
+	rec6 := httptest.NewRecorder()
+	h.ServeHTTP(rec6, req5)
+	if rec6.Code != http.StatusForbidden {
+		t.Fatalf("POST Sec-Fetch-Site=cross-site debe dar 403, got %d", rec6.Code)
+	}
+}
+
+func TestEffectiveHostConfiaEnXFH(t *testing.T) {
+	// Con TRUST_PROXY, X-Forwarded-Host (primer valor) es el host efectivo.
+	SetTrustProxy(true)
+	t.Cleanup(func() { SetTrustProxy(false) })
+	r := httptest.NewRequest("POST", "http://internal:3000/api/x", nil)
+	r.Header.Set("X-Forwarded-Host", "netpulse.example.com, internal:3000")
+	if got := effectiveHost(r); got != "netpulse.example.com" {
+		t.Fatalf("effectiveHost con XFH: %q", got)
+	}
+	// Sin TRUST_PROXY, XFH se ignora.
+	SetTrustProxy(false)
+	if got := effectiveHost(r); got != "internal:3000" {
+		t.Fatalf("effectiveHost sin TRUST_PROXY: %q", got)
 	}
 }
 

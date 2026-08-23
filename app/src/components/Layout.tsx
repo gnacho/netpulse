@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -197,7 +197,9 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
   const { t } = useTranslation()
   const items = useVisibleNavItems()
   const main = items.filter((i) => i.to !== '/settings')
-  const settings = items[items.length - 1]
+  // Settings siempre es el último ítem de NAV_ITEMS y los filtros de
+  // useVisibleNavItems nunca lo quitan → garantizado definido.
+  const settings = items[items.length - 1]!
 
   if (collapsed) {
     // Sidebar colapsado = raíl de iconos en lg (persiste en localStorage)
@@ -423,12 +425,21 @@ function Topbar() {
   const { refresh: refreshData } = useNetPulse()
   const [spinning, setSpinning] = useState(false)
   const location = useLocation()
+  // Timer del spin del botón de refresh (#227): limpiado en unmount.
+  const spinTimer = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+  }, [])
 
   const onRefresh = () => {
     setSpinning(true)
     refresh()
     refreshData()
-    window.setTimeout(() => setSpinning(false), 450)
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+    spinTimer.current = window.setTimeout(() => {
+      spinTimer.current = null
+      setSpinning(false)
+    }, 450)
   }
 
   return (

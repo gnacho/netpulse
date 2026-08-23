@@ -289,7 +289,11 @@ func (s *server) handleAgentsCreate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Slug string `json:"slug"`
 	}
-	if !readJSONBody(r, &body) || !agentSlugRe.MatchString(body.Slug) {
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", `Se esperaba { "slug": "<equipo>" } (a-z, 0-9, guiones)`)
+		return
+	}
+	if !agentSlugRe.MatchString(body.Slug) {
 		writeError(w, http.StatusBadRequest, "invalid_body",
 			`Se esperaba { "slug": "<equipo>" } (a-z, 0-9, guiones)`)
 		return

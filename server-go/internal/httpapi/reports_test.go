@@ -43,7 +43,7 @@ type weeklyReportEntry struct {
 
 func getWeekly(t *testing.T, ts *testServer, weeks string) (int, []weeklyReportEntry) {
 	t.Helper()
-	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	url := ts.URL + "/api/reports/weekly"
 	if weeks != "" {
 		url += "?weeks=" + weeks

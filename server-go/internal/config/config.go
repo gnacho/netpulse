@@ -184,9 +184,16 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 
 	// AUTH_PASS: obligatoria (fail-fast) aunque ya existan usuarios — salvo
 	// en on-box, donde el bootstrap R4 genera una si falta (cmd/netpulse).
+	// Longitud mínima 10, igual que la policy de los endpoints de cambio
+	// (issue #216): un seed corto crearía un admin con contraseña trivial sin
+	// que nadie lo valide después.
 	authPass := ""
 	if v, ok := env["AUTH_PASS"]; ok && v != "" {
-		authPass = v
+		if len(v) < 10 {
+			errs.issues = append(errs.issues, issue{"AUTH_PASS", "String must contain at least 10 character(s)"})
+		} else {
+			authPass = v
+		}
 	} else if !onbox {
 		errs.issues = append(errs.issues, issue{"AUTH_PASS", "Required"})
 	}

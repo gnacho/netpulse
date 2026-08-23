@@ -130,7 +130,7 @@ Other OpenWrt devices should work, but yours would be the first to tell.
 | **8 — Consolidation** | ✅ | `/api/health` metrics, persistent agent registry, retention ladder (raw 7d → 5min buckets 1y → daily ∞), recharts v3, outgoing alert webhooks |
 | **9 — On-box** | ✅ | UCI config, AUTH_PASS bootstrap, TLS self-signed + SPKI pinning, pairing token, OpenWrt server package |
 | **10 — Orchestration** | 🔄 | Plan→apply→state engine + sandboxed agent executor (10.1), AdGuard module (10.2). WireGuard/DAWN-write deferred to Phase 17 |
-| **11 — LuCI package** | ✅ | `luci-app-netpulse`: local agent status/view (procd, UCI, logs, restart/rearm) + bridge to the web app |
+| **11 — LuCI package** | ✅ | `luci-app-netpulse` shipped as `.ipk`/`.apk` on every release: local agent status/view (procd, UCI, logs, restart/rearm) + bridge to the web app |
 | **12 — Security audit** | ✅ | TRUST_PROXY, anti-replay on ingest, body cap, password min 10 |
 | **13 — Robustness audit** | ✅ | Single-flight GetOverview, SSE write deadline, sshpool dial race, error wrapping |
 | **14 — WiFi/roaming visibility** | ✅ | DAWN signal matrix, 802.11r status per SSID, channel utilization survey, persistent roaming events feed (30d) |
@@ -171,6 +171,34 @@ Settings. Authorize it on each router you want to monitor
 (`/etc/dropbear/authorized_keys`). The gateway is auto-detected on first
 boot via LAN discovery (TCP :22 sweep, ubus/GL-UI fingerprint); the rest
 are added from Settings. Polling is strictly read-only.
+
+## OpenWrt packages
+
+Every `v*` release ships the agent and the LuCI app as installable OpenWrt
+packages alongside the tarballs:
+
+- `netpulse-agent` as `.ipk` (OpenWrt 24.10 SDK, mediatek/filogic) and `.apk`
+  (OpenWrt 25.12 SDK, qualcommax/ipq807x).
+- `luci-app-netpulse` as `.ipk` and `.apk` (`all` arch, any target): LuCI
+  pages that show the local agent status, let you restart it, edit its UCI
+  config and jump to the NetPulse web app.
+
+Grab the assets from the
+[latest release](https://github.com/gnacho/netpulse/releases) and install on
+the router (LuCI System > Software, or over SSH):
+
+```sh
+# OpenWrt 24.10 (ipk)
+opkg install ./netpulse-agent_*.ipk ./luci-app-netpulse_*.ipk
+
+# OpenWrt 25.12 (apk)
+apk add --allow-untrusted ./netpulse-agent_*.apk ./luci-app-netpulse_*.apk
+```
+
+`luci-app-netpulse` depends on `netpulse-agent` and `luci-base`; installing
+both packages together resolves the dependencies without extra feeds. After
+install, LuCI picks up the new pages automatically (the package restarts
+`rpcd` and clears the index cache).
 
 ## Development
 

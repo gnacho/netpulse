@@ -21,7 +21,7 @@ func TestDeviceEventsProtegido(t *testing.T) {
 	}
 
 	// Login y siembra de 2 eventos (la tabla la crea el schema al arrancar).
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if _, err := srv.db.Exec(
 		"INSERT INTO device_events (ts_ms, mac, router_id, state, signal_dbm) VALUES (?,?,?,?,?), (?,?,?,?,?)",
 		1000, "AA:BB:CC:DD:EE:01", "rt1", "offline", nil,
@@ -57,7 +57,7 @@ func TestDeviceEventsFiltros(t *testing.T) {
 	); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// Filtro state=online → 1.
 	res := get(t, srv.URL, "/api/device-events?state=online", cookie)

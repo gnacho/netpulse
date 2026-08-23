@@ -1,4 +1,4 @@
-# luci-app-netpulse — OpenWrt Makefile (Fase 11)
+# luci-app-netpulse OpenWrt Makefile (Fase 11)
 # Paquete LuCI de solo ficheros (JS/JSON/ucode, PKGARCH:=all): vista de nodo
 # del agente NetPulse. Makefile plano a propósito (no luci.mk): construye en
 # el SDK pelado igual que netpulse-agent, sin necesitar el feed luci en el
@@ -13,8 +13,10 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-netpulse
-PKG_VERSION:=2.7.2
-PKG_RELEASE:=1
+# ?= so the CI can override the version from the release tag via the env
+# (PKG_VERSION / PKG_RELEASE); falls back to these defaults for local builds.
+PKG_VERSION?=2.7.2
+PKG_RELEASE?=1
 
 PKG_LICENSE:=AGPL-3.0-only
 PKG_MAINTAINER:=Nacho <netpulse@cloudless.club>

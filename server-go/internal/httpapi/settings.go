@@ -89,8 +89,8 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 		var body struct {
 			Enabled bool `json:"enabled"`
 		}
-		if !readJSONBody(r, &body) {
-			writeError(w, http.StatusBadRequest, "invalid_body")
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
 			return
 		}
 		if err := kvSetBool(s.db.DB, orchestrationKey, body.Enabled); err != nil {
@@ -115,8 +115,8 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 	// PUT /api/settings/wanspeed — guarda ambas velocidades (down y up).
 	mux.Handle("PUT /api/settings/wanspeed", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body wanSpeedResponse
-		if !readJSONBody(r, &body) {
-			writeError(w, http.StatusBadRequest, "invalid_body")
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
 			return
 		}
 		if body.DownMbps == nil || body.UpMbps == nil {
@@ -191,8 +191,8 @@ func (s *server) registerKnownMacsRoutes(mux *http.ServeMux) {
 	// PUT /api/settings/known-macs — alta o actualización de una MAC.
 	mux.Handle("PUT /api/settings/known-macs", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body knownMacItem
-		if !readJSONBody(r, &body) {
-			writeError(w, http.StatusBadRequest, "invalid_body")
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
 			return
 		}
 		mac, ok := validMAC(body.MAC)

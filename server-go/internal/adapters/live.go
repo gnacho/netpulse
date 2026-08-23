@@ -33,6 +33,10 @@ func fmtUptime(sec float64) string {
 	return fmt.Sprintf("%dd %dh", d, h)
 }
 
+// bptr: puntero a bool (el view-model usa *bool para distinguir "ausente" de
+// "false" explícito, p.ej. Router.LldpAvailable).
+func bptr(v bool) *bool { return &v }
+
 // mbps: bps → Mbps 1 decimal (null → 0).
 func mbps(bps *float64) float64 {
 	if bps == nil {
@@ -109,6 +113,9 @@ type routerPolled struct {
 	backhaul string
 	// lldp: vecinos LLDP del tier lento (nil = sin lldpd o sonda fallida).
 	lldp []LldpNeighbor
+	// lldpUnavailable: lldpd no está instalado en este router (issue #247) →
+	// el view-model expone `lldpAvailable:false` para el hint de instalación.
+	lldpUnavailable bool
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -133,9 +140,12 @@ type backhaulCacheEntry struct {
 const lldpCacheTTL = 45 * time.Second
 
 // lldpCacheEntry: vecinos LLDP cacheados por router (nil = sin datos).
+// unavailable=true cuando lldpd NO está instalado en el router (ErrLldpUnavailable);
+// la UI lo usa para el hint "instala lldpd" (issue #247).
 type lldpCacheEntry struct {
-	neighbors []LldpNeighbor
-	at        time.Time
+	neighbors   []LldpNeighbor
+	unavailable bool
+	at          time.Time
 }
 
 // Live es el Snapshotter del modo live.
@@ -149,30 +159,37 @@ type Live struct {
 	gatewayCfg *RouterConfig
 	clients    map[string]*OpenWrtClient
 
-	lastGood       map[string]*Router
-	lastStatus     map[string]string
-	boardCache     map[string]*BoardInfo
-	layoutCache    map[string][]PortLayout
-	extrasCache    map[string]*extrasSnapshot
-	lastPolled     map[string]*routerPolled
-	failCount      map[string]int
-	engine         *alerts.Engine
-	wgActive       map[string]bool
-	weakAlerted    map[string]int64
-	onlineMacs     map[string]bool
+	lastGood    map[string]*Router
+	lastStatus  map[string]string
+	boardCache  map[string]*BoardInfo
+	layoutCache map[string][]PortLayout
+	extrasCache map[string]*extrasSnapshot
+	lastPolled  map[string]*routerPolled
+	failCount   map[string]int
+	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
+	engine      *alerts.Engine
+	wgActive    map[string]bool
+	weakAlerted map[string]int64
+	onlineMacs  map[string]bool
+	// unknownGrace: ticks consecutivos online+sin nombre (Name == MAC) por
+	// MAC. unknownAlerted: MACs que ya dispararon la alerta de desconocido
+	// (issue #248, persistido en kv: cada MAC alerta UNA sola vez).
+	unknownGrace    map[string]int
+	unknownAlerted  map[string]bool
+	unknownGraceNum int // ticks antes de declarar desconocido (default 3, #234)
 	// Presencia wireless (issue #184): devicePresence = MAC → online del
 	// último ciclo evaluado; presenceMisses = ticks seguidos sin verse.
 	// presenceSeen evita la avalancha del primer ciclo (anti-arranque).
-	presenceSeen        bool
-	devicePresence      map[string]bool
-	presenceMisses      map[string]int
+	presenceSeen         bool
+	devicePresence       map[string]bool
+	presenceMisses       map[string]int
 	presenceOfflineAfter int // ticks sin verse antes de declarar offline (default 3)
 	// dawnAvailable: cache de "¿hay DAWN en algún router?" para el flag del
 	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
 	// al gateway) por dawnAvailableCached para no bloquear buildOverview.
-	dawnAvailable bool
-	dawnCheckedAt time.Time
-	dawnChecking  bool
+	dawnAvailable  bool
+	dawnCheckedAt  time.Time
+	dawnChecking   bool
 	seenOnlineMacs bool
 	wanDown        map[string]int
 	backhaulCache  map[string]backhaulCacheEntry
@@ -205,28 +222,32 @@ type sfCall struct {
 // NewLive crea el adapter live (db puede ser nil en tests).
 func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool) *Live {
 	l := &Live{
-		cfg:           cfg,
-		db:            d,
-		pool:          pool,
-		lastGood:      map[string]*Router{},
-		lastStatus:    map[string]string{},
-		boardCache:    map[string]*BoardInfo{},
-		layoutCache:   map[string][]PortLayout{},
-		extrasCache:   map[string]*extrasSnapshot{},
-		lastPolled:    map[string]*routerPolled{},
-		failCount:     map[string]int{},
-		engine:        alerts.New(d, nil),
-		wgActive:      map[string]bool{},
-		weakAlerted:   map[string]int64{},
-		onlineMacs:    map[string]bool{},
-		devicePresence: map[string]bool{},
-		presenceMisses: map[string]int{},
+		cfg:                  cfg,
+		db:                   d,
+		pool:                 pool,
+		lastGood:             map[string]*Router{},
+		lastStatus:           map[string]string{},
+		boardCache:           map[string]*BoardInfo{},
+		layoutCache:          map[string][]PortLayout{},
+		extrasCache:          map[string]*extrasSnapshot{},
+		lastPolled:           map[string]*routerPolled{},
+		failCount:            map[string]int{},
+		lastErr:              map[string]error{},
+		engine:               alerts.New(d, nil),
+		wgActive:             map[string]bool{},
+		weakAlerted:          map[string]int64{},
+		onlineMacs:           map[string]bool{},
+		unknownGrace:         map[string]int{},
+		unknownAlerted:       map[string]bool{},
+		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
+		devicePresence:       map[string]bool{},
+		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
-		wanDown:       map[string]int{},
-		backhaulCache: map[string]backhaulCacheEntry{},
-		lldpCache:     map[string]lldpCacheEntry{},
-		agentDown:        map[string]bool{},
-		agentDownConfirm: 3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
+		wanDown:              map[string]int{},
+		backhaulCache:        map[string]backhaulCacheEntry{},
+		lldpCache:            map[string]lldpCacheEntry{},
+		agentDown:            map[string]bool{},
+		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
 	}
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
@@ -235,6 +256,18 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 			_, _ = d.Exec("DELETE FROM device_attrib")
 			_, _ = d.Exec("INSERT INTO kv (key, value) VALUES ('attrib_v2', '1')")
 			log.Printf("[netpulse] device_attrib limpiada (attrib_v2: solo wireless persiste)")
+		}
+		// issue #248: memoria per-MAC de "desconocido ya alertado", persistida
+		// en kv para que un reinicio del servidor no vuelva a alertar las
+		// MACs ya conocidas (clave `unknown_alerted:<mac>`).
+		if rows, err := d.Query("SELECT key FROM kv WHERE key LIKE 'unknown_alerted:%'"); err == nil {
+			for rows.Next() {
+				var key string
+				if rows.Scan(&key) == nil {
+					l.unknownAlerted[strings.TrimPrefix(key, "unknown_alerted:")] = true
+				}
+			}
+			rows.Close()
 		}
 	}
 	l.SetRouters(initial)
@@ -304,6 +337,17 @@ func (l *Live) SetRouters(list []RouterConfig) {
 			delete(l.failCount, id)
 		}
 	}
+	for id := range l.lastErr {
+		if !ids[id] {
+			delete(l.lastErr, id)
+		}
+	}
+	// unknownGrace es per-MAC (no por router): se poda por ausencia en
+	// trackUnknownDevices; aquí solo se limpia la lista completa si no queda
+	// ningún router (config vacía tras un reset).
+	if len(l.routers) == 0 {
+		l.unknownGrace = map[string]int{}
+	}
 	for id := range l.backhaulCache {
 		if !ids[id] {
 			delete(l.backhaulCache, id)
@@ -342,25 +386,30 @@ func (l *Live) probeBackhaul(routerID string, client *OpenWrtClient) string {
 
 // probeLldp: vecinos LLDP del router con caché de 45 s (tier lento, como los
 // extras anti-parpadeo). Error o lldpd ausente → nil (sin datos; el FDB solo
-// sigue mandando, comportamiento actual intacto).
-func (l *Live) probeLldp(ctx context.Context, routerID string, client *OpenWrtClient) []LldpNeighbor {
+// sigue mandando, comportamiento actual intacto). Devuelve además si lldpd
+// NO está instalado (ErrLldpUnavailable) para que el view-model lo exponga
+// (issue #247): hint "instala lldpd" en la UI.
+func (l *Live) probeLldp(ctx context.Context, routerID string, client *OpenWrtClient) ([]LldpNeighbor, bool) {
 	l.mu.Lock()
 	e, ok := l.lldpCache[routerID]
 	l.mu.Unlock()
 	if ok && time.Since(e.at) < lldpCacheTTL {
-		return e.neighbors
+		return e.neighbors, e.unavailable
 	}
 	neighbors, err := client.LldpNeighbors(ctx)
+	unavailable := false
 	if err != nil {
-		if !errors.Is(err, ErrLldpUnavailable) {
+		if errors.Is(err, ErrLldpUnavailable) {
+			unavailable = true
+		} else {
 			log.Printf("[netpulse] LLDP %s: %v", routerID, err)
 		}
 		neighbors = nil
 	}
 	l.mu.Lock()
-	l.lldpCache[routerID] = lldpCacheEntry{neighbors: neighbors, at: time.Now()}
+	l.lldpCache[routerID] = lldpCacheEntry{neighbors: neighbors, unavailable: unavailable, at: time.Now()}
 	l.mu.Unlock()
-	return neighbors
+	return neighbors, unavailable
 }
 
 // getAdguardClient: kv (GL.iNet) con fallback a .env (AGH estándar).
@@ -632,7 +681,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	// Tier lento: backhaul (5 min) y vecinos LLDP (45 s), ambos cacheados y
 	// tolerantes a error (router sin wifi/lldpd → campo ausente, sin romper).
 	backhaul := l.probeBackhaul(cfg.ID, client)
-	lldp := l.probeLldp(ctx, cfg.ID, client)
+	lldp, lldpUnavailable := l.probeLldp(ctx, cfg.ID, client)
 	if !hasBoard {
 		if b, err := client.GetBoard(); err == nil {
 			board = b
@@ -701,7 +750,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
-		backhaul: backhaul, lldp: lldp,
+		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 	}, nil
 }
 
@@ -792,6 +841,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if uplink := l.uplinkLldp(p); uplink != nil {
 		r.Lldp = uplink
 	}
+	if p.lldpUnavailable {
+		r.LldpAvailable = bptr(false)
+	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
 	}
@@ -822,11 +874,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	return r
 }
 
-// uplinkLldp: vecino LLDP del router que es OTRO router conocido (su
-// chassis-MAC es la bridge MAC de otro router de la config) → el uplink
-// está identificado por LLDP y la app muestra el sufijo "· LLDP". Si el FDB
-// dice dónde se aprendió esa MAC, el anuncio debe llegar por ese puerto
-// (uplink); sin FDB, la MAC ya es evidencia suficiente. nil si no hay dato.
+// uplinkLldp: vecino LLDP del router que es OTRO router conocido → el uplink
+// está identificado por LLDP y la app muestra el sufijo "· LLDP". El vecino se
+// casa por chassis-MAC = bridge MAC de otro router (matching original) o, si
+// el chassis-ID que anuncia lldpd difiere de la br-lan (habitual en OpenWrt,
+// issue #252), por su mgmt-IP o nombre del chasis. Si el FDB dice dónde se
+// aprendió esa MAC, el anuncio debe llegar por ese puerto (uplink); sin FDB,
+// la MAC ya es evidencia suficiente. nil si no hay dato.
 func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 	if len(p.lldp) == 0 {
 		return nil
@@ -834,15 +888,10 @@ func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 	l.mu.Lock()
 	polled := l.lastPolled
 	l.mu.Unlock()
-	routerMacs := map[string]bool{}
-	for id, other := range polled {
-		if id != p.cfg.ID && other.brMac != "" {
-			routerMacs[other.brMac] = true
-		}
-	}
+	routers := routerIdentities(polled)
 	for i := range p.lldp {
 		nb := &p.lldp[i]
-		if nb.ChassisMac == "" || !routerMacs[nb.ChassisMac] {
+		if neighborIsRouter(nb, routers, p.cfg.ID) == nil {
 			continue
 		}
 		if port, ok := p.fdb[nb.ChassisMac]; ok && port != nb.Port {
@@ -854,6 +903,9 @@ func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 }
 
 // offlineRouter: último bueno marcado offline o placeholder (index.js:251-272).
+// issue #257: si el último fallo fue de ACCESO (el router responde pero la
+// clave SSH no está autorizada), el estado es "unreachable" + accessMissing,
+// no un "offline" de apagado/inalcanzable (config issue, no power issue).
 func (l *Live) offlineRouter(cfg RouterConfig) Router {
 	l.mu.Lock()
 	prev := l.lastGood[cfg.ID]
@@ -884,7 +936,43 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		}
 	}
 	r.Status = "offline"
+	if l.accessMissing(cfg.ID) {
+		r.Status = "unreachable"
+		r.AccessMissing = true
+	}
 	return r
+}
+
+// accessMissing: el último fallo de sondeo de este router fue de ACCESO
+// (SSH responde pero la clave no está autorizada / ubus rechaza), es decir
+// el router está vivo pero el servidor no puede entrar (issue #257).
+func (l *Live) accessMissing(routerID string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return isAccessError(l.lastErr[routerID])
+}
+
+// isAccessError: ¿el error indica que el router RESPONDE pero el acceso
+// SSH/ubus no está configurado? (handshake SSH que rechaza la clave del
+// servidor). Un fallo de conexión (refused/timeout/red) NO es un fallo de
+// acceso: ahí el router puede estar apagado o inalcanzable (issue #257).
+func isAccessError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, hint := range []string{
+		"unable to authenticate",
+		"no supported methods",
+		"permission denied",
+		"authentication failed",
+		"not authorized",
+	} {
+		if strings.Contains(msg, hint) {
+			return true
+		}
+	}
+	return false
 }
 
 // pollAll sondea todos los routers en paralelo (Promise.allSettled).
@@ -917,6 +1005,7 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		if res.err == nil {
 			polled[res.cfg.ID] = res.p
 			l.failCount[res.cfg.ID] = 0
+			delete(l.lastErr, res.cfg.ID)
 			// Persiste la bridgeMAC del router (issue #196): la exclusión de
 			// "dispositivo desconocido" no debe depender de que este router se
 			// sondee bien en el tick actual.
@@ -929,6 +1018,10 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 				if name == "" {
 					name = res.cfg.Host
 				}
+				// issue #256: la alerta crítica de offline pendiente se resuelve
+				// (marca leída) al volver online; sin esto queda "no leída" para
+				// siempre y con APs que flapean se acumulan caídas fantasma.
+				l.resolveOfflineAlerts(res.cfg.ID)
 				l.emitRouterRecovered(res.cfg.ID, name)
 			}
 			l.lastStatus[res.cfg.ID] = "online"
@@ -941,9 +1034,14 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		}
 		fails := l.failCount[res.cfg.ID] + 1
 		l.failCount[res.cfg.ID] = fails
+		l.lastErr[res.cfg.ID] = res.err
 		log.Printf("[netpulse] router %s inalcanzable (%d): %v", res.cfg.ID, fails, res.err)
-		// Alerta solo tras 2 fallos seguidos (un fallo suelto no es una caída)
-		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" {
+		// Alerta solo tras 2 fallos seguidos (un fallo suelto no es una caída).
+		// issue #257: un fallo de ACCESO (SSH responde pero la clave no está
+		// autorizada) no es una caída — el router está vivo; la UI lo marca
+		// como "sin acceso" y no merece una alerta crítica de offline.
+		accessErr := isAccessError(res.err)
+		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" && !accessErr {
 			name := res.cfg.Name
 			if name == "" {
 				name = res.cfg.Host
@@ -979,6 +1077,23 @@ func (l *Live) emitRouterRecovered(routerID, name string) {
 	})
 }
 
+// resolveOfflineAlerts resuelve las alertas de offline pendientes del router
+// (issue #256): al volver online se marcan como leídas, de modo que la caída
+// crítica no queda "no leída para siempre" y un AP que flapea no acumula
+// caídas fantasma. El evento "recuperado" (emitRouterRecovered) es el relevo
+// positivo que sustituye la caída en el feed. Debe llamarse con l.mu tomado.
+func (l *Live) resolveOfflineAlerts(routerID string) {
+	ids := []string{}
+	for _, ev := range l.engine.List() {
+		if ev.RouterID == routerID && strings.HasPrefix(ev.ID, "alert-offline-") {
+			ids = append(ids, ev.ID)
+		}
+	}
+	if len(ids) > 0 {
+		l.engine.MarkRead(ids...)
+	}
+}
+
 // trackWanDown detecta "WAN/Internet caído" (category internet, urgent true,
 // critical — SPEC-ALERTAS §1): el gateway responde por SSH pero su ping a
 // internet da 100 % de pérdida en 2 sondeos seguidos (debounce como offline).
@@ -1011,10 +1126,15 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 
 // trackUnknownDevices emite "dispositivo desconocido se conecta" cuando un
 // cliente SIN nombre (Name == MAC, sin hostname DHCP ni alias — device_attrib
-// no guarda alias) pasa de no-online a online. El primer ciclo de sondeo del
-// proceso NO alerta (evita la avalancha de arranque: todo lo ya conectado
-// sería "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca
-// alertan, haya alias o no. Toma l.mu internamente.
+// no guarda alias) pasa de no-online a online y PERMANECE nameless durante
+// `unknownGraceNum` ticks seguidos (issue #234): un dispositivo conocido que
+// reconecta resuelve su lease DHCP en 1-2 ticks y nunca alcanza el umbral.
+// La memoria per-MAC persistida (issue #248) garantiza que cada MAC desconocida
+// alerta UNA sola vez en la vida del servidor, hasta que se confíe en
+// Settings (known_macs) o se resete. El primer ciclo de sondeo del proceso
+// NO alerta (evita la avalancha de arranque: todo lo ya conectado sería
+// "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca alertan,
+// haya alias o no. Toma l.mu internamente.
 func (l *Live) trackUnknownDevices(devices []Device) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1038,14 +1158,52 @@ func (l *Live) trackUnknownDevices(devices []Device) {
 		}
 		nowOnline[d.MAC] = true
 		if trusted[d.MAC] {
+			delete(l.unknownGrace, d.MAC)
 			continue
 		}
-		if l.seenOnlineMacs && !l.onlineMacs[d.MAC] && d.Name == d.MAC {
-			l.emitUnknownDevice(d)
+		// issue #234: con hostname (lease resuelto) el dispositivo es
+		// conocido; se resetea su gracia y nunca alerta.
+		if d.Name != d.MAC {
+			delete(l.unknownGrace, d.MAC)
+			continue
+		}
+		// issue #248: esta MAC ya alertó alguna vez → no vuelve a hacerlo.
+		if l.unknownAlerted[d.MAC] {
+			delete(l.unknownGrace, d.MAC)
+			continue
+		}
+		// Solo los dispositivos que ACABAN de conectarse (o que ya estaban en
+		// gracia) acumulan ticks; los conectados antes del arranque no entran.
+		_, counting := l.unknownGrace[d.MAC]
+		if l.seenOnlineMacs && (counting || !l.onlineMacs[d.MAC]) {
+			l.unknownGrace[d.MAC]++
+			if l.unknownGrace[d.MAC] >= l.unknownGraceNum {
+				l.emitUnknownDevice(d)
+				l.unknownAlerted[d.MAC] = true
+				l.persistUnknownAlerted(d.MAC)
+				delete(l.unknownGrace, d.MAC)
+			}
+		}
+	}
+	// La gracia solo acumula en estado "online + sin nombre": cualquier otra
+	// transición la resetea (una reconexión futura parte de cero).
+	for mac := range l.unknownGrace {
+		if !nowOnline[mac] {
+			delete(l.unknownGrace, mac)
 		}
 	}
 	l.onlineMacs = nowOnline
 	l.seenOnlineMacs = true
+}
+
+// persistUnknownAlerted guarda en kv la memoria per-MAC (issue #248) para que
+// sobreviva a reinicios del servidor. Con db nil (demo/tests) es no-op.
+// Debe llamarse con l.mu tomado.
+func (l *Live) persistUnknownAlerted(mac string) {
+	if l.db == nil {
+		return
+	}
+	_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "unknown_alerted:"+mac)
 }
 
 // emitUnknownDevice: evento "dispositivo desconocido se conecta" (category
@@ -1651,7 +1809,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
 		Devices:           devices,
 		Dawn:              &DawnOverview{Available: l.dawnAvailableCached()},
-		VM:                ViewModelVersion,                                            // SPEC-65 D65-4
+		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
 }
@@ -2372,7 +2530,7 @@ func freqToChannel(freq int) int {
 		return (freq - 5000) / 5
 	case freq >= 5940 && freq <= 7115:
 		// 6 GHz (Wi-Fi 6E): 5950=ch1 ... 7115=ch233. Mismo (freq-5000)/5, con offset.
-		return (freq - 5950) / 5 + 1
+		return (freq-5950)/5 + 1
 	case freq == 56160:
 		return 1
 	case freq >= 56160:

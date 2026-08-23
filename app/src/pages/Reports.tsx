@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { CalendarDays, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, fetchJson } from '@/lib/utils'
+import { useNetPulse } from '@/data/DataProvider'
 
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/reports/availability (server-go/internal/httpapi/reports.go)
@@ -64,28 +66,47 @@ function AvailabilityBar({ pct }: { pct: number }) {
 export default function Reports() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
+  const { isDemo } = useNetPulse()
   const [range, setRange] = useState<Range>('week')
   const [n, setN] = useState<number>(DEFAULT_N.week)
   const [items, setItems] = useState<AvailabilityEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [noApi, setNoApi] = useState(false)
   const [spin, setSpin] = useState(false)
 
+  // AbortController del fetch actual (#221): un cambio rápido de rango/n o un
+  // Refresh doble aborta la carga anterior en vuelo y descarta la respuesta
+  // vieja. En unmount se aborta.
+  const loadAc = useRef<AbortController | null>(null)
+  // Timer del spin del botón Refresh (#227): limpiado en unmount.
+  const spinTimer = useRef<number | null>(null)
+
   async function load(r: Range, count: number) {
+    loadAc.current?.abort()
+    const ac = new AbortController()
+    loadAc.current = ac
     setLoading(true)
     setError(false)
-    try {
-      const res = await fetch(`/api/reports/availability?range=${r}&n=${count}`)
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      const env = (await res.json()) as { items: AvailabilityEntry[] }
-      setItems(env.items)
-    } catch {
+    setNoApi(false)
+    const result = await fetchJson<{ items: AvailabilityEntry[] }>(`/api/reports/availability?range=${r}&n=${count}`, { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setItems(result.data.items)
+    } else if (result.kind === 'no-api' && isDemo) {
+      setNoApi(true)
+      setItems([])
+    } else {
       setError(true)
       setItems([])
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
+
+  useEffect(() => () => {
+    loadAc.current?.abort()
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+  }, [])
 
   useEffect(() => {
     void load(range, n)
@@ -96,6 +117,27 @@ export default function Reports() {
     setRange(r)
     setN(DEFAULT_N[r])
   }
+
+  // -- pestañas WAI-ARIA (issue #229): roving tabindex + flechas + Home/End
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const onTablistKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const idx = RANGE_TABS.indexOf(range)
+      let next = idx
+      if (e.key === 'ArrowRight') next = (idx + 1) % RANGE_TABS.length
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + RANGE_TABS.length) % RANGE_TABS.length
+      else if (e.key === 'Home') next = 0
+      else if (e.key === 'End') next = RANGE_TABS.length - 1
+      else return
+      e.preventDefault()
+      const target = RANGE_TABS[next]!
+      setRange(target)
+      setN(DEFAULT_N[target])
+      tabRefs.current[next]?.focus()
+    },
+    [range],
+  )
 
   // Agrupa por router y coloca los buckets en columnas (fila = router).
   const routerIds = [...new Set(items.map((i) => i.routerId))].sort()
@@ -153,7 +195,11 @@ export default function Reports() {
                 void load(range, n)
                 if (reduce) return
                 setSpin(true)
-                window.setTimeout(() => setSpin(false), 650)
+                if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+                spinTimer.current = window.setTimeout(() => {
+                  spinTimer.current = null
+                  setSpin(false)
+                }, 650)
               }}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
             >
@@ -165,12 +211,23 @@ export default function Reports() {
       </header>
 
       {/* ② Pestañas de rango */}
-      <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="tablist">
-        {RANGE_TABS.map((r) => (
+      <div
+        role="tablist"
+        aria-label={t('reports.rangeLabel')}
+        onKeyDown={onTablistKeyDown}
+        className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1"
+      >
+        {RANGE_TABS.map((r, i) => (
           <button
             key={r}
+            ref={(el) => {
+              tabRefs.current[i] = el
+            }}
+            id={`tab-${r}`}
             role="tab"
             aria-selected={range === r}
+            aria-controls={`panel-${r}`}
+            tabIndex={range === r ? 0 : -1}
             onClick={() => changeRange(r)}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -183,9 +240,15 @@ export default function Reports() {
       </div>
 
       {/* ③ Contenido */}
+      <div role="tabpanel" id={`panel-${range}`} aria-labelledby={`tab-${range}`} tabIndex={0}>
       {loading && items.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('reports.loading')}
+        </div>
+      )}
+      {noApi && (
+        <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+          {t('reports.noApi')}
         </div>
       )}
       {error && items.length === 0 && (
@@ -193,7 +256,7 @@ export default function Reports() {
           {t('reports.error')}
         </div>
       )}
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && !noApi && items.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('reports.empty')}
         </div>
@@ -274,6 +337,7 @@ export default function Reports() {
           <p className="mt-6 text-caption text-text-muted">{t('reports.footnote')}</p>
         </section>
       )}
+      </div>
     </div>
   )
 }

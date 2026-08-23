@@ -319,6 +319,7 @@
     "subtitle": "Estado del roaming y la malla WiFi",
     "loading": "Cargando datos de DAWN…",
     "error": "No se pudo cargar el estado de DAWN. Comprueba que el servicio corre en tus routers.",
+    "noApi": "Disponible solo con backend en vivo.",
     "empty": "Ningún router tiene DAWN activo. Instálalo en OpenWrt para ver la malla de roaming.",
     "tabMatrix": "Matriz",
     "tab11r": "802.11r",
@@ -401,7 +402,8 @@
       "disconnected": "Desconectado",
       "dawn": "DAWN",
       "other": "Otro"
-    }
+    },
+    "tabsLabel": "Vistas de roaming"
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."
@@ -581,6 +583,7 @@
     "footnote": "Disponibilidad = minutos con datos sobre el total del período. El período en curso se muestra parcial.",
     "latency": "Latencia media",
     "loading": "Cargando informe…",
+    "noApi": "Disponible solo con backend en vivo.",
     "rangeLabel": "Rango a mostrar",
     "subtitle": "Disponibilidad y rendimiento por router.",
     "tabDay": "Diario",

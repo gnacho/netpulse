@@ -10,7 +10,7 @@ import (
 // SPEC-65 D65-5: display name por usuario — roundtrip completo.
 func TestDisplayNameRoundtrip(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// Al inicio: displayName "" (no puesto)
 	res := get(t, srv.URL, "/api/auth/me", cookie)
@@ -92,7 +92,7 @@ func TestDisplayNameRoundtrip(t *testing.T) {
 // GET /api/users incluye displayName por usuario (admin).
 func TestListUsersIncluyeDisplayName(t *testing.T) {
 	srv := makeTestServer(t)
-	_, adminCookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, adminCookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 
 	// Alta de una usuaria no-admin y display name propio (fuera del gate admin)
 	req, _ := http.NewRequest("POST", srv.URL+"/api/users", strings.NewReader(`{"username":"ana","password":"clave-ana-1","role":"user"}`))

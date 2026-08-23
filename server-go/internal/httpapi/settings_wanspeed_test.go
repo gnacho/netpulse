@@ -39,7 +39,7 @@ func wanSpeedRequest(t *testing.T, method, base, path, cookie, body string) (*ht
 // TestWanSpeedDefaultEmpty: sin configurar, GET devuelve null en ambos campos.
 func TestWanSpeedDefaultEmpty(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if cookie == "" {
 		t.Fatal("login no devolvió cookie")
 	}
@@ -58,7 +58,7 @@ func TestWanSpeedDefaultEmpty(t *testing.T) {
 // TestWanSpeedRoundtrip: PUT válido guarda y GET lo devuelve.
 func TestWanSpeedRoundtrip(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if cookie == "" {
 		t.Fatal("login no devolvió cookie")
 	}
@@ -81,7 +81,7 @@ func TestWanSpeedRoundtrip(t *testing.T) {
 // TestWanSpeedInvalidInput: PUT inválido → 400 sin guardar nada.
 func TestWanSpeedInvalidInput(t *testing.T) {
 	srv := makeTestServer(t)
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	if cookie == "" {
 		t.Fatal("login no devolvió cookie")
 	}

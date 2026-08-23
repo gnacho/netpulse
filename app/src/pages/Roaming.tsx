@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, XCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useNetPulse } from '@/data/DataProvider'
+import { cn, fetchJson } from '@/lib/utils'
+import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/dawn (server-go/internal/adapters/types.go).
@@ -135,6 +136,9 @@ interface RoamEvent {
 type Band = 'all' | '2.4 GHz' | '5 GHz'
 type Tab = 'matrix' | '11r' | 'survey' | 'events'
 
+/** Orden estable de pestañas (issue #229: navegación por teclado). */
+const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events']
+
 /** Clase de color por señal (-dBm): verde óptimo, ámbar aceptable, rojo límite. */
 function signalClass(s: number): string {
   if (s >= -65) return 'bg-ok/15 text-ok ring-ok/30'
@@ -145,7 +149,7 @@ function signalClass(s: number): string {
 export default function Roaming() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { devices } = useNetPulse()
+  const { devices, isDemo } = useNetPulse()
   const [tab, setTab] = useState<Tab>('matrix')
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
@@ -153,16 +157,20 @@ export default function Roaming() {
   const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
   const [dot11rLoading, setDot11rLoading] = useState(false)
   const [dot11rError, setDot11rError] = useState(false)
+  const [dot11rNoApi, setDot11rNoApi] = useState(false)
   const [survey, setSurvey] = useState<SurveyOverview | null>(null)
   const [surveyLoading, setSurveyLoading] = useState(false)
   const [surveyError, setSurveyError] = useState(false)
+  const [surveyNoApi, setSurveyNoApi] = useState(false)
   const [surveyBand, setSurveyBand] = useState<'all' | '2.4 GHz' | '5 GHz'>('all')
   const [events, setEvents] = useState<RoamEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventsError, setEventsError] = useState(false)
+  const [eventsNoApi, setEventsNoApi] = useState(false)
   const [eventsTypeFilter, setEventsTypeFilter] = useState<'all' | 'connected' | 'disconnected' | 'dawn_decision'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [noApi, setNoApi] = useState(false)
   const [spin, setSpin] = useState(false)
 
   // MAC → nombre (resuelto desde la lista de dispositivos del overview).
@@ -174,37 +182,64 @@ export default function Roaming() {
     return m
   }, [devices])
 
+  // Un AbortController por fuente de datos (#221): cada carga aborta la
+  // anterior en vuelo para que una respuesta vieja y lenta nunca sobrescriba
+  // una más nueva (cambio de pestaña/rango o Refresh repetido). En unmount se
+  // abortan todos.
+  const dawnAc = useRef<AbortController | null>(null)
+  const dot11rAc = useRef<AbortController | null>(null)
+  const surveyAc = useRef<AbortController | null>(null)
+  const eventsAc = useRef<AbortController | null>(null)
+  // Timer del spin del botón Refresh (#227): limpiado en unmount.
+  const spinTimer = useRef<number | null>(null)
+
   async function load() {
+    dawnAc.current?.abort()
+    const ac = new AbortController()
+    dawnAc.current = ac
     setLoading(true)
     setError(false)
-    try {
-      const res = await fetch('/api/dawn')
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      setDawn((await res.json()) as Dawn)
-    } catch {
+    setNoApi(false)
+    const result = await fetchJson<Dawn>('/api/dawn', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setDawn(result.data)
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setNoApi(true)
+      setDawn(null)
+    } else {
       setError(true)
       setDawn(null)
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   // Carga perezosa de /api/dot11r solo cuando se abre la pestaña 11r (es un
   // SSH a cada router con wifi, más caro que la matriz DAWN que ya está cache
   // en el primer router). Recarga también al pulsar Refresh con 11r abierta.
   async function loadDot11r() {
+    dot11rAc.current?.abort()
+    const ac = new AbortController()
+    dot11rAc.current = ac
     setDot11rLoading(true)
     setDot11rError(false)
-    try {
-      const res = await fetch('/api/dot11r')
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      setDot11r((await res.json()) as Dot11rOverview)
-    } catch {
+    setDot11rNoApi(false)
+    const result = await fetchJson<Dot11rOverview>('/api/dot11r', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setDot11r(result.data)
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setDot11rNoApi(true)
+      setDot11r(null)
+    } else {
       setDot11rError(true)
       setDot11r(null)
-    } finally {
-      setDot11rLoading(false)
     }
+    setDot11rLoading(false)
   }
 
   useEffect(() => {
@@ -221,18 +256,26 @@ export default function Roaming() {
 
   // Carga perezosa de /api/survey: igual que dot11r, un SSH por router con wifi.
   async function loadSurvey() {
+    surveyAc.current?.abort()
+    const ac = new AbortController()
+    surveyAc.current = ac
     setSurveyLoading(true)
     setSurveyError(false)
-    try {
-      const res = await fetch('/api/survey')
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      setSurvey((await res.json()) as SurveyOverview)
-    } catch {
+    setSurveyNoApi(false)
+    const result = await fetchJson<SurveyOverview>('/api/survey', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setSurvey(result.data)
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setSurveyNoApi(true)
+      setSurvey(null)
+    } else {
       setSurveyError(true)
       setSurvey(null)
-    } finally {
-      setSurveyLoading(false)
     }
+    setSurveyLoading(false)
   }
 
   useEffect(() => {
@@ -244,27 +287,44 @@ export default function Roaming() {
   // Carga perezosa de /api/roam-events. Polling cada 30s mientras la pestaña
   // está activa (los eventos llegan por ingest continua al SQLite).
   async function loadEvents() {
+    eventsAc.current?.abort()
+    const ac = new AbortController()
+    eventsAc.current = ac
     setEventsLoading(true)
     setEventsError(false)
-    try {
-      const res = await fetch('/api/roam-events?limit=100')
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      const json = (await res.json()) as { events: RoamEvent[] }
-      setEvents(json.events ?? [])
-    } catch {
+    setEventsNoApi(false)
+    const result = await fetchJson<{ events: RoamEvent[] }>('/api/roam-events?limit=100', { signal: ac.signal })
+    if (ac.signal.aborted) return
+    if (result.ok) {
+      setEvents(result.data.events ?? [])
+    } else if (result.kind === 'unauthorized') {
+      redirectLogin()
+    } else if (result.kind === 'no-api' && isDemo) {
+      setEventsNoApi(true)
+      setEvents([])
+    } else {
       setEventsError(true)
       setEvents([])
-    } finally {
-      setEventsLoading(false)
     }
+    setEventsLoading(false)
   }
+
+  useEffect(() => () => {
+    dawnAc.current?.abort()
+    dot11rAc.current?.abort()
+    surveyAc.current?.abort()
+    eventsAc.current?.abort()
+    if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+  }, [])
 
   useEffect(() => {
     if (tab !== 'events') return
     void loadEvents()
     const id = window.setInterval(() => void loadEvents(), 30_000)
-    return () => window.clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      window.clearInterval(id)
+      eventsAc.current?.abort()
+    }
   }, [tab])
 
   // APs visibles según el filtro de banda.
@@ -311,6 +371,26 @@ export default function Roaming() {
     { id: 'events', label: t('roaming.tabEvents'), soon: false },
   ]
 
+  // -- pestañas WAI-ARIA (issue #229): roving tabindex + flechas + Home/End
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const onTablistKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const idx = TAB_IDS.indexOf(tab)
+      let next = idx
+      if (e.key === 'ArrowRight') next = (idx + 1) % TAB_IDS.length
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + TAB_IDS.length) % TAB_IDS.length
+      else if (e.key === 'Home') next = 0
+      else if (e.key === 'End') next = TAB_IDS.length - 1
+      else return
+      e.preventDefault()
+      const target = TAB_IDS[next]!
+      setTab(target)
+      tabRefs.current[next]?.focus()
+    },
+    [tab],
+  )
+
   const initial = reduce ? false : { opacity: 0, y: 12 }
 
   return (
@@ -348,7 +428,11 @@ export default function Roaming() {
               if (tab === 'events') void loadEvents()
               if (reduce) return
               setSpin(true)
-              window.setTimeout(() => setSpin(false), 650)
+              if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
+              spinTimer.current = window.setTimeout(() => {
+                spinTimer.current = null
+                setSpin(false)
+              }, 650)
             }}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
           >
@@ -359,12 +443,23 @@ export default function Roaming() {
       </header>
 
       {/* ② Pestañas */}
-      <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="tablist">
-        {tabs.map((tb) => (
+      <div
+        role="tablist"
+        aria-label={t('roaming.tabsLabel')}
+        onKeyDown={onTablistKeyDown}
+        className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1"
+      >
+        {tabs.map((tb, i) => (
           <button
             key={tb.id}
+            ref={(el) => {
+              tabRefs.current[i] = el
+            }}
+            id={`tab-${tb.id}`}
             role="tab"
             aria-selected={tab === tb.id}
+            aria-controls={`panel-${tb.id}`}
+            tabIndex={tab === tb.id ? 0 : -1}
             onClick={() => setTab(tb.id)}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -383,17 +478,34 @@ export default function Roaming() {
         </div>
       )}
 
-      {tab === '11r' && <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} />}
+      {tab === '11r' && (
+        <div role="tabpanel" id="panel-11r" aria-labelledby="tab-11r" tabIndex={0}>
+          <Dot11rPanel overview={dot11r} loading={dot11rLoading} error={dot11rError} noApi={dot11rNoApi} />
+        </div>
+      )}
 
-      {tab === 'survey' && <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} band={surveyBand} setBand={setSurveyBand} />}
+      {tab === 'survey' && (
+        <div role="tabpanel" id="panel-survey" aria-labelledby="tab-survey" tabIndex={0}>
+          <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} noApi={surveyNoApi} band={surveyBand} setBand={setSurveyBand} />
+        </div>
+      )}
 
-      {tab === 'events' && <EventsPanel events={events} loading={eventsLoading} error={eventsError} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />}
+      {tab === 'events' && (
+        <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />
+        </div>
+      )}
 
       {tab === 'matrix' && (
-        <>
+        <div role="tabpanel" id="panel-matrix" aria-labelledby="tab-matrix" tabIndex={0}>
           {loading && (!dawn || aps.length === 0) && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.loading')}
+            </div>
+          )}
+          {noApi && (
+            <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+              {t('roaming.noApi')}
             </div>
           )}
           {error && (
@@ -532,7 +644,7 @@ export default function Roaming() {
               </div>
             </motion.section>
           )}
-        </>
+        </div>
       )}
     </div>
   )
@@ -546,10 +658,12 @@ function Dot11rPanel({
   overview,
   loading,
   error,
+  noApi,
 }: {
   overview: Dot11rOverview | null
   loading: boolean
   error: boolean
+  noApi: boolean
 }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -559,6 +673,13 @@ function Dot11rPanel({
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (noApi) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.noApi')}
       </div>
     )
   }
@@ -811,12 +932,14 @@ function SurveyPanel({
   overview,
   loading,
   error,
+  noApi,
   band,
   setBand,
 }: {
   overview: SurveyOverview | null
   loading: boolean
   error: boolean
+  noApi: boolean
   band: SurveyBand
   setBand: (b: SurveyBand) => void
 }) {
@@ -828,6 +951,13 @@ function SurveyPanel({
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (noApi) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.noApi')}
       </div>
     )
   }
@@ -1004,6 +1134,7 @@ function EventsPanel({
   events,
   loading,
   error,
+  noApi,
   typeFilter,
   setTypeFilter,
   nameByMac,
@@ -1011,6 +1142,7 @@ function EventsPanel({
   events: RoamEvent[]
   loading: boolean
   error: boolean
+  noApi: boolean
   typeFilter: EventTypeFilter
   setTypeFilter: (t: EventTypeFilter) => void
   nameByMac: Map<string, string>
@@ -1028,6 +1160,13 @@ function EventsPanel({
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.loading')}
+      </div>
+    )
+  }
+  if (noApi) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.noApi')}
       </div>
     )
   }

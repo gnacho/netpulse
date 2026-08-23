@@ -10,6 +10,10 @@
 // DERIVADOS del dataset (deviceTotalsOf / onlineClientsOf), no literales.
 // SPEC-65 D65-2: Device.Infra sellado en el canon (pve=hypervisor, sus
 // CTs/VMs=ct, switch-netgear=managed-switch).
+// ALERTAS BILINGÜES (issue #239): el canon de alertas guarda title/description
+// en es/en (canonAlertSpecs). El seed de NewDemo sirve ES (sin contexto de
+// petición); localizedCanonAlerts(lang) permite servir la lengua activa cuando
+// el handler la propague.
 //
 //go:generate go run ../../cmd/gen-demo-canon
 package adapters
@@ -142,23 +146,96 @@ func canonWireguard() WireGuardStats {
 	}
 }
 
-// canonAlerts: las 5 alertas canónicas con Category/Urgent/Ts (SPEC-ALERTAS
-// §1 y §5). Los Ts son unix SEGUNDOS escalonados en coherencia con el string
-// legado ("hace 38 s" → now-38, "hace 12 min" → now-720, ...).
-func canonAlerts() []AlertEvent {
-	now := time.Now().Unix()
-	return []AlertEvent{
-		{ID: "alert-temp-patio", Category: alerts.CatRouter, Urgent: true, Severity: "warn", Title: "Temperatura alta en Patio",
-			Description: "71 °C, por encima del umbral (65 °C)", Time: "hace 12 min", Ts: now - 12*60, Read: false, RouterID: "patio"},
-		{ID: "alert-firmware-estudio", Category: alerts.CatSystem, Urgent: false, Severity: "warn", Title: "Firmware disponible",
-			Description: "OpenWrt 24.10.1 para Estudio", Time: "hace 3 h", Ts: now - 3*3600, Read: false, RouterID: "estudio"},
-		{ID: "alert-nuevo-tab", Category: alerts.CatClients, Urgent: false, Severity: "info", Title: "Nuevo dispositivo",
-			Description: "'Galaxy Tab S9' se ha unido a Salón", Time: "hace 26 min", Ts: now - 26*60, Read: true, RouterID: "living"},
-		{ID: "alert-handshake-wg", Category: alerts.CatVPN, Urgent: false, Severity: "info", Title: "Handshake WireGuard",
-			Description: "Pixel 8 Pro conectado desde 5.224.x.x", Time: "hace 38 s", Ts: now - 38, Read: true, RouterID: "flint2"},
-		{ID: "alert-backup-adguard", Category: alerts.CatSystem, Urgent: false, Severity: "ok", Title: "Copia de AdGuard completada",
-			Description: "Configuración y listas respaldadas en el NAS", Time: "hace 1 día", Ts: now - 24*3600, Read: true, RouterID: "flint2"},
+// alertText: pareja de textos de una alerta demo en es/en (issue #239). El
+// canon de alertas es bilingüe; la lengua se elige al construir el evento.
+type alertText struct {
+	Es string
+	En string
+}
+
+// alertSpec describe una alerta canónica con textos bilingües. tsOffset es el
+// escalonado hacia atrás desde now ("hace 12 min" → now-720, ...).
+type alertSpec struct {
+	id, category, severity, routerID string
+	urgent, read                     bool
+	tsOffset                         int64
+	title, description               alertText
+	time                             string
+}
+
+// canonAlertSpecs: las 5 alertas canónicas (SPEC-ALERTAS §1 y §5), con title/
+// description en es/en. Time es el string legado de display.
+var canonAlertSpecs = []alertSpec{
+	{
+		id: "alert-temp-patio", category: alerts.CatRouter, severity: "warn", routerID: "patio",
+		urgent: true, tsOffset: 12 * 60, time: "hace 12 min",
+		title:       alertText{Es: "Temperatura alta en Patio", En: "High temperature on Patio"},
+		description: alertText{Es: "71 °C, por encima del umbral (65 °C)", En: "71 °C, above the threshold (65 °C)"},
+	},
+	{
+		id: "alert-firmware-estudio", category: alerts.CatSystem, severity: "warn", routerID: "estudio",
+		tsOffset: 3 * 3600, time: "hace 3 h",
+		title:       alertText{Es: "Firmware disponible", En: "Firmware available"},
+		description: alertText{Es: "OpenWrt 24.10.1 para Estudio", En: "OpenWrt 24.10.1 for Study"},
+	},
+	{
+		id: "alert-nuevo-tab", category: alerts.CatClients, severity: "info", routerID: "living",
+		read: true, tsOffset: 26 * 60, time: "hace 26 min",
+		title:       alertText{Es: "Nuevo dispositivo", En: "New device"},
+		description: alertText{Es: "'Galaxy Tab S9' se ha unido a Salón", En: "'Galaxy Tab S9' joined Living Room"},
+	},
+	{
+		id: "alert-handshake-wg", category: alerts.CatVPN, severity: "info", routerID: "flint2",
+		read: true, tsOffset: 38, time: "hace 38 s",
+		title:       alertText{Es: "Handshake WireGuard", En: "WireGuard handshake"},
+		description: alertText{Es: "Pixel 8 Pro conectado desde 5.224.x.x", En: "Pixel 8 Pro connected from 5.224.x.x"},
+	},
+	{
+		id: "alert-backup-adguard", category: alerts.CatSystem, severity: "ok", routerID: "flint2",
+		read: true, tsOffset: 24 * 3600, time: "hace 1 día",
+		title:       alertText{Es: "Copia de AdGuard completada", En: "AdGuard backup completed"},
+		description: alertText{Es: "Configuración y listas respaldadas en el NAS", En: "Configuration and lists backed up to the NAS"},
+	},
+}
+
+// pickText selecciona el texto de una alerta por lengua ("es" → español,
+// cualquier otra → inglés).
+func pickText(t alertText, lang string) string {
+	if lang == "es" {
+		return t.Es
 	}
+	return t.En
+}
+
+// buildCanonAlerts construye las 5 alertas canónicas en la lengua dada. Los
+// Ts son unix SEGUNDOS escalonados en coherencia con el string legado
+// ("hace 38 s" → now-38, "hace 12 min" → now-720, ...).
+func buildCanonAlerts(lang string) []AlertEvent {
+	now := time.Now().Unix()
+	out := make([]AlertEvent, 0, len(canonAlertSpecs))
+	for _, s := range canonAlertSpecs {
+		out = append(out, AlertEvent{
+			ID: s.id, Category: s.category, Urgent: s.urgent, Severity: s.severity,
+			Title: pickText(s.title, lang), Description: pickText(s.description, lang),
+			Time: s.time, Ts: now - s.tsOffset, Read: s.read, RouterID: s.routerID,
+		})
+	}
+	return out
+}
+
+// canonAlerts: las 5 alertas canónicas (SPEC-ALERTAS §1 y §5) en español. El
+// seed corre en NewDemo sin contexto de petición, por eso el canon sirve ES;
+// la localización por lengua de la petición se puede conectar pasando la
+// lengua a localizedCanonAlerts desde el handler (issue #239).
+func canonAlerts() []AlertEvent {
+	return buildCanonAlerts("es")
+}
+
+// localizedCanonAlerts: alertas canónicas en la lengua de la petición ("es" →
+// español, resto → inglés). Punto de entrada para localizar el dataset demo
+// server-side cuando el handler propague la lengua (issue #239).
+func localizedCanonAlerts(lang string) []AlertEvent {
+	return buildCanonAlerts(lang)
 }
 
 // ---------------------------------------------------------------------------

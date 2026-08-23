@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -47,6 +49,49 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 	"github.com/gnacho/netpulse/server-go/internal/webhook"
 )
+
+// Timeouts de http.Server (issue #210): ReadTimeout/WriteTimeout acotan una
+// conexión lenta (slowloris) sin cuerpo. Los endpoints SSE (/api/stream y
+// /api/agents/{slug}/stream) son conexiones largas que escriben de forma
+// continua: su write deadline se extiende vía http.ResponseController antes
+// de delegar en el handler (con WriteTimeout plano, la conexión moriría a los
+// 15 s aunque hubiera heartbeats).
+const (
+	serverReadTimeout  = 15 * time.Second
+	serverWriteTimeout = 15 * time.Second
+	sseWriteTimeout    = 24 * time.Hour
+)
+
+// isSSEStreamPath devuelve true para los endpoints SSE de larga duración.
+func isSSEStreamPath(p string) bool {
+	if p == "/api/stream" {
+		return true
+	}
+	return strings.HasPrefix(p, "/api/agents/") && strings.HasSuffix(p, "/stream")
+}
+
+// webhookHostForLog devuelve solo el host del webhook para el log de arranque:
+// la URL completa puede incrustar credenciales (https://user:pass@host) y
+// acabarían en el log (issue #217).
+func webhookHostForLog(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return "(sin host)"
+	}
+	return u.Host
+}
+
+// withSSEWriteTimeout extiende el write deadline para los endpoints SSE: el
+// server lo fija a WriteTimeout al leer la petición y, sin este override, una
+// conexión SSE se cerraría a los 15 s.
+func withSSEWriteTimeout(next http.Handler, long time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSSEStreamPath(r.URL.Path) {
+			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(long))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -220,7 +265,7 @@ func run() error {
 	var webhookNotifier *webhook.Notifier
 	if cfg.Webhook != nil && cfg.Webhook.Enabled {
 		webhookNotifier = webhook.NewNotifier(*cfg.Webhook, dbHandle)
-		log.Printf("[netpulse] webhook saliente activo: %s", cfg.Webhook.URL)
+		log.Printf("[netpulse] webhook saliente activo: %s", webhookHostForLog(cfg.Webhook.URL))
 	}
 
 	// Notifier compuesto: push + webhook (SetNotifier solo admite UNO).
@@ -309,12 +354,13 @@ func run() error {
 		log.Printf("[netpulse] TLS autofirmado on-box: %s", certPath)
 		log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", serverFP)
 
-		// Pairing token (generado en primer arranque, logueado).
-		pairTok, perr := httpapi.EnsurePairingToken(dbHandle)
-		if perr != nil {
+		// Pairing token (generado en el primer arranque). NO se loguea (issue
+		// #214): está disponible en la UI de Ajustes > Adopción (GET
+		// /api/pairing/token, admin) y un proceso cualquiera con acceso a los
+		// logs podría adoptar agentes con él.
+		if _, perr := httpapi.EnsurePairingToken(dbHandle); perr != nil {
 			return fmt.Errorf("pairing token: %w", perr)
 		}
-		log.Printf("[netpulse] PAIRING TOKEN: %s", pairTok)
 	}
 
 	handler := httpapi.NewHandler(httpapi.Deps{
@@ -352,8 +398,10 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           handler,
+		Handler:           withSSEWriteTimeout(handler, sseWriteTimeout),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
 		IdleTimeout:       2 * time.Minute,
 	}
 

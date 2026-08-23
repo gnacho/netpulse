@@ -86,6 +86,10 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	if gw := pickGatewayCfg(polled); gw != nil {
 		gatewayID = gw.ID
 	}
+	// Identidades de routers para el matching LLDP tolerante (issue #252):
+	// un vecino cuya mgmt-IP/nombre coincide con un router conocido identifica
+	// el switch/AP aunque su chassis-ID no esté entre las MACs aprendidas.
+	routers := routerIdentities(polled)
 
 	for _, routerID := range routerIDs {
 		p := polled[routerID]
@@ -171,7 +175,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			// entre las aprendidas identifica el switch/AP gestionado que
 			// multiplexa → nodo "managed" (evidencia positiva, válida también
 			// tras un AP; ver cabecera).
-			if nb := findManagedNeighbor(p.lldp, port, kept); nb != nil {
+			if nb := findManagedNeighbor(p.lldp, port, kept, routers, routerID); nb != nil {
 				setPort()
 				dists = append(dists, DistributionNode{
 					ID: id, Kind: "managed", RouterID: routerID, Port: port,
@@ -258,9 +262,79 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	return devices, dists
 }
 
-// findManagedNeighbor: vecino LLDP anunciado en `port` cuya chassis-MAC está
-// entre las MACs aprendidas (nil si no hay evidencia).
-func findManagedNeighbor(neighbors []LldpNeighbor, port string, kept []string) *LldpNeighbor {
+// routerIdentity: datos de un router de la config para casar un vecino LLDP
+// aunque su chassis-ID no coincida con la bridge MAC. En OpenWrt/GLuON lldpd
+// suele anunciar como chassis la MAC de la primera interfaz (p.ej. eth0/WAN),
+// que NO es la br-lan que aprende el FDB del vecino: el matching exclusivo por
+// chassis-MAC dejaba links sin descubrir con lldpd instalado en todo (issue #252).
+type routerIdentity struct {
+	ID, Name, Host string
+	BrMac          string
+}
+
+// routerIdentities: identidades de todos los routers sondeados, en orden
+// determinista (el mapa polled no lo es).
+func routerIdentities(polled map[string]*routerPolled) []routerIdentity {
+	ids := make([]string, 0, len(polled))
+	for id := range polled {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := make([]routerIdentity, 0, len(ids))
+	for _, id := range ids {
+		p := polled[id]
+		out = append(out, routerIdentity{ID: id, Name: p.cfg.Name, Host: p.cfg.Host, BrMac: p.brMac})
+	}
+	return out
+}
+
+// neighborIsRouter: el vecino LLDP identifica a un router conocido de la
+// config. Coincide por cualquiera de (prioridad): chassis-MAC = bridge MAC
+// (matching original, SPEC C2), mgmt-IP = Host, o nombre del chasis ≈ nombre
+// del router (case-insensitive). Los dos últimos son el fix tolerante al
+// chassis-ID distinto de la br-lan (issue #252). selfID se excluye (un router
+// no es su propio vecino). nil si no hay coincidencia.
+func neighborIsRouter(nb *LldpNeighbor, routers []routerIdentity, selfID string) *routerIdentity {
+	if nb == nil {
+		return nil
+	}
+	for i := range routers {
+		r := &routers[i]
+		if r.ID == selfID {
+			continue
+		}
+		if nb.ChassisMac != "" && r.BrMac != "" && strings.EqualFold(nb.ChassisMac, r.BrMac) {
+			return r
+		}
+	}
+	for i := range routers {
+		r := &routers[i]
+		if r.ID == selfID {
+			continue
+		}
+		if nb.Mgmt != "" && r.Host != "" && nb.Mgmt == r.Host {
+			return r
+		}
+	}
+	for i := range routers {
+		r := &routers[i]
+		if r.ID == selfID {
+			continue
+		}
+		if nb.Chassis != "" && r.Name != "" && strings.EqualFold(nb.Chassis, r.Name) {
+			return r
+		}
+	}
+	return nil
+}
+
+// findManagedNeighbor: vecino LLDP anunciado en `port` que identifica el
+// equipo que multiplexa ese puerto multi-MAC (nil si no hay evidencia).
+//  1. matching estricto: chassis-MAC entre las MACs aprendidas del puerto.
+//  2. fallback #252: la identidad del vecino (mgmt-IP o nombre del chasis)
+//     coincide con un router conocido de la config → ese router ES el switch/AP
+//     que multiplexa, aunque su chassis-ID no esté en el FDB.
+func findManagedNeighbor(neighbors []LldpNeighbor, port string, kept []string, routers []routerIdentity, selfID string) *LldpNeighbor {
 	for i := range neighbors {
 		nb := &neighbors[i]
 		if nb.Port != port || nb.ChassisMac == "" {
@@ -270,6 +344,15 @@ func findManagedNeighbor(neighbors []LldpNeighbor, port string, kept []string) *
 			if mac == nb.ChassisMac {
 				return nb
 			}
+		}
+	}
+	for i := range neighbors {
+		nb := &neighbors[i]
+		if nb.Port != port {
+			continue
+		}
+		if r := neighborIsRouter(nb, routers, selfID); r != nil {
+			return nb
 		}
 	}
 	return nil

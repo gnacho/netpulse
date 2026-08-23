@@ -259,7 +259,11 @@ func (s *server) handleAlertsConfigGet(w http.ResponseWriter, _ *http.Request) {
 // categorías y niveles (400 en inválido, SPEC-ALERTAS §4).
 func (s *server) handleAlertsConfigPut(w http.ResponseWriter, r *http.Request) {
 	var patch map[string]string
-	if !readJSONBody(r, &patch) || patch == nil {
+	if st := readJSONBody(w, r, &patch); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	if patch == nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", "body JSON inválido")
 		return
 	}
@@ -275,8 +279,8 @@ func (s *server) handleAlertsRead(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		IDs []string `json:"ids"`
 	}
-	if !readJSONBody(r, &body) {
-		writeError(w, http.StatusBadRequest, "invalid_body", "body JSON inválido")
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
 		return
 	}
 	s.adapter.AlertsEngine().MarkRead(body.IDs...)

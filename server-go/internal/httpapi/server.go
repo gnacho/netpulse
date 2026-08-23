@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -24,10 +25,10 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
-	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 )
@@ -271,7 +272,7 @@ func NewHandler(d Deps) http.Handler {
 		mux.Handle("/", static)
 	}
 
-	return requestID(security.Middleware(auth.RequireAuth(s.db, s.secret, s.demoReadOnly(noStoreMux(mux)))))
+	return requestID(security.Middleware(auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, s.demoReadOnly(noStoreMux(mux))))))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en
@@ -336,13 +337,43 @@ func writeError(w http.ResponseWriter, status int, code string, message ...strin
 // el cap evita abuso de memoria con bodies gigantes (auditoría #3).
 const maxBodyBytes = 64 << 10
 
-// readJSONBody parsea el body JSON; devuelve false si no es JSON válido o
-// supera maxBodyBytes (equivalente a c.req.json().catch(() => null)).
-func readJSONBody(r *http.Request, dst any) bool {
-	r.Body = http.MaxBytesReader(nil, r.Body, maxBodyBytes)
+// readJSONBody parsea el body JSON. Devuelve 0 si OK o, si falla, el status
+// HTTP a responder: 400 (JSON inválido) o 413 (body > maxBodyBytes, issue
+// #215). Con el writer real, http.MaxBytesReader además marca la conexión
+// para cerrarla tras el 413 (el nil anterior devolvía 400 invalid_body).
+func readJSONBody(w http.ResponseWriter, r *http.Request, dst any) int {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(dst); err != nil {
-		return false
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return http.StatusRequestEntityTooLarge
+		}
+		return http.StatusBadRequest
 	}
-	return true
+	return 0
+}
+
+// bodyError mapea el status devuelto por readJSONBody al código del envelope:
+// 413 → payload_too_large (paridad con la ingesta); cualquier otro fallo →
+// el código que usaba el caller (invalid_body/invalid_json/invalid_input).
+func bodyError(status int, fallback string) string {
+	if status == http.StatusRequestEntityTooLarge {
+		return "payload_too_large"
+	}
+	return fallback
+}
+
+// writeBodyError responde el fallo de readJSONBody: 413 sin mensaje extra
+// (el body no se pudo leer), 400 con el código y mensaje del caller.
+func writeBodyError(w http.ResponseWriter, status int, fallback, message string) {
+	if status == http.StatusRequestEntityTooLarge {
+		writeError(w, status, "payload_too_large")
+		return
+	}
+	if message != "" {
+		writeError(w, status, fallback, message)
+		return
+	}
+	writeError(w, status, fallback)
 }

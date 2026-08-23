@@ -3233,6 +3233,7 @@ export default function Settings() {
                     step={1}
                     value={[s.value]}
                     onValueChange={([v]) => {
+                      if (v === undefined) return
                       s.set(v)
                       notify()
                     }}

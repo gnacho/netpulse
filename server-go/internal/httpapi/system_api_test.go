@@ -19,7 +19,7 @@ func TestSystemInfo(t *testing.T) {
 	}
 	res.Body.Close()
 
-	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test1234")
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
 	res = get(t, srv.URL, "/api/system/info", cookie)
 	if res.StatusCode != 200 {
 		t.Fatalf("con cookie: got %d want 200", res.StatusCode)

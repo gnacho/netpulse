@@ -53,7 +53,7 @@ function makeLiveDot(dataLength: number, color: string) {
 /** ② Tráfico WAN — área doble serie (home.md §②) */
 export function WanTraffic() {
   const { t } = useTranslation()
-  const { traffic: trafficByRange, wan } = useNetPulse()
+  const { traffic: trafficByRange, wan, isDemo } = useNetPulse()
   const [range, setRange] = useState<TimeRange>('24h')
   const [liveData, setLiveData] = useState<TrafficPoint[]>(trafficByRange['24h'])
 
@@ -68,16 +68,19 @@ export function WanTraffic() {
     setLiveData(trafficByRange[range])
   }, [range, trafficByRange])
 
-  // Polling simulado 3s: en 1h la ventana hace scroll suave; en el resto "respira" el último punto
+  // Polling simulado 3s SOLO en demo (#219): en 1h la ventana hace scroll
+  // suave; en el resto "respira" el último punto. En live el chart muestra el
+  // snapshot real sin que un jitter simulado corrompa el último punto.
   useEffect(() => {
+    if (!isDemo) return
     const id = window.setInterval(() => {
       setLiveData((prev) => {
         if (prev.length === 0) return prev
-        const last = prev[prev.length - 1]
+        const last = prev[prev.length - 1]!
         const jitter = () => 0.9 + Math.random() * 0.2
         const next = { ...last, down: Math.max(1, last.down * jitter()), up: Math.max(0.5, last.up * jitter()) }
         if (range === '1h') {
-          const [hh, mm] = last.t.split(':').map(Number)
+          const [hh = 0, mm = 0] = last.t.split(':').map(Number)
           const d = new Date(2024, 0, 1, hh, mm + 3)
           const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
           return [...prev.slice(1), { ...next, t }]
@@ -86,7 +89,7 @@ export function WanTraffic() {
       })
     }, 3000)
     return () => window.clearInterval(id)
-  }, [range])
+  }, [range, isDemo])
 
   const liveDotDown = useMemo(() => makeLiveDot(liveData.length, '#22D3EE'), [liveData.length])
   const liveDotUp = useMemo(() => makeLiveDot(liveData.length, '#A78BFA'), [liveData.length])

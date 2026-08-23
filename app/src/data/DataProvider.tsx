@@ -255,7 +255,9 @@ export const EMPTY_EXTRAS: RouterExtras = {
 // Utilidades de red / demo
 // ---------------------------------------------------------------------------
 
-function redirectLogin(): never {
+/** Redirect compartido 401 → /login (evento para AuthGate + assign). Lo usan
+ * el provider y las páginas que hacen fetch directo (Roaming, DawnPanel). */
+export function redirectLogin(): never {
   window.dispatchEvent(new Event('netpulse-unauthorized'))
   window.location.assign('/login')
   throw new Error('unauthorized')
@@ -299,7 +301,7 @@ function demoTick(prev: NetPulseData): NetPulseData {
     (Object.keys(prev.traffic) as TimeRange[]).map((range) => {
       const series = prev.traffic[range]
       if (series.length === 0) return [range, series]
-      const last = series[series.length - 1]
+      const last = series[series.length - 1]!
       const next = { ...last, down: walkPct(last.down, 5, 1), up: walkPct(last.up, 5, 0.5) }
       return [range, [...series.slice(0, -1), next]]
     }),
@@ -653,9 +655,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const idSet = new Set(ids)
     setBundle((prev) => {
       const alerts = prev.alerts.map((a) => (idSet.has(a.id) ? { ...a, read: true } : a))
+      // En live NO se recalcula el contador localmente: el snapshot/SSE lo
+      // corrige con la config por categoría del servidor (#224). Un filtrado
+      // por `!read` a secas ignoraría categorías silenciadas y mostraría un
+      // badge inconsistente hasta el siguiente snapshot.
       const unreadAlerts =
         modeRef.current === 'live'
-          ? alerts.filter((a) => !a.read).length
+          ? prev.unreadAlerts
           : countUnreadAlerts(alerts, configRef.current)
       return { ...prev, alerts, unreadAlerts }
     })

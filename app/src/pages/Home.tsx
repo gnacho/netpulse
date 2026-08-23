@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { AdGuardCard, WireGuardCard } from '@/sections/GatewayServices'
 import { HeroStrip } from '@/sections/HeroStrip'
 import { RecentAlerts } from '@/sections/RecentAlerts'
@@ -11,11 +12,13 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 export default function Home() {
   const { isDemo } = useNetPulse()
   const [services] = useServicesVisibility()
-  const cards = [
-    services.adguard && <AdGuardCard key="adguard" />,
-    services.wireguard && <WireGuardCard key="wireguard" />,
-    <RecentAlerts key="alerts" />,
-  ].filter(Boolean)
+  // Clave ESTABLE por tarjeta (#223): si AdGuard/WireGuard se deshabilitan en
+  // Ajustes la lista se reordena y, con key={i}, React remontaría RecentAlerts
+  // y perdería su readIds. Cada id identifica al hijo, no su posición.
+  const cards: { id: string; node: ReactNode }[] = []
+  if (services.adguard) cards.push({ id: 'adguard', node: <AdGuardCard /> })
+  if (services.wireguard) cards.push({ id: 'wireguard', node: <WireGuardCard /> })
+  cards.push({ id: 'alerts', node: <RecentAlerts /> })
   const span = Math.max(4, Math.floor(12 / cards.length))
   const spanCls = {
     4: 'lg:col-span-4',
@@ -32,9 +35,9 @@ export default function Home() {
         <WanTraffic />
       </div>
       {/* ② Servicios marcados en Ajustes + Alertas en una fila */}
-      {cards.map((card, i) => (
-        <div key={i} className={spanCls}>
-          {card}
+      {cards.map((c) => (
+        <div key={c.id} className={spanCls}>
+          {c.node}
         </div>
       ))}
       {/* ③ Routers */}

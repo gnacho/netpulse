@@ -91,6 +91,8 @@ export function buildAlertFeed(
   modelShort: (routerId: string) => string | undefined = (id) => getRouter(id)?.modelShort,
 ): FeedEvent[] {
   const byId = Object.fromEntries(canonAlerts.map((a) => [a.id, a]))
+  // El proxy SIEMPRE devuelve un AlertEvent (fallback a fallbackCanon); los
+  // accesos llevan `!` por noUncheckedIndexedAccess.
   const canon = new Proxy(byId as Record<string, AlertEvent>, {
     get: (target, id: string) => target[id] ?? fallbackCanon[id],
   })
@@ -102,7 +104,7 @@ export function buildAlertFeed(
   return [
   // ————— Hoy —————
   {
-    ...canon['alert-temp-patio'],
+    ...canon['alert-temp-patio']!,
     description: '71 °C, por encima del umbral de 65 °C — revisa la ventilación',
     day: 'hoy',
     kind: 'router',
@@ -120,7 +122,7 @@ export function buildAlertFeed(
     },
   },
   {
-    ...canon['alert-handshake-wg'],
+    ...canon['alert-handshake-wg']!,
     day: 'hoy',
     kind: 'wireguard',
     icon: KeyRound,
@@ -135,7 +137,7 @@ export function buildAlertFeed(
     },
   },
   {
-    ...canon['alert-nuevo-tab'],
+    ...canon['alert-nuevo-tab']!,
     day: 'hoy',
     kind: 'dispositivos',
     context: {
@@ -195,7 +197,7 @@ export function buildAlertFeed(
     },
   },
   {
-    ...canon['alert-firmware-estudio'],
+    ...canon['alert-firmware-estudio']!,
     day: 'hoy',
     kind: 'router',
     icon: DownloadCloud,
@@ -258,7 +260,7 @@ export function buildAlertFeed(
 
   // ————— Ayer —————
   {
-    ...canon['alert-backup-adguard'],
+    ...canon['alert-backup-adguard']!,
     title: 'Copia de seguridad de AdGuard completada',
     day: 'ayer',
     kind: 'adguard',

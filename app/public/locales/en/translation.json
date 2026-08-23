@@ -319,6 +319,7 @@
     "subtitle": "Roaming and WiFi mesh status",
     "loading": "Loading DAWN data…",
     "error": "Could not load DAWN status. Check that the service runs on your routers.",
+    "noApi": "Available only with a live backend.",
     "empty": "No router has DAWN enabled. Install it on OpenWrt to see the roaming mesh.",
     "tabMatrix": "Matrix",
     "tab11r": "802.11r",
@@ -401,7 +402,8 @@
       "disconnected": "Disconnected",
       "dawn": "DAWN",
       "other": "Other"
-    }
+    },
+    "tabsLabel": "Roaming views"
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."
@@ -581,6 +583,7 @@
     "footnote": "Availability = minutes with data over the period total. The current period is shown as partial.",
     "latency": "Average latency",
     "loading": "Loading report…",
+    "noApi": "Available only with a live backend.",
     "rangeLabel": "Range to show",
     "subtitle": "Availability and performance per router.",
     "tabDay": "Daily",

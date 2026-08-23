@@ -99,22 +99,32 @@ function TooltipCard({
   touch,
   wan,
   routerName,
+  onPointerEnter,
+  onPointerLeave,
 }: {
   tip: TooltipState
   touch: boolean
   wan: WanInfo
   /** nombre visible del router del que cuelga un nodo (D8: tooltip dist) */
   routerName: (id: string) => string
+  /** puente de hover (issue #255): cancelar el cierre al entrar en el popup */
+  onPointerEnter?: () => void
+  onPointerLeave?: () => void
 }) {
   const { t } = useTranslation()
   return (
     <div
       className={cn(
-        'pointer-events-none absolute z-20 w-72 -translate-x-1/2 rounded-xl border border-border-strong bg-elevated p-3 shadow-lg',
+        // En puntero fino el popup participa del hover (puente para que no se
+        // cierre al viajar del nodo al popup); en táctil sigue transparente.
+        touch ? 'pointer-events-none' : 'pointer-events-auto',
+        'absolute z-20 w-72 -translate-x-1/2 rounded-xl border border-border-strong bg-elevated p-3 shadow-lg',
         tip.below ? 'translate-y-[14px]' : '-translate-y-[calc(100%+14px)]',
       )}
       style={{ left: tip.left, top: tip.top }}
       role="tooltip"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
     >
       {tip.kind === 'router' && (
         <div>
@@ -426,6 +436,9 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   const drag = useRef<{ px: number; py: number } | null>(null)
   const pinch = useRef<{ view0: View; mid0: { x: number; y: number }; dist0: number } | null>(null)
   const moved = useRef(false)
+  /** Retardo de cierre del tooltip (issue #255): el cursor debe poder viajar
+   *  desde el nodo hasta el popup sin que este desaparezca. */
+  const hoverCloseTimer = useRef<number | null>(null)
 
   const [hoverNode, setHoverNode] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -531,10 +544,10 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       pinch.current = {
         view0: { ...viewRef.current },
         mid0: {
-          x: (pts[0].x + pts[1].x) / 2 - rect.left,
-          y: (pts[0].y + pts[1].y) / 2 - rect.top,
+          x: (pts[0]!.x + pts[1]!.x) / 2 - rect.left,
+          y: (pts[0]!.y + pts[1]!.y) / 2 - rect.top,
         },
-        dist0: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+        dist0: Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) || 1,
       }
     }
   }, [])
@@ -550,10 +563,10 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       if (pinch.current && pointers.current.size >= 2) {
         const pts = [...pointers.current.values()]
         const mid = {
-          x: (pts[0].x + pts[1].x) / 2 - rect.left,
-          y: (pts[0].y + pts[1].y) / 2 - rect.top,
+          x: (pts[0]!.x + pts[1]!.x) / 2 - rect.left,
+          y: (pts[0]!.y + pts[1]!.y) / 2 - rect.top,
         }
-        const cur = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1
+        const cur = Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) || 1
         const { view0, mid0, dist0 } = pinch.current
         const factor = dist0 / cur
         const newW = clamp(view0.w * factor, MIN_W, MAX_W)
@@ -607,21 +620,57 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
     setTooltip({ ...data, left, top, below })
   }, [])
 
-  const closeHover = useCallback(() => {
-    if (hoverCapable) {
+  // El cierre no es inmediato: si el cursor deja el nodo rumbo al popup (que
+  // flota sobre él), un retardo corto evita que el popup desaparezca antes de
+  // poder clicarlo (issue #255). Entrar en otro nodo o en el propio popup lo
+  // cancela.
+  const scheduleClose = useCallback(() => {
+    if (!hoverCapable) return
+    if (hoverCloseTimer.current !== null) return
+    hoverCloseTimer.current = window.setTimeout(() => {
+      hoverCloseTimer.current = null
       setTooltip(null)
       setHoverNode(null)
-    }
+    }, 180)
   }, [hoverCapable])
+
+  const cancelClose = useCallback(() => {
+    if (hoverCloseTimer.current !== null) {
+      window.clearTimeout(hoverCloseTimer.current)
+      hoverCloseTimer.current = null
+    }
+  }, [])
+
+  // Limpieza del timer al desmontar (evita setState tras unmount).
+  useEffect(
+    () => () => {
+      if (hoverCloseTimer.current !== null) window.clearTimeout(hoverCloseTimer.current)
+    },
+    [],
+  )
+
+  const closeHover = scheduleClose
 
   // -- interacción con nodos ---------------------------------------------------
   const handleNodeHover = useCallback(
     (data: TooltipData, e: ReactPointerEvent) => {
       if (e.pointerType !== 'mouse') return
+      cancelClose()
       setHoverNode(data.id)
       openTooltip(data)
     },
-    [openTooltip],
+    [cancelClose, openTooltip],
+  )
+
+  /** Teclado (issue #255): el foco abre el popup igual que el hover. */
+  const handleNodeFocus = useCallback(
+    (data: TooltipData) => {
+      if (!hoverCapable) return
+      cancelClose()
+      setHoverNode(data.id)
+      openTooltip(data)
+    },
+    [hoverCapable, cancelClose, openTooltip],
   )
 
   const handleNodeClick = useCallback(
@@ -849,6 +898,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             handleNodeHover({ kind: 'internet', id: 'internet', x: internetNode.x, y: internetNode.y + 46 }, e)
           }
           onPointerLeave={closeHover}
+          onFocus={() => handleNodeFocus({ kind: 'internet', id: 'internet', x: internetNode.x, y: internetNode.y + 46 })}
+          onBlur={closeHover}
           onClick={(e) =>
             nodeClick(e, { kind: 'internet', id: 'internet', x: internetNode.x, y: internetNode.y + 46 })
           }
@@ -907,6 +958,10 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 handleNodeHover({ kind: 'router', id: node.id, router: node.router, x: node.x, y: node.y - node.r - 10 }, e)
               }
               onPointerLeave={closeHover}
+              onFocus={() =>
+                handleNodeFocus({ kind: 'router', id: node.id, router: node.router, x: node.x, y: node.y - node.r - 10 })
+              }
+              onBlur={closeHover}
               onClick={(e) =>
                 nodeClick(
                   e,
@@ -989,6 +1044,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                     handleNodeHover({ kind: 'peer', id: node.id, peer: node.peer, x: node.x, y: node.y + 30 }, e)
                   }
                   onPointerLeave={closeHover}
+                  onFocus={() => handleNodeFocus({ kind: 'peer', id: node.id, peer: node.peer, x: node.x, y: node.y + 30 })}
+                  onBlur={closeHover}
                   onClick={(e) =>
                     nodeClick(e, { kind: 'peer', id: node.id, peer: node.peer, x: node.x, y: node.y + 30 })
                   }
@@ -1034,6 +1091,16 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                   )
                 }
                 onPointerLeave={closeHover}
+                onFocus={() =>
+                  handleNodeFocus({
+                    kind: 'peersOverflow',
+                    id: 'peers-overflow',
+                    peers: hiddenPeers,
+                    x: PEERS_OVERFLOW_COORD.x,
+                    y: PEERS_OVERFLOW_COORD.y + 30,
+                  })
+                }
+                onBlur={closeHover}
                 onClick={(e) =>
                   nodeClick(
                     e,
@@ -1088,6 +1155,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                   aria-label={t('topology.ring.overflowAria', { count: chip.count, router: routerName })}
                   onPointerEnter={(e) => handleNodeHover(tip, e)}
                   onPointerLeave={closeHover}
+                  onFocus={() => handleNodeFocus(tip)}
+                  onBlur={closeHover}
                   onClick={(e) => nodeClick(e, tip)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -1116,6 +1185,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             opacity={nodeOpacity(dv.id)}
             onHover={(e) => handleNodeHover({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 }, e)}
             onLeave={closeHover}
+            onFocus={() => handleNodeFocus({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 })}
+            onBlur={closeHover}
             onClick={(e) => nodeClick(e, { kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 })}
           />
         ))}
@@ -1131,6 +1202,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             opacity={nodeOpacity(chip.id)}
             onHover={(e) => handleNodeHover(chipTip(chip), e)}
             onLeave={closeHover}
+            onFocus={() => handleNodeFocus(chipTip(chip))}
+            onBlur={closeHover}
             onClick={(e) => {
               if (onTagDevice) {
                 nodeClick(e, chipTip(chip))
@@ -1231,7 +1304,16 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       </svg>
 
       {/* tooltip flotante */}
-      {tooltip && <TooltipCard tip={tooltip} touch={!hoverCapable} wan={wan} routerName={routerName} />}
+      {tooltip && (
+        <TooltipCard
+          tip={tooltip}
+          touch={!hoverCapable}
+          wan={wan}
+          routerName={routerName}
+          onPointerEnter={cancelClose}
+          onPointerLeave={scheduleClose}
+        />
+      )}
     </div>
   )
 }
@@ -1288,6 +1370,8 @@ const DistNodeGroup = memo(function DistNodeGroup({
   opacity,
   onHover,
   onLeave,
+  onFocus,
+  onBlur,
   onClick,
 }: {
   dv: DistNodeView
@@ -1296,6 +1380,8 @@ const DistNodeGroup = memo(function DistNodeGroup({
   opacity: number
   onHover: (e: ReactPointerEvent) => void
   onLeave: () => void
+  onFocus: () => void
+  onBlur: () => void
   onClick: (e: { stopPropagation: () => void }) => void
 }) {
   const { t } = useTranslation()
@@ -1316,6 +1402,8 @@ const DistNodeGroup = memo(function DistNodeGroup({
       transition={{ duration: 0.2 }}
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -1374,6 +1462,8 @@ const ChipGroup = memo(function ChipGroup({
   opacity,
   onHover,
   onLeave,
+  onFocus,
+  onBlur,
   onClick,
 }: {
   chip: ChipNode
@@ -1383,6 +1473,8 @@ const ChipGroup = memo(function ChipGroup({
   opacity: number
   onHover: (e: ReactPointerEvent) => void
   onLeave: () => void
+  onFocus: () => void
+  onBlur: () => void
   onClick: (e: { stopPropagation: () => void }) => void
 }) {
   const d = chip.device
@@ -1403,6 +1495,8 @@ const ChipGroup = memo(function ChipGroup({
         style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
         onPointerEnter={onHover}
         onPointerLeave={onLeave}
+        onFocus={onFocus}
+        onBlur={onBlur}
         onClick={onClick}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
