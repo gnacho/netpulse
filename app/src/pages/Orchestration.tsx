@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
@@ -86,9 +86,12 @@ export default function Orchestration() {
   const gatewayId = routers.find((r) => r.roleBadge === 'Principal')?.id
   // Routers del dropdown: solo el gateway por defecto; todos si el toggle
   // advanced está activo. Se listan los AGENTES conectados (el apply usa SSE).
-  const visibleRouters = allowNonGateway
-    ? agents
-    : agents.filter((a) => a.slug === gatewayId)
+  // useMemo: identidad estable para no re-disparar el efecto de auto-select en
+  // cada render (#225).
+  const visibleRouters = useMemo(
+    () => (allowNonGateway ? agents : agents.filter((a) => a.slug === gatewayId)),
+    [agents, allowNonGateway, gatewayId],
+  )
   const nonGatewaySelected = allowNonGateway && routerId !== gatewayId
 
   // Poll de applyPlan: el id vive en un ref para limpiarlo en unmount y al
