@@ -32,6 +32,7 @@ const POLL_MS = 60 * 60 * 1000
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const CHECK_KEY = 'netpulse-last-update-check'
 const APPLY_POLL_MS = 2500
+const APPLY_TIMEOUT_MS = 90_000
 
 export function UpdateBanner() {
   const { t } = useTranslation()
@@ -40,6 +41,16 @@ export function UpdateBanner() {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [dismissed, setDismissed] = useState<string | null>(null)
   const applyingRef = useRef(false)
+  // Id del poll de progreso del apply: en un ref para limpiarlo en unmount
+  // (#226).
+  const applyPollRef = useRef<number | null>(null)
+  const clearApplyPoll = () => {
+    if (applyPollRef.current !== null) {
+      window.clearInterval(applyPollRef.current)
+      applyPollRef.current = null
+    }
+  }
+  useEffect(() => clearApplyPoll, [])
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -123,14 +134,18 @@ export function UpdateBanner() {
     }
     try {
       await fetch('/api/update/apply', { method: 'POST' })
-      // Seguimiento del progreso hasta que acabe
-      const id = window.setInterval(async () => {
+      // Seguimiento del progreso hasta que acabe. Tope de 90 s: si el backend
+      // se queda en 'updating' sin llegar a 'done', se abandona el poll en vez
+      // de seguir sondeando para siempre (#226). El id vive en un ref para
+      // limpiarlo si el banner se desmonta.
+      const deadline = Date.now() + APPLY_TIMEOUT_MS
+      applyPollRef.current = window.setInterval(async () => {
         const s = await fetchStatus()
         if (s && s.updating && s.updating.step === 'done') {
-          window.clearInterval(id)
+          clearApplyPoll()
           waitAndReload(uptimeBefore)
-        } else if (s && !s.updating) {
-          window.clearInterval(id)
+        } else if ((s && !s.updating) || Date.now() > deadline) {
+          clearApplyPoll()
           applyingRef.current = false
         }
       }, APPLY_POLL_MS)
