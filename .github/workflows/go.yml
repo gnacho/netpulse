@@ -91,7 +91,11 @@ jobs:
         # available" permanente aunque el binario sea el de main HEAD.
         # -X agentbin.EmbeddedAgentVersion: la versión del agente embebido;
         # alimenta el campo updateAvailable de GET /api/agents.
-        run: go build -trimpath -ldflags "-s -w -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${GITHUB_SHA::7} -X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion=${AGENT_VERSION}" -o netpulse ./cmd/netpulse
+        # -X httpapi.Version: la versión semver del último tag (rolling por
+        # commit no tiene versión propia; reporta la del release más reciente).
+        run: |
+          VER=$(git describe --tags --abbrev=0 || echo "0.0.0")
+          go build -trimpath -ldflags "-s -w -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${GITHUB_SHA::7} -X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion=${AGENT_VERSION} -X github.com/gnacho/netpulse/server-go/internal/httpapi.Version=${VER}" -o netpulse ./cmd/netpulse
 
       - name: Empaqueta binario + despliegue
         run: tar czf netpulse-server-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz -C server-go netpulse .env.example -C .. deploy

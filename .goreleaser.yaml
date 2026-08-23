@@ -27,6 +27,9 @@ builds:
       - -w
       - "-X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit={{.ShortCommit}}"
       - "-X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion={{ .Env.AGENT_VERSION }}"
+      # -X httpapi.Version: sin esto el health reporta el fallback local
+      # (httpapi.go declara var Version) en vez de la versión del tag.
+      - "-X github.com/gnacho/netpulse/server-go/internal/httpapi.Version={{.Version}}"
 
   - id: netpulse-collector
     dir: collector
