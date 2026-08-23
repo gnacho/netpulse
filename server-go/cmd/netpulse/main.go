@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -67,6 +68,17 @@ func isSSEStreamPath(p string) bool {
 		return true
 	}
 	return strings.HasPrefix(p, "/api/agents/") && strings.HasSuffix(p, "/stream")
+}
+
+// webhookHostForLog devuelve solo el host del webhook para el log de arranque:
+// la URL completa puede incrustar credenciales (https://user:pass@host) y
+// acabarían en el log (issue #217).
+func webhookHostForLog(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return "(sin host)"
+	}
+	return u.Host
 }
 
 // withSSEWriteTimeout extiende el write deadline para los endpoints SSE: el
@@ -253,7 +265,7 @@ func run() error {
 	var webhookNotifier *webhook.Notifier
 	if cfg.Webhook != nil && cfg.Webhook.Enabled {
 		webhookNotifier = webhook.NewNotifier(*cfg.Webhook, dbHandle)
-		log.Printf("[netpulse] webhook saliente activo: %s", cfg.Webhook.URL)
+		log.Printf("[netpulse] webhook saliente activo: %s", webhookHostForLog(cfg.Webhook.URL))
 	}
 
 	// Notifier compuesto: push + webhook (SetNotifier solo admite UNO).

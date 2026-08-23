@@ -5,6 +5,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,5 +94,24 @@ func TestWithSSEWriteTimeoutNoTocaNoSSE(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/overview", nil))
 	if rec.set {
 		t.Fatal("/api/overview no debe extender el write deadline")
+	}
+}
+
+func TestWebhookHostForLog(t *testing.T) {
+	// Issue #217: el log de arranque del webhook debe mostrar solo el host,
+	// sin userinfo ni path (posibles credenciales embebidas).
+	cases := map[string]string{
+		"https://user:pass@hooks.example.com/hook/abc": "hooks.example.com",
+		"https://hooks.example.com/path":               "hooks.example.com",
+		"http://192.168.1.50:8080/h":                   "192.168.1.50:8080",
+		"no-es-una-url":                                "(sin host)",
+	}
+	for raw, want := range cases {
+		if got := webhookHostForLog(raw); got != want {
+			t.Errorf("webhookHostForLog(%q) = %q, want %q", raw, got, want)
+		}
+	}
+	if s := webhookHostForLog("https://user:pass@hooks.example.com/x"); strings.Contains(s, "pass") {
+		t.Fatalf("el host no debe contener credenciales: %q", s)
 	}
 }
