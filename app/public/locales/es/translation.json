@@ -565,7 +565,9 @@
     "upgradeUpdated": "Actualizado",
     "upgradeWaiting": "Esperando al agente…",
     "upgradeAllHint": "{{count}} agentes desactualizados",
-    "upgradeAllShort": "Actualizar agentes"
+    "upgradeAllShort": "Actualizar agentes",
+    "upgradeAllTitle": "¿Actualizar todos los agentes?",
+    "upgradeCancel": "Cancelar"
   },
   "reports": {
     "availability": "Disponibilidad",

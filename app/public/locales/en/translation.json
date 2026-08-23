@@ -565,7 +565,9 @@
     "upgradeUpdated": "Updated",
     "upgradeWaiting": "Waiting for the agent…",
     "upgradeAllHint": "{{count}} agents outdated",
-    "upgradeAllShort": "Update agents"
+    "upgradeAllShort": "Update agents",
+    "upgradeAllTitle": "Update all agents?",
+    "upgradeCancel": "Cancel"
   },
   "reports": {
     "availability": "Availability",

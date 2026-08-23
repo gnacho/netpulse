@@ -6,6 +6,16 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { FleetCard } from '@/components/routers/FleetCard'
 import { FleetTable } from '@/components/routers/FleetTable'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
 /** Página `/routers` — vista de flota (routers.md) */
@@ -16,6 +26,7 @@ export default function Routers() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null)
   /** Slugs a los que se envió el upgrade de flota (para mostrar progreso). */
   const [upgradeTrack, setUpgradeTrack] = useState<string[]>([])
@@ -31,7 +42,7 @@ export default function Routers() {
 
   async function handleUpgradeAll() {
     if (upgrading) return
-    if (!window.confirm(t('routers.upgradeAllConfirm', { count: pendingAgents }))) return
+    setConfirmOpen(false)
     setUpgrading(true)
     setUpgradeMsg(null)
     const res = await upgradeAllAgents()
@@ -126,7 +137,7 @@ export default function Routers() {
                   {t('routers.upgradeAllHint', { count: pendingAgents })}
                 </span>
                 <button
-                  onClick={() => void handleUpgradeAll()}
+                  onClick={() => setConfirmOpen(true)}
                   disabled={upgrading}
                   className="inline-flex items-center gap-1 rounded-full bg-warn px-2.5 py-1 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
@@ -193,6 +204,31 @@ export default function Routers() {
 
       {/* ③ Tabla comparativa */}
       <FleetTable refreshKey={refreshKey} />
+
+      {/* Confirmación in-app del upgrade de flota */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('routers.upgradeAllTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('routers.upgradeAllConfirm', { count: pendingAgents })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={upgrading}>{t('routers.upgradeCancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void handleUpgradeAll()
+              }}
+              disabled={upgrading}
+            >
+              <Rocket className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {upgrading ? t('routers.upgradingAll') : t('routers.upgradeAllShort')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
