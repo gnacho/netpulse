@@ -544,10 +544,10 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       pinch.current = {
         view0: { ...viewRef.current },
         mid0: {
-          x: (pts[0].x + pts[1].x) / 2 - rect.left,
-          y: (pts[0].y + pts[1].y) / 2 - rect.top,
+          x: (pts[0]!.x + pts[1]!.x) / 2 - rect.left,
+          y: (pts[0]!.y + pts[1]!.y) / 2 - rect.top,
         },
-        dist0: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+        dist0: Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) || 1,
       }
     }
   }, [])
@@ -563,10 +563,10 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       if (pinch.current && pointers.current.size >= 2) {
         const pts = [...pointers.current.values()]
         const mid = {
-          x: (pts[0].x + pts[1].x) / 2 - rect.left,
-          y: (pts[0].y + pts[1].y) / 2 - rect.top,
+          x: (pts[0]!.x + pts[1]!.x) / 2 - rect.left,
+          y: (pts[0]!.y + pts[1]!.y) / 2 - rect.top,
         }
-        const cur = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1
+        const cur = Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) || 1
         const { view0, mid0, dist0 } = pinch.current
         const factor = dist0 / cur
         const newW = clamp(view0.w * factor, MIN_W, MAX_W)

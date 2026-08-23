@@ -45,7 +45,7 @@ function PerfTooltip({
 }) {
   const { t } = useTranslation()
   if (!active || !payload?.length) return null
-  const p = payload[0]
+  const p = payload[0]!
   const def = SERIES.find((s) => s.key === p.dataKey)
   return (
     <div className="rounded-[10px] border border-border-strong bg-elevated px-3 py-2 shadow-lg">

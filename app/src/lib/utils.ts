@@ -27,7 +27,7 @@ export function exitDemo() {
 
 export type JsonFetch<T> =
   | { ok: true; data: T }
-  | { ok: false; kind: 'error' | 'no-api' }
+  | { ok: false; kind: 'error' | 'no-api' | 'unauthorized' }
 
 /**
  * Fetch de un endpoint que debe devolver JSON. Distingue el fallo de red/HTTP

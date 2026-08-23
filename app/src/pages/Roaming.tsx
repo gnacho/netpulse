@@ -384,7 +384,7 @@ export default function Roaming() {
       else if (e.key === 'End') next = TAB_IDS.length - 1
       else return
       e.preventDefault()
-      const target = TAB_IDS[next]
+      const target = TAB_IDS[next]!
       setTab(target)
       tabRefs.current[next]?.focus()
     },

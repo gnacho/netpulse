@@ -131,7 +131,7 @@ export default function Reports() {
       else if (e.key === 'End') next = RANGE_TABS.length - 1
       else return
       e.preventDefault()
-      const target = RANGE_TABS[next]
+      const target = RANGE_TABS[next]!
       setRange(target)
       setN(DEFAULT_N[target])
       tabRefs.current[next]?.focus()

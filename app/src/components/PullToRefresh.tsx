@@ -20,14 +20,14 @@ export default function PullToRefresh({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
       if (window.scrollY <= 0 && e.touches.length === 1) {
-        startY.current = e.touches[0].clientY
+        startY.current = e.touches[0]!.clientY
       } else {
         startY.current = null
       }
     }
     const onTouchMove = (e: TouchEvent) => {
       if (startY.current === null) return
-      const dy = e.touches[0].clientY - startY.current
+      const dy = e.touches[0]!.clientY - startY.current
       if (dy > 0) {
         const v = Math.min(dy * 0.5, 120)
         pullRef.current = v
