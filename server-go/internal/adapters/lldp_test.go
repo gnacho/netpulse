@@ -208,6 +208,30 @@ func TestIsLldpUnavailable(t *testing.T) {
 // Router.Lldp live (ítem 4 de C2): si los vecinos LLDP de un router incluyen
 // en su puerto de uplink a OTRO router conocido (chassis-MAC = bridge MAC de
 // otro router de la config), la tarjeta lleva Lldp; si no, se omite.
+// Issue #247: cuando lldpd NO está instalado (ErrLldpUnavailable), el
+// view-model expone `lldpAvailable:false` para que la UI muestre el hint
+// "instala lldpd". Con lldpd presente (aunque no haya vecinos) el campo se
+// omite (nil → ausente en el JSON).
+func TestBuildRouterLldpUnavailable(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{{ID: "r1", Host: "192.168.8.2"}}, nil)
+	p := &routerPolled{
+		cfg:             RouterConfig{ID: "r1", Name: "Switch", Host: "192.168.8.2"},
+		lldp:            nil,
+		lldpUnavailable: true,
+	}
+	r := l.buildRouter(p, nil)
+	if r.LldpAvailable == nil || *r.LldpAvailable {
+		t.Fatalf("lldpAvailable debería ser false explícito: %+v", r.LldpAvailable)
+	}
+	p2 := &routerPolled{
+		cfg:  RouterConfig{ID: "r1", Name: "Switch", Host: "192.168.8.2"},
+		lldp: []LldpNeighbor{},
+	}
+	if r2 := l.buildRouter(p2, nil); r2.LldpAvailable != nil {
+		t.Fatalf("con lldpd presente el campo debería omitirse: %+v", r2.LldpAvailable)
+	}
+}
+
 func TestBuildRouterLldpUplink(t *testing.T) {
 	l := NewLive(nil, nil, []RouterConfig{
 		{ID: "flint2", Host: "192.168.8.1", IsGateway: true},

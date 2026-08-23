@@ -159,6 +159,11 @@ type Router struct {
 	// (uplink identificado por LLDP). Ausente si no hay dato — la app lo usa
 	// para el sufijo "· LLDP" en la etiqueta del uplink.
 	Lldp *LldpInfo `json:"lldp,omitempty"`
+	// LldpAvailable: nil = sin dato (lldpd presente o sonda aún no ejecutada);
+	// false = lldpd NO está instalado en el router (ErrLldpUnavailable) — la
+	// UI muestra el hint "instala lldpd" para identificar switches gestionados
+	// (issue #247). Nunca emite true (ausente = OK).
+	LldpAvailable *bool `json:"lldpAvailable,omitempty"`
 }
 
 // DeviceTotals del overview (quirk: NewToday=0 en live).

@@ -33,6 +33,10 @@ func fmtUptime(sec float64) string {
 	return fmt.Sprintf("%dd %dh", d, h)
 }
 
+// bptr: puntero a bool (el view-model usa *bool para distinguir "ausente" de
+// "false" explícito, p.ej. Router.LldpAvailable).
+func bptr(v bool) *bool { return &v }
+
 // mbps: bps → Mbps 1 decimal (null → 0).
 func mbps(bps *float64) float64 {
 	if bps == nil {
@@ -109,6 +113,9 @@ type routerPolled struct {
 	backhaul string
 	// lldp: vecinos LLDP del tier lento (nil = sin lldpd o sonda fallida).
 	lldp []LldpNeighbor
+	// lldpUnavailable: lldpd no está instalado en este router (issue #247) →
+	// el view-model expone `lldpAvailable:false` para el hint de instalación.
+	lldpUnavailable bool
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -133,9 +140,12 @@ type backhaulCacheEntry struct {
 const lldpCacheTTL = 45 * time.Second
 
 // lldpCacheEntry: vecinos LLDP cacheados por router (nil = sin datos).
+// unavailable=true cuando lldpd NO está instalado en el router (ErrLldpUnavailable);
+// la UI lo usa para el hint "instala lldpd" (issue #247).
 type lldpCacheEntry struct {
-	neighbors []LldpNeighbor
-	at        time.Time
+	neighbors   []LldpNeighbor
+	unavailable bool
+	at          time.Time
 }
 
 // Live es el Snapshotter del modo live.
@@ -369,25 +379,30 @@ func (l *Live) probeBackhaul(routerID string, client *OpenWrtClient) string {
 
 // probeLldp: vecinos LLDP del router con caché de 45 s (tier lento, como los
 // extras anti-parpadeo). Error o lldpd ausente → nil (sin datos; el FDB solo
-// sigue mandando, comportamiento actual intacto).
-func (l *Live) probeLldp(ctx context.Context, routerID string, client *OpenWrtClient) []LldpNeighbor {
+// sigue mandando, comportamiento actual intacto). Devuelve además si lldpd
+// NO está instalado (ErrLldpUnavailable) para que el view-model lo exponga
+// (issue #247): hint "instala lldpd" en la UI.
+func (l *Live) probeLldp(ctx context.Context, routerID string, client *OpenWrtClient) ([]LldpNeighbor, bool) {
 	l.mu.Lock()
 	e, ok := l.lldpCache[routerID]
 	l.mu.Unlock()
 	if ok && time.Since(e.at) < lldpCacheTTL {
-		return e.neighbors
+		return e.neighbors, e.unavailable
 	}
 	neighbors, err := client.LldpNeighbors(ctx)
+	unavailable := false
 	if err != nil {
-		if !errors.Is(err, ErrLldpUnavailable) {
+		if errors.Is(err, ErrLldpUnavailable) {
+			unavailable = true
+		} else {
 			log.Printf("[netpulse] LLDP %s: %v", routerID, err)
 		}
 		neighbors = nil
 	}
 	l.mu.Lock()
-	l.lldpCache[routerID] = lldpCacheEntry{neighbors: neighbors, at: time.Now()}
+	l.lldpCache[routerID] = lldpCacheEntry{neighbors: neighbors, unavailable: unavailable, at: time.Now()}
 	l.mu.Unlock()
-	return neighbors
+	return neighbors, unavailable
 }
 
 // getAdguardClient: kv (GL.iNet) con fallback a .env (AGH estándar).
@@ -659,7 +674,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	// Tier lento: backhaul (5 min) y vecinos LLDP (45 s), ambos cacheados y
 	// tolerantes a error (router sin wifi/lldpd → campo ausente, sin romper).
 	backhaul := l.probeBackhaul(cfg.ID, client)
-	lldp := l.probeLldp(ctx, cfg.ID, client)
+	lldp, lldpUnavailable := l.probeLldp(ctx, cfg.ID, client)
 	if !hasBoard {
 		if b, err := client.GetBoard(); err == nil {
 			board = b
@@ -728,7 +743,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
-		backhaul: backhaul, lldp: lldp,
+		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 	}, nil
 }
 
@@ -818,6 +833,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if uplink := l.uplinkLldp(p); uplink != nil {
 		r.Lldp = uplink
+	}
+	if p.lldpUnavailable {
+		r.LldpAvailable = bptr(false)
 	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
