@@ -623,6 +623,27 @@ auto-rollback). Los módulos concretos se agrupan por riesgo en Fases 18-20.
 | 17.9 | DAWN + 802.11r (write) | 20 | Alto |
 | 17.10 | Batman-adv mesh | 20 | Muy alto |
 | 17.11 | DPI (nDPI / ntopng) | 20 | Alto |
+| 17.12 | **Firmware update in-app (labs)** | 20 | Alto |
+
+### 🔥 17.12 — Firmware update in-app (labs) (23-Ago-2026)
+
+Actualización de firmware de los routers desde la app, **como funcionalidad
+labs** (mismo patrón que la orquestación: badge "labs" en el nav, opt-in vía
+flag). **Activable hoy mismo** aunque aún no esté la vista completa de gestión;
+el paso previo (detección de firmware desactualizado: alerta + campo en
+routers + impacto leve en salud) vive en el issue #241.
+
+- **Detección (ya modelada)**: `Router.firmware` se puebla en live desde
+  `board.Release.Description` (live.go:777); la demo ya modela
+  `FirmwareUpdated`/`FirmwareAvailable` (demo_extras.go:38-41) y una alerta de
+  firmware (demo_dataset.go:153). Fuente del "última versión": a decidir
+  (feed estable OpenWrt, API de fabricante GL.iNet o target configurable).
+- **Aplicación**: reutiliza el motor plan→apply→state de la Fase 10 con
+  snapshot + healthcheck + auto-rollback: descarga de imagen oficial con
+  verificación de checksum, `sysupgrade` vía agente, y recuperación si se
+  pierde conectividad.
+- **Riesgo**: Alto (un fallo puede dejar el router incomunicado); por eso
+  arranca como labs y no entra en el canal stable hasta beta-testing.
 
 **Prerrequisitos comunes** (se estabilizan al implementar 17.1 como spike):
 - Instalador de paquetes unificado: `opkg` (24.10), `apk` (25.12), binario
