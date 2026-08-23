@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Rocket } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { FleetCard } from '@/components/routers/FleetCard'
@@ -12,15 +12,35 @@ import { cn } from '@/lib/utils'
 export default function Routers() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { routers } = useNetPulse()
+  const { routers, agents, upgradeAllAgents } = useNetPulse()
   const [refreshKey, setRefreshKey] = useState(0)
   const [spinning, setSpinning] = useState(false)
+  const [upgrading, setUpgrading] = useState(false)
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null)
 
   function handleRefresh() {
     setRefreshKey((k) => k + 1)
     if (reduce) return
     setSpinning(true)
     window.setTimeout(() => setSpinning(false), 650)
+  }
+
+  const pendingAgents = agents.filter((a) => a.updateAvailable).length
+
+  async function handleUpgradeAll() {
+    if (upgrading) return
+    if (!window.confirm(t('routers.upgradeAllConfirm', { count: pendingAgents }))) return
+    setUpgrading(true)
+    setUpgradeMsg(null)
+    const res = await upgradeAllAgents()
+    setUpgrading(false)
+    if (res) {
+      setUpgradeMsg(res.message)
+      window.setTimeout(() => setUpgradeMsg(null), 8000)
+    } else {
+      setUpgradeMsg(t('routers.upgradeAllFail'))
+      window.setTimeout(() => setUpgradeMsg(null), 5000)
+    }
   }
 
   const online = routers.filter((r) => r.status === 'online').length
@@ -83,9 +103,20 @@ export default function Routers() {
               <RefreshCw className={cn('h-4 w-4 transition-transform duration-500', spinning && 'rotate-[360deg]')} strokeWidth={1.75} />
               {t('common.refresh')}
             </button>
+            {pendingAgents > 0 && (
+              <button
+                onClick={() => void handleUpgradeAll()}
+                disabled={upgrading}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
+              >
+                <Rocket className={cn('h-4 w-4', upgrading && 'animate-pulse')} strokeWidth={1.75} />
+                {upgrading ? t('routers.upgradingAll') : t('routers.upgradeAll', { count: pendingAgents })}
+              </button>
+            )}
             <span className="hidden text-caption text-text-muted sm:inline">{t('common.updatedAgo')}</span>
           </motion.div>
         </div>
+        {upgradeMsg && <p className="mt-1 text-caption text-text-secondary">{upgradeMsg}</p>}
       </header>
 
       {/* ② Fleet cards 2×2 */}

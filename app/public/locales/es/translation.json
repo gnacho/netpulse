@@ -554,7 +554,11 @@
     "summary": "{{total}} equipos · {{online}} online · {{warnings}} con aviso",
     "tempThreshold": "Umbral: 65 °C",
     "traffic24h": "Tráfico 24 h",
-    "trafficAria": "Tráfico de {{name}} en las últimas 24 horas"
+    "trafficAria": "Tráfico de {{name}} en las últimas 24 horas",
+    "upgradeAll": "Actualizar todos ({{count}} pendientes)",
+    "upgradingAll": "Actualizando…",
+    "upgradeAllConfirm": "¿Actualizar los {{count}} agentes con actualización disponible? Cada router descargará el binario nuevo y reiniciará su servicio de agente.",
+    "upgradeAllFail": "No se pudo enviar la actualización de la flota."
   },
   "reports": {
     "availability": "Disponibilidad",
