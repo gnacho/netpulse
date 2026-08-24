@@ -210,7 +210,7 @@ const GATEWAY_COORD = { x: 500, y: 250, r: 40, label: { x: 446, y: 312, anchor: 
 const AP_RADIUS = 32
 const AP_ARC_CENTER = 90
 const AP_ARC_HALF = 70
-const AP_BASE_Y = 560
+const AP_BASE_Y = 545
 
 function apCoords(n: number, total: number): { x: number; y: number; r: number; label: { x: number; y: number; anchor: 'end' | 'start' } } {
   let angle: number
@@ -219,7 +219,7 @@ function apCoords(n: number, total: number): { x: number; y: number; r: number; 
   } else {
     angle = AP_ARC_CENTER - AP_ARC_HALF + (2 * AP_ARC_HALF * n) / (total - 1)
   }
-  const x = Math.round(GATEWAY_COORD.x + 305 * Math.cos(rad(angle)))
+  const x = Math.round(GATEWAY_COORD.x + 280 * Math.cos(rad(angle)))
   const y = Math.round(AP_BASE_Y + 25 * Math.sin(rad(angle - AP_ARC_CENTER)))
   const isLeft = x < GATEWAY_COORD.x
   return {
@@ -244,45 +244,45 @@ const WG_PATHS = [
  *  topoAPRingCap (40) del server — deben coincidir para que GW_RING_VISIBLE
  *  no corte antes de tiempo. */
 const GATEWAY_RINGS = [
-  { r: 92, cap: 8 },
-  { r: 130, cap: 14 },
-  { r: 168, cap: 18 },
-  { r: 200, cap: 20 },
+  { r: 84, cap: 8 },
+  { r: 116, cap: 14 },
+  { r: 148, cap: 18 },
+  { r: 180, cap: 20 },
 ]
 const AP_RINGS = [
-  { r: 84, cap: 8 },
-  { r: 124, cap: 14 },
-  { r: 162, cap: 18 },
+  { r: 78, cap: 8 },
+  { r: 112, cap: 14 },
+  { r: 148, cap: 18 },
 ]
 /** Abanicos cableados: gateway tiene sector este (switch inferido) y oeste */
 const GW_EAST_FAN: [number, number] = [336, 24] // wrap (a1 < a0)
 const GW_WEST_FAN: [number, number] = [150, 210]
 const AP_WIRED_FAN: [number, number] = [150, 210]
-const DIST_FAN_RADIUS = 120
+const DIST_FAN_RADIUS = 112
 /** distnodes: hasta DIST_FAN_MAX hijos en abanico de 136°; con más, el arco
  *  de radio fijo los amontona (issue #5 bug 2: 8 bocas tras un switch en el
  *  mismo puerto) → anillos concéntricos alrededor del círculo dashed. */
 const DIST_FAN_MAX = 5
 const DIST_RINGS = [
-  { r: 70, cap: 8 },
-  { r: 116, cap: 14 },
+  { r: 66, cap: 8 },
+  { r: 110, cap: 14 },
 ]
-const HUB_FAN_RADIUS = 100
+const HUB_FAN_RADIUS = 96
 /** device-hubs (switch gestionado): con más de HUB_FAN_MAX hijos, el abanico
  *  fijo de 90° a r=HUB_FAN_RADIUS los apiña (muchos puertos en el mismo
  *  switch) → anillos concéntricos, igual que los distnodes. */
 const HUB_FAN_MAX = 8
 const HUB_RINGS = [
-  { r: 62, cap: 6 },
-  { r: 100, cap: 12 },
+  { r: 58, cap: 6 },
+  { r: 94, cap: 12 },
 ]
-const ROUTER_FAN_RADIUS = 185
+const ROUTER_FAN_RADIUS = 176
 /** Hosts hipervisores del gateway: lejos (su grid de CTs necesita espacio) */
-const HYPERVISOR_FAN_RADIUS = 260
+const HYPERVISOR_FAN_RADIUS = 244
 /** Host hipervisor de un switch/AP (no-gateway): radio desde su switch/AP.
  *  > ROUTER_FAN_RADIUS para quedar fuera del abanico de cableados directos;
  *  el resolver de colisiones lo acomoda si algún vecino está demasiado cerca. */
-const HUB_HOST_RADIUS = 240
+const HUB_HOST_RADIUS = 224
 /** Grid de CTs bajo el host hipervisor */
 const CT_COLS = 5
 const CT_DX = 46
@@ -347,6 +347,53 @@ function widestGapCenterInView(
     if (inView(a)) return a
   }
   return fallback
+}
+
+/** Hueco angular más grande entre `points` cuya posición a `radius` del origen
+ *  caiga DENTRO de uno de los arcos permitidos `allowed` y del viewport.
+ *  El host hipervisor de un AP/switch usa esta variante: el cable que sale del
+ *  AP hacia el host no debe cruzar sus clientes wifi, así que el host se
+ *  restringe a los arcos que el AP ya excluye del wifi (hacia el gateway y el
+ *  fan cableado). Si ningún hueco cae en un arco permitido, se prueba el centro
+ *  de cada arco y, en última instancia, el hueco más grande (issue #141). */
+function widestGapCenterInArcs(
+  origin: { x: number; y: number },
+  points: { x: number; y: number }[],
+  radius: number,
+  allowed: [number, number][],
+  m = 30,
+): number {
+  if (points.length === 0) return 0
+  const angles = points.map((p) => angleTo(origin.x, origin.y, p.x, p.y)).sort((a, b) => a - b)
+  const gaps: { start: number; gap: number }[] = []
+  for (let i = 0; i < angles.length; i++) {
+    const start = angles[i]!
+    const next = angles[(i + 1) % angles.length]! + (i === angles.length - 1 ? 360 : 0)
+    gaps.push({ start, gap: next - start })
+  }
+  gaps.sort((a, b) => b.gap - a.gap)
+  const inView = (a: number) => {
+    const p = pos(origin.x, origin.y, a, radius)
+    return p.x >= m && p.x <= VB_W - m && p.y >= m && p.y <= VB_H - m
+  }
+  const inAllowed = (a: number) =>
+    allowed.some(([s, e]) => {
+      const a2 = norm(a)
+      return s <= e ? a2 >= s && a2 <= e : a2 >= s || a2 <= e
+    })
+  for (const g of gaps) {
+    const center = norm(g.start + g.gap / 2)
+    if (inAllowed(center) && inView(center)) return center
+  }
+  for (const [s, e] of allowed) {
+    const span = e >= s ? e - s : e + 360 - s
+    const center = norm(s + span / 2)
+    if (inView(center)) return center
+  }
+  for (const a of [90, 180, 270, 0, 135, 225]) {
+    if (inAllowed(a) && inView(a)) return a
+  }
+  return gaps[0] ? norm(gaps[0].start + gaps[0].gap / 2) : 0
 }
 
 /** arcos libres = [0,360) menos exclusiones (intervalos sin wrap) */
@@ -589,7 +636,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const switchAnchor = gatewayNode
     ? (() => {
         const others = [...apNodes, internetNode].map((p) => ({ x: p.x, y: p.y }))
-        const r = GATEWAY_RINGS[GATEWAY_RINGS.length - 1]!.r + 120
+        const r = GATEWAY_RINGS[GATEWAY_RINGS.length - 1]!.r + 100
         const a = widestGapCenterInView(gatewayNode, others, r)
         return { x: Math.round(gatewayNode.x + r * Math.cos(rad(a))), y: Math.round(gatewayNode.y + r * Math.sin(rad(a))), angle: a }
       })()
@@ -743,7 +790,16 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         if (other.id !== node.id) neighbors.push(other)
       }
       for (const dv of distNodes) neighbors.push(dv)
-      const gapAngle = widestGapCenterInView(node, neighbors, HUB_HOST_RADIUS)
+      // El cable del host no debe cruzar los clientes wifi del propio AP/switch:
+      // el host se restringe a los arcos que el wifi ya excluye (hacia el
+      // gateway y el fan cableado), donde este router no tiene clientes (issue
+      // #141). En su interior se elige el hueco angular más grande.
+      const hostArcs: [number, number][] = []
+      if (gatewayNode) {
+        hostArcs.push(...arcAround(angleTo(node.x, node.y, gatewayNode.x, gatewayNode.y), 27))
+      }
+      hostArcs.push([AP_WIRED_FAN[0] - 10, AP_WIRED_FAN[1] + 10])
+      const gapAngle = widestGapCenterInArcs(node, neighbors, HUB_HOST_RADIUS, hostArcs)
       fanLayout(farWestItems, node, HUB_HOST_RADIUS, gapAngle - 20, gapAngle + 20)
       placed.push(...restItems, ...farWestItems)
       fanArcByRouter.set(node.id, [[AP_WIRED_FAN[0] - 8, AP_WIRED_FAN[1] + 8]])
@@ -809,7 +865,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     for (let guard = 0; guard < 8 && placed < wifi.length; guard++) {
       const last = rings[rings.length - 1]!
       const cap = rings[rings.length - 1]!.cap + 2
-      rings.push({ r: last.r + 40, cap: Math.max(extraCap(last.r + 40), cap) })
+      rings.push({ r: last.r + 34, cap: Math.max(extraCap(last.r + 34), cap) })
       // re-colocar desde el principio (las posiciones parciales se recalcular)
       wifi.forEach((c) => { c.x = 0; c.y = 0 })
       placed = ringLayoutCount(wifi, node, rings, excludes)
