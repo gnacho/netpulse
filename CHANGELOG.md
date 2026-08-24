@@ -7,6 +7,32 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-08-24
+
+### Added
+
+- **Módulo WireGuard de orquestación (Fase 10.3, #92)**: despliegue declarativo de peers WireGuard (interfaz wg0 + secciones wgpeer) vía plan/apply/state, healthcheck con `wg show`, rollback automático si el túnel no queda up y protección anti-lockout (nunca borra el peer del admin).
+- **Recuperación de agentes caídos desde la app (#245)**: nueva vista de flota de agentes con estados fresh/stale/offline y last-seen, acción de reinstall vía SSH y comando one-liner como fallback.
+- **Labels de puertos/VLAN de LuCI como fuente de nombres en topología (#258)**: el agente lee `port_labels`/`vlan_labels` de `/etc/config/luci` y la topología las usa como nombre preferente.
+- **Demo**: tracker GoatCounter opcional (`VITE_GC_COUNT`) y nombre propio por defecto en inglés para primeros visitantes.
+
+### Changed
+
+- **CSP endurecida (#212)**: el script anti-black-screen y el splash se externalizan y se elimina `unsafe-inline` de `script-src`/`style-src`.
+- **Landing**: animaciones de lightbox y botones (press feedback), reveals restringidos a cards/paneles.
+- **Topología**: rings wifi más compactos y cable del host alejado de los APs.
+
+### Fixed
+
+- **SSE (#199, #200)**: limpieza de conexiones por identidad (no mata streams nuevos con el mismo slug) y broadcast no bloqueado por clientes lentos.
+- **Backend auditoría (#202-#206, #209)**: race en notifier Close, reintentos de webhook con backoff, fugas/derribos en la pool SSH, poda de presencia sin límite y hash bcrypt dummy válido (sin oráculo de enumeración de usuarios).
+- **Paginación (#201)**: `start` negativo ya no causa panic con queries enormes.
+- **Reports (#207)**: UpPct semanal clampeado a 100 igual que availability.
+- **LLDP (#208)**: `lldpDownUntil` protegido con mutex.
+- **Frontend (#141, #172, #183, #187)**: snackbar de instalación PWA, layout mobile de topología, transición con slide entre vistas y rings de topología compactos.
+- **i18n de demo (#237, #238)**: idioma forzable en build y nombres propios traducidos al idioma activo.
+- **Test de availability**: clampeado el valor esperado para que no dependa de la hora del día.
+
 ## [2.11.2] - 2026-08-23
 
 ### Added
