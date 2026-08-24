@@ -279,7 +279,10 @@
       "utilization": "Pico hoy: {{pct}} % del contratado"
     },
     "upload": "Subida",
-    "greetingName": ", {{name}}"
+    "greetingName": ", {{name}}",
+    "noImportantAlerts": "Tu red está perfecta",
+    "importantAlerts_one": "{{count}} alerta importante",
+    "importantAlerts_other": "{{count}} alertas importantes"
   },
   "login": {
     "enter": "Entrar",
