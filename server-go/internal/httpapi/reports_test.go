@@ -136,6 +136,28 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	}
 }
 
+// TestWeeklyReportUpPctClamp: un bucket sobre-poblado (más muestras que
+// minutos del día) no puede superar el 100% de disponibilidad (issue #207).
+// El weekly clampa igual que availability: divergía porque availability sí
+// clavaba y weekly no.
+func TestWeeklyReportUpPctClamp(t *testing.T) {
+	ts := makeTestServer(t)
+	// Día completo = 17280 muestras = 1440 min. El doble (34560) da
+	// upMin = 2880 sobre 1440 min → 200% sin el clamp.
+	insertDaily(t, ts, "gw", "2026-08-03", 34560, sqlNull{false, 0}, 0, 0, 20, 60)
+
+	status, items := getWeekly(t, ts, "4")
+	if status != http.StatusOK {
+		t.Fatalf("status %d, esperaba 200", status)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %d, esperaba 1 (un bucket): %+v", len(items), items)
+	}
+	if items[0].UpPct != 100 {
+		t.Fatalf("bucket sobre-poblado upPct=%v, esperaba 100 (clamp)", items[0].UpPct)
+	}
+}
+
 func TestWeeklyReportValidaWeeks(t *testing.T) {
 	ts := makeTestServer(t)
 	for _, bad := range []string{"0", "53", "abc", "-1"} {

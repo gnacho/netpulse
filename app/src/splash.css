@@ -1,0 +1,7 @@
+/* Splash oscuro mientras carga el bundle (PWA) */
+#root:empty {
+  background: #070b12;
+}
+html {
+  background: #070b12;
+}
