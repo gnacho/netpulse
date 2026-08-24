@@ -27,6 +27,12 @@ import (
 // "binary". Actualizar cuando se quiera ofrecer una release más reciente.
 const adguardVersion = "v0.107.62"
 
+// adGuardDNSPort es el puerto donde AdGuard Home escucha el DNS (dns.port).
+// Es fijo y separado del puerto de la UI (bind_port = AdGuardDesired.Port) para
+// que dnsmasq reenvíe al resolutor y no a la UI web (issue #269). Elegido fuera
+// del puerto 53 para no colisionar con dnsmasq, que sigue sirviendo la LAN en :53.
+const adGuardDNSPort = "5353"
+
 // ErrManagedByFirmware indica que el router trae un fork de AdGuard del
 // fabricante (p. ej. GL.iNet gl-sdk4-adguardhome). El handler lo traduce a
 // HTTP 422 para que el usuario lo vea en el dry-run antes de aplicar nada.
@@ -35,7 +41,7 @@ var ErrManagedByFirmware = errors.New("managed_by_firmware")
 // AdGuardDesired es el estado deseado para el módulo AdGuard Home.
 type AdGuardDesired struct {
 	Enabled     bool   `json:"enabled"`
-	Port        string `json:"port"`        // puerto HTTP de la UI de AdGuard (default "3000")
+	Port        string `json:"port"`        // puerto HTTP de la UI de AdGuard (bind_port; default "3000")
 	UpstreamDNS string `json:"upstreamDns"` // DNS upstream (default "1.1.1.1")
 	// AllowNonGateway: permitir AdGuard en un router que no es el gateway.
 	// El servidor lo exige para no rechazar con 422 adguard_gateway_only
@@ -77,13 +83,15 @@ func AdGuardOps(desired AdGuardDesired, sc AdGuardScenario) ([]executor.Op, erro
 }
 
 // adGuardConfigOps: asume AdGuard ya instalado (opkg/apk/binario presente).
-// Solo configura el DNS forwarding de dnsmasq y arranca el servicio procd.
-// tcp_check al puerto de la UI verifica que el servicio levantó de verdad
-// (si no, el executor revierte staged).
+// Configura el DNS forwarding de dnsmasq hacia el puerto DNS de AdGuard (fijo,
+// adGuardDNSPort) y arranca el servicio procd. tcp_check al puerto de la UI
+// (bind_port) verifica que el servicio levantó de verdad (si no, el executor
+// revierte staged). El puerto port es SOLO de la UI, no del resolver (issue #269).
 func adGuardConfigOps(port, dns string) []executor.Op {
+	_ = dns // el upstream lo fija la config de AdGuard en write_file, no dnsmasq
 	return []executor.Op{
 		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "no_resolv", "value": "1"}, Desc: "Don't use /etc/resolv.conf"},
-		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "127.0.0.1#" + port}, Desc: "Forward DNS to AdGuard on port " + port},
+		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "127.0.0.1#" + adGuardDNSPort}, Desc: "Forward DNS to AdGuard on port " + adGuardDNSPort},
 		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}, Desc: "Commit DHCP changes"},
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "enable"}, Desc: "Enable AdGuard Home on boot"},
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "start"}, Desc: "Start AdGuard Home"},
@@ -131,7 +139,7 @@ func adGuardBinaryOps(sc AdGuardScenario, port, dns string) []executor.Op {
 		{Kind: "service", Args: map[string]string{"name": "adguardhome", "action": "start"}, Desc: "Start AdGuard Home"},
 		{Kind: "tcp_check", Args: map[string]string{"host": "127.0.0.1", "port": port}, Desc: "Check AdGuard Home UI is listening"},
 		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "no_resolv", "value": "1"}, Desc: "Don't use /etc/resolv.conf"},
-		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "127.0.0.1#" + port}, Desc: "Forward DNS to AdGuard on port " + port},
+		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "127.0.0.1#" + adGuardDNSPort}, Desc: "Forward DNS to AdGuard on port " + adGuardDNSPort},
 		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}, Desc: "Commit DHCP changes"},
 		{Kind: "service", Args: map[string]string{"name": "dnsmasq", "action": "restart"}, Desc: "Restart dnsmasq to apply DNS forwarding"},
 	}
@@ -139,13 +147,14 @@ func adGuardBinaryOps(sc AdGuardScenario, port, dns string) []executor.Op {
 
 // adGuardConfigTemplate: config YAML mínimo de AdGuard Home para primer
 // arranque sin wizard. %s = bind_port (HTTP admin UI), %s = upstream DNS.
-// DNS escucha en 0.0.0.0:53 (dnsmasq ya no resuelve, forwardea a AdGuard).
+// El DNS escucha en 0.0.0.0:<adGuardDNSPort> (fijo, separado de la UI);
+// dnsmasq sigue en :53 sirviendo la LAN y reenvía a AdGuard en ese puerto.
 const adGuardConfigTemplate = `bind_port: %s
 users: []
 dns:
   bind_hosts:
     - 0.0.0.0
-  port: 53
+  port: ` + adGuardDNSPort + `
   upstream_dns:
     - %s
   protection_enabled: true
