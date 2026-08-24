@@ -78,6 +78,69 @@ export const wan: WanInfo = canon.wan
 export const healthScore = canon.health as unknown as HealthScore
 
 // ---------------------------------------------------------------------------
+// Nombres propios del canon demo en inglés (issue #238)
+// El canon Go (demo-canon.json) es ES y NO se edita a mano. DataProvider
+// traduce estos textos al idioma activo SOLO en modo demo (en live los
+// nombres vienen del backend y nunca se tocan). Si el canon Go añade un
+// nombre en castellano, hay que mapearlo aquí o saldrá en ES con la UI en EN.
+// ---------------------------------------------------------------------------
+
+/** id de router/device → nombre EN. Los no mapeados son neutros ("Patio", "Gateway"). */
+export const DEMO_NAME_EN: Record<string, string> = {
+  // routers
+  living: 'Living Room',
+  estudio: 'Study',
+  // devices
+  'imac-salon': 'iMac Living Room',
+  'tv-salon-cable': 'Living Room TV (wired)',
+  'tv-samsung': 'Samsung TV',
+  'portatil-trabajo': 'Work laptop',
+  'portatil-invitado': 'Guest laptop',
+  'portatil-antiguo': 'Old laptop',
+  'macbook-viejo': 'Old MacBook',
+  'pc-invitado': 'Guest PC',
+  'iphone-ana': "Ana's iPhone",
+  'iphone-trabajo': 'Work iPhone',
+  'bombilla-1': 'Living room bulb 1',
+  'bombilla-2': 'Living room bulb 2',
+  'bombilla-3': 'Floor lamp bulb',
+  'bombilla-4': 'Entrance bulb',
+  'bombilla-5': 'Hallway bulb',
+  'bombilla-6': 'Kitchen bulb',
+  'camara-garaje': 'Garage camera',
+  'camara-jardin': 'Garden camera',
+  'camara-porche': 'Porch camera',
+  'timbre-nest': 'Nest doorbell',
+  'robot-aspirador': 'Robot vacuum',
+  'enchufe-lavadora': 'Washing machine plug',
+  'enchufe-ventilador': 'Fan plug',
+  'enchufe-calefactor': 'Heater plug',
+  'macbook-pro': "Marc's MacBook Pro",
+  'pc-sobremesa': 'Desktop PC',
+  'sensor-riego': 'Irrigation sensor',
+  'impresora-hp': 'HP printer',
+  'receptor-denon': 'Denon receiver',
+  'receptor-av': 'AV receiver',
+  'hue-hub': 'Philips Hue Hub',
+}
+
+/** `role` del router (texto libre ES) → EN. roleBadge ya se traduce con roleLabel(). */
+export const DEMO_ROLE_EN: Record<string, string> = {
+  'Gateway principal': 'Main gateway',
+  'Punto de acceso': 'Access point',
+  'AP exterior': 'Outdoor AP',
+}
+
+/** Textos libres de salud del canon (caption/note/breakdown) → EN. */
+export const DEMO_HEALTH_EN: Record<string, string> = {
+  'Puntuación de salud de la red': 'Network health score',
+  'Penalizado por la temperatura del Patio.': 'Penalized by the Patio temperature.',
+  'temp. Patio': 'Patio temp.',
+  'cobertura Patio': 'Patio coverage',
+  'canal 2.4 GHz congestionado': 'congested 2.4 GHz channel',
+}
+
+// ---------------------------------------------------------------------------
 // Tráfico WAN — series por rango (valle nocturno 5–15, pico tarde 300–412,
 // pico de subida 21:14 = backup NAS 96 Mbps)
 // ---------------------------------------------------------------------------

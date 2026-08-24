@@ -10,6 +10,12 @@ if (!savedLang || savedLang === 'auto') {
   localStorage.removeItem('i18nextLng')
 }
 
+// Builds con idioma forzado (demo pública, VITE_FORCE_LANG=en): si el
+// visitante nunca eligió idioma, arrancar en el forzado en vez de seguir al
+// navegador. Una elección explícita en Ajustes (es/en/auto) siempre gana.
+const forcedLang = import.meta.env.VITE_FORCE_LANG as 'es' | 'en' | undefined
+const initialLng = !savedLang && forcedLang ? forcedLang : (localStorage.getItem('i18nextLng') ?? undefined)
+
 i18n
   .use(HttpBackend)
   .use(LanguageDetector)
@@ -18,7 +24,8 @@ i18n
     // Sin elección previa NO se fija idioma: el LanguageDetector resuelve
     // desde el navegador (orden localStorage → navigator). 'en' queda solo
     // como fallback para locales no soportados. (issue #3)
-    lng: localStorage.getItem('i18nextLng') ?? undefined,
+    // Excepción: builds con VITE_FORCE_LANG (demo pública, issue #237).
+    lng: initialLng,
     fallbackLng: 'en',
     supportedLngs: ['es', 'en'],
     nonExplicitSupportedLngs: true,
