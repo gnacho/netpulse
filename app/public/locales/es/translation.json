@@ -1183,5 +1183,12 @@
         "disabled": "Desactivado"
       }
     }
+  },
+  "installPrompt": {
+    "title": "¿Instalar NetPulse como app?",
+    "desc": "Acceso directo desde tu pantalla de inicio y sin barra del navegador.",
+    "iosDesc": "En iOS: abre el menú Compartir y elige Añadir a pantalla de inicio.",
+    "install": "Instalar",
+    "later": "Ahora no"
   }
 }

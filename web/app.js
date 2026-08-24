@@ -1407,19 +1407,33 @@ function initLightbox() {
   function openLightbox(img) {
     shotIndex = SHOT_SLIDES.indexOf(img.dataset.view) >= 0 ? SHOT_SLIDES.indexOf(img.dataset.view) : shotIndex
     syncLightbox()
+    clearTimeout(lightbox._closingTimer)
+    lightbox.classList.remove('closing')
     lightbox.hidden = false
+    lightbox.classList.add('open')
     lightbox.setAttribute('aria-hidden', 'false')
     if (lightboxClose) lightboxClose.focus()
     document.body.style.overflow = 'hidden'
   }
 
   function closeLightbox() {
-    lightbox.hidden = true
+    lightbox.classList.remove('open')
+    lightbox.classList.add('closing')
     lightbox.setAttribute('aria-hidden', 'true')
-    document.body.style.overflow = ''
+    clearTimeout(lightbox._closingTimer)
+    lightbox._closingTimer = setTimeout(() => {
+      lightbox.hidden = true
+      lightbox.classList.remove('closing')
+      document.body.style.overflow = ''
+    }, reduceMotion ? 0 : 150)
   }
 
   function nav(dir) {
+    if (lightbox.classList.contains('closing')) {
+      clearTimeout(lightbox._closingTimer)
+      lightbox.classList.remove('closing')
+      lightbox.classList.add('open')
+    }
     renderShot(shotIndex + dir)
     syncLightbox()
   }
