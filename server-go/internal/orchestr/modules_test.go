@@ -1,6 +1,7 @@
 package orchestr
 
 import (
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -70,15 +71,26 @@ func TestAdGuardOpsEscenarioApk(t *testing.T) {
 			t.Errorf("apk no debe descargar binario: encontró %s", op.Kind)
 		}
 	}
-	// El puerto deseado se aplica.
+	// El reenvío DNS va al puerto DNS fijo (adGuardDNSPort), NO al puerto de la UI.
+	// El puerto deseado (5300) solo afecta a la UI (bind_port/tcp_check).
 	hasForward := false
 	for _, op := range ops {
-		if op.Kind == "uci_set" && op.Args["option"] == "server" && op.Args["value"] == "127.0.0.1#5300" {
+		if op.Kind == "uci_set" && op.Args["option"] == "server" && op.Args["value"] == "127.0.0.1#"+adGuardDNSPort {
 			hasForward = true
 		}
 	}
 	if !hasForward {
-		t.Error("apk debe forwardear DNS al puerto deseado 5300")
+		t.Errorf("apk debe forwardear DNS al puerto DNS fijo %s, no al de la UI", adGuardDNSPort)
+	}
+	// El tcp_check de la UI usa el puerto deseado, no el del DNS.
+	hasTCP := false
+	for _, op := range ops {
+		if op.Kind == "tcp_check" && op.Args["port"] == "5300" {
+			hasTCP = true
+		}
+	}
+	if !hasTCP {
+		t.Error("tcp_check de la UI debe apuntar al puerto 5300 (bind_port)")
 	}
 	validateAll(t, ops)
 }
@@ -167,6 +179,59 @@ func TestAdGuardOpsBinaryFallbackSuffix(t *testing.T) {
 	}
 	if !strings.Contains(ops[0].Args["url"], "_arm64.tar.gz") {
 		t.Errorf("fallback URL debe usar arm64: %s", ops[0].Args["url"])
+	}
+	validateAll(t, ops)
+}
+
+func TestAdGuardOpsDNSForwardMatchConfigBinary(t *testing.T) {
+	// Regresión issue #269: el puerto que dnsmasq reenvía (127.0.0.1#X) debe
+	// coincidir con el dns.port de la config de AdGuard, y el DNS no debe
+	// chocar con la UI (bind_port). Antes reenviaba al puerto de la UI.
+	sc := AdGuardScenario{Arch: "aarch64", AdguardSuffix: "arm64"}
+	ops, err := AdGuardOps(AdGuardDesired{Enabled: true, Port: "3000", UpstreamDNS: "1.1.1.1"}, sc)
+	if err != nil {
+		t.Fatalf("binary inesperado error: %v", err)
+	}
+
+	// puerto de reenvío dnsmasq
+	var fwdPort string
+	for _, op := range ops {
+		if op.Kind == "uci_set" && op.Args["option"] == "server" {
+			fwdPort = strings.TrimPrefix(op.Args["value"], "127.0.0.1#")
+		}
+	}
+	if fwdPort == "" {
+		t.Fatal("no se encontró op uci_set server de reenvío")
+	}
+	if fwdPort != adGuardDNSPort {
+		t.Errorf("dnsmasq reenvía a %q, esperado %q", fwdPort, adGuardDNSPort)
+	}
+
+	// puerto de la UI (bind_port / tcp_check) debe ser distinto del DNS
+	var uiPort string
+	for _, op := range ops {
+		if op.Kind == "tcp_check" {
+			uiPort = op.Args["port"]
+		}
+	}
+	if uiPort == fwdPort {
+		t.Errorf("UI y DNS comparten puerto %q: colisión", uiPort)
+	}
+
+	// la config embebida debe tener dns.port == fwdPort
+	for _, op := range ops {
+		if op.Kind == "write_file" && strings.Contains(op.Args["path"], "AdGuardHome.yaml") {
+			raw, err := base64.StdEncoding.DecodeString(op.Args["content_b64"])
+			if err != nil {
+				t.Fatalf("config no es base64 válido: %v", err)
+			}
+			if !strings.Contains(string(raw), "  port: "+fwdPort) {
+				t.Errorf("config dns.port no coincide con reenvío %q\nconfig:\n%s", fwdPort, raw)
+			}
+			if !strings.Contains(string(raw), "  port: 53") {
+				t.Errorf("config no debe usar el puerto fijo 53 (mal):\n%s", raw)
+			}
+		}
 	}
 	validateAll(t, ops)
 }
