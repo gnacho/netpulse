@@ -7,6 +7,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-08-24
+
+### Added
+
+- **Resumen reorganizado (#265)**: tarjeta hero en una sola columna centrada: saludo con el estado debajo ("Tu red está perfecta" cuando todo va bien, o contador dinámico "N alertas importantes" cuando hay penalizaciones), donut de salud a 220 px centrado y fila de stats (latencia, dispositivos) debajo. El contador sale del breakdown existente del healthScore, sin cambios de backend.
+
 ## [2.12.0] - 2026-08-24
 
 ### Added
