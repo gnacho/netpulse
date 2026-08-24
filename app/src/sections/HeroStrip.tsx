@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { Fragment, useEffect, useState } from 'react'
-import { Gauge, MonitorSmartphone } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { healthLabel } from '@/i18n'
 import { CountUp } from '@/components/CountUp'
@@ -34,19 +34,20 @@ function MiniStat({
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: 'easeOut', delay: 0.3 + index * 0.1 }}
-      className="flex items-center gap-3 md:flex-col md:items-start md:gap-1.5 md:border-l md:border-border md:pl-4"
+      transition={{ duration: 0.4, ease: 'easeOut', delay: 0.35 + index * 0.08 }}
+      className="flex flex-col items-center gap-1"
     >
       <span className="flex items-center gap-1.5 text-label uppercase text-text-muted">
         <Icon className={`h-3.5 w-3.5 ${colorClass}`} strokeWidth={1.75} />
         {label}
       </span>
-      <span className={`font-mono text-lg font-semibold md:text-xl ${colorClass}`}>{children}</span>
+      <span className={`font-mono text-lg font-semibold ${colorClass}`}>{children}</span>
     </motion.div>
   )
 }
 
-/** ① Hero strip — saludo + HealthRing + WAN quick stats (home.md §①) */
+/** ① Hero strip — saludo + estado arriba, donut de salud grande y centrado,
+ *  stats en fila debajo (home.md §①) */
 export function HeroStrip() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -73,6 +74,9 @@ export function HeroStrip() {
   const greeting = t(greetingKey()) + (name ? t('home.greetingName', { name }) : '')
   const words = greeting.split(' ')
 
+  const alerts = healthScore.breakdown?.length ?? 0
+  const statusLine = alerts > 0 ? t('home.importantAlerts', { count: alerts }) : t('home.noImportantAlerts')
+
   return (
     <section className="mesh-bg relative h-full overflow-hidden rounded-2xl border border-border bg-surface p-5 md:p-6">
       {/* Halo radial cyan que respira */}
@@ -83,9 +87,9 @@ export function HeroStrip() {
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
         />
       )}
-      <div className="relative flex flex-col items-center gap-6 md:flex-row md:justify-between md:gap-8">
-        {/* Saludo */}
-        <div className="text-center md:text-left">
+      <div className="relative flex flex-col items-center gap-5">
+        {/* Saludo + estado, arriba y centrado */}
+        <div className="text-center">
           <h1 className="font-display text-h1 text-text-primary md:text-2xl" aria-label={greeting}>
             {words.map((w, i) => (
               <Fragment key={`${w}-${i}`}>
@@ -102,22 +106,32 @@ export function HeroStrip() {
             ))}
           </h1>
           <motion.p
-            className="mt-1.5 max-w-md text-sm text-text-secondary"
+            className="mt-1.5 flex items-center justify-center gap-1.5 text-sm font-medium text-text-secondary"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25, duration: 0.4 }}
           >
-            {healthScore.note || t('home.statusPhrase')}
+            {alerts > 0 ? (
+              <>
+                <AlertTriangle className="h-4 w-4 text-warn" strokeWidth={1.75} />
+                {statusLine}
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-ok" strokeWidth={1.75} />
+                {statusLine}
+              </>
+            )}
           </motion.p>
         </div>
 
-        {/* HealthRing */}
+        {/* Donut de salud, grande y centrado */}
         <div className="flex flex-col items-center gap-2">
           <motion.div layoutId="health-ring">
             <HealthRing
               value={healthScore.score}
-              size={160}
-              stroke={12}
+              size={220}
+              stroke={14}
               ariaLabel={t('home.healthAria', {
                 caption: t('common.healthCaption'),
                 score: healthScore.score,
@@ -137,18 +151,14 @@ export function HeroStrip() {
           <span className="text-caption text-text-muted">{t('common.healthCaption')}</span>
         </div>
 
-        {/* Quick stats WAN: solo latencia (el tráfico down/up vive en
-            WanTraffic, evitando la duplicación visual reportada en #108).
-            En móvil añadimos devices para aprovechar el grid 2×2. */}
-        <div className="grid w-full grid-cols-2 gap-4 md:w-auto md:grid-cols-1 md:gap-3">
+        {/* Stats: latencia + dispositivos en fila, centrados */}
+        <div className="mt-1 flex w-full items-center justify-center gap-8 md:gap-12">
           <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
             <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
           </MiniStat>
-          <div className="md:hidden">
-            <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
-              <CountUp value={deviceTotals.total} nonce={refreshKey} />
-            </MiniStat>
-          </div>
+          <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
+            <CountUp value={deviceTotals.total} nonce={refreshKey} />
+          </MiniStat>
         </div>
       </div>
     </section>

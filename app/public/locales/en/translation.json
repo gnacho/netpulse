@@ -279,7 +279,10 @@
       "utilization": "Today's peak: {{pct}} % of contracted"
     },
     "upload": "Upload",
-    "greetingName": ", {{name}}"
+    "greetingName": ", {{name}}",
+    "noImportantAlerts": "No important alerts",
+    "importantAlerts_one": "{{count}} important alert",
+    "importantAlerts_other": "{{count}} important alerts"
   },
   "login": {
     "enter": "Sign in",
