@@ -30,6 +30,10 @@ a live topology map, WireGuard peers, AdGuard Home stats and alerts, in real
 time. One static Go binary with the frontend embedded, self-hosted on a
 small Linux box.
 
+> **Try the live demo**
+>
+> See it running without installing anything. Head to **[demo.netpulse.cloudless.club](https://demo.netpulse.cloudless.club)** — a full sample network, no sign-up required. In read-only mode, so you can explore freely.
+
 ## Why does this exist?
 
 I believe in digital sovereignty: if a device makes you depend on its

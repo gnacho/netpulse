@@ -31,6 +31,10 @@ WireGuard, estadísticas de AdGuard Home y alertas, en tiempo real. Un
 único binario Go estático con el frontend embebido, autoalojado en una
 caja Linux pequeña.
 
+> **Prueba la demo en vivo**
+>
+> Mírala en funcionamiento sin instalar nada. Entra en **[demo.netpulse.cloudless.club](https://demo.netpulse.cloudless.club)** — una red de ejemplo completa, sin registro. En modo de solo lectura, para que explores sin riesgo.
+
 ## ¿Por qué existe?
 
 Siempre he creído en la soberanía digital: si un dispositivo te hace
