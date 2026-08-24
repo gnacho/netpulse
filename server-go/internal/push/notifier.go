@@ -89,15 +89,19 @@ func (n *Notifier) Notify(ev alerts.AlertEvent) {
 func (n *Notifier) Close() {
 	n.once.Do(func() {
 		close(n.done)
-		close(n.ch)
 		n.wg.Wait()
 	})
 }
 
 func (n *Notifier) worker() {
 	defer n.wg.Done()
-	for ev := range n.ch {
-		n.sendAll(ev)
+	for {
+		select {
+		case <-n.done:
+			return
+		case ev := <-n.ch:
+			n.sendAll(ev)
+		}
 	}
 }
 

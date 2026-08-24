@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -324,4 +325,34 @@ func TestNotifierPurgesGoneSubscription(t *testing.T) {
 	if len(subs) != 1 || subs[0].Endpoint != alive.URL {
 		t.Fatalf("tras purga: %+v", subs)
 	}
+}
+
+// TestNotifierCloseConNotifyConcurrentesNoPanic reproduce el bug #202:
+// Close() cerraba el canal de la cola y un Notify concurrente podía elegir
+// la rama de envío tras el close → panic "send on closed channel".
+func TestNotifierCloseConNotifyConcurrentesNoPanic(t *testing.T) {
+	d, _ := openDB(t)
+	pub, _, _ := push.EnsureVAPIDKeys(d)
+	n := newNotifier(t, d)
+	_ = pub
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					n.Notify(testEvent())
+				}
+			}
+		}()
+	}
+	time.Sleep(5 * time.Millisecond)
+	n.Close()
+	close(done)
+	wg.Wait()
 }

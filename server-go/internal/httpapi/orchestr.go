@@ -331,9 +331,40 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 		}
 		ops := orchestr.SqmOps(d, sc)
 		return ops, guestWiFiMethod(d.Enabled), nil
+	case "wireguard":
+		var d orchestr.WireGuardDesired
+		if err := json.Unmarshal(desired, &d); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
+		}
+		host := s.hostOfRouter(routerID)
+		if host == "" {
+			return nil, "", errRouterNotFound
+		}
+		// Los peers viven en cualquier router con un túnel WireGuard (no hay
+		// gate de gateway: el túnel puede existir en un sitio remoto).
+		sc, err := orchestr.DetectWireGuard(s.pool, host)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
+		}
+		ops := orchestr.WireGuardOps(d, sc)
+		return ops, wireGuardMethod(sc, d.Interface), nil
 	default:
 		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
 	}
+}
+
+// wireGuardMethod es la etiqueta del método (para la UI): el túnel está
+// activo en el kernel (active) o no (inactive).
+func wireGuardMethod(sc orchestr.WireGuardScenario, iface string) string {
+	if iface == "" {
+		iface = "wg0"
+	}
+	for _, a := range sc.ActiveIfaces {
+		if a == iface {
+			return "active"
+		}
+	}
+	return "inactive"
 }
 
 // guestWiFiMethod es la etiqueta del método (para la UI): enabled/disabled.

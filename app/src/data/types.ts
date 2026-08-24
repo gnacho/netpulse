@@ -177,6 +177,12 @@ export interface Device {
   sparkline: number[]
   /** Puerto físico del router/switch donde se aprende la MAC (cableados; FDB). */
   port?: string | null
+  /**
+   * Nombre amigable del puerto definido en LuCI (issue #258, `config
+   * switchvlan 'port_labels'` en /etc/config/luci). La app lo muestra como
+   * nombre preferente sobre `port` cuando existe.
+   */
+  portLabel?: string
   /** Datos LLDP cuando el vecino se anuncia (switch gestionado identificado). */
   lldp?: LldpInfo | null
   /**
@@ -206,6 +212,8 @@ export interface DistributionNode {
   routerId: string
   /** Puerto físico del router donde cuelga (lan3…). */
   port: string
+  /** Nombre amigable del puerto definido en LuCI (issue #258); preferente sobre `port`. */
+  portLabel?: string
   /** MACs aprendidas en ese puerto (FDB). */
   macCount: number
   /** Hypervisor: id del Device host (Proxmox…), si existe como cliente. */

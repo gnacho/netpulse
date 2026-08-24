@@ -11,7 +11,7 @@ var Headers = []struct{ K, V string }{
 	{"Referrer-Policy", "strict-origin-when-cross-origin"},
 	{"Permissions-Policy", "geolocation=(), microphone=(), camera=()"},
 	{"Strict-Transport-Security", "max-age=31536000; includeSubDomains"},
-	{"Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'"},
+	{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'"},
 }
 
 // Middleware aplica los headers a todas las respuestas (HSTS también por

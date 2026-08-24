@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
-import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert } from 'lucide-react'
+import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert, Plus, X } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
-type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm'
+type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm' | 'wireguard'
 
 interface Op {
   kind: string
@@ -34,6 +34,8 @@ const methodLabel = (module: Module, method: string) => {
     case 'binary': return `${base}.binary`
     case 'enabled': return `${base}.enabled`
     case 'disabled': return `${base}.disabled`
+    case 'active': return `${base}.active`
+    case 'inactive': return `${base}.inactive`
     default: return ''
   }
 }
@@ -70,6 +72,10 @@ export default function Orchestration() {
   const [sqScript, setSqScript] = useState('piece_of_cake.qos')
   const [sqLinklayer, setSqLinklayer] = useState('ethernet')
   const [sqOverhead, setSqOverhead] = useState('44')
+  // WireGuard (10.3): interfaz + peers del túnel + pubkey del admin (anti-lockout).
+  const [wgInterface, setWgInterface] = useState('wg0')
+  const [wgPeers, setWgPeers] = useState([{ name: '', publicKey: '', allowedIps: '' }])
+  const [wgAdminPeer, setWgAdminPeer] = useState('')
 
   // issue #120: todos los módulos son gateway-only por defecto. El toggle
   // "advanced" permite un router no-gateway (con warning + checks).
@@ -126,10 +132,23 @@ export default function Orchestration() {
           qdisc: sqQdisc, script: sqScript, linklayer: sqLinklayer, overhead: sqOverhead,
           allowNonGateway,
         }
+      case 'wireguard':
+        return {
+          interface: wgInterface,
+          peers: wgPeers
+            .filter((p) => p.publicKey.trim() !== '')
+            .map((p) => ({ name: p.name, publicKey: p.publicKey.trim(), allowedIps: p.allowedIps.trim() })),
+          adminPeerPubkey: wgAdminPeer.trim(),
+        }
       default:
         return { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway }
     }
   }
+
+  const updateWgPeer = (i: number, field: 'name' | 'publicKey' | 'allowedIps') => (e: ChangeEvent<HTMLInputElement>) => {
+    setWgPeers((prev) => prev.map((p, idx) => (idx === i ? { ...p, [field]: e.target.value } : p)))
+  }
+  const removeWgPeer = (i: number) => () => setWgPeers((prev) => prev.filter((_, idx) => idx !== i))
 
   const createPlan = async () => {
     stopApplyPoll()
@@ -227,7 +246,7 @@ export default function Orchestration() {
 
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
-        {(['adguard', 'guestwifi', 'ddns', 'sqm'] as Module[]).map((m) => (
+        {(['adguard', 'guestwifi', 'ddns', 'sqm', 'wireguard'] as Module[]).map((m) => (
           <button
             key={m}
             type="button"
@@ -512,6 +531,85 @@ export default function Orchestration() {
                   </label>
                 </>
               )}
+            </>
+          )}
+
+          {module === 'wireguard' && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="text-caption font-medium text-text-secondary">{t('orchestration.wireguard.interface')}</span>
+                <input
+                  type="text"
+                  value={wgInterface}
+                  onChange={(e) => setWgInterface(e.target.value)}
+                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-caption font-medium text-text-secondary">{t('orchestration.wireguard.adminPeer')}</span>
+                <input
+                  type="text"
+                  value={wgAdminPeer}
+                  onChange={(e) => setWgAdminPeer(e.target.value)}
+                  placeholder={t('orchestration.wireguard.adminPeerPlaceholder')}
+                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                />
+              </label>
+
+              <div className="lg:col-span-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-caption font-medium text-text-secondary">{t('orchestration.wireguard.peers')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setWgPeers((prev) => [...prev, { name: '', publicKey: '', allowedIps: '' }])}
+                    className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft/70"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    {t('orchestration.wireguard.addPeer')}
+                  </button>
+                </div>
+                {wgPeers.map((p, i) => (
+                  <div key={i} className="mt-2 grid items-end gap-2 sm:grid-cols-[1fr_2fr_1.5fr_auto]">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-caption text-text-muted">{t('orchestration.wireguard.peerName')}</span>
+                      <input
+                        type="text"
+                        value={p.name}
+                        onChange={updateWgPeer(i, 'name')}
+                        className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-caption text-text-muted">{t('orchestration.wireguard.peerPubkey')}</span>
+                      <input
+                        type="text"
+                        value={p.publicKey}
+                        onChange={updateWgPeer(i, 'publicKey')}
+                        className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-caption text-text-muted">{t('orchestration.wireguard.peerAllowedIps')}</span>
+                      <input
+                        type="text"
+                        value={p.allowedIps}
+                        onChange={updateWgPeer(i, 'allowedIps')}
+                        placeholder="10.0.0.2/32,10.0.1.0/24"
+                        className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={removeWgPeer(i)}
+                      aria-label={t('orchestration.wireguard.removePeer')}
+                      className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-text-secondary transition-colors hover:text-rose-500"
+                    >
+                      <X className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  </div>
+                ))}
+                <p className="mt-2 text-xs text-text-muted">{t('orchestration.wireguard.peersHint')}</p>
+              </div>
             </>
           )}
         </div>

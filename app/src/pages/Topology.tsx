@@ -236,8 +236,14 @@ export default function Topology() {
         >
           {zoomControls}
         </div>
-        {/* ③ Leyenda como bottom sheet en móvil */}
-        <LegendSheet model={model} />
+        {/* ③ Leyenda como bottom sheet en móvil. Se recorta a la sección del
+            mapa (wrapper overflow-hidden): la sección no puede llevar
+            overflow-hidden porque recortaría los tooltips (#88). Sin este
+            recorte, el sheet cerrado (trasladado y:236) cuelga por debajo del
+            mapa y tapa la tabla de enlaces (#183). */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+          <LegendSheet model={model} />
+        </div>
       </section>
 
 

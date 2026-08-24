@@ -90,15 +90,19 @@ func (n *Notifier) Notify(ev alerts.AlertEvent) {
 func (n *Notifier) Close() {
 	n.once.Do(func() {
 		close(n.done)
-		close(n.ch)
 		n.wg.Wait()
 	})
 }
 
 func (n *Notifier) worker() {
 	defer n.wg.Done()
-	for ev := range n.ch {
-		n.sendWithRetry(ev)
+	for {
+		select {
+		case <-n.done:
+			return
+		case ev := <-n.ch:
+			n.sendWithRetry(ev)
+		}
 	}
 }
 
@@ -149,6 +153,10 @@ func (n *Notifier) sendWithRetry(ev alerts.AlertEvent) {
 				n.saveDLQ(ev, body, lastErr.Error())
 				return
 			}
+			retryable = true // 429/5xx → reintentar
+		} else {
+			// Error de transporte (DNS, timeout, conexión rehusada): la
+			// entrega puede tener éxito en un reintento → backoff (issue #203).
 			retryable = true
 		}
 		if attempt < n.cfg.Retries && retryable {

@@ -586,7 +586,12 @@ Objetivo: alertas más inteligentes y menos ruidosas.
 La fundación (10.1) y el módulo AdGuard (10.2) están hechos y verificados
 E2E. Pendiente:
 
-3. **10.3 — WireGuard peers**: alta/baja de peers desde la app. Riesgo medio.
+3. **10.3 - WireGuard peers** ✅ (24-Ago-2026): alta/baja de peers desde la
+   app. Riesgo medio. El plan crea la interfaz (network.wg0) si falta,
+   reconcilia las secciones wgpeer&lt;N&gt; (public_key + allowed_ips) y termina con
+   `service network reload` + healthcheck `wg show` (auto-rollback si el túnel
+   que estaba arriba no levanta). Anti-lockout: el peer con el pubkey del admin
+   nunca se borra. Módulo: server-go/internal/orchestr/wireguard.go.
 4. **10.4 — DAWN/802.11r config** (write): modificar config de roaming
    desde la app con snapshot+rollback. **Solo tras Fase 14 estabilice**
    (necesitamos la visibilidad para diagnosticar si algo va mal).

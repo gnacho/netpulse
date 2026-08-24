@@ -313,7 +313,8 @@
     "topologyDesc": "Mapa visual de la red",
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
-    "orchestration": "Orquestación"
+    "orchestration": "Orquestación",
+    "agents": "Agentes"
   },
   "roaming": {
     "subtitle": "Estado del roaming y la malla WiFi",
@@ -572,7 +573,30 @@
     "upgradeAllTitle": "¿Actualizar todos los agentes?",
     "upgradeCancel": "Cancelar",
     "upgradeFailed": "Sin respuesta — reinstala desde el detalle",
-    "upgradeProgressFailed": "{{failed}} agente(s) sin respuesta ({{done}}/{{total}} actualizados)"
+    "upgradeProgressFailed": "{{failed}} agente(s) sin respuesta ({{done}}/{{total}} actualizados)",
+    "agents": {
+      "subtitle": "{{total}} agente(s) · {{down}} sin reportar",
+      "empty": "Sin agentes registrados.",
+      "colDevice": "Equipo",
+      "colStatus": "Estado",
+      "colLastSeen": "Último push",
+      "colVersion": "Versión",
+      "colActions": "Acciones",
+      "never": "nunca",
+      "reinstall": "Reinstalar",
+      "reinstalling": "Reinstalando…",
+      "reinstalled": "Reinstalado",
+      "reinstallRetry": "Reintentar",
+      "reinstallTip": "Reinstala el agente en este router (binario, config y servicio) vía SSH. Úsalo si el agente fue borrado por una actualización de firmware o una desinstalación manual.",
+      "reinstallConfirm": "¿Reinstalar el agente en {{router}}? El agente actual (si lo hay) será sustituido y su token rotado.",
+      "reinstallDone": "Agente reinstalado y empujando de nuevo.",
+      "reinstallPending": "Agente instalado; esperando a que empuje (hasta 40 s).",
+      "reinstallFail": "Fallo al reinstalar",
+      "copyCmd": "Copiar comando",
+      "copyCmdTip": "Genera el one-liner de instalación manual (fallback para routers sin SSH). El token se rota en cada generación.",
+      "copied": "Comando copiado",
+      "cmdFail": "No se pudo generar el comando"
+    }
   },
   "reports": {
     "availability": "Disponibilidad",
@@ -1115,7 +1139,8 @@
       "adguard": "AdGuard Home",
       "guestwifi": "WiFi invitados",
       "ddns": "DDNS",
-      "sqm": "QoS (SQM)"
+      "sqm": "QoS (SQM)",
+      "wireguard": "WireGuard"
     },
     "warn": {
       "managed_by_firmware": "Este router trae un AdGuard Home del fabricante (GL.iNet). NetPulse no lo gestiona para no romper su UI: configúralo desde la interfaz del router.",
@@ -1182,6 +1207,31 @@
         "enabled": "Activado",
         "disabled": "Desactivado"
       }
+    },
+    "wireguard": {
+      "allowNonGateway": "Permitir WireGuard en routers no-gateway",
+      "nonGatewayWarning": "El túnel WireGuard puede vivir en cualquier router con WireGuard configurado. La gestión de peers no está limitada al gateway.",
+      "interface": "Interfaz",
+      "adminPeer": "Pubkey del admin (no se borra)",
+      "adminPeerPlaceholder": "Clave pública base64 de tu propio peer (anti-lockout)",
+      "peers": "Peers del túnel",
+      "addPeer": "Añadir peer",
+      "removePeer": "Quitar peer",
+      "peerName": "Nombre",
+      "peerPubkey": "Public key",
+      "peerAllowedIps": "Allowed IPs",
+      "peersHint": "Los peers presentes en el router que no estén en esta lista se borran. El peer cuyo public key coincida con la del admin se conserva siempre.",
+      "method": {
+        "active": "Túnel activo",
+        "inactive": "Túnel inactivo"
+      }
     }
+  },
+  "installPrompt": {
+    "title": "¿Instalar NetPulse como app?",
+    "desc": "Acceso directo desde tu pantalla de inicio y sin barra del navegador.",
+    "iosDesc": "En iOS: abre el menú Compartir y elige Añadir a pantalla de inicio.",
+    "install": "Instalar",
+    "later": "Ahora no"
   }
 }

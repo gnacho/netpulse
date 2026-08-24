@@ -91,6 +91,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	pl.Data.FDB = p.probeFDB(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
+	pl.Data.LuCI = p.probeLuCI(ctx)
 	return pl
 }
 
@@ -272,6 +273,16 @@ func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 		fd.Ports = []EthPort{}
 	}
 	return fd
+}
+
+// probeLuCI: etiquetas de puertos/VLANs de LuCI (issue #258), si el router
+// las define en /etc/config/luci. Best-effort: sin fichero/sección → nil.
+func (p *Prober) probeLuCI(ctx context.Context) *LuCILabels {
+	out := p.runBest(ctx, CmdLuCILabels, 0)
+	if out == "" {
+		return nil
+	}
+	return ParseLuCILabels(out)
 }
 
 // probeDawn: lee el estado de DAWN (roaming/band-steering, Fase 14) vía

@@ -54,16 +54,32 @@ func (n LldpNeighbor) displayName() string {
 	return n.ChassisMac
 }
 
+// lldpDownCached: true si la indisponibilidad de lldpd está cacheada (dentro
+// de lldpDownTTL). Serializado por c.mu: el poller y los handlers HTTP
+// (p.ej. GetSurvey) pueden sondear el mismo cliente en paralelo (issue #208).
+func (c *OpenWrtClient) lldpDownCached() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return time.Now().Before(c.lldpDownUntil)
+}
+
+// cacheLldpDown: cachea que lldpd no está instalado durante lldpDownTTL.
+func (c *OpenWrtClient) cacheLldpDown() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lldpDownUntil = time.Now().Add(lldpDownTTL)
+}
+
 // LldpNeighbors: vecinos LLDP del router (contrato C2). Si lldpcli no existe
 // devuelve ErrLldpUnavailable y cachea la indisponibilidad lldpDownTTL.
 func (c *OpenWrtClient) LldpNeighbors(ctx context.Context) ([]LldpNeighbor, error) {
-	if time.Now().Before(c.lldpDownUntil) {
+	if c.lldpDownCached() {
 		return nil, ErrLldpUnavailable
 	}
 	out, err := c.pool.RunCtx(ctx, c.Host, "lldpcli -f json show neighbors", lldpTimeout)
 	if err != nil {
 		if isLldpUnavailable(err) {
-			c.lldpDownUntil = time.Now().Add(lldpDownTTL)
+			c.cacheLldpDown()
 			return nil, ErrLldpUnavailable
 		}
 		return nil, err

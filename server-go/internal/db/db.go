@@ -24,6 +24,9 @@ const (
 	RetentionMS  = 7 * 24 * 60 * 60 * 1000 // 7 días
 	Maintenance  = time.Hour
 	databaseFile = "netpulse.db"
+	// AttribRetentionMS: 90 días sin verse para purgar device_attrib
+	// (issue #206; dispositivos que se fueron para siempre).
+	AttribRetentionMS = 90 * 24 * 60 * 60 * 1000
 )
 
 // schemaSQL es el SQL literal de src/db.js:20-85.
@@ -374,7 +377,8 @@ func migrate(db *sql.DB, table, column, ddl string) {
 }
 
 // Maintenance ejecuta una pasada de limpieza (paridad src/db.js:107-120):
-// retención 7 días en metrics/adguard_stats, sesiones expiradas y checkpoint.
+// retención 7 días en metrics/adguard_stats, sesiones expiradas, atributos de
+// dispositivos sin verse en 90 días (issue #206) y checkpoint.
 func (d *DB) Maintenance() {
 	cutoff := NowMS() - RetentionMS
 	steps := []string{
@@ -387,6 +391,13 @@ func (d *DB) Maintenance() {
 		}
 	}
 	if _, err := d.Exec("DELETE FROM sessions WHERE expires_at < ?", NowMS()); err != nil {
+		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+	}
+	// Atributos de dispositivos que no se ven desde hace 90 días (se fueron
+	// para siempre): sin esta purga device_attrib crece sin límite y alimenta
+	// el listado de dispositivos offline (issue #206).
+	attribCutoff := NowMS() - AttribRetentionMS
+	if _, err := d.Exec("DELETE FROM device_attrib WHERE last_seen < ?", attribCutoff); err != nil {
 		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
 	}
 	// Purga de buckets > 1 año (el raw ya se purgó arriba; daily nunca).

@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -116,6 +117,9 @@ type routerPolled struct {
 	// lldpUnavailable: lldpd no está instalado en este router (issue #247) →
 	// el view-model expone `lldpAvailable:false` para el hint de instalación.
 	lldpUnavailable bool
+	// luci: etiquetas de puertos/VLANs de LuCI (issue #258), si el router las
+	// define en /etc/config/luci. Fuente de nombres para la topología.
+	luci *probe.LuCILabels
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -124,6 +128,7 @@ type extrasSnapshot struct {
 	radios   []Radio
 	wireless map[string]WirelessClient
 	fdb      map[string]string
+	luci     *probe.LuCILabels
 }
 
 // backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.
@@ -184,6 +189,9 @@ type Live struct {
 	devicePresence       map[string]bool
 	presenceMisses       map[string]int
 	presenceOfflineAfter int // ticks sin verse antes de declarar offline (default 3)
+	// presencePruneAfter: ticks sin verse que eliminan la MAC de los mapas
+	// (dispositivo que se fue para siempre; ~2h a 5s/tick, issue #206).
+	presencePruneAfter int
 	// dawnAvailable: cache de "¿hay DAWN en algún router?" para el flag del
 	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
 	// al gateway) por dawnAvailableCached para no bloquear buildOverview.
@@ -243,6 +251,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		devicePresence:       map[string]bool{},
 		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
+		presencePruneAfter:   2000,
 		wanDown:              map[string]int{},
 		backhaulCache:        map[string]backhaulCacheEntry{},
 		lldpCache:            map[string]lldpCacheEntry{},
@@ -713,8 +722,12 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if fdb != nil {
 		fdbGood = fdb
 	}
+	luciGood := cached.luci
+	if luci := client.GetLuCILabels(); luci != nil {
+		luciGood = luci
+	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood}
 	l.mu.Unlock()
 
 	// Uso real de RAM como en la UI del router: used = total − available
@@ -751,6 +764,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
+		luci: luciGood,
 	}, nil
 }
 
@@ -1227,7 +1241,9 @@ func (l *Live) emitUnknownDevice(d Device) {
 // volátil y daría falsos offline. Anti-falsos positivos: un tick perdido no
 // dispara — hace falta `presenceOfflineAfter` ticks seguidos sin verse.
 // Anti-arranque: el primer ciclo solo puebla el estado (todo lo ya conectado
-// en boot no genera online). Toma l.mu.
+// en boot no genera online). Poda: una MAC offline desde hace muchos ticks
+// (dispositivo que se fue para siempre) se elimina de los mapas para que no
+// crezcan sin límite (issue #206). Toma l.mu.
 func (l *Live) trackDevicePresence(devices []Device, nowMs int64) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1245,6 +1261,9 @@ func (l *Live) trackDevicePresence(devices []Device, nowMs int64) {
 	}
 	for mac, wasOnline := range l.devicePresence {
 		if !wasOnline {
+			// Ya offline: la MAC no re-emite, pero el contador sigue
+			// creciendo para que la poda pueda eliminarla (issue #206).
+			l.presenceMisses[mac]++
 			continue
 		}
 		if seen[mac] {
@@ -1254,6 +1273,17 @@ func (l *Live) trackDevicePresence(devices []Device, nowMs int64) {
 		if l.presenceMisses[mac] >= l.presenceOfflineAfter {
 			l.insertDeviceEvent(mac, l.lastRouterFor(mac), deviceevents.StateOffline, nil, nowMs)
 			l.devicePresence[mac] = false
+		}
+	}
+	// Poda: MACs offline desde hace muchos ticks (se fueron para siempre) se
+	// eliminan para que los mapas no crezcan sin límite (issue #206).
+	// Zero-value (pruneAfter==0) = poda desactivada.
+	if l.presencePruneAfter > 0 {
+		for mac, misses := range l.presenceMisses {
+			if misses >= l.presencePruneAfter {
+				delete(l.presenceMisses, mac)
+				delete(l.devicePresence, mac)
+			}
 		}
 	}
 	l.presenceSeen = true

@@ -222,27 +222,57 @@ func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
 		}
 		return string(res.out), nil
 	case <-time.After(timeout):
+		// Timeout: cerrar solo la sesión. NO dropear el cliente entero: el
+		// pool permite sesiones concurrentes sobre el mismo router y un
+		// comando lento no debe cortar las demás (issue #205).
 		_ = session.Close()
-		p.drop(host)
 		return "", fmt.Errorf("ssh %s: timeout (%s)", host, timeout)
 	}
 }
 
 // RunCtx es Run con cancelación por contexto.
 func (p *SSHPool) RunCtx(ctx context.Context, host, cmd string, timeout time.Duration) (string, error) {
-	type res struct {
-		out string
+	if timeout <= 0 {
+		timeout = sshDefaultTimeout
+	}
+	client, err := p.dial(host)
+	if err != nil {
+		return "", err
+	}
+	session, err := client.NewSession()
+	if err != nil {
+		p.drop(host)
+		return "", fmt.Errorf("ssh %s: session: %w", host, err)
+	}
+	defer session.Close()
+
+	type result struct {
+		out []byte
 		err error
 	}
-	ch := make(chan res, 1)
+	ch := make(chan result, 1)
 	go func() {
-		out, err := p.Run(host, cmd, timeout)
-		ch <- res{out, err}
+		out, err := session.Output(cmd)
+		ch <- result{out, err}
 	}()
 	select {
-	case r := <-ch:
-		return r.out, r.err
+	case res := <-ch:
+		if res.err != nil {
+			var ee *ssh.ExitError
+			if !errors.As(res.err, &ee) {
+				p.drop(host) // canal roto, no exit status
+			}
+			return "", fmt.Errorf("ssh %s: %w", host, res.err)
+		}
+		return string(res.out), nil
+	case <-time.After(timeout):
+		_ = session.Close()
+		return "", fmt.Errorf("ssh %s: timeout (%s)", host, timeout)
 	case <-ctx.Done():
+		// Cancelación del cliente: cerrar la sesión para abortar el comando
+		// remoto y liberar la goroutine (issue #204). Sin drop: es una
+		// cancelación del llamador, no un fallo de la conexión.
+		_ = session.Close()
 		return "", ctx.Err()
 	}
 }

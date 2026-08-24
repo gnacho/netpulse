@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -6,6 +8,7 @@ import PullToRefresh from '@/components/PullToRefresh'
 import {
   BarChart3,
   Bell,
+  Bot,
   Bug,
   ChevronsLeft,
   ChevronsRight,
@@ -25,10 +28,12 @@ import { useNetPulse } from '@/data/DataProvider'
 import { DashboardProvider, useDashboard } from '@/hooks/useDashboard'
 import { CommandPalette } from '@/components/CommandPalette'
 import { HealthRing } from '@/components/HealthRing'
+import InstallPrompt from '@/components/InstallPrompt'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn, exitDemo } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -48,6 +53,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/', labelKey: 'nav.overview', icon: LayoutDashboard, end: true },
   { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
+  { to: '/agents', labelKey: 'nav.agents', icon: Bot },
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
@@ -67,6 +73,7 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/$/, 'nav.overview'],
   [/^\/routers\/[^/]+/, 'nav.routerDetail'],
   [/^\/routers/, 'nav.routers'],
+  [/^\/agents/, 'nav.agents'],
   [/^\/devices/, 'nav.devices'],
   [/^\/topology/, 'nav.topology'],
   [/^\/roaming/, 'nav.roaming'],
@@ -480,7 +487,7 @@ function MobileHeader() {
     }
   }
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
+    <header className="[view-transition-name:netpulse-header] sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
       <Logo onClick={scrollTopIfActive('/')} />
       <div className="flex items-center gap-3">
         <Link to="/" aria-label={t('topbar.networkHealth100', { score: healthScore.score })}>
@@ -506,6 +513,14 @@ function MobileHeader() {
 // ---------------------------------------------------------------------------
 
 const TAB_ITEMS = NAV_ITEMS.filter((i) => ['/', '/routers', '/devices', '/alerts'].includes(i.to))
+
+/** Orden completo de vistas (para la dirección del deslizamiento móvil). */
+const NAV_ORDER: { to: string }[] = NAV_ITEMS
+
+function navIndex(path: string): number {
+  const active = (to: string) => (to === '/' ? path === '/' : path.startsWith(to))
+  return NAV_ORDER.findIndex(({ to }) => active(to))
+}
 
 function MoreSheet() {
   const { t } = useTranslation()
@@ -575,6 +590,7 @@ function MoreSheet() {
 function TabBar() {
   const { t } = useTranslation()
   const location = useLocation()
+  const navigate = useNavigate()
   const reduceMotion = () =>
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const scrollTopIfActive = (to: string) => () => {
@@ -582,9 +598,37 @@ function TabBar() {
       window.scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' })
     }
   }
+  /* Navegación móvil con deslizamiento (#187): el modo declarativo
+   * (BrowserRouter) no soporta la prop viewTransition de react-router (solo
+   * RouterProvider), así que interceptamos el click y envolvemos la navegación
+   * en document.startViewTransition (con flushSync, igual que hace react-router
+   * internamente). La dirección se marca en <html data-nav-dir> antes del
+   * snapshot; el shell (header + bottom nav) queda estático vía CSS. */
+  const handleMobileNav = (to: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    const from = navIndex(location.pathname)
+    const target = navIndex(to)
+    if (target !== -1 && from !== target) {
+      try {
+        document.documentElement.dataset.navDir = from === -1 || target > from ? 'forward' : 'back'
+      } catch {
+        /* sin dataset */
+      }
+      scrollTopIfActive(to)()
+      const doNavigate = () => navigate(to)
+      if (typeof document.startViewTransition === 'function') {
+        document.startViewTransition(() => flushSync(doNavigate))
+      } else {
+        doNavigate()
+      }
+    } else {
+      scrollTopIfActive(to)()
+      navigate(to, { replace: true })
+    }
+  }
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-elevated/90 backdrop-blur-md md:hidden"
+      className="[view-transition-name:netpulse-nav] fixed inset-x-0 bottom-0 z-40 border-t border-border bg-elevated/90 backdrop-blur-md md:hidden"
       aria-label={t('nav.mainNav')}
     >
       <div className="flex h-16 items-stretch px-2 pb-[env(safe-area-inset-bottom)]">
@@ -593,7 +637,7 @@ function TabBar() {
             key={item.to}
             to={item.to}
             end={item.end}
-            onClick={scrollTopIfActive(item.to)}
+            onClick={handleMobileNav(item.to)}
             className={({ isActive }) =>
               cn(
                 'flex h-full min-w-[56px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
@@ -647,6 +691,7 @@ function Shell() {
   const location = useLocation()
   const key = useMemo(() => location.pathname, [location.pathname])
   const { isDemo } = useNetPulse()
+  const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('netpulse-sidebar-collapsed') === '1')
 
   // Cada cambio de ruta resetea el scroll al principio (no hay ScrollRestoration).
@@ -668,7 +713,7 @@ function Shell() {
       <div className={collapsed ? 'md:pl-16 lg:pl-16' : 'md:pl-16 lg:pl-[232px]'}>
         <Topbar />
         <MobileHeader />
-        <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
+        <main className="[view-transition-name:netpulse-content] mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
           {isDemo && <DemoBanner />}
           <UpdateBanner />
           {/* Confirmación post-update (issue #161): toast al cargar si el
@@ -678,22 +723,32 @@ function Shell() {
               coger un deploy nuevo sin reabrir la app. Solo actúa en touch y
               con scroll arriba; no interfiere con carruseles/tablas. */}
           <PullToRefresh>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={key}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-              >
+            {/* En móvil usamos view transitions para el deslizamiento entre
+                vistas (#187): el fade/y de framer-motion se desactiva porque su
+                estado inicial (opacity 0) quedaría congelado en el snapshot. */}
+            {isMobile ? (
+              <div>
                 <Outlet />
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={key}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  <Outlet />
+                </motion.div>
+              </AnimatePresence>
+            )}
           </PullToRefresh>
         </main>
       </div>
       <TabBar />
       <CommandPalette />
+      <InstallPrompt />
     </div>
   )
 }

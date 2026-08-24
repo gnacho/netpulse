@@ -143,6 +143,11 @@ func TestAvailabilityDayActualNoPenaliza(t *testing.T) {
 	if nowMin == 0 {
 		want = 100 // evitar div/0 a medianoche
 	}
+	// El endpoint clamp a 100 (mismo tope que el report semanal, #207): si
+	// nowMin < upMin el ratio bruto excede 100 y el clamp lo lleva a 100.
+	if want > 100 {
+		want = 100
+	}
 	if today_.UpPct < want-0.5 || today_.UpPct > want+0.5 {
 		t.Fatalf("día actual upPct=%v, esperaba ~%.1f (upMin=%d / nowMin=%d)", today_.UpPct, want, today_.UpMin, nowMin)
 	}

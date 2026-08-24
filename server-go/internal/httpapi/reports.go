@@ -8,8 +8,10 @@
 // Semántica de disponibilidad (verificada contra datos reales de prod):
 //   - `n` = suma de muestras del día (poll de 5 s; día completo ≈ 17280).
 //   - minutos de recolección = n * 5 / 60.
-//   - upPct = minutos / (días con datos * 1440). La semana en curso queda
-//     parcial y se normaliza solo sobre los días que tienen datos.
+//   - upPct = minutos / (días con datos * 1440), clavado a 100 (issue #207):
+//     un bucket sobre-poblado (más muestras que minutos) no puede superar el
+//     100%, igual que availability. La semana en curso queda parcial y se
+//     normaliza solo sobre los días que tienen datos.
 //   - `up_count` del daily NO es fiable como base (es COUNT(*) de filas
 //     bucket, que en prod coincide con muestras porque el rollup no agrega);
 //     `up_min` del daily es MIN(min_ts) (timestamp), no minutos.
@@ -90,6 +92,9 @@ func (s *server) handleWeeklyReport(w http.ResponseWriter, r *http.Request) {
 		}
 		if e.Days > 0 {
 			e.UpPct = float64(upMin) / (float64(e.Days) * 24 * 60) * 100
+			if e.UpPct > 100 {
+				e.UpPct = 100
+			}
 		}
 		out = append(out, e)
 	}

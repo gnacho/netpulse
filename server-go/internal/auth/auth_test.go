@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
@@ -379,5 +381,19 @@ func TestIsSecureRequestSinTrustProxyIgnoraXFP(t *testing.T) {
 	SetTrustProxy(true)
 	if !IsSecureRequest(r) {
 		t.Fatal("con TRUST_PROXY, XFP=https debe considerarse seguro")
+	}
+}
+
+func TestLoginDummyHashValido(t *testing.T) {
+	// El dummy de timing del login debe ser un hash bcrypt VÁLIDO: si no lo
+	// es (p.ej. caracteres ilegales como '_'), CompareHashAndPassword falla
+	// en microsegundos y el login se convierte en un oráculo de enumeración
+	// de usuarios (issue #209).
+	err := bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte("cualquier-password"))
+	if err == nil {
+		t.Fatal("comparar contra el dummy con una password cualquiera no debe acertar")
+	}
+	if strings.Contains(err.Error(), "illegal base64 data") {
+		t.Fatalf("dummyPasswordHash no es un hash bcrypt válido: %v", err)
 	}
 }

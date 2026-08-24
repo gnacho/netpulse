@@ -7,7 +7,9 @@ package adapters
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 )
 
 // Fixture realista (lldpd 1.0.x en OpenWrt).
@@ -279,6 +281,45 @@ func TestBuildRouterLldpUplink(t *testing.T) {
 	ap.lldp = nil
 	if r := l.buildRouter(ap, nil); r.Lldp != nil {
 		t.Fatalf("sin LLDP: %+v", r.Lldp)
+	}
+}
+
+// TestLldpDownCacheConcurrente: la caché de indisponibilidad de lldpd
+// (lldpDownUntil) tolera lectura+escritura concurrentes (issue #208): el
+// poller y un handler HTTP (p.ej. GetSurvey) pueden sondear el mismo cliente
+// en paralelo. Bajo -race este test falla sin el mutex.
+func TestLldpDownCacheConcurrente(t *testing.T) {
+	c := &OpenWrtClient{}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				_ = c.lldpDownCached()
+				c.cacheLldpDown()
+			}
+		}()
+	}
+	wg.Wait()
+	if !c.lldpDownCached() {
+		t.Fatal("tras cacheLldpDown, lldpDownCached debería ser true")
+	}
+}
+
+// TestLldpCacheDownExpira: la caché expira pasados lldpDownTTL (fija el TTL
+// desde el momento de la llamada, no acumula).
+func TestLldpCacheDownExpira(t *testing.T) {
+	c := &OpenWrtClient{}
+	c.cacheLldpDown()
+	if !c.lldpDownCached() {
+		t.Fatal("el cache debería estar activo justo tras cacheLldpDown")
+	}
+	c.mu.Lock()
+	c.lldpDownUntil = time.Now().Add(-time.Second)
+	c.mu.Unlock()
+	if c.lldpDownCached() {
+		t.Fatal("el cache debería expirar pasados lldpDownTTL")
 	}
 }
 

@@ -81,7 +81,7 @@ func paginate[T any](items []T, page, pageSize int64) map[string]any {
 	total := len(items)
 	start := (page - 1) * pageSize
 	var out []T
-	if start < int64(total) {
+	if start >= 0 && start < int64(total) {
 		end := start + pageSize
 		if end > int64(total) {
 			end = int64(total)
