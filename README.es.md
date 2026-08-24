@@ -14,6 +14,8 @@
   <a href="https://ko-fi.com/gnacho"><img alt="Apóyame en Ko-fi" src="https://img.shields.io/badge/Ko--fi-Donate-ff5e5b?logo=ko-fi&logoColor=white"></a>
 </p>
 
+<p align="center"><a href="https://demo.netpulse.cloudless.club"><strong>Prueba la demo en vivo</strong></a> en <code>demo.netpulse.cloudless.club</code></p>
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/hero-es-dark.png">
@@ -28,6 +30,10 @@ router, dispositivos conectados, mapa de topología en vivo, peers
 WireGuard, estadísticas de AdGuard Home y alertas, en tiempo real. Un
 único binario Go estático con el frontend embebido, autoalojado en una
 caja Linux pequeña.
+
+> **Prueba la demo en vivo**
+>
+> Mírala en funcionamiento sin instalar nada. Entra en **[demo.netpulse.cloudless.club](https://demo.netpulse.cloudless.club)** — una red de ejemplo completa, sin registro. En modo de solo lectura, para que explores sin riesgo.
 
 ## ¿Por qué existe?
 
