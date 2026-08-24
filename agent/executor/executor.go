@@ -22,7 +22,7 @@ import (
 
 // Op es una operación allowlistedada que el ejecutor puede aplicar.
 type Op struct {
-	Kind string            `json:"kind"` // uci_set|uci_delete|uci_add_list|uci_commit|service|install
+	Kind string            `json:"kind"` // uci_set|uci_delete|uci_add_list|uci_commit|service|install|wg_check
 	Args map[string]string `json:"args"`
 	Desc string            `json:"desc"` // descripción humana para el diff
 }
@@ -286,6 +286,18 @@ var allowlist = map[string]opSpec{
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
+	// wg_check: healthcheck del módulo WireGuard (10.3). Ejecuta
+	// `wg show <interface>`; exit 0 si el túnel está arriba en el kernel,
+	// exit 1 si no existe o está caído. Al final del plan (tras el reload de
+	// red), una fallo aquí significa que el apply aisló el túnel → el executor
+	// restaura los snapshots (rollback real, ver Apply).
+	"wg_check": {
+		required: map[string]*regexp.Regexp{"interface": reSection},
+		build: func(a map[string]string) (string, []string) {
+			return "wg", []string{"show", a["interface"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
 }
 
 // tcpCheckBudget / tcpCheckRetry controlan los reintentos del Kind tcp_check.
@@ -375,6 +387,17 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 			_, code = e.run.Run(cmd, cmdArgs...)
 		}
 		if code != 0 {
+			if op.Kind == "wg_check" {
+				// Healthcheck del módulo WireGuard: el túnel no levantó tras el
+				// apply. Rollback real: restaurar los snapshots UCI (uci import)
+				// y relanzar la red con la config previa.
+				for cfg, snap := range snapshots {
+					e.run.Run("sh", "-c", fmt.Sprintf("echo '%s' | uci import", snap))
+					e.run.Run("uci", "commit", cfg)
+				}
+				e.run.Run("/etc/init.d/network", "reload")
+				return ApplyResult{Status: "rolled_back", Op: op.Desc, Error: "wg_check_failed", Snapshot: strings.Join(affected, ","), DurationMs: ms(e.now(), start)}
+			}
 			// Revert staged changes y salir.
 			e.revertStaged(affected)
 			return ApplyResult{Status: "failed", Op: op.Desc, Error: fmt.Sprintf("%s exit %d", op.Kind, code), DurationMs: ms(e.now(), start)}

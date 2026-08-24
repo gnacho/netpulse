@@ -1115,7 +1115,8 @@
       "adguard": "AdGuard Home",
       "guestwifi": "Guest WiFi",
       "ddns": "DDNS",
-      "sqm": "QoS (SQM)"
+      "sqm": "QoS (SQM)",
+      "wireguard": "WireGuard"
     },
     "warn": {
       "managed_by_firmware": "This router ships a vendor AdGuard Home (GL.iNet). NetPulse won't manage it to avoid breaking its UI: configure it from the router's own interface.",
@@ -1181,6 +1182,24 @@
       "method": {
         "enabled": "Enabled",
         "disabled": "Disabled"
+      }
+    },
+    "wireguard": {
+      "allowNonGateway": "Allow WireGuard on non-gateway routers",
+      "nonGatewayWarning": "The WireGuard tunnel can live on any router with WireGuard configured. Peer management is not limited to the gateway.",
+      "interface": "Interface",
+      "adminPeer": "Admin pubkey (never removed)",
+      "adminPeerPlaceholder": "Base64 public key of your own peer (anti-lockout)",
+      "peers": "Tunnel peers",
+      "addPeer": "Add peer",
+      "removePeer": "Remove peer",
+      "peerName": "Name",
+      "peerPubkey": "Public key",
+      "peerAllowedIps": "Allowed IPs",
+      "peersHint": "Peers present on the router that are not in this list are removed. A peer whose public key matches the admin's is always kept.",
+      "method": {
+        "active": "Tunnel active",
+        "inactive": "Tunnel inactive"
       }
     }
   }

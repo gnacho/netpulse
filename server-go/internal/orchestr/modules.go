@@ -2,6 +2,13 @@
 // convierte un estado deseado + un escenario detectado en una lista de Ops
 // allowlistedas.
 //
+// Módulos registrados (dispatch en httpapi/orchestr.go computeModuleDiff):
+//   - adguard   → modules.go + adguard_probe.go (Fase 17.1)
+//   - guestwifi → guestwifi.go (Fase 17.2)
+//   - ddns      → ddns.go (Fase 17.3)
+//   - sqm       → sqm.go (Fase 17.4)
+//   - wireguard → wireguard.go (Fase 10.3)
+//
 // Fase 17.1: AdGuardOps usa el AdGuardScenario (probe SSH del servidor) para
 // elegir entre 4 métodos deterministas: apk | opkg | none (binario ya
 // presente) | binary (download oficial de GitHub). Aborta con

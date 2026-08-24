@@ -450,6 +450,52 @@ func TestApplyHealthcheckFailRollsBack(t *testing.T) {
 	}
 }
 
+// TestValidateWgCheck (10.3): el healthcheck del túnel valida interface y
+// rechaza metachars shell.
+func TestValidateWgCheck(t *testing.T) {
+	if err := Validate(Op{Kind: "wg_check", Args: map[string]string{"interface": "wg0"}}); err != nil {
+		t.Fatalf("valid wg_check rejected: %v", err)
+	}
+	if err := Validate(Op{Kind: "wg_check", Args: map[string]string{"interface": "wg0; rm -rf /"}}); err == nil {
+		t.Fatal("wg_check with shell metachars should be rejected")
+	}
+	if err := Validate(Op{Kind: "wg_check", Args: map[string]string{}}); err == nil {
+		t.Fatal("wg_check missing interface should be rejected")
+	}
+}
+
+// TestApplyWgCheckFailRollsBack (10.3): si `wg show wg0` falla tras el apply,
+// el executor restaura los snapshots y relanza la red (rollback real), en vez
+// de devolver un simple "failed".
+func TestApplyWgCheckFailRollsBack(t *testing.T) {
+	fr := newFakeRunner()
+	fr.responses["wg show wg0"] = 1 // el túnel no levantó tras el reload
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "uci_set_named", Args: map[string]string{"config": "network", "section": "wg0", "type": "interface"}, Desc: "Create interface"},
+		{Kind: "uci_set", Args: map[string]string{"config": "network", "section": "wg0", "option": "proto", "value": "wireguard"}, Desc: "Set proto"},
+		{Kind: "uci_commit", Args: map[string]string{"config": "network"}, Desc: "Commit"},
+		{Kind: "service", Args: map[string]string{"name": "network", "action": "reload"}, Desc: "Reload network"},
+		{Kind: "wg_check", Args: map[string]string{"interface": "wg0"}, Desc: "Check tunnel up"},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "rolled_back" {
+		t.Fatalf("expected rolled_back, got %s (error=%s)", res.Status, res.Error)
+	}
+	if res.Error != "wg_check_failed" {
+		t.Fatalf("error should be wg_check_failed, got %s", res.Error)
+	}
+	got := strings.Join(fr.calls, "\n")
+	if !strings.Contains(got, "uci import") {
+		t.Error("should have restored the snapshot (uci import) on wg_check failure")
+	}
+	if !strings.Contains(got, "/etc/init.d/network reload") {
+		t.Error("should have reloaded network after restoring the snapshot")
+	}
+}
+
 func TestAffectedConfigsDedup(t *testing.T) {
 	ops := []Op{
 		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "s1", "option": "o1", "value": "v1"}},

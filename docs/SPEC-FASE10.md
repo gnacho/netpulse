@@ -295,4 +295,5 @@ Nueva sección en la app (solo admin): **Orquestación**.
    plan generation, API endpoints, audit log.
 3. **AdGuard module**: primer módulo end-to-end (recurso + plan + apply).
 4. **Frontend orquestación**: UI para AdGuard.
-5. **WireGuard module**: segundo módulo.
+5. **WireGuard module** (✅ 10.3, 24-Ago-2026): segundo módulo (peers,
+   healthcheck `wg show`, anti-lockout del peer del admin).
