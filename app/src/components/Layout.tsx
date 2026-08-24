@@ -6,6 +6,7 @@ import PullToRefresh from '@/components/PullToRefresh'
 import {
   BarChart3,
   Bell,
+  Bot,
   Bug,
   ChevronsLeft,
   ChevronsRight,
@@ -48,6 +49,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/', labelKey: 'nav.overview', icon: LayoutDashboard, end: true },
   { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
+  { to: '/agents', labelKey: 'nav.agents', icon: Bot },
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
@@ -67,6 +69,7 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/$/, 'nav.overview'],
   [/^\/routers\/[^/]+/, 'nav.routerDetail'],
   [/^\/routers/, 'nav.routers'],
+  [/^\/agents/, 'nav.agents'],
   [/^\/devices/, 'nav.devices'],
   [/^\/topology/, 'nav.topology'],
   [/^\/roaming/, 'nav.roaming'],

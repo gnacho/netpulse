@@ -313,7 +313,8 @@
     "topologyDesc": "Visual network map",
     "collapse": "Collapse menu",
     "expand": "Expand menu",
-    "orchestration": "Orchestration"
+    "orchestration": "Orchestration",
+    "agents": "Agents"
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
@@ -572,7 +573,30 @@
     "upgradeAllTitle": "Update all agents?",
     "upgradeCancel": "Cancel",
     "upgradeFailed": "No response — reinstall from router detail",
-    "upgradeProgressFailed": "{{failed}} agent(s) did not respond ({{done}}/{{total}} updated)"
+    "upgradeProgressFailed": "{{failed}} agent(s) did not respond ({{done}}/{{total}} updated)",
+    "agents": {
+      "subtitle": "{{total}} agent(s) · {{down}} not reporting",
+      "empty": "No registered agents.",
+      "colDevice": "Device",
+      "colStatus": "Status",
+      "colLastSeen": "Last push",
+      "colVersion": "Version",
+      "colActions": "Actions",
+      "never": "never",
+      "reinstall": "Reinstall",
+      "reinstalling": "Reinstalling…",
+      "reinstalled": "Reinstalled",
+      "reinstallRetry": "Retry",
+      "reinstallTip": "Reinstall the agent on this router (binary, config and service) via SSH. Use this if the agent was removed by a firmware update or manual uninstall.",
+      "reinstallConfirm": "Reinstall the agent on {{router}}? The current agent (if any) will be replaced and its token rotated.",
+      "reinstallDone": "Agent reinstalled and reporting again.",
+      "reinstallPending": "Agent installed; waiting for it to report (up to 40s).",
+      "reinstallFail": "Reinstall failed",
+      "copyCmd": "Copy command",
+      "copyCmdTip": "Generates the manual install one-liner (fallback for routers without SSH). The token rotates on every generation.",
+      "copied": "Command copied",
+      "cmdFail": "Could not generate the command"
+    }
   },
   "reports": {
     "availability": "Availability",

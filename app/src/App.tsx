@@ -6,6 +6,7 @@ import Home from '@/pages/Home'
 import Login from '@/pages/Login'
 import Routers from '@/pages/Routers'
 import RouterDetail from '@/pages/RouterDetail'
+import Agents from '@/pages/Agents'
 import Devices from '@/pages/Devices'
 import Topology from '@/pages/Topology'
 import Alerts from '@/pages/Alerts'
@@ -36,6 +37,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="routers" element={<Routers />} />
         <Route path="routers/:id" element={<RouterDetail />} />
+        <Route path="agents" element={<Agents />} />
         <Route path="devices" element={<Devices />} />
         <Route path="topology" element={<Topology />} />
         <Route path="alerts" element={<Alerts />} />
