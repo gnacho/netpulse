@@ -337,6 +337,11 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 			out.ports = ethPortsToAdapter(fd.Ports)
 		}
 	}
+	// LuCI (issue #258): etiquetas de puertos/VLANs, fuente de nombres de
+	// topología. Best-effort: sección ausente → conserva la última buena.
+	if p.Data.LuCI != nil {
+		out.luci = p.Data.LuCI
+	}
 
 	if cached == nil {
 		cached = &extrasSnapshot{ports: []EthPort{}, radios: []Radio{},
@@ -354,9 +359,12 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if out.fdb == nil {
 		out.fdb = cached.fdb
 	}
+	if out.luci == nil {
+		out.luci = cached.luci
+	}
 	l.mu.Lock()
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb}
+		wireless: out.wireless, fdb: out.fdb, luci: out.luci}
 	l.mu.Unlock()
 
 	if out.leases == nil {

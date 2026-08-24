@@ -131,6 +131,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				for _, mac := range kept {
 					if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 						devices[idx].Port = port
+						devices[idx].PortLabel = portLabel(p, port)
 					}
 				}
 			}
@@ -157,7 +158,8 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 					setPort()
 					dists = append(dists, DistributionNode{
 						ID: id, Kind: "hypervisor", RouterID: routerID, Port: port,
-						MacCount: len(kept), HostDeviceID: devices[hidx].ID, Name: devices[hidx].Name,
+						PortLabel: portLabel(p, port),
+						MacCount:  len(kept), HostDeviceID: devices[hidx].ID, Name: devices[hidx].Name,
 					})
 					// SPEC-65 D65-2: sellado de infra — host = hypervisor,
 					// las MACs con OUI de hipervisor anidadas bajo él = ct.
@@ -179,7 +181,8 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				setPort()
 				dists = append(dists, DistributionNode{
 					ID: id, Kind: "managed", RouterID: routerID, Port: port,
-					MacCount: len(kept), Name: nb.displayName(), Ip: nb.Mgmt,
+					PortLabel: portLabel(p, port),
+					MacCount:  len(kept), Name: nb.displayName(), Ip: nb.Mgmt,
 					Mac: nb.ChassisMac, Lldp: nb.info(),
 				})
 				// SPEC-65 D65-2: el vecino LLDP managed que existe como Device
@@ -212,7 +215,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			// algo multiplexa ese puerto → nodo inferido colgando del gateway.
 			setPort()
 			dn := DistributionNode{
-				ID: id, Kind: "inferred", RouterID: routerID, Port: port, MacCount: len(kept),
+				ID: id, Kind: "inferred", RouterID: routerID, Port: port, PortLabel: portLabel(p, port), MacCount: len(kept),
 			}
 			if routerID == gatewayID {
 				for _, rp := range polled {
@@ -260,6 +263,15 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 		}
 	}
 	return devices, dists
+}
+
+// portLabel devuelve la etiqueta LuCI del puerto (issue #258) si el router
+// la define ("" si no existe): la app la usa como nombre preferente.
+func portLabel(p *routerPolled, port string) string {
+	if p == nil || p.luci == nil {
+		return ""
+	}
+	return p.luci.PortLabels[port]
 }
 
 // routerIdentity: datos de un router de la config para casar un vecino LLDP

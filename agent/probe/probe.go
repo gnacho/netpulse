@@ -68,6 +68,11 @@ const (
 	CmdUbusSystemBoard = "ubus call system board"
 	CmdUbusSystemInfo  = "ubus call system info"
 	CmdUbusWireless    = "ubus call network.wireless status"
+	// CmdLuCILabels: etiquetas de puertos/VLANs de LuCI (issue #258). OpenWrt
+	// snapshots añaden `config switchvlan 'port_labels'` y `'vlan_labels'` en
+	// /etc/config/luci con nombres amigables para la topología. Se lee el
+	// fichero crudo (uci show luci sería más ruidoso: todo el paquete).
+	CmdLuCILabels = "cat /etc/config/luci 2>/dev/null"
 )
 
 // ---------------------------------------------------------------------------
@@ -584,6 +589,66 @@ func ParseBridgeFdb(out string) map[string]string {
 		}
 	}
 	return m
+}
+
+// LuCILabels: etiquetas de puertos y VLANs de LuCI (issue #258). OpenWrt
+// snapshots las definen en /etc/config/luci como secciones switchvlan:
+//
+//	config switchvlan 'port_labels'
+//		option lan1 'Router/Fritzbox'
+//	config switchvlan 'vlan_labels'
+//		option 1 'LAN'
+//
+// PortLabels mapea interfaz (lan1…) → etiqueta; VlanLabels mapea id de
+// VLAN → etiqueta.
+type LuCILabels struct {
+	PortLabels map[string]string `json:"portLabels,omitempty"`
+	VlanLabels map[string]string `json:"vlanLabels,omitempty"`
+}
+
+var (
+	luciSectionRe = regexp.MustCompile(`^config\s+(\S+)\s+['"]?([A-Za-z0-9_]+)['"]?`)
+	luciOptionRe  = regexp.MustCompile(`^option\s+(\S+)\s+['"]?([^'"]*)['"]?$`)
+)
+
+// ParseLuCILabels parsea /etc/config/luci y extrae las secciones
+// port_labels/vlan_labels. Devuelve nil si no hay ninguna etiqueta.
+func ParseLuCILabels(out string) *LuCILabels {
+	var labels LuCILabels
+	var section string
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if m := luciSectionRe.FindStringSubmatch(line); m != nil {
+			section = m[2]
+			continue
+		}
+		if section != "port_labels" && section != "vlan_labels" {
+			continue
+		}
+		if m := luciOptionRe.FindStringSubmatch(line); m != nil {
+			if m[2] == "" {
+				continue
+			}
+			if section == "port_labels" {
+				if labels.PortLabels == nil {
+					labels.PortLabels = map[string]string{}
+				}
+				labels.PortLabels[m[1]] = m[2]
+			} else {
+				if labels.VlanLabels == nil {
+					labels.VlanLabels = map[string]string{}
+				}
+				labels.VlanLabels[m[1]] = m[2]
+			}
+		}
+	}
+	if len(labels.PortLabels) == 0 && len(labels.VlanLabels) == 0 {
+		return nil
+	}
+	return &labels
 }
 
 var nonDigitRe = regexp.MustCompile(`\D`)

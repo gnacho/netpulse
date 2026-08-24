@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -116,6 +117,9 @@ type routerPolled struct {
 	// lldpUnavailable: lldpd no está instalado en este router (issue #247) →
 	// el view-model expone `lldpAvailable:false` para el hint de instalación.
 	lldpUnavailable bool
+	// luci: etiquetas de puertos/VLANs de LuCI (issue #258), si el router las
+	// define en /etc/config/luci. Fuente de nombres para la topología.
+	luci *probe.LuCILabels
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -124,6 +128,7 @@ type extrasSnapshot struct {
 	radios   []Radio
 	wireless map[string]WirelessClient
 	fdb      map[string]string
+	luci     *probe.LuCILabels
 }
 
 // backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.
@@ -717,8 +722,12 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if fdb != nil {
 		fdbGood = fdb
 	}
+	luciGood := cached.luci
+	if luci := client.GetLuCILabels(); luci != nil {
+		luciGood = luci
+	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood}
 	l.mu.Unlock()
 
 	// Uso real de RAM como en la UI del router: used = total − available
@@ -755,6 +764,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
+		luci: luciGood,
 	}, nil
 }
 

@@ -197,6 +197,10 @@ type Device struct {
 	// --- topología v5 (FDB/LLDP; omitempty: ausentes si no hay datos) ---
 	// Port: puerto físico del bridge donde se aprende la MAC (cableados, FDB).
 	Port string `json:"port,omitempty"`
+	// PortLabel: nombre amigable del puerto definido en LuCI (issue #258)
+	// (`config switchvlan 'port_labels'` en /etc/config/luci). La app lo
+	// muestra como nombre preferente sobre Port cuando existe.
+	PortLabel string `json:"portLabel,omitempty"`
 	// Lldp: identificación del vecino cuando se anuncia por LLDP.
 	Lldp *LldpInfo `json:"lldp,omitempty"`
 	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
@@ -241,7 +245,10 @@ type DistributionNode struct {
 	Kind     string `json:"kind"` // "inferred"|"hypervisor"|"managed"
 	RouterID string `json:"routerId"`
 	Port     string `json:"port"`
-	MacCount int    `json:"macCount"`
+	// PortLabel: nombre amigable del puerto definido en LuCI (issue #258).
+	// Preferente sobre Port cuando existe.
+	PortLabel string `json:"portLabel,omitempty"`
+	MacCount  int    `json:"macCount"`
 	// HostDeviceID: hipervisor → id del Device host (Proxmox…), si es cliente.
 	HostDeviceID string `json:"hostDeviceId,omitempty"`
 	Name         string `json:"name,omitempty"`

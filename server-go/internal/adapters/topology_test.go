@@ -1,6 +1,10 @@
 package adapters
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gnacho/netpulse/agent/probe"
+)
 
 // FDB/port helpers para los tests de inferencia.
 func polledWithFDB(routerID, brMac string, fdb map[string]string) map[string]*routerPolled {
@@ -391,5 +395,45 @@ func TestInferTopologyLldpIdentificaDeviceDirecto(t *testing.T) {
 	}
 	if devices[0].Lldp == nil || devices[0].Lldp.Chassis != "GS308E" || devices[0].Lldp.Mgmt != "192.168.8.13" {
 		t.Fatalf("Device.Lldp: %+v", devices[0].Lldp)
+	}
+}
+
+// Issue #258: las etiquetas de puertos de LuCI (config switchvlan
+// 'port_labels' en /etc/config/luci) se usan como nombre preferente del
+// puerto en el view-model: Device.PortLabel y DistributionNode.PortLabel.
+func TestInferTopologyPortLabelLuCI(t *testing.T) {
+	luci := &probe.LuCILabels{
+		PortLabels: map[string]string{"lan1": "Router/Fritzbox", "lan3": "Servidor"},
+		VlanLabels: map[string]string{"1": "LAN"},
+	}
+	polled := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+			fdb:  map[string]string{"28:C6:8E:1D:90:44": "lan1", "04:D4:C4:8B:30:A7": "lan3", "DC:A6:32:4F:77:02": "lan3"},
+			luci: luci},
+	}
+	devices := []Device{
+		dev("28:C6:8E:1D:90:44", "flint2", "cable"),
+		dev("04:D4:C4:8B:30:A7", "flint2", "cable"),
+		dev("DC:A6:32:4F:77:02", "flint2", "cable"),
+	}
+	devices, dists := inferTopology(polled, devices)
+	if devices[0].Port != "lan1" || devices[0].PortLabel != "Router/Fritzbox" {
+		t.Fatalf("Device.PortLabel lan1: %+v", devices[0])
+	}
+	if len(dists) != 1 || dists[0].Kind != "inferred" {
+		t.Fatalf("distnodes: %+v", dists)
+	}
+	if dists[0].Port != "lan3" || dists[0].PortLabel != "Servidor" {
+		t.Fatalf("DistributionNode.PortLabel: %+v", dists[0])
+	}
+	// Sin etiquetas → PortLabel vacío (omitempty).
+	noLuci := map[string]*routerPolled{
+		"flint2": {cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+			fdb: map[string]string{"28:C6:8E:1D:90:44": "lan1"}},
+	}
+	devices = []Device{dev("28:C6:8E:1D:90:44", "flint2", "cable")}
+	devices, _ = inferTopology(noLuci, devices)
+	if devices[0].Port != "lan1" || devices[0].PortLabel != "" {
+		t.Fatalf("sin etiquetas PortLabel vacío: %+v", devices[0])
 	}
 }
