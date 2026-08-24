@@ -1275,7 +1275,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (dv.node.kind === 'managed') {
       backhauls.push({
         id: `dist-${dv.id}`, a: rn.router.name,
-        b: [dv.node.name, dv.node.ip, 'LLDP', dv.node.port].filter(Boolean).join(' · '),
+        b: [dv.node.name, dv.node.ip, 'LLDP', dv.node.portLabel ?? dv.node.port].filter(Boolean).join(' · '),
         kind: 'dist', type: 'topology.links.managedSwitch',
         speed: '1 Gbps', signal: '<1 ms',
         tone: 'ok', statusLabel: 'common.status.online',
@@ -1284,7 +1284,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     } else {
       backhauls.push({
         id: `dist-${dv.id}`, a: rn.router.name,
-        b: '', bKey: 'topology.links.inferredSwitch', bVars: { port: dv.node.port },
+        b: '', bKey: 'topology.links.inferredSwitch', bVars: { port: dv.node.portLabel ?? dv.node.port },
         kind: 'dist', type: 'common.cable',
         speed: '1 Gbps', signal: '<1 ms',
         tone: 'ok', statusLabel: 'common.status.online',
@@ -1299,7 +1299,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (!host || !rn) continue
     backhauls.push({
       id: `wired-${host.id}`, a: rn.router.name,
-      b: `${host.name} · ${dn.port} · ${ctCountByHost.get(host.id) ?? 0} CT`,
+      b: `${host.name} · ${dn.portLabel ?? dn.port} · ${ctCountByHost.get(host.id) ?? 0} CT`,
       kind: 'wired', type: 'topology.links.hypervisorCable',
       speed: '—', signal: '—',
       tone: 'ok', statusLabel: 'common.status.online',

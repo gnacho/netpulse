@@ -20,6 +20,12 @@ import { cn } from '@/lib/utils'
 import type { ChipNode, DistNodeView, RouterNode, TopologyModel } from './model'
 import { COLOR, VB_H, VB_W, bandColor, linkColor, statusColor } from './model'
 
+/** Nombre preferente de un puerto: la etiqueta LuCI si existe, si no el id
+ * físico (issue #258). */
+export function portName(port: string | undefined, label: string | undefined): string {
+  return label || port || '—'
+}
+
 // ---------------------------------------------------------------------------
 // API imperativa expuesta a la página (botones de zoom del header)
 // ---------------------------------------------------------------------------
@@ -235,10 +241,10 @@ function TooltipCard({
             <StatusPill tone="accent" label="LLDP" />
           </div>
           <div className="mt-0.5 text-caption text-text-muted">
-            {[tip.node.ip, tip.node.port].filter(Boolean).join(' · ')}
+            {[tip.node.ip, portName(tip.node.port, tip.node.portLabel)].filter(Boolean).join(' · ')}
           </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={portName(tip.node.port, tip.node.portLabel)} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
           {tip.node.lldp && (
@@ -261,7 +267,7 @@ function TooltipCard({
           </div>
           <div className="mt-0.5 text-caption text-text-muted">{t('topology.dist.noIp')}</div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={tip.node.port} />
+            <MiniStat label={t('topology.dist.port', { router: routerName(tip.node.routerId) })} value={portName(tip.node.port, tip.node.portLabel)} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
           <div className="mt-2 text-caption leading-snug text-text-secondary">
@@ -315,7 +321,7 @@ function ChipTooltip({
         <div className="grid grid-cols-2 gap-1.5">
           <MiniStat
             label={chip.wired ? t('topology.port') : t('topology.signal')}
-            value={chip.wired ? (d.port ?? '—') : `${d.signalDbm ?? '—'} dBm`}
+            value={chip.wired ? portName(d.port ?? undefined, d.portLabel) : `${d.signalDbm ?? '—'} dBm`}
             hot={!chip.wired && chip.weak}
           />
           <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
@@ -334,7 +340,7 @@ function ChipTooltip({
       {chip.isCt && (
         <div className="mt-2 text-caption leading-snug text-text-secondary">
           {ctHost
-            ? t('topology.ct.noteIn', { host: ctHost.name, port: ctHost.port ?? '—' })
+            ? t('topology.ct.noteIn', { host: ctHost.name, port: portName(ctHost.port ?? undefined, ctHost.portLabel) })
             : t('topology.ct.note')}
         </div>
       )}
@@ -1256,12 +1262,12 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             dv.node.kind === 'managed' ? (
               <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
                 reduce={reduce ?? false} title={dv.node.name ?? t('topology.dist.managed')}
-                sub={`${[dv.node.ip ?? 'LLDP', dv.node.port].join(' · ')}`}
+                sub={`${[dv.node.ip ?? 'LLDP', portName(dv.node.port, dv.node.portLabel)].join(' · ')}`}
                 subColor={COLOR.accent} />
             ) : (
               <LabelText key={dv.id} x={dv.x} y={dv.y - 34} anchor="middle" delay={(2.15 + i * 0.03) * T}
                 reduce={reduce ?? false} title={t('topology.dist.title')}
-                sub={`${t('topology.dist.inferred')} · ${dv.node.port}`} />
+                sub={`${t('topology.dist.inferred')} · ${portName(dv.node.port, dv.node.portLabel)}`} />
             ),
           )}
           {/* Hosts hipervisores (badge +N ya en el chip; etiqueta con puerto y nº CTs) */}
@@ -1271,7 +1277,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             return (
               <LabelText key={hostId} x={host.x} y={host.y - 38} anchor="middle" delay={(2.18 + i * 0.03) * T}
                 reduce={reduce ?? false} title={host.device.name}
-                sub={`${t('topology.host.hypervisor')} · ${host.device.port ?? ''} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
+                sub={`${t('topology.host.hypervisor')} · ${portName(host.device.port ?? undefined, host.device.portLabel)} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
             )
           })}
           {/* Peers */}
@@ -1395,8 +1401,8 @@ const DistNodeGroup = memo(function DistNodeGroup({
       tabIndex={0}
       aria-label={
         managed
-          ? `${dv.node.name ?? t('topology.dist.managed')}, LLDP, ${dv.node.ip ?? ''} ${dv.node.port}`
-          : `${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${dv.node.port}`
+          ? `${dv.node.name ?? t('topology.dist.managed')}, LLDP, ${dv.node.ip ?? ''} ${portName(dv.node.port, dv.node.portLabel)}`
+          : `${t('topology.dist.title')}, ${t('topology.dist.inferred')}, ${portName(dv.node.port, dv.node.portLabel)}`
       }
       animate={{ opacity }}
       transition={{ duration: 0.2 }}

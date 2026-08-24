@@ -193,6 +193,34 @@ func TestParseFdbBridgeFdb(t *testing.T) {
 
 // TestParseFdbExcluyeWireless — #253: los puertos inalámbricos (phy*-ap*,
 // wlan*, bat*) no deben entrar como clientes cableados.
+func TestParseLuCILabels(t *testing.T) {
+	out := `config switchvlan 'port_labels'
+	option lan1 'Router/Fritzbox'
+	option lan2 'Garage door'
+config switchvlan 'vlan_labels'
+	option 1 'LAN'
+	option 2 'WAN'
+config language 'main'
+	option lang 'es'
+`
+	labels := ParseLuCILabels(out)
+	if labels == nil {
+		t.Fatal("con etiquetas debería devolver datos")
+	}
+	if labels.PortLabels["lan1"] != "Router/Fritzbox" || labels.PortLabels["lan2"] != "Garage door" {
+		t.Fatalf("port_labels: %+v", labels.PortLabels)
+	}
+	if labels.VlanLabels["1"] != "LAN" || labels.VlanLabels["2"] != "WAN" {
+		t.Fatalf("vlan_labels: %+v", labels.VlanLabels)
+	}
+	if ParseLuCILabels("config language 'main'\n\toption lang 'es'\n") != nil {
+		t.Fatal("sin port_labels/vlan_labels → nil")
+	}
+	if ParseLuCILabels("") != nil {
+		t.Fatal("vacío → nil")
+	}
+}
+
 func TestParseFdbExcluyeWireless(t *testing.T) {
 	fdb := ParseBridgeFdb("==PORTS==\n0x1 lan1\n0x5 phy0-ap0\n==MACS==\n1 aa:bb:cc:dd:ee:01\n5 ff:ee:dd:cc:bb:aa\n")
 	if _, ok := fdb["FF:EE:DD:CC:BB:AA"]; ok {

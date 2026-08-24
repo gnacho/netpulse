@@ -50,6 +50,11 @@ func testPayload() *probe.Payload {
 		MACs:  map[string]string{"EC:71:DB:44:12:8A": "lan1"},
 		Ports: []probe.EthPort{{ID: "lan1", Label: "LAN 1", Up: true, Speed: "1 Gbps"}},
 	}
+	// LuCI (issue #258): etiquetas de puertos/VLANs para la topología.
+	pl.Data.LuCI = &probe.LuCILabels{
+		PortLabels: map[string]string{"lan1": "Router/Fritzbox"},
+		VlanLabels: map[string]string{"1": "LAN"},
+	}
 	return pl
 }
 
@@ -142,6 +147,10 @@ func TestLiveAgentFreshSkipsSSH(t *testing.T) {
 	}
 	if p.fdb["EC:71:DB:44:12:8A"] != "lan1" || len(p.ports) != 1 || p.ports[0].Speed != "1 Gbps" {
 		t.Fatalf("fdb/ports: %+v %+v", p.fdb, p.ports)
+	}
+	// LuCI del agente (issue #258): etiquetas propagadas al routerPolled.
+	if p.luci == nil || p.luci.PortLabels["lan1"] != "Router/Fritzbox" || p.luci.VlanLabels["1"] != "LAN" {
+		t.Fatalf("luci vía agente: %+v", p.luci)
 	}
 	if len(p.radios) != 1 || p.radios[0].Name != "2.4 GHz" || p.brMac != "94:83:C4:00:00:09" || p.backhaul != "cable" {
 		t.Fatalf("radios/brMac/backhaul: %+v %q %q", p.radios, p.brMac, p.backhaul)

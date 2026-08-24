@@ -21,6 +21,9 @@ type PayloadData struct {
 	DHCP     *DHCPData     `json:"dhcp,omitempty"`
 	FDB      *FDBData      `json:"fdb,omitempty"`
 	Dawn     *DawnData     `json:"dawn,omitempty"` // Fase 14: DAWN roaming (solo si instalado)
+	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están
+	// definidas en /etc/config/luci.
+	LuCI *LuCILabels `json:"luci,omitempty"`
 }
 
 // SystemData: salud del equipo + tráfico + latencias.

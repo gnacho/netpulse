@@ -472,6 +472,17 @@ func (c *OpenWrtClient) GetBridgeMac() string {
 	return strings.ToUpper(strings.TrimSpace(out))
 }
 
+// GetLuCILabels: etiquetas de puertos/VLANs de LuCI (issue #258), si el
+// router las define en /etc/config/luci. Best-effort: fichero sin secciones
+// → nil.
+func (c *OpenWrtClient) GetLuCILabels() *probe.LuCILabels {
+	out, err := c.pool.Run(c.Host, probe.CmdLuCILabels, 0)
+	if err != nil {
+		return nil
+	}
+	return probe.ParseLuCILabels(out)
+}
+
 // ---------------------------------------------------------------------------
 // Radios WiFi
 // ---------------------------------------------------------------------------
