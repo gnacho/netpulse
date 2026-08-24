@@ -280,7 +280,7 @@
     },
     "upload": "Subida",
     "greetingName": ", {{name}}",
-    "noImportantAlerts": "Sin alertas importantes",
+    "noImportantAlerts": "Tu red está perfecta",
     "importantAlerts_one": "{{count}} alerta importante",
     "importantAlerts_other": "{{count}} alertas importantes"
   },

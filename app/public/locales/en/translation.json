@@ -280,7 +280,7 @@
     },
     "upload": "Upload",
     "greetingName": ", {{name}}",
-    "noImportantAlerts": "No important alerts",
+    "noImportantAlerts": "Your network looks great",
     "importantAlerts_one": "{{count}} important alert",
     "importantAlerts_other": "{{count}} important alerts"
   },
