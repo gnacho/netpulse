@@ -48,8 +48,11 @@ type SSHRunner interface {
 }
 
 // AlertsEngine: mínimo del motor de alertas que necesita el rearmer.
+// EmitOrUpdate consolida alertas "en curso" por ID (issue #271): el primer
+// fallo crea la alerta; los reintentos la actualizan en vez de duplicar.
 type AlertsEngine interface {
 	Emit(alerts.AlertEvent) bool
+	EmitOrUpdate(alerts.AlertEvent) bool
 }
 
 // Result es el resultado de un intento de rearme.
@@ -83,6 +86,7 @@ type Rearmer struct {
 	pool     SSHRunner
 	engine   AlertsEngine
 	pollWait time.Duration
+	cooldown time.Duration
 
 	mu        sync.Mutex
 	lastRearm map[string]time.Time
@@ -96,7 +100,7 @@ func New(db *sql.DB, agents *adapters.AgentRegistry, pool SSHRunner, engine Aler
 	}
 	return &Rearmer{
 		db: db, agents: agents, pool: pool, engine: engine,
-		pollWait: pollWait, lastRearm: map[string]time.Time{},
+		pollWait: pollWait, cooldown: Cooldown, lastRearm: map[string]time.Time{},
 	}
 }
 
@@ -104,6 +108,14 @@ func New(db *sql.DB, agents *adapters.AgentRegistry, pool SSHRunner, engine Aler
 func (r *Rearmer) SetPollWait(d time.Duration) {
 	if d > 0 {
 		r.pollWait = d
+	}
+}
+
+// SetCooldown ajusta el anti-martilleo manual por slug (solo tests; en prod
+// el cooldown del supervisor de 600 s manda y nunca llega a este de 60 s).
+func (r *Rearmer) SetCooldown(d time.Duration) {
+	if d > 0 {
+		r.cooldown = d
 	}
 }
 
@@ -137,8 +149,8 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 
 	// Anti-martilleo por slug (manual).
 	r.mu.Lock()
-	if last, ok := r.lastRearm[slug]; ok && time.Since(last) < Cooldown {
-		wait := Cooldown - time.Since(last)
+	if last, ok := r.lastRearm[slug]; ok && time.Since(last) < r.cooldown {
+		wait := r.cooldown - time.Since(last)
 		r.mu.Unlock()
 		return Result{}, ErrCooldown{Wait: wait}
 	}
@@ -213,6 +225,12 @@ type Supervisor struct {
 	mu    sync.Mutex
 	slots map[string]time.Time
 
+	// failIDs: slug → ID de la alerta de fallo abierta (issue #271). Mientras
+	// el incidente persiste, los reintentos actualizan esa misma alerta en vez
+	// de insertar una copia cada cooldown. Al recuperarse se borra la entrada
+	// y el próximo fallo vuelve a crear una alerta nueva.
+	failIDs map[string]string
+
 	stop chan struct{}
 	done chan struct{}
 }
@@ -229,8 +247,8 @@ func NewSupervisor(r *Rearmer, registry *adapters.AgentRegistry, db *sql.DB, eng
 	return &Supervisor{
 		rearmer: r, registry: registry, db: db, engine: engine,
 		interval: interval, cooldown: cooldown,
-		slots: map[string]time.Time{},
-		stop:  make(chan struct{}), done: make(chan struct{}),
+		slots: map[string]time.Time{}, failIDs: map[string]string{},
+		stop: make(chan struct{}), done: make(chan struct{}),
 	}
 }
 
@@ -269,6 +287,10 @@ func (s *Supervisor) CheckOnce() {
 		// fuera del TTL. Un slug sin push nunca visto no se rearma (no hay
 		// evidencia de que el servicio haya estado vivo).
 		if !s.registry.Expired(slug) {
+			// El agente volvió a empujar (recuperado sin rearme): si había
+			// una alerta de fallo abierta, se cierra el incidente (issue
+			// #271) para que el próximo fallo cree una alerta nueva.
+			s.closeFailID(slug)
 			continue
 		}
 		if !s.slotFree(slug) {
@@ -281,16 +303,44 @@ func (s *Supervisor) CheckOnce() {
 			continue
 		}
 		s.markSlot(slug)
-		if !res.Recovered && s.engine != nil {
-			s.engine.Emit(alerts.AlertEvent{
-				ID:       fmt.Sprintf("alert-agent-autorearm-fail-%s-%d", slug, time.Now().UnixMilli()),
-				Category: alerts.CatSystem, Urgent: false, Severity: "warn",
-				Title:       fmt.Sprintf("Auto-rearme sin recuperación en %s", slug),
-				Description: fmt.Sprintf("El supervisor reinició netpulse-agent en %s pero el agente no ha vuelto a empujar; próximo intento en %d s", slug, int(s.cooldown.Seconds())),
-				Time:        "ahora mismo", RouterID: slug,
-			})
+		if res.Recovered {
+			// Rearme con éxito: incidente cerrado.
+			s.closeFailID(slug)
+			continue
+		}
+		if s.engine != nil {
+			s.emitFail(slug)
 		}
 	}
+}
+
+// emitFail: alerta consolidada de fallo (issue #271). La primera vez del
+// incidente crea la alerta con ID = slug + timestamp del primer fallo; cada
+// reintento del MISMO incidente la actualiza (EmitOrUpdate) en vez de
+// insertar una copia. Al recuperarse se cierra el incidente (closeFailID) y
+// el próximo fallo vuelve a crear una alerta nueva.
+func (s *Supervisor) emitFail(slug string) {
+	s.mu.Lock()
+	id, ok := s.failIDs[slug]
+	if !ok {
+		id = fmt.Sprintf("alert-agent-autorearm-fail-%s-%d", slug, time.Now().UnixMilli())
+		s.failIDs[slug] = id
+	}
+	s.mu.Unlock()
+	s.engine.EmitOrUpdate(alerts.AlertEvent{
+		ID:          id,
+		Category:    alerts.CatSystem, Urgent: false, Severity: "warn",
+		Title:       fmt.Sprintf("Auto-rearme sin recuperación en %s", slug),
+		Description: fmt.Sprintf("El supervisor reinició netpulse-agent en %s pero el agente no ha vuelto a empujar; próximo intento en %d s", slug, int(s.cooldown.Seconds())),
+		Time:        "ahora mismo", RouterID: slug,
+	})
+}
+
+// closeFailID: borra el ID de fallo abierto del slug (incidente resuelto).
+func (s *Supervisor) closeFailID(slug string) {
+	s.mu.Lock()
+	delete(s.failIDs, slug)
+	s.mu.Unlock()
 }
 
 // registeredSlugs: slugs con token en kv (agent.token.*).

@@ -49,6 +49,19 @@ func (f *fakeEngine) Emit(ev alerts.AlertEvent) bool {
 	return true
 }
 
+func (f *fakeEngine) EmitOrUpdate(ev alerts.AlertEvent) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.evs {
+		if f.evs[i].ID == ev.ID {
+			f.evs[i] = ev
+			return true
+		}
+	}
+	f.evs = append(f.evs, ev)
+	return true
+}
+
 func (f *fakeEngine) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -193,6 +206,85 @@ func TestSupervisorAlertaSinRecuperacion(t *testing.T) {
 
 	if env.engine.count() == 0 {
 		t.Fatalf("sin recuperación debe emitir alerta de fallo")
+	}
+}
+
+// TestSupervisorConsolidaFallosRepetidos (#271): N reintentos fallidos del
+// mismo slug → UNA sola alerta (mismo ID, actualizada), no N copias.
+func TestSupervisorConsolidaFallosRepetidos(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushViejo("patio")
+	env.expira(time.Minute)
+
+	// pollWait corto para no dormir; cooldowns cortos para poder reintentar
+	// en el mismo test (en prod supervisor 600 s y Rearmer 60 s).
+	env.arm.SetPollWait(50 * time.Millisecond)
+	env.arm.SetCooldown(5 * time.Millisecond)
+	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, 20*time.Millisecond)
+
+	for i := 0; i < 3; i++ {
+		sup.CheckOnce()
+		time.Sleep(40 * time.Millisecond) // deja pasar el cooldown del slot
+	}
+
+	if got := env.ssh.count(); got != 3 {
+		t.Fatalf("quiero 3 reintentos SSH, tuve %d", got)
+	}
+	evs := env.engine.events()
+	fails := []alerts.AlertEvent{}
+	for _, ev := range evs {
+		if ev.Title == "Auto-rearme sin recuperación en patio" {
+			fails = append(fails, ev)
+		}
+	}
+	if len(fails) != 1 {
+		t.Fatalf("3 fallos debían consolidarse en 1 alerta de fallo, hay %d", len(fails))
+	}
+	if len(evs) > 0 && evs[0].Title == "Auto-rearme sin recuperación en patio" && evs[0].ID != fails[0].ID {
+		t.Fatalf("el ID de la alerta consolidada debe ser el del primer fallo: %s", fails[0].ID)
+	}
+}
+
+// TestSupervisorRecuperadoCierraIncidente (#271): al recuperarse el agente
+// (vuelve a empujar) se cierra el incidente; un fallo posterior crea una
+// alerta NUEVA (ID distinto), no actualiza la vieja.
+func TestSupervisorRecuperadoCierraIncidente(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushViejo("patio")
+	env.expira(time.Minute)
+
+	env.arm.SetPollWait(50 * time.Millisecond)
+	env.arm.SetCooldown(5 * time.Millisecond)
+	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, 20*time.Millisecond)
+
+	// Incidente 1: fallo → 1 alerta.
+	sup.CheckOnce()
+	first := env.engine.events()
+	if len(first) != 1 || first[0].Title != "Auto-rearme sin recuperación en patio" {
+		t.Fatalf("incidente 1: quiero 1 alerta de fallo, hay %+v", first)
+	}
+
+	// El agente se recupera: vuelve a empujar (dentro del TTL).
+	env.reg.Ingest(&probe.Payload{Router: "patio", Ts: env.now.Unix(), Version: "2.3.0"})
+	sup.CheckOnce() // este tick ve el slug sano → cierra el incidente
+
+	// Incidente 2: el agente vuelve a expirar y falla → alerta NUEVA.
+	env.expira(time.Minute)
+	time.Sleep(40 * time.Millisecond)
+	sup.CheckOnce()
+
+	evs := env.engine.events()
+	fails := []alerts.AlertEvent{}
+	for _, ev := range evs {
+		if ev.Title == "Auto-rearme sin recuperación en patio" {
+			fails = append(fails, ev)
+		}
+	}
+	if len(fails) != 2 {
+		t.Fatalf("dos incidentes → 2 alertas de fallo (una por incidente), hay %d", len(fails))
+	}
+	if fails[0].ID == fails[1].ID {
+		t.Fatalf("incidentes distintos deben tener IDs distintos: %s == %s", fails[0].ID, fails[1].ID)
 	}
 }
 

@@ -257,3 +257,78 @@ func TestSeedSkipsConfigButKeepsDedup(t *testing.T) {
 		t.Fatalf("lista: %d", got)
 	}
 }
+
+// TestEmitOrUpdateConsolida (#271): re-emitir con el MISMO ID actualiza la
+// alerta existente (ts nuevo, al frente, sin duplicar) en vez de insertar.
+func TestEmitOrUpdateConsolida(t *testing.T) {
+	e := New(nil, nil)
+	now := time.Unix(1_700_000_000, 0)
+	e.SetClock(func() time.Time { return now })
+
+	base := AlertEvent{ID: "fail-patio-1", Category: CatSystem, Severity: "warn",
+		Title: "Auto-rearme sin recuperación en patio", Description: "intento 1",
+		RouterID: "patio"}
+	if !e.EmitOrUpdate(base) {
+		t.Fatal("primer emit debía pasar")
+	}
+	// Mismo ID, descripción nueva: debe actualizar, no duplicar.
+	now = now.Add(10 * time.Minute) // fuera del dedup, pero consolidación por ID
+	upd := base
+	upd.Description = "intento 2"
+	upd.Urgent = true
+	if !e.EmitOrUpdate(upd) {
+		t.Fatal("update del mismo ID debía pasar")
+	}
+	list := e.List()
+	if len(list) != 1 {
+		t.Fatalf("consolidación: quiero 1 evento, hay %d", len(list))
+	}
+	if list[0].Description != "intento 2" {
+		t.Fatalf("descripción no actualizada: %s", list[0].Description)
+	}
+	if list[0].Ts != now.Unix() {
+		t.Fatalf("ts no refrescado: %d, esperaba %d", list[0].Ts, now.Unix())
+	}
+}
+
+// TestEmitOrUpdateIDNuevoInserta (#271): un ID distinto con la misma clave de
+// dedup dentro de la ventana se descarta (misma semántica que Emit).
+func TestEmitOrUpdateIDNuevoInserta(t *testing.T) {
+	e := New(nil, nil)
+	now := time.Unix(1_700_000_000, 0)
+	e.SetClock(func() time.Time { return now })
+	base := AlertEvent{ID: "a1", Category: CatSystem, Severity: "warn",
+		Title: "mismo", RouterID: "r1"}
+	if !e.EmitOrUpdate(base) {
+		t.Fatal("primer emit debía pasar")
+	}
+	// Mismo (cat,title,routerId) pero ID distinto dentro de 5 min → dedup.
+	dup := base
+	dup.ID = "a2"
+	if e.EmitOrUpdate(dup) {
+		t.Fatal("dedup 5 min debía ignorar el ID nuevo")
+	}
+	if got := len(e.List()); got != 1 {
+		t.Fatalf("lista: %d, esperaba 1", got)
+	}
+}
+
+// TestEmitOrUpdateConservaRead (#271): el update no resetea el read-state.
+func TestEmitOrUpdateConservaRead(t *testing.T) {
+	e := New(nil, nil)
+	ev := ev("fail-x", CatSystem, false)
+	if !e.EmitOrUpdate(ev) {
+		t.Fatal("emit debía pasar")
+	}
+	e.MarkRead("fail-x")
+	now := time.Now()
+	e.SetClock(func() time.Time { return now.Add(time.Hour) })
+	if !e.EmitOrUpdate(ev) {
+		t.Fatal("update debía pasar")
+	}
+	for _, x := range e.List() {
+		if !x.Read {
+			t.Fatalf("Read debe conservarse tras el update: %+v", x)
+		}
+	}
+}
