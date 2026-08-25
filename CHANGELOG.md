@@ -7,6 +7,18 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-08-25
+
+### Fixed
+
+- **Consolidación de alertas de auto-rearme (#271)**: el supervisor emitía una alerta "Auto-rearme sin recuperación" por cada reintento (cada 10 min), llenando el feed con decenas de copias del mismo incidente. Ahora la primera falla crea la alerta y los reintentos la actualizan (ts/descripción) en su sitio; al recuperarse el agente se cierra el incidente y el próximo fallo crea una alerta nueva.
+- **Boca WAN con datos reales de conexión (#276)**: el detalle del gateway muestra en el tooltip de la boca WAN el protocolo (PPPoE), IP pública, puerta de enlace y servidores DNS, sondados en vivo vía `ubus call network.interface.wan status` (cache 60 s).
+- **Botón atrás fijo en el detalle de router (#275)**: el botón "Atrás" vivía en la cabecera del detalle y se perdía al hacer scroll. Ahora es una flecha icon-only fija en el topbar (desktop) y en el header móvil, siempre visible en `/routers/:id`.
+- **Tooltips de bocas LAN/WAN estilo tarjeta (#276)**: al pasar el cursor sobre una boca se muestra una tarjeta con el dispositivo conectado (nombre, velocidad, MAC e IP); las libres muestran "libre".
+- **Topología sin hint engañoso (#276)**: eliminado el texto "clic para ver el dispositivo" de la tarjeta de dispositivo (muchos chips no se pueden clicar porque otros se interponen).
+- **Reenvío DNS del módulo AdGuard al puerto correcto (#270)**: dnsmasq reenviaba a la UI HTTP (puerto 3000) en vez del puerto DNS real; ahora usa un puerto DNS dedicado (5353) fuera del 53 para no colisionar con dnsmasq.
+- **Test de informe semanal independiente de la fecha (#273)**: los tests usaban semanas ISO fijas y rompían el CI al avanzar la semana actual; ahora calculan las fechas relativas a hoy.
+
 ## [2.13.0] - 2026-08-24
 
 ### Added
