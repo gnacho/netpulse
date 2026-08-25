@@ -4,9 +4,11 @@ package httpapi_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 )
 
 // insertDaily siembra un daily del router r para una fecha dada. nSamples es
@@ -70,14 +72,27 @@ func getWeekly(t *testing.T, ts *testServer, weeks string) (int, []weeklyReportE
 func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	ts := makeTestServer(t)
 
-	// Dos routers en la misma semana ISO 2026-W32 (2026-08-03..09).
-	// Día completo = 17280 muestras = 1440 min. latAvg null en prod real.
-	insertDaily(t, ts, "gw", "2026-08-03", 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
-	insertDaily(t, ts, "gw", "2026-08-04", 17280, sqlNull{true, 1.4}, 1e8, 5e7, 22, 61)
-	insertDaily(t, ts, "ap2", "2026-08-03", 8640, sqlNull{false, 0}, 1e7, 1e7, 10, 40) // medio día, sin latencia
+	// Semanas relativas a HOY: el handler filtra por date >= now-7*weeks,
+	// así que usar semanas ISO fijas haría el test dependiente de la fecha
+	// (fallaba al avanzar la semana actual, CI rojo sin relación con cambios).
+	// Semana A = la actual (lunes), Semana B = la anterior.
+	now := time.Now().UTC()
+	mondayA := mondayOf(now)
+	mondayB := mondayA.AddDate(0, 0, -7)
+	weekA := isoWeek(mondayA)
+	weekB := isoWeek(mondayB)
+	dateA := mondayA.Format("2006-01-02")
+	dateA2 := mondayA.AddDate(0, 0, 1).Format("2006-01-02")
+	dateB := mondayB.Format("2006-01-02")
 
-	// Otra semana distinta (2026-W31 = 2026-07-27..08-02) para el mismo router.
-	insertDaily(t, ts, "gw", "2026-07-27", 17280, sqlNull{true, 1.0}, 9e7, 4e7, 19, 59)
+	// Dos routers en la misma semana A. Día completo = 17280 muestras =
+	// 1440 min. latAvg null en prod real.
+	insertDaily(t, ts, "gw", dateA, 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
+	insertDaily(t, ts, "gw", dateA2, 17280, sqlNull{true, 1.4}, 1e8, 5e7, 22, 61)
+	insertDaily(t, ts, "ap2", dateA, 8640, sqlNull{false, 0}, 1e7, 1e7, 10, 40) // medio día, sin latencia
+
+	// Otra semana distinta (B, la anterior) para el mismo router.
+	insertDaily(t, ts, "gw", dateB, 17280, sqlNull{true, 1.0}, 9e7, 4e7, 19, 59)
 
 	status, items := getWeekly(t, ts, "4")
 	if status != http.StatusOK {
@@ -90,50 +105,66 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	}
 
 	// La semana más reciente primero (ORDER BY week DESC).
-	if items[0].Week != "2026-W32" {
-		t.Fatalf("items[0].week = %q, esperaba 2026-W32", items[0].Week)
+	if items[0].Week != weekA {
+		t.Fatalf("items[0].week = %q, esperaba %s", items[0].Week, weekA)
 	}
 	if items[0].RouterID != "ap2" { // orden alfabético dentro de la semana: ap2 < gw
 		t.Fatalf("items[0].routerId = %q, esperaba ap2", items[0].RouterID)
 	}
 
-	// gw en W32: 2 días completos = 2*1440 = 2880 min, 100%.
-	var gwW32, gwW31, ap2W32 *weeklyReportEntry
+	// gw en semana A: 2 días completos = 2*1440 = 2880 min, 100%.
+	var gwA, gwB, ap2A *weeklyReportEntry
 	for i := range items {
 		switch {
-		case items[i].RouterID == "gw" && items[i].Week == "2026-W32":
-			gwW32 = &items[i]
-		case items[i].RouterID == "gw" && items[i].Week == "2026-W31":
-			gwW31 = &items[i]
-		case items[i].RouterID == "ap2" && items[i].Week == "2026-W32":
-			ap2W32 = &items[i]
+		case items[i].RouterID == "gw" && items[i].Week == weekA:
+			gwA = &items[i]
+		case items[i].RouterID == "gw" && items[i].Week == weekB:
+			gwB = &items[i]
+		case items[i].RouterID == "ap2" && items[i].Week == weekA:
+			ap2A = &items[i]
 		}
 	}
-	if gwW32 == nil || gwW31 == nil || ap2W32 == nil {
-		t.Fatalf("faltan filas esperadas: gwW32=%v gwW31=%v ap2W32=%v", gwW32, gwW31, ap2W32)
+	if gwA == nil || gwB == nil || ap2A == nil {
+		t.Fatalf("faltan filas esperadas: gwA=%v gwB=%v ap2A=%v", gwA, gwB, ap2A)
 	}
-	if gwW32.Days != 2 || gwW32.UpMin != 2880 {
-		t.Fatalf("gw W32: days=%d upMin=%d, esperaba 2/2880", gwW32.Days, gwW32.UpMin)
+	if gwA.Days != 2 || gwA.UpMin != 2880 {
+		t.Fatalf("gw semana A: days=%d upMin=%d, esperaba 2/2880", gwA.Days, gwA.UpMin)
 	}
-	if gwW32.UpPct < 99.9 || gwW32.UpPct > 100.1 {
-		t.Fatalf("gw W32 upPct=%v, esperaba ~100", gwW32.UpPct)
+	if gwA.UpPct < 99.9 || gwA.UpPct > 100.1 {
+		t.Fatalf("gw semana A upPct=%v, esperaba ~100", gwA.UpPct)
 	}
-	if gwW32.LatAvg == nil || *gwW32.LatAvg < 1.29 || *gwW32.LatAvg > 1.31 {
-		t.Fatalf("gw W32 latAvg=%v, esperaba ~1.3 (media de 1.2/1.4)", gwW32.LatAvg)
+	if gwA.LatAvg == nil || *gwA.LatAvg < 1.29 || *gwA.LatAvg > 1.31 {
+		t.Fatalf("gw semana A latAvg=%v, esperaba ~1.3 (media de 1.2/1.4)", gwA.LatAvg)
 	}
 	// ap2: medio día = 720 min sobre 1 día → 50%; latencia null (sin datos).
-	if ap2W32.Days != 1 || ap2W32.UpMin != 720 {
-		t.Fatalf("ap2 W32: days=%d upMin=%d, esperaba 1/720", ap2W32.Days, ap2W32.UpMin)
+	if ap2A.Days != 1 || ap2A.UpMin != 720 {
+		t.Fatalf("ap2 semana A: days=%d upMin=%d, esperaba 1/720", ap2A.Days, ap2A.UpMin)
 	}
-	if ap2W32.UpPct < 49.9 || ap2W32.UpPct > 50.1 {
-		t.Fatalf("ap2 W32 upPct=%v, esperaba ~50 (medio día: 720 de 1440 min)", ap2W32.UpPct)
+	if ap2A.UpPct < 49.9 || ap2A.UpPct > 50.1 {
+		t.Fatalf("ap2 semana A upPct=%v, esperaba ~50 (medio día: 720 de 1440 min)", ap2A.UpPct)
 	}
-	if ap2W32.LatAvg != nil {
-		t.Fatalf("ap2 W32 latAvg=%v, esperaba null (sin datos de latencia)", *ap2W32.LatAvg)
+	if ap2A.LatAvg != nil {
+		t.Fatalf("ap2 semana A latAvg=%v, esperaba null (sin datos de latencia)", *ap2A.LatAvg)
 	}
-	if gwW31.Days != 1 || gwW31.UpMin != 1440 {
-		t.Fatalf("gw W31: days=%d upMin=%d, esperaba 1/1440", gwW31.Days, gwW31.UpMin)
+	if gwB.Days != 1 || gwB.UpMin != 1440 {
+		t.Fatalf("gw semana B: days=%d upMin=%d, esperaba 1/1440", gwB.Days, gwB.UpMin)
 	}
+}
+
+// mondayOf devuelve el lunes de la semana ISO que contiene t (reloj UTC).
+func mondayOf(t time.Time) time.Time {
+	wd := int(t.Weekday())
+	if wd == 0 { // Sunday
+		wd = 7
+	}
+	daysSinceMonday := wd - 1
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -daysSinceMonday)
+}
+
+// isoWeek devuelve la semana ISO de t con formato "2026-W31".
+func isoWeek(t time.Time) string {
+	y, w := t.ISOWeek()
+	return fmt.Sprintf("%d-W%02d", y, w)
 }
 
 // TestWeeklyReportUpPctClamp: un bucket sobre-poblado (más muestras que
@@ -142,9 +173,12 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 // clavaba y weekly no.
 func TestWeeklyReportUpPctClamp(t *testing.T) {
 	ts := makeTestServer(t)
+	// Fecha relativa a hoy (mismo patrón anti-dependencia de la fecha del
+	// test de agrupación): lunes de la semana actual.
+	dateA := mondayOf(time.Now().UTC()).Format("2006-01-02")
 	// Día completo = 17280 muestras = 1440 min. El doble (34560) da
 	// upMin = 2880 sobre 1440 min → 200% sin el clamp.
-	insertDaily(t, ts, "gw", "2026-08-03", 34560, sqlNull{false, 0}, 0, 0, 20, 60)
+	insertDaily(t, ts, "gw", dateA, 34560, sqlNull{false, 0}, 0, 0, 20, 60)
 
 	status, items := getWeekly(t, ts, "4")
 	if status != http.StatusOK {
