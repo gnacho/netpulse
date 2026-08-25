@@ -331,6 +331,17 @@ func (c *OpenWrtClient) GetDhcpLeases() []DhcpLease {
 	return parseDhcpLeasesFile(out)
 }
 
+// GetWanInfo: estado de la interfaz WAN (solo gateway, issue #276).
+// Via ubus network.interface.wan status; si el router no lo tiene (AP),
+// devuelve WanInfo vacío.
+func (c *OpenWrtClient) GetWanInfo() probe.WanInfo {
+	raw, err := c.UbusCall("network.interface.wan", "status", nil)
+	if err == nil {
+		return probe.ParseWanStatus(raw)
+	}
+	return probe.WanInfo{}
+}
+
 // GetGlClients: base de clientes del firmware GL.iNet (`ubus call gl-clients
 // list`). SUPERSET de dhcp.leases: incluye equipos con IP estática o sin
 // lease que el dnsmasq del Flint2 no lista. En routers sin el objeto ubus

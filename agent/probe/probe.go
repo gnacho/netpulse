@@ -73,6 +73,9 @@ const (
 	// /etc/config/luci con nombres amigables para la topología. Se lee el
 	// fichero crudo (uci show luci sería más ruidoso: todo el paquete).
 	CmdLuCILabels = "cat /etc/config/luci 2>/dev/null"
+	// CmdWanStatus: estado de la interfaz WAN (solo gateway) vía ubus.
+	// Da proto ("pppoe"), IP, gateway (ptpaddress/nexthop) y DNS (issue #276).
+	CmdWanStatus = "ubus call network.interface.wan status 2>/dev/null || true"
 )
 
 // ---------------------------------------------------------------------------
@@ -100,6 +103,16 @@ type BoardInfo struct {
 		Version     string `json:"version"`
 		Description string `json:"description"`
 	} `json:"release"`
+}
+
+// WanInfo: datos de la conexión WAN (issue #276). Solo el gateway lo rellena;
+// los campos vacíos significan "sin datos WAN" (APs/desconocido).
+type WanInfo struct {
+	Proto   string   `json:"proto,omitempty"`   // "pppoe"|"dhcp"|"static"...
+	Device  string   `json:"device,omitempty"`  // interfaz física (p.ej. "eth1.20")
+	IP      string   `json:"ip,omitempty"`      // dirección IPv4 pública
+	Gateway string   `json:"gateway,omitempty"` // puerta de enlace (nexthop/ptpaddress)
+	DNS     []string `json:"dns,omitempty"`     // servidores DNS
 }
 
 // DhcpLease es {mac, ip, hostname} (mac en mayúsculas).
@@ -294,6 +307,48 @@ func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 		out = append(out, DhcpLease{MAC: strings.ToUpper(l.MAC), IP: ip, Hostname: l.Hostname})
 	}
 	return out, nil
+}
+
+// ParseWanStatus parsea `ubus call network.interface.wan status` (issue #276).
+// Extrae proto, interfaz física, IP pública, gateway (nexthop de la ruta por
+// defecto, con fallback al ptpaddress) y DNS. Devuelve un WanInfo con los
+// campos vacíos si el JSON no tiene datos utilizables.
+func ParseWanStatus(raw []byte) WanInfo {
+	var data struct {
+		Proto  string `json:"proto"`
+		Device string `json:"l3_device"`
+		IPV4   []struct {
+			Address    string `json:"address"`
+			PtpAddress string `json:"ptpaddress"`
+		} `json:"ipv4-address"`
+		Route []struct {
+			Target  string `json:"target"`
+			Mask    int    `json:"mask"`
+			Nexthop string `json:"nexthop"`
+		} `json:"route"`
+		DNS []string `json:"dns-server"`
+	}
+	info := WanInfo{}
+	if json.Unmarshal(raw, &data) != nil {
+		return info
+	}
+	info.Proto = data.Proto
+	info.Device = data.Device
+	if len(data.IPV4) > 0 {
+		info.IP = data.IPV4[0].Address
+		if data.IPV4[0].PtpAddress != "" {
+			info.Gateway = data.IPV4[0].PtpAddress
+		}
+	}
+	// El gateway real es el nexthop de la ruta por defecto (0.0.0.0/0).
+	for _, r := range data.Route {
+		if r.Target == "0.0.0.0" && r.Nexthop != "" {
+			info.Gateway = r.Nexthop
+			break
+		}
+	}
+	info.DNS = data.DNS
+	return info
 }
 
 // ParseDhcpLeasesFile parsea /tmp/dhcp.leases:

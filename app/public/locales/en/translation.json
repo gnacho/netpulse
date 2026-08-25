@@ -492,6 +492,10 @@
       "unknownDevice": "unknown device",
       "usedOf_one": "{{used}} of {{total}} port in use",
       "usedOf_other": "{{used}} of {{total}} ports in use",
+      "wanPublicIp": "Public IP",
+      "wanGateway": "Gateway",
+      "wanDns": "DNS",
+      "deviceDetail": "Detail",
       "wirelessUplink": " · wireless uplink (mesh)"
     },
     "radios": {
@@ -622,7 +626,6 @@
   "topology": {
     "animateFlow": "Animate packet flow",
     "clickDetail": "Click to view detail →",
-    "clickDevice": "Click to view the device →",
     "connectedClient": "Connected client",
     "flow": "Flow",
     "interactiveMap": "Interactive network map",
@@ -668,7 +671,6 @@
     "showLabels": "Show labels",
     "subtitle": "Live view of your network",
     "tapAgainDetail": "Tap again to view detail →",
-    "tapAgainDevice": "Tap again to view the device →",
     "tunnel": "Tunnel",
     "weakSignal": "Weak signal",
     "zoomControls": "Map zoom controls",
