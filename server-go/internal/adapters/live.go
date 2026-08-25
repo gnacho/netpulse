@@ -120,6 +120,9 @@ type routerPolled struct {
 	// luci: etiquetas de puertos/VLANs de LuCI (issue #258), si el router las
 	// define en /etc/config/luci. Fuente de nombres para la topología.
 	luci *probe.LuCILabels
+	// wanInfo: estado de la conexión WAN (solo gateway, issue #276). Los APs
+	// dejan el struct vacío (sin datos WAN).
+	wanInfo probe.WanInfo
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -151,6 +154,16 @@ type lldpCacheEntry struct {
 	neighbors   []LldpNeighbor
 	unavailable bool
 	at          time.Time
+}
+
+// wanInfoCacheTTL: tier lento del estado WAN del gateway. La conexión WAN no
+// cambia cada tick; un sondeo cada 60 s sobra y evita martillear ubus.
+const wanInfoCacheTTL = 60 * time.Second
+
+// wanInfoCacheEntry: WanInfo cacheado del gateway (issue #276).
+type wanInfoCacheEntry struct {
+	info probe.WanInfo
+	at   time.Time
 }
 
 // Live es el Snapshotter del modo live.
@@ -202,6 +215,7 @@ type Live struct {
 	wanDown        map[string]int
 	backhaulCache  map[string]backhaulCacheEntry
 	lldpCache      map[string]lldpCacheEntry
+	wanInfoCache   map[string]wanInfoCacheEntry
 
 	// Agentes nativos (Tier 2): último payload por slug + flag de caída
 	// (degradado a SSH tras emitir la alerta, SPEC-AGENTE-PILOTO §1).
@@ -255,6 +269,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		wanDown:              map[string]int{},
 		backhaulCache:        map[string]backhaulCacheEntry{},
 		lldpCache:            map[string]lldpCacheEntry{},
+		wanInfoCache:         map[string]wanInfoCacheEntry{},
 		agentDown:            map[string]bool{},
 		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
 	}
@@ -367,6 +382,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 			delete(l.lldpCache, id)
 		}
 	}
+	for id := range l.wanInfoCache {
+		if !ids[id] {
+			delete(l.wanInfoCache, id)
+		}
+	}
 }
 
 // probeBackhaul detecta el medio del uplink (interfaz STA asociada → "wifi";
@@ -391,6 +411,23 @@ func (l *Live) probeBackhaul(routerID string, client *OpenWrtClient) string {
 	l.backhaulCache[routerID] = backhaulCacheEntry{value: value, at: time.Now()}
 	l.mu.Unlock()
 	return value
+}
+
+// probeWanInfo: estado de la conexión WAN del gateway (issue #276) con caché
+// de 60 s. En routers sin interfaz wan (APs) devuelve WanInfo vacío. Fallo de
+// ubus → vacío cacheado (el detalle sigue mostrando lo demás, sin romper).
+func (l *Live) probeWanInfo(routerID string, client *OpenWrtClient) probe.WanInfo {
+	l.mu.Lock()
+	e, ok := l.wanInfoCache[routerID]
+	l.mu.Unlock()
+	if ok && time.Since(e.at) < wanInfoCacheTTL {
+		return e.info
+	}
+	info := client.GetWanInfo()
+	l.mu.Lock()
+	l.wanInfoCache[routerID] = wanInfoCacheEntry{info: info, at: time.Now()}
+	l.mu.Unlock()
+	return info
 }
 
 // probeLldp: vecinos LLDP del router con caché de 45 s (tier lento, como los
@@ -639,6 +676,15 @@ func (l *Live) wanDayStats(gwID string) wanDayStatsResult {
 // y NO se toca SSH; si el agente expiró, se degrada a Tier 0 (SSH) con aviso.
 func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
 	if fresh, p := l.pollRouterAgent(cfg); fresh {
+		// El agente no trae el estado WAN en el payload: si este router es el
+		// gateway, lo sondeamos por SSH (issue #276, cache de 60 s).
+		l.mu.Lock()
+		gw := l.gatewayCfg
+		client := l.clients[cfg.ID]
+		l.mu.Unlock()
+		if gw != nil && cfg.ID == gw.ID && client != nil {
+			p.wanInfo = l.probeWanInfo(cfg.ID, client)
+		}
 		return p, nil
 	}
 	l.mu.Lock()
@@ -748,6 +794,11 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	} else if gw != nil {
 		latencyMs, _ = client.GetGatewayLatency(gw.Host)
 	}
+	// Estado WAN solo en el gateway (issue #276), tier lento cacheado.
+	var wanInfo probe.WanInfo
+	if isGw {
+		wanInfo = l.probeWanInfo(cfg.ID, client)
+	}
 
 	cpuV := 0
 	if cpu != nil {
@@ -764,7 +815,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
-		luci: luciGood,
+		luci: luciGood, wanInfo: wanInfo,
 	}, nil
 }
 
@@ -1665,6 +1716,15 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 		}
 		if p.lossPct != nil {
 			wan.LossPct = *p.lossPct
+		}
+		// Conexión WAN real (issue #276): proto/IP/gateway/DNS desde ubus.
+		if wi := p.wanInfo; wi.IP != "" || wi.Proto != "" {
+			wan.Proto = wi.Proto
+			if wi.IP != "" {
+				wan.PublicIP = wi.IP
+			}
+			wan.Gateway = wi.Gateway
+			wan.DNS = wi.DNS
 		}
 	}
 	// Resumen del día desde la BD (issue #169): pico de hoy, media y total

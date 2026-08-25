@@ -329,3 +329,40 @@ func payloadJSON(t *testing.T, pl *Payload) string {
 	}
 	return string(data)
 }
+
+func TestParseWanStatus(t *testing.T) {
+	// Fixture real de `ubus call network.interface.wan status` (PPPoE Digi).
+	raw := `{"up":true,"proto":"pppoe","l3_device":"pppoe-wan","device":"eth1.20",` +
+		`"ipv4-address":[{"address":"79.112.56.116","mask":32,"ptpaddress":"10.0.28.237"}],` +
+		`"route":[{"target":"0.0.0.0","mask":0,"nexthop":"10.0.28.237","source":"0.0.0.0/0"}],` +
+		`"dns-server":["100.90.1.1","100.100.1.1"]}`
+	info := ParseWanStatus([]byte(raw))
+	if info.Proto != "pppoe" {
+		t.Fatalf("proto=%q, esperaba pppoe", info.Proto)
+	}
+	if info.Device != "pppoe-wan" {
+		t.Fatalf("device=%q, esperaba pppoe-wan", info.Device)
+	}
+	if info.IP != "79.112.56.116" {
+		t.Fatalf("ip=%q, esperaba 79.112.56.116", info.IP)
+	}
+	if info.Gateway != "10.0.28.237" {
+		t.Fatalf("gateway=%q, esperaba 10.0.28.237", info.Gateway)
+	}
+	if len(info.DNS) != 2 || info.DNS[0] != "100.90.1.1" || info.DNS[1] != "100.100.1.1" {
+		t.Fatalf("dns=%v, esperaba [100.90.1.1 100.100.1.1]", info.DNS)
+	}
+}
+
+func TestParseWanStatusVacioYMalFormado(t *testing.T) {
+	// Router sin interfaz wan (AP) → JSON sin ipv4-address ni rutas.
+	raw := `{"up":true,"proto":"dhcp"}`
+	info := ParseWanStatus([]byte(raw))
+	if info.IP != "" || info.Gateway != "" || len(info.DNS) != 0 {
+		t.Fatalf("AP sin wan debía quedar vacío: %+v", info)
+	}
+	// Malformado → vacío sin error.
+	if got := ParseWanStatus([]byte("no json")); got.IP != "" || got.Proto != "" {
+		t.Fatalf("JSON inválido debía quedar vacío: %+v", got)
+	}
+}

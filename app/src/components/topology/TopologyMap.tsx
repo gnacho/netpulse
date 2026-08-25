@@ -230,7 +230,7 @@ function TooltipCard({
         </div>
       )}
       {tip.kind === 'chip' && (
-        <ChipTooltip chip={tip.chip} touch={touch} hostCtCount={tip.hostCtCount} ctHost={tip.ctHost} />
+        <ChipTooltip chip={tip.chip} hostCtCount={tip.hostCtCount} ctHost={tip.ctHost} />
       )}
       {tip.kind === 'dist' && tip.node.kind === 'managed' && (
         <div>
@@ -282,12 +282,10 @@ function TooltipCard({
 /** Tooltip de un chip de dispositivo (cliente, hub, host hipervisor o CT). */
 function ChipTooltip({
   chip,
-  touch,
   hostCtCount = 0,
   ctHost,
 }: {
   chip: ChipNode
-  touch: boolean
   /** >0 si el chip es un host hipervisor (badge +N en el mapa) */
   hostCtCount?: number
   /** device host cuando el chip es un CT/VM anidado */
@@ -351,11 +349,6 @@ function ChipTooltip({
       )}
       {!chip.isCt && chip.weak && (
         <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>
-      )}
-      {!chip.isCt && (
-        <div className="mt-2 text-caption font-semibold text-accent">
-          {touch ? t('topology.tapAgainDevice') : t('topology.clickDevice')}
-        </div>
       )}
     </div>
   )

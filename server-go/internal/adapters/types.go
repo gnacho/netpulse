@@ -49,6 +49,11 @@ type WAN struct {
 	PeakTodayTime string  `json:"peakTodayTime"`
 	AvgDownMbps   float64 `json:"avgDownMbps"`
 	Total24h      string  `json:"total24h"`
+	// Conexión WAN real (issue #276), solo live (el demo las omite):
+	// protocolo ("pppoe"), gateway y DNS. Proto vacío en el demo/datos viejos.
+	Proto   string   `json:"proto,omitempty"`
+	Gateway string   `json:"gateway,omitempty"`
+	DNS     []string `json:"dns,omitempty"`
 	// ContractDownMbps/ContractUpMbps: velocidad contratada declarada por el
 	// admin en Ajustes (issue #151). Punteros: ausentes (null) si no está
 	// configurado. Los inyecta el server en handleOverview desde el kv — el

@@ -492,6 +492,10 @@
       "unknownDevice": "dispositivo desconocido",
       "usedOf_one": "{{used}} de {{total}} boca en uso",
       "usedOf_other": "{{used}} de {{total}} bocas en uso",
+      "wanPublicIp": "IP pública",
+      "wanGateway": "Puerta de enlace",
+      "wanDns": "Servidor DNS",
+      "deviceDetail": "Detalle",
       "wirelessUplink": " · uplink inalámbrico (mesh)"
     },
     "radios": {
@@ -622,7 +626,6 @@
   "topology": {
     "animateFlow": "Animar flujo de paquetes",
     "clickDetail": "Clic para ver el detalle →",
-    "clickDevice": "Clic para ver el dispositivo →",
     "connectedClient": "Cliente conectado",
     "flow": "Flujo",
     "interactiveMap": "Mapa interactivo de la red",
@@ -668,7 +671,6 @@
     "showLabels": "Mostrar etiquetas",
     "subtitle": "Vista en vivo de tu red",
     "tapAgainDetail": "Toca de nuevo para ver el detalle →",
-    "tapAgainDevice": "Toca de nuevo para ver el dispositivo →",
     "tunnel": "Túnel",
     "weakSignal": "Señal débil",
     "zoomControls": "Controles de zoom del mapa",
