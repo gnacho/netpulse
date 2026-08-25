@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ArrowLeft, Router as RouterIcon } from 'lucide-react'
+import { Router as RouterIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { roleLabel } from '@/i18n'
@@ -44,13 +44,6 @@ export function RouterDetailHeader({ router }: { router: Router }) {
         />
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <Link
-          to="/routers"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
-          {t('common.back')}
-        </Link>
         <nav aria-label={t('common.breadcrumb')} className="font-mono text-caption text-text-muted">
           <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
           <span className="mx-1.5">/</span>

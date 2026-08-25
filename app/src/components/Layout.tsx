@@ -6,6 +6,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import PullToRefresh from '@/components/PullToRefresh'
 import {
+  ArrowLeft,
   BarChart3,
   Bell,
   Bot,
@@ -85,6 +86,25 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
 
 function pageTitleKey(pathname: string): string {
   return PAGE_TITLE_KEYS.find(([re]) => re.test(pathname))?.[1] ?? 'nav.overview'
+}
+
+/** true cuando la ruta es el detalle de un router (/routers/:id). */
+function isRouterDetail(pathname: string): boolean {
+  return /^\/routers\/[^/]+/.test(pathname)
+}
+
+/** Botón atrás icon-only, fijo en el topbar/header (issue #275). */
+function BackButton() {
+  const { t } = useTranslation()
+  return (
+    <Link
+      to="/routers"
+      aria-label={t('common.back')}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+    >
+      <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+    </Link>
+  )
 }
 
 /** Pill "Modo demo" (amber sutil) — solo cuando no hay backend */
@@ -451,6 +471,7 @@ function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-border bg-canvas/80 px-6 backdrop-blur-md md:flex pt-safe">
+      {isRouterDetail(location.pathname) && <BackButton />}
       <h1 className="font-display text-h1 text-text-primary">{t(pageTitleKey(location.pathname))}</h1>
       <div className="ml-auto flex items-center gap-3">
         <button
@@ -488,7 +509,16 @@ function MobileHeader() {
   }
   return (
     <header className="[view-transition-name:netpulse-header] sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
-      <Logo onClick={scrollTopIfActive('/')} />
+      <div className="flex items-center gap-2">
+        {isRouterDetail(location.pathname) ? (
+          <>
+            <BackButton />
+            <Logo compact onClick={scrollTopIfActive('/')} />
+          </>
+        ) : (
+          <Logo onClick={scrollTopIfActive('/')} />
+        )}
+      </div>
       <div className="flex items-center gap-3">
         <Link to="/" aria-label={t('topbar.networkHealth100', { score: healthScore.score })}>
           <motion.div layoutId="health-ring">
