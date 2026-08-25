@@ -195,23 +195,24 @@ func (e *Engine) SetConfig(patch map[string]string) error {
 	return nil
 }
 
-// Emit aplica la semántica none/urgent/all EN CREACIÓN, el dedup de 5 min y
-// el cap de 100; devuelve true si el evento pasó (se guardó). Los urgentes
-// que pasan disparan el Notifier (hook de Bloque C).
-func (e *Engine) Emit(ev AlertEvent) bool {
-	e.mu.Lock()
+// pasaLocked: ¿el evento supera la config de su categoría? (none descarta;
+// urgent solo deja urgentes; all deja todo). Requiere e.mu ya tomado.
+func (e *Engine) pasaLocked(ev AlertEvent) bool {
 	level, known := e.cfg[ev.Category]
 	if known {
 		if level == LevelNone || (level == LevelUrgent && !ev.Urgent) {
-			e.mu.Unlock()
 			return false
 		}
 	}
 	// Categoría desconocida: pasa (la validación estricta es de SetConfig).
-	now := e.now()
+	return true
+}
+
+// insertaLocked inserta un evento nuevo al frente con dedup y cap.
+// Requiere e.mu ya tomado. Devuelve true si se guardó.
+func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
 	key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 	if last, ok := e.dedup[key]; ok && now.UnixMilli()-last < DedupWindow.Milliseconds() {
-		e.mu.Unlock()
 		return false
 	}
 	e.dedup[key] = now.UnixMilli()
@@ -226,12 +227,68 @@ func (e *Engine) Emit(ev AlertEvent) bool {
 	if len(e.list) > MaxEvents {
 		e.list = e.list[:MaxEvents]
 	}
+	return true
+}
+
+// Emit aplica la semántica none/urgent/all EN CREACIÓN, el dedup de 5 min y
+// el cap de 100; devuelve true si el evento pasó (se guardó). Los urgentes
+// que pasan disparan el Notifier (hook de Bloque C).
+func (e *Engine) Emit(ev AlertEvent) bool {
+	e.mu.Lock()
+	if !e.pasaLocked(ev) {
+		e.mu.Unlock()
+		return false
+	}
+	now := e.now()
+	ok := e.insertaLocked(ev, now)
 	n := e.notifier
 	e.mu.Unlock()
-	if n != nil && ev.Urgent {
+	if ok && n != nil && ev.Urgent {
 		n.Notify(ev)
 	}
-	return true
+	return ok
+}
+
+// EmitOrUpdate: como Emit, pero si YA existe una alerta con el mismo ID, la
+// actualiza en sitio (ts, título, descripción, severidad, urgent, router) y
+// la mueve al frente de la lista (más reciente) en vez de insertar una copia.
+// Diseñado para alertas "en curso" que se actualizan (p.ej. auto-rearme sin
+// recuperación: un incidente = una sola alerta, issue #271). El update NO
+// pasa por el dedup (consolida, no duplica); la inserción de un ID nuevo sí.
+// Devuelve true si el evento pasó la config (insertado o actualizado).
+func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
+	e.mu.Lock()
+	if !e.pasaLocked(ev) {
+		e.mu.Unlock()
+		return false
+	}
+	now := e.now()
+	for i := range e.list {
+		if e.list[i].ID == ev.ID {
+			old := e.list[i]
+			ev.Ts = now.Unix()
+			ev.Time = "ahora mismo"
+			ev.Read = old.Read
+			if ev.RouterID == "" {
+				ev.RouterID = old.RouterID
+			}
+			e.list = append(e.list[:i], e.list[i+1:]...)
+			e.list = append([]AlertEvent{ev}, e.list...)
+			n := e.notifier
+			e.mu.Unlock()
+			if n != nil && ev.Urgent {
+				n.Notify(ev)
+			}
+			return true
+		}
+	}
+	ok := e.insertaLocked(ev, now)
+	n := e.notifier
+	e.mu.Unlock()
+	if ok && n != nil && ev.Urgent {
+		n.Notify(ev)
+	}
+	return ok
 }
 
 // Seed inserta un evento histórico (arranque del modo demo) SIN aplicar el
