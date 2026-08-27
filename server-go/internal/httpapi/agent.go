@@ -352,6 +352,18 @@ type agentListItem struct {
 	// SOLO se marca para routers OpenWrt (type openwrt/glinet): los de tipo
 	// managed-switch/external son scrapers que no usan el agente nativo.
 	UpdateAvailable bool `json:"updateAvailable"`
+	// Upgrade: último paso del self-update en marcha (requested/downloading/
+	// swapping/restarting/failed) con su marca de tiempo. null si no hay
+	// actividad reciente (#284: progreso en vivo para la UI).
+	Upgrade *agentUpgradeInfo `json:"upgrade,omitempty"`
+}
+
+// agentUpgradeInfo es el paso de progreso expuesto en GET /api/agents.
+type agentUpgradeInfo struct {
+	Step  string `json:"step"`
+	Pct   int    `json:"pct,omitempty"` // 0-100 en "downloading"
+	Error string `json:"error,omitempty"`
+	Ts    int64  `json:"ts"` // unix segundos del último reporte
 }
 
 // agentUpgradeable: ¿un agente de un router con este type es actualizable?
@@ -416,6 +428,11 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						item.UpdateAvailable = agentUpgradeable(routerTypes[slug]) && version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
+				}
+				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
+				if st, ok := s.upgrades.snapshot(slug); ok {
+					ts := st.Ts.Unix()
+					item.Upgrade = &agentUpgradeInfo{Step: st.Step, Pct: st.Pct, Error: st.Error, Ts: ts}
 				}
 				out = append(out, item)
 			}

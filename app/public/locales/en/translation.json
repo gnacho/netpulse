@@ -540,7 +540,12 @@
       "downBanner": "Agent is down — reinstall it from the router detail",
       "notInstalled": "Agent not installed",
       "notInstalledTip": "This router is configured to run agent-only, but the agent is not installed. Reinstall it from the router detail.",
-      "notInstalledBanner": "Agent not installed — reinstall it from the router detail"
+      "notInstalledBanner": "Agent not installed — reinstall it from the router detail",
+      "stepRequested": "Command sent",
+      "stepDownloading": "Downloading {{pct}}%",
+      "stepSwapping": "Swapping binary",
+      "stepRestarting": "Restarting agent",
+      "upgraded": "Upgraded"
     },
     "colClients": "Clients",
     "colCpu": "CPU",

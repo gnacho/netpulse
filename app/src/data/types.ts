@@ -382,6 +382,24 @@ export interface AgentInfo {
    * (Fase 6.3, issue #243): hay upgrade disponible vía POST /api/agents/{slug}/upgrade.
    */
   updateAvailable?: boolean
+  /**
+   * Progreso en vivo del self-update (#284): último paso reportado por el
+   * agente (o sembrado por el server al enviar el comando). Ausente si no
+   * hay actividad reciente.
+   */
+  upgrade?: AgentUpgradeProgress
+}
+
+/** Paso de progreso del self-update de un agente (GET /api/agents, #284). */
+export interface AgentUpgradeProgress {
+  /** requested | downloading | swapping | restarting | failed */
+  step: 'requested' | 'downloading' | 'swapping' | 'restarting' | 'failed'
+  /** 0-100, solo en "downloading" */
+  pct?: number
+  /** mensaje de error, solo en "failed" */
+  error?: string
+  /** Unix SEGUNDOS del último reporte */
+  ts: number
 }
 
 /** Respuesta paginada (`GET /api/devices`, `GET /api/alerts`). */

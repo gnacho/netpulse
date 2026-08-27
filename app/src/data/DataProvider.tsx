@@ -114,6 +114,9 @@ export interface NetPulseApi extends NetPulseData {
    * honesto — no se mockean agentes). Se refresca cada ~30 s en live.
    */
   agents: AgentInfo[]
+  /** Re-pide `/api/agents` cuanto antes (live; #284: encadena el sondeo
+   * rápido si hay upgrades en marcha). En demo es no-op. */
+  refreshAgents: () => Promise<void>
   /** true = sin backend: dataset local del mockup con tick simulado */
   isDemo: boolean
   /** Re-pide `/api/overview` (live); en demo es no-op */
@@ -394,6 +397,11 @@ const POLL_MS = 15000
 const DEMO_TICK_MS = 3000
 // Refresco del estado de agentes (fresh cambia solo en el backend, TTL ~90 s)
 const AGENTS_POLL_MS = 30000
+// #284: mientras algún agente tiene un self-update en marcha se sondea cada
+// 2 s para que la UI muestre el paso en vivo (downloading/swapping/...).
+const AGENTS_FAST_POLL_MS = 2000
+// Ventana que considera "activo" un upgrade reportado (segundos).
+const UPGRADE_ACTIVE_WINDOW_S = 120
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -422,6 +430,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const modeRef = useRef<'boot' | 'live' | 'demo'>('boot')
   // Se sincroniza en applyAlertsConfig y en el fetch del boot (nunca en render)
   const configRef = useRef(alertsConfig)
+  // fetchAgents vive dentro del effect de boot; este ref lo expone como
+  // refreshAgents estable (#284: forzar una tanda tras enviar un upgrade).
+  const refreshAgentsRef = useRef<() => Promise<void>>(async () => {})
+  const refreshAgents = useCallback(() => refreshAgentsRef.current(), [])
 
   const applyOverview = useCallback((o: OverviewBundle) => {
     // SPEC-65 D65-4/D65-9 B3: view-model versionado. Un `vm` mayor que el
@@ -572,7 +584,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Agentes nativos (Fase 3): no forman parte del overview; se sondean
-    // aparte cada ~30 s. Sin agentes registrados → [] (sin badges).
+    // aparte cada ~30 s (2 s mientras hay upgrades en marcha, #284). Sin
+    // agentes registrados → [] (sin badges).
+    let upgradesActive = false
     const fetchAgents = async (): Promise<void> => {
       try {
         const res = await fetchJson('/api/agents')
@@ -580,9 +594,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const json = (await res.json()) as { agents?: AgentInfo[] } | AgentInfo[]
         const list = Array.isArray(json) ? json : (json.agents ?? [])
         if (!disposed) setAgents(list)
+        const nowSec = Math.floor(Date.now() / 1000)
+        upgradesActive = list.some(
+          (a) =>
+            a.upgrade &&
+            a.upgrade.step !== 'failed' &&
+            nowSec - a.upgrade.ts < UPGRADE_ACTIVE_WINDOW_S,
+        )
       } catch {
         /* sin agentes: se mantiene el último estado conocido */
       }
+    }
+    refreshAgentsRef.current = fetchAgents
+
+    // Auto-programación del sondeo: rápido con upgrades activos, lento en
+    // reposo (#284). El delay se decide tras cada tanda con la respuesta.
+    const scheduleAgentsPoll = (delay: number) => {
+      agentsPollId = window.setTimeout(async () => {
+        await fetchAgents()
+        if (!disposed) scheduleAgentsPoll(upgradesActive ? AGENTS_FAST_POLL_MS : AGENTS_POLL_MS)
+      }, delay)
     }
 
     const startLive = async () => {
@@ -599,7 +630,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setConnectionStatus('reconnecting')
         pollId = window.setInterval(() => void fetchOverview(), POLL_MS)
       }
-      agentsPollId = window.setInterval(() => void fetchAgents(), AGENTS_POLL_MS)
+      scheduleAgentsPoll(AGENTS_POLL_MS)
       startSse()
     }
 
@@ -632,7 +663,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       stopPolling()
       window.clearTimeout(reconnectId)
       window.clearInterval(tickId)
-      window.clearInterval(agentsPollId)
+      window.clearTimeout(agentsPollId)
     }
   }, [applyOverview])
 
@@ -960,6 +991,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ...bundle,
       connectionStatus,
       agents,
+      refreshAgents,
       isDemo,
       refresh,
       lastSnapshotAt,
@@ -977,7 +1009,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       reinstallAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

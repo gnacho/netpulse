@@ -7,6 +7,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { AgentsSection } from '@/components/routers/AgentsSection'
 import { FleetCard } from '@/components/routers/FleetCard'
 import { FleetTable } from '@/components/routers/FleetTable'
+import { activeUpgrade, upgradeElapsed, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,12 +20,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
-/** Tiempo máximo de espera por agente antes de marcarlo como fallido (ms).
+/** Tiempo máximo SIN NOTICIAS por agente antes de marcarlo como fallido (ms).
  * El self-update real tarda ~10-20 s (descarga + swap + restart + primer push);
- * 25 s cubre ese ciclo con margen. Un agente que no marca updateAvailable=false
- * en ese plazo no entiende el comando "upgrade" (versión previa a #243) y
- * requiere un reinstall. El poll de agentes (30 s) fuerza el render que lo
- * marca como fallido. */
+ * con los pasos en vivo (#284) cada reporte renueva la ventana, así que el
+ * timeout actúa solo como detector de parón: un agente que no reporta nada
+ * (versión previa a #284, con "requested" sembrado por el server) o que no
+ * marca updateAvailable=false en ese plazo requiere un reinstall. El poll de
+ * agentes (2 s durante upgrades) fuerza el render que lo marca. */
 const UPGRADE_TIMEOUT_MS = 25_000
 
 /** Página `/routers` — vista de flota (routers.md) */
@@ -69,14 +71,24 @@ export default function Routers() {
     }
   }
 
-  // Progreso en vivo: por slug, 'done' (al día), 'waiting' (en curso) o
-  // 'failed' (timeout sin respuesta del agente).
+  // Progreso en vivo (#284): por slug, 'done' (al día), 'waiting' (en curso,
+  // con el paso que reporta el agente y los segundos transcurridos) o
+  // 'failed' (error reportado, parón sin noticias o "requested" que nunca
+  // arrancó = agente que no entiende el comando).
+  const nowSec = Math.floor(Date.now() / 1000)
   const upgradeProgress = upgradeTrack.map(({ slug, startedAt }) => {
     const agent = agents.find((a) => a.slug === slug)
     const done = agent ? !agent.updateAvailable : false
-    const timedOut = !done && Date.now() - startedAt >= UPGRADE_TIMEOUT_MS
-    const status = done ? 'done' : timedOut ? 'failed' : 'waiting'
-    return { slug, status, version: agent?.version ?? '…' }
+    const step = activeUpgrade(agent, nowSec)
+    const reportedFail = agent?.upgrade?.step === 'failed'
+    // "requested" sin reportes del agente tras el timeout: agente legacy o
+    // colgado (los agentes con #284 reportan "downloading" enseguida).
+    const staleRequested =
+      step?.step === 'requested' && nowSec - step.ts >= UPGRADE_TIMEOUT_MS / 1000
+    const lastNewsMs = Math.max(startedAt, (agent?.upgrade?.ts ?? 0) * 1000)
+    const timedOut = !done && !reportedFail && !step && Date.now() - lastNewsMs >= UPGRADE_TIMEOUT_MS
+    const status = done ? 'done' : reportedFail || staleRequested || timedOut ? 'failed' : 'waiting'
+    return { slug, status, version: agent?.version ?? '…', step, reportedFail }
   })
   const upgradeDone = upgradeProgress.filter((p) => p.status === 'done').length
   const upgradeFailed = upgradeProgress.filter((p) => p.status === 'failed').length
@@ -225,8 +237,12 @@ export default function Routers() {
                   {p.status === 'done'
                     ? t('routers.upgradeUpdated')
                     : p.status === 'failed'
-                      ? t('routers.upgradeFailed')
-                      : t('routers.upgradeWaiting')}
+                      ? p.reportedFail
+                        ? t('routers.agent.upgradeFail')
+                        : t('routers.upgradeFailed')
+                      : p.step
+                        ? `${upgradeStepText(p.step, t)} · ${upgradeElapsed(p.step, nowSec)}`
+                        : t('routers.upgradeWaiting')}
                 </span>
               </li>
             ))}

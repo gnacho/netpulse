@@ -540,7 +540,12 @@
       "downBanner": "Agente caído — reinstálalo desde el detalle",
       "notInstalled": "Agente no instalado",
       "notInstalledTip": "El router está configurado para funcionar solo con agente, pero el agente no está instalado. Reinstálalo desde el detalle.",
-      "notInstalledBanner": "Agente no instalado — reinstálalo desde el detalle"
+      "notInstalledBanner": "Agente no instalado — reinstálalo desde el detalle",
+      "stepRequested": "Comando enviado",
+      "stepDownloading": "Descargando {{pct}} %",
+      "stepSwapping": "Intercambiando binario",
+      "stepRestarting": "Reiniciando agente",
+      "upgraded": "Actualizado"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",
