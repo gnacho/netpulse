@@ -88,7 +88,9 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
             {port.up ? (
               <>
                 <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
-                  {port.connectedTo && port.deviceMac ? (
+                  {port.connectedTo && port.connectedTo === port.label ? (
+                    <span className="font-mono text-[10px] text-text-muted">{port.deviceMac ?? ''}</span>
+                  ) : port.connectedTo && port.deviceMac ? (
                     <Link
                       to={`/devices?q=${encodeURIComponent(port.deviceMac)}`}
                       className="transition-colors hover:text-accent hover:underline"
