@@ -2116,13 +2116,22 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 				enriched = append(enriched, port)
 				continue
 			}
-			// Label curada que no coincide con el dispositivo resuelto: la
-			// label nombra la infraestructura física (p. ej. citadel-02) y lo
-			// aprendido está DETRÁS (CT sin MAC virtual detectable).
+			// Label curada que no coincide con el dispositivo resuelto:
+			// - si el dispositivo tiene nombre real (lease/alias), la label
+			//   nombra la infraestructura física y lo aprendido está DETRÁS
+			//   (p. ej. ngxpm detrás de citadel-02);
+			// - si el dispositivo no tiene nombre mejor que su MAC, la label
+			//   ES su nombre (bautizada a mano: "hikvision"), y la MAC queda
+			//   como detalle.
 			if isCuratedLabel(port) && !labelMatchesDevice(port.Label, mac, leaseMap, aliasByMac) {
 				name := deviceDisplayName(mac, leaseMap, aliasByMac)
-				port.ConnectedTo = name + " · detrás de " + port.Label
 				port.DeviceMac = mac
+				if name != mac {
+					port.ConnectedTo = name + " · detrás de " + port.Label
+				} else {
+					port.ConnectedTo = port.Label
+					port.Detail = "MAC " + mac
+				}
 				if lease, ok := leaseMap[mac]; ok && lease.IP != "" {
 					port.Detail = lease.IP
 				}
