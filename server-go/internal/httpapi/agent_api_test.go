@@ -154,7 +154,7 @@ func TestIngestTokenValidoEInvalido(t *testing.T) {
 	if res.StatusCode != 202 {
 		t.Fatalf("ingest válido: %d", res.StatusCode)
 	}
-	if _, version, ok := ts.agents.Info("patio"); !ok || version != "0.1.0" {
+	if _, version, _, _, ok := ts.agents.Info("patio"); !ok || version != "0.1.0" {
 		t.Fatalf("registry no actualizado: %v %q", ok, version)
 	}
 	// Token inválido → 401; sin token → 401; token de otro slug → 401
@@ -338,7 +338,7 @@ func TestAgentStatePersistenciaYRestauracion(t *testing.T) {
 	reg2 := adapters.NewAgentRegistry(90 * time.Second)
 	httpapi.NewStateRestorer(ts.db)(reg2)
 
-	_, version, ok := reg2.Info("patio")
+	_, version, _, _, ok := reg2.Info("patio")
 	if !ok {
 		t.Fatal("estado no restaurado tras reinicio")
 	}

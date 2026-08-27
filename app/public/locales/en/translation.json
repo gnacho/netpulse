@@ -614,7 +614,9 @@
       "copyCmdTip": "Generates the manual install one-liner (fallback for routers without SSH). The token rotates on every generation.",
       "copied": "Command copied",
       "cmdFail": "Could not generate the command",
-      "title": "Agents"
+      "title": "Agents",
+      "external": "External",
+      "externalTip": "External pusher (scraper): pushes every {{interval}} s, no installable agent or upgrades"
     },
     "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s"
   },

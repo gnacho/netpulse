@@ -160,7 +160,7 @@ func TestIngestAgentNoOpEnDemo(t *testing.T) {
 	}
 
 	// No-op: el registry NO debe haber ingerido el payload
-	if _, _, ok := ts.agents.Info("patio"); ok {
+	if _, _, _, _, ok := ts.agents.Info("patio"); ok {
 		t.Fatal("en demo el registry NO debe actualizarse")
 	}
 	// No-op: tampoco debe persistirse el estado del agente en kv

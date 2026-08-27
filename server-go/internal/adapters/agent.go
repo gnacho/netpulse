@@ -23,11 +23,30 @@ import (
 // AgentTTLDefault: 3 intervalos de push de 15 s (default del agente) + margen.
 const AgentTTLDefault = 90 * time.Second
 
+// externalGraceFactor: los pushers externos declaran su cadencia en el
+// payload (Interval, segundos); su ventana efectiva es 3x esa cadencia
+// (#288). Un scraper que empuja cada 5 min declara 300 y queda fresco
+// hasta 15 min, en vez de expirar a los 90 s del default nativo.
+const externalGraceFactor = 3
+
 // AgentState es el último push conocido de un agente.
 type AgentState struct {
 	Payload  *probe.Payload
 	LastSeen time.Time
 	Version  string
+	Kind     string // "" | "native" | "external" (#288)
+	Interval int    // cadencia declarada en segundos; 0 = default nativo
+}
+
+// effectiveTTL devuelve la ventana de frescura del estado: el TTL base, o
+// 3x la cadencia declarada si es mayor (pushers externos lentos, #288).
+func (r *AgentRegistry) effectiveTTL(st *AgentState) time.Duration {
+	if st != nil && st.Interval > 0 {
+		if d := time.Duration(st.Interval*externalGraceFactor) * time.Second; d > r.ttl {
+			return d
+		}
+	}
+	return r.ttl
 }
 
 // AgentRegistry guarda el último payload por slug (thread-safe: lo escribe el
@@ -59,26 +78,48 @@ func (r *AgentRegistry) SetClock(f func() time.Time) {
 func (r *AgentRegistry) Ingest(p *probe.Payload) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.states[p.Router] = &AgentState{Payload: p, LastSeen: r.now(), Version: p.Version}
+	r.states[p.Router] = &AgentState{
+		Payload: p, LastSeen: r.now(), Version: p.Version,
+		Kind: p.Kind, Interval: p.Interval,
+	}
 }
 
-// Info devuelve last_seen + versión para GET /api/agents (sin exponer el payload).
-func (r *AgentRegistry) Info(slug string) (lastSeen time.Time, version string, ok bool) {
+// Info devuelve last_seen + versión + kind/interval para GET /api/agents
+// (sin exponer el payload).
+func (r *AgentRegistry) Info(slug string) (lastSeen time.Time, version, kind string, interval int, ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st, found := r.states[slug]
 	if !found {
-		return time.Time{}, "", false
+		return time.Time{}, "", "", 0, false
 	}
-	return st.LastSeen, st.Version, true
+	return st.LastSeen, st.Version, st.Kind, st.Interval, true
 }
 
-// Fresh devuelve el último payload si está dentro del TTL.
+// ExternalDownConfirm escala la ventana de confirmación de caída para un
+// pusher externo: max(confirm base, 3x su cadencia declarada) (#288). Con
+// la base a secas, un scraper de 5 min dispararía "agente caído" tras un
+// único push perdido.
+func (r *AgentRegistry) ExternalDownConfirm(slug string, base time.Duration) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, ok := r.states[slug]
+	if !ok || st.Interval <= 0 {
+		return base
+	}
+	if d := time.Duration(st.Interval*externalGraceFactor) * time.Second; d > base {
+		return d
+	}
+	return base
+}
+
+// Fresh devuelve el último payload si está dentro de su ventana de
+// frescura (TTL base o 3x cadencia declarada, #288).
 func (r *AgentRegistry) Fresh(slug string) (*probe.Payload, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st, ok := r.states[slug]
-	if !ok || r.now().Sub(st.LastSeen) > r.ttl {
+	if !ok || r.now().Sub(st.LastSeen) > r.effectiveTTL(st) {
 		return nil, false
 	}
 	return st.Payload, true
@@ -90,7 +131,7 @@ func (r *AgentRegistry) Expired(slug string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st, ok := r.states[slug]
-	return ok && r.now().Sub(st.LastSeen) > r.ttl
+	return ok && r.now().Sub(st.LastSeen) > r.effectiveTTL(st)
 }
 
 // StalePayload devuelve el último payload del slug sin comprobar TTL.
@@ -125,7 +166,7 @@ func (r *AgentRegistry) ActiveCount() int {
 	defer r.mu.Unlock()
 	n := 0
 	for _, st := range r.states {
-		if r.now().Sub(st.LastSeen) <= r.ttl {
+		if r.now().Sub(st.LastSeen) <= r.effectiveTTL(st) {
 			n++
 		}
 	}
@@ -135,10 +176,14 @@ func (r *AgentRegistry) ActiveCount() int {
 // Restore repuebla el estado de un slug desde el almacén persistente
 // (arranque del servidor). No revalida TTL: la expiración la decide el
 // reloj comparando contra el LastSeen restaurado. Sobrescribe cualquier
-// estado previo del slug.
+// estado previo del slug. Los estados persistidos antes de #288 no traen
+// Kind/Interval: se recuperan del payload si están ahí.
 func (r *AgentRegistry) Restore(slug string, st *AgentState) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if st != nil && st.Interval == 0 && st.Payload != nil {
+		st.Kind, st.Interval = st.Payload.Kind, st.Payload.Interval
+	}
 	r.states[slug] = st
 }
 
@@ -231,6 +276,9 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 		if confirm <= 0 {
 			confirm = 3 * time.Minute
 		}
+		// Pushers externos (#288): escalar la confirmación a su cadencia
+		// declarada (3x interval) para no alertar caídas falsas.
+		confirm = reg.ExternalDownConfirm(cfg.ID, confirm)
 		if reg.StaleFor(cfg.ID, confirm) {
 			l.mu.Lock()
 			if !l.agentDown[cfg.ID] {

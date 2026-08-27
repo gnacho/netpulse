@@ -361,6 +361,11 @@ type agentListItem struct {
 	// swapping/restarting/failed) con su marca de tiempo. null si no hay
 	// actividad reciente (#284: progreso en vivo para la UI).
 	Upgrade *agentUpgradeInfo `json:"upgrade,omitempty"`
+	// Kind: "native" (agente netpulse-agent) o "external" (pusher externo
+	// tipo scraper de switch gestionado, #285/#288). Default "native".
+	Kind string `json:"kind"`
+	// Interval: cadencia de push declarada en segundos (solo externos, #288).
+	Interval int `json:"interval,omitempty"`
 }
 
 // agentUpgradeStep es un paso de la historia (timeline de la UI, #284).
@@ -431,10 +436,16 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				slug := strings.TrimPrefix(key, agentTokenKeyPrefix)
 				item := agentListItem{Slug: slug}
 				if s.agents != nil {
-					if seen, version, ok := s.agents.Info(slug); ok {
+					if seen, version, kind, interval, ok := s.agents.Info(slug); ok {
 						ts := seen.Unix()
 						item.LastSeen = &ts
 						item.Version = version
+						if kind == "external" {
+							item.Kind = "external"
+						} else {
+							item.Kind = "native"
+						}
+						item.Interval = interval
 						// Fase 6.3 (issue #243): upgrade disponible si el agente
 						// reporta una versión distinta del binario embebido y es
 						// un agente nativo OpenWrt (no un scraper).
@@ -608,7 +619,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	before := time.Now()
 	var prevSeen time.Time
 	if s.agents != nil {
-		if seen, _, ok := s.agents.Info(slug); ok {
+		if seen, _, _, _, ok := s.agents.Info(slug); ok {
 			prevSeen = seen
 		}
 	}
@@ -626,7 +637,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		if s.agents == nil {
 			break
 		}
-		if seen, _, ok := s.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
+		if seen, _, _, _, ok := s.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
 			recovered = true
 			break
 		}

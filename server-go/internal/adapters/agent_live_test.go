@@ -71,7 +71,7 @@ func TestAgentRegistry(t *testing.T) {
 	if !ok || p.Version != "0.1.0" {
 		t.Fatalf("payload fresco esperado: %v %v", ok, p)
 	}
-	seen, ver, ok := reg.Info("patio")
+	seen, ver, _, _, ok := reg.Info("patio")
 	if !ok || ver != "0.1.0" || !seen.Equal(now) {
 		t.Fatalf("Info: %v %q %v", seen, ver, ok)
 	}

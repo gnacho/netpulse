@@ -6,10 +6,19 @@ package probe
 
 // Payload es el cuerpo JSON único que el agente empuja cada intervalo.
 type Payload struct {
-	Router  string      `json:"router"`  // slug del equipo (token agent.token.<slug>)
-	Ts      int64       `json:"ts"`      // unix SEGUNDOS de la muestra
-	Version string      `json:"version"` // versión del agente (la muestra GET /api/agents)
-	Data    PayloadData `json:"data"`
+	Router  string `json:"router"`  // slug del equipo (token agent.token.<slug>)
+	Ts      int64  `json:"ts"`      // unix SEGUNDOS de la muestra
+	Version string `json:"version"` // versión del agente (la muestra GET /api/agents)
+	// Kind declara el tipo de pusher (#288): "" y "native" = agente nativo
+	// netpulse-agent; "external" = pusher externo (scraper de un switch
+	// gestionado, integración de terceros). El server lo usa para la UI y
+	// para escalar ventanas de frescura.
+	Kind string `json:"kind,omitempty"`
+	// Interval declara la cadencia de push en SEGUNDOS (#288). 0 = default
+	// del agente nativo (~30 s). Un pusher externo que empuja cada 5 min
+	// declara 300 y el server amplía su TTL a 3x ese intervalo.
+	Interval int           `json:"interval,omitempty"`
+	Data     PayloadData   `json:"data"`
 }
 
 // PayloadData agrupa las secciones del tier rápido. Punteros/mapas nil =
