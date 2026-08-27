@@ -62,7 +62,8 @@ type Config struct {
 	GithubRepo    string
 	GithubToken   string
 	ServerRoot    string
-	AutoRearm     bool // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	AutoRearm     bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	BeaconListen  string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
 	Onbox         bool // NETPULSE_ONBOX=1: modo on-box (Fase 9 — config UCI, bootstrap AUTH_PASS)
 }
 
@@ -283,6 +284,13 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	}
 	githubToken := env["GITHUB_TOKEN"]
 
+	// NETPULSE_BEACON_LISTEN: opcional. Dirección UDP para el listener de
+	// beacons de pushers embebidos (#291); "" u "off" lo deshabilitan.
+	beaconListen := strings.TrimSpace(env["NETPULSE_BEACON_LISTEN"])
+	if beaconListen == "off" || beaconListen == "0" {
+		beaconListen = ""
+	}
+
 	// ADGUARD_*: cliente estándar solo si hay URL válida
 	var adguard *AdGuard
 	if v, ok := env["ADGUARD_URL"]; ok && v != "" {
@@ -397,6 +405,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		GithubToken:   githubToken,
 		ServerRoot:    serverRoot,
 		AutoRearm:     autoRearm,
+		BeaconListen:  beaconListen,
 		Onbox:         onbox,
 	}, nil
 }

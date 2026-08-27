@@ -16,6 +16,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -106,6 +108,11 @@ type server struct {
 	// por slug en memoria, expuesto en GET /api/agents.
 	upgrades *upgradeTracker
 
+	// Beacon UDP de pushers embebidos (#291): socket y último seq por slug.
+	beaconConn  net.PacketConn
+	beaconSeqMu sync.Mutex
+	beaconSeq   map[string]uint32
+
 	// Ventana de frescura del `ts` del agente (anti-replay, auditoría #2).
 	maxTsDrift time.Duration
 }
@@ -147,6 +154,14 @@ func NewHandler(d Deps) http.Handler {
 	// stream SSE (flush on-connect del hub).
 	if s.agentHub != nil {
 		s.agentHub.SetOnConnect(s.FlushQueuedUpgrade)
+	}
+	// #291: listener UDP de beacons (NETPULSE_BEACON_LISTEN; vacío = off).
+	if d.Config != nil && d.Config.BeaconListen != "" {
+		if la, err := s.startBeaconListener(d.Config.BeaconListen); err != nil {
+			log.Printf("[netpulse] aviso: beacon UDP no arrancó en %s (%v)", d.Config.BeaconListen, err)
+		} else {
+			log.Printf("[netpulse] beacon UDP escuchando en %s", la)
+		}
 	}
 	mode := d.Adapter.Mode()
 
