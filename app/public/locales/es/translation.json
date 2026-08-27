@@ -298,7 +298,7 @@
   },
   "nav": {
     "alerts": "Alertas",
-    "devices": "Dispositivos",
+    "devices": "Clientes",
     "installApp": "Instalar app",
     "installFromSettings": "Disponible desde Ajustes",
     "mainNav": "Navegación principal",
@@ -308,7 +308,7 @@
     "reports": "Informes",
     "roaming": "Roaming WiFi",
     "routerDetail": "Detalle de router",
-    "routers": "Routers",
+    "routers": "Dispositivos",
     "settings": "Ajustes",
     "settingsDesc": "Tema, unidades e instalación",
     "theme": "Tema",
