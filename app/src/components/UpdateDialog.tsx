@@ -289,7 +289,8 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
               <p className="text-center text-caption text-text-muted">{status.latestMsg}</p>
             )}
             {/* Changelog (issue #280): cuerpo del commit (rolling) o notas
-                del release (estable), línea a línea con scroll. */}
+                del release (estable), línea a línea con scroll. Los trailers
+                de git (Co-authored-by, Signed-off-by…) son ruido: fuera. */}
             {!!status?.latestBody?.trim() && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
@@ -300,7 +301,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                     {status.latestBody
                       .split('\n')
                       .map((l) => l.trim())
-                      .filter(Boolean)
+                      .filter((l) => l && !/^(co-authored-by|signed-off-by|reviewed-by):/i.test(l))
                       .map((l, i) => (
                         <li key={i} className="flex items-start gap-2 text-caption leading-snug text-text-secondary">
                           <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-text-muted/60" aria-hidden="true" />
