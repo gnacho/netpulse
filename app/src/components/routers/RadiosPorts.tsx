@@ -17,9 +17,14 @@ export function RadiosPorts({ router, extras }: { router: Router; extras?: Route
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
 
+  // Equipos cableados (switches gestionados tipo RTLPlayground/KP-9000):
+  // sin radios no se muestra la sección WiFi ni estados vacíos (#291).
+  const hasRadios = ex.radios.length > 0
+
   return (
     <>
-      {/* Radios WiFi */}
+      {/* Radios WiFi (solo si el equipo tiene: switches cableados fuera) */}
+      {hasRadios && (
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-6 lg:col-span-7">
         <SectionHeader title={t('routerDetail.radios.title')} />
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -64,9 +69,10 @@ export function RadiosPorts({ router, extras }: { router: Router; extras?: Route
           ))}
         </div>
       </section>
+      )}
 
       {/* Puertos Ethernet (panel visual de bocas RJ45) */}
-      <PortPanel router={router} extras={extras} className="lg:col-span-5" />
+      <PortPanel router={router} extras={extras} className={hasRadios ? 'lg:col-span-5' : 'lg:col-span-12'} />
     </>
   )
 }

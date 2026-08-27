@@ -307,7 +307,7 @@
     "overview": "Overview",
     "reports": "Reports",
     "roaming": "WiFi roaming",
-    "routerDetail": "Router detail",
+    "routerDetail": "Device detail",
     "routers": "Devices",
     "settings": "Settings",
     "settingsDesc": "Theme, units and installation",
@@ -616,7 +616,13 @@
       "cmdFail": "Could not generate the command",
       "title": "Agents",
       "external": "External",
-      "externalTip": "External pusher (scraper): pushes every {{interval}} s, no installable agent or upgrades"
+      "externalTip": "External pusher (scraper): pushes every {{interval}} s, no installable agent or upgrades",
+      "discoveredTitle_one": "Embedded switch found on the network",
+      "discoveredTitle_other": "{{count}} embedded switches found on the network",
+      "discoveredSlug": "slug (e.g. switch16)",
+      "discoveredPair": "Pair",
+      "discoveredFail": "Could not create the token",
+      "discoveredHint": "Paste the command in the switch Advanced Settings"
     },
     "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s"
   },

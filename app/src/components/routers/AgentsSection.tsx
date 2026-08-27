@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Check, Clipboard, Clock, Loader2, RotateCcw } from 'lucide-react'
+import { Check, Clipboard, Clock, Loader2, Radar, RotateCcw } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
@@ -282,6 +282,104 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   )
 }
 
+/** Switch embebido anunciándose por broadcast sin parar (#291). */
+interface DiscoveredAgent {
+  ip: string
+  dev: string
+  fw?: string
+  ports?: number
+  lastSeen: number
+}
+
+/** Franja de descubrimiento: switches RTLPlayground encontrados en la LAN
+ * esperando pareado (slug + token + comando beacon). Solo admin (#291). */
+function DiscoveredStrip() {
+  const { t } = useTranslation()
+  const auth = useAuth()
+  const { createAgentInstall } = useNetPulse()
+  const [found, setFound] = useState<DiscoveredAgent[]>([])
+  const [slugByIp, setSlugByIp] = useState<Record<string, string>>({})
+  const [pairByIp, setPairByIp] = useState<Record<string, { token?: string; error?: string; busy?: boolean }>>({})
+
+  useEffect(() => {
+    if (auth?.role !== 'admin') return
+    let disposed = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/agents/discovered', { signal: AbortSignal.timeout(4000) })
+        if (!res.ok) return
+        const j = (await res.json()) as { discovered?: DiscoveredAgent[] }
+        if (!disposed) setFound(j.discovered ?? [])
+      } catch {
+        /* sin candidatos o sin sesión */
+      }
+    }
+    void load()
+    const id = window.setInterval(load, 30_000)
+    return () => {
+      disposed = true
+      window.clearInterval(id)
+    }
+  }, [auth?.role])
+
+  if (auth?.role !== 'admin' || found.length === 0) return null
+
+  const pair = async (ip: string) => {
+    const slug = (slugByIp[ip] ?? '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '')
+    if (!slug) return
+    setPairByIp((m) => ({ ...m, [ip]: { busy: true } }))
+    const res = await createAgentInstall(slug)
+    setPairByIp((m) => ({
+      ...m,
+      [ip]: res && res.token ? { token: res.token } : { error: 'fail' },
+    }))
+  }
+
+  return (
+    <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-accent/30 bg-accent/5 p-4" role="status">
+      <p className="flex items-center gap-2 text-caption font-semibold text-accent">
+        <Radar className="h-4 w-4 animate-pulse" strokeWidth={1.75} aria-hidden="true" />
+        {t('routers.agents.discoveredTitle', { count: found.length })}
+      </p>
+      {found.map((c) => {
+        const pairState = pairByIp[c.ip] ?? {}
+        return (
+          <div key={c.ip} className="flex flex-wrap items-center gap-2 rounded-xl bg-surface px-3.5 py-2.5">
+            <span className="font-mono text-caption text-text-secondary">{c.ip}</span>
+            <span className="text-caption font-medium text-text-primary">{c.dev}</span>
+            {c.fw && <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-text-muted">{c.fw}</span>}
+            {pairState.token ? (
+              <code className="min-w-0 flex-1 truncate rounded-lg bg-canvas px-2 py-1 font-mono text-caption text-ok" title={`beacon <ip-netpulse> <slug> <token>`}>
+                beacon &lt;ip-netpulse&gt; &lt;slug&gt; {pairState.token.slice(0, 12)}…
+              </code>
+            ) : (
+              <>
+                <input
+                  value={slugByIp[c.ip] ?? ''}
+                  onChange={(e) => setSlugByIp((m) => ({ ...m, [c.ip]: e.target.value }))}
+                  placeholder={t('routers.agents.discoveredSlug')}
+                  aria-label={t('routers.agents.discoveredSlug')}
+                  className="h-8 w-36 rounded-lg border border-border bg-canvas px-2.5 font-mono text-caption text-text-primary outline-none focus:border-accent/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => void pair(c.ip)}
+                  disabled={pairState.busy}
+                  className="inline-flex h-8 items-center rounded-lg bg-accent px-3 text-caption font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {pairState.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} aria-hidden="true" /> : t('routers.agents.discoveredPair')}
+                </button>
+                {pairState.error && <span className="text-caption text-danger">{t('routers.agents.discoveredFail')}</span>}
+              </>
+            )}
+            <span className="ml-auto text-caption text-text-muted">{t('routers.agents.discoveredHint')}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /** Sección de flota de agentes (issue #245): registrados + routers agent-only
  * sin agente. Vive al final de la página /routers (#284). */
 export function AgentsSection() {
@@ -313,6 +411,7 @@ export function AgentsSection() {
         <h2 id="agents-section-title" className="font-display text-h2 text-text-primary">{t('routers.agents.title')}</h2>
         <p className="text-caption text-text-muted">{t('routers.agents.subtitle', { total, down })}</p>
       </div>
+      <DiscoveredStrip />
       {rows.length === 0 ? (
         <p className="py-8 text-center text-sm text-text-secondary">{t('routers.agents.empty')}</p>
       ) : (

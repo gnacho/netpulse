@@ -383,6 +383,24 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		}
 		if len(fd.Ports) > 0 {
 			out.ports = ethPortsToAdapter(fd.Ports)
+			// #291: los pushers externos declaran el puerto del FDB como
+			// número ("1") mientras sus bocas usan id "lan1". Normalizar
+			// para que el enriquecimiento del detalle (MAC→nombre por boca)
+			// y la topología casen ambas claves.
+			ids := map[string]bool{}
+			for _, ep := range out.ports {
+				ids[ep.ID] = true
+			}
+			if len(ids) > 0 {
+				for mac, port := range out.fdb {
+					if port == "wan" || ids[port] {
+						continue
+					}
+					if lan := "lan" + port; ids[lan] {
+						out.fdb[mac] = lan
+					}
+				}
+			}
 		}
 	}
 	// LuCI (issue #258): etiquetas de puertos/VLANs, fuente de nombres de
