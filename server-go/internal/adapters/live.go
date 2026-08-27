@@ -2006,6 +2006,21 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	// Mapa global MAC → lease + MAC de bridge → nombre de router
 	leaseMap := map[string]DhcpLease{}
 	routerByMac := map[string]string{}
+	// Alias manuales (Settings > known_macs): fallback de nombre para MACs
+	// sin lease (estáticas, equipos sin DHCP), mismo criterio que la lista
+	// de dispositivos (#291: match MAC→nombre también en bocas de switch).
+	aliasByMac := map[string]string{}
+	if l.db != nil {
+		if rows, err := l.db.Query("SELECT mac, name FROM known_macs"); err == nil {
+			for rows.Next() {
+				var mac, name string
+				if rows.Scan(&mac, &name) == nil && name != "" {
+					aliasByMac[mac] = name
+				}
+			}
+			rows.Close()
+		}
+	}
 	for _, polled := range polledAll {
 		for _, le := range polled.leases {
 			if le.MAC != "" {
@@ -2066,6 +2081,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 				port.ConnectedTo = lease.Hostname
 			case ok && lease.IP != "":
 				port.ConnectedTo = lease.IP
+			case aliasByMac[mac] != "":
+				port.ConnectedTo = aliasByMac[mac]
 			default:
 				port.ConnectedTo = mac
 			}
@@ -2097,12 +2114,25 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 					break
 				}
 			}
+			if infraMac == "" {
+				// Sin hostname DHCP: primer alias manual como pista (#291).
+				for _, mac := range all {
+					if aliasByMac[mac] != "" {
+						infraMac = mac
+						break
+					}
+				}
+			}
 			if infraMac != "" {
-				lease := leaseMap[infraMac]
-				port.ConnectedTo = lease.Hostname
-				port.DeviceMac = infraMac
-				if lease.IP != "" {
-					port.Detail = lease.IP
+				if lease, ok := leaseMap[infraMac]; ok && lease.Hostname != "" {
+					port.ConnectedTo = lease.Hostname
+					port.DeviceMac = infraMac
+					if lease.IP != "" {
+						port.Detail = lease.IP
+					}
+				} else if alias := aliasByMac[infraMac]; alias != "" {
+					port.ConnectedTo = alias
+					port.DeviceMac = infraMac
 				}
 			} else {
 				port.ConnectedTo = "Switch"
