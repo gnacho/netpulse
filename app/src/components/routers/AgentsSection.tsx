@@ -174,8 +174,10 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         <div className="flex flex-wrap items-center gap-2">
           {/* Actualizar: self-update del agente con progreso en vivo (#243) */}
           <AgentUpgradeButton agent={agent} className="h-8" />
-          {/* Rearm: canal preferente para heartbeat stale (proceso vivo) */}
-          {agent && <AgentRearmButton agent={agent} />}
+          {/* Rearm: canal preferente para heartbeat stale (proceso vivo).
+              Solo agentes NATIVOS OpenWrt: los externos (switch por beacon)
+              no tienen SSH - solo alertan (#291). */}
+          {agent && agent.kind !== 'external' && <AgentRearmButton agent={agent} />}
           {canRecover && (
             <button
               type="button"

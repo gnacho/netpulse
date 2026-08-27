@@ -5,6 +5,7 @@
 package rearmer_test
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -328,5 +329,26 @@ func TestRearmerManualSigueFuncionando(t *testing.T) {
 	}
 	if _, err := env.arm.Rearm("noexiste"); err == nil {
 		t.Fatalf("slug sin token debe dar ErrNoToken")
+	}
+}
+
+// Un slug cuyo router es de tipo EXTERNO (managed-switch por beacon) no se
+// rearmera: Rearm devuelve ErrExternalAgent (sin SSH) y el supervisor lo
+// ignora (solo alerta el Dead Man's Switch, que vive en el adapter live).
+func TestRearmExternalAgentRejected(t *testing.T) {
+	env := makeRearmEnv(t, "switch16")
+	// el env añade "patio" openwrt; añadir switch16 como managed-switch
+	if _, err := routerstore.AddRouter(env.d.DB, routerstore.AddInput{
+		Name: "switch16", Host: "192.168.1.6", Type: "managed-switch",
+	}); err != nil {
+		t.Fatalf("AddRouter switch16: %v", err)
+	}
+	if _, err := env.arm.Rearm("switch16"); !errors.Is(err, rearmer.ErrExternalAgent) {
+		t.Fatalf("switch externo: got %v want ErrExternalAgent", err)
+	}
+	// El nativo "patio" sigue pasando (su error no debe ser ErrExternalAgent).
+	_, err := env.arm.Rearm("patio")
+	if errors.Is(err, rearmer.ErrExternalAgent) {
+		t.Fatalf("patio (openwrt) no debe rechazarse como externo")
 	}
 }
