@@ -316,8 +316,7 @@
     "topologyDesc": "Visual network map",
     "collapse": "Collapse menu",
     "expand": "Expand menu",
-    "orchestration": "Orchestration",
-    "agents": "Agents"
+    "orchestration": "Orchestration"
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
@@ -602,7 +601,8 @@
       "copyCmd": "Copy command",
       "copyCmdTip": "Generates the manual install one-liner (fallback for routers without SSH). The token rotates on every generation.",
       "copied": "Command copied",
-      "cmdFail": "Could not generate the command"
+      "cmdFail": "Could not generate the command",
+      "title": "Agents"
     }
   },
   "reports": {

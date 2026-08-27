@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { RefreshCw, Rocket } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
+import { AgentsSection } from '@/components/routers/AgentsSection'
 import { FleetCard } from '@/components/routers/FleetCard'
 import { FleetTable } from '@/components/routers/FleetTable'
 import {
@@ -242,6 +243,9 @@ export default function Routers() {
 
       {/* ③ Tabla comparativa */}
       <FleetTable refreshKey={refreshKey} />
+
+      {/* ④ Flota de agentes nativos (#245, reubicada aquí por #284) */}
+      <AgentsSection />
 
       {/* Confirmación in-app del upgrade de flota */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

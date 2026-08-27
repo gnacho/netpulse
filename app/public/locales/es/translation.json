@@ -316,8 +316,7 @@
     "topologyDesc": "Mapa visual de la red",
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
-    "orchestration": "Orquestación",
-    "agents": "Agentes"
+    "orchestration": "Orquestación"
   },
   "roaming": {
     "subtitle": "Estado del roaming y la malla WiFi",
@@ -602,7 +601,8 @@
       "copyCmd": "Copiar comando",
       "copyCmdTip": "Genera el one-liner de instalación manual (fallback para routers sin SSH). El token se rota en cada generación.",
       "copied": "Comando copiado",
-      "cmdFail": "No se pudo generar el comando"
+      "cmdFail": "No se pudo generar el comando",
+      "title": "Agentes"
     }
   },
   "reports": {
