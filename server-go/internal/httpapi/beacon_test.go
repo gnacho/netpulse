@@ -14,6 +14,7 @@ import (
 
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
@@ -41,11 +42,13 @@ func newBeaconTestServer(t *testing.T) (*server, string) {
 		agentTokenKey("switch16"), hex.EncodeToString(sum[:])); err != nil {
 		t.Fatalf("token kv: %v", err)
 	}
+	eng := alerts.New(d, nil)
 	return &server{
 		cfg:         cfg,
 		db:          d,
 		agents:      adapters.NewAgentRegistry(90 * time.Second),
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
+		adapter:     adapters.NewDemo(eng),
 	}, token
 }
 
@@ -195,4 +198,58 @@ func TestBeaconAnnounceWithBadTokenDropped(t *testing.T) {
 	if got := s.beaconCandidates(); len(got) != 0 {
 		t.Fatalf("token inválido no debe crear candidato: %+v", got)
 	}
+}
+
+func waitForAlert(t *testing.T, s *server, substr string) alerts.AlertEvent {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, a := range s.alertsEngine().List() {
+			if strings.Contains(a.Title, substr) {
+				return a
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("no llegó la alerta %q; feed: %+v", substr, s.alertsEngine().List())
+	return alerts.AlertEvent{}
+}
+
+// Un evento loop llega por UDP y produce una alerta urgente en el feed.
+func TestBeaconLoopEventEmitsUrgentAlert(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"ev":"loop","port":2,"mac":"AABBCCDDEEFF","seq":50,"slug":"switch16","token":"%s"}`, token))
+
+	a := waitForAlert(t, s, "Bucle detectado")
+	if !a.Urgent || a.RouterID != "switch16" || a.Severity != "warn" {
+		t.Fatalf("alerta mal: %+v", a)
+	}
+	if !strings.Contains(a.Title, "boca 2") {
+		t.Fatalf("título sin la boca: %q", a.Title)
+	}
+}
+
+// El fallback por delta: dos beacons seguidos con un link cambiado generan
+// la alerta de link caído sin necesidad de eventos del firmware.
+func TestBeaconDeltaFallbackEmitsLinkChange(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	up := fmt.Sprintf(`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":2,"l":2,"tx":1,"rx":1}]}`, token)
+	sendUDP(t, addr, up)
+	waitFresh(t, s, "switch16")
+	down := fmt.Sprintf(`{"v":1,"seq":2,"slug":"switch16","token":"%s","ports":[{"n":2,"l":0,"tx":1,"rx":1}]}`, token)
+	sendUDP(t, addr, down)
+	waitForAlert(t, s, "Link caído")
 }

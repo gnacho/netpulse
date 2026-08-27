@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
 // beaconPort: una boca del beacon. n = número 1..9; l = código de link
@@ -41,6 +42,8 @@ type beaconPort struct {
 // beaconPacket: spec v1 del datagrama (una línea JSON ASCII, ~400 B).
 // Dev/Fw son opcionales: los lleva el ANUNCIO de descubrimiento (broadcast,
 // sin token) para que el switch pueda encontrarse antes del pareado.
+// Ev (con Port/Mac) convierte el datagrama en EVENTO inmediato (spec v1.1:
+// loop, port_up, port_down, port_disabled, port_recovered).
 type beaconPacket struct {
 	V     int          `json:"v"` // versión de esquema; solo se acepta 1
 	Seq   uint32       `json:"seq"`
@@ -48,6 +51,9 @@ type beaconPacket struct {
 	Token string       `json:"token"`
 	Dev   string       `json:"dev,omitempty"`
 	Fw    string       `json:"fw,omitempty"`
+	Ev    string       `json:"ev,omitempty"`
+	Port  int          `json:"port,omitempty"`
+	Mac   string       `json:"mac,omitempty"`
 	Ports []beaconPort `json:"ports"`
 }
 
@@ -130,6 +136,14 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		return
 	}
 
+	// EVENTO inmediato (spec v1.1): no lleva estado, solo la alerta. No pasa
+	// por el payload (un evento sin ports borraría las bocas del registry).
+	if p.Ev != "" {
+		s.handleBeaconEvent(p)
+		s.beaconSeqNote(p.Slug, p.Seq)
+		return
+	}
+
 	// Puertos → fdb.ports. El beacon viaja sin labels (ahorro de bytes en
 	// el 8051): se reinyectan los ÚLTIMOS labels conocidos del scraper para
 	// que los nombres (v2.1) no se pierdan entre push y push (#291).
@@ -158,9 +172,106 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		Interval: beaconIntervalSec,
 		Data:     probe.PayloadData{FDB: &probe.FDBData{Ports: ports}},
 	}
+	// Fallback de cambios de link por delta entre beacons (#291): si el
+	// firmware no manda eventos, el cambio se detecta comparando el payload
+	// anterior. Con eventos, el título idéntico hace que el dedup del engine
+	// colapse el duplicado.
+	if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
+		was := map[string]bool{}
+		for _, ep := range prev.Data.FDB.Ports {
+			was[ep.ID] = ep.Up
+		}
+		for _, np := range ports {
+			if before, ok := was[np.ID]; ok && before != np.Up {
+				s.emitPortLinkChange(p.Slug, np.Label, np.Up)
+			}
+		}
+	}
 	s.agents.Ingest(pl)
 	s.persistAgentState(p.Slug, s.agents.Snapshot(p.Slug))
 	s.beaconSeqNote(p.Slug, p.Seq)
+}
+
+// handleBeaconEvent traduce un evento del firmware a alertas del feed (#291).
+func (s *server) handleBeaconEvent(p beaconPacket) {
+	eng := s.alertsEngine()
+	if eng == nil {
+		return
+	}
+	labels := s.lastPortLabels(p.Slug)
+	portName := fmt.Sprintf("boca %d", p.Port)
+	if l := labels[fmt.Sprintf("lan%d", p.Port)]; l != "" {
+		portName = fmt.Sprintf("%s (boca %d)", l, p.Port)
+	}
+	id := fmt.Sprintf("beacon-%s-%s-%d-%d", p.Ev, p.Slug, p.Port, time.Now().UnixMilli())
+	ev := alerts.AlertEvent{
+		ID: id, Category: alerts.CatSystem, Urgent: false,
+		Severity: "warn", Time: "ahora mismo", RouterID: p.Slug,
+	}
+	switch p.Ev {
+	case "loop":
+		ev.Urgent = true
+		ev.Title = "Bucle detectado en " + portName
+		ev.Description = fmt.Sprintf(
+			"La guardia del switch ha detectado la MAC %s en dos bocas y ha deshabilitado %s",
+			p.Mac, portName)
+	case "port_disabled":
+		ev.Title = "Boca deshabilitada: " + portName
+		ev.Description = "Desactivada por la guardia de bucles; se reintentará en 5 min (máx. 3 veces)"
+	case "port_recovered":
+		ev.Severity = "ok"
+		ev.Title = "Boca re-habilitada: " + portName
+		ev.Description = "La guardia de bucles ha vuelto a habilitar la boca"
+	case "port_down":
+		ev.Title = "Link caído en " + portName
+		ev.Description = "El beacon del switch reporta pérdida de link"
+	case "port_up":
+		ev.Severity = "ok"
+		ev.Title = "Link restablecido en " + portName
+		ev.Description = "El beacon del switch reporta link activo"
+	default:
+		log.Printf("[netpulse:beacon] evento desconocido %q de %s", p.Ev, p.Slug)
+		return
+	}
+	eng.Emit(ev)
+}
+
+// emitPortLinkChange: alerta de cambio de link detectada por delta (#291).
+// Mismos títulos que los eventos para que el dedup colapse duplicados.
+func (s *server) emitPortLinkChange(slug, label string, up bool) {
+	eng := s.alertsEngine()
+	if eng == nil {
+		return
+	}
+	name := label
+	if name == "" {
+		name = "una boca"
+	}
+	var ev alerts.AlertEvent
+	if up {
+		ev = alerts.AlertEvent{
+			ID: fmt.Sprintf("beacon-port-up-%s-%d", slug, time.Now().UnixMilli()),
+			Category: alerts.CatSystem, Severity: "ok", Time: "ahora mismo",
+			RouterID: slug, Title: "Link restablecido en " + name,
+			Description: "Detectado por el cambio entre beacons",
+		}
+	} else {
+		ev = alerts.AlertEvent{
+			ID: fmt.Sprintf("beacon-port-down-%s-%d", slug, time.Now().UnixMilli()),
+			Category: alerts.CatSystem, Severity: "warn", Time: "ahora mismo",
+			RouterID: slug, Title: "Link caído en " + name,
+			Description: "Detectado por el cambio entre beacons",
+		}
+	}
+	eng.Emit(ev)
+}
+
+// alertsEngine devuelve el motor de alertas del adapter (nil si no hay).
+func (s *server) alertsEngine() *alerts.Engine {
+	if s.adapter == nil {
+		return nil
+	}
+	return s.adapter.AlertsEngine()
 }
 
 // lastPortLabels extrae {id: label} del último payload conocido del slug
