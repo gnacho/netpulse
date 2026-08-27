@@ -1092,11 +1092,14 @@
     "dismiss": "Dismiss notice",
     "step": {
       "start": "starting",
-      "fetch": "downloading code",
+      "fetch": "fetching code",
       "server-deps": "updating backend",
       "frontend-build": "building the UI",
       "restart": "restarting the service",
-      "done": "done, reloading"
+      "done": "done, reloading",
+      "download": "downloading binary",
+      "verify": "verifying integrity",
+      "install": "installing"
     },
     "checks": {
       "title": "Pre-flight checks",
@@ -1122,6 +1125,20 @@
       "success": "Success",
       "failed": "Failed",
       "running": "Running"
+    },
+    "dialog": {
+      "title": "Update NetPulse",
+      "desc": "The update runs in several steps and takes a few minutes.",
+      "start": "Update now",
+      "cancel": "Cancel",
+      "close": "Close",
+      "restarting": "Restarting the service…",
+      "reloadSoon": "The app will reload automatically in a few seconds",
+      "failed": "The update failed",
+      "hideHint": "You can close this window: the update continues on the server",
+      "progressLabel": "Update progress",
+      "changelogTitle": "What's new",
+      "downNotice": "The service will be down while it restarts"
     }
   },
   "demo": {

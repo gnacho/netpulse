@@ -38,11 +38,31 @@ var APIBase = "https://api.github.com"
 var BuildCommit string
 
 type progress struct {
-	Step string `json:"step"`
+	Step     string `json:"step"`
+	Progress int    `json:"progress"` // 0-100
 }
 
-// Status es la respuesta de /api/update/status (shape literal de updater.js:
-// updating es false | {step}; lastLog son los últimos 800 chars).
+// stepWeight: porcentaje mostrado MIENTRAS el paso está en ejecución
+// (issue #280). Pasos del update.sh actual + los legados (binary,
+// server-deps, frontend-build) para compatibilidad con scripts viejos.
+var stepWeight = map[string]int{
+	"start":          3,
+	"fetch":          12,
+	"binary":         40, // legado: download+install juntos
+	"download":       40,
+	"verify":         68,
+	"install":        84,
+	"restart":        94,
+	"done":           100,
+	"server-deps":    30, // legado flujo Node
+	"frontend-build": 60, // legado flujo Node
+}
+
+const stepDefaultWeight = 50
+
+// Status es la respuesta de /api/update/status (extiende el shape histórico
+// updater.js): updating es false | {step, progress 0-100}; lastLog son los
+// últimos 800 chars.
 type Status struct {
 	Current         string  `json:"current"`
 	Latest          *string `json:"latest"`
@@ -51,11 +71,14 @@ type Status struct {
 	CanApply        bool    `json:"canApply"`
 	Mode            string  `json:"mode"`
 	LastCheck       *int64  `json:"lastCheck"`
-	Updating        any     `json:"updating"` // false | {"step": ...}
-	Error           *string `json:"error"`
-	LastLog         *string `json:"lastLog"`
-	Repo            string  `json:"repo"`
-	HasToken        bool    `json:"hasToken"`
+	// LatestBody: cuerpo del commit (rolling) o notas del release (estable)
+	// mostrado como changelog en el asistente (issue #280).
+	LatestBody    *string `json:"latestBody,omitempty"`
+	Updating      any     `json:"updating"` // false | {"step": ...}
+	Error         *string `json:"error"`
+	LastLog       *string `json:"lastLog"`
+	Repo          string  `json:"repo"`
+	HasToken      bool    `json:"hasToken"`
 	// Readiness: pre-flight checks del apply (issue #160). Null en layout
 	// estable (sin auto-apply) o hasta el primer Status().
 	Readiness *Readiness `json:"readiness,omitempty"`
@@ -80,12 +103,18 @@ type Updater struct {
 	current      string
 	latest       *string
 	latestMsg    *string
+	latestBody   *string // cuerpo del commit/notas del release (changelog #280)
 	updateAvail  bool
 	lastCheck    *int64
 	updatingStep *string // nil = no actualizando
+	updatingPct  int     // 0-100 (issue #280); peso del paso o PROGRESS explícito
 	updatingLog  string
 	lastLog      *string
 	err          *string
+
+	// Suscriptores del stream /api/update/stream (issue #280). Notificados
+	// en cada cambio de paso/porcentaje o fin de actualización.
+	subs map[chan Status]struct{}
 
 	// readiness cacheado (issue #160): el network check toca red y no debe
 	// bloquear el polling de status.
@@ -120,6 +149,7 @@ func New(repoRoot, repo, token, version string, db *sql.DB) *Updater {
 		mode:     mode,
 		db:       db,
 		current:  "desconocido",
+		subs:     make(map[chan Status]struct{}),
 		stopCh:   make(chan struct{}),
 	}
 	// Issue #161: procesar el marcador pendiente (confirmación post-update)
@@ -148,12 +178,13 @@ func gitShort(repoRoot string) string {
 }
 
 // fetchLatestCommit consulta el último commit de main (modo rolling).
-// Errores → {error: ...}.
-func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCode string) {
+// Errores → {error: ...}. El body (líneas tras el subject) se devuelve como
+// changelog del asistente.
+func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg, body, errCode string) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s/repos/%s/commits/main", APIBase, u.repo), nil)
 	if err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "netpulse-updater")
@@ -165,19 +196,19 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCo
 	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", "", "timeout"
+			return "", "", "", "timeout"
 		}
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 404 {
 		if u.token != "" {
-			return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+			return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 		}
-		return "", "", "no_token"
+		return "", "", "", "no_token"
 	}
 	if res.StatusCode != 200 {
-		return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+		return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 	}
 	var data struct {
 		SHA    string `json:"sha"`
@@ -186,13 +217,14 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCo
 		} `json:"commit"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&data); err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	sha = data.SHA
 	if len(sha) > 7 {
 		sha = sha[:7]
 	}
 	msg = strings.Split(data.Commit.Message, "\n")[0]
+	body = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(data.Commit.Message), msg))
 	// JS slice(0, 80) corta por UNIDADES UTF-16 (un astral = 2 unidades),
 	// no por bytes: replicar ese cómputo (sin dejar surrogates partidos).
 	units, cut := 0, len(msg)
@@ -208,16 +240,17 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCo
 		units += w
 	}
 	msg = msg[:cut]
-	return sha, msg, ""
+	return sha, msg, body, ""
 }
 
 // fetchLatestRelease consulta el último release tag (modo stable). Devuelve
-// tag_name (ej. "v2.7.3") y el nombre del release. Errores → {error: ...}.
-func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name string, errCode string) {
+// tag_name (ej. "v2.7.3"), el nombre del release y sus notas (body) para el
+// changelog del asistente. Errores → {error: ...}.
+func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name, body, errCode string) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s/repos/%s/releases/latest", APIBase, u.repo), nil)
 	if err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "netpulse-updater")
@@ -229,33 +262,34 @@ func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name string, err
 	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", "", "timeout"
+			return "", "", "", "timeout"
 		}
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 404 {
 		if u.token != "" {
-			return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+			return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 		}
-		return "", "", "no_token"
+		return "", "", "", "no_token"
 	}
 	if res.StatusCode != 200 {
-		return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+		return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 	}
 	var data struct {
 		TagName string `json:"tag_name"`
 		Name    string `json:"name"`
+		Body    string `json:"body"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&data); err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	tag = data.TagName
 	name = data.Name
 	if name == "" {
 		name = tag
 	}
-	return tag, name, ""
+	return tag, name, strings.TrimSpace(data.Body), ""
 }
 
 // compareSemver compara dos strings semver (con o sin prefijo "v").
@@ -291,20 +325,20 @@ func parseSemver(s string) [3]int {
 // rolling compara contra el último commit de main; en modo estable contra
 // el último release tag (semver).
 func (u *Updater) Check(ctx context.Context) Status {
-	var current, latest, latestMsg, errCode string
+	var current, latest, latestMsg, latestBody, errCode string
 
 	if u.mode == "stable" {
 		current = u.version
 		if current == "" {
 			current = "desconocido"
 		}
-		latest, latestMsg, errCode = u.fetchLatestRelease(ctx)
+		latest, latestMsg, latestBody, errCode = u.fetchLatestRelease(ctx)
 	} else {
 		current = gitShort(u.repoRoot)
 		if current == "" {
 			current = "desconocido"
 		}
-		latest, latestMsg, errCode = u.fetchLatestCommit(ctx)
+		latest, latestMsg, latestBody, errCode = u.fetchLatestCommit(ctx)
 	}
 
 	now := time.Now().UnixMilli()
@@ -320,6 +354,7 @@ func (u *Updater) Check(ctx context.Context) Status {
 	u.err = nil
 	u.latest = &latest
 	u.latestMsg = &latestMsg
+	u.latestBody = &latestBody
 	if u.mode == "stable" {
 		u.updateAvail = latest != "" && current != "desconocido" && compareSemver(latest, current) > 0
 	} else {
@@ -331,7 +366,47 @@ func (u *Updater) Check(ctx context.Context) Status {
 	return u.statusLocked()
 }
 
-var stepRe = regexp.MustCompile(`STEP:(\w+)`)
+var (
+	stepRe     = regexp.MustCompile(`STEP:(\w+)`)
+	progressRe = regexp.MustCompile(`PROGRESS:(\d{1,3})`)
+)
+
+// setStepLocked fija el paso activo y su porcentaje base (issue #280).
+func (u *Updater) setStepLocked(step string) {
+	u.updatingStep = &step
+	if w, ok := stepWeight[step]; ok {
+		u.updatingPct = w
+	} else {
+		u.updatingPct = stepDefaultWeight
+	}
+}
+
+// Subscribe registra un canal para recibir el Status en cada cambio del
+// update en curso (issue #280). El cancel devuelto lo retira.
+func (u *Updater) Subscribe() (<-chan Status, func()) {
+	ch := make(chan Status, 8)
+	u.mu.Lock()
+	u.subs[ch] = struct{}{}
+	u.mu.Unlock()
+	cancel := func() {
+		u.mu.Lock()
+		delete(u.subs, ch)
+		u.mu.Unlock()
+	}
+	return ch, cancel
+}
+
+// broadcastLocked emite el estado a todos los suscriptores sin bloquear
+// (un cliente lento pierde el evento; el siguiente lo corrige). Llamar con mu.
+func (u *Updater) broadcastLocked() {
+	st := u.statusLocked()
+	for ch := range u.subs {
+		select {
+		case ch <- st:
+		default:
+		}
+	}
+}
 
 // Apply lanza update.sh en segundo plano (iniciado manualmente desde la UI,
 // rol admin). Devuelve false si ya hay una actualización en curso (→ 409
@@ -348,9 +423,10 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.mu.Unlock()
 		return false
 	}
-	startStep := "start"
-	u.updatingStep = &startStep
+	u.setStepLocked("start")
+	u.updatingPct = 0
 	u.updatingLog = ""
+	u.broadcastLocked()
 	u.mu.Unlock()
 
 	// Historial + marcador: version_from es el commit actual, version_to el
@@ -380,6 +456,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.updatingStep = nil
 		code := "update_copy_failed"
 		u.err = &code
+		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", code, time.Since(startedAt))
 		fmt.Printf("[netpulse] no se pudo copiar update.sh: %v\n", err)
@@ -392,6 +469,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	if err != nil {
 		u.mu.Lock()
 		u.updatingStep = nil
+		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", "update_pipe_failed", time.Since(startedAt))
 		return false
@@ -400,6 +478,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	if err := cmd.Start(); err != nil {
 		u.mu.Lock()
 		u.updatingStep = nil
+		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", "update_start_failed", time.Since(startedAt))
 		return false
@@ -422,8 +501,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.mu.Lock()
 		defer u.mu.Unlock()
 		if waitErr == nil {
-			step := "done"
-			u.updatingStep = &step
+			u.setStepLocked("done")
 			log := u.updatingLog
 			u.lastLog = &log
 			u.updateAvail = false
@@ -444,19 +522,47 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 			// Issue #161: el apply falló → sin confirmación post-update.
 			u.clearPendingApply()
 		}
+		u.broadcastLocked()
 	}()
 	return true
 }
 
-// appendLog acumula el log (tail 4000) y extrae STEP:xxx del stdout.
+// appendLog acumula el log (tail 4000) y extrae STEP:xxx y PROGRESS:nn del
+// stdout. Solo hace broadcast cuando el paso o el porcentaje CAMBIAN (no en
+// cada línea de log) para no saturar el stream (issue #280).
 func (u *Updater) appendLog(text string, parseStep bool) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.updatingLog = tail(u.updatingLog+text, logTail)
 	if parseStep {
+		before := ""
+		if u.updatingStep != nil {
+			before = *u.updatingStep
+		}
+		beforePct := u.updatingPct
 		if m := stepRe.FindStringSubmatch(text); m != nil {
-			step := m[1]
-			u.updatingStep = &step
+			u.setStepLocked(m[1])
+		}
+		if m := progressRe.FindStringSubmatch(text); m != nil && u.updatingStep != nil {
+			// El progreso explícito no puede bajar del peso del paso activo
+			// ni superar el 99 (done se reserva al final del script).
+			n, err := strconv.Atoi(m[1])
+			if err == nil {
+				if n < u.updatingPct {
+					n = u.updatingPct
+				}
+				if n > 99 {
+					n = 99
+				}
+				u.updatingPct = n
+			}
+		}
+		after := ""
+		if u.updatingStep != nil {
+			after = *u.updatingStep
+		}
+		if after != before || u.updatingPct != beforePct {
+			u.broadcastLocked()
 		}
 		fmt.Printf("[netpulse:update] %s\n", strings.TrimSpace(text))
 	}
@@ -490,7 +596,11 @@ func (u *Updater) Status() Status {
 func (u *Updater) statusLocked() Status {
 	var updating any = false
 	if u.updatingStep != nil {
-		updating = progress{Step: *u.updatingStep}
+		pct := u.updatingPct
+		if *u.updatingStep == "done" {
+			pct = 100
+		}
+		updating = progress{Step: *u.updatingStep, Progress: pct}
 	}
 	var lastLog *string
 	if u.updatingStep != nil {
@@ -504,6 +614,7 @@ func (u *Updater) statusLocked() Status {
 		Current:         u.current,
 		Latest:          u.latest,
 		LatestMsg:       u.latestMsg,
+		LatestBody:      u.latestBody,
 		UpdateAvailable: u.updateAvail,
 		CanApply:        u.canApply,
 		Mode:            u.mode,

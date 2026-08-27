@@ -1092,11 +1092,14 @@
     "dismiss": "Descartar aviso",
     "step": {
       "start": "iniciando",
-      "fetch": "descargando código",
+      "fetch": "obteniendo código",
       "server-deps": "actualizando backend",
       "frontend-build": "compilando la interfaz",
       "restart": "reiniciando el servicio",
-      "done": "completado, recargando"
+      "done": "completado, recargando",
+      "download": "descargando binario",
+      "verify": "verificando integridad",
+      "install": "instalando"
     },
     "checks": {
       "title": "Comprobaciones previas",
@@ -1122,6 +1125,20 @@
       "success": "Correcto",
       "failed": "Falló",
       "running": "En curso"
+    },
+    "dialog": {
+      "title": "Actualizar NetPulse",
+      "desc": "La actualización se aplica en varios pasos y tarda unos minutos.",
+      "start": "Actualizar ahora",
+      "cancel": "Cancelar",
+      "close": "Cerrar",
+      "restarting": "Reiniciando el servicio…",
+      "reloadSoon": "La app se recargará automáticamente en unos segundos",
+      "failed": "La actualización falló",
+      "hideHint": "Puedes cerrar esta ventana: la actualización continúa en el servidor",
+      "progressLabel": "Progreso de la actualización",
+      "changelogTitle": "Novedades",
+      "downNotice": "El servicio estará caído mientras se reinicia"
     }
   },
   "demo": {

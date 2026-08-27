@@ -47,6 +47,7 @@ import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
+import { UpdateDialog } from '@/components/UpdateDialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
@@ -2094,6 +2095,7 @@ interface NetPulseUpdateStatus {
   current: string
   latest: string | null
   latestMsg: string | null
+  latestBody?: string | null
   updateAvailable: boolean
   canApply: boolean
   repo: string
@@ -2106,6 +2108,7 @@ function UpdateCheckInline() {
   const [status, setStatus] = useState<NetPulseUpdateStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const check = async () => {
     setBusy(true)
@@ -2121,16 +2124,14 @@ function UpdateCheckInline() {
     }
   }
 
-  const apply = async () => {
-    setBusy(true)
-    try {
-      await fetch('/api/update/apply', { method: 'POST' })
-    } catch {
-      setError(true)
-    } finally {
-      setBusy(false)
-    }
-  }
+  // Al cerrar el asistente: refrescar el estado (issue #280).
+  const handleDialogChange = useCallback(
+    (open: boolean) => {
+      setDialogOpen(open)
+      if (!open) void check()
+    },
+    [],
+  )
 
   const ready = status?.readiness ? status.readiness.ready : true
 
@@ -2140,8 +2141,8 @@ function UpdateCheckInline() {
         status.canApply ? (
           <button
             type="button"
-            onClick={() => void apply()}
-            disabled={busy || !ready}
+            onClick={() => setDialogOpen(true)}
+            disabled={!ready}
             className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Download className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
@@ -2185,6 +2186,7 @@ function UpdateCheckInline() {
           <ReadinessPanel readiness={status.readiness} compact />
         </div>
       )}
+      <UpdateDialog open={dialogOpen} onOpenChange={handleDialogChange} initialStatus={status} />
     </div>
   )
 }
