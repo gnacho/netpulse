@@ -2087,17 +2087,20 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 		// 1.5) Cliente WiFi detrás de un AP: la boca del switch lleva al AP
 		// (el cliente viaja por su radio). Atribuir la boca al AP y señalar
-		// el cliente como "detrás" (#291).
-		if ap, isWifi := wifiByMac[all[0]]; isWifi && len(all) >= 1 && allWifiOfOneAP(all, wifiByMac) {
-			port.ConnectedTo = ap
-			port.DeviceMac = all[0]
-			if lease, ok := leaseMap[all[0]]; ok && lease.Hostname != "" {
-				port.Detail = "AP · " + lease.Hostname + " por WiFi detrás"
-			} else {
-				port.Detail = "AP · cliente WiFi detrás"
+		// el cliente como "detrás" (#291). Guard de longitud PRIMERO: una
+		// boca up sin MACs aprendidas llega con all vacío.
+		if len(all) > 0 {
+			if ap, isWifi := wifiByMac[all[0]]; isWifi && allWifiOfOneAP(all, wifiByMac) {
+				port.ConnectedTo = ap
+				port.DeviceMac = all[0]
+				if lease, ok := leaseMap[all[0]]; ok && lease.Hostname != "" {
+					port.Detail = "AP · " + lease.Hostname + " por WiFi detrás"
+				} else {
+					port.Detail = "AP · cliente WiFi detrás"
+				}
+				enriched = append(enriched, port)
+				continue
 			}
-			enriched = append(enriched, port)
-			continue
 		}
 		// 2) Un solo dispositivo final
 		if len(all) == 1 {
