@@ -1,23 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Check, Clipboard, RotateCcw } from 'lucide-react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { Check, Clipboard, Clock, Loader2, RotateCcw } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
 import { AgentBadge } from '@/components/routers/AgentBadge'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
+import { AgentUpgradeButton, activeUpgrade, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
 import { cn } from '@/lib/utils'
 
 /**
- * Página `/agents` — vista de agentes nativos (issue #245: recuperar un
- * agente caído desde la app). Lista cada agente registrado con su estado
- * (fresco / caído-stale / no instalado) y last-seen, y para admin expone las
- * acciones de recuperación:
+ * Sección de agentes nativos (issue #245, reubicada en /routers por #284):
+ * lista cada agente registrado con su estado (fresco / caído-stale / no
+ * instalado) y last-seen, y para admin expone las acciones de recuperación:
+ *   - Actualizar (POST /api/agents/{slug}/upgrade, #243): self-update del
+ *     agente descargando el binario embebido, con progreso en vivo.
  *   - Rearmar (canal rearm existente): preferente cuando el proceso vive pero
- *     no reporta (heartbeat stale) — NO reinstala en seco.
+ *     no reporta (heartbeat stale) - NO reinstala en seco.
  *   - Reinstalar (POST /api/agents/{slug}/reinstall, #246): despliega el
  *     agente vía SSH desde el server, con estados de progreso.
  *   - Copiar comando de instalación: one-liner manual como fallback para
@@ -56,6 +58,15 @@ async function copyText(text: string): Promise<boolean> {
 type ReinstallState = 'idle' | 'busy' | 'done' | 'fail'
 type CopyState = 'idle' | 'busy' | 'done' | 'fail'
 
+/** Hora HH:MM:SS local desde unix segundos (timeline de upgrade, #284). */
+function hhmmss(ts: number): string {
+  return new Date(ts * 1000).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 /** Fila de un agente con sus acciones de recuperación (estado local). */
 function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undefined }) {
   const { t } = useTranslation()
@@ -64,6 +75,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const [reinstallState, setReinstallState] = useState<ReinstallState>('idle')
   const [reinstallMsg, setReinstallMsg] = useState('')
   const [copyState, setCopyState] = useState<CopyState>('idle')
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
 
   const isOpenWrt = isOpenWrtType(router?.type)
   const isStale = agent !== undefined && !agent.fresh
@@ -72,6 +84,22 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
 
   const slug = agent?.slug ?? router?.id ?? ''
   const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen) ?? t('routers.agents.never') : t('routers.agents.never')
+  const live = agent ? activeUpgrade(agent, nowSec) : undefined
+
+  // Tick de 1 s mientras hay upgrade en marcha (elapsed de la timeline).
+  const ticking = live !== undefined
+  useEffect(() => {
+    if (!ticking) return
+    const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [ticking])
+
+  // Timeline visible mientras el upgrade está en marcha o hasta 5 min después
+  // del último paso: el recorrido completo queda visible aunque vaya rápido
+  // y sobrevive al parpadeo del poll de agentes (#284).
+  const up = agent?.upgrade
+  const showTimeline =
+    up !== undefined && (live !== undefined || (up.step !== 'queued' && nowSec - up.ts < 300))
 
   const reinstall = async () => {
     if (reinstallState === 'busy') return
@@ -99,6 +127,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   }
 
   return (
+    <>
     <motion.tr
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
@@ -127,10 +156,12 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         <span className="font-mono text-caption text-text-secondary">{lastSeen}</span>
       </td>
       <td className="py-3 pr-3">
-        <span className="font-mono text-caption text-text-secondary">{agent?.version ? `v${agent.version}` : '—'}</span>
+        <span className="font-mono text-caption text-text-secondary">{agent?.version ? `v${agent.version}` : '-'}</span>
       </td>
       <td className="py-3">
         <div className="flex flex-wrap items-center gap-2">
+          {/* Actualizar: self-update del agente con progreso en vivo (#243) */}
+          <AgentUpgradeButton agent={agent} className="h-8" />
           {/* Rearm: canal preferente para heartbeat stale (proceso vivo) */}
           {agent && <AgentRearmButton agent={agent} />}
           {canRecover && (
@@ -192,13 +223,57 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         )}
       </td>
     </motion.tr>
+    {showTimeline && up && (
+      <motion.tr
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+        className="border-b border-border/60 last:border-0"
+      >
+        <td colSpan={5} className="pb-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-surface px-3.5 py-2.5">
+            <span className="inline-flex items-center gap-1.5 text-label font-medium uppercase text-text-muted">
+              <Clock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+              {t('routers.agent.timeline')}
+              {(() => {
+                const h = up.steps ?? []
+                const first = h[0]
+                const last = h[h.length - 1]
+                if (!first || !last || h.length < 2) return null
+                const dur = Math.max(1, last.ts - first.ts)
+                return <span className="font-mono normal-case">{t('routers.agent.timelineSummary', { count: h.length, secs: dur })}</span>
+              })()}
+            </span>
+            {(up.steps ?? []).map((s, i) => {
+              const isCurrent = i === (up.steps?.length ?? 0) - 1 && live !== undefined
+              return (
+                <span key={`${s.step}-${s.ts}`} className="inline-flex items-center gap-1.5 text-caption">
+                  {isCurrent ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-accent" strokeWidth={2} aria-hidden="true" />
+                  ) : (
+                    <Check className="h-3 w-3 text-ok" strokeWidth={2} aria-hidden="true" />
+                  )}
+                  <span className={isCurrent ? 'font-medium text-text-primary' : 'text-text-secondary'}>
+                    {upgradeStepText(s, t)}
+                    {isCurrent && s.step !== 'queued' ? ` · ${Math.max(0, nowSec - s.ts)}s` : ''}
+                  </span>
+                  <span className="font-mono text-text-muted">{hhmmss(s.ts)}</span>
+                </span>
+              )
+            })}
+            {live === undefined && <span className="text-caption text-ok">{t('routers.agent.timelineDone')}</span>}
+          </div>
+        </td>
+      </motion.tr>
+    )}
+    </>
   )
 }
 
-/** Vista de agentes (issue #245): registrados + routers agent-only sin agente. */
-export default function Agents() {
+/** Sección de flota de agentes (issue #245): registrados + routers agent-only
+ * sin agente. Vive al final de la página /routers (#284). */
+export function AgentsSection() {
   const { t } = useTranslation()
-  const reduce = useReducedMotion()
   const { agents, routers } = useNetPulse()
 
   // Filas: agentes registrados (por slug) + routers agent-only sin agente.
@@ -221,54 +296,33 @@ export default function Agents() {
   const total = rows.length
 
   return (
-    <div className="space-y-4 md:space-y-5">
-      <header>
-        <motion.nav
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          aria-label={t('common.breadcrumb')}
-          className="font-mono text-caption text-text-muted"
-        >
-          <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-          <span className="mx-1.5">/</span>
-          <span className="text-text-secondary">{t('nav.agents')}</span>
-        </motion.nav>
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
-          className="mt-1.5"
-        >
-          <h1 className="font-display text-h1 text-text-primary">{t('nav.agents')}</h1>
-          <p className="text-caption text-text-muted">{t('routers.agents.subtitle', { total, down })}</p>
-        </motion.div>
-      </header>
-
-      <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-        {rows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-text-secondary">{t('routers.agents.empty')}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colDevice')}</th>
-                  <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colStatus')}</th>
-                  <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colLastSeen')}</th>
-                  <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colVersion')}</th>
-                  <th className="pb-2.5 text-label font-medium uppercase text-text-muted">{t('routers.agents.colActions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ agent, router }) => (
-                  <AgentRow key={agent?.slug ?? router?.id ?? ''} agent={agent} router={router} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </div>
+    <section className="rounded-2xl border border-border bg-surface p-5 md:p-6" aria-labelledby="agents-section-title">
+      <div className="mb-4">
+        <h2 id="agents-section-title" className="font-display text-h2 text-text-primary">{t('routers.agents.title')}</h2>
+        <p className="text-caption text-text-muted">{t('routers.agents.subtitle', { total, down })}</p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-text-secondary">{t('routers.agents.empty')}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colDevice')}</th>
+                <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colStatus')}</th>
+                <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colLastSeen')}</th>
+                <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colVersion')}</th>
+                <th className="pb-2.5 text-label font-medium uppercase text-text-muted">{t('routers.agents.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ agent, router }) => (
+                <AgentRow key={agent?.slug ?? router?.id ?? ''} agent={agent} router={router} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   )
 }

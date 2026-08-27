@@ -83,7 +83,7 @@
     "empty": "Sin resultados.",
     "pages": "Páginas",
     "placeholder": "Saltar a una página, router o dispositivo…",
-    "routers": "Routers"
+    "routers": "Dispositivos"
   },
   "common": {
     "ago": {
@@ -226,7 +226,7 @@
     "weakChip": "{{count}} con señal débil"
   },
   "home": {
-    "devices": "Dispositivos",
+    "devices": "Clientes",
     "download": "Descarga",
     "greetingAfternoon": "Buenas tardes",
     "greetingEvening": "Buenas noches",
@@ -298,7 +298,7 @@
   },
   "nav": {
     "alerts": "Alertas",
-    "devices": "Dispositivos",
+    "devices": "Clientes",
     "installApp": "Instalar app",
     "installFromSettings": "Disponible desde Ajustes",
     "mainNav": "Navegación principal",
@@ -308,7 +308,7 @@
     "reports": "Informes",
     "roaming": "Roaming WiFi",
     "routerDetail": "Detalle de router",
-    "routers": "Routers",
+    "routers": "Dispositivos",
     "settings": "Ajustes",
     "settingsDesc": "Tema, unidades e instalación",
     "theme": "Tema",
@@ -316,8 +316,7 @@
     "topologyDesc": "Mapa visual de la red",
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
-    "orchestration": "Orquestación",
-    "agents": "Agentes"
+    "orchestration": "Orquestación"
   },
   "roaming": {
     "subtitle": "Estado del roaming y la malla WiFi",
@@ -541,7 +540,19 @@
       "downBanner": "Agente caído — reinstálalo desde el detalle",
       "notInstalled": "Agente no instalado",
       "notInstalledTip": "El router está configurado para funcionar solo con agente, pero el agente no está instalado. Reinstálalo desde el detalle.",
-      "notInstalledBanner": "Agente no instalado — reinstálalo desde el detalle"
+      "notInstalledBanner": "Agente no instalado — reinstálalo desde el detalle",
+      "stepRequested": "Comando enviado",
+      "stepDownloading": "Descargando {{pct}} %",
+      "stepSwapping": "Instalando binario",
+      "stepRestarting": "Reiniciando agente",
+      "upgraded": "Actualizado",
+      "stepQueued": "esperando conexión",
+      "upgradeQueued": "En cola",
+      "upgradeQueuedTip": "El agente no está conectado: la actualización se enviará cuando vuelva a conectar",
+      "timeline": "Actualización",
+      "timelineDone": "completado",
+      "stepVerifying": "Comprobando integridad",
+      "timelineSummary": "· {{count}} pasos · {{secs}} s"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",
@@ -602,8 +613,10 @@
       "copyCmd": "Copiar comando",
       "copyCmdTip": "Genera el one-liner de instalación manual (fallback para routers sin SSH). El token se rota en cada generación.",
       "copied": "Comando copiado",
-      "cmdFail": "No se pudo generar el comando"
-    }
+      "cmdFail": "No se pudo generar el comando",
+      "title": "Agentes"
+    },
+    "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s"
   },
   "reports": {
     "availability": "Disponibilidad",
@@ -885,7 +898,7 @@
     "reduceMotion": "Reducir animaciones",
     "reduceMotionCaption": "Desactiva pulsos, tweens y entradas escalonadas",
     "routers": {
-      "title": "Routers",
+      "title": "Dispositivos",
       "caption": "La puerta de enlace se autodetecta en el arranque; añade el resto a mano",
       "empty": "Sin routers configurados todavía. La puerta de enlace se autodetecta al arrancar el servidor; si no aparece, añádela aquí.",
       "host": "IP o hostname",

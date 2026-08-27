@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router'
+import { Navigate } from 'react-router'
 import { AuthGate } from '@/components/AuthGate'
 import Layout from '@/components/Layout'
 import { DataProvider } from '@/data/DataProvider'
@@ -6,7 +7,6 @@ import Home from '@/pages/Home'
 import Login from '@/pages/Login'
 import Routers from '@/pages/Routers'
 import RouterDetail from '@/pages/RouterDetail'
-import Agents from '@/pages/Agents'
 import Devices from '@/pages/Devices'
 import Topology from '@/pages/Topology'
 import Alerts from '@/pages/Alerts'
@@ -37,7 +37,9 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="routers" element={<Routers />} />
         <Route path="routers/:id" element={<RouterDetail />} />
-        <Route path="agents" element={<Agents />} />
+        {/* La vista de agentes vive ahora como sección de /routers (#284):
+         * el route legacy redirige para no romper enlaces antiguos. */}
+        <Route path="agents" element={<Navigate to="/routers" replace />} />
         <Route path="devices" element={<Devices />} />
         <Route path="topology" element={<Topology />} />
         <Route path="alerts" element={<Alerts />} />

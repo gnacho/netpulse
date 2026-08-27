@@ -269,6 +269,11 @@ func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent-%s"`, arch))
+	// #284: sha256 del binario embebido para que el agente verifique la
+	// integridad de la descarga antes de hacer el swap.
+	if d := agentbin.Digest(arch); d != "" {
+		w.Header().Set("X-Checksum-Sha256", d)
+	}
 	http.ServeContent(w, r, st.Name(), st.ModTime(), rs)
 }
 
@@ -352,6 +357,26 @@ type agentListItem struct {
 	// SOLO se marca para routers OpenWrt (type openwrt/glinet): los de tipo
 	// managed-switch/external son scrapers que no usan el agente nativo.
 	UpdateAvailable bool `json:"updateAvailable"`
+	// Upgrade: último paso del self-update en marcha (requested/downloading/
+	// swapping/restarting/failed) con su marca de tiempo. null si no hay
+	// actividad reciente (#284: progreso en vivo para la UI).
+	Upgrade *agentUpgradeInfo `json:"upgrade,omitempty"`
+}
+
+// agentUpgradeStep es un paso de la historia (timeline de la UI, #284).
+type agentUpgradeStep struct {
+	Step string `json:"step"`
+	Pct  int    `json:"pct,omitempty"`
+	Ts   int64  `json:"ts"` // unix segundos
+}
+
+// agentUpgradeInfo es el paso de progreso expuesto en GET /api/agents.
+type agentUpgradeInfo struct {
+	Step  string            `json:"step"`
+	Pct   int               `json:"pct,omitempty"` // 0-100 en "downloading"
+	Error string            `json:"error,omitempty"`
+	Ts    int64             `json:"ts"` // unix segundos del último reporte
+	Steps []agentUpgradeStep `json:"steps,omitempty"` // historia de pasos (#284)
 }
 
 // agentUpgradeable: ¿un agente de un router con este type es actualizable?
@@ -416,6 +441,15 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						item.UpdateAvailable = agentUpgradeable(routerTypes[slug]) && version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
+				}
+				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
+				if st, ok := s.upgrades.snapshot(slug); ok {
+					ts := st.Ts.Unix()
+					info := &agentUpgradeInfo{Step: st.Step, Pct: st.Pct, Error: st.Error, Ts: ts}
+					for _, e := range st.History {
+						info.Steps = append(info.Steps, agentUpgradeStep{Step: e.Step, Pct: e.Pct, Ts: e.Ts.Unix()})
+					}
+					item.Upgrade = info
 				}
 				out = append(out, item)
 			}

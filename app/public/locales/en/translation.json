@@ -83,7 +83,7 @@
     "empty": "No results.",
     "pages": "Pages",
     "placeholder": "Jump to a page, router or device…",
-    "routers": "Routers"
+    "routers": "Devices"
   },
   "common": {
     "ago": {
@@ -226,7 +226,7 @@
     "weakChip": "{{count}} with weak signal"
   },
   "home": {
-    "devices": "Devices",
+    "devices": "Clients",
     "download": "Download",
     "greetingAfternoon": "Good afternoon",
     "greetingEvening": "Good evening",
@@ -298,7 +298,7 @@
   },
   "nav": {
     "alerts": "Alerts",
-    "devices": "Devices",
+    "devices": "Clients",
     "installApp": "Install app",
     "installFromSettings": "Available from Settings",
     "mainNav": "Main navigation",
@@ -308,7 +308,7 @@
     "reports": "Reports",
     "roaming": "WiFi roaming",
     "routerDetail": "Router detail",
-    "routers": "Routers",
+    "routers": "Devices",
     "settings": "Settings",
     "settingsDesc": "Theme, units and installation",
     "theme": "Theme",
@@ -316,8 +316,7 @@
     "topologyDesc": "Visual network map",
     "collapse": "Collapse menu",
     "expand": "Expand menu",
-    "orchestration": "Orchestration",
-    "agents": "Agents"
+    "orchestration": "Orchestration"
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
@@ -541,7 +540,19 @@
       "downBanner": "Agent is down — reinstall it from the router detail",
       "notInstalled": "Agent not installed",
       "notInstalledTip": "This router is configured to run agent-only, but the agent is not installed. Reinstall it from the router detail.",
-      "notInstalledBanner": "Agent not installed — reinstall it from the router detail"
+      "notInstalledBanner": "Agent not installed — reinstall it from the router detail",
+      "stepRequested": "Command sent",
+      "stepDownloading": "Downloading {{pct}}%",
+      "stepSwapping": "Installing binary",
+      "stepRestarting": "Restarting agent",
+      "upgraded": "Upgraded",
+      "stepQueued": "waiting for connection",
+      "upgradeQueued": "Queued",
+      "upgradeQueuedTip": "The agent is offline: the upgrade will be sent when it reconnects",
+      "timeline": "Upgrade",
+      "timelineDone": "completed",
+      "stepVerifying": "Verifying integrity",
+      "timelineSummary": "· {{count}} steps · {{secs}} s"
     },
     "colClients": "Clients",
     "colCpu": "CPU",
@@ -602,8 +613,10 @@
       "copyCmd": "Copy command",
       "copyCmdTip": "Generates the manual install one-liner (fallback for routers without SSH). The token rotates on every generation.",
       "copied": "Command copied",
-      "cmdFail": "Could not generate the command"
-    }
+      "cmdFail": "Could not generate the command",
+      "title": "Agents"
+    },
+    "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s"
   },
   "reports": {
     "availability": "Availability",
@@ -885,7 +898,7 @@
     "reduceMotion": "Reduce animations",
     "reduceMotionCaption": "Disables pulses, tweens and staggered entrances",
     "routers": {
-      "title": "Routers",
+      "title": "Devices",
       "caption": "The gateway is auto-detected on boot; add the rest manually",
       "empty": "No routers configured yet. The gateway is auto-detected when the server boots; if it's missing, add it here.",
       "host": "IP or hostname",

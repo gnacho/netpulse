@@ -4,8 +4,10 @@ import { Link } from 'react-router'
 import { RefreshCw, Rocket } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
+import { AgentsSection } from '@/components/routers/AgentsSection'
 import { FleetCard } from '@/components/routers/FleetCard'
 import { FleetTable } from '@/components/routers/FleetTable'
+import { activeUpgrade, upgradeElapsed, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,26 +20,29 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
-/** Tiempo máximo de espera por agente antes de marcarlo como fallido (ms).
+/** Tiempo máximo SIN NOTICIAS por agente antes de marcarlo como fallido (ms).
  * El self-update real tarda ~10-20 s (descarga + swap + restart + primer push);
- * 25 s cubre ese ciclo con margen. Un agente que no marca updateAvailable=false
- * en ese plazo no entiende el comando "upgrade" (versión previa a #243) y
- * requiere un reinstall. El poll de agentes (30 s) fuerza el render que lo
- * marca como fallido. */
+ * con los pasos en vivo (#284) cada reporte renueva la ventana, así que el
+ * timeout actúa solo como detector de parón: un agente que no reporta nada
+ * (versión previa a #284, con "requested" sembrado por el server) o que no
+ * marca updateAvailable=false en ese plazo requiere un reinstall. El poll de
+ * agentes (2 s durante upgrades) fuerza el render que lo marca. */
 const UPGRADE_TIMEOUT_MS = 25_000
 
 /** Página `/routers` — vista de flota (routers.md) */
 export default function Routers() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { routers, agents, upgradeAllAgents } = useNetPulse()
+  const { routers, agents, upgradeAllAgents, refreshAgents } = useNetPulse()
   const [refreshKey, setRefreshKey] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null)
   /** Slugs en seguimiento del upgrade de flota con su instante de inicio. */
-  const [upgradeTrack, setUpgradeTrack] = useState<{ slug: string; startedAt: number }[]>([])
+  const [upgradeTrack, setUpgradeTrack] = useState<{ slug: string; startedAt: number; queued: boolean }[]>([])
+
+  const QUEUED_TIMEOUT_MS = 600_000
 
   function handleRefresh() {
     setRefreshKey((k) => k + 1)
@@ -57,25 +62,52 @@ export default function Routers() {
     setUpgrading(false)
     if (res) {
       setUpgradeMsg(res.message)
-      // Seguimiento: los "sent" quedan en el panel hasta que el poll de
-      // agentes los marque al día (updateAvailable=false) o expire el timeout.
-      const sent = res.agents.filter((a) => a.status === 'sent').map((a) => a.slug)
-      setUpgradeTrack(sent.map((slug) => ({ slug, startedAt: Date.now() })))
-      if (sent.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
+      // Seguimiento: los "sent" Y los "queued" quedan en el panel hasta que
+      // el poll de agentes los marque al día (updateAvailable=false) o
+      // expire su timeout (los encolados esperan la reconexión del SSE,
+      // que con el backoff legacy puede tardar minutos).
+      const tracked = res.agents.filter((a) => a.status === 'sent' || a.status === 'queued')
+      setUpgradeTrack(tracked.map((a) => ({ slug: a.slug, startedAt: Date.now(), queued: a.status === 'queued' })))
+      // Tanda inmediata: encadena el sondeo rápido del provider (2 s mientras
+      // haya upgrades activos) en vez de esperar al ciclo lento de reposo -
+      // sin esto, un upgrade de flota en LAN (sub-segundo por agente) ocurre
+      // entero entre dos polls y el panel no muestrea ni un paso (#284).
+      void refreshAgents()
+      if (tracked.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
     } else {
       setUpgradeMsg(t('routers.upgradeAllFail'))
       window.setTimeout(() => setUpgradeMsg(null), 5000)
     }
   }
 
-  // Progreso en vivo: por slug, 'done' (al día), 'waiting' (en curso) o
-  // 'failed' (timeout sin respuesta del agente).
-  const upgradeProgress = upgradeTrack.map(({ slug, startedAt }) => {
+  // Progreso en vivo (#284): por slug, 'done' (al día), 'waiting' (en curso,
+  // con el paso que reporta el agente y los segundos transcurridos) o
+  // 'failed' (error reportado, parón sin noticias o "requested" que nunca
+  // arrancó = agente que no entiende el comando).
+  const nowSec = Math.floor(Date.now() / 1000)
+  const upgradeProgress = upgradeTrack.map(({ slug, startedAt, queued }) => {
     const agent = agents.find((a) => a.slug === slug)
     const done = agent ? !agent.updateAvailable : false
-    const timedOut = !done && Date.now() - startedAt >= UPGRADE_TIMEOUT_MS
-    const status = done ? 'done' : timedOut ? 'failed' : 'waiting'
-    return { slug, status, version: agent?.version ?? '…' }
+    const step = activeUpgrade(agent, nowSec)
+    const reportedFail = agent?.upgrade?.step === 'failed'
+    // "requested" sin reportes del agente tras el timeout: agente legacy o
+    // colgado (los agentes con #284 reportan "downloading" enseguida).
+    const staleRequested =
+      !queued && step?.step === 'requested' && nowSec - step.ts >= UPGRADE_TIMEOUT_MS / 1000
+    const lastNewsMs = Math.max(startedAt, (agent?.upgrade?.ts ?? 0) * 1000)
+    // Los encolados esperan la reconexión del SSE del agente (backoff legacy
+    // hasta 5 min): su timeout es generoso, no los 25 s de un envío directo.
+    const timedOut =
+      !done && !reportedFail && !step && Date.now() - lastNewsMs >= (queued ? QUEUED_TIMEOUT_MS : UPGRADE_TIMEOUT_MS)
+    const status = done ? 'done' : reportedFail || staleRequested || timedOut ? 'failed' : 'waiting'
+    // Resumen del recorrido (pasos + duración total) para las filas ya
+    // resueltas: en LAN el upgrade es sub-segundo y el panel en vivo no
+    // alcanza a muestrear los pasos; el resumen sí informa (#284).
+    const hist = agent?.upgrade?.steps ?? []
+    const first = hist[0]
+    const last = hist[hist.length - 1]
+    const durSec = first && last && hist.length > 1 && done ? Math.max(1, last.ts - first.ts) : 0
+    return { slug, status, version: agent?.version ?? '…', step, reportedFail, stepCount: hist.length, durSec }
   })
   const upgradeDone = upgradeProgress.filter((p) => p.status === 'done').length
   const upgradeFailed = upgradeProgress.filter((p) => p.status === 'failed').length
@@ -222,10 +254,16 @@ export default function Routers() {
                 <span className="min-w-0 flex-1 truncate font-mono text-caption text-text-secondary">{p.slug}</span>
                 <span className={cn('text-caption', p.status === 'done' ? 'text-ok' : p.status === 'failed' ? 'text-danger' : 'text-text-muted')}>
                   {p.status === 'done'
-                    ? t('routers.upgradeUpdated')
+                    ? p.stepCount > 1
+                      ? t('routers.upgradeUpdatedDetail', { count: p.stepCount, secs: p.durSec })
+                      : t('routers.upgradeUpdated')
                     : p.status === 'failed'
-                      ? t('routers.upgradeFailed')
-                      : t('routers.upgradeWaiting')}
+                      ? p.reportedFail
+                        ? t('routers.agent.upgradeFail')
+                        : t('routers.upgradeFailed')
+                      : p.step
+                        ? `${upgradeStepText(p.step, t)} · ${upgradeElapsed(p.step, nowSec)}`
+                        : t('routers.upgradeWaiting')}
                 </span>
               </li>
             ))}
@@ -242,6 +280,9 @@ export default function Routers() {
 
       {/* ③ Tabla comparativa */}
       <FleetTable refreshKey={refreshKey} />
+
+      {/* ④ Flota de agentes nativos (#245, reubicada aquí por #284) */}
+      <AgentsSection />
 
       {/* Confirmación in-app del upgrade de flota */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

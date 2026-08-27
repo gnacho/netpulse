@@ -209,14 +209,43 @@ func TestUpgradeSlugDesconocido404(t *testing.T) {
 	}
 }
 
-func TestUpgradeNoConectado409(t *testing.T) {
+// TestUpgradeNoConectadoEncola — #284: sin stream SSE el upgrade NO da 409;
+// se encola (202 status "queued") para el flush on-connect.
+func TestUpgradeNoConectadoEncola(t *testing.T) {
 	ts := makeUpgradeTestServer(t)
-	if st, _ := createUpgradeToken(t, ts, "patio"); st != 201 {
+	st, tok := createUpgradeToken(t, ts, "patio")
+	if st != 201 || tok == "" {
 		t.Fatalf("create: %d", st)
 	}
 	status, body := postUpgrade(t, ts, "patio", ts.cookie)
-	if status != 409 || body["error"] != "agent_not_connected" {
+	if status != 202 || body["status"] != "queued" {
 		t.Fatalf("no conectado: got %d %v", status, body)
+	}
+	// Al conectar el stream, el upgrade encolado se envía (flush on-connect)
+	// y el estado pasa a "requested" en GET /api/agents.
+	cancel, done := openStream(t, ts, "patio", tok)
+	defer func() { cancel(); <-done }()
+	deadline := time.Now().Add(5 * time.Second)
+	ok := false
+	for time.Now().Before(deadline) && !ok {
+		res := doReq(t, "GET", ts.URL+"/api/agents", ts.cookie, "")
+		if res.StatusCode == 200 {
+			for _, a := range readJSON(t, res)["agents"].([]any) {
+				m, isMap := a.(map[string]any)
+				if !isMap || m["slug"] != "patio" {
+					continue
+				}
+				if up, has := m["upgrade"].(map[string]any); has && up["step"] == "requested" {
+					ok = true
+				}
+			}
+		}
+		if !ok {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	if !ok {
+		t.Fatalf("el upgrade encolado no se envió al conectar el stream")
 	}
 }
 
@@ -229,10 +258,10 @@ func TestUpgradeConectado202(t *testing.T) {
 	cancel, done := openStream(t, ts, "patio", tok)
 
 	status, body := postUpgrade(t, ts, "patio", ts.cookie)
-	if status != 202 || body["ok"] != true {
+	if status != 202 || body["ok"] != true || body["status"] != "sent" {
 		t.Fatalf("conectado: got %d %v", status, body)
 	}
-	if len(body) != 1 {
+	if len(body) != 2 {
 		t.Fatalf("body con claves extra: %v", body)
 	}
 	cancel()
@@ -319,7 +348,7 @@ func TestAgentsListUpdateAvailable(t *testing.T) {
 // TestAgentsUpgradeAll — #251: POST /api/agents/upgrade-all.
 //   - 403 sin admin.
 //   - Con un agente conectado y desactualizado → status "sent".
-//   - Con un agente desconectado → status "not_connected".
+//   - Con un agente desconectado → status "queued" (flush on-connect, #284).
 //   - Con un agente al día (versión == embebida) → status "up_to_date".
 func TestAgentsUpgradeAll(t *testing.T) {
 	ts := makeUpgradeTestServer(t)
@@ -339,7 +368,7 @@ func TestAgentsUpgradeAll(t *testing.T) {
 	cancel, done := openStream(t, ts, "patio", tok)
 	defer func() { cancel(); <-done }()
 
-	// "otro" desactualizado pero SIN conectar → not_connected.
+	// "otro" desactualizado pero SIN conectar → queued (se envía al conectar).
 	if st, tokO := createUpgradeToken(t, ts, "otro"); st != 201 {
 		t.Fatalf("create otro: %d", st)
 	} else {
@@ -365,8 +394,8 @@ func TestAgentsUpgradeAll(t *testing.T) {
 	if bySlug["patio"] != "sent" {
 		t.Fatalf("patio debería ser sent: %v", bySlug)
 	}
-	if bySlug["otro"] != "not_connected" {
-		t.Fatalf("otro debería ser not_connected: %v", bySlug)
+	if bySlug["otro"] != "queued" {
+		t.Fatalf("otro debería ser queued: %v", bySlug)
 	}
 	if bySlug["aldia"] != "up_to_date" {
 		t.Fatalf("al_dia debería ser up_to_date: %v", bySlug)

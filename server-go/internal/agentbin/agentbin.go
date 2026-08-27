@@ -10,12 +10,16 @@
 package agentbin
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
+	"io"
 	"io/fs"
+	"sync"
 )
 
 // EmbeddedAgentVersion es la versión del binario de agente que el servidor
-// embebe y sirve por GET /api/agents/{slug}/binary. Se usa para calcular el
+// embebe y sirve por GET /api/agents/{slug}/binary?arch=.... Se usa para calcular el
 // campo updateAvailable de GET /api/agents: un agente cuya versión reportada
 // difiere de esta versión tiene una actualización pendiente.
 //
@@ -25,6 +29,34 @@ import (
 // server siempre coincide con la versión real de los binarios embebidos.
 // En desarrollo (sin ldflags) queda en el default 0.1.0.
 var EmbeddedAgentVersion = "0.1.0"
+
+// digestCache: sha256 por arquitectura. Los binarios son embebidos (no
+// cambian en runtime), así que se calcula una vez (#284: verificación de
+// integridad del upgrade del agente).
+var (
+	digestMu    sync.Mutex
+	digestCache = map[string]string{}
+)
+
+// Digest devuelve el sha256 (hex) del binario embebido para arch, o "" si no
+// existe o no se puede leer. Cacheado.
+func Digest(arch string) string {
+	digestMu.Lock()
+	defer digestMu.Unlock()
+	if d, ok := digestCache[arch]; ok {
+		return d
+	}
+	d := ""
+	if f, err := Open(arch); err == nil {
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err == nil {
+			d = hex.EncodeToString(h.Sum(nil))
+		}
+		f.Close()
+	}
+	digestCache[arch] = d
+	return d
+}
 
 //go:embed agents/*
 var agentsFS embed.FS
