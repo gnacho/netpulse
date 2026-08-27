@@ -258,3 +258,89 @@ func TestCanApplyDetection(t *testing.T) {
 		t.Fatal("con deploy/update.sh debería ser rolling/canApply")
 	}
 }
+
+// Issue #280: pesos por paso, PROGRESS explícito (clamp) y shape del status.
+func TestProgressWeightsAndClamp(t *testing.T) {
+	u := New(t.TempDir(), "owner/netpulse", "", "2.0.0", nil)
+	pctOf := func() int {
+		t.Helper()
+		m, ok := u.Status().Updating.(progress)
+		if !ok {
+			t.Fatal("debería estar updating")
+		}
+		return m.Progress
+	}
+	u.appendLog("STEP:start\n", true)
+	if p := pctOf(); p != stepWeight["start"] {
+		t.Fatalf("start: %d", p)
+	}
+	u.appendLog("STEP:fetch\n", true)
+	if p := pctOf(); p != stepWeight["fetch"] {
+		t.Fatalf("fetch: %d", p)
+	}
+	u.appendLog("STEP:download\n", true)
+	if p := pctOf(); p != stepWeight["download"] {
+		t.Fatalf("download: %d", p)
+	}
+	// PROGRESS por debajo del peso del paso no retrocede.
+	u.appendLog("PROGRESS:5\n", true)
+	if p := pctOf(); p != stepWeight["download"] {
+		t.Fatalf("progreso no puede bajar del peso: %d", p)
+	}
+	// PROGRESS dentro del paso avanza.
+	u.appendLog("PROGRESS:55\n", true)
+	if p := pctOf(); p != 55 {
+		t.Fatalf("55: %d", p)
+	}
+	// PROGRESS absurdo se recorta a 99 (100 solo con done).
+	u.appendLog("PROGRESS:150\n", true)
+	if p := pctOf(); p != 99 {
+		t.Fatalf("150 → 99: %d", p)
+	}
+	// done siempre 100.
+	u.appendLog("STEP:done\n", true)
+	if p := pctOf(); p != 100 {
+		t.Fatalf("done: %d", p)
+	}
+	// Paso legado (script viejo) sin PROGRESS: peso por defecto del mapa.
+	u.appendLog("STEP:binary\n", true)
+	if p := pctOf(); p != stepWeight["binary"] {
+		t.Fatalf("binary legado: %d", p)
+	}
+}
+
+// Issue #280: el broadcaster notifica cambios de paso y el cancel retira.
+func TestSubscribeBroadcast(t *testing.T) {
+	u := New(t.TempDir(), "owner/netpulse", "", "2.0.0", nil)
+	ch, cancel := u.Subscribe()
+	defer cancel()
+	u.appendLog("STEP:download\n", true)
+	select {
+	case st := <-ch:
+		m, ok := st.Updating.(progress)
+		if !ok || m.Step != "download" || m.Progress != stepWeight["download"] {
+			t.Fatalf("evento: %+v", st.Updating)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("sin evento tras STEP")
+	}
+	// Un segundo evento (cambio de pct) y luego la baja no bloquea.
+	u.appendLog("PROGRESS:50\n", true)
+	select {
+	case st := <-ch:
+		m, _ := st.Updating.(progress)
+		if m.Progress != 50 {
+			t.Fatalf("progreso: %d", m.Progress)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("sin evento tras PROGRESS")
+	}
+	cancel()
+	// Tras cancel, broadcast no entrega ni bloquea.
+	u.appendLog("STEP:verify\n", true)
+	select {
+	case <-ch:
+		t.Fatal("no debería llegar tras cancel")
+	default:
+	}
+}

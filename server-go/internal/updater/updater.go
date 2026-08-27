@@ -38,11 +38,31 @@ var APIBase = "https://api.github.com"
 var BuildCommit string
 
 type progress struct {
-	Step string `json:"step"`
+	Step     string `json:"step"`
+	Progress int    `json:"progress"` // 0-100
 }
 
-// Status es la respuesta de /api/update/status (shape literal de updater.js:
-// updating es false | {step}; lastLog son los últimos 800 chars).
+// stepWeight: porcentaje mostrado MIENTRAS el paso está en ejecución
+// (issue #280). Pasos del update.sh actual + los legados (binary,
+// server-deps, frontend-build) para compatibilidad con scripts viejos.
+var stepWeight = map[string]int{
+	"start":          3,
+	"fetch":          12,
+	"binary":         40, // legado: download+install juntos
+	"download":       40,
+	"verify":         68,
+	"install":        84,
+	"restart":        94,
+	"done":           100,
+	"server-deps":    30, // legado flujo Node
+	"frontend-build": 60, // legado flujo Node
+}
+
+const stepDefaultWeight = 50
+
+// Status es la respuesta de /api/update/status (extiende el shape histórico
+// updater.js): updating es false | {step, progress 0-100}; lastLog son los
+// últimos 800 chars.
 type Status struct {
 	Current         string  `json:"current"`
 	Latest          *string `json:"latest"`
@@ -83,9 +103,14 @@ type Updater struct {
 	updateAvail  bool
 	lastCheck    *int64
 	updatingStep *string // nil = no actualizando
+	updatingPct  int     // 0-100 (issue #280); peso del paso o PROGRESS explícito
 	updatingLog  string
 	lastLog      *string
 	err          *string
+
+	// Suscriptores del stream /api/update/stream (issue #280). Notificados
+	// en cada cambio de paso/porcentaje o fin de actualización.
+	subs map[chan Status]struct{}
 
 	// readiness cacheado (issue #160): el network check toca red y no debe
 	// bloquear el polling de status.
@@ -120,6 +145,7 @@ func New(repoRoot, repo, token, version string, db *sql.DB) *Updater {
 		mode:     mode,
 		db:       db,
 		current:  "desconocido",
+		subs:     make(map[chan Status]struct{}),
 		stopCh:   make(chan struct{}),
 	}
 	// Issue #161: procesar el marcador pendiente (confirmación post-update)
@@ -331,7 +357,47 @@ func (u *Updater) Check(ctx context.Context) Status {
 	return u.statusLocked()
 }
 
-var stepRe = regexp.MustCompile(`STEP:(\w+)`)
+var (
+	stepRe     = regexp.MustCompile(`STEP:(\w+)`)
+	progressRe = regexp.MustCompile(`PROGRESS:(\d{1,3})`)
+)
+
+// setStepLocked fija el paso activo y su porcentaje base (issue #280).
+func (u *Updater) setStepLocked(step string) {
+	u.updatingStep = &step
+	if w, ok := stepWeight[step]; ok {
+		u.updatingPct = w
+	} else {
+		u.updatingPct = stepDefaultWeight
+	}
+}
+
+// Subscribe registra un canal para recibir el Status en cada cambio del
+// update en curso (issue #280). El cancel devuelto lo retira.
+func (u *Updater) Subscribe() (<-chan Status, func()) {
+	ch := make(chan Status, 8)
+	u.mu.Lock()
+	u.subs[ch] = struct{}{}
+	u.mu.Unlock()
+	cancel := func() {
+		u.mu.Lock()
+		delete(u.subs, ch)
+		u.mu.Unlock()
+	}
+	return ch, cancel
+}
+
+// broadcastLocked emite el estado a todos los suscriptores sin bloquear
+// (un cliente lento pierde el evento; el siguiente lo corrige). Llamar con mu.
+func (u *Updater) broadcastLocked() {
+	st := u.statusLocked()
+	for ch := range u.subs {
+		select {
+		case ch <- st:
+		default:
+		}
+	}
+}
 
 // Apply lanza update.sh en segundo plano (iniciado manualmente desde la UI,
 // rol admin). Devuelve false si ya hay una actualización en curso (→ 409
@@ -348,9 +414,10 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.mu.Unlock()
 		return false
 	}
-	startStep := "start"
-	u.updatingStep = &startStep
+	u.setStepLocked("start")
+	u.updatingPct = 0
 	u.updatingLog = ""
+	u.broadcastLocked()
 	u.mu.Unlock()
 
 	// Historial + marcador: version_from es el commit actual, version_to el
@@ -380,6 +447,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.updatingStep = nil
 		code := "update_copy_failed"
 		u.err = &code
+		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", code, time.Since(startedAt))
 		fmt.Printf("[netpulse] no se pudo copiar update.sh: %v\n", err)
@@ -392,6 +460,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	if err != nil {
 		u.mu.Lock()
 		u.updatingStep = nil
+		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", "update_pipe_failed", time.Since(startedAt))
 		return false
@@ -400,6 +469,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	if err := cmd.Start(); err != nil {
 		u.mu.Lock()
 		u.updatingStep = nil
+		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", "update_start_failed", time.Since(startedAt))
 		return false
@@ -422,8 +492,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.mu.Lock()
 		defer u.mu.Unlock()
 		if waitErr == nil {
-			step := "done"
-			u.updatingStep = &step
+			u.setStepLocked("done")
 			log := u.updatingLog
 			u.lastLog = &log
 			u.updateAvail = false
@@ -444,19 +513,47 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 			// Issue #161: el apply falló → sin confirmación post-update.
 			u.clearPendingApply()
 		}
+		u.broadcastLocked()
 	}()
 	return true
 }
 
-// appendLog acumula el log (tail 4000) y extrae STEP:xxx del stdout.
+// appendLog acumula el log (tail 4000) y extrae STEP:xxx y PROGRESS:nn del
+// stdout. Solo hace broadcast cuando el paso o el porcentaje CAMBIAN (no en
+// cada línea de log) para no saturar el stream (issue #280).
 func (u *Updater) appendLog(text string, parseStep bool) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.updatingLog = tail(u.updatingLog+text, logTail)
 	if parseStep {
+		before := ""
+		if u.updatingStep != nil {
+			before = *u.updatingStep
+		}
+		beforePct := u.updatingPct
 		if m := stepRe.FindStringSubmatch(text); m != nil {
-			step := m[1]
-			u.updatingStep = &step
+			u.setStepLocked(m[1])
+		}
+		if m := progressRe.FindStringSubmatch(text); m != nil && u.updatingStep != nil {
+			// El progreso explícito no puede bajar del peso del paso activo
+			// ni superar el 99 (done se reserva al final del script).
+			n, err := strconv.Atoi(m[1])
+			if err == nil {
+				if n < u.updatingPct {
+					n = u.updatingPct
+				}
+				if n > 99 {
+					n = 99
+				}
+				u.updatingPct = n
+			}
+		}
+		after := ""
+		if u.updatingStep != nil {
+			after = *u.updatingStep
+		}
+		if after != before || u.updatingPct != beforePct {
+			u.broadcastLocked()
 		}
 		fmt.Printf("[netpulse:update] %s\n", strings.TrimSpace(text))
 	}
@@ -490,7 +587,11 @@ func (u *Updater) Status() Status {
 func (u *Updater) statusLocked() Status {
 	var updating any = false
 	if u.updatingStep != nil {
-		updating = progress{Step: *u.updatingStep}
+		pct := u.updatingPct
+		if *u.updatingStep == "done" {
+			pct = 100
+		}
+		updating = progress{Step: *u.updatingStep, Progress: pct}
 	}
 	var lastLog *string
 	if u.updatingStep != nil {
