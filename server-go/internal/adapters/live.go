@@ -2093,8 +2093,18 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			enriched = append(enriched, port)
 			continue
 		}
-		// 3) Varios: el vecino es un switch/hub
+		// 3) Varios: el vecino es un switch/hub/hipervisor
 		if len(all) > 1 {
+			// Muchas MACs detrás de una boca = agregación (hipervisor Proxmox
+			// con CTs, switch tonto): nombrar UN CT al azar engaña (la MAC es
+			// virtual, no el equipo enchufado). La label curada del puerto ya
+			// identifica el físico; aquí se cuenta lo que hay detrás (#291).
+			if len(all) > 3 {
+				port.ConnectedTo = fmt.Sprintf("%d dispositivos", len(all))
+				port.Detail = "agregación · ¿hipervisor o switch?"
+				enriched = append(enriched, port)
+				continue
+			}
 			// Si se anuncia por LLDP, esa identificación (chassis + mgmt-ip)
 			// es mejor pista que el hostname DHCP.
 			if nb := lldpNeighborOnPort(p.lldp, port.ID); nb != nil && nb.displayName() != "" {
