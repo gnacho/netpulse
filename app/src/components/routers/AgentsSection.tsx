@@ -237,8 +237,10 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
               {t('routers.agent.timeline')}
               {(() => {
                 const h = up.steps ?? []
-                if (h.length < 2) return null
-                const dur = Math.max(1, h[h.length - 1].ts - h[0].ts)
+                const first = h[0]
+                const last = h[h.length - 1]
+                if (!first || !last || h.length < 2) return null
+                const dur = Math.max(1, last.ts - first.ts)
                 return <span className="font-mono normal-case">{t('routers.agent.timelineSummary', { count: h.length, secs: dur })}</span>
               })()}
             </span>

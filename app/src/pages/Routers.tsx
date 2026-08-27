@@ -104,8 +104,9 @@ export default function Routers() {
     // resueltas: en LAN el upgrade es sub-segundo y el panel en vivo no
     // alcanza a muestrear los pasos; el resumen sí informa (#284).
     const hist = agent?.upgrade?.steps ?? []
-    const durSec =
-      hist.length > 1 && done ? Math.max(1, hist[hist.length - 1].ts - hist[0].ts) : 0
+    const first = hist[0]
+    const last = hist[hist.length - 1]
+    const durSec = first && last && hist.length > 1 && done ? Math.max(1, last.ts - first.ts) : 0
     return { slug, status, version: agent?.version ?? '…', step, reportedFail, stepCount: hist.length, durSec }
   })
   const upgradeDone = upgradeProgress.filter((p) => p.status === 'done').length
