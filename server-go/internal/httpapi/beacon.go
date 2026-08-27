@@ -197,13 +197,22 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		}
 		ports = append(ports, ep)
 	}
+	// El beacon no sondea MACs: viaja con la ÚLTIMA tabla conocida (del
+	// datagrama FDB) en vez de nil. Así el estado persistido sobrevive a los
+	// reinicios del server (restore con MACs) y no hay ventana de 5 min sin
+	// atribución tras cada arranque. Un FDB real vacío sigue llegando como {}
+	// (estado) y nunca como nil (ausencia).
+	var macs map[string]string
+	if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
+		macs = prev.Data.FDB.MACs
+	}
 	pl := &probe.Payload{
 		Router:   p.Slug,
 		Ts:       time.Now().Unix(),
 		Version:  beaconVersion,
 		Kind:     "external",
 		Interval: beaconIntervalSec,
-		Data:     probe.PayloadData{FDB: &probe.FDBData{Ports: ports}},
+		Data:     probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 	}
 	// Fallback de cambios de link por delta entre beacons (#291): si el
 	// firmware no manda eventos, el cambio se detecta comparando el payload
