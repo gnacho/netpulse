@@ -33,7 +33,7 @@ const UPGRADE_TIMEOUT_MS = 25_000
 export default function Routers() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { routers, agents, upgradeAllAgents } = useNetPulse()
+  const { routers, agents, upgradeAllAgents, refreshAgents } = useNetPulse()
   const [refreshKey, setRefreshKey] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
@@ -68,6 +68,11 @@ export default function Routers() {
       // que con el backoff legacy puede tardar minutos).
       const tracked = res.agents.filter((a) => a.status === 'sent' || a.status === 'queued')
       setUpgradeTrack(tracked.map((a) => ({ slug: a.slug, startedAt: Date.now(), queued: a.status === 'queued' })))
+      // Tanda inmediata: encadena el sondeo rápido del provider (2 s mientras
+      // haya upgrades activos) en vez de esperar al ciclo lento de reposo -
+      // sin esto, un upgrade de flota en LAN (sub-segundo por agente) ocurre
+      // entero entre dos polls y el panel no muestrea ni un paso (#284).
+      void refreshAgents()
       if (tracked.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
     } else {
       setUpgradeMsg(t('routers.upgradeAllFail'))
@@ -95,7 +100,13 @@ export default function Routers() {
     const timedOut =
       !done && !reportedFail && !step && Date.now() - lastNewsMs >= (queued ? QUEUED_TIMEOUT_MS : UPGRADE_TIMEOUT_MS)
     const status = done ? 'done' : reportedFail || staleRequested || timedOut ? 'failed' : 'waiting'
-    return { slug, status, version: agent?.version ?? '…', step, reportedFail }
+    // Resumen del recorrido (pasos + duración total) para las filas ya
+    // resueltas: en LAN el upgrade es sub-segundo y el panel en vivo no
+    // alcanza a muestrear los pasos; el resumen sí informa (#284).
+    const hist = agent?.upgrade?.steps ?? []
+    const durSec =
+      hist.length > 1 && done ? Math.max(1, hist[hist.length - 1].ts - hist[0].ts) : 0
+    return { slug, status, version: agent?.version ?? '…', step, reportedFail, stepCount: hist.length, durSec }
   })
   const upgradeDone = upgradeProgress.filter((p) => p.status === 'done').length
   const upgradeFailed = upgradeProgress.filter((p) => p.status === 'failed').length
@@ -242,7 +253,9 @@ export default function Routers() {
                 <span className="min-w-0 flex-1 truncate font-mono text-caption text-text-secondary">{p.slug}</span>
                 <span className={cn('text-caption', p.status === 'done' ? 'text-ok' : p.status === 'failed' ? 'text-danger' : 'text-text-muted')}>
                   {p.status === 'done'
-                    ? t('routers.upgradeUpdated')
+                    ? p.stepCount > 1
+                      ? t('routers.upgradeUpdatedDetail', { count: p.stepCount, secs: p.durSec })
+                      : t('routers.upgradeUpdated')
                     : p.status === 'failed'
                       ? p.reportedFail
                         ? t('routers.agent.upgradeFail')

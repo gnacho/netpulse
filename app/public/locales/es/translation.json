@@ -551,7 +551,8 @@
       "upgradeQueuedTip": "El agente no está conectado: la actualización se enviará cuando vuelva a conectar",
       "timeline": "Actualización",
       "timelineDone": "completado",
-      "stepVerifying": "Comprobando integridad"
+      "stepVerifying": "Comprobando integridad",
+      "timelineSummary": "· {{count}} pasos · {{secs}} s"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",
@@ -614,7 +615,8 @@
       "copied": "Comando copiado",
       "cmdFail": "No se pudo generar el comando",
       "title": "Agentes"
-    }
+    },
+    "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s"
   },
   "reports": {
     "availability": "Disponibilidad",

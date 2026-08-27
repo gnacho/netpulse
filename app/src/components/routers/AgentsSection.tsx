@@ -235,6 +235,12 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
             <span className="inline-flex items-center gap-1.5 text-label font-medium uppercase text-text-muted">
               <Clock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
               {t('routers.agent.timeline')}
+              {(() => {
+                const h = up.steps ?? []
+                if (h.length < 2) return null
+                const dur = Math.max(1, h[h.length - 1].ts - h[0].ts)
+                return <span className="font-mono normal-case">{t('routers.agent.timelineSummary', { count: h.length, secs: dur })}</span>
+              })()}
             </span>
             {(up.steps ?? []).map((s, i) => {
               const isCurrent = i === (up.steps?.length ?? 0) - 1 && live !== undefined

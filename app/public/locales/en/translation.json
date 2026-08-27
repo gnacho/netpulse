@@ -551,7 +551,8 @@
       "upgradeQueuedTip": "The agent is offline: the upgrade will be sent when it reconnects",
       "timeline": "Upgrade",
       "timelineDone": "completed",
-      "stepVerifying": "Verifying integrity"
+      "stepVerifying": "Verifying integrity",
+      "timelineSummary": "· {{count}} steps · {{secs}} s"
     },
     "colClients": "Clients",
     "colCpu": "CPU",
@@ -614,7 +615,8 @@
       "copied": "Command copied",
       "cmdFail": "Could not generate the command",
       "title": "Agents"
-    }
+    },
+    "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s"
   },
   "reports": {
     "availability": "Availability",
