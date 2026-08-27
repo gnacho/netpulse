@@ -7,6 +7,23 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-08-27
+
+### Added
+
+- **Asistente de actualización multi-paso (#280)**: aplicar una actualización ya no es un botón ciego. El asistente confirma con el changelog real (cuerpo del commit en rolling, notas del release en estable) y un aviso explícito de caída del servicio que hay que marcar; ejecuta con pasos visibles (obtener código, descargar binario, verificar integridad, instalar, reiniciar) alimentados por hitos `STEP:`/`PROGRESS:` del script de update, transmitidos por SSE (`GET /api/update/stream`, admin) con fallback a polling; y recarga la app solo cuando responde un proceso distinto (uptime baseline). La descarga del binario de CI se verifica contra el digest sha256 publicado antes del swap.
+- **Sección de flota de agentes en Dispositivos (#284)**: la vista de agentes pasa a ser una sección al final de la página de dispositivos (la ruta `/agents` redirige), con rearmar, copiar comando, reinstalar y **actualizar agente** por fila.
+- **Actualización de agentes con progreso en vivo (#284)**: el agente reporta pasos con timestamps (descargando con % cada 5%, comprobando integridad, instalando, reiniciando) que el servidor expone como historia (`upgrade.steps`) y la UI pinta como línea de tiempo; los runs rápidos se resumen ("Actualizado · N pasos · X s").
+- **Cola de actualizaciones para agentes desconectados (#284)**: si un agente no tiene su stream SSE conectado, el comando de upgrade se encola y se envía en cuanto reconecta (flush on-connect del hub); la UI lo muestra como "esperando conexión" y lo sigue hasta que resuelve.
+- **Verificación de integridad del binario de agente (#284)**: el servidor sirve el binario embebido con cabecera `X-Checksum-Sha256` y el agente comprueba el sha256 antes de hacer el swap (paso "comprobando integridad"); si no cuadra, aborta sin tocar el binario en marcha.
+- **Menús renombrados (#284)**: "Routers" pasa a "Dispositivos" y "Dispositivos" a "Clientes" (más preciso: la página lista routers, switches y APs), alineando paleta de comandos, resumen y ajustes.
+
+### Fixed
+
+- **Backoff de reconexión del agente que nunca se reseteaba (#284)**: tras varios reinicios del servidor, los agentes acababan reintentando su stream de comandos cada 5 minutos para siempre, con lo que el servidor solo alcanzaba a los que habían reconectado por casualidad ("upgrade enviado a 1 de 5"). El backoff ahora se resetea tras una conexión establecida.
+- **Sección "Novedades" vacía (#280)**: cuando el cuerpo del commit solo contiene trailers de git (Co-authored-by, etc.), la sección de novedades del asistente ya no se renderiza.
+- **Upgrades de flota no muestreados (#284)**: al lanzar "Actualizar agentes" se dispara un refresco inmediato de agentes que engancha el sondeo rápido (2 s), en vez de esperar al ciclo de reposo de 30 s con el que un upgrade en LAN ocurría entero sin verse.
+
 ## [2.13.1] - 2026-08-25
 
 ### Fixed
