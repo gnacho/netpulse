@@ -376,6 +376,10 @@ export interface AgentInfo {
   lastSeen: number | null
   /** Versión del binario netpulse-agent ("" si aún no se conoce) */
   version?: string
+  /** "native" (agente netpulse-agent) o "external" (pusher tipo scraper, #285/#288) */
+  kind?: 'native' | 'external'
+  /** Cadencia de push declarada en segundos (solo externos, #288) */
+  interval?: number
   fresh: boolean
   /**
    * true si el agente reporta una versión distinta de la del binario embebido

@@ -161,7 +161,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	// Marcar el lastSeen previo para saber si el push que llega es NUEVO.
 	var prevSeen time.Time
 	if r.agents != nil {
-		if seen, _, ok := r.agents.Info(slug); ok {
+		if seen, _, _, _, ok := r.agents.Info(slug); ok {
 			prevSeen = seen
 		}
 	}
@@ -182,7 +182,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 		if r.agents == nil {
 			break
 		}
-		if seen, _, ok := r.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
+		if seen, _, _, _, ok := r.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
 			recovered = true
 			break
 		}

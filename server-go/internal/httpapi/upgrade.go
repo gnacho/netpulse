@@ -317,7 +317,7 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 	for _, slug := range slugs {
 		item := upgradeAllItem{Slug: slug}
 		if s.agents != nil {
-			if _, version, ok := s.agents.Info(slug); ok {
+			if _, version, _, _, ok := s.agents.Info(slug); ok {
 				item.Version = version
 				// Solo agentes nativos OpenWrt: los de type managed-switch/
 				// external son scrapers que no entienden el comando "upgrade".
@@ -340,16 +340,22 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 		}
 		out = append(out, item)
 	}
-	queued := 0
+	queued, external := 0, 0
 	for _, it := range out {
-		if it.Status == "queued" {
+		switch it.Status {
+		case "queued":
 			queued++
+		case "not_openwrt":
+			external++
 		}
 	}
-	log.Printf("[netpulse] upgrade-all: %d/%d enviados, %d en cola", sent, len(out), queued)
+	log.Printf("[netpulse] upgrade-all: %d/%d enviados, %d en cola, %d externos", sent, len(out), queued, external)
 	msg := fmt.Sprintf("upgrade enviado a %d de %d agentes", sent, len(out))
 	if queued > 0 {
 		msg += fmt.Sprintf(", %d en cola hasta que conecten", queued)
+	}
+	if external > 0 {
+		msg += fmt.Sprintf(", %d externos sin acción", external)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agents":  out,

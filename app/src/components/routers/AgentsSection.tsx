@@ -156,7 +156,19 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         <span className="font-mono text-caption text-text-secondary">{lastSeen}</span>
       </td>
       <td className="py-3 pr-3">
-        <span className="font-mono text-caption text-text-secondary">{agent?.version ? `v${agent.version}` : '-'}</span>
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-caption text-text-secondary">
+            {agent?.version ? (agent.kind === 'external' ? agent.version : `v${agent.version}`) : '-'}
+          </span>
+          {agent?.kind === 'external' && (
+            <span
+              title={t('routers.agents.externalTip', { interval: agent.interval ?? 0 })}
+              className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+            >
+              {t('routers.agents.external')}
+            </span>
+          )}
+        </span>
       </td>
       <td className="py-3">
         <div className="flex flex-wrap items-center gap-2">
