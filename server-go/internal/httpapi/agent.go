@@ -529,6 +529,8 @@ func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, rearmer.ErrNoRouter):
 		writeError(w, http.StatusConflict, "router_unknown", err.Error())
+	case errors.Is(err, rearmer.ErrExternalAgent):
+		writeError(w, http.StatusConflict, "not_openwrt", err.Error())
 	case errors.Is(err, rearmer.ErrNoSSH):
 		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", err.Error())
 	default:

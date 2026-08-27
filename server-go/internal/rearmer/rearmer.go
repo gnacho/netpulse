@@ -74,6 +74,10 @@ func (e ErrCooldown) Error() string {
 var (
 	ErrNoToken  = fmt.Errorf("ese slug no tiene agente registrado")
 	ErrNoRouter = fmt.Errorf("no hay router con ese slug en la tabla routers")
+	// ErrExternalAgent: el slug es un pusher EXTERNO (tipo no OpenWrt,
+	// p. ej. switch gestionado por beacon): sin SSH, no se instala, no se
+	// rearmera ni se actualiza - solo alerta (#291).
+	ErrExternalAgent = fmt.Errorf("agente externo: sin SSH ni rearme")
 	ErrNoSSH    = fmt.Errorf("el servidor no tiene pool SSH (modo demo o clave ausente)")
 	ErrNoDB     = fmt.Errorf("db no disponible")
 )
@@ -119,9 +123,17 @@ func (r *Rearmer) SetCooldown(d time.Duration) {
 	}
 }
 
+// nativeAgentType: ¿el tipo de router admite agente nativo (OpenWrt) y por
+// tanto rearme/reinstalación por SSH? Los tipos externos (managed-switch,
+// p. ej. un switch por beacon) NO: solo alertan.
+func nativeAgentType(t string) bool {
+	return t == "" || t == "openwrt" || t == "glinet"
+}
+
 // Rearm ejecuta un rearme completo del slug. Errores tipificados
-// (ErrNoDB, ErrNoToken, ErrNoRouter, ErrNoSSH, ErrCooldown) para que el
-// handler HTTP los mapee a su status; cualquier otro error es fallo SSH.
+// (ErrNoDB, ErrNoToken, ErrNoRouter, ErrNoSSH, ErrExternalAgent,
+// ErrCooldown) para que el handler HTTP los mapee a su status; cualquier
+// otro error es fallo SSH.
 func (r *Rearmer) Rearm(slug string) (Result, error) {
 	if r.db == nil {
 		return Result{}, ErrNoDB
@@ -136,6 +148,9 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	host := ""
 	for _, rc := range routerstore.ListRouters(r.db) {
 		if rc.ID == slug {
+			if !nativeAgentType(rc.Type) {
+				return Result{}, ErrExternalAgent
+			}
 			host = rc.Host
 			break
 		}
@@ -282,7 +297,20 @@ func (s *Supervisor) CheckOnce() {
 	if s.registry == nil || s.db == nil || s.rearmer == nil {
 		return
 	}
+	// Externos (p. ej. switch gestionado por beacon): sin SSH, nunca se
+	// rearman. Se resuelven una vez por pasada (misma tabla que Rearm).
+	external := map[string]bool{}
+	for _, rc := range routerstore.ListRouters(s.db) {
+		if !nativeAgentType(rc.Type) {
+			external[rc.ID] = true
+		}
+	}
 	for _, slug := range s.registeredSlugs() {
+		if external[slug] {
+			// El Dead Man's Switch ya alerta la caída; aquí solo se ignora.
+			s.closeFailID(slug)
+			continue
+		}
 		// Solo rearma si el agente EXPIRÓ (TTL): conocido y último push
 		// fuera del TTL. Un slug sin push nunca visto no se rearma (no hay
 		// evidencia de que el servicio haya estado vivo).
