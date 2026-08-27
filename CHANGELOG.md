@@ -7,6 +7,23 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-08-28
+
+### Added
+
+- **Switches gestionados como agentes beacon UDP (#291, #292, #294)**: los switches RTL8372/8373 con firmware RTLPlayground (p. ej. el KP-9000) se integran por un canal UDP propio: beacon de estado cada 30 s (velocidad de enlace y contadores de tramas por boca), datagrama FDB cada 5 min (~600 B, MACs normalizadas al formato canónico) y eventos inmediatos (loop, port up/down, disabled/recovered) que alimentan las alertas. El token del agente se valida igual que el ingest HTTP (kv sha256), con rate limit por IP y estampado de hora en el servidor (el emisor no tiene RTC).
+- **Descubrimiento y pareado de switches (#291)**: un switch sin parear anuncia su identidad (modelo + versión de firmware) por broadcast; NetPulse lo lista como candidato y el admin lo configura con un slug y el comando `beacon <ip> <slug> <token>`.
+- **Detección de reinicio del switch (#291)**: el contador seq del beacon vuelve a 1 tras un boot; el servidor lo detecta y publica una alerta informativa "Switch reiniciado".
+- **Atribución de bocas consciente de la infraestructura (#291)**: los clientes WiFi atribuyen la boca a su AP; los prefijos OUI de virtualización marcan hipervisores con su VM/CT detrás; las etiquetas curadas nombran dispositivos o infraestructura; los satélites ya no adoptan dispositivos aprendidos por su uplink (el switch deja de atribuirse toda la red vista por lan1).
+- **Documentación de onboarding (#292/#293)**: `docs/AGENTE-RTL-SWITCH.md` con el procedimiento completo para incorporar switches embebidos.
+
+### Fixed
+
+- **Test beacon con race en CI lenta (#295)**: la consulta a la kv podía ganar al write del goroutine del listener; ahora se espera con deadline.
+- **Ventana sin atribución tras reinicios**: el beacon persiste la última tabla MAC conocida, así el arranque restaura los nombres de bocas y clientes al instante.
+- **Panel de detalle del AP**: la fila de backhaul/latencia ahora usa la IP real del gateway (192.168.1.1) en vez de un literal del canon demo (192.168.8.1) y ocupa una fila compacta a ancho completo.
+- **Las bocas de un switch cableado ya no muestran secciones WiFi vacías** y se mantienen en una única fila horizontal con scroll si no caben.
+
 ## [2.14.0] - 2026-08-27
 
 ### Added
