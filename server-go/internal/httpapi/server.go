@@ -108,10 +108,13 @@ type server struct {
 	// por slug en memoria, expuesto en GET /api/agents.
 	upgrades *upgradeTracker
 
-	// Beacon UDP de pushers embebidos (#291): socket y último seq por slug.
-	beaconConn  net.PacketConn
-	beaconSeqMu sync.Mutex
-	beaconSeq   map[string]uint32
+	// Beacon UDP de pushers embebidos (#291): socket, último seq por slug y
+	// candidatos de descubrimiento (anuncios broadcast sin parar).
+	beaconConn   net.PacketConn
+	beaconSeqMu  sync.Mutex
+	beaconSeq    map[string]uint32
+	beaconCandMu sync.Mutex
+	beaconCand   map[string]beaconCandidate
 
 	// Ventana de frescura del `ts` del agente (anti-replay, auditoría #2).
 	maxTsDrift time.Duration
@@ -209,6 +212,10 @@ func NewHandler(d Deps) http.Handler {
 	// lista es de lectura y se deja tras RequireAuth.
 	mux.Handle("POST /api/agents", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsCreate)))
 	mux.HandleFunc("GET /api/agents", s.handleAgentsList)
+	// #291: switches embebidos anunciándose por broadcast sin parar.
+	mux.Handle("GET /api/agents/discovered", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"discovered": s.beaconCandidates()})
+	})))
 	mux.Handle("DELETE /api/agents/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsDelete)))
 	// Fase 5 (Plan B): rearme del servicio procd del agente vía SSH.
 	mux.Handle("POST /api/agents/{slug}/rearm", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRearm)))

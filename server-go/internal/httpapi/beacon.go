@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
@@ -38,13 +39,30 @@ type beaconPort struct {
 }
 
 // beaconPacket: spec v1 del datagrama (una línea JSON ASCII, ~400 B).
+// Dev/Fw son opcionales: los lleva el ANUNCIO de descubrimiento (broadcast,
+// sin token) para que el switch pueda encontrarse antes del pareado.
 type beaconPacket struct {
 	V     int          `json:"v"` // versión de esquema; solo se acepta 1
 	Seq   uint32       `json:"seq"`
 	Slug  string       `json:"slug"`
 	Token string       `json:"token"`
+	Dev   string       `json:"dev,omitempty"`
+	Fw    string       `json:"fw,omitempty"`
 	Ports []beaconPort `json:"ports"`
 }
+
+// beaconCandidate: un switch embebido anunciándose por broadcast SIN parar
+// (token vacío). Se expone al admin para completar el pareado (#291).
+type beaconCandidate struct {
+	IP       string `json:"ip"`
+	Dev      string `json:"dev"`
+	Fw       string `json:"fw,omitempty"`
+	Ports    int    `json:"ports,omitempty"`
+	LastSeen int64  `json:"lastSeen"` // unix segundos
+}
+
+// beaconCandidateTTL: un anuncio sin refresco caduca a los 10 min.
+const beaconCandidateTTL = 10 * time.Minute
 
 // beaconLinkSpeed traduce el código de link a la etiqueta de velocidad del
 // resto de la app (0 = down).
@@ -83,6 +101,15 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		log.Printf("[netpulse:beacon] esquema v%d no soportado desde %s", p.V, src)
 		return
 	}
+	// ANUNCIO de descubrimiento (#291): broadcast sin token pero con
+	// identidad de firmware (dev/fw). No es un agente: queda como candidato
+	// hasta que el admin lo parea (POST /api/agents + beacon <ip> <token>).
+	if p.Token == "" && p.Dev != "" {
+		if ok, _ := s.ingestLimit.allow(src); ok {
+			s.recordBeaconCandidate(src, p)
+		}
+		return
+	}
 	if !agentSlugRe.MatchString(p.Slug) {
 		return
 	}
@@ -94,6 +121,8 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		log.Printf("[netpulse:beacon] token inválido para %s (origen %s)", p.Slug, src)
 		return
 	}
+	// Beacon validado: si esa IP tenía un candidato pendiente, ya está parado.
+	s.dropBeaconCandidate(src)
 	if s.cfg != nil && s.cfg.DemoMode {
 		return
 	}
@@ -199,4 +228,41 @@ func (s *server) startBeaconListener(addr string) (net.Addr, error) {
 		}
 	}()
 	return pc.LocalAddr(), nil
+}
+
+// recordBeaconCandidate guarda/refresca un anuncio de descubrimiento (#291).
+func (s *server) recordBeaconCandidate(src string, p beaconPacket) {
+	s.beaconCandMu.Lock()
+	defer s.beaconCandMu.Unlock()
+	if s.beaconCand == nil {
+		s.beaconCand = map[string]beaconCandidate{}
+	}
+	s.beaconCand[src] = beaconCandidate{
+		IP: src, Dev: p.Dev, Fw: p.Fw, Ports: len(p.Ports),
+		LastSeen: time.Now().Unix(),
+	}
+}
+
+// dropBeaconCandidate elimina el candidato de una IP (beacon validado).
+func (s *server) dropBeaconCandidate(src string) {
+	s.beaconCandMu.Lock()
+	defer s.beaconCandMu.Unlock()
+	delete(s.beaconCand, src)
+}
+
+// beaconCandidates lista los candidatos vivos (TTL), ordenados por IP.
+func (s *server) beaconCandidates() []beaconCandidate {
+	s.beaconCandMu.Lock()
+	defer s.beaconCandMu.Unlock()
+	out := []beaconCandidate{}
+	now := time.Now()
+	for ip, c := range s.beaconCand {
+		if now.Sub(time.Unix(c.LastSeen, 0)) > beaconCandidateTTL {
+			delete(s.beaconCand, ip)
+			continue
+		}
+		out = append(out, c)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].IP < out[j].IP })
+	return out
 }

@@ -174,7 +174,7 @@ export interface NetPulseApi extends NetPulseData {
    * server). El token rota en cada llamada (se muestra UNA vez); el comando
    * ya lleva el token nuevo. null si falló (demo siempre null).
    */
-  createAgentInstall: (slug: string) => Promise<{ install: string } | null>
+  createAgentInstall: (slug: string) => Promise<{ install: string; token?: string } | null>
 }
 
 // ---------------------------------------------------------------------------
@@ -886,7 +886,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const createAgentInstall = useCallback(async (slug: string): Promise<{ install: string } | null> => {
+  const createAgentInstall = useCallback(async (slug: string): Promise<{ install: string; token?: string } | null> => {
     if (modeRef.current !== 'live') return null
     try {
       const res = await fetch('/api/agents', {
@@ -897,8 +897,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       })
       if (res.status === 401) redirectLogin()
       if (!res.ok) return null
-      const json = (await res.json()) as { install?: string }
-      return json.install ? { install: json.install } : null
+      const json = (await res.json()) as { install?: string; token?: string }
+      return json.install ? { install: json.install, token: json.token } : null
     } catch {
       return null
     }

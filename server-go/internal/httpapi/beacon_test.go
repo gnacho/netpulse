@@ -150,3 +150,49 @@ func TestBeaconRejectsBadPackets(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// El anuncio de descubrimiento (broadcast sin token, con dev/fw) queda como
+// candidato; un beacon VALIDADO desde esa IP lo limpia (#291).
+func TestBeaconAnnounceBecomesCandidate(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, `{"v":1,"seq":1,"slug":"","token":"","dev":"KP-9000-9XHML-X","fw":"rtlplayground-v0.1.0","ports":[{"n":1,"l":3,"tx":0,"rx":0}]}`)
+	deadline := time.Now().Add(2 * time.Second)
+	got := []beaconCandidate{}
+	for time.Now().Before(deadline) {
+		got = s.beaconCandidates()
+		if len(got) == 1 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if len(got) != 1 {
+		t.Fatalf("candidato: %+v", got)
+	}
+	if got[0].Dev != "KP-9000-9XHML-X" || got[0].Fw != "rtlplayground-v0.1.0" || got[0].Ports != 1 {
+		t.Fatalf("candidato mal: %+v", got[0])
+	}
+
+	// Beacon validado desde la misma IP → el candidato desaparece.
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":2,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":1,"rx":1}]}`, token))
+	waitFresh(t, s, "switch16")
+	if got := s.beaconCandidates(); len(got) != 0 {
+		t.Fatalf("candidato debería limpiarse tras beacon validado: %+v", got)
+	}
+}
+
+// Un announce con token INVALIDO no es candidato ni agente: ruido desechado.
+func TestBeaconAnnounceWithBadTokenDropped(t *testing.T) {
+	s, _ := newBeaconTestServer(t)
+	// announce con token inventado: cae en la rama de token inválido (log)
+	s.ingestBeacon("10.0.0.9", []byte(`{"v":1,"seq":1,"slug":"switch16","token":"bad","dev":"X","fw":"y","ports":[]}`))
+	if got := s.beaconCandidates(); len(got) != 0 {
+		t.Fatalf("token inválido no debe crear candidato: %+v", got)
+	}
+}

@@ -616,7 +616,13 @@
       "cmdFail": "No se pudo generar el comando",
       "title": "Agentes",
       "external": "Externo",
-      "externalTip": "Pusher externo (scraper): empuja cada {{interval}} s, sin agente instalable ni actualizaciones"
+      "externalTip": "Pusher externo (scraper): empuja cada {{interval}} s, sin agente instalable ni actualizaciones",
+      "discoveredTitle_one": "Switch embebido encontrado en la red",
+      "discoveredTitle_other": "{{count}} switches embebidos encontrados en la red",
+      "discoveredSlug": "slug (p. ej. switch16)",
+      "discoveredPair": "Parear",
+      "discoveredFail": "No se pudo crear el token",
+      "discoveredHint": "Pega el comando en Advanced Settings del switch"
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s"
   },
