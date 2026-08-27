@@ -1,4 +1,4 @@
-# Beacon protocol v1.1 - embedded switches (RTLPlayground)
+# Beacon protocol v1.2 - embedded switches
 
 Canal UDP entre switches embebidos (8051 + uIP) y NetPulse. Tres tipos de
 datagrama, todos JSON ASCII de una línea, mismo socket de destino
@@ -49,23 +49,38 @@ beacon). `ev` distingue el tipo:
 - `port_disabled`: la guardia ha deshabilitado `port` (auto-protección).
 - `port_recovered`: re-enable tras cooldown.
 
-## Guardia de bucles (firmware)
+## Datagrama FDB (v1.2, cada 5 min)
 
-El RTL8372 no tiene STP; la guardia lo suplanta a nivel de firmware:
+Tabla MAC completa en UN datagrama (~600 B con 30 MACs). Sustituye al
+scraper como fuente de FDB: con él, todo el switch habla por el beacon
+y el token tiene un único consumidor.
 
-1. Cada tick (30 s), al construir el beacon, comparar el FDB con el
-   snapshot del tick anterior: una MAC que cambia de puerto = mac-move.
-2. TRIGGER de bucle: la misma MAC vista moviéndose entre 2 puertos
-   >= 3 veces en <= 90 s, o (si el presupuesto de RAM lo permite) la
-   misma MAC presente en 2 puertos en el mismo tick.
-3. ACCIÓN: deshabilitar el puerto MÁS NUEVO del par (registro de enable
-   del RTL8372, el mismo que usa la web), emitir `loop` + `port_disabled`,
-   y programar re-enable a los 5 min. Máximo 3 auto-recuperaciones por
-   puerto; a la cuarta queda down hasta intervención manual (comando
-   consola/web o NetPulse).
-4. RAM: el snapshot previo son ~30 MACs × 7 B ≈ 210 B __xdata. Si no
-   cabe, fallback: heurística de tormenta (delta de RxGood por puerto
-   por encima de un umbral en 2 ticks) con la misma ACCIÓN.
+```json
+{"v":1,"seq":4300,"slug":"switch16","token":"<token>",
+ "fdb":{"AABBCCDDEE01":"3","AABBCCDDEE02":"8"}}
+```
+
+- Puertos como número sin prefijo ("3"): el server los alinea con las
+  bocas (`lan3`) al construir el estado.
+- `{}` (objeto vacío presente) = sin entradas: estado real. Ausencia del
+  campo = este datagrama no toca la tabla.
+- El server conserva las bocas del último beacon periódico: el datagrama
+  FDB no viaja con ports y no borra nada.
+
+## Guardia de bucles - APLAZADA (decisión 27-Ago-2026)
+
+El RTL8372 no tiene STP, pero el mac-move es comportamiento LEGÍTIMO en
+redes con roaming WiFi (DAWN mueve clientes entre los puertos de los
+APs): un auto-disable tumbaría un AP en producción. Si algún día se
+recupera la idea, la restricción es innegociable:
+
+- SOLO alertar (`ev:"loop"`), JAMÁS deshabilitar puertos desde el
+  firmware.
+- Excluir del análisis las bocas de APs y uplink.
+- Prefiere la heurística de tormenta (delta de RxGood) al mac-move.
+
+Los eventos `port_disabled`/`port_recovered` quedan en la spec por si
+otras integraciones los usan, pero este firmware no los emitirá.
 
 ## Comando de configuración (consola + Advanced Settings)
 

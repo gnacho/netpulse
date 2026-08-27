@@ -253,3 +253,40 @@ func TestBeaconDeltaFallbackEmitsLinkChange(t *testing.T) {
 	sendUDP(t, addr, down)
 	waitForAlert(t, s, "Link caído")
 }
+
+// Datagrama FDB (v1.2): sustituye la tabla MAC conservando las bocas del
+// último beacon (nada se borra al llegar solo-MACs).
+func TestBeaconFDBDatagramPreservesPorts(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":1,"rx":1},{"n":2,"l":0,"tx":0,"rx":0}]}`, token))
+	waitFresh(t, s, "switch16")
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":2,"slug":"switch16","token":"%s","fdb":{"AABBCCDDEE01":"1","AABBCCDDEE02":"2"}}`, token))
+
+	deadline := time.Now().Add(3 * time.Second)
+	var got *probe.Payload
+	for time.Now().Before(deadline) {
+		if p, ok := s.agents.StalePayload("switch16"); ok && p != nil && p.Data.FDB != nil && len(p.Data.FDB.MACs) == 2 {
+			got = p
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got == nil {
+		t.Fatal("el datagrama FDB no actualizó la tabla MAC")
+	}
+	if len(got.Data.FDB.Ports) != 2 || !got.Data.FDB.Ports[0].Up || got.Data.FDB.Ports[1].Up {
+		t.Fatalf("las bocas del beacon anterior no se conservaron: %+v", got.Data.FDB.Ports)
+	}
+	if got.Data.FDB.MACs["AABBCCDDEE01"] != "1" {
+		t.Fatalf("macs mal: %+v", got.Data.FDB.MACs)
+	}
+}

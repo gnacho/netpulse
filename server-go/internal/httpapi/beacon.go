@@ -55,6 +55,11 @@ type beaconPacket struct {
 	Port  int          `json:"port,omitempty"`
 	Mac   string       `json:"mac,omitempty"`
 	Ports []beaconPort `json:"ports"`
+	// FDB (v1.2): datagrama dedicado de tabla MAC cada 5 min. nil = no va
+	// en este datagrama (el beacon periódico no la lleva); {} = sin entradas
+	// (estado real). Valores = puerto ("3", sin prefijo lan: la
+	// normalización de polledFromAgent los alinea con las bocas).
+	FDB map[string]string `json:"fdb,omitempty"`
 }
 
 // beaconCandidate: un switch embebido anunciándose por broadcast SIN parar
@@ -144,6 +149,25 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		return
 	}
 
+	// Datagrama FDB (v1.2, cada 5 min): solo tabla MAC. Las bocas viajan por
+	// el beacon periódico; aquí se conservan las últimas conocidas para no
+	// borrarlas, y la tabla MAC se sustituye entera ({} = sin entradas).
+	if p.FDB != nil && len(p.Ports) == 0 {
+		ports := []probe.EthPort{}
+		if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
+			ports = prev.Data.FDB.Ports
+		}
+		fdbPayload := &probe.Payload{
+			Router: p.Slug, Ts: time.Now().Unix(), Version: beaconVersion,
+			Kind: "external", Interval: beaconIntervalSec,
+			Data: probe.PayloadData{FDB: &probe.FDBData{MACs: p.FDB, Ports: ports}},
+		}
+		s.agents.Ingest(fdbPayload)
+		s.persistAgentState(p.Slug, s.agents.Snapshot(p.Slug))
+		s.beaconSeqNote(p.Slug, p.Seq)
+		return
+	}
+
 	// Puertos → fdb.ports. El beacon viaja sin labels (ahorro de bytes en
 	// el 8051): se reinyectan los ÚLTIMOS labels conocidos del scraper para
 	// que los nombres (v2.1) no se pierdan entre push y push (#291).
@@ -175,15 +199,18 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 	// Fallback de cambios de link por delta entre beacons (#291): si el
 	// firmware no manda eventos, el cambio se detecta comparando el payload
 	// anterior. Con eventos, el título idéntico hace que el dedup del engine
-	// colapse el duplicado.
-	if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
-		was := map[string]bool{}
-		for _, ep := range prev.Data.FDB.Ports {
-			was[ep.ID] = ep.Up
-		}
-		for _, np := range ports {
-			if before, ok := was[np.ID]; ok && before != np.Up {
-				s.emitPortLinkChange(p.Slug, np.Label, np.Up)
+	// colapse el duplicado. Solo con datagramas que traen bocas (el FDB
+	// dedicado repite las anteriores: no hay cambio que evaluar).
+	if len(p.Ports) > 0 {
+		if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
+			was := map[string]bool{}
+			for _, ep := range prev.Data.FDB.Ports {
+				was[ep.ID] = ep.Up
+			}
+			for _, np := range ports {
+				if before, ok := was[np.ID]; ok && before != np.Up {
+					s.emitPortLinkChange(p.Slug, np.Label, np.Up)
+				}
 			}
 		}
 	}
