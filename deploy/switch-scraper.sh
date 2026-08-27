@@ -41,6 +41,16 @@ fi
 
 PASS_MD5="$(echo -n "${SWITCH_USER}${SWITCH_PASS}" | md5sum | awk '{print $1}')"
 
+# --- Login: el switch exige POST /login.cgi (user+pass+Response=md5) para
+# abrir sesión; la cookie admin=<md5> sola ya no basta (firmware actual).
+# La sesión persiste mientras se mantenga el Referer en los GET.
+curl -sf -m 10 -o /dev/null -X POST "http://${SWITCH_HOST}/login.cgi" \
+    -d "username=${SWITCH_USER}&password=${SWITCH_PASS}&Response=${PASS_MD5}" \
+    -b "admin=${PASS_MD5}" || {
+    echo "[$AGENT_SLUG] ERROR: login rechazado por el switch" >&2
+    exit 2
+}
+
 # --- Scrapear MAC table ---
 HTML_MAC="$(curl -sf -m 10 -b "admin=$PASS_MD5" -H "Referer: http://${SWITCH_HOST}/" \
     "http://${SWITCH_HOST}/mac.cgi?page=fwd_tbl" 2>/dev/null)" || {
