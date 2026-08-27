@@ -543,14 +543,15 @@
       "notInstalledBanner": "Agent not installed — reinstall it from the router detail",
       "stepRequested": "Command sent",
       "stepDownloading": "Downloading {{pct}}%",
-      "stepSwapping": "Swapping binary",
+      "stepSwapping": "Installing binary",
       "stepRestarting": "Restarting agent",
       "upgraded": "Upgraded",
-      "stepQueued": "queued",
+      "stepQueued": "waiting for connection",
       "upgradeQueued": "Queued",
       "upgradeQueuedTip": "The agent is offline: the upgrade will be sent when it reconnects",
       "timeline": "Upgrade",
-      "timelineDone": "completed"
+      "timelineDone": "completed",
+      "stepVerifying": "Verifying integrity"
     },
     "colClients": "Clients",
     "colCpu": "CPU",

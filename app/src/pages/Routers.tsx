@@ -40,7 +40,9 @@ export default function Routers() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null)
   /** Slugs en seguimiento del upgrade de flota con su instante de inicio. */
-  const [upgradeTrack, setUpgradeTrack] = useState<{ slug: string; startedAt: number }[]>([])
+  const [upgradeTrack, setUpgradeTrack] = useState<{ slug: string; startedAt: number; queued: boolean }[]>([])
+
+  const QUEUED_TIMEOUT_MS = 600_000
 
   function handleRefresh() {
     setRefreshKey((k) => k + 1)
@@ -60,11 +62,13 @@ export default function Routers() {
     setUpgrading(false)
     if (res) {
       setUpgradeMsg(res.message)
-      // Seguimiento: los "sent" quedan en el panel hasta que el poll de
-      // agentes los marque al día (updateAvailable=false) o expire el timeout.
-      const sent = res.agents.filter((a) => a.status === 'sent').map((a) => a.slug)
-      setUpgradeTrack(sent.map((slug) => ({ slug, startedAt: Date.now() })))
-      if (sent.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
+      // Seguimiento: los "sent" Y los "queued" quedan en el panel hasta que
+      // el poll de agentes los marque al día (updateAvailable=false) o
+      // expire su timeout (los encolados esperan la reconexión del SSE,
+      // que con el backoff legacy puede tardar minutos).
+      const tracked = res.agents.filter((a) => a.status === 'sent' || a.status === 'queued')
+      setUpgradeTrack(tracked.map((a) => ({ slug: a.slug, startedAt: Date.now(), queued: a.status === 'queued' })))
+      if (tracked.length === 0) window.setTimeout(() => setUpgradeMsg(null), 5000)
     } else {
       setUpgradeMsg(t('routers.upgradeAllFail'))
       window.setTimeout(() => setUpgradeMsg(null), 5000)
@@ -76,7 +80,7 @@ export default function Routers() {
   // 'failed' (error reportado, parón sin noticias o "requested" que nunca
   // arrancó = agente que no entiende el comando).
   const nowSec = Math.floor(Date.now() / 1000)
-  const upgradeProgress = upgradeTrack.map(({ slug, startedAt }) => {
+  const upgradeProgress = upgradeTrack.map(({ slug, startedAt, queued }) => {
     const agent = agents.find((a) => a.slug === slug)
     const done = agent ? !agent.updateAvailable : false
     const step = activeUpgrade(agent, nowSec)
@@ -84,9 +88,12 @@ export default function Routers() {
     // "requested" sin reportes del agente tras el timeout: agente legacy o
     // colgado (los agentes con #284 reportan "downloading" enseguida).
     const staleRequested =
-      step?.step === 'requested' && nowSec - step.ts >= UPGRADE_TIMEOUT_MS / 1000
+      !queued && step?.step === 'requested' && nowSec - step.ts >= UPGRADE_TIMEOUT_MS / 1000
     const lastNewsMs = Math.max(startedAt, (agent?.upgrade?.ts ?? 0) * 1000)
-    const timedOut = !done && !reportedFail && !step && Date.now() - lastNewsMs >= UPGRADE_TIMEOUT_MS
+    // Los encolados esperan la reconexión del SSE del agente (backoff legacy
+    // hasta 5 min): su timeout es generoso, no los 25 s de un envío directo.
+    const timedOut =
+      !done && !reportedFail && !step && Date.now() - lastNewsMs >= (queued ? QUEUED_TIMEOUT_MS : UPGRADE_TIMEOUT_MS)
     const status = done ? 'done' : reportedFail || staleRequested || timedOut ? 'failed' : 'waiting'
     return { slug, status, version: agent?.version ?? '…', step, reportedFail }
   })

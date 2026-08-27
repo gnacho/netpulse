@@ -54,7 +54,7 @@ func TestDownloadBinaryOK(t *testing.T) {
 
 	dest := filepath.Join(t.TempDir(), "agent.new")
 	hc := &http.Client{}
-	if err := downloadBinary(t.Context(), hc, srv.URL+"/binary", "tok", dest, nil); err != nil {
+	if _, err := downloadBinary(t.Context(), hc, srv.URL+"/binary", "tok", dest, nil); err != nil {
 		t.Fatalf("downloadBinary: %v", err)
 	}
 	data, err := os.ReadFile(dest)
@@ -81,15 +81,15 @@ func TestDownloadBinaryAuth404Empty(t *testing.T) {
 	hc := &http.Client{}
 
 	// Token inválido → 401 → error.
-	if err := downloadBinary(t.Context(), hc, srv.URL+"/binary", "wrong", dest, nil); err == nil {
+	if _, err := downloadBinary(t.Context(), hc, srv.URL+"/binary", "wrong", dest, nil); err == nil {
 		t.Fatal("token inválido: quiero error")
 	}
 	// 404 → error.
-	if err := downloadBinary(t.Context(), hc, srv.URL+"/missing", "tok", dest, nil); err == nil {
+	if _, err := downloadBinary(t.Context(), hc, srv.URL+"/missing", "tok", dest, nil); err == nil {
 		t.Fatal("404: quiero error")
 	}
 	// Cuerpo vacío → error (verificación de no-vacío).
-	if err := downloadBinary(t.Context(), hc, srv.URL+"/empty", "tok", dest, nil); err == nil {
+	if _, err := downloadBinary(t.Context(), hc, srv.URL+"/empty", "tok", dest, nil); err == nil {
 		t.Fatal("body vacío: quiero error")
 	}
 }
@@ -139,12 +139,12 @@ func TestDownloadBinaryProgress(t *testing.T) {
 
 	var got []int
 	dest := filepath.Join(t.TempDir(), "agent.new")
-	if err := downloadBinary(t.Context(), &http.Client{}, srv.URL+"/binary", "tok", dest, func(pct int) {
+	if _, err := downloadBinary(t.Context(), &http.Client{}, srv.URL+"/binary", "tok", dest, func(pct int) {
 		got = append(got, pct)
 	}); err != nil {
 		t.Fatalf("downloadBinary: %v", err)
 	}
-	want := []int{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
+	want := []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100}
 	if len(got) != len(want) {
 		t.Fatalf("progreso: got %v, want %v", got, want)
 	}

@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,13 +61,14 @@ var currentBinPath = func() string {
 }
 
 // progressReader cuenta los bytes leídos y dispara onPct al cruzar cada
-// frontera del 10% del total (100% incluido). Los reportes son síncronos:
-// el callback hace el POST del paso desde el hilo de la copia.
+// frontera del 5% del total (100% incluido). Los reportes son síncronos:
+// el callback hace el POST del paso desde el hilo de la copia (#284: 5%
+// para que la timeline muestre movimiento incluso en descargas rápidas).
 type progressReader struct {
 	r        io.Reader
 	total    int64
 	done     int64
-	boundary int // última frontera del 10% reportada
+	boundary int // última frontera del 5% reportada
 	onPct    func(pct int)
 }
 
@@ -73,9 +76,10 @@ func (p *progressReader) Read(buf []byte) (int, error) {
 	n, err := p.r.Read(buf)
 	p.done += int64(n)
 	if p.total > 0 && p.onPct != nil {
-		if b := int(p.done * 10 / p.total); b > p.boundary {
-			p.boundary = b
-			p.onPct(b * 10)
+		// Emitir TODAS las fronteras del 5% cruzadas en esta lectura (una
+		// Read grande puede saltarse varias).
+		for b := int(p.done * 20 / p.total); p.boundary < b; p.boundary++ {
+			p.onPct((p.boundary + 1) * 5)
 		}
 	}
 	return n, err
@@ -84,22 +88,25 @@ func (p *progressReader) Read(buf []byte) (int, error) {
 // downloadBinary descarga el binario desde url (con Bearer token) y lo deja
 // en dest con permisos 0755. Error si la petición no es 200 o el cuerpo está
 // vacío. onPct (opcional) recibe el progreso 0-100 de la descarga (#284).
+// Devuelve el valor de la cabecera X-Checksum-Sha256 (vacía si el server no
+// la manda) para que el llamante verifique la integridad.
 // Extraída a función propia para poder testearla con httptest.
-func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest string, onPct func(pct int)) error {
+func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest string, onPct func(pct int)) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	res, err := hc.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("binario no disponible (HTTP %d)", res.StatusCode)
+		return "", fmt.Errorf("binario no disponible (HTTP %d)", res.StatusCode)
 	}
+	digest := strings.TrimSpace(strings.TrimPrefix(res.Header.Get("X-Checksum-Sha256"), "sha256:"))
 
 	var body io.Reader = res.Body
 	if onPct != nil && res.ContentLength > 0 {
@@ -108,23 +115,23 @@ func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest strin
 
 	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
-		return err
+		return "", err
 	}
 	n, copyErr := io.Copy(f, body)
 	closeErr := f.Close()
 	if copyErr != nil {
-		return copyErr
+		return "", copyErr
 	}
 	if closeErr != nil {
-		return closeErr
+		return "", closeErr
 	}
 	if n == 0 {
-		return errors.New("binario vacío")
+		return "", errors.New("binario vacío")
 	}
 	if err := os.Chmod(dest, 0o755); err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return digest, nil
 }
 
 // swapBinary intercambia atómicamente src por dst. Si src y dst están en
@@ -156,6 +163,28 @@ func restartService() error {
 	cmd := exec.Command(agentInitScript, "restart")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%s restart: %v (%s)", agentInitScript, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// verifySha256 comprueba que el fichero descargado coincide con el digest
+// esperado (hex, sin prefijo). Vacío o distinto → error (#284).
+func verifySha256(path, want string) error {
+	if want == "" {
+		return errors.New("el servidor no publicó digest de integridad")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if !strings.EqualFold(got, want) {
+		return fmt.Errorf("sha256 no coincide (esperado %s, descargado %s)", want, got)
 	}
 	return nil
 }
@@ -226,12 +255,23 @@ func handleUpgrade(cfg config, transport http.RoundTripper, data string) {
 	hc := &http.Client{Transport: transport, Timeout: 2 * time.Minute}
 
 	reportUpgradeProgress(cfg, transport, "downloading", 0)
-	if err := downloadBinary(context.Background(), hc, url, cfg.token, tmpBinPath, func(pct int) {
+	digest, err := downloadBinary(context.Background(), hc, url, cfg.token, tmpBinPath, func(pct int) {
 		reportUpgradeProgress(cfg, transport, "downloading", pct)
-	}); err != nil {
+	})
+	if err != nil {
 		slog.Error("[netpulse-agent] upgrade: descarga falló", "err", err)
 		reportUpgradeResult(cfg, transport, false, err.Error())
 		return
+	}
+
+	// Integridad (#284): sha256 contra la cabecera del servidor, ANTES del swap.
+	if digest != "" {
+		reportUpgradeProgress(cfg, transport, "verifying", 0)
+		if err := verifySha256(tmpBinPath, digest); err != nil {
+			slog.Error("[netpulse-agent] upgrade: verificación falló", "err", err)
+			reportUpgradeResult(cfg, transport, false, err.Error())
+			return
+		}
 	}
 
 	dst := currentBinPath()

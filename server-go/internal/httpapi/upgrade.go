@@ -33,6 +33,7 @@ import (
 const (
 	upgradeStepRequested   = "requested"   // comando enviado por SSE
 	upgradeStepDownloading = "downloading" // descargando el binario (con pct)
+	upgradeStepVerifying   = "verifying"   // comprobando sha256 de la descarga
 	upgradeStepSwapping    = "swapping"    // intercambio atómico del binario
 	upgradeStepRestarting  = "restarting"  // swap ok, reinicio del servicio
 	upgradeStepFailed      = "failed"      // upgrade-result con error
@@ -235,10 +236,10 @@ func (s *server) handleAgentUpgradeProgress(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	switch body.Step {
-	case upgradeStepDownloading, upgradeStepSwapping, upgradeStepRestarting:
+	case upgradeStepDownloading, upgradeStepVerifying, upgradeStepSwapping, upgradeStepRestarting:
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_body",
-			"step debe ser downloading, swapping o restarting")
+			"step debe ser downloading, verifying, swapping o restarting")
 		return
 	}
 	pct := body.Pct

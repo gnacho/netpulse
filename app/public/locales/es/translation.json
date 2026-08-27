@@ -543,14 +543,15 @@
       "notInstalledBanner": "Agente no instalado — reinstálalo desde el detalle",
       "stepRequested": "Comando enviado",
       "stepDownloading": "Descargando {{pct}} %",
-      "stepSwapping": "Intercambiando binario",
+      "stepSwapping": "Instalando binario",
       "stepRestarting": "Reiniciando agente",
       "upgraded": "Actualizado",
-      "stepQueued": "en cola",
+      "stepQueued": "esperando conexión",
       "upgradeQueued": "En cola",
       "upgradeQueuedTip": "El agente no está conectado: la actualización se enviará cuando vuelva a conectar",
       "timeline": "Actualización",
-      "timelineDone": "completado"
+      "timelineDone": "completado",
+      "stepVerifying": "Comprobando integridad"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",

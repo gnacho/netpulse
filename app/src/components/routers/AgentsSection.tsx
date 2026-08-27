@@ -94,11 +94,12 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
     return () => window.clearInterval(timer)
   }, [ticking])
 
-  // Timeline visible mientras el upgrade está en marcha o hasta 90 s después
-  // del último paso (así se ve el recorrido completo aunque vaya rápido).
+  // Timeline visible mientras el upgrade está en marcha o hasta 5 min después
+  // del último paso: el recorrido completo queda visible aunque vaya rápido
+  // y sobrevive al parpadeo del poll de agentes (#284).
   const up = agent?.upgrade
   const showTimeline =
-    up !== undefined && (live !== undefined || (up.step !== 'queued' && nowSec - up.ts < 90))
+    up !== undefined && (live !== undefined || (up.step !== 'queued' && nowSec - up.ts < 300))
 
   const reinstall = async () => {
     if (reinstallState === 'busy') return
@@ -246,6 +247,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
                   )}
                   <span className={isCurrent ? 'font-medium text-text-primary' : 'text-text-secondary'}>
                     {upgradeStepText(s, t)}
+                    {isCurrent && s.step !== 'queued' ? ` · ${Math.max(0, nowSec - s.ts)}s` : ''}
                   </span>
                   <span className="font-mono text-text-muted">{hhmmss(s.ts)}</span>
                 </span>

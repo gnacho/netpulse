@@ -34,6 +34,8 @@ export function upgradeStepText(u: { step: AgentUpgradeProgress['step']; pct?: n
       return t('routers.agent.stepRequested')
     case 'downloading':
       return t('routers.agent.stepDownloading', { pct: u.pct ?? 0 })
+    case 'verifying':
+      return t('routers.agent.stepVerifying')
     case 'swapping':
       return t('routers.agent.stepSwapping')
     case 'restarting':

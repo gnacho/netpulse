@@ -269,6 +269,11 @@ func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent-%s"`, arch))
+	// #284: sha256 del binario embebido para que el agente verifique la
+	// integridad de la descarga antes de hacer el swap.
+	if d := agentbin.Digest(arch); d != "" {
+		w.Header().Set("X-Checksum-Sha256", d)
+	}
 	http.ServeContent(w, r, st.Name(), st.ModTime(), rs)
 }
 
