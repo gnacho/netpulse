@@ -34,7 +34,7 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
           initial={reduce ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.08 + index * 0.06 }}
-          className="group flex w-[84px] flex-col items-center"
+          className="group flex w-[84px] shrink-0 flex-col items-center"
           role="img"
           aria-label={aria}
         >
@@ -201,13 +201,14 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
         {wirelessUplink && t('routerDetail.ports.wirelessUplink')}
       </p>
 
-      {/* Chasis */}
-      <div className="mt-4 flex flex-wrap items-start gap-x-4 gap-y-5 rounded-xl border border-border/70 bg-elevated/40 px-4 py-4">
+      {/* Chasis: TODAS las bocas en una sola horizontal (sin wrap); si no
+          caben (móvil, chasis largos), scroll horizontal en vez de apilar. */}
+      <div className="mt-4 flex flex-nowrap items-start gap-x-4 overflow-x-auto rounded-xl border border-border/70 bg-elevated/40 px-4 py-4">
         {wanPorts.map((p, i) => (
           <Jack key={p.id} port={p} index={i} wan={wan} />
         ))}
         {wanPorts.length > 0 && lanPorts.length > 0 && (
-          <div className="mx-1 hidden h-[104px] w-px self-center bg-border/70 sm:block" aria-hidden="true" />
+          <div className="mx-1 h-[104px] w-px shrink-0 self-center bg-border/70" aria-hidden="true" />
         )}
         {lanPorts.map((p, i) => (
           <Jack key={p.id} port={p} index={wanPorts.length + i} />
