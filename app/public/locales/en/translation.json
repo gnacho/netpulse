@@ -545,7 +545,12 @@
       "stepDownloading": "Downloading {{pct}}%",
       "stepSwapping": "Swapping binary",
       "stepRestarting": "Restarting agent",
-      "upgraded": "Upgraded"
+      "upgraded": "Upgraded",
+      "stepQueued": "queued",
+      "upgradeQueued": "Queued",
+      "upgradeQueuedTip": "The agent is offline: the upgrade will be sent when it reconnects",
+      "timeline": "Upgrade",
+      "timelineDone": "completed"
     },
     "colClients": "Clients",
     "colCpu": "CPU",

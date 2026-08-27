@@ -358,12 +358,20 @@ type agentListItem struct {
 	Upgrade *agentUpgradeInfo `json:"upgrade,omitempty"`
 }
 
+// agentUpgradeStep es un paso de la historia (timeline de la UI, #284).
+type agentUpgradeStep struct {
+	Step string `json:"step"`
+	Pct  int    `json:"pct,omitempty"`
+	Ts   int64  `json:"ts"` // unix segundos
+}
+
 // agentUpgradeInfo es el paso de progreso expuesto en GET /api/agents.
 type agentUpgradeInfo struct {
-	Step  string `json:"step"`
-	Pct   int    `json:"pct,omitempty"` // 0-100 en "downloading"
-	Error string `json:"error,omitempty"`
-	Ts    int64  `json:"ts"` // unix segundos del último reporte
+	Step  string            `json:"step"`
+	Pct   int               `json:"pct,omitempty"` // 0-100 en "downloading"
+	Error string            `json:"error,omitempty"`
+	Ts    int64             `json:"ts"` // unix segundos del último reporte
+	Steps []agentUpgradeStep `json:"steps,omitempty"` // historia de pasos (#284)
 }
 
 // agentUpgradeable: ¿un agente de un router con este type es actualizable?
@@ -432,7 +440,11 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {
 					ts := st.Ts.Unix()
-					item.Upgrade = &agentUpgradeInfo{Step: st.Step, Pct: st.Pct, Error: st.Error, Ts: ts}
+					info := &agentUpgradeInfo{Step: st.Step, Pct: st.Pct, Error: st.Error, Ts: ts}
+					for _, e := range st.History {
+						info.Steps = append(info.Steps, agentUpgradeStep{Step: e.Step, Pct: e.Pct, Ts: e.Ts.Unix()})
+					}
+					item.Upgrade = info
 				}
 				out = append(out, item)
 			}

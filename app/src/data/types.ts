@@ -392,14 +392,16 @@ export interface AgentInfo {
 
 /** Paso de progreso del self-update de un agente (GET /api/agents, #284). */
 export interface AgentUpgradeProgress {
-  /** requested | downloading | swapping | restarting | failed */
-  step: 'requested' | 'downloading' | 'swapping' | 'restarting' | 'failed'
+  /** requested | downloading | swapping | restarting | failed | queued */
+  step: 'requested' | 'downloading' | 'swapping' | 'restarting' | 'failed' | 'queued'
   /** 0-100, solo en "downloading" */
   pct?: number
   /** mensaje de error, solo en "failed" */
   error?: string
   /** Unix SEGUNDOS del último reporte */
   ts: number
+  /** Historia de pasos recorridos con sus timestamps (timeline, #284). */
+  steps?: { step: AgentUpgradeProgress['step']; pct?: number; ts: number }[]
 }
 
 /** Respuesta paginada (`GET /api/devices`, `GET /api/alerts`). */

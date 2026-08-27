@@ -51,15 +51,21 @@ func New(serverURL, slug, token string, hc *http.Client, onEvent func(Event)) *C
 func (c *Client) SetLogger(f func(string, ...any)) { c.logf = f }
 
 // Run conecta al SSE y llama a onEvent por cada comando. Bloquea hasta que
-// ctx se cancele. Se reconecta automáticamente si la conexión cae.
+// ctx se cancele. Se reconecta automáticamente si la conexión cae. El backoff
+// se RESETEA tras una conexión que llegó a establecerse: solo crece mientras
+// los intentos fallan (si no, un agente que sobrevive a varios reinicios del
+// server acaba reintentando cada 5 min para siempre, #284).
 func (c *Client) Run(ctx context.Context) {
 	retry := c.minRetry
 	for {
-		if err := c.connect(ctx); err != nil {
-			if ctx.Err() != nil {
-				return
-			}
+		err := c.connect(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
 			c.logf("[netpulse-agent] SSE desconectado (%v), reintentando en %s", err, retry)
+		} else {
+			retry = c.minRetry
 		}
 		select {
 		case <-ctx.Done():

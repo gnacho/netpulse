@@ -156,7 +156,7 @@ export interface NetPulseApi extends NetPulseData {
    * que se actualice con el binario embebido del servidor. Resuelve el estado
    * del envío; null si la petición falló (demo siempre null).
    */
-  upgradeAgent: (slug: string) => Promise<'sent' | 'not_connected' | null>
+  upgradeAgent: (slug: string) => Promise<'sent' | 'queued' | 'not_connected' | null>
   /**
    * #251: POST /api/agents/upgrade-all — envía el upgrade a todos los agentes
    * con versión desactualizada. Devuelve el resumen por slug; null si falló.
@@ -833,7 +833,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
    * red/4xx-5xx/demo. Tras enviarlo, el agente se reinicia solo; el próximo
    * poll de agentes (~30 s) refleja la versión nueva y updateAvailable=false.
    */
-  const upgradeAgent = useCallback(async (slug: string): Promise<'sent' | 'not_connected' | null> => {
+  const upgradeAgent = useCallback(async (slug: string): Promise<'sent' | 'queued' | 'not_connected' | null> => {
     if (modeRef.current !== 'live') return null
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/upgrade`, {
@@ -843,7 +843,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (res.status === 401) redirectLogin()
       if (res.status === 409) return 'not_connected'
       if (!res.ok) return null
-      return 'sent'
+      // 202: el comando salió por SSE o quedó encolado hasta que el
+      // agente vuelva a conectar (#284).
+      const body = (await res.json().catch(() => null)) as { status?: string } | null
+      return body?.status === 'queued' ? 'queued' : 'sent'
     } catch {
       return null
     }

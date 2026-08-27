@@ -19,6 +19,10 @@ type AgentHub struct {
 
 	mu    sync.Mutex
 	conns map[string]*agentConn // slug → conexión activa
+	// onConnect se llama (en su propia goroutine) cuando un agente conecta
+	// su stream; lo usa httpapi para enviar upgrades encolados (#284).
+	onConnectMu sync.Mutex
+	onConnect   func(slug string)
 }
 
 type agentConn struct {
@@ -33,6 +37,22 @@ type agentConn struct {
 // NewAgentHub crea el hub de agentes. checkToken valida el Bearer del agente.
 func NewAgentHub(checkToken func(string, string) bool) *AgentHub {
 	return &AgentHub{checkToken: checkToken, conns: map[string]*agentConn{}}
+}
+
+// SetOnConnect registra el callback de conexión de agente (#284).
+func (h *AgentHub) SetOnConnect(f func(slug string)) {
+	h.onConnectMu.Lock()
+	h.onConnect = f
+	h.onConnectMu.Unlock()
+}
+
+func (h *AgentHub) fireOnConnect(slug string) {
+	h.onConnectMu.Lock()
+	f := h.onConnect
+	h.onConnectMu.Unlock()
+	if f != nil {
+		go f(slug)
+	}
 }
 
 // ConnectedSlugs devuelve los slugs con agente conectado vía SSE.
@@ -151,6 +171,9 @@ func (h *AgentHub) HandleStream(w http.ResponseWriter, r *http.Request) {
 
 	// Enviar evento "connected" al agente (confirmación)
 	_ = c.write("event: connected\ndata: {}\n\n")
+
+	// Upgrade encolado mientras el agente estaba fuera (#284).
+	h.fireOnConnect(slug)
 
 	// Heartbeat cada 30s
 	heartbeat := time.NewTicker(30 * time.Second)

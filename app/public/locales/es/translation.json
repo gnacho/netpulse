@@ -545,7 +545,12 @@
       "stepDownloading": "Descargando {{pct}} %",
       "stepSwapping": "Intercambiando binario",
       "stepRestarting": "Reiniciando agente",
-      "upgraded": "Actualizado"
+      "upgraded": "Actualizado",
+      "stepQueued": "en cola",
+      "upgradeQueued": "En cola",
+      "upgradeQueuedTip": "El agente no está conectado: la actualización se enviará cuando vuelva a conectar",
+      "timeline": "Actualización",
+      "timelineDone": "completado"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",

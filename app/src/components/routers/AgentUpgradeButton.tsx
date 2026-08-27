@@ -11,7 +11,7 @@ interface AgentUpgradeButtonProps {
   className?: string
 }
 
-type UpgradeState = 'idle' | 'busy' | 'sent' | 'not_connected' | 'fail'
+type UpgradeState = 'idle' | 'busy' | 'sent' | 'queued' | 'not_connected' | 'fail'
 
 type StepT = (key: string, opts?: Record<string, unknown>) => string
 
@@ -22,12 +22,13 @@ export const UPGRADE_LIVE_WINDOW_S = 120
 export function activeUpgrade(agent: AgentInfo | undefined, nowSec: number): AgentUpgradeProgress | undefined {
   const u = agent?.upgrade
   if (!u || u.step === 'failed') return undefined
+  if (u.step === 'queued') return u
   if (nowSec - u.ts > UPGRADE_LIVE_WINDOW_S) return undefined
   return u
 }
 
 /** Texto del paso para el botón y el panel de flota (#284). */
-export function upgradeStepText(u: AgentUpgradeProgress, t: StepT): string {
+export function upgradeStepText(u: { step: AgentUpgradeProgress['step']; pct?: number }, t: StepT): string {
   switch (u.step) {
     case 'requested':
       return t('routers.agent.stepRequested')
@@ -37,6 +38,8 @@ export function upgradeStepText(u: AgentUpgradeProgress, t: StepT): string {
       return t('routers.agent.stepSwapping')
     case 'restarting':
       return t('routers.agent.stepRestarting')
+    case 'queued':
+      return t('routers.agent.stepQueued')
     default:
       return t('routers.agent.upgrading')
   }
@@ -114,6 +117,7 @@ export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps
     : live ? `${upgradeStepText(live, t)} · ${upgradeElapsed(live, nowSec)}`
     : justDone ? t('routers.agent.upgraded')
     : state === 'sent' ? t('routers.agent.upgradeSent')
+    : state === 'queued' ? t('routers.agent.upgradeQueued')
     : state === 'not_connected' ? t('routers.agent.upgradeNotConnected')
     : state === 'fail' || liveFailed ? t('routers.agent.upgradeFail')
     : t('routers.agent.upgrade')
@@ -122,10 +126,11 @@ export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps
     if (state === 'busy' || live) return
     setState('busy')
     const res = await upgradeAgent(agent.slug)
-    const next: UpgradeState = res === 'sent' ? 'sent' : res === 'not_connected' ? 'not_connected' : 'fail'
+    const next: UpgradeState =
+      res === 'sent' ? 'sent' : res === 'queued' ? 'queued' : res === 'not_connected' ? 'not_connected' : 'fail'
     setState(next)
-    // Traer el paso "requested" cuanto antes: encadena el sondeo rápido.
-    if (next === 'sent') void refreshAgents()
+    // Traer el paso "requested"/"queued" cuanto antes: encadena el sondeo rápido.
+    if (next === 'sent' || next === 'queued') void refreshAgents()
     window.setTimeout(() => setState('idle'), 6000)
   }
 
@@ -134,10 +139,11 @@ export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps
       type="button"
       onClick={onClick}
       disabled={state === 'busy' || live !== undefined}
-      title={liveFailed ? agent.upgrade?.error || t('routers.agent.upgradeFail') : t('routers.agent.upgradeTip', { version: agent.version ?? '?' })}
+      title={liveFailed ? agent.upgrade?.error || t('routers.agent.upgradeFail') : live?.step === 'queued' ? t('routers.agent.upgradeQueuedTip') : t('routers.agent.upgradeTip', { version: agent.version ?? '?' })}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50',
         state === 'sent' || justDone ? 'bg-ok text-canvas'
+        : state === 'queued' ? 'bg-accent-soft text-accent'
         : state === 'fail' || state === 'not_connected' || liveFailed ? 'bg-danger text-canvas'
         : 'bg-accent text-canvas',
         className,

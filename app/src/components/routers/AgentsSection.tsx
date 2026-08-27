@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Check, Clipboard, RotateCcw } from 'lucide-react'
+import { Check, Clipboard, Clock, Loader2, RotateCcw } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
@@ -9,7 +9,7 @@ import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
 import { AgentBadge } from '@/components/routers/AgentBadge'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
-import { AgentUpgradeButton } from '@/components/routers/AgentUpgradeButton'
+import { AgentUpgradeButton, activeUpgrade, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
 import { cn } from '@/lib/utils'
 
 /**
@@ -58,6 +58,15 @@ async function copyText(text: string): Promise<boolean> {
 type ReinstallState = 'idle' | 'busy' | 'done' | 'fail'
 type CopyState = 'idle' | 'busy' | 'done' | 'fail'
 
+/** Hora HH:MM:SS local desde unix segundos (timeline de upgrade, #284). */
+function hhmmss(ts: number): string {
+  return new Date(ts * 1000).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 /** Fila de un agente con sus acciones de recuperación (estado local). */
 function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undefined }) {
   const { t } = useTranslation()
@@ -66,6 +75,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const [reinstallState, setReinstallState] = useState<ReinstallState>('idle')
   const [reinstallMsg, setReinstallMsg] = useState('')
   const [copyState, setCopyState] = useState<CopyState>('idle')
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
 
   const isOpenWrt = isOpenWrtType(router?.type)
   const isStale = agent !== undefined && !agent.fresh
@@ -74,6 +84,21 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
 
   const slug = agent?.slug ?? router?.id ?? ''
   const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen) ?? t('routers.agents.never') : t('routers.agents.never')
+  const live = agent ? activeUpgrade(agent, nowSec) : undefined
+
+  // Tick de 1 s mientras hay upgrade en marcha (elapsed de la timeline).
+  const ticking = live !== undefined
+  useEffect(() => {
+    if (!ticking) return
+    const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [ticking])
+
+  // Timeline visible mientras el upgrade está en marcha o hasta 90 s después
+  // del último paso (así se ve el recorrido completo aunque vaya rápido).
+  const up = agent?.upgrade
+  const showTimeline =
+    up !== undefined && (live !== undefined || (up.step !== 'queued' && nowSec - up.ts < 90))
 
   const reinstall = async () => {
     if (reinstallState === 'busy') return
@@ -101,6 +126,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   }
 
   return (
+    <>
     <motion.tr
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
@@ -196,6 +222,41 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         )}
       </td>
     </motion.tr>
+    {showTimeline && up && (
+      <motion.tr
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+        className="border-b border-border/60 last:border-0"
+      >
+        <td colSpan={5} className="pb-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-surface px-3.5 py-2.5">
+            <span className="inline-flex items-center gap-1.5 text-label font-medium uppercase text-text-muted">
+              <Clock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+              {t('routers.agent.timeline')}
+            </span>
+            {(up.steps ?? []).map((s, i) => {
+              const isCurrent = i === (up.steps?.length ?? 0) - 1 && live !== undefined
+              return (
+                <span key={`${s.step}-${s.ts}`} className="inline-flex items-center gap-1.5 text-caption">
+                  {isCurrent ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-accent" strokeWidth={2} aria-hidden="true" />
+                  ) : (
+                    <Check className="h-3 w-3 text-ok" strokeWidth={2} aria-hidden="true" />
+                  )}
+                  <span className={isCurrent ? 'font-medium text-text-primary' : 'text-text-secondary'}>
+                    {upgradeStepText(s, t)}
+                  </span>
+                  <span className="font-mono text-text-muted">{hhmmss(s.ts)}</span>
+                </span>
+              )
+            })}
+            {live === undefined && <span className="text-caption text-ok">{t('routers.agent.timelineDone')}</span>}
+          </div>
+        </td>
+      </motion.tr>
+    )}
+    </>
   )
 }
 

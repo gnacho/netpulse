@@ -36,40 +36,97 @@ const (
 	upgradeStepSwapping    = "swapping"    // intercambio atómico del binario
 	upgradeStepRestarting  = "restarting"  // swap ok, reinicio del servicio
 	upgradeStepFailed      = "failed"      // upgrade-result con error
+	upgradeStepQueued      = "queued"      // en cola hasta que el agente conecte
 )
 
 // upgradeStateTTL: cuánto se expone un paso sin actividad antes de dejar de
 // incluirlo en GET /api/agents. Cubre el ciclo completo (descarga + swap +
-// reinicio + primer push) con margen amplio.
-const upgradeStateTTL = 3 * time.Minute
+// reinicio + primer push) con margen amplio. El estado "queued" vive más:
+// el agente puede tardar minutos en re-conectar su stream (backoff SSE).
+const (
+	upgradeStateTTL  = 3 * time.Minute
+	upgradeQueuedTTL = 30 * time.Minute
+	upgradeHistoryCap = 16
+)
 
-// upgradeState es el último paso conocido del self-update de un agente.
+// upgradeStepEntry es un paso de la historia del upgrade (timeline de la UI).
+type upgradeStepEntry struct {
+	Step string
+	Pct  int
+	Ts   time.Time
+}
+
+// upgradeState es el último paso conocido del self-update de un agente, con
+// la historia de pasos recorridos (para la timeline aunque vayan rápido).
 type upgradeState struct {
-	Step  string
-	Pct   int    // 0-100, solo tiene sentido en "downloading"
-	Error string // solo en "failed"
-	Ts    time.Time
+	Step    string
+	Pct     int    // 0-100, solo tiene sentido en "downloading"
+	Error   string // solo en "failed"
+	Ts      time.Time
+	History []upgradeStepEntry
 }
 
 // upgradeTracker mantiene en memoria el último paso por slug (no se persiste:
 // es estado efímero de una operación en marcha). El server lo alimenta desde
 // los comandos upgrade/upgrade-all y los reportes del agente, y lo expone en
-// GET /api/agents para que la UI muestre progreso en vivo (#284).
+// GET /api/agents para que la UI muestre progreso en vivo (#284). Además
+// guarda los slugs con upgrade ENCOLA (agente sin stream SSE): se envían
+// cuando el agente vuelve a conectar (flush on-connect).
 type upgradeTracker struct {
-	mu     sync.Mutex
-	states map[string]upgradeState
-	now    func() time.Time // inyectable en tests
+	mu      sync.Mutex
+	states  map[string]upgradeState
+	pending map[string]bool
+	now     func() time.Time // inyectable en tests
 }
 
 func newUpgradeTracker() *upgradeTracker {
-	return &upgradeTracker{states: map[string]upgradeState{}, now: time.Now}
+	return &upgradeTracker{states: map[string]upgradeState{}, pending: map[string]bool{}, now: time.Now}
 }
 
-// set registra el último paso del slug.
+// set registra un paso del slug y lo añade a la historia (mismo paso
+// consecutivo → refresca pct/ts del último entry en vez de duplicar).
 func (u *upgradeTracker) set(slug, step string, pct int, errMsg string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	u.states[slug] = upgradeState{Step: step, Pct: pct, Error: errMsg, Ts: u.now()}
+	u.setLocked(slug, step, pct, errMsg)
+}
+
+func (u *upgradeTracker) setLocked(slug, step string, pct int, errMsg string) {
+	st := u.states[slug]
+	ts := u.now()
+	if n := len(st.History); n > 0 && st.History[n-1].Step == step {
+		st.History[n-1].Pct = pct
+		st.History[n-1].Ts = ts
+	} else {
+		st.History = append(st.History, upgradeStepEntry{Step: step, Pct: pct, Ts: ts})
+		if len(st.History) > upgradeHistoryCap {
+			st.History = st.History[len(st.History)-upgradeHistoryCap:]
+		}
+	}
+	st.Step, st.Pct, st.Error, st.Ts = step, pct, errMsg, ts
+	u.states[slug] = st
+	if step != upgradeStepQueued {
+		delete(u.pending, slug)
+	}
+}
+
+// queue marca un upgrade como pendiente para cuando el agente reconecte.
+func (u *upgradeTracker) queue(slug string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.pending[slug] = true
+	u.setLocked(slug, upgradeStepQueued, 0, "")
+}
+
+// takeQueued devuelve true (una sola vez) si el slug tenía upgrade en cola.
+func (u *upgradeTracker) takeQueued(slug string) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if !u.pending[slug] {
+		return false
+	}
+	delete(u.pending, slug)
+	return true
 }
 
 // snapshot devuelve el paso del slug si no ha caducado.
@@ -77,7 +134,14 @@ func (u *upgradeTracker) snapshot(slug string) (upgradeState, bool) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	st, ok := u.states[slug]
-	if !ok || u.now().Sub(st.Ts) > upgradeStateTTL {
+	if !ok {
+		return upgradeState{}, false
+	}
+	ttl := upgradeStateTTL
+	if st.Step == upgradeStepQueued {
+		ttl = upgradeQueuedTTL
+	}
+	if u.now().Sub(st.Ts) > ttl {
 		return upgradeState{}, false
 	}
 	return st, true
@@ -120,15 +184,39 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// El agente conoce su propia arquitectura (runtime.GOARCH); no hace falta
-	// pasársela. Data vacía {}.
-	if !s.agentHub.Send(slug, "upgrade", map[string]any{}) {
-		writeError(w, http.StatusConflict, "agent_not_connected",
-			"el agente "+slug+" no está conectado por SSE")
+	// pasársela. Data vacía {}. Si no está conectado por SSE, el upgrade se
+	// ENCOLA y se enviará en cuanto vuelva a conectar (#284).
+	status := s.sendOrQueueUpgrade(slug)
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "status": status})
+}
+
+// sendOrQueueUpgrade envía el comando upgrade por SSE; si el agente no está
+// conectado, lo encola para el flush on-connect del hub. Devuelve el estado.
+func (s *server) sendOrQueueUpgrade(slug string) string {
+	if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
+		// Paso inicial del progreso en vivo (#284): el comando salió.
+		s.upgrades.set(slug, upgradeStepRequested, 0, "")
+		return "sent"
+	}
+	s.upgrades.queue(slug)
+	return "queued"
+}
+
+// FlushQueuedUpgrade envía el upgrade pendiente de un agente que acaba de
+// conectar su stream SSE (#284). Lo invoca el hub on-connect; si el envío
+// vuelve a fallar (carrera), re-encola para el próximo reintento.
+func (s *server) FlushQueuedUpgrade(slug string) {
+	if s.agentHub == nil {
 		return
 	}
-	// Paso inicial del progreso en vivo (#284): el comando salió.
-	s.upgrades.set(slug, upgradeStepRequested, 0, "")
-	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+	if !s.agentTokenExists(slug) || !s.upgrades.takeQueued(slug) {
+		return
+	}
+	if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
+		s.upgrades.set(slug, upgradeStepRequested, 0, "")
+	} else {
+		s.upgrades.queue(slug)
+	}
 }
 
 // handleAgentUpgradeProgress: el agente reporta un paso intermedio del
@@ -235,14 +323,10 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 				if !s.routerUpgradeable(slug) {
 					item.Status = "not_openwrt"
 				} else if version != "" && version != agentbin.EmbeddedAgentVersion {
-					if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
-						item.Status = "sent"
-						item.Upgraded = true
+					item.Status = s.sendOrQueueUpgrade(slug)
+					item.Upgraded = item.Status == "sent"
+					if item.Status == "sent" {
 						sent++
-						// Paso inicial del progreso en vivo (#284).
-						s.upgrades.set(slug, upgradeStepRequested, 0, "")
-					} else {
-						item.Status = "not_connected"
 					}
 				} else {
 					item.Status = "up_to_date"
@@ -255,12 +339,22 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 		}
 		out = append(out, item)
 	}
-	log.Printf("[netpulse] upgrade-all: %d/%d agentes con upgrade enviado", sent, len(out))
+	queued := 0
+	for _, it := range out {
+		if it.Status == "queued" {
+			queued++
+		}
+	}
+	log.Printf("[netpulse] upgrade-all: %d/%d enviados, %d en cola", sent, len(out), queued)
+	msg := fmt.Sprintf("upgrade enviado a %d de %d agentes", sent, len(out))
+	if queued > 0 {
+		msg += fmt.Sprintf(", %d en cola hasta que conecten", queued)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agents":  out,
 		"sent":    sent,
 		"total":   len(out),
-		"message": fmt.Sprintf("upgrade enviado a %d de %d agentes", sent, len(out)),
+		"message": msg,
 	})
 }
 

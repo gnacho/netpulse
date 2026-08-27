@@ -143,6 +143,11 @@ func NewHandler(d Deps) http.Handler {
 	if d.Config != nil && d.Config.MaxTsDriftSec > 0 {
 		s.maxTsDrift = time.Duration(d.Config.MaxTsDriftSec) * time.Second
 	}
+	// #284: upgrades encolados se envían cuando el agente (re)conecta su
+	// stream SSE (flush on-connect del hub).
+	if s.agentHub != nil {
+		s.agentHub.SetOnConnect(s.FlushQueuedUpgrade)
+	}
 	mode := d.Adapter.Mode()
 
 	mux := http.NewServeMux()
