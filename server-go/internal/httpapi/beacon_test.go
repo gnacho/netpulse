@@ -120,13 +120,20 @@ func TestBeaconValidIngestOverUDP(t *testing.T) {
 	if p2.Up || p2.Label != "hikvision" {
 		t.Fatalf("puerto 2: %+v", p2)
 	}
-	// El estado persistido en kv también lleva el payload del beacon.
+	// El estado persistido en kv también lleva el payload del beacon. El
+	// write ocurre en el goroutine del listener DESPUÉS de Ingest: poll con
+	// deadline en vez de una consulta única (race en CI lenta).
+	deadline := time.Now().Add(3 * time.Second)
 	var raw string
-	if err := s.db.QueryRow("SELECT value FROM kv WHERE key = ?", agentStateKey("switch16")).Scan(&raw); err != nil {
-		t.Fatalf("persist: %v", err)
-	}
-	if !strings.Contains(raw, "beacon-1.0") {
-		t.Fatalf("kv sin el estado del beacon: %.80s", raw)
+	for {
+		err := s.db.QueryRow("SELECT value FROM kv WHERE key = ?", agentStateKey("switch16")).Scan(&raw)
+		if err == nil && strings.Contains(raw, "beacon-1.0") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("persist: estado del beacon no llegó a kv (último err: %v, raw: %.60s)", err, raw)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
