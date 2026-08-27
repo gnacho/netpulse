@@ -5,7 +5,7 @@
  * (/api/update/stream) con fallback a polling, y recarga solo cuando responde
  * un proceso DISTINTO (uptimeSec menor que el baseline previo al apply).
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
@@ -265,6 +265,18 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
   const activeIdx = STEP_ORDER.indexOf(visibleStep as (typeof STEP_ORDER)[number])
   const busy = phase === 'progress' || phase === 'restarting'
 
+  // Changelog visible: líneas del body sin trailers de git. Si no queda
+  // ninguna (p. ej. squash cuyo body son solo trailers), la sección
+  // "Novedades" no se renderiza.
+  const changelogLines = useMemo(
+    () =>
+      (status?.latestBody ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !/^(co-authored-by|signed-off-by|reviewed-by):/i.test(l)),
+    [status?.latestBody],
+  )
+
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       <DialogContent className="max-w-md">
@@ -291,18 +303,14 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
             {/* Changelog (issue #280): cuerpo del commit (rolling) o notas
                 del release (estable), línea a línea con scroll. Los trailers
                 de git (Co-authored-by, Signed-off-by…) son ruido: fuera. */}
-            {!!status?.latestBody?.trim() && (
+            {changelogLines.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   {t('update.dialog.changelogTitle')}
                 </p>
                 <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5">
                   <ul className="flex flex-col gap-1">
-                    {status.latestBody
-                      .split('\n')
-                      .map((l) => l.trim())
-                      .filter((l) => l && !/^(co-authored-by|signed-off-by|reviewed-by):/i.test(l))
-                      .map((l, i) => (
+                    {changelogLines.map((l, i) => (
                         <li key={i} className="flex items-start gap-2 text-caption leading-snug text-text-secondary">
                           <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-text-muted/60" aria-hidden="true" />
                           {l.replace(/^[-*]\s+/, '')}
