@@ -83,7 +83,7 @@
     "empty": "No results.",
     "pages": "Pages",
     "placeholder": "Jump to a page, router or device…",
-    "routers": "Routers"
+    "routers": "Devices"
   },
   "common": {
     "ago": {
@@ -226,7 +226,7 @@
     "weakChip": "{{count}} with weak signal"
   },
   "home": {
-    "devices": "Devices",
+    "devices": "Clients",
     "download": "Download",
     "greetingAfternoon": "Good afternoon",
     "greetingEvening": "Good evening",
@@ -890,7 +890,7 @@
     "reduceMotion": "Reduce animations",
     "reduceMotionCaption": "Disables pulses, tweens and staggered entrances",
     "routers": {
-      "title": "Routers",
+      "title": "Devices",
       "caption": "The gateway is auto-detected on boot; add the rest manually",
       "empty": "No routers configured yet. The gateway is auto-detected when the server boots; if it's missing, add it here.",
       "host": "IP or hostname",

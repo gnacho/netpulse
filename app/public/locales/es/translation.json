@@ -83,7 +83,7 @@
     "empty": "Sin resultados.",
     "pages": "Páginas",
     "placeholder": "Saltar a una página, router o dispositivo…",
-    "routers": "Routers"
+    "routers": "Dispositivos"
   },
   "common": {
     "ago": {
@@ -226,7 +226,7 @@
     "weakChip": "{{count}} con señal débil"
   },
   "home": {
-    "devices": "Dispositivos",
+    "devices": "Clientes",
     "download": "Descarga",
     "greetingAfternoon": "Buenas tardes",
     "greetingEvening": "Buenas noches",
@@ -890,7 +890,7 @@
     "reduceMotion": "Reducir animaciones",
     "reduceMotionCaption": "Desactiva pulsos, tweens y entradas escalonadas",
     "routers": {
-      "title": "Routers",
+      "title": "Dispositivos",
       "caption": "La puerta de enlace se autodetecta en el arranque; añade el resto a mano",
       "empty": "Sin routers configurados todavía. La puerta de enlace se autodetecta al arrancar el servidor; si no aparece, añádela aquí.",
       "host": "IP o hostname",
