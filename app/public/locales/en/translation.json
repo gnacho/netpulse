@@ -1136,7 +1136,9 @@
       "reloadSoon": "The app will reload automatically in a few seconds",
       "failed": "The update failed",
       "hideHint": "You can close this window: the update continues on the server",
-      "progressLabel": "Update progress"
+      "progressLabel": "Update progress",
+      "changelogTitle": "What's new",
+      "downNotice": "The service will be down while it restarts"
     }
   },
   "demo": {

@@ -25,12 +25,15 @@ import {
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 
 export interface UpdateStatusInfo {
   current: string
   latest: string | null
   latestMsg: string | null
+  /** Cuerpo del commit (rolling) o notas del release (estable): changelog. */
+  latestBody?: string | null
   updateAvailable: boolean
   canApply: boolean
   repo: string
@@ -65,6 +68,9 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
   const [step, setStep] = useState<string>('start')
   const [pct, setPct] = useState<number>(0)
   const [errorCode, setErrorCode] = useState<string | null>(null)
+  // Confirmación explícita de la caída del servicio (patrón Pulse): sin
+  // marcarla, el botón de actualizar no se habilita.
+  const [ackDowntime, setAckDowntime] = useState(false)
 
   const esRef = useRef<EventSource | null>(null)
   const pollRef = useRef<number | null>(null)
@@ -201,6 +207,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
       setStep('start')
       setPct(0)
       setErrorCode(null)
+      setAckDowntime(false)
       fetchFailRef.current = 0
       if (!initialStatus) {
         void fetch('/api/update/status')
@@ -281,14 +288,50 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
             {status?.latestMsg && (
               <p className="text-center text-caption text-text-muted">{status.latestMsg}</p>
             )}
+            {/* Changelog (issue #280): cuerpo del commit (rolling) o notas
+                del release (estable), línea a línea con scroll. */}
+            {!!status?.latestBody?.trim() && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  {t('update.dialog.changelogTitle')}
+                </p>
+                <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5">
+                  <ul className="flex flex-col gap-1">
+                    {status.latestBody
+                      .split('\n')
+                      .map((l) => l.trim())
+                      .filter(Boolean)
+                      .map((l, i) => (
+                        <li key={i} className="flex items-start gap-2 text-caption leading-snug text-text-secondary">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-text-muted/60" aria-hidden="true" />
+                          {l.replace(/^[-*]\s+/, '')}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+            )}
             {status?.readiness && <ReadinessPanel readiness={status.readiness} compact />}
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-snug text-warn">
+              <Checkbox
+                checked={ackDowntime}
+                onCheckedChange={(v) => setAckDowntime(v === true)}
+                className="mt-0.5"
+                aria-label={t('update.dialog.downNotice')}
+              />
+              <span>{t('update.dialog.downNotice')}</span>
+            </label>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t('update.dialog.cancel')}
               </Button>
               <Button
                 onClick={() => void apply()}
-                disabled={!status?.canApply || (status?.readiness ? !status.readiness.ready : false)}
+                disabled={
+                  !ackDowntime ||
+                  !status?.canApply ||
+                  (status?.readiness ? !status.readiness.ready : false)
+                }
               >
                 <DownloadCloud className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 {t('update.dialog.start')}

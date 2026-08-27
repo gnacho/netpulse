@@ -1136,7 +1136,9 @@
       "reloadSoon": "La app se recargará automáticamente en unos segundos",
       "failed": "La actualización falló",
       "hideHint": "Puedes cerrar esta ventana: la actualización continúa en el servidor",
-      "progressLabel": "Progreso de la actualización"
+      "progressLabel": "Progreso de la actualización",
+      "changelogTitle": "Novedades",
+      "downNotice": "El servicio estará caído mientras se reinicia"
     }
   },
   "demo": {

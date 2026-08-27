@@ -50,6 +50,10 @@ func TestCheckUpdateAvailable(t *testing.T) {
 	if st.LatestMsg == nil || *st.LatestMsg != "feat: algo" {
 		t.Fatalf("latestMsg: %v", st.LatestMsg)
 	}
+	// Issue #280: el body del commit llega como changelog del asistente.
+	if st.LatestBody == nil || *st.LatestBody != "body" {
+		t.Fatalf("latestBody: %v", st.LatestBody)
+	}
 	if !st.UpdateAvailable {
 		t.Fatalf("debería haber update: %+v", st)
 	}

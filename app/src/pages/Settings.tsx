@@ -2095,6 +2095,7 @@ interface NetPulseUpdateStatus {
   current: string
   latest: string | null
   latestMsg: string | null
+  latestBody?: string | null
   updateAvailable: boolean
   canApply: boolean
   repo: string

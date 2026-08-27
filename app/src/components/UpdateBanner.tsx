@@ -20,6 +20,7 @@ interface UpdateStatus {
   current: string
   latest: string | null
   latestMsg: string | null
+  latestBody?: string | null
   updateAvailable: boolean
   canApply: boolean
   mode: string

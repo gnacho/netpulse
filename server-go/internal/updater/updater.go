@@ -71,11 +71,14 @@ type Status struct {
 	CanApply        bool    `json:"canApply"`
 	Mode            string  `json:"mode"`
 	LastCheck       *int64  `json:"lastCheck"`
-	Updating        any     `json:"updating"` // false | {"step": ...}
-	Error           *string `json:"error"`
-	LastLog         *string `json:"lastLog"`
-	Repo            string  `json:"repo"`
-	HasToken        bool    `json:"hasToken"`
+	// LatestBody: cuerpo del commit (rolling) o notas del release (estable)
+	// mostrado como changelog en el asistente (issue #280).
+	LatestBody    *string `json:"latestBody,omitempty"`
+	Updating      any     `json:"updating"` // false | {"step": ...}
+	Error         *string `json:"error"`
+	LastLog       *string `json:"lastLog"`
+	Repo          string  `json:"repo"`
+	HasToken      bool    `json:"hasToken"`
 	// Readiness: pre-flight checks del apply (issue #160). Null en layout
 	// estable (sin auto-apply) o hasta el primer Status().
 	Readiness *Readiness `json:"readiness,omitempty"`
@@ -100,6 +103,7 @@ type Updater struct {
 	current      string
 	latest       *string
 	latestMsg    *string
+	latestBody   *string // cuerpo del commit/notas del release (changelog #280)
 	updateAvail  bool
 	lastCheck    *int64
 	updatingStep *string // nil = no actualizando
@@ -174,12 +178,13 @@ func gitShort(repoRoot string) string {
 }
 
 // fetchLatestCommit consulta el último commit de main (modo rolling).
-// Errores → {error: ...}.
-func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCode string) {
+// Errores → {error: ...}. El body (líneas tras el subject) se devuelve como
+// changelog del asistente.
+func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg, body, errCode string) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s/repos/%s/commits/main", APIBase, u.repo), nil)
 	if err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "netpulse-updater")
@@ -191,19 +196,19 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCo
 	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", "", "timeout"
+			return "", "", "", "timeout"
 		}
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 404 {
 		if u.token != "" {
-			return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+			return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 		}
-		return "", "", "no_token"
+		return "", "", "", "no_token"
 	}
 	if res.StatusCode != 200 {
-		return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+		return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 	}
 	var data struct {
 		SHA    string `json:"sha"`
@@ -212,13 +217,14 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCo
 		} `json:"commit"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&data); err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	sha = data.SHA
 	if len(sha) > 7 {
 		sha = sha[:7]
 	}
 	msg = strings.Split(data.Commit.Message, "\n")[0]
+	body = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(data.Commit.Message), msg))
 	// JS slice(0, 80) corta por UNIDADES UTF-16 (un astral = 2 unidades),
 	// no por bytes: replicar ese cómputo (sin dejar surrogates partidos).
 	units, cut := 0, len(msg)
@@ -234,16 +240,17 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg string, errCo
 		units += w
 	}
 	msg = msg[:cut]
-	return sha, msg, ""
+	return sha, msg, body, ""
 }
 
 // fetchLatestRelease consulta el último release tag (modo stable). Devuelve
-// tag_name (ej. "v2.7.3") y el nombre del release. Errores → {error: ...}.
-func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name string, errCode string) {
+// tag_name (ej. "v2.7.3"), el nombre del release y sus notas (body) para el
+// changelog del asistente. Errores → {error: ...}.
+func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name, body, errCode string) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s/repos/%s/releases/latest", APIBase, u.repo), nil)
 	if err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "netpulse-updater")
@@ -255,33 +262,34 @@ func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name string, err
 	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", "", "timeout"
+			return "", "", "", "timeout"
 		}
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 404 {
 		if u.token != "" {
-			return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+			return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 		}
-		return "", "", "no_token"
+		return "", "", "", "no_token"
 	}
 	if res.StatusCode != 200 {
-		return "", "", fmt.Sprintf("github_%d", res.StatusCode)
+		return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 	}
 	var data struct {
 		TagName string `json:"tag_name"`
 		Name    string `json:"name"`
+		Body    string `json:"body"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&data); err != nil {
-		return "", "", "network"
+		return "", "", "", "network"
 	}
 	tag = data.TagName
 	name = data.Name
 	if name == "" {
 		name = tag
 	}
-	return tag, name, ""
+	return tag, name, strings.TrimSpace(data.Body), ""
 }
 
 // compareSemver compara dos strings semver (con o sin prefijo "v").
@@ -317,20 +325,20 @@ func parseSemver(s string) [3]int {
 // rolling compara contra el último commit de main; en modo estable contra
 // el último release tag (semver).
 func (u *Updater) Check(ctx context.Context) Status {
-	var current, latest, latestMsg, errCode string
+	var current, latest, latestMsg, latestBody, errCode string
 
 	if u.mode == "stable" {
 		current = u.version
 		if current == "" {
 			current = "desconocido"
 		}
-		latest, latestMsg, errCode = u.fetchLatestRelease(ctx)
+		latest, latestMsg, latestBody, errCode = u.fetchLatestRelease(ctx)
 	} else {
 		current = gitShort(u.repoRoot)
 		if current == "" {
 			current = "desconocido"
 		}
-		latest, latestMsg, errCode = u.fetchLatestCommit(ctx)
+		latest, latestMsg, latestBody, errCode = u.fetchLatestCommit(ctx)
 	}
 
 	now := time.Now().UnixMilli()
@@ -346,6 +354,7 @@ func (u *Updater) Check(ctx context.Context) Status {
 	u.err = nil
 	u.latest = &latest
 	u.latestMsg = &latestMsg
+	u.latestBody = &latestBody
 	if u.mode == "stable" {
 		u.updateAvail = latest != "" && current != "desconocido" && compareSemver(latest, current) > 0
 	} else {
@@ -605,6 +614,7 @@ func (u *Updater) statusLocked() Status {
 		Current:         u.current,
 		Latest:          u.latest,
 		LatestMsg:       u.latestMsg,
+		LatestBody:      u.latestBody,
 		UpdateAvailable: u.updateAvail,
 		CanApply:        u.canApply,
 		Mode:            u.mode,
