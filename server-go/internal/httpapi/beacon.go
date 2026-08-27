@@ -23,6 +23,7 @@ import (
 	"log"
 	"net"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
@@ -157,10 +158,18 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
 			ports = prev.Data.FDB.Ports
 		}
+		// MACs sin separadores ("AABBCCDDEEFF") → formato canónico con dos
+		// puntos; las irrecuperables se descartan (firmware razonable).
+		macs := make(map[string]string, len(p.FDB))
+		for mac, port := range p.FDB {
+			if norm := normalizeBeaconMAC(mac); norm != "" {
+				macs[norm] = port
+			}
+		}
 		fdbPayload := &probe.Payload{
 			Router: p.Slug, Ts: time.Now().Unix(), Version: beaconVersion,
 			Kind: "external", Interval: beaconIntervalSec,
-			Data: probe.PayloadData{FDB: &probe.FDBData{MACs: p.FDB, Ports: ports}},
+			Data: probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 		}
 		s.agents.Ingest(fdbPayload)
 		s.persistAgentState(p.Slug, s.agents.Snapshot(p.Slug))
@@ -326,14 +335,29 @@ func (s *server) lastPortLabels(slug string) map[string]string {
 // salto queda logueado para diagnóstico.
 func (s *server) beaconSeqNote(slug string, seq uint32) {
 	s.beaconSeqMu.Lock()
-	defer s.beaconSeqMu.Unlock()
+	old, had := s.beaconSeq[slug]
 	if s.beaconSeq == nil {
 		s.beaconSeq = map[string]uint32{}
 	}
-	if old, ok := s.beaconSeq[slug]; ok && seq != old+1 {
+	if had && seq != old+1 {
 		log.Printf("[netpulse:beacon] %s: seq %d tras %d (pérdida, reorden o replay)", slug, seq, old)
 	}
 	s.beaconSeq[slug] = seq
+	s.beaconSeqMu.Unlock()
+
+	// Firma de reboot (regalo del firmware): el seq arranca en 1 tras el
+	// boot, así que un salto a 1 (o 0) desde uno mayor = reinicio del
+	// switch. El wrap de uint32 daría el mismo salto una vez cada 136 años.
+	if had && seq <= 1 && old > 1 {
+		if eng := s.alertsEngine(); eng != nil {
+			eng.Emit(alerts.AlertEvent{
+				ID:         fmt.Sprintf("beacon-reboot-%s-%d", slug, time.Now().UnixMilli()),
+				Category:   alerts.CatSystem, Severity: "info", Time: "ahora mismo",
+				RouterID:   slug, Title: "Switch reiniciado",
+				Description: fmt.Sprintf("El contador de beacons de %s volvió a empezar (seq %d tras %d): el switch ha arrancado de nuevo", slug, seq, old),
+			})
+		}
+	}
 }
 
 // startBeaconListener abre el socket UDP y sirve beacons hasta que el
@@ -366,6 +390,27 @@ func (s *server) startBeaconListener(addr string) (net.Addr, error) {
 		}
 	}()
 	return pc.LocalAddr(), nil
+}
+
+// normalizeBeaconMAC: el firmware envía las MAC en MAYÚSCULAS sin
+// separadores ("AABBCCDDEEFF"); el resto de la app (leases, wifi, FDB,
+// enriquecimiento) usa "AA:BB:CC:DD:EE:FF". Devuelve "" si no es una MAC.
+func normalizeBeaconMAC(mac string) string {
+	clean := strings.ToUpper(strings.TrimSpace(mac))
+	if len(clean) == 12 && !strings.Contains(clean, ":") {
+		var b strings.Builder
+		for i := 0; i < 12; i += 2 {
+			if i > 0 {
+				b.WriteByte(':')
+			}
+			b.WriteString(clean[i : i+2])
+		}
+		return b.String()
+	}
+	if len(clean) == 17 && strings.Count(clean, ":") == 5 {
+		return clean
+	}
+	return ""
 }
 
 // recordBeaconCandidate guarda/refresca un anuncio de descubrimiento (#291).

@@ -286,7 +286,54 @@ func TestBeaconFDBDatagramPreservesPorts(t *testing.T) {
 	if len(got.Data.FDB.Ports) != 2 || !got.Data.FDB.Ports[0].Up || got.Data.FDB.Ports[1].Up {
 		t.Fatalf("las bocas del beacon anterior no se conservaron: %+v", got.Data.FDB.Ports)
 	}
-	if got.Data.FDB.MACs["AABBCCDDEE01"] != "1" {
+	if got.Data.FDB.MACs["AA:BB:CC:DD:EE:01"] != "1" {
 		t.Fatalf("macs mal: %+v", got.Data.FDB.MACs)
+	}
+}
+
+// Las MACs del firmware llegan SIN separadores: se normalizan al formato
+// canónico con dos puntos para que leases/wifi/enriquecimiento casen.
+func TestBeaconFDBNormalizesBareMACs(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":1,"slug":"switch16","token":"%s","fdb":{"AABBCCDDEE01":"3","aa:bb:cc:dd:ee:02":"8","corta":"1"}}`, token))
+	deadline := time.Now().Add(3 * time.Second)
+	var macs map[string]string
+	for time.Now().Before(deadline) {
+		if p, ok := s.agents.StalePayload("switch16"); ok && p != nil && p.Data.FDB != nil && len(p.Data.FDB.MACs) == 2 {
+			macs = p.Data.FDB.MACs
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if macs == nil {
+		t.Fatal("el datagrama FDB no llegó al registry")
+	}
+	if macs["AA:BB:CC:DD:EE:01"] != "3" || macs["AA:BB:CC:DD:EE:02"] != "8" {
+		t.Fatalf("normalización de MACs mal: %+v", macs)
+	}
+}
+
+// Seq que vuelve a 1 = reboot del switch → alerta info en el feed.
+func TestBeaconSeqResetEmitsRebootAlert(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(`{"v":1,"seq":40,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":0,"rx":0}]}`, token))
+	waitFresh(t, s, "switch16")
+	sendUDP(t, addr, fmt.Sprintf(`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":0,"rx":0}]}`, token))
+	a := waitForAlert(t, s, "Switch reiniciado")
+	if a.Severity != "info" || a.RouterID != "switch16" {
+		t.Fatalf("alerta de reboot mal: %+v", a)
 	}
 }
