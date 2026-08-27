@@ -2006,6 +2006,19 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	// Mapa global MAC → lease + MAC de bridge → nombre de router
 	leaseMap := map[string]DhcpLease{}
 	routerByMac := map[string]string{}
+	// Clientes WiFi por MAC → AP que los sirve (#291): si la única MAC de
+	// una boca del switch es un cliente WiFi, el equipo ENCHUFADO es el AP,
+	// no el cliente. La atribución correcta de la boca es el AP.
+	wifiByMac := map[string]string{}
+	for _, polled := range polledAll {
+		apName := polled.cfg.Name
+		if apName == "" {
+			apName = polled.cfg.Host
+		}
+		for mac := range polled.wireless {
+			wifiByMac[mac] = apName
+		}
+	}
 	// Alias manuales (Settings > known_macs): fallback de nombre para MACs
 	// sin lease (estáticas, equipos sin DHCP), mismo criterio que la lista
 	// de dispositivos (#291: match MAC→nombre también en bocas de switch).
@@ -2072,10 +2085,47 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			enriched = append(enriched, port)
 			continue
 		}
+		// 1.5) Cliente WiFi detrás de un AP: la boca del switch lleva al AP
+		// (el cliente viaja por su radio). Atribuir la boca al AP y señalar
+		// el cliente como "detrás" (#291).
+		if ap, isWifi := wifiByMac[all[0]]; isWifi && len(all) >= 1 && allWifiOfOneAP(all, wifiByMac) {
+			port.ConnectedTo = ap
+			port.DeviceMac = all[0]
+			if lease, ok := leaseMap[all[0]]; ok && lease.Hostname != "" {
+				port.Detail = "AP · " + lease.Hostname + " por WiFi detrás"
+			} else {
+				port.Detail = "AP · cliente WiFi detrás"
+			}
+			enriched = append(enriched, port)
+			continue
+		}
 		// 2) Un solo dispositivo final
 		if len(all) == 1 {
 			mac := all[0]
 			lease, ok := leaseMap[mac]
+			// MAC de virtualización (QEMU/KVM, Proxmox, VMware, Hyper-V):
+			// el equipo enchufado es el hypervisor; lo aprendido es una
+			// NIC virtual de una VM/CT (#291).
+			if isVirtualMAC(mac) {
+				port.ConnectedTo = "Hypervisor"
+				port.DeviceMac = mac
+				port.Detail = virtualDetail(mac, leaseMap, aliasByMac)
+				enriched = append(enriched, port)
+				continue
+			}
+			// Label curada que no coincide con el dispositivo resuelto: la
+			// label nombra la infraestructura física (p. ej. citadel-02) y lo
+			// aprendido está DETRÁS (CT sin MAC virtual detectable).
+			if isCuratedLabel(port) && !labelMatchesDevice(port.Label, mac, leaseMap, aliasByMac) {
+				name := deviceDisplayName(mac, leaseMap, aliasByMac)
+				port.ConnectedTo = name + " · detrás de " + port.Label
+				port.DeviceMac = mac
+				if lease, ok := leaseMap[mac]; ok && lease.IP != "" {
+					port.Detail = lease.IP
+				}
+				enriched = append(enriched, port)
+				continue
+			}
 			switch {
 			case ok && lease.Hostname != "":
 				port.ConnectedTo = lease.Hostname
@@ -2858,4 +2908,84 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 	}
 	out.Available = true
 	return &out, nil
+}
+
+// allWifiOfOneAP: ¿todas las MACs de la boca son clientes WiFi del mismo AP?
+func allWifiOfOneAP(macs []string, wifiByMac map[string]string) bool {
+	if len(macs) == 0 {
+		return false
+	}
+	ap := wifiByMac[macs[0]]
+	if ap == "" {
+		return false
+	}
+	for _, m := range macs[1:] {
+		if wifiByMac[m] != ap {
+			return false
+		}
+	}
+	return true
+}
+
+// prefijos OUI de virtualización: la MAC aprendida es una NIC virtual.
+var virtualMACPrefixes = []string{
+	"52:54:00", // QEMU/KVM (Proxmox VMs por defecto)
+	"BC:24:11", // Proxmox Server Solutions
+	"00:15:5D", // Microsoft Hyper-V
+	"00:50:56", // VMware ESX
+	"00:1C:14", // VMware
+	"08:00:27", // VirtualBox
+}
+
+func isVirtualMAC(mac string) bool {
+	m := strings.ToUpper(mac)
+	for _, p := range virtualMACPrefixes {
+		if strings.HasPrefix(m, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// virtualDetail: nombre legible de la VM/CT detrás del hypervisor.
+func virtualDetail(mac string, leases map[string]DhcpLease, aliases map[string]string) string {
+	if n := deviceDisplayName(mac, leases, aliases); n != mac {
+		return n + " (VM/CT detrás)"
+	}
+	return "VM/CT detrás"
+}
+
+// isCuratedLabel: label renombrada a mano (no el "Port N" por defecto).
+func isCuratedLabel(port EthPort) bool {
+	if port.Label == "" {
+		return false
+	}
+	n := strings.TrimPrefix(port.Label, "Port ")
+	if n == port.Label {
+		return true // no sigue el patrón por defecto
+	}
+	_, err := strconv.Atoi(n)
+	return err != nil // "Port <número>" = default; cualquier otra cosa, curada
+}
+
+// labelMatchesDevice: ¿la label curada nombra al propio dispositivo
+// aprendido (p. ej. "hikvision") y no a la infraestructura que hay delante?
+func labelMatchesDevice(label, mac string, leases map[string]DhcpLease, aliases map[string]string) bool {
+	name := strings.ToLower(deviceDisplayName(mac, leases, aliases))
+	l := strings.ToLower(label)
+	if name == "" || l == "" {
+		return false
+	}
+	return strings.Contains(name, l) || strings.Contains(l, name)
+}
+
+// deviceDisplayName: hostname de lease > alias > MAC.
+func deviceDisplayName(mac string, leases map[string]DhcpLease, aliases map[string]string) string {
+	if le, ok := leases[mac]; ok && le.Hostname != "" {
+		return le.Hostname
+	}
+	if a := aliases[mac]; a != "" {
+		return a
+	}
+	return mac
 }
