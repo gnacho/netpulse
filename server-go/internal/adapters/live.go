@@ -1532,11 +1532,31 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			}
 		}
 	}
+	// MACs de bridge de todos los routers sondeados: una boca de satélite
+	// que aprende una de ellas es un UPLINK (enlaza con otro equipo de red),
+	// y lo que aprende por ahí es el resto de la LAN en tránsito, no clientes
+	// locales. Sin esto, un switch agent-only (excepción de abajo) se
+	// atribuía toda la red vista por su uplink (#291).
+	brMacByRouter := map[string]bool{}
+	for _, pr := range polled {
+		if pr.brMac != "" {
+			brMacByRouter[pr.brMac] = true
+		}
+	}
 	for routerID, p := range polled {
 		if routerID == gwID {
 			continue
 		}
-		for mac := range p.fdb {
+		infraPorts := map[string]bool{}
+		for mac, port := range p.fdb {
+			if brMacByRouter[mac] {
+				infraPorts[port] = true
+			}
+		}
+		for mac, port := range p.fdb {
+			if infraPorts[port] {
+				continue // uplink: MACs en tránsito, no clientes de este equipo
+			}
 			if _, ok := seen[mac]; !ok {
 				if gwFDB[mac] && !p.cfg.AgentOnly {
 					continue // gateway bridge pasivo, no es cliente del satélite
