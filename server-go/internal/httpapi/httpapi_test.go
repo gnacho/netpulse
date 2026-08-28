@@ -598,6 +598,18 @@ func TestDevicesPaginacionYFiltros(t *testing.T) {
 	if body["pageSize"].(float64) != 50 || body["page"].(float64) != 1 {
 		t.Fatalf("defaults: %v", body)
 	}
+	// typeCounts: inventario agrupado por tipo (conteos suman el total)
+	if tc, ok := body["typeCounts"].(map[string]any); !ok {
+		t.Fatalf("typeCounts ausente: %v", body)
+	} else {
+		sum := 0
+		for _, v := range tc {
+			sum += int(v.(float64))
+		}
+		if sum != 65 {
+			t.Fatalf("typeCounts suma %d, esperaba 65: %v", sum, tc)
+		}
+	}
 	// Filtros
 	res = get(t, srv.URL, "/api/devices?routerId=living", cookie)
 	body = readJSON(t, res)

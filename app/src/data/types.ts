@@ -434,6 +434,8 @@ export interface Paged<T> {
   total: number
   page: number
   pageSize: number
+  /** Solo `GET /api/devices`: inventario agrupado por tipo con conteos. */
+  typeCounts?: Record<string, number>
 }
 
 /** Parámetros de `GET /api/devices?q=&routerId=&band=&type=&status=&page=&pageSize=`. */

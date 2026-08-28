@@ -179,6 +179,10 @@ func (s *server) handleDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := s.adapter.GetDevices(r.Context())
+	typeCounts := map[string]int{}
+	for _, d := range items {
+		typeCounts[d.Type]++
+	}
 	filtered := make([]adapters.Device, 0, len(items))
 	for _, d := range items {
 		if routerID != "" && d.RouterID != routerID {
@@ -201,7 +205,9 @@ func (s *server) handleDevices(w http.ResponseWriter, r *http.Request) {
 		}
 		filtered = append(filtered, d)
 	}
-	writeJSON(w, http.StatusOK, paginate(filtered, page, pageSize))
+	out := paginate(filtered, page, pageSize)
+	out["typeCounts"] = typeCounts
+	writeJSON(w, http.StatusOK, out)
 }
 
 // deviceMatches: substring (minúsculas) sobre name|hostname|ip|mac|manufacturer.
