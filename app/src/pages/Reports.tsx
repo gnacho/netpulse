@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { CalendarDays, RefreshCw } from 'lucide-react'
+import { CalendarDays, Download, RefreshCw } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse } from '@/data/DataProvider'
 
@@ -267,6 +267,17 @@ export default function Reports() {
           <div className="mb-4 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-accent" strokeWidth={1.75} />
             <h2 className="font-display text-h2 text-text-primary">{t('reports.availability')}</h2>
+            {items.length > 0 && (
+              <a
+                href={`/api/reports/availability?range=${range}&n=${n}&format=csv`}
+                download
+                className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+                title={t('reports.downloadCsv')}
+              >
+                <Download className="h-3 w-3" strokeWidth={2} />
+                CSV
+              </a>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
