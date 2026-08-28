@@ -5,8 +5,9 @@ import type { Router } from '@/data/mock'
 import type { WanInfo } from '@/data/types'
 import { SectionHeader } from '@/components/SectionHeader'
 import { getRouterExtras } from '@/components/routers/routerExtras'
-import type { EthPort, RouterExtras } from '@/components/routers/routerExtras'
+import type { EthPort, RouterExtras, SfpInfo } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
+import { Activity } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -195,10 +196,48 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                 </div>
               )
             )}
+            {port.sfp && <SfpDetail sfp={port.sfp} />}
           </div>
         )}
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+/** SfpDetail: sección SFP del tooltip (temperatura, potencia óptica, vendor). */
+function SfpDetail({ sfp }: { sfp: SfpInfo }) {
+  const { t } = useTranslation()
+  const tempHot = sfp.temperature > 70
+  const rxLow = sfp.rxPower < -14
+  return (
+    <div className="mt-2 border-t border-border/40 pt-2">
+      <div className="mb-1 flex items-center gap-1 text-caption font-medium text-text-secondary">
+        <Activity className="h-3 w-3" aria-hidden="true" />
+        {t('routerDetail.ports.sfpTitle')}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <MiniStat
+          label={t('routerDetail.ports.sfpTemp')}
+          value={`${sfp.temperature.toFixed(1)} °C`}
+        />
+        <MiniStat
+          label={t('routerDetail.ports.sfpRx')}
+          value={`${sfp.rxPower.toFixed(1)} dBm`}
+        />
+        <MiniStat
+          label={t('routerDetail.ports.sfpTx')}
+          value={`${sfp.txPower.toFixed(1)} dBm`}
+        />
+        {sfp.vendor && <MiniStat label={t('routerDetail.ports.sfpVendor')} value={sfp.vendor} />}
+      </div>
+      {(tempHot || rxLow) && (
+        <div className="mt-1 text-caption text-warn">
+          {tempHot && t('routerDetail.ports.sfpWarnTemp')}
+          {tempHot && rxLow && ' · '}
+          {rxLow && t('routerDetail.ports.sfpWarnRx')}
+        </div>
+      )}
+    </div>
   )
 }
 

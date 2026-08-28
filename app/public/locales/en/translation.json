@@ -508,7 +508,14 @@
       "deviceDetail": "Detail",
       "traffic": "Traffic",
       "errors": "Errors",
-      "wirelessUplink": " · wireless uplink (mesh)"
+      "wirelessUplink": " · wireless uplink (mesh)",
+      "sfpTitle": "SFP module",
+      "sfpTemp": "Temp",
+      "sfpRx": "RX power",
+      "sfpTx": "TX power",
+      "sfpVendor": "Vendor",
+      "sfpWarnTemp": "High temperature",
+      "sfpWarnRx": "Low RX power"
     },
     "radios": {
       "channel": "Channel",

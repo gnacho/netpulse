@@ -344,3 +344,44 @@ func TestBeaconSeqResetEmitsRebootAlert(t *testing.T) {
 		t.Fatalf("alerta de reboot mal: %+v", a)
 	}
 }
+
+// Beacon con campo sfp: los datos DDM/DOM se inyectan en la EthPort
+// correspondiente y RX bajo dispara alerta (#313).
+func TestBeaconSFPDataAndAlert(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":9,"l":3,"tx":10,"rx":20}],"sfp":[{"n":9,"temp":34.5,"rxp":-15.2,"txp":-3.1}]}`,
+		token))
+
+	p := waitFresh(t, s, "switch16")
+	if p.Data.FDB == nil || len(p.Data.FDB.Ports) != 1 {
+		t.Fatalf("fdb.ports: %+v", p.Data.FDB)
+	}
+	port := p.Data.FDB.Ports[0]
+	if port.Sfp == nil {
+		t.Fatal("Sfp nil: el beacon no inyectó los datos SFP")
+	}
+	if !port.Sfp.Present {
+		t.Fatal("Sfp.Present=false")
+	}
+	if port.Sfp.Temperature != 34.5 {
+		t.Fatalf("temp=%.1f, esperaba 34.5", port.Sfp.Temperature)
+	}
+	if port.Sfp.RxPower != -15.2 {
+		t.Fatalf("rxp=%.1f, esperaba -15.2", port.Sfp.RxPower)
+	}
+	if port.Sfp.TxPower != -3.1 {
+		t.Fatalf("txp=%.1f, esperaba -3.1", port.Sfp.TxPower)
+	}
+	// RX < -14 dBm → alerta.
+	a := waitForAlert(t, s, "SFP RX bajo")
+	if a.Severity != "warn" || a.Category != "system" {
+		t.Fatalf("alerta SFP RX mal: %+v", a)
+	}
+}

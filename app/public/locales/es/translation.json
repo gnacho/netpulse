@@ -508,7 +508,14 @@
       "deviceDetail": "Detalle",
       "traffic": "Tráfico",
       "errors": "Errores",
-      "wirelessUplink": " · uplink inalámbrico (mesh)"
+      "wirelessUplink": " · uplink inalámbrico (mesh)",
+      "sfpTitle": "Módulo SFP",
+      "sfpTemp": "Temp",
+      "sfpRx": "Potencia RX",
+      "sfpTx": "Potencia TX",
+      "sfpVendor": "Fabricante",
+      "sfpWarnTemp": "Temperatura alta",
+      "sfpWarnRx": "Potencia RX baja"
     },
     "radios": {
       "channel": "Canal",

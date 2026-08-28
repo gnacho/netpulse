@@ -76,10 +76,8 @@ const (
 	// CmdWanStatus: estado de la interfaz WAN (solo gateway) vía ubus.
 	// Da proto ("pppoe"), IP, gateway (ptpaddress/nexthop) y DNS (issue #276).
 	CmdWanStatus = "ubus call network.interface.wan status 2>/dev/null || true"
-	// CmdBridgeVlan: VLANs del bridge (issue #315). bridge vlan show lista
-	// puertos y sus VLAN IDs con flags PVID/Untagged. || true para routers
-	// sin bridge vlan filtering (devuelve vacio sin error).
 	CmdBridgeVlan = "bridge vlan show 2>/dev/null || true"
+	CmdEthtoolSFP = "ethtool -m %s 2>/dev/null || true"
 )
 
 // ---------------------------------------------------------------------------
@@ -165,6 +163,21 @@ type EthPort struct {
 	TxErrs  uint64   `json:"txErrors,omitempty"`
 	RxBps   *float64 `json:"rxBps,omitempty"`
 	TxBps   *float64 `json:"txBps,omitempty"`
+	// Sfp: diagnóstico digital (DDM/DOM) si la boca tiene módulo óptico
+	// (#313). nil = sin SFP o sin datos; el servidor lo conserva.
+	Sfp *SfpInfo `json:"sfp,omitempty"`
+}
+
+// SfpInfo: diagnóstico digital (DDM/DOM) de un módulo SFP (#313). Present
+// indica si se leyeron datos (ethtool -m devolvió algo parseable).
+type SfpInfo struct {
+	Temperature float64 `json:"temperature"`        // grados Celsius
+	Voltage     float64 `json:"voltage,omitempty"`   // voltios (3.3 V típico)
+	TxPower     float64 `json:"txPower"`             // dBm
+	RxPower     float64 `json:"rxPower"`             // dBm (negativo)
+	Vendor      string  `json:"vendor,omitempty"`    // "FS.COM", "Ubiquiti", ...
+	PartNumber  string  `json:"partNumber,omitempty"`
+	Present     bool    `json:"present"`
 }
 
 // IfCounters son los contadores acumulados de UNA interfaz de /proc/net/dev.
@@ -912,6 +925,48 @@ func ParseRadios(out string) []Radio {
 		radios = append(radios, *byBand[b])
 	}
 	return radios
+}
+
+var (
+	sfpTempRe   = regexp.MustCompile(`(?i)Module temperature\s*:\s*(-?[\d.]+)`)
+	sfpVoltRe   = regexp.MustCompile(`(?i)Module voltage\s*:\s*([\d.]+)`)
+	sfpTxPwrRe  = regexp.MustCompile(`(?i)Laser output power\s*:.*?/\s*(-?[\d.]+)\s*dBm`)
+	sfpRxPwrRe  = regexp.MustCompile(`(?i)Laser receiver power\s*:.*?/\s*(-?[\d.]+)\s*dBm`)
+	sfpVendorRe = regexp.MustCompile(`(?i)Vendor [Nn]ame\s*:\s*(.+)`)
+	sfpPNRe     = regexp.MustCompile(`(?i)Vendor [Pp]art [Nn]umber\s*:\s*(.+)`)
+)
+
+// ParseEthtoolSFP parsea la salida de `ethtool -m <iface>` y extrae los
+// valores DDM/DOM del módulo (#313). Devuelve nil si la salida está vacía o
+// no contiene datos de SFP.
+func ParseEthtoolSFP(out string) *SfpInfo {
+	if strings.TrimSpace(out) == "" {
+		return nil
+	}
+	info := &SfpInfo{}
+	if m := sfpTempRe.FindStringSubmatch(out); m != nil {
+		info.Temperature, _ = strconv.ParseFloat(m[1], 64)
+		info.Present = true
+	}
+	if m := sfpVoltRe.FindStringSubmatch(out); m != nil {
+		info.Voltage, _ = strconv.ParseFloat(m[1], 64)
+	}
+	if m := sfpTxPwrRe.FindStringSubmatch(out); m != nil {
+		info.TxPower, _ = strconv.ParseFloat(m[1], 64)
+	}
+	if m := sfpRxPwrRe.FindStringSubmatch(out); m != nil {
+		info.RxPower, _ = strconv.ParseFloat(m[1], 64)
+	}
+	if m := sfpVendorRe.FindStringSubmatch(out); m != nil {
+		info.Vendor = strings.TrimSpace(m[1])
+	}
+	if m := sfpPNRe.FindStringSubmatch(out); m != nil {
+		info.PartNumber = strings.TrimSpace(m[1])
+	}
+	if !info.Present {
+		return nil
+	}
+	return info
 }
 
 func round0(v float64) float64 { return float64(int64(v + 0.5)) }

@@ -40,6 +40,17 @@ type beaconPort struct {
 	Rx uint32 `json:"rx"`
 }
 
+// beaconSFP: diagnóstico digital (DDM/DOM) de una boca óptica del beacon
+// (#313). Solo bocas con módulo SFP y soporte DOM; ausente en el datagrama
+// si el switch no tiene bocas ópticas. Campos en unidades SI: temp en °C,
+// rxp/txp en dBm (negativos).
+type beaconSFP struct {
+	N    int     `json:"n"`
+	Temp float64 `json:"temp"`
+	RxP  float64 `json:"rxp"`
+	TxP  float64 `json:"txp"`
+}
+
 // beaconPacket: spec v1 del datagrama (una línea JSON ASCII, ~400 B).
 // Dev/Fw son opcionales: los lleva el ANUNCIO de descubrimiento (broadcast,
 // sin token) para que el switch pueda encontrarse antes del pareado.
@@ -61,6 +72,9 @@ type beaconPacket struct {
 	// (estado real). Valores = puerto ("3", sin prefijo lan: la
 	// normalización de polledFromAgent los alinea con las bocas).
 	FDB map[string]string `json:"fdb,omitempty"`
+	// SFP (#313): diagnóstico digital de bocas ópticas con DOM. Opcional;
+	// solo si el switch tiene módulos SFP. Por puerto (n = número de boca).
+	SFP []beaconSFP `json:"sfp,omitempty"`
 }
 
 // beaconCandidate: un switch embebido anunciándose por broadcast SIN parar
@@ -181,6 +195,17 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 	// el 8051): se reinyectan los ÚLTIMOS labels conocidos del scraper para
 	// que los nombres (v2.1) no se pierdan entre push y push (#291).
 	labels := s.lastPortLabels(p.Slug)
+	// SFP por número de boca (#313): el firmware manda una lista separada;
+	// se inyecta en la EthPort correspondiente al construir los puertos.
+	sfpByPort := map[int]*probe.SfpInfo{}
+	for _, sfp := range p.SFP {
+		if sfp.N < 1 || sfp.N > 32 {
+			continue
+		}
+		sfpByPort[sfp.N] = &probe.SfpInfo{
+			Temperature: sfp.Temp, TxPower: sfp.TxP, RxPower: sfp.RxP, Present: true,
+		}
+	}
 	ports := make([]probe.EthPort, 0, len(p.Ports))
 	for _, bp := range p.Ports {
 		if bp.N < 1 || bp.N > 32 {
@@ -195,8 +220,15 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 			ep.Up = true
 			ep.Speed = sp
 		}
+		if sfp, ok := sfpByPort[bp.N]; ok {
+			ep.Sfp = sfp
+		}
 		ports = append(ports, ep)
 	}
+	// Alertas SFP (#313): RX baja o temperatura alta en módulos ópticos.
+	// Se emiten aquí (no en polledFromAgent) para que el dedup del motor
+	// colapse duplicados entre beacons del mismo switch.
+	s.emitSFPAlerts(p.Slug, labels, sfpByPort)
 	// El beacon no sondea MACs: viaja con la ÚLTIMA tabla conocida (del
 	// datagrama FDB) en vez de nil. Así el estado persistido sobrevive a los
 	// reinicios del server (restore con MACs) y no hay ventana de 5 min sin
@@ -309,6 +341,46 @@ func (s *server) emitPortLinkChange(slug, label string, up bool) {
 		}
 	}
 	eng.Emit(ev)
+}
+
+// sfpAlertRxLow: umbral de RX power (dBm) por debajo del cual se alerta (#313).
+const sfpAlertRxLow = -14.0
+
+// sfpAlertTempHigh: umbral de temperatura (°C) por encima del cual se alerta (#313).
+const sfpAlertTempHigh = 70.0
+
+// emitSFPAlerts emite alertas por diagnóstico SFP fuera de rango (#313).
+// RX power < -14 dBm o temperatura > 70 °C. No urgentes, categoría System.
+func (s *server) emitSFPAlerts(slug string, labels map[string]string, sfpByPort map[int]*probe.SfpInfo) {
+	eng := s.alertsEngine()
+	if eng == nil {
+		return
+	}
+	for portNum, sfp := range sfpByPort {
+		id := fmt.Sprintf("lan%d", portNum)
+		portName := fmt.Sprintf("boca %d", portNum)
+		if l := labels[id]; l != "" {
+			portName = fmt.Sprintf("%s (boca %d)", l, portNum)
+		}
+		if sfp.RxPower < sfpAlertRxLow {
+			eng.Emit(alerts.AlertEvent{
+				ID: fmt.Sprintf("sfp-rx-%s-%d", slug, portNum),
+				Category: alerts.CatSystem, Urgent: false,
+				Severity: "warn", Time: "ahora mismo", RouterID: slug,
+				Title: fmt.Sprintf("SFP RX bajo en %s", portName),
+				Description: fmt.Sprintf("Potencia RX %.1f dBm (umbral %.0f dBm)", sfp.RxPower, sfpAlertRxLow),
+			})
+		}
+		if sfp.Temperature > sfpAlertTempHigh {
+			eng.Emit(alerts.AlertEvent{
+				ID: fmt.Sprintf("sfp-temp-%s-%d", slug, portNum),
+				Category: alerts.CatSystem, Urgent: false,
+				Severity: "warn", Time: "ahora mismo", RouterID: slug,
+				Title: fmt.Sprintf("SFP caliente en %s", portName),
+				Description: fmt.Sprintf("Temperatura %.1f °C (umbral %.0f °C)", sfp.Temperature, sfpAlertTempHigh),
+			})
+		}
+	}
 }
 
 // alertsEngine devuelve el motor de alertas del adapter (nil si no hay).

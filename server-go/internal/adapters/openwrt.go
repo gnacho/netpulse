@@ -485,6 +485,14 @@ func ethPortsToAdapter(in []probe.EthPort) []EthPort {
 		if p.Up {
 			ep.Speed = p.Speed
 		}
+		if p.Sfp != nil {
+			ep.Sfp = &SfpInfo{
+				Temperature: p.Sfp.Temperature, Voltage: p.Sfp.Voltage,
+				TxPower: p.Sfp.TxPower, RxPower: p.Sfp.RxPower,
+				Vendor: p.Sfp.Vendor, PartNumber: p.Sfp.PartNumber,
+				Present: p.Sfp.Present,
+			}
+		}
 		out = append(out, ep)
 	}
 	return out

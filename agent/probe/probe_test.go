@@ -512,5 +512,54 @@ eth0              100
 		if !v.Tagged || v.PVID {
 			t.Fatalf("trunk vlan debía ser tagged sin PVID: %+v", v)
 		}
+func TestParseEthtoolSFP(t *testing.T) {
+	// Salida realista de ethtool -m con un SFP monomodo.
+	out := `	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x07 (LC)
+	Transceiver codes                         : 0x00 0x00 0x00 0x01 0x00 0x00 0x00 0x00 0x00
+	Vendor Name                               : FS.COM
+	Vendor Part Number                        : SFP-GE-BX
+	Vendor Rev                                :
+	Vendor SN                                 : F2305060072
+	Module temperature                        : 34.5 degrees C / 94.1 degrees F
+	Module voltage                            : 3.2950 Volts
+	Alarm/warning flags implemented           : Yes
+	Laser output power                        : 0.5230 mW / -2.82 dBm
+	Laser receiver power                      : 0.0501 mW / -13.00 dBm
+`
+	sfp := ParseEthtoolSFP(out)
+	if sfp == nil {
+		t.Fatal("esperaba SfpInfo no nil")
+	}
+	if !sfp.Present {
+		t.Fatal("esperaba Present=true")
+	}
+	if sfp.Temperature != 34.5 {
+		t.Fatalf("temp=%.1f, esperaba 34.5", sfp.Temperature)
+	}
+	if sfp.Voltage != 3.2950 {
+		t.Fatalf("volt=%.4f, esperaba 3.2950", sfp.Voltage)
+	}
+	if sfp.TxPower != -2.82 {
+		t.Fatalf("txp=%.2f, esperaba -2.82", sfp.TxPower)
+	}
+	if sfp.RxPower != -13.00 {
+		t.Fatalf("rxp=%.2f, esperaba -13.00", sfp.RxPower)
+	}
+	if sfp.Vendor != "FS.COM" {
+		t.Fatalf("vendor=%q, esperaba FS.COM", sfp.Vendor)
+	}
+	if sfp.PartNumber != "SFP-GE-BX" {
+		t.Fatalf("pn=%q, esperaba SFP-GE-BX", sfp.PartNumber)
+	}
+
+	// Sin módulo SFP: salida vacía → nil.
+	if got := ParseEthtoolSFP(""); got != nil {
+		t.Fatalf("vacío debía dar nil: %+v", got)
+	}
+	// Salida sin datos DOM (solo identifier, sin temp/power) → nil.
+	if got := ParseEthtoolSFP("Identifier : 0x03 (SFP)\n"); got != nil {
+		t.Fatalf("sin DOM debía dar nil: %+v", got)
 	}
 }
