@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { CollectorCharts } from '@/components/CollectorCharts'
 import { AdGuardCard, WireGuardCard } from '@/sections/GatewayServices'
 import { HeroStrip } from '@/sections/HeroStrip'
 import { RecentAlerts } from '@/sections/RecentAlerts'
@@ -44,6 +45,12 @@ export default function Home() {
       <div className="lg:col-span-12">
         <RoutersRow />
       </div>
+      {/* ④ Collector sidecar (#328): latencia TCP por router desde el daemon */}
+      {!isDemo && (
+        <div className="lg:col-span-12">
+          <CollectorCharts />
+        </div>
+      )}
       {/* Top dispositivos: solo demo (en live no hay tráfico por dispositivo) */}
       {isDemo && (
         <div className="lg:col-span-12">
