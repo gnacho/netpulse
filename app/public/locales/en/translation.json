@@ -521,6 +521,38 @@
       "seriesTx": "Transmit",
       "seriesNoData": "No historical data"
     },
+    "switchPanel": {
+      "title": "Switch front panel",
+      "summary_one": "{{used}} of {{total}} port in use",
+      "summary_other": "{{used}} of {{total}} ports in use",
+      "healthy_one": "{{count}} healthy",
+      "healthy_other": "{{count}} healthy",
+      "degraded_one": "{{count}} degraded",
+      "degraded_other": "{{count}} degraded",
+      "critical_one": "{{count}} critical",
+      "critical_other": "{{count}} critical",
+      "free": "Free",
+      "speed": "Speed",
+      "traffic": "Traffic",
+      "errors": "Errors",
+      "healthBreakdown": "Health",
+      "unknownDevice": "unknown device",
+      "ariaUsed": "Port {{label}}: {{device}}",
+      "ariaFree": "Port {{label}}: free",
+      "expand": "Expand panel",
+      "collapse": "Collapse panel",
+      "legendHealthy": "Healthy",
+      "legendDegraded": "Degraded",
+      "legendCritical": "Critical",
+      "legendFree": "Free",
+      "signals": {
+        "link_up": "link",
+        "link_down": "no link",
+        "utilization": "utilization",
+        "errors": "errors",
+        "flapping": "flapping"
+      }
+    },
     "radios": {
       "channel": "Channel",
       "clear": "Clear channel",

@@ -47,6 +47,19 @@ export interface SfpInfo {
   present: boolean
 }
 
+/** Per-port health breakdown item (issue #299). */
+export interface PortHealthItem {
+  signal: string
+  weight: number
+  status: 'ok' | 'warn' | 'crit'
+}
+
+/** Per-port health score (issue #299). */
+export interface PortHealth {
+  score: number
+  breakdown: PortHealthItem[]
+}
+
 /** Boca física RJ45 del chasis (panel visual de puertos). */
 export interface EthPort {
   id: string
@@ -64,6 +77,7 @@ export interface EthPort {
   connectedTo?: string // "NAS Synology" | "Salón · AX3000T"
   deviceMac?: string // MAC del dispositivo conectado (para enlazar a /devices)
   detail?: string // "192.168.8.10 · full duplex"
+  health?: PortHealth // health score del puerto (#299)
 }
 
 export interface BackhaulInfo {

@@ -521,6 +521,38 @@
       "seriesTx": "Envío",
       "seriesNoData": "Sin datos históricos"
     },
+    "switchPanel": {
+      "title": "Panel frontal del switch",
+      "summary_one": "{{used}} de {{total}} puerto en uso",
+      "summary_other": "{{used}} de {{total}} puertos en uso",
+      "healthy_one": "{{count}} sano",
+      "healthy_other": "{{count}} sanos",
+      "degraded_one": "{{count}} degradado",
+      "degraded_other": "{{count}} degradados",
+      "critical_one": "{{count}} crítico",
+      "critical_other": "{{count}} críticos",
+      "free": "Libre",
+      "speed": "Velocidad",
+      "traffic": "Tráfico",
+      "errors": "Errores",
+      "healthBreakdown": "Salud",
+      "unknownDevice": "dispositivo desconocido",
+      "ariaUsed": "Puerto {{label}}: {{device}}",
+      "ariaFree": "Puerto {{label}}: libre",
+      "expand": "Expandir panel",
+      "collapse": "Contraer panel",
+      "legendHealthy": "Sano",
+      "legendDegraded": "Degradado",
+      "legendCritical": "Crítico",
+      "legendFree": "Libre",
+      "signals": {
+        "link_up": "enlace",
+        "link_down": "sin enlace",
+        "utilization": "uso",
+        "errors": "errores",
+        "flapping": "flapping"
+      }
+    },
     "radios": {
       "channel": "Canal",
       "clear": "Canal despejado",
