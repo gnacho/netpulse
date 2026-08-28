@@ -182,6 +182,10 @@ type Live struct {
 	boardCache  map[string]*BoardInfo
 	layoutCache map[string][]PortLayout
 	extrasCache map[string]*extrasSnapshot
+	// lastAgentIf: /proc/net/dev por iface del ÚLTIMO payload del agente
+	// (contadores absolutos + ts) para calcular los rates por boca con el
+	// delta entre payloads (issue #305). Protegido por mu.
+	lastAgentIf map[string]*agentIfSample
 	lastPolled  map[string]*routerPolled
 	failCount   map[string]int
 	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
@@ -252,6 +256,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		boardCache:           map[string]*BoardInfo{},
 		layoutCache:          map[string][]PortLayout{},
 		extrasCache:          map[string]*extrasSnapshot{},
+		lastAgentIf:          map[string]*agentIfSample{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
 		lastErr:              map[string]error{},
@@ -349,6 +354,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.extrasCache {
 		if !ids[id] {
 			delete(l.extrasCache, id)
+		}
+	}
+	for id := range l.lastAgentIf {
+		if !ids[id] {
+			delete(l.lastAgentIf, id)
 		}
 	}
 	for id := range l.lastPolled {
@@ -719,8 +729,9 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	}
 	cpu, _ := client.GetCPUPercent()
 	temp, _ := client.GetTempC()
-	net, nerr := client.GetNetDevBps()
-	if nerr != nil || net == nil {
+	// NetDev: total agregado + rates POR IFACE (#305) en una sola lectura.
+	net, ifRates := client.GetNetDev()
+	if net == nil {
 		net = &NetDevBps{}
 	}
 	leases := client.GetDhcpLeases()
@@ -729,7 +740,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	// — coste: una llamada ubus local por poll.
 	glClients := client.GetGlClients()
 	wireless := client.GetWirelessClients()
-	ports := client.GetEthPorts(layout)
+	ports := client.GetEthPorts(layout, ifRates)
 	radios := client.GetRadios()
 	fdb := client.GetBridgeFdb()
 	brMac := client.GetBridgeMac()

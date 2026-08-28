@@ -143,12 +143,40 @@ type PortLayout struct {
 	Role  string `json:"role"` // "lan" | "wan"
 }
 
-// EthPort es una boca ethernet lista para el detalle ({id, label, up, speed?}).
+// EthPort es una boca ethernet lista para el detalle ({id, label, up, speed?}
+// + contadores por puerto #305: iface física, bytes/errores acumulados y
+// rates instantáneos; omitempty para no engordar el contrato viejo).
 type EthPort struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Up    bool   `json:"up"`
 	Speed string `json:"speed,omitempty"` // solo si up
+	// Iface física de la boca (/proc/net/dev); puede diferir del id en
+	// plataformas swconfig ("1" vs "eth0.1").
+	Iface string `json:"iface,omitempty"`
+	// Contadores acumulados de la iface (issue #305).
+	RxBytes uint64   `json:"rxBytes,omitempty"`
+	TxBytes uint64   `json:"txBytes,omitempty"`
+	RxErrs  uint64   `json:"rxErrors,omitempty"`
+	TxErrs  uint64   `json:"txErrors,omitempty"`
+	RxBps   *float64 `json:"rxBps,omitempty"`
+	TxBps   *float64 `json:"txBps,omitempty"`
+}
+
+// IfCounters son los contadores acumulados de UNA interfaz de /proc/net/dev.
+type IfCounters struct {
+	Rx    uint64 // bytes
+	Tx    uint64 // bytes
+	RxErr uint64
+	TxErr uint64
+}
+
+// IfRate añade a los contadores los rates instantáneos (delta entre muestras;
+// punteros nil = primera muestra o iface nueva, sin rate todavía).
+type IfRate struct {
+	IfCounters
+	RxBps *float64
+	TxBps *float64
 }
 
 // Radio agrega una banda wifi ({name, channel, widthMhz, powerDbm, clients}).
@@ -240,6 +268,48 @@ func ParseNetDev(out string) (rx, tx float64) {
 		tx += num(8)
 	}
 	return rx, tx
+}
+
+// ParseNetDevIfaces devuelve los contadores POR INTERFAZ de /proc/net/dev
+// (sin filtrar: el consumidor decide qué ifaces le interesan; las bocas
+// físicas se casan por nombre con el layout, issue #305).
+func ParseNetDevIfaces(out string) map[string]IfCounters {
+	res := map[string]IfCounters{}
+	lineRe := regexp.MustCompile(`^\s*([\w.-]+):\s*(.*)$`)
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		m := lineRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		fields := strings.Fields(strings.TrimSpace(m[2]))
+		num := func(i int) uint64 {
+			if i < len(fields) {
+				n, _ := strconv.ParseUint(fields[i], 10, 64)
+				return n
+			}
+			return 0
+		}
+		res[m[1]] = IfCounters{
+			Rx: num(0), Tx: num(8), // bytes
+			RxErr: num(2), TxErr: num(10),
+		}
+	}
+	return res
+}
+
+// IfRates calcula los rates por interfaz con el delta de contadores entre
+// dos muestras separadas dt segundos. Ifaces nuevas o dt <= 0 → nil rates.
+// Contadores reseteados (reboot) → max0 dentro de NetDevBps da 0, no negativos.
+func IfRates(prev, cur map[string]IfCounters, dt float64) map[string]IfRate {
+	res := make(map[string]IfRate, len(cur))
+	for name, c := range cur {
+		r := IfRate{IfCounters: c}
+		if p, ok := prev[name]; ok && dt > 0 {
+			r.RxBps, r.TxBps = NetDevBps(float64(p.Rx), float64(p.Tx), float64(c.Rx), float64(c.Tx), dt)
+		}
+		res[name] = r
+	}
+	return res
 }
 
 // NetDevBps: bps por delta de contadores en dt segundos (nil si dt <= 0 o
@@ -526,8 +596,20 @@ func ParsePortLayout(out string) ([]PortLayout, error) {
 
 // BuildEthPorts: layout + estado /sys → []EthPort listo para el detalle.
 // brMembers = miembros del bridge br-lan (AP en bridge re-etiqueta wan→LAN
-// N+1); sin layout, fallback heurístico. Literal de openwrt.go GetEthPorts.
-func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string]bool) []EthPort {
+// N+1); sin layout, fallback heurístico. ifaces = contadores/rates por iface
+// física (issue #305; nil = sin datos, las bocas salen sin stats). Literal de
+// openwrt.go GetEthPorts.
+func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string]bool, ifaces map[string]IfRate) []EthPort {
+	applyStats := func(ep *EthPort, iface string) {
+		st, ok := ifaces[iface]
+		if !ok {
+			return
+		}
+		ep.Iface = iface
+		ep.RxBytes, ep.TxBytes = st.Rx, st.Tx
+		ep.RxErrs, ep.TxErrs = st.RxErr, st.TxErr
+		ep.RxBps, ep.TxBps = st.RxBps, st.TxBps
+	}
 	byName := map[string]PortState{}
 	for _, p := range states {
 		byName[p.Name] = p
@@ -551,6 +633,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			if up {
 				ep.Speed = st.Speed
 			}
+			applyStats(&ep, p.Name)
 			ports = append(ports, ep)
 		}
 		return ports
@@ -570,6 +653,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		if p.Up {
 			ep.Speed = p.Speed
 		}
+		applyStats(&ep, p.Name)
 		ports = append(ports, ep)
 	}
 	wanName := ""
@@ -586,6 +670,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		if st.Up {
 			ep.Speed = st.Speed
 		}
+		applyStats(&ep, wanName)
 		ports = append([]EthPort{ep}, ports...)
 	}
 	return ports

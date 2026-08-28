@@ -62,6 +62,10 @@ type Prober struct {
 	lastNetTx  float64
 	lastNetAt  time.Time
 	hasLastNet bool
+	// lastNetRaw conserva el último output de /proc/net/dev de probeSystem
+	// para derivar la sección NetIf (contadores por iface, #305) sin un
+	// segundo cat.
+	lastNetRaw string
 }
 
 // NewProber crea el prober con el runner dado.
@@ -92,6 +96,12 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.FDB = p.probeFDB(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.LuCI = p.probeLuCI(ctx)
+	// NetIf (#305): contadores por iface desde el MISMO /proc/net/dev que
+	// leyó probeSystem (sin segundo cat). Los rates los computa el server
+	// con el delta entre payloads.
+	if p.lastNetRaw != "" {
+		pl.Data.NetIf = ParseNetDevIfaces(p.lastNetRaw)
+	}
 	return pl
 }
 
@@ -152,6 +162,7 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 			sd.RxBps, sd.TxBps = NetDevBps(p.lastNetRx, p.lastNetTx, rx, tx, now.Sub(p.lastNetAt).Seconds())
 		}
 		p.lastNetRx, p.lastNetTx, p.lastNetAt, p.hasLastNet = rx, tx, now, true
+		p.lastNetRaw = out
 		any = true
 	}
 
@@ -260,7 +271,17 @@ func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 				}
 			}
 		}
-		fd.Ports = BuildEthPorts(layout, states, members)
+		// Contadores por iface (#305): absolutos del MISMO /proc/net/dev de
+		// probeSystem (si ya corrió este ciclo); los rates los computa el
+		// server con el delta entre payloads.
+		var ifaces map[string]IfRate
+		if p.lastNetRaw != "" {
+			ifaces = map[string]IfRate{}
+			for name, c := range ParseNetDevIfaces(p.lastNetRaw) {
+				ifaces[name] = IfRate{IfCounters: c}
+			}
+		}
+		fd.Ports = BuildEthPorts(layout, states, members, ifaces)
 		any = true
 	}
 	if !any {

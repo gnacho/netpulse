@@ -315,6 +315,40 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 	return false, nil
 }
 
+// agentIfSample: contadores por iface del último payload del agente (para
+// el delta de rates por boca, issue #305).
+type agentIfSample struct {
+	at     time.Time
+	ifaces map[string]probe.IfCounters
+}
+
+// injectPortRates copia absolutos + rates de rates (keyed por iface física)
+// sobre las bocas: match por Iface si la boca la declara, si no por ID (en
+// DSA coinciden; en swconfig el ID es numérico y solo Iface casa).
+func injectPortRates(ports []EthPort, rates map[string]probe.IfRate) {
+	for i := range ports {
+		key := ports[i].Iface
+		if key == "" {
+			key = ports[i].ID
+		}
+		r, ok := rates[key]
+		if !ok {
+			continue
+		}
+		ports[i].Iface = key
+		ports[i].RxBytes = r.Rx
+		ports[i].TxBytes = r.Tx
+		ports[i].RxErrs = r.RxErr
+		ports[i].TxErrs = r.TxErr
+		if r.RxBps != nil {
+			ports[i].RxBps = *r.RxBps
+		}
+		if r.TxBps != nil {
+			ports[i].TxBps = *r.TxBps
+		}
+	}
+}
+
 // polledFromAgent convierte el payload del agente en el routerPolled del
 // pipeline (mismos shapes que el sondeo SSH). Aplica el mismo anti-parpadeo
 // que pollRouter: sección ausente en el payload = sonda fallida → conserva
@@ -428,6 +462,25 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if out.luci == nil {
 		out.luci = cached.luci
 	}
+
+	// NetIf (issue #305): rates por boca con el delta entre payloads del
+	// agente. El payload trae contadores ABSOLUTOS por iface; el server
+	// calcula bps con la muestra anterior (ts del propio payload, no el
+	// reloj del server). Sección ausente → conserva los rates cacheados.
+	// Corre tras el anti-parpadeo (bocas definitivas) y ANTES de guardar el
+	// snapshot para que el cache lleve los rates frescos.
+	if p.Data.NetIf != nil {
+		now := time.Unix(p.Ts, 0)
+		l.mu.Lock()
+		prev := l.lastAgentIf[cfg.ID]
+		l.lastAgentIf[cfg.ID] = &agentIfSample{at: now, ifaces: p.Data.NetIf}
+		l.mu.Unlock()
+		if prev != nil && now.Sub(prev.at).Seconds() > 0 && len(out.ports) > 0 {
+			rates := probe.IfRates(prev.ifaces, p.Data.NetIf, now.Sub(prev.at).Seconds())
+			injectPortRates(out.ports, rates)
+		}
+	}
+
 	l.mu.Lock()
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
 		wireless: out.wireless, fdb: out.fdb, luci: out.luci}

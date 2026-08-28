@@ -376,15 +376,23 @@ type PerfSeries struct {
 }
 
 // EthPort es una boca ethernet ({id, label, up, speed?} + enriquecimiento de
-// vecino en el detalle: connectedTo/deviceMac/detail, SPEC §7.8).
+// vecino en el detalle: connectedTo/deviceMac/detail, SPEC §7.8 + contadores
+// por puerto #305: iface física, bytes/errores acumulados y rates).
 type EthPort struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Up          bool   `json:"up"`
-	Speed       string `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
-	ConnectedTo string `json:"connectedTo,omitempty"`
-	DeviceMac   string `json:"deviceMac,omitempty"`
-	Detail      string `json:"detail,omitempty"`
+	ID          string  `json:"id"`
+	Label       string  `json:"label"`
+	Up          bool    `json:"up"`
+	Speed       string  `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
+	Iface       string  `json:"iface,omitempty"` // iface física (/proc/net/dev)
+	RxBytes     uint64  `json:"rxBytes,omitempty"`
+	TxBytes     uint64  `json:"txBytes,omitempty"`
+	RxErrs      uint64  `json:"rxErrors,omitempty"`
+	TxErrs      uint64  `json:"txErrors,omitempty"`
+	RxBps       float64 `json:"rxBps,omitempty"`
+	TxBps       float64 `json:"txBps,omitempty"`
+	ConnectedTo string  `json:"connectedTo,omitempty"`
+	DeviceMac   string  `json:"deviceMac,omitempty"`
+	Detail      string  `json:"detail,omitempty"`
 }
 
 // Radio agrega una banda wifi ({name, channel, widthMhz, powerDbm, clients}).
