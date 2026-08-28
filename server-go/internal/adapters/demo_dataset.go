@@ -113,6 +113,12 @@ func canonHealthScore() HealthScore {
 			{Label: "cobertura Patio", Delta: -2},
 			{Label: "canal 2.4 GHz congestionado", Delta: -2},
 		},
+		Subscores: []Subscore{
+			{Key: "wan", Label: "WAN", Score: 98},
+			{Key: "wifi", Label: "WiFi", Score: 88},
+			{Key: "infra", Label: "Infra", Score: 92},
+			{Key: "services", Label: "Servicios", Score: 100},
+		},
 	}
 }
 

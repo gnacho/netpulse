@@ -9,6 +9,7 @@ import { StatusPill } from '@/components/StatusPill'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 import { useDashboard } from '@/hooks/useDashboard'
+import { cn } from '@/lib/utils'
 
 function greetingKey(): string {
   const h = new Date().getHours()
@@ -149,6 +150,31 @@ export function HeroStrip() {
           </motion.div>
           <StatusPill tone="ok" label={healthLabel(healthScore.label)} />
           <span className="text-caption text-text-muted">{t('common.healthCaption')}</span>
+
+          {/* Subscore bars (#334) */}
+          {healthScore.subscores && healthScore.subscores.length > 0 && (
+            <div className="mt-2 grid w-full max-w-xs grid-cols-2 gap-x-4 gap-y-1.5">
+              {healthScore.subscores.map((s) => (
+                <div key={s.key} className="flex items-center gap-2">
+                  <span className="w-12 text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                    {s.label}
+                  </span>
+                  <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-border">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        s.score >= 90 ? 'bg-ok' : s.score >= 70 ? 'bg-warn' : 'bg-danger',
+                      )}
+                      style={{ width: `${s.score}%` }}
+                    />
+                  </div>
+                  <span className="w-6 text-right font-mono text-[10px] text-text-secondary">
+                    {s.score}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Stats: latencia + dispositivos en fila, centrados */}

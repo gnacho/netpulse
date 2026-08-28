@@ -1825,21 +1825,41 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 func computeHealth(routers []Router, adguard *AdGuardStats) HealthScore {
 	score := 100
 	breakdown := []HealthDelta{}
+	wanScore := 100
+	wifiScore := 100
+	infraScore := 100
+	svcScore := 100
+
 	for _, r := range routers {
 		if r.Status == "offline" {
 			score -= 30
+			infraScore -= 40
 			breakdown = append(breakdown, HealthDelta{Label: r.Name + " offline", Delta: -30})
 		} else if r.Temp != nil && *r.Temp > 65 {
 			score -= 8
+			infraScore -= 10
 			breakdown = append(breakdown, HealthDelta{Label: "temp. " + r.Name, Delta: -8})
 		}
 	}
 	if adguard != nil && adguard.Status != "active" {
 		score -= 5
+		svcScore -= 20
 		breakdown = append(breakdown, HealthDelta{Label: "AdGuard inactivo", Delta: -5})
 	}
 	if score < 0 {
 		score = 0
+	}
+	if wanScore < 0 {
+		wanScore = 0
+	}
+	if wifiScore < 0 {
+		wifiScore = 0
+	}
+	if infraScore < 0 {
+		infraScore = 0
+	}
+	if svcScore < 0 {
+		svcScore = 0
 	}
 	label := "Atención"
 	if score >= 85 {
@@ -1858,6 +1878,12 @@ func computeHealth(routers []Router, adguard *AdGuardStats) HealthScore {
 	return HealthScore{
 		Score: score, Label: label, Caption: "Puntuación de salud de la red",
 		Note: note, Breakdown: breakdown,
+		Subscores: []Subscore{
+			{Key: "wan", Label: "WAN", Score: wanScore},
+			{Key: "wifi", Label: "WiFi", Score: wifiScore},
+			{Key: "infra", Label: "Infra", Score: infraScore},
+			{Key: "services", Label: "Servicios", Score: svcScore},
+		},
 	}
 }
 

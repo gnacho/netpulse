@@ -2539,6 +2539,28 @@
         "label": "canal 2.4 GHz congestionado",
         "delta": -2
       }
+    ],
+    "subscores": [
+      {
+        "key": "wan",
+        "label": "WAN",
+        "score": 98
+      },
+      {
+        "key": "wifi",
+        "label": "WiFi",
+        "score": 88
+      },
+      {
+        "key": "infra",
+        "label": "Infra",
+        "score": 92
+      },
+      {
+        "key": "services",
+        "label": "Servicios",
+        "score": 100
+      }
     ]
   }
 }

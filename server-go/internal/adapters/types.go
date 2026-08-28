@@ -29,11 +29,19 @@ type HealthDelta struct {
 
 // HealthScore global (demo: canon; live: computeHealth).
 type HealthScore struct {
-	Score     int           `json:"score"`
-	Label     string        `json:"label"` // "Excelente"|"Bueno"|"Atención"
-	Caption   string        `json:"caption"`
-	Note      string        `json:"note"`
-	Breakdown []HealthDelta `json:"breakdown"`
+	Score      int             `json:"score"`
+	Label      string          `json:"label"` // "Excelente"|"Bueno"|"Atención"
+	Caption    string          `json:"caption"`
+	Note       string          `json:"note"`
+	Breakdown  []HealthDelta   `json:"breakdown"`
+	Subscores  []Subscore      `json:"subscores,omitempty"`
+}
+
+// Subscore is a component score within the health breakdown (#334).
+type Subscore struct {
+	Key   string `json:"key"`   // "wan"|"wifi"|"infra"|"services"
+	Label string `json:"label"` // display name
+	Score int    `json:"score"` // 0-100
 }
 
 // WAN stats (vía gateway).

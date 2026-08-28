@@ -94,6 +94,7 @@ export interface HealthScore {
   caption: string
   note: string
   breakdown: { label: string; delta: number }[]
+  subscores?: { key: string; label: string; score: number }[]
 }
 
 export interface AdGuardStats {
