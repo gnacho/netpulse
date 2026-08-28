@@ -85,6 +85,8 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		fdbMap[e.MAC] = name
 	}
 
+	l.portMon.Observe(cfg.ID, ethPorts, l.engine)
+
 	var uptimeSec float64
 	if sysInfo != nil {
 		uptimeSec = float64(sysInfo.UpTimeSec)

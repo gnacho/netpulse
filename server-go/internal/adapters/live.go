@@ -245,6 +245,10 @@ type Live struct {
 	// vivo" (#281). Se limpia cuando el acceso SSH se recupera.
 	sshAuthFailAlerted map[string]bool
 
+	// portMon (issue #303/#307/#308): monitor de estado de puertos para
+	// detección de flapping, ghost port y link degradado.
+	portMon *PortMonitor
+
 	// now: reloj inyectable para tests deterministas (nil → time.Now).
 	// Mismo patrón que AgentRegistry.SetClock.
 	now func() time.Time
@@ -298,6 +302,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
+		portMon:              NewPortMonitor(),
 	}
 	l.loadRouterMacs()
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
@@ -880,6 +885,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		tempV = *temp
 	}
 	l.recordPortSamples(cfg.ID, portsGood)
+	l.portMon.Observe(cfg.ID, portsGood, l.engine)
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
@@ -1450,12 +1456,12 @@ func parseSpeedMbps(s string) int {
 	s = strings.ReplaceAll(s, "Bps", "")
 	s = strings.TrimSpace(s)
 	if strings.HasSuffix(s, "G") {
-		if v, err := strconv.ParseFloat(strings.TrimSuffix(s, "G"), 64); err == nil {
+		if v, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "G")), 64); err == nil {
 			return int(v * 1000)
 		}
 	}
 	if strings.HasSuffix(s, "M") {
-		if v, err := strconv.ParseFloat(strings.TrimSuffix(s, "M"), 64); err == nil {
+		if v, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "M")), 64); err == nil {
 			return int(v)
 		}
 	}

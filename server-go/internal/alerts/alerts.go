@@ -70,15 +70,17 @@ type AlertEvent struct {
 
 // Stable alert-type slugs (issue #310): keys of the Hints map.
 const (
-	HintAgentDown     = "agent-down"
-	HintGatewayUnrch  = "gateway-unreachable"
-	HintHighTemp      = "high-temperature"
-	HintPortFlapping  = "port-flapping"
-	HintDeviceOffline = "device-offline"
-	HintUnknownDevice = "unknown-device"
-	HintFirmware      = "firmware-outdated"
-	HintWanDown       = "wan-down"
-	HintWifiWeak      = "wifi-weak"
+	HintAgentDown      = "agent-down"
+	HintGatewayUnrch   = "gateway-unreachable"
+	HintHighTemp       = "high-temperature"
+	HintPortFlapping   = "port-flapping"
+	HintDeviceOffline  = "device-offline"
+	HintUnknownDevice  = "unknown-device"
+	HintFirmware       = "firmware-outdated"
+	HintWanDown        = "wan-down"
+	HintWifiWeak       = "wifi-weak"
+	HintGhostPort      = "ghost-port"
+	HintDegradedLink   = "degraded-link"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
@@ -93,6 +95,8 @@ var Hints = map[string]string{
 	HintFirmware:      "NetPulse es de solo lectura: actualiza el firmware desde LuCI.",
 	HintWanDown:       "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
 	HintWifiWeak:      "Acerca el dispositivo a un punto de acceso o reubica el AP.",
+	HintGhostPort:     "Revisa el cable y el dispositivo conectado: un puerto activo que enmudece suele indicar un cable suelto o un equipo apagado.",
+	HintDegradedLink:  "Revisa el cable y los conectores: un enlace degradado suele ser síntoma de cable dañado o conector flojo.",
 }
 
 // HintFor returns the suggestion for a slug, or "" when it does not exist.
