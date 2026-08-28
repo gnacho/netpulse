@@ -1683,6 +1683,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			rows.Close()
 		}
 	}
+	lldpCapsByMac := map[string]string{}
+	for _, p := range polled {
+		for _, nb := range p.lldp {
+			if nb.ChassisMac != "" && len(nb.Caps) > 0 {
+				lldpCapsByMac[nb.ChassisMac] = strings.Join(nb.Caps, ",")
+			}
+		}
+	}
 	devices := []Device{}
 	for mac := range allMacs {
 		if routerMacs[mac] {
@@ -1724,9 +1732,15 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
 		}
-		// Tipo estimado por hostname (el DHCP/FDB no dice qué es el cliente).
-		// Con nombre-MAC (sin hostname) queda "desconocido".
-		d.Type = GuessDeviceType(d.Name, d.Manufacturer)
+		vendorClass := ""
+		clientID := ""
+		if hasLease {
+			vendorClass = lease.VendorClass
+			clientID = lease.ClientID
+		}
+		// Tipo estimado con reglas deterministas (hostname, huella DHCP y
+		// capacidades LLDP). Con nombre-MAC (sin hostname) queda "desconocido".
+		d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
 		if isSeen {
 			d.RouterID = s.routerID
 			d.Band = s.band

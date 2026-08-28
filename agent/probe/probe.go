@@ -117,11 +117,14 @@ type WanInfo struct {
 	DNS     []string `json:"dns,omitempty"`     // servidores DNS
 }
 
-// DhcpLease es {mac, ip, hostname} (mac en mayúsculas).
+// DhcpLease es {mac, ip, hostname} (mac en mayúsculas) + señales de huella
+// DHCP (vendor class y client-id) cuando el firmware las expone.
 type DhcpLease struct {
-	MAC      string `json:"mac"`
-	IP       string `json:"ip"`
-	Hostname string `json:"hostname"`
+	MAC         string `json:"mac"`
+	IP          string `json:"ip"`
+	Hostname    string `json:"hostname"`
+	VendorClass string `json:"vendorClass,omitempty"`
+	ClientID    string `json:"clientId,omitempty"`
 }
 
 // WirelessClient es {signalDbm, band} por MAC.
@@ -366,10 +369,12 @@ func ParsePingSummary(out string) (latency, loss *float64) {
 // ({lease: [...]} o {leases: [...]}). Error si no es JSON con esas claves.
 func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 	type leaseJSON struct {
-		MAC      string `json:"mac"`
-		IPAddr   string `json:"ip-address"`
-		IP       string `json:"ip"`
-		Hostname string `json:"hostname"`
+		MAC       string `json:"mac"`
+		IPAddr    string `json:"ip-address"`
+		IP        string `json:"ip"`
+		Hostname  string `json:"hostname"`
+		VendorID  string `json:"vendorid"`
+		ClientID  string `json:"clientid"`
 	}
 	var data struct {
 		Lease  []leaseJSON `json:"lease"`
@@ -391,7 +396,7 @@ func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 		if ip == "" {
 			ip = l.IP
 		}
-		out = append(out, DhcpLease{MAC: strings.ToUpper(l.MAC), IP: ip, Hostname: l.Hostname})
+		out = append(out, DhcpLease{MAC: strings.ToUpper(l.MAC), IP: ip, Hostname: l.Hostname, VendorClass: l.VendorID, ClientID: l.ClientID})
 	}
 	return out, nil
 }
@@ -454,7 +459,11 @@ func ParseDhcpLeasesFile(out string) []DhcpLease {
 		if len(p) > 3 && p[3] != "*" {
 			hostname = p[3]
 		}
-		leases = append(leases, DhcpLease{MAC: strings.ToUpper(p[1]), IP: p[2], Hostname: hostname})
+		clientID := ""
+		if len(p) > 4 && p[4] != "*" {
+			clientID = p[4]
+		}
+		leases = append(leases, DhcpLease{MAC: strings.ToUpper(p[1]), IP: p[2], Hostname: hostname, ClientID: clientID})
 	}
 	return leases
 }
