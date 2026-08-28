@@ -348,7 +348,8 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.
 type agentListItem struct {
 	Slug     string `json:"slug"`
-	LastSeen *int64 `json:"lastSeen"` // unix SEGUNDOS; null si nunca empujó
+	RouterID string `json:"routerId,omitempty"` // id del router asociado (#282)
+	LastSeen *int64 `json:"lastSeen"`           // unix SEGUNDOS; null si nunca empujó
 	Version  string `json:"version,omitempty"`
 	Fresh    bool   `json:"fresh"`
 	// UpdateAvailable: true si el agente reportó una versión distinta de la
@@ -377,10 +378,10 @@ type agentUpgradeStep struct {
 
 // agentUpgradeInfo es el paso de progreso expuesto en GET /api/agents.
 type agentUpgradeInfo struct {
-	Step  string            `json:"step"`
-	Pct   int               `json:"pct,omitempty"` // 0-100 en "downloading"
-	Error string            `json:"error,omitempty"`
-	Ts    int64             `json:"ts"` // unix segundos del último reporte
+	Step  string             `json:"step"`
+	Pct   int                `json:"pct,omitempty"` // 0-100 en "downloading"
+	Error string             `json:"error,omitempty"`
+	Ts    int64              `json:"ts"`              // unix segundos del último reporte
 	Steps []agentUpgradeStep `json:"steps,omitempty"` // historia de pasos (#284)
 }
 
@@ -409,16 +410,17 @@ func (s *server) routerUpgradeable(slug string) bool {
 // handleAgentsList: slugs con token + last_seen + versión.
 func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 	out := []agentListItem{}
-	// Types de routers por slug, precargados en UNA consulta: con
-	// SetMaxOpenConns(1) un QueryRow dentro del bucle de rows de abajo
-	// esperaría la conexión que el rows activo mantiene (deadlock).
-	routerTypes := map[string]string{}
+	// Routers precargados en UNA consulta: con SetMaxOpenConns(1) un QueryRow
+	// dentro del bucle de rows de abajo esperaría la conexión que el rows
+	// activo mantiene (deadlock). Guardamos id, type, name, host y mac para
+	// resolver la asociación agente↔router (#282).
+	routerByID := map[string]routerIdentity{}
 	if s.db != nil {
-		if rows, err := s.db.Query("SELECT id, type FROM routers"); err == nil {
+		if rows, err := s.db.Query("SELECT id, type, name, host, COALESCE(mac,'') FROM routers"); err == nil {
 			for rows.Next() {
-				var id, typ string
-				if rows.Scan(&id, &typ) == nil {
-					routerTypes[id] = typ
+				var id, typ, name, host, mac string
+				if rows.Scan(&id, &typ, &name, &host, &mac) == nil {
+					routerByID[id] = routerIdentity{ID: id, Type: typ, Name: name, Host: host, Mac: mac}
 				}
 			}
 			rows.Close()
@@ -435,7 +437,11 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				}
 				slug := strings.TrimPrefix(key, agentTokenKeyPrefix)
 				item := agentListItem{Slug: slug}
+				var payload *probe.Payload
 				if s.agents != nil {
+					if st := s.agents.Snapshot(slug); st != nil {
+						payload = st.Payload
+					}
 					if seen, version, kind, interval, ok := s.agents.Info(slug); ok {
 						ts := seen.Unix()
 						item.LastSeen = &ts
@@ -446,13 +452,18 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 							item.Kind = "native"
 						}
 						item.Interval = interval
-						// Fase 6.3 (issue #243): upgrade disponible si el agente
-						// reporta una versión distinta del binario embebido y es
-						// un agente nativo OpenWrt (no un scraper).
-						item.UpdateAvailable = agentUpgradeable(routerTypes[slug]) && version != "" && version != agentbin.EmbeddedAgentVersion
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
+				item.RouterID = resolveAgentRouter(slug, payload, routerByID)
+				// Fase 6.3 (issue #243): upgrade disponible si el agente
+				// reporta una versión distinta del binario embebido y el router
+				// asociado es actualizable (nativo OpenWrt/GL.iNet).
+				matchedType := ""
+				if r, ok := routerByID[item.RouterID]; ok {
+					matchedType = r.Type
+				}
+				item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && item.Version != agentbin.EmbeddedAgentVersion
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {
 					ts := st.Ts.Unix()
@@ -467,6 +478,47 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
+}
+
+// routerIdentity es la información mínima de un router para resolver la
+// asociación agente↔router sin exponer credenciales.
+type routerIdentity struct {
+	ID   string
+	Type string
+	Name string
+	Host string
+	Mac  string
+}
+
+// resolveAgentRouter devuelve el id del router asociado a un agente. Primero
+// intenta slug == router.id; si no, empareja por hostname del board del
+// payload o por bridge MAC persistida (#282).
+func resolveAgentRouter(slug string, payload *probe.Payload, routers map[string]routerIdentity) string {
+	if slug != "" {
+		if _, ok := routers[slug]; ok {
+			return slug
+		}
+	}
+	if payload == nil || payload.Data.System == nil || payload.Data.System.Board == nil {
+		return ""
+	}
+	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+	hostname := norm(payload.Data.System.Board.Hostname)
+	if hostname != "" {
+		for _, r := range routers {
+			if hostname == norm(r.Host) || hostname == norm(r.Name) {
+				return r.ID
+			}
+		}
+	}
+	if payload.Data.System.BridgeMAC != "" {
+		for _, r := range routers {
+			if strings.EqualFold(payload.Data.System.BridgeMAC, r.Mac) {
+				return r.ID
+			}
+		}
+	}
+	return ""
 }
 
 // handleAgentsDelete: revoca el token del slug (el agente recibirá 401 en su
