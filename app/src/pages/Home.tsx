@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { CollectorCharts } from '@/components/CollectorCharts'
+import { WiFiSLECard } from '@/components/WiFiSLECard'
 import { AdGuardCard, WireGuardCard } from '@/sections/GatewayServices'
 import { HeroStrip } from '@/sections/HeroStrip'
 import { RecentAlerts } from '@/sections/RecentAlerts'
@@ -49,6 +50,12 @@ export default function Home() {
       {!isDemo && (
         <div className="lg:col-span-12">
           <CollectorCharts />
+        </div>
+      )}
+      {/* ⑤ WiFi SLEs (#342): Service Level Expectations por router */}
+      {!isDemo && (
+        <div className="lg:col-span-12">
+          <WiFiSLECard />
         </div>
       )}
       {/* Top dispositivos: solo demo (en live no hay tráfico por dispositivo) */}

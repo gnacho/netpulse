@@ -38,6 +38,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
+	"github.com/gnacho/netpulse/server-go/internal/wifisle"
 )
 
 // Version es la versión del backend (app.js:18). Es una var (no const) para
@@ -91,6 +92,8 @@ type Deps struct {
 	InternetHealth *internethealth.Store
 	// Presence: personas y presencia (#336). nil → sin presencia.
 	Presence *presence.Store
+	// WiFiSLE: WiFi Service Level Expectations (#342). nil → sin SLEs.
+	WiFiSLE *wifisle.Store
 }
 
 type server struct {
@@ -148,6 +151,9 @@ type server struct {
 
 	// Presence: personas y presencia (#336). nil = sin presencia.
 	presence *presence.Store
+
+	// WiFiSLE: WiFi Service Level Expectations (#342). nil = sin SLEs.
+	wifiSLE *wifisle.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -165,6 +171,7 @@ func NewHandler(d Deps) http.Handler {
 		baselines:       d.Baselines,
 		internetHealth:  d.InternetHealth,
 		presence:        d.Presence,
+		wifiSLE:         d.WiFiSLE,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -236,6 +243,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/internet-health", s.handleInternetHealth)
 	mux.HandleFunc("GET /api/presence", s.handlePresenceStatus)
 	mux.HandleFunc("GET /api/presence/people", s.handlePresencePeople)
+	mux.HandleFunc("GET /api/wifi-sles", s.handleWiFiSLESummary)
+	mux.HandleFunc("GET /api/wifi-sles/series", s.handleWiFiSLESeries)
 	mux.HandleFunc("GET /api/metrics", s.handleMetrics)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)

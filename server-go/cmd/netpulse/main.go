@@ -52,6 +52,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/tlscert"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 	"github.com/gnacho/netpulse/server-go/internal/webhook"
+	"github.com/gnacho/netpulse/server-go/internal/wifisle"
 )
 
 // Timeouts de http.Server (issue #210): ReadTimeout/WriteTimeout acotan una
@@ -205,6 +206,10 @@ func run() error {
 			log.Printf("[netpulse] collector sidecar: %s", collPath)
 		}
 	}
+	if err := wifisle.EnsureSchema(dbHandle); err != nil {
+		return fmt.Errorf("wifi sle schema: %w", err)
+	}
+	wifiSLE := wifisle.NewStore(dbHandle)
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -408,6 +413,7 @@ func run() error {
 		Orchestr:        orchMgr,
 		TokenStore:      tokenStore,
 		CollectorReader: collReader,
+		WiFiSLE:         wifiSLE,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

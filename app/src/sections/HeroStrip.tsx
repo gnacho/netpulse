@@ -10,7 +10,6 @@ import { StatusPill } from '@/components/StatusPill'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 import { useDashboard } from '@/hooks/useDashboard'
-import { cn } from '@/lib/utils'
 
 function greetingKey(): string {
   const h = new Date().getHours()
