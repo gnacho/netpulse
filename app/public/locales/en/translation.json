@@ -952,6 +952,16 @@
       "errorGeneric": "Push notifications could not be enabled on this device.",
       "note": "Only alerts marked as urgent arrive (configured in Alerts). The notice is shown by the operating system with the NetPulse icon."
     },
+    "telegram": {
+      "title": "Telegram notifications",
+      "description": "Receive alerts directly in Telegram. Create a bot with @BotFather and add it to a chat.",
+      "enabled": "Enable Telegram notifications",
+      "botToken": "Bot token",
+      "chatId": "Chat ID",
+      "bot": "Bot",
+      "chat": "Chat",
+      "sendTest": "Send test"
+    },
     "pwa": {
       "caption": "Installable app · PWA",
       "desc": "Install it as an app: fullscreen launch, no browser bar and instant access.",

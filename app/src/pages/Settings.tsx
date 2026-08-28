@@ -61,6 +61,7 @@ import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { relTimeFromTs } from '@/i18n'
 import { cn, exitDemo } from '@/lib/utils'
 import { ACCENTS, type AccentId, type ThemeMode } from '@/lib/theme-boot'
+import TelegramCard from '@/components/TelegramCard'
 import pkg from '../../package.json'
 
 // ---------------------------------------------------------------------------
@@ -3912,6 +3913,9 @@ export default function Settings() {
                 </button>
               ) : null}
             </div>
+
+            {/* Telegram (#326): notificaciones directas al bot */}
+            {!isDemo && <TelegramCard onSaved={notify} />}
 
             {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
             <SystemInfoBlock />
