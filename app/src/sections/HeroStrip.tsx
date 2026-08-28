@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { Fragment, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { healthLabel } from '@/i18n'
 import { CountUp } from '@/components/CountUp'
 import { HealthRing } from '@/components/HealthRing'
@@ -176,6 +177,40 @@ export function HeroStrip() {
             </div>
           )}
         </div>
+
+        {/* Desglose del health score (#23): barras de penalizacion */}
+        {healthScore.breakdown.length > 0 && (
+          <div className="w-full max-w-sm space-y-1.5">
+            {healthScore.breakdown.map((b, i) => {
+              const pct = Math.min(100, Math.abs(b.delta) * 10)
+              const color = Math.abs(b.delta) >= 8 ? 'bg-danger' : Math.abs(b.delta) >= 4 ? 'bg-warn' : 'bg-info'
+              return (
+                <motion.div
+                  key={b.label}
+                  initial={reduce ? false : { opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.4 + i * 0.08 }}
+                  className="flex items-center gap-2"
+                >
+                  <span className="w-28 shrink-0 truncate text-right text-[11px] text-text-muted">{b.label}</span>
+                  <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-border/50">
+                    <motion.div
+                      className={cn('absolute left-0 top-0 h-full rounded-full', color)}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.6, delay: 0.5 + i * 0.08, ease: 'easeOut' }}
+                    />
+                  </div>
+                  <span className={cn('w-8 shrink-0 text-right font-mono text-[11px] font-semibold',
+                    Math.abs(b.delta) >= 8 ? 'text-danger' : Math.abs(b.delta) >= 4 ? 'text-warn' : 'text-info',
+                  )}>
+                    {b.delta}
+                  </span>
+                </motion.div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Stats: latencia + dispositivos en fila, centrados */}
         <div className="mt-1 flex w-full items-center justify-center gap-8 md:gap-12">

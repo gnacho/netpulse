@@ -774,6 +774,30 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             <stop offset="0%" stopColor={COLOR.accent} stopOpacity="0.28" />
             <stop offset="100%" stopColor={COLOR.tunnel} stopOpacity="0.28" />
           </linearGradient>
+          <filter id="glow-ok" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feFlood floodColor={COLOR.ok} floodOpacity="0.4" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="glow" />
+            <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="glow-warn" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feFlood floodColor={COLOR.warn} floodOpacity="0.5" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="glow" />
+            <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="glow-danger" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feFlood floodColor={COLOR.danger} floodOpacity="0.5" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="glow" />
+            <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="glow-tunnel" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feFlood floodColor={COLOR.tunnel} floodOpacity="0.35" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="glow" />
+            <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
         </defs>
 
         {/* ------------------------- Anillos guía wifi ------------------------- */}
@@ -818,6 +842,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                   strokeLinecap="round"
                   strokeDasharray={isWg ? '7 7' : isWifiUp ? '8 6' : undefined}
                   opacity={baseOpacity}
+                  filter={isWg ? 'url(#glow-tunnel)' : undefined}
                   initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={reduce ? { duration: 0 } : { delay: drawDelay * T, duration: 0.4, ease: 'easeOut' }}
@@ -941,6 +966,8 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         {routerNodes.map((node, i) => {
           const isGw = node.router.roleBadge === 'Principal'
           const isWarn = node.router.status === 'warn'
+          const isOffline = node.router.status === 'offline'
+          const glowFilter = isOffline ? 'url(#glow-danger)' : isWarn ? 'url(#glow-warn)' : undefined
           const delay = isGw ? 0.55 : 1.0 + (i - 1) * 0.15
           const Icon = RouterIcon
           return (
@@ -1003,8 +1030,9 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
                 <circle
                   r={node.r}
                   fill={isGw ? 'url(#topo-gw-grad)' : 'rgb(var(--elevated))'}
-                  stroke={isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--border-strong))'}
-                  strokeWidth={isGw || isWarn ? 2 : 1.5}
+                  stroke={isOffline ? COLOR.danger : isWarn ? COLOR.warn : isGw ? COLOR.accent : 'rgb(var(--border-strong))'}
+                  strokeWidth={isGw || isWarn || isOffline ? 2 : 1.5}
+                  filter={glowFilter}
                 />
                 <StatusRing node={node} delay={(delay + 0.2) * T} reduce={reduce ?? false} />
                 <Icon
