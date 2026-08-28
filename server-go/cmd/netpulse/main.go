@@ -32,6 +32,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -188,6 +189,10 @@ func run() error {
 	if err := auth.EnsureUsers(dbHandle, cfg); err != nil {
 		return err
 	}
+	if err := apitoken.EnsureSchema(dbHandle); err != nil {
+		return fmt.Errorf("api tokens schema: %w", err)
+	}
+	tokenStore := apitoken.NewStore(dbHandle, secret)
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -364,19 +369,20 @@ func run() error {
 	}
 
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Config:   cfg,
-		DB:       dbHandle,
-		Adapter:  adapter,
-		Hub:      hub,
-		Secret:   secret,
-		Static:   static,
-		Updater:  upd,
-		Agents:   agentReg,
-		Pool:     sshPool,
-		Rearmer:  arm,
-		AgentHub: agentHub,
-		ServerFP: serverFP,
-		Orchestr: orchMgr,
+		Config:     cfg,
+		DB:         dbHandle,
+		Adapter:    adapter,
+		Hub:        hub,
+		Secret:     secret,
+		Static:     static,
+		Updater:    upd,
+		Agents:     agentReg,
+		Pool:       sshPool,
+		Rearmer:    arm,
+		AgentHub:   agentHub,
+		ServerFP:   serverFP,
+		Orchestr:   orchMgr,
+		TokenStore: tokenStore,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

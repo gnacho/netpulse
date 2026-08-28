@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -76,6 +77,8 @@ type Deps struct {
 	ServerFP string
 	// Orchestr: motor de plan/apply (Fase 10). nil → sin rutas /api/plans.
 	Orchestr *orchestr.Manager
+	// TokenStore: bearer tokens de API con scopes (#330). nil → sin tokens.
+	TokenStore *apitoken.Store
 }
 
 type server struct {
@@ -118,6 +121,9 @@ type server struct {
 
 	// Ventana de frescura del `ts` del agente (anti-replay, auditoría #2).
 	maxTsDrift time.Duration
+
+	// TokenStore: bearer tokens de API (#330). nil = sin tokens.
+	tokenStore *apitoken.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -130,6 +136,7 @@ func NewHandler(d Deps) http.Handler {
 		serverFP:    d.ServerFP,
 		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
 		upgrades:    newUpgradeTracker(),
+		tokenStore:  d.TokenStore,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -270,6 +277,11 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("DELETE /api/users/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteUser)))
 	mux.Handle("GET /api/webhook/dlq", auth.RequireAdmin(http.HandlerFunc(s.handleWebhookDLQ)))
 
+	// --- API tokens (#330): CRUD de bearer tokens con scopes ---
+	mux.HandleFunc("GET /api/tokens", s.handleTokensList)
+	mux.HandleFunc("POST /api/tokens", s.handleTokensCreate)
+	mux.HandleFunc("DELETE /api/tokens/{id}", s.handleTokensDelete)
+
 	// --- Config (sesión; /api/config/adguard solo admin) ---
 	s.registerConfigRoutes(mux)
 
@@ -307,7 +319,11 @@ func NewHandler(d Deps) http.Handler {
 		mux.Handle("/", static)
 	}
 
-	return requestID(security.Middleware(auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, s.demoReadOnly(noStoreMux(mux))))))
+	var tv auth.TokenValidator
+	if s.tokenStore != nil {
+		tv = s.tokenStore
+	}
+	return requestID(security.Middleware(auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en

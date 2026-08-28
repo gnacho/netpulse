@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -74,11 +75,16 @@ func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 	if err := auth.EnsureUsers(d, cfg); err != nil {
 		t.Fatalf("users: %v", err)
 	}
+	if err := apitoken.EnsureSchema(d); err != nil {
+		t.Fatalf("api_tokens schema: %v", err)
+	}
+	tokenStore := apitoken.NewStore(d, secret)
 	adapter := adapters.NewDemo()
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapter, Hub: hub, Secret: secret,
-		Started: time.Now(),
+		Started:    time.Now(),
+		TokenStore: tokenStore,
 	})
 	srv := httptest.NewServer(handler)
 	ts := &testServer{Server: srv, db: d, secret: secret}

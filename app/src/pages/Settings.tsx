@@ -45,6 +45,7 @@ import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
 import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { TokensManager } from '@/components/TokensManager'
 import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 import { UpdateDialog } from '@/components/UpdateDialog'
@@ -3822,6 +3823,15 @@ export default function Settings() {
             )}
           </Card>
         </div>
+
+        {/* API Tokens (#330): bearer tokens con scopes para integraciones */}
+        {!isDemo && (
+          <div className="lg:col-span-12">
+            <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
+              <TokensManager />
+            </Card>
+          </div>
+        )}
 
         {/* ⑥ Acerca de */}
         <div className="lg:col-span-12">
