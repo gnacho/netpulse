@@ -566,3 +566,65 @@ func TestParseEthtoolSFP(t *testing.T) {
 		t.Fatalf("sin DOM debía dar nil: %+v", got)
 	}
 }
+
+// TestIsRandomizedMAC (#338): detects locally-administered MACs.
+func TestIsRandomizedMAC(t *testing.T) {
+	cases := map[string]bool{
+		"AA:BB:CC:DD:EE:FF": true,  // 0xAA = 10101010, bit 1 set
+		"02:11:22:33:44:55": true,  // 0x02 = 00000010, bit 1 set
+		"F6:A1:B2:C3:D4:E5": true,  // 0xF6 = 11110110, bit 1 set
+		"00:11:22:33:44:55": false, // 0x00 = 00000000, bit 1 clear
+		"DC:A6:32:XX:YY:ZZ": false, // 0xDC = 11011100, bit 1 clear (Raspberry Pi)
+		"B8:27:EB:11:22:33": false, // 0xB8 = 10111000, bit 1 clear
+		"B2:AA:BB:CC:DD:EE": true,  // 0xB2 = 10110010, bit 1 set (Apple private)
+	}
+	for mac, want := range cases {
+		got := IsRandomizedMAC(mac)
+		if got != want {
+			t.Errorf("IsRandomizedMAC(%q) = %v, want %v", mac, got, want)
+		}
+	}
+	// Edge cases
+	if IsRandomizedMAC("") {
+		t.Error("empty should be false")
+	}
+	if IsRandomizedMAC("X") {
+		t.Error("single char should be false")
+	}
+}
+
+// TestParseMdnsBrowse (#338): parses umdns browse output.
+func TestParseMdnsBrowse(t *testing.T) {
+	// Empty input
+	if got := ParseMdnsBrowse(nil); got != nil {
+		t.Fatalf("nil should return nil, got %+v", got)
+	}
+	if got := ParseMdnsBrowse([]byte("{}")); got != nil {
+		t.Fatalf("empty object should return nil, got %+v", got)
+	}
+
+	// Real umdns browse output (simplified)
+	raw := `{
+		"Apple-TV._airplay._tcp.local": {"port": 7000, "ipv4": "192.168.1.50"},
+		"Apple-TV._raop._tcp.local": {"port": 7000, "ipv4": "192.168.1.50"},
+		"Printer._ipp._tcp.local": {"port": 631, "ipv4": "192.168.1.60"}
+	}`
+	dd := ParseMdnsBrowse([]byte(raw))
+	if dd == nil {
+		t.Fatal("should parse valid browse output")
+	}
+	// Check services
+	if svcs, ok := dd.Services["Apple-TV"]; !ok || len(svcs) != 2 {
+		t.Errorf("Apple-TV services: %v", dd.Services)
+	}
+	if svcs, ok := dd.Services["Printer"]; !ok || len(svcs) != 1 {
+		t.Errorf("Printer services: %v", dd.Services)
+	}
+	// Check IP mapping
+	if host, ok := dd.HostByIP["192.168.1.50"]; !ok || host != "Apple-TV" {
+		t.Errorf("HostByIP[192.168.1.50] = %q", host)
+	}
+	if host, ok := dd.HostByIP["192.168.1.60"]; !ok || host != "Printer" {
+		t.Errorf("HostByIP[192.168.1.60] = %q", host)
+	}
+}

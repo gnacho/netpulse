@@ -540,6 +540,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if p.Data.LuCI != nil {
 		out.luci = p.Data.LuCI
 	}
+	// Discovery (#338): mDNS services + randomized MACs. Best-effort.
+	if p.Data.Discovery != nil {
+		out.discovery = p.Data.Discovery
+	}
 
 	if cached == nil {
 		cached = &extrasSnapshot{ports: []EthPort{}, radios: []Radio{},

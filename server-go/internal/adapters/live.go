@@ -128,6 +128,9 @@ type routerPolled struct {
 	// vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sin
 	// datos (router sin bridge vlan filtering o sonda fallida).
 	vlans []VlanPort
+	// discovery: mDNS services + randomized MACs (#338). nil = sin datos
+	// (umdns no instalado o sonda fallida).
+	discovery *probe.DiscoveryData
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -1590,6 +1593,25 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			}
 		}
 	}
+	// Discovery (#338): aggregate mDNS host-by-IP and random MAC sets from
+	// all polled routers. Used to enrich devices below.
+	mdnsHostByIP := map[string]string{}
+	randomMACs := map[string]bool{}
+	mdnsSvcByHost := map[string][]string{}
+	for _, p := range polled {
+		if p.discovery == nil {
+			continue
+		}
+		for ip, host := range p.discovery.HostByIP {
+			mdnsHostByIP[ip] = host
+		}
+		for _, mac := range p.discovery.RandomMACs {
+			randomMACs[mac] = true
+		}
+		for host, svcs := range p.discovery.Services {
+			mdnsSvcByHost[host] = svcs
+		}
+	}
 	type knownInfo struct {
 		routerID string
 		band     string
@@ -1807,6 +1829,26 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		// Tipo estimado con reglas deterministas (hostname, huella DHCP y
 		// capacidades LLDP). Con nombre-MAC (sin hostname) queda "desconocido".
 		d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
+		// mDNS enrichment (#338): resolve hostname from IP → lookup services.
+		if d.IP != "" {
+			if host, ok := mdnsHostByIP[d.IP]; ok {
+				if svcs, ok := mdnsSvcByHost[host]; ok {
+					d.MdnsServices = svcs
+				}
+				// If the device has no name (just MAC), use the mDNS hostname.
+				if d.Name == mac {
+					d.Name = host
+				}
+			}
+		}
+		if randomMACs[mac] {
+			d.RandomMAC = true
+		}
+		// mDNS-based type refinement (#338): if the hostname/DHCP classification
+		// yielded "desconocido" but mDNS services are available, try to classify.
+		if d.Type == "desconocido" && len(d.MdnsServices) > 0 {
+			d.Type = guessFromMdns(d.MdnsServices)
+		}
 		if isSeen {
 			d.RouterID = s.routerID
 			d.Band = s.band

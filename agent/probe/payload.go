@@ -40,6 +40,8 @@ type PayloadData struct {
 	// Vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sonda
 	// fallida o router sin bridge vlan filtering.
 	Vlans []VlanPort `json:"vlans,omitempty"`
+	// Discovery: mDNS services and randomized MAC detection (#338).
+	Discovery *DiscoveryData `json:"discovery,omitempty"`
 }
 
 // SystemData: salud del equipo + tráfico + latencias.
@@ -109,4 +111,19 @@ type DawnClient struct {
 	Signal int    `json:"signal"` // dBm (negativo)
 	HT     bool   `json:"ht"`
 	VHT    bool   `json:"vht"`
+}
+
+// DiscoveryData: mDNS service discovery + randomized MAC detection (#338).
+// Source: umdns browse on OpenWrt; falls back to parsing /tmp/umdns/ if
+// available. Best-effort: nil section if umdns is not installed.
+type DiscoveryData struct {
+	// Services: hostname -> list of mDNS service types advertised.
+	// e.g. {"Apple-TV._airplay._tcp.local": ["_airplay._tcp", "_raop._tcp"]}
+	Services map[string][]string `json:"services,omitempty"`
+	// HostByIP: IP -> hostname from mDNS PTR records. Helps resolve devices
+	// that have no DHCP hostname.
+	HostByIP map[string]string `json:"hostByIp,omitempty"`
+	// RandomMACs: MACs detected as locally-administered (bit 1 of byte 0 set).
+	// These are typically iOS/Android private WiFi addresses that rotate.
+	RandomMACs []string `json:"randomMacs,omitempty"`
 }

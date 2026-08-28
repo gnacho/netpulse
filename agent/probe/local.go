@@ -96,6 +96,8 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.FDB = p.probeFDB(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.LuCI = p.probeLuCI(ctx)
+	// Discovery (#338): mDNS services + randomized MAC detection.
+	pl.Data.Discovery = p.probeDiscovery(ctx, pl.Data.Wireless)
 	// NetIf (#305): contadores por iface desde el MISMO /proc/net/dev que
 	// leyó probeSystem (sin segundo cat). Los rates los computa el server
 	// con el delta entre payloads.
@@ -393,4 +395,30 @@ func (p *Prober) probeDawn(ctx context.Context) *DawnData {
 		return nil
 	}
 	return &DawnData{SSIDs: ssids}
+}
+
+// probeDiscovery (#338): mDNS service discovery + randomized MAC detection.
+// Runs umdns browse; enriches with randomized MACs from wireless clients.
+func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *DiscoveryData {
+	out, err := p.run.Run(ctx, CmdMdnsBrowse, 5*time.Second)
+	var dd *DiscoveryData
+	if err == nil && strings.TrimSpace(out) != "" && strings.TrimSpace(out) != "{}" {
+		dd = ParseMdnsBrowse([]byte(out))
+	}
+	if dd == nil {
+		dd = &DiscoveryData{}
+	}
+
+	// Detect randomized MACs from wireless clients.
+	if wireless != nil {
+		for mac := range wireless.Clients {
+			if IsRandomizedMAC(mac) {
+				dd.RandomMACs = append(dd.RandomMACs, mac)
+			}
+		}
+	}
+	if len(dd.Services) == 0 && len(dd.HostByIP) == 0 && len(dd.RandomMACs) == 0 {
+		return nil
+	}
+	return dd
 }
