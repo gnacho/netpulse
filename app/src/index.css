@@ -204,6 +204,66 @@
 }
 
 @layer utilities {
+  /* Surface hierarchy (#21): elevated cards get accent glow + stronger border */
+  .surface-elevated {
+    border-color: rgb(var(--border-strong));
+    box-shadow:
+      0 0 0 1px rgb(var(--accent) / 0.08),
+      0 4px 24px -8px rgb(var(--accent) / 0.12);
+  }
+  .surface-featured {
+    border-color: rgb(var(--accent) / 0.25);
+    background: linear-gradient(
+      135deg,
+      rgb(var(--surface)) 0%,
+      rgb(var(--accent) / 0.03) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgb(var(--accent) / 0.1),
+      0 8px 32px -12px rgb(var(--accent) / 0.18);
+  }
+
+  /* Status glows (#21): subtle border glow for health states */
+  .glow-ok { box-shadow: 0 0 20px -8px rgb(var(--ok) / 0.3); }
+  .glow-warn { box-shadow: 0 0 20px -8px rgb(var(--warn) / 0.3); }
+  .glow-danger { box-shadow: 0 0 20px -8px rgb(var(--danger) / 0.3); }
+  .glow-accent { box-shadow: 0 0 20px -8px rgb(var(--accent) / 0.3); }
+
+  /* KPI typography (#22): display font + tabular nums for hero metrics */
+  .kpi-value {
+    font-family: var(--font-display);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .kpi-delta-up {
+    color: rgb(var(--ok));
+  }
+  .kpi-delta-down {
+    color: rgb(var(--danger));
+  }
+  .kpi-delta-flat {
+    color: rgb(var(--text-muted));
+  }
+
+  /* SSE flash (#22): brief highlight when a value updates via SSE */
+  .flash-sse {
+    animation: kpi-flash 0.6s ease-out;
+  }
+  @keyframes kpi-flash {
+    0% { background-color: rgb(var(--accent) / 0.15); }
+    100% { background-color: transparent; }
+  }
+
+  /* Count-up entrance (#22) */
+  .count-up-enter {
+    animation: count-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes count-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   /* Safe areas (PWA, design.md §12) */
   .pt-safe {
     padding-top: env(safe-area-inset-top);

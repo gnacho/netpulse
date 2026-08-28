@@ -42,7 +42,7 @@ function MiniStat({
         <Icon className={`h-3.5 w-3.5 ${colorClass}`} strokeWidth={1.75} />
         {label}
       </span>
-      <span className={`font-mono text-lg font-semibold ${colorClass}`}>{children}</span>
+      <span className={`kpi-value text-lg font-semibold ${colorClass}`}>{children}</span>
     </motion.div>
   )
 }
@@ -79,7 +79,7 @@ export function HeroStrip() {
   const statusLine = alerts > 0 ? t('home.importantAlerts', { count: alerts }) : t('home.noImportantAlerts')
 
   return (
-    <section className="mesh-bg relative h-full overflow-hidden rounded-2xl border border-border bg-surface p-5 md:p-6">
+    <section className="surface-featured mesh-bg relative h-full overflow-hidden rounded-2xl border bg-surface p-5 md:p-6">
       {/* Halo radial cyan que respira */}
       {!reduce && (
         <motion.div
@@ -140,7 +140,7 @@ export function HeroStrip() {
               })}
               center={
                 <div className="flex flex-col items-center">
-                  <span className="font-display text-display-sm font-bold text-text-primary md:text-display">
+                  <span className="kpi-value text-display-sm font-bold text-text-primary md:text-display">
                     <CountUp value={healthScore.score} duration={1.2} nonce={refreshKey} />
                   </span>
                   <span className="font-mono text-mono-sm text-text-muted">/100</span>

@@ -60,7 +60,7 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { relTimeFromTs } from '@/i18n'
 import { cn, exitDemo } from '@/lib/utils'
-import { ACCENTS, type AccentId, type ThemeMode } from '@/lib/theme-boot'
+import { ACCENTS, PALETTES, type AccentId, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
 import pkg from '../../package.json'
 
@@ -3016,12 +3016,20 @@ export default function Settings() {
     return () => mq.removeEventListener('change', apply)
   }, [mode])
 
-  // ——— Acento en vivo (--accent) ———
+  // ——— Paleta completa (canvas, surface, accent, semantic...) ———
+  const [paletteId, setPaletteId] = useStoredState<PaletteId>('netpulse-palette', 'netpulse')
   const [accentId, setAccentId] = useStoredState<AccentId>('netpulse-accent', 'cyan')
   useEffect(() => {
+    const palette = PALETTES.find((x) => x.id === paletteId) ?? PALETTES[0]
+    const vars = resolvedLight ? palette.light : palette.dark
+    const root = document.documentElement
+    for (const [key, value] of Object.entries(vars)) {
+      root.style.setProperty(`--${key}`, value)
+    }
+    root.setAttribute('data-palette', paletteId)
     const a = ACCENTS.find((x) => x.id === accentId) ?? ACCENTS[0]
-    document.documentElement.style.setProperty('--accent', resolvedLight ? a.light : a.dark)
-  }, [accentId, resolvedLight])
+    root.style.setProperty('--accent', resolvedLight ? a.light : a.dark)
+  }, [paletteId, accentId, resolvedLight])
 
   // ——— Densidad (compacta ≈ −15 % de tamaños/paddings vía rem) ———
   const [density, setDensity] = useStoredState<'comoda' | 'compacta'>('netpulse-density', 'comoda')
@@ -3365,10 +3373,59 @@ export default function Settings() {
               })}
             </div>
 
-            {/* Acento */}
+            {/* Paleta completa (#19-#20) */}
             <div className="mt-5">
+              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
+              <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {PALETTES.map((p) => {
+                  const active = paletteId === p.id
+                  return (
+                    <motion.button
+                      key={p.id}
+                      type="button"
+                      aria-label={t(p.labelKey)}
+                      aria-pressed={active}
+                      whileTap={reduce ? undefined : { scale: 0.95 }}
+                      onClick={() => {
+                        setPaletteId(p.id)
+                        notify()
+                      }}
+                      className={cn(
+                        'group relative flex flex-col items-start gap-1.5 rounded-xl border p-3 transition-all duration-150',
+                        active
+                          ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
+                          : 'border-border hover:border-border-strong',
+                      )}
+                    >
+                      <div className="flex w-full items-center gap-1.5">
+                        <span
+                          className="h-5 w-5 shrink-0 rounded-full"
+                          style={{ backgroundColor: `rgb(${p.dark.accent})` }}
+                        />
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
+                        />
+                        <span
+                          className="ml-auto h-4 w-8 rounded"
+                          style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-medium text-text-secondary">{t(p.labelKey)}</span>
+                      {active && (
+                        <Check className="absolute right-2 top-2 h-3.5 w-3.5 text-accent" strokeWidth={2.5} />
+                      )}
+                    </motion.button>
+                  )
+                })}
+              </div>
+              <p className="mt-1.5 text-caption text-text-muted">{t('settings.paletteCaption')}</p>
+            </div>
+
+            {/* Acento (override fino sobre la paleta) */}
+            <div className="mt-4">
               <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
-              <div className="mt-2.5 flex items-center gap-3">
+              <div className="mt-2 flex items-center gap-3">
                 {ACCENTS.map((a) => {
                   const active = accentId === a.id
                   return (
@@ -3383,12 +3440,12 @@ export default function Settings() {
                         notify()
                       }}
                       className={cn(
-                        'flex h-9 w-9 items-center justify-center rounded-full transition-shadow duration-150',
+                        'flex h-8 w-8 items-center justify-center rounded-full transition-shadow duration-150',
                         active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-border-strong hover:ring-offset-2 hover:ring-offset-surface',
                       )}
                       style={{ backgroundColor: a.swatch }}
                     >
-                      {active && <Check className="h-4 w-4 text-[#070B12]" strokeWidth={2.5} />}
+                      {active && <Check className="h-3.5 w-3.5 text-[#070B12]" strokeWidth={2.5} />}
                     </motion.button>
                   )
                 })}

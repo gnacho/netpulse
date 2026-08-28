@@ -154,7 +154,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 delay={0.2 + index * 0.1}
                 ariaLabel={t('common.healthOf', { name: router.name, health: router.health })}
                 center={
-                  <span className="font-display text-lg font-bold text-text-primary">{router.health}</span>
+                  <span className="kpi-value text-lg font-bold text-text-primary">{router.health}</span>
                 }
               />
             </motion.div>

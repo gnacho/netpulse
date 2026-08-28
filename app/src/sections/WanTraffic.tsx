@@ -95,7 +95,7 @@ export function WanTraffic() {
   const liveDotUp = useMemo(() => makeLiveDot(liveData.length, '#A78BFA'), [liveData.length])
 
   return (
-    <section className="flex h-full flex-col rounded-2xl border border-border bg-surface p-5">
+    <section className="surface-elevated flex h-full flex-col rounded-2xl border bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeader title={t('home.traffic.title')}>
           <StatusPill tone="ok" label={t('topbar.live')} pulse />
@@ -206,7 +206,7 @@ export function WanTraffic() {
             transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 + i * 0.08 }}
           >
             <div className="text-label uppercase text-text-muted">{m.label}</div>
-            <div className="mt-0.5 font-mono text-mono-sm font-semibold text-text-primary">{m.value}</div>
+            <div className="kpi-value mt-0.5 text-mono-sm font-semibold text-text-primary">{m.value}</div>
           </motion.div>
         ))}
       </div>

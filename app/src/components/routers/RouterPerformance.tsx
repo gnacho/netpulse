@@ -135,7 +135,7 @@ export function RouterPerformance({ router }: { router: Router }) {
               </div>
             </div>
             <div className="w-20 shrink-0 text-right sm:w-24">
-              <div className="font-mono text-xl font-semibold text-text-primary">
+              <div className="kpi-value text-xl font-semibold text-text-primary">
                 <CountUp key={range} value={current[s.key]} />
                 <span className="ml-0.5 text-xs font-medium text-text-secondary">{s.unit}</span>
               </div>

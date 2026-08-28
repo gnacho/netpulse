@@ -1171,7 +1171,13 @@
       "saveError": "Could not save the device",
       "deleteError": "Could not remove the device",
       "loadError": "Could not load trusted devices"
-    }
+    },
+    "palette": "Palette",
+    "paletteCaption": "Palette changes all interface colors. Accent only changes the primary color.",
+    "paletteNetpulse": "NetPulse",
+    "paletteNoc": "Warm NOC",
+    "palettePhosphor": "Phosphor",
+    "paletteElectric": "Electric"
   },
   "statcard": {
     "vsPrevious": "vs previous"
