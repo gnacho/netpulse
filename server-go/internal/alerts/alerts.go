@@ -67,6 +67,9 @@ type AlertEvent struct {
 	Ts       int64  `json:"ts"`   // unix SEGUNDOS; el frontend calcula el relativo
 	Read     bool   `json:"read"`
 	RouterID string `json:"routerId"`
+	// SuppressedBy is the routerId of the parent router whose offline alert
+	// is suppressing this one (issue #332). Empty when not suppressed.
+	SuppressedBy string `json:"suppressedBy,omitempty"`
 }
 
 // Stable alert-type slugs (issue #310): keys of the Hints map.
@@ -137,6 +140,10 @@ type Engine struct {
 	readSet map[string]bool
 	readOrd []string // FIFO de IDs (cap 200) para podar readSet
 	silenceMap map[string]int64 // dedup key → expiry (unix seconds); 0 = forever
+
+	// suppression: grafo de dependencias topológicas (issue #332).
+	// nil = sin supresión (tests o sin topología).
+	suppression *SuppressionGraph
 }
 
 // New crea el motor cargando config y read-state de kv (si db != nil).
@@ -193,6 +200,14 @@ func (e *Engine) SetClock(f func() time.Time) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.now = f
+}
+
+// SetSuppression wirea el grafo de dependencias topológicas (issue #332).
+// nil desactiva la supresión (tests o arranque sin topología).
+func (e *Engine) SetSuppression(g *SuppressionGraph) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.suppression = g
 }
 
 // Config devuelve una copia de la config efectiva (siempre las 6 claves).
@@ -279,17 +294,24 @@ func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
 // Emit aplica la semántica none/urgent/all EN CREACIÓN, el dedup de 5 min y
 // el cap de 100; devuelve true si el evento pasó (se guardó). Los urgentes
 // que pasan disparan el Notifier (hook de Bloque C).
+// Supresión topológica (#332): si el router tiene un padre offline en el
+// grafo, la alerta se guarda con SuppressedBy y NO dispara el Notifier.
 func (e *Engine) Emit(ev AlertEvent) bool {
 	e.mu.Lock()
 	if !e.pasaLocked(ev) {
 		e.mu.Unlock()
 		return false
 	}
+	if e.suppression != nil && ev.RouterID != "" {
+		if parent := e.suppression.SuppressedBy(ev.RouterID); parent != "" {
+			ev.SuppressedBy = parent
+		}
+	}
 	now := e.now()
 	ok := e.insertaLocked(ev, now)
 	n := e.notifier
 	e.mu.Unlock()
-	if ok && n != nil && ev.Urgent {
+	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
 		n.Notify(ev)
 	}
 	return ok

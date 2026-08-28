@@ -252,6 +252,10 @@ type Live struct {
 	// detección de flapping, ghost port y link degradado.
 	portMon *PortMonitor
 
+	// suppression (issue #332): grafo de dependencias topológicas para
+	// suprimir alertas hijas cuando un router padre está offline.
+	suppression *alerts.SuppressionGraph
+
 	// now: reloj inyectable para tests deterministas (nil → time.Now).
 	// Mismo patrón que AgentRegistry.SetClock.
 	now func() time.Time
@@ -306,8 +310,10 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
 		portMon:              NewPortMonitor(),
+		suppression:         alerts.NewSuppressionGraph(),
 	}
 	l.loadRouterMacs()
+	l.engine.SetSuppression(l.suppression)
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
 		var flag string
@@ -1193,6 +1199,9 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 			if name == "" {
 				name = res.cfg.Host
 			}
+			if l.suppression != nil {
+				l.suppression.MarkDown(res.cfg.ID)
+			}
 			l.engine.Emit(AlertEvent{
 				ID:       fmt.Sprintf("alert-offline-%s-%d", res.cfg.ID, time.Now().UnixMilli()),
 				Category: alerts.CatRouter, Urgent: true,
@@ -1215,6 +1224,9 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 // category router, urgent false, severity ok — SPEC-ALERTAS §1).
 // Debe llamarse con l.mu tomado (mismo contexto que el resto de emisiones).
 func (l *Live) emitRouterRecovered(routerID, name string) {
+	if l.suppression != nil {
+		l.suppression.MarkUp(routerID)
+	}
 	l.engine.Emit(AlertEvent{
 		ID:       fmt.Sprintf("alert-recovered-%s-%d", routerID, time.Now().UnixMilli()),
 		Category: alerts.CatRouter, Urgent: false,
@@ -2048,6 +2060,19 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	if l.db != nil {
 		devices, distNodes = applyTopologyOverrides(devices, distNodes, loadTopologyOverrides(l.db))
 	}
+	// Supresión topológica (#332): actualizar grafo parent→child.
+	// Todos los no-gateway cuelgan del gateway.
+	l.mu.Lock()
+	if gw != nil && l.suppression != nil {
+		parents := map[string]string{}
+		for _, r := range routers {
+			if r.ID != gw.ID {
+				parents[r.ID] = gw.ID
+			}
+		}
+		l.suppression.SetTopology(parents)
+	}
+	l.mu.Unlock()
 	// Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
 	for _, d := range devices {
 		if d.Online && d.SignalDbm != nil && *d.SignalDbm < -70 {

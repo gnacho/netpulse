@@ -317,6 +317,11 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
           {ev.hint && (
             <p className="mt-0.5 truncate text-caption italic text-text-muted">{ev.hint}</p>
           )}
+          {ev.suppressedBy && (
+            <p className="mt-0.5 truncate text-caption text-text-muted" title={t('alertSuppression.suppressedHint')}>
+              {t('alertSuppression.suppressedBy', { router: ev.suppressedBy })}
+            </p>
+          )}
         </div>
         <ChevronRight
           className={cn('h-4 w-4 shrink-0 text-text-muted transition-transform duration-200', expanded && 'rotate-90')}

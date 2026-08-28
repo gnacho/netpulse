@@ -1435,5 +1435,9 @@
       "warn": "Aviso",
       "critical": "Crítico"
     }
+  },
+  "alertSuppression": {
+    "suppressedBy": "Suprimida por {{router}}",
+    "suppressedHint": "Esta alerta está suprimida porque un router padre está offline."
   }
 }
