@@ -319,3 +319,45 @@ func TestConfigRoutersFirmwareTarget(t *testing.T) {
 		t.Fatalf("firmware_target persistido=%q, esperaba 24.10.1", found)
 	}
 }
+
+func TestConfigRoutersSNMP(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"sw1","host":"192.168.8.20","type":"managed-switch","snmp_enabled":true,"snmp_community":"public","snmp_port":161}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	router := body["router"].(map[string]any)
+	if router["snmp_enabled"] != true {
+		t.Fatalf("snmp_enabled tras alta: %v", router)
+	}
+	if router["snmp_community"] != "public" {
+		t.Fatalf("snmp_community tras alta: %v", router)
+	}
+	if router["snmp_port"] != float64(161) {
+		t.Fatalf("snmp_port tras alta: %v", router)
+	}
+
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/sw1", cookie,
+		`{"host":"192.168.8.20","snmp_enabled":false,"snmp_community":"secret"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT snmp: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	rt := body["router"].(map[string]any)
+	if rt["snmp_enabled"] != false {
+		t.Fatalf("snmp_enabled tras PUT: %v", rt)
+	}
+	if rt["snmp_community"] != "secret" {
+		t.Fatalf("snmp_community tras PUT: %v", rt)
+	}
+
+	res = doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"sw2","host":"192.168.8.21","type":"managed-switch","snmp_port":99999}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("POST invalid snmp_port: %d; want 400", res.StatusCode)
+	}
+}

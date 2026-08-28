@@ -191,6 +191,9 @@ type Live struct {
 	// (contadores absolutos + ts) para calcular los rates por boca con el
 	// delta entre payloads (issue #305). Protegido por mu.
 	lastAgentIf map[string]*agentIfSample
+	// snmpPorts (issue #309): contadores del último poll SNMP por router y
+	// puerto. Se usa para calcular rxBps/txBps entre polls sucesivos.
+	snmpPorts map[string]map[string]snmpPortSample
 	lastPolled  map[string]*routerPolled
 	failCount   map[string]int
 	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
@@ -271,6 +274,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		layoutCache:          map[string][]PortLayout{},
 		extrasCache:          map[string]*extrasSnapshot{},
 		lastAgentIf:          map[string]*agentIfSample{},
+		snmpPorts:            map[string]map[string]snmpPortSample{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
 		lastErr:              map[string]error{},
@@ -396,6 +400,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.lastAgentIf {
 		if !ids[id] {
 			delete(l.lastAgentIf, id)
+		}
+	}
+	for id := range l.snmpPorts {
+		if !ids[id] {
+			delete(l.snmpPorts, id)
 		}
 	}
 	for id := range l.lastPolled {
@@ -739,6 +748,9 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 			p.wanInfo = l.probeWanInfo(cfg.ID, client)
 		}
 		return p, nil
+	}
+	if cfg.SnmpEnabled {
+		return l.pollRouterSNMP(cfg)
 	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
