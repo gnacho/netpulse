@@ -1445,5 +1445,11 @@
   "alertSuppression": {
     "suppressedBy": "Suprimida por {{router}}",
     "suppressedHint": "Esta alerta está suprimida porque un router padre está offline."
+  },
+  "wifiSle": {
+    "title": "WiFi SLE",
+    "connectTime": "Conexion",
+    "dhcpSuccess": "DHCP",
+    "dnsLatency": "DNS"
   }
 }
