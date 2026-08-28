@@ -30,6 +30,8 @@
     "moreActions": "More actions",
     "noMoreEvents": "No more alerts",
     "onlyUnread": "Unread only",
+    "silence": "Silence",
+    "silenceForever": "Forever",
     "sevAll": "All",
     "sevInfo": "Info",
     "sevResolved": "Resolved",
