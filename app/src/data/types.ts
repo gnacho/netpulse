@@ -255,6 +255,8 @@ export interface AlertEvent {
   severity: AlertSeverity
   title: string
   description: string
+  /** Sugerencia accionable por tipo de alerta (issue #310). Ausente si no aplica. */
+  hint?: string
   /** LEGADO display: "hace 12 min" — fallback si `ts` no es válido */
   time: string
   /** Unix SEGUNDOS; el frontend calcula el tiempo relativo */

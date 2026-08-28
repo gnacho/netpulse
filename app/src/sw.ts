@@ -47,6 +47,7 @@ interface PushPayload {
   severity?: string
   url?: string
   tag?: string
+  hint?: string
 }
 
 self.addEventListener('push', (event: PushEvent) => {
@@ -62,7 +63,7 @@ async function onPush(event: PushEvent): Promise<void> {
     payload = {}
   }
   await self.registration.showNotification(payload.title || 'NetPulse', {
-    body: payload.body ?? '',
+    body: [payload.body, payload.hint].filter(Boolean).join('\n'),
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     // tag = dedup nativo del navegador (SPEC: tag = id del evento)

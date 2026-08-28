@@ -203,6 +203,7 @@ func testEvent() alerts.AlertEvent {
 		Severity:    "critical",
 		Title:       "Router sin respuesta",
 		Description: "Sin respuesta de 192.168.8.1",
+		Hint:        "Revisa la alimentación del router",
 	}
 }
 
@@ -273,6 +274,7 @@ func TestNotifierSendsEncryptedPayload(t *testing.T) {
 		Severity string `json:"severity"`
 		URL      string `json:"url"`
 		Tag      string `json:"tag"`
+		Hint     string `json:"hint"`
 	}
 	if err := json.Unmarshal(plain, &p); err != nil {
 		t.Fatalf("payload no es JSON: %v (%q)", err, plain)
@@ -280,6 +282,9 @@ func TestNotifierSendsEncryptedPayload(t *testing.T) {
 	if p.Title != "Router sin respuesta" || p.Body != "Sin respuesta de 192.168.8.1" ||
 		p.Category != "router" || p.Severity != "critical" || p.URL != "/alerts" || p.Tag != "alert-test-1" {
 		t.Fatalf("payload: %+v", p)
+	}
+	if p.Hint != "Revisa la alimentación del router" {
+		t.Fatalf("payload hint: %q", p.Hint)
 	}
 }
 

@@ -34,14 +34,15 @@ const (
 )
 
 // payload es el JSON cifrado que recibe el Service Worker (contrato con
-// app/src/sw.ts: {title, body, category, severity, url, tag}).
+// app/src/sw.ts: {title, body, category, severity, url, tag, hint}).
 type payload struct {
 	Title    string `json:"title"`
 	Body     string `json:"body"`
 	Category string `json:"category"`
 	Severity string `json:"severity"`
 	URL      string `json:"url"`
-	Tag      string `json:"tag"` // alertId: dedup nativo del navegador
+	Tag      string `json:"tag"`            // alertId: dedup nativo del navegador
+	Hint     string `json:"hint,omitempty"` // sugerencia accionable (issue #310)
 }
 
 // Notifier implementa alerts.Notifier con entrega asíncrona.
@@ -114,6 +115,7 @@ func payloadJSON(ev alerts.AlertEvent) ([]byte, error) {
 		Severity: ev.Severity,
 		URL:      "/alerts",
 		Tag:      ev.ID,
+		Hint:     ev.Hint,
 	})
 }
 

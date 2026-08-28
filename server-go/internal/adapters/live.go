@@ -980,6 +980,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 			Severity:    "warn",
 			Title:       "Firmware desactualizado",
 			Description: fmt.Sprintf("%s: firmware %q no coincide con el target %q", name, r.Firmware, p.cfg.FirmwareTarget),
+			Hint:        alerts.HintFor(alerts.HintFirmware),
 			Time:        "ahora mismo", RouterID: p.cfg.ID,
 		})
 	}
@@ -1167,6 +1168,7 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 				Severity:    "critical",
 				Title:       name + " offline",
 				Description: fmt.Sprintf("Sin respuesta de %s: %v", res.cfg.Host, res.err),
+				Hint:        alerts.HintFor(alerts.HintDeviceOffline),
 				Time:        "ahora mismo", RouterID: res.cfg.ID,
 			})
 		}
@@ -1234,6 +1236,7 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 			Severity:    "critical",
 			Title:       "Internet caído",
 			Description: fmt.Sprintf("%s responde pero no alcanza internet (100 %% de pérdida)", name),
+			Hint:        alerts.HintFor(alerts.HintWanDown),
 			Time:        "ahora mismo", RouterID: cfg.ID,
 		})
 	}
@@ -1332,6 +1335,7 @@ func (l *Live) emitUnknownDevice(d Device) {
 		Severity:    "warn",
 		Title:       "Dispositivo desconocido",
 		Description: fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID),
+		Hint:        alerts.HintFor(alerts.HintUnknownDevice),
 		Time:        "ahora mismo", RouterID: d.RouterID,
 	})
 }
@@ -1874,6 +1878,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 				Category: alerts.CatRouter, Urgent: true,
 				Severity: "warn", Title: "Temperatura alta en " + router.Name,
 				Description: fmt.Sprintf("%d °C, por encima del umbral (65 °C)", *router.Temp),
+				Hint:        alerts.HintFor(alerts.HintHighTemp),
 				Time:        "ahora mismo", RouterID: cfg.ID,
 			})
 		}
@@ -1899,6 +1904,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 					Category: alerts.CatSignal, Urgent: false,
 					Severity: "warn", Title: "Señal débil en " + d.Name,
 					Description: fmt.Sprintf("%d dBm en %s — revisa cobertura o acerca un AP", *d.SignalDbm, d.RouterID),
+					Hint:        alerts.HintFor(alerts.HintWifiWeak),
 					Time:        "ahora mismo", RouterID: d.RouterID,
 				})
 			}
