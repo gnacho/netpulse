@@ -16,6 +16,7 @@ type ctxKey int
 const (
 	ctxUser ctxKey = iota
 	ctxSessionID
+	ctxAPIToken
 )
 
 // UserFromContext devuelve el usuario autenticado (nil si no hay).
@@ -27,6 +28,18 @@ func UserFromContext(ctx context.Context) *User {
 // SessionIDFromContext devuelve el sessionId autenticado ("" si no hay).
 func SessionIDFromContext(ctx context.Context) string {
 	s, _ := ctx.Value(ctxSessionID).(string)
+	return s
+}
+
+// TokenValidator valida un bearer token y devuelve el usuario y scope.
+// Devuelve nil si el token no es válido. Implementado por apitoken.Store.
+type TokenValidator interface {
+	ValidateBearer(raw string) (*User, string)
+}
+
+// APITokenFromContext devuelve el scope del token API usado ("" si no es token).
+func APITokenFromContext(ctx context.Context) string {
+	s, _ := ctx.Value(ctxAPIToken).(string)
 	return s
 }
 
@@ -51,8 +64,9 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 // Fase 6.2), /api/agents/{slug}/stream (SSE bidireccional, Fase 7.3),
 // /api/agents/{slug}/apply-result, /api/agents/{slug}/upgrade-result y
 // /api/agents/{slug}/upgrade-progress (reportes del agente, auth Bearer).
+// Acepta Bearer tokens de API (#330) como alternativa a la cookie de sesión.
 // Fallo → 401 {error:'unauthorized'}.
-func RequireAuth(d *db.DB, secret string, next http.Handler) http.Handler {
+func RequireAuth(d *db.DB, secret string, tv TokenValidator, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if !strings.HasPrefix(path, "/api/") || path == "/api/health" || path == "/api/auth/login" ||
@@ -60,6 +74,16 @@ func RequireAuth(d *db.DB, secret string, next http.Handler) http.Handler {
 			(strings.HasPrefix(path, "/api/agents/") && (strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") || strings.HasSuffix(path, "/apply-result") || strings.HasSuffix(path, "/upgrade-result") || strings.HasSuffix(path, "/upgrade-progress"))) {
 			next.ServeHTTP(w, r)
 			return
+		}
+		if tv != nil {
+			if raw := bearerToken(r); raw != "" {
+				if user, scope := tv.ValidateBearer(raw); user != nil {
+					ctx := context.WithValue(r.Context(), ctxUser, user)
+					ctx = context.WithValue(ctx, ctxAPIToken, scope)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+			}
 		}
 		sess := SessionUserFromRequest(d, secret, r)
 		if sess == nil {
@@ -70,6 +94,17 @@ func RequireAuth(d *db.DB, secret string, next http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, ctxSessionID, sess.SessionID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func bearerToken(r *http.Request) string {
+	v := r.Header.Get("Authorization")
+	if v == "" {
+		return ""
+	}
+	if !strings.HasPrefix(v, "Bearer ") {
+		return ""
+	}
+	return strings.TrimPrefix(v, "Bearer ")
 }
 
 // RequireAdmin exige role === 'admin' (tras RequireAuth) → 403 {error:'forbidden'}.

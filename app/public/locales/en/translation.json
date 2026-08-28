@@ -150,7 +150,9 @@
     "viewDetail": "View {{name}} detail",
     "viewDetailShort": "View detail",
     "adminOnly": "Admin only",
-    "back": "Back"
+    "back": "Back",
+    "cancel": "Cancel",
+    "loading": "Loading..."
   },
   "devices": {
     "badges": {
@@ -1345,5 +1347,35 @@
     "iosDesc": "On iOS: open the Share menu and choose Add to Home Screen.",
     "install": "Install",
     "later": "Not now"
+  },
+  "tokens": {
+    "title": "API Tokens",
+    "caption": "Bearer tokens for external integrations (Home Assistant, Grafana, n8n).",
+    "desc": "Tokens allow API access without a session. Use as header Authorization: Bearer np_...",
+    "create": "New token",
+    "createBtn": "Create",
+    "createError": "Could not create token",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. Home Assistant",
+    "scopeLabel": "Permissions",
+    "scopeRead": "Read only",
+    "scopeWrite": "Read and write",
+    "scopeAdmin": "Admin",
+    "expiresLabel": "Expiry",
+    "neverExpires": "Never expires",
+    "expires30d": "30 days",
+    "expires90d": "90 days",
+    "expires1y": "1 year",
+    "createdMsg": "Token created successfully",
+    "createdWarn": "Copy it now. It will not be shown again.",
+    "copy": "Copy token",
+    "copied": "Copied",
+    "dismiss": "Dismiss",
+    "empty": "No tokens yet. Create one to get started.",
+    "never": "Never",
+    "created": "Created",
+    "expires": "Expires",
+    "lastUsed": "Last used",
+    "revoke": "Revoke"
   }
 }
