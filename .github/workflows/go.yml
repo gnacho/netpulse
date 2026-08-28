@@ -108,10 +108,23 @@ jobs:
           prerelease: true
           files: netpulse-server-${{ github.sha }}-linux-${{ matrix.arch }}.tar.gz
 
+  # El cleanup va en un job aparte TRAS la matrix (#290): dentro del job build
+  # cada arco listaba y borraba los mismos assets en paralelo y todos menos el
+  # primero recibían 404. Aquí corre una sola vez, cuando ya no hay escritores
+  # concurrentes.
+  cleanup-go-latest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # borrar assets antiguos de la prerelease go-latest
+    steps:
       - name: Limpia assets antiguos (conserva los 10 más recientes por fecha)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api repos/${{ github.repository }}/releases/tags/go-latest \
             --jq '.assets | sort_by(.created_at) | reverse | .[10:] | .[].name' \
-            | while read -r a; do gh release delete-asset go-latest "$a" -y; done
+            | while read -r a; do
+                gh release delete-asset -R "${{ github.repository }}" go-latest "$a" -y \
+                  || echo "warn: no se pudo borrar '$a' (¿ya borrado?); se continúa"
+              done
