@@ -9,6 +9,7 @@ import type { RouterDetailData } from '@/data/DataProvider'
 import { AdGuardPanel } from '@/components/routers/AdGuardPanel'
 import { BackhaulPanel } from '@/components/routers/BackhaulPanel'
 import { PortPanel } from '@/components/routers/PortPanel'
+import { SwitchFrontPanel } from '@/components/routers/SwitchFrontPanel'
 import { RadiosPorts } from '@/components/routers/RadiosPorts'
 import { RouterClients } from '@/components/routers/RouterClients'
 import { RouterDetailHeader } from '@/components/routers/RouterDetailHeader'
@@ -136,10 +137,18 @@ export default function RouterDetail() {
         <>
           <AdGuardPanel />
           <WireGuardPanel />
+          {router.type === 'managed-switch' && detail?.extras?.ethPorts && (
+            <SwitchFrontPanel ports={detail.extras.ethPorts} className="lg:col-span-12" />
+          )}
           <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" />
         </>
       ) : (
-        <RadiosPorts router={router} extras={detail?.extras} />
+        <>
+          {router.type === 'managed-switch' && detail?.extras?.ethPorts && (
+            <SwitchFrontPanel ports={detail.extras.ethPorts} className="lg:col-span-12" />
+          )}
+          <RadiosPorts router={router} extras={detail?.extras} />
+        </>
       )}
 
       {/* VLANs del bridge (issue #315, read-only) */}

@@ -409,6 +409,9 @@ type EthPort struct {
 	ConnectedTo string   `json:"connectedTo,omitempty"`
 	DeviceMac   string   `json:"deviceMac,omitempty"`
 	Detail      string   `json:"detail,omitempty"`
+	// Health: per-port health score (issue #299). Ausente si no se ha
+	// calculado (demo sin datos, puertos sin muestras).
+	Health *PortHealth `json:"health,omitempty"`
 }
 
 // Radio agrega una banda wifi ({name, channel, widthMhz, powerDbm, clients}).

@@ -585,6 +585,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	l.mu.Unlock()
 
 	l.recordPortSamples(cfg.ID, out.ports)
+	l.portMon.Observe(cfg.ID, out.ports, l.engine)
 
 	if out.leases == nil {
 		out.leases = []DhcpLease{}

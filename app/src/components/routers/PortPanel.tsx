@@ -97,6 +97,18 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
             <div className={cn('font-mono text-[10px] font-semibold tracking-wide', isWan ? 'text-accent' : 'text-text-secondary')}>
               {port.label}
             </div>
+            {port.health && port.up && (
+              <div
+                className={cn(
+                  'mx-auto mt-0.5 inline-block rounded-full px-1.5 py-px font-mono text-[9px] font-bold',
+                  port.health.score >= 85 && 'bg-ok/15 text-ok',
+                  port.health.score >= 60 && port.health.score < 85 && 'bg-warn/15 text-warn',
+                  port.health.score < 60 && 'bg-error/15 text-error',
+                )}
+              >
+                {port.health.score}
+              </div>
+            )}
             {port.up ? (
               <>
                 <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
