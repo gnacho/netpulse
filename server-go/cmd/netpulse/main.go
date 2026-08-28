@@ -35,6 +35,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
@@ -195,6 +196,15 @@ func run() error {
 		return fmt.Errorf("api tokens schema: %w", err)
 	}
 	tokenStore := apitoken.NewStore(dbHandle, secret)
+	var collReader *collectorreader.Reader
+	if collPath := os.Getenv("COLLECTOR_DB"); collPath != "" {
+		if cr, err := collectorreader.Open(collPath); err != nil {
+			log.Printf("[netpulse] aviso: collector sidecar no disponible (%v)", err)
+		} else {
+			collReader = cr
+			log.Printf("[netpulse] collector sidecar: %s", collPath)
+		}
+	}
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -383,20 +393,21 @@ func run() error {
 	}
 
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Config:     cfg,
-		DB:         dbHandle,
-		Adapter:    adapter,
-		Hub:        hub,
-		Secret:     secret,
-		Static:     static,
-		Updater:    upd,
-		Agents:     agentReg,
-		Pool:       sshPool,
-		Rearmer:    arm,
-		AgentHub:   agentHub,
-		ServerFP:   serverFP,
-		Orchestr:   orchMgr,
-		TokenStore: tokenStore,
+		Config:          cfg,
+		DB:              dbHandle,
+		Adapter:         adapter,
+		Hub:             hub,
+		Secret:          secret,
+		Static:          static,
+		Updater:         upd,
+		Agents:          agentReg,
+		Pool:            sshPool,
+		Rearmer:         arm,
+		AgentHub:        agentHub,
+		ServerFP:        serverFP,
+		Orchestr:        orchMgr,
+		TokenStore:      tokenStore,
+		CollectorReader: collReader,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

@@ -26,6 +26,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -79,6 +80,8 @@ type Deps struct {
 	Orchestr *orchestr.Manager
 	// TokenStore: bearer tokens de API con scopes (#330). nil → sin tokens.
 	TokenStore *apitoken.Store
+	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
+	CollectorReader *collectorreader.Reader
 }
 
 type server struct {
@@ -124,6 +127,9 @@ type server struct {
 
 	// TokenStore: bearer tokens de API (#330). nil = sin tokens.
 	tokenStore *apitoken.Store
+
+	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
+	collectorReader *collectorreader.Reader
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -133,10 +139,11 @@ func NewHandler(d Deps) http.Handler {
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 		agentHub:    d.AgentHub,
-		serverFP:    d.ServerFP,
-		ingestLimit: newIPRateLimit(ingestRateLimit, ingestRateWindow),
-		upgrades:    newUpgradeTracker(),
-		tokenStore:  d.TokenStore,
+		serverFP:        d.ServerFP,
+		ingestLimit:     newIPRateLimit(ingestRateLimit, ingestRateWindow),
+		upgrades:        newUpgradeTracker(),
+		tokenStore:      d.TokenStore,
+		collectorReader: d.CollectorReader,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -284,6 +291,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/tokens", s.handleTokensList)
 	mux.HandleFunc("POST /api/tokens", s.handleTokensCreate)
 	mux.HandleFunc("DELETE /api/tokens/{id}", s.handleTokensDelete)
+
+	// --- Collector sidecar (#328): series de latencia/disponibilidad ---
+	mux.HandleFunc("GET /api/collector/metrics", s.handleCollectorMetrics)
+	mux.HandleFunc("GET /api/collector/series", s.handleCollectorSeries)
 
 	// --- Config (sesión; /api/config/adguard solo admin) ---
 	s.registerConfigRoutes(mux)

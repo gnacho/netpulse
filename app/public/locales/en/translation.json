@@ -1390,5 +1390,13 @@
     "expires": "Expires",
     "lastUsed": "Last used",
     "revoke": "Revoke"
+  },
+  "collector": {
+    "title": "TCP Latency (collector)",
+    "sidecar": "sidecar",
+    "range": "Time range",
+    "ms": "ms",
+    "noData": "No data",
+    "caption": "TCP probes every 5s from the collector daemon"
   }
 }

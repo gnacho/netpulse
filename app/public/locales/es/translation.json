@@ -1390,5 +1390,13 @@
     "expires": "Caduca",
     "lastUsed": "Último uso",
     "revoke": "Revocar"
+  },
+  "collector": {
+    "title": "Latencia TCP (collector)",
+    "sidecar": "sidecar",
+    "range": "Rango temporal",
+    "ms": "ms",
+    "noData": "Sin datos",
+    "caption": "Sondas TCP cada 5s desde el daemon collector"
   }
 }
