@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	flapWindow    = 10 * time.Minute
-	flapThreshold = 5
+	flapWindow       = 10 * time.Minute
+	flapThreshold    = 5
+	ghostConsecutive = 3
+	ghostMinHistory = 12
 )
 
 type portKey struct {
@@ -19,9 +21,9 @@ type portKey struct {
 }
 
 type portState struct {
-	up          bool
-	transitions []time.Time
-	speedMbps   int
+	up           bool
+	transitions  []time.Time
+	speedMbps    int
 	speedHistory []int
 	trafficTotal uint64
 	zeroStreak   int
@@ -61,10 +63,25 @@ func (pm *PortMonitor) Observe(routerID string, ports []EthPort, engine *alerts.
 			st = &portState{up: p.Up}
 			pm.states[key] = st
 		}
+		pm.updateSpeedHistory(st, p)
 		pm.checkFlapping(key, st, p, now, engine)
 		pm.checkGhost(key, st, p, engine)
 		pm.checkDegraded(key, st, p, engine)
 	}
+}
+
+func (pm *PortMonitor) updateSpeedHistory(st *portState, p EthPort) {
+	spd := parseSpeedMbps(p.Speed)
+	if !p.Up || spd == 0 {
+		st.speedHistory = nil
+		st.speedMbps = 0
+		return
+	}
+	st.speedHistory = append(st.speedHistory, spd)
+	if len(st.speedHistory) > 200 {
+		st.speedHistory = st.speedHistory[len(st.speedHistory)-200:]
+	}
+	st.speedMbps = spd
 }
 
 func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now time.Time, engine *alerts.Engine) {
@@ -95,7 +112,37 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 	}
 }
 
-func (pm *PortMonitor) checkGhost(_ portKey, _ *portState, _ EthPort, _ *alerts.Engine) {
+func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, engine *alerts.Engine) {
+	total := p.RxBytes + p.TxBytes
+	if !p.Up {
+		st.zeroStreak = 0
+		st.hadTraffic = false
+		st.trafficTotal = 0
+		return
+	}
+	if total > st.trafficTotal {
+		st.hadTraffic = true
+		st.zeroStreak = 0
+	} else if st.hadTraffic {
+		st.zeroStreak++
+	}
+	st.trafficTotal = total
+	if len(st.speedHistory) < ghostMinHistory {
+		return
+	}
+	if st.zeroStreak >= ghostConsecutive {
+		engine.Emit(alerts.AlertEvent{
+			ID:          fmt.Sprintf("alert-ghost-%s-%s", key.routerID, key.portID),
+			Category:    alerts.CatSystem,
+			Urgent:      false,
+			Severity:    "warn",
+			Title:       fmt.Sprintf("Ghost port: %s went silent", p.Label),
+			Description: fmt.Sprintf("Port had traffic but zero bytes for %d consecutive polls", st.zeroStreak),
+			Hint:        alerts.HintFor(alerts.HintGhostPort),
+			Time:        "ahora mismo",
+			RouterID:    key.routerID,
+		})
+	}
 }
 
 func (pm *PortMonitor) checkDegraded(_ portKey, _ *portState, _ EthPort, _ *alerts.Engine) {
