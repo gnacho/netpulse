@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -45,6 +46,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
+	"github.com/gnacho/netpulse/server-go/internal/telegram"
 	"github.com/gnacho/netpulse/server-go/internal/tlscert"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 	"github.com/gnacho/netpulse/server-go/internal/webhook"
@@ -268,18 +270,30 @@ func run() error {
 		log.Printf("[netpulse] webhook saliente activo: %s", webhookHostForLog(cfg.Webhook.URL))
 	}
 
-	// Notifier compuesto: push + webhook (SetNotifier solo admite UNO).
+	// Telegram (#326): transport nativo si está configurado en kv.
+	var telegramNotifier *telegram.Notifier
+	tgKV := &mainKVAdapter{db: dbHandle.DB}
+	tgCfg := telegram.LoadConfig(tgKV)
+	if tgCfg.Enabled && tgCfg.BotToken != "" && tgCfg.ChatID != "" {
+		telegramNotifier = telegram.NewNotifier(tgKV)
+		log.Printf("[netpulse] telegram activo: chat %s", tgCfg.ChatID)
+	}
+
+	// Notifier compuesto: push + webhook + telegram (SetNotifier solo admite UNO).
 	// OJO nil-encapsulado (issue #57): meter un `(*webhook.Notifier)(nil)` en
 	// la cadena lo empaqueta en la interfaz con tipo pero valor nil → la
 	// interfaz NO es nil y `if n != nil` de notifierChain no lo filtra →
 	// panic al Notify. Filtrar ANTES de empaquetar.
-	if pushNotifier != nil || webhookNotifier != nil {
+	if pushNotifier != nil || webhookNotifier != nil || telegramNotifier != nil {
 		chain := notifierChain{}
 		if pushNotifier != nil {
 			chain = append(chain, pushNotifier)
 		}
 		if webhookNotifier != nil {
 			chain = append(chain, webhookNotifier)
+		}
+		if telegramNotifier != nil {
+			chain = append(chain, telegramNotifier)
 		}
 		adapter.AlertsEngine().SetNotifier(chain)
 	}
@@ -462,6 +476,9 @@ func run() error {
 		if webhookNotifier != nil {
 			webhookNotifier.Close()
 		}
+		if telegramNotifier != nil {
+			telegramNotifier.Close()
+		}
 		// Salvavidas de 3 s: salir igualmente aunque el server no cierre.
 		lifeline := time.AfterFunc(3*time.Second, func() {
 			_ = dbHandle.Close()
@@ -508,4 +525,24 @@ func (c notifierChain) Notify(ev alerts.AlertEvent) {
 		}
 		n.Notify(ev)
 	}
+}
+
+// mainKVAdapter implements telegram.kvStore over *sql.DB.
+type mainKVAdapter struct {
+	db *sql.DB
+}
+
+func (a *mainKVAdapter) Get(key string) (string, bool) {
+	var v string
+	if err := a.db.QueryRow("SELECT value FROM kv WHERE key = ?", key).Scan(&v); err != nil {
+		return "", false
+	}
+	return v, true
+}
+
+func (a *mainKVAdapter) Set(key, value string) error {
+	_, err := a.db.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key, value)
+	return err
 }
