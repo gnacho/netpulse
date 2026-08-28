@@ -236,6 +236,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/internet-health", s.handleInternetHealth)
 	mux.HandleFunc("GET /api/presence", s.handlePresenceStatus)
 	mux.HandleFunc("GET /api/presence/people", s.handlePresencePeople)
+	mux.HandleFunc("GET /api/metrics", s.handleMetrics)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
 	mux.HandleFunc("GET /api/dot11r", s.handleDot11r)
