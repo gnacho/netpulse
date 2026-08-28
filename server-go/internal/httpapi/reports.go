@@ -19,6 +19,7 @@ package httpapi
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -100,6 +101,26 @@ func (s *server) handleWeeklyReport(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rows.Err(); err != nil {
 		writeError(w, http.StatusInternalServerError, "db_error")
+		return
+	}
+	if r.URL.Query().Get("format") == "csv" {
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=netpulse-weekly.csv")
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"routerId", "week", "days", "upMin", "upPct", "latAvg", "rxTotal", "txTotal", "cpuAvg", "ramAvg"})
+		for _, e := range out {
+			lat := ""
+			if e.LatAvg != nil {
+				lat = fmt.Sprintf("%.2f", *e.LatAvg)
+			}
+			_ = cw.Write([]string{
+				e.RouterID, e.Week, strconv.Itoa(e.Days),
+				strconv.FormatInt(e.UpMin, 10), fmt.Sprintf("%.2f", e.UpPct),
+				lat, fmt.Sprintf("%.2f", e.RxTotal), fmt.Sprintf("%.2f", e.TxTotal),
+				fmt.Sprintf("%.2f", e.CPUAvg), fmt.Sprintf("%.2f", e.RAMAvg),
+			})
+		}
+		cw.Flush()
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "weeks": weeks})
@@ -236,6 +257,26 @@ func (s *server) handleAvailabilityReport(w http.ResponseWriter, r *http.Request
 	}
 	if err := rows.Err(); err != nil {
 		writeError(w, http.StatusInternalServerError, "db_error")
+		return
+	}
+	if q.Get("format") == "csv" {
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=netpulse-availability-%s.csv", rangeParam))
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"routerId", "bucket", "days", "upMin", "upPct", "latAvg", "rxTotal", "txTotal", "cpuAvg", "ramAvg"})
+		for _, e := range out {
+			lat := ""
+			if e.LatAvg != nil {
+				lat = fmt.Sprintf("%.2f", *e.LatAvg)
+			}
+			_ = cw.Write([]string{
+				e.RouterID, e.Bucket, strconv.Itoa(e.Days),
+				strconv.FormatInt(e.UpMin, 10), fmt.Sprintf("%.2f", e.UpPct),
+				lat, fmt.Sprintf("%.2f", e.RxTotal), fmt.Sprintf("%.2f", e.TxTotal),
+				fmt.Sprintf("%.2f", e.CPUAvg), fmt.Sprintf("%.2f", e.RAMAvg),
+			})
+		}
+		cw.Flush()
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "range": rangeParam, "n": n})

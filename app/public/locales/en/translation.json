@@ -710,7 +710,8 @@
     "tabWeek": "Weekly",
     "tabMonth": "Monthly",
     "traffic": "Total traffic (↓+↑)",
-    "upMin": "Minutes with data"
+    "upMin": "Minutes with data",
+    "downloadCsv": "Download as CSV"
   },
   "topology": {
     "animateFlow": "Animate packet flow",

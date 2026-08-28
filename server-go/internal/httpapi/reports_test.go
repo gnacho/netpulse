@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -217,5 +218,39 @@ func TestWeeklyReportRequiereSesion(t *testing.T) {
 	io.Copy(io.Discard, res.Body)
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status %d, esperaba 401", res.StatusCode)
+	}
+}
+
+// TestWeeklyReportCSV (#327): format=csv devuelve CSV con headers correctos.
+func TestWeeklyReportCSV(t *testing.T) {
+	ts := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/reports/weekly?format=csv", nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET csv: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	ct := res.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/csv") {
+		t.Fatalf("Content-Type = %q, esperaba text/csv", ct)
+	}
+	disp := res.Header.Get("Content-Disposition")
+	if !strings.Contains(disp, "netpulse-weekly.csv") {
+		t.Fatalf("Content-Disposition = %q, esperaba netpulse-weekly.csv", disp)
+	}
+	body, _ := io.ReadAll(res.Body)
+	lines := strings.Split(strings.TrimSpace(string(body)), "\n")
+	if len(lines) < 1 {
+		t.Fatal("CSV vacio")
+	}
+	header := lines[0]
+	if !strings.Contains(header, "routerId") || !strings.Contains(header, "upPct") {
+		t.Fatalf("CSV header inesperado: %s", header)
 	}
 }
