@@ -13,6 +13,7 @@ package adapters
 import (
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -200,6 +201,69 @@ func (r *AgentRegistry) Snapshot(slug string) *AgentState {
 	return &cp
 }
 
+// MatchRouter busca el agente asociado a un router: primero por slug exacto,
+// luego por hostname de board y finalmente por bridge MAC (#282). Devuelve
+// el slug real del agente, su payload y si está fresco. Permite que un agente
+// emparejado con un slug elegido por el usuario alimente un router cuyo id
+// autogenerado no coincide con ese slug.
+func (r *AgentRegistry) MatchRouter(cfg RouterConfig, macs map[string]string) (string, *probe.Payload, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	norm := func(s string) string {
+		return strings.ToLower(strings.TrimSpace(s))
+	}
+	hostNames := []string{}
+	if cfg.Host != "" {
+		hostNames = append(hostNames, norm(cfg.Host))
+	}
+	if cfg.Name != "" && norm(cfg.Name) != norm(cfg.Host) {
+		hostNames = append(hostNames, norm(cfg.Name))
+	}
+	if cfg.ID != "" && norm(cfg.ID) != norm(cfg.Host) && norm(cfg.ID) != norm(cfg.Name) {
+		hostNames = append(hostNames, norm(cfg.ID))
+	}
+
+	var match *AgentState
+	var matchSlug string
+	for slug, st := range r.states {
+		if slug == cfg.ID {
+			match = st
+			matchSlug = slug
+			break
+		}
+		if st.Payload == nil || st.Payload.Data.System == nil || st.Payload.Data.System.Board == nil {
+			continue
+		}
+		h := norm(st.Payload.Data.System.Board.Hostname)
+		if h != "" {
+			for _, candidate := range hostNames {
+				if h == candidate {
+					match = st
+					matchSlug = slug
+					break
+				}
+			}
+		}
+		if match != nil {
+			break
+		}
+		mac := st.Payload.Data.System.BridgeMAC
+		if mac != "" && macs != nil {
+			if routerMac, ok := macs[cfg.ID]; ok && strings.EqualFold(mac, routerMac) {
+				match = st
+				matchSlug = slug
+				break
+			}
+		}
+	}
+	if match == nil {
+		return "", nil, false
+	}
+	fresh := r.now().Sub(match.LastSeen) <= r.effectiveTTL(match)
+	return matchSlug, match.Payload, fresh
+}
+
 // Forget borra el estado del slug (revocación de token).
 func (r *AgentRegistry) Forget(slug string) {
 	r.mu.Lock()
@@ -237,19 +301,27 @@ func agentName(cfg RouterConfig) string {
 	return cfg.Host
 }
 
-// pollRouterAgent: si el agente del router está fresco, construye el sondeo
-// desde su payload (Tier 2); si expiró, emite UNA vez la alerta de caída y
-// devuelve (nil, nil) para que el caller siga por SSH (Tier 0).
-// (fresh, polled) — fresh=false ⇒ el caller hace el sondeo SSH normal.
+// pollRouterAgent: si un agente asociado al router está fresco, construye el
+// sondeo desde su payload (Tier 2). Si expiró, emite UNA vez la alerta de
+// caída y devuelve (false, nil) para que el caller siga por SSH (Tier 0).
+// El emparejamiento no exige slug == router.id: también usa hostname/MAC
+// (#282). Cuando el agente está vivo pero el SSH falla por clave no
+// autorizada, emite una alerta informativa en vez de dejar la tarjeta en
+// offline (#281).
 func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 	l.mu.Lock()
 	reg := l.agents
+	macs := make(map[string]string, len(l.routerMacs))
+	for k, v := range l.routerMacs {
+		macs[k] = v
+	}
 	l.mu.Unlock()
 	if reg == nil {
 		return false, nil
 	}
-	if p, ok := reg.Fresh(cfg.ID); ok {
-		// Recuperación: estaba caído y volvió a empujar → alerta ok.
+
+	slug, p, fresh := reg.MatchRouter(cfg, macs)
+	if fresh {
 		l.mu.Lock()
 		if l.agentDown[cfg.ID] {
 			l.agentDown[cfg.ID] = false
@@ -263,23 +335,47 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 				Time:        "ahora mismo", RouterID: cfg.ID,
 			})
 		}
+		// issue #281: SSH falla por clave no autorizada pero el agente sigue
+		// vivo → avisa una sola vez. Se borra el flag cuando SSH vuelve.
+		if l.lastErr[cfg.ID] != nil && isAccessError(l.lastErr[cfg.ID]) {
+			if !l.sshAuthFailAlerted[cfg.ID] {
+				l.sshAuthFailAlerted[cfg.ID] = true
+				name := agentName(cfg)
+				l.engine.Emit(AlertEvent{
+					ID:       fmt.Sprintf("alert-ssh-auth-%s-%d", cfg.ID, time.Now().UnixMilli()),
+					Category: alerts.CatSystem, Urgent: false,
+					Severity:    "warn",
+					Title:       "Acceso SSH perdido en " + name,
+					Description: fmt.Sprintf("%s no acepta la clave SSH, pero su agente sigue enviando datos. Revisa authorized_keys tras un firmware upgrade.", name),
+					Time:        "ahora mismo", RouterID: cfg.ID,
+				})
+			}
+		} else if l.sshAuthFailAlerted[cfg.ID] {
+			delete(l.sshAuthFailAlerted, cfg.ID)
+			name := agentName(cfg)
+			l.engine.Emit(AlertEvent{
+				ID:       fmt.Sprintf("alert-ssh-auth-ok-%s-%d", cfg.ID, time.Now().UnixMilli()),
+				Category: alerts.CatSystem, Urgent: false,
+				Severity:    "ok",
+				Title:       "Acceso SSH recuperado en " + name,
+				Description: fmt.Sprintf("El acceso SSH a %s funciona de nuevo", name),
+				Time:        "ahora mismo", RouterID: cfg.ID,
+			})
+		}
 		l.mu.Unlock()
 		return true, l.polledFromAgent(cfg, p)
 	}
-	if reg.Expired(cfg.ID) {
-		// Dead Man's Switch (P6): el agente está stale (más allá del TTL),
-		// pero solo disparamos la alerta de caída si lleva más de
-		// agentDownConfirm sin empujar. Entre TTL y agentDownConfirm el
-		// router degrada a SSH silenciosamente (sin alertar), evitando
-		// spam en flapeos breves de fibra/WiFi.
+
+	if slug != "" {
+		// Dead Man's Switch (P6): el agente está stale, pero solo disparamos la
+		// alerta de caída si lleva más de agentDownConfirm sin empujar. Entre
+		// TTL y agentDownConfirm el router degrada a SSH silenciosamente.
 		confirm := l.agentDownConfirm
 		if confirm <= 0 {
 			confirm = 3 * time.Minute
 		}
-		// Pushers externos (#288): escalar la confirmación a su cadencia
-		// declarada (3x interval) para no alertar caídas falsas.
-		confirm = reg.ExternalDownConfirm(cfg.ID, confirm)
-		if reg.StaleFor(cfg.ID, confirm) {
+		confirm = reg.ExternalDownConfirm(slug, confirm)
+		if reg.StaleFor(slug, confirm) {
 			l.mu.Lock()
 			if !l.agentDown[cfg.ID] {
 				l.agentDown[cfg.ID] = true
@@ -307,7 +403,7 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 			l.mu.Unlock()
 		}
 		if cfg.AgentOnly {
-			if p, ok := reg.StalePayload(cfg.ID); ok {
+			if p != nil {
 				return true, l.polledFromAgent(cfg, p)
 			}
 		}

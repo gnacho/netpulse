@@ -227,6 +227,15 @@ type Live struct {
 	agentDown        map[string]bool
 	agentDownConfirm time.Duration // Dead Man's Switch: confirmar caída tras este periodo sin alertar
 
+	// routerMacs: id → bridge MAC persistida en DB. Permite emparejar un agente
+	// con su router aunque el slug elegido por el usuario no coincida con el id
+	// autogenerado del router (#282).
+	routerMacs map[string]string
+
+	// sshAuthFailAlerted evita repetir la alerta de "SSH sin clave pero agente
+	// vivo" (#281). Se limpia cuando el acceso SSH se recupera.
+	sshAuthFailAlerted map[string]bool
+
 	// now: reloj inyectable para tests deterministas (nil → time.Now).
 	// Mismo patrón que AgentRegistry.SetClock.
 	now func() time.Time
@@ -277,7 +286,10 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		wanInfoCache:         map[string]wanInfoCacheEntry{},
 		agentDown:            map[string]bool{},
 		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
+		routerMacs:           map[string]string{},
+		sshAuthFailAlerted:   map[string]bool{},
 	}
+	l.loadRouterMacs()
 	// Migración una vez (attrib_v2): tabla limpia (index.js:385-394)
 	if d != nil {
 		var flag string
@@ -301,6 +313,26 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 	}
 	l.SetRouters(initial)
 	return l
+}
+
+// loadRouterMacs carga las MACs persistidas de routers para poder emparejar
+// agentes con routers por bridge MAC (#282).
+func (l *Live) loadRouterMacs() {
+	if l.db == nil {
+		return
+	}
+	l.routerMacs = map[string]string{}
+	rows, err := l.db.Query("SELECT id, mac FROM routers WHERE mac IS NOT NULL AND mac != ''")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, mac string
+		if rows.Scan(&id, &mac) == nil {
+			l.routerMacs[id] = mac
+		}
+	}
 }
 
 // Mode: "live".
@@ -397,6 +429,12 @@ func (l *Live) SetRouters(list []RouterConfig) {
 			delete(l.wanInfoCache, id)
 		}
 	}
+	for id := range l.sshAuthFailAlerted {
+		if !ids[id] {
+			delete(l.sshAuthFailAlerted, id)
+		}
+	}
+	l.loadRouterMacs()
 }
 
 // probeBackhaul detecta el medio del uplink (interfaz STA asociada → "wifi";
