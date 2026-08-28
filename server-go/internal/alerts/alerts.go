@@ -46,6 +46,7 @@ var levels = map[string]bool{LevelNone: true, LevelUrgent: true, LevelAll: true}
 const (
 	configKey   = "alerts.config.v1"
 	readKey     = "alerts.read.v1"
+	silenceKey  = "alerts.silence.v1"
 	MaxEvents   = 100
 	MaxReadIDs  = 200
 	DedupWindow = 5 * time.Minute
@@ -135,17 +136,19 @@ type Engine struct {
 	dedup   map[string]int64 // key (cat|title|routerId) → último emit (unix ms)
 	readSet map[string]bool
 	readOrd []string // FIFO de IDs (cap 200) para podar readSet
+	silenceMap map[string]int64 // dedup key → expiry (unix seconds); 0 = forever
 }
 
 // New crea el motor cargando config y read-state de kv (si db != nil).
 func New(d *db.DB, n Notifier) *Engine {
 	e := &Engine{
-		db:       d,
-		notifier: n,
-		now:      time.Now,
-		cfg:      DefaultConfig(),
-		dedup:    map[string]int64{},
-		readSet:  map[string]bool{},
+		db:         d,
+		notifier:   n,
+		now:        time.Now,
+		cfg:        DefaultConfig(),
+		dedup:      map[string]int64{},
+		readSet:    map[string]bool{},
+		silenceMap: map[string]int64{},
 	}
 	if d != nil {
 		var raw string
@@ -169,6 +172,9 @@ func New(d *db.DB, n Notifier) *Engine {
 					}
 				}
 			}
+		}
+		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", silenceKey).Scan(&raw); err == nil {
+			_ = json.Unmarshal([]byte(raw), &e.silenceMap)
 		}
 	}
 	return e
@@ -249,6 +255,9 @@ func (e *Engine) pasaLocked(ev AlertEvent) bool {
 // Requiere e.mu ya tomado. Devuelve true si se guardó.
 func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
 	key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
+	if e.isSilencedLocked(key) {
+		return false
+	}
 	if last, ok := e.dedup[key]; ok && now.UnixMilli()-last < DedupWindow.Milliseconds() {
 		return false
 	}
@@ -361,10 +370,15 @@ func (e *Engine) Seed(ev AlertEvent) bool {
 func (e *Engine) List() []AlertEvent {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	out := make([]AlertEvent, len(e.list))
-	for i, ev := range e.list {
+	e.pruneSilenceLocked()
+	out := make([]AlertEvent, 0, len(e.list))
+	for _, ev := range e.list {
+		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
+		if e.isSilencedLocked(key) {
+			continue
+		}
 		ev.Read = e.readSet[ev.ID]
-		out[i] = ev
+		out = append(out, ev)
 	}
 	return out
 }
@@ -376,6 +390,10 @@ func (e *Engine) UnreadCount() int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, ev := range e.list {
+		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
+		if e.isSilencedLocked(key) {
+			continue
+		}
 		if !e.readSet[ev.ID] {
 			n++
 		}
@@ -412,6 +430,75 @@ func (e *Engine) MarkAllRead() {
 	e.MarkRead(ids...)
 }
 
+// Silence silences alerts matching the dedup key of the given alert ID for the
+// specified duration. Duration 0 means forever. Returns the dedup key that was
+// silenced, or empty string if the alert ID was not found.
+func (e *Engine) Silence(id string, dur time.Duration) string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var dedupKey string
+	for _, ev := range e.list {
+		if ev.ID == id {
+			dedupKey = ev.Category + "|" + ev.Title + "|" + ev.RouterID
+			break
+		}
+	}
+	if dedupKey == "" {
+		return ""
+	}
+	var expiry int64
+	if dur > 0 {
+		expiry = e.now().Add(dur).Unix()
+	}
+	e.silenceMap[dedupKey] = expiry
+	e.saveSilenceLocked()
+	return dedupKey
+}
+
+// Unsilence removes the silence for a dedup key.
+func (e *Engine) Unsilence(dedupKey string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.silenceMap, dedupKey)
+	e.saveSilenceLocked()
+}
+
+// Silenced returns all currently silenced dedup keys with their expiry times.
+func (e *Engine) Silenced() map[string]int64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.pruneSilenceLocked()
+	out := make(map[string]int64, len(e.silenceMap))
+	for k, v := range e.silenceMap {
+		out[k] = v
+	}
+	return out
+}
+
+func (e *Engine) isSilencedLocked(key string) bool {
+	expiry, ok := e.silenceMap[key]
+	if !ok {
+		return false
+	}
+	if expiry == 0 {
+		return true // forever
+	}
+	if e.now().Unix() >= expiry {
+		delete(e.silenceMap, key)
+		return false
+	}
+	return true
+}
+
+func (e *Engine) pruneSilenceLocked() {
+	now := e.now().Unix()
+	for k, expiry := range e.silenceMap {
+		if expiry > 0 && now >= expiry {
+			delete(e.silenceMap, k)
+		}
+	}
+}
+
 func (e *Engine) saveConfigLocked() {
 	if e.db == nil {
 		return
@@ -436,6 +523,19 @@ func (e *Engine) saveReadLocked() {
 	_, _ = e.db.Exec(
 		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
 		readKey, string(raw))
+}
+
+func (e *Engine) saveSilenceLocked() {
+	if e.db == nil {
+		return
+	}
+	raw, err := json.Marshal(e.silenceMap)
+	if err != nil {
+		return
+	}
+	_, _ = e.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		silenceKey, string(raw))
 }
 
 func contains(list []string, v string) bool {
