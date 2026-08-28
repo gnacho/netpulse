@@ -42,6 +42,13 @@ export interface EthPort {
   label: string // "WAN" | "LAN 1"
   up: boolean
   speed?: string // "2.5 Gbps" | "1 Gbps"
+  iface?: string // interfaz física (/proc/net/dev), si difiere del id
+  rxBytes?: number // contadores acumulados de la boca (#305)
+  txBytes?: number
+  rxErrors?: number
+  txErrors?: number
+  rxBps?: number // rates instantáneos (#305)
+  txBps?: number
   connectedTo?: string // "NAS Synology" | "Salón · AX3000T"
   deviceMac?: string // MAC del dispositivo conectado (para enlazar a /devices)
   detail?: string // "192.168.8.10 · full duplex"

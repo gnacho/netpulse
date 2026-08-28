@@ -64,6 +64,80 @@ func TestParseNetDevYBps(t *testing.T) {
 	}
 }
 
+func TestParseNetDevIfaces(t *testing.T) {
+	out := "  eth0: 1000000 5 2 0 0 0 0 0 500000 7 1 0 0 0 0 0\n" +
+		"  lan1: 2000000 9 0 0 0 0 0 0 1000000 4 3 0 0 0 0 0\n" +
+		"basura sin formato\n"
+	ifaces := ParseNetDevIfaces(out)
+	if len(ifaces) != 2 {
+		t.Fatalf("ifaces: %+v", ifaces)
+	}
+	e, ok := ifaces["eth0"]
+	if !ok || e.Rx != 1000000 || e.Tx != 500000 || e.RxErr != 2 || e.TxErr != 1 {
+		t.Fatalf("eth0: %+v", e)
+	}
+	l, ok := ifaces["lan1"]
+	if !ok || l.RxErr != 0 || l.TxErr != 3 {
+		t.Fatalf("lan1: %+v", l)
+	}
+	if ParseNetDevIfaces("") == nil {
+		t.Fatal("vacío → mapa no nil")
+	}
+}
+
+func TestIfRates(t *testing.T) {
+	prev := map[string]IfCounters{"lan1": {Rx: 1000, Tx: 2000}, "wan": {Rx: 500, Tx: 500}}
+	cur := map[string]IfCounters{"lan1": {Rx: 3000, Tx: 6000}, "wan": {Rx: 400, Tx: 900}, "lan2": {Rx: 10, Tx: 10}}
+	rates := IfRates(prev, cur, 2)
+	if len(rates) != 3 {
+		t.Fatalf("rates: %+v", rates)
+	}
+	l1 := rates["lan1"]
+	if l1.RxBps == nil || *l1.RxBps != 8000 || l1.TxBps == nil || *l1.TxBps != 16000 {
+		t.Fatalf("lan1 rates: %+v", l1)
+	}
+	// Contador reseteado (cur < prev) → 0, no negativo
+	w := rates["wan"]
+	if w.RxBps == nil || *w.RxBps != 0 || w.TxBps == nil || *w.TxBps != 1600 {
+		t.Fatalf("wan reset: %+v", w)
+	}
+	// Iface nueva sin previa → sin rate
+	if rates["lan2"].RxBps != nil || rates["lan2"].TxBps != nil {
+		t.Fatalf("lan2 nueva: %+v", rates["lan2"])
+	}
+	// dt <= 0 → todo sin rate
+	rates = IfRates(prev, cur, 0)
+	if rates["lan1"].RxBps != nil {
+		t.Fatal("dt=0 → nil rates")
+	}
+}
+
+func TestBuildEthPortsConIfaces(t *testing.T) {
+	layout := []PortLayout{{ID: "lan1", Name: "lan1", Label: "LAN 1", Role: "lan"}}
+	states := []PortState{{Name: "lan1", Up: true, Speed: "1 Gbps"}}
+	rxb, txb := 40e6, 12e6
+	ifaces := map[string]IfRate{
+		"lan1":  {IfCounters: IfCounters{Rx: 1000, Tx: 2000, RxErr: 3}, RxBps: &rxb, TxBps: &txb},
+		"wlan0": {IfCounters: IfCounters{Rx: 99}}, // no es boca: se ignora
+	}
+	ports := BuildEthPorts(layout, states, nil, ifaces)
+	if len(ports) != 1 {
+		t.Fatalf("ports: %+v", ports)
+	}
+	p := ports[0]
+	if p.Iface != "lan1" || p.RxBytes != 1000 || p.TxBytes != 2000 || p.RxErrs != 3 {
+		t.Fatalf("stats: %+v", p)
+	}
+	if p.RxBps == nil || *p.RxBps != rxb || p.TxBps == nil || *p.TxBps != txb {
+		t.Fatalf("rates: %+v", p)
+	}
+	// Fallback (sin layout) también enriquece
+	ports = BuildEthPorts(nil, []PortState{{Name: "lan1", Up: true, Speed: "1 Gbps"}}, nil, ifaces)
+	if len(ports) != 1 || ports[0].Iface != "lan1" || ports[0].RxBytes != 1000 {
+		t.Fatalf("fallback stats: %+v", ports)
+	}
+}
+
 func TestParsePingSummary(t *testing.T) {
 	out := "3 packets transmitted, 3 received, 0% packet loss, time 2003ms\nrtt min/avg/max/mdev = 8.123/9.456/10.999/0.5 ms"
 	lat, loss := ParsePingSummary(out)
@@ -152,12 +226,12 @@ func TestParsePortsYLayout(t *testing.T) {
 		t.Fatalf("layout: %v %+v", err, layout)
 	}
 	// AP en bridge: wan en br-lan → se re-etiqueta LAN 5
-	ports := BuildEthPorts(layout, states, map[string]bool{"wan": true})
+	ports := BuildEthPorts(layout, states, map[string]bool{"wan": true}, nil)
 	if len(ports) != 5 || ports[0].Label != "LAN 5" {
 		t.Fatalf("ethports bridge: %+v", ports)
 	}
 	// Sin layout: fallback heurístico
-	ports = BuildEthPorts(nil, ParsePortStates("lan2 up 1000\nlan10 up 100\nwan down -1\n"), nil)
+	ports = BuildEthPorts(nil, ParsePortStates("lan2 up 1000\nlan10 up 100\nwan down -1\n"), nil, nil)
 	if len(ports) != 3 || ports[0].ID != "wan" || ports[1].ID != "lan2" || ports[2].ID != "lan10" {
 		t.Fatalf("ethports fallback: %+v", ports)
 	}

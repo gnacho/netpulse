@@ -45,6 +45,9 @@ type OpenWrtClient struct {
 	sid        string     // sesión ubus HTTP cacheada
 	lastStat   *cpuSample // /proc/stat previo
 	lastNetDev *netSample // /proc/net/dev previo
+	// lastNetIf: /proc/net/dev previo POR INTERFAZ (contadores por boca,
+	// issue #305). Acceso serializado por mu.
+	lastNetIf *netIfSample
 	// lldpDownUntil: indisponibilidad de lldpd cacheada (≥5 min) para no
 	// martillear con un comando que no existe. Acceso serializado por mu.
 	lldpDownUntil time.Time
@@ -54,6 +57,11 @@ type cpuSample struct{ total, idleAll float64 }
 type netSample struct {
 	rx, tx float64
 	at     time.Time
+}
+
+type netIfSample struct {
+	at     time.Time
+	ifaces map[string]probe.IfCounters
 }
 
 // Aliases a los shapes compartidos de agent/probe: el agente nativo parsea
@@ -265,23 +273,33 @@ type NetDevBps struct {
 	TxBps *float64
 }
 
-// GetNetDevBps: tráfico agregado por delta (excluye lo, bridges, ifb, wg,
-// tun/tap para no duplicar contadores). Primera muestra: null/null.
-func (c *OpenWrtClient) GetNetDevBps() (*NetDevBps, error) {
+// GetNetDev: tráfico agregado por delta de /proc/net/dev (excluye lo,
+// bridges, ifb, wg, tun/tap para no duplicar contadores) + rates POR INTERFAZ
+// (issue #305, para las bocas del chasis). Una sola lectura de /proc/net/dev;
+// primera muestra: rates null.
+func (c *OpenWrtClient) GetNetDev() (*NetDevBps, map[string]probe.IfRate) {
 	out, err := c.pool.Run(c.Host, probe.CmdNetDev, 0)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 	rx, tx := parseNetDev(out)
+	curIf := probe.ParseNetDevIfaces(out)
 	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	prev := c.lastNetDev
 	c.lastNetDev = &netSample{rx: rx, tx: tx, at: now}
+	prevIf := c.lastNetIf
+	c.lastNetIf = &netIfSample{at: now, ifaces: curIf}
 	res := &NetDevBps{}
-	if prev == nil {
-		return res, nil
+	if prev != nil {
+		res.RxBps, res.TxBps = probe.NetDevBps(prev.rx, prev.tx, rx, tx, now.Sub(prev.at).Seconds())
 	}
-	res.RxBps, res.TxBps = probe.NetDevBps(prev.rx, prev.tx, rx, tx, now.Sub(prev.at).Seconds())
-	return res, nil
+	var rates map[string]probe.IfRate
+	if prevIf != nil {
+		rates = probe.IfRates(prevIf.ifaces, curIf, now.Sub(prevIf.at).Seconds())
+	}
+	return res, rates
 }
 
 // parseNetDev suma rx/tx de las interfaces físicas (compartido con el agente).
@@ -432,8 +450,9 @@ func parsePortLayout(out string) ([]PortLayout, error) {
 }
 
 // GetEthPorts: layout + estado /sys; AP en bridge re-etiqueta wan→LAN N+1;
-// fallback heurístico sin config. Devuelve []EthPort listo para el detalle.
-func (c *OpenWrtClient) GetEthPorts(layout []PortLayout) []EthPort {
+// fallback heurístico sin config. rates = contadores por iface (#305, de
+// GetNetDev; nil = sin stats). Devuelve []EthPort listo para el detalle.
+func (c *OpenWrtClient) GetEthPorts(layout []PortLayout, rates map[string]probe.IfRate) []EthPort {
 	states := c.GetPortStates()
 	members := map[string]bool{}
 	if len(layout) > 0 {
@@ -445,14 +464,22 @@ func (c *OpenWrtClient) GetEthPorts(layout []PortLayout) []EthPort {
 			}
 		}
 	}
-	return ethPortsToAdapter(probe.BuildEthPorts(layout, states, members))
+	return ethPortsToAdapter(probe.BuildEthPorts(layout, states, members, rates))
 }
 
 // ethPortsToAdapter convierte el shape compartido al EthPort del contrato.
 func ethPortsToAdapter(in []probe.EthPort) []EthPort {
+	f := func(v *float64) float64 {
+		if v == nil {
+			return 0
+		}
+		return *v
+	}
 	out := make([]EthPort, 0, len(in))
 	for _, p := range in {
-		ep := EthPort{ID: p.ID, Label: p.Label, Up: p.Up}
+		ep := EthPort{ID: p.ID, Label: p.Label, Up: p.Up, Iface: p.Iface,
+			RxBytes: p.RxBytes, TxBytes: p.TxBytes, RxErrs: p.RxErrs, TxErrs: p.TxErrs,
+			RxBps: f(p.RxBps), TxBps: f(p.TxBps)}
 		if p.Up {
 			ep.Speed = p.Speed
 		}

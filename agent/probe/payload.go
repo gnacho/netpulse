@@ -17,8 +17,8 @@ type Payload struct {
 	// Interval declara la cadencia de push en SEGUNDOS (#288). 0 = default
 	// del agente nativo (~30 s). Un pusher externo que empuja cada 5 min
 	// declara 300 y el server amplía su TTL a 3x ese intervalo.
-	Interval int           `json:"interval,omitempty"`
-	Data     PayloadData   `json:"data"`
+	Interval int         `json:"interval,omitempty"`
+	Data     PayloadData `json:"data"`
 }
 
 // PayloadData agrupa las secciones del tier rápido. Punteros/mapas nil =
@@ -33,6 +33,10 @@ type PayloadData struct {
 	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están
 	// definidas en /etc/config/luci.
 	LuCI *LuCILabels `json:"luci,omitempty"`
+	// NetIf: contadores acumulados POR INTERFAZ de /proc/net/dev (issue
+	// #305). El servidor calcula los rates por boca con el delta entre
+	// payloads. nil = sonda fallida (conserva la última buena).
+	NetIf map[string]IfCounters `json:"netIf,omitempty"`
 }
 
 // SystemData: salud del equipo + tráfico + latencias.

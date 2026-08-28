@@ -16,6 +16,16 @@ import { cn } from '@/lib/utils'
  * Variante compacta (APs, col-span-5) y ancha (gateway, col-span-12).
  */
 
+/** fmtPortBps: rate de una boca en humano ("12.4 Mbps" · "320 kbps" · "0").
+ *  undefined (sin dato todavía) → "—" para no confundirlo con 0 real. */
+function fmtPortBps(bps?: number): string {
+  if (bps === undefined || Number.isNaN(bps)) return '—'
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gbps`
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`
+  if (bps >= 1e3) return `${Math.round(bps / 1e3)} kbps`
+  return `${Math.round(bps)} bps`
+}
+
 function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInfo }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -105,6 +115,11 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                   )}
                 </div>
                 {port.speed && <div className="font-mono text-[10px] text-text-muted">{port.speed}</div>}
+                {(port.rxBps !== undefined || port.txBps !== undefined) && (
+                  <div className="font-mono text-[10px] text-text-muted">
+                    ↓{fmtPortBps(port.rxBps)} ↑{fmtPortBps(port.txBps)}
+                  </div>
+                )}
               </>
             ) : (
               <div className="mt-0.5 text-caption text-text-muted">{t('routerDetail.ports.free')}</div>
@@ -161,6 +176,22 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                   <MiniStat label="MAC" value={port.deviceMac} />
                   {port.detail && <MiniStat label={t('routerDetail.ports.deviceDetail')} value={port.detail} />}
+                  {(port.rxBps !== undefined || port.txBps !== undefined) && (
+                    <div className="col-span-2">
+                      <MiniStat
+                        label={t('routerDetail.ports.traffic')}
+                        value={`↓ ${fmtPortBps(port.rxBps)} · ↑ ${fmtPortBps(port.txBps)}`}
+                      />
+                    </div>
+                  )}
+                  {(port.rxErrors ?? 0) + (port.txErrors ?? 0) > 0 && (
+                    <div className="col-span-2">
+                      <MiniStat
+                        label={t('routerDetail.ports.errors')}
+                        value={`RX ${port.rxErrors ?? 0} · TX ${port.txErrors ?? 0}`}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             )}
