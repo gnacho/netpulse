@@ -40,6 +40,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
+	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
 	"github.com/gnacho/netpulse/server-go/internal/poller"
 	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
@@ -210,6 +211,10 @@ func run() error {
 		return fmt.Errorf("wifi sle schema: %w", err)
 	}
 	wifiSLE := wifisle.NewStore(dbHandle)
+	if err := pathanalysis.EnsureSchema(dbHandle); err != nil {
+		return fmt.Errorf("path analysis schema: %w", err)
+	}
+	pathStore := pathanalysis.NewStore(dbHandle)
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -414,6 +419,7 @@ func run() error {
 		TokenStore:      tokenStore,
 		CollectorReader: collReader,
 		WiFiSLE:         wifiSLE,
+		PathAnalysis:    pathStore,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
