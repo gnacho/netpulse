@@ -28,6 +28,7 @@ import (
 
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/portseries"
 )
 
 // beaconPort: una boca del beacon. n = número 1..9; l = código de link
@@ -225,6 +226,7 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		}
 		ports = append(ports, ep)
 	}
+	s.recordBeaconPortSamples(p.Slug, p.Ports)
 	// Alertas SFP (#313): RX baja o temperatura alta en módulos ópticos.
 	// Se emiten aquí (no en polledFromAgent) para que el dedup del motor
 	// colapse duplicados entre beacons del mismo switch.
@@ -380,6 +382,48 @@ func (s *server) emitSFPAlerts(slug string, labels map[string]string, sfpByPort 
 				Description: fmt.Sprintf("Temperatura %.1f °C (umbral %.0f °C)", sfp.Temperature, sfpAlertTempHigh),
 			})
 		}
+	}
+}
+
+// recordBeaconPortSamples persists beacon frame counts as port series samples
+// (issue #302). Beacon ports carry cumulative tx/rx frame counts and link speed
+// but no byte counters (the 8051 firmware does not track bytes per port).
+func (s *server) recordBeaconPortSamples(slug string, bps []beaconPort) {
+	if s.db == nil || s.db.PortSeries == nil || len(bps) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, bp := range bps {
+		if bp.N < 1 || bp.N > 32 {
+			continue
+		}
+		speedMbps := 0
+		if sp, ok := beaconLinkSpeed[bp.L]; ok && bp.L != 0 {
+			switch {
+			case sp == "10G":
+				speedMbps = 10000
+			case sp == "5G":
+				speedMbps = 5000
+			case sp == "2.5G":
+				speedMbps = 2500
+			case sp == "1G":
+				speedMbps = 1000
+			case sp == "500M":
+				speedMbps = 500
+			case sp == "100M":
+				speedMbps = 100
+			case sp == "10M":
+				speedMbps = 10
+			}
+		}
+		_ = s.db.PortSeries.RecordSample(portseries.PortSample{
+			RouterID:  slug,
+			PortID:    fmt.Sprintf("lan%d", bp.N),
+			TS:        now,
+			RxFrames:  uint64(bp.Rx),
+			TxFrames:  uint64(bp.Tx),
+			SpeedMbps: speedMbps,
+		})
 	}
 }
 

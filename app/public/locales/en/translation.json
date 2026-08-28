@@ -515,7 +515,11 @@
       "sfpTx": "TX power",
       "sfpVendor": "Vendor",
       "sfpWarnTemp": "High temperature",
-      "sfpWarnRx": "Low RX power"
+      "sfpWarnRx": "Low RX power",
+      "seriesTitle": "Traffic history",
+      "seriesRx": "Receive",
+      "seriesTx": "Transmit",
+      "seriesNoData": "No historical data"
     },
     "radios": {
       "channel": "Channel",

@@ -26,6 +26,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/oui"
+	"github.com/gnacho/netpulse/server-go/internal/portseries"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -878,6 +879,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if temp != nil {
 		tempV = *temp
 	}
+	l.recordPortSamples(cfg.ID, portsGood)
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
@@ -1435,6 +1437,50 @@ func (l *Live) lastRouterFor(mac string) string {
 	var routerID string
 	_ = l.db.QueryRow("SELECT router_id FROM device_attrib WHERE mac = ?", mac).Scan(&routerID)
 	return routerID
+}
+
+// parseSpeedMbps converts a human speed string ("1 Gbps", "100 Mbps", "2.5G")
+// to Mbps. Returns 0 on unknown formats.
+func parseSpeedMbps(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	s = strings.ReplaceAll(s, "bps", "")
+	s = strings.ReplaceAll(s, "Bps", "")
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "G") {
+		if v, err := strconv.ParseFloat(strings.TrimSuffix(s, "G"), 64); err == nil {
+			return int(v * 1000)
+		}
+	}
+	if strings.HasSuffix(s, "M") {
+		if v, err := strconv.ParseFloat(strings.TrimSuffix(s, "M"), 64); err == nil {
+			return int(v)
+		}
+	}
+	return 0
+}
+
+// recordPortSamples persists per-port time series samples (issue #302).
+// Called after port stats are collected (SSH or agent path).
+func (l *Live) recordPortSamples(routerID string, ports []EthPort) {
+	if l.db == nil || l.db.PortSeries == nil || len(ports) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, p := range ports {
+		if p.ID == "" {
+			continue
+		}
+		_ = l.db.PortSeries.RecordSample(portseries.PortSample{
+			RouterID: routerID, PortID: p.ID, TS: now,
+			RxBytes: p.RxBytes, TxBytes: p.TxBytes,
+			RxErrors: p.RxErrs, TxErrors: p.TxErrs,
+			RxBps: p.RxBps, TxBps: p.TxBps,
+			SpeedMbps: parseSpeedMbps(p.Speed),
+		})
+	}
 }
 
 // pollAdGuard: stats del cliente configurado; fallback inactivo si falla.

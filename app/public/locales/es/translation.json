@@ -515,7 +515,11 @@
       "sfpTx": "Potencia TX",
       "sfpVendor": "Fabricante",
       "sfpWarnTemp": "Temperatura alta",
-      "sfpWarnRx": "Potencia RX baja"
+      "sfpWarnRx": "Potencia RX baja",
+      "seriesTitle": "Historial de tráfico",
+      "seriesRx": "Recepción",
+      "seriesTx": "Envío",
+      "seriesNoData": "Sin datos históricos"
     },
     "radios": {
       "channel": "Canal",
