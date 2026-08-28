@@ -269,6 +269,8 @@ export interface AlertEvent {
   ts: number
   read: boolean
   routerId?: string
+  /** Router padre que suprime esta alerta (issue #332). Ausente si no aplica. */
+  suppressedBy?: string
 }
 
 // ---------------------------------------------------------------------------
