@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260806d" />
+  <link rel="stylesheet" href="styles.css?v=20260828a" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -104,8 +104,9 @@
       </a>
       <div class="nav-links">
         <a href="#features" data-i18n="nav.features">Funciones</a>
-        <a href="#club" data-i18n="nav.club">El club</a>
-        <a href="#install" data-i18n="nav.install">Instalar</a>
+        <a href="#how" data-i18n="nav.how">Cómo funciona</a>
+        <a href="#free" data-i18n="nav.free">Gratis</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
         <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
       </div>
       <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
@@ -124,17 +125,27 @@
       </h1>
       <p class="hero-sub" data-i18n="hero.sub">NetPulse vigila tus routers OpenWrt, dibuja la topología, puntúa la salud de la red y te avisa, todo desde un único binario autoalojado. Nada sale de tu LAN.</p>
       <div class="hero-actions">
-        <a class="btn-primary" href="#install">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <a class="btn-primary" href="https://demo.netpulse.cloudless.club" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span data-i18n="hero.cta3">Probar la demo en vivo</span>
+        </a>
+        <a class="btn-ghost" href="#install">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span data-i18n="hero.cta1">Instalar en tu red</span>
         </a>
         <a class="btn-ghost" href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.66.41.35.77 1.05.77 2.12 0 1.53-.01 2.76-.01 3.14 0 .31.21.67.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
           <span data-i18n="hero.cta2">Ver en GitHub</span>
         </a>
-        <a class="btn-ghost" href="https://demo.netpulse.cloudless.club" target="_blank" rel="noopener">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          <span data-i18n="hero.cta3">Probar la demo en vivo</span>
+      </div>
+      <div class="hero-badges">
+        <a class="chip chip-link" id="ghStars" href="https://github.com/gnacho/netpulse/stargazers" target="_blank" rel="noopener" hidden>
+          <svg viewBox="0 0 24 24" fill="rgb(var(--warn))" stroke="rgb(var(--warn))" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span data-n>0</span>
+        </a>
+        <a class="chip chip-link" id="ghRel" href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          <span data-n>v2</span>
         </a>
       </div>
 
@@ -169,6 +180,13 @@
           <span class="v font-mono" data-count="65">0</span>
         </div>
       </div>
+
+      <div class="hero-shot reveal">
+        <div class="browser-frame card glow-accent">
+          <div class="bf-bar" aria-hidden="true"><span class="bf-dots"><i></i><i></i><i></i></span><span class="bf-url font-mono">netpulse · 192.168.8.1:3000</span></div>
+          <img id="heroShot" src="assets/shot-overview-es-dark.webp" alt="NetPulse - panel general" width="1440" height="900" decoding="async" />
+        </div>
+      </div>
     </div>
   </header>
 
@@ -180,7 +198,7 @@
   <!-- ============ CLUB CLOUDLESS ============ -->
   <section class="block" id="club">
     <div class="container">
-      <div class="club-inner">
+      <div class="club-inner reveal">
         <div class="club-copy">
           <span class="eyebrow" data-i18n="club.eyebrow">Parte del Club Cloudless</span>
           <h2 class="font-display text-balance" data-i18n="club.title">Los principios del club</h2>
@@ -196,10 +214,44 @@
     </div>
   </section>
 
+  <!-- ============ CÓMO FUNCIONA ============ -->
+  <section class="block" id="how">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="how.eyebrow">Cómo funciona</span>
+        <h2 class="font-display text-balance" data-i18n="how.title">De cero a tu NOC doméstico en cinco minutos</h2>
+        <p class="lead" data-i18n="how.lead">Sin Docker, sin cuentas, sin asistentes interminables. Tres pasos y tu red empieza a hablar.</p>
+      </div>
+      <div class="steps">
+        <div class="card step reveal">
+          <span class="step-num font-mono">01</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <h3 data-i18n="how.s1t">Instala el servidor</h3>
+          <p data-i18n="how.s1p">Un único binario Go estático con la app web embebida. Corre como servicio systemd enjaulado en cualquier Linux (x86_64, arm64, armv7)… o en el propio router OpenWrt.</p>
+        </div>
+        <div class="card step reveal">
+          <span class="step-num font-mono">02</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <h3 data-i18n="how.s2t">Empareja tus routers</h3>
+          <p data-i18n="how.s2p">Token de emparejamiento de un solo uso y agente .ipk nativo (procd, UCI, watchdog). Sin agente también funciona: sondeo SSH estrictamente de solo lectura.</p>
+        </div>
+        <div class="card step reveal">
+          <span class="step-num font-mono">03</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          <h3 data-i18n="how.s3t">Abre la app</h3>
+          <p data-i18n="how.s3p">PWA instalable en móvil y escritorio, en vivo por SSE cada 5 s. Multiusuario con roles admin/viewer e idioma por usuario.</p>
+        </div>
+      </div>
+      <div class="how-time reveal">
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span data-i18n="how.time">≈ 5 min de instalación</span></span>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ TEATRO STICKY ============ -->
   <section class="block" id="theater" style="padding-top:1rem;">
     <div class="container">
-      <div>
+      <div class="reveal">
         <span class="eyebrow" data-i18n="misc.demoBadge">datos demo</span>
         <h2 class="font-display text-balance" data-i18n="theater.title">Míralo cobrar vida</h2>
         <p class="lead" data-i18n="theater.lead">Sigue haciendo scroll. Estos son los widgets reales, alimentados con el dataset de demo.</p>
@@ -210,7 +262,7 @@
           <div class="tstep" data-stage="0">
             <span class="num">01</span>
             <h3 data-i18n="theater.st1t">Un número que lo cuenta todo</h3>
-            <p data-i18n="theater.st1p">La puntuación de salud condensa latencia, pérdidas, uptime y temperatura en 0–100. Se actualiza cada 5 segundos por SSE.</p>
+            <p data-i18n="theater.st1p">La puntuación de salud condensa latencia, pérdidas, uptime y temperatura en 0-100. Se actualiza cada 5 segundos por SSE.</p>
           </div>
           <div class="tstep" data-stage="1">
             <span class="num">02</span>
@@ -321,7 +373,7 @@
                 <div class="wan-footer">
                   <div><span class="k" data-i18n="wan.peak">Pico hoy</span><span class="v font-mono" id="wanPeak">0 Mbps ↓</span></div>
                   <div><span class="k" data-i18n="wan.avg">Media</span><span class="v font-mono" id="wanAvg">0 Mbps ↓</span></div>
-                  <div><span class="k" data-i18n="wan.total">Total 24 h</span><span class="v font-mono" id="wanTotal">—</span></div>
+                  <div><span class="k" data-i18n="wan.total">Total 24 h</span><span class="v font-mono" id="wanTotal">-</span></div>
                   <div><span class="k" data-i18n="wan.loss">Pérdida</span><span class="v font-mono" id="wanLoss">0 %</span></div>
                 </div>
               </div>
@@ -385,11 +437,11 @@
                     <span class="term-line"><span style="color:rgb(var(--ok))">root@OpenWrt:~#</span> <span data-i18n="agent.install">opkg install</span> netpulse-agent</span>
                     <span class="term-line text-muted">Installing netpulse-agent (2.6.0)...</span>
                     <span class="term-line text-ok">Configuring netpulse-agent.</span>
-                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.procd">procd init</span> — <span data-i18n="agent.enabled" style="color:rgb(var(--accent))">Activo · respawn</span></span>
-                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.uci">config UCI</span> — /etc/config/netpulse-agent</span>
-                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.watchdog">watchdog</span> — cron */2 min</span>
-                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.events">eventos iw</span> — push WiFi &lt;3 s</span>
-                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.connected">Conectado al servidor</span> — SSE</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.procd">procd init</span> - <span data-i18n="agent.enabled" style="color:rgb(var(--accent))">Activo · respawn</span></span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.uci">config UCI</span> - /etc/config/netpulse-agent</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.watchdog">watchdog</span> - cron */2 min</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.events">eventos iw</span> - push WiFi &lt;3 s</span>
+                    <span class="term-line"><span style="color:rgb(var(--ok))">✓</span> <span data-i18n="agent.connected">Conectado al servidor</span> - SSE</span>
                     <span class="term-line" style="margin-top:0.5rem"><span class="text-muted" data-i18n="agent.running">Agente en marcha</span> · <span data-i18n="agent.pid">pid 987</span> · <span data-i18n="agent.rss">12 MB RSS</span></span>
                   </div>
                 </div>
@@ -412,7 +464,7 @@
   <!-- ============ FEATURES ============ -->
   <section class="block" id="features" style="padding-top:2rem;">
     <div class="container">
-      <div>
+      <div class="reveal">
         <span class="eyebrow" data-i18n="nav.features">Funciones</span>
         <h2 class="font-display text-balance" data-i18n="features.title">Todo lo que necesita un NOC doméstico</h2>
         <p class="lead" data-i18n="features.lead">Solo lectura por diseño: NetPulse puede ver tu red, nunca cambiarla.</p>
@@ -464,18 +516,95 @@
           <p data-i18n="features.f9p">El agente se distribuye como paquete .ipk para instalar con opkg. Init procd, configuración UCI, watchdog y eventos iw: un ciudadano OpenWrt de primera clase, corriendo en tus routers a ~12 MB RSS.</p>
         </div>
         <div class="card feature reveal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-          <h3 data-i18n="features.f10t">TLS post-quantum y flota al día</h3>
-          <p data-i18n="features.f10p">TLS híbrido post-quantum (X25519MLKEM768, Go 1.24+) activado por defecto en el transporte; los agentes de tu flota se auto-actualizan desde el servidor y la llave SSH rota sin tocar los routers.</p>
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          <h3 data-i18n="features.f10t">WiFi y roaming</h3>
+          <p data-i18n="features.f10p">Matriz de señal DAWN, estado 802.11r por SSID, utilización de canal y feed persistente de eventos de roaming (30 días).</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          <h3 data-i18n="features.f11t">PWA instalable</h3>
+          <p data-i18n="features.f11p">Instálala en el móvil o el escritorio: en vivo por SSE, Web Push nativo y temas claro/oscuro.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><line x1="6" y1="6.5" x2="6.01" y2="6.5"/><line x1="6" y1="17.5" x2="6.01" y2="17.5"/></svg>
+          <h3 data-i18n="features.f12t">App LuCI</h3>
+          <p data-i18n="features.f12p">luci-app-netpulse integra el estado del agente dentro de la propia interfaz de OpenWrt: procd, UCI, logs y reinicio.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <h3 data-i18n="features.f13t">Auto-actualización integrada</h3>
+          <p data-i18n="features.f13p">Comprueba nuevas releases cada 24 h y las aplica con swap atómico. Sin intervención.</p>
+        </div>
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+          <h3 data-i18n="features.f14t">Modo on-box</h3>
+          <p data-i18n="features.f14p">¿Sin caja aparte? El servidor puede correr en el propio router OpenWrt, con config UCI y pinning TLS.</p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ INGENIERÍA ============ -->
+  <section class="block" id="eng" style="padding-top:1rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="eng.eyebrow">Bajo el capó</span>
+        <h2 class="font-display text-balance" data-i18n="eng.title">Un proyecto personal con ingeniería seria</h2>
+        <p class="lead" data-i18n="eng.lead">Lo publica una persona, pero está construido como un producto.</p>
+      </div>
+      <div class="statband reveal">
+        <div class="stat"><span class="stat-v font-display text-accent">373</span><span class="stat-k" data-i18n="eng.s1l">tests automatizados</span></div>
+        <div class="stat"><span class="stat-v font-display text-ok">22</span><span class="stat-k" data-i18n="eng.s2l">releases SemVer</span></div>
+        <div class="stat"><span class="stat-v font-display text-tunnel">3</span><span class="stat-k" data-i18n="eng.s3l">arquitecturas CPU</span></div>
+        <div class="stat"><span class="stat-v font-display text-warn">~12 MB</span><span class="stat-k" data-i18n="eng.s4l">RAM del agente</span></div>
+      </div>
+      <div class="eng-chips reveal">
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="eng.c1">CI en cada commit</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="eng.c2">Instalador con checksums verificados</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="eng.c3">Pinning TLS del agente</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="eng.c4">systemd enjaulado</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="eng.c5">Gitleaks sobre el historial</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="eng.c6">SQLite con rollups</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COMPARATIVA ============ -->
+  <section class="block" id="compare" style="padding-top:1rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="compare.eyebrow">¿En qué se diferencia?</span>
+        <h2 class="font-display text-balance" data-i18n="compare.title">Un NOC entero, sin el equipo de NOC</h2>
+        <p class="lead" data-i18n="compare.lead">Zabbix, LibreNMS y PRTG son suites NMS para infraestructura empresarial. NetPulse es un NOC de bolsillo hecho para redes domésticas OpenWrt.</p>
+      </div>
+      <div class="compare-wrap card reveal">
+        <table class="compare-table">
+          <thead>
+            <tr><th></th><th class="np">NetPulse</th><th>Zabbix</th><th>LibreNMS</th><th>PRTG</th></tr>
+          </thead>
+          <tbody>
+            <tr><td data-i18n="compare.r1">Topología auto-descubierta (FDB/LLDP)</td><td class="ck">✓</td><td class="pt">~</td><td class="ck">✓</td><td class="pt">~</td></tr>
+            <tr><td data-i18n="compare.r2">Agente nativo OpenWrt (.ipk, UCI, procd)</td><td class="ck">✓</td><td class="no">-</td><td class="no">-</td><td class="no">-</td></tr>
+            <tr><td data-i18n="compare.r3">Eventos WiFi y roaming (802.11r, DAWN)</td><td class="ck">✓</td><td class="no">-</td><td class="pt">~</td><td class="no">-</td></tr>
+            <tr><td data-i18n="compare.r4">Puntuación de salud 0-100</td><td class="ck">✓</td><td class="no">-</td><td class="no">-</td><td class="no">-</td></tr>
+            <tr><td data-i18n="compare.r5">PWA móvil en vivo (SSE, 5 s)</td><td class="ck">✓</td><td class="no">-</td><td class="pt">~</td><td class="pt">~</td></tr>
+            <tr><td data-i18n="compare.r6">Push nativo sin terceros</td><td class="ck">✓</td><td class="no">-</td><td class="pt">~</td><td class="pt">~</td></tr>
+            <tr><td data-i18n="compare.r7">Corre en 512 MB de RAM o en el propio router</td><td class="ck">✓</td><td class="no">-</td><td class="no">-</td><td class="no">-</td></tr>
+            <tr><td data-i18n="compare.r8">Instalación en ≈5 minutos</td><td class="ck">✓</td><td class="no">-</td><td class="no">-</td><td class="pt">~</td></tr>
+            <tr><td data-i18n="compare.r9">Gratis, sin versión premium</td><td class="ck">✓</td><td class="ck">✓</td><td class="ck">✓</td><td class="pt">~</td></tr>
+            <tr class="lose"><td data-i18n="compare.r10">Amplitud multi-vendor (SNMP, miles de MIBs)</td><td class="pt">~</td><td class="ck">✓</td><td class="ck">✓</td><td class="ck">✓</td></tr>
+            <tr class="lose"><td data-i18n="compare.r11">Escala empresarial (miles de nodos)</td><td class="no">-</td><td class="ck">✓</td><td class="ck">✓</td><td class="ck">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="compare-note caption text-muted" data-i18n="compare.note">Las suites NMS ganan en amplitud y escala; NetPulse gana en foco OpenWrt, sencillez y WiFi doméstico. Elige según tu red.</p>
     </div>
   </section>
 
   <!-- ============ CAPTURAS ============ -->
   <section class="block" id="shots" style="padding-top:1rem;">
     <div class="container">
-      <div>
+      <div class="reveal">
         <span class="eyebrow" data-i18n="shots.eyebrow">La app</span>
         <h2 class="font-display text-balance" data-i18n="shots.title">Un vistazo a la interfaz</h2>
         <p class="lead" data-i18n="shots.lead">Capturas de NetPulse en modo demo, con el tema que elijas. Una por menú.</p>
@@ -503,10 +632,42 @@
     </div>
   </section>
 
+  <!-- ============ GRATIS DE VERDAD ============ -->
+  <section class="block" id="free">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="free.eyebrow">Precio</span>
+        <h2 class="font-display text-balance" data-i18n="free.title">Gratis de verdad, no gratis de momento</h2>
+        <p class="lead" data-i18n="free.lead">NetPulse es software libre (AGPL-3.0). El código es el producto completo: no hay versión premium esperando detrás.</p>
+      </div>
+      <div class="free-grid">
+        <div class="card free-card reveal">
+          <div class="free-price font-display" data-i18n="free.price">0 €</div>
+          <div class="free-period" data-i18n="free.period">para siempre</div>
+          <a class="btn-primary" href="https://github.com/gnacho/netpulse/blob/main/LICENSE" target="_blank" rel="noopener">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span data-i18n="free.cta">Ver la licencia</span>
+          </a>
+        </div>
+        <div class="card free-list-card reveal">
+          <ul class="free-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="free.l1">Todas las funciones, sin límites ni niveles</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="free.l2">Sin cuenta, sin registro, sin correo</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="free.l3">Sin telemetría: nada sale de tu LAN</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="free.l4">Código auditable, licencia AGPL-3.0</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="free.l5">Actualizaciones incluidas, auto-updater integrado</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="free.l6">Sin nube obligatoria: tu hardware, tus datos</span></li>
+          </ul>
+          <p class="install-note" style="margin-top:1.1rem;" data-i18n="free.note">Si te sirve y quieres apoyar su desarrollo, Ko-fi es la vía. Nunca una suscripción.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ INSTALACIÓN ============ -->
   <section class="block" id="install">
     <div class="container">
-      <div>
+      <div class="reveal">
         <span class="eyebrow" data-i18n="nav.install">Instalar</span>
         <h2 class="font-display text-balance" data-i18n="install.title">Una línea para instalar</h2>
         <p class="lead" data-i18n="install.lead">Un único binario Go estático con la app web embebida, corriendo como servicio systemd enjaulado. Sin Docker.</p>
@@ -525,7 +686,7 @@
             <span data-i18n="install.inspector">El instalador es shell plano y legible:</span>
             <a href="https://github.com/gnacho/netpulse/blob/main/install.sh" target="_blank" rel="noopener" data-i18n="install.inspectorLink">inspecciónalo primero</a>.
           </p>
-          <p class="install-note" data-i18n="install.update">Actualiza re-ejecutando la misma línea. Desinstala con sh install.sh --uninstall.</p>
+          <p class="install-note" data-i18n="install.auto">Las actualizaciones se cuidan solas: el auto-updater integrado comprueba cada 24 h y aplica las nuevas versiones con swap atómico. También puedes re-ejecutar el instalador o desinstalar con sh install.sh --uninstall.</p>
           <h3 style="margin-top:1.75rem;" data-i18n="install.connect">Conecta tus routers</h3>
           <p class="install-note" style="font-size:0.85rem;color:rgb(var(--text-secondary));" data-i18n="install.connectp">El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router. El sondeo es estrictamente de solo lectura.</p>
 
@@ -562,10 +723,46 @@
     </div>
   </section>
 
+  <!-- ============ FAQ ============ -->
+  <section class="block" id="faq">
+    <div class="container" style="max-width:56rem;">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="faq.eyebrow">FAQ</span>
+        <h2 class="font-display text-balance" data-i18n="faq.title">Preguntas frecuentes</h2>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item card reveal">
+          <summary data-i18n="faq.q1">¿NetPulse es de pago?</summary>
+          <p data-i18n="faq.a1">No. Es software libre (AGPL-3.0), sin versión premium ni planes. Si quieres apoyarlo, está Ko-fi.</p>
+        </details>
+        <details class="faq-item card reveal">
+          <summary data-i18n="faq.q2">¿Qué routers soporta?</summary>
+          <p data-i18n="faq.a2">OpenWrt y GL.iNet. Desarrollado y probado con un GL.iNet Flint 2 y tres Xiaomi AX6 de segunda mano.</p>
+        </details>
+        <details class="faq-item card reveal">
+          <summary data-i18n="faq.q3">¿Mis datos salen de mi red?</summary>
+          <p data-i18n="faq.a3">No. Corre en una caja dentro de tu LAN, sin telemetría. La única conexión saliente es opcional: comprobar actualizaciones.</p>
+        </details>
+        <details class="faq-item card reveal">
+          <summary data-i18n="faq.q4">¿Puede cambiar algo en mis routers?</summary>
+          <p data-i18n="faq.a4">No. El sondeo es de solo lectura por diseño: lee, nunca escribe.</p>
+        </details>
+        <details class="faq-item card reveal">
+          <summary data-i18n="faq.q5">¿Cómo se instala?</summary>
+          <p data-i18n="faq.a5">Una línea (curl | sh) instala el binario como servicio systemd. El agente es un paquete .ipk (opkg). Las actualizaciones llegan con el auto-updater integrado o re-ejecutando el instalador.</p>
+        </details>
+        <details class="faq-item card reveal">
+          <summary data-i18n="faq.q6">¿Puedo probarlo sin routers?</summary>
+          <p data-i18n="faq.a6">Sí: la demo pública está en vivo, y DEMO_MODE=1 levanta una red de muestra de 67 dispositivos en tu propia máquina.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ ACERCA DE MÍ ============ -->
   <section class="block" id="about" style="padding-top:1rem;">
     <div class="container">
-      <div>
+      <div class="reveal">
         <span class="eyebrow" data-i18n="about.eyebrow">Acerca de mí</span>
         <h2 class="font-display text-balance" data-i18n="about.title">Detrás de NetPulse hay una persona</h2>
       </div>
@@ -644,7 +841,7 @@
     <p class="lightbox-caption" id="lightboxCaption"></p>
   </div>
 
-  <script src="i18n.js?v=20260806d"></script>
-  <script src="app.js?v=20260806d"></script>
+  <script src="i18n.js?v=20260828a"></script>
+  <script src="app.js?v=20260828a"></script>
 </body>
 </html>

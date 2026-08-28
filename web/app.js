@@ -1,5 +1,5 @@
 /* ============================================================
-   NetPulse landing — app.js v2
+   NetPulse landing - app.js v2
    Fondo canvas, tipografía grande, topología fiel a la app.
    ============================================================ */
 
@@ -484,7 +484,7 @@ const DEMO_DEVICES = [
   {"id":"xbox-one","name":"Xbox One","type":"consola","manufacturer":"Microsoft","ip":"192.168.8.64","mac":"7C:ED:8D:AA:05:05","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":4.2,"online":true,"attachTo":"dist-flint2-lan3"},
   {"id":"receptor-av","name":"Receptor AV","type":"altavoz","manufacturer":"Denon","ip":"192.168.8.65","mac":"00:05:CD:AA:06:06","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.3,"online":true,"attachTo":"dist-flint2-lan3"},
   {"id":"deco-orange","name":"Deco Orange","type":"tv","manufacturer":"Sagemcom","ip":"192.168.8.66","mac":"48:83:B4:AA:07:07","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":1.1,"online":true,"attachTo":"dist-flint2-lan3"},
-  {"id":"pc-invitado","name":"PC invitado","type":"ordenador","manufacturer":"—","ip":"192.168.8.67","mac":"A2:F4:11:AA:08:08","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.8,"online":true,"attachTo":"dist-flint2-lan3"},
+  {"id":"pc-invitado","name":"PC invitado","type":"ordenador","manufacturer":"-","ip":"192.168.8.67","mac":"A2:F4:11:AA:08:08","routerId":"flint2","band":"cable","signalDbm":null,"trafficMbps":0.8,"online":true,"attachTo":"dist-flint2-lan3"},
 ]
 const DEMO_ROUTERS = [
   {"id":"flint2","name":"Gateway","model":"GL.iNet Flint 2 (GL-MT6000)","modelShort":"GL.iNet Flint 2","role":"Gateway principal","roleBadge":"Principal","ip":"192.168.8.1","status":"online","health":98,"cpu":23,"ram":41,"temp":54,"uptime":"32d 14h","clients":26,"backhaul":"cable","sparkline":[8,6,5,5,6,9,18,32,41,38,35,44,52,48,45,55,68,84,96,120,150,110,84,40]},
@@ -876,7 +876,7 @@ function drawTopology() {
     return el
   }
   // Lección de la app (bug chips invisibles): nunca atributo transform y
-  // animación CSS de scale en el mismo <g> — el transform CSS machaca el
+  // animación CSS de scale en el mismo <g> - el transform CSS machaca el
   // translate del atributo y los nodos colapsan en (0,0). El translate va en
   // el <g> padre y la animación (opacity/scale con transform-box) en un hijo.
   const nodeGroup = (x, y) => {
@@ -1324,7 +1324,7 @@ async function copyText(text, btn) {
 
 /* ---------- ko-fi placeholder ---------- */
 function initKofi() {
-  // TODO(nacho): URL definitiva de Ko-fi — pendiente de que la cree.
+  // TODO(nacho): URL definitiva de Ko-fi - pendiente de que la cree.
   const url = 'https://ko-fi.com/gnacho'
   document.querySelectorAll('.kofi').forEach((a) => { a.href = url })
 }
@@ -1352,7 +1352,8 @@ const SHOT_ALT = {
 let shotIndex = 0
 
 function shotUrl(view) {
-  const lang = (document.documentElement.lang || 'en').slice(0, 2)
+  const raw = (document.documentElement.lang || 'en').slice(0, 2)
+  const lang = (raw === 'es' || raw === 'en') ? raw : 'en' // solo existen capturas es/en
   const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
   return `assets/shot-${view}-${lang}-${theme}.webp`
 }
@@ -1366,6 +1367,12 @@ function renderShot(i) {
   const lang = (document.documentElement.lang || 'en').slice(0, 2)
   img.src = shotUrl(view)
   img.alt = (SHOT_ALT[view] && SHOT_ALT[view][lang]) || view
+  // captura del hero: siempre la vista "overview", siguiendo idioma y tema
+  const hero = document.getElementById('heroShot')
+  if (hero) {
+    hero.src = shotUrl('overview')
+    hero.alt = (SHOT_ALT.overview && SHOT_ALT.overview[lang]) || 'NetPulse overview'
+  }
   if (cap) cap.textContent = t(`shots.s${shotIndex + 1}`)
   document.querySelectorAll('#shotThumbs .thumb').forEach((th, idx) => {
     th.classList.toggle('active', idx === shotIndex)
@@ -1407,33 +1414,19 @@ function initLightbox() {
   function openLightbox(img) {
     shotIndex = SHOT_SLIDES.indexOf(img.dataset.view) >= 0 ? SHOT_SLIDES.indexOf(img.dataset.view) : shotIndex
     syncLightbox()
-    clearTimeout(lightbox._closingTimer)
-    lightbox.classList.remove('closing')
     lightbox.hidden = false
-    lightbox.classList.add('open')
     lightbox.setAttribute('aria-hidden', 'false')
     if (lightboxClose) lightboxClose.focus()
     document.body.style.overflow = 'hidden'
   }
 
   function closeLightbox() {
-    lightbox.classList.remove('open')
-    lightbox.classList.add('closing')
+    lightbox.hidden = true
     lightbox.setAttribute('aria-hidden', 'true')
-    clearTimeout(lightbox._closingTimer)
-    lightbox._closingTimer = setTimeout(() => {
-      lightbox.hidden = true
-      lightbox.classList.remove('closing')
-      document.body.style.overflow = ''
-    }, reduceMotion ? 0 : 150)
+    document.body.style.overflow = ''
   }
 
   function nav(dir) {
-    if (lightbox.classList.contains('closing')) {
-      clearTimeout(lightbox._closingTimer)
-      lightbox.classList.remove('closing')
-      lightbox.classList.add('open')
-    }
     renderShot(shotIndex + dir)
     syncLightbox()
   }
@@ -1453,6 +1446,29 @@ function initLightbox() {
   })
 }
 
+/* ---------- badges de GitHub (stars + última release) ---------- */
+/* fail-silent: si no hay red o la API limita, los chips quedan ocultos */
+async function initGhMeta() {
+  const show = (id, text) => {
+    const el = document.getElementById(id)
+    if (!el) return
+    el.querySelector('[data-n]').textContent = text
+    el.hidden = false
+  }
+  try {
+    const r = await fetch('https://api.github.com/repos/gnacho/netpulse', { headers: { Accept: 'application/vnd.github+json' } })
+    if (r.ok) {
+      const d = await r.json()
+      if (typeof d.stargazers_count === 'number') show('ghStars', `★ ${d.stargazers_count}`)
+    }
+    const rel = await fetch('https://api.github.com/repos/gnacho/netpulse/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    if (rel.ok) {
+      const rd = await rel.json()
+      if (rd.tag_name) show('ghRel', rd.tag_name)
+    }
+  } catch { /* sin red */ }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initAppearance()
   initBackgroundCanvas()
@@ -1466,4 +1482,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initSlider()
   initLightbox()
   heroCountUps()
+  initGhMeta()
 })
