@@ -7,6 +7,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-08-28
+
+### Added
+
+- **Poller SNMP para switches gestionados (#309)**: nuevo paquete `server-go/internal/snmp/` con gosnmp. Sondeo de ifTable/ifXTable (estado, velocidad, contadores, errores), dot1dTpFdbTable (tabla MAC-puerto), sysUpTime/sysDescr. Config SNMP por router (toggle + community + puerto). Integrado en el ciclo de polling junto a SSH/agente.
+- **Series temporales por puerto (#302)**: paquete `server-go/internal/portseries/`. Tres tablas SQLite: raw (7d), buckets 5min (1 año), diario (indefinido). Job nocturno de rollup + purga. API `GET /api/routers/:id/ports/:portId/series`. Sparkline SVG en el panel de puerto con selector 24h/7d/30d.
+
 ## [2.16.0] - 2026-08-28
 
 ### Added
