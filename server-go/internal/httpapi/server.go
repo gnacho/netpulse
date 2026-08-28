@@ -32,6 +32,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
+	"github.com/gnacho/netpulse/server-go/internal/presence"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
@@ -88,6 +89,8 @@ type Deps struct {
 	Baselines *baselines.Store
 	// InternetHealth: sonda multi-target + outage log (#335). nil → sin sondas.
 	InternetHealth *internethealth.Store
+	// Presence: personas y presencia (#336). nil → sin presencia.
+	Presence *presence.Store
 }
 
 type server struct {
@@ -142,6 +145,9 @@ type server struct {
 
 	// Internet Health: sonda multi-target + outage log (#335). nil = sin sondas.
 	internetHealth *internethealth.Store
+
+	// Presence: personas y presencia (#336). nil = sin presencia.
+	presence *presence.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -158,6 +164,7 @@ func NewHandler(d Deps) http.Handler {
 		collectorReader: d.CollectorReader,
 		baselines:       d.Baselines,
 		internetHealth:  d.InternetHealth,
+		presence:        d.Presence,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -227,6 +234,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("DELETE /api/alert-rules/{id}", s.handleAlertRulesDelete)
 	mux.HandleFunc("GET /api/baselines", s.handleBaselines)
 	mux.HandleFunc("GET /api/internet-health", s.handleInternetHealth)
+	mux.HandleFunc("GET /api/presence", s.handlePresenceStatus)
+	mux.HandleFunc("GET /api/presence/people", s.handlePresencePeople)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
 	mux.HandleFunc("GET /api/dot11r", s.handleDot11r)
