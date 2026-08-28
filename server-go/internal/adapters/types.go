@@ -224,6 +224,13 @@ type Device struct {
 	// "ct" (CT/VM anidado bajo hipervisor), "managed-switch" (switch con gestión
 	// identificado por LLDP — hoy switch-netgear).
 	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"managed-switch"
+	// --- mDNS/SSDP fingerprinting (#338) ---
+	// MdnsServices: mDNS service types advertised by this device (from umdns).
+	// e.g. ["_airplay._tcp", "_raop._tcp"] for an Apple TV.
+	MdnsServices []string `json:"mdnsServices,omitempty"`
+	// RandomMAC: true if the MAC has the locally-administered bit set
+	// (typical of iOS/Android WiFi privacy features).
+	RandomMAC bool `json:"randomMac,omitempty"`
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname     string `json:"hostname,omitempty"`
 	DHCPLease    string `json:"dhcpLease,omitempty"`

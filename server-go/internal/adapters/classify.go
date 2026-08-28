@@ -86,3 +86,31 @@ func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldp
 	}
 	return "desconocido"
 }
+
+// guessFromMdns (#338): classify a device from its mDNS service types when
+// hostname/DHCP/LLDP classification yielded "desconocido". The mapping is
+// intentionally conservative: only well-known service types that strongly
+// indicate a device category.
+func guessFromMdns(services []string) string {
+	for _, svc := range services {
+		s := strings.ToLower(svc)
+		switch {
+		case strings.Contains(s, "_airplay") || strings.Contains(s, "_raop"):
+			return "altavoz"
+		case strings.Contains(s, "_googlecast") || strings.Contains(s, "_googlezone"):
+			return "altavoz"
+		case strings.Contains(s, "_appletv") || strings.Contains(s, "_mediaremote"):
+			return "tv"
+		case strings.Contains(s, "_ipp") || strings.Contains(s, "_printer") || strings.Contains(s, "_pdl-datastream"):
+			return "iot" // printer
+		case strings.Contains(s, "_hap") || strings.Contains(s, "_homekit"):
+			return "iot"
+		case strings.Contains(s, "_smb") || strings.Contains(s, "_afpovertcp") || strings.Contains(s, "_nfs"):
+			return "servidor"
+		case strings.Contains(s, "_ssh") || strings.Contains(s, "_http") || strings.Contains(s, "_https"):
+			// Too generic — many devices expose SSH/HTTP. Don't classify.
+			continue
+		}
+	}
+	return "desconocido"
+}

@@ -77,6 +77,11 @@ const (
 	// Da proto ("pppoe"), IP, gateway (ptpaddress/nexthop) y DNS (issue #276).
 	CmdWanStatus = "ubus call network.interface.wan status 2>/dev/null || true"
 	CmdBridgeVlan = "bridge vlan show 2>/dev/null || true"
+
+	// CmdMdnsBrowse (#338): mDNS service discovery via umdns (OpenWrt's
+	// lightweight mDNS daemon). Returns JSON with hostname -> services.
+	// Falls back to empty if umdns is not installed.
+	CmdMdnsBrowse = "ubus call umdns browse 2>/dev/null || echo '{}'"
 	CmdEthtoolSFP = "ethtool -m %s 2>/dev/null || true"
 )
 
@@ -984,4 +989,107 @@ func max0(v float64) float64 {
 		return 0
 	}
 	return v
+}
+
+// ParseMdnsBrowse (#338): parsea la salida de `ubus call umdns browse`.
+// Formato típico (JSON):
+//
+//	{ "hostname._service._tcp.local": { "port": 1234, "txt": [...] }, ... }
+//
+// Extrae: hostname (de la clave, antes del primer punto) y tipos de servicio
+// (el segmento _service._tcp). También recoge IPs si aparecen en registros A.
+func ParseMdnsBrowse(raw []byte) *DiscoveryData {
+	if len(raw) == 0 {
+		return nil
+	}
+	// umdns browse devuelve un objeto JSON con claves "fqdn" y valores que
+	// contienen "port", "txt", "ipv4", etc. Parseamos como map genérico.
+	var browse map[string]json.RawMessage
+	if json.Unmarshal(raw, &browse) != nil {
+		return nil
+	}
+	if len(browse) == 0 {
+		return nil
+	}
+
+	dd := &DiscoveryData{
+		Services: map[string][]string{},
+		HostByIP: map[string]string{},
+	}
+	for fqdn, val := range browse {
+		// Extraer hostname: primera parte antes del "."
+		hostname := fqdn
+		if idx := strings.Index(fqdn, "."); idx > 0 {
+			hostname = fqdn[:idx]
+		}
+		// Extraer tipo de servicio: segundo segmento "_svc._tcp" o "_svc._udp"
+		parts := strings.SplitN(fqdn, ".", 3)
+		if len(parts) >= 2 && strings.HasPrefix(parts[1], "_") {
+			svcType := parts[1]
+			if len(parts) >= 3 {
+				svcType = parts[1] + "." + strings.SplitN(parts[2], ".", 2)[0]
+			}
+			dd.Services[hostname] = appendUnique(dd.Services[hostname], svcType)
+		}
+		// Extraer IP si disponible
+		var entry struct {
+			IPv4 string `json:"ipv4"`
+		}
+		if json.Unmarshal(val, &entry) == nil && entry.IPv4 != "" {
+			dd.HostByIP[entry.IPv4] = hostname
+		}
+	}
+	if len(dd.Services) == 0 && len(dd.HostByIP) == 0 {
+		return nil
+	}
+	return dd
+}
+
+func appendUnique(slice []string, s string) []string {
+	for _, x := range slice {
+		if x == s {
+			return slice
+		}
+	}
+	return append(slice, s)
+}
+
+// IsRandomizedMAC returns true if the MAC address has the locally-administered
+// bit set (bit 1 of byte 0). Apple, Google, and Samsung use this for WiFi
+// privacy features — the device appears as a new MAC periodically.
+func IsRandomizedMAC(mac string) bool {
+	if len(mac) < 2 {
+		return false
+	}
+	// Byte 0: first two hex chars
+	b, err := parseHexByte(mac[0], mac[1])
+	if err != nil {
+		return false
+	}
+	return b&0x02 != 0
+}
+
+func parseHexByte(hi, lo byte) (byte, error) {
+	h, err := hexNibble(hi)
+	if err != nil {
+		return 0, err
+	}
+	l, err := hexNibble(lo)
+	if err != nil {
+		return 0, err
+	}
+	return h<<4 | l, nil
+}
+
+func hexNibble(c byte) (byte, error) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', nil
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, nil
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, nil
+	default:
+		return 0, fmt.Errorf("invalid hex nibble: %c", c)
+	}
 }
