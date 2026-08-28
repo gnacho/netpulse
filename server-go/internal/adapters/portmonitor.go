@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	flapWindow       = 10 * time.Minute
-	flapThreshold    = 5
-	ghostConsecutive = 3
-	ghostMinHistory = 12
+	flapWindow         = 10 * time.Minute
+	flapThreshold      = 5
+	ghostConsecutive   = 3
+	ghostMinHistory   = 12
+	degradedConsec     = 3
+	degradedMinHistory = 12
 )
 
 type portKey struct {
@@ -145,5 +147,47 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, engine 
 	}
 }
 
-func (pm *PortMonitor) checkDegraded(_ portKey, _ *portState, _ EthPort, _ *alerts.Engine) {
+func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, engine *alerts.Engine) {
+	if len(st.speedHistory) < degradedMinHistory {
+		return
+	}
+	prev := dominantSpeed(st.speedHistory[:len(st.speedHistory)-degradedConsec])
+	if prev == 0 {
+		return
+	}
+	recent := st.speedHistory[len(st.speedHistory)-degradedConsec:]
+	allBelow := true
+	for _, s := range recent {
+		if s >= prev/2 {
+			allBelow = false
+			break
+		}
+	}
+	if allBelow && st.speedMbps < prev {
+		engine.Emit(alerts.AlertEvent{
+			ID:          fmt.Sprintf("alert-degraded-%s-%s", key.routerID, key.portID),
+			Category:    alerts.CatSystem,
+			Urgent:      false,
+			Severity:    "warn",
+			Title:       fmt.Sprintf("Degraded link: %s at %dMbps (was %dMbps)", p.Label, st.speedMbps, prev),
+			Description: fmt.Sprintf("Port negotiated speed dropped from %d to %d Mbps for %d consecutive polls", prev, st.speedMbps, degradedConsec),
+			Hint:        alerts.HintFor(alerts.HintDegradedLink),
+			Time:        "ahora mismo",
+			RouterID:    key.routerID,
+		})
+	}
+}
+
+func dominantSpeed(history []int) int {
+	counts := map[int]int{}
+	for _, s := range history {
+		counts[s]++
+	}
+	best, bestN := 0, 0
+	for spd, n := range counts {
+		if n > bestN || (n == bestN && spd > best) {
+			best, bestN = spd, n
+		}
+	}
+	return best
 }

@@ -150,3 +150,84 @@ func TestPortMonitorGhostPortNoAlertWithoutHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestPortMonitorDegradedLink(t *testing.T) {
+	pm := NewPortMonitor()
+	engine := alerts.New(nil, nil)
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+	pm.SetClock(func() time.Time { return now })
+
+	port := EthPort{ID: "eth0", Label: "LAN1", Up: true, Speed: "1 Gbps", RxBytes: 100, TxBytes: 100}
+
+	for i := 0; i < degradedMinHistory; i++ {
+		port.RxBytes += 1000
+		port.TxBytes += 500
+		now = now.Add(45 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("r1", []EthPort{port}, engine)
+	}
+
+	port.Speed = "100 Mbps"
+	for i := 0; i < degradedConsec; i++ {
+		port.RxBytes += 500
+		port.TxBytes += 200
+		now = now.Add(45 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("r1", []EthPort{port}, engine)
+	}
+
+	found := false
+	for _, ev := range engine.List() {
+		if ev.Title == "Degraded link: LAN1 at 100Mbps (was 1000Mbps)" {
+			found = true
+			if ev.Category != alerts.CatSystem {
+				t.Errorf("category = %q, want %q", ev.Category, alerts.CatSystem)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("degraded link alert not emitted; alerts: %v", engine.List())
+	}
+}
+
+func TestPortMonitorDegradedLinkNoAlertWhenStable(t *testing.T) {
+	pm := NewPortMonitor()
+	engine := alerts.New(nil, nil)
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+	pm.SetClock(func() time.Time { return now })
+
+	port := EthPort{ID: "eth0", Label: "LAN1", Up: true, Speed: "1 Gbps", RxBytes: 100, TxBytes: 100}
+
+	for i := 0; i < degradedMinHistory+degradedConsec; i++ {
+		port.RxBytes += 1000
+		port.TxBytes += 500
+		now = now.Add(45 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("r1", []EthPort{port}, engine)
+	}
+
+	for _, ev := range engine.List() {
+		if ev.Title == "Degraded link: LAN1 at 1000Mbps (was 1000Mbps)" {
+			t.Error("degraded link should not fire when speed is stable")
+		}
+	}
+}
+
+func TestDominantSpeed(t *testing.T) {
+	cases := []struct {
+		in   []int
+		want int
+	}{
+		{[]int{1000, 1000, 1000, 100}, 1000},
+		{[]int{100, 100, 100, 1000}, 100},
+		{[]int{}, 0},
+		{[]int{1000}, 1000},
+	}
+	for _, tc := range cases {
+		got := dominantSpeed(tc.in)
+		if got != tc.want {
+			t.Errorf("dominantSpeed(%v) = %d, want %d", tc.in, got, tc.want)
+		}
+	}
+}
