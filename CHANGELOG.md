@@ -7,6 +7,18 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-08-28
+
+### Added
+
+- **Base OUI embebida (#314)**: 39769 prefijos MAC para resolver fabricante de dispositivos en vivo. `Device.Manufacturer` ahora se rellena desde el prefijo OUI en lugar de "Desconocido".
+- **Sugerencias accionables en alertas (#310)**: campo `hint` opcional con sugerencia estática por tipo de alerta (agente caído, temperatura alta, WAN caído, etc.). Visible en el feed, push notifications y service worker.
+- **Topología LLDP como ground truth (#300)**: los enlaces de infraestructura (router-switch, switch-switch en cadena) usan LLDP como fuente primaria. FDB queda como fallback cuando lldpd no está instalado.
+- **Vista VLAN de solo lectura (#315)**: panel colapsable en el detalle del router con tabla de VLANs (ID, puertos, tagged/untagged, PVID) parseada de `bridge vlan show`.
+- **Monitorización SFP/DDM (#313)**: sonda `ethtool -m` en el agente + parsing de campos SFP del beacon. Temperatura, voltaje y potencia óptica TX/RX en el detalle de puerto. Alertas por RX < -14 dBm y temperatura > 70 °C.
+- **Clasificación por huella DHCP/LLDP (#301)**: el clasificador de dispositivos amplía las reglas de hostname con DHCP vendor class, client-id y capacidades LLDP.
+- **Descubrimiento de tipo de dispositivo (#304)**: filtros por tipo y badges en el inventario de dispositivos. La API devuelve `typeCounts` agrupado.
+
 ## [2.15.0] - 2026-08-28
 
 ### Added
