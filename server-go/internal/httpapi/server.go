@@ -32,6 +32,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
+	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
 	"github.com/gnacho/netpulse/server-go/internal/presence"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
@@ -94,6 +95,8 @@ type Deps struct {
 	Presence *presence.Store
 	// WiFiSLE: WiFi Service Level Expectations (#342). nil → sin SLEs.
 	WiFiSLE *wifisle.Store
+	// PathAnalysis: mtr path analysis (#343). nil → sin path data.
+	PathAnalysis *pathanalysis.Store
 }
 
 type server struct {
@@ -154,6 +157,9 @@ type server struct {
 
 	// WiFiSLE: WiFi Service Level Expectations (#342). nil = sin SLEs.
 	wifiSLE *wifisle.Store
+
+	// PathAnalysis: mtr path analysis (#343). nil = sin path data.
+	pathAnalysis *pathanalysis.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -172,6 +178,7 @@ func NewHandler(d Deps) http.Handler {
 		internetHealth:  d.InternetHealth,
 		presence:        d.Presence,
 		wifiSLE:         d.WiFiSLE,
+		pathAnalysis:    d.PathAnalysis,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -245,6 +252,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/presence/people", s.handlePresencePeople)
 	mux.HandleFunc("GET /api/wifi-sles", s.handleWiFiSLESummary)
 	mux.HandleFunc("GET /api/wifi-sles/series", s.handleWiFiSLESeries)
+	mux.HandleFunc("GET /api/path/summaries", s.handlePathSummaries)
+	mux.HandleFunc("GET /api/path/latest", s.handlePathLatest)
+	mux.HandleFunc("GET /api/path/history", s.handlePathHistory)
+	mux.HandleFunc("GET /api/path/destinations", s.handlePathDestinations)
 	mux.HandleFunc("GET /api/metrics", s.handleMetrics)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
