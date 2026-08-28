@@ -1456,12 +1456,14 @@ func parseSpeedMbps(s string) int {
 	s = strings.ReplaceAll(s, "Bps", "")
 	s = strings.TrimSpace(s)
 	if strings.HasSuffix(s, "G") {
-		if v, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "G")), 64); err == nil {
+		numStr := strings.TrimSpace(strings.TrimSuffix(s, "G"))
+		if v, err := strconv.ParseFloat(numStr, 64); err == nil {
 			return int(v * 1000)
 		}
 	}
 	if strings.HasSuffix(s, "M") {
-		if v, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "M")), 64); err == nil {
+		numStr := strings.TrimSpace(strings.TrimSuffix(s, "M"))
+		if v, err := strconv.ParseFloat(numStr, 64); err == nil {
 			return int(v)
 		}
 	}
@@ -2380,6 +2382,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 		enriched = append(enriched, port)
 	}
+	// Per-port health score (issue #299): compute from recent series + flapping.
+	l.enrichPortHealth(id, enriched)
 	radios := []Radio{}
 	if p != nil && p.radios != nil {
 		radios = p.radios
