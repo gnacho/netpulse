@@ -1398,5 +1398,42 @@
     "ms": "ms",
     "noData": "Sin datos",
     "caption": "Sondas TCP cada 5s desde el daemon collector"
+  },
+  "alertRules": {
+    "title": "Reglas personalizadas",
+    "description": "Crea reglas con umbral, duración y alcance para generar alertas automáticas.",
+    "empty": "Sin reglas personalizadas. Crea una para empezar.",
+    "create": "Nueva regla",
+    "edit": "Editar regla",
+    "update": "Guardar",
+    "name": "Nombre",
+    "namePlaceholder": "p.ej. CPU alto en patio",
+    "category": "Categoría",
+    "metric": "Métrica",
+    "operator": "Condición",
+    "threshold": "Umbral",
+    "duration": "Duración",
+    "severity": "Severidad",
+    "scope": "Alcance",
+    "scopeGlobal": "Todos los routers",
+    "scopeRouter": "Routers específicos",
+    "duration1m": "1 minuto",
+    "duration5m": "5 minutos",
+    "duration10m": "10 minutos",
+    "duration30m": "30 minutos",
+    "duration1h": "1 hora",
+    "metrics": {
+      "cpu": "CPU (%)",
+      "ram": "RAM (%)",
+      "temp": "Temperatura (°C)",
+      "latency_ms": "Latencia (ms)",
+      "rx_bps": "Descarga (bps)",
+      "tx_bps": "Subida (bps)"
+    },
+    "sev": {
+      "info": "Info",
+      "warn": "Aviso",
+      "critical": "Crítico"
+    }
   }
 }

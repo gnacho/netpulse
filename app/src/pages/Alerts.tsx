@@ -47,6 +47,7 @@ import {
 import { buildAlertFeed, buildLiveFeed, DAY_ORDER, KIND_LABELS } from '@/data/alertFeed'
 import type { AlertKind, FeedDay, FeedEvent, FeedSpark } from '@/data/alertFeed'
 import { useNetPulse } from '@/data/DataProvider'
+import { RulesManager } from '@/components/RulesManager'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -708,6 +709,9 @@ export default function Alerts() {
                   )
                 })}
               </ul>
+              <div className="mt-4 border-t border-border/60 pt-4">
+                <RulesManager />
+              </div>
             </div>
           </motion.section>
         )}

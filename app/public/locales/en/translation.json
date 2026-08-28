@@ -1398,5 +1398,42 @@
     "ms": "ms",
     "noData": "No data",
     "caption": "TCP probes every 5s from the collector daemon"
+  },
+  "alertRules": {
+    "title": "Custom rules",
+    "description": "Create rules with threshold, duration and scope to generate automatic alerts.",
+    "empty": "No custom rules yet. Create one to get started.",
+    "create": "New rule",
+    "edit": "Edit rule",
+    "update": "Save",
+    "name": "Name",
+    "namePlaceholder": "e.g. High CPU on patio",
+    "category": "Category",
+    "metric": "Metric",
+    "operator": "Condition",
+    "threshold": "Threshold",
+    "duration": "Duration",
+    "severity": "Severity",
+    "scope": "Scope",
+    "scopeGlobal": "All routers",
+    "scopeRouter": "Specific routers",
+    "duration1m": "1 minute",
+    "duration5m": "5 minutes",
+    "duration10m": "10 minutes",
+    "duration30m": "30 minutes",
+    "duration1h": "1 hour",
+    "metrics": {
+      "cpu": "CPU (%)",
+      "ram": "RAM (%)",
+      "temp": "Temperature (°C)",
+      "latency_ms": "Latency (ms)",
+      "rx_bps": "Download (bps)",
+      "tx_bps": "Upload (bps)"
+    },
+    "sev": {
+      "info": "Info",
+      "warn": "Warning",
+      "critical": "Critical"
+    }
   }
 }
