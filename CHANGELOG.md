@@ -7,6 +7,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-08-28
+
+### Added
+
+- **Alertas inteligentes de puerto (#303)**: `PortMonitor` rastrea transiciones de estado y detecta flapping (>5 transiciones en 10 min). Integrado en las rutas de agente, SSH y SNMP.
+- **Alerta puerto fantasma (#307)**: alerta cuando un puerto con trafico estable se queda sin trafico durante 12+ muestras consecutivas. Requiere historico previo para evitar falsos positivos.
+- **Alerta enlace degradado (#308)**: alerta cuando la velocidad negociada baja por debajo de la mitad del historico dominante durante 3+ polls consecutivos.
+- **Health score por puerto (#299)**: puntuacion 0-100 por puerto basada en estado de enlace (30%), utilizacion (25%), errores (25%) y flapping (20%). Expuesto en la API de detalle del router.
+- **Widget panel frontal del switch (#306)**: LEDs por puerto (verde/ambar/rojo/gris) con etiquetas de velocidad e indicadores PoE. Tooltips al pasar el raton. Activo para switches con 8+ puertos. Colapso responsive en movil.
+
 ## [2.17.0] - 2026-08-28
 
 ### Added
