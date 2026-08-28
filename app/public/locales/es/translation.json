@@ -950,6 +950,16 @@
       "errorGeneric": "No se pudieron activar las notificaciones push en este dispositivo.",
       "note": "Solo llegan las alertas marcadas como urgentes (se configura en Alertas). El aviso lo muestra el sistema operativo con el icono de NetPulse."
     },
+    "telegram": {
+      "title": "Notificaciones Telegram",
+      "description": "Recibe alertas directamente en Telegram. Crea un bot con @BotFather y añádelo a un chat.",
+      "enabled": "Activar notificaciones Telegram",
+      "botToken": "Token del bot",
+      "chatId": "ID del chat",
+      "bot": "Bot",
+      "chat": "Chat",
+      "sendTest": "Enviar prueba"
+    },
     "pwa": {
       "caption": "App instalable · PWA",
       "desc": "Instálala como app: arranque a pantalla completa, sin barra del navegador y acceso instantáneo.",
