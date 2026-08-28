@@ -54,11 +54,11 @@ import { cn } from '@/lib/utils'
 // Severidad (misma paleta que AlertItem, design.md §6)
 // ---------------------------------------------------------------------------
 
-const SEVERITY: Record<AlertSeverity, { icon: LucideIcon; tile: string; dot: string }> = {
-  warn: { icon: AlertTriangle, tile: 'bg-warn/10 text-warn', dot: 'bg-warn' },
-  critical: { icon: OctagonX, tile: 'bg-danger/10 text-danger', dot: 'bg-danger' },
-  info: { icon: Info, tile: 'bg-info/10 text-info', dot: 'bg-info' },
-  ok: { icon: CheckCircle2, tile: 'bg-ok/10 text-ok', dot: 'bg-ok' },
+const SEVERITY: Record<AlertSeverity, { icon: LucideIcon; tile: string; dot: string; stripe: string }> = {
+  warn: { icon: AlertTriangle, tile: 'bg-warn/10 text-warn', dot: 'bg-warn', stripe: 'border-l-warn' },
+  critical: { icon: OctagonX, tile: 'bg-danger/10 text-danger', dot: 'bg-danger', stripe: 'border-l-danger' },
+  info: { icon: Info, tile: 'bg-info/10 text-info', dot: 'bg-info', stripe: 'border-l-info' },
+  ok: { icon: CheckCircle2, tile: 'bg-ok/10 text-ok', dot: 'bg-ok', stripe: 'border-l-ok' },
 }
 
 const PEER_ICONS = { movil: Smartphone, portatil: Laptop, tablet: Tablet } as const
@@ -274,7 +274,8 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
         onClick={onToggle}
         aria-expanded={expanded}
         className={cn(
-          'group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors duration-150 hover:bg-hover',
+          'group flex w-full items-center gap-3 rounded-xl border-l-[3px] px-3 py-3 text-left transition-colors duration-150 hover:bg-hover',
+          sev.stripe,
           !read && 'bg-elevated',
         )}
       >

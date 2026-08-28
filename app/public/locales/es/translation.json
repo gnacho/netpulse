@@ -1171,7 +1171,13 @@
       "saveError": "No se pudo guardar el dispositivo",
       "deleteError": "No se pudo quitar el dispositivo",
       "loadError": "No se pudieron cargar los dispositivos de confianza"
-    }
+    },
+    "palette": "Paleta",
+    "paletteCaption": "La paleta cambia todos los colores de la interfaz. El acento solo cambia el color principal.",
+    "paletteNetpulse": "NetPulse",
+    "paletteNoc": "NOC Calido",
+    "palettePhosphor": "Fosforo",
+    "paletteElectric": "Electrico"
   },
   "statcard": {
     "vsPrevious": "vs anterior"
