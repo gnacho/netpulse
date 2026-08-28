@@ -216,6 +216,11 @@ export interface DistributionNode {
   routerId: string
   /** Puerto físico del router donde cuelga (lan3…). */
   port: string
+  /**
+   * id de otro DistributionNode del que cuelga este switch en una cadena
+   * LLDP switch→switch (issue #300). Ausente = cuelga del router (`routerId`).
+   */
+  parent?: string
   /** Nombre amigable del puerto definido en LuCI (issue #258); preferente sobre `port`. */
   portLabel?: string
   /** MACs aprendidas en ese puerto (FDB). */

@@ -142,13 +142,19 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		}
 		sem.Links = append(sem.Links, l)
 	}
-	// router → distnode (solo inferred|managed son hubs propios en el mapa)
+	// router → distnode (solo inferred|managed son hubs propios en el mapa).
+	// En una cadena LLDP switch→switch (issue #300) el distnode cuelga de su
+	// Parent (otro distnode) en vez del router.
 	for _, rn := range routerNodes {
 		for _, dn := range dists {
 			if dn.RouterID != rn.ID || (dn.Kind != "inferred" && dn.Kind != "managed") {
 				continue
 			}
-			sem.Links = append(sem.Links, TopoLink{From: rn.ID, To: dn.ID, Kind: "dist", Port: dn.Port})
+			from := rn.ID
+			if dn.Parent != "" {
+				from = dn.Parent
+			}
+			sem.Links = append(sem.Links, TopoLink{From: from, To: dn.ID, Kind: "dist", Port: dn.Port})
 		}
 	}
 	// cableados directos del router (sin los device-hubs, que enlazan después)

@@ -250,6 +250,10 @@ type DistributionNode struct {
 	Kind     string `json:"kind"` // "inferred"|"hypervisor"|"managed"
 	RouterID string `json:"routerId"`
 	Port     string `json:"port"`
+	// Parent: id de otro DistributionNode del que cuelga este switch en una
+	// cadena LLDP switch→switch (issue #300). Vacío = cuelga del router
+	// (RouterID), como siempre.
+	Parent string `json:"parent,omitempty"`
 	// PortLabel: nombre amigable del puerto definido en LuCI (issue #258).
 	// Preferente sobre Port cuando existe.
 	PortLabel string `json:"portLabel,omitempty"`
