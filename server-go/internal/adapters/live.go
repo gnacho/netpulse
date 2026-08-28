@@ -25,6 +25,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
+	"github.com/gnacho/netpulse/server-go/internal/oui"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -1677,9 +1678,13 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		}
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
+		manufacturer := oui.Lookup(mac)
+		if manufacturer == "" {
+			manufacturer = "Desconocido"
+		}
 		d := Device{
 			ID:  strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
-			MAC: mac, Manufacturer: "Desconocido",
+			MAC: mac, Manufacturer: manufacturer,
 			TrafficMbps: 0, Sparkline: []float64{},
 			RouterID: gwID, Band: "—",
 			Online: isSeen,

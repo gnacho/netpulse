@@ -1,6 +1,10 @@
 package adapters
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/gnacho/netpulse/server-go/internal/oui"
+)
 
 // ---------------------------------------------------------------------------
 // Clasificación de tipo de dispositivo live (2-Ago-2026). El FDB/DHCP no dice
@@ -45,12 +49,9 @@ func GuessDeviceType(hostname, manufacturer string) string {
 			}
 		}
 	}
-	// Fabricante como refuerzo cuando el hostname no dice nada.
-	ouiIoT := []string{"espressif", "tuya", "shenzhen", "sonoff", "shelly", "tasmota", "meross", "gosund", "lumi", "aqara", "tuya smart"}
-	for _, s := range ouiIoT {
-		if m != "" && strings.Contains(m, s) {
-			return "iot"
-		}
+	// Fabricante como refuerzo cuando el hostname no dice nada (OUI DB).
+	if oui.IsIoTVendor(m) {
+		return "iot"
 	}
 	return "desconocido"
 }
