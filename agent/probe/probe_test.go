@@ -512,6 +512,9 @@ eth0              100
 		if !v.Tagged || v.PVID {
 			t.Fatalf("trunk vlan debía ser tagged sin PVID: %+v", v)
 		}
+	}
+}
+
 func TestParseEthtoolSFP(t *testing.T) {
 	// Salida realista de ethtool -m con un SFP monomodo.
 	out := `	Identifier                                : 0x03 (SFP)
