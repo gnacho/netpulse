@@ -26,6 +26,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/baselines"
 	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -82,6 +83,8 @@ type Deps struct {
 	TokenStore *apitoken.Store
 	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
 	CollectorReader *collectorreader.Reader
+	// Baselines: EWMA+sigma por franja horaria (#333). nil → sin baselines.
+	Baselines *baselines.Store
 }
 
 type server struct {
@@ -130,6 +133,9 @@ type server struct {
 
 	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
 	collectorReader *collectorreader.Reader
+
+	// Baselines EWMA+sigma por franja horaria (#333). nil = sin baselines.
+	baselines *baselines.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -144,6 +150,7 @@ func NewHandler(d Deps) http.Handler {
 		upgrades:        newUpgradeTracker(),
 		tokenStore:      d.TokenStore,
 		collectorReader: d.CollectorReader,
+		baselines:       d.Baselines,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -211,6 +218,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/alert-rules", s.handleAlertRulesCreate)
 	mux.HandleFunc("PUT /api/alert-rules/{id}", s.handleAlertRulesUpdate)
 	mux.HandleFunc("DELETE /api/alert-rules/{id}", s.handleAlertRulesDelete)
+	mux.HandleFunc("GET /api/baselines", s.handleBaselines)
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/dawn", s.handleDawn)
 	mux.HandleFunc("GET /api/dot11r", s.handleDot11r)
