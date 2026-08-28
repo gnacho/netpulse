@@ -272,6 +272,9 @@ interface ConfigRouter {
   is_gateway: boolean
   agent_only: boolean
   firmware_target: string
+  snmp_enabled: boolean
+  snmp_community: string
+  snmp_port: number
 }
 
 interface DiscoverCandidate {
@@ -302,6 +305,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editGateway, setEditGateway] = useState(false)
   const [editAgentOnly, setEditAgentOnly] = useState(false)
   const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
+  const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
+  const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
+  const [editSnmpPort, setEditSnmpPort] = useState(161)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -489,6 +495,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditGateway(r.is_gateway)
     setEditAgentOnly(r.agent_only)
     setEditFirmwareTarget(r.firmware_target ?? '')
+    setEditSnmpEnabled(r.snmp_enabled ?? false)
+    setEditSnmpCommunity(r.snmp_community ?? '')
+    setEditSnmpPort(r.snmp_port ?? 161)
     setError(null)
   }
 
@@ -508,6 +517,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           gateway: editGateway,
           agent_only: editAgentOnly,
           firmware_target: editFirmwareTarget.trim(),
+          snmp_enabled: editSnmpEnabled,
+          snmp_community: editSnmpCommunity.trim() || undefined,
+          snmp_port: editSnmpPort,
         }),
       })
       if (res.status === 409) {
@@ -815,6 +827,47 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 />
                 <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
               </div>
+              {(editType === 'managed-switch' || editType === 'external' || editSnmpEnabled) && (
+                <div className="space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                    <Switch checked={editSnmpEnabled} onCheckedChange={setEditSnmpEnabled} />
+                    {t('settings.routers.snmpEnabled')}
+                  </label>
+                  {editSnmpEnabled && (
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label htmlFor="snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                          {t('settings.routers.snmpCommunity')}
+                        </label>
+                        <input
+                          id="snmp-community"
+                          type="text"
+                          value={editSnmpCommunity}
+                          onChange={(e) => setEditSnmpCommunity(e.target.value)}
+                          placeholder="public"
+                          aria-label={t('settings.routers.snmpCommunity')}
+                          className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                          {t('settings.routers.snmpPort')}
+                        </label>
+                        <input
+                          id="snmp-port"
+                          type="number"
+                          min={1}
+                          max={65535}
+                          value={editSnmpPort}
+                          onChange={(e) => setEditSnmpPort(Number(e.target.value))}
+                          aria-label={t('settings.routers.snmpPort')}
+                          className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {error && <p className="text-caption text-danger">{error}</p>}
               <div className="flex justify-end gap-2">
                 <button

@@ -18,6 +18,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/gnacho/netpulse/server-go/internal/portseries"
 )
 
 const (
@@ -234,6 +236,64 @@ CREATE TABLE IF NOT EXISTS update_history (
   error        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_update_history_ts ON update_history(ts DESC);
+
+-- Per-port time series (issue #302): raw (7d) -> 5m (1y) -> daily (forever).
+CREATE TABLE IF NOT EXISTS port_series_raw (
+  router_id TEXT NOT NULL,
+  port_id TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+  rx_bytes INTEGER NOT NULL DEFAULT 0,
+  tx_bytes INTEGER NOT NULL DEFAULT 0,
+  rx_errors INTEGER NOT NULL DEFAULT 0,
+  tx_errors INTEGER NOT NULL DEFAULT 0,
+  rx_frames INTEGER NOT NULL DEFAULT 0,
+  tx_frames INTEGER NOT NULL DEFAULT 0,
+  rx_bps REAL NOT NULL DEFAULT 0,
+  tx_bps REAL NOT NULL DEFAULT 0,
+  speed_mbps INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (router_id, port_id, ts)
+);
+CREATE INDEX IF NOT EXISTS idx_port_series_raw_ts ON port_series_raw(ts);
+CREATE INDEX IF NOT EXISTS idx_port_series_raw_rpt ON port_series_raw(router_id, port_id, ts);
+
+CREATE TABLE IF NOT EXISTS port_series_5m (
+  router_id TEXT NOT NULL,
+  port_id TEXT NOT NULL,
+  bucket_ts INTEGER NOT NULL,
+  n INTEGER NOT NULL,
+  rx_bytes INTEGER NOT NULL DEFAULT 0,
+  tx_bytes INTEGER NOT NULL DEFAULT 0,
+  rx_errors INTEGER NOT NULL DEFAULT 0,
+  tx_errors INTEGER NOT NULL DEFAULT 0,
+  rx_frames INTEGER NOT NULL DEFAULT 0,
+  tx_frames INTEGER NOT NULL DEFAULT 0,
+  rx_bps_min REAL NOT NULL DEFAULT 0,
+  rx_bps_max REAL NOT NULL DEFAULT 0,
+  rx_bps_avg REAL NOT NULL DEFAULT 0,
+  tx_bps_min REAL NOT NULL DEFAULT 0,
+  tx_bps_max REAL NOT NULL DEFAULT 0,
+  tx_bps_avg REAL NOT NULL DEFAULT 0,
+  speed_mbps INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (router_id, port_id, bucket_ts)
+);
+CREATE INDEX IF NOT EXISTS idx_port_series_5m_ts ON port_series_5m(bucket_ts);
+
+CREATE TABLE IF NOT EXISTS port_series_daily (
+  router_id TEXT NOT NULL,
+  port_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  n INTEGER NOT NULL,
+  rx_bytes INTEGER NOT NULL DEFAULT 0,
+  tx_bytes INTEGER NOT NULL DEFAULT 0,
+  rx_errors INTEGER NOT NULL DEFAULT 0,
+  tx_errors INTEGER NOT NULL DEFAULT 0,
+  rx_frames INTEGER NOT NULL DEFAULT 0,
+  tx_frames INTEGER NOT NULL DEFAULT 0,
+  rx_bps_avg REAL NOT NULL DEFAULT 0,
+  tx_bps_avg REAL NOT NULL DEFAULT 0,
+  speed_mbps INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (router_id, port_id, date)
+);
 `
 
 
@@ -247,6 +307,8 @@ type DB struct {
 	// rollbackJournal: journal DELETE en vez de WAL (modo on-box, Fase 9 R6).
 	// Los wal_checkpoint de mantenimiento se omiten en este modo.
 	rollbackJournal bool
+	// PortSeries: per-port time series store (issue #302).
+	PortSeries *portseries.Store
 }
 
 // NowMS devuelve el epoch actual en milisegundos (como Date.now()).
@@ -336,6 +398,10 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
 	// issue #241: target de firmware por router (string libre; NULL/"" = sin comprobar).
 	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
+	// issue #309: SNMP polling for managed switches.
+	migrate(sqldb, "routers", "snmp_enabled", "ALTER TABLE routers ADD COLUMN snmp_enabled INTEGER NOT NULL DEFAULT 0")
+	migrate(sqldb, "routers", "snmp_community", "ALTER TABLE routers ADD COLUMN snmp_community TEXT")
+	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria
@@ -348,6 +414,12 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	}
 
 	d := &DB{DB: sqldb, Path: dbPath, stop: make(chan struct{}), rollbackJournal: o.rollbackJournal}
+	ps, err := portseries.NewStore(sqldb)
+	if err != nil {
+		sqldb.Close()
+		return nil, fmt.Errorf("port_series store: %w", err)
+	}
+	d.PortSeries = ps
 	d.wg.Add(1)
 	go d.maintenanceLoop()
 	return d, nil
@@ -469,6 +541,11 @@ func (d *DB) NightlyJob() {
 	}
 
 	log.Printf("[netpulse] rollup nocturno: fin (%s)", time.Since(start).Round(time.Millisecond))
+
+	// Per-port time series rollup (issue #302).
+	if d.PortSeries != nil {
+		d.PortSeries.NightlyJob()
+	}
 }
 
 // BucketMS es el tamaño del bucket medio en ms (5 minutos).

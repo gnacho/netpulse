@@ -515,7 +515,11 @@
       "sfpTx": "Potencia TX",
       "sfpVendor": "Fabricante",
       "sfpWarnTemp": "Temperatura alta",
-      "sfpWarnRx": "Potencia RX baja"
+      "sfpWarnRx": "Potencia RX baja",
+      "seriesTitle": "Historial de tráfico",
+      "seriesRx": "Recepción",
+      "seriesTx": "Envío",
+      "seriesNoData": "Sin datos históricos"
     },
     "radios": {
       "channel": "Canal",
@@ -978,7 +982,10 @@
       "rotating": "Rotando…",
       "firmwareTarget": "Versión de firmware objetivo",
       "firmwareTargetPlaceholder": "p. ej. 25.12.5",
-      "firmwareTargetHint": "Opcional. Si el firmware instalado no coincide con esta versión, NetPulse lo avisa."
+      "firmwareTargetHint": "Opcional. Si el firmware instalado no coincide con esta versión, NetPulse lo avisa.",
+      "snmpEnabled": "Sondeo SNMP",
+      "snmpCommunity": "Comunidad (SNMPv2c)",
+      "snmpPort": "Puerto"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

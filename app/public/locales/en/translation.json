@@ -515,7 +515,11 @@
       "sfpTx": "TX power",
       "sfpVendor": "Vendor",
       "sfpWarnTemp": "High temperature",
-      "sfpWarnRx": "Low RX power"
+      "sfpWarnRx": "Low RX power",
+      "seriesTitle": "Traffic history",
+      "seriesRx": "Receive",
+      "seriesTx": "Transmit",
+      "seriesNoData": "No historical data"
     },
     "radios": {
       "channel": "Channel",
@@ -978,7 +982,10 @@
       "rotating": "Rotating…",
       "firmwareTarget": "Firmware target version",
       "firmwareTargetPlaceholder": "e.g. 25.12.5",
-      "firmwareTargetHint": "Optional. If the installed firmware doesn't match this version, NetPulse alerts."
+      "firmwareTargetHint": "Optional. If the installed firmware doesn't match this version, NetPulse alerts.",
+      "snmpEnabled": "SNMP polling",
+      "snmpCommunity": "Community (SNMPv2c)",
+      "snmpPort": "Port"
     },
     "overrides": {
       "title": "Topology — manual tagging",

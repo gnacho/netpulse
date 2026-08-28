@@ -10,17 +10,18 @@ import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { Activity } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { PortSeriesChart } from '@/components/routers/PortSeriesChart'
 
 /**
- * Panel visual de puertos Ethernet — dibuja las bocas RJ45 del chasis con
+ * Panel visual de puertos Ethernet - dibuja las bocas RJ45 del chasis con
  * LEDs de link/actividad, ocupación y qué dispositivo hay en cada boca.
  * Variante compacta (APs, col-span-5) y ancha (gateway, col-span-12).
  */
 
 /** fmtPortBps: rate de una boca en humano ("12.4 Mbps" · "320 kbps" · "0").
- *  undefined (sin dato todavía) → "—" para no confundirlo con 0 real. */
+ *  undefined (sin dato todavia) -> "-" para no confundirlo con 0 real. */
 function fmtPortBps(bps?: number): string {
-  if (bps === undefined || Number.isNaN(bps)) return '—'
+  if (bps === undefined || Number.isNaN(bps)) return '-'
   if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gbps`
   if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`
   if (bps >= 1e3) return `${Math.round(bps / 1e3)} kbps`
@@ -301,6 +302,11 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
           </span>
         )}
       </div>
+
+      {/* Per-port traffic history (issue #302) */}
+      {ports.some((p) => p.up) && !isDemo && (
+        <PortSeriesChart routerId={router.id} portId={ports.find((p) => p.up)!.id} />
+      )}
     </section>
   )
 }

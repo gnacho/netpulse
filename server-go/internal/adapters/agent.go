@@ -584,6 +584,8 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		wireless: out.wireless, fdb: out.fdb, luci: out.luci}
 	l.mu.Unlock()
 
+	l.recordPortSamples(cfg.ID, out.ports)
+
 	if out.leases == nil {
 		out.leases = []DhcpLease{}
 	}

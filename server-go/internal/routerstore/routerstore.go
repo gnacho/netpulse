@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -35,15 +35,18 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw, ao int
-		var name, ft sql.NullString
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt); err != nil {
+		var gw, ao, snmpEn, snmpPort int
+		var name, ft, snmpComm sql.NullString
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort); err != nil {
 			continue
 		}
 		r.Name = name.String
 		r.FirmwareTarget = ft.String
 		r.IsGateway = gw == 1
 		r.AgentOnly = ao == 1
+		r.SnmpEnabled = snmpEn == 1
+		r.SnmpCommunity = snmpComm.String
+		r.SnmpPort = snmpPort
 		out = append(out, r)
 	}
 	return out
@@ -122,6 +125,10 @@ type AddInput struct {
 	AgentOnly bool
 	// FirmwareTarget: versión objetivo (issue #241). "" = sin comprobar.
 	FirmwareTarget string
+	// SNMP (issue #309): credenciales para sondeo SNMP.
+	SnmpEnabled   bool
+	SnmpCommunity string
+	SnmpPort      int
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -154,9 +161,13 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if in.AgentOnly {
 		ao = 1
 	}
+	snmpEn := 0
+	if in.SnmpEnabled {
+		snmpEn = 1
+	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, in.SnmpPort,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -191,6 +202,10 @@ type UpdateInput struct {
 	AgentOnly *bool
 	// FirmwareTarget: versión objetivo (issue #241). nil = no tocar; "" = limpiar.
 	FirmwareTarget *string
+	// SNMP (issue #309): nil = no tocar; puntero a bool/string/int = aplicar.
+	SnmpEnabled   *bool
+	SnmpCommunity *string
+	SnmpPort      *int
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -247,6 +262,22 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 	if in.FirmwareTarget != nil {
 		sets = append(sets, "firmware_target = ?")
 		args = append(args, *in.FirmwareTarget)
+	}
+	if in.SnmpEnabled != nil {
+		v := 0
+		if *in.SnmpEnabled {
+			v = 1
+		}
+		sets = append(sets, "snmp_enabled = ?")
+		args = append(args, v)
+	}
+	if in.SnmpCommunity != nil {
+		sets = append(sets, "snmp_community = ?")
+		args = append(args, *in.SnmpCommunity)
+	}
+	if in.SnmpPort != nil {
+		sets = append(sets, "snmp_port = ?")
+		args = append(args, *in.SnmpPort)
 	}
 	if len(sets) > 0 {
 		args = append(args, id)

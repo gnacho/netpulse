@@ -663,6 +663,12 @@ type RouterConfig struct {
 	// FirmwareTarget: versión objetivo configurada por el admin (issue #241).
 	// "" = sin comprobar (el live no emite aviso de firmware).
 	FirmwareTarget string `json:"firmware_target,omitempty"`
+	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
+	// SnmpEnabled activa el poller SNMP; Community es la comunidad SNMPv2c
+	// ("" = "public"); Port es el puerto UDP (0 = 161 por defecto).
+	SnmpEnabled   bool   `json:"snmp_enabled"`
+	SnmpCommunity string `json:"snmp_community,omitempty"`
+	SnmpPort      int    `json:"snmp_port,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

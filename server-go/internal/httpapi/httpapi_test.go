@@ -18,6 +18,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
+	"github.com/gnacho/netpulse/server-go/internal/portseries"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 )
 
@@ -853,5 +854,90 @@ func TestWebhookDLQEndpoint(t *testing.T) {
 	}
 	if body["total"].(float64) != 0 {
 		t.Fatalf("DLQ vacío esperado, total=%v", body["total"])
+	}
+}
+
+func TestPortSeriesEndpoint(t *testing.T) {
+	srv := makeTestServer(t)
+	defer srv.Close()
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	if srv.db.PortSeries == nil {
+		t.Fatal("PortSeries store not initialized")
+	}
+	now := time.Now()
+	err := srv.db.PortSeries.RecordSample(portseries.PortSample{
+		RouterID: "rt1", PortID: "lan1", TS: now,
+		RxBytes: 1000, TxBytes: 2000, RxBps: 500, TxBps: 1000, SpeedMbps: 1000,
+	})
+	if err != nil {
+		t.Fatalf("record sample: %v", err)
+	}
+
+	from := now.Add(-time.Hour).Unix()
+	to := now.Add(time.Hour).Unix()
+	req, _ := http.NewRequest("GET",
+		fmt.Sprintf("%s/api/routers/rt1/ports/lan1/series?from=%d&to=%d", srv.URL, from, to), nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["resolution"] != "raw" {
+		t.Errorf("expected raw resolution, got %v", body["resolution"])
+	}
+	points, ok := body["points"].([]any)
+	if !ok {
+		t.Fatalf("points is not an array: %T", body["points"])
+	}
+	if len(points) == 0 {
+		t.Error("expected at least 1 point, got 0")
+	}
+}
+
+func TestPortSeriesAutoResolution(t *testing.T) {
+	srv := makeTestServer(t)
+	defer srv.Close()
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	now := time.Now()
+	from := now.Add(-60 * 24 * time.Hour).Unix()
+	to := now.Unix()
+	req, _ := http.NewRequest("GET",
+		fmt.Sprintf("%s/api/routers/rt1/ports/lan1/series?from=%d&to=%d", srv.URL, from, to), nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["resolution"] != "daily" {
+		t.Errorf("expected daily resolution for 60d range, got %v", body["resolution"])
+	}
+}
+
+func TestPortSeriesInvalidResolution(t *testing.T) {
+	srv := makeTestServer(t)
+	defer srv.Close()
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	req, _ := http.NewRequest("GET", srv.URL+"/api/routers/rt1/ports/lan1/series?resolution=invalid", nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 400 {
+		t.Errorf("expected 400 for invalid resolution, got %d", res.StatusCode)
 	}
 }
