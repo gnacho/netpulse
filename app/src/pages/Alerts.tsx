@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
   ArrowRight,
+  BellOff,
   Check,
   CheckCheck,
   CheckCircle2,
@@ -242,12 +243,14 @@ interface FeedRowProps {
   expanded: boolean
   onToggle: () => void
   reduce: boolean
+  onSilence?: (id: string, duration: '1h' | '24h' | 'forever') => void
 }
 
-function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) {
+function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: FeedRowProps) {
   const { t } = useTranslation()
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
+  const [showSilence, setShowSilence] = useState(false)
   return (
     <motion.li
       initial={reduce ? false : { opacity: 0, y: 14 }}
@@ -296,6 +299,16 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) 
                   />
                 )}
               </AnimatePresence>
+              {onSilence && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowSilence((v) => !v) }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary"
+                  title={t('alerts.silence')}
+                >
+                  <BellOff className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </button>
+              )}
               <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>
             </span>
           </div>
@@ -309,6 +322,30 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) 
           strokeWidth={1.75}
         />
       </button>
+
+      {/* Silence options popup */}
+      {showSilence && onSilence && (
+        <div className="absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-elevated px-2 py-1 shadow-lg">
+          <span className="text-[10px] text-text-muted mr-1">{t('alerts.silence')}:</span>
+          {(['1h', '24h', 'forever'] as const).map((dur) => (
+            <button
+              key={dur}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onSilence(ev.id, dur); setShowSilence(false) }}
+              className="rounded px-2 py-0.5 text-[11px] font-medium text-text-primary hover:bg-hover"
+            >
+              {dur === 'forever' ? t('alerts.silenceForever') : dur}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowSilence(false) }}
+            className="ml-1 text-text-muted hover:text-text-primary"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <AnimatePresence initial={false}>
         {expanded && (
@@ -347,6 +384,7 @@ export default function Alerts() {
     setAlertConfig,
     markAlertsRead,
     markAllAlertsRead,
+    silenceAlert,
   } = useNetPulse()
   // Feed: demo = diseño enriquecido del mockup; live = SOLO alertas reales
   const alertFeed = useMemo(
@@ -781,6 +819,7 @@ export default function Alerts() {
                     expanded={expandedId === ev.id}
                     onToggle={() => toggleEvent(ev)}
                     reduce={reduce}
+                    onSilence={silenceAlert}
                   />
                 ))}
               </ul>

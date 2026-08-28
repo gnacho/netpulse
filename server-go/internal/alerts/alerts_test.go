@@ -349,3 +349,131 @@ func TestHintForMap(t *testing.T) {
 		t.Fatalf("HintFor(no-existe) = %q, want \"\"", got)
 	}
 }
+
+// TestSilenceBlocksEmit (#329): silenced dedup key prevents new emissions.
+func TestSilenceBlocksEmit(t *testing.T) {
+	e := New(nil, nil)
+	e.SetConfig(map[string]string{"router": LevelAll})
+
+	// Emit an alert
+	ok := e.Emit(ev("a1", "router", false))
+	if !ok {
+		t.Fatal("first emit should succeed")
+	}
+
+	// Silence it
+	key := e.Silence("a1", time.Hour)
+	if key == "" {
+		t.Fatal("Silence should return the dedup key")
+	}
+
+	// Same alert should be blocked by silence (after dedup window)
+	e.dedup = map[string]int64{} // clear dedup to isolate silence
+	ok = e.Emit(ev("a1-dup", "router", false))
+	// The new event has a different ID but same dedup key (cat|title|routerId)
+	// Actually ev() generates Title="t-"+id, so dedup keys differ. Let me use same title.
+	ev2 := AlertEvent{ID: "a2", Category: "router", Severity: "warn", Title: "t-a1", RouterID: "r1"}
+	ok = e.Emit(ev2)
+	if ok {
+		t.Fatal("emit should be blocked by silence")
+	}
+
+	// Unsilence and try again
+	e.Unsilence(key)
+	ok = e.Emit(ev2)
+	if !ok {
+		t.Fatal("emit should succeed after unsilence")
+	}
+}
+
+// TestSilenceFiltersList (#329): silenced alerts are excluded from List().
+func TestSilenceFiltersList(t *testing.T) {
+	e := New(nil, nil)
+	e.SetConfig(map[string]string{"router": LevelAll, "internet": LevelAll})
+
+	e.Emit(ev("a1", "router", false))
+	e.Emit(AlertEvent{ID: "b1", Category: "internet", Urgent: false, Severity: "warn", Title: "internet-down", RouterID: "r1"})
+
+	// Both should be in the list
+	list := e.List()
+	if len(list) != 2 {
+		t.Fatalf("expected 2 alerts, got %d", len(list))
+	}
+
+	// Silence a1
+	e.Silence("a1", time.Hour)
+
+	// List should only show b1
+	list = e.List()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 alert after silence, got %d", len(list))
+	}
+	if list[0].ID != "b1" {
+		t.Fatalf("remaining alert should be b1, got %s", list[0].ID)
+	}
+}
+
+// TestSilenceExpiry (#329): silenced alerts reappear after duration expires.
+func TestSilenceExpiry(t *testing.T) {
+	fakeNow := time.Now()
+	e := New(nil, nil)
+	e.now = func() time.Time { return fakeNow }
+	e.SetConfig(map[string]string{"router": LevelAll})
+
+	e.Emit(ev("a1", "router", false))
+	e.Silence("a1", time.Hour)
+
+	// Should be filtered
+	if len(e.List()) != 0 {
+		t.Fatal("alert should be silenced")
+	}
+
+	// Advance time past expiry
+	fakeNow = fakeNow.Add(2 * time.Hour)
+
+	// Should reappear
+	if len(e.List()) != 1 {
+		t.Fatal("alert should reappear after silence expires")
+	}
+}
+
+// TestSilenceForever (#329): duration 0 means forever.
+func TestSilenceForever(t *testing.T) {
+	fakeNow := time.Now()
+	e := New(nil, nil)
+	e.now = func() time.Time { return fakeNow }
+	e.SetConfig(map[string]string{"router": LevelAll})
+
+	e.Emit(ev("a1", "router", false))
+	e.Silence("a1", 0) // forever
+
+	// Advance time a lot
+	fakeNow = fakeNow.Add(365 * 24 * time.Hour)
+
+	// Should still be silenced
+	if len(e.List()) != 0 {
+		t.Fatal("forever silence should not expire")
+	}
+}
+
+// TestSilencedReturnsMap (#329): Silenced() returns active silences.
+func TestSilencedReturnsMap(t *testing.T) {
+	e := New(nil, nil)
+	e.SetConfig(map[string]string{"router": LevelAll})
+
+	e.Emit(ev("a1", "router", false))
+	e.Silence("a1", time.Hour)
+
+	silenced := e.Silenced()
+	if len(silenced) != 1 {
+		t.Fatalf("expected 1 silence, got %d", len(silenced))
+	}
+	for key, expiry := range silenced {
+		if key == "" {
+			t.Fatal("silence key should not be empty")
+		}
+		if expiry == 0 {
+			t.Fatal("non-forever silence should have non-zero expiry")
+		}
+	}
+}

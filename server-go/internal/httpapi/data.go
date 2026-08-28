@@ -301,6 +301,63 @@ func (s *server) handleAlertsReadAll(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// handleAlertsSilence (POST): body {"id":"...","duration":"1h|24h|forever"} →
+// silencia alertas con la misma dedup key (category|title|routerId).
+func (s *server) handleAlertsSilence(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ID       string `json:"id"`
+		Duration string `json:"duration"` // "1h", "24h", "forever"
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	if body.ID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id is required")
+		return
+	}
+	var dur time.Duration
+	switch body.Duration {
+	case "1h":
+		dur = time.Hour
+	case "24h":
+		dur = 24 * time.Hour
+	case "forever", "":
+		dur = 0
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_input", "duration must be 1h, 24h or forever")
+		return
+	}
+	key := s.adapter.AlertsEngine().Silence(body.ID, dur)
+	if key == "" {
+		writeError(w, http.StatusNotFound, "not_found", "alert not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": key})
+}
+
+// handleAlertsUnsilence (POST): body {"key":"cat|title|routerId"} → quita silencio.
+func (s *server) handleAlertsUnsilence(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Key string `json:"key"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	if body.Key == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "key is required")
+		return
+	}
+	s.adapter.AlertsEngine().Unsilence(body.Key)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// handleAlertsSilenced (GET): devuelve las dedup keys silenciadas activas.
+func (s *server) handleAlertsSilenced(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.adapter.AlertsEngine().Silenced())
+}
+
 // handleTopology: {routers, devices} sin paginar.
 func (s *server) handleTopology(w http.ResponseWriter, r *http.Request) {
 	routers := s.adapter.GetRouters(r.Context())
