@@ -216,6 +216,11 @@ export interface DistributionNode {
   routerId: string
   /** Puerto físico del router donde cuelga (lan3…). */
   port: string
+  /**
+   * id de otro DistributionNode del que cuelga este switch en una cadena
+   * LLDP switch→switch (issue #300). Ausente = cuelga del router (`routerId`).
+   */
+  parent?: string
   /** Nombre amigable del puerto definido en LuCI (issue #258); preferente sobre `port`. */
   portLabel?: string
   /** MACs aprendidas en ese puerto (FDB). */
@@ -255,6 +260,8 @@ export interface AlertEvent {
   severity: AlertSeverity
   title: string
   description: string
+  /** Sugerencia accionable por tipo de alerta (issue #310). Ausente si no aplica. */
+  hint?: string
   /** LEGADO display: "hace 12 min" — fallback si `ts` no es válido */
   time: string
   /** Unix SEGUNDOS; el frontend calcula el tiempo relativo */
@@ -280,6 +287,17 @@ export interface DeviceTotals {
  * manda `vm` mayor → la app avisa una vez por consola y sigue (nunca rompe).
  */
 export const VM_SUPPORTED = 1
+
+export interface VlanEntry {
+  id: number
+  tagged: boolean
+  pvid: boolean
+}
+
+export interface VlanPort {
+  port: string
+  vlans: VlanEntry[]
+}
 
 /** Enlace semántico del mapa (SPEC-65 D65-3), sin geometría. */
 export interface TopoSemLink {
@@ -416,6 +434,8 @@ export interface Paged<T> {
   total: number
   page: number
   pageSize: number
+  /** Solo `GET /api/devices`: inventario agrupado por tipo con conteos. */
+  typeCounts?: Record<string, number>
 }
 
 /** Parámetros de `GET /api/devices?q=&routerId=&band=&type=&status=&page=&pageSize=`. */

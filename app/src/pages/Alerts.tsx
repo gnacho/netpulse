@@ -300,6 +300,9 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce }: FeedRowProps) 
             </span>
           </div>
           <p className="mt-0.5 truncate text-caption text-text-secondary">{ev.description}</p>
+          {ev.hint && (
+            <p className="mt-0.5 truncate text-caption italic text-text-muted">{ev.hint}</p>
+          )}
         </div>
         <ChevronRight
           className={cn('h-4 w-4 shrink-0 text-text-muted transition-transform duration-200', expanded && 'rotate-90')}

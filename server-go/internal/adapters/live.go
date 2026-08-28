@@ -25,6 +25,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
+	"github.com/gnacho/netpulse/server-go/internal/oui"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -123,6 +124,9 @@ type routerPolled struct {
 	// wanInfo: estado de la conexión WAN (solo gateway, issue #276). Los APs
 	// dejan el struct vacío (sin datos WAN).
 	wanInfo probe.WanInfo
+	// vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sin
+	// datos (router sin bridge vlan filtering o sonda fallida).
+	vlans []VlanPort
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -132,6 +136,7 @@ type extrasSnapshot struct {
 	wireless map[string]WirelessClient
 	fdb      map[string]string
 	luci     *probe.LuCILabels
+	vlans    []VlanPort
 }
 
 // backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.
@@ -821,8 +826,12 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if luci := client.GetLuCILabels(); luci != nil {
 		luciGood = luci
 	}
+	vlansGood := cached.vlans
+	if vlans := client.GetBridgeVlans(); vlans != nil {
+		vlansGood = vlans
+	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood, vlans: vlansGood}
 	l.mu.Unlock()
 
 	// Uso real de RAM como en la UI del router: used = total − available
@@ -864,7 +873,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
-		luci: luciGood, wanInfo: wanInfo,
+		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
 	}, nil
 }
 
@@ -979,6 +988,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 			Severity:    "warn",
 			Title:       "Firmware desactualizado",
 			Description: fmt.Sprintf("%s: firmware %q no coincide con el target %q", name, r.Firmware, p.cfg.FirmwareTarget),
+			Hint:        alerts.HintFor(alerts.HintFirmware),
 			Time:        "ahora mismo", RouterID: p.cfg.ID,
 		})
 	}
@@ -1166,6 +1176,7 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 				Severity:    "critical",
 				Title:       name + " offline",
 				Description: fmt.Sprintf("Sin respuesta de %s: %v", res.cfg.Host, res.err),
+				Hint:        alerts.HintFor(alerts.HintDeviceOffline),
 				Time:        "ahora mismo", RouterID: res.cfg.ID,
 			})
 		}
@@ -1233,6 +1244,7 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 			Severity:    "critical",
 			Title:       "Internet caído",
 			Description: fmt.Sprintf("%s responde pero no alcanza internet (100 %% de pérdida)", name),
+			Hint:        alerts.HintFor(alerts.HintWanDown),
 			Time:        "ahora mismo", RouterID: cfg.ID,
 		})
 	}
@@ -1331,6 +1343,7 @@ func (l *Live) emitUnknownDevice(d Device) {
 		Severity:    "warn",
 		Title:       "Dispositivo desconocido",
 		Description: fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID),
+		Hint:        alerts.HintFor(alerts.HintUnknownDevice),
 		Time:        "ahora mismo", RouterID: d.RouterID,
 	})
 }
@@ -1670,6 +1683,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			rows.Close()
 		}
 	}
+	lldpCapsByMac := map[string]string{}
+	for _, p := range polled {
+		for _, nb := range p.lldp {
+			if nb.ChassisMac != "" && len(nb.Caps) > 0 {
+				lldpCapsByMac[nb.ChassisMac] = strings.Join(nb.Caps, ",")
+			}
+		}
+	}
 	devices := []Device{}
 	for mac := range allMacs {
 		if routerMacs[mac] {
@@ -1677,9 +1698,13 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		}
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
+		manufacturer := oui.Lookup(mac)
+		if manufacturer == "" {
+			manufacturer = "Desconocido"
+		}
 		d := Device{
 			ID:  strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
-			MAC: mac, Manufacturer: "Desconocido",
+			MAC: mac, Manufacturer: manufacturer,
 			TrafficMbps: 0, Sparkline: []float64{},
 			RouterID: gwID, Band: "—",
 			Online: isSeen,
@@ -1707,9 +1732,15 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
 		}
-		// Tipo estimado por hostname (el DHCP/FDB no dice qué es el cliente).
-		// Con nombre-MAC (sin hostname) queda "desconocido".
-		d.Type = GuessDeviceType(d.Name, d.Manufacturer)
+		vendorClass := ""
+		clientID := ""
+		if hasLease {
+			vendorClass = lease.VendorClass
+			clientID = lease.ClientID
+		}
+		// Tipo estimado con reglas deterministas (hostname, huella DHCP y
+		// capacidades LLDP). Con nombre-MAC (sin hostname) queda "desconocido".
+		d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
 		if isSeen {
 			d.RouterID = s.routerID
 			d.Band = s.band
@@ -1869,6 +1900,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 				Category: alerts.CatRouter, Urgent: true,
 				Severity: "warn", Title: "Temperatura alta en " + router.Name,
 				Description: fmt.Sprintf("%d °C, por encima del umbral (65 °C)", *router.Temp),
+				Hint:        alerts.HintFor(alerts.HintHighTemp),
 				Time:        "ahora mismo", RouterID: cfg.ID,
 			})
 		}
@@ -1894,6 +1926,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 					Category: alerts.CatSignal, Urgent: false,
 					Severity: "warn", Title: "Señal débil en " + d.Name,
 					Description: fmt.Sprintf("%d dBm en %s — revisa cobertura o acerca un AP", *d.SignalDbm, d.RouterID),
+					Hint:        alerts.HintFor(alerts.HintWifiWeak),
 					Time:        "ahora mismo", RouterID: d.RouterID,
 				})
 			}
@@ -2334,10 +2367,14 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			extras.TrafficNow = mbps(p.net.RxBps)
 		}
 	}
+	var vlans []VlanPort
+	if p != nil && len(p.vlans) > 0 {
+		vlans = p.vlans
+	}
 	detail := &RouterDetail{
 		Router: router, Ports: enriched, Radios: radios, Backhaul: nil,
 		Series:  PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
-		Clients: clients, Extras: extras,
+		Clients: clients, Extras: extras, Vlans: vlans,
 	}
 	if gw != nil && id == gw.ID {
 		detail.Adguard = l.pollAdGuard(ctx)

@@ -1,12 +1,17 @@
 package adapters
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/gnacho/netpulse/server-go/internal/oui"
+)
 
 // ---------------------------------------------------------------------------
 // Clasificación de tipo de dispositivo live (2-Ago-2026). El FDB/DHCP no dice
-// QUÉ es cada cliente: se estima por patrones de hostname (y en el futuro por
-// OUI). Solo afecta a presentación (icono/grupo); ante la duda, "desconocido"
-// — nunca afirmar un tipo sin evidencia razonable.
+// QUÉ es cada cliente: se estima con reglas deterministas por patrones de
+// hostname, huella DHCP (vendor class, client-id), capacidades LLDP y OUI.
+// Solo afecta a presentación (icono/grupo); ante la duda, "desconocido":
+// nunca afirmar un tipo sin evidencia razonable.
 // ---------------------------------------------------------------------------
 
 // typeRule: substrings (minúsculas) del hostname → tipo. El orden importa:
@@ -31,11 +36,15 @@ var typeRules = []struct {
 	{"iot", []string{"roomba", "irobot", "roborock", "aspirador", "robot", "tasmota", "sonoff", "shelly", "esphome", "tuya", "smartlife", "meross", "gosund", "switchbot", "aqara", "lumi", "zigbee", "zhirui", "osram", "ikea", "tradfri", "hue", "wled", "athom", "cargador", "wallbox", "feyree", "tedee", "cerradura", "enchufe", "plug", "bombilla", "downlight", "persiana", "curtain", "riego", "sprinkler", "termo", "termostato", "caldera", "aire", "ac-", "slzb", "impresora", "printer", "epson", "brother", "canon"}},
 }
 
-// GuessDeviceType estima el DeviceType a partir del hostname (DHCP) y, si se
-// conoce, del fabricante OUI. Vacío/desconocido → "desconocido".
-func GuessDeviceType(hostname, manufacturer string) string {
+// GuessDeviceType estima el DeviceType con reglas deterministas: patrones de
+// hostname primero, luego huella DHCP (vendor class, client-id), capacidades
+// LLDP y fabricante OUI. Vacío/desconocido → "desconocido".
+func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldpCaps string) string {
 	h := strings.ToLower(strings.TrimSpace(hostname))
 	m := strings.ToLower(strings.TrimSpace(manufacturer))
+	v := strings.ToLower(strings.TrimSpace(dhcpVendorClass))
+	c := strings.ToLower(strings.TrimSpace(dhcpClientID))
+	caps := strings.ToLower(strings.TrimSpace(lldpCaps))
 	// Hostnames basura frecuentes (MAC como nombre, "unknown-…", "android-…"
 	// genérico de DHCP) solo aportan si casan con una regla clara.
 	for _, r := range typeRules {
@@ -45,12 +54,35 @@ func GuessDeviceType(hostname, manufacturer string) string {
 			}
 		}
 	}
-	// Fabricante como refuerzo cuando el hostname no dice nada.
-	ouiIoT := []string{"espressif", "tuya", "shenzhen", "sonoff", "shelly", "tasmota", "meross", "gosund", "lumi", "aqara", "tuya smart"}
-	for _, s := range ouiIoT {
-		if m != "" && strings.Contains(m, s) {
-			return "iot"
+	// Huella DHCP (option 60 vendor class): específica de SO/plataforma.
+	if v != "" {
+		if strings.Contains(v, "android") {
+			return "movil"
 		}
+		if strings.Contains(v, "msft") || strings.Contains(v, "windows") {
+			return "ordenador"
+		}
+	}
+	// Client-id DHCP: a veces lleva el nombre del equipo.
+	if c != "" && strings.Contains(c, "raspberry") {
+		return "servidor"
+	}
+	// Capacidades LLDP: bridge a secas = switch de red; wlan = punto de acceso.
+	if caps != "" {
+		bridge := strings.Contains(caps, "bridge")
+		router := strings.Contains(caps, "router")
+		wlan := strings.Contains(caps, "wlan")
+		station := strings.Contains(caps, "station")
+		if bridge && !router && !wlan && !station {
+			return "switch"
+		}
+		if wlan && !station {
+			return "switch"
+		}
+	}
+	// Fabricante como refuerzo cuando el hostname no dice nada (OUI DB).
+	if oui.IsIoTVendor(m) {
+		return "iot"
 	}
 	return "desconocido"
 }

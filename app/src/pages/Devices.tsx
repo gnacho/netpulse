@@ -43,6 +43,7 @@ import { useDashboard } from '@/hooks/useDashboard'
 import { cn } from '@/lib/utils'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
+import type { DeviceType } from '@/data/mock'
 
 // ---------------------------------------------------------------------------
 // Rename local (única escritura de la app — devices.md §④)
@@ -82,7 +83,23 @@ function useRenames(): [Record<string, string>, (id: string, name: string | null
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
-type SortKey = 'name' | 'ip' | 'router' | 'band' | 'signal' | 'traffic'
+type SortKey = 'name' | 'ip' | 'router' | 'band' | 'signal' | 'traffic' | 'type'
+
+/** Orden canónico de los tipos de dispositivo para los chips de filtro. */
+const TYPE_ORDER = [
+  'ordenador',
+  'portatil',
+  'movil',
+  'tablet',
+  'tv',
+  'consola',
+  'camara',
+  'altavoz',
+  'iot',
+  'servidor',
+  'switch',
+  'desconocido',
+] as const
 
 /** IP a número para ordenar (ipv4 "a.b.c.d" → entero). */
 function ipNum(ip: string): number {
@@ -175,6 +192,21 @@ function InfraBadge({ info }: { info: InfraInfo }) {
       )}
     >
       {t(`devices.badges.${info.kind}`)}
+    </span>
+  )
+}
+
+/** Etiqueta del tipo de dispositivo (auto-descubierto por el clasificador). */
+function TypeBadge({ type, className }: { type: DeviceType; className?: string }) {
+  const { t } = useTranslation()
+  return (
+    <span
+      className={cn(
+        'inline-flex w-fit shrink-0 items-center rounded-full border border-border bg-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary',
+        className,
+      )}
+    >
+      {t(`devices.types.${type}`)}
     </span>
   )
 }
@@ -336,6 +368,9 @@ interface FilterBarProps {
   setRouter: (v: string) => void
   band: BandFilter
   setBand: (v: BandFilter) => void
+  typeFilter: DeviceType | 'all'
+  setTypeFilter: (v: DeviceType | 'all') => void
+  typeCounts: Record<string, number>
   groups: FilterGroup[]
   toggleGroup: (g: FilterGroup) => void
   onlyOnline: boolean
@@ -443,6 +478,22 @@ function FilterBar(p: FilterBarProps) {
             </ViewButton>
           </div>
         </div>
+      </div>
+      {/* Tipo de dispositivo: chips de filtro */}
+      <div
+        role="tablist"
+        aria-label={t('devices.deviceType')}
+        className="-mx-1 mt-3 flex max-w-full items-center gap-1 overflow-x-auto border-t border-border px-1 pt-3"
+      >
+        <RouterChip active={p.typeFilter === 'all'} label={t('devices.routerAll')} onClick={() => p.setTypeFilter('all')} />
+        {TYPE_ORDER.filter((ty) => (p.typeCounts[ty] ?? 0) > 0).map((ty) => (
+          <RouterChip
+            key={ty}
+            active={p.typeFilter === ty}
+            label={`${t(`devices.types.${ty}`)} · ${p.typeCounts[ty]}`}
+            onClick={() => p.setTypeFilter(ty)}
+          />
+        ))}
       </div>
     </div>
   )
@@ -745,7 +796,7 @@ function TrafficCell({ device }: { device: ClientDevice }) {
 }
 
 const ROW_GRID =
-  'md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.2fr)_1.5rem]'
+  'md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.2fr)_1.5rem]'
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
@@ -805,10 +856,15 @@ function ListRow({
               <span className="truncate text-sm font-medium text-text-primary">{name}</span>
               {device.isNew && <NewPill />}
               {infra && <InfraBadge info={infra} />}
+              <TypeBadge type={device.type} className="lg:hidden" />
               {!device.online && <StatusPill tone="muted" label={t('common.status.offline')} />}
             </div>
             <div className="truncate text-caption text-text-muted">{device.manufacturer}</div>
           </div>
+        </div>
+        {/* Tipo */}
+        <div className="hidden lg:block">
+          <TypeBadge type={device.type} />
         </div>
         {/* IP / MAC */}
         <button
@@ -937,6 +993,7 @@ function GridCard({
         <div className="mt-3 flex items-center gap-2">
           <span className="truncate text-sm font-medium text-text-primary">{name}</span>
           {infra && <InfraBadge info={infra} />}
+          <TypeBadge type={device.type} />
         </div>
         <div className="truncate text-caption text-text-muted">
           {device.manufacturer} · <span className="font-mono">{device.ip}</span>
@@ -1013,6 +1070,7 @@ export default function Devices() {
   }, [searchParams])
   const [router, setRouter] = useState('all')
   const [band, setBand] = useState<BandFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<DeviceType | 'all'>('all')
   const [groups, setGroups] = useState<FilterGroup[]>([])
   const [onlyOnline, setOnlyOnline] = useState(true)
   const [onlyWeak, setOnlyWeak] = useState(false)
@@ -1046,6 +1104,12 @@ export default function Devices() {
     return counts
   }, [allDevices])
 
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const d of allDevices) counts[d.type] = (counts[d.type] ?? 0) + 1
+    return counts
+  }, [allDevices])
+
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null)
   const toggleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
@@ -1057,6 +1121,7 @@ export default function Devices() {
       if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
       if (router !== 'all' && d.routerId !== router) return false
       if (band !== 'all' && d.band !== band) return false
+      if (typeFilter !== 'all' && d.type !== typeFilter) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
       if (q) {
         const hay = `${nameOf(d)} ${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
@@ -1088,6 +1153,9 @@ export default function Devices() {
           case 'traffic':
             c = a.trafficMbps - b.trafficMbps
             break
+          case 'type':
+            c = a.type.localeCompare(b.type)
+            break
         }
         if (c !== 0) return dir * c
         // Desempate: online primero, luego nombre
@@ -1100,7 +1168,7 @@ export default function Devices() {
       if (a.online !== b.online) return a.online ? -1 : 1
       return a.online ? b.trafficMbps - a.trafficMbps : a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, onlyOnline, onlyWeak, router, band, groups, q, nameOf, sort, routers])
+  }, [allDevices, onlyOnline, onlyWeak, router, band, typeFilter, groups, q, nameOf, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1110,6 +1178,7 @@ export default function Devices() {
   const clearFilters = useCallback(() => {
     setRouter('all')
     setBand('all')
+    setTypeFilter('all')
     setGroups([])
     setOnlyOnline(true)
   }, [])
@@ -1146,6 +1215,9 @@ export default function Devices() {
     if (band !== 'all') {
       list.push({ key: `band-${band}`, label: band === 'cable' ? t('common.cable') : band, clear: () => setBand('all') })
     }
+    if (typeFilter !== 'all') {
+      list.push({ key: `type-${typeFilter}`, label: t(`devices.types.${typeFilter}`), clear: () => setTypeFilter('all') })
+    }
     for (const g of groups) {
       list.push({ key: `group-${g}`, label: t(`devices.groups.${g}`), clear: () => toggleGroup(g) })
     }
@@ -1153,7 +1225,7 @@ export default function Devices() {
       list.push({ key: 'online', label: t('devices.onlyOnline'), clear: () => setOnlyOnline(false) })
     }
     return list
-  }, [router, routers, band, groups, onlyOnline, toggleGroup, t])
+  }, [router, routers, band, typeFilter, groups, onlyOnline, toggleGroup, t])
 
   const searchBox = (className?: string, autoFocus = false) => (
     <div className={cn('relative', className)}>
@@ -1222,6 +1294,9 @@ export default function Devices() {
         setRouter={setRouter}
         band={band}
         setBand={setBand}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        typeCounts={typeCounts}
         groups={groups}
         toggleGroup={toggleGroup}
         onlyOnline={onlyOnline}
@@ -1275,6 +1350,9 @@ export default function Devices() {
             )}
           >
             <SortHeader label={t('devices.colDevice')} k="name" sort={sort} onSort={toggleSort} />
+            <span className="hidden lg:block">
+              <SortHeader label={t('devices.colType')} k="type" sort={sort} onSort={toggleSort} />
+            </span>
             <span className="hidden lg:block">
               <SortHeader label="IP / MAC" k="ip" sort={sort} onSort={toggleSort} />
             </span>

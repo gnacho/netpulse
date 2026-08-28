@@ -59,11 +59,44 @@ type AlertEvent struct {
 	Severity    string `json:"severity"` // display: "warn"|"critical"|"info"|"ok"
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	Time        string `json:"time"` // LEGADO display; se sigue rellenando
-	Ts          int64  `json:"ts"`   // unix SEGUNDOS; el frontend calcula el relativo
-	Read        bool   `json:"read"`
-	RouterID    string `json:"routerId"`
+	// Hint is an actionable suggestion per alert type (issue #310).
+	// Filled at emission time from the Hints map; absent when not applicable.
+	Hint     string `json:"hint,omitempty"`
+	Time     string `json:"time"` // LEGADO display; se sigue rellenando
+	Ts       int64  `json:"ts"`   // unix SEGUNDOS; el frontend calcula el relativo
+	Read     bool   `json:"read"`
+	RouterID string `json:"routerId"`
 }
+
+// Stable alert-type slugs (issue #310): keys of the Hints map.
+const (
+	HintAgentDown     = "agent-down"
+	HintGatewayUnrch  = "gateway-unreachable"
+	HintHighTemp      = "high-temperature"
+	HintPortFlapping  = "port-flapping"
+	HintDeviceOffline = "device-offline"
+	HintUnknownDevice = "unknown-device"
+	HintFirmware      = "firmware-outdated"
+	HintWanDown       = "wan-down"
+	HintWifiWeak      = "wifi-weak"
+)
+
+// Hints maps each alert-type slug to its actionable suggestion. Emitters copy
+// the value into AlertEvent.Hint; the feed and push render it as a helper line.
+var Hints = map[string]string{
+	HintAgentDown:     "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
+	HintGatewayUnrch:  "Comprueba la conexión entre el gateway y el resto de la red.",
+	HintHighTemp:      "Mejora la ventilación y aleja el router de fuentes de calor.",
+	HintPortFlapping:  "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
+	HintDeviceOffline: "Verifica la alimentación y el cable de red del equipo.",
+	HintUnknownDevice: "Si no lo reconoces, bloquéalo o márcalo como de confianza en Ajustes.",
+	HintFirmware:      "NetPulse es de solo lectura: actualiza el firmware desde LuCI.",
+	HintWanDown:       "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
+	HintWifiWeak:      "Acerca el dispositivo a un punto de acceso o reubica el AP.",
+}
+
+// HintFor returns the suggestion for a slug, or "" when it does not exist.
+func HintFor(slug string) string { return Hints[slug] }
 
 // Notifier es el hook de push (Bloque C lo implementa; ahora nil/no-op).
 // Se llama SOLO para eventos que pasan config Y son Urgent=true.

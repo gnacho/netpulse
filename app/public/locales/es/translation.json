@@ -73,6 +73,17 @@
       "urgent": "Solo urgentes",
       "all": "Todo",
       "none": "Nada"
+    },
+    "hints": {
+      "agent-down": "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
+      "gateway-unreachable": "Comprueba la conexión entre el gateway y el resto de la red.",
+      "high-temperature": "Mejora la ventilación y aleja el router de fuentes de calor.",
+      "port-flapping": "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
+      "device-offline": "Verifica la alimentación y el cable de red del equipo.",
+      "unknown-device": "Si no lo reconoces, bloquéalo o márcalo como de confianza en Ajustes.",
+      "firmware-outdated": "NetPulse es de solo lectura: actualiza el firmware desde LuCI.",
+      "wan-down": "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
+      "wifi-weak": "Acerca el dispositivo a un punto de acceso o reubica el AP."
     }
   },
   "auth": {
@@ -497,7 +508,14 @@
       "deviceDetail": "Detalle",
       "traffic": "Tráfico",
       "errors": "Errores",
-      "wirelessUplink": " · uplink inalámbrico (mesh)"
+      "wirelessUplink": " · uplink inalámbrico (mesh)",
+      "sfpTitle": "Módulo SFP",
+      "sfpTemp": "Temp",
+      "sfpRx": "Potencia RX",
+      "sfpTx": "Potencia TX",
+      "sfpVendor": "Fabricante",
+      "sfpWarnTemp": "Temperatura alta",
+      "sfpWarnRx": "Potencia RX baja"
     },
     "radios": {
       "channel": "Canal",
@@ -506,6 +524,16 @@
       "power": "Potencia",
       "title": "Radios WiFi",
       "width": "Ancho"
+    },
+    "vlans": {
+      "mode": "Modo",
+      "port": "Puerto",
+      "pvid": "PVID",
+      "tagged": "Tagged",
+      "title": "VLANs",
+      "toggleAria": "VLANs del bridge ({{count}})",
+      "untagged": "Untagged",
+      "vlanId": "ID VLAN"
     },
     "wan": {
       "chartAria": "Tráfico WAN del gateway. Descarga actual {{down}} Mbps, subida {{up}} Mbps.",

@@ -733,7 +733,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     // hipervisor se posiciona vía su device host (hub), el distnode solo
     // aporta metadatos (puerto, macCount).
     const dists = distributionNodes.filter(
-      (n) => n.routerId === node.id && (n.kind === 'inferred' || n.kind === 'managed'),
+      (n) => n.routerId === node.id && (n.kind === 'inferred' || n.kind === 'managed') && !n.parent,
     )
     const directWired = childrenOf(node.id).filter((d) => isWired(d) && isVisibleInRing(d))
     const hubs = directWired.filter((d) => deviceHubs.has(d.id))
@@ -811,6 +811,35 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         const dn = p.ref as DistributionNode
         distNodes.push({ kind: 'dist', id: dn.id, node: dn, x: p.x, y: p.y, r: 20 })
       }
+    }
+  }
+
+  // Switch→switch chains (issue #300): los distnodes con `parent` se anclan
+  // alrededor de su switch padre (no del router), continuando la cadena. El
+  // servidor envía el padre antes que sus hijos, así que la posición del
+  // padre ya está en anchorPos.
+  const chainByParent = new Map<string, DistributionNode[]>()
+  for (const cn of distributionNodes) {
+    if ((cn.kind !== 'inferred' && cn.kind !== 'managed') || !cn.parent) continue
+    const list = chainByParent.get(cn.parent) ?? []
+    list.push(cn)
+    chainByParent.set(cn.parent, list)
+  }
+  for (const [parentId, children] of chainByParent) {
+    const parent = anchorPos.get(parentId)
+    if (!parent) continue
+    const upstream = (() => {
+      const dn = distById.get(parentId)
+      if (dn?.parent) return anchorPos.get(dn.parent) ?? null
+      const rn = routerById.get(dn?.routerId ?? '')
+      return rn ? { x: rn.x, y: rn.y } : null
+    })()
+    const center = upstream ? angleTo(upstream.x, upstream.y, parent.x, parent.y) : 90
+    const placed = children.map((cn) => ({ cn, x: 0, y: 0 }))
+    fanLayout(placed, parent, DIST_FAN_RADIUS, center - 40, center + 40)
+    for (const p of placed) {
+      anchorPos.set(p.cn.id, { x: p.x, y: p.y })
+      distNodes.push({ kind: 'dist', id: p.cn.id, node: p.cn, x: p.x, y: p.y, r: 20 })
     }
   }
 
@@ -967,13 +996,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // más, anillos concéntricos (el arco único los solapa — issue #5 bug 2).
   for (const dv of distNodes) {
     const kids = childrenOf(dv.id).map((d) => mkChip(d, dv.id))
-    const rn = routerById.get(dv.node.routerId)
-    const center = rn ? angleTo(rn.x, rn.y, dv.x, dv.y) : 0
+    const from = dv.node.parent
+      ? distNodes.find((n) => n.id === dv.node.parent)
+      : routerById.get(dv.node.routerId)
+    const center = from ? angleTo(from.x, from.y, dv.x, dv.y) : 0
     if (kids.length > DIST_FAN_MAX) {
       // anillos alrededor del círculo dashed: se excluye el sector hacia el
       // router (por donde entra el enlace dist-*) para que las líneas no
       // crucen los chips
-      const excludes = rn ? arcAround(angleTo(dv.x, dv.y, rn.x, rn.y), 20) : []
+      const excludes = from ? arcAround(angleTo(dv.x, dv.y, from.x, from.y), 20) : []
       const rings = [...DIST_RINGS]
       let cap = rings.reduce((a, r) => a + r.cap, 0)
       while (cap < kids.length) {
@@ -1045,7 +1076,8 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     // distnodes que cuelgan de este hub: su sub-árbol también viaja por el
     // enlace del hub (el hipervisor ya cuenta vía su device host).
     for (const dn of distributionNodes) {
-      if (dn.routerId !== hubId || dn.kind === 'hypervisor') continue
+      if (dn.kind === 'hypervisor') continue
+      if ((dn.parent ?? dn.routerId) !== hubId) continue
       sum += subtreeTraffic(dn.id, seen)
     }
     const dn = distById.get(hubId)
@@ -1104,17 +1136,21 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   apNodes.forEach(makeUplink)
   switchNodes.forEach(makeUplink)
   // enlaces router → distnode / device-hub / cableado directo
+  const distUpstream = (dv: DistNodeView): { x: number; y: number; r: number } | null => {
+    if (dv.node.parent) return distNodes.find((n) => n.id === dv.node.parent) ?? null
+    return routerById.get(dv.node.routerId) ?? null
+  }
   for (const dv of distNodes) {
-    const rn = routerById.get(dv.node.routerId)
-    if (!rn) continue
-    const edge = pos(rn.x, rn.y, angleTo(rn.x, rn.y, dv.x, dv.y), rn.r + 2)
+    const from = distUpstream(dv)
+    if (!from) continue
+    const edge = pos(from.x, from.y, angleTo(from.x, from.y, dv.x, dv.y), from.r + 2)
     const mid = { x: (edge.x + dv.x) / 2, y: (edge.y + dv.y) / 2 }
     links.push({
       id: `dist-${dv.id}`, kind: 'dist',
       d: `M ${edge.x} ${edge.y} Q ${mid.x + 6} ${mid.y - 6}, ${dv.x} ${dv.y}`,
       lx: 0, ly: 0, label: '',
       width: 2.5, ...flowFor(subtreeTraffic(dv.id), true),
-      from: dv.node.routerId, to: dv.id,
+      from: dv.node.parent ?? dv.node.routerId, to: dv.id,
     })
   }
   const chipById = new Map(chips.map((c) => [c.id, c]))
@@ -1216,9 +1252,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         }
         case 'dist': {
           const dv = distNodes.find((n) => n.id === sl.to)
-          const rn = routerById.get(sl.from)
-          if (!dv || !rn) return null
-          const edge = pos(rn.x, rn.y, angleTo(rn.x, rn.y, dv.x, dv.y), rn.r + 2)
+          const from = routerById.get(sl.from) ?? distNodes.find((n) => n.id === sl.from)
+          if (!dv || !from) return null
+          const edge = pos(from.x, from.y, angleTo(from.x, from.y, dv.x, dv.y), from.r + 2)
           const mid = { x: (edge.x + dv.x) / 2, y: (edge.y + dv.y) / 2 }
           return {
             id: `dist-${dv.id}`, kind: 'dist',
@@ -1326,25 +1362,28 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // D7: enlaces de distribución — el mapa ya los dibuja (dist-*) y
   // activeLinkCount los cuenta; la tabla también los lista.
   for (const dv of distNodes) {
+    const parent = dv.node.parent ? distNodes.find((n) => n.id === dv.node.parent) : undefined
     const rn = routerById.get(dv.node.routerId)
-    if (!rn) continue
+    if (!parent && !rn) continue
+    const a = parent ? (parent.node.name ?? parent.node.ip ?? '') : (rn?.router.name ?? '')
+    const spark = rn?.router.sparkline ?? []
     if (dv.node.kind === 'managed') {
       backhauls.push({
-        id: `dist-${dv.id}`, a: rn.router.name,
+        id: `dist-${dv.id}`, a,
         b: [dv.node.name, dv.node.ip, 'LLDP', dv.node.portLabel ?? dv.node.port].filter(Boolean).join(' · '),
         kind: 'dist', type: 'topology.links.managedSwitch',
         speed: '1 Gbps', signal: '<1 ms',
         tone: 'ok', statusLabel: 'common.status.online',
-        spark: rn.router.sparkline, sparkColor: COLOR.accent,
+        spark, sparkColor: COLOR.accent,
       })
     } else {
       backhauls.push({
-        id: `dist-${dv.id}`, a: rn.router.name,
+        id: `dist-${dv.id}`, a,
         b: '', bKey: 'topology.links.inferredSwitch', bVars: { port: dv.node.portLabel ?? dv.node.port },
         kind: 'dist', type: 'common.cable',
         speed: '1 Gbps', signal: '<1 ms',
         tone: 'ok', statusLabel: 'common.status.online',
-        spark: rn.router.sparkline, sparkColor: COLOR.ok,
+        spark, sparkColor: COLOR.ok,
       })
     }
   }
@@ -1412,8 +1451,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     for (const ct of cts) repelSegments.push({ x1: hostChip.x, y1: hostChip.y, x2: ct.x, y2: ct.y, ownerId: ct.id })
   }
   for (const dn of distNodes) {
-    const rn = routerById.get(dn.node.routerId)
-    if (rn) repelSegments.push({ x1: rn.x, y1: rn.y, x2: dn.x, y2: dn.y })
+    const from = dn.node.parent
+      ? distNodes.find((n) => n.id === dn.node.parent)
+      : routerById.get(dn.node.routerId)
+    if (from) repelSegments.push({ x1: from.x, y1: from.y, x2: dn.x, y2: dn.y })
   }
   for (const rn of routerNodes) {
     if (rn.id === gatewayNode?.id || !gatewayNode) continue

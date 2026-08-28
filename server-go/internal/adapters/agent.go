@@ -387,6 +387,7 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						Severity:    "warn",
 						Title:       fmt.Sprintf("Agente caído en %s", name),
 						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — usando datos cacheados", name, confirm),
+						Hint:        alerts.HintFor(alerts.HintAgentDown),
 						Time:        "ahora mismo", RouterID: cfg.ID,
 					})
 				} else {
@@ -396,6 +397,7 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						Severity:    "warn",
 						Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
 						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
+						Hint:        alerts.HintFor(alerts.HintAgentDown),
 						Time:        "ahora mismo", RouterID: cfg.ID,
 					})
 				}

@@ -73,6 +73,17 @@
       "urgent": "Urgent only",
       "all": "Everything",
       "none": "Nothing"
+    },
+    "hints": {
+      "agent-down": "Check the router power and connection; if it does not recover, reinstall the agent from LuCI.",
+      "gateway-unreachable": "Check the connection between the gateway and the rest of the network.",
+      "high-temperature": "Improve ventilation and keep the router away from heat sources.",
+      "port-flapping": "Check the cable or switch port: an unstable link is usually the culprit.",
+      "device-offline": "Verify the device power and network cable.",
+      "unknown-device": "If you do not recognize it, block it or mark it as trusted in Settings.",
+      "firmware-outdated": "NetPulse is read-only: update the firmware from LuCI.",
+      "wan-down": "Check the modem/ONT and contact your ISP if the outage persists.",
+      "wifi-weak": "Move the device closer to an access point or relocate the AP."
     }
   },
   "auth": {
@@ -497,7 +508,14 @@
       "deviceDetail": "Detail",
       "traffic": "Traffic",
       "errors": "Errors",
-      "wirelessUplink": " · wireless uplink (mesh)"
+      "wirelessUplink": " · wireless uplink (mesh)",
+      "sfpTitle": "SFP module",
+      "sfpTemp": "Temp",
+      "sfpRx": "RX power",
+      "sfpTx": "TX power",
+      "sfpVendor": "Vendor",
+      "sfpWarnTemp": "High temperature",
+      "sfpWarnRx": "Low RX power"
     },
     "radios": {
       "channel": "Channel",
@@ -506,6 +524,16 @@
       "power": "Power",
       "title": "WiFi radios",
       "width": "Width"
+    },
+    "vlans": {
+      "mode": "Mode",
+      "port": "Port",
+      "pvid": "PVID",
+      "tagged": "Tagged",
+      "title": "VLANs",
+      "toggleAria": "Bridge VLANs ({{count}})",
+      "untagged": "Untagged",
+      "vlanId": "VLAN ID"
     },
     "wan": {
       "chartAria": "Gateway WAN traffic. Current download {{down}} Mbps, upload {{up}} Mbps.",

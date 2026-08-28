@@ -40,6 +40,9 @@ export function AlertItem({ alert, onClick, className }: AlertItemProps) {
           <span className="shrink-0 text-caption text-text-muted">{relTime(alert.time)}</span>
         </div>
         <p className="mt-0.5 truncate text-caption text-text-secondary">{alert.description}</p>
+        {alert.hint && (
+          <p className="mt-0.5 truncate text-caption italic text-text-muted">{alert.hint}</p>
+        )}
       </div>
       {!alert.read && (
         <span className="relative mt-2 flex h-1.5 w-1.5 shrink-0">

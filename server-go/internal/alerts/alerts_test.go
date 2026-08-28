@@ -332,3 +332,20 @@ func TestEmitOrUpdateConservaRead(t *testing.T) {
 		}
 	}
 }
+
+// TestHintForMap (#310): the Hints map covers every slug and HintFor returns
+// the suggestion or "" for unknown slugs.
+func TestHintForMap(t *testing.T) {
+	slugs := []string{
+		HintAgentDown, HintGatewayUnrch, HintHighTemp, HintPortFlapping,
+		HintDeviceOffline, HintUnknownDevice, HintFirmware, HintWanDown, HintWifiWeak,
+	}
+	for _, slug := range slugs {
+		if got := HintFor(slug); got == "" {
+			t.Fatalf("HintFor(%q) empty", slug)
+		}
+	}
+	if got := HintFor("no-existe"); got != "" {
+		t.Fatalf("HintFor(no-existe) = %q, want \"\"", got)
+	}
+}

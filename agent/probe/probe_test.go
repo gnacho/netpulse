@@ -440,3 +440,129 @@ func TestParseWanStatusVacioYMalFormado(t *testing.T) {
 		t.Fatalf("JSON inválido debía quedar vacío: %+v", got)
 	}
 }
+
+func TestParseBridgeVlan(t *testing.T) {
+	// Fixture típico de OpenWrt con bridge vlan filtering (VLAN 1 PVID +
+	// VLANs 10/20 tagged en wan, 1 untagged en todos los LAN).
+	out := `port              vlan-id
+br-lan            1 PVID Egress Untagged
+
+lan1              1 PVID Egress Untagged
+
+lan2              1 PVID Egress Untagged
+
+lan3              1 PVID Egress Untagged
+
+lan4              1 PVID Egress Untagged
+
+wan               1 PVID Egress Untagged
+                  10
+                  20
+`
+	ports := ParseBridgeVlan(out)
+	if len(ports) != 6 {
+		t.Fatalf("esperaba 6 puertos, tengo %d: %+v", len(ports), ports)
+	}
+	// br-lan: 1 untagged + PVID
+	br := ports[0]
+	if br.Port != "br-lan" || len(br.Vlans) != 1 {
+		t.Fatalf("br-lan: %+v", br)
+	}
+	if br.Vlans[0].ID != 1 || br.Vlans[0].Tagged || !br.Vlans[0].PVID {
+		t.Fatalf("br-lan vlan: %+v", br.Vlans[0])
+	}
+	// wan: 3 VLANs (1 untagged+PVID, 10 tagged, 20 tagged)
+	wan := ports[5]
+	if wan.Port != "wan" || len(wan.Vlans) != 3 {
+		t.Fatalf("wan: %+v", wan)
+	}
+	if wan.Vlans[0].ID != 1 || wan.Vlans[0].Tagged || !wan.Vlans[0].PVID {
+		t.Fatalf("wan vlan[0]: %+v", wan.Vlans[0])
+	}
+	if wan.Vlans[1].ID != 10 || !wan.Vlans[1].Tagged || wan.Vlans[1].PVID {
+		t.Fatalf("wan vlan[1]: %+v", wan.Vlans[1])
+	}
+	if wan.Vlans[2].ID != 20 || !wan.Vlans[2].Tagged || wan.Vlans[2].PVID {
+		t.Fatalf("wan vlan[2]: %+v", wan.Vlans[2])
+	}
+}
+
+func TestParseBridgeVlanVacio(t *testing.T) {
+	// Router sin bridge vlan filtering → salida vacía.
+	if got := ParseBridgeVlan(""); len(got) != 0 {
+		t.Fatalf("vacío esperaba [], tengo %+v", got)
+	}
+	if got := ParseBridgeVlan("port              vlan-id\n"); len(got) != 0 {
+		t.Fatalf("solo header esperaba [], tengo %+v", got)
+	}
+}
+
+func TestParseBridgeVlanSoloTagged(t *testing.T) {
+	// Puerto trunk sin PVID (solo tagged).
+	out := `port              vlan-id
+eth0              100
+                  200
+                  300
+`
+	ports := ParseBridgeVlan(out)
+	if len(ports) != 1 || ports[0].Port != "eth0" || len(ports[0].Vlans) != 3 {
+		t.Fatalf("trunk: %+v", ports)
+	}
+	for _, v := range ports[0].Vlans {
+		if !v.Tagged || v.PVID {
+			t.Fatalf("trunk vlan debía ser tagged sin PVID: %+v", v)
+		}
+	}
+}
+
+func TestParseEthtoolSFP(t *testing.T) {
+	// Salida realista de ethtool -m con un SFP monomodo.
+	out := `	Identifier                                : 0x03 (SFP)
+	Extended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)
+	Connector                                 : 0x07 (LC)
+	Transceiver codes                         : 0x00 0x00 0x00 0x01 0x00 0x00 0x00 0x00 0x00
+	Vendor Name                               : FS.COM
+	Vendor Part Number                        : SFP-GE-BX
+	Vendor Rev                                :
+	Vendor SN                                 : F2305060072
+	Module temperature                        : 34.5 degrees C / 94.1 degrees F
+	Module voltage                            : 3.2950 Volts
+	Alarm/warning flags implemented           : Yes
+	Laser output power                        : 0.5230 mW / -2.82 dBm
+	Laser receiver power                      : 0.0501 mW / -13.00 dBm
+`
+	sfp := ParseEthtoolSFP(out)
+	if sfp == nil {
+		t.Fatal("esperaba SfpInfo no nil")
+	}
+	if !sfp.Present {
+		t.Fatal("esperaba Present=true")
+	}
+	if sfp.Temperature != 34.5 {
+		t.Fatalf("temp=%.1f, esperaba 34.5", sfp.Temperature)
+	}
+	if sfp.Voltage != 3.2950 {
+		t.Fatalf("volt=%.4f, esperaba 3.2950", sfp.Voltage)
+	}
+	if sfp.TxPower != -2.82 {
+		t.Fatalf("txp=%.2f, esperaba -2.82", sfp.TxPower)
+	}
+	if sfp.RxPower != -13.00 {
+		t.Fatalf("rxp=%.2f, esperaba -13.00", sfp.RxPower)
+	}
+	if sfp.Vendor != "FS.COM" {
+		t.Fatalf("vendor=%q, esperaba FS.COM", sfp.Vendor)
+	}
+	if sfp.PartNumber != "SFP-GE-BX" {
+		t.Fatalf("pn=%q, esperaba SFP-GE-BX", sfp.PartNumber)
+	}
+
+	// Sin módulo SFP: salida vacía → nil.
+	if got := ParseEthtoolSFP(""); got != nil {
+		t.Fatalf("vacío debía dar nil: %+v", got)
+	}
+	// Salida sin datos DOM (solo identifier, sin temp/power) → nil.
+	if got := ParseEthtoolSFP("Identifier : 0x03 (SFP)\n"); got != nil {
+		t.Fatalf("sin DOM debía dar nil: %+v", got)
+	}
+}

@@ -36,6 +36,17 @@ export interface PortInfo {
   role: string
 }
 
+/** Diagnóstico digital (DDM/DOM) de un módulo SFP (#313). */
+export interface SfpInfo {
+  temperature: number
+  voltage?: number
+  txPower: number
+  rxPower: number
+  vendor?: string
+  partNumber?: string
+  present: boolean
+}
+
 /** Boca física RJ45 del chasis (panel visual de puertos). */
 export interface EthPort {
   id: string
@@ -49,6 +60,7 @@ export interface EthPort {
   txErrors?: number
   rxBps?: number // rates instantáneos (#305)
   txBps?: number
+  sfp?: SfpInfo // diagnóstico SFP si la boca tiene módulo óptico (#313)
   connectedTo?: string // "NAS Synology" | "Salón · AX3000T"
   deviceMac?: string // MAC del dispositivo conectado (para enlazar a /devices)
   detail?: string // "192.168.8.10 · full duplex"

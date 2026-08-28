@@ -74,6 +74,8 @@ type (
 	WirelessClient = probe.WirelessClient
 	PortState      = probe.PortState
 	PortLayout     = probe.PortLayout
+	VlanPort       = probe.VlanPort
+	VlanEntry      = probe.VlanEntry
 )
 
 // NewOpenWrtClient crea el cliente de un router.
@@ -483,6 +485,14 @@ func ethPortsToAdapter(in []probe.EthPort) []EthPort {
 		if p.Up {
 			ep.Speed = p.Speed
 		}
+		if p.Sfp != nil {
+			ep.Sfp = &SfpInfo{
+				Temperature: p.Sfp.Temperature, Voltage: p.Sfp.Voltage,
+				TxPower: p.Sfp.TxPower, RxPower: p.Sfp.RxPower,
+				Vendor: p.Sfp.Vendor, PartNumber: p.Sfp.PartNumber,
+				Present: p.Sfp.Present,
+			}
+		}
 		out = append(out, ep)
 	}
 	return out
@@ -525,6 +535,20 @@ func (c *OpenWrtClient) GetLuCILabels() *probe.LuCILabels {
 		return nil
 	}
 	return probe.ParseLuCILabels(out)
+}
+
+// GetBridgeVlans: VLANs del bridge (issue #315). Salida de `bridge vlan show`
+// parseada; nil si el router no tiene bridge vlan filtering o falla la sonda.
+func (c *OpenWrtClient) GetBridgeVlans() []probe.VlanPort {
+	out, err := c.pool.Run(c.Host, probe.CmdBridgeVlan, 0)
+	if err != nil {
+		return nil
+	}
+	ports := probe.ParseBridgeVlan(out)
+	if len(ports) == 0 {
+		return nil
+	}
+	return ports
 }
 
 // ---------------------------------------------------------------------------

@@ -250,6 +250,10 @@ type DistributionNode struct {
 	Kind     string `json:"kind"` // "inferred"|"hypervisor"|"managed"
 	RouterID string `json:"routerId"`
 	Port     string `json:"port"`
+	// Parent: id de otro DistributionNode del que cuelga este switch en una
+	// cadena LLDP switch→switch (issue #300). Vacío = cuelga del router
+	// (RouterID), como siempre.
+	Parent string `json:"parent,omitempty"`
 	// PortLabel: nombre amigable del puerto definido en LuCI (issue #258).
 	// Preferente sobre Port cuando existe.
 	PortLabel string `json:"portLabel,omitempty"`
@@ -375,24 +379,36 @@ type PerfSeries struct {
 	D7  []PerfPoint `json:"7d"`
 }
 
+// SfpInfo: diagnóstico digital (DDM/DOM) de un módulo SFP (#313).
+type SfpInfo struct {
+	Temperature float64 `json:"temperature"`
+	Voltage     float64 `json:"voltage,omitempty"`
+	TxPower     float64 `json:"txPower"`
+	RxPower     float64 `json:"rxPower"`
+	Vendor      string  `json:"vendor,omitempty"`
+	PartNumber  string  `json:"partNumber,omitempty"`
+	Present     bool    `json:"present"`
+}
+
 // EthPort es una boca ethernet ({id, label, up, speed?} + enriquecimiento de
 // vecino en el detalle: connectedTo/deviceMac/detail, SPEC §7.8 + contadores
-// por puerto #305: iface física, bytes/errores acumulados y rates).
+// por puerto #305: iface física, bytes/errores acumulados y rates + SFP #313).
 type EthPort struct {
-	ID          string  `json:"id"`
-	Label       string  `json:"label"`
-	Up          bool    `json:"up"`
-	Speed       string  `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
-	Iface       string  `json:"iface,omitempty"` // iface física (/proc/net/dev)
-	RxBytes     uint64  `json:"rxBytes,omitempty"`
-	TxBytes     uint64  `json:"txBytes,omitempty"`
-	RxErrs      uint64  `json:"rxErrors,omitempty"`
-	TxErrs      uint64  `json:"txErrors,omitempty"`
-	RxBps       float64 `json:"rxBps,omitempty"`
-	TxBps       float64 `json:"txBps,omitempty"`
-	ConnectedTo string  `json:"connectedTo,omitempty"`
-	DeviceMac   string  `json:"deviceMac,omitempty"`
-	Detail      string  `json:"detail,omitempty"`
+	ID          string   `json:"id"`
+	Label       string   `json:"label"`
+	Up          bool     `json:"up"`
+	Speed       string   `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
+	Iface       string   `json:"iface,omitempty"` // iface física (/proc/net/dev)
+	RxBytes     uint64   `json:"rxBytes,omitempty"`
+	TxBytes     uint64   `json:"txBytes,omitempty"`
+	RxErrs      uint64   `json:"rxErrors,omitempty"`
+	TxErrs      uint64   `json:"txErrors,omitempty"`
+	RxBps       float64  `json:"rxBps,omitempty"`
+	TxBps       float64  `json:"txBps,omitempty"`
+	Sfp         *SfpInfo `json:"sfp,omitempty"`
+	ConnectedTo string   `json:"connectedTo,omitempty"`
+	DeviceMac   string   `json:"deviceMac,omitempty"`
+	Detail      string   `json:"detail,omitempty"`
 }
 
 // Radio agrega una banda wifi ({name, channel, widthMhz, powerDbm, clients}).
@@ -421,6 +437,9 @@ type RouterDetail struct {
 	Series   PerfSeries `json:"series"`
 	Clients  []Device   `json:"clients"`
 	Extras   any        `json:"extras"`
+	// Vlans: VLANs del bridge (issue #315). nil = sin datos (demo/routers
+	// sin bridge vlan filtering); slice vacio = sondeo sin VLANs.
+	Vlans []VlanPort `json:"vlans,omitempty"`
 	// --- solo gateway (demo: solo flint2; live: solo el gateway) ---
 	Adguard          *AdGuardStats   `json:"adguard,omitempty"`
 	Wireguard        *WireGuardStats `json:"wireguard,omitempty"`
