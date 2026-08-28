@@ -440,3 +440,77 @@ func TestParseWanStatusVacioYMalFormado(t *testing.T) {
 		t.Fatalf("JSON inválido debía quedar vacío: %+v", got)
 	}
 }
+
+func TestParseBridgeVlan(t *testing.T) {
+	// Fixture típico de OpenWrt con bridge vlan filtering (VLAN 1 PVID +
+	// VLANs 10/20 tagged en wan, 1 untagged en todos los LAN).
+	out := `port              vlan-id
+br-lan            1 PVID Egress Untagged
+
+lan1              1 PVID Egress Untagged
+
+lan2              1 PVID Egress Untagged
+
+lan3              1 PVID Egress Untagged
+
+lan4              1 PVID Egress Untagged
+
+wan               1 PVID Egress Untagged
+                  10
+                  20
+`
+	ports := ParseBridgeVlan(out)
+	if len(ports) != 6 {
+		t.Fatalf("esperaba 6 puertos, tengo %d: %+v", len(ports), ports)
+	}
+	// br-lan: 1 untagged + PVID
+	br := ports[0]
+	if br.Port != "br-lan" || len(br.Vlans) != 1 {
+		t.Fatalf("br-lan: %+v", br)
+	}
+	if br.Vlans[0].ID != 1 || br.Vlans[0].Tagged || !br.Vlans[0].PVID {
+		t.Fatalf("br-lan vlan: %+v", br.Vlans[0])
+	}
+	// wan: 3 VLANs (1 untagged+PVID, 10 tagged, 20 tagged)
+	wan := ports[5]
+	if wan.Port != "wan" || len(wan.Vlans) != 3 {
+		t.Fatalf("wan: %+v", wan)
+	}
+	if wan.Vlans[0].ID != 1 || wan.Vlans[0].Tagged || !wan.Vlans[0].PVID {
+		t.Fatalf("wan vlan[0]: %+v", wan.Vlans[0])
+	}
+	if wan.Vlans[1].ID != 10 || !wan.Vlans[1].Tagged || wan.Vlans[1].PVID {
+		t.Fatalf("wan vlan[1]: %+v", wan.Vlans[1])
+	}
+	if wan.Vlans[2].ID != 20 || !wan.Vlans[2].Tagged || wan.Vlans[2].PVID {
+		t.Fatalf("wan vlan[2]: %+v", wan.Vlans[2])
+	}
+}
+
+func TestParseBridgeVlanVacio(t *testing.T) {
+	// Router sin bridge vlan filtering → salida vacía.
+	if got := ParseBridgeVlan(""); len(got) != 0 {
+		t.Fatalf("vacío esperaba [], tengo %+v", got)
+	}
+	if got := ParseBridgeVlan("port              vlan-id\n"); len(got) != 0 {
+		t.Fatalf("solo header esperaba [], tengo %+v", got)
+	}
+}
+
+func TestParseBridgeVlanSoloTagged(t *testing.T) {
+	// Puerto trunk sin PVID (solo tagged).
+	out := `port              vlan-id
+eth0              100
+                  200
+                  300
+`
+	ports := ParseBridgeVlan(out)
+	if len(ports) != 1 || ports[0].Port != "eth0" || len(ports[0].Vlans) != 3 {
+		t.Fatalf("trunk: %+v", ports)
+	}
+	for _, v := range ports[0].Vlans {
+		if !v.Tagged || v.PVID {
+			t.Fatalf("trunk vlan debía ser tagged sin PVID: %+v", v)
+		}
+	}
+}

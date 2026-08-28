@@ -32,6 +32,7 @@ import type {
   TimeRange,
   TopoSemantics,
   TrafficPoint,
+  VlanPort,
   WanInfo,
   WireGuardStats,
 } from '@/data/types'
@@ -75,6 +76,8 @@ export interface RouterDetailData {
   /** Solo en el gateway */
   adguard?: AdGuardStats
   wireguard?: WireGuardStats
+  /** VLANs del bridge (issue #315). Ausente si el router no tiene bridge vlan filtering. */
+  vlans?: VlanPort[]
 }
 
 export interface NetPulseData {
@@ -919,6 +922,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         extras?: RouterExtras
         adguard?: AdGuardStats
         wireguard?: WireGuardStats
+        vlans?: VlanPort[]
       }
       // Live: extras SOLO del backend (datos reales); nunca el mock local
       const extras: RouterExtras = {
@@ -933,6 +937,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         clients: json.clients ?? [],
         adguard: json.adguard,
         wireguard: json.wireguard,
+        vlans: json.vlans,
       }
     }
     // Demo: resolución local desde mock + routerExtras (misma firma async)

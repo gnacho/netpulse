@@ -288,6 +288,17 @@ export interface DeviceTotals {
  */
 export const VM_SUPPORTED = 1
 
+export interface VlanEntry {
+  id: number
+  tagged: boolean
+  pvid: boolean
+}
+
+export interface VlanPort {
+  port: string
+  vlans: VlanEntry[]
+}
+
 /** Enlace semántico del mapa (SPEC-65 D65-3), sin geometría. */
 export interface TopoSemLink {
   /** id: router | device | distnode | "internet" | "peer-<wgPeerId>" */

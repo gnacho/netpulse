@@ -15,6 +15,7 @@ import { RouterDetailHeader } from '@/components/routers/RouterDetailHeader'
 import { RouterInfo } from '@/components/routers/RouterInfo'
 import { RouterPerformance } from '@/components/routers/RouterPerformance'
 import { WanLatency } from '@/components/routers/WanLatency'
+import { VlanPanel } from '@/components/routers/VlanPanel'
 import { WireGuardPanel } from '@/components/routers/WireGuardPanel'
 
 /** Página `/routers/:id` — plantilla de detalle (router-detail.md) */
@@ -139,6 +140,11 @@ export default function RouterDetail() {
         </>
       ) : (
         <RadiosPorts router={router} extras={detail?.extras} />
+      )}
+
+      {/* VLANs del bridge (issue #315, read-only) */}
+      {detail?.vlans && detail.vlans.length > 0 && (
+        <VlanPanel vlans={detail.vlans} />
       )}
 
       {/* ⑦ Clientes de este router */}

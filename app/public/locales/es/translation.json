@@ -518,6 +518,16 @@
       "title": "Radios WiFi",
       "width": "Ancho"
     },
+    "vlans": {
+      "mode": "Modo",
+      "port": "Puerto",
+      "pvid": "PVID",
+      "tagged": "Tagged",
+      "title": "VLANs",
+      "toggleAria": "VLANs del bridge ({{count}})",
+      "untagged": "Untagged",
+      "vlanId": "ID VLAN"
+    },
     "wan": {
       "chartAria": "Tráfico WAN del gateway. Descarga actual {{down}} Mbps, subida {{up}} Mbps.",
       "fiber": "Fibra {{plan}}",

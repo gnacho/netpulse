@@ -425,6 +425,9 @@ type RouterDetail struct {
 	Series   PerfSeries `json:"series"`
 	Clients  []Device   `json:"clients"`
 	Extras   any        `json:"extras"`
+	// Vlans: VLANs del bridge (issue #315). nil = sin datos (demo/routers
+	// sin bridge vlan filtering); slice vacio = sondeo sin VLANs.
+	Vlans []VlanPort `json:"vlans,omitempty"`
 	// --- solo gateway (demo: solo flint2; live: solo el gateway) ---
 	Adguard          *AdGuardStats   `json:"adguard,omitempty"`
 	Wireguard        *WireGuardStats `json:"wireguard,omitempty"`

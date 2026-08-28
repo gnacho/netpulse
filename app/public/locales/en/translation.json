@@ -518,6 +518,16 @@
       "title": "WiFi radios",
       "width": "Width"
     },
+    "vlans": {
+      "mode": "Mode",
+      "port": "Port",
+      "pvid": "PVID",
+      "tagged": "Tagged",
+      "title": "VLANs",
+      "toggleAria": "Bridge VLANs ({{count}})",
+      "untagged": "Untagged",
+      "vlanId": "VLAN ID"
+    },
     "wan": {
       "chartAria": "Gateway WAN traffic. Current download {{down}} Mbps, upload {{up}} Mbps.",
       "fiber": "Fiber {{plan}}",

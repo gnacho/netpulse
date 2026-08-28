@@ -76,6 +76,10 @@ const (
 	// CmdWanStatus: estado de la interfaz WAN (solo gateway) vía ubus.
 	// Da proto ("pppoe"), IP, gateway (ptpaddress/nexthop) y DNS (issue #276).
 	CmdWanStatus = "ubus call network.interface.wan status 2>/dev/null || true"
+	// CmdBridgeVlan: VLANs del bridge (issue #315). bridge vlan show lista
+	// puertos y sus VLAN IDs con flags PVID/Untagged. || true para routers
+	// sin bridge vlan filtering (devuelve vacio sin error).
+	CmdBridgeVlan = "bridge vlan show 2>/dev/null || true"
 )
 
 // ---------------------------------------------------------------------------
@@ -789,6 +793,82 @@ func ParseLuCILabels(out string) *LuCILabels {
 		return nil
 	}
 	return &labels
+}
+
+// VlanEntry: una VLAN de un puerto del bridge (issue #315). ID es el número
+// de VLAN (1-4094); Tagged=false + Untagged en el wire (Egress Untagged);
+// PVID=true indica que este puerto es el puerto nativo de esta VLAN.
+type VlanEntry struct {
+	ID     int  `json:"id"`
+	Tagged bool `json:"tagged"`
+	PVID   bool `json:"pvid"`
+}
+
+// VlanPort: puerto del bridge con sus VLANs (issue #315).
+type VlanPort struct {
+	Port  string       `json:"port"`
+	Vlans []VlanEntry  `json:"vlans"`
+}
+
+var vlanIDRe = regexp.MustCompile(`^(\d+)(.*)$`)
+
+// ParseBridgeVlan parsea la salida de `bridge vlan show` (issue #315).
+// Formato: líneas "port  vlan-id [flags]" o "        vlan-id [flags]" (continuation).
+// Flags: "PVID" = puerto nativo; "Egress Untagged" = untagged en salida.
+func ParseBridgeVlan(out string) []VlanPort {
+	var ports []VlanPort
+	var cur *VlanPort
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimRight(raw, "\r\n")
+		if line == "" || strings.HasPrefix(line, "port") {
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		isContinuation := len(line) > 0 && (line[0] == ' ' || line[0] == '\t')
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
+		}
+		var portName string
+		var vlanField string
+		if isContinuation {
+			if cur == nil {
+				continue
+			}
+			vlanField = fields[0]
+		} else {
+			portName = fields[0]
+			if len(fields) < 2 {
+				continue
+			}
+			vlanField = fields[1]
+		}
+		m := vlanIDRe.FindStringSubmatch(vlanField)
+		if m == nil {
+			continue
+		}
+		id, err := strconv.Atoi(m[1])
+		if err != nil || id < 1 || id > 4094 {
+			continue
+		}
+		rest := strings.ToLower(m[2])
+		if len(fields) > 2 {
+			rest += " " + strings.ToLower(strings.Join(fields[2:], " "))
+		}
+		pvid := strings.Contains(rest, "pvid")
+		tagged := !strings.Contains(rest, "egress untagged")
+		entry := VlanEntry{ID: id, Tagged: tagged, PVID: pvid}
+		if isContinuation {
+			cur.Vlans = append(cur.Vlans, entry)
+		} else {
+			ports = append(ports, VlanPort{Port: portName, Vlans: []VlanEntry{entry}})
+			cur = &ports[len(ports)-1]
+		}
+	}
+	return ports
 }
 
 var nonDigitRe = regexp.MustCompile(`\D`)

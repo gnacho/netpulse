@@ -124,6 +124,9 @@ type routerPolled struct {
 	// wanInfo: estado de la conexión WAN (solo gateway, issue #276). Los APs
 	// dejan el struct vacío (sin datos WAN).
 	wanInfo probe.WanInfo
+	// vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sin
+	// datos (router sin bridge vlan filtering o sonda fallida).
+	vlans []VlanPort
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -133,6 +136,7 @@ type extrasSnapshot struct {
 	wireless map[string]WirelessClient
 	fdb      map[string]string
 	luci     *probe.LuCILabels
+	vlans    []VlanPort
 }
 
 // backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.
@@ -822,8 +826,12 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if luci := client.GetLuCILabels(); luci != nil {
 		luciGood = luci
 	}
+	vlansGood := cached.vlans
+	if vlans := client.GetBridgeVlans(); vlans != nil {
+		vlansGood = vlans
+	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood, vlans: vlansGood}
 	l.mu.Unlock()
 
 	// Uso real de RAM como en la UI del router: used = total − available
@@ -865,7 +873,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
-		luci: luciGood, wanInfo: wanInfo,
+		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
 	}, nil
 }
 
@@ -2345,10 +2353,14 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			extras.TrafficNow = mbps(p.net.RxBps)
 		}
 	}
+	var vlans []VlanPort
+	if p != nil && len(p.vlans) > 0 {
+		vlans = p.vlans
+	}
 	detail := &RouterDetail{
 		Router: router, Ports: enriched, Radios: radios, Backhaul: nil,
 		Series:  PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
-		Clients: clients, Extras: extras,
+		Clients: clients, Extras: extras, Vlans: vlans,
 	}
 	if gw != nil && id == gw.ID {
 		detail.Adguard = l.pollAdGuard(ctx)
