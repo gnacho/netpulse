@@ -249,4 +249,9 @@ jobs:
           echo "Server packages generated:"
           ls -la dist/packages/
           # netpulse_<v>_*.ipk (no colisiona con el tarball netpulse_<v>_linux_*)
-          gh release upload "$TAG" dist/packages/netpulse_*.${{ matrix.format }} dist/packages/netpulse-*.${{ matrix.format }} --clobber
+          files=$(ls dist/packages/netpulse[-_]*.${{ matrix.format }} 2>/dev/null || true)
+          if [ -z "$files" ]; then
+            echo "ERROR: no server package produced" >&2
+            exit 1
+          fi
+          gh release upload "$TAG" $files --clobber
