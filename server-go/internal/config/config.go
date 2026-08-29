@@ -42,29 +42,30 @@ type Webhook struct {
 
 // Config es la config normalizada (equivalente al objeto de loadConfig).
 type Config struct {
-	Port          int
-	NodeEnv       string
-	StaticDir     string // resuelta (absoluta)
-	DataDir       string // resuelta (absoluta)
-	SessionSecret string // "" si falta (autogenerado en kv)
-	AuthUser      string
-	AuthPass      string
-	DemoMode      bool
-	MaxSSEClients int
-	Routers       []RouterSeed
-	SSHKeyPath    string
-	Adguard       *AdGuard
-	Webhook       *Webhook
-	WGInterface   string
-	CookieSecure  string // "auto" | "always" | "never"
-	TrustProxy    bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
-	MaxTsDriftSec int    // ventana frescura ts agente en s (0 → default 5 min)
-	GithubRepo    string
-	GithubToken   string
-	ServerRoot    string
-	AutoRearm     bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
-	BeaconListen  string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
-	Onbox         bool // NETPULSE_ONBOX=1: modo on-box (Fase 9 — config UCI, bootstrap AUTH_PASS)
+	Port            int
+	NodeEnv         string
+	StaticDir       string // resuelta (absoluta)
+	DataDir         string // resuelta (absoluta)
+	SessionSecret   string // "" si falta (autogenerado en kv)
+	AuthUser        string
+	AuthPass        string
+	DemoMode        bool
+	MaxSSEClients   int
+	Routers         []RouterSeed
+	SSHKeyPath      string
+	Adguard         *AdGuard
+	Webhook         *Webhook
+	WGInterface     string
+	CookieSecure    string // "auto" | "always" | "never"
+	TrustProxy      bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
+	MaxTsDriftSec   int    // ventana frescura ts agente en s (0 → default 5 min)
+	GithubRepo      string
+	GithubToken     string
+	ServerRoot      string
+	AutoRearm       bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	BeaconListen    string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
+	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
+	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -291,6 +292,21 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		beaconListen = ""
 	}
 
+	// AGENT_AUTOENROLL: '0'|'1', opcional (#367). Con '1' el responder de
+	// descubrimiento UDP entrega un token de alta de red y /api/agents/pair
+	// lo acepta (solo para slugs NUEVOS). Opt-in explícito: sin él, el
+	// responder anuncia el server sin token.
+	agentAutoenroll := false
+	if v, ok := env["AGENT_AUTOENROLL"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			agentAutoenroll = true
+		default:
+			errs.issues = append(errs.issues, issue{"AGENT_AUTOENROLL", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
 	// ADGUARD_*: cliente estándar solo si hay URL válida
 	var adguard *AdGuard
 	if v, ok := env["ADGUARD_URL"]; ok && v != "" {
@@ -384,29 +400,30 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	}
 
 	return &Config{
-		Port:          port,
-		NodeEnv:       nodeEnv,
-		StaticDir:     resolve(staticDir),
-		DataDir:       resolve(dataDir),
-		SessionSecret: sessionSecret,
-		AuthUser:      authUser,
-		AuthPass:      authPass,
-		DemoMode:      demoMode,
-		MaxSSEClients: maxSSE,
-		Routers:       routers,
-		SSHKeyPath:    sshKeyPath,
-		Adguard:       adguard,
-		Webhook:       webhook,
-		WGInterface:   wgInterface,
-		CookieSecure:  cookieSecure,
-		TrustProxy:    trustProxy,
-		MaxTsDriftSec: maxTsDriftSec,
-		GithubRepo:    githubRepo,
-		GithubToken:   githubToken,
-		ServerRoot:    serverRoot,
-		AutoRearm:     autoRearm,
-		BeaconListen:  beaconListen,
-		Onbox:         onbox,
+		Port:            port,
+		NodeEnv:         nodeEnv,
+		StaticDir:       resolve(staticDir),
+		DataDir:         resolve(dataDir),
+		SessionSecret:   sessionSecret,
+		AuthUser:        authUser,
+		AuthPass:        authPass,
+		DemoMode:        demoMode,
+		MaxSSEClients:   maxSSE,
+		Routers:         routers,
+		SSHKeyPath:      sshKeyPath,
+		Adguard:         adguard,
+		Webhook:         webhook,
+		WGInterface:     wgInterface,
+		CookieSecure:    cookieSecure,
+		TrustProxy:      trustProxy,
+		MaxTsDriftSec:   maxTsDriftSec,
+		GithubRepo:      githubRepo,
+		GithubToken:     githubToken,
+		ServerRoot:      serverRoot,
+		AutoRearm:       autoRearm,
+		BeaconListen:    beaconListen,
+		AgentAutoenroll: agentAutoenroll,
+		Onbox:           onbox,
 	}, nil
 }
 
