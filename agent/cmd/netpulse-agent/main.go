@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/gnacho/netpulse/agent/dnscache"
 	"github.com/gnacho/netpulse/agent/internal/yield"
 	"github.com/gnacho/netpulse/agent/runtime"
 )
@@ -45,6 +46,11 @@ func main() {
 		level = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+
+	// Caché DNS con TTL (#376): los binarios Go estáticos no usan la caché de
+	// glibc, así que cada dial HTTP consultaba al resolver. La instala ANTES
+	// de cualquier conexión.
+	dnscache.Install()
 
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
