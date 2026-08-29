@@ -5,6 +5,7 @@ name: openwrt-package
 #   - netpulse-agent as .ipk (24.10 SDK, mediatek/filogic) and .apk (25.12
 #     SDK, qualcommax/ipq807x).
 #   - luci-app-netpulse (arch all) as .ipk and .apk (#236).
+#   - netpulse on-box server as .ipk and .apk (#364).
 #
 # Triggered on v* tag pushes, the SAME event that runs release.yml. It does
 # not rely on the `release` event for goreleaser-published releases: goreleaser
@@ -171,3 +172,81 @@ jobs:
           echo "LuCI packages generated:"
           ls -la dist/packages/
           gh release upload "$TAG" dist/packages/*.${{ matrix.format }} --clobber
+
+  package-server:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk-version: 24.10.5
+            sdk-target: mediatek/filogic
+            format: ipk
+          - sdk-version: 25.12.5
+            sdk-target: qualcommax/ipq807x
+            format: apk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for server tarball on the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          for i in $(seq 1 80); do
+            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'netpulse_.*_linux_arm64.tar.gz'; then
+              echo "Server tarball present after $i attempts"
+              exit 0
+            fi
+            echo "Waiting for server tarball ($i/80)..."
+            sleep 15
+          done
+          echo "ERROR: server tarball not found on $TAG after 20 min" >&2
+          exit 1
+
+      - name: Download netpulse server arm64 binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release download "$TAG" -p "netpulse_*_linux_arm64.tar.gz" --dir /tmp/server
+          cd /tmp/server
+          tar xzf netpulse_*_linux_arm64.tar.gz
+          ls -la netpulse
+          file netpulse
+
+      - name: Package ${{ matrix.format }} (SDK ${{ matrix.sdk-version }})
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          chmod +x deploy/openwrt/package-server.sh
+          export PKG_VERSION="${TAG#v}"
+          export PKG_RELEASE="1"
+          deploy/openwrt/package-server.sh \
+            "${{ matrix.sdk-version }}" \
+            "${{ matrix.sdk-target }}" \
+            "" \
+            "${{ matrix.format }}" \
+            /tmp/server/netpulse
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          echo "Server packages generated:"
+          ls -la dist/packages/
+          # netpulse_<v>_*.ipk (no colisiona con el tarball netpulse_<v>_linux_*)
+          gh release upload "$TAG" dist/packages/netpulse_*.${{ matrix.format }} dist/packages/netpulse-*.${{ matrix.format }} --clobber
