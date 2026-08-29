@@ -1,7 +1,7 @@
-// upgrade_test.go — Fase 6.3 (issue #243): tests de la lógica de self-update
+// upgrade_test.go - Fase 6.3 (issue #243): tests de la lógica de self-update
 // del agente (mapeo de arquitectura, descarga+verificación y swap atómico).
 // #284: progreso de descarga y pasos reportados al servidor.
-package main
+package runtime
 
 import (
 	"encoding/json"
@@ -196,7 +196,7 @@ func TestReportUpgradeProgressSteps(t *testing.T) {
 	currentBinPath = func() string { return exe }
 	defer func() { currentBinPath = oldPath }()
 
-	cfg := config{server: srv.URL, slug: "patio", token: "tok"}
+	cfg := Options{Server: srv.URL, Slug: "patio", Token: "tok"}
 	handleUpgrade(cfg, nil, "")
 
 	mu.Lock()
