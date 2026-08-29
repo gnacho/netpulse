@@ -46,6 +46,11 @@ type Options struct {
 	HeartbeatFile string
 	EnvFile       string // ruta del env file (para escribir el token tras pairing)
 	Version       string // la reporta cada push
+	// Kind etiqueta el SABOR del pusher en el payload (#363): "" = agente
+	// standalone netpulse-agent; "netgrip" = agente embebido en el panel
+	// NetGrip. El servidor lo usa para la UI y para NO reinstalar el
+	// binario standalone sobre un NetGrip.
+	Kind string
 
 	// OnStatus recibe el estado en cada cambio (arranque, cada push, parada).
 	// Nunca rompe el bucle: un panic dentro del callback se recupera.
@@ -130,6 +135,7 @@ func Run(ctx context.Context, opts Options) error {
 				}
 				log.Info("[netpulse-agent] iw evento", "action", action, "mac", ev.MAC, "iface", ev.Iface)
 				payload := prober.BuildWireless(ctx, opts.Slug, opts.Version)
+				payload.Kind = opts.Kind
 				a.pushOnce(ctx, payload)
 			}); err != nil {
 				log.Warn("[netpulse-agent] iw event terminó", "err", err)
@@ -172,6 +178,7 @@ func Run(ctx context.Context, opts Options) error {
 	// lo pide (refresh).
 	for {
 		payload := prober.Build(ctx, opts.Slug, opts.Version)
+		payload.Kind = opts.Kind
 		a.pushOnce(ctx, payload)
 		select {
 		case <-ctx.Done():
