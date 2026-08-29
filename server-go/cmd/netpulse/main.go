@@ -37,6 +37,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
+	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -215,6 +216,10 @@ func run() error {
 		return fmt.Errorf("path analysis schema: %w", err)
 	}
 	pathStore := pathanalysis.NewStore(dbHandle)
+	cfgBackup, err := configbackup.NewStore(dbHandle)
+	if err != nil {
+		return fmt.Errorf("config backup schema: %w", err)
+	}
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -420,6 +425,7 @@ func run() error {
 		CollectorReader: collReader,
 		WiFiSLE:         wifiSLE,
 		PathAnalysis:    pathStore,
+		ConfigBackup:    cfgBackup,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

@@ -16,9 +16,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +32,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/baselines"
 	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
+	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -97,6 +101,8 @@ type Deps struct {
 	WiFiSLE *wifisle.Store
 	// PathAnalysis: mtr path analysis (#343). nil → sin path data.
 	PathAnalysis *pathanalysis.Store
+	// ConfigBackup: snapshots UCI de NetGrip (#34). nil → sin backup.
+	ConfigBackup *configbackup.Store
 }
 
 type server struct {
@@ -160,6 +166,9 @@ type server struct {
 
 	// PathAnalysis: mtr path analysis (#343). nil = sin path data.
 	pathAnalysis *pathanalysis.Store
+
+	// ConfigBackup: snapshots UCI de NetGrip (#34). nil = sin backup.
+	configBackup *configbackup.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -179,6 +188,7 @@ func NewHandler(d Deps) http.Handler {
 		presence:        d.Presence,
 		wifiSLE:         d.WiFiSLE,
 		pathAnalysis:    d.PathAnalysis,
+		configBackup:    d.ConfigBackup,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -268,6 +278,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	mux.HandleFunc("GET /api/reports/weekly", s.handleWeeklyReport)
 	mux.HandleFunc("GET /api/reports/availability", s.handleAvailabilityReport)
+	mux.HandleFunc("GET /api/config-backup", s.handleConfigBackupList)
+	mux.HandleFunc("POST /api/config-backup", s.handleConfigBackupUpload)
+	mux.HandleFunc("GET /api/config-backup/{id}", s.handleConfigBackupDownload)
+	mux.HandleFunc("DELETE /api/config-backup/{id}", s.handleConfigBackupDelete)
 
 	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
@@ -492,4 +506,94 @@ func writeBodyError(w http.ResponseWriter, status int, fallback, message string)
 		return
 	}
 	writeError(w, status, fallback)
+}
+
+func (s *server) handleConfigBackupList(w http.ResponseWriter, r *http.Request) {
+	if s.configBackup == nil {
+		writeError(w, http.StatusNotFound, "config_backup_disabled")
+		return
+	}
+	routerID := r.URL.Query().Get("router")
+	var snaps []configbackup.Snapshot
+	var err error
+	if routerID != "" {
+		snaps, err = s.configBackup.List(routerID)
+	} else {
+		snaps, err = s.configBackup.ListAll()
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if snaps == nil {
+		snaps = []configbackup.Snapshot{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"snapshots": snaps})
+}
+
+func (s *server) handleConfigBackupUpload(w http.ResponseWriter, r *http.Request) {
+	if s.configBackup == nil {
+		writeError(w, http.StatusNotFound, "config_backup_disabled")
+		return
+	}
+	routerID := r.Header.Get("X-Router-ID")
+	snapshotID := r.Header.Get("X-Snapshot-ID")
+	configs := r.Header.Get("X-Configs")
+	if routerID == "" || snapshotID == "" {
+		writeError(w, http.StatusBadRequest, "missing X-Router-ID or X-Snapshot-ID header")
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "read body: "+err.Error())
+		return
+	}
+	if len(data) == 0 {
+		writeError(w, http.StatusBadRequest, "empty body")
+		return
+	}
+	if err := s.configBackup.Save(routerID, snapshotID, configs, data); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *server) handleConfigBackupDownload(w http.ResponseWriter, r *http.Request) {
+	if s.configBackup == nil {
+		writeError(w, http.StatusNotFound, "config_backup_disabled")
+		return
+	}
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	data, snap, err := s.configBackup.Get(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "snapshot not found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netgrip-snapshot-%s-%s.tar.gz"`, snap.RouterID, snap.SnapshotID))
+	w.Write(data)
+}
+
+func (s *server) handleConfigBackupDelete(w http.ResponseWriter, r *http.Request) {
+	if s.configBackup == nil {
+		writeError(w, http.StatusNotFound, "config_backup_disabled")
+		return
+	}
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := s.configBackup.Delete(id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

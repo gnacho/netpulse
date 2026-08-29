@@ -393,8 +393,15 @@ func handleApply(cfg config, ex *executor.Executor, transport http.RoundTripper,
 	}
 
 	slog.Info("[netpulse-agent] apply iniciado", "plan_id", payload.PlanID, "ops", len(payload.Ops))
-	result := ex.Apply(payload.Ops)
-	slog.Info("[netpulse-agent] apply resultado", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
+
+	var result executor.ApplyResult
+	if r, ok := delegateToNetgrip(payload.Ops); ok {
+		result = r
+		slog.Info("[netpulse-agent] apply delegado a NetGrip", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
+	} else {
+		result = ex.Apply(payload.Ops)
+		slog.Info("[netpulse-agent] apply ejecutado por agente", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
+	}
 
 	// POST del resultado al servidor.
 	resultBody, _ := json.Marshal(map[string]any{"planId": payload.PlanID, "result": result})
