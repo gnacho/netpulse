@@ -7,6 +7,29 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-08-29
+
+### Added
+
+- NetGrip embedded agents are told apart (kind netgrip) in the agents view:
+  Estado (active/inactive/not installed) and a new Agente column (NetPulse/
+  NetGrip/Externo). NetPulse can update them centrally via the SSE upgrade
+  event (NetGrip runs its own self-updater); rearm/reinstall are refused.
+- install-agent.sh and the agent apk hand off to NetGrip when detected
+  instead of installing the standalone binary; --update-netgrip deploys the
+  latest NetGrip release with a downgrade guard.
+- Public `agent/runtime` package so the agent can run embedded (used by
+  NetGrip).
+- Releases now attach the on-box server package (netpulse .apk/.ipk).
+
+### Fixed
+
+- Agent no longer burns CPU on iwinfo shell-outs (reported 25% on MT7621):
+  clients come from ubus hostapd get_clients, single-pass iwinfo fallback,
+  radios cached out of the event path.
+- Pre-existing frontend build errors on main (unused vars/imports,
+  possibly-undefined palettes) that broke the dist CI job.
+
 ## [2.18.0] - 2026-08-28
 
 ### Added
