@@ -10,22 +10,22 @@ import (
 )
 
 type Hop struct {
-	Index    int     `json:"index"`
-	Host     string  `json:"host"`
-	LossPct  float64 `json:"lossPct"`
-	AvgMs    float64 `json:"avgMs"`
-	BestMs   float64 `json:"bestMs"`
-	WorstMs  float64 `json:"worstMs"`
-	StdevMs  float64 `json:"stdevMs"`
+	Index   int     `json:"index"`
+	Host    string  `json:"host"`
+	LossPct float64 `json:"lossPct"`
+	AvgMs   float64 `json:"avgMs"`
+	BestMs  float64 `json:"bestMs"`
+	WorstMs float64 `json:"worstMs"`
+	StdevMs float64 `json:"stdevMs"`
 }
 
 type PathResult struct {
-	ID          int64  `json:"id"`
-	RouterID    string `json:"routerId"`
-	Destination string `json:"destination"`
-	TS          int64  `json:"ts"`
-	Hops        []Hop  `json:"hops"`
-	HopCount    int    `json:"hopCount"`
+	ID          int64   `json:"id"`
+	RouterID    string  `json:"routerId"`
+	Destination string  `json:"destination"`
+	TS          int64   `json:"ts"`
+	Hops        []Hop   `json:"hops"`
+	HopCount    int     `json:"hopCount"`
 	TotalMs     float64 `json:"totalMs"`
 }
 
@@ -139,25 +139,36 @@ func (s *Store) Summaries(routerID string) ([]PathSummary, error) {
 		if err := rows.Scan(&ps.Destination, &ps.LastRun, &ps.HopCount, &ps.TotalMs); err != nil {
 			continue
 		}
+		out = append(out, ps)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Cerrar SIEMPRE el primer cursor antes de las queries anidadas: el
+	// server corre con MaxOpenConns(1) y una query dentro del bucle de rows
+	// abiertos es un deadlock (lo bloqueaba todo, incluido el CI de release).
+	rows.Close()
+	for i := range out {
 		var hopsJSON string
 		err := s.db.QueryRow(
 			`SELECT hops_json FROM path_results WHERE router_id = ? AND destination = ? ORDER BY ts DESC LIMIT 1`,
-			routerID, ps.Destination,
+			routerID, out[i].Destination,
 		).Scan(&hopsJSON)
-		if err == nil {
-			var hops []Hop
-			if json.Unmarshal([]byte(hopsJSON), &hops) == nil {
-				for _, h := range hops {
-					if h.LossPct > ps.WorstLoss {
-						ps.WorstLoss = h.LossPct
-						ps.WorstHop = h.Index
-					}
-				}
+		if err != nil {
+			continue
+		}
+		var hops []Hop
+		if json.Unmarshal([]byte(hopsJSON), &hops) != nil {
+			continue
+		}
+		for _, h := range hops {
+			if h.LossPct > out[i].WorstLoss {
+				out[i].WorstLoss = h.LossPct
+				out[i].WorstHop = h.Index
 			}
 		}
-		out = append(out, ps)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (s *Store) AllDestinations() ([]string, error) {
