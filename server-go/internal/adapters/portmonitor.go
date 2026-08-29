@@ -30,6 +30,12 @@ type portState struct {
 	trafficTotal uint64
 	zeroStreak   int
 	hadTraffic   bool
+	// Incidentes abiertos (issue #366): mientras la condición persiste hay
+	// UNA sola alerta viva por puerto (EmitOrUpdate la refresca in situ);
+	// la flag dispara la alerta de recuperación exactamente una vez.
+	flapActive     bool
+	ghostActive    bool
+	degradedActive bool
 }
 
 type PortMonitor struct {
@@ -67,8 +73,8 @@ func (pm *PortMonitor) Observe(routerID string, ports []EthPort, engine *alerts.
 		}
 		pm.updateSpeedHistory(st, p)
 		pm.checkFlapping(key, st, p, now, engine)
-		pm.checkGhost(key, st, p, engine)
-		pm.checkDegraded(key, st, p, engine)
+		pm.checkGhost(key, st, p, now, engine)
+		pm.checkDegraded(key, st, p, now, engine)
 	}
 }
 
@@ -100,7 +106,8 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 	}
 	st.transitions = kept
 	if len(st.transitions) >= flapThreshold {
-		engine.Emit(alerts.AlertEvent{
+		st.flapActive = true
+		engine.EmitOrUpdate(alerts.AlertEvent{
 			ID:          fmt.Sprintf("alert-flap-%s-%s", key.routerID, key.portID),
 			Category:    alerts.CatSystem,
 			Urgent:      false,
@@ -111,15 +118,38 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 			Time:        "ahora mismo",
 			RouterID:    key.routerID,
 		})
+	} else if st.flapActive {
+		st.flapActive = false
+		engine.Emit(alerts.AlertEvent{
+			ID:          fmt.Sprintf("alert-flap-%s-%s-ok-%d", key.routerID, key.portID, now.Unix()),
+			Category:    alerts.CatSystem,
+			Urgent:      false,
+			Severity:    "ok",
+			Title:       fmt.Sprintf("Port stable again: %s on %s", p.Label, key.routerID),
+			Description: fmt.Sprintf("Flapping stopped, fewer than %d transitions in %s", flapThreshold, flapWindow),
+			Time:        "ahora mismo",
+			RouterID:    key.routerID,
+		})
 	}
 }
 
-func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, engine *alerts.Engine) {
+func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now time.Time, engine *alerts.Engine) {
 	total := p.RxBytes + p.TxBytes
 	if !p.Up {
 		st.zeroStreak = 0
 		st.hadTraffic = false
 		st.trafficTotal = 0
+		st.ghostActive = false
+		return
+	}
+	if total < st.trafficTotal {
+		// Contador reseteado (reboot del router): arranca una era nueva del
+		// contador, no es un puerto muerto. Sin esto, el streak crecería
+		// durante horas hasta superar el total pre-reboot (issue #365).
+		st.trafficTotal = total
+		st.hadTraffic = false
+		st.zeroStreak = 0
+		st.ghostActive = false
 		return
 	}
 	if total > st.trafficTotal {
@@ -133,7 +163,8 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, engine 
 		return
 	}
 	if st.zeroStreak >= ghostConsecutive {
-		engine.Emit(alerts.AlertEvent{
+		st.ghostActive = true
+		engine.EmitOrUpdate(alerts.AlertEvent{
 			ID:          fmt.Sprintf("alert-ghost-%s-%s", key.routerID, key.portID),
 			Category:    alerts.CatSystem,
 			Urgent:      false,
@@ -144,10 +175,22 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, engine 
 			Time:        "ahora mismo",
 			RouterID:    key.routerID,
 		})
+	} else if st.ghostActive && st.zeroStreak == 0 {
+		st.ghostActive = false
+		engine.Emit(alerts.AlertEvent{
+			ID:          fmt.Sprintf("alert-ghost-%s-%s-ok-%d", key.routerID, key.portID, now.Unix()),
+			Category:    alerts.CatSystem,
+			Urgent:      false,
+			Severity:    "ok",
+			Title:       fmt.Sprintf("Ghost port recovered: %s on %s", p.Label, key.routerID),
+			Description: "Port is moving traffic again",
+			Time:        "ahora mismo",
+			RouterID:    key.routerID,
+		})
 	}
 }
 
-func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, engine *alerts.Engine) {
+func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, now time.Time, engine *alerts.Engine) {
 	if len(st.speedHistory) < degradedMinHistory {
 		return
 	}
@@ -164,7 +207,8 @@ func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, engi
 		}
 	}
 	if allBelow && st.speedMbps < prev {
-		engine.Emit(alerts.AlertEvent{
+		st.degradedActive = true
+		engine.EmitOrUpdate(alerts.AlertEvent{
 			ID:          fmt.Sprintf("alert-degraded-%s-%s", key.routerID, key.portID),
 			Category:    alerts.CatSystem,
 			Urgent:      false,
@@ -172,6 +216,18 @@ func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, engi
 			Title:       fmt.Sprintf("Degraded link: %s at %dMbps (was %dMbps)", p.Label, st.speedMbps, prev),
 			Description: fmt.Sprintf("Port negotiated speed dropped from %d to %d Mbps for %d consecutive polls", prev, st.speedMbps, degradedConsec),
 			Hint:        alerts.HintFor(alerts.HintDegradedLink),
+			Time:        "ahora mismo",
+			RouterID:    key.routerID,
+		})
+	} else if st.degradedActive {
+		st.degradedActive = false
+		engine.Emit(alerts.AlertEvent{
+			ID:          fmt.Sprintf("alert-degraded-%s-%s-ok-%d", key.routerID, key.portID, now.Unix()),
+			Category:    alerts.CatSystem,
+			Urgent:      false,
+			Severity:    "ok",
+			Title:       fmt.Sprintf("Link speed recovered: %s on %s", p.Label, key.routerID),
+			Description: fmt.Sprintf("Port negotiated speed is back to %d Mbps", st.speedMbps),
 			Time:        "ahora mismo",
 			RouterID:    key.routerID,
 		})

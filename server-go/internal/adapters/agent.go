@@ -584,12 +584,23 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	}
 
 	l.mu.Lock()
+	freshPayload := p.Ts != l.lastObsTs[cfg.ID]
+	if freshPayload {
+		l.lastObsTs[cfg.ID] = p.Ts
+	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
 		wireless: out.wireless, fdb: out.fdb, luci: out.luci}
 	l.mu.Unlock()
 
-	l.recordPortSamples(cfg.ID, out.ports)
-	l.portMon.Observe(cfg.ID, out.ports, l.engine)
+	// Solo con un payload NUEVO alimentamos las series y el monitor de
+	// puertos (issue #365): entre pushes, cada rebuild del overview vuelve
+	// por aquí con el MISMO payload cacheado, y re-observar contadores
+	// congelados dispara alertas fantasma ("zero bytes" que solo es espera
+	// del siguiente push).
+	if freshPayload {
+		l.recordPortSamples(cfg.ID, out.ports)
+		l.portMon.Observe(cfg.ID, out.ports, l.engine)
+	}
 
 	if out.leases == nil {
 		out.leases = []DhcpLease{}

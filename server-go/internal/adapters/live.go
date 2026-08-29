@@ -195,6 +195,9 @@ type Live struct {
 	// (contadores absolutos + ts) para calcular los rates por boca con el
 	// delta entre payloads (issue #305). Protegido por mu.
 	lastAgentIf map[string]*agentIfSample
+	// lastObsTs: ts del último payload del agente que alimentó las series
+	// por puerto y el PortMonitor (issue #365). Protegido por mu.
+	lastObsTs map[string]int64
 	// snmpPorts (issue #309): contadores del último poll SNMP por router y
 	// puerto. Se usa para calcular rxBps/txBps entre polls sucesivos.
 	snmpPorts map[string]map[string]snmpPortSample
@@ -286,6 +289,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		layoutCache:          map[string][]PortLayout{},
 		extrasCache:          map[string]*extrasSnapshot{},
 		lastAgentIf:          map[string]*agentIfSample{},
+		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
