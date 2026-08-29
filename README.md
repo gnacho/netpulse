@@ -85,6 +85,16 @@ anomalies, and warns you.
 - **Optional collector sidecar**: TCP latency probes per router with its
   own long-term time series.
 
+### What gets discovered
+
+NetPulse discovers client devices from three sources that run on the monitored routers:
+
+1. **DHCP leases** - every time the agent polls, it reads the local DHCP lease table.
+2. **Bridge FDB** - wired clients are learned from the switch bridge forwarding database.
+3. **mDNS / Bonjour** - when `umdns` is installed on OpenWrt, the agent browses advertised services and resolves hostnames.
+
+LLDP is used only to identify neighbouring routers/switches, not end devices. Discovery requires the NetPulse agent to be running on the router that sees the clients; a fresh install with only manually onboarded routers and no agent on the gateway will show an empty device list until the agent is installed.
+
 ## Screenshots
 
 **Topology: inferred live from the bridge FDB, tunnels included**

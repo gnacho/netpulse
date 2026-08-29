@@ -86,6 +86,16 @@ visor global: analiza tu red, detecta anomalías y te avisa.
 - **Sidecar collector opcional**: sondeo de latencia TCP por router con
   sus propias series temporales de largo plazo.
 
+### Qué se descubre
+
+NetPulse descubre dispositivos clientes a partir de tres fuentes que se ejecutan en los routers monitorizados:
+
+1. **Leases DHCP**: en cada push, el agente lee la tabla local de leases DHCP.
+2. **FDB del bridge**: los clientes cableados se aprenden de la base de datos de reenvío del switch.
+3. **mDNS / Bonjour**: si `umdns` está instalado en OpenWrt, el agente hace browse de los servicios anunciados y resuelve hostnames.
+
+LLDP solo se usa para identificar routers/switches vecinos, no dispositivos finales. El descubrimiento requiere que el agente de NetPulse esté corriendo en el router que ve a los clientes; una instalación nueva con solo routers dados de alta manualmente y sin agente en el gateway mostrará una lista de dispositivos vacía hasta que se instale el agente.
+
 ## Capturas
 
 **Topología: inferida en vivo del FDB del bridge, túneles incluidos**
