@@ -41,9 +41,9 @@ func TestAgentsNetgripKind(t *testing.T) {
 	if patio["version"] != "0.23.0" {
 		t.Fatalf("patio version: %v", patio["version"])
 	}
-	if upd, ok := patio["updateAvailable"].(bool); ok && upd {
-		t.Fatalf("con netgrip latest 0.22.1 y router en 0.23.0 no debe ofrecer upgrade: %v", patio)
-	}
+	// updateAvailable para netgrip depende de la latest release REAL de
+	// NetGrip en GitHub (cache 5 min): NO se asserting aquí (la comparación
+	// semver está unit-testeada en TestNetgripLatestCacheAndCmp, interno).
 
 	post := func(path string) int {
 		req, _ := http.NewRequest("POST", ts.URL+path, nil)
