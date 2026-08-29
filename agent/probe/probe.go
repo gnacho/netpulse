@@ -40,6 +40,28 @@ const (
 		`freq=$(iwinfo "$i" info 2>/dev/null | sed -n 's/.*Channel: [0-9]* (\([0-9.]*\) GHz).*/\1/p' | head -1); ` +
 		`iwinfo "$i" assoclist 2>/dev/null | sed -n 's/^\([0-9A-Fa-f:]\{17\}\) *\(-[0-9]*\).*/\1 \2/p' | while read mac sig; do ` +
 		`echo "$mac $sig $freq"; done; done`
+	// CmdHostapdClients (#368): clientes por AP vía ubus (una llamada por AP,
+	// binario pequeñísimo, sin ucode ni libiwinfo). Emite "==AP==<obj>" antes
+	// del JSON multi-línea de cada get_clients; el parser de Go trocea por la
+	// marca. Mucho más barato que iwinfo en CPUs justas (MT7621: el ucode de
+	// iwinfo quemaba 25% de CPU con churn de roaming).
+	CmdHostapdClients = `for o in $(ubus list 'hostapd.*' 2>/dev/null); do ` +
+		`echo "==AP==$o"; ubus call "$o" get_clients 2>/dev/null; done`
+	// CmdWirelessCombined (#368): iwinfo en UNA pasada por interfaz (info una
+	// vez + assoclist una vez) emitiendo clientes y resumen de radio juntos.
+	// Sustituye a CmdIwinfoAssoc+CmdRadios cuando ubus no está: la mitad de
+	// spawns. Líneas "C|mac|sig|freq" (clientes) y "R|freq|ch|ht|tx|n" (radio).
+	CmdWirelessCombined = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
+		`info=$(iwinfo "$i" info 2>/dev/null) || continue; ` +
+		`echo "$info" | grep -q ESSID || continue; ` +
+		`freq=$(echo "$info" | sed -n 's/.*Channel: [0-9]* (\([0-9.]*\) GHz).*/\1/p' | head -1); ` +
+		`ch=$(echo "$info" | sed -n 's/.*Channel: \([0-9][0-9]*\).*/\1/p' | head -1); ` +
+		`ht=$(echo "$info" | sed -n 's/.*HT [Mm]ode: \([A-Za-z0-9]*\).*/\1/p' | head -1); ` +
+		`tx=$(echo "$info" | sed -n 's/.*Tx-Power: \([0-9]*\).*/\1/p' | head -1); ` +
+		`al=$(iwinfo "$i" assoclist 2>/dev/null); ` +
+		`n=$(echo "$al" | grep -c '^[0-9A-Fa-f:]'); ` +
+		`echo "R|$freq|$ch|$ht|$tx|$n"; ` +
+		`echo "$al" | sed -n "s/^\([0-9A-Fa-f:]\{17\}\) *\(-[0-9]*\).*/C|\1|\2|$freq/p"; done`
 	// CmdRadios: "freq|ch|ht|tx|n" por radio (se agrega por banda al parsear).
 	CmdRadios = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
 		`info=$(iwinfo "$i" info 2>/dev/null) || continue; ` +
@@ -75,7 +97,7 @@ const (
 	CmdLuCILabels = "cat /etc/config/luci 2>/dev/null"
 	// CmdWanStatus: estado de la interfaz WAN (solo gateway) vía ubus.
 	// Da proto ("pppoe"), IP, gateway (ptpaddress/nexthop) y DNS (issue #276).
-	CmdWanStatus = "ubus call network.interface.wan status 2>/dev/null || true"
+	CmdWanStatus  = "ubus call network.interface.wan status 2>/dev/null || true"
 	CmdBridgeVlan = "bridge vlan show 2>/dev/null || true"
 
 	// CmdMdnsBrowse (#338): mDNS service discovery via umdns (OpenWrt's
@@ -179,11 +201,11 @@ type EthPort struct {
 // SfpInfo: diagnóstico digital (DDM/DOM) de un módulo SFP (#313). Present
 // indica si se leyeron datos (ethtool -m devolvió algo parseable).
 type SfpInfo struct {
-	Temperature float64 `json:"temperature"`        // grados Celsius
-	Voltage     float64 `json:"voltage,omitempty"`   // voltios (3.3 V típico)
-	TxPower     float64 `json:"txPower"`             // dBm
-	RxPower     float64 `json:"rxPower"`             // dBm (negativo)
-	Vendor      string  `json:"vendor,omitempty"`    // "FS.COM", "Ubiquiti", ...
+	Temperature float64 `json:"temperature"`       // grados Celsius
+	Voltage     float64 `json:"voltage,omitempty"` // voltios (3.3 V típico)
+	TxPower     float64 `json:"txPower"`           // dBm
+	RxPower     float64 `json:"rxPower"`           // dBm (negativo)
+	Vendor      string  `json:"vendor,omitempty"`  // "FS.COM", "Ubiquiti", ...
 	PartNumber  string  `json:"partNumber,omitempty"`
 	Present     bool    `json:"present"`
 }
@@ -374,12 +396,12 @@ func ParsePingSummary(out string) (latency, loss *float64) {
 // ({lease: [...]} o {leases: [...]}). Error si no es JSON con esas claves.
 func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 	type leaseJSON struct {
-		MAC       string `json:"mac"`
-		IPAddr    string `json:"ip-address"`
-		IP        string `json:"ip"`
-		Hostname  string `json:"hostname"`
-		VendorID  string `json:"vendorid"`
-		ClientID  string `json:"clientid"`
+		MAC      string `json:"mac"`
+		IPAddr   string `json:"ip-address"`
+		IP       string `json:"ip"`
+		Hostname string `json:"hostname"`
+		VendorID string `json:"vendorid"`
+		ClientID string `json:"clientid"`
 	}
 	var data struct {
 		Lease  []leaseJSON `json:"lease"`
@@ -833,8 +855,8 @@ type VlanEntry struct {
 
 // VlanPort: puerto del bridge con sus VLANs (issue #315).
 type VlanPort struct {
-	Port  string       `json:"port"`
-	Vlans []VlanEntry  `json:"vlans"`
+	Port  string      `json:"port"`
+	Vlans []VlanEntry `json:"vlans"`
 }
 
 var vlanIDRe = regexp.MustCompile(`^(\d+)(.*)$`)
@@ -901,6 +923,84 @@ func ParseBridgeVlan(out string) []VlanPort {
 var nonDigitRe = regexp.MustCompile(`\D`)
 
 // ParseRadios: líneas "freq|ch|ht|tx|n" agregadas por banda (suma clientes).
+// hostapdClientsJSON es el shape de `ubus call hostapd.<if> get_clients`.
+type hostapdClientsJSON struct {
+	Freq    float64 `json:"freq"`
+	Clients map[string]struct {
+		Auth       bool `json:"auth"`
+		Assoc      bool `json:"assoc"`
+		Authorized bool `json:"authorized"`
+		Signal     int  `json:"signal"`
+	} `json:"clients"`
+}
+
+// ParseHostapdClients (#368) parsea el output de CmdHostapdClients: bloques
+// "==AP==hostapd.phy0-ap0" seguidos del JSON de get_clients. Solo cuenta
+// estaciones asociadas y autorizadas (equivalente a iwinfo assoclist); la
+// banda sale del "freq" del bloque (>=5 GHz = "5 GHz"). Mismo shape que
+// ParseWirelessClients.
+func ParseHostapdClients(out string) map[string]WirelessClient {
+	m := map[string]WirelessClient{}
+	for _, chunk := range strings.Split(out, "==AP==") {
+		chunk = strings.TrimSpace(chunk)
+		if chunk == "" {
+			continue
+		}
+		// La marca lleva el objeto ubus delante; el JSON empieza en "{".
+		i := strings.Index(chunk, "{")
+		if i < 0 {
+			continue
+		}
+		var j hostapdClientsJSON
+		if err := json.Unmarshal([]byte(chunk[i:]), &j); err != nil || j.Freq == 0 {
+			continue
+		}
+		freq := j.Freq
+		if freq >= 1000 { // ubus get_clients da MHz; iwinfo da GHz
+			freq /= 1000
+		}
+		band := "2.4 GHz"
+		if freq >= 5 {
+			band = "5 GHz"
+		}
+		for mac, st := range j.Clients {
+			if !st.Assoc || !st.Authorized {
+				continue
+			}
+			m[strings.ToUpper(mac)] = WirelessClient{SignalDbm: st.Signal, Band: band}
+		}
+	}
+	return m
+}
+
+// ParseWirelessCombined (#368) parsea CmdWirelessCombined: líneas "C|mac|sig|
+// freq" (clientes, mismo shape que ParseWirelessClients) y "R|freq|ch|ht|tx|n"
+// (radios, mismo shape que ParseRadios, que se reutiliza).
+func ParseWirelessCombined(out string) (map[string]WirelessClient, []Radio) {
+	clients := map[string]WirelessClient{}
+	var radioLines []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "C|"):
+			p := strings.Split(line, "|")
+			if len(p) < 4 {
+				continue
+			}
+			sig, _ := strconv.Atoi(p[2])
+			freq, _ := strconv.ParseFloat(p[3], 64)
+			band := "2.4 GHz"
+			if freq >= 5 {
+				band = "5 GHz"
+			}
+			clients[strings.ToUpper(p[1])] = WirelessClient{SignalDbm: sig, Band: band}
+		case strings.HasPrefix(line, "R|"):
+			radioLines = append(radioLines, strings.TrimPrefix(line, "R|"))
+		}
+	}
+	return clients, ParseRadios(strings.Join(radioLines, "\n"))
+}
+
 func ParseRadios(out string) []Radio {
 	byBand := map[string]*Radio{}
 	order := []string{}

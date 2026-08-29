@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -66,7 +67,17 @@ type Prober struct {
 	// para derivar la sección NetIf (contadores por iface, #305) sin un
 	// segundo cat.
 	lastNetRaw string
+
+	// radiosCache (#368): el resumen de radios (canal/htmode/txpower) cambia
+	// tan poco que no merece iwinfo en cada ciclo NI en el path de eventos:
+	// se refresca cada radiosTTL en el sondeo completo y el resto de las
+	// llamadas reutilizan la última.
+	radiosMu    sync.Mutex
+	radiosCache []Radio
+	radiosAt    time.Time
 }
+
+const radiosTTL = 5 * time.Minute
 
 // NewProber crea el prober con el runner dado.
 func NewProber(run Runner, opts Options) *Prober {
@@ -91,7 +102,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 		Version: version,
 	}
 	pl.Data.System = p.probeSystem(ctx)
-	pl.Data.Wireless = p.probeWireless(ctx)
+	pl.Data.Wireless = p.probeWireless(ctx, true)
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	pl.Data.FDB = p.probeFDB(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
@@ -116,7 +127,7 @@ func (p *Prober) BuildWireless(ctx context.Context, router, version string) *Pay
 		Ts:      time.Now().Unix(),
 		Version: version,
 	}
-	pl.Data.Wireless = p.probeWireless(ctx)
+	pl.Data.Wireless = p.probeWireless(ctx, false)
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	return pl
 }
@@ -198,19 +209,77 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 	return sd
 }
 
-// probeWireless: clientes asociados (iwinfo assoclist) + radios por banda.
-// nil si iwinfo no existe en el equipo.
-func (p *Prober) probeWireless(ctx context.Context) *WirelessData {
+// probeWireless: clientes asociados + radios por banda (#368: ubus primero,
+// iwinfo combinado en UNA pasada como fallback, radios cacheadas radiosTTL).
+// full=false (path de eventos nl80211) evita iwinfo por completo: ubus para
+// clientes y radios de caché. nil si no hay fuente wireless.
+func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 	wd := &WirelessData{}
 	any := false
-	if out := p.runBest(ctx, CmdIwinfoAssoc, 8*time.Second); out != "" {
-		wd.Clients = ParseWirelessClients(out)
-		any = true
+
+	// Clientes: ubus hostapd get_clients (barato, sin ucode).
+	if out := p.runBest(ctx, CmdHostapdClients, 5*time.Second); out != "" {
+		wd.Clients = ParseHostapdClients(out)
+		if len(wd.Clients) > 0 {
+			any = true
+		}
 	}
-	if out := p.runBest(ctx, CmdRadios, 8*time.Second); out != "" {
-		wd.Radios = ParseRadios(out)
-		any = true
+	// Fallback (o APs sin ubus hostapd): iwinfo en UNA pasada por interfaz,
+	// que además produce el resumen de radios.
+	combined := ""
+	if !any {
+		combined = p.runBest(ctx, CmdWirelessCombined, 8*time.Second)
+		if combined != "" {
+			clients, radios := ParseWirelessCombined(combined)
+			wd.Clients = clients
+			if len(clients) > 0 {
+				any = true
+			}
+			p.radiosMu.Lock()
+			if len(radios) > 0 {
+				p.radiosCache, p.radiosAt = radios, time.Now()
+			} else if time.Since(p.radiosAt) < radiosTTL {
+				radios = p.radiosCache
+			}
+			p.radiosMu.Unlock()
+			wd.Radios = radios
+		}
 	}
+	// Último recurso (#368): el par de comandos clásico (equipos donde el
+	// combinado no produjo clientes p. ej. iwinfo sin ESSID en la interfaz).
+	if !any {
+		if out := p.runBest(ctx, CmdIwinfoAssoc, 8*time.Second); out != "" {
+			wd.Clients = ParseWirelessClients(out)
+			any = len(wd.Clients) > 0
+		}
+	}
+
+	// Radios: solo en el sondeo completo (canal/htmode/txpower casi nunca
+	// cambian); el path de eventos reutiliza la caché.
+	if full {
+		if combined != "" && wd.Radios == nil {
+			wd.Radios = []Radio{}
+		}
+		if combined == "" {
+			if out := p.runBest(ctx, CmdRadios, 8*time.Second); out != "" {
+				p.radiosMu.Lock()
+				p.radiosCache, p.radiosAt = ParseRadios(out), time.Now()
+				wd.Radios = p.radiosCache
+				p.radiosMu.Unlock()
+			}
+		}
+	} else {
+		p.radiosMu.Lock()
+		cached := p.radiosCache
+		p.radiosMu.Unlock()
+		if len(cached) > 0 {
+			wd.Radios = cached
+			if len(wd.Clients) > 0 {
+				any = true
+			}
+		}
+	}
+
 	if !any {
 		return nil
 	}
