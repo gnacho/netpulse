@@ -438,6 +438,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				slug := strings.TrimPrefix(key, agentTokenKeyPrefix)
 				item := agentListItem{Slug: slug}
 				var payload *probe.Payload
+				agentKind := ""
 				if s.agents != nil {
 					if st := s.agents.Snapshot(slug); st != nil {
 						payload = st.Payload
@@ -446,9 +447,11 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						ts := seen.Unix()
 						item.LastSeen = &ts
 						item.Version = version
-						if kind == "external" {
-							item.Kind = "external"
-						} else {
+						agentKind = kind
+						switch kind {
+						case "external", "netgrip":
+							item.Kind = kind
+						default:
 							item.Kind = "native"
 						}
 						item.Interval = interval
@@ -463,7 +466,9 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				if r, ok := routerByID[item.RouterID]; ok {
 					matchedType = r.Type
 				}
-				item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && item.Version != agentbin.EmbeddedAgentVersion
+				// #363: un agente embebido en NetGrip NO se actualiza desde
+				// aquí (el binario es el panel; se actualiza a sí mismo).
+				item.UpdateAvailable = agentUpgradeable(matchedType) && agentKind != "netgrip" && item.Version != "" && item.Version != agentbin.EmbeddedAgentVersion
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {
 					ts := st.Ts.Unix()
@@ -583,6 +588,8 @@ func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "router_unknown", err.Error())
 	case errors.Is(err, rearmer.ErrExternalAgent):
 		writeError(w, http.StatusConflict, "not_openwrt", err.Error())
+	case errors.Is(err, rearmer.ErrNetgripAgent):
+		writeError(w, http.StatusConflict, "netgrip_managed", err.Error())
 	case errors.Is(err, rearmer.ErrNoSSH):
 		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", err.Error())
 	default:
@@ -623,6 +630,12 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.db == nil || s.pool == nil {
 		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
+		return
+	}
+	// #363: jamás desplegar el binario standalone sobre un router cuyo
+	// agente es el NetGrip embebido (lo destrozaría: duplicado + token roto).
+	if s.agentKindOf(slug) == "netgrip" {
+		writeError(w, http.StatusConflict, "netgrip_managed", "agente embebido en NetGrip: actualiza o reinstala el panel NetGrip en el propio router")
 		return
 	}
 
@@ -791,4 +804,15 @@ func (s *server) handleAgentRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+// agentKindOf devuelve el kind del último push del slug ("" si no hay).
+func (s *server) agentKindOf(slug string) string {
+	if s.agents == nil {
+		return ""
+	}
+	if _, _, kind, _, ok := s.agents.Info(slug); ok {
+		return kind
+	}
+	return ""
 }

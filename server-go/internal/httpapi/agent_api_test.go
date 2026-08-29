@@ -61,9 +61,19 @@ func makeAgentTestServer(t *testing.T) *agentTestServer {
 	}
 	reg := adapters.NewAgentRegistry(90 * time.Second)
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
+	// AgentHub con el checkToken de producción (sha256 del token vs kv):
+	// registra rutas de comandos SSE (/upgrade, /refresh) como en prod.
+	agentHub := sse.NewAgentHub(func(slug, token string) bool {
+		var stored string
+		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", "agent.token."+slug).Scan(&stored); err != nil {
+			return false
+		}
+		sum := sha256.Sum256([]byte(token))
+		return hex.EncodeToString(sum[:]) == stored
+	})
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(), Hub: hub, Secret: secret,
-		Agents: reg, Started: time.Now(),
+		Agents: reg, Started: time.Now(), AgentHub: agentHub,
 	})
 	srv := httptest.NewServer(handler)
 	status, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")

@@ -184,6 +184,12 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
+	// #363: el agente embebido de NetGrip se ignora por diseño (OnUpgrade
+	// no-op); rechazar aquí evita colas y estados de upgrade fantasma.
+	if s.agentKindOf(slug) == "netgrip" {
+		writeError(w, http.StatusConflict, "netgrip_managed", "agente embebido en NetGrip: actualiza el panel NetGrip en el propio router")
+		return
+	}
 	// El agente conoce su propia arquitectura (runtime.GOARCH); no hace falta
 	// pasársela. Data vacía {}. Si no está conectado por SSE, el upgrade se
 	// ENCOLA y se enviará en cuanto vuelva a conectar (#284).

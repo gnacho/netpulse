@@ -78,6 +78,9 @@ var (
 	// p. ej. switch gestionado por beacon): sin SSH, no se instala, no se
 	// rearmera ni se actualiza - solo alerta (#291).
 	ErrExternalAgent = fmt.Errorf("agente externo: sin SSH ni rearme")
+	// ErrNetgripAgent (#363): el agente de este slug es el NetGrip embebido;
+	// no se rearma ni se reinstala desde el servidor.
+	ErrNetgripAgent = fmt.Errorf("agente embebido en NetGrip: gestionarlo desde el panel NetGrip")
 	ErrNoSSH    = fmt.Errorf("el servidor no tiene pool SSH (modo demo o clave ausente)")
 	ErrNoDB     = fmt.Errorf("db no disponible")
 )
@@ -137,6 +140,13 @@ func nativeAgentType(t string) bool {
 func (r *Rearmer) Rearm(slug string) (Result, error) {
 	if r.db == nil {
 		return Result{}, ErrNoDB
+	}
+	// #363: los agentes embebidos en NetGrip no se rearman por SSH (el
+	// servicio del agente es el propio panel).
+	if r.agents != nil {
+		if _, _, kind, _, ok := r.agents.Info(slug); ok && kind == "netgrip" {
+			return Result{}, ErrNetgripAgent
+		}
 	}
 	// El slug debe tener token registrado (si no, 404 como DELETE).
 	var exists int
@@ -325,6 +335,12 @@ func (s *Supervisor) CheckOnce() {
 			continue
 		}
 		res, err := s.rearmer.Rearm(slug)
+		if err == ErrNetgripAgent {
+			// #363: NetGrip embebido: ni rearme ni alerta de rearme (la caída
+			// ya la reporta el Dead Man's Switch como cualquier agente).
+			s.closeFailID(slug)
+			continue
+		}
 		if err != nil {
 			// ErrCooldown (rearme manual reciente), SSH caído, etc.:
 			// no consume el slot; se reintenta en el próximo tick.
