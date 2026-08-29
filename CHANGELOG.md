@@ -17,6 +17,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- **AdGuard Home remoto (#379)**: el ajuste de AdGuard ahora permite elegir entre el modo GL.iNet (en el router) y el modo estándar (instancia remota). En modo estándar se configura FQDN/IP + puerto, y NetPulse se conecta directamente por HTTP a la API /control.
 - NetGrip embedded agents are told apart (kind netgrip) in the agents view:
   Estado (active/inactive/not installed) and a new Agente column (NetPulse/
   NetGrip/Externo). NetPulse can update them centrally via the SSE upgrade
@@ -30,6 +31,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- **Caché de DNS con TTL (#376)**: el agente cachea las resoluciones respetando el TTL real, reduciendo latencia y consultas repetidas.
+- **UI en inglés sin cadenas españolas (#378)**: el feed de alertas demo ahora es bilingüe y no muestra textos en español cuando la interfaz está en inglés.
+- **Documentación del descubrimiento (#375)**: el README explica qué fuentes usa NetPulse para descubrir dispositivos (ARP, DHCP leases, WiFi, LLDP, DNS, OUI).
 - Agent no longer burns CPU on iwinfo shell-outs (reported 25% on MT7621):
   clients come from ubus hostapd get_clients, single-pass iwinfo fallback,
   radios cached out of the event path.
