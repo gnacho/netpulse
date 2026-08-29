@@ -101,6 +101,12 @@ type pairResponse struct {
 
 // handleAgentPair (POST /api/agents/pair): valida el pairing token y crea un
 // agente nuevo. No requiere sesión (el pairing token es la auth). Rate limited.
+//
+// #367: además del pairing token de admin (crea o ROTA el agente del slug),
+// acepta el token de alta de red del autoenroll cuando AGENT_AUTOENROLL=1.
+// El token de red SOLO puede crear agentes para slugs que no existan: si el
+// slug ya tiene token, responde 409 slug_taken (un router descubierto nunca
+// puede suplantar ni rotar el agente de otro).
 func (s *server) handleAgentPair(w http.ResponseWriter, r *http.Request) {
 	ip := auth.ClientIP(r)
 	if ok, _ := s.ingestLimit.allow(ip); !ok {
@@ -120,15 +126,28 @@ func (s *server) handleAgentPair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validar pairing token contra el almacenado.
+	// Validar el token: primero el pairing token de admin (semántica
+	// completa: crear o rotar), después el token de red del autoenroll
+	// (solo creación de slugs nuevos).
 	stored, err := s.getPairingToken()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "pairing_error")
 		return
 	}
-	if stored == "" || subtle.ConstantTimeCompare([]byte(body.PairingToken), []byte(stored)) != 1 {
-		writeError(w, http.StatusUnauthorized, "invalid_pairing_token")
-		return
+	adminToken := stored != "" && subtle.ConstantTimeCompare([]byte(body.PairingToken), []byte(stored)) == 1
+	if !adminToken {
+		if !s.checkAutoenrollToken(body.PairingToken) {
+			writeError(w, http.StatusUnauthorized, "invalid_pairing_token")
+			return
+		}
+		var existing string
+		_ = s.db.QueryRow(
+			"SELECT COALESCE(value,'') FROM kv WHERE key = ?", agentTokenKey(body.Slug)).Scan(&existing)
+		if existing != "" {
+			writeError(w, http.StatusConflict, "slug_taken",
+				"el slug ya tiene un agente; el autoenroll no puede rotarlo (renombra el equipo o usa el pairing token de admin)")
+			return
+		}
 	}
 
 	// Crear el agente (mismo flujo que POST /api/agents).

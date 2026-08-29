@@ -329,14 +329,14 @@ func (s *server) emitPortLinkChange(slug, label string, up bool) {
 	var ev alerts.AlertEvent
 	if up {
 		ev = alerts.AlertEvent{
-			ID: fmt.Sprintf("beacon-port-up-%s-%d", slug, time.Now().UnixMilli()),
+			ID:       fmt.Sprintf("beacon-port-up-%s-%d", slug, time.Now().UnixMilli()),
 			Category: alerts.CatSystem, Severity: "ok", Time: "ahora mismo",
 			RouterID: slug, Title: "Link restablecido en " + name,
 			Description: "Detectado por el cambio entre beacons",
 		}
 	} else {
 		ev = alerts.AlertEvent{
-			ID: fmt.Sprintf("beacon-port-down-%s-%d", slug, time.Now().UnixMilli()),
+			ID:       fmt.Sprintf("beacon-port-down-%s-%d", slug, time.Now().UnixMilli()),
 			Category: alerts.CatSystem, Severity: "warn", Time: "ahora mismo",
 			RouterID: slug, Title: "Link caído en " + name,
 			Description: "Detectado por el cambio entre beacons",
@@ -366,19 +366,19 @@ func (s *server) emitSFPAlerts(slug string, labels map[string]string, sfpByPort 
 		}
 		if sfp.RxPower < sfpAlertRxLow {
 			eng.Emit(alerts.AlertEvent{
-				ID: fmt.Sprintf("sfp-rx-%s-%d", slug, portNum),
+				ID:       fmt.Sprintf("sfp-rx-%s-%d", slug, portNum),
 				Category: alerts.CatSystem, Urgent: false,
 				Severity: "warn", Time: "ahora mismo", RouterID: slug,
-				Title: fmt.Sprintf("SFP RX bajo en %s", portName),
+				Title:       fmt.Sprintf("SFP RX bajo en %s", portName),
 				Description: fmt.Sprintf("Potencia RX %.1f dBm (umbral %.0f dBm)", sfp.RxPower, sfpAlertRxLow),
 			})
 		}
 		if sfp.Temperature > sfpAlertTempHigh {
 			eng.Emit(alerts.AlertEvent{
-				ID: fmt.Sprintf("sfp-temp-%s-%d", slug, portNum),
+				ID:       fmt.Sprintf("sfp-temp-%s-%d", slug, portNum),
 				Category: alerts.CatSystem, Urgent: false,
 				Severity: "warn", Time: "ahora mismo", RouterID: slug,
-				Title: fmt.Sprintf("SFP caliente en %s", portName),
+				Title:       fmt.Sprintf("SFP caliente en %s", portName),
 				Description: fmt.Sprintf("Temperatura %.1f °C (umbral %.0f °C)", sfp.Temperature, sfpAlertTempHigh),
 			})
 		}
@@ -476,9 +476,9 @@ func (s *server) beaconSeqNote(slug string, seq uint32) {
 	if had && seq <= 1 && old > 1 {
 		if eng := s.alertsEngine(); eng != nil {
 			eng.Emit(alerts.AlertEvent{
-				ID:         fmt.Sprintf("beacon-reboot-%s-%d", slug, time.Now().UnixMilli()),
-				Category:   alerts.CatSystem, Severity: "info", Time: "ahora mismo",
-				RouterID:   slug, Title: "Switch reiniciado",
+				ID:       fmt.Sprintf("beacon-reboot-%s-%d", slug, time.Now().UnixMilli()),
+				Category: alerts.CatSystem, Severity: "info", Time: "ahora mismo",
+				RouterID: slug, Title: "Switch reiniciado",
 				Description: fmt.Sprintf("El contador de beacons de %s volvió a empezar (seq %d tras %d): el switch ha arrancado de nuevo", slug, seq, old),
 			})
 		}
@@ -505,6 +505,12 @@ func (s *server) startBeaconListener(addr string) (net.Addr, error) {
 				return // socket cerrado
 			}
 			if src == nil {
+				continue
+			}
+			// #367: probe de descubrimiento zero-touch (NetGrip). Se
+			// contesta unicast y no entra en la vía del beacon.
+			if isDiscoveryProbe(buf[:n]) {
+				s.answerDiscovery(pc, src)
 				continue
 			}
 			host, _, splitErr := net.SplitHostPort(src.String())
