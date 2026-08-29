@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/gnacho/netpulse/agent/internal/yield"
 	"github.com/gnacho/netpulse/agent/runtime"
 )
 
@@ -64,6 +65,17 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+
+	// #369: si NetGrip está en este router, su agente embebido (este mismo
+	// runtime dentro del panel) es el que manda: ceder ANTES de arrancar y
+	// luego vigilar por si se instala más tarde. El guard vive SOLO en el
+	// standalone: el runtime queda agnóstico del sabor (ver imports_test).
+	yp := yield.DefaultPaths()
+	if yield.NetgripPresent(yp) {
+		yield.Yield(yp, yield.ReasonStartup, nil)
+		return
+	}
+	go yield.Watch(ctx, yp, yield.Interval, stop)
 
 	if err := runtime.Run(ctx, opts); err != nil {
 		slog.Error("[netpulse-agent] error fatal", "err", err)
