@@ -7,6 +7,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.19.1] - 2026-08-29
+
+### Fixed
+
+- Añade el tracker de Umami a la landing para registrar visitas (#384).
+
 ## [2.19.0] - 2026-08-29
 
 ### Added
