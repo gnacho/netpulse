@@ -65,7 +65,7 @@ type Config struct {
 	AutoRearm       bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
 	BeaconListen    string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
 	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
-	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9 — config UCI, bootstrap AUTH_PASS)
+	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea

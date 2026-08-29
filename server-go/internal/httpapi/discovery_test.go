@@ -1,4 +1,4 @@
-// discovery_test.go — #367: responder UDP de descubrimiento y token de alta
+// discovery_test.go: #367 responder UDP de descubrimiento y token de alta
 // de red (autoenroll). Tests internos para ejercitar el listener UDP y el
 // handler de pair directamente.
 package httpapi

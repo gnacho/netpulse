@@ -1,4 +1,4 @@
-// discovery.go — responder UDP de descubrimiento zero-touch (#367).
+// discovery.go: responder UDP de descubrimiento zero-touch (#367).
 //
 // NetGrip (panel on-router con el agente embebido) no tiene config inicial:
 // para encontrarnos emite un probe UDP en broadcast al puerto del listener
