@@ -29,6 +29,10 @@
 #                   reiniciar — tras un reboot hay que reejecutar este script
 #                   (variante documentada del SPEC; el .ipk llega en el incr. 2)
 #   --uninstall     detiene y elimina servicio, binario y config del router
+#   --update-netgrip  si se detecta NetGrip en el router: actualizar el panel
+#                   NetGrip a su última release (apk/ipk de GitHub) en vez de
+#                   limitarse a entregarle la config (--force permite bajar de
+#                   versión)
 #
 # Requisitos: ssh/scp al router (OpenWrt con dropbear), curl o wget local.
 # =============================================================================
@@ -40,7 +44,7 @@ ENV_FILE="/etc/netpulse-agent.env"
 INIT_NAME="netpulse-agent"
 INIT_DST="/etc/init.d/$INIT_NAME"
 
-HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; SSH_USER="root"; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0
+HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; SSH_USER="root"; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0; UPDATE_NETGRIP=0; NETGRIP_FORCE=0
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     C_G=$(printf '\033[32m'); C_R=$(printf '\033[31m'); C_Y=$(printf '\033[33m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
@@ -65,6 +69,8 @@ for arg in "$@"; do
         --version=*)  NETPULSE_VERSION="${arg#*=}" ;;
         --tmp)        USE_TMP=1 ;;
         --uninstall)  UNINSTALL=1 ;;
+        --update-netgrip) UPDATE_NETGRIP=1 ;;
+        --force)      NETGRIP_FORCE=1 ;;
         -h|--help)    usage ;;
         *) fatal 10 "opción desconocida: $arg (prueba --help)" ;;
     esac
@@ -102,6 +108,86 @@ SERVER="${SERVER%/}"
 
 ssh -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true \
     || fatal 13 "no hay SSH a $SSH (¿dropbear + clave autorizada?)"
+
+# ----------------------------------------------------- netgrip handoff --
+# Si el router ya corre NetGrip, su agente EMBEBIDO cubre el sondeo: no se
+# instala el standalone. Se le entrega la config (sin pisar la existente) y
+# opcionalmente se actualiza el propio NetGrip (--update-netgrip).
+if ssh "$SSH" '[ -x /usr/sbin/netgrip ] || [ -f /etc/init.d/netgrip ]'; then
+    info "NetGrip detectado en $HOST: el agente embebido ya cubre este router"
+    # Token line igual que el flujo normal
+    if [ -n "$PAIRING_TOKEN" ]; then
+        HANDOFF_TOKEN="NETPULSE_PAIRING_TOKEN=$PAIRING_TOKEN"
+    else
+        HANDOFF_TOKEN="NETPULSE_TOKEN=$TOKEN"
+    fi
+    HANDOFF_FP=""
+    [ -n "$SERVER_FP" ] && HANDOFF_FP="NETPULSE_SERVER_FP=$SERVER_FP"
+    ssh "$SSH" "NG_ENV=/etc/netgrip/netpulse.env sh -s" <<HANDOFF
+set -eu
+if [ ! -f "\$NG_ENV" ]; then
+    mkdir -p /etc/netgrip
+    {
+        echo "# managed by netgrip; netpulse embedded agent config"
+        echo "NETPULSE_SERVER=$SERVER"
+        echo "NETPULSE_SLUG=$SLUG"
+        echo "$HANDOFF_TOKEN"
+        ${HANDOFF_FP:+echo "$HANDOFF_FP"}
+        echo "NETPULSE_ENABLED=1"
+    } > "\$NG_ENV"
+    chmod 600 "\$NG_ENV"
+    echo "config-escrita"
+else
+    echo "config-existente-conservada"
+fi
+HANDOFF
+
+    if [ "$UPDATE_NETGRIP" -eq 1 ]; then
+        # Versión instalada (registry apk/opkg; vacío si es binario manual)
+        CUR=$(ssh "$SSH" "(apk info netgrip 2>/dev/null || opkg status netgrip 2>/dev/null | sed -n 's/^Version: //p') | head -1")
+        if command -v curl >/dev/null 2>&1; then FETCH="curl -fsSL --retry 3 --connect-timeout 10"
+        elif command -v wget >/dev/null 2>&1; then FETCH="wget -q -O-"
+        else fatal 21 "necesito curl o wget"; fi
+        NG_TAG=$($FETCH "https://api.github.com/repos/gnacho/netgrip/releases/latest" \
+            | grep '"tag_name"' | head -1 | cut -d'"' -f4) || fatal 41 "no pude resolver la última release de NetGrip"
+        NG_VER=$(echo "$NG_TAG" | sed 's/^v//')
+        ARCH=$(ssh "$SSH" uname -m)
+        case "$ARCH" in
+            aarch64|arm64) NG_ARCH=arm64 ;;
+            *) fatal 20 "NetGrip solo publica builds arm64 (router: $ARCH)" ;;
+        esac
+        if ssh "$SSH" command -v apk >/dev/null 2>&1; then
+            NG_ASSET="netgrip-${NG_VER}-r1-${NG_ARCH}.apk"; NG_INST="apk add --allow-untrusted /tmp/netgrip-update.pkg"
+        else
+            NG_ASSET="netgrip_${NG_VER}-1_aarch64_cortex-a53.ipk"; NG_INST="opkg install /tmp/netgrip-update.pkg"
+        fi
+        NG_URL="https://github.com/gnacho/netgrip/releases/download/${NG_TAG}/${NG_ASSET}"
+        info "actualizando NetGrip a $NG_TAG (instalado: ${CUR:-desconocido})"
+        if [ -n "$CUR" ] && [ "$NETGRIP_FORCE" -ne 1 ]; then
+            CUR_V=$(echo "$CUR" | sed 's/^netgrip-//; s/ description:.*//; s/-r[0-9]*$//')
+            if [ "$CUR_V" = "$NG_VER" ]; then
+                ok "NetGrip ya está en $NG_VER; nada que hacer (usa --force para reinstalar)"
+                ssh "$SSH" "/etc/init.d/netgrip restart >/dev/null 2>&1 || true"
+                ok "agente embebido rearmado (slug $SLUG)"
+                exit 0
+            fi
+            OLDEST=$(printf '%s\n%s\n' "$CUR_V" "$NG_VER" | sort -V | head -1)
+            if [ "$OLDEST" = "$NG_VER" ]; then
+                warn "la release $NG_TAG es MÁS VIEJA que la instalada ($CUR_V): router con build no liberada"
+                fatal 43 "downgrade rechazado (usa --force si de verdad lo quieres)"
+            fi
+        fi
+        $FETCH "$NG_URL" -o "$TMP/netgrip-update.pkg" || fatal 42 "descarga falló: $NG_URL"
+        scp -Oq "$TMP/netgrip-update.pkg" "$SSH:/tmp/netgrip-update.pkg"
+        ssh "$SSH" "$NG_INST && rm -f /tmp/netgrip-update.pkg"
+        ok "NetGrip actualizado a $NG_TAG"
+    fi
+
+    ssh "$SSH" "/etc/init.d/netgrip restart >/dev/null 2>&1 || true"
+    ok "agente embebido de NetGrip rearmado (server $SERVER, slug $SLUG)"
+    info "el agente standalone NO se instala en routers con NetGrip"
+    exit 0
+fi
 
 # ------------------------------------------------------------------ binario --
 BIN_DST="/usr/sbin/$BIN_NAME"
