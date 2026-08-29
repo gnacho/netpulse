@@ -23,10 +23,6 @@ function isLatency(m: Metric): boolean {
   return m.key.startsWith('tcp_latency_ms.')
 }
 
-function isAvailability(m: Metric): boolean {
-  return m.key.startsWith('tcp_ok.')
-}
-
 function fmtTime(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
@@ -170,14 +166,9 @@ export function CollectorCharts() {
   if (!available) return null
 
   const latencyMetrics = metrics.filter(isLatency)
-  const availMetrics = metrics.filter(isAvailability)
 
   if (!latencyMetrics.length) return null
 
-  const uptimeTargets = availMetrics.filter((m) => {
-    const name = targetName(m.key)
-    return latencyMetrics.some((l) => targetName(l.key) === name)
-  })
 
   return (
     <div>

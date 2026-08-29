@@ -2,11 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import {
-  AlertTriangle,
   Check,
   Globe,
   Info,
-  OctagonX,
   Plus,
   Router,
   Server,
@@ -292,7 +290,7 @@ export function RulesManager() {
             </div>
             <div>
               <label className="mb-1 block text-caption font-medium text-text-secondary">{t('alertRules.severity')}</label>
-              <Select value={editing.severity} onValueChange={(v) => setEditing({ ...editing, severity: v })}>
+              <Select value={editing.severity} onValueChange={(v) => setEditing({ ...editing, severity: v as 'info' | 'warn' | 'critical' })}>
                 <SelectTrigger size="sm" className="h-8">
                   <SelectValue />
                 </SelectTrigger>
