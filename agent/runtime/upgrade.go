@@ -1,12 +1,13 @@
-// upgrade.go — Fase 6.3 (issue #243): self-update del agente.
+// upgrade.go: self-update del agente (Fase 6.3, issue #243).
 //
 // Al recibir el evento SSE "upgrade", el agente descarga el binario embebido
 // del propio servidor (GET /api/agents/{slug}/binary?arch=...), lo verifica,
 // lo intercambia atómicamente por el binario en marcha y reinicia su servicio
 // procd (el proceso actual muere y procd relanza el binario nuevo). El
 // resultado se reporta a POST /api/agents/{slug}/upgrade-result ANTES del
-// reinicio (que mata este proceso).
-package main
+// reinicio (que mata este proceso). Los embedders pueden sustituir todo esto
+// con Options.OnUpgrade.
+package runtime
 
 import (
 	"context"
@@ -22,13 +23,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"log/slog"
 )
 
-// Ruta del binario en marcha (instalación estándar) y del init script procd.
-// install-agent.sh los fija así; la variante --tmp usa /tmp/netpulse-agent
-// (se resuelve dinámicamente con os.Executable en currentBinPath).
 const (
 	defaultBinPath  = "/usr/sbin/netpulse-agent"
 	agentInitScript = "/etc/init.d/netpulse-agent"
@@ -90,7 +86,6 @@ func (p *progressReader) Read(buf []byte) (int, error) {
 // vacío. onPct (opcional) recibe el progreso 0-100 de la descarga (#284).
 // Devuelve el valor de la cabecera X-Checksum-Sha256 (vacía si el server no
 // la manda) para que el llamante verifique la integridad.
-// Extraída a función propia para poder testearla con httptest.
 func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest string, onPct func(pct int)) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -192,53 +187,27 @@ func verifySha256(path, want string) error {
 // reportUpgradeProgress POSTea un paso intermedio del upgrade al servidor
 // (#284: progreso en vivo). Fire-and-forget: un fallo se loguea y se sigue
 // (el progreso es best-effort; el resultado final sí es fiable).
-func reportUpgradeProgress(cfg config, transport http.RoundTripper, step string, pct int) {
-	m := map[string]any{"slug": cfg.slug, "step": step}
+func reportUpgradeProgress(opts Options, transport http.RoundTripper, step string, pct int) {
+	m := map[string]any{"slug": opts.Slug, "step": step}
 	if pct > 0 {
 		m["pct"] = pct
 	}
-	body, _ := json.Marshal(m)
-	req, err := http.NewRequest("POST", cfg.server+"/api/agents/"+cfg.slug+"/upgrade-progress", strings.NewReader(string(body)))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.token)
-	hc := &http.Client{Transport: transport, Timeout: 5 * time.Second}
-	resp, err := hc.Do(req)
-	if err != nil {
-		slog.Warn("[netpulse-agent] upgrade: progress POST falló", "step", step, "err", err)
-		return
-	}
-	resp.Body.Close()
+	postJSON(opts, transport, "/api/agents/"+opts.Slug+"/upgrade-progress", m)
 }
 
 // reportUpgradeResult POSTea el resultado del upgrade al servidor.
-func reportUpgradeResult(cfg config, transport http.RoundTripper, ok bool, errMsg string) {
-	m := map[string]any{"slug": cfg.slug, "ok": ok}
+func reportUpgradeResult(opts Options, transport http.RoundTripper, ok bool, errMsg string) {
+	m := map[string]any{"slug": opts.Slug, "ok": ok}
 	if errMsg != "" {
 		m["error"] = errMsg
 	}
-	body, _ := json.Marshal(m)
-	req, err := http.NewRequest("POST", cfg.server+"/api/agents/"+cfg.slug+"/upgrade-result", strings.NewReader(string(body)))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.token)
-	hc := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-	resp, err := hc.Do(req)
-	if err != nil {
-		slog.Warn("[netpulse-agent] upgrade: result POST falló", "err", err)
-		return
-	}
-	resp.Body.Close()
+	postJSON(opts, transport, "/api/agents/"+opts.Slug+"/upgrade-result", m)
 }
 
 // handleUpgrade procesa el evento SSE "upgrade": descarga el binario, lo
 // verifica, hace el swap atómico, reporta el resultado y reinicia el servicio
 // (que mata este proceso; procd relanza el binario nuevo).
-func handleUpgrade(cfg config, transport http.RoundTripper, data string) {
+func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	arch := runtime.GOARCH
 	if data != "" {
 		var p struct {
@@ -249,44 +218,45 @@ func handleUpgrade(cfg config, transport http.RoundTripper, data string) {
 		}
 	}
 	arch = netpulseArch(arch)
+	log := opts.logger()
 
-	slog.Info("[netpulse-agent] upgrade iniciado", "slug", cfg.slug, "arch", arch)
-	url := cfg.server + "/api/agents/" + cfg.slug + "/binary?arch=" + arch
+	log.Info("[netpulse-agent] upgrade iniciado", "slug", opts.Slug, "arch", arch)
+	url := opts.Server + "/api/agents/" + opts.Slug + "/binary?arch=" + arch
 	hc := &http.Client{Transport: transport, Timeout: 2 * time.Minute}
 
-	reportUpgradeProgress(cfg, transport, "downloading", 0)
-	digest, err := downloadBinary(context.Background(), hc, url, cfg.token, tmpBinPath, func(pct int) {
-		reportUpgradeProgress(cfg, transport, "downloading", pct)
+	reportUpgradeProgress(opts, transport, "downloading", 0)
+	digest, err := downloadBinary(context.Background(), hc, url, opts.Token, tmpBinPath, func(pct int) {
+		reportUpgradeProgress(opts, transport, "downloading", pct)
 	})
 	if err != nil {
-		slog.Error("[netpulse-agent] upgrade: descarga falló", "err", err)
-		reportUpgradeResult(cfg, transport, false, err.Error())
+		log.Error("[netpulse-agent] upgrade: descarga falló", "err", err)
+		reportUpgradeResult(opts, transport, false, err.Error())
 		return
 	}
 
 	// Integridad (#284): sha256 contra la cabecera del servidor, ANTES del swap.
 	if digest != "" {
-		reportUpgradeProgress(cfg, transport, "verifying", 0)
+		reportUpgradeProgress(opts, transport, "verifying", 0)
 		if err := verifySha256(tmpBinPath, digest); err != nil {
-			slog.Error("[netpulse-agent] upgrade: verificación falló", "err", err)
-			reportUpgradeResult(cfg, transport, false, err.Error())
+			log.Error("[netpulse-agent] upgrade: verificación falló", "err", err)
+			reportUpgradeResult(opts, transport, false, err.Error())
 			return
 		}
 	}
 
 	dst := currentBinPath()
-	reportUpgradeProgress(cfg, transport, "swapping", 0)
+	reportUpgradeProgress(opts, transport, "swapping", 0)
 	if err := swapBinary(tmpBinPath, dst); err != nil {
-		slog.Error("[netpulse-agent] upgrade: swap falló", "err", err, "dst", dst)
-		reportUpgradeResult(cfg, transport, false, err.Error())
+		log.Error("[netpulse-agent] upgrade: swap falló", "err", err, "dst", dst)
+		reportUpgradeResult(opts, transport, false, err.Error())
 		return
 	}
 
-	slog.Info("[netpulse-agent] upgrade: binario intercambiado, reiniciando servicio", "dst", dst)
-	reportUpgradeProgress(cfg, transport, "restarting", 0)
+	log.Info("[netpulse-agent] upgrade: binario intercambiado, reiniciando servicio", "dst", dst)
+	reportUpgradeProgress(opts, transport, "restarting", 0)
 	// Reportar ANTES de reiniciar: el reinicio mata este proceso.
-	reportUpgradeResult(cfg, transport, true, "")
+	reportUpgradeResult(opts, transport, true, "")
 	if err := restartService(); err != nil {
-		slog.Warn("[netpulse-agent] upgrade: reinicio falló", "err", err)
+		log.Warn("[netpulse-agent] upgrade: reinicio falló", "err", err)
 	}
 }
