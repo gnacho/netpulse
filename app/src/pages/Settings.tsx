@@ -1249,14 +1249,16 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
 
 
 // ---------------------------------------------------------------------------
-// AdGuard Home (GL.iNet): URL + credenciales de la UI del router (kv servidor)
+// AdGuard Home: GL.iNet on-router o estándar remoto (kv servidor)
 // ---------------------------------------------------------------------------
 
 function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
   const { t } = useTranslation()
   const { routers } = useNetPulse()
   const gwIp = routers.find((r) => r.roleBadge === 'Principal')?.ip ?? routers[0]?.ip ?? ''
+  const [mode, setMode] = useState<'glinet' | 'standard'>('glinet')
   const [host, setHost] = useState('')
+  const [port, setPort] = useState<string>('3000')
   const [user, setUser] = useState('root')
   const [password, setPassword] = useState('')
   const [passSet, setPassSet] = useState(false)
@@ -1270,9 +1272,17 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       try {
         const res = await fetch('/api/config/adguard')
         if (!res.ok) return
-        const json = (await res.json()) as { host: string; user: string; passSet: boolean }
+        const json = (await res.json()) as {
+          mode: 'glinet' | 'standard'
+          host: string
+          port: number
+          user: string
+          passSet: boolean
+        }
         if (disposed) return
-        setHost(json.host || gwIp)
+        setMode(json.mode || 'glinet')
+        setHost(json.host || (json.mode === 'glinet' ? gwIp : ''))
+        setPort(json.port ? String(json.port) : '3000')
         setUser(json.user || 'root')
         setPassSet(json.passSet)
       } catch {
@@ -1284,16 +1294,32 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }, [gwIp])
 
+  const displayHost = mode === 'glinet' ? host : `${host}:${port}`
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!host.trim() || saving) return
+    const portNum = parseInt(port, 10)
+    if (mode === 'standard' && (Number.isNaN(portNum) || portNum < 1 || portNum > 65535)) {
+      setError(t('settings.adguard.errorGeneric'))
+      return
+    }
     setSaving(true)
     setError(null)
     try {
+      const payload: Record<string, unknown> = {
+        mode,
+        host: host.trim(),
+        user: user.trim() || 'root',
+        password: password || undefined,
+      }
+      if (mode === 'standard') {
+        payload.port = portNum
+      }
       const res = await fetch('/api/config/adguard', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: host.trim(), user: user.trim() || 'root', password: password || undefined }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       setPassSet(true)
@@ -1314,7 +1340,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
         <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
           <ShieldCheck className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
-          <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-text-primary">{host}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-text-primary">{displayHost}</span>
           <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
             {t('settings.adguard.configured')}
           </span>
@@ -1336,21 +1362,43 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   return (
     <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
       <form onSubmit={(e) => void save(e)}>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as 'glinet' | 'standard')}
+            aria-label={t('settings.adguard.mode')}
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+          >
+            <option value="glinet">{t('settings.adguard.modeGlinet')}</option>
+            <option value="standard">{t('settings.adguard.modeStandard')}</option>
+          </select>
           <input
             type="text"
             required
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            placeholder={t('settings.adguard.host')}
+            placeholder={mode === 'glinet' ? t('settings.adguard.hostGlinet') : t('settings.adguard.hostStandard')}
             aria-label={t('settings.adguard.host')}
             className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
+          {mode === 'standard' && (
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              required
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              placeholder={t('settings.adguard.port')}
+              aria-label={t('settings.adguard.port')}
+              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+          )}
           <input
             type="text"
             value={user}
             onChange={(e) => setUser(e.target.value)}
-            placeholder={t('settings.adguard.user')}
+            placeholder={mode === 'glinet' ? t('settings.adguard.userGlinet') : t('settings.adguard.userStandard')}
             aria-label={t('settings.adguard.user')}
             className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
@@ -1370,7 +1418,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           </span>
           <button
             type="submit"
-            disabled={saving || !host.trim() || (!passSet && !password)}
+            disabled={saving || !host.trim() || (mode === 'standard' && (!port || Number.isNaN(parseInt(port, 10)))) || (!passSet && !password)}
             className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
           >
             {saving ? t('settings.adguard.saving') : t('settings.adguard.save')}
