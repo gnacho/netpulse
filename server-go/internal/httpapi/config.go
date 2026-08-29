@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -17,7 +18,10 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 )
 
-var hostRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+var (
+	hostRe    = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	hostPortRe = regexp.MustCompile(`^([a-zA-Z0-9._-]+)(:[0-9]{1,5})?$`)
+)
 
 // registerConfigRoutes registra las rutas /api/config/* en el mux.
 // Las mutaciones (añadir/borrar routers) y las que exponen credenciales o
@@ -109,6 +113,32 @@ func validateHost(host string) (string, string) {
 		return "", "host debe ser una IP o hostname válido"
 	}
 	return h, ""
+}
+
+// validateAdGuardHost permite host o host:puerto (1..65535). Devuelve
+// host, puerto y mensaje de error.
+func validateAdGuardHost(host string) (string, int, string) {
+	h := strings.TrimSpace(host)
+	if len(h) < 1 {
+		return "", 0, "String must contain at least 1 character(s)"
+	}
+	if len(h) > 253 {
+		return "", 0, "String must contain at most 253 character(s)"
+	}
+	m := hostPortRe.FindStringSubmatch(h)
+	if m == nil {
+		return "", 0, "host debe ser una IP, hostname o host:puerto válido"
+	}
+	addr := m[1]
+	port := 0
+	if m[2] != "" {
+		p, err := strconv.Atoi(m[2][1:])
+		if err != nil || p < 1 || p > 65535 {
+			return "", 0, "puerto fuera de rango (1-65535)"
+		}
+		port = p
+	}
+	return addr, port, ""
 }
 
 // POST /api/config/routers — añadir router manualmente desde Ajustes.
@@ -289,21 +319,34 @@ func kvGet(db *sql.DB, key string) string {
 	return v
 }
 
-// GET /api/config/adguard — {host, user ('root' por defecto), passSet}.
+// GET /api/config/adguard — {mode, host, port, user ('root' por defecto), passSet}.
 func (s *server) handleGetAdguardConfig(w http.ResponseWriter, r *http.Request) {
 	user := kvGet(s.db.DB, "adguard_user")
 	if user == "" {
 		user = "root"
 	}
+	mode := kvGet(s.db.DB, "adguard_mode")
+	if mode == "" {
+		mode = "glinet"
+	}
+	portStr := kvGet(s.db.DB, "adguard_port")
+	port := 0
+	if p, err := strconv.Atoi(portStr); err == nil {
+		port = p
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
+		"mode":    mode,
 		"host":    kvGet(s.db.DB, "adguard_host"),
+		"port":    port,
 		"user":    user,
 		"passSet": kvGet(s.db.DB, "adguard_pass") != "",
 	})
 }
 
 type adguardInput struct {
+	Mode     string  `json:"mode"`
 	Host     *string `json:"host"`
+	Port     int     `json:"port"`
 	User     string  `json:"user"`
 	Password string  `json:"password"`
 }
@@ -315,14 +358,25 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 		writeBodyError(w, st, "invalid_json", "")
 		return
 	}
+	mode := strings.ToLower(strings.TrimSpace(in.Mode))
+	if mode == "" {
+		mode = "glinet"
+	}
+	if mode != "glinet" && mode != "standard" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'standard'")
+		return
+	}
 	if in.Host == nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", "Required")
 		return
 	}
-	host, msg := validateHost(*in.Host)
+	host, port, msg := validateAdGuardHost(*in.Host)
 	if msg != "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", msg)
 		return
+	}
+	if mode == "standard" && port == 0 {
+		port = 3000
 	}
 	user := strings.TrimSpace(in.User)
 	if user == "" {
@@ -337,9 +391,24 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	upsert := "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+	if _, err := s.db.Exec(upsert, "adguard_mode", mode); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
 	if _, err := s.db.Exec(upsert, "adguard_host", host); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
+	}
+	if mode == "standard" {
+		if _, err := s.db.Exec(upsert, "adguard_port", strconv.Itoa(port)); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	} else {
+		if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", "adguard_port"); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
 	}
 	if _, err := s.db.Exec(upsert, "adguard_user", user); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")

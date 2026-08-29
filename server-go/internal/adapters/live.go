@@ -539,12 +539,14 @@ func (l *Live) probeLldp(ctx context.Context, routerID string, client *OpenWrtCl
 	return neighbors, unavailable
 }
 
-// getAdguardClient: kv (GL.iNet) con fallback a .env (AGH estándar).
+// getAdguardClient: kv (GL.iNet o estándar remoto) con fallback a .env (AGH estándar).
 func (l *Live) getAdguardClient() (std *AdGuardClient, gl *AdGuardGlinetClient) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	key := ""
 	if l.db != nil {
+		mode := "glinet"
+		_ = l.db.QueryRow("SELECT value FROM kv WHERE key='adguard_mode'").Scan(&mode)
 		var host string
 		if err := l.db.QueryRow("SELECT value FROM kv WHERE key='adguard_host'").Scan(&host); err == nil && host != "" {
 			user := "root"
@@ -552,9 +554,25 @@ func (l *Live) getAdguardClient() (std *AdGuardClient, gl *AdGuardGlinetClient) 
 			pass := ""
 			_ = l.db.QueryRow("SELECT value FROM kv WHERE key='adguard_pass'").Scan(&pass)
 			if pass != "" {
-				key = "gl|" + host + "|" + user
-				if l.agKey != key {
-					l.agGL = NewAdGuardGlinetClient(host, user, pass, l.pool)
+				if mode == "standard" {
+					port := 3000
+					var portStr string
+					_ = l.db.QueryRow("SELECT value FROM kv WHERE key='adguard_port'").Scan(&portStr)
+					if p, err := strconv.Atoi(portStr); err == nil && p > 0 {
+						port = p
+					}
+					url := fmt.Sprintf("http://%s:%d", host, port)
+					key = "std|" + url + "|" + user
+					if l.agKey != key {
+						l.agStd = NewAdGuardClient(url, user, pass)
+						l.agGL = nil
+					}
+				} else {
+					key = "gl|" + host + "|" + user
+					if l.agKey != key {
+						l.agGL = NewAdGuardGlinetClient(host, user, pass, l.pool)
+						l.agStd = nil
+					}
 				}
 			}
 		}
@@ -563,9 +581,13 @@ func (l *Live) getAdguardClient() (std *AdGuardClient, gl *AdGuardGlinetClient) 
 		key = "std|" + l.cfg.Adguard.URL
 		if l.agKey != key {
 			l.agStd = NewAdGuardClient(l.cfg.Adguard.URL, l.cfg.Adguard.User, l.cfg.Adguard.Pass)
+			l.agGL = nil
 		}
 	}
 	if key == "" {
+		l.agStd = nil
+		l.agGL = nil
+		l.agKey = ""
 		return nil, nil
 	}
 	if l.agKey != key {
@@ -1526,6 +1548,19 @@ func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
 		}
 		host = strings.SplitN(u, ":", 2)[0]
 		stats, err = std.GetStats(ctx)
+		if err != nil {
+			port := 3000
+			if len(u) > len(host)+1 {
+				if p, err := strconv.Atoi(u[len(host)+1:]); err == nil && p > 0 {
+					port = p
+				}
+			}
+			return &AdGuardStats{
+				Host: host, Port: port, Status: "inactive",
+				TopBlocked: []TopBlocked{},
+			}
+		}
+		return stats
 	} else {
 		host = gl.Host
 		stats, err = gl.GetStats(ctx)
