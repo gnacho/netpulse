@@ -701,7 +701,7 @@
       "kindNetgrip": "NetGrip",
       "kindExternal": "Externo",
       "netgripTip": "El agente vive dentro del panel NetGrip de este router",
-      "netgripHint": "Se actualiza desde su propio panel NetGrip"
+      "netgripHint": "El agente vive en el panel NetGrip: Actualizar actualiza el propio panel"
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s"
   },

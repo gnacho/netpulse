@@ -2,7 +2,6 @@ package httpapi_test
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -43,7 +42,7 @@ func TestAgentsNetgripKind(t *testing.T) {
 		t.Fatalf("patio version: %v", patio["version"])
 	}
 	if upd, ok := patio["updateAvailable"].(bool); ok && upd {
-		t.Fatalf("netgrip agent no debe ofrecer upgrade: %v", patio)
+		t.Fatalf("con netgrip latest 0.22.1 y router en 0.23.0 no debe ofrecer upgrade: %v", patio)
 	}
 
 	post := func(path string) int {
@@ -57,9 +56,10 @@ func TestAgentsNetgripKind(t *testing.T) {
 		return r.StatusCode
 	}
 
-	if c := post("/api/agents/patio/upgrade"); c != http.StatusConflict {
-		b, _ := io.ReadAll(http.NoBody)
-		t.Fatalf("upgrade netgrip: %d (want 409) %s", c, b)
+	// #363 v2: el upgrade SÍ se acepta para NetGrip (dispara su self-update).
+	// Sin conexión SSE en el test el comando queda encolado → 202.
+	if c := post("/api/agents/patio/upgrade"); c != http.StatusAccepted {
+		t.Fatalf("upgrade netgrip: %d (want 202)", c)
 	}
 	if c := post("/api/agents/patio/rearm"); c != http.StatusConflict {
 		t.Fatalf("rearm netgrip: %d (want 409)", c)

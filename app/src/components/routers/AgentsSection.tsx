@@ -204,12 +204,14 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
       </td>
       <td className="py-3">
         <div className="flex flex-wrap items-center gap-2">
+          {/* Actualizar: self-update del agente con progreso en vivo (#243).
+              NetGrip (#363): el evento SSE dispara el self-update del propio
+              panel; rearm/reinstall no aplican (no hay proceso standalone). */}
+          <AgentUpgradeButton agent={agent} className="h-8" />
           {isNetgrip ? (
             <span className="text-caption text-text-muted">{t('routers.agents.netgripHint')}</span>
           ) : (
             <>
-          {/* Actualizar: self-update del agente con progreso en vivo (#243) */}
-          <AgentUpgradeButton agent={agent} className="h-8" />
           {/* Rearm: canal preferente para heartbeat stale (proceso vivo).
               Solo agentes NATIVOS OpenWrt: los externos (switch por beacon)
               no tienen SSH - solo alertan (#291). */}
