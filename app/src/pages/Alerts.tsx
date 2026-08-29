@@ -44,7 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { buildAlertFeed, buildLiveFeed, DAY_ORDER, KIND_LABELS } from '@/data/alertFeed'
+import { buildAlertFeed, buildLiveFeed, DAY_ORDER, ALERT_KINDS } from '@/data/alertFeed'
 import type { AlertKind, FeedDay, FeedEvent, FeedSpark } from '@/data/alertFeed'
 import { useNetPulse } from '@/data/DataProvider'
 import { RulesManager } from '@/components/RulesManager'
@@ -736,7 +736,7 @@ export default function Alerts() {
           </SelectTrigger>
           <SelectContent className="border-border bg-elevated">
             <SelectItem value="todos" className="text-text-primary focus:bg-hover">{t('alerts.allKinds')}</SelectItem>
-            {(Object.keys(KIND_LABELS) as AlertKind[]).map((k) => (
+            {ALERT_KINDS.map((k) => (
               <SelectItem key={k} value={k} className="text-text-primary focus:bg-hover">
                 {t(`alerts.kinds.${k}`)}
               </SelectItem>
