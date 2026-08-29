@@ -184,6 +184,9 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
+	// #363: un agente NetGrip SÍ acepta el upgrade: el evento SSE dispara
+	// el self-update del propio NetGrip (sus releases de GitHub). Rearm y
+	// reinstall siguen rechazados (no hay proceso standalone que gestionar).
 	// El agente conoce su propia arquitectura (runtime.GOARCH); no hace falta
 	// pasársela. Data vacía {}. Si no está conectado por SSE, el upgrade se
 	// ENCOLA y se enviará en cuanto vuelva a conectar (#284).

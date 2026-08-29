@@ -6,6 +6,31 @@
 AGENT_ENV=/etc/netpulse-agent.env
 AGENT_UCI=netpulse-agent
 
+# NetGrip detectado (#363): el agente EMBEBIDO en el panel ya cubre este
+# router. Entregarle la config migrada (solo si aún no tiene) y NO instalar
+# el standalone (ni servicio ni watchdog ni cron).
+if [ -x /usr/sbin/netgrip ] || [ -f /etc/init.d/netgrip ]; then
+	NG_ENV=/etc/netgrip/netpulse.env
+	if [ ! -f "$NG_ENV" ] && [ -f "$AGENT_ENV" ]; then
+		. "$AGENT_ENV"
+		if [ -n "$NETPULSE_SERVER" ] && [ -n "$NETPULSE_SLUG" ] && [ -n "$NETPULSE_TOKEN" ]; then
+			mkdir -p /etc/netgrip
+			{
+				echo "# managed by netgrip; netpulse embedded agent config"
+				echo "NETPULSE_SERVER=$NETPULSE_SERVER"
+				echo "NETPULSE_SLUG=$NETPULSE_SLUG"
+				echo "NETPULSE_TOKEN=$NETPULSE_TOKEN"
+				echo "NETPULSE_ENABLED=1"
+			} > "$NG_ENV"
+			chmod 600 "$NG_ENV"
+			logger -t netpulse-agent "NetGrip detectado: config migrada a $NG_ENV"
+		fi
+	fi
+	/etc/init.d/netgrip restart >/dev/null 2>&1 || true
+	logger -t netpulse-agent "NetGrip detectado: agente standalone NO instalado"
+	exit 0
+fi
+
 # Migrar instalación manual previa (.env) a UCI
 if [ -f "$AGENT_ENV" ]; then
 	. "$AGENT_ENV"

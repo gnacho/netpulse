@@ -692,7 +692,16 @@
       "discoveredSlug": "slug (p. ej. switch16)",
       "discoveredPair": "Parear",
       "discoveredFail": "No se pudo crear el token",
-      "discoveredHint": "Pega el comando en Advanced Settings del switch"
+      "discoveredHint": "Pega el comando en Advanced Settings del switch",
+      "colAgent": "Agente",
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "notInstalled": "No instalado",
+      "kindNetpulse": "NetPulse",
+      "kindNetgrip": "NetGrip",
+      "kindExternal": "Externo",
+      "netgripTip": "El agente vive dentro del panel NetGrip de este router",
+      "netgripHint": "El agente vive en el panel NetGrip: Actualizar actualiza el propio panel"
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s"
   },

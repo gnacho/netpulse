@@ -438,6 +438,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				slug := strings.TrimPrefix(key, agentTokenKeyPrefix)
 				item := agentListItem{Slug: slug}
 				var payload *probe.Payload
+				agentKind := ""
 				if s.agents != nil {
 					if st := s.agents.Snapshot(slug); st != nil {
 						payload = st.Payload
@@ -446,9 +447,11 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						ts := seen.Unix()
 						item.LastSeen = &ts
 						item.Version = version
-						if kind == "external" {
-							item.Kind = "external"
-						} else {
+						agentKind = kind
+						switch kind {
+						case "external", "netgrip":
+							item.Kind = kind
+						default:
 							item.Kind = "native"
 						}
 						item.Interval = interval
@@ -463,7 +466,14 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				if r, ok := routerByID[item.RouterID]; ok {
 					matchedType = r.Type
 				}
-				item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && item.Version != agentbin.EmbeddedAgentVersion
+				// #363: un agente embebido en NetGrip se actualiza vía el
+				// evento SSE upgrade (NetGrip corre su propio self-update);
+				// "hay novedad" = versión reportada < última release de NetGrip.
+				if agentKind == "netgrip" {
+					item.UpdateAvailable = item.Version != "" && cmpSemver(netgripLatest(), item.Version) > 0
+				} else {
+					item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && item.Version != agentbin.EmbeddedAgentVersion
+				}
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {
 					ts := st.Ts.Unix()
@@ -583,6 +593,8 @@ func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "router_unknown", err.Error())
 	case errors.Is(err, rearmer.ErrExternalAgent):
 		writeError(w, http.StatusConflict, "not_openwrt", err.Error())
+	case errors.Is(err, rearmer.ErrNetgripAgent):
+		writeError(w, http.StatusConflict, "netgrip_managed", err.Error())
 	case errors.Is(err, rearmer.ErrNoSSH):
 		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", err.Error())
 	default:
@@ -623,6 +635,12 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.db == nil || s.pool == nil {
 		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
+		return
+	}
+	// #363: jamás desplegar el binario standalone sobre un router cuyo
+	// agente es el NetGrip embebido (lo destrozaría: duplicado + token roto).
+	if s.agentKindOf(slug) == "netgrip" {
+		writeError(w, http.StatusConflict, "netgrip_managed", "agente embebido en NetGrip: actualiza o reinstala el panel NetGrip en el propio router")
 		return
 	}
 
@@ -791,4 +809,96 @@ func (s *server) handleAgentRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+// agentKindOf devuelve el kind del último push del slug ("" si no hay).
+func (s *server) agentKindOf(slug string) string {
+	if s.agents == nil {
+		return ""
+	}
+	if _, _, kind, _, ok := s.agents.Info(slug); ok {
+		return kind
+	}
+	return ""
+}
+
+// ------------------------------------------------------------ netgrip latest --
+// netgripLatest resuelve la última release de gnacho/netgrip con cache (TTL):
+// los agentes kind=netgrip comparan su versión contra ELLA (el binario
+// embebido del server no aplica). Falla de red → cache/"" → sin botón.
+var (
+	netgripLatestMu    sync.Mutex
+	netgripLatestVer   string
+	netgripLatestAt    time.Time
+	netgripLatestFetch = fetchNetgripLatestVersion // sustituible en tests
+)
+
+const netgripLatestTTL = 5 * time.Minute
+
+func fetchNetgripLatestVersion() string {
+	client := &http.Client{Timeout: 8 * time.Second}
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/gnacho/netgrip/releases/latest", nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "netpulse-server")
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return ""
+	}
+	defer resp.Body.Close()
+	var rel struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&rel); err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(rel.TagName, "v")
+}
+
+func netgripLatest() string {
+	netgripLatestMu.Lock()
+	defer netgripLatestMu.Unlock()
+	if netgripLatestVer != "" && time.Since(netgripLatestAt) < netgripLatestTTL {
+		return netgripLatestVer
+	}
+	if v := netgripLatestFetch(); v != "" {
+		netgripLatestVer, netgripLatestAt = v, time.Now()
+	}
+	return netgripLatestVer
+}
+
+// cmpSemver compara dos versiones x.y.z (-rN se ignora): -1, 0, 1. Malparse
+// → 0 (sin señal de novedad).
+func cmpSemver(a, b string) int {
+	pa, okA := parseSemver3(a)
+	pb, okB := parseSemver3(b)
+	if !okA || !okB {
+		return 0
+	}
+	for i := 0; i < 3; i++ {
+		if pa[i] != pb[i] {
+			if pa[i] > pb[i] {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
+}
+
+func parseSemver3(v string) ([3]int, bool) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if i := strings.IndexAny(v, "- +"); i >= 0 {
+		v = v[:i]
+	}
+	var x [3]int
+	if n, _ := fmt.Sscanf(v, "%d.%d.%d", &x[0], &x[1], &x[2]); n != 3 {
+		return x, false
+	}
+	return x, true
 }

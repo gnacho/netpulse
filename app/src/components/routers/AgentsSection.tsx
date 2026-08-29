@@ -7,7 +7,6 @@ import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
-import { AgentBadge } from '@/components/routers/AgentBadge'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
 import { AgentUpgradeButton, activeUpgrade, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
 import { cn } from '@/lib/utils'
@@ -77,6 +76,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
 
+  const isNetgrip = agent?.kind === 'netgrip'
   const isOpenWrt = isOpenWrtType(router?.type)
   const isStale = agent !== undefined && !agent.fresh
   const isMissing = agent === undefined && router?.agentOnly === true
@@ -150,7 +150,47 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         </div>
       </td>
       <td className="py-3 pr-3">
-        <AgentBadge agent={agent} agentOnly={router?.agentOnly} deviceType={router?.type} />
+        {agent ? (
+          <span
+            title={agent.fresh ? t('routers.agent.freshTip', { version: agent.version }) : t('routers.agent.staleTip')}
+            className="inline-flex items-center gap-1.5 text-caption font-semibold"
+          >
+            <span className={cn('h-1.5 w-1.5 rounded-full', agent.fresh ? 'bg-ok' : 'bg-danger')} aria-hidden="true" />
+            <span className={agent.fresh ? 'text-ok' : 'text-danger'}>
+              {agent.fresh ? t('routers.agents.active') : t('routers.agents.inactive')}
+            </span>
+          </span>
+        ) : (
+          <span title={t('routers.agent.notInstalledTip')} className="inline-flex items-center gap-1.5 text-caption font-semibold text-danger">
+            <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
+            {t('routers.agents.notInstalled')}
+          </span>
+        )}
+      </td>
+      <td className="py-3 pr-3">
+        {agent ? (
+          agent.kind === 'netgrip' ? (
+            <span
+              title={t('routers.agents.netgripTip')}
+              className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent"
+            >
+              {t('routers.agents.kindNetgrip')}
+            </span>
+          ) : agent.kind === 'external' ? (
+            <span
+              title={t('routers.agents.externalTip', { interval: agent.interval ?? 0 })}
+              className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+            >
+              {t('routers.agents.kindExternal')}
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
+              {t('routers.agents.kindNetpulse')}
+            </span>
+          )
+        ) : (
+          <span className="text-caption text-text-faint">-</span>
+        )}
       </td>
       <td className="py-3 pr-3">
         <span className="font-mono text-caption text-text-secondary">{lastSeen}</span>
@@ -158,26 +198,24 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
       <td className="py-3 pr-3">
         <span className="flex items-center gap-2">
           <span className="font-mono text-caption text-text-secondary">
-            {agent?.version ? (agent.kind === 'external' ? agent.version : `v${agent.version}`) : '-'}
+            {agent?.version ? (agent.kind === 'external' || agent.kind === 'netgrip' ? agent.version : `v${agent.version}`) : '-'}
           </span>
-          {agent?.kind === 'external' && (
-            <span
-              title={t('routers.agents.externalTip', { interval: agent.interval ?? 0 })}
-              className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
-            >
-              {t('routers.agents.external')}
-            </span>
-          )}
         </span>
       </td>
       <td className="py-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Actualizar: self-update del agente con progreso en vivo (#243) */}
+          {/* Actualizar: self-update del agente con progreso en vivo (#243).
+              NetGrip (#363): el evento SSE dispara el self-update del propio
+              panel; rearm/reinstall no aplican (no hay proceso standalone). */}
           <AgentUpgradeButton agent={agent} className="h-8" />
+          {isNetgrip ? (
+            <span className="text-caption text-text-muted">{t('routers.agents.netgripHint')}</span>
+          ) : (
+            <>
           {/* Rearm: canal preferente para heartbeat stale (proceso vivo).
               Solo agentes NATIVOS OpenWrt: los externos (switch por beacon)
               no tienen SSH - solo alertan (#291). */}
-          {agent && agent.kind !== 'external' && <AgentRearmButton agent={agent} />}
+          {agent && agent.kind !== 'external' && agent.kind !== 'netgrip' && <AgentRearmButton agent={agent} />}
           {canRecover && (
             <button
               type="button"
@@ -203,7 +241,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
                     : t('routers.agents.reinstall')}
             </button>
           )}
-          {canRecover && (
+          {canRecover && !isNetgrip && (
             <button
               type="button"
               onClick={() => void copyCmd()}
@@ -229,6 +267,8 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
                   : t('routers.agents.copyCmd')}
             </button>
           )}
+            </>
+          )}
         </div>
         {reinstallMsg && reinstallState !== 'idle' && (
           <p className={cn('mt-1.5 text-caption', reinstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>
@@ -244,7 +284,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         transition={{ duration: 0.2 }}
         className="border-b border-border/60 last:border-0"
       >
-        <td colSpan={5} className="pb-3">
+        <td colSpan={6} className="pb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-surface px-3.5 py-2.5">
             <span className="inline-flex items-center gap-1.5 text-label font-medium uppercase text-text-muted">
               <Clock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
@@ -423,6 +463,7 @@ export function AgentsSection() {
               <tr className="border-b border-border">
                 <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colDevice')}</th>
                 <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colStatus')}</th>
+                <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colAgent')}</th>
                 <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colLastSeen')}</th>
                 <th className="pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">{t('routers.agents.colVersion')}</th>
                 <th className="pb-2.5 text-label font-medium uppercase text-text-muted">{t('routers.agents.colActions')}</th>

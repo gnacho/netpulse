@@ -400,7 +400,7 @@ export interface AgentInfo {
   /** Versión del binario netpulse-agent ("" si aún no se conoce) */
   version?: string
   /** "native" (agente netpulse-agent) o "external" (pusher tipo scraper, #285/#288) */
-  kind?: 'native' | 'external'
+  kind?: 'native' | 'external' | 'netgrip'
   /** Cadencia de push declarada en segundos (solo externos, #288) */
   interval?: number
   fresh: boolean

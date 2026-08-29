@@ -3020,7 +3020,7 @@ export default function Settings() {
   const [paletteId, setPaletteId] = useStoredState<PaletteId>('netpulse-palette', 'netpulse')
   const [accentId, setAccentId] = useStoredState<AccentId>('netpulse-accent', 'cyan')
   useEffect(() => {
-    const palette = PALETTES.find((x) => x.id === paletteId) ?? PALETTES[0]
+    const palette = PALETTES.find((x) => x.id === paletteId) ?? PALETTES[0]!
     const vars = resolvedLight ? palette.light : palette.dark
     const root = document.documentElement
     for (const [key, value] of Object.entries(vars)) {

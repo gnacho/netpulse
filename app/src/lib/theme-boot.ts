@@ -106,7 +106,6 @@ export type PaletteId = (typeof PALETTES)[number]['id']
 
 const MODE_KEY = 'netpulse-theme-mode'
 const LEGACY_KEY = 'netpulse-theme'
-const ACCENT_KEY = 'netpulse-accent'
 const PALETTE_KEY = 'netpulse-palette'
 const DENSITY_KEY = 'netpulse-density'
 const REDUCE_MOTION_KEY = 'netpulse-reduce-motion'
@@ -152,7 +151,7 @@ export function applyTheme(mode: ThemeMode) {
 
 function applyPalette(light: boolean) {
   const id = readPalette()
-  const palette = PALETTES.find((x) => x.id === id) ?? PALETTES[0]
+  const palette = PALETTES.find((x) => x.id === id) ?? PALETTES[0]!
   const vars = light ? palette.light : palette.dark
   const root = document.documentElement
   for (const [key, value] of Object.entries(vars)) {
