@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/agentbin"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -259,6 +260,23 @@ func run() error {
 			sshPool = pool
 			live := adapters.NewLive(cfg, dbHandle, routers, pool)
 			live.SetAgents(agentReg)
+			// Issue #400: versión de referencia para el check de agente
+			// desactualizado. Native → binario embebido (sin binarios
+			// embebidos no hay señal válida); netgrip → última release
+			// pública de NetGrip; external → "" (nunca alerta).
+			live.SetAgentLatestSource(func(kind string) string {
+				switch kind {
+				case "netgrip":
+					return httpapi.NetgripLatestVersion()
+				case "external":
+					return ""
+				default:
+					if agentbin.HasBinaries() {
+						return agentbin.EmbeddedAgentVersion
+					}
+					return ""
+				}
+			})
 			// Dead Man's Switch (P6): periodo de confirmación antes de
 			// alertar caída de agente (default 3 min, config por env).
 			if v := os.Getenv("NETPULSE_AGENT_DOWN_CONFIRM_S"); v != "" {

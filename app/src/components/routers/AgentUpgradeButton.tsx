@@ -21,7 +21,7 @@ export const UPGRADE_LIVE_WINDOW_S = 120
 /** Upgrade en marcha: paso no terminal con reporte fresco (#284). */
 export function activeUpgrade(agent: AgentInfo | undefined, nowSec: number): AgentUpgradeProgress | undefined {
   const u = agent?.upgrade
-  if (!u || u.step === 'failed') return undefined
+  if (!u || u.step === 'failed' || u.step === 'done') return undefined
   if (u.step === 'queued') return u
   if (nowSec - u.ts > UPGRADE_LIVE_WINDOW_S) return undefined
   return u
@@ -40,6 +40,8 @@ export function upgradeStepText(u: { step: AgentUpgradeProgress['step']; pct?: n
       return t('routers.agent.stepSwapping')
     case 'restarting':
       return t('routers.agent.stepRestarting')
+    case 'done':
+      return t('routers.agent.upgraded')
     case 'queued':
       return t('routers.agent.stepQueued')
     default:

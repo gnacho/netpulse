@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
+	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
 
 // Pasos del progreso de upgrade (los intermedios los envía el agente; los
@@ -36,6 +37,7 @@ const (
 	upgradeStepVerifying   = "verifying"   // comprobando sha256 de la descarga
 	upgradeStepSwapping    = "swapping"    // intercambio atómico del binario
 	upgradeStepRestarting  = "restarting"  // swap ok, reinicio del servicio
+	upgradeStepDone        = "done"        // el agente ya empuja la versión objetivo (#401)
 	upgradeStepFailed      = "failed"      // upgrade-result con error
 	upgradeStepQueued      = "queued"      // en cola hasta que el agente conecte
 )
@@ -44,9 +46,12 @@ const (
 // incluirlo en GET /api/agents. Cubre el ciclo completo (descarga + swap +
 // reinicio + primer push) con margen amplio. El estado "queued" vive más:
 // el agente puede tardar minutos en re-conectar su stream (backoff SSE).
+// El paso terminal "done" vive poco: su trabajo es cerrar el ciclo en el
+// feed y mostrar "actualizado" un instante (#401).
 const (
-	upgradeStateTTL  = 3 * time.Minute
-	upgradeQueuedTTL = 30 * time.Minute
+	upgradeStateTTL   = 3 * time.Minute
+	upgradeQueuedTTL  = 30 * time.Minute
+	upgradeDoneTTL    = 45 * time.Second
 	upgradeHistoryCap = 16
 )
 
@@ -60,8 +65,13 @@ type upgradeStepEntry struct {
 // upgradeState es el último paso conocido del self-update de un agente, con
 // la historia de pasos recorridos (para la timeline aunque vayan rápido).
 type upgradeState struct {
-	Step    string
-	Pct     int    // 0-100, solo tiene sentido en "downloading"
+	Step string
+	Pct  int // 0-100, solo tiene sentido en "downloading"
+	// Target es la versión que cierra el ciclo (#401): el primer push del
+	// agente que la alcance marca el paso terminal "done" en vez de esperar
+	// al TTL. Para agentes nativos es la versión del binario embebido; para
+	// los NetGrip embebidos, su última release pública.
+	Target  string
 	Error   string // solo en "failed"
 	Ts      time.Time
 	History []upgradeStepEntry
@@ -119,6 +129,43 @@ func (u *upgradeTracker) queue(slug string) {
 	u.setLocked(slug, upgradeStepQueued, 0, "")
 }
 
+// begin registra el arranque del upgrade con la versión objetivo que cerrará
+// el ciclo (#401). El campo Target sobrevive a los pasos intermedios.
+func (u *upgradeTracker) begin(slug, target string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.setLocked(slug, upgradeStepRequested, 0, "")
+	if st, ok := u.states[slug]; ok {
+		st.Target = target
+		u.states[slug] = st
+	}
+}
+
+// finishIfTarget cierra el upgrade en marcha con el paso terminal "done"
+// cuando la versión reportada por el agente alcanza la objetivo (#401).
+// Devuelve true si cerró el ciclo. Estados terminales o sin objetivo no
+// hacen nada; los pasos intermedios solo se cierran por aquí.
+func (u *upgradeTracker) finishIfTarget(slug, version string) bool {
+	if version == "" {
+		return false
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	st, ok := u.states[slug]
+	if !ok || st.Target == "" {
+		return false
+	}
+	switch st.Step {
+	case upgradeStepDone, upgradeStepFailed, upgradeStepQueued:
+		return false
+	}
+	if vercmp.Cmp(version, st.Target) < 0 {
+		return false
+	}
+	u.setLocked(slug, upgradeStepDone, 0, "")
+	return true
+}
+
 // takeQueued devuelve true (una sola vez) si el slug tenía upgrade en cola.
 func (u *upgradeTracker) takeQueued(slug string) bool {
 	u.mu.Lock()
@@ -139,8 +186,11 @@ func (u *upgradeTracker) snapshot(slug string) (upgradeState, bool) {
 		return upgradeState{}, false
 	}
 	ttl := upgradeStateTTL
-	if st.Step == upgradeStepQueued {
+	switch st.Step {
+	case upgradeStepQueued:
 		ttl = upgradeQueuedTTL
+	case upgradeStepDone:
+		ttl = upgradeDoneTTL
 	}
 	if u.now().Sub(st.Ts) > ttl {
 		return upgradeState{}, false
@@ -196,10 +246,18 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 
 // sendOrQueueUpgrade envía el comando upgrade por SSE; si el agente no está
 // conectado, lo encola para el flush on-connect del hub. Devuelve el estado.
+// Registra la versión objetivo del upgrade para cerrar el ciclo en cuanto el
+// agente la empuje (#401): nativos → binario embebido; netgrip → su última
+// release pública; external → nunca llega aquí (upgrade-all los filtra y el
+// comando individual no tiene sentido para un scraper).
 func (s *server) sendOrQueueUpgrade(slug string) string {
+	target := agentbin.EmbeddedAgentVersion
+	if s.agentKindOf(slug) == "netgrip" {
+		target = netgripLatest()
+	}
 	if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
 		// Paso inicial del progreso en vivo (#284): el comando salió.
-		s.upgrades.set(slug, upgradeStepRequested, 0, "")
+		s.upgrades.begin(slug, target)
 		return "sent"
 	}
 	s.upgrades.queue(slug)
@@ -216,8 +274,12 @@ func (s *server) FlushQueuedUpgrade(slug string) {
 	if !s.agentTokenExists(slug) || !s.upgrades.takeQueued(slug) {
 		return
 	}
+	target := agentbin.EmbeddedAgentVersion
+	if s.agentKindOf(slug) == "netgrip" {
+		target = netgripLatest()
+	}
 	if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
-		s.upgrades.set(slug, upgradeStepRequested, 0, "")
+		s.upgrades.begin(slug, target)
 	} else {
 		s.upgrades.queue(slug)
 	}

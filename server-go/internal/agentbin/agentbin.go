@@ -58,6 +58,18 @@ func Digest(arch string) string {
 	return d
 }
 
+// HasBinaries informa de si el server se construyó con binarios de agente
+// embebidos (en desarrollo solo hay .gitkeep). Sin binarios no tiene sentido
+// señalar agentes "desactualizados" contra EmbeddedAgentVersion (default).
+func HasBinaries() bool {
+	f, err := Open("arm64")
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
+}
+
 //go:embed agents/*
 var agentsFS embed.FS
 

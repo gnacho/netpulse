@@ -419,8 +419,8 @@ export interface AgentInfo {
 
 /** Paso de progreso del self-update de un agente (GET /api/agents, #284). */
 export interface AgentUpgradeProgress {
-  /** requested | downloading | verifying | swapping | restarting | failed | queued */
-  step: 'requested' | 'downloading' | 'verifying' | 'swapping' | 'restarting' | 'failed' | 'queued'
+  /** requested | downloading | verifying | swapping | restarting | done | failed | queued */
+  step: 'requested' | 'downloading' | 'verifying' | 'swapping' | 'restarting' | 'done' | 'failed' | 'queued'
   /** 0-100, solo en "downloading" */
   pct?: number
   /** mensaje de error, solo en "failed" */

@@ -242,6 +242,12 @@ type Live struct {
 	agentDown        map[string]bool
 	agentDownConfirm time.Duration // Dead Man's Switch: confirmar caída tras este periodo sin alertar
 
+	// agentLatest (issue #400): fuente de la versión de referencia por kind
+	// del agente ("" = check desactivado); agentOutdatedAlerted evita
+	// re-emitir la recuperación ok más de una vez.
+	agentLatest          func(kind string) string
+	agentOutdatedAlerted map[string]bool
+
 	// routerMacs: id → bridge MAC persistida en DB. Permite emparejar un agente
 	// con su router aunque el slug elegido por el usuario no coincida con el id
 	// autogenerado del router (#282).
@@ -311,6 +317,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		wanInfoCache:         map[string]wanInfoCacheEntry{},
 		agentDown:            map[string]bool{},
 		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
+		agentOutdatedAlerted: map[string]bool{},
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
 		portMon:              NewPortMonitor(),

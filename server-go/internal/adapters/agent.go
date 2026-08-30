@@ -19,6 +19,7 @@ import (
 
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
 
 // AgentTTLDefault: 3 intervalos de push de 15 s (default del agente) + margen.
@@ -293,6 +294,16 @@ func (l *Live) SetAgentDownConfirm(d time.Duration) {
 	l.mu.Unlock()
 }
 
+// SetAgentLatestSource fija la fuente de la versión de referencia por kind
+// de agente (issue #400): native → binario embebido del server, netgrip →
+// última release pública de NetGrip, external → "" (nunca alerta). nil o
+// referencia vacía desactivan el check de agente desactualizado.
+func (l *Live) SetAgentLatestSource(fn func(kind string) string) {
+	l.mu.Lock()
+	l.agentLatest = fn
+	l.mu.Unlock()
+}
+
 // agentName: nombre para las alertas (cfg.Name o Host como el resto).
 func agentName(cfg RouterConfig) string {
 	if cfg.Name != "" {
@@ -322,6 +333,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 
 	slug, p, fresh := reg.MatchRouter(cfg, macs)
 	if fresh {
+		// issue #400: versión del agente desactualizada (alerta consolidada).
+		l.checkAgentVersion(cfg, p)
 		l.mu.Lock()
 		if l.agentDown[cfg.ID] {
 			l.agentDown[cfg.ID] = false
@@ -606,4 +619,59 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		out.leases = []DhcpLease{}
 	}
 	return out
+}
+
+// checkAgentVersion (issue #400): alerta consolidada (no urgente, sistema)
+// cuando el agente fresh del router empuja una versión anterior a la de
+// referencia de su kind: native → binario de agente embebido en el server,
+// netgrip → última release pública de NetGrip, external → sin check. Al
+// volver a estar al día emite UNA alerta ok de recuperación (patrón
+// consolidación de portmonitor, issue #366).
+func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
+	l.mu.Lock()
+	src := l.agentLatest
+	l.mu.Unlock()
+	if src == nil || p == nil || p.Version == "" || p.Kind == "external" {
+		return
+	}
+	ref := src(p.Kind)
+	if ref == "" {
+		return
+	}
+	name := agentName(cfg)
+	kindLabel := "NetPulse"
+	if p.Kind == "netgrip" {
+		kindLabel = "NetGrip"
+	}
+	l.mu.Lock()
+	alerted := l.agentOutdatedAlerted[cfg.ID]
+	l.mu.Unlock()
+	if vercmp.Cmp(ref, p.Version) > 0 {
+		if !alerted {
+			l.mu.Lock()
+			l.agentOutdatedAlerted[cfg.ID] = true
+			l.mu.Unlock()
+		}
+		l.engine.EmitOrUpdate(AlertEvent{
+			ID:       fmt.Sprintf("alert-agent-outdated-%s", cfg.ID),
+			Category: alerts.CatSystem, Urgent: false,
+			Severity:    "warn",
+			Title:       "Agente desactualizado en " + name,
+			Description: fmt.Sprintf("%s empuja la versión %s; la última disponible del agente %s es %s", name, p.Version, kindLabel, ref),
+			Hint:        alerts.HintFor(alerts.HintAgentOutdated),
+			Time:        "ahora mismo", RouterID: cfg.ID,
+		})
+	} else if alerted {
+		l.mu.Lock()
+		delete(l.agentOutdatedAlerted, cfg.ID)
+		l.mu.Unlock()
+		l.engine.Emit(AlertEvent{
+			ID:       fmt.Sprintf("alert-agent-outdated-%s-ok-%d", cfg.ID, time.Now().UnixMilli()),
+			Category: alerts.CatSystem, Urgent: false,
+			Severity:    "ok",
+			Title:       "Agente actualizado en " + name,
+			Description: fmt.Sprintf("%s ya empuja la versión %s de %s", name, p.Version, kindLabel),
+			Time:        "ahora mismo", RouterID: cfg.ID,
+		})
+	}
 }
