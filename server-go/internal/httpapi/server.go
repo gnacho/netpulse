@@ -278,10 +278,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	mux.HandleFunc("GET /api/reports/weekly", s.handleWeeklyReport)
 	mux.HandleFunc("GET /api/reports/availability", s.handleAvailabilityReport)
-	mux.HandleFunc("GET /api/config-backup", s.handleConfigBackupList)
+	mux.Handle("GET /api/config-backup", auth.RequireAdmin(http.HandlerFunc(s.handleConfigBackupList)))
 	mux.HandleFunc("POST /api/config-backup", s.handleConfigBackupUpload)
-	mux.HandleFunc("GET /api/config-backup/{id}", s.handleConfigBackupDownload)
-	mux.HandleFunc("DELETE /api/config-backup/{id}", s.handleConfigBackupDelete)
+	mux.Handle("GET /api/config-backup/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleConfigBackupDownload)))
+	mux.Handle("DELETE /api/config-backup/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleConfigBackupDelete)))
 
 	// --- Sondeo manual (botón "Refrescar" de Topología; 202 + SSE empuja) ---
 	mux.HandleFunc("POST /api/refresh", s.handleRefresh)
@@ -541,6 +541,11 @@ func (s *server) handleConfigBackupUpload(w http.ResponseWriter, r *http.Request
 	configs := r.Header.Get("X-Configs")
 	if routerID == "" || snapshotID == "" {
 		writeError(w, http.StatusBadRequest, "missing X-Router-ID or X-Snapshot-ID header")
+		return
+	}
+	token := bearerToken(r)
+	if token == "" || !s.checkAgentToken(routerID, token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))

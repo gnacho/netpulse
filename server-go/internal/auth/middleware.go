@@ -57,6 +57,24 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 	_, _ = w.Write(data)
 }
 
+// isAgentReportPath: /api/agents/{slug}/binary|stream|apply-result|upgrade-result|upgrade-progress.
+func isAgentReportPath(path string) bool {
+	return strings.HasPrefix(path, "/api/agents/") &&
+		(strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") ||
+			strings.HasSuffix(path, "/apply-result") || strings.HasSuffix(path, "/upgrade-result") ||
+			strings.HasSuffix(path, "/upgrade-progress"))
+}
+
+// isAnonymousPath indica si la ruta no requiere sesión (auth propia en el handler).
+func isAnonymousPath(path string) bool {
+	if path == "/api/health" || path == "/api/auth/login" ||
+		path == "/api/ingest/agent" || path == "/api/agents/pair" ||
+		isAgentReportPath(path) {
+		return true
+	}
+	return false
+}
+
 // RequireAuth es middleware global: todo /api/* exige sesión salvo
 // /api/health, /api/auth/login, /api/ingest/agent (auth Bearer por token
 // de equipo), /api/agents/pair (pairing token de un solo uso, Fase 9 R3),
@@ -64,14 +82,15 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 // Fase 6.2), /api/agents/{slug}/stream (SSE bidireccional, Fase 7.3),
 // /api/agents/{slug}/apply-result, /api/agents/{slug}/upgrade-result y
 // /api/agents/{slug}/upgrade-progress (reportes del agente, auth Bearer).
+// POST /api/config-backup (issue #340): recibe snapshots UCI desde NetGrip;
+// auth Bearer por token de agente validado en el handler.
 // Acepta Bearer tokens de API (#330) como alternativa a la cookie de sesión.
 // Fallo → 401 {error:'unauthorized'}.
 func RequireAuth(d *db.DB, secret string, tv TokenValidator, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if !strings.HasPrefix(path, "/api/") || path == "/api/health" || path == "/api/auth/login" ||
-			path == "/api/ingest/agent" || path == "/api/agents/pair" ||
-			(strings.HasPrefix(path, "/api/agents/") && (strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") || strings.HasSuffix(path, "/apply-result") || strings.HasSuffix(path, "/upgrade-result") || strings.HasSuffix(path, "/upgrade-progress"))) {
+		if !strings.HasPrefix(path, "/api/") || isAnonymousPath(path) ||
+			(path == "/api/config-backup" && r.Method == http.MethodPost) {
 			next.ServeHTTP(w, r)
 			return
 		}

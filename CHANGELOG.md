@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- **Backups centralizados de snapshots UCI (#340)**: el endpoint `POST /api/config-backup` ahora recibe snapshots gzip desde NetGrip autenticados con el token de agente. Los endpoints de lectura/borrado (`GET /api/config-backup`, `GET /api/config-backup/{id}`, `DELETE /api/config-backup/{id}`) requieren rol admin.
+
 ## [2.19.1] - 2026-08-29
 
 ### Fixed
