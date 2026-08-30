@@ -372,3 +372,43 @@ func TestPortMonitorGhostDisabled(t *testing.T) {
 	}
 }
 
+// issue #405: un reinicio del servidor pierde el estado; un contador
+// congelado en valor > 0 no debe interpretarse como ghost port.
+func TestPortMonitorGhostNoAlertAfterServerRestart(t *testing.T) {
+	pm := NewPortMonitor(true)
+	engine := alerts.New(nil, nil)
+	now := time.Date(2026, 8, 30, 22, 16, 0, 0, time.UTC)
+	pm.SetClock(func() time.Time { return now })
+
+	// Tras reinicio no hay historial. El puerto reporta un total constante > 0.
+	port := EthPort{ID: "eth0", Label: "LAN3", Up: true, Speed: "1 Gbps", RxBytes: 12345, TxBytes: 6789}
+
+	for i := 0; i < 15; i++ {
+		now = now.Add(15 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("gateway", []EthPort{port}, engine)
+	}
+
+	if n, _ := findAlerts(engine, "Ghost port: LAN3 went silent"); n != 0 {
+		t.Fatalf("ghost alerts after server restart = %d, want 0", n)
+	}
+
+	// A partir de aquí el puerto sí muestra tráfico creciente y luego se calla;
+	// ahora sí debe saltar la alerta porque hay historia real de warm-up.
+	for i := 0; i < ghostMinHistory; i++ {
+		port.RxBytes += 1000
+		port.TxBytes += 500
+		now = now.Add(15 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("gateway", []EthPort{port}, engine)
+	}
+	for i := 0; i < ghostConsecutive; i++ {
+		now = now.Add(15 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("gateway", []EthPort{port}, engine)
+	}
+	if n, _ := findAlerts(engine, "Ghost port: LAN3 went silent"); n != 1 {
+		t.Fatalf("ghost alert after real warm-up = %d, want 1", n)
+	}
+}
+
