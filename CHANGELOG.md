@@ -7,14 +7,23 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
-### Fixed
-
-- **Texto seleccionable en el feed de alertas (#393)**: las filas del feed de `/alerts` renderizaban todo su contenido dentro de un `<button>`, y los navegadores desactivan la selección de texto dentro de los botones. La fila pasa a ser un `div role="button"` (Enter/Espacio siguen funcionando) con un guard por movimiento de puntero: arrastrar para seleccionar no despliega la alerta, un click normal sí. Corrige además el anidado inválido de botones (silenciar dentro de la fila).
+## [2.20.0] - 2026-08-30
 
 ### Added
 
 - **Delegación de planes a NetGrip (#339)**: si un router tiene un executor token de NetGrip (enviado con el snapshot en #340), `POST /api/plans/{id}/apply` delega la ejecución de las ops a NetGrip vía `POST /api/executor/apply`. Si NetGrip no responde, se mantiene el fallback al agente embebido por SSE.
 - **Backups centralizados de snapshots UCI (#340)**: el endpoint `POST /api/config-backup` ahora recibe snapshots gzip desde NetGrip autenticados con el token de agente. Los endpoints de lectura/borrado (`GET /api/config-backup`, `GET /api/config-backup/{id}`, `DELETE /api/config-backup/{id}`) requieren rol admin.
+
+### Fixed
+
+- **Texto seleccionable en el feed de alertas (#393)**: las filas del feed de `/alerts` renderizaban todo su contenido dentro de un `<button>`, y los navegadores desactivan la selección de texto dentro de los botones. La fila pasa a ser un `div role="button"` (Enter/Espacio siguen funcionando) con un guard por movimiento de puntero: arrastrar para seleccionar no despliega la alerta, un click normal sí. Corrige además el anidado inválido de botones (silenciar dentro de la fila).
+- **Banner de actualización sincronizado con el check manual (#392)**: el ribbon de nueva versión y la comprobación de Ajustes comparten el mismo estado; ya no divergen tras un check manual.
+
+## [2.19.2] - 2026-08-30
+
+### Security
+
+- El servidor rechaza al arrancar valores placeholder en `AUTH_PASS` y `SESSION_SECRET` (#391).
 
 ## [2.19.1] - 2026-08-29
 
