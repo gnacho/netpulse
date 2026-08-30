@@ -1290,7 +1290,8 @@
       "guestwifi": "WiFi invitados",
       "ddns": "DDNS",
       "sqm": "QoS (SQM)",
-      "wireguard": "WireGuard"
+      "wireguard": "WireGuard",
+      "dawn": "DAWN"
     },
     "warn": {
       "managed_by_firmware": "Este router trae un AdGuard Home del fabricante (GL.iNet). NetPulse no lo gestiona para no romper su UI: configúralo desde la interfaz del router.",
@@ -1374,6 +1375,28 @@
       "method": {
         "active": "Túnel activo",
         "inactive": "Túnel inactivo"
+      }
+    },
+    "dawn": {
+      "enable": "Activar DAWN (roaming WiFi)",
+      "allowNonGateway": "Permitir DAWN en routers no-gateway",
+      "nonGatewayWarning": "DAWN puede ejecutarse en cualquier AP con WiFi; solo necesita el paquete, wpad completo y los parámetros de roaming alineados.",
+      "ssid": "SSID (vacío = todas)",
+      "mobilityDomain": "Dominio de movilidad",
+      "broadcastIp": "IP de broadcast",
+      "tcpPort": "Puerto TCP",
+      "sharedKey": "Clave compartida",
+      "iv": "IV",
+      "roaming": "Roaming",
+      "ieee80211k": "802.11k",
+      "ieee80211r": "802.11r",
+      "ieee80211v": "802.11v",
+      "bssTransition": "BSS transition",
+      "ftOverDs": "FT over DS",
+      "ftPskGenerateLocal": "Generar FT-PSK local",
+      "method": {
+        "active": "DAWN activo",
+        "inactive": "DAWN inactivo"
       }
     }
   },

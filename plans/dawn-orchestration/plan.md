@@ -90,10 +90,10 @@ A "Deploy / Fix DAWN" button in NetPulse that:
 
 | Phase | Title | Contribution | Why Separate | Detail | Status |
 |-------|-------|--------------|--------------|--------|--------|
-| 1 | Backend probe + desired state | Model current/desired DAWN config | Stable foundation for plan generation | [Phase 1](phases/phase-1.md) | pending |
-| 2 | Backend plan builder + healthcheck | Generate ops, verify DAWN mesh, rollback | Needs probe model from Phase 1 | [Phase 2](phases/phase-2.md) | pending |
-| 3 | Frontend Deploy DAWN card | Button, progress, drift suggestions | Can be built against Phase 2 API | [Phase 3](phases/phase-3.md) | pending |
-| 4 | Deploy and validate on rt3 | End-to-end check on real router | Must not touch production until code is ready | [Phase 4](phases/phase-4.md) | pending |
+| 1 | Backend probe + desired state | Model current/desired DAWN config | Stable foundation for plan generation | [Phase 1](phases/phase-1.md) | completed |
+| 2 | Backend plan builder + healthcheck | Generate ops, verify DAWN mesh, rollback | Needs probe model from Phase 1 | [Phase 2](phases/phase-2.md) | completed |
+| 3 | Frontend Deploy DAWN card | Button, progress, drift suggestions | Can be built against Phase 2 API | [Phase 3](phases/phase-3.md) | completed |
+| 4 | Deploy and validate on rt3 | End-to-end check on real router | Must not touch production until code is ready | [Phase 4](phases/phase-4.md) | in_progress |
 | 5 | Docs + PR + release | README update, PR, merge, release | Final delivery step | [Phase 5](phases/phase-5.md) | pending |
 
 ## Risks & Open Questions
