@@ -200,6 +200,22 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		errs.issues = append(errs.issues, issue{"AUTH_PASS", "Required"})
 	}
 
+	// Placeholder detection (30-Ago-2026, leccion Yuvomi #937): rechazar
+	// valores del .env.example en secretos criticos.
+	placeholderMarkers := []string{"cambia", "changeme", "change-me", "example", "placeholder", "your-secret", "replace_me"}
+	for _, kv := range []struct{ key, val string }{
+		{"AUTH_PASS", authPass},
+		{"SESSION_SECRET", sessionSecret},
+	} {
+		low := strings.ToLower(kv.val)
+		for _, m := range placeholderMarkers {
+			if kv.val != "" && strings.Contains(low, m) {
+				errs.issues = append(errs.issues, issue{kv.key, "contains a placeholder value from .env.example; generate a real secret"})
+				break
+			}
+		}
+	}
+
 	// DEMO_MODE: '0'|'1', opcional (demo solo si === '1')
 	demoMode := false
 	if v, ok := env["DEMO_MODE"]; ok && v != "" {
