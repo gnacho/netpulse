@@ -33,8 +33,8 @@ dawn.global.set_hostapd_nr='1'
 dawn.global.rrm_mode='pat'
 dawn.global.broadcast_ip='192.168.1.255'
 dawn.global.tcp_port='1026'
-dawn.global.shared_key='TemisciraDawn2026'
-dawn.global.iv='TemisciraDawn2026'
+dawn.global.shared_key='test-shared-key'
+dawn.global.iv='test-shared-key'
 ===WIRELESS_UCI===
 wireless.temiscira2g=wifi-iface
 wireless.temiscira2g.device='radio0'
@@ -132,7 +132,7 @@ func TestDawnOpsInstallAndConfigure(t *testing.T) {
 	sc := parseDawn(dawnProbeOpkgMissing)
 	ops := DawnOps(DawnDesired{
 		Enabled: true, SSID: "temiscira", MobilityDomain: "2025",
-		BroadcastIP: "192.168.1.255", SharedKey: "TemisciraDawn2026", IV: "TemisciraDawn2026",
+		BroadcastIP: "192.168.1.255", SharedKey: "test-shared-key", IV: "test-shared-key",
 	}, sc)
 	if err := validateDawnOps(ops); err != nil {
 		t.Fatalf("ops no validan: %v", err)
@@ -189,7 +189,7 @@ func TestDawnOpsNoOpWhenMatches(t *testing.T) {
 	sc := parseDawn(dawnProbeApkOK)
 	ops := DawnOps(DawnDesired{
 		Enabled: true, SSID: "temiscira", MobilityDomain: "2025",
-		BroadcastIP: "192.168.1.255", SharedKey: "TemisciraDawn2026", IV: "TemisciraDawn2026",
+		BroadcastIP: "192.168.1.255", SharedKey: "test-shared-key", IV: "test-shared-key",
 	}, sc)
 	if len(ops) != 0 {
 		t.Errorf("esperaba 0 ops cuando todo coincide, got %d: %v", len(ops), ops)

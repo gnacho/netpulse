@@ -109,4 +109,4 @@ A "Deploy / Fix DAWN" button in NetPulse that:
 ### 2026-08-30
 
 - Plan created and scope confirmed by user.
-- Phase 4 validated on rt4 (redmi-ax6-3, native agent with SSE). rt3 (redmi-ax6-2, NetGrip) skipped because executor token not yet configured. Plan applied successfully: 13 ops, 206ms, status `applied`. Config verified via SSH: `network_option=2`, `tcp_port=1026`, `shared_key=TemisciraDawn2026`, `broadcast_ip=192.168.1.255`, `random_bssid=0` on both radios. DAWN mesh confirmed (Flint2 + 27 clients visible).
+- Phase 4 validated on rt4 (redmi-ax6-3, native agent with SSE). rt3 (redmi-ax6-2, NetGrip) skipped because executor token not yet configured. Plan applied successfully: 13 ops, 206ms, status `applied`. Config verified via SSH: `network_option=2`, `tcp_port=1026`, `shared_key=test-shared-key`, `broadcast_ip=192.168.1.255`, `random_bssid=0` on both radios. DAWN mesh confirmed (Flint2 + 27 clients visible).
