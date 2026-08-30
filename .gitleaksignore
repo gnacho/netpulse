@@ -3,3 +3,12 @@ d699083e78374c3508a80a84487c59b4ff458390:server-go/internal/db/migrate_node_test
 85ca49bc95c9dbc422d58d4bf7d5b29ee67397ba:server-go/internal/httpapi/push.go:generic-api-key:51
 39727b9dfc1773882a7f0388f9db21fedb6a4bc7:server-go/internal/httpapi/migrate_e2e_test.go:generic-api-key:34
 c4cd4538a3187d7fa8e0b0fe2bdd5d95aafe245c:server-go/internal/httpapi/migrate_e2e_test.go:generic-api-key:34
+# DAWN shared key used in test fixtures and plan docs (not a real secret, replaced with test-shared-key)
+83b63c8bdfeefccd00bed1805cff31d88006228b:plans/dawn-orchestration/plan.md:generic-api-key:112
+2cc11c661f3ccbfba55a4e58e33c260fadd25e4f:plans/dawn-orchestration/plan.md:generic-api-key:112
+2cc11c661f3ccbfba55a4e58e33c260fadd25e4f:server-go/internal/orchestr/dawn_test.go:generic-api-key:36
+2cc11c661f3ccbfba55a4e58e33c260fadd25e4f:server-go/internal/orchestr/dawn_test.go:generic-api-key:135
+2cc11c661f3ccbfba55a4e58e33c260fadd25e4f:server-go/internal/orchestr/dawn_test.go:generic-api-key:192
+4f148778c2f94962f8a9f50f8942e6eb974d9ed2:server-go/internal/orchestr/dawn_test.go:generic-api-key:36
+4f148778c2f94962f8a9f50f8942e6eb974d9ed2:server-go/internal/orchestr/dawn_test.go:generic-api-key:135
+4f148778c2f94962f8a9f50f8942e6eb974d9ed2:server-go/internal/orchestr/dawn_test.go:generic-api-key:192
