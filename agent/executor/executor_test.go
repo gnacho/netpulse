@@ -187,6 +187,18 @@ func TestValidateDownloadURLAllowlist(t *testing.T) {
 	}
 }
 
+func TestValidateDawnCheck(t *testing.T) {
+	if err := Validate(Op{Kind: "dawn_check", Args: map[string]string{}}); err != nil {
+		t.Fatalf("dawn_check debería validar: %v", err)
+	}
+}
+
+func TestValidateWifiReload(t *testing.T) {
+	if err := Validate(Op{Kind: "wifi_reload", Args: map[string]string{}}); err != nil {
+		t.Fatalf("wifi_reload debería validar: %v", err)
+	}
+}
+
 func TestValidateFilePathAllowlist(t *testing.T) {
 	for _, p := range []string{"/etc/AdGuardHome.yaml", "/tmp/agh.tar.gz", "/usr/bin/AdGuardHome", "/usr/lib/AdGuardHome/dns"} {
 		if err := Validate(Op{Kind: "write_file", Args: map[string]string{"path": p, "content_b64": "Zm9v"}}); err != nil {

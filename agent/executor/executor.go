@@ -66,7 +66,7 @@ var (
 	// usado tras un uci_add para setear los campos de la sección recién
 	// creada (patrón OpenWrt estándar).
 	reSection = regexp.MustCompile(`^(@[a-z0-9_-]+(\[\d+\]|\[-1\])|[a-z0-9_-]+)$`)
-	reOption  = regexp.MustCompile(`^[a-z_]+$`)
+	reOption  = regexp.MustCompile(`^[a-z0-9_]+$`)
 	// value: alfanumérico + puntos, dos-puntos, barras, hashes, guiones.
 	// Cubre IPs (192.168.1.1), DNS (1.1.1.1#3001), rutas, MACs, puertos.
 	reValue      = regexp.MustCompile(`^[a-zA-Z0-9_.:/#,-]+$`)
@@ -298,6 +298,37 @@ var allowlist = map[string]opSpec{
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
+	// dawn_check: healthcheck del módulo DAWN. Ejecuta
+	// `ubus call dawn get_network` y verifica que devuelva JSON no vacío
+	// con vecinos. Si falla, el executor revierte los snapshots UCI.
+	"dawn_check": {
+		exec: func(run Runner, a map[string]string) int {
+			out, code := run.Run("ubus", "call", "dawn", "get_network")
+			if code != 0 {
+				return code
+			}
+			out = strings.TrimSpace(out)
+			if out == "" || out == "{}" {
+				return 1
+			}
+			var v map[string]any
+			if err := json.Unmarshal([]byte(out), &v); err != nil {
+				return 1
+			}
+			if len(v) == 0 {
+				return 1
+			}
+			return 0
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// wifi_reload: aplica cambios en /etc/config/wireless sin reboot.
+	"wifi_reload": {
+		build: func(a map[string]string) (string, []string) {
+			return "/sbin/wifi", []string{"reload"}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
 }
 
 // tcpCheckBudget / tcpCheckRetry controlan los reintentos del Kind tcp_check.
@@ -387,16 +418,25 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 			_, code = e.run.Run(cmd, cmdArgs...)
 		}
 		if code != 0 {
-			if op.Kind == "wg_check" {
-				// Healthcheck del módulo WireGuard: el túnel no levantó tras el
-				// apply. Rollback real: restaurar los snapshots UCI (uci import)
-				// y relanzar la red con la config previa.
+			if op.Kind == "wg_check" || op.Kind == "dawn_check" {
+				// Healthcheck del módulo: rollback real restaurando snapshots UCI
+				// y relanzando los servicios afectados.
 				for cfg, snap := range snapshots {
 					e.run.Run("sh", "-c", fmt.Sprintf("echo '%s' | uci import", snap))
 					e.run.Run("uci", "commit", cfg)
 				}
-				e.run.Run("/etc/init.d/network", "reload")
-				return ApplyResult{Status: "rolled_back", Op: op.Desc, Error: "wg_check_failed", Snapshot: strings.Join(affected, ","), DurationMs: ms(e.now(), start)}
+				if op.Kind == "wg_check" {
+					e.run.Run("/etc/init.d/network", "reload")
+				}
+				if op.Kind == "dawn_check" {
+					e.run.Run("/etc/init.d/dawn", "restart")
+					e.run.Run("/sbin/wifi", "reload")
+				}
+				errKey := "wg_check_failed"
+				if op.Kind == "dawn_check" {
+					errKey = "dawn_check_failed"
+				}
+				return ApplyResult{Status: "rolled_back", Op: op.Desc, Error: errKey, Snapshot: strings.Join(affected, ","), DurationMs: ms(e.now(), start)}
 			}
 			// Revert staged changes y salir.
 			e.revertStaged(affected)

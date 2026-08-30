@@ -145,14 +145,14 @@ Other OpenWrt devices should work, but yours would be the first to tell.
 | **7 — Agent deep dive** | ✅ | Real-time wifi events (`iw event`), bidirectional SSE, `.ipk` packaging (11-12 MB RSS, <1% CPU) |
 | **8 — Consolidation** | ✅ | `/api/health` metrics, persistent agent registry, retention ladder (raw 7d → 5min buckets 1y → daily ∞), recharts v3, outgoing alert webhooks |
 | **9 — On-box** | ✅ | UCI config, AUTH_PASS bootstrap, TLS self-signed + SPKI pinning, pairing token, OpenWrt server package |
-| **10 — Orchestration** | 🔄 | Plan→apply→state engine + sandboxed agent executor (10.1), AdGuard module (10.2). WireGuard/DAWN-write deferred to Phase 17 |
+| **10 — Orchestration** | 🔄 | Plan→apply→state engine + sandboxed agent executor (10.1), AdGuard module (10.2), DAWN module (10.9). WireGuard deferred to Phase 17 |
 | **11 — LuCI package** | ✅ | `luci-app-netpulse` shipped as `.ipk`/`.apk` on every release: local agent status/view (procd, UCI, logs, restart/rearm) + bridge to the web app |
 | **12 — Security audit** | ✅ | TRUST_PROXY, anti-replay on ingest, body cap, password min 10 |
 | **13 — Robustness audit** | ✅ | Single-flight GetOverview, SSE write deadline, sshpool dial race, error wrapping |
 | **14 — WiFi/roaming visibility** | ✅ | DAWN signal matrix, 802.11r status per SSID, channel utilization survey, persistent roaming events feed (30d) |
 | **15 — Reports** | 🔄 | Daily/week/month availability. Pending: traffic, activity, alert summary, export |
 | **16 — Advanced alerts** | 🔮 | Custom threshold rules, new alert types (roaming failure, channel congestion), scheduled silence, email |
-| **17 — Write to routers (skeleton)** | 🔮 | Common deploy engine + 11 modules index (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, DAWN-write, Batman, DPI) |
+| **17 — Write to routers (skeleton)** | 🔮 | Common deploy engine + 10 modules index (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, Batman, DPI) |
 | **18-20 — Beta-testing program** | 🔮 | Module groups by risk (low / medium / high) with stable + unstable release channels and external beta-testers |
 
 Full detail in [docs/ROADMAP.md](docs/ROADMAP.md).

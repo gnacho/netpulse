@@ -6,7 +6,7 @@ import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert, P
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
-type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm' | 'wireguard'
+type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm' | 'wireguard' | 'dawn'
 
 interface Op {
   kind: string
@@ -76,6 +76,20 @@ export default function Orchestration() {
   const [wgInterface, setWgInterface] = useState('wg0')
   const [wgPeers, setWgPeers] = useState([{ name: '', publicKey: '', allowedIps: '' }])
   const [wgAdminPeer, setWgAdminPeer] = useState('')
+  // DAWN (Fase 17.9).
+  const [dawnEnabled, setDawnEnabled] = useState(true)
+  const [dawnSsid, setDawnSsid] = useState('')
+  const [dawnMobilityDomain, setDawnMobilityDomain] = useState('2025')
+  const [dawnBroadcastIp, setDawnBroadcastIp] = useState('192.168.1.255')
+  const [dawnTcpPort, setDawnTcpPort] = useState('1026')
+  const [dawnSharedKey, setDawnSharedKey] = useState('')
+  const [dawnIv, setDawnIv] = useState('')
+  const [dawnK, setDawnK] = useState(true)
+  const [dawnR, setDawnR] = useState(true)
+  const [dawnV, setDawnV] = useState(true)
+  const [dawnBssTransition, setDawnBssTransition] = useState(true)
+  const [dawnFtOverDs, setDawnFtOverDs] = useState(false)
+  const [dawnFtPskGenerateLocal, setDawnFtPskGenerateLocal] = useState(true)
 
   // issue #120: todos los módulos son gateway-only por defecto. El toggle
   // "advanced" permite un router no-gateway (con warning + checks).
@@ -139,6 +153,23 @@ export default function Orchestration() {
             .filter((p) => p.publicKey.trim() !== '')
             .map((p) => ({ name: p.name, publicKey: p.publicKey.trim(), allowedIps: p.allowedIps.trim() })),
           adminPeerPubkey: wgAdminPeer.trim(),
+        }
+      case 'dawn':
+        return {
+          enabled: dawnEnabled,
+          ssid: dawnSsid,
+          mobilityDomain: dawnMobilityDomain,
+          broadcastIp: dawnBroadcastIp,
+          tcpPort: dawnTcpPort,
+          sharedKey: dawnSharedKey,
+          iv: dawnIv,
+          ieee80211k: dawnK,
+          ieee80211r: dawnR,
+          ieee80211v: dawnV,
+          bssTransition: dawnBssTransition,
+          ftOverDs: dawnFtOverDs,
+          ftPskGenerateLocal: dawnFtPskGenerateLocal,
+          allowNonGateway,
         }
       default:
         return { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway }
@@ -246,7 +277,7 @@ export default function Orchestration() {
 
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
-        {(['adguard', 'guestwifi', 'ddns', 'sqm', 'wireguard'] as Module[]).map((m) => (
+        {(['adguard', 'guestwifi', 'ddns', 'sqm', 'wireguard', 'dawn'] as Module[]).map((m) => (
           <button
             key={m}
             type="button"
@@ -610,6 +641,109 @@ export default function Orchestration() {
                 ))}
                 <p className="mt-2 text-xs text-text-muted">{t('orchestration.wireguard.peersHint')}</p>
               </div>
+            </>
+          )}
+
+          {module === 'dawn' && (
+            <>
+              <label className="flex items-center gap-2 pt-6">
+                <input
+                  type="checkbox"
+                  checked={dawnEnabled}
+                  onChange={(e) => setDawnEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <span className="text-sm text-text-primary">{t('orchestration.dawn.enable')}</span>
+              </label>
+
+              {dawnEnabled && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.ssid')}</span>
+                    <input
+                      type="text"
+                      value={dawnSsid}
+                      onChange={(e) => setDawnSsid(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.mobilityDomain')}</span>
+                    <input
+                      type="text"
+                      value={dawnMobilityDomain}
+                      onChange={(e) => setDawnMobilityDomain(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.broadcastIp')}</span>
+                    <input
+                      type="text"
+                      value={dawnBroadcastIp}
+                      onChange={(e) => setDawnBroadcastIp(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.tcpPort')}</span>
+                    <input
+                      type="text"
+                      value={dawnTcpPort}
+                      onChange={(e) => setDawnTcpPort(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.sharedKey')}</span>
+                    <input
+                      type="text"
+                      value={dawnSharedKey}
+                      onChange={(e) => setDawnSharedKey(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.iv')}</span>
+                    <input
+                      type="text"
+                      value={dawnIv}
+                      onChange={(e) => setDawnIv(e.target.value)}
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                    />
+                  </label>
+
+                  <div className="lg:col-span-2">
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.roaming')}</span>
+                    <div className="mt-2 flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={dawnK} onChange={(e) => setDawnK(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ieee80211k')}</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={dawnR} onChange={(e) => setDawnR(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ieee80211r')}</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={dawnV} onChange={(e) => setDawnV(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ieee80211v')}</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={dawnBssTransition} onChange={(e) => setDawnBssTransition(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.dawn.bssTransition')}</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={dawnFtPskGenerateLocal} onChange={(e) => setDawnFtPskGenerateLocal(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ftPskGenerateLocal')}</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={dawnFtOverDs} onChange={(e) => setDawnFtOverDs(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ftOverDs')}</span>
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
