@@ -33,6 +33,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
 
 const (
@@ -826,6 +827,10 @@ func (s *server) agentKindOf(slug string) string {
 // netgripLatest resuelve la última release de gnacho/netgrip con cache (TTL):
 // los agentes kind=netgrip comparan su versión contra ELLA (el binario
 // embebido del server no aplica). Falla de red → cache/"" → sin botón.
+// NetgripLatestVersion es la puerta pública para el cableado del check de
+// agentes desactualizados (issue #400).
+func NetgripLatestVersion() string { return netgripLatest() }
+
 var (
 	netgripLatestMu    sync.Mutex
 	netgripLatestVer   string
@@ -873,32 +878,5 @@ func netgripLatest() string {
 }
 
 // cmpSemver compara dos versiones x.y.z (-rN se ignora): -1, 0, 1. Malparse
-// → 0 (sin señal de novedad).
-func cmpSemver(a, b string) int {
-	pa, okA := parseSemver3(a)
-	pb, okB := parseSemver3(b)
-	if !okA || !okB {
-		return 0
-	}
-	for i := 0; i < 3; i++ {
-		if pa[i] != pb[i] {
-			if pa[i] > pb[i] {
-				return 1
-			}
-			return -1
-		}
-	}
-	return 0
-}
-
-func parseSemver3(v string) ([3]int, bool) {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	if i := strings.IndexAny(v, "- +"); i >= 0 {
-		v = v[:i]
-	}
-	var x [3]int
-	if n, _ := fmt.Sscanf(v, "%d.%d.%d", &x[0], &x[1], &x[2]); n != 3 {
-		return x, false
-	}
-	return x, true
-}
+// → 0 (sin señal de novedad). Implementación compartida en internal/vercmp.
+func cmpSemver(a, b string) int { return vercmp.Cmp(a, b) }
