@@ -252,6 +252,9 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
   const [showSilence, setShowSilence] = useState(false)
+  // #393: posición del pointerdown para distinguir click (sin movimiento →
+  // togglear) de arrastre de selección de texto (movimiento → no togglear).
+  const downAt = useRef<{ x: number; y: number } | null>(null)
   return (
     <motion.li
       initial={reduce ? false : { opacity: 0, y: 14 }}
@@ -271,13 +274,16 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
 
       {/* #393: div role=button (no <button>) para permitir seleccionar/copiar
           el texto de la alerta; los navegadores desactivan la selección dentro
-          de los <button>. Guard en click: no togglear si acaba de seleccionarse
-          texto. Teclado: Enter/Espacio como un botón real. */}
+          de los <button>. Guard por movimiento: un click (≤4 px entre
+          pointerdown y click) togglear; un arrastre de selección no. Teclado:
+          Enter/Espacio como un botón real. */}
       <div
         role="button"
         tabIndex={0}
-        onClick={() => {
-          if (window.getSelection()?.toString()) return
+        onPointerDown={(e) => { downAt.current = { x: e.clientX, y: e.clientY } }}
+        onClick={(e) => {
+          const d = downAt.current
+          if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return
           onToggle()
         }}
         onKeyDown={(e) => {
