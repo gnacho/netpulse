@@ -66,7 +66,7 @@ var (
 	// usado tras un uci_add para setear los campos de la sección recién
 	// creada (patrón OpenWrt estándar).
 	reSection = regexp.MustCompile(`^(@[a-z0-9_-]+(\[\d+\]|\[-1\])|[a-z0-9_-]+)$`)
-	reOption  = regexp.MustCompile(`^[a-z_]+$`)
+	reOption  = regexp.MustCompile(`^[a-z0-9_]+$`)
 	// value: alfanumérico + puntos, dos-puntos, barras, hashes, guiones.
 	// Cubre IPs (192.168.1.1), DNS (1.1.1.1#3001), rutas, MACs, puertos.
 	reValue      = regexp.MustCompile(`^[a-zA-Z0-9_.:/#,-]+$`)
