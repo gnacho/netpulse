@@ -225,6 +225,10 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.agents.Ingest(&p)
+	// #401: si hay un upgrade en marcha y este push ya reporta la versión
+	// objetivo, el ciclo se cierra con el paso terminal "done" en vez de
+	// dejar el estado en "restarting" hasta el TTL.
+	s.upgrades.finishIfTarget(p.Router, p.Version)
 	// Fase 8.2 (R8): persistir el último push en kv (agent.state.<slug>) para
 	// que lastSeen/versión/payload sobrevivan a un reinicio del servidor.
 	s.persistAgentState(p.Router, s.agents.Snapshot(p.Router))
