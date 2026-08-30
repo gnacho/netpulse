@@ -93,7 +93,7 @@ A "Deploy / Fix DAWN" button in NetPulse that:
 | 1 | Backend probe + desired state | Model current/desired DAWN config | Stable foundation for plan generation | [Phase 1](phases/phase-1.md) | completed |
 | 2 | Backend plan builder + healthcheck | Generate ops, verify DAWN mesh, rollback | Needs probe model from Phase 1 | [Phase 2](phases/phase-2.md) | completed |
 | 3 | Frontend Deploy DAWN card | Button, progress, drift suggestions | Can be built against Phase 2 API | [Phase 3](phases/phase-3.md) | completed |
-| 4 | Deploy and validate on rt3 | End-to-end check on real router | Must not touch production until code is ready | [Phase 4](phases/phase-4.md) | in_progress |
+| 4 | Deploy and validate on rt3 | End-to-end check on real router | Must not touch production until code is ready | [Phase 4](phases/phase-4.md) | completed |
 | 5 | Docs + PR + release | README update, PR, merge, release | Final delivery step | [Phase 5](phases/phase-5.md) | pending |
 
 ## Risks & Open Questions
@@ -109,3 +109,4 @@ A "Deploy / Fix DAWN" button in NetPulse that:
 ### 2026-08-30
 
 - Plan created and scope confirmed by user.
+- Phase 4 validated on rt4 (redmi-ax6-3, native agent with SSE). rt3 (redmi-ax6-2, NetGrip) skipped because executor token not yet configured. Plan applied successfully: 13 ops, 206ms, status `applied`. Config verified via SSH: `network_option=2`, `tcp_port=1026`, `shared_key=TemisciraDawn2026`, `broadcast_ip=192.168.1.255`, `random_bssid=0` on both radios. DAWN mesh confirmed (Flint2 + 27 clients visible).
