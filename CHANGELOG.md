@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-08-30
+
 ### Added
 
 - **Módulo de orquestación DAWN (#402)**: nueva tarjeta "DAWN" en `/orchestration` para desplegar y alinear la configuración de roaming (802.11k/v/r, mobility domain, shared key, broadcast IP, random_bssid=0) en los APs. El backend probea el estado actual vía SSH, genera un plan declarativo con las ops necesarias, y verifica la malla DAWN tras el apply (`ubus call dawn get_network`). Incluye rollback y i18n ES/EN.
