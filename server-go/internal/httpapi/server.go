@@ -557,6 +557,15 @@ func (s *server) handleConfigBackupUpload(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "empty body")
 		return
 	}
+	if execToken := r.Header.Get("X-Executor-Token"); execToken != "" {
+		if _, err := s.db.Exec(
+			`INSERT INTO kv (key, value) VALUES (?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+			"netgrip.executor_token."+routerID, execToken); err != nil {
+			writeError(w, http.StatusInternalServerError, "store executor token")
+			return
+		}
+	}
 	if err := s.configBackup.Save(routerID, snapshotID, configs, data); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

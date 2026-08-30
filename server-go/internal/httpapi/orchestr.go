@@ -8,10 +8,16 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/gnacho/netpulse/agent/executor"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -90,11 +96,23 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			writeError(w, http.StatusConflict, "plan_not_pending", "El plan ya fue aplicado o está en curso")
 			return
 		}
+		// Intentar delegar en NetGrip si el router tiene executor token.
+		if ok, err := s.applyViaNetGrip(plan.RouterID, plan.ID, plan.Diff); err != nil {
+			writeError(w, http.StatusBadGateway, "netgrip_error", err.Error())
+			return
+		} else if ok {
+			mgr.SetApplying(plan.ID)
+			if err := mgr.SetResult(plan.ID, netgripApplyResult()); err != nil {
+				log.Printf("[netpulse] error marcando plan aplicado vía NetGrip: %v", err)
+			}
+			writeJSON(w, http.StatusAccepted, map[string]string{"status": "applying", "planId": id})
+			return
+		}
 		if s.agentHub == nil {
 			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
 			return
 		}
-		// Enviar Ops al agente vía SSE.
+		// Fallback: enviar Ops al agente vía SSE.
 		applyData, _ := json.Marshal(map[string]any{"plan_id": id, "ops": plan.Diff})
 		sent := s.agentHub.Send(plan.RouterID, "apply", json.RawMessage(applyData))
 		if !sent {
@@ -470,5 +488,73 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 		return json.Marshal(d)
 	default:
 		return nil, fmt.Errorf("rollback no soportado para el módulo %q", resource)
+	}
+}
+
+// applyViaNetGrip intenta ejecutar un plan en el NetGrip del router.
+// Devuelve (true, nil) si NetGrip aceptó y ejecutó las ops; (false, nil) si
+// no hay NetGrip configurado o no responde (fallback a SSE); (false, error)
+// si NetGrip devolvió error explícito.
+func (s *server) applyViaNetGrip(routerID string, planID string, ops []executor.Op) (bool, error) {
+	host := s.hostOfRouter(routerID)
+	if host == "" {
+		return false, nil
+	}
+	execToken := ""
+	if s.db != nil {
+		_ = s.db.QueryRow(
+			"SELECT value FROM kv WHERE key = ?", "netgrip.executor_token."+routerID,
+		).Scan(&execToken)
+	}
+	if execToken == "" {
+		return false, nil
+	}
+
+	addr := host
+	if !strings.Contains(addr, ":") {
+		addr = addr + ":8080"
+	}
+	u := url.URL{Scheme: "http", Host: addr, Path: "/api/executor/apply"}
+	body, _ := json.Marshal(map[string]any{"ops": ops})
+	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(body))
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+execToken)
+	req.Header.Set("X-Plan-ID", planID)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[netpulse] NetGrip no responde en %s: %v", u.Host, err)
+		return false, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		log.Printf("[netpulse] NetGrip respondió %d: %s", resp.StatusCode, string(b))
+		return false, nil
+	}
+	var res struct {
+		Ok    bool   `json:"ok"`
+		Error string `json:"error,omitempty"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&res); err != nil {
+		log.Printf("[netpulse] NetGrip respondió JSON inválido: %v", err)
+		return false, nil
+	}
+	if !res.Ok {
+		return false, fmt.Errorf("netgrip: %s", res.Error)
+	}
+	return true, nil
+}
+
+// netgripApplyResult simula un resultado de apply para marcar un plan como
+// aplicado cuando NetGrip ejecutó las ops.
+func netgripApplyResult() executor.ApplyResult {
+	return executor.ApplyResult{
+		Status: "applied",
 	}
 }

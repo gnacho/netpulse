@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- **Delegación de planes a NetGrip (#339)**: si un router tiene un executor token de NetGrip (enviado con el snapshot en #340), `POST /api/plans/{id}/apply` delega la ejecución de las ops a NetGrip vía `POST /api/executor/apply`. Si NetGrip no responde, se mantiene el fallback al agente embebido por SSE.
 - **Backups centralizados de snapshots UCI (#340)**: el endpoint `POST /api/config-backup` ahora recibe snapshots gzip desde NetGrip autenticados con el token de agente. Los endpoints de lectura/borrado (`GET /api/config-backup`, `GET /api/config-backup/{id}`, `DELETE /api/config-backup/{id}`) requieren rol admin.
 
 ## [2.19.1] - 2026-08-29
