@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-08-30
+
 ### Added
 
 - **Rollback de planes delegado a NetGrip (#397)**: `POST /api/plans/{id}/rollback` ahora delega las ops inversas al executor de NetGrip cuando el router tiene executor token (mismo criterio que el apply), asentando el plan como `rolled_back` vía la máquina de estados existente. El fallback al agente embebido por SSE se mantiene.
