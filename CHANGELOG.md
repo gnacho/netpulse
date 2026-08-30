@@ -7,6 +7,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.22.1] - 2026-08-31
+
+### Added
+
+- **Alerta de agente desactualizado (#400)**: nueva alerta consolidada `alert-agent-outdated-<routerID>` cuando un agente (native o netgrip) está por debajo de la última versión disponible. Se recupera automáticamente cuando el agente se actualiza.
+
+### Fixed
+
+- **Cierre del ciclo de upgrade (#401)**: el tracker de upgrades ahora cierra el paso `done` cuando el agente pushea la versión objetivo (antes quedaba en `restarting` hasta el TTL de 3 minutos). La UI refleja el estado `done` inmediatamente.
+
 ## [2.22.0] - 2026-08-30
 
 ### Added
