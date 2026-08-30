@@ -30,9 +30,9 @@ interface UpdateStatus {
   readiness?: UpdateReadiness | null
 }
 
+import { CHECK_INTERVAL, CHECK_KEY, onBannerSignal } from '@/lib/update-check'
+
 const POLL_MS = 60 * 60 * 1000
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-const CHECK_KEY = 'netpulse-last-update-check'
 
 export function UpdateBanner() {
   const { t } = useTranslation()
@@ -62,7 +62,7 @@ export function UpdateBanner() {
     const shouldCheck = () => {
       try {
         const last = Number(localStorage.getItem(CHECK_KEY) || 0)
-        return !last || Date.now() - last > WEEK_MS
+        return !last || Date.now() - last > CHECK_INTERVAL
       } catch {
         return true
       }
@@ -78,7 +78,8 @@ export function UpdateBanner() {
     }
     run()
     const id = window.setInterval(run, POLL_MS)
-    return () => window.clearInterval(id)
+    const off = onBannerSignal(() => void fetchStatus())
+    return () => { window.clearInterval(id); off() }
   }, [auth?.role, fetchStatus])
 
   // Al cerrar el asistente: refrescar (si la actualización sigue en curso,

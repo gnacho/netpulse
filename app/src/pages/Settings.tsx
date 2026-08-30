@@ -60,6 +60,7 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { relTimeFromTs } from '@/i18n'
 import { cn, exitDemo } from '@/lib/utils'
+import { notifyBanner } from '@/lib/update-check'
 import { ACCENTS, PALETTES, type AccentId, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
 import pkg from '../../package.json'
@@ -2219,7 +2220,9 @@ function UpdateCheckInline() {
     try {
       const res = await fetch('/api/update/status')
       if (!res.ok) throw new Error('status')
-      setStatus((await res.json()) as NetPulseUpdateStatus)
+      const data = (await res.json()) as NetPulseUpdateStatus
+      setStatus(data)
+      if (data.updateAvailable && data.latest) notifyBanner(data.latest)
     } catch {
       setError(true)
     } finally {
