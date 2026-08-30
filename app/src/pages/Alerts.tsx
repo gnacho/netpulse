@@ -252,6 +252,9 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
   const [showSilence, setShowSilence] = useState(false)
+  // #393: posición del pointerdown para distinguir click (sin movimiento →
+  // togglear) de arrastre de selección de texto (movimiento → no togglear).
+  const downAt = useRef<{ x: number; y: number } | null>(null)
   return (
     <motion.li
       initial={reduce ? false : { opacity: 0, y: 14 }}
@@ -269,12 +272,29 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
         <Icon className="h-5 w-5" strokeWidth={1.75} />
       </span>
 
-      <button
-        type="button"
-        onClick={onToggle}
+      {/* #393: div role=button (no <button>) para permitir seleccionar/copiar
+          el texto de la alerta; los navegadores desactivan la selección dentro
+          de los <button>. Guard por movimiento: un click (≤4 px entre
+          pointerdown y click) togglear; un arrastre de selección no. Teclado:
+          Enter/Espacio como un botón real. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onPointerDown={(e) => { downAt.current = { x: e.clientX, y: e.clientY } }}
+        onClick={(e) => {
+          const d = downAt.current
+          if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return
+          onToggle()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
         aria-expanded={expanded}
         className={cn(
-          'group flex w-full items-center gap-3 rounded-xl border-l-[3px] px-3 py-3 text-left transition-colors duration-150 hover:bg-hover',
+          'group flex w-full cursor-pointer select-text items-center gap-3 rounded-xl border-l-[3px] px-3 py-3 text-left transition-colors duration-150 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent',
           sev.stripe,
           !read && 'bg-elevated',
         )}
@@ -328,7 +348,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
           className={cn('h-4 w-4 shrink-0 text-text-muted transition-transform duration-200', expanded && 'rotate-90')}
           strokeWidth={1.75}
         />
-      </button>
+      </div>
 
       {/* Silence options popup */}
       {showSilence && onSilence && (
