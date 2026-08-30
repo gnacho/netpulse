@@ -128,9 +128,11 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 	//
 	// Calcula el "desired inverso" del módulo (p. ej. AdGuard: si el plan era
 	// enabled=true, el inverso es enabled=false), vuelve a sondear el router
-	// (para detectar el escenario actual) y envía las Ops inversas al agente
-	// vía SSE. El agente las ejecuta con su snapshot+healthcheck+rollback
-	// automático. El resultado llega por POST /api/agents/{slug}/apply-result.
+	// (para detectar el escenario actual) y envía las Ops inversas. #397: si el
+	// router tiene executor token de NetGrip, se delegan las Ops inversas a su
+	// API local (snapshot+healthcheck+rollback probados); si NetGrip no está
+	// configurado o no responde, se envían al agente vía SSE como antes. El
+	// resultado SSE llega por POST /api/agents/{slug}/apply-result.
 	mux.Handle("POST /api/plans/{id}/rollback", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		plan, err := mgr.GetPlan(id)
@@ -154,6 +156,28 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			s.writeModuleErr(w, err)
 			return
 		}
+		user := auth.UserFromContext(r.Context())
+		actor := ""
+		if user != nil {
+			actor = user.Username
+		}
+		// #397: delegar el rollback al executor de NetGrip si está configurado
+		// (mismo criterio que el apply). Éxito → SetRollingBack + SetResult;
+		// la máquina de estados traduce el resultado applied a rolled_back
+		// cuando el estado previo es rolling_back.
+		if ok, ngErr := s.applyViaNetGrip(plan.RouterID, plan.ID, diff); ngErr != nil {
+			writeError(w, http.StatusBadGateway, "netgrip_error", ngErr.Error())
+			return
+		} else if ok {
+			if err := mgr.SetRollingBack(id, actor); err != nil {
+				log.Printf("[netpulse] error marcando plan rolling_back vía NetGrip: %v", err)
+			}
+			if err := mgr.SetResult(id, netgripApplyResult()); err != nil {
+				log.Printf("[netpulse] error asentando rollback vía NetGrip: %v", err)
+			}
+			writeJSON(w, http.StatusAccepted, map[string]string{"status": "rolling_back", "planId": id})
+			return
+		}
 		if s.agentHub == nil {
 			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
 			return
@@ -164,11 +188,6 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			writeError(w, http.StatusServiceUnavailable, "agent_not_connected",
 				"El agente no está conectado vía SSE")
 			return
-		}
-		user := auth.UserFromContext(r.Context())
-		actor := ""
-		if user != nil {
-			actor = user.Username
 		}
 		mgr.SetRollingBack(id, actor)
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "rolling_back", "planId": id})
