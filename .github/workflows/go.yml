@@ -44,6 +44,8 @@ jobs:
         arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags necesarias para git describe (httpapi.Version)
 
       - uses: actions/setup-node@v4
         with:
