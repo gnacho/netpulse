@@ -15,6 +15,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - **Mensajes confusos al expulsar cliente en roaming (#411)**: `KickUsteerClient` ahora recorre todos los routers y continua si un `del_client` falla, en lugar de devolver el error crudo de SSH en el primer intento. Tambien corrige la comparacion de MAC, ya que usteer devuelve las MAC en minusculas en `connected_clients`. El mensaje de error ahora es `could not disconnect from <router>` en vez de `Process exited with status 4`.
 
+### Added
+
+- **Interruptor para desactivar alertas de ghost port (#419)**: nueva variable de entorno `GHOST_PORT_ENABLED` (default `0`). Cuando esta desactivada, el `PortMonitor` no genera alertas de puerto fantasma ni de recuperacion, eliminando los falsos positivos actuales mientras se afinan los agentes.
+
 ## [2.22.2] - 2026-08-31
 
 ### Fixed

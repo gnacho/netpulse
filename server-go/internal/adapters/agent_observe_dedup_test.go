@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gnacho/netpulse/agent/probe"
+	"github.com/gnacho/netpulse/server-go/internal/config"
 )
 
 func ghostPayload(ts int64, rx, tx uint64) *probe.Payload {
@@ -20,7 +21,7 @@ func ghostPayload(ts int64, rx, tx uint64) *probe.Payload {
 }
 
 func TestPolledFromAgentDuplicatePayloadDoesNotObserve(t *testing.T) {
-	l := NewLive(nil, nil, []RouterConfig{{ID: "patio", Host: "192.168.8.2", Name: "Patio"}}, nil)
+	l := NewLive(&config.Config{GhostPortEnabled: true}, nil, []RouterConfig{{ID: "patio", Host: "192.168.8.2", Name: "Patio"}}, nil)
 	cfg := l.routers[0]
 
 	// Historia sana: 12 payloads nuevos con tráfico creciente.

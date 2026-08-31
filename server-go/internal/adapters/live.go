@@ -320,7 +320,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		agentOutdatedAlerted: map[string]bool{},
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
-		portMon:              NewPortMonitor(),
+		portMon:              NewPortMonitor(cfg != nil && cfg.GhostPortEnabled),
 		suppression:         alerts.NewSuppressionGraph(),
 	}
 	l.loadRouterMacs()

@@ -66,6 +66,7 @@ type Config struct {
 	BeaconListen    string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
 	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
 	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
+	GhostPortEnabled bool  // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -373,6 +374,20 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// GHOST_PORT_ENABLED: '0'|'1', opcional - default false. Activa las alertas
+	// de ghost port; mientras este desactivado, PortMonitor no evalua ni emite
+	// alertas de puerto fantasma (#419).
+	ghostPortEnabled := false
+	if v, ok := env["GHOST_PORT_ENABLED"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			ghostPortEnabled = true
+		default:
+			errs.issues = append(errs.issues, issue{"GHOST_PORT_ENABLED", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
 	if len(errs.issues) > 0 {
 		return nil, &errs
 	}
@@ -440,6 +455,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		BeaconListen:    beaconListen,
 		AgentAutoenroll: agentAutoenroll,
 		Onbox:           onbox,
+		GhostPortEnabled: ghostPortEnabled,
 	}, nil
 }
 
