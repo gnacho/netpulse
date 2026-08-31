@@ -193,6 +193,29 @@ func TestValidateDawnCheck(t *testing.T) {
 	}
 }
 
+func TestValidateUsteerCheck(t *testing.T) {
+	if err := Validate(Op{Kind: "usteer_check", Args: map[string]string{}}); err != nil {
+		t.Fatalf("usteer_check debería validar: %v", err)
+	}
+}
+
+func TestValidateRemoveKinds(t *testing.T) {
+	for _, k := range []string{"apk_remove", "opkg_remove"} {
+		if err := Validate(Op{Kind: k, Args: map[string]string{"package": "luci-app-usteer"}}); err != nil {
+			t.Errorf("%s con package con guion debería validar: %v", k, err)
+		}
+		if err := Validate(Op{Kind: k, Args: map[string]string{"package": "dawn"}}); err != nil {
+			t.Errorf("%s debería validar: %v", k, err)
+		}
+		if err := Validate(Op{Kind: k, Args: map[string]string{}}); err == nil {
+			t.Errorf("%s sin package debería fallar", k)
+		}
+		if err := Validate(Op{Kind: k, Args: map[string]string{"package": "bad;rm -rf /"}}); err == nil {
+			t.Errorf("%s con package inválido debería fallar", k)
+		}
+	}
+}
+
 func TestValidateWifiReload(t *testing.T) {
 	if err := Validate(Op{Kind: "wifi_reload", Args: map[string]string{}}); err != nil {
 		t.Fatalf("wifi_reload debería validar: %v", err)

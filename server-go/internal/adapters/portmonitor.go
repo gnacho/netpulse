@@ -39,15 +39,17 @@ type portState struct {
 }
 
 type PortMonitor struct {
-	mu     sync.Mutex
-	states map[portKey]*portState
-	now    func() time.Time
+	mu               sync.Mutex
+	states           map[portKey]*portState
+	now              func() time.Time
+	ghostEnabled     bool
 }
 
-func NewPortMonitor() *PortMonitor {
+func NewPortMonitor(ghostEnabled bool) *PortMonitor {
 	return &PortMonitor{
-		states: map[portKey]*portState{},
-		now:    time.Now,
+		states:       map[portKey]*portState{},
+		now:          time.Now,
+		ghostEnabled: ghostEnabled,
 	}
 }
 
@@ -134,6 +136,9 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 }
 
 func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now time.Time, engine *alerts.Engine) {
+	if !pm.ghostEnabled {
+		return
+	}
 	total := p.RxBytes + p.TxBytes
 	if !p.Up {
 		st.zeroStreak = 0

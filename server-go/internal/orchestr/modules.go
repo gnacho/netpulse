@@ -8,7 +8,8 @@
 //   - ddns      → ddns.go (Fase 17.3)
 //   - sqm       → sqm.go (Fase 17.4)
 //   - wireguard → wireguard.go (Fase 10.3)
-//   - dawn      → dawn.go (Fase 17.9)
+//   - usteer    → usteer.go (sustituye a dawn; Fase 17.10)
+//   - dawn      → dawn.go (legacy, sin dispatch; conservado por rollback/compat)
 //
 // Fase 17.1: AdGuardOps usa el AdGuardScenario (probe SSH del servidor) para
 // elegir entre 4 métodos deterministas: apk | opkg | none (binario ya

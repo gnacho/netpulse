@@ -1,6 +1,6 @@
 /**
- * Panel DAWN (band-steering/roaming): APs de la malla con banda, canal,
- * utilización y clientes. Datos de /api/dawn (ubus dawn get_network).
+ * Panel usteer (band-steering/roaming): APs de la malla con banda, frecuencia,
+ * utilización y clientes. Datos de /api/usteer (ubus usteer local_info).
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,43 +9,43 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { redirectLogin } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
-interface DawnAp {
+interface UsteerAp {
   ssid: string
   bssid: string
   hostname: string
   band: string
-  channel: number
+  freq: number
   utilizationPct: number
-  clients: number
+  clientCount: number
   iface: string
 }
 
-interface DawnMesh {
+interface UsteerMesh {
   routerId: string
   name: string
-  dawn: boolean
+  usteer: boolean
   apsSeen: number
 }
 
-export function DawnPanel() {
+export function UsteerPanel() {
   const { t } = useTranslation()
-  const [aps, setAps] = useState<DawnAp[] | null>(null)
-  const [mesh, setMesh] = useState<DawnMesh[] | null>(null)
+  const [aps, setAps] = useState<UsteerAp[] | null>(null)
+  const [mesh, setMesh] = useState<UsteerMesh[] | null>(null)
 
   useEffect(() => {
     let disposed = false
     const load = async () => {
       try {
-        const res = await fetch('/api/dawn')
+        const res = await fetch('/api/usteer')
         if (res.status === 401) redirectLogin()
         if (!res.ok) return
-        const json = (await res.json()) as { aps: DawnAp[]; mesh?: DawnMesh[] }
+        const json = (await res.json()) as { aps: UsteerAp[]; mesh?: UsteerMesh[] }
         if (!disposed) {
           setAps(json.aps)
           setMesh(json.mesh ?? null)
         }
       } catch {
-        /* sin DAWN */
+        /* sin usteer */
       }
     }
     void load()
@@ -57,23 +57,23 @@ export function DawnPanel() {
   }, [])
 
   if (!aps || aps.length === 0) return null
-  const active = mesh?.filter((m) => m.dawn).length ?? 0
+  const active = mesh?.filter((m) => m.usteer).length ?? 0
   const total = mesh?.length ?? 0
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-      <SectionHeader title={t('topology.dawn.title')} />
+      <SectionHeader title={t('topology.usteer.title')} />
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-muted">
-        <span>{t('topology.dawn.caption')}</span>
+        <span>{t('topology.usteer.caption')}</span>
         {mesh && (
           <span className="inline-flex items-center gap-1.5">
             <span className={cn('h-1.5 w-1.5 rounded-full', active === total ? 'bg-ok' : 'bg-warn')} />
-            DAWN {active}/{total}
+            usteer {active}/{total}
           </span>
         )}
         {mesh?.map((m) => (
           <span key={m.routerId} className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 font-mono text-[10px]">
-            <span className={cn('h-1.5 w-1.5 rounded-full', m.dawn ? 'bg-ok' : 'bg-danger')} />
+            <span className={cn('h-1.5 w-1.5 rounded-full', m.usteer ? 'bg-ok' : 'bg-danger')} />
             {m.name} · {m.apsSeen} APs
           </span>
         ))}
@@ -93,11 +93,11 @@ export function DawnPanel() {
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-text-primary">{ap.hostname}</div>
               <div className="font-mono text-caption text-text-muted">
-                {ap.band} · ch {ap.channel} · {t('topology.dawn.util', { pct: ap.utilizationPct })}
+                {ap.band} · {ap.freq} MHz · {t('topology.usteer.util', { pct: ap.utilizationPct })}
               </div>
             </div>
             <span className="shrink-0 font-mono text-caption text-text-secondary">
-              {t('topology.dawn.clients', { count: ap.clients })}
+              {t('topology.usteer.clients', { count: ap.clientCount })}
             </span>
           </div>
         ))}

@@ -105,6 +105,9 @@ type routerPolled struct {
 	// leases. Se usa SOLO para resolver IPs de dispositivos ya conocidos que
 	// salen sin IP (dnsmasq sin lease), nunca para crear dispositivos nuevos.
 	glClients []DhcpLease
+	// arp: MAC→IP de /proc/net/arp (#377). Último recurso de resolución de
+	// IP cuando ni el lease ni gl-clients la tienen (DHCP en otro equipo).
+	arp       map[string]string
 	wireless  map[string]WirelessClient
 	ports     []EthPort
 	radios    []Radio
@@ -224,12 +227,12 @@ type Live struct {
 	// presencePruneAfter: ticks sin verse que eliminan la MAC de los mapas
 	// (dispositivo que se fue para siempre; ~2h a 5s/tick, issue #206).
 	presencePruneAfter int
-	// dawnAvailable: cache de "¿hay DAWN en algún router?" para el flag del
+	// usteerAvailable: cache de "¿hay usteer en algún router?" para el flag del
 	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
-	// al gateway) por dawnAvailableCached para no bloquear buildOverview.
-	dawnAvailable  bool
-	dawnCheckedAt  time.Time
-	dawnChecking   bool
+	// al gateway) por usteerAvailableCached para no bloquear buildOverview.
+	usteerAvailable bool
+	usteerCheckedAt time.Time
+	usteerChecking  bool
 	seenOnlineMacs bool
 	wanDown        map[string]int
 	backhaulCache  map[string]backhaulCacheEntry
@@ -320,7 +323,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		agentOutdatedAlerted: map[string]bool{},
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
-		portMon:              NewPortMonitor(),
+		portMon:              NewPortMonitor(cfg != nil && cfg.GhostPortEnabled),
 		suppression:         alerts.NewSuppressionGraph(),
 	}
 	l.loadRouterMacs()
@@ -838,6 +841,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		net = &NetDevBps{}
 	}
 	leases := client.GetDhcpLeases()
+	arp := client.GetArp()
 	// gl-clients (GL.iNet): complementa la resolución de IP donde dnsmasq no
 	// tiene lease (issue #5 bug 1). En routers sin el objeto ubus sale vacío
 	// — coste: una llamada ubus local por poll.
@@ -931,7 +935,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
-		uptimeSec: sysInfo.Uptime, net: net, leases: leases, glClients: glClients,
+		uptimeSec: sysInfo.Uptime, net: net, leases: leases, arp: arp, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
@@ -1635,8 +1639,12 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 // FDB gateway si no hay memoria) + device_attrib (index.js:396-460).
 func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	leasesByMac := map[string]DhcpLease{}
+	arpByMac := map[string]string{}
 	glByMac := map[string]DhcpLease{}
 	for _, p := range polled {
+		for mac, ip := range p.arp {
+			arpByMac[mac] = ip
+		}
 		for _, le := range p.leases {
 			if le.MAC != "" {
 				leasesByMac[le.MAC] = le
@@ -1864,17 +1872,24 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			d.IP = lease.IP
 		} else {
 			d.Name = mac
-			// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
-			// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
-			if gl, ok := glByMac[mac]; ok {
-				d.IP = gl.IP
-				if gl.Hostname != "" {
-					d.Name = gl.Hostname
-				}
+		// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
+		// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
+		if gl, ok := glByMac[mac]; ok {
+			d.IP = gl.IP
+			if gl.Hostname != "" {
+				d.Name = gl.Hostname
 			}
 		}
-		// issue #196: la allowlist manda sobre el nombre por defecto. Con
-		// alias (Name != MAC) el dispositivo deja de ser "desconocido".
+	}
+	// Fallback ARP (#377): el DHCP vive en otro equipo, pero cualquier
+	// router de la flota que enrute la LAN conoce la MAC→IP.
+	if d.IP == "" {
+		if ip, ok := arpByMac[mac]; ok {
+			d.IP = ip
+		}
+	}
+	// issue #196: la allowlist manda sobre el nombre por defecto. Con
+	// alias (Name != MAC) el dispositivo deja de ser "desconocido".
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
 		}
@@ -2205,21 +2220,21 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		DistributionNodes: distNodes,
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
 		Devices:           devices,
-		Dawn:              &DawnOverview{Available: l.dawnAvailableCached()},
+		Usteer:            &UsteerOverview{Available: l.usteerAvailableCached()},
 		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
 }
 
-// dawnAvailableCached devuelve si hay DAWN en la red (cacheado). Lanza un
+// usteerAvailableCached devuelve si hay usteer en la red (cacheado). Lanza un
 // refresco asíncrono (1 SSH al gateway, TTL 30s) cuando el cache está stale,
 // sin bloquear el overview: la primera llamada devuelve false y el flag llega
 // en el overview siguiente una vez refrescado.
-func (l *Live) dawnAvailableCached() bool {
+func (l *Live) usteerAvailableCached() bool {
 	l.mu.Lock()
-	avail := l.dawnAvailable
-	checked := l.dawnCheckedAt
-	checking := l.dawnChecking
+	avail := l.usteerAvailable
+	checked := l.usteerCheckedAt
+	checking := l.usteerChecking
 	gw := l.gatewayCfg
 	l.mu.Unlock()
 	if gw == nil {
@@ -2229,15 +2244,15 @@ func (l *Live) dawnAvailableCached() bool {
 		return avail
 	}
 	l.mu.Lock()
-	l.dawnChecking = true
+	l.usteerChecking = true
 	host := gw.Host
 	l.mu.Unlock()
 	go func() {
-		out, err := l.pool.Run(host, "ubus call dawn get_network", 4*time.Second)
+		out, err := l.pool.Run(host, "ubus call usteer local_info", 4*time.Second)
 		l.mu.Lock()
-		l.dawnChecking = false
-		l.dawnCheckedAt = time.Now()
-		l.dawnAvailable = err == nil && len(out) > 10
+		l.usteerChecking = false
+		l.usteerCheckedAt = time.Now()
+		l.usteerAvailable = err == nil && strings.TrimSpace(out) != ""
 		l.mu.Unlock()
 	}()
 	return avail
@@ -2668,134 +2683,207 @@ func (l *Live) GetAdguardClients(ctx context.Context) ([]AdguardClient, error) {
 	return gl.QueryClients(ctx)
 }
 
-// dawnAPField es el conjunto de keys escalares que describen un AP en la
-// salida de `ubus call dawn get_network`. El resto de keys de un BSSID cuyo
-// valor es un objeto (con "signal") son clientes del hearing map.
-var dawnAPField = map[string]bool{
-	"channel": true, "freq": true, "channel_utilization": true,
-	"num_sta": true, "ht_support": true, "vht_support": true,
-	"local": true, "iface": true, "hostname": true,
-	"neighbor_report": true, "op_class": true,
+// usteerAPRaw es la forma cruda de una entrada de `ubus call usteer
+// local_info` / `remote_info` (por iface o ip#iface).
+type usteerAPRaw struct {
+	BSSID  string `json:"bssid"`
+	SSID   string `json:"ssid"`
+	Freq   int    `json:"freq"`
+	NAssoc int    `json:"n_assoc"`
+	Load   int    `json:"load"`
 }
 
-// GetDawn: red DAWN (roaming/band-steering). nil si ningún router responde.
+// usteerClientRaw es la forma cruda de una entrada de `ubus call usteer
+// connected_clients` (por MAC).
+type usteerClientRaw struct {
+	Signal int `json:"signal"`
+}
+
+// GetUsteer: red usteer (roaming/steering). nil si ningún router responde.
 //
-// La salida de `ubus call dawn get_network` mezcla, por cada BSSID, los campos
-// del AP (escalares) con los clientes anidados (MAC → {signal, ht, vht, ...}).
-// DAWN distribuye el hearing map entre nodos, así que la respuesta del primer
-// router que contesta ya contiene toda la malla (APs + clientes vistos por
-// cada uno). Por eso solo usamos firstData.
-func (l *Live) GetDawn(context.Context) (*Dawn, error) {
+// A diferencia de DAWN (que distribuía el hearing map en get_network), usteer
+// expone `local_info` por router (los APs propios) y `connected_clients` por
+// iface. Se sondea cada router con SSH (local_info + connected_clients) y se
+// agregan sus APs locales; el mesh marca por router si usteer está activo y
+// cuántos APs ve. Los clientes se asocian a cada AP por nombre de iface.
+func (l *Live) GetUsteer(context.Context) (*Usteer, error) {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
 	l.mu.Unlock()
 
-	var firstData map[string]map[string]json.RawMessage
-	mesh := []DawnMesh{}
+	aps := []UsteerAP{}
+	mesh := []UsteerMesh{}
 	for _, cfg := range routers {
 		name := cfg.Name
 		if name == "" {
 			name = cfg.ID
 		}
-		// Los routers agent-only (switches sin SSH, p.ej. switch16) no tienen
-		// DAWN: saltar el SSH evita un timeout de probeTimeout (4s) por cada
-		// llamada a GetDawn. Aparecen en el mesh como Dawn=false para que la
-		// UI siga mostrándolos en la tabla.
 		if cfg.AgentOnly {
-			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
+			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
 		}
-		out, err := l.pool.Run(cfg.Host, "ubus call dawn get_network", 0)
+		localOut, err := l.pool.Run(cfg.Host, "ubus call usteer local_info", 0)
 		if err != nil {
-			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
+			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
 		}
-		var data map[string]map[string]json.RawMessage
-		if json.Unmarshal([]byte(out), &data) != nil {
-			mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: false, ApsSeen: 0})
+		var local map[string]usteerAPRaw
+		if json.Unmarshal([]byte(localOut), &local) != nil {
+			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
 		}
-		if firstData == nil {
-			firstData = data
-		}
+		clientsOut, _ := l.pool.Run(cfg.Host, "ubus call usteer connected_clients", 0)
+		clientsByIface := map[string]map[string]usteerClientRaw{}
+		_ = json.Unmarshal([]byte(clientsOut), &clientsByIface)
+
 		seen := 0
-		for _, bssids := range data {
-			seen += len(bssids)
+		for iface, raw := range local {
+			if raw.SSID == "" || raw.BSSID == "" {
+				continue
+			}
+			aps = append(aps, buildUsteerAPWithClients(iface, raw, clientsByIface[iface], name, true))
+			seen++
 		}
-		mesh = append(mesh, DawnMesh{RouterID: cfg.ID, Name: name, Dawn: true, ApsSeen: seen})
+		mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: true, ApsSeen: seen})
 	}
-	if firstData == nil {
+	if len(aps) == 0 {
 		return nil, nil
 	}
-	aps := dawnAPsFromNetwork(firstData)
-	return &Dawn{APs: aps, Mesh: mesh}, nil
+	return &Usteer{APs: aps, Mesh: mesh}, nil
 }
 
-// dawnAPsFromNetwork parsea la salida de `ubus call dawn get_network` ya
-// deserializada a json.RawMessage (SSID → BSSID → campos mixtos). Devuelve los
-// APs con sus clientes del hearing map. Función pura para testear sin SSH.
-func dawnAPsFromNetwork(firstData map[string]map[string]json.RawMessage) []DawnAP {
-	aps := []DawnAP{}
-	for ssid, bssids := range firstData {
-		for bssid, raw := range bssids {
-			var fields map[string]json.RawMessage
-			if json.Unmarshal(raw, &fields) != nil {
+// sshRunner es el subconjunto de *SSHPool que usan las funciones live que
+// ejecutan comandos remotos. Permite inyectar runners falsos en tests.
+type sshRunner interface {
+	Run(host, cmd string, timeout time.Duration) (string, error)
+}
+
+// KickUsteerClient busca la MAC en los connected_clients de cada router y la
+// expulsa del AP hostapd donde esté conectada. El motivo 5 (DISASSOC_DUE_TO_BSS_TRANSITION_PROHIBITED)
+// con deauth=true fuerza al cliente a reasociarse; ban_time corto (120 ms) evita
+// que vuelva inmediatamente al mismo AP sin impedir la reconexión normal.
+//
+// Si el cliente aparece en varios routers (transición de roaming) o un
+// del_client falla por un estado transitorio del AP, intenta expulsarlo de
+// cada uno hasta que un intento tenga éxito. Solo devuelve error cuando el
+// cliente no está en ningún router o cuando todos los intentos fallan.
+func (l *Live) KickUsteerClient(ctx context.Context, mac string) error {
+	target := strings.ToUpper(strings.TrimSpace(mac))
+	if target == "" || !validMAC(target) {
+		return fmt.Errorf("invalid MAC")
+	}
+	l.mu.Lock()
+	routers := append([]RouterConfig(nil), l.routers...)
+	l.mu.Unlock()
+
+	return kickUsteerClient(target, routers, l.pool)
+}
+
+func kickUsteerClient(target string, routers []RouterConfig, runner sshRunner) error {
+	var failures []string
+
+	for _, cfg := range routers {
+		if cfg.AgentOnly {
+			continue
+		}
+		out, err := runner.Run(cfg.Host, "ubus call usteer connected_clients", 0)
+		if err != nil {
+			continue
+		}
+		var clients map[string]map[string]usteerClientRaw
+		if err := json.Unmarshal([]byte(out), &clients); err != nil {
+			continue
+		}
+		for iface, macs := range clients {
+			var found bool
+			for m := range macs {
+				if strings.ToUpper(m) == target {
+					found = true
+					break
+				}
+			}
+			if !found {
 				continue
 			}
-			// "channel" presente y no cero → es un AP (no un cliente suelto).
-			chRaw, ok := fields["channel"]
-			if !ok {
+			cmd := fmt.Sprintf("ubus call %s del_client '{\"addr\":\"%s\",\"reason\":5,\"deauth\":true,\"ban_time\":120000}'", iface, target)
+			if _, err := runner.Run(cfg.Host, cmd, 0); err != nil {
+				name := cfg.Name
+				if name == "" {
+					name = cfg.Host
+				}
+				failures = append(failures, name)
 				continue
 			}
-			var channel int
-			json.Unmarshal(chRaw, &channel)
-			if channel == 0 {
-				continue
-			}
-			ap := DawnAP{SSID: ssid, BSSID: bssid, Channel: channel, Clients: []DawnClient{}}
-			var freq float64
-			json.Unmarshal(fields["freq"], &freq)
-			json.Unmarshal(fields["channel_utilization"], &ap.UtilizationPct)
-			json.Unmarshal(fields["num_sta"], &ap.ClientCount)
-			json.Unmarshal(fields["local"], &ap.Local)
-			json.Unmarshal(fields["iface"], &ap.Iface)
-			json.Unmarshal(fields["hostname"], &ap.Hostname)
-			if freq >= 5000 {
-				ap.Band = "5 GHz"
-			} else {
-				ap.Band = "2.4 GHz"
-			}
-			// Clientes anidados: cualquier key MAC cuyo valor sea un objeto
-			// con "signal" negativa (en -dBm).
-			for mac, valRaw := range fields {
-				if dawnAPField[mac] {
-					continue
-				}
-				s := strings.TrimSpace(string(valRaw))
-				if !strings.HasPrefix(s, "{") {
-					continue
-				}
-				var c struct {
-					Signal int  `json:"signal"`
-					HT     bool `json:"ht"`
-					VHT    bool `json:"vht"`
-				}
-				if json.Unmarshal(valRaw, &c) == nil && c.Signal < 0 {
-					ap.Clients = append(ap.Clients, DawnClient{
-						MAC: strings.ToUpper(mac), Signal: c.Signal, HT: c.HT, VHT: c.VHT,
-					})
-				}
-			}
-			aps = append(aps, ap)
+			return nil
 		}
 	}
-	sort.Slice(aps, func(i, j int) bool {
-		if aps[i].Hostname != aps[j].Hostname {
-			return aps[i].Hostname < aps[j].Hostname
+
+	if len(failures) > 0 {
+		return fmt.Errorf("could not disconnect from %s", strings.Join(failures, "; "))
+	}
+	return fmt.Errorf("client not found")
+}
+
+// validMAC acepta MAC con separadores ':' o '-'.
+func validMAC(s string) bool {
+	parts := strings.Split(s, ":")
+	if len(parts) != 6 {
+		parts = strings.Split(s, "-")
+	}
+	if len(parts) != 6 {
+		return false
+	}
+	for _, p := range parts {
+		if len(p) != 2 {
+			return false
 		}
-		return aps[i].Band < aps[j].Band
-	})
-	return aps
+		for i := 0; i < len(p); i++ {
+			c := p[i]
+			if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// buildUsteerAP construye un UsteerAP desde una entrada cruda de local_info.
+// Band se deriva de freq (>= 5000 MHz → 5 GHz). Función pura para testear.
+func buildUsteerAP(iface string, raw usteerAPRaw, hostname string, local bool) UsteerAP {
+	band := "2.4 GHz"
+	if raw.Freq >= 5000 {
+		band = "5 GHz"
+	}
+	return UsteerAP{
+		SSID:           raw.SSID,
+		BSSID:          strings.ToUpper(raw.BSSID),
+		Hostname:       hostname,
+		Band:           band,
+		Freq:           raw.Freq,
+		UtilizationPct: raw.Load,
+		ClientCount:    raw.NAssoc,
+		Clients:        []UsteerClient{},
+		Local:          local,
+		Iface:          iface,
+	}
+}
+
+// buildUsteerAPWithClients enriquece un AP con los clientes de
+// connected_clients para ese mismo iface. Los clientes se ordenan por MAC
+// para respuestas deterministas.
+func buildUsteerAPWithClients(iface string, raw usteerAPRaw, clients map[string]usteerClientRaw, hostname string, local bool) UsteerAP {
+	ap := buildUsteerAP(iface, raw, hostname, local)
+	for mac, c := range clients {
+		if c.Signal >= 0 {
+			continue // señal 0/positiva = sin datos
+		}
+		ap.Clients = append(ap.Clients, UsteerClient{
+			MAC:    strings.ToUpper(mac),
+			Signal: c.Signal,
+		})
+	}
+	sort.Slice(ap.Clients, func(i, j int) bool { return ap.Clients[i].MAC < ap.Clients[j].MAC })
+	return ap
 }
 
 // ---------------------------------------------------------------------------

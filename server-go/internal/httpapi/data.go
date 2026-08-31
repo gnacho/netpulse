@@ -371,18 +371,41 @@ func (s *server) handleTopology(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"routers": routers, "devices": devices})
 }
 
-// handleDawn: 503 {error:'unavailable'} si ningún router tiene DAWN.
-func (s *server) handleDawn(w http.ResponseWriter, r *http.Request) {
-	dawn, err := s.adapter.GetDawn(r.Context())
+// handleUsteer: 503 {error:'unavailable'} si ningún router tiene usteer.
+func (s *server) handleUsteer(w http.ResponseWriter, r *http.Request) {
+	usteer, err := s.adapter.GetUsteer(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
-	if dawn == nil {
+	if usteer == nil {
 		writeError(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, dawn)
+	writeJSON(w, http.StatusOK, usteer)
+}
+
+// handleUsteerKick: POST /api/usteer/{mac}/kick - expulsa un cliente de su AP
+// usteer actual para forzar la reconexión a otro AP.
+func (s *server) handleUsteerKick(w http.ResponseWriter, r *http.Request) {
+	mac := r.PathValue("mac")
+	if mac == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "mac is required")
+		return
+	}
+	if err := s.adapter.KickUsteerClient(r.Context(), mac); err != nil {
+		if err.Error() == "invalid MAC" {
+			writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "client not found") {
+			writeError(w, http.StatusNotFound, "not_found", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // handleDot11r: 503 {error:'unavailable'} si ningún router tiene 802.11r.

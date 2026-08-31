@@ -5,7 +5,21 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [2.23.0] - 2026-08-31
+
+### Changed
+
+- **Migracion del daemon de roaming de DAWN a usteer (#410)**: el backend, agente y frontend ahora usan usteer, el daemon oficial de OpenWrt para client steering. Reemplaza las sondas DAWN por `local_info`, `remote_info` y `connected_clients` de usteer; actualiza las vistas `/roaming` y `/orchestration` y los textos i18n ES/EN; renombra `DawnPanel` a `UsteerPanel` y elimina helpers y tests de DAWN obsoletos.
+
+### Fixed
+
+- **Puerto de AdGuard Home remoto vuelve a 3000 tras guardar (#420)**: `PUT /api/config/adguard` ignoraba el campo `port` del JSON y solo extraía puerto de la cadena `host`. Como el modo standard envía host y puerto por separado, cualquier guardado terminaba usando 3000. Ahora el puerto explícito tiene prioridad y se persiste correctamente.
+- **Clientes sin dirección IP en el panel (#421)**: cuando un dispositivo no aparecía en las leases DHCP del router sondeado (porque el dnsmasq vive en otro equipo), la IP quedaba vacía. El agente ahora incluye la tabla ARP (`/proc/net/arp`) y `buildDevices` la usa como último fallback tras leases y `gl-clients`.
+- **Mensajes confusos al expulsar cliente en roaming (#411)**: `KickUsteerClient` ahora recorre todos los routers y continua si un `del_client` falla, en lugar de devolver el error crudo de SSH en el primer intento. Tambien corrige la comparacion de MAC, ya que usteer devuelve las MAC en minusculas en `connected_clients`. El mensaje de error ahora es `could not disconnect from <router>` en vez de `Process exited with status 4`.
+
+### Added
+
+- **Interruptor para desactivar alertas de ghost port (#419)**: nueva variable de entorno `GHOST_PORT_ENABLED` (default `0`). Cuando esta desactivada, el `PortMonitor` no genera alertas de puerto fantasma ni de recuperacion, eliminando los falsos positivos actuales mientras se afinan los agentes.
 
 ## [2.22.2] - 2026-08-31
 

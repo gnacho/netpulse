@@ -29,7 +29,13 @@ type PayloadData struct {
 	Wireless *WirelessData `json:"wireless,omitempty"`
 	DHCP     *DHCPData     `json:"dhcp,omitempty"`
 	FDB      *FDBData      `json:"fdb,omitempty"`
-	Dawn     *DawnData     `json:"dawn,omitempty"` // Fase 14: DAWN roaming (solo si instalado)
+	// Arp: MAC → IPv4 de la tabla ARP del equipo (/proc/net/arp, #377).
+	// Resuelve IPs donde el DHCP no está en el equipo sondeado (APs tontos
+	// con el dnsmasq en otro router): cualquier router de la flota que
+	// enrute la LAN conoce el mapa completo.
+	Arp  map[string]string `json:"arp,omitempty"`
+	Dawn *DawnData         `json:"dawn,omitempty"` // Fase 14: DAWN roaming (solo si instalado)
+	Usteer *UsteerData     `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
 	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están
 	// definidas en /etc/config/luci.
 	LuCI *LuCILabels `json:"luci,omitempty"`
@@ -111,6 +117,35 @@ type DawnClient struct {
 	Signal int    `json:"signal"` // dBm (negativo)
 	HT     bool   `json:"ht"`
 	VHT    bool   `json:"vht"`
+}
+
+// UsteerData: estado de usteer (roaming/steering). Solo si usteer está
+// instalado en el router. Trimmed del output de `ubus call usteer local_info`,
+// `remote_info` y `connected_clients` — solo lo que la UI necesita (APs por
+// SSID + clientes con señal).
+type UsteerData struct {
+	SSIDs map[string]UsteerSSID `json:"ssids"`
+}
+
+// UsteerSSID: por red WiFi (p. ej. "temiscira").
+type UsteerSSID struct {
+	APs     []UsteerAP              `json:"aps"`
+	Clients map[string]UsteerClient `json:"clients"` // MAC upper → cliente
+}
+
+// UsteerAP: un punto de acceso (local o remoto) visto por usteer en este SSID.
+type UsteerAP struct {
+	BSSID    string `json:"bssid"`
+	Hostname string `json:"hostname,omitempty"` // IP del AP remoto; vacío si local
+	Freq     int    `json:"freq"`               // MHz (>= 5000 → 5 GHz)
+	Load     int    `json:"load"`               // utilización % reportada por usteer
+	Clients  int    `json:"clients"`            // n_assoc
+	Local    bool   `json:"local"`              // true si es este router
+}
+
+// UsteerClient: un cliente WiFi visto por usteer con señal al AP asociado.
+type UsteerClient struct {
+	Signal int `json:"signal"` // dBm (negativo)
 }
 
 // DiscoveryData: mDNS service discovery + randomized MAC detection (#338).

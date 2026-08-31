@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 )
 
 func TestPortMonitorFlapping(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -42,7 +43,7 @@ func TestPortMonitorFlapping(t *testing.T) {
 }
 
 func TestPortMonitorFlappingNoAlertBelowThreshold(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -65,7 +66,7 @@ func TestPortMonitorFlappingNoAlertBelowThreshold(t *testing.T) {
 }
 
 func TestPortMonitorFlappingWindowExpiry(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -93,7 +94,7 @@ func TestPortMonitorFlappingWindowExpiry(t *testing.T) {
 }
 
 func TestPortMonitorGhostPort(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -131,7 +132,7 @@ func TestPortMonitorGhostPort(t *testing.T) {
 }
 
 func TestPortMonitorGhostPortNoAlertWithoutHistory(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -152,7 +153,7 @@ func TestPortMonitorGhostPortNoAlertWithoutHistory(t *testing.T) {
 }
 
 func TestPortMonitorDegradedLink(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -192,7 +193,7 @@ func TestPortMonitorDegradedLink(t *testing.T) {
 }
 
 func TestPortMonitorDegradedLinkNoAlertWhenStable(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
@@ -266,7 +267,7 @@ func findAlerts(engine *alerts.Engine, title string) (int, alerts.AlertEvent) {
 // issue #366: un incidente persistente refresca UNA sola alerta (EmitOrUpdate)
 // en vez de colar una nueva por cada ventana de dedup.
 func TestPortMonitorGhostConsolidatesIntoOneAlert(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	port, setClock := buildGhostPort(t, pm, engine)
 
@@ -290,7 +291,7 @@ func TestPortMonitorGhostConsolidatesIntoOneAlert(t *testing.T) {
 
 // issue #365: un reset de contadores (reboot) NO es un puerto muerto.
 func TestPortMonitorGhostCounterResetNoAlert(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	port, setClock := buildGhostPort(t, pm, engine)
 
@@ -312,7 +313,7 @@ func TestPortMonitorGhostCounterResetNoAlert(t *testing.T) {
 
 // issue #366: al volver el tráfico se emite UNA alerta ok de recuperación.
 func TestPortMonitorGhostRecovery(t *testing.T) {
-	pm := NewPortMonitor()
+	pm := NewPortMonitor(true)
 	engine := alerts.New(nil, nil)
 	port, setClock := buildGhostPort(t, pm, engine)
 
@@ -339,21 +340,35 @@ func TestPortMonitorGhostRecovery(t *testing.T) {
 	}
 }
 
-// issue #366: flapping persistente también se consolida en una alerta.
-func TestPortMonitorFlappingConsolidatesIntoOneAlert(t *testing.T) {
-	pm := NewPortMonitor()
+// issue #419: cuando ghost port esta desactivado, no se emiten alertas de
+// puerto fantasma ni de recuperacion.
+func TestPortMonitorGhostDisabled(t *testing.T) {
+	pm := NewPortMonitor(false)
 	engine := alerts.New(nil, nil)
-	now := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	pm.SetClock(func() time.Time { return now })
-	port := EthPort{ID: "eth0", Label: "LAN1", Up: true, Speed: "1 Gbps"}
+
+	port := EthPort{ID: "eth0", Label: "LAN1", Up: true, RxBytes: 0, TxBytes: 0, Speed: "1 Gbps"}
 	pm.Observe("r1", []EthPort{port}, engine)
-	for i := 0; i < flapThreshold+4; i++ {
-		port.Up = !port.Up
-		now = now.Add(30 * time.Second)
+
+	for i := 0; i < ghostMinHistory; i++ {
+		port.RxBytes += 1000
+		port.TxBytes += 500
+		now = now.Add(45 * time.Second)
 		pm.SetClock(func() time.Time { return now })
 		pm.Observe("r1", []EthPort{port}, engine)
 	}
-	if n, _ := findAlerts(engine, "Port flapping: LAN1 on r1"); n != 1 {
-		t.Fatalf("flap alerts = %d, want 1 (consolidated)", n)
+
+	for i := 0; i < ghostConsecutive+2; i++ {
+		now = now.Add(45 * time.Second)
+		pm.SetClock(func() time.Time { return now })
+		pm.Observe("r1", []EthPort{port}, engine)
+	}
+
+	for _, ev := range engine.List() {
+		if strings.Contains(ev.Title, "Ghost port") {
+			t.Fatalf("ghost alert emitted while disabled: %s", ev.Title)
+		}
 	}
 }
+

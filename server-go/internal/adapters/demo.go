@@ -9,6 +9,7 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/rand"
 	"sort"
@@ -185,7 +186,10 @@ func (d *Demo) Mode() string              { return "demo" }
 func (d *Demo) SetRouters([]RouterConfig) {} // la demo ignora la configuración
 func (d *Demo) Close() error              { return nil }
 
-func (d *Demo) GetDawn(context.Context) (*Dawn, error) { return nil, nil }
+func (d *Demo) GetUsteer(context.Context) (*Usteer, error) { return nil, nil }
+
+// KickUsteerClient no-op en demo.
+func (d *Demo) KickUsteerClient(context.Context, string) error { return errors.New("not available in demo") }
 
 func (d *Demo) GetDot11r(context.Context) (*Dot11rOverview, error) { return nil, nil }
 

@@ -357,10 +357,10 @@ type Overview struct {
 	// Cuando está presente, el frontend lo usa en vez de fetch independiente
 	// para garantizar consistencia con los anillos de topología.
 	Devices []Device `json:"devices,omitempty"`
-	// Dawn: disponibilidad de DAWN (roaming/band-steering) para decidir si la
-	// app muestra la entrada /roaming. Puntero: ausente en snapshots viejos y
-	// cuando ningún router tiene DAWN → nil = no mostrar la página.
-	Dawn *DawnOverview `json:"dawn,omitempty"`
+	// Usteer: disponibilidad de usteer (roaming/band-steering) para decidir si
+	// la app muestra la entrada /roaming. Puntero: ausente en snapshots viejos y
+	// cuando ningún router tiene usteer → nil = no mostrar la página.
+	Usteer *UsteerOverview `json:"usteer,omitempty"`
 	// Orchestration: el menú de orquestación (escritura en routers) está
 	// oculto por defecto y solo se muestra si el admin lo activa en Ajustes
 	// (#121). Default false (omitempty).
@@ -370,9 +370,9 @@ type Overview struct {
 	Ts int64 `json:"ts"` // floor(now/1000) — SEGUNDOS
 }
 
-// DawnOverview indica si la red tiene DAWN (roaming/band-steering) disponible.
-// Lo usa el frontend para mostrar/ocultar la entrada /roaming del menú.
-type DawnOverview struct {
+// UsteerOverview indica si la red tiene usteer (roaming/band-steering)
+// disponible. Lo usa el frontend para mostrar/ocultar la entrada /roaming.
+type UsteerOverview struct {
 	Available bool `json:"available"`
 }
 
@@ -495,45 +495,42 @@ type WGTotals struct {
 }
 
 // ---------------------------------------------------------------------------
-// DAWN (GET /api/dawn; SPEC §7.6) y AdGuard clients (§2.13)
+// usteer (GET /api/usteer; SPEC §7.6) y AdGuard clients (§2.13)
 // ---------------------------------------------------------------------------
 
-// DawnClient es un cliente visto por un AP en el hearing map de DAWN.
-// Signal en -dBm (más cercano a 0 = mejor). Un cliente puede aparecer bajo
-// varios BSSIDs: cada AP que lo ve reporta su propia medición de señal.
-type DawnClient struct {
+// UsteerClient es un cliente WiFi conectado visto por usteer. Signal en -dBm
+// (más cercano a 0 = mejor).
+type UsteerClient struct {
 	MAC    string `json:"mac"`
 	Signal int    `json:"signal"` // -dBm (ej. -65)
-	HT     bool   `json:"ht"`
-	VHT    bool   `json:"vht"`
 }
 
-// DawnAP es un punto de acceso visto por DAWN.
-type DawnAP struct {
-	SSID           string        `json:"ssid"`
-	BSSID          string        `json:"bssid"`
-	Hostname       string        `json:"hostname"`
-	Band           string        `json:"band"` // freq >= 5000 ? "5 GHz" : "2.4 GHz"
-	Channel        int           `json:"channel"`
-	UtilizationPct float64       `json:"utilizationPct"`
-	ClientCount    int           `json:"clientCount"` // num_sta reportado por DAWN
-	Clients        []DawnClient  `json:"clients"`     // clientes vistos por este AP (hearing map)
-	Local          bool          `json:"local"`
-	Iface          string        `json:"iface"`
+// UsteerAP es un punto de acceso visto por usteer (local o remoto).
+type UsteerAP struct {
+	SSID           string         `json:"ssid"`
+	BSSID          string         `json:"bssid"`
+	Hostname       string         `json:"hostname"`
+	Band           string         `json:"band"` // freq >= 5000 ? "5 GHz" : "2.4 GHz"
+	Freq           int            `json:"freq"` // MHz
+	UtilizationPct int            `json:"utilizationPct"` // load reportado por usteer
+	ClientCount    int            `json:"clientCount"`    // n_assoc
+	Clients        []UsteerClient `json:"clients"`
+	Local          bool           `json:"local"`
+	Iface          string         `json:"iface"`
 }
 
-// DawnMesh marca por router si tiene DAWN y cuántos APs ve.
-type DawnMesh struct {
+// UsteerMesh marca por router si tiene usteer y cuántos APs ve.
+type UsteerMesh struct {
 	RouterID string `json:"routerId"`
 	Name     string `json:"name"`
-	Dawn     bool   `json:"dawn"`
+	Usteer   bool   `json:"usteer"`
 	ApsSeen  int    `json:"apsSeen"`
 }
 
-// Dawn es la respuesta de /api/dawn (503 si ningún router tiene DAWN).
-type Dawn struct {
-	APs  []DawnAP   `json:"aps"`
-	Mesh []DawnMesh `json:"mesh"`
+// Usteer es la respuesta de /api/usteer (503 si ningún router tiene usteer).
+type Usteer struct {
+	APs  []UsteerAP   `json:"aps"`
+	Mesh []UsteerMesh `json:"mesh"`
 }
 
 // ---------------------------------------------------------------------------
@@ -597,7 +594,7 @@ type Dot11rSSID struct {
 }
 
 // Dot11rOverview es la respuesta de GET /api/dot11r. Available=false si ningún
-// router tiene 802.11r (el handler devuelve 503 en ese caso, igual que /dawn).
+// router tiene 802.11r (el handler devuelve 503 en ese caso, igual que /usteer).
 type Dot11rOverview struct {
 	Available bool           `json:"available"`
 	SSIDs     []Dot11rSSID   `json:"ssids"`
@@ -695,12 +692,12 @@ type RouterConfig struct {
 
 // Snapshotter es el contrato del adapter de datos (paridad con la interfaz JS
 // de SPEC §7: mode/tick/setRouters/getOverview/getRouters/getRouterDetail/
-// getDevices/getAlerts/getMetricsRows/getDawn/getDot11r/getSurvey/getAdguardClients/close;
+// getDevices/getAlerts/getMetricsRows/getUsteer/getDot11r/getSurvey/getAdguardClients/close;
 // getAdguardRow() está muerto en Node y NO se porta).
 //
 // Convenciones de retorno (consumidas por internal/httpapi):
 //   - GetRouterDetail: (nil, nil) → 404 {"error":"not_found"}.
-//   - GetDawn: (nil, nil) → 503 {"error":"unavailable"}.
+//   - GetUsteer: (nil, nil) → 503 {"error":"unavailable"}.
 //   - GetDot11r: (nil, nil) → 503 {"error":"unavailable"}.
 //   - GetSurvey: (nil, nil) → 503 {"error":"unavailable"}.
 //   - GetAdguardClients: (nil, nil) → 404 {"error":"not_configured"};
@@ -733,8 +730,11 @@ type Snapshotter interface {
 	// GetMetricsRows devuelve las filas para la tabla metrics del tick
 	// actual (el poller solo persiste si Mode() != "demo").
 	GetMetricsRows(ctx context.Context) []MetricsRow
-	// GetDawn devuelve la malla DAWN o (nil, nil) si no hay DAWN.
-	GetDawn(ctx context.Context) (*Dawn, error)
+	// GetUsteer devuelve la malla usteer o (nil, nil) si no hay usteer.
+	GetUsteer(ctx context.Context) (*Usteer, error)
+	// KickUsteerClient desconecta un cliente de su AP usteer actual.
+	// Devuelve error si no se encuentra o falla el comando hostapd.
+	KickUsteerClient(ctx context.Context, mac string) error
 	// GetDot11r devuelve el estado 802.11r (FT) por router y SSID, o
 	// (nil, nil) si ningún router lo soporta → el handler responde 503.
 	GetDot11r(ctx context.Context) (*Dot11rOverview, error)

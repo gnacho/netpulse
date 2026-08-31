@@ -191,6 +191,22 @@ var allowlist = map[string]opSpec{
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
+	// apk_remove: desinstala un paquete con apk (OpenWrt 24+).
+	"apk_remove": {
+		required: map[string]*regexp.Regexp{"package": rePackage},
+		build: func(a map[string]string) (string, []string) {
+			return "apk", []string{"del", a["package"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
+	// opkg_remove: desinstala un paquete con opkg (OpenWrt clásico).
+	"opkg_remove": {
+		required: map[string]*regexp.Regexp{"package": rePackage},
+		build: func(a map[string]string) (string, []string) {
+			return "opkg", []string{"remove", a["package"]}
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
 	// download: uclient-fetch (presente en OpenWrt por defecto) con allowlist
 	// estricta de URL (solo releases oficiales de AdGuard).  El dest se valida
 	// con reFilePath. No shell libre: la URL va como arg, no interpolada.
@@ -322,6 +338,30 @@ var allowlist = map[string]opSpec{
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
+	// usteer_check: healthcheck del módulo usteer. Ejecuta
+	// `ubus call usteer remote_hosts` y verifica que devuelva JSON no vacío.
+	// Si falla, el executor revierte los snapshots UCI.
+	"usteer_check": {
+		exec: func(run Runner, a map[string]string) int {
+			out, code := run.Run("ubus", "call", "usteer", "remote_hosts")
+			if code != 0 {
+				return code
+			}
+			out = strings.TrimSpace(out)
+			if out == "" || out == "{}" {
+				return 1
+			}
+			var v map[string]any
+			if err := json.Unmarshal([]byte(out), &v); err != nil {
+				return 1
+			}
+			if len(v) == 0 {
+				return 1
+			}
+			return 0
+		},
+		configs: func(a map[string]string) []string { return nil },
+	},
 	// wifi_reload: aplica cambios en /etc/config/wireless sin reboot.
 	"wifi_reload": {
 		build: func(a map[string]string) (string, []string) {
@@ -418,7 +458,7 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 			_, code = e.run.Run(cmd, cmdArgs...)
 		}
 		if code != 0 {
-			if op.Kind == "wg_check" || op.Kind == "dawn_check" {
+			if op.Kind == "wg_check" || op.Kind == "dawn_check" || op.Kind == "usteer_check" {
 				// Healthcheck del módulo: rollback real restaurando snapshots UCI
 				// y relanzando los servicios afectados.
 				for cfg, snap := range snapshots {
@@ -432,9 +472,16 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 					e.run.Run("/etc/init.d/dawn", "restart")
 					e.run.Run("/sbin/wifi", "reload")
 				}
+				if op.Kind == "usteer_check" {
+					e.run.Run("/etc/init.d/usteer", "restart")
+					e.run.Run("/sbin/wifi", "reload")
+				}
 				errKey := "wg_check_failed"
 				if op.Kind == "dawn_check" {
 					errKey = "dawn_check_failed"
+				}
+				if op.Kind == "usteer_check" {
+					errKey = "usteer_check_failed"
 				}
 				return ApplyResult{Status: "rolled_back", Op: op.Desc, Error: errKey, Snapshot: strings.Join(affected, ","), DurationMs: ms(e.now(), start)}
 			}

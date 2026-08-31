@@ -578,3 +578,13 @@ func radiosToAdapter(in []probe.Radio) []Radio {
 	}
 	return out
 }
+
+// GetArp devuelve la tabla ARP del equipo (MAC→IP, #377). Fuente barata
+// (cat /proc/net/arp) para resolver IPs cuando el DHCP no es local.
+func (c *OpenWrtClient) GetArp() map[string]string {
+	out, err := c.pool.Run(c.Host, probe.CmdProcArp, 0)
+	if err != nil {
+		return nil
+	}
+	return probe.ParseArp(out)
+}

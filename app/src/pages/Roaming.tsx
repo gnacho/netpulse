@@ -3,44 +3,39 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 
 // ---------------------------------------------------------------------------
-// Tipos del contrato GET /api/dawn (server-go/internal/adapters/types.go).
-// Los clientes vienen del hearing map distribuido de DAWN: cada AP reporta
-// los clientes que ve con su señal, así que un mismo cliente puede aparecer
-// bajo varios BSSIDs (lo que pinta varias celdas en la matriz).
+// Tipos del contrato GET /api/usteer (server-go/internal/adapters/types.go).
 // ---------------------------------------------------------------------------
 
-interface DawnClient {
+interface UsteerClient {
   mac: string
   signal: number // -dBm
-  ht: boolean
-  vht: boolean
 }
-interface DawnAP {
+interface UsteerAP {
   ssid: string
   bssid: string
   hostname: string
   band: string
-  channel: number
+  freq: number
   utilizationPct: number
   clientCount: number
-  clients: DawnClient[]
+  clients: UsteerClient[]
   local: boolean
   iface: string
 }
-interface DawnMesh {
+interface UsteerMesh {
   routerId: string
   name: string
-  dawn: boolean
+  usteer: boolean
   apsSeen: number
 }
-interface Dawn {
-  aps: DawnAP[]
-  mesh: DawnMesh[]
+interface Usteer {
+  aps: UsteerAP[]
+  mesh: UsteerMesh[]
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +148,7 @@ export default function Roaming() {
   const [tab, setTab] = useState<Tab>('matrix')
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
-  const [dawn, setDawn] = useState<Dawn | null>(null)
+  const [usteer, setUsteer] = useState<Usteer | null>(null)
   const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
   const [dot11rLoading, setDot11rLoading] = useState(false)
   const [dot11rError, setDot11rError] = useState(false)
@@ -172,6 +167,8 @@ export default function Roaming() {
   const [error, setError] = useState(false)
   const [noApi, setNoApi] = useState(false)
   const [spin, setSpin] = useState(false)
+  const [kicking, setKicking] = useState<string | null>(null)
+  const [kickError, setKickError] = useState<string | null>(null)
 
   // MAC → nombre (resuelto desde la lista de dispositivos del overview).
   const nameByMac = useMemo(() => {
@@ -186,7 +183,7 @@ export default function Roaming() {
   // anterior en vuelo para que una respuesta vieja y lenta nunca sobrescriba
   // una más nueva (cambio de pestaña/rango o Refresh repetido). En unmount se
   // abortan todos.
-  const dawnAc = useRef<AbortController | null>(null)
+  const usteerAc = useRef<AbortController | null>(null)
   const dot11rAc = useRef<AbortController | null>(null)
   const surveyAc = useRef<AbortController | null>(null)
   const eventsAc = useRef<AbortController | null>(null)
@@ -194,24 +191,24 @@ export default function Roaming() {
   const spinTimer = useRef<number | null>(null)
 
   async function load() {
-    dawnAc.current?.abort()
+    usteerAc.current?.abort()
     const ac = new AbortController()
-    dawnAc.current = ac
+    usteerAc.current = ac
     setLoading(true)
     setError(false)
     setNoApi(false)
-    const result = await fetchJson<Dawn>('/api/dawn', { signal: ac.signal })
+    const result = await fetchJson<Usteer>('/api/usteer', { signal: ac.signal })
     if (ac.signal.aborted) return
     if (result.ok) {
-      setDawn(result.data)
+      setUsteer(result.data)
     } else if (result.kind === 'unauthorized') {
       redirectLogin()
     } else if (result.kind === 'no-api' && isDemo) {
       setNoApi(true)
-      setDawn(null)
+      setUsteer(null)
     } else {
       setError(true)
-      setDawn(null)
+      setUsteer(null)
     }
     setLoading(false)
   }
@@ -310,7 +307,7 @@ export default function Roaming() {
   }
 
   useEffect(() => () => {
-    dawnAc.current?.abort()
+    usteerAc.current?.abort()
     dot11rAc.current?.abort()
     surveyAc.current?.abort()
     eventsAc.current?.abort()
@@ -327,11 +324,40 @@ export default function Roaming() {
     }
   }, [tab])
 
+  // Expulsar a un cliente de su AP actual para forzar la reconexión
+  // (usteering manual cuando usteer no cambia al cliente).
+  async function kick(mac: string) {
+    if (kicking) return
+    setKicking(mac)
+    setKickError(null)
+    try {
+      const res = await fetch(`/api/usteer/${encodeURIComponent(mac)}/kick`, { method: 'POST' })
+      if (res.status === 401) redirectLogin()
+      if (!res.ok) {
+        let msg = t('roaming.kick.error')
+        try {
+          const j = (await res.json()) as { error?: string; message?: string }
+          if (j.message) msg = j.message
+          else if (j.error) msg = j.error
+        } catch { /* si el body no es JSON, usamos el mensaje por defecto */ }
+        setKickError(`${nameByMac.get(mac) ?? mac}: ${msg}`)
+        setKicking(null)
+        return
+      }
+      void load()
+      void loadEvents()
+    } catch {
+      setKickError(`${nameByMac.get(mac) ?? mac}: ${t('roaming.kick.error')}`)
+    } finally {
+      setKicking((cur) => (cur === mac ? null : cur))
+    }
+  }
+
   // APs visibles según el filtro de banda.
   const aps = useMemo(() => {
-    if (!dawn) return []
-    return dawn.aps.filter((a) => band === 'all' || a.band === band)
-  }, [dawn, band])
+    if (!usteer) return []
+    return usteer.aps.filter((a) => band === 'all' || a.band === band)
+  }, [usteer, band])
 
   // Filas = un cliente por MAC, con su señal vista desde cada AP (BSSID).
   const rows = useMemo(() => {
@@ -343,7 +369,7 @@ export default function Roaming() {
           r = { mac: c.mac, signals: new Map() }
           byMac.set(c.mac, r)
         }
-        // DAWN puede reportar la misma MAC varias veces bajo un BSSID; nos
+        // usteer puede reportar la misma MAC varias veces bajo un BSSID; nos
         // quedamos con la señal más fuerte (la medición más reciente/sana).
         const prev = r.signals.get(ap.bssid)
         if (prev === undefined || c.signal > prev) r.signals.set(ap.bssid, c.signal)
@@ -498,7 +524,7 @@ export default function Roaming() {
 
       {tab === 'matrix' && (
         <div role="tabpanel" id="panel-matrix" aria-labelledby="tab-matrix" tabIndex={0}>
-          {loading && (!dawn || aps.length === 0) && (
+          {loading && (!usteer || aps.length === 0) && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.loading')}
             </div>
@@ -513,19 +539,33 @@ export default function Roaming() {
               {t('roaming.error')}
             </div>
           )}
-          {!loading && !error && dawn && dawn.aps.length === 0 && (
+          {!loading && !error && usteer && usteer.aps.length === 0 && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.empty')}
             </div>
           )}
 
-          {!error && dawn && aps.length > 0 && (
+          {!error && usteer && aps.length > 0 && (
             <motion.section
               initial={initial}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
               className="rounded-2xl border border-border bg-surface p-5 md:p-6"
             >
+              {kickError && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  <XCircle className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  {kickError}
+                  <button
+                    type="button"
+                    onClick={() => setKickError(null)}
+                    className="ml-auto rounded p-1 hover:bg-danger/10"
+                    aria-label={t('common.close')}
+                  >
+                    <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                </div>
+              )}
               {/* Título + filtros */}
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
@@ -584,7 +624,7 @@ export default function Roaming() {
                             <div className="flex flex-col gap-0.5">
                               <span className="font-medium text-text-primary">{ap.hostname}</span>
                               <span className="font-mono text-caption text-text-muted">
-                                {ap.band === '5 GHz' ? '5G' : '2.4G'} · ch{ap.channel}
+                                {ap.band === '5 GHz' ? '5G' : '2.4G'}
                               </span>
                             </div>
                           </th>
@@ -597,9 +637,21 @@ export default function Roaming() {
                         return (
                           <tr key={r.mac} className="group">
                             <th scope="row" className="sticky left-0 z-10 border-b border-border/60 bg-surface py-2 pr-3 text-left text-sm font-medium text-text-primary">
-                              <div className="flex flex-col">
-                                <span className="truncate">{name}</span>
-                                {name !== r.mac && <span className="font-mono text-caption text-text-muted">{r.mac}</span>}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex min-w-0 flex-col">
+                                  <span className="truncate">{name}</span>
+                                  {name !== r.mac && <span className="font-mono text-caption text-text-muted">{r.mac}</span>}
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={kicking === r.mac}
+                                  onClick={() => void kick(r.mac)}
+                                  title={t('roaming.kick.title')}
+                                  className="shrink-0 rounded-md p-1 text-text-muted opacity-0 transition-colors hover:bg-danger/10 hover:text-danger group-hover:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  aria-label={t('roaming.kick.label', { name: nameByMac.get(r.mac) ?? r.mac })}
+                                >
+                                  <X className="h-4 w-4" strokeWidth={1.75} />
+                                </button>
                               </div>
                             </th>
                             {aps.map((ap) => {

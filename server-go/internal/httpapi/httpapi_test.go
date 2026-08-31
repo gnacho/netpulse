@@ -733,7 +733,7 @@ func TestRoutersYDetalle(t *testing.T) {
 		t.Fatalf("detalle desconocido: %d %v", res.StatusCode, body)
 	}
 	// DAWN: el stub devuelve null → 503
-	res = get(t, srv.URL, "/api/dawn", cookie)
+	res = get(t, srv.URL, "/api/usteer", cookie)
 	body = readJSON(t, res)
 	if res.StatusCode != 503 || body["error"] != "unavailable" {
 		t.Fatalf("dawn: %d %v", res.StatusCode, body)

@@ -197,6 +197,27 @@ func TestParseGlClients(t *testing.T) {
 	}
 }
 
+func TestParseArp(t *testing.T) {
+	out := "IP address       HW type     Flags       HW address            Mask     Device\n" +
+		"192.168.1.10     0x1         0x2         aa:bb:cc:dd:ee:ff     *        br-lan\n" +
+		"192.168.1.11     0x1         0x0         11:22:33:44:55:66     *        br-lan\n" +
+		"192.168.1.12     0x1         0x2         00:00:00:00:00:00     *        br-lan\n" +
+		"invalid          0x1         0x2         22:33:44:55:66:77     *        br-lan\n"
+	m := ParseArp(out)
+	if len(m) != 1 || m["AA:BB:CC:DD:EE:FF"] != "192.168.1.10" {
+		t.Fatalf("arp: %+v", m)
+	}
+	if _, ok := m["11:22:33:44:55:66"]; ok {
+		t.Fatal("entrada incompleta (0x0) no debe aparecer")
+	}
+	if _, ok := m["00:00:00:00:00:00"]; ok {
+		t.Fatal("MAC nula no debe aparecer")
+	}
+	if _, ok := m["22:33:44:55:66:77"]; ok {
+		t.Fatal("IP inválida no debe aparecer")
+	}
+}
+
 func TestParseWireless(t *testing.T) {
 	out := "A4:83:E7:21:0B:3C -48 5\nEC:71:DB:44:12:8A -72 2.4\n"
 	m := ParseWirelessClients(out)
@@ -659,5 +680,114 @@ func TestParseMdnsBrowse(t *testing.T) {
 	}
 	if host, ok := dd.HostByIP["192.168.1.60"]; !ok || host != "Printer" {
 		t.Errorf("HostByIP[192.168.1.60] = %q", host)
+	}
+}
+
+func TestParseUsteer(t *testing.T) {
+	// Fixtures con los shapes reales verificados en rt3 (local_info) y
+	// Flint2 (remote_info / connected_clients).
+	localInfo := `{
+  "hostapd.phy0-ap0": {
+    "bssid": "9c:9d:7e:1b:ea:b3",
+    "ssid": "temiscira",
+    "freq": 5260,
+    "n_assoc": 0,
+    "noise": -108,
+    "load": 3,
+    "max_assoc": 0,
+    "roam_events": { "source": 0, "target": 0 },
+    "rrm_nr": ["9c:9d:7e:1b:ea:b3", "temiscira", "9c9d7e1beab3ff5900008034090603023a00"]
+  },
+  "hostapd.phy1-ap0": {
+    "bssid": "9c:9d:7e:1b:ea:b2",
+    "ssid": "temiscira",
+    "freq": 2442,
+    "n_assoc": 1,
+    "load": 20
+  }
+}`
+
+	remoteInfo := `{
+  "192.168.1.3#hostapd.phy0-ap0": {
+    "bssid": "9c:9d:7e:1b:ea:b3",
+    "ssid": "temiscira",
+    "freq": 5260,
+    "n_assoc": 0,
+    "load": 3
+  },
+  "192.168.1.4#hostapd.phy0-ap0": {
+    "bssid": "aa:bb:cc:dd:ee:01",
+    "ssid": "temiscira",
+    "freq": 5260,
+    "n_assoc": 2,
+    "load": 40
+  }
+}`
+
+	connectedClients := `{
+  "hostapd.wlan0": {
+    "aa:bb:cc:dd:ee:ff": { "signal": -39 }
+  }
+}`
+
+	// 1. Sin remote_info: los APs locales se agrupan por SSID.
+	d := ParseUsteer(localInfo, "", "")
+	if d == nil {
+		t.Fatal("ParseUsteer(local) devolvió nil")
+	}
+	s, ok := d.SSIDs["temiscira"]
+	if !ok {
+		t.Fatalf("falta SSID temiscira: %v", d.SSIDs)
+	}
+	if len(s.APs) != 2 {
+		t.Fatalf("esperaba 2 APs locales, obtuve %d", len(s.APs))
+	}
+	if !s.APs[0].Local {
+		t.Error("el AP local debería tener Local=true")
+	}
+	if s.APs[0].BSSID != "9C:9D:7E:1B:EA:B3" {
+		t.Errorf("BSSID local = %q (esperaba uppercased)", s.APs[0].BSSID)
+	}
+
+	// 2. APs remotos: hostname = IP de la clave, Local=false.
+	d = ParseUsteer("", remoteInfo, "")
+	if d == nil {
+		t.Fatal("ParseUsteer(remote) devolvió nil")
+	}
+	rs := d.SSIDs["temiscira"]
+	if len(rs.APs) != 2 {
+		t.Fatalf("esperaba 2 APs remotos, obtuve %d", len(rs.APs))
+	}
+	if rs.APs[0].Local {
+		t.Error("el AP remoto debería tener Local=false")
+	}
+	if rs.APs[0].Hostname != "192.168.1.3" && rs.APs[1].Hostname != "192.168.1.3" {
+		t.Errorf("falta hostname IP en remotos: %+v", rs.APs)
+	}
+
+	// 3. connected_clients: si el iface casa con local_info, el cliente se
+	// agrupa por SSID con su señal.
+	d = ParseUsteer(localInfo, "", `{ "hostapd.phy0-ap0": { "aa:bb:cc:dd:ee:ff": { "signal": -39 } } }`)
+	if d == nil {
+		t.Fatal("ParseUsteer con clientes devolvió nil")
+	}
+	cs := d.SSIDs["temiscira"]
+	if c, ok := cs.Clients["AA:BB:CC:DD:EE:FF"]; !ok || c.Signal != -39 {
+		t.Errorf("cliente no agrupado: %v", cs.Clients)
+	}
+
+	// 4. iface sin casar (wlan0 vs phy0-ap0): no se asigna SSID erróneo.
+	_ = connectedClients
+	d = ParseUsteer(localInfo, "", connectedClients)
+	if d != nil && len(d.SSIDs["temiscira"].Clients) != 0 {
+		t.Errorf("cliente con iface no resuelto debería omitirse: %v", d.SSIDs["temiscira"].Clients)
+	}
+
+	// 5. Sin datos: nil.
+	if ParseUsteer("", "", "") != nil {
+		t.Error("ParseUsteer vacío debería devolver nil")
+	}
+	if ParseUsteer("{", "", "") != nil {
+		t.Error("ParseUsteer con JSON inválido debería devolver nil")
 	}
 }
