@@ -105,6 +105,9 @@ type routerPolled struct {
 	// leases. Se usa SOLO para resolver IPs de dispositivos ya conocidos que
 	// salen sin IP (dnsmasq sin lease), nunca para crear dispositivos nuevos.
 	glClients []DhcpLease
+	// arp: MAC→IP de /proc/net/arp (#377). Último recurso de resolución de
+	// IP cuando ni el lease ni gl-clients la tienen (DHCP en otro equipo).
+	arp       map[string]string
 	wireless  map[string]WirelessClient
 	ports     []EthPort
 	radios    []Radio
@@ -838,6 +841,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		net = &NetDevBps{}
 	}
 	leases := client.GetDhcpLeases()
+	arp := client.GetArp()
 	// gl-clients (GL.iNet): complementa la resolución de IP donde dnsmasq no
 	// tiene lease (issue #5 bug 1). En routers sin el objeto ubus sale vacío
 	// — coste: una llamada ubus local por poll.
@@ -931,7 +935,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
-		uptimeSec: sysInfo.Uptime, net: net, leases: leases, glClients: glClients,
+		uptimeSec: sysInfo.Uptime, net: net, leases: leases, arp: arp, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
@@ -1635,8 +1639,12 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 // FDB gateway si no hay memoria) + device_attrib (index.js:396-460).
 func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	leasesByMac := map[string]DhcpLease{}
+	arpByMac := map[string]string{}
 	glByMac := map[string]DhcpLease{}
 	for _, p := range polled {
+		for mac, ip := range p.arp {
+			arpByMac[mac] = ip
+		}
 		for _, le := range p.leases {
 			if le.MAC != "" {
 				leasesByMac[le.MAC] = le
@@ -1864,17 +1872,24 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			d.IP = lease.IP
 		} else {
 			d.Name = mac
-			// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
-			// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
-			if gl, ok := glByMac[mac]; ok {
-				d.IP = gl.IP
-				if gl.Hostname != "" {
-					d.Name = gl.Hostname
-				}
+		// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
+		// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
+		if gl, ok := glByMac[mac]; ok {
+			d.IP = gl.IP
+			if gl.Hostname != "" {
+				d.Name = gl.Hostname
 			}
 		}
-		// issue #196: la allowlist manda sobre el nombre por defecto. Con
-		// alias (Name != MAC) el dispositivo deja de ser "desconocido".
+	}
+	// Fallback ARP (#377): el DHCP vive en otro equipo, pero cualquier
+	// router de la flota que enrute la LAN conoce la MAC→IP.
+	if d.IP == "" {
+		if ip, ok := arpByMac[mac]; ok {
+			d.IP = ip
+		}
+	}
+	// issue #196: la allowlist manda sobre el nombre por defecto. Con
+	// alias (Name != MAC) el dispositivo deja de ser "desconocido".
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
 		}
