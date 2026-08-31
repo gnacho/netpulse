@@ -137,6 +137,7 @@ func (p *Prober) BuildWireless(ctx context.Context, router, version string) *Pay
 	}
 	pl.Data.Wireless = p.probeWireless(ctx, false)
 	pl.Data.DHCP = p.probeDHCP(ctx)
+	pl.Data.Arp = p.probeArp(ctx)
 	return pl
 }
 
