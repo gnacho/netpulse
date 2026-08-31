@@ -321,7 +321,7 @@
     "moreOptions": "Más opciones",
     "overview": "Resumen",
     "reports": "Informes",
-    "roaming": "Roaming WiFi",
+    "roaming": "Itinerancia WiFi",
     "routerDetail": "Detalle del dispositivo",
     "routers": "Dispositivos",
     "settings": "Ajustes",
@@ -334,11 +334,11 @@
     "orchestration": "Orquestación"
   },
   "roaming": {
-    "subtitle": "Estado del roaming y la malla WiFi",
+    "subtitle": "Estado de la itinerancia WiFi y la malla WiFi",
     "loading": "Cargando datos de usteer…",
     "error": "No se pudo cargar el estado de usteer. Comprueba que el servicio corre en tus routers.",
     "noApi": "Disponible solo con backend en vivo.",
-    "empty": "Ningún router tiene usteer activo. Instálalo en OpenWrt para ver la malla de roaming.",
+    "empty": "Ningún router tiene usteer activo. Instálalo en OpenWrt para ver la malla de itinerancia.",
     "tabMatrix": "Matriz",
     "tab11r": "802.11r",
     "tabSurvey": "Survey",
@@ -346,7 +346,7 @@
     "comingSoon": "Próximamente",
     "matrix": {
       "title": "Matriz de señal",
-      "description": "Señal de cada cliente vista por cada AP (hearing map de usteer). Los clientes en zona límite son candidatos a roaming.",
+      "description": "Señal de cada cliente vista por cada AP (hearing map de usteer). Los clientes en zona límite son candidatos a itinerancia.",
       "colClient": "Cliente",
       "colAp": "Punto de acceso",
       "filterBand": "Banda",
@@ -366,7 +366,7 @@
     },
     "dot11r": {
       "title": "Estado 802.11r",
-      "description": "Fast BSS Transition (roaming rápido) leído de `uci show wireless`. Sin él, el cliente se re-autentica completo al saltar de AP (corte de 1-2 s).",
+      "description": "Fast BSS Transition (itinerancia rápida) leído de `uci show wireless`. Sin él, el cliente se re-autentica completo al saltar de AP (corte de 1-2 s).",
       "empty": "Ningún router tiene 802.11r habilitado en ningún SSID.",
       "allOn": "802.11r activo en los {{n}} SSIDs",
       "partial": "Parcial: activo en {{on}} de {{total}} SSIDs",
@@ -392,7 +392,7 @@
       "ftOverAir": "Over-the-air",
       "pskLocal": "PSK local",
       "radius": "RADIUS externo",
-      "coverageHint": "Cobertura = interfaces con 802.11r / total de interfaces en ese SSID. Para roaming fluido debe ser 100% en cada SSID.",
+      "coverageHint": "Cobertura = interfaces con 802.11r / total de interfaces en ese SSID. Para itinerancia fluida debe ser 100% en cada SSID.",
       "noIfaces": "Sin interfaces wifi.",
       "unreachable": "Router no accesible por SSH."
     },
@@ -413,8 +413,8 @@
       "legendCongested": "≥ 70% (congestionado)"
     },
     "events": {
-      "title": "Eventos de roaming",
-      "description": "Conexiones, desconexiones y decisiones de roaming por cliente. Histórico de 30 días, ingesta cada 60 s.",
+      "title": "Eventos de itinerancia",
+      "description": "Conexiones, desconexiones y decisiones de itinerancia por cliente. Histórico de 30 días, ingesta cada 60 s.",
       "empty": "Sin eventos todavía. Los routers empiezan a reportar en cuanto el poller los alcanza.",
       "filterType": "Filtrar por tipo",
       "type_all": "Todos",
@@ -426,7 +426,7 @@
       "dawn": "DAWN",
       "other": "Otro"
     },
-    "tabsLabel": "Vistas de roaming"
+    "tabsLabel": "Vistas de itinerancia"
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."
@@ -784,7 +784,7 @@
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
     "usteer": {
-      "title": "Roaming WiFi (usteer)",
+      "title": "Itinerancia WiFi (usteer)",
       "caption": "Malla de band-steering entre APs",
       "clients": "{{count}} clientes",
       "util": "{{pct}}% util."
@@ -1383,16 +1383,16 @@
       }
     },
     "usteer": {
-      "enable": "Activar usteer (roaming WiFi)",
+      "enable": "Activar usteer (itinerancia WiFi)",
       "allowNonGateway": "Permitir usteer en routers no-gateway",
-      "nonGatewayWarning": "usteer puede ejecutarse en cualquier AP con WiFi; solo necesita el paquete, wpad completo y los parámetros de roaming alineados.",
+      "nonGatewayWarning": "usteer puede ejecutarse en cualquier AP con WiFi; solo necesita el paquete, wpad completo y los parámetros de itinerancia alineados.",
       "ssid": "SSID (vacío = todas)",
       "mobilityDomain": "Dominio de movilidad",
       "aggressiveness": "Agresividad",
       "bandSteeringThreshold": "Umbral de band-steering",
       "loadBalancingThreshold": "Umbral de balanceo de carga",
       "debugLevel": "Nivel de debug",
-      "roaming": "Roaming",
+      "roaming": "Itinerancia",
       "ieee80211k": "802.11k",
       "ieee80211r": "802.11r",
       "ieee80211v": "802.11v",

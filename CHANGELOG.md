@@ -5,7 +5,15 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [2.23.0] - 2026-08-31
+
+### Changed
+
+- **Migracion del daemon de roaming de DAWN a usteer (#410)**: el backend, agente y frontend ahora usan usteer, el daemon oficial de OpenWrt para client steering. Reemplaza las sondas DAWN por `local_info`, `remote_info` y `connected_clients` de usteer; actualiza las vistas `/roaming` y `/orchestration` y los textos i18n ES/EN; renombra `DawnPanel` a `UsteerPanel` y elimina helpers y tests de DAWN obsoletos.
+
+### Fixed
+
+- **Mensajes confusos al expulsar cliente en roaming (#411)**: `KickUsteerClient` ahora recorre todos los routers y continua si un `del_client` falla, en lugar de devolver el error crudo de SSH en el primer intento. Tambien corrige la comparacion de MAC, ya que usteer devuelve las MAC en minusculas en `connected_clients`. El mensaje de error ahora es `could not disconnect from <router>` en vez de `Process exited with status 4`.
 
 ## [2.22.2] - 2026-08-31
 
