@@ -7,6 +7,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.22.2] - 2026-08-31
+
+### Fixed
+
+- **Agente no repita contadores de /proc/net/dev congelados (#408)**: cuando `CmdNetDev` falla o tarda en un ciclo, el prober enviaba la muestra anterior como `NetIf`, con un timestamp nuevo. El servidor calculaba deltas de 0 bps y disparaba alertas Ghost port en el único puerto activo. Ahora `NetIf` solo se incluye en el payload cuando el ciclo actual refresca los contadores.
+
 ## [2.22.1] - 2026-08-31
 
 ### Added
