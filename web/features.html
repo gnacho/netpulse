@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="featuresPage.metaTitle">NetPulse - Funciones completas</title>
+  <meta name="description" content="Listado completo de funciones de NetPulse: monitorización de red, topología en vivo, WiFi, roaming, puertos, alertas, informes y las decisiones técnicas detrás del proyecto." data-i18n-attr="content" data-i18n="featuresPage.metaDescription" />
+  <meta name="theme-color" content="#070B12" />
+  <link rel="canonical" href="https://netpulse.cloudless.club/features" />
+  <link rel="alternate" hreflang="es" href="https://netpulse.cloudless.club/features?hl=es" />
+  <link rel="alternate" hreflang="en" href="https://netpulse.cloudless.club/features" />
+  <link rel="alternate" hreflang="x-default" href="https://netpulse.cloudless.club/features" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="NetPulse" />
+  <meta property="og:title" content="NetPulse - Funciones completas" data-i18n-attr="content" data-i18n="featuresPage.metaTitle" />
+  <meta property="og:description" content="Listado completo de funciones de NetPulse y las decisiones técnicas detrás del proyecto." data-i18n-attr="content" data-i18n="featuresPage.metaDescription" />
+  <meta property="og:url" content="https://netpulse.cloudless.club/features" />
+  <meta property="og:image" content="https://netpulse.cloudless.club/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="NetPulse - Funciones completas" data-i18n-attr="content" data-i18n="featuresPage.metaTitle" />
+  <meta name="twitter:description" content="Listado completo de funciones de NetPulse y las decisiones técnicas detrás del proyecto." data-i18n-attr="content" data-i18n="featuresPage.metaDescription" />
+  <meta name="twitter:image" content="https://netpulse.cloudless.club/og.png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' y1='78' x2='90' y2='20' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='73' cy='60' r='6' fill='url(%23g)'/%3E%3Cpath d='M62.4 49.4 A15 15 0 0 1 83.6 49.4' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M55.3 39.7 A25 25 0 0 1 90.7 39.7' stroke='url(%23g)' stroke-width='5' stroke-linecap='round' opacity='0.6'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20260831a" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://netpulse.cloudless.club/features",
+        "name": "NetPulse - Funciones completas",
+        "url": "https://netpulse.cloudless.club/features",
+        "description": "Listado completo de funciones de NetPulse y las decisiones técnicas detrás del proyecto.",
+        "inLanguage": "es",
+        "isPartOf": { "@id": "https://netpulse.cloudless.club/" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "NetPulse",
+        "applicationCategory": "NetworkApplication",
+        "operatingSystem": "Linux",
+        "url": "https://github.com/gnacho/netpulse",
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "description": "Monitor de red OpenWrt/GL.iNet de solo lectura, autoalojado y libre (AGPL-3.0). Topología en vivo, salud de la red, WiFi, roaming, puertos, alertas e informes.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "isAccessibleForFree": true,
+        "featureList": "Dashboard, topology map, devices, routers, agent management, WiFi roaming, switch ports, WireGuard, AdGuard Home, alerts, reports, settings, demo mode, LuCI app, auto-updater, on-box mode"
+      }
+    ]
+  }
+  </script>
+<script data-goatcounter="https://stats.netpulse.cloudless.club/count" async src="//stats.netpulse.cloudless.club/count.js"></script>
+</head>
+<body>
+  <canvas id="bgCanvas" aria-hidden="true"></canvas>
+
+  <!-- ============ NAV ============ -->
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/" aria-label="NetPulse">
+        <svg viewBox="0 0 96 96" fill="none" aria-hidden="true">
+          <defs><linearGradient id="np-g" x1="10" y1="78" x2="90" y2="20" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs>
+          <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+          <path d="M62.4 49.4 A15 15 0 0 1 83.6 49.4" stroke="url(#np-g)" stroke-width="5" stroke-linecap="round"/>
+          <path d="M55.3 39.7 A25 25 0 0 1 90.7 39.7" stroke="url(#np-g)" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+        </svg>
+        NetPulse
+      </a>
+      <div class="nav-links">
+        <a href="/features" data-i18n="featuresPage.navActive" class="active">Funciones</a>
+        <a href="/" data-i18n="nav.how">Cómo funciona</a>
+        <a href="/#free" data-i18n="nav.free">Gratis</a>
+        <a href="/#faq" data-i18n="nav.faq">FAQ</a>
+        <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
+      </div>
+      <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
+      <a class="nav-cta" href="/#install" data-i18n="featuresPage.cta">Instalar en tu red</a>
+    </div>
+  </nav>
+
+  <!-- ============ HERO ============ -->
+  <header class="hero mesh-bg" style="min-height:70vh;padding:7rem 0 4rem;">
+    <div class="hero-halo" aria-hidden="true"></div>
+    <div class="container">
+      <span class="eyebrow" data-i18n="featuresPage.eyebrow">Funciones</span>
+      <h1 class="font-display text-balance" data-i18n="featuresPage.title">Todo lo que NetPulse puede ver</h1>
+      <p class="hero-sub" data-i18n="featuresPage.sub">Un listado completo de lo que la app monitoriza, y por qué se tomaron las decisiones técnicas que la hacen posible.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="https://demo.netpulse.cloudless.club" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span data-i18n="hero.cta3">Probar la demo en vivo</span>
+        </a>
+        <a class="btn-ghost" href="/#install">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span data-i18n="featuresPage.cta">Instalar en tu red</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ FEATURE INVENTORY ============ -->
+  <section class="block" id="inventory" style="padding-top:2rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="featuresPage.inventoryEyebrow">Inventario de funciones</span>
+        <h2 class="font-display text-balance" data-i18n="featuresPage.inventoryTitle">De la red a la interfaz</h2>
+        <p class="lead" data-i18n="featuresPage.inventoryLead">NetPulse lee datos de tus routers y los muestra en una sola pantalla. Todo es solo lectura: ver, no tocar.</p>
+      </div>
+
+      <div class="features features-detail">
+        <!-- Dashboard -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <h3 data-i18n="featuresPage.dashboardTitle">Panel de salud</h3>
+          <p data-i18n="featuresPage.dashboardP">Una puntuación de 0 a 100 que condensa latencia, pérdidas, uptime y temperatura. A su lado, el tráfico WAN en vivo comparado con tu plan contratado, latencia media y número de dispositivos.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.dashboardL1">Health score 0-100 con cálculo ponderado por router</li>
+            <li data-i18n="featuresPage.dashboardL2">Caudal WAN, pico del día, media de 24 h y total</li>
+            <li data-i18n="featuresPage.dashboardL3">Actualización en vivo por SSE cada ~5 s</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Topology -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7l-5.5 10M12 7l5.5 10M7 19h10"/></svg>
+          <h3 data-i18n="featuresPage.topologyTitle">Topología en vivo</h3>
+          <p data-i18n="featuresPage.topologyP">Mapa semántico construido desde el FDB del bridge y LLDP cuando está disponible. Dibuja routers, switches, hipervisores, contenedores anidados, clientes cableados e inalámbricos y túneles WireGuard.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.topologyL1">Inferencia de switches gestionados e inferidos</li>
+            <li data-i18n="featuresPage.topologyL2">Hipervisores con contenedores anidados visibles</li>
+            <li data-i18n="featuresPage.topologyL3">Animación de tráfico y estado de enlaces</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Devices -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="12" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg>
+          <h3 data-i18n="featuresPage.devicesTitle">Dispositivos</h3>
+          <p data-i18n="featuresPage.devicesP">Cada cliente clasificado automáticamente por patrones de hostname y OUI, con banda, señal en dBm, primer visto y el router o puerto al que habla.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.devicesL1">Clasificación por tipo: ordenador, móvil, IoT, cámara, consola...</li>
+            <li data-i18n="featuresPage.devicesL2">Banda (2.4 GHz / 5 GHz / cable) y señal</li>
+            <li data-i18n="featuresPage.devicesL3">Estado online/offline y first-seen</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Routers -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/><path d="M4 16h16M4 8h16"/></svg>
+          <h3 data-i18n="featuresPage.routersTitle">Flota de routers</h3>
+          <p data-i18n="featuresPage.routersP">Vista de conjunto de todos tus routers con CPU, memoria, temperatura, uptime, clientes conectados y mini sparkline de carga de las últimas 24 h.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.routersL1">Tarjeta por router con rol (gateway / AP)</li>
+            <li data-i18n="featuresPage.routersL2">Alerta por temperatura o uso crítico</li>
+            <li data-i18n="featuresPage.routersL3">Detalle de interfaces y backhaul</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Agent & upgrades -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <h3 data-i18n="featuresPage.agentTitle">Agente y actualización</h3>
+          <p data-i18n="featuresPage.agentP">El agente es un paquete .ipk nativo de OpenWrt con init procd, config UCI y watchdog. El servidor puede servir el binario y gestionar su versión, con aviso cuando hay actualización disponible.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.agentL1">Instalación del agente desde la UI del servidor</li>
+            <li data-i18n="featuresPage.agentL2">Aviso de agente desactualizado y botón de upgrade</li>
+            <li data-i18n="featuresPage.agentL3">Rearme y estado del agente en tiempo real</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- WiFi / roaming -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          <h3 data-i18n="featuresPage.wifiTitle">WiFi y roaming</h3>
+          <p data-i18n="featuresPage.wifiP">Matriz de señal entre APs y clientes, eventos de roaming persistentes durante 30 días, y herramientas para re-anclar clientes sticky o expulsarlos de un AP para que elijan uno mejor.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.wifiL1">Eventos de asociación/desasociación y roaming</li>
+            <li data-i18n="featuresPage.wifiL2">Recomendación de re-anclaje por señal</li>
+            <li data-i18n="featuresPage.wifiL3">Migración del steering de DAWN a usteer</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Ports -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--danger))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><line x1="6" y1="6.5" x2="6.01" y2="6.5"/><line x1="6" y1="17.5" x2="6.01" y2="17.5"/></svg>
+          <h3 data-i18n="featuresPage.portsTitle">Detalle de bocas</h3>
+          <p data-i18n="featuresPage.portsP">Vista por puerto de los switches: velocidad negociada, tráfico, errores, estado del link y alertas específicas como puerto fantasma, flapping o velocidad degradada.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.portsL1">Series temporales de tráfico por puerto</li>
+            <li data-i18n="featuresPage.portsL2">Alertas de puerto fantasma, flapping y degradado</li>
+            <li data-i18n="featuresPage.portsL3">Panel frontal del switch</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- WireGuard -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <h3 data-i18n="featuresPage.wireguardTitle">WireGuard</h3>
+          <p data-i18n="featuresPage.wireguardP">Listado de peers, últimos handshakes, transferencia por peer y dibujo del túnel en el mapa de topología.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.wireguardL1">Estado de cada peer y tiempo desde el último handshake</li>
+            <li data-i18n="featuresPage.wireguardL2">RX/TX acumulado por túnel</li>
+            <li data-i18n="featuresPage.wireguardL3">Visualización del túnel desde Internet hasta el gateway</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- AdGuard -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <h3 data-i18n="featuresPage.adguardTitle">AdGuard Home</h3>
+          <p data-i18n="featuresPage.adguardP">Estadísticas de consultas DNS, porcentaje bloqueado, dominios más bloqueados y qué clientes usan el filtro, todo junto al resto de la red.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.adguardL1">Consultas y bloqueos de 24 h</li>
+            <li data-i18n="featuresPage.adguardL2">Top de dominios bloqueados</li>
+            <li data-i18n="featuresPage.adguardL3">Latencia media del DNS</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Alerts -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <h3 data-i18n="featuresPage.alertsTitle">Alertas</h3>
+          <p data-i18n="featuresPage.alertsP">Seis categorías con urgencia por categoría: temperatura, firmware disponible, nuevo dispositivo, handshake WireGuard, puerto de red y eventos de roaming. Feed en la campana y notificaciones Web Push.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.alertsL1">Feed persistente con resolución automática</li>
+            <li data-i18n="featuresPage.alertsL2">Web Push nativo VAPID sin terceros</li>
+            <li data-i18n="featuresPage.alertsL3">Sugerencias de acción en alertas de puerto</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Reports -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="9" y2="9"/></svg>
+          <h3 data-i18n="featuresPage.reportsTitle">Informes</h3>
+          <p data-i18n="featuresPage.reportsP">Reportes de disponibilidad diarios, semanales y mensuales por router y por dispositivo. En desarrollo: tráfico, actividad, resumen de alertas y exportación.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.reportsL1">Disponibilidad por router y dispositivo</li>
+            <li data-i18n="featuresPage.reportsL2">Vistas diaria, semanal y mensual</li>
+            <li data-i18n="featuresPage.reportsL3">Exportación CSV/JSON planificada</li>
+          </ul>
+          <span class="feature-status partial" data-i18n="featuresPage.statusPartial">Parcial / en desarrollo</span>
+        </div>
+
+        <!-- Settings -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <h3 data-i18n="featuresPage.settingsTitle">Ajustes</h3>
+          <p data-i18n="featuresPage.settingsP">Gestión de usuarios (admin/viewer), idioma por usuario, apariencia, routers, servicios (AdGuard, WireGuard), orquestación de configuración y auto-actualización.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.settingsL1">Usuarios con roles y bcrypt</li>
+            <li data-i18n="featuresPage.settingsL2">Orquestación de módulos (WiFi, AdGuard, etc.)</li>
+            <li data-i18n="featuresPage.settingsL3">Auto-actualización con changelog</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Demo mode -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <h3 data-i18n="featuresPage.demoTitle">Modo demo</h3>
+          <p data-i18n="featuresPage.demoP">DEMO_MODE=1 levanta una red de muestra completa con 67 dispositivos sin necesidad de routers reales. Útil para probar la interfaz antes de instalar.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.demoL1">Dataset canónico de 67 dispositivos</li>
+            <li data-i18n="featuresPage.demoL2">Misma interfaz que modo real</li>
+            <li data-i18n="featuresPage.demoL3">Demo online pública en demo.netpulse.cloudless.club</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- LuCI -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          <h3 data-i18n="featuresPage.luciTitle">App LuCI</h3>
+          <p data-i18n="featuresPage.luciP">luci-app-netpulse integra el estado del agente dentro de la interfaz web de OpenWrt: procd, UCI, logs, reinicio y enlace a la app principal.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.luciL1">Estado del agente en LuCI</li>
+            <li data-i18n="featuresPage.luciL2">Reinicio y rearme del agente</li>
+            <li data-i18n="featuresPage.luciL3">Paquete .ipk/.apk en cada release</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- On-box -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+          <h3 data-i18n="featuresPage.onboxTitle">Modo on-box</h3>
+          <p data-i18n="featuresPage.onboxP">Si no tienes una caja aparte, el servidor puede correr en el propio router OpenWrt, con configuración UCI, pinning TLS y emparejamiento local.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.onboxL1">Binario estático para routers compatibles</li>
+            <li data-i18n="featuresPage.onboxL2">Config UCI nativa</li>
+            <li data-i18n="featuresPage.onboxL3">Certificado autofirmado con SPKI pinning</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TECHNICAL DECISIONS ============ -->
+  <section class="block" id="decisions" style="padding-top:1rem;">
+    <div class="container" style="max-width:56rem;">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="featuresPage.decisionsEyebrow">Decisiones técnicas</span>
+        <h2 class="font-display text-balance" data-i18n="featuresPage.decisionsTitle">Por qué se hizo así</h2>
+        <p class="lead" data-i18n="featuresPage.decisionsLead">NetPulse no es un producto de marketing: es una herramienta personal que se construyó para resolver problemas reales. Estas son las decisiones que más preguntas reciben.</p>
+      </div>
+
+      <div class="decisions">
+        <details class="decision card reveal" open>
+          <summary data-i18n="featuresPage.decOpenwrtTitle">¿Por qué OpenWrt / GL.iNet?</summary>
+          <p data-i18n="featuresPage.decOpenwrtP">NetPulse nace de una red doméstica con cuatro routers: un GL.iNet Flint 2 como gateway y tres Xiaomi AX6 de segunda mano. OpenWrt permite flashear, inspeccionar y controlar el hardware. Sin eso no habría forma de leer el FDB, iwinfo o los eventos iw que alimentan la app.</p>
+        </details>
+
+        <details class="decision card reveal">
+          <summary data-i18n="featuresPage.decGoTitle">¿Por qué Go + SQLite embebida?</summary>
+          <p data-i18n="featuresPage.decGoP">Un único binario estático con CGO desactivado. No necesita toolchain C en el destino, se actualiza con un swap atómico y guarda usuarios, sesiones y series temporales en un SQLite local con WAL. modernc.org/sqlite hace que sea totalmente estático.</p>
+        </details>
+
+        <details class="decision card reveal">
+          <summary data-i18n="featuresPage.decReadonlyTitle">¿Por qué solo lectura?</summary>
+          <p data-i18n="featuresPage.decReadonlyP">El servidor genera su propio par ed25519 y tú autorizas la clave pública en cada router. Desde ahí solo lee: ubus, /proc, iwinfo, bridge fdb, wg show. No puede cambiar tu red, ni siquiera accidentalmente. La única excepción son las acciones voluntarias de orquestación, que se aplican como planes explícitos.</p>
+        </details>
+
+        <details class="decision card reveal">
+          <summary data-i18n="featuresPage.decSystemdTitle">¿Por qué systemd y no Docker?</summary>
+          <p data-i18n="featuresPage.decSystemdP">NetPulse monitoriza una red; no necesita un contenedor para hacerlo. Un servicio systemd enjaulado con una unidad simple, logs en journald y reinicio automático es más ligero y más fácil de operar en un LXC o VM pequeña.</p>
+        </details>
+
+        <details class="decision card reveal">
+          <summary data-i18n="featuresPage.decPwaTitle">¿Por qué PWA + SSE?</summary>
+          <p data-i18n="featuresPage.decPwaP">La interfaz es una SPA React con Vite y Tailwind que se instala como PWA. El backend envía eventos en vivo por SSE cada ~5 s. No hay polling constante ni WebSocket: SSE es unidireccional, se reconecta solo y funciona bien detrás de proxies caseros.</p>
+        </details>
+
+        <details class="decision card reveal">
+          <summary data-i18n="featuresPage.decUsteerTitle">¿Por qué de DAWN a usteer?</summary>
+          <p data-i18n="featuresPage.decUsteerP">Empezamos con DAWN para el steering WiFi porque era la opción más visible en la comunidad OpenWrt. En redes reales vimos que podía denegar autenticaciones en cadena, expulsar clientes de forma inesperada y mantener bugs sin resolver en el modelo peer-to-peer. usteer es el daemon oficial de OpenWrt, con funciones equivalentes y un modelo más estable. La migración a usteer está en curso y conserva la misma visibilidad de roaming.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HONEST SCOPE ============ -->
+  <section class="block" id="honest-scope" style="padding-top:1rem;">
+    <div class="container" style="max-width:56rem;">
+      <div class="card honest reveal" style="padding:2rem 2.25rem;">
+        <h3 class="font-display" style="margin:0;font-size:1.25rem;color:rgb(var(--accent));" data-i18n="featuresPage.honestTitle">Qué no es NetPulse</h3>
+        <p data-i18n="featuresPage.honestP">Es importante ser honesto sobre el alcance. NetPulse no pretende ser:</p>
+        <ul class="honest-list">
+          <li data-i18n="featuresPage.honestL1">Un NMS empresarial como Zabbix, LibreNMS o PRTG. No escala a miles de nodos ni soporta miles de MIBs SNMP.</li>
+          <li data-i18n="featuresPage.honestL2">Una solución en la nube. No hay telemetría, dashboards centralizados ni apps móviles nativas.</li>
+          <li data-i18n="featuresPage.honestL3">Una herramienta de configuración automática masiva. La orquestación existe, pero es opt-in y por plan.</li>
+          <li data-i18n="featuresPage.honestL4">Una solución universal para cualquier router. Está probado en OpenWrt / GL.iNet; otros firmwares necesitarían adaptación.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col" style="max-width:22rem;">
+          <a class="nav-logo" href="/" style="margin-bottom:0.75rem;">
+            <svg viewBox="0 0 96 96" fill="none" width="22" height="22" aria-hidden="true">
+              <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+            </svg>
+            NetPulse
+          </a>
+          <p class="caption text-muted" data-i18n="footer.tagline">Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.</p>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.project">Proyecto</h4>
+          <a href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" data-i18n="footer.releases">Releases</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/docs/ROADMAP.md" target="_blank" rel="noopener" data-i18n="footer.roadmap">Roadmap</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">Licencia</a>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.community">Comunidad</h4>
+          <a href="https://github.com/gnacho/netpulse/issues" target="_blank" rel="noopener" data-i18n="footer.issues">Issues</a>
+          <a href="https://github.com/gnacho/netpulse/discussions" target="_blank" rel="noopener" data-i18n="footer.discussions">Discusiones</a>
+          <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="footer.contribute">Contribuir</a>
+        </div>
+        <div class="foot-col">
+          <h4>Ko-fi</h4>
+          <a class="kofi" href="https://ko-fi.com/gnacho" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.24 2.437 2.057 3.134 3.957 3.134 2.806.001 5.825-.054 8.658-.065.147-.031 4.467-.842 5.393-4.63.266-1.088.05-1.574-.149-2.466zm-4.572 3.482c-.567 2.306-2.876 2.523-2.876 2.523H4.645c-1.846 0-1.833-1.873-1.833-1.873V6.94c0-1.293 1.164-1.48 1.164-1.48h11.639c1.895 0 2.088 1.509 2.088 1.509s.18 2.121.18 3.153c0 1.155-.193 2.308-.574 2.308zm-4.224-1.051c-.657-.526-1.219-1.298-1.743-2.236-.523.938-1.086 1.71-1.742 2.236-.952.762-2.352.506-2.764-.567-.177-.462-.141-1.068.069-1.711.479-1.475 1.862-3.511 3.406-4.83a1.53 1.53 0 0 1 2.06 0c1.545 1.319 2.928 3.355 3.407 4.83.21.643.246 1.249.069 1.711-.413 1.073-1.813 1.329-2.762.567z"/></svg>
+            <span data-i18n="footer.kofi">Apoya el proyecto en Ko-fi</span>
+          </a>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span data-i18n="footer.rights">AGPL-3.0 · Hecho en casa, para redes de casa.</span>
+        <a href="/features" class="font-mono" data-i18n="featuresPage.backToTop">Funciones</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ WIDGET APARIENCIA ============ -->
+  <button class="appearance-fab" id="appFab" aria-label="Appearance" data-i18n-aria="appearance.title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+  </button>
+  <div class="appearance-panel" id="appPanel">
+    <h5 data-i18n="appearance.title">Apariencia</h5>
+    <div class="label text-muted" style="margin-bottom:0.4rem;" data-i18n="appearance.theme">Tema</div>
+    <div class="seg" id="themeSeg">
+      <button data-mode="dark" data-i18n="appearance.dark">Oscuro</button>
+      <button data-mode="light" data-i18n="appearance.light">Claro</button>
+      <button data-mode="system" data-i18n="appearance.system">Auto</button>
+    </div>
+  </div>
+
+  <script src="i18n.js?v=20260831a"></script>
+  <script src="app.js?v=20260831a"></script>
+<script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9"></script>
+</body>
+</html>
