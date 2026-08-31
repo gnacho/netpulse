@@ -374,8 +374,8 @@ export interface OverviewBundle {
   vm?: number
   /** Semántica de topología precalculada (SPEC-65 D65-3); ausente = fallback local. */
   topology?: TopoSemantics
-  /** Disponibilidad de DAWN (roaming/band-steering); ausente = no mostrar /roaming. */
-  dawn?: { available: boolean }
+  /** Disponibilidad de usteer (roaming/band-steering); ausente = no mostrar /roaming. */
+  usteer?: { available: boolean }
   /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
   orchestration?: boolean
   /** Devices from the same polled snapshot as topology.rings. When present,

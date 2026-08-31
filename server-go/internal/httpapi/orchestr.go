@@ -385,8 +385,8 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 		}
 		ops := orchestr.WireGuardOps(d, sc)
 		return ops, wireGuardMethod(sc, d.Interface), nil
-	case "dawn":
-		var d orchestr.DawnDesired
+	case "usteer":
+		var d orchestr.UsteerDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
 			return nil, "", fmt.Errorf("%w: %v", errInvalidDesired, err)
 		}
@@ -394,14 +394,14 @@ func (s *server) computeModuleDiff(resource, routerID string, desired json.RawMe
 		if host == "" {
 			return nil, "", errRouterNotFound
 		}
-		// DAWN es un servicio mesh por AP: puede desplegarse en cualquier
-		// router que sea AP de distribución, no solo en el gateway.
-		sc, err := orchestr.DetectDawn(s.pool, host)
+		// usteer es un servicio de steering por AP: puede desplegarse en
+		// cualquier router que sea AP de distribución, no solo en el gateway.
+		sc, err := orchestr.DetectUsteer(s.pool, host)
 		if err != nil {
 			return nil, "", fmt.Errorf("%w: %v", errProbeFailed, err)
 		}
-		ops := orchestr.DawnOps(d, sc)
-		return ops, orchestr.DawnMethod(sc), nil
+		ops := orchestr.UsteerOps(d, sc)
+		return ops, orchestr.UsteerMethod(sc), nil
 	default:
 		return nil, "", fmt.Errorf("%w: %s", errUnknownModule, resource)
 	}
@@ -522,8 +522,8 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 		}
 		d.Enabled = !d.Enabled
 		return json.Marshal(d)
-	case "dawn":
-		var d orchestr.DawnDesired
+	case "usteer":
+		var d orchestr.UsteerDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
 			return nil, fmt.Errorf("desired inválido: %w", err)
 		}

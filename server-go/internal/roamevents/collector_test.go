@@ -39,6 +39,42 @@ func TestParseLogreadFlint2(t *testing.T) {
 	}
 }
 
+// TestParseUsteer cubre las líneas de usteer (user.info usteer:) con
+// "station MAC connected/disconnected to/from node".
+func TestParseUsteer(t *testing.T) {
+	cases := []struct {
+		line string
+		want string
+		mac  string
+	}{
+		{
+			"Sat Aug  8 19:21:58 2026 user.info usteer: station 04:95:e6:76:55:a1 connected to node 04:95:e6:76:55:b2",
+			TypeConnected,
+			"04:95:e6:76:55:a1",
+		},
+		{
+			"Sat Aug  8 19:21:59 2026 user.info usteer: station 04:95:e6:76:55:a1 disconnected from node 04:95:e6:76:55:b2",
+			TypeDisconnected,
+			"04:95:e6:76:55:a1",
+		},
+	}
+	for _, tc := range cases {
+		ev, ok := ParseLogreadLine(tc.line, "rt3")
+		if !ok {
+			t.Fatalf("línea usteer debería parsear: %q", tc.line)
+		}
+		if ev.Type != tc.want {
+			t.Errorf("type = %q, want %q", ev.Type, tc.want)
+		}
+		if ev.MAC != tc.mac {
+			t.Errorf("mac = %q, want %q", ev.MAC, tc.mac)
+		}
+		if ev.Detail == "" || !contains(ev.Detail, "node") {
+			t.Errorf("detail = %q", ev.Detail)
+		}
+	}
+}
+
 // TestParseHostapdConnected cubre las dos variantes (con y sin segundo iface).
 func TestParseHostapdConnected(t *testing.T) {
 	cases := []struct {

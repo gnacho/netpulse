@@ -118,7 +118,7 @@ func (c *Collector) tick() {
 
 func (c *Collector) collectRouter(h RouterHost) {
 	// grep extiende el set a futuro (eventos FT, etc.) sin tocar el binario.
-	cmd := "logread 2>/dev/null | grep -E 'AP-STA-CONNECTED|AP-STA-DISCONNECTED|dawn:' | tail -100"
+	cmd := "logread 2>/dev/null | grep -E 'AP-STA-CONNECTED|AP-STA-DISCONNECTED|dawn:|usteer:' | tail -100"
 	out, err := c.runner.Run(h.Host, cmd, 8*time.Second)
 	if err != nil {
 		return
@@ -203,9 +203,9 @@ var (
 	// syslog formato completo: "Sat Aug  8 19:21:45 2026 daemon.notice hostapd: <resto>".
 	// Weekday opcional (algunos sistemas lo omiten). Múltiples espacios
 	// entre día y mes en logread de OpenWrt (alineación).
-	syslogRe = regexp.MustCompile(`^(?:\w{3}\s+)?(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})\s+\d{4}\s+daemon\.\w+\s+(\w+):\s+(.+)$`)
+	syslogRe = regexp.MustCompile(`^(?:\w{3}\s+)?(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})\s+\d{4}\s+(?:daemon|user)\.\w+\s+(\w+):\s+(.+)$`)
 	// Variante sin año: "Sat Aug  8 19:21:45 daemon.notice hostapd: <resto>".
-	syslogNoYearRe = regexp.MustCompile(`^(?:\w{3}\s+)?(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})\s+daemon\.\w+\s+(\w+):\s+(.+)$`)
+	syslogNoYearRe = regexp.MustCompile(`^(?:\w{3}\s+)?(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})\s+(?:daemon|user)\.\w+\s+(\w+):\s+(.+)$`)
 
 	// hostapd: "<iface>: AP-STA-CONNECTED <iface2> <mac>"
 	hostapdConnRe = regexp.MustCompile(`^(\S+):\s+AP-STA-(CONNECTED|DISCONNECTED)\s+\S+\s+([0-9a-fA-F:]{17})`)
@@ -214,6 +214,10 @@ var (
 
 	// dawn: "Client / BSSID = <mac> / <bssid>: <action>"
 	dawnClientRe = regexp.MustCompile(`Client\s*/\s*BSSID\s*=\s*([0-9a-fA-F:]{17})\s*/\s*([0-9a-fA-F:]{17}):\s*(.+)`)
+
+	// usteer: "station <mac> connected to node <node>" /
+	//         "station <mac> disconnected from node <node>"
+	usteerStationRe = regexp.MustCompile(`station\s+([0-9a-fA-F:]{17})\s+(connected to|disconnected from)\s+node\s+(\S+)`)
 )
 
 // ParseLogreadLine intenta parsear una línea de logread a un Event.
@@ -246,6 +250,12 @@ func ParseLogreadLine(line, routerID string) (Event, bool) {
 		return ev, true
 	case "dawn":
 		ev, ok := parseDawn(rest, routerID, ts)
+		if !ok {
+			return Event{}, false
+		}
+		return ev, true
+	case "usteer":
+		ev, ok := parseUsteer(rest, routerID, ts)
 		if !ok {
 			return Event{}, false
 		}
@@ -286,6 +296,21 @@ func parseDawn(rest, routerID string, ts int64) (Event, bool) {
 			TsMs: ts, RouterID: routerID, Type: TypeDawnDecision, MAC: mac,
 			Detail: fmt.Sprintf("BSSID %s: %s", bssid, action),
 		}, true
+	}
+	return Event{}, false
+}
+
+// parseUsteer parsea las líneas de usteer: "station <mac> connected to node
+// <node>" o "station <mac> disconnected from node <node>". Mapea a
+// connected/disconnected (mismos tipos que hostapd).
+func parseUsteer(rest, routerID string, ts int64) (Event, bool) {
+	if m := usteerStationRe.FindStringSubmatch(rest); m != nil {
+		mac := m[1]
+		typ := TypeConnected
+		if m[2] == "disconnected from" {
+			typ = TypeDisconnected
+		}
+		return Event{TsMs: ts, RouterID: routerID, Type: typ, MAC: mac, Detail: "node " + m[3]}, true
 	}
 	return Event{}, false
 }

@@ -26,3 +26,4 @@ bin/
 
 # Binarios de agente embebidos (construidos por CI)
 server-go/internal/agentbin/agents/netpulse-agent-*
+.worktrees/

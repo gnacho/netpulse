@@ -335,10 +335,10 @@
   },
   "roaming": {
     "subtitle": "Estado del roaming y la malla WiFi",
-    "loading": "Cargando datos de DAWN…",
-    "error": "No se pudo cargar el estado de DAWN. Comprueba que el servicio corre en tus routers.",
+    "loading": "Cargando datos de usteer…",
+    "error": "No se pudo cargar el estado de usteer. Comprueba que el servicio corre en tus routers.",
     "noApi": "Disponible solo con backend en vivo.",
-    "empty": "Ningún router tiene DAWN activo. Instálalo en OpenWrt para ver la malla de roaming.",
+    "empty": "Ningún router tiene usteer activo. Instálalo en OpenWrt para ver la malla de roaming.",
     "tabMatrix": "Matriz",
     "tab11r": "802.11r",
     "tabSurvey": "Survey",
@@ -346,7 +346,7 @@
     "comingSoon": "Próximamente",
     "matrix": {
       "title": "Matriz de señal",
-      "description": "Señal de cada cliente vista por cada AP (hearing map de DAWN). Los clientes en zona límite son candidatos a roaming.",
+      "description": "Señal de cada cliente vista por cada AP (hearing map de usteer). Los clientes en zona límite son candidatos a roaming.",
       "colClient": "Cliente",
       "colAp": "Punto de acceso",
       "filterBand": "Banda",
@@ -358,6 +358,11 @@
       "legendGood": "≤ -65 dBm (óptimo)",
       "legendFair": "-70 a -80 dBm (aceptable)",
       "legendWeak": "≥ -85 dBm (límite)"
+    },
+    "kick": {
+      "title": "Expulsar del AP para forzar reconexión",
+      "label": "Expulsar a {{name}}",
+      "error": "No se pudo expulsar al cliente"
     },
     "dot11r": {
       "title": "Estado 802.11r",
@@ -409,7 +414,7 @@
     },
     "events": {
       "title": "Eventos de roaming",
-      "description": "Conexiones, desconexiones y decisiones de DAWN por cliente. Histórico de 30 días, ingesta cada 60 s.",
+      "description": "Conexiones, desconexiones y decisiones de roaming por cliente. Histórico de 30 días, ingesta cada 60 s.",
       "empty": "Sin eventos todavía. Los routers empiezan a reportar en cuanto el poller los alcanza.",
       "filterType": "Filtrar por tipo",
       "type_all": "Todos",
@@ -778,8 +783,8 @@
     "tagDevices": "Etiquetar dispositivos",
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
-    "dawn": {
-      "title": "Roaming WiFi (DAWN)",
+    "usteer": {
+      "title": "Roaming WiFi (usteer)",
       "caption": "Malla de band-steering entre APs",
       "clients": "{{count}} clientes",
       "util": "{{pct}}% util."
@@ -1291,7 +1296,7 @@
       "ddns": "DDNS",
       "sqm": "QoS (SQM)",
       "wireguard": "WireGuard",
-      "dawn": "DAWN"
+      "usteer": "usteer"
     },
     "warn": {
       "managed_by_firmware": "Este router trae un AdGuard Home del fabricante (GL.iNet). NetPulse no lo gestiona para no romper su UI: configúralo desde la interfaz del router.",
@@ -1377,16 +1382,16 @@
         "inactive": "Túnel inactivo"
       }
     },
-    "dawn": {
-      "enable": "Activar DAWN (roaming WiFi)",
-      "allowNonGateway": "Permitir DAWN en routers no-gateway",
-      "nonGatewayWarning": "DAWN puede ejecutarse en cualquier AP con WiFi; solo necesita el paquete, wpad completo y los parámetros de roaming alineados.",
+    "usteer": {
+      "enable": "Activar usteer (roaming WiFi)",
+      "allowNonGateway": "Permitir usteer en routers no-gateway",
+      "nonGatewayWarning": "usteer puede ejecutarse en cualquier AP con WiFi; solo necesita el paquete, wpad completo y los parámetros de roaming alineados.",
       "ssid": "SSID (vacío = todas)",
       "mobilityDomain": "Dominio de movilidad",
-      "broadcastIp": "IP de broadcast",
-      "tcpPort": "Puerto TCP",
-      "sharedKey": "Clave compartida",
-      "iv": "IV",
+      "aggressiveness": "Agresividad",
+      "bandSteeringThreshold": "Umbral de band-steering",
+      "loadBalancingThreshold": "Umbral de balanceo de carga",
+      "debugLevel": "Nivel de debug",
       "roaming": "Roaming",
       "ieee80211k": "802.11k",
       "ieee80211r": "802.11r",
@@ -1395,8 +1400,8 @@
       "ftOverDs": "FT over DS",
       "ftPskGenerateLocal": "Generar FT-PSK local",
       "method": {
-        "active": "DAWN activo",
-        "inactive": "DAWN inactivo"
+        "active": "usteer activo",
+        "inactive": "usteer inactivo"
       }
     }
   },

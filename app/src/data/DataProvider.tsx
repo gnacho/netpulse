@@ -103,8 +103,8 @@ export interface NetPulseData {
    * Ausente en demo y con servidores viejos → model.ts usa su cálculo local.
    */
   topology?: TopoSemantics
-  /** Disponibilidad de DAWN (roaming); ausente = no mostrar /roaming. */
-  dawn?: { available: boolean }
+  /** Disponibilidad de usteer (roaming); ausente = no mostrar /roaming. */
+  usteer?: { available: boolean }
   /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
   orchestration?: boolean
 }
@@ -322,7 +322,7 @@ export const EMPTY_EXTRAS: RouterExtras = {
 // ---------------------------------------------------------------------------
 
 /** Redirect compartido 401 → /login (evento para AuthGate + assign). Lo usan
- * el provider y las páginas que hacen fetch directo (Roaming, DawnPanel). */
+ * el provider y las páginas que hacen fetch directo (Roaming, UsteerPanel). */
 export function redirectLogin(): never {
   window.dispatchEvent(new Event('netpulse-unauthorized'))
   window.location.assign('/login')
@@ -469,7 +469,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       unreadAlerts: o.unreadAlerts,
       vm,
       topology: o.topology,
-      dawn: o.dawn,
+      usteer: o.usteer,
       orchestration: o.orchestration,
       ...(o.devices ? { devices: o.devices } : {}),
     }))

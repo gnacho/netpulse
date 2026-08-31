@@ -6,7 +6,7 @@ import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert, P
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
-type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm' | 'wireguard' | 'dawn'
+type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm' | 'wireguard' | 'usteer'
 
 interface Op {
   kind: string
@@ -76,20 +76,20 @@ export default function Orchestration() {
   const [wgInterface, setWgInterface] = useState('wg0')
   const [wgPeers, setWgPeers] = useState([{ name: '', publicKey: '', allowedIps: '' }])
   const [wgAdminPeer, setWgAdminPeer] = useState('')
-  // DAWN (Fase 17.9).
-  const [dawnEnabled, setDawnEnabled] = useState(true)
-  const [dawnSsid, setDawnSsid] = useState('')
-  const [dawnMobilityDomain, setDawnMobilityDomain] = useState('2025')
-  const [dawnBroadcastIp, setDawnBroadcastIp] = useState('192.168.1.255')
-  const [dawnTcpPort, setDawnTcpPort] = useState('1026')
-  const [dawnSharedKey, setDawnSharedKey] = useState('')
-  const [dawnIv, setDawnIv] = useState('')
-  const [dawnK, setDawnK] = useState(true)
-  const [dawnR, setDawnR] = useState(true)
-  const [dawnV, setDawnV] = useState(true)
-  const [dawnBssTransition, setDawnBssTransition] = useState(true)
-  const [dawnFtOverDs, setDawnFtOverDs] = useState(false)
-  const [dawnFtPskGenerateLocal, setDawnFtPskGenerateLocal] = useState(true)
+  // usteer (Fase 17.10; sustituye a DAWN).
+  const [usteerEnabled, setUsteerEnabled] = useState(true)
+  const [usteerSsid, setUsteerSsid] = useState('')
+  const [usteerMobilityDomain, setUsteerMobilityDomain] = useState('2025')
+  const [usteerAggressiveness, setUsteerAggressiveness] = useState('3')
+  const [usteerBandSteeringThreshold, setUsteerBandSteeringThreshold] = useState('5')
+  const [usteerLoadBalancingThreshold, setUsteerLoadBalancingThreshold] = useState('0')
+  const [usteerDebugLevel, setUsteerDebugLevel] = useState('2')
+  const [usteerK, setUsteerK] = useState(true)
+  const [usteerR, setUsteerR] = useState(true)
+  const [usteerV, setUsteerV] = useState(true)
+  const [usteerBssTransition, setUsteerBssTransition] = useState(true)
+  const [usteerFtOverDs, setUsteerFtOverDs] = useState(false)
+  const [usteerFtPskGenerateLocal, setUsteerFtPskGenerateLocal] = useState(true)
 
   // issue #120: todos los módulos son gateway-only por defecto. El toggle
   // "advanced" permite un router no-gateway (con warning + checks).
@@ -154,22 +154,21 @@ export default function Orchestration() {
             .map((p) => ({ name: p.name, publicKey: p.publicKey.trim(), allowedIps: p.allowedIps.trim() })),
           adminPeerPubkey: wgAdminPeer.trim(),
         }
-      case 'dawn':
+      case 'usteer':
         return {
-          enabled: dawnEnabled,
-          ssid: dawnSsid,
-          mobilityDomain: dawnMobilityDomain,
-          broadcastIp: dawnBroadcastIp,
-          tcpPort: dawnTcpPort,
-          sharedKey: dawnSharedKey,
-          iv: dawnIv,
-          ieee80211k: dawnK,
-          ieee80211r: dawnR,
-          ieee80211v: dawnV,
-          bssTransition: dawnBssTransition,
-          ftOverDs: dawnFtOverDs,
-          ftPskGenerateLocal: dawnFtPskGenerateLocal,
-          allowNonGateway,
+          enabled: usteerEnabled,
+          ssid: usteerSsid,
+          mobilityDomain: usteerMobilityDomain,
+          aggressiveness: usteerAggressiveness,
+          bandSteeringThreshold: usteerBandSteeringThreshold,
+          loadBalancingThreshold: usteerLoadBalancingThreshold,
+          debugLevel: usteerDebugLevel,
+          ieee80211k: usteerK,
+          ieee80211r: usteerR,
+          ieee80211v: usteerV,
+          bssTransition: usteerBssTransition,
+          ftOverDs: usteerFtOverDs,
+          ftPskGenerateLocal: usteerFtPskGenerateLocal,
         }
       default:
         return { enabled: agEnabled, port: agPort, upstreamDns: agDns, allowNonGateway }
@@ -277,7 +276,7 @@ export default function Orchestration() {
 
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
-        {(['adguard', 'guestwifi', 'ddns', 'sqm', 'wireguard', 'dawn'] as Module[]).map((m) => (
+        {(['adguard', 'guestwifi', 'ddns', 'sqm', 'wireguard', 'usteer'] as Module[]).map((m) => (
           <button
             key={m}
             type="button"
@@ -644,101 +643,101 @@ export default function Orchestration() {
             </>
           )}
 
-          {module === 'dawn' && (
+          {module === 'usteer' && (
             <>
               <label className="flex items-center gap-2 pt-6">
                 <input
                   type="checkbox"
-                  checked={dawnEnabled}
-                  onChange={(e) => setDawnEnabled(e.target.checked)}
+                  checked={usteerEnabled}
+                  onChange={(e) => setUsteerEnabled(e.target.checked)}
                   className="h-4 w-4 rounded border-border"
                 />
-                <span className="text-sm text-text-primary">{t('orchestration.dawn.enable')}</span>
+                <span className="text-sm text-text-primary">{t('orchestration.usteer.enable')}</span>
               </label>
 
-              {dawnEnabled && (
+              {usteerEnabled && (
                 <>
                   <label className="flex flex-col gap-1">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.ssid')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.ssid')}</span>
                     <input
                       type="text"
-                      value={dawnSsid}
-                      onChange={(e) => setDawnSsid(e.target.value)}
+                      value={usteerSsid}
+                      onChange={(e) => setUsteerSsid(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.mobilityDomain')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.mobilityDomain')}</span>
                     <input
                       type="text"
-                      value={dawnMobilityDomain}
-                      onChange={(e) => setDawnMobilityDomain(e.target.value)}
+                      value={usteerMobilityDomain}
+                      onChange={(e) => setUsteerMobilityDomain(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.broadcastIp')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.aggressiveness')}</span>
                     <input
                       type="text"
-                      value={dawnBroadcastIp}
-                      onChange={(e) => setDawnBroadcastIp(e.target.value)}
+                      value={usteerAggressiveness}
+                      onChange={(e) => setUsteerAggressiveness(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.tcpPort')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.bandSteeringThreshold')}</span>
                     <input
                       type="text"
-                      value={dawnTcpPort}
-                      onChange={(e) => setDawnTcpPort(e.target.value)}
+                      value={usteerBandSteeringThreshold}
+                      onChange={(e) => setUsteerBandSteeringThreshold(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.sharedKey')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.loadBalancingThreshold')}</span>
                     <input
                       type="text"
-                      value={dawnSharedKey}
-                      onChange={(e) => setDawnSharedKey(e.target.value)}
+                      value={usteerLoadBalancingThreshold}
+                      onChange={(e) => setUsteerLoadBalancingThreshold(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.iv')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.debugLevel')}</span>
                     <input
                       type="text"
-                      value={dawnIv}
-                      onChange={(e) => setDawnIv(e.target.value)}
+                      value={usteerDebugLevel}
+                      onChange={(e) => setUsteerDebugLevel(e.target.value)}
                       className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                     />
                   </label>
 
                   <div className="lg:col-span-2">
-                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.dawn.roaming')}</span>
+                    <span className="text-caption font-medium text-text-secondary">{t('orchestration.usteer.roaming')}</span>
                     <div className="mt-2 flex flex-wrap gap-4">
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={dawnK} onChange={(e) => setDawnK(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ieee80211k')}</span>
+                        <input type="checkbox" checked={usteerK} onChange={(e) => setUsteerK(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.usteer.ieee80211k')}</span>
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={dawnR} onChange={(e) => setDawnR(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ieee80211r')}</span>
+                        <input type="checkbox" checked={usteerR} onChange={(e) => setUsteerR(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.usteer.ieee80211r')}</span>
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={dawnV} onChange={(e) => setDawnV(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ieee80211v')}</span>
+                        <input type="checkbox" checked={usteerV} onChange={(e) => setUsteerV(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.usteer.ieee80211v')}</span>
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={dawnBssTransition} onChange={(e) => setDawnBssTransition(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                        <span className="text-sm text-text-primary">{t('orchestration.dawn.bssTransition')}</span>
+                        <input type="checkbox" checked={usteerBssTransition} onChange={(e) => setUsteerBssTransition(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.usteer.bssTransition')}</span>
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={dawnFtPskGenerateLocal} onChange={(e) => setDawnFtPskGenerateLocal(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ftPskGenerateLocal')}</span>
+                        <input type="checkbox" checked={usteerFtPskGenerateLocal} onChange={(e) => setUsteerFtPskGenerateLocal(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.usteer.ftPskGenerateLocal')}</span>
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={dawnFtOverDs} onChange={(e) => setDawnFtOverDs(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                        <span className="text-sm text-text-primary">{t('orchestration.dawn.ftOverDs')}</span>
+                        <input type="checkbox" checked={usteerFtOverDs} onChange={(e) => setUsteerFtOverDs(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                        <span className="text-sm text-text-primary">{t('orchestration.usteer.ftOverDs')}</span>
                       </label>
                     </div>
                   </div>

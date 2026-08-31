@@ -335,10 +335,10 @@
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
-    "loading": "Loading DAWN data…",
-    "error": "Could not load DAWN status. Check that the service runs on your routers.",
+    "loading": "Loading usteer data…",
+    "error": "Could not load usteer status. Check that the service runs on your routers.",
     "noApi": "Available only with a live backend.",
-    "empty": "No router has DAWN enabled. Install it on OpenWrt to see the roaming mesh.",
+    "empty": "No router has usteer enabled. Install it on OpenWrt to see the roaming mesh.",
     "tabMatrix": "Matrix",
     "tab11r": "802.11r",
     "tabSurvey": "Survey",
@@ -346,7 +346,7 @@
     "comingSoon": "Coming soon",
     "matrix": {
       "title": "Signal matrix",
-      "description": "Signal of each client as seen by each AP (DAWN hearing map). Clients in the marginal zone are roaming candidates.",
+      "description": "Signal of each client as seen by each AP (usteer hearing map). Clients in the marginal zone are roaming candidates.",
       "colClient": "Client",
       "colAp": "Access point",
       "filterBand": "Band",
@@ -358,6 +358,11 @@
       "legendGood": "≤ -65 dBm (optimal)",
       "legendFair": "-70 to -80 dBm (fair)",
       "legendWeak": "≥ -85 dBm (marginal)"
+    },
+    "kick": {
+      "title": "Kick from AP to force reconnection",
+      "label": "Kick {{name}}",
+      "error": "Could not kick the client"
     },
     "dot11r": {
       "title": "802.11r status",
@@ -409,7 +414,7 @@
     },
     "events": {
       "title": "Roaming events",
-      "description": "Client connections, disconnections and DAWN decisions. 30-day history, ingested every 60 s.",
+      "description": "Client connections, disconnections and roaming decisions. 30-day history, ingested every 60 s.",
       "empty": "No events yet. Routers start reporting as soon as the poller reaches them.",
       "filterType": "Filter by type",
       "type_all": "All",
@@ -778,8 +783,8 @@
     "tagDevices": "Tag devices",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "dawn": {
-      "title": "WiFi roaming (DAWN)",
+    "usteer": {
+      "title": "WiFi roaming (usteer)",
       "caption": "Band-steering mesh between APs",
       "clients": "{{count}} clients",
       "util": "{{pct}}% util."
@@ -1291,7 +1296,7 @@
       "ddns": "DDNS",
       "sqm": "QoS (SQM)",
       "wireguard": "WireGuard",
-      "dawn": "DAWN"
+      "usteer": "usteer"
     },
     "warn": {
       "managed_by_firmware": "This router ships a vendor AdGuard Home (GL.iNet). NetPulse won't manage it to avoid breaking its UI: configure it from the router's own interface.",
@@ -1377,16 +1382,16 @@
         "inactive": "Tunnel inactive"
       }
     },
-    "dawn": {
-      "enable": "Enable DAWN (WiFi roaming)",
-      "allowNonGateway": "Allow DAWN on non-gateway routers",
-      "nonGatewayWarning": "DAWN can run on any WiFi AP; it only needs the package, full wpad and aligned roaming parameters.",
+    "usteer": {
+      "enable": "Enable usteer (WiFi roaming)",
+      "allowNonGateway": "Allow usteer on non-gateway routers",
+      "nonGatewayWarning": "usteer can run on any WiFi AP; it only needs the package, full wpad and aligned roaming parameters.",
       "ssid": "SSID (empty = all)",
       "mobilityDomain": "Mobility domain",
-      "broadcastIp": "Broadcast IP",
-      "tcpPort": "TCP port",
-      "sharedKey": "Shared key",
-      "iv": "IV",
+      "aggressiveness": "Aggressiveness",
+      "bandSteeringThreshold": "Band-steering threshold",
+      "loadBalancingThreshold": "Load-balancing threshold",
+      "debugLevel": "Debug level",
       "roaming": "Roaming",
       "ieee80211k": "802.11k",
       "ieee80211r": "802.11r",
@@ -1395,8 +1400,8 @@
       "ftOverDs": "FT over DS",
       "ftPskGenerateLocal": "Generate local FT-PSK",
       "method": {
-        "active": "DAWN active",
-        "inactive": "DAWN inactive"
+        "active": "usteer active",
+        "inactive": "usteer inactive"
       }
     }
   },

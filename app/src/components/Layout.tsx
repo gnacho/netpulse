@@ -201,19 +201,19 @@ function GatewayStatus() {
 // Sidebar desktop (≥1024px) — 232px
 // ---------------------------------------------------------------------------
 
-/** Items de nav visibles según el overview. /roaming solo si hay DAWN. */
+/** Items de nav visibles según el overview. /roaming solo si hay usteer. */
 function useVisibleNavItems(): NavItem[] {
-  const { dawn, orchestration } = useNetPulse()
-  const dawnAvailable = !!dawn?.available
+  const { usteer, orchestration } = useNetPulse()
+  const usteerAvailable = !!usteer?.available
   return useMemo(
     () =>
       NAV_ITEMS.filter(
         (it) =>
-          (it.to !== '/roaming' || dawnAvailable) &&
+          (it.to !== '/roaming' || usteerAvailable) &&
           // Orquestación: opt-in del admin (#121). Oculto por defecto.
           (it.to !== '/orchestration' || !!orchestration),
       ),
-    [dawnAvailable, orchestration],
+    [usteerAvailable, orchestration],
   )
 }
 

@@ -162,9 +162,9 @@ func TestDemoDetallePatioYFlint(t *testing.T) {
 	if none != nil || err != nil {
 		t.Fatalf("id desconocido: %v %v", none, err)
 	}
-	// Dawn/AdguardClients → (nil, nil) en demo
-	if dawn, err := d.GetDawn(context.Background()); dawn != nil || err != nil {
-		t.Fatalf("dawn demo: %v %v", dawn, err)
+	// Usteer/AdguardClients → (nil, nil) en demo
+	if usteer, err := d.GetUsteer(context.Background()); usteer != nil || err != nil {
+		t.Fatalf("usteer demo: %v %v", usteer, err)
 	}
 	if cl, err := d.GetAdguardClients(context.Background()); cl != nil || err != nil {
 		t.Fatalf("adguardClients demo: %v %v", cl, err)

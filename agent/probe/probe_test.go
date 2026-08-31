@@ -661,3 +661,112 @@ func TestParseMdnsBrowse(t *testing.T) {
 		t.Errorf("HostByIP[192.168.1.60] = %q", host)
 	}
 }
+
+func TestParseUsteer(t *testing.T) {
+	// Fixtures con los shapes reales verificados en rt3 (local_info) y
+	// Flint2 (remote_info / connected_clients).
+	localInfo := `{
+  "hostapd.phy0-ap0": {
+    "bssid": "9c:9d:7e:1b:ea:b3",
+    "ssid": "temiscira",
+    "freq": 5260,
+    "n_assoc": 0,
+    "noise": -108,
+    "load": 3,
+    "max_assoc": 0,
+    "roam_events": { "source": 0, "target": 0 },
+    "rrm_nr": ["9c:9d:7e:1b:ea:b3", "temiscira", "9c9d7e1beab3ff5900008034090603023a00"]
+  },
+  "hostapd.phy1-ap0": {
+    "bssid": "9c:9d:7e:1b:ea:b2",
+    "ssid": "temiscira",
+    "freq": 2442,
+    "n_assoc": 1,
+    "load": 20
+  }
+}`
+
+	remoteInfo := `{
+  "192.168.1.3#hostapd.phy0-ap0": {
+    "bssid": "9c:9d:7e:1b:ea:b3",
+    "ssid": "temiscira",
+    "freq": 5260,
+    "n_assoc": 0,
+    "load": 3
+  },
+  "192.168.1.4#hostapd.phy0-ap0": {
+    "bssid": "aa:bb:cc:dd:ee:01",
+    "ssid": "temiscira",
+    "freq": 5260,
+    "n_assoc": 2,
+    "load": 40
+  }
+}`
+
+	connectedClients := `{
+  "hostapd.wlan0": {
+    "aa:bb:cc:dd:ee:ff": { "signal": -39 }
+  }
+}`
+
+	// 1. Sin remote_info: los APs locales se agrupan por SSID.
+	d := ParseUsteer(localInfo, "", "")
+	if d == nil {
+		t.Fatal("ParseUsteer(local) devolvió nil")
+	}
+	s, ok := d.SSIDs["temiscira"]
+	if !ok {
+		t.Fatalf("falta SSID temiscira: %v", d.SSIDs)
+	}
+	if len(s.APs) != 2 {
+		t.Fatalf("esperaba 2 APs locales, obtuve %d", len(s.APs))
+	}
+	if !s.APs[0].Local {
+		t.Error("el AP local debería tener Local=true")
+	}
+	if s.APs[0].BSSID != "9C:9D:7E:1B:EA:B3" {
+		t.Errorf("BSSID local = %q (esperaba uppercased)", s.APs[0].BSSID)
+	}
+
+	// 2. APs remotos: hostname = IP de la clave, Local=false.
+	d = ParseUsteer("", remoteInfo, "")
+	if d == nil {
+		t.Fatal("ParseUsteer(remote) devolvió nil")
+	}
+	rs := d.SSIDs["temiscira"]
+	if len(rs.APs) != 2 {
+		t.Fatalf("esperaba 2 APs remotos, obtuve %d", len(rs.APs))
+	}
+	if rs.APs[0].Local {
+		t.Error("el AP remoto debería tener Local=false")
+	}
+	if rs.APs[0].Hostname != "192.168.1.3" && rs.APs[1].Hostname != "192.168.1.3" {
+		t.Errorf("falta hostname IP en remotos: %+v", rs.APs)
+	}
+
+	// 3. connected_clients: si el iface casa con local_info, el cliente se
+	// agrupa por SSID con su señal.
+	d = ParseUsteer(localInfo, "", `{ "hostapd.phy0-ap0": { "aa:bb:cc:dd:ee:ff": { "signal": -39 } } }`)
+	if d == nil {
+		t.Fatal("ParseUsteer con clientes devolvió nil")
+	}
+	cs := d.SSIDs["temiscira"]
+	if c, ok := cs.Clients["AA:BB:CC:DD:EE:FF"]; !ok || c.Signal != -39 {
+		t.Errorf("cliente no agrupado: %v", cs.Clients)
+	}
+
+	// 4. iface sin casar (wlan0 vs phy0-ap0): no se asigna SSID erróneo.
+	_ = connectedClients
+	d = ParseUsteer(localInfo, "", connectedClients)
+	if d != nil && len(d.SSIDs["temiscira"].Clients) != 0 {
+		t.Errorf("cliente con iface no resuelto debería omitirse: %v", d.SSIDs["temiscira"].Clients)
+	}
+
+	// 5. Sin datos: nil.
+	if ParseUsteer("", "", "") != nil {
+		t.Error("ParseUsteer vacío debería devolver nil")
+	}
+	if ParseUsteer("{", "", "") != nil {
+		t.Error("ParseUsteer con JSON inválido debería devolver nil")
+	}
+}

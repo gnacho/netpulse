@@ -110,6 +110,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	pl.Data.FDB = p.probeFDB(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
+	pl.Data.Usteer = p.probeUsteer(ctx)
 	pl.Data.LuCI = p.probeLuCI(ctx)
 	// Discovery (#338): mDNS services + randomized MAC detection.
 	pl.Data.Discovery = p.probeDiscovery(ctx, pl.Data.Wireless)
@@ -471,6 +472,125 @@ func (p *Prober) probeDawn(ctx context.Context) *DawnData {
 		return nil
 	}
 	return &DawnData{SSIDs: ssids}
+}
+
+// probeUsteer: lee el estado de usteer (roaming/steering) vía
+// `ubus call usteer local_info`, `remote_info` y `connected_clients`. Devuelve
+// nil si usteer no está instalado (fail-soft silencioso — la sección queda
+// ausente en el payload).
+func (p *Prober) probeUsteer(ctx context.Context) *UsteerData {
+	localOut := p.runBest(ctx, "ubus call usteer local_info", 5*time.Second)
+	remoteOut := p.runBest(ctx, "ubus call usteer remote_info", 5*time.Second)
+	if localOut == "" && remoteOut == "" {
+		return nil
+	}
+	clientsOut := p.runBest(ctx, "ubus call usteer connected_clients", 5*time.Second)
+	return ParseUsteer(localOut, remoteOut, clientsOut)
+}
+
+// usteerAPRaw es la forma cruda de una entrada de `ubus call usteer
+// local_info` / `remote_info` (por BSSID/iface).
+type usteerAPRaw struct {
+	BSSID  string `json:"bssid"`
+	SSID   string `json:"ssid"`
+	Freq   int    `json:"freq"`
+	NAssoc int    `json:"n_assoc"`
+	Load   int    `json:"load"`
+}
+
+// usteerClientRaw es la forma cruda de una entrada de `ubus call usteer
+// connected_clients` (por MAC).
+type usteerClientRaw struct {
+	Signal int `json:"signal"`
+}
+
+// ParseUsteer parsea las salidas de `ubus call usteer local_info`,
+// `remote_info` y `connected_clients` a un UsteerData (SSID → APs + clientes).
+// Función pura para testear sin ejecutar ubus.
+//
+//   - local_info:  {"<iface>": {bssid, ssid, freq, n_assoc, load, ...}}  (este router)
+//   - remote_info: {"<ip>#<iface>": {...}}                                (otros routers)
+//   - connected_clients: {"<iface>": {"<mac>": {signal, ...}}}
+//
+// Nota: usteer usa el nombre ubus de hostapd (`hostapd.phy0-ap0`) en
+// local_info/remote_info y el ifname (`hostapd.wlan0`) en connected_clients;
+// cuando ambas convenciones no casan, el cliente se omite (no se le asigna un
+// SSID erróneo).
+func ParseUsteer(localOut, remoteOut, clientsOut string) *UsteerData {
+	ssids := make(map[string]UsteerSSID)
+	ifaceSSID := map[string]string{}
+
+	addAP := func(ssid string, ap UsteerAP) {
+		s := ssids[ssid]
+		s.APs = append(s.APs, ap)
+		if s.Clients == nil {
+			s.Clients = map[string]UsteerClient{}
+		}
+		ssids[ssid] = s
+	}
+
+	if localOut != "" {
+		var local map[string]usteerAPRaw
+		if json.Unmarshal([]byte(localOut), &local) == nil {
+			for iface, ap := range local {
+				if ap.SSID == "" || ap.BSSID == "" {
+					continue
+				}
+				ifaceSSID[iface] = ap.SSID
+				addAP(ap.SSID, UsteerAP{
+					BSSID: strings.ToUpper(ap.BSSID), Freq: ap.Freq,
+					Load: ap.Load, Clients: ap.NAssoc, Local: true,
+				})
+			}
+		}
+	}
+
+	if remoteOut != "" {
+		var remote map[string]usteerAPRaw
+		if json.Unmarshal([]byte(remoteOut), &remote) == nil {
+			for key, ap := range remote {
+				if ap.SSID == "" || ap.BSSID == "" {
+					continue
+				}
+				host := key
+				if i := strings.IndexByte(key, '#'); i >= 0 {
+					host = key[:i]
+				}
+				addAP(ap.SSID, UsteerAP{
+					BSSID: strings.ToUpper(ap.BSSID), Hostname: host, Freq: ap.Freq,
+					Load: ap.Load, Clients: ap.NAssoc, Local: false,
+				})
+			}
+		}
+	}
+
+	if clientsOut != "" {
+		var clients map[string]map[string]usteerClientRaw
+		if json.Unmarshal([]byte(clientsOut), &clients) == nil {
+			for iface, macs := range clients {
+				ssid := ifaceSSID[iface]
+				if ssid == "" {
+					continue
+				}
+				s := ssids[ssid]
+				if s.Clients == nil {
+					s.Clients = map[string]UsteerClient{}
+				}
+				for mac, c := range macs {
+					if c.Signal >= 0 {
+						continue // señal 0/positiva = sin datos
+					}
+					s.Clients[strings.ToUpper(mac)] = UsteerClient{Signal: c.Signal}
+				}
+				ssids[ssid] = s
+			}
+		}
+	}
+
+	if len(ssids) == 0 {
+		return nil
+	}
+	return &UsteerData{SSIDs: ssids}
 }
 
 // probeDiscovery (#338): mDNS service discovery + randomized MAC detection.
