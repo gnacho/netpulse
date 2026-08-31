@@ -373,6 +373,39 @@ func TestProberBuild(t *testing.T) {
 	}
 }
 
+func TestProberNetIfOmittedWhenCmdNetDevFails(t *testing.T) {
+	// Issue #408: si /proc/net/dev no se refresca en un ciclo, NetIf no debe
+	// enviarse para que el servidor no calcule deltas 0 con contadores viejos.
+	run := fakeRunner{outs: map[string]string{
+		CmdUbusSystemInfo:  `{"uptime":90061,"load":[0.1,0.2,0.3],"memory":{"total":256000000,"free":100000000,"buffered":0,"available":128000000}}`,
+		CmdUbusSystemBoard: `{"model":"TP-Link EAP225","hostname":"patio","release":{"version":"23.05","description":"OpenWrt 23.05"}}`,
+		CmdProcStat:        "cpu  4705 356 584 3699 23 0 23 0 0 0\n",
+		CmdTemp:            "43500\n",
+		CmdNetDev:          "  eth0: 1000000 0 0 0 0 0 0 0 500000 0\n",
+		CmdBridgeMAC:       "94:83:c4:00:00:09\n",
+	}}
+	p := NewProber(run, Options{})
+
+	pl := p.Build(context.Background(), "patio", "0.1.0")
+	if pl.Data.NetIf == nil || pl.Data.NetIf["eth0"].Rx != 1000000 {
+		t.Fatalf("primera muestra debería incluir NetIf: %+v", pl.Data.NetIf)
+	}
+
+	// Segundo ciclo: /proc/net/dev falla; NetIf debe omitirse.
+	delete(run.outs, CmdNetDev)
+	pl2 := p.Build(context.Background(), "patio", "0.1.0")
+	if pl2.Data.NetIf != nil {
+		t.Fatalf("CmdNetDev falló: NetIf debería ser nil, got %+v", pl2.Data.NetIf)
+	}
+
+	// Tercer ciclo: /proc/net/dev vuelve; NetIf se reanuda.
+	run.outs[CmdNetDev] = "  eth0: 2000000 0 0 0 0 0 0 0 1000000 0\n"
+	pl3 := p.Build(context.Background(), "patio", "0.1.0")
+	if pl3.Data.NetIf == nil || pl3.Data.NetIf["eth0"].Rx != 2000000 {
+		t.Fatalf("tercera muestra debería incluir NetIf refrescado: %+v", pl3.Data.NetIf)
+	}
+}
+
 func TestProberSondasFallidasSeccionAusente(t *testing.T) {
 	// Equipo sin ubus/iwinfo/brctl (todo falla salvo /proc): las secciones
 	// wireless/dhcp/fdb quedan ausentes (nil) → el servidor conserva lo último.

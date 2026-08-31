@@ -67,6 +67,10 @@ type Prober struct {
 	// para derivar la sección NetIf (contadores por iface, #305) sin un
 	// segundo cat.
 	lastNetRaw string
+	// netIfUpdated indica si el último ciclo de probeSystem consiguió
+	// refrescar /proc/net/dev. Build solo incluye NetIf cuando es true,
+	// evitando enviar contadores repetidos si CmdNetDev falla o tarda.
+	netIfUpdated bool
 
 	// radiosCache (#368): el resumen de radios (canal/htmode/txpower) cambia
 	// tan poco que no merece iwinfo en cada ciclo NI en el path de eventos:
@@ -110,10 +114,12 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	// Discovery (#338): mDNS services + randomized MAC detection.
 	pl.Data.Discovery = p.probeDiscovery(ctx, pl.Data.Wireless)
 	// NetIf (#305): contadores por iface desde el MISMO /proc/net/dev que
-	// leyó probeSystem (sin segundo cat). Los rates los computa el server
-	// con el delta entre payloads.
-	if p.lastNetRaw != "" {
+	// leyó probeSystem (sin segundo cat). Solo se incluyen si el ciclo actual
+	// refrescó la muestra; si no, el payload se envía sin NetIf para que el
+	// servidor no inserte deltas 0 con contadores repetidos (#408).
+	if p.netIfUpdated {
 		pl.Data.NetIf = ParseNetDevIfaces(p.lastNetRaw)
+		p.netIfUpdated = false
 	}
 	return pl
 }
@@ -176,6 +182,7 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 		}
 		p.lastNetRx, p.lastNetTx, p.lastNetAt, p.hasLastNet = rx, tx, now, true
 		p.lastNetRaw = out
+		p.netIfUpdated = true
 		any = true
 	}
 
