@@ -426,7 +426,12 @@
       "dawn": "DAWN",
       "other": "Other"
     },
-    "tabsLabel": "Roaming views"
+    "tabsLabel": "Roaming views",
+    "dawnDeprecated": {
+      "title": "DAWN is deprecated",
+      "body": "NetPulse has detected DAWN on at least one router. DAWN still works, but it is no longer recommended. Consider migrating to usteer for more stable roaming and lower maintenance.",
+      "link": "See issue #426 for migration steps"
+    }
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."

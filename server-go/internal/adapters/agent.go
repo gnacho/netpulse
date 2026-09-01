@@ -560,6 +560,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if p.Data.Discovery != nil {
 		out.discovery = p.Data.Discovery
 	}
+	out.dawnDetected = p.Data.Dawn != nil
 
 	if cached == nil {
 		cached = &extrasSnapshot{ports: []EthPort{}, radios: []Radio{},

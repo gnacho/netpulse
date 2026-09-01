@@ -426,7 +426,12 @@
       "dawn": "DAWN",
       "other": "Otro"
     },
-    "tabsLabel": "Vistas de itinerancia"
+    "tabsLabel": "Vistas de itinerancia",
+    "dawnDeprecated": {
+      "title": "DAWN está en desuso",
+      "body": "NetPulse ha detectado DAWN en al menos un router. DAWN sigue funcionando, pero ya no se recomienda. Considera migrar a usteer para un roaming más estable y un mantenimiento menor.",
+      "link": "Ver issue #426 con los pasos de migración"
+    }
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."
