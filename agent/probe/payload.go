@@ -29,7 +29,6 @@ type PayloadData struct {
 	Wireless *WirelessData `json:"wireless,omitempty"`
 	DHCP     *DHCPData     `json:"dhcp,omitempty"`
 	FDB      *FDBData      `json:"fdb,omitempty"`
-<<<<<<< HEAD
 	// Arp: MAC → IPv4 de la tabla ARP del equipo (/proc/net/arp, #377).
 	// Resuelve IPs donde el DHCP no está en el equipo sondeado (APs tontos
 	// con el dnsmasq en otro router): cualquier router de la flota que
