@@ -52,7 +52,7 @@ import type { DeviceType } from '@/data/mock'
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
-type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'traffic' | 'type'
+type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type'
 
 /** Orden canónico de los tipos de dispositivo para los chips de filtro. */
 const TYPE_ORDER = [
@@ -589,6 +589,15 @@ function DeviceDetail({
         ↓ {device.traffic24hRx} · ↑ {device.traffic24hTx}
       </DetailItem>
       <div className="min-w-0">
+        <div className="text-label uppercase text-text-muted">{t('devices.detail.trafficCurrent')}</div>
+        <div className="mt-1 inline-flex items-center gap-2">
+          <span className="font-mono text-mono-sm text-accent">
+            {device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps
+          </span>
+          <Sparkline data={device.sparkline} width={60} height={20} className="text-accent" />
+        </div>
+      </div>
+      <div className="min-w-0">
         <div className="text-label uppercase text-text-muted">AdGuard</div>
         <div className="mt-1.5">
           {device.adguard ? (
@@ -741,20 +750,8 @@ function LeaseCell({ device }: { device: ClientDevice }) {
   return <span className="font-mono text-mono-sm text-warn">{t('devices.leaseMinutes', { minutes })}</span>
 }
 
-function TrafficCell({ device }: { device: ClientDevice }) {
-  if (!device.online) return <span className="font-mono text-mono-sm text-text-muted">—</span>
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="font-mono text-mono-sm text-accent">
-        {device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps
-      </span>
-      <Sparkline data={device.sparkline} width={60} height={20} className="hidden text-accent xl:block" />
-    </span>
-  )
-}
-
 const ROW_GRID =
-  'md:grid-cols-[minmax(0,2.4fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,0.55fr)_minmax(0,0.9fr)_minmax(0,0.65fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,1fr)_1.5rem]'
+  'md:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_1.5rem] lg:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_1.5rem]'
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
@@ -860,10 +857,6 @@ function ListRow({
         {/* Señal */}
         <div>
           <SignalCell device={device} />
-        </div>
-        {/* Tráfico */}
-        <div>
-          <TrafficCell device={device} />
         </div>
         <ChevronDown
           className={cn('h-4 w-4 justify-self-end text-text-muted transition-transform duration-200', expanded && 'rotate-180')}
@@ -1147,9 +1140,6 @@ export default function Devices() {
           case 'signal':
             c = (a.signalDbm ?? -999) - (b.signalDbm ?? -999)
             break
-          case 'traffic':
-            c = a.trafficMbps - b.trafficMbps
-            break
           case 'type':
             c = a.type.localeCompare(b.type)
             break
@@ -1409,7 +1399,6 @@ export default function Devices() {
             <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />
-            <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />
             <span />
           </div>
           <div className="divide-y divide-border p-1.5 md:p-2">

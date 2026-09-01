@@ -183,6 +183,7 @@
       "rename": "Renombrar dispositivo",
       "renameLocal": "Solo se guarda en este navegador.",
       "traffic24h": "Tráfico 24 h",
+      "trafficCurrent": "Tráfico actual",
       "unfiltered": "Sin filtrar"
     },
     "deviceType": "Tipo de dispositivo",
