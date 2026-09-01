@@ -33,9 +33,9 @@ type PayloadData struct {
 	// Resuelve IPs donde el DHCP no está en el equipo sondeado (APs tontos
 	// con el dnsmasq en otro router): cualquier router de la flota que
 	// enrute la LAN conoce el mapa completo.
-	Arp  map[string]string `json:"arp,omitempty"`
-	Dawn *DawnData         `json:"dawn,omitempty"` // Fase 14: DAWN roaming (solo si instalado)
-	Usteer *UsteerData     `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
+	Arp    map[string]string `json:"arp,omitempty"`
+	Dawn   *DawnData          `json:"dawn,omitempty"`   // Fase 14: DAWN roaming (solo si instalado; compat rollback)
+	Usteer *UsteerData        `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
 	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están
 	// definidas en /etc/config/luci.
 	LuCI *LuCILabels `json:"luci,omitempty"`
