@@ -90,10 +90,17 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
           />
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2">
-          <MiniMetric icon={Cpu} value={`${router.cpu} %`} label="CPU" hot={router.hotMetric === 'cpu'} />
-          <MiniMetric icon={MemoryStick} value={`${router.ram} %`} label="RAM" hot={router.hotMetric === 'ram'} />
-          <MiniMetric icon={Thermometer} value={`${router.temp} °C`} label={t('common.temperature')} hot={router.hotMetric === 'temp'} />
+        <div className={cn(
+          'mt-4 grid gap-x-3 gap-y-2',
+          router.type === 'managed-switch' || router.type === 'external' ? 'grid-cols-1' : 'grid-cols-2',
+        )}>
+          {!(router.type === 'managed-switch' || router.type === 'external') && (
+            <>
+              <MiniMetric icon={Cpu} value={`${router.cpu} %`} label="CPU" hot={router.hotMetric === 'cpu'} />
+              <MiniMetric icon={MemoryStick} value={`${router.ram} %`} label="RAM" hot={router.hotMetric === 'ram'} />
+              <MiniMetric icon={Thermometer} value={`${router.temp} °C`} label={t('common.temperature')} hot={router.hotMetric === 'temp'} />
+            </>
+          )}
           <MiniMetric icon={Users} value={String(router.clients)} label={t('common.clients')} />
         </div>
 

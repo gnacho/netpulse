@@ -207,6 +207,11 @@ type Live struct {
 	// snmpPorts (issue #309): contadores del último poll SNMP por router y
 	// puerto. Se usa para calcular rxBps/txBps entre polls sucesivos.
 	snmpPorts map[string]map[string]snmpPortSample
+	// snmpSnapshots: último snapshot completo de cada switch SNMP (issue #309),
+	// poblado por el bucle independiente de 60 s.
+	snmpSnapshots map[string]*routerPolled
+	snmpStop      chan struct{}
+	snmpDone      chan struct{}
 	lastPolled  map[string]*routerPolled
 	failCount   map[string]int
 	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
@@ -303,6 +308,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastAgentIf:          map[string]*agentIfSample{},
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
+		snmpSnapshots:        map[string]*routerPolled{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
 		lastErr:              map[string]error{},
@@ -353,6 +359,11 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		}
 	}
 	l.SetRouters(initial)
+	if d != nil {
+		l.snmpStop = make(chan struct{})
+		l.snmpDone = make(chan struct{})
+		go l.snmpPollLoop()
+	}
 	return l
 }
 
@@ -382,8 +393,12 @@ func (l *Live) Mode() string { return "live" }
 // Tick: no-op (el sondeo real ocurre en GetOverview, como el JS).
 func (l *Live) Tick(context.Context) error { return nil }
 
-// Close cierra el pool SSH.
+// Close cierra el pool SSH y el bucle SNMP.
 func (l *Live) Close() error {
+	if l.snmpStop != nil {
+		close(l.snmpStop)
+		<-l.snmpDone
+	}
 	l.pool.Close()
 	return nil
 }
@@ -437,6 +452,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.snmpPorts {
 		if !ids[id] {
 			delete(l.snmpPorts, id)
+		}
+	}
+	for id := range l.snmpSnapshots {
+		if !ids[id] {
+			delete(l.snmpSnapshots, id)
 		}
 	}
 	for id := range l.lastPolled {
@@ -804,7 +824,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		return p, nil
 	}
 	if cfg.SnmpEnabled {
-		return l.pollRouterSNMP(cfg)
+		return nil, fmt.Errorf("router %s usa SNMP; sondeado en bucle independiente", cfg.ID)
 	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
@@ -1019,6 +1039,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
+	} else if p.cfg.Type == "managed-switch" {
+		r.Role, r.RoleBadge = "Switch", "SW"
 	} else if p.cfg.AgentOnly {
 		r.Role, r.RoleBadge = "Switch", "SW"
 	} else {
@@ -1047,6 +1069,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.cfg.Type != "" {
 		r.Type = p.cfg.Type
+	} else if p.cfg.SnmpEnabled {
+		r.Type = "managed-switch"
 	}
 	if outdatedFw {
 		r.FirmwareOutdated = true
@@ -1112,6 +1136,9 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		if cfg.Type == "glinet" {
 			model = "GL.iNet"
 		}
+		if cfg.Type == "managed-switch" {
+			model = "Switch gestionado"
+		}
 		name := cfg.Name
 		if name == "" {
 			name = cfg.Host
@@ -1122,8 +1149,15 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 			CPU: iptr(0), RAM: iptr(0), Temp: iptr(0),
 			Uptime: "—", Clients: 0, Sparkline: []float64{},
 		}
+		if cfg.Type != "" {
+			r.Type = cfg.Type
+		} else if cfg.SnmpEnabled {
+			r.Type = "managed-switch"
+		}
 		if gw != nil && cfg.ID == gw.ID {
 			r.Role, r.RoleBadge = "Gateway principal", "Principal"
+		} else if cfg.Type == "managed-switch" {
+			r.Role, r.RoleBadge = "Switch", "SW"
 		} else {
 			r.Role, r.RoleBadge = "Punto de acceso", "AP"
 		}
@@ -1175,19 +1209,24 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 	l.mu.Unlock()
 
 	type result struct {
-		cfg RouterConfig
-		p   *routerPolled
-		err error
+		cfg  RouterConfig
+		p    *routerPolled
+		err  error
+		skip bool
 	}
-	results := make([]result, len(routers))
+	results := make([]result, 0, len(routers))
 	var wg sync.WaitGroup
-	for i, cfg := range routers {
+	for _, cfg := range routers {
+		if cfg.SnmpEnabled {
+			// Los switches SNMP tienen su propio bucle de 60 s.
+			continue
+		}
 		wg.Add(1)
-		go func(i int, cfg RouterConfig) {
+		go func(cfg RouterConfig) {
 			defer wg.Done()
 			p, err := l.pollRouter(ctx, cfg)
-			results[i] = result{cfg, p, err}
-		}(i, cfg)
+			results = append(results, result{cfg, p, err, false})
+		}(cfg)
 	}
 	wg.Wait()
 
@@ -2086,6 +2125,29 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 
 	routerList := make([]Router, 0, len(routers))
 	for _, cfg := range routers {
+		if cfg.SnmpEnabled {
+			l.mu.Lock()
+			p := l.snmpSnapshots[cfg.ID]
+			l.mu.Unlock()
+			if p != nil {
+				router := l.buildRouter(p, nil)
+				l.mu.Lock()
+				l.lastGood[cfg.ID] = &router
+				l.mu.Unlock()
+				routerList = append(routerList, router)
+				continue
+			}
+			l.mu.Lock()
+			prev := l.lastGood[cfg.ID]
+			fails := l.failCount[cfg.ID]
+			l.mu.Unlock()
+			if prev != nil && fails < 2 {
+				routerList = append(routerList, *prev)
+			} else {
+				routerList = append(routerList, l.offlineRouter(cfg))
+			}
+			continue
+		}
 		p := polled[cfg.ID]
 		if p == nil {
 			l.mu.Lock()
@@ -2328,6 +2390,9 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 	}
 	p := l.lastPolled[id]
+	if cfg.SnmpEnabled {
+		p = l.snmpSnapshots[id]
+	}
 	gw := l.gatewayCfg
 	polledAll := l.lastPolled
 	l.mu.Unlock()

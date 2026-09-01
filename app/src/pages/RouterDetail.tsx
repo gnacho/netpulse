@@ -9,7 +9,6 @@ import type { RouterDetailData } from '@/data/DataProvider'
 import { AdGuardPanel } from '@/components/routers/AdGuardPanel'
 import { BackhaulPanel } from '@/components/routers/BackhaulPanel'
 import { PortPanel } from '@/components/routers/PortPanel'
-import { SwitchFrontPanel } from '@/components/routers/SwitchFrontPanel'
 import { RadiosPorts } from '@/components/routers/RadiosPorts'
 import { RouterClients } from '@/components/routers/RouterClients'
 import { RouterDetailHeader } from '@/components/routers/RouterDetailHeader'
@@ -86,6 +85,7 @@ export default function RouterDetail() {
   }
 
   const tempAlert = alerts.find((a) => a.routerId === router.id && a.id === 'alert-temp-patio')
+  const isManagedSwitch = router.type === 'managed-switch'
 
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
@@ -119,10 +119,12 @@ export default function RouterDetail() {
         </motion.div>
       )}
 
-      {/* ② Rendimiento */}
-      <div className="lg:col-span-8">
-        <RouterPerformance router={router} />
-      </div>
+      {/* ② Rendimiento (solo routers que lo soportan) */}
+      {!isManagedSwitch && (
+        <div className="lg:col-span-8">
+          <RouterPerformance router={router} />
+        </div>
+      )}
 
       {/* ③ Info + Red (en móvil va la última) */}
       <div className="order-last lg:order-none lg:col-span-4">
@@ -137,17 +139,19 @@ export default function RouterDetail() {
         <>
           <AdGuardPanel />
           <WireGuardPanel />
-          {router.type === 'managed-switch' && detail?.extras?.ethPorts && (
-            <SwitchFrontPanel ports={detail.extras.ethPorts} className="lg:col-span-12" />
+          {isManagedSwitch ? (
+            <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" compact />
+          ) : (
+            <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" />
           )}
-          <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" />
         </>
       ) : (
         <>
-          {router.type === 'managed-switch' && detail?.extras?.ethPorts && (
-            <SwitchFrontPanel ports={detail.extras.ethPorts} className="lg:col-span-12" />
+          {isManagedSwitch ? (
+            <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" compact />
+          ) : (
+            <RadiosPorts router={router} extras={detail?.extras} />
           )}
-          <RadiosPorts router={router} extras={detail?.extras} />
         </>
       )}
 

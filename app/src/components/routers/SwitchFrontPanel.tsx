@@ -43,7 +43,32 @@ function speedLabel(speed?: string): string {
   return ''
 }
 
-function PortLed({ port, index }: { port: EthPort; index: number }) {
+function shortLabel(label: string, compact?: boolean): string {
+  if (/GigabitEthernet/i.test(label)) {
+    const m = label.match(/(\d+(?:\/\d+)*)\s*$/)
+    if (!m) return label
+    const num = m[1]
+    if (!num) return label
+    return compact ? num : `Gi${num}`
+  }
+  if (/TenGigabitEthernet/i.test(label)) {
+    const m = label.match(/(\d+(?:\/\d+)*)\s*$/)
+    if (!m) return label
+    const num = m[1]
+    if (!num) return label
+    return compact ? num : `Te${num}`
+  }
+  if (/FastEthernet/i.test(label)) {
+    const m = label.match(/(\d+(?:\/\d+)*)\s*$/)
+    if (!m) return label
+    const num = m[1]
+    if (!num) return label
+    return compact ? num : `Fa${num}`
+  }
+  return label.replace(/\s+/g, '')
+}
+
+function PortLed({ port, index, compact }: { port: EthPort; index: number; compact?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const ledColor = healthColor(port.health, port.up)
@@ -57,17 +82,22 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
           initial={reduce ? false : { opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.2, delay: index * 0.02 }}
-          className="group flex w-[44px] shrink-0 flex-col items-center gap-0.5"
+          className={cn(
+            'group flex flex-col items-center justify-center',
+            compact ? 'gap-0.5' : 'gap-1',
+          )}
           role="img"
           aria-label={
             port.up
-              ? t('switchPanel.ariaUsed', { label: port.label, device: port.connectedTo ?? t('switchPanel.unknownDevice') })
-              : t('switchPanel.ariaFree', { label: port.label })
+              ? t('routerDetail.switchPanel.ariaUsed', { label: port.label, device: port.connectedTo ?? t('routerDetail.switchPanel.unknownDevice', { defaultValue: 'dispositivo desconocido' }), defaultValue: `Puerto ${port.label}: ${port.connectedTo ?? 'dispositivo desconocido'}` })
+              : t('routerDetail.switchPanel.ariaFree', { label: port.label, defaultValue: `Puerto ${port.label}: libre` })
           }
         >
-          <div className={cn('h-2.5 w-2.5 rounded-full transition-all duration-300', ledColor, glow)} />
-          <div className="font-mono text-[9px] font-medium leading-none text-text-secondary">{port.label.replace(/\s+/g, '')}</div>
-          {spd && <div className="font-mono text-[8px] leading-none text-text-muted">{spd}</div>}
+          <div className={cn('rounded-full transition-all duration-300 group-hover:scale-125', compact ? 'h-4 w-4' : 'h-4 w-4', ledColor, glow)} />
+          <div className={cn('font-mono font-medium leading-none text-text-secondary', compact ? 'text-xs' : 'text-sm')}>
+            {shortLabel(port.label, compact)}
+          </div>
+          {!compact && spd && <div className="font-mono text-[10px] leading-none text-text-muted">{spd}</div>}
         </motion.div>
       </TooltipTrigger>
       <TooltipContent
@@ -102,7 +132,7 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               {port.speed && (
                 <div className="rounded-lg bg-canvas/60 px-2 py-1">
-                  <div className="text-caption uppercase tracking-wider text-text-muted">{t('switchPanel.speed')}</div>
+                  <div className="text-caption uppercase tracking-wider text-text-muted">{t('routerDetail.switchPanel.speed', { defaultValue: 'Velocidad' })}</div>
                   <div className="font-mono text-mono-sm text-text-primary">{port.speed}</div>
                 </div>
               )}
@@ -114,7 +144,7 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
               )}
               {(port.rxBps !== undefined || port.txBps !== undefined) && (
                 <div className="col-span-2 rounded-lg bg-canvas/60 px-2 py-1">
-                  <div className="text-caption uppercase tracking-wider text-text-muted">{t('switchPanel.traffic')}</div>
+                  <div className="text-caption uppercase tracking-wider text-text-muted">{t('routerDetail.switchPanel.traffic', { defaultValue: 'Tráfico' })}</div>
                   <div className="font-mono text-mono-sm text-text-primary">
                     ↓ {fmtPortBps(port.rxBps)} / ↑ {fmtPortBps(port.txBps)}
                   </div>
@@ -122,7 +152,7 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
               )}
               {(port.rxErrors ?? 0) + (port.txErrors ?? 0) > 0 && (
                 <div className="col-span-2 rounded-lg bg-canvas/60 px-2 py-1">
-                  <div className="text-caption uppercase tracking-wider text-text-muted">{t('switchPanel.errors')}</div>
+                  <div className="text-caption uppercase tracking-wider text-text-muted">{t('routerDetail.switchPanel.errors', { defaultValue: 'Errores' })}</div>
                   <div className="font-mono text-mono-sm text-warn">
                     RX {port.rxErrors ?? 0} / TX {port.txErrors ?? 0}
                   </div>
@@ -131,7 +161,7 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
             </div>
             {port.health && port.health.breakdown.length > 0 && (
               <div className="mt-2 border-t border-border/40 pt-2">
-                <div className="text-caption uppercase tracking-wider text-text-muted">{t('switchPanel.healthBreakdown')}</div>
+                <div className="text-caption uppercase tracking-wider text-text-muted">{t('routerDetail.switchPanel.healthBreakdown', { defaultValue: 'Salud' })}</div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {port.health.breakdown.map((item) => (
                     <span
@@ -143,7 +173,7 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
                         item.status === 'crit' && 'bg-error/15 text-error',
                       )}
                     >
-                      {t(`switchPanel.signals.${item.signal}`, item.signal)}
+                      {t(`routerDetail.switchPanel.signals.${item.signal}`, item.signal)}
                     </span>
                   ))}
                 </div>
@@ -153,7 +183,7 @@ function PortLed({ port, index }: { port: EthPort; index: number }) {
         ) : (
           <div className="flex items-center justify-between">
             <span className="font-display text-sm font-semibold">{port.label}</span>
-            <span className="text-caption text-text-muted">{t('switchPanel.free')}</span>
+            <span className="text-caption text-text-muted">{t('routerDetail.switchPanel.free', { defaultValue: 'Libre' })}</span>
           </div>
         )}
       </TooltipContent>
@@ -191,53 +221,58 @@ export function SwitchFrontPanel({
   const degraded = lanPorts.filter((p) => p.up && p.health && p.health.score < 85 && p.health.score >= 60).length
   const critical = lanPorts.filter((p) => p.up && p.health && p.health.score < 60).length
 
+  const compact = portCount > 24
+
   if (portCount < 8) return null
 
   return (
     <section className={cn('rounded-2xl border border-border bg-surface p-5 md:p-6', className)}>
       <div className="flex items-center justify-between">
         <div>
-          <SectionHeader title={t('switchPanel.title')} />
+          <SectionHeader title={t('routerDetail.switchPanel.title', { defaultValue: 'Panel frontal del switch' })} />
           <p className="mt-1 text-caption text-text-muted">
-            {t('switchPanel.summary', { used, total: portCount })}
-            {healthy > 0 && ` · ${t('switchPanel.healthy', { count: healthy })}`}
-            {degraded > 0 && ` · ${t('switchPanel.degraded', { count: degraded })}`}
-            {critical > 0 && ` · ${t('switchPanel.critical', { count: critical })}`}
+            {t('routerDetail.switchPanel.summary', { used, total: portCount, defaultValue: `${used} de ${portCount} puertos en uso` })}
+            {healthy > 0 && ` · ${t('routerDetail.switchPanel.healthy', { count: healthy, defaultValue: '{{count}} sanos' })}`}
+            {degraded > 0 && ` · ${t('routerDetail.switchPanel.degraded', { count: degraded, defaultValue: '{{count}} degradados' })}`}
+            {critical > 0 && ` · ${t('routerDetail.switchPanel.critical', { count: critical, defaultValue: '{{count}} críticos' })}`}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
           className="rounded-lg p-2 text-text-muted transition-colors hover:bg-elevated hover:text-text-primary md:hidden"
-          aria-label={collapsed ? t('switchPanel.expand') : t('switchPanel.collapse')}
+          aria-label={collapsed ? t('routerDetail.switchPanel.expand', { defaultValue: 'Expandir panel' }) : t('routerDetail.switchPanel.collapse', { defaultValue: 'Contraer panel' })}
         >
           {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
         </button>
       </div>
 
       {!collapsed && (
-        <div className="mt-4 rounded-xl border border-border/70 bg-elevated/40 px-3 py-3">
-          <div className="flex flex-wrap items-end gap-x-1 gap-y-2">
-            {lanPorts.map((p, i) => (
-              <PortLed key={p.id} port={p} index={i} />
-            ))}
-          </div>
+        <div
+          className={cn(
+            'mt-4 rounded-xl border border-border/70 bg-elevated/40',
+            compact ? 'grid grid-cols-12 gap-1 p-2 w-fit mx-auto' : 'grid grid-cols-8 gap-2 p-3 w-fit mx-auto',
+          )}
+        >
+          {lanPorts.map((p, i) => (
+            <PortLed key={p.id} port={p} index={i} compact={compact} />
+          ))}
         </div>
       )}
 
       {!collapsed && (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-text-muted">
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-ok" /> {t('switchPanel.legendHealthy')}
+            <span className="h-2 w-2 rounded-full bg-ok" /> {t('routerDetail.switchPanel.legendHealthy', { defaultValue: 'Sano' })}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-warn" /> {t('switchPanel.legendDegraded')}
+            <span className="h-2 w-2 rounded-full bg-warn" /> {t('routerDetail.switchPanel.legendDegraded', { defaultValue: 'Degradado' })}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-error" /> {t('switchPanel.legendCritical')}
+            <span className="h-2 w-2 rounded-full bg-error" /> {t('routerDetail.switchPanel.legendCritical', { defaultValue: 'Crítico' })}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-border-strong/40" /> {t('switchPanel.legendFree')}
+            <span className="h-2 w-2 rounded-full bg-border-strong/40" /> {t('routerDetail.switchPanel.legendFree', { defaultValue: 'Libre' })}
           </span>
         </div>
       )}

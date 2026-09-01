@@ -28,7 +28,30 @@ function fmtPortBps(bps?: number): string {
   return `${Math.round(bps)} bps`
 }
 
-function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInfo }) {
+function shortPortLabel(label: string, compact?: boolean): string {
+  if (!compact) return label
+  if (/GigabitEthernet/i.test(label)) {
+    const m = label.match(/(\d+(?:\/\d+)*)\s*$/)
+    if (!m) return label
+    const num = m[1]
+    return num ? `Gi${num}` : label
+  }
+  if (/TenGigabitEthernet/i.test(label)) {
+    const m = label.match(/(\d+(?:\/\d+)*)\s*$/)
+    if (!m) return label
+    const num = m[1]
+    return num ? `Te${num}` : label
+  }
+  if (/FastEthernet/i.test(label)) {
+    const m = label.match(/(\d+(?:\/\d+)*)\s*$/)
+    if (!m) return label
+    const num = m[1]
+    return num ? `Fa${num}` : label
+  }
+  return label
+}
+
+function Jack({ port, index, wan, compact }: { port: EthPort; index: number; wan?: WanInfo; compact?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const isWan = port.id === 'wan'
@@ -46,16 +69,17 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
           initial={reduce ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.08 + index * 0.06 }}
-          className="group flex w-[84px] shrink-0 flex-col items-center"
+          className={cn('group flex shrink-0 flex-col items-center', compact ? 'w-[58px]' : 'w-[84px]')}
           role="img"
           aria-label={aria}
         >
           {/* LEDs link / act */}
-          <div className="mb-1 flex w-9 items-center justify-between">
-            <span className={cn('h-1.5 w-1.5 rounded-full', port.up ? 'bg-ok' : 'bg-border-strong/50')} />
+          <div className={cn('mb-1 flex w-9 items-center justify-between', compact && 'w-7')}>
+            <span className={cn('h-1.5 w-1.5 rounded-full', compact && 'h-1 w-1', port.up ? 'bg-ok' : 'bg-border-strong/50')} />
             <span
               className={cn(
                 'h-1.5 w-1.5 rounded-full',
+                compact && 'h-1 w-1',
                 port.up ? 'bg-ok' : 'bg-border-strong/50',
                 port.up && !reduce && 'animate-pulse',
               )}
@@ -65,19 +89,21 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
           {/* Cuerpo del conector */}
           <div
             className={cn(
-              'relative h-12 w-12 rounded-md border-2 transition-all duration-150 group-hover:-translate-y-0.5',
+              'relative rounded-md border-2 transition-all duration-150 group-hover:-translate-y-0.5',
+              compact ? 'h-9 w-9' : 'h-12 w-12',
               port.up && isWan && 'border-accent/60 bg-canvas shadow-glow-accent',
               port.up && !isWan && 'border-ok/50 bg-canvas',
               !port.up && 'border-border bg-canvas/50',
             )}
           >
             {/* Pines dorados */}
-            <div className="absolute inset-x-[7px] top-[5px] flex justify-between">
+            <div className={cn('absolute inset-x-[7px] top-[5px] flex justify-between', compact && 'inset-x-[5px] top-[4px]')}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <span
                   key={i}
                   className={cn(
                     'h-2.5 w-[2px] rounded-full',
+                    compact && 'h-1.5 w-[1.5px]',
                     port.up ? 'bg-warn/80' : 'bg-border-strong/50',
                   )}
                 />
@@ -86,7 +112,8 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
             {/* Apertura */}
             <div
               className={cn(
-                'absolute inset-x-[6px] bottom-[5px] h-[18px] rounded-[3px] border',
+                'absolute inset-x-[6px] bottom-[5px] rounded-[3px] border',
+                compact ? 'inset-x-[4px] bottom-[3px] h-[12px]' : 'h-[18px]',
                 port.up ? 'border-border/80 bg-black/50' : 'border-border/50 bg-black/25',
               )}
             />
@@ -94,13 +121,14 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
 
           {/* Etiquetas */}
           <div className="mt-1.5 w-full text-center">
-            <div className={cn('font-mono text-[10px] font-semibold tracking-wide', isWan ? 'text-accent' : 'text-text-secondary')}>
-              {port.label}
+            <div className={cn('font-mono font-semibold tracking-wide', compact ? 'text-[9px]' : 'text-[10px]', isWan ? 'text-accent' : 'text-text-secondary')}>
+              {shortPortLabel(port.label, compact)}
             </div>
             {port.health && port.up && (
               <div
                 className={cn(
-                  'mx-auto mt-0.5 inline-block rounded-full px-1.5 py-px font-mono text-[9px] font-bold',
+                  'mx-auto mt-0.5 inline-block rounded-full px-1.5 py-px font-mono font-bold',
+                  compact ? 'text-[8px]' : 'text-[9px]',
                   port.health.score >= 85 && 'bg-ok/15 text-ok',
                   port.health.score >= 60 && port.health.score < 85 && 'bg-warn/15 text-warn',
                   port.health.score < 60 && 'bg-error/15 text-error',
@@ -109,34 +137,38 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                 {port.health.score}
               </div>
             )}
-            {port.up ? (
+            {!compact && (
               <>
-                <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
-                  {port.connectedTo && port.connectedTo === port.label ? (
-                    <span className="font-mono text-[10px] text-text-muted">{port.deviceMac ?? ''}</span>
-                  ) : port.connectedTo && port.deviceMac ? (
-                    <Link
-                      to={`/devices?q=${encodeURIComponent(port.deviceMac)}`}
-                      className="transition-colors hover:text-accent hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {port.connectedTo}
-                    </Link>
-                  ) : port.connectedTo ? (
-                    port.connectedTo
-                  ) : (
-                    t('routerDetail.ports.inUse')
-                  )}
-                </div>
-                {port.speed && <div className="font-mono text-[10px] text-text-muted">{port.speed}</div>}
-                {(port.rxBps !== undefined || port.txBps !== undefined) && (
-                  <div className="font-mono text-[10px] text-text-muted">
-                    ↓{fmtPortBps(port.rxBps)} ↑{fmtPortBps(port.txBps)}
-                  </div>
+                {port.up ? (
+                  <>
+                    <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
+                      {port.connectedTo && port.connectedTo === port.label ? (
+                        <span className="font-mono text-[10px] text-text-muted">{port.deviceMac ?? ''}</span>
+                      ) : port.connectedTo && port.deviceMac ? (
+                        <Link
+                          to={`/devices?q=${encodeURIComponent(port.deviceMac)}`}
+                          className="transition-colors hover:text-accent hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {port.connectedTo}
+                        </Link>
+                      ) : port.connectedTo ? (
+                        port.connectedTo
+                      ) : (
+                        t('routerDetail.ports.inUse')
+                      )}
+                    </div>
+                    {port.speed && <div className="font-mono text-[10px] text-text-muted">{port.speed}</div>}
+                    {(port.rxBps !== undefined || port.txBps !== undefined) && (
+                      <div className="font-mono text-[10px] text-text-muted">
+                        ↓{fmtPortBps(port.rxBps)} ↑{fmtPortBps(port.txBps)}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mt-0.5 text-caption text-text-muted">{t('routerDetail.ports.free')}</div>
                 )}
               </>
-            ) : (
-              <div className="mt-0.5 text-caption text-text-muted">{t('routerDetail.ports.free')}</div>
             )}
           </div>
         </motion.div>
@@ -266,7 +298,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function PortPanel({ router, extras, className }: { router: Router; extras?: RouterExtras; className?: string }) {
+export function PortPanel({ router, extras, className, compact }: { router: Router; extras?: RouterExtras; className?: string; compact?: boolean }) {
   const { t } = useTranslation()
   const { isDemo, wan } = useNetPulse()
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
@@ -287,16 +319,20 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
       </p>
 
       {/* Chasis: TODAS las bocas en una sola horizontal (sin wrap); si no
-          caben (móvil, chasis largos), scroll horizontal en vez de apilar. */}
-      <div className="mt-4 flex flex-nowrap items-start gap-x-4 overflow-x-auto rounded-xl border border-border/70 bg-elevated/40 px-4 py-4">
+          caben (móvil, chasis largos), scroll horizontal en modo normal, o
+          wrap automático en modo compacto (switches con muchas bocas). */}
+      <div className={cn(
+        'mt-4 items-start rounded-xl border border-border/70 bg-elevated/40',
+        compact ? 'flex flex-wrap gap-2 px-3 py-3' : 'flex flex-nowrap gap-x-4 overflow-x-auto px-4 py-4',
+      )}>
         {wanPorts.map((p, i) => (
-          <Jack key={p.id} port={p} index={i} wan={wan} />
+          <Jack key={p.id} port={p} index={i} wan={wan} compact={compact} />
         ))}
         {wanPorts.length > 0 && lanPorts.length > 0 && (
-          <div className="mx-1 h-[104px] w-px shrink-0 self-center bg-border/70" aria-hidden="true" />
+          <div className={cn('w-px shrink-0 self-center bg-border/70', compact ? 'mx-0 h-[70px]' : 'mx-1 h-[104px]')} aria-hidden="true" />
         )}
         {lanPorts.map((p, i) => (
-          <Jack key={p.id} port={p} index={wanPorts.length + i} />
+          <Jack key={p.id} port={p} index={wanPorts.length + i} compact={compact} />
         ))}
       </div>
 

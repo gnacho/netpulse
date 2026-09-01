@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -9,17 +10,18 @@ import (
 )
 
 type PortStats struct {
-	Index      int
-	Name       string
-	Descr      string
-	Alias      string
-	SpeedBps   uint64
+	Index         int
+	Name          string
+	Descr         string
+	Alias         string
+	IfType        int
+	SpeedBps      uint64
 	HighSpeedMbps uint32
-	OperUp     bool
-	RxBytes    uint64
-	TxBytes    uint64
-	RxErrors   uint64
-	TxErrors   uint64
+	OperUp        bool
+	RxBytes       uint64
+	TxBytes       uint64
+	RxErrors      uint64
+	TxErrors      uint64
 }
 
 func (p PortStats) SpeedString() string {
@@ -59,7 +61,7 @@ func (p PortStats) DisplayName() string {
 
 func PollIfTable(s *gosnmp.GoSNMP) ([]PortStats, error) {
 	oids := []string{
-		OidIfIndex, OidIfDescr, OidIfSpeed, OidIfOperStatus,
+		OidIfIndex, OidIfDescr, OidIfType, OidIfSpeed, OidIfOperStatus,
 		OidIfInOctets, OidIfInErrors, OidIfOutOctets, OidIfOutErrors,
 		OidIfName, OidIfHighSpeed, OidIfAlias,
 	}
@@ -84,8 +86,13 @@ func PollIfTable(s *gosnmp.GoSNMP) ([]PortStats, error) {
 	}
 	out := make([]PortStats, 0, len(byIdx))
 	for _, ps := range byIdx {
-		out = append(out, *ps)
+		// Solo interfaces Ethernet fisicas (ifType 6 = ethernetCsmacd).
+		// Excluye VLANs (l2vlan), LAGs (ieee8023adLag), tunnel, etc.
+		if ps.IfType == 6 {
+			out = append(out, *ps)
+		}
 	}
+	log.Printf("[netpulse:snmp] PollIfTable: %d raw -> %d filtered (ethernetCsmacd)", len(byIdx), len(out))
 	sortByIndex(out)
 	return out, nil
 }
@@ -96,6 +103,8 @@ func applyPortField(ps *PortStats, oid string, pdu gosnmp.SnmpPDU) {
 		ps.Index = int(uint64Val(pdu))
 	case OidIfDescr:
 		ps.Descr = stringVal(pdu)
+	case OidIfType:
+		ps.IfType = int(uint64Val(pdu))
 	case OidIfSpeed:
 		ps.SpeedBps = uint64Val(pdu)
 	case OidIfOperStatus:

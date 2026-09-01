@@ -63,6 +63,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
   const isOpenWrt = router.type === undefined || router.type === '' || router.type === 'glinet' || router.type === 'openwrt'
+  const hasMetrics = isOpenWrt
   const agentDown = isOpenWrt && agent !== undefined && !agent.fresh
   const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
@@ -131,7 +132,11 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} />
               </div>
               <div className="truncate text-caption text-text-muted">
-                {isGateway ? 'GL.iNet Flint 2 · GL-MT6000' : `OpenWrt · ${router.modelShort}`}
+                {isGateway
+                  ? 'GL.iNet Flint 2 · GL-MT6000'
+                  : hasMetrics
+                    ? `OpenWrt · ${router.modelShort}`
+                    : router.modelShort}
               </div>
               {isGateway && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-0.5">
@@ -200,18 +205,20 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
         </div>
 
         {/* Métricas con barras */}
-        <div key={refreshKey} className="mt-4 space-y-2.5">
-          <MetricRow icon={Cpu} label="CPU" value={`${router.cpu} %`} pct={router.cpu} hot={router.hotMetric === 'cpu'} />
-          <MetricRow icon={MemoryStick} label={t('common.memory')} value={`${router.ram} %`} pct={router.ram} hot={router.hotMetric === 'ram'} />
-          <MetricRow
-            icon={Thermometer}
-            label={t('common.temperature')}
-            value={`${router.temp} °C`}
-            pct={Math.min(100, (router.temp / 90) * 100)}
-            hot={router.hotMetric === 'temp'}
-            title={router.hotMetric === 'temp' ? t('routers.tempThreshold') : undefined}
-          />
-        </div>
+        {hasMetrics && (
+          <div key={refreshKey} className="mt-4 space-y-2.5">
+            <MetricRow icon={Cpu} label="CPU" value={`${router.cpu} %`} pct={router.cpu} hot={router.hotMetric === 'cpu'} />
+            <MetricRow icon={MemoryStick} label={t('common.memory')} value={`${router.ram} %`} pct={router.ram} hot={router.hotMetric === 'ram'} />
+            <MetricRow
+              icon={Thermometer}
+              label={t('common.temperature')}
+              value={`${router.temp} °C`}
+              pct={Math.min(100, (router.temp / 90) * 100)}
+              hot={router.hotMetric === 'temp'}
+              title={router.hotMetric === 'temp' ? t('routers.tempThreshold') : undefined}
+            />
+          </div>
+        )}
 
         {/* Mini-gráfico de tráfico 24h */}
         <div className="mt-4">
@@ -246,12 +253,16 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
             <Users className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
             {t('common.clientsCount', { count: router.clients })}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
-            <Wifi className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> 2.4 GHz · {extras.bandSplit.band24}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
-            <Wifi className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> 5 GHz · {extras.bandSplit.band5}
-          </span>
+          {hasMetrics && (
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
+                <Wifi className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> 2.4 GHz · {extras.bandSplit.band24}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
+                <Wifi className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> 5 GHz · {extras.bandSplit.band5}
+              </span>
+            </>
+          )}
           <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
             <Cable className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> {t('common.cable')} · {extras.bandSplit.cable}
           </span>
