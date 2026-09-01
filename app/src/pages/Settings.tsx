@@ -278,6 +278,7 @@ interface ConfigRouter {
   snmp_enabled: boolean
   snmp_community: string
   snmp_port: number
+  snmp_poll_interval: number
 }
 
 interface DiscoverCandidate {
@@ -312,6 +313,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
   const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
   const [editSnmpPort, setEditSnmpPort] = useState(161)
+  const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -505,6 +507,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditSnmpEnabled(r.snmp_enabled ?? false)
     setEditSnmpCommunity(r.snmp_community ?? '')
     setEditSnmpPort(r.snmp_port ?? 161)
+    setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
     setError(null)
   }
 
@@ -527,6 +530,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           snmp_enabled: editSnmpEnabled,
           snmp_community: editSnmpCommunity.trim() || undefined,
           snmp_port: editSnmpPort,
+          snmp_poll_interval: editSnmpPollInterval,
         }),
       })
       if (res.status === 409) {
@@ -856,21 +860,36 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                         />
                       </div>
-                      <div>
-                        <label htmlFor="snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                          {t('settings.routers.snmpPort')}
-                        </label>
-                        <input
-                          id="snmp-port"
-                          type="number"
-                          min={1}
-                          max={65535}
-                          value={editSnmpPort}
-                          onChange={(e) => setEditSnmpPort(Number(e.target.value))}
-                          aria-label={t('settings.routers.snmpPort')}
-                          className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                        />
-                      </div>
+                        <div>
+                          <label htmlFor="snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                            {t('settings.routers.snmpPort')}
+                          </label>
+                          <input
+                            id="snmp-port"
+                            type="number"
+                            min={1}
+                            max={65535}
+                            value={editSnmpPort}
+                            onChange={(e) => setEditSnmpPort(Number(e.target.value))}
+                            aria-label={t('settings.routers.snmpPort')}
+                            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="snmp-poll-interval" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                            {t('settings.routers.snmpPollInterval')}
+                          </label>
+                          <input
+                            id="snmp-poll-interval"
+                            type="number"
+                            min={10}
+                            max={3600}
+                            value={editSnmpPollInterval}
+                            onChange={(e) => setEditSnmpPollInterval(Number(e.target.value))}
+                            aria-label={t('settings.routers.snmpPollInterval')}
+                            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                          />
+                        </div>
                     </div>
                   )}
                 </div>

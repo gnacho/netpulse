@@ -1065,7 +1065,8 @@
       "firmwareTargetHint": "Optional. If the installed firmware doesn't match this version, NetPulse alerts.",
       "snmpEnabled": "SNMP polling",
       "snmpCommunity": "Community (SNMPv2c)",
-      "snmpPort": "Port"
+      "snmpPort": "Port",
+      "snmpPollInterval": "Interval (s)"
     },
     "overrides": {
       "title": "Topology — manual tagging",

@@ -5,7 +5,17 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-<<<<<<< HEAD
+## [2.23.6] - 2026-09-01
+
+### Added
+
+- **Intervalo de polling SNMP configurable por switch (#414)**: los routers con SNMP activado ahora usan un `snmp_poll_interval` configurable (10-3600 s, default 60) en lugar de sondear en cada tick de 5 s. Se expone en el formulario de edicion del router (Ajustes > Routers) y en `PUT /api/config/routers/:id`.
+
+### Fixed
+
+- **Falsos positivos ghost-port en switches SNMP (#414)**: el `PortMonitor` aplica una histeresis temporal de 5 minutos de silencio real antes de declarar ghost-port en puertos procedentes de SNMP. Ademas, cuando un router SNMP se cachea entre polls, no se re-observa el mismo snapshot, evitando que el contador de polls sin trafico crezca artificialmente.
+- **Métricas duplicadas para routers SNMP (#414)**: el poller ya no inserta filas repetidas en `metrics` cuando reutiliza el snapshot cacheado de un switch SNMP.
+
 ## [2.23.5] - 2026-09-01
 
 ### Fixed
