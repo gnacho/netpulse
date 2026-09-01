@@ -109,6 +109,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.Wireless = p.probeWireless(ctx, true)
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	pl.Data.FDB = p.probeFDB(ctx)
+	pl.Data.Arp = p.probeArp(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.Usteer = p.probeUsteer(ctx)
 	pl.Data.LuCI = p.probeLuCI(ctx)
@@ -136,6 +137,7 @@ func (p *Prober) BuildWireless(ctx context.Context, router, version string) *Pay
 	}
 	pl.Data.Wireless = p.probeWireless(ctx, false)
 	pl.Data.DHCP = p.probeDHCP(ctx)
+	pl.Data.Arp = p.probeArp(ctx)
 	return pl
 }
 
@@ -617,4 +619,18 @@ func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *Di
 		return nil
 	}
 	return dd
+}
+
+// probeArp: tabla ARP del kernel (#377). nil si no hay fichero (equipo sin
+// ARP, p. ej. contenedor); mapa vacío es resultado real.
+func (p *Prober) probeArp(ctx context.Context) map[string]string {
+	out := p.runBest(ctx, CmdProcArp, 3*time.Second)
+	if out == "" {
+		return nil
+	}
+	m := ParseArp(out)
+	if m == nil {
+		m = map[string]string{}
+	}
+	return m
 }

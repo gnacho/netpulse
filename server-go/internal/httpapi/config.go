@@ -370,13 +370,26 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_input", "Required")
 		return
 	}
-	host, port, msg := validateAdGuardHost(*in.Host)
-	if msg != "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", msg)
-		return
-	}
-	if mode == "standard" && port == 0 {
-		port = 3000
+	host := strings.TrimSpace(*in.Host)
+	port := 0
+	if mode == "standard" {
+		hostFromVal, portFromHost, msg := validateAdGuardHost(host)
+		if msg != "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", msg)
+			return
+		}
+		host = hostFromVal
+		if in.Port < 1 || in.Port > 65535 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "port must be between 1 and 65535")
+			return
+		}
+		port = in.Port
+		if port == 0 {
+			port = portFromHost
+		}
+		if port == 0 {
+			port = 3000
+		}
 	}
 	user := strings.TrimSpace(in.User)
 	if user == "" {

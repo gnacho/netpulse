@@ -11,6 +11,7 @@ package probe
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"regexp"
 	"sort"
 	"strconv"
@@ -75,6 +76,8 @@ const (
 	// CmdPortStates: "<name> <operstate> <speed>" por interfaz.
 	CmdPortStates = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
 		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1)"; done`
+	// CmdProcArp (#377): tabla ARP del kernel, "IP dev mac ..." por línea.
+	CmdProcArp     = "cat /proc/net/arp 2>/dev/null"
 	CmdBoardJSON   = "cat /etc/board.json 2>/dev/null"
 	CmdBrifMembers = "BR=br-lan; [ -d /sys/class/net/$BR ] || BR=br0; ls /sys/class/net/$BR/brif/ 2>/dev/null"
 	// CmdBridgeFDB: "==PORTS==" (port_no ifname) + "==MACS==" (port mac).
@@ -1192,4 +1195,30 @@ func hexNibble(c byte) (byte, error) {
 	default:
 		return 0, fmt.Errorf("invalid hex nibble: %c", c)
 	}
+}
+
+// ParseArp parsea /proc/net/arp (#377): cabecera + líneas
+// "IP net/arp HW flags MAC mask device". Devuelve MAC (upper) → IP,
+// ignorando entradas incompletas (flags 0x0) y MACs nulas.
+func ParseArp(out string) map[string]string {
+	m := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 4 || f[0] == "IP" {
+			continue
+		}
+		mac := strings.ToUpper(f[3])
+		if mac == "" || mac == "00:00:00:00:00:00" {
+			continue
+		}
+		// flags 0x0 = incomplete: el kernel retiene la IP sin vecino válido.
+		if f[2] == "0x0" {
+			continue
+		}
+		if net.ParseIP(f[0]) == nil {
+			continue
+		}
+		m[mac] = f[0]
+	}
+	return m
 }

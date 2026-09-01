@@ -197,6 +197,27 @@ func TestParseGlClients(t *testing.T) {
 	}
 }
 
+func TestParseArp(t *testing.T) {
+	out := "IP address       HW type     Flags       HW address            Mask     Device\n" +
+		"192.168.1.10     0x1         0x2         aa:bb:cc:dd:ee:ff     *        br-lan\n" +
+		"192.168.1.11     0x1         0x0         11:22:33:44:55:66     *        br-lan\n" +
+		"192.168.1.12     0x1         0x2         00:00:00:00:00:00     *        br-lan\n" +
+		"invalid          0x1         0x2         22:33:44:55:66:77     *        br-lan\n"
+	m := ParseArp(out)
+	if len(m) != 1 || m["AA:BB:CC:DD:EE:FF"] != "192.168.1.10" {
+		t.Fatalf("arp: %+v", m)
+	}
+	if _, ok := m["11:22:33:44:55:66"]; ok {
+		t.Fatal("entrada incompleta (0x0) no debe aparecer")
+	}
+	if _, ok := m["00:00:00:00:00:00"]; ok {
+		t.Fatal("MAC nula no debe aparecer")
+	}
+	if _, ok := m["22:33:44:55:66:77"]; ok {
+		t.Fatal("IP inválida no debe aparecer")
+	}
+}
+
 func TestParseWireless(t *testing.T) {
 	out := "A4:83:E7:21:0B:3C -48 5\nEC:71:DB:44:12:8A -72 2.4\n"
 	m := ParseWirelessClients(out)

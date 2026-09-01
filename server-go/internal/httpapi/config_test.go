@@ -320,6 +320,66 @@ func TestConfigRoutersFirmwareTarget(t *testing.T) {
 	}
 }
 
+// TestAdGuardConfigPort cubre PUT /api/config/adguard (#420):
+//   - guardar un puerto distinto de 3000 en modo standard
+//   - GET devuelve el puerto guardado, no 3000
+//   - el puerto explícito tiene prioridad sobre el que pueda venir en host:port
+func TestAdGuardConfigPort(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	// PUT modo standard con puerto 80
+	res := doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","host":"adguard.example.com","port":80,"user":"root","password":"secret"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT adguard: %d %v", res.StatusCode, body)
+	}
+
+	// GET debe devolver puerto 80
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET adguard: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["port"].(float64) != 80 {
+		t.Fatalf("port esperado 80, got %v", body["port"])
+	}
+
+	// Puerto explícito tiene prioridad sobre host:port
+	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","host":"adguard.example.com:8080","port":9090,"user":"root","password":"secret"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT adguard con host:port: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body = readJSON(t, res)
+	if body["port"].(float64) != 9090 {
+		t.Fatalf("port esperado 9090, got %v", body["port"])
+	}
+
+	// Puerto fuera de rango → 400
+	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","host":"adguard.example.com","port":70000,"user":"root","password":"secret"}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("port fuera de rango: esperado 400, got %d", res.StatusCode)
+	}
+
+	// Modo glinet con host vacío debe seguir permitiéndose (no regresión)
+	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"glinet","host":"","port":0,"user":"root","password":"secret"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT glinet host vacío: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body = readJSON(t, res)
+	if body["mode"] != "glinet" || body["host"] != "" || body["port"] != float64(0) {
+		t.Fatalf("glinet host vacío no se guardó: %+v", body)
+	}
+}
+
 func TestConfigRoutersSNMP(t *testing.T) {
 	srv := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")

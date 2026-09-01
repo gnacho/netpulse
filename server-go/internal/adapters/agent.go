@@ -522,6 +522,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		// ruta SSH (issue #5 bug 1).
 		out.glClients = dd.GlClients
 	}
+	if p.Data.Arp != nil {
+		out.arp = p.Data.Arp
+	}
 	if fd := p.Data.FDB; fd != nil {
 		if fd.MACs != nil {
 			out.fdb = fd.MACs
