@@ -740,7 +740,7 @@ function SignalCell({ device }: { device: ClientDevice }) {
 function LeaseCell({ device }: { device: ClientDevice }) {
   const { t } = useTranslation()
   if (device.leaseRemaining == null || device.leaseRemaining <= 0) {
-    return <span className="font-mono text-mono-sm text-text-muted">—</span>
+    return <span className="font-mono text-mono-sm text-text-muted">{t('devices.leaseUnlimited')}</span>
   }
   const days = Math.floor(device.leaseRemaining / 86400)
   const hours = Math.floor((device.leaseRemaining % 86400) / 3600)
@@ -1441,7 +1441,6 @@ export default function Devices() {
       <DeviceEditSheet
         open={editingId !== null}
         device={filtered.find((d) => d.id === editingId) ?? null}
-        currentName={filtered.find((d) => d.id === editingId)?.name ?? ''}
         isDemo={isDemo}
         saving={savingOverride}
         onClose={() => setEditingId(null)}

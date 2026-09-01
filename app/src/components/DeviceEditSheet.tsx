@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
-import { Pencil } from 'lucide-react'
 import { ALLOWED_ICONS, ICON_OVERRIDES } from '@/components/DeviceRow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
 } from '@/components/ui/sheet'
 import { cn, fetchJson } from '@/lib/utils'
 import type { ClientDevice } from '@/pages/devices-data'
@@ -18,7 +14,6 @@ import type { ClientDevice } from '@/pages/devices-data'
 export interface DeviceEditSheetProps {
   open: boolean
   device: ClientDevice | null
-  currentName: string
   isDemo: boolean
   saving?: boolean
   onClose: () => void
@@ -28,24 +23,21 @@ export interface DeviceEditSheetProps {
 export function DeviceEditSheet({
   open,
   device,
-  currentName,
   isDemo,
   saving,
   onClose,
   onSave,
 }: DeviceEditSheetProps) {
   const { t } = useTranslation()
-  const [name, setName] = useState(currentName)
   const [icon, setIcon] = useState(device?.iconOverride ?? '')
   const [reservation, setReservation] = useState<{ reserved: boolean; ip: string; loading: boolean }>({ reserved: false, ip: '', loading: false })
   const [reserveDraft, setReserveDraft] = useState(device?.ip ?? '')
   const [block, setBlock] = useState<{ blocked: boolean; loading: boolean }>({ blocked: false, loading: false })
 
   useEffect(() => {
-    setName(currentName)
     setIcon(device?.iconOverride ?? '')
     setReserveDraft(device?.ip ?? '')
-  }, [device?.id, currentName, device?.iconOverride, device?.ip])
+  }, [device?.id, device?.iconOverride, device?.ip])
 
   useEffect(() => {
     if (!device || isDemo) return
@@ -74,26 +66,19 @@ export function DeviceEditSheet({
     return () => { cancelled = true }
   }, [device, isDemo])
 
-  const activeName = name.trim() || device?.name || ''
-  const selectedIconName = icon || null
-
   const handleSave = () => {
     if (!device) return
-    const nextName = name.trim() === device.name ? null : name.trim() || null
     const nextIcon = icon || null
-    onSave(device, nextName, nextIcon)
+    onSave(device, null, nextIcon)
   }
+
+  const selectedIconName = icon || null
 
   const PreviewIcon = (selectedIconName ? (ICON_OVERRIDES[selectedIconName] ?? ICON_OVERRIDES['help-circle']) : ICON_OVERRIDES['help-circle']) as LucideIcon
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{t('devices.edit.title')}</SheetTitle>
-          <SheetDescription>{t('devices.edit.description')}</SheetDescription>
-        </SheetHeader>
-
         {device && (
           <div className="flex flex-col gap-5 overflow-y-auto px-4 py-2">
             {/* Vista previa */}
@@ -102,27 +87,8 @@ export function DeviceEditSheet({
                 <PreviewIcon className="h-6 w-6" strokeWidth={1.75} />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-text-primary">{activeName}</div>
+                <div className="truncate text-sm font-medium text-text-primary">{device.name}</div>
                 <div className="truncate text-caption text-text-muted">{device.mac}</div>
-              </div>
-            </div>
-
-            {/* Nombre */}
-            <div className="space-y-1.5">
-              <label htmlFor="device-edit-name" className="text-label uppercase text-text-muted">
-                {t('devices.edit.name')}
-              </label>
-              <div className="relative">
-                <Pencil className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" strokeWidth={1.75} />
-                <Input
-                  id="device-edit-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={device.name}
-                  maxLength={40}
-                  disabled={saving}
-                  className="h-10 rounded-lg border-border bg-elevated pl-9 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent/50"
-                />
               </div>
             </div>
 
@@ -231,7 +197,7 @@ export function DeviceEditSheet({
                     const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/reservation`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ip: reserveDraft, hostname: name.trim() || device.name }),
+                      body: JSON.stringify({ ip: reserveDraft, hostname: device.name }),
                     })
                     if (res.ok) {
                       setReservation({ reserved: true, ip: reserveDraft, loading: false })

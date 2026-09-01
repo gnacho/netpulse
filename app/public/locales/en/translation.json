@@ -208,6 +208,7 @@
     "leaseDaysHours": "{{days}}d {{hours}}h",
     "leaseHoursMinutes": "{{hours}}h {{minutes}}min",
     "leaseMinutes": "{{minutes}}min",
+    "leaseUnlimited": "unlimited",
     "edit": {
       "title": "Edit device",
       "description": "Change this device's name and icon.",
