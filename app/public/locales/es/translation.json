@@ -1282,6 +1282,8 @@
       "hideHint": "Puedes cerrar esta ventana: la actualización continúa en el servidor",
       "progressLabel": "Progreso de la actualización",
       "changelogTitle": "Novedades",
+      "changelogFallback": "No se ha podido cargar el changelog.",
+      "changelogLink": "Ver notas del release en GitHub",
       "downNotice": "El servicio estará caído mientras se reinicia"
     }
   },

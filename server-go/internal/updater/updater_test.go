@@ -28,11 +28,16 @@ func withAPI(t *testing.T, h http.HandlerFunc) {
 
 func TestCheckUpdateAvailable(t *testing.T) {
 	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/owner/netpulse/commits/main" {
+		switch r.URL.Path {
+		case "/repos/owner/netpulse/commits/main":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"sha":"abc1234deadbeef","commit":{"message":"feat: algo\n\nbody"}}`)
+		case "/repos/owner/netpulse/releases":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		default:
 			t.Errorf("path: %s", r.URL.Path)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"sha":"abc1234deadbeef","commit":{"message":"feat: algo\n\nbody"}}`)
 	})
 	// repoRoot con git válido (commit distinto) para updateAvailable.
 	// deploy/update.sh → modo rolling (compara contra main HEAD).
@@ -65,6 +70,34 @@ func TestCheckUpdateAvailable(t *testing.T) {
 	}
 	if st.LastCheck == nil {
 		t.Fatal("lastCheck nil")
+	}
+}
+
+// Issue #404: si el body del commit está vacío, el backend debe buscar las
+// notas del release asociado al commit y devolverlas como changelog.
+func TestCheckUsesReleaseBodyWhenCommitBodyEmpty(t *testing.T) {
+	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/owner/netpulse/commits/main":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"sha":"deadbeefabc1234","commit":{"message":"chore(release): v2.5.0"}}`)
+		case "/repos/owner/netpulse/releases":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[{"body":"Release notes line 1\nRelease notes line 2","target_commitish":"deadbeefabc1234"}]`)
+		default:
+			t.Errorf("path: %s", r.URL.Path)
+		}
+	})
+	root := t.TempDir()
+	writeDeployScript(t, root)
+	writeGitHead(t, root)
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
+	st := u.Check(context.Background())
+	if st.Error != nil {
+		t.Fatalf("error: %v", *st.Error)
+	}
+	if st.LatestBody == nil || *st.LatestBody != "Release notes line 1\nRelease notes line 2" {
+		t.Fatalf("latestBody: %v", st.LatestBody)
 	}
 }
 
