@@ -70,7 +70,11 @@ func (pm *PortMonitor) Observe(routerID string, ports []EthPort, engine *alerts.
 		key := portKey{routerID, p.ID}
 		st, ok := pm.states[key]
 		if !ok {
-			st = &portState{up: p.Up}
+			// Tras un reinicio del servidor no hay historial: la primera
+			// observación es la línea de base del contador, no una muestra de
+			// que el puerto "tuvo tráfico". Si no hacemos esto, un contador
+			// congelado en un valor > 0 se interpreta como ghost port.
+			st = &portState{up: p.Up, trafficTotal: p.RxBytes + p.TxBytes}
 			pm.states[key] = st
 		}
 		pm.updateSpeedHistory(st, p)
