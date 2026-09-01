@@ -798,7 +798,7 @@ function ListRow({
           }
         }}
         className={cn(
-          'hidden cursor-pointer items-center gap-3 px-3 py-2 transition-colors duration-150 hover:bg-hover md:grid',
+          'hidden cursor-pointer items-center gap-4 pr-6 pl-3 py-2 transition-colors duration-150 hover:bg-hover md:grid',
           ROW_GRID,
           !device.online && 'opacity-55',
           expanded && 'bg-hover/60',
@@ -1392,7 +1392,7 @@ export default function Devices() {
           {/* Cabecera de tabla sticky (desktop) */}
           <div
             className={cn(
-              'sticky top-14 z-10 hidden items-center gap-3 rounded-t-2xl border-b border-border bg-surface px-3 py-2 text-label uppercase text-text-muted md:grid',
+              'sticky top-14 z-10 hidden items-center gap-4 pr-6 pl-3 py-2 rounded-t-2xl border-b border-border bg-surface text-label uppercase text-text-muted md:grid',
               ROW_GRID,
             )}
           >

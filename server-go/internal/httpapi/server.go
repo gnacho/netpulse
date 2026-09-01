@@ -246,6 +246,13 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("PUT /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverridePut)))
 	mux.Handle("GET /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverrideGet)))
 	mux.Handle("PUT /api/devices/{mac}/ban", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBanPut)))
+	// Reserva DHCP y bloqueo de dispositivo (issue #439).
+	mux.Handle("GET /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationGet)))
+	mux.Handle("PUT /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationPut)))
+	mux.Handle("DELETE /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationDelete)))
+	mux.Handle("GET /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockGet)))
+	mux.Handle("PUT /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockPut)))
+	mux.Handle("DELETE /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockDelete)))
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /api/alerts/config", s.handleAlertsConfigGet)
 	mux.HandleFunc("PUT /api/alerts/config", s.handleAlertsConfigPut)
