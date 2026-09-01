@@ -365,6 +365,19 @@ func TestAdGuardConfigPort(t *testing.T) {
 	if res.StatusCode != 400 {
 		t.Fatalf("port fuera de rango: esperado 400, got %d", res.StatusCode)
 	}
+
+	// Modo glinet con host vacío debe seguir permitiéndose (no regresión)
+	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"glinet","host":"","port":0,"user":"root","password":"secret"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT glinet host vacío: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body = readJSON(t, res)
+	if body["mode"] != "glinet" || body["host"] != "" || body["port"] != float64(0) {
+		t.Fatalf("glinet host vacío no se guardó: %+v", body)
+	}
 }
 
 func TestConfigRoutersSNMP(t *testing.T) {
