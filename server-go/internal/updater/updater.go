@@ -179,12 +179,13 @@ func gitShort(repoRoot string) string {
 
 // fetchLatestCommit consulta el último commit de main (modo rolling).
 // Errores → {error: ...}. El body (líneas tras el subject) se devuelve como
-// changelog del asistente.
-func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg, body, errCode string) {
+// changelog del asistente. También devuelve el SHA completo para poder buscar
+// las notas del release asociado (#404).
+func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, fullSHA, msg, body, errCode string) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s/repos/%s/commits/main", APIBase, u.repo), nil)
 	if err != nil {
-		return "", "", "", "network"
+		return "", "", "", "", "network"
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "netpulse-updater")
@@ -196,19 +197,19 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg, body, errCod
 	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", "", "", "timeout"
+			return "", "", "", "", "timeout"
 		}
-		return "", "", "", "network"
+		return "", "", "", "", "network"
 	}
 	defer res.Body.Close()
 	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 404 {
 		if u.token != "" {
-			return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
+			return "", "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 		}
-		return "", "", "", "no_token"
+		return "", "", "", "", "no_token"
 	}
 	if res.StatusCode != 200 {
-		return "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
+		return "", "", "", "", fmt.Sprintf("github_%d", res.StatusCode)
 	}
 	var data struct {
 		SHA    string `json:"sha"`
@@ -217,9 +218,10 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg, body, errCod
 		} `json:"commit"`
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&data); err != nil {
-		return "", "", "", "network"
+		return "", "", "", "", "network"
 	}
-	sha = data.SHA
+	fullSHA = data.SHA
+	sha = fullSHA
 	if len(sha) > 7 {
 		sha = sha[:7]
 	}
@@ -240,7 +242,7 @@ func (u *Updater) fetchLatestCommit(ctx context.Context) (sha, msg, body, errCod
 		units += w
 	}
 	msg = msg[:cut]
-	return sha, msg, body, ""
+	return sha, fullSHA, msg, body, ""
 }
 
 // fetchLatestRelease consulta el último release tag (modo stable). Devuelve
@@ -292,6 +294,48 @@ func (u *Updater) fetchLatestRelease(ctx context.Context) (tag, name, body, errC
 	return tag, name, strings.TrimSpace(data.Body), ""
 }
 
+// fetchReleaseBody busca las notas del release asociado al commit dado. Si no
+// encuentra coincidencia o falla la red, devuelve cadena vacía (el asistente
+// usará el body del commit o el fallback a enlace).
+func (u *Updater) fetchReleaseBody(ctx context.Context, sha string) string {
+	if sha == "" {
+		return ""
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s/repos/%s/releases?per_page=10", APIBase, u.repo), nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "netpulse-updater")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if u.token != "" {
+		req.Header.Set("Authorization", "Bearer "+u.token)
+	}
+	client := &http.Client{Timeout: httpTimeout}
+	res, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return ""
+	}
+	var releases []struct {
+		Body            string `json:"body"`
+		TargetCommitish string `json:"target_commitish"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&releases); err != nil {
+		return ""
+	}
+	for _, r := range releases {
+		if strings.EqualFold(r.TargetCommitish, sha) || strings.HasPrefix(strings.ToLower(r.TargetCommitish), strings.ToLower(sha)) {
+			return strings.TrimSpace(r.Body)
+		}
+	}
+	return ""
+}
+
 // compareSemver compara dos strings semver (con o sin prefijo "v").
 // Devuelve >0 si a > b, 0 si iguales, <0 si a < b. No-parseable → 0.
 func compareSemver(a, b string) int {
@@ -326,6 +370,7 @@ func parseSemver(s string) [3]int {
 // el último release tag (semver).
 func (u *Updater) Check(ctx context.Context) Status {
 	var current, latest, latestMsg, latestBody, errCode string
+	var latestSHA string
 
 	if u.mode == "stable" {
 		current = u.version
@@ -338,7 +383,14 @@ func (u *Updater) Check(ctx context.Context) Status {
 		if current == "" {
 			current = "desconocido"
 		}
-		latest, latestMsg, latestBody, errCode = u.fetchLatestCommit(ctx)
+		latest, latestSHA, latestMsg, latestBody, errCode = u.fetchLatestCommit(ctx)
+		// Issue #404: si el body del commit está vacío, intentar usar las
+		// notas del release asociado a ese commit (rolling en CTs reales).
+		if errCode == "" && latestBody == "" && latestSHA != "" {
+			if releaseBody := u.fetchReleaseBody(ctx, latestSHA); releaseBody != "" {
+				latestBody = releaseBody
+			}
+		}
 	}
 
 	now := time.Now().UnixMilli()

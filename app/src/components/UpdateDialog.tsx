@@ -277,6 +277,15 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
     [status?.latestBody],
   )
 
+  // Issue #404: enlace de fallback cuando no hay changelog cargado.
+  const releaseUrl = useMemo(() => {
+    const repo = status?.repo || 'gnacho/netpulse'
+    const latest = status?.latest
+    if (!latest) return `https://github.com/${repo}/releases`
+    if (latest.startsWith('v')) return `https://github.com/${repo}/releases/tag/${latest}`
+    return `https://github.com/${repo}/releases`
+  }, [status?.repo, status?.latest])
+
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       <DialogContent className="max-w-md">
@@ -319,6 +328,20 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                   </ul>
                 </div>
               </div>
+            )}
+            {/* Issue #404: fallback con enlace si no hay changelog. */}
+            {changelogLines.length === 0 && status?.latest && (
+              <p className="text-caption text-text-muted">
+                {t('update.dialog.changelogFallback')}{' '}
+                <a
+                  href={releaseUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {t('update.dialog.changelogLink')}
+                </a>
+              </p>
             )}
             {status?.readiness && <ReadinessPanel readiness={status.readiness} compact />}
             <label className="flex cursor-pointer items-start gap-2.5 rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-snug text-warn">
