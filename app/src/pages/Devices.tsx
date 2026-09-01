@@ -754,7 +754,7 @@ function TrafficCell({ device }: { device: ClientDevice }) {
 }
 
 const ROW_GRID =
-  'md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,0.55fr)_minmax(0,0.9fr)_minmax(0,0.75fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,1fr)_1.5rem]'
+  'md:grid-cols-[minmax(0,2.4fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,0.55fr)_minmax(0,0.9fr)_minmax(0,0.65fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,1fr)_1.5rem]'
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
