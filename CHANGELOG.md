@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.23.4] - 2026-09-01
+
+### Added
+
+- **Aviso cuando aun se usa DAWN para roaming (#426, #427)**: la vista `/roaming` muestra una advertencia si algun router sigue reportando DAWN como daemon de roaming activo, ayudando a completar la migracion a usteer.
+- **Deteccion del daemon de roaming activo y anomalias de configuracion (#428, #429)**: el backend detecta si cada router usa `none`, `dawn`, `usteer` o ambos, y senala inconsistencias en la configuracion 802.11r (sin mobility domain, sin R0/R1 key, SSID sin roaming, o mobility domain distinta por SSID). La UI presenta estas anomalias como tarjetas de aviso en `/roaming`.
+
 ## [2.23.3] - 2026-09-01
 
 ### Changed
