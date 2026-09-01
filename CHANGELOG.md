@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.23.1] - 2026-09-01
+
+### Fixed
+
+- **Regresion: modo glinet de AdGuard rechazaba host vacio (#423)**: tras el fix de #421, `PUT /api/config/adguard` exigia un host no vacio tambien en modo `glinet`, lo que impedia guardar la configuracion por defecto (router gestionado por SSH sin host remoto). Ahora `glinet` acepta host vacio y devuelve `port: 0`.
+
 ## [2.23.0] - 2026-08-31
 
 ### Changed
