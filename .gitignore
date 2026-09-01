@@ -17,6 +17,7 @@ legacy/server-node/.env
 # Binarios compilados
 # (solo el binario local de `go build` en el módulo agent; el patrón `netpulse-agent*`
 # coincidía con el directorio fuente agent/cmd/netpulse-agent/ e ignoraba su código)
+netpulse
 netpulse-agent
 agent/netpulse-agent
 server-go/netpulse
