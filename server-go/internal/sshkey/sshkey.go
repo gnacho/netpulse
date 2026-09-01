@@ -6,6 +6,7 @@ package sshkey
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,22 +34,82 @@ func KnownHostsPath(keyPath string) string {
 
 // EnsureKeypair garantiza que existe el par de claves en keyPath
 // (ssh-keygen -t ed25519 -N ” -C netpulse); best-effort en permisos.
+// Si no existe y hay un backup previo (<keyPath>.bak.<epoch>), lo restaura
+// en lugar de generar un par nuevo (defensa contra perdida accidental de
+// .ssh/ durante updates, issue #425).
 func EnsureKeypair(keyPath string) error {
-	if _, err := os.Stat(keyPath); err == nil {
-		if _, err := os.Stat(keyPath + ".pub"); err == nil {
-			return nil
+	if keyExists(keyPath) {
+		return nil
+	}
+	// Intentar restaurar desde backup antes de generar clave nueva.
+	if restored, _ := restoreLatestBackup(keyPath); restored {
+		return nil
+	}
+	return generateKeypair(keyPath)
+}
+
+func keyExists(keyPath string) bool {
+	if _, err := os.Stat(keyPath); err != nil {
+		return false
+	}
+	if _, err := os.Stat(keyPath + ".pub"); err != nil {
+		return false
+	}
+	return true
+}
+
+// restoreLatestBackup busca backups <keyPath>.bak.<epoch> y restaura el mas
+// reciente. Devuelve true si restauro algo.
+func restoreLatestBackup(keyPath string) (bool, error) {
+	dir := filepath.Dir(keyPath)
+	base := filepath.Base(keyPath)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	var latest string
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, base+".bak.") && !strings.HasSuffix(name, ".pub") {
+			if latest == "" || name > latest {
+				latest = name
+			}
 		}
 	}
-	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+	if latest == "" {
+		return false, nil
+	}
+	bakKey := filepath.Join(dir, latest)
+	bakPub := bakKey + ".pub"
+	if _, err := os.Stat(bakPub); err != nil {
+		return false, err
+	}
+	if err := copyFile(bakKey, keyPath); err != nil {
+		return false, err
+	}
+	if err := copyFile(bakPub, keyPath+".pub"); err != nil {
+		return false, err
+	}
+	_ = os.Chmod(keyPath, 0o600)
+	return true, nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
 		return err
 	}
-	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", keyPath, "-N", "", "-C", "netpulse", "-q")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return &ExecError{What: "ssh-keygen", Err: err, Out: string(out)}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
 	}
-	_ = os.Chmod(filepath.Dir(keyPath), 0o700)
-	_ = os.Chmod(keyPath, 0o600)
-	return nil
+	_, err = io.Copy(out, in)
+	cerr := out.Close()
+	if err != nil {
+		return err
+	}
+	return cerr
 }
 
 // ExecError envuelve un fallo de proceso externo.
@@ -96,7 +157,7 @@ func GetPublicKey(keyPath string) *PublicKey {
 // no existe, simplemente genera uno (sin backup).
 func RotateKeypair(keyPath string) (*PublicKey, error) {
 	// Backup del par actual si existe.
-	if _, err := os.Stat(keyPath); err == nil {
+	if keyExists(keyPath) {
 		bak := fmt.Sprintf("%s.bak.%d", keyPath, time.Now().Unix())
 		if err := os.Rename(keyPath, bak); err != nil {
 			return nil, &ExecError{What: "rotate-backup", Err: err}
@@ -105,7 +166,9 @@ func RotateKeypair(keyPath string) (*PublicKey, error) {
 			_ = os.Rename(keyPath+".pub", bak+".pub")
 		}
 	}
-	if err := EnsureKeypair(keyPath); err != nil {
+	// Generar directamente, sin pasar por EnsureKeypair, para evitar que
+	// restaure el backup que acabamos de crear (issue #425).
+	if err := generateKeypair(keyPath); err != nil {
 		return nil, err
 	}
 	key := GetPublicKey(keyPath)
@@ -113,4 +176,17 @@ func RotateKeypair(keyPath string) (*PublicKey, error) {
 		return nil, &ExecError{What: "rotate-public-key", Err: os.ErrNotExist}
 	}
 	return key, nil
+}
+
+func generateKeypair(keyPath string) error {
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+		return err
+	}
+	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", keyPath, "-N", "", "-C", "netpulse", "-q")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return &ExecError{What: "ssh-keygen", Err: err, Out: string(out)}
+	}
+	_ = os.Chmod(filepath.Dir(keyPath), 0o700)
+	_ = os.Chmod(keyPath, 0o600)
+	return nil
 }
