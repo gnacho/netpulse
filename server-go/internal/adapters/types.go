@@ -29,12 +29,12 @@ type HealthDelta struct {
 
 // HealthScore global (demo: canon; live: computeHealth).
 type HealthScore struct {
-	Score      int             `json:"score"`
-	Label      string          `json:"label"` // "Excelente"|"Bueno"|"Atención"
-	Caption    string          `json:"caption"`
-	Note       string          `json:"note"`
-	Breakdown  []HealthDelta   `json:"breakdown"`
-	Subscores  []Subscore      `json:"subscores,omitempty"`
+	Score     int           `json:"score"`
+	Label     string        `json:"label"` // "Excelente"|"Bueno"|"Atención"
+	Caption   string        `json:"caption"`
+	Note      string        `json:"note"`
+	Breakdown []HealthDelta `json:"breakdown"`
+	Subscores []Subscore    `json:"subscores,omitempty"`
 }
 
 // Subscore is a component score within the health breakdown (#334).
@@ -133,15 +133,15 @@ type WireGuardStats struct {
 // CPU/RAM/Temp son *int porque el live puede emitir null en el primer tick
 // (primera muestra de /proc/stat; SPEC §7.2 getCpuPercent).
 type Router struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Model      string    `json:"model"`
-	ModelShort string    `json:"modelShort"`
-	Role       string    `json:"role"`
-	RoleBadge  string    `json:"roleBadge"`
-	IP         string    `json:"ip"`
-	MAC        string    `json:"mac,omitempty"`      // ausente si no se conoce (undefined)
-	Firmware   string    `json:"firmware,omitempty"` // ausente si no se conoce
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Model      string `json:"model"`
+	ModelShort string `json:"modelShort"`
+	Role       string `json:"role"`
+	RoleBadge  string `json:"roleBadge"`
+	IP         string `json:"ip"`
+	MAC        string `json:"mac,omitempty"`      // ausente si no se conoce (undefined)
+	Firmware   string `json:"firmware,omitempty"` // ausente si no se conoce
 	// FirmwareTarget: versión objetivo configurada por el admin (issue #241).
 	// Ausente si no está configurado (sin comprobación).
 	FirmwareTarget string `json:"firmwareTarget,omitempty"`
@@ -155,20 +155,20 @@ type Router struct {
 	// Type: "glinet"|"openwrt"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
-	Type string `json:"type,omitempty"`
-	Status     string    `json:"status"`             // "online"|"warn"|"offline"|"unreachable"
-	Health     int       `json:"health"`
+	Type   string `json:"type,omitempty"`
+	Status string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
+	Health int    `json:"health"`
 	// AccessMissing: el router responde pero el acceso SSH/ubus no está
 	// configurado (clave del servidor no autorizada) — issue #257. La UI lo
 	// pinta como "sin acceso" en vez de "offline" (config issue, no power).
-	AccessMissing bool `json:"accessMissing,omitempty"`
-	CPU        *int      `json:"cpu"`
-	RAM        *int      `json:"ram"`
-	Temp       *int      `json:"temp"`
-	Uptime     string    `json:"uptime"` // "<d>d <h>h" | "—"
-	Clients    int       `json:"clients"`
-	HotMetric  string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65
-	Sparkline  []float64 `json:"sparkline"`
+	AccessMissing bool      `json:"accessMissing,omitempty"`
+	CPU           *int      `json:"cpu"`
+	RAM           *int      `json:"ram"`
+	Temp          *int      `json:"temp"`
+	Uptime        string    `json:"uptime"` // "<d>d <h>h" | "—"
+	Clients       int       `json:"clients"`
+	HotMetric     string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65
+	Sparkline     []float64 `json:"sparkline"`
 	// Backhaul: medio del uplink del router ("cable"|"wifi"). Ausente =
 	// cable/desconocido (router sin wifi o sonda no disponible).
 	Backhaul string `json:"backhaul,omitempty"`
@@ -231,6 +231,11 @@ type Device struct {
 	// RandomMAC: true if the MAC has the locally-administered bit set
 	// (typical of iOS/Android WiFi privacy features).
 	RandomMAC bool `json:"randomMac,omitempty"`
+	// --- tiempos / overrides ---
+	// LeaseRemaining: segundos restantes del lease DHCP (nil si no hay lease).
+	LeaseRemaining *int `json:"leaseRemaining,omitempty"`
+	// IconOverride: icono manual elegido por el usuario (issue #437).
+	IconOverride string `json:"iconOverride,omitempty"`
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname     string `json:"hostname,omitempty"`
 	DHCPLease    string `json:"dhcpLease,omitempty"`
@@ -241,7 +246,6 @@ type Device struct {
 	Group        string `json:"group,omitempty"`
 	IsNew        bool   `json:"isNew,omitempty"`
 	NewThisWeek  bool   `json:"newThisWeek,omitempty"`
-	IconOverride string `json:"iconOverride,omitempty"`
 }
 
 // LldpInfo identifica un vecino que se anuncia por LLDP (switch gestionado,
@@ -432,7 +436,7 @@ type ReanchorConfig struct {
 
 // ReanchorResponse es la respuesta de GET /api/wifi-reanchor/recommendations.
 type ReanchorResponse struct {
-	Daemon          RoamingDaemon          `json:"daemon"`
+	Daemon          RoamingDaemon            `json:"daemon"`
 	Recommendations []ReanchorRecommendation `json:"recommendations"`
 }
 
@@ -599,8 +603,8 @@ type UsteerAP struct {
 	SSID           string         `json:"ssid"`
 	BSSID          string         `json:"bssid"`
 	Hostname       string         `json:"hostname"`
-	Band           string         `json:"band"` // freq >= 5000 ? "5 GHz" : "2.4 GHz"
-	Freq           int            `json:"freq"` // MHz
+	Band           string         `json:"band"`           // freq >= 5000 ? "5 GHz" : "2.4 GHz"
+	Freq           int            `json:"freq"`           // MHz
 	UtilizationPct int            `json:"utilizationPct"` // load reportado por usteer
 	ClientCount    int            `json:"clientCount"`    // n_assoc
 	Clients        []UsteerClient `json:"clients"`
@@ -635,8 +639,8 @@ type Dot11rIface struct {
 	Ifname  string `json:"ifname"`  // wlan0, wlan1 (puede estar vacío en configs muy nuevas)
 	SSID    string `json:"ssid"`
 	MAC     string `json:"mac"`               // macaddr (BSSID del BSS)
-	Channel int   `json:"channel,omitempty"` // mapeado desde radio.channel
-	Band    string `json:"band,omitempty"`   // "2.4 GHz"|"5 GHz" desde radio.band
+	Channel int    `json:"channel,omitempty"` // mapeado desde radio.channel
+	Band    string `json:"band,omitempty"`    // "2.4 GHz"|"5 GHz" desde radio.band
 
 	Encryption string `json:"encryption,omitempty"` // psk2/sae/psk2-mixed...
 
@@ -661,9 +665,9 @@ type Dot11rIface struct {
 // Dot11rRouter es el estado 802.11r de un router: lista de ifaces wifi-iface
 // parseadas de su `uci show wireless`. Available=false si SSH falló.
 type Dot11rRouter struct {
-	RouterID  string         `json:"routerId"`
-	Name      string         `json:"name"`
-	Available bool           `json:"available"`
+	RouterID  string        `json:"routerId"`
+	Name      string        `json:"name"`
+	Available bool          `json:"available"`
 	Ifaces    []Dot11rIface `json:"ifaces"`
 }
 
@@ -685,9 +689,9 @@ type Dot11rSSID struct {
 // Dot11rOverview es la respuesta de GET /api/dot11r. Available=false si ningún
 // router tiene 802.11r (el handler devuelve 503 en ese caso, igual que /usteer).
 type Dot11rOverview struct {
-	Available  bool           `json:"available"`
-	SSIDs      []Dot11rSSID   `json:"ssids"`
-	Routers    []Dot11rRouter `json:"routers"`
+	Available bool           `json:"available"`
+	SSIDs     []Dot11rSSID   `json:"ssids"`
+	Routers   []Dot11rRouter `json:"routers"`
 	// Anomalies: problemas detectados en la configuración de roaming
 	// (mobility domain distinto, FT mode mixto, etc.; #428).
 	Anomalies []RoamingAnomaly `json:"anomalies,omitempty"`
@@ -712,25 +716,25 @@ type SurveyChannel struct {
 
 // SurveyRadio agrupa los canales survey de un device wifi (wlan0, wlan1).
 type SurveyRadio struct {
-	Device   string           `json:"device"` // wlan0, wlan1
-	Band     string           `json:"band"`   // "2.4 GHz"|"5 GHz" (inferido del primer canal)
-	Channels []SurveyChannel  `json:"channels"`
+	Device   string          `json:"device"` // wlan0, wlan1
+	Band     string          `json:"band"`   // "2.4 GHz"|"5 GHz" (inferido del primer canal)
+	Channels []SurveyChannel `json:"channels"`
 }
 
 // SurveyRouter es el survey de un router: lista de radios wifi-iface.
 // Available=false si SSH falló.
 type SurveyRouter struct {
-	RouterID  string         `json:"routerId"`
-	Name      string         `json:"name"`
-	Available bool           `json:"available"`
-	Radios    []SurveyRadio  `json:"radios"`
+	RouterID  string        `json:"routerId"`
+	Name      string        `json:"name"`
+	Available bool          `json:"available"`
+	Radios    []SurveyRadio `json:"radios"`
 }
 
 // SurveyOverview es la respuesta de GET /api/survey. Available=false si
 // ningún router responde → el handler devuelve 503.
 type SurveyOverview struct {
-	Available bool            `json:"available"`
-	Routers   []SurveyRouter  `json:"routers"`
+	Available bool           `json:"available"`
+	Routers   []SurveyRouter `json:"routers"`
 }
 
 // AdguardClient es un cliente configurado en AdGuard GL.iNet (§2.13).
@@ -773,10 +777,10 @@ type RouterConfig struct {
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
 	// SnmpEnabled activa el poller SNMP; Community es la comunidad SNMPv2c
 	// ("" = "public"); Port es el puerto UDP (0 = 161 por defecto).
-	SnmpEnabled       bool `json:"snmp_enabled"`
-	SnmpCommunity     string `json:"snmp_community,omitempty"`
-	SnmpPort          int    `json:"snmp_port,omitempty"`
-	SnmpPollInterval  int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	SnmpEnabled      bool   `json:"snmp_enabled"`
+	SnmpCommunity    string `json:"snmp_community,omitempty"`
+	SnmpPort         int    `json:"snmp_port,omitempty"`
+	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
 }
 
 // ---------------------------------------------------------------------------

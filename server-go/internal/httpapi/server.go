@@ -177,7 +177,7 @@ func NewHandler(d Deps) http.Handler {
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
-		agentHub:    d.AgentHub,
+		agentHub:        d.AgentHub,
 		serverFP:        d.ServerFP,
 		ingestLimit:     newIPRateLimit(ingestRateLimit, ingestRateWindow),
 		upgrades:        newUpgradeTracker(),
@@ -243,6 +243,16 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/routers", s.handleRouters)
 	mux.HandleFunc("GET /api/routers/{id}", s.handleRouterDetail)
 	mux.HandleFunc("GET /api/devices", s.handleDevices)
+	mux.Handle("PUT /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverridePut)))
+	mux.Handle("GET /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverrideGet)))
+	mux.Handle("PUT /api/devices/{mac}/ban", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBanPut)))
+	// Reserva DHCP y bloqueo de dispositivo (issue #439).
+	mux.Handle("GET /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationGet)))
+	mux.Handle("PUT /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationPut)))
+	mux.Handle("DELETE /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationDelete)))
+	mux.Handle("GET /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockGet)))
+	mux.Handle("PUT /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockPut)))
+	mux.Handle("DELETE /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockDelete)))
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /api/alerts/config", s.handleAlertsConfigGet)
 	mux.HandleFunc("PUT /api/alerts/config", s.handleAlertsConfigPut)

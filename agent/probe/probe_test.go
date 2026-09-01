@@ -150,15 +150,18 @@ func TestParsePingSummary(t *testing.T) {
 }
 
 func TestParseDhcp(t *testing.T) {
-	out := "1700000000 aa:bb:cc:dd:ee:ff 192.168.8.21 imac-de-marc 01:aa:bb:cc:dd:ee:ff\n" +
-		"1700000001 11:22:33:44:55:66 192.168.8.34 * *\n"
+	out := "2000000000 aa:bb:cc:dd:ee:ff 192.168.8.21 imac-de-marc 01:aa:bb:cc:dd:ee:ff\n" +
+		"2000000001 11:22:33:44:55:66 192.168.8.34 * *\n"
 	leases := ParseDhcpLeasesFile(out)
 	if len(leases) != 2 || leases[0].MAC != "AA:BB:CC:DD:EE:FF" || leases[0].Hostname != "imac-de-marc" || leases[1].Hostname != "" {
 		t.Fatalf("leases: %+v", leases)
 	}
-	ubus := `{"lease":[{"mac":"aa:bb:cc:dd:ee:ff","ip":"192.168.8.21","hostname":"imac"}]}`
+	if leases[0].LeaseExpiresAt == nil || *leases[0].LeaseExpiresAt != 2000000000 {
+		t.Fatalf("lease expiry: %+v", leases[0].LeaseExpiresAt)
+	}
+	ubus := `{"lease":[{"mac":"aa:bb:cc:dd:ee:ff","ip":"192.168.8.21","hostname":"imac","expires":12345}]}`
 	leases, err := ParseDhcpUbus([]byte(ubus))
-	if err != nil || len(leases) != 1 || leases[0].IP != "192.168.8.21" {
+	if err != nil || len(leases) != 1 || leases[0].IP != "192.168.8.21" || leases[0].LeaseExpiresAt == nil || *leases[0].LeaseExpiresAt != 12345 {
 		t.Fatalf("ubus dhcp: %v %+v", err, leases)
 	}
 	if _, err := ParseDhcpUbus([]byte("Command failed")); err == nil {

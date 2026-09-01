@@ -13,8 +13,6 @@
  *   por id (CANON_DETAILS) o se derivan valores plausibles — nunca se
  *   inventan dispositivos que la API no ha reportado.
  */
-import type { LucideIcon } from 'lucide-react'
-import { BookOpen, Network, Printer } from 'lucide-react'
 import type { Device } from '@/data/mock'
 import { devices as canonDevices } from '@/data/mock'
 
@@ -39,8 +37,6 @@ export interface ClientDevice extends Device {
   group: FilterGroup
   /** Visto por primera vez en los últimos 7 días (stat "Nuevos (7 días)") */
   newThisWeek?: boolean
-  /** Icono lucide específico cuando el tipo genérico no basta */
-  iconOverride?: LucideIcon
 }
 
 // 'infra' primero (D6): hipervisores, CTs y switches gestionados de un vistazo.
@@ -123,9 +119,6 @@ const TYPE_TO_GROUP: Record<Device['type'], FilterGroup> = {
   desconocido: 'otros',
 }
 
-/** Iconos lucide referenciados POR NOMBRE en el canon JSON (iconOverride). */
-const ICON_BY_NAME: Record<string, LucideIcon> = { BookOpen, Network, Printer }
-
 function slug(name: string): string {
   return (
     name
@@ -137,11 +130,29 @@ function slug(name: string): string {
   )
 }
 
+/** Formatea segundos restantes del lease a "2h 15min" · "1d 4h" · "45min". */
+function formatLeaseRemaining(totalSeconds: number): string {
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days}d`)
+  if (hours > 0) parts.push(`${hours}h`)
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}min`)
+  return parts.join(' ')
+}
+
 /** Detalles por defecto para un cliente que la API reporta sin metadatos. */
 function defaultDetails(d: Device): Omit<ClientDevice, keyof Device> {
+  const leaseText =
+    d.leaseRemaining != null && d.leaseRemaining > 0
+      ? `renews in ${formatLeaseRemaining(d.leaseRemaining)}`
+      : d.leaseRemaining === 0
+        ? 'Expired'
+        : 'Static IP (reservation)'
   return {
     hostname: slug(d.name),
-    dhcpLease: d.online ? 'renews in 12h 0min' : 'Expired',
+    dhcpLease: d.online ? leaseText : 'Expired',
     firstSeen: '—',
     traffic24hRx: '—',
     traffic24hTx: '—',
@@ -159,7 +170,6 @@ interface InlineDetails {
   traffic24hTx?: string
   adguard?: boolean
   group?: FilterGroup
-  iconOverride?: string
   newThisWeek?: boolean
 }
 
@@ -176,7 +186,6 @@ function inlineDetails(d: Device): Omit<ClientDevice, keyof Device> | null {
     adguard: raw.adguard ?? true,
     group: raw.group ?? TYPE_TO_GROUP[d.type],
     newThisWeek: raw.newThisWeek,
-    iconOverride: raw.iconOverride ? ICON_BY_NAME[raw.iconOverride] : undefined,
   }
 }
 
