@@ -403,6 +403,39 @@ type UsteerOverview struct {
 	Available bool `json:"available"`
 }
 
+// ---------------------------------------------------------------------------
+// Re-anchor (issue #403)
+// ---------------------------------------------------------------------------
+
+// ReanchorRecommendation describe una sugerencia para mover un cliente WiFi
+// a un AP con mejor señal. Los campos siguen la convención del dominio:
+// señal en -dBm (más cercano a 0 = mejor).
+type ReanchorRecommendation struct {
+	MAC                 string `json:"mac"`
+	CurrentBSSID        string `json:"currentBssid"`
+	CurrentHostname     string `json:"currentHostname"`
+	CurrentIface        string `json:"currentIface"`
+	CurrentHost         string `json:"-"`
+	CurrentSignal       int    `json:"currentSignal"`
+	RecommendedBSSID    string `json:"recommendedBssid"`
+	RecommendedHostname string `json:"recommendedHostname"`
+	RecommendedIface    string `json:"recommendedIface"`
+	RecommendedSignal   int    `json:"recommendedSignal"`
+	DeltaDbm            int    `json:"deltaDbm"`
+}
+
+// ReanchorConfig contiene los umbrales de la recomendación.
+type ReanchorConfig struct {
+	MinRecommendedSignal int `json:"minRecommendedSignal"`
+	MinDeltaDbm          int `json:"minDeltaDbm"`
+}
+
+// ReanchorResponse es la respuesta de GET /api/wifi-reanchor/recommendations.
+type ReanchorResponse struct {
+	Daemon          RoamingDaemon          `json:"daemon"`
+	Recommendations []ReanchorRecommendation `json:"recommendations"`
+}
+
 // RouterDetail (GET /api/routers/:id; SPEC §7.8 y demo §7.1)
 // ---------------------------------------------------------------------------
 
@@ -522,6 +555,32 @@ type WANLatencyStats struct {
 type WGTotals struct {
 	Rx string `json:"rx"`
 	Tx string `json:"tx"`
+}
+
+// ---------------------------------------------------------------------------
+// DAWN (legacy: solo usado por el asesor de re-anclaje, issue #403)
+// ---------------------------------------------------------------------------
+
+// DawnClient es un cliente visto por un AP en el hearing map de DAWN.
+type DawnClient struct {
+	MAC    string `json:"mac"`
+	Signal int    `json:"signal"` // -dBm (ej. -65)
+	HT     bool   `json:"ht"`
+	VHT    bool   `json:"vht"`
+}
+
+// DawnAP es un punto de acceso visto por DAWN.
+type DawnAP struct {
+	SSID           string       `json:"ssid"`
+	BSSID          string       `json:"bssid"`
+	Hostname       string       `json:"hostname"`
+	Band           string       `json:"band"` // freq >= 5000 ? "5 GHz" : "2.4 GHz"
+	Channel        int          `json:"channel"`
+	UtilizationPct float64      `json:"utilizationPct"`
+	ClientCount    int          `json:"clientCount"`
+	Clients        []DawnClient `json:"clients"`
+	Local          bool         `json:"local"`
+	Iface          string       `json:"iface"`
 }
 
 // ---------------------------------------------------------------------------
@@ -769,6 +828,10 @@ type Snapshotter interface {
 	// KickUsteerClient desconecta un cliente de su AP usteer actual.
 	// Devuelve error si no se encuentra o falla el comando hostapd.
 	KickUsteerClient(ctx context.Context, mac string) error
+	// GetReanchorRecommendations devuelve recomendaciones de re-anclaje WiFi
+	// basadas en usteer (preferido) o DAWN, o (slice vacío, "none", nil) si
+	// ningún daemon está disponible.
+	GetReanchorRecommendations(ctx context.Context, cfg ReanchorConfig) ([]ReanchorRecommendation, RoamingDaemon, error)
 	// GetDot11r devuelve el estado 802.11r (FT) por router y SSID, o
 	// (nil, nil) si ningún router lo soporta → el handler responde 503.
 	GetDot11r(ctx context.Context) (*Dot11rOverview, error)

@@ -437,7 +437,27 @@
       "title": "DAWN is deprecated",
       "body": "NetPulse has detected DAWN on at least one router. DAWN still works, but it is no longer recommended. Consider migrating to usteer for more stable roaming and lower maintenance.",
       "link": "See issue #426 for migration steps"
-    }
+    },
+    "reanchor": {
+      "title": "Manual re-anchor",
+      "description": "WiFi clients that would be better served by another AP according to the hearing map. The action kicks the client off the current AP so it can pick another.",
+      "loading": "Analysing WiFi location…",
+      "error": "Could not compute re-anchor. Check that usteer or DAWN are active and reachable.",
+      "noApi": "Available only with a live backend.",
+      "empty": "No clients are stuck on a clearly worse AP. The network looks balanced.",
+      "hint": "Devices that ignore 802.11v won't obey the daemon's suggestions. This panel suggests a better AP and forces disconnection with del_client + ban_time; the client decides where to re-associate.",
+      "source": "Data from {{daemon}}",
+      "colClient": "Client",
+      "colCurrent": "Current AP",
+      "colRecommended": "Recommended AP",
+      "colDelta": "Improvement",
+      "colAction": "Action",
+      "move": "Move",
+      "moving": "Moving…",
+      "moved": "Kicked",
+      "moveFailed": "Failed"
+    },
+    "tabReanchor": "Re-anchor"
   },
   "notFound": {
     "construction": "This page is under construction. The mockup will complete it in the next iteration."

@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
+import ReanchorPanel from './ReanchorPanel'
 
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/usteer (server-go/internal/adapters/types.go).
@@ -131,10 +132,10 @@ interface RoamEvent {
 }
 
 type Band = 'all' | '2.4 GHz' | '5 GHz'
-type Tab = 'matrix' | '11r' | 'survey' | 'events'
+type Tab = 'matrix' | '11r' | 'survey' | 'events' | 'reanchor'
 
 /** Orden estable de pestañas (issue #229: navegación por teclado). */
-const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events']
+const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events', 'reanchor']
 
 /** Clase de color por señal (-dBm): verde óptimo, ámbar aceptable, rojo límite. */
 function signalClass(s: number): string {
@@ -190,6 +191,7 @@ export default function Roaming() {
   const [spin, setSpin] = useState(false)
   const [kicking, setKicking] = useState<string | null>(null)
   const [kickError, setKickError] = useState<string | null>(null)
+  const [reanchorTick, setReanchorTick] = useState(0)
 
   // MAC → nombre (resuelto desde la lista de dispositivos del overview).
   const nameByMac = useMemo(() => {
@@ -416,6 +418,7 @@ export default function Roaming() {
     { id: '11r', label: t('roaming.tab11r'), soon: false },
     { id: 'survey', label: t('roaming.tabSurvey'), soon: false },
     { id: 'events', label: t('roaming.tabEvents'), soon: false },
+    { id: 'reanchor', label: t('roaming.tabReanchor'), soon: false },
   ]
 
   // -- pestañas WAI-ARIA (issue #229): roving tabindex + flechas + Home/End
@@ -488,6 +491,7 @@ export default function Roaming() {
               if (tab === '11r') void loadDot11r()
               if (tab === 'survey') void loadSurvey()
               if (tab === 'events') void loadEvents()
+              if (tab === 'reanchor') setReanchorTick((n) => n + 1)
               if (reduce) return
               setSpin(true)
               if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
@@ -582,6 +586,12 @@ export default function Roaming() {
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
           <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />
+        </div>
+      )}
+
+      {tab === 'reanchor' && (
+        <div role="tabpanel" id="panel-reanchor" aria-labelledby="tab-reanchor" tabIndex={0}>
+          <ReanchorPanel refreshTick={reanchorTick} />
         </div>
       )}
 
