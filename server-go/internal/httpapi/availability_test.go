@@ -105,7 +105,10 @@ func TestAvailabilityMonthAgrupaPorMes(t *testing.T) {
 // que /api/reports/weekly para los mismos datos.
 func TestAvailabilityWeekIgualQueWeekly(t *testing.T) {
 	ts := makeTestServer(t)
-	insertDaily(t, ts, "gw", "2026-08-03", 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
+	// Usar una fecha dentro de las ultimas 4 semanas para que weekly?weeks=4
+	// la incluya independientemente de la fecha actual en CI.
+	date := time.Now().UTC().AddDate(0, 0, -7).Format("2006-01-02")
+	insertDaily(t, ts, "gw", date, 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
 
 	_, wItems := getWeekly(t, ts, "4")
 	_, aItems := getAvailability(t, ts, "?range=week&n=4")
