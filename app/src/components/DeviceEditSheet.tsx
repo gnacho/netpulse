@@ -17,7 +17,7 @@ export interface DeviceEditSheetProps {
   isDemo: boolean
   saving?: boolean
   onClose: () => void
-  onSave: (device: ClientDevice, name: string | null, icon: string | null) => void
+  onSave: (device: ClientDevice, icon: string | null) => void
 }
 
 export function DeviceEditSheet({
@@ -68,8 +68,7 @@ export function DeviceEditSheet({
 
   const handleSave = () => {
     if (!device) return
-    const nextIcon = icon || null
-    onSave(device, null, nextIcon)
+    onSave(device, icon || null)
   }
 
   const selectedIconName = icon || null

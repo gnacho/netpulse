@@ -1862,19 +1862,18 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			rows.Close()
 		}
 	}
-	// issue #437: overrides manuales de dispositivo (alias, icono, bandas baneadas).
+	// issue #437: overrides manuales de dispositivo (icono, bandas baneadas).
 	type overrideInfo struct {
-		Name        string
 		Icon        string
 		BannedBands string
 	}
 	deviceOverrides := map[string]overrideInfo{}
 	if l.db != nil {
-		if rows, err := l.db.Query("SELECT mac, name, icon, banned_bands FROM device_overrides"); err == nil {
+		if rows, err := l.db.Query("SELECT mac, icon, banned_bands FROM device_overrides"); err == nil {
 			for rows.Next() {
-				var mac, name, icon, bannedBands string
-				if rows.Scan(&mac, &name, &icon, &bannedBands) == nil {
-					deviceOverrides[mac] = overrideInfo{Name: name, Icon: icon, BannedBands: bannedBands}
+				var mac, icon, bannedBands string
+				if rows.Scan(&mac, &icon, &bannedBands) == nil {
+					deviceOverrides[mac] = overrideInfo{Icon: icon, BannedBands: bannedBands}
 				}
 			}
 			rows.Close()
@@ -1943,11 +1942,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
 		}
-		// issue #437: overrides manuales (alias/icono) mandan sobre el nombre auto-descubierto.
+		// issue #437: overrides manuales (icono) se aplican sobre el dispositivo auto-descubierto.
 		if ov, ok := deviceOverrides[mac]; ok {
-			if ov.Name != "" {
-				d.Name = ov.Name
-			}
 			if ov.Icon != "" {
 				d.IconOverride = ov.Icon
 			}

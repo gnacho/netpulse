@@ -1002,10 +1002,10 @@ export default function Devices() {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const { devices, deviceTotals, isDemo, routers, distributionNodes } = useNetPulse()
-  const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { name?: string; iconOverride?: string | null }>>(() => {
+  const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string | null }>>(() => {
     try {
       const raw = localStorage.getItem('netpulse-device-overrides')
-      return raw ? (JSON.parse(raw) as Record<string, { name?: string; iconOverride?: string | null }>) : {}
+      return raw ? (JSON.parse(raw) as Record<string, { iconOverride?: string | null }>) : {}
     } catch {
       return {}
     }
@@ -1020,7 +1020,6 @@ export default function Devices() {
       const ov = deviceOverrides[d.id]
       return {
         ...d,
-        name: ov?.name ?? d.name,
         iconOverride: ov?.iconOverride ?? d.iconOverride,
       }
     })
@@ -1187,11 +1186,11 @@ export default function Devices() {
   const [savingOverride, setSavingOverride] = useState(false)
 
   const persistOverride = useCallback(
-    (id: string, patch: { name?: string; iconOverride?: string | null } | null) => {
+    (id: string, patch: { iconOverride?: string | null } | null) => {
       setDeviceOverrides((prev) => {
         const next = { ...prev }
-        if (patch && (patch.name != null || patch.iconOverride != null)) {
-          next[id] = { name: patch.name, iconOverride: patch.iconOverride }
+        if (patch && patch.iconOverride != null) {
+          next[id] = { iconOverride: patch.iconOverride }
         } else {
           delete next[id]
         }
@@ -1207,25 +1206,21 @@ export default function Devices() {
   )
 
   const handleEditSave = useCallback(
-    async (device: ClientDevice, name: string | null, iconOverride: string | null) => {
-      const nextName = name === device.name ? null : name
+    async (device: ClientDevice, iconOverride: string | null) => {
       const nextIcon = iconOverride === device.iconOverride ? null : iconOverride
-      if (nextName == null && nextIcon == null) {
+      if (nextIcon == null) {
         setEditingId(null)
         return
       }
 
-      persistOverride(device.id, { name: nextName ?? undefined, iconOverride: nextIcon ?? undefined })
+      persistOverride(device.id, { iconOverride: nextIcon ?? undefined })
 
       if (!isDemo) {
         setSavingOverride(true)
         const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/override`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: nextName,
-            icon: nextIcon,
-          }),
+          body: JSON.stringify({ icon: nextIcon }),
         })
         setSavingOverride(false)
         if (!res.ok) {

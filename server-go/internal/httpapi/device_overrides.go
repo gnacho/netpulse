@@ -1,6 +1,6 @@
 // device_overrides.go — mutaciones manuales de dispositivo (issue #437):
 //
-//	PUT /api/devices/{mac}/override → alias + icono.
+//	PUT /api/devices/{mac}/override → icono.
 //	PUT /api/devices/{mac}/ban    → bandas a bloquear/desbloquear (Fase 2).
 package httpapi
 
@@ -49,7 +49,7 @@ func validateIcon(icon string) bool {
 	return allowed[icon]
 }
 
-// handleDeviceOverridePut: body {"name":"...","icon":"..."}. Vacío borra.
+// handleDeviceOverridePut: body {"icon":"..."}. Vacío borra.
 func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request) {
 	mac := normalizeMAC(r.PathValue("mac"))
 	if mac == "" || len(mac) != 17 {
@@ -57,7 +57,6 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		Name string `json:"name"`
 		Icon string `json:"icon"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
@@ -69,14 +68,14 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	now := time.Now().UnixMilli()
-	if body.Name == "" && body.Icon == "" {
+	if body.Icon == "" {
 		_, _ = s.db.Exec("DELETE FROM device_overrides WHERE mac = ?", mac)
 	} else {
 		_, err := s.db.Exec(
-			`INSERT INTO device_overrides (mac, name, icon, banned_bands, created_at, updated_at)
-			 VALUES (?, ?, ?, '', ?, ?)
-			 ON CONFLICT(mac) DO UPDATE SET name=excluded.name, icon=excluded.icon, updated_at=excluded.updated_at`,
-			mac, body.Name, body.Icon, now, now,
+			`INSERT INTO device_overrides (mac, icon, banned_bands, created_at, updated_at)
+			 VALUES (?, ?, '', ?, ?)
+			 ON CONFLICT(mac) DO UPDATE SET icon=excluded.icon, updated_at=excluded.updated_at`,
+			mac, body.Icon, now, now,
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "db_error", err.Error())
@@ -97,15 +96,14 @@ func (s *server) handleDeviceOverrideGet(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	var name, icon, banned sql.NullString
-	row := s.db.QueryRow("SELECT name, icon, banned_bands FROM device_overrides WHERE mac = ?", mac)
-	if err := row.Scan(&name, &icon, &banned); err != nil && err != sql.ErrNoRows {
+	var icon, banned sql.NullString
+	row := s.db.QueryRow("SELECT icon, banned_bands FROM device_overrides WHERE mac = ?", mac)
+	if err := row.Scan(&icon, &banned); err != nil && err != sql.ErrNoRows {
 		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mac":         mac,
-		"name":        name.String,
 		"icon":        icon.String,
 		"bannedBands": banned.String,
 	})
