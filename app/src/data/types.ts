@@ -376,6 +376,8 @@ export interface OverviewBundle {
   topology?: TopoSemantics
   /** Disponibilidad de usteer (roaming/band-steering); ausente = no mostrar /roaming. */
   usteer?: { available: boolean }
+  /** Daemon de roaming detectado: none | dawn | usteer | both (#428). */
+  roamingDaemon?: 'none' | 'dawn' | 'usteer' | 'both'
   /** true si algún router reporta DAWN; la UI avisa de su deprecación (#426). */
   dawnDeprecated?: boolean
   /** Menú de orquestación activado por el admin (#121); ausente = oculto. */

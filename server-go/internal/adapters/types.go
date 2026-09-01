@@ -333,6 +333,26 @@ type TopoLink struct {
 	Port string `json:"port,omitempty"` // puerto físico si aplica
 }
 
+// RoamingDaemon clasifica el daemon de roaming/band-steering activo en la
+// red según lo que reportan los routers (#428).
+type RoamingDaemon string
+
+const (
+	RoamingDaemonNone   RoamingDaemon = "none"
+	RoamingDaemonDawn   RoamingDaemon = "dawn"
+	RoamingDaemonUsteer RoamingDaemon = "usteer"
+	RoamingDaemonBoth   RoamingDaemon = "both"
+)
+
+// RoamingAnomaly describe un problema detectado en la configuracion de roaming.
+// Se devuelve junto con GET /api/dot11r para pintar avisos en la pestana 802.11r.
+type RoamingAnomaly struct {
+	Kind     string `json:"kind"`
+	SSID     string `json:"ssid,omitempty"`
+	Message  string `json:"message"`
+	RouterID string `json:"routerId,omitempty"`
+}
+
 // Overview es el bundle completo (SPEC §7.8). Ts en SEGUNDOS.
 type Overview struct {
 	Health       HealthScore    `json:"health"`
@@ -365,6 +385,9 @@ type Overview struct {
 	// se mantiene activamente; la UI muestra un aviso recomendando migrar a
 	// usteer (#426).
 	DawnDeprecated bool `json:"dawnDeprecated,omitempty"`
+	// RoamingDaemon: daemon de roaming/band-steering activo detectado en la
+	// red: none, dawn, usteer o both (#428).
+	RoamingDaemon RoamingDaemon `json:"roamingDaemon,omitempty"`
 	// Orchestration: el menú de orquestación (escritura en routers) está
 	// oculto por defecto y solo se muestra si el admin lo activa en Ajustes
 	// (#121). Default false (omitempty).
@@ -600,9 +623,12 @@ type Dot11rSSID struct {
 // Dot11rOverview es la respuesta de GET /api/dot11r. Available=false si ningún
 // router tiene 802.11r (el handler devuelve 503 en ese caso, igual que /usteer).
 type Dot11rOverview struct {
-	Available bool           `json:"available"`
-	SSIDs     []Dot11rSSID   `json:"ssids"`
-	Routers   []Dot11rRouter `json:"routers"`
+	Available  bool           `json:"available"`
+	SSIDs      []Dot11rSSID   `json:"ssids"`
+	Routers    []Dot11rRouter `json:"routers"`
+	// Anomalies: problemas detectados en la configuración de roaming
+	// (mobility domain distinto, FT mode mixto, etc.; #428).
+	Anomalies []RoamingAnomaly `json:"anomalies,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

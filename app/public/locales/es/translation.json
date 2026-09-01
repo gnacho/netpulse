@@ -427,6 +427,12 @@
       "other": "Otro"
     },
     "tabsLabel": "Vistas de itinerancia",
+    "daemon": {
+      "usteer": "usteer activo",
+      "dawn": "DAWN activo",
+      "both": "DAWN + usteer activos",
+      "none": "Sin daemon de itinerancia"
+    },
     "dawnDeprecated": {
       "title": "DAWN está en desuso",
       "body": "NetPulse ha detectado DAWN en al menos un router. DAWN sigue funcionando, pero ya no se recomienda. Considera migrar a usteer para un roaming más estable y un mantenimiento menor.",

@@ -83,6 +83,8 @@ interface Dot11rOverview {
   available: boolean
   ssids: Dot11rSSID[]
   routers: Dot11rRouter[]
+  /** Anomalías detectadas en la configuración de roaming (#428). */
+  anomalies?: { kind: string; ssid?: string; message: string; routerId?: string }[]
 }
 
 // ---------------------------------------------------------------------------
@@ -141,10 +143,29 @@ function signalClass(s: number): string {
   return 'bg-danger/15 text-danger ring-danger/30'
 }
 
+/** Badge y estilo para el daemon de roaming activo (#428). */
+function roamingDaemonMeta(
+  daemon: string | undefined,
+  t: (k: string) => string,
+): { label: string; cls: string } | null {
+  switch (daemon) {
+    case 'usteer':
+      return { label: t('roaming.daemon.usteer'), cls: 'bg-accent/15 text-accent ring-accent/30' }
+    case 'dawn':
+      return { label: t('roaming.daemon.dawn'), cls: 'bg-warn/15 text-warn ring-warn/30' }
+    case 'both':
+      return { label: t('roaming.daemon.both'), cls: 'bg-danger/15 text-danger ring-danger/30' }
+    case 'none':
+      return { label: t('roaming.daemon.none'), cls: 'bg-text-muted/15 text-text-muted ring-text-muted/30' }
+    default:
+      return null
+  }
+}
+
 export default function Roaming() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { devices, isDemo, dawnDeprecated } = useNetPulse()
+  const { devices, isDemo, dawnDeprecated, roamingDaemon } = useNetPulse()
   const [tab, setTab] = useState<Tab>('matrix')
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
@@ -442,6 +463,21 @@ export default function Roaming() {
           >
             <h1 className="font-display text-h1 text-text-primary">{t('nav.roaming')}</h1>
             <p className="text-caption text-text-muted">{t('roaming.subtitle')}</p>
+            {(() => {
+              const meta = roamingDaemonMeta(roamingDaemon, t)
+              if (!meta) return null
+              return (
+                <span
+                  className={cn(
+                    'mt-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
+                    meta.cls,
+                  )}
+                >
+                  <Wifi className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {meta.label}
+                </span>
+              )
+            })()}
           </motion.div>
           <motion.button
             initial={initial}
@@ -809,6 +845,27 @@ function Dot11rPanel({
           />
         </div>
       </div>
+
+      {/* Anomalías de roaming (#428) */}
+      {(overview.anomalies?.length ?? 0) > 0 && (
+        <div className="space-y-2">
+          {overview.anomalies!.map((a, i) => (
+            <div
+              key={`${a.kind}-${a.ssid ?? ''}-${i}`}
+              className={cn(
+                'flex items-start gap-3 rounded-xl border p-4',
+                a.kind === 'ft_mode_mismatch' || a.kind === 'mobility_domain_mismatch'
+                  ? 'border-danger/30 bg-danger/10 text-text-primary'
+                  : 'border-warn/30 bg-warn/10 text-text-primary',
+              )}
+              role="status"
+            >
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warn" strokeWidth={1.75} />
+              <p className="text-sm leading-relaxed text-text-secondary">{a.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ② Tabla por SSID */}
       <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
