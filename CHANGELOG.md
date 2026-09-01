@@ -6,11 +6,12 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 <<<<<<< HEAD
-## [Unreleased]
+## [2.23.5] - 2026-09-01
 
 ### Fixed
 
 - **El updater ahora protege claves SSH, known_hosts y base de datos durante las actualizaciones (#425)**: `deploy/update.sh` hace copia de seguridad de `data/.ssh/` y de la BD antes de `git reset --hard`; restaura `.ssh/` si git lo elimino; conserva el binario anterior como `.prev` hasta pasar un healthcheck post-reinicio; si el servidor no ve routers/agentes, aplica rollback al binario, claves y BD anteriores y reinicia. Ademas, `sshkey.EnsureKeypair` restaura el ultimo backup disponible si el par de claves desaparece, evitando regeneraciones accidentales.
+- **Falso positivo de ghost port tras reinicio del servidor (#405, #406)**: `PortMonitor` inicializa el estado de un puerto desconocido con el trafico observado en la primera muestra, por lo que un contador constante > 0 tras un reinicio ya no se interpreta como "se callo".
 
 ## [2.23.4] - 2026-09-01
 
