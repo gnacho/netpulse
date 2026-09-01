@@ -248,13 +248,55 @@ func TestParsePortsYLayout(t *testing.T) {
 	}
 	// AP en bridge: wan en br-lan → se re-etiqueta LAN 5
 	ports := BuildEthPorts(layout, states, map[string]bool{"wan": true}, nil)
-	if len(ports) != 5 || ports[0].Label != "LAN 5" {
+	if len(ports) != 6 || ports[0].Label != "LAN 5" {
 		t.Fatalf("ethports bridge: %+v", ports)
 	}
-	// Sin layout: fallback heurístico
-	ports = BuildEthPorts(nil, ParsePortStates("lan2 up 1000\nlan10 up 100\nwan down -1\n"), nil, nil)
-	if len(ports) != 3 || ports[0].ID != "wan" || ports[1].ID != "lan2" || ports[2].ID != "lan10" {
-		t.Fatalf("ethports fallback: %+v", ports)
+	foundBridge := map[string]bool{}
+	for _, p := range ports {
+		foundBridge[p.ID] = true
+	}
+	if !foundBridge["eth0"] {
+		t.Fatalf("ethports bridge sin eth0 extra: %+v", ports)
+	}
+	// Sin layout: fallback heurístico + interfaces físicas no cubiertas (#413/#416)
+	ports = BuildEthPorts(nil, ParsePortStates("lan2 up 1000\nlan10 up 100\nwan down -1\neth0 up 2500\n"), nil, nil)
+	fallbackIDs := map[string]int{}
+	for i, p := range ports {
+		fallbackIDs[p.ID] = i
+	}
+	if len(fallbackIDs) != 4 {
+		t.Fatalf("ethports fallback count: %+v", ports)
+	}
+	for _, id := range []string{"wan", "lan2", "lan10", "eth0"} {
+		if _, ok := fallbackIDs[id]; !ok {
+			t.Fatalf("falta puerto %s: %+v", id, ports)
+		}
+	}
+	if fallbackIDs["wan"] != 0 {
+		t.Fatalf("wan no es el primero: %+v", ports)
+	}
+
+	// Con layout: eth0 no está en board.json pero sí en /sys → se añade al final.
+	ports = BuildEthPorts(layout, []PortState{
+		{Name: "wan", Up: true, Speed: "1 Gbps"},
+		{Name: "lan1", Up: true, Speed: "1 Gbps"},
+		{Name: "lan2", Up: true, Speed: "1 Gbps"},
+		{Name: "lan3", Up: true, Speed: "1 Gbps"},
+		{Name: "lan4", Up: true, Speed: "1 Gbps"},
+		{Name: "eth0", Up: true, Speed: "2.5 Gbps"},
+		{Name: "sfp0", Up: true, Speed: "10 Gbps"},
+	}, nil, nil)
+	if len(ports) != 7 {
+		t.Fatalf("layout + extras: %d ports, %+v", len(ports), ports)
+	}
+	found := map[string]bool{}
+	for _, p := range ports {
+		found[p.ID] = true
+	}
+	for _, id := range []string{"wan", "lan1", "lan2", "lan3", "lan4", "eth0", "sfp0"} {
+		if !found[id] {
+			t.Fatalf("falta puerto %s: %+v", id, ports)
+		}
 	}
 }
 

@@ -670,6 +670,10 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 	for _, p := range states {
 		byName[p.Name] = p
 	}
+
+	used := map[string]bool{}
+	ports := make([]EthPort, 0, len(states))
+
 	if len(layout) > 0 {
 		lanCount := 0
 		for _, p := range layout {
@@ -677,7 +681,6 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 				lanCount++
 			}
 		}
-		ports := make([]EthPort, 0, len(layout))
 		for _, p := range layout {
 			st, ok := byName[p.Name]
 			up := ok && st.Up
@@ -691,44 +694,82 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			}
 			applyStats(&ep, p.Name)
 			ports = append(ports, ep)
+			used[p.Name] = true
 		}
-		return ports
-	}
-	// Fallback sin config
-	lanRe := regexp.MustCompile(`^lan\d+$`)
-	lans := []PortState{}
-	for _, p := range states {
-		if lanRe.MatchString(p.Name) {
-			lans = append(lans, p)
+	} else {
+		// Fallback sin config
+		lanRe := regexp.MustCompile(`^lan\d+$`)
+		lans := []PortState{}
+		for _, p := range states {
+			if lanRe.MatchString(p.Name) {
+				lans = append(lans, p)
+			}
+		}
+		sort.Slice(lans, func(i, j int) bool { return NaturalLess(lans[i].Name, lans[j].Name) })
+		for _, p := range lans {
+			ep := EthPort{ID: p.Name, Label: strings.Replace(p.Name, "lan", "LAN ", 1), Up: p.Up}
+			if p.Up {
+				ep.Speed = p.Speed
+			}
+			applyStats(&ep, p.Name)
+			ports = append(ports, ep)
+			used[p.Name] = true
+		}
+		wanName := ""
+		if _, ok := byName["wan"]; ok {
+			wanName = "wan"
+		} else if _, ok := byName["pppoe-wan"]; ok {
+			wanName = "eth1"
+		} else if _, ok := byName["eth1"]; ok {
+			wanName = "eth1"
+		}
+		if wanName != "" {
+			st := byName[wanName]
+			ep := EthPort{ID: "wan", Label: "WAN", Up: st.Up}
+			if st.Up {
+				ep.Speed = st.Speed
+			}
+			applyStats(&ep, wanName)
+			ports = append([]EthPort{ep}, ports...)
+			used[wanName] = true
 		}
 	}
-	sort.Slice(lans, func(i, j int) bool { return NaturalLess(lans[i].Name, lans[j].Name) })
-	ports := make([]EthPort, 0, len(lans)+1)
-	for _, p := range lans {
-		ep := EthPort{ID: p.Name, Label: strings.Replace(p.Name, "lan", "LAN ", 1), Up: p.Up}
-		if p.Up {
-			ep.Speed = p.Speed
+
+	// Mejora #413/#416: añadir interfaces físicas que no estén ya cubiertas
+	// por el layout/fallback (p. ej. eth0, sfp+ en BPI-R4/UniFi).
+	phyRe := regexp.MustCompile(`^(eth|sfp|en|swp)[0-9a-zA-Z_\-]*$|^(lan|wan)[0-9]+$`)
+	skipRe := regexp.MustCompile(`^(lo|br[-_]?|br-lan|br0|docker|veth|wg|tun|tap|ifb|pppoe|wlan|wpan|phy|gre|gretap|erspan|ip6tnl|sit|teql|bond|dummy|nat64|rmnet|usb|wwan)`)
+	extras := make([]EthPort, 0)
+	for _, st := range states {
+		if used[st.Name] {
+			continue
 		}
-		applyStats(&ep, p.Name)
-		ports = append(ports, ep)
-	}
-	wanName := ""
-	if _, ok := byName["wan"]; ok {
-		wanName = "wan"
-	} else if _, ok := byName["pppoe-wan"]; ok {
-		wanName = "eth1"
-	} else if _, ok := byName["eth1"]; ok {
-		wanName = "eth1"
-	}
-	if wanName != "" {
-		st := byName[wanName]
-		ep := EthPort{ID: "wan", Label: "WAN", Up: st.Up}
+		if skipRe.MatchString(st.Name) {
+			continue
+		}
+		if !phyRe.MatchString(st.Name) {
+			continue
+		}
+		label := st.Name
+		if strings.HasPrefix(st.Name, "eth") {
+			label = "ETH " + strings.TrimPrefix(st.Name, "eth")
+		} else if strings.HasPrefix(st.Name, "sfp") {
+			label = "SFP " + strings.TrimPrefix(st.Name, "sfp")
+		}
+		ep := EthPort{ID: st.Name, Label: label, Up: st.Up}
 		if st.Up {
 			ep.Speed = st.Speed
 		}
-		applyStats(&ep, wanName)
-		ports = append([]EthPort{ep}, ports...)
+		applyStats(&ep, st.Name)
+		extras = append(extras, ep)
+		used[st.Name] = true
 	}
+	if len(extras) > 0 {
+		sort.Slice(extras, func(i, j int) bool { return NaturalLess(extras[i].ID, extras[j].ID) })
+		// Mantener WAN primero, luego LANs, luego extras.
+		ports = append(ports, extras...)
+	}
+
 	return ports
 }
 
