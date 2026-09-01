@@ -2211,6 +2211,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// (SPEC-ALERTAS §3-4): UnreadAlerts = no leídas que pasaron config.
 	alertsCopy := l.engine.List()
 	unread := l.engine.UnreadCount()
+	usteerAvailable := l.usteerAvailableCached()
+	dawnDetected := dawnDeprecatedFromPolled(polled)
 	return &Overview{
 		Health:  computeHealth(routerList, adguard),
 		WAN:     wan,
@@ -2223,11 +2225,27 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		DistributionNodes: distNodes,
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
 		Devices:           devices,
-		Usteer:            &UsteerOverview{Available: l.usteerAvailableCached()},
-		DawnDeprecated:    dawnDeprecatedFromPolled(polled),
+		Usteer:            &UsteerOverview{Available: usteerAvailable},
+		DawnDeprecated:    dawnDetected,
+		RoamingDaemon:     classifyRoamingDaemon(usteerAvailable, dawnDetected),
 		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
+}
+
+// classifyRoamingDaemon decide que daemon de roaming esta activo en la red a
+// partir de los flags recogidos del sondeo (#428).
+func classifyRoamingDaemon(usteerAvailable, dawnDetected bool) RoamingDaemon {
+	switch {
+	case usteerAvailable && dawnDetected:
+		return RoamingDaemonBoth
+	case usteerAvailable:
+		return RoamingDaemonUsteer
+	case dawnDetected:
+		return RoamingDaemonDawn
+	default:
+		return RoamingDaemonNone
+	}
 }
 
 // dawnDeprecatedFromPolled devuelve true si algún router reporta DAWN en
@@ -3025,21 +3043,22 @@ func unquoteUci(s string) string {
 	return s
 }
 
+type dot11rIfaceRef struct {
+	routerID string
+	iface    Dot11rIface
+}
+
 // GetDot11r: estado 802.11r (Fast BSS Transition) por router y SSID. Recorre
 // los routers (saltando agent-only, que son switches sin wifi) y hace SSH
 // `uci show wireless` a cada uno. Devuelve (nil, nil) si ningún router con
-// wifi tiene 802.11r habilitado → el handler responde 503.
+// wifi tiene 802.11r habilitado -> el handler responde 503.
 func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
 	l.mu.Unlock()
 
 	out := Dot11rOverview{Routers: []Dot11rRouter{}, SSIDs: []Dot11rSSID{}}
-	type ifaceRef struct {
-		routerID string
-		iface    Dot11rIface
-	}
-	ssidIfaces := map[string][]ifaceRef{}
+	ssidIfaces := map[string][]dot11rIfaceRef{}
 
 	for _, cfg := range routers {
 		name := cfg.Name
@@ -3065,7 +3084,7 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 			if ifc.SSID == "" {
 				continue
 			}
-			ssidIfaces[ifc.SSID] = append(ssidIfaces[ifc.SSID], ifaceRef{routerID: cfg.ID, iface: ifc})
+			ssidIfaces[ifc.SSID] = append(ssidIfaces[ifc.SSID], dot11rIfaceRef{routerID: cfg.ID, iface: ifc})
 		}
 	}
 
@@ -3117,7 +3136,73 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 	if !out.Available {
 		return nil, nil
 	}
+	out.Anomalies = buildRoamingAnomalies(ssidIfaces)
 	return &out, nil
+}
+
+// buildRoamingAnomalies detecta problemas de configuración de roaming a partir
+// de las interfaces wifi-iface agrupadas por SSID (#428).
+func buildRoamingAnomalies(ssidIfaces map[string][]dot11rIfaceRef) []RoamingAnomaly {
+	var anomalies []RoamingAnomaly
+	for ssid, refs := range ssidIfaces {
+		// Solo consideramos interfaces con 802.11r habilitado para las
+		// comprobaciones de consistencia.
+		enabled := make([]dot11rIfaceRef, 0, len(refs))
+		for _, ref := range refs {
+			if ref.iface.Dot11REnabled {
+				enabled = append(enabled, ref)
+			}
+		}
+		if len(enabled) == 0 {
+			continue
+		}
+
+		// 802.11r parcial: algunas interfaces del SSID lo tienen y otras no.
+		if len(enabled) < len(refs) {
+			anomalies = append(anomalies, RoamingAnomaly{
+				Kind:    "partial_11r",
+				SSID:    ssid,
+				Message: fmt.Sprintf("802.11r habilitado solo en %d de %d interfaces del SSID %q", len(enabled), len(refs), ssid),
+			})
+		}
+
+		// Mobility domain inconsistente.
+		md := ""
+		mdOk := true
+		for _, ref := range enabled {
+			if md == "" {
+				md = ref.iface.MobilityDomain
+			} else if ref.iface.MobilityDomain != "" && ref.iface.MobilityDomain != md {
+				mdOk = false
+				break
+			}
+		}
+		if !mdOk {
+			anomalies = append(anomalies, RoamingAnomaly{
+				Kind:    "mobility_domain_mismatch",
+				SSID:    ssid,
+				Message: fmt.Sprintf("Mobility domain distinto entre routers para el SSID %q", ssid),
+			})
+		}
+
+		// FT mode inconsistente.
+		ftOverDS := enabled[0].iface.FTOverDS
+		ftMixed := false
+		for _, ref := range enabled[1:] {
+			if ref.iface.FTOverDS != ftOverDS {
+				ftMixed = true
+				break
+			}
+		}
+		if ftMixed {
+			anomalies = append(anomalies, RoamingAnomaly{
+				Kind:    "ft_mode_mismatch",
+				SSID:    ssid,
+				Message: fmt.Sprintf("Modo FT mixto (over-the-DS / over-the-air) para el SSID %q", ssid),
+			})
+		}
+	}
+	return anomalies
 }
 
 // ---------------------------------------------------------------------------

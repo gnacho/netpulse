@@ -427,6 +427,12 @@
       "other": "Other"
     },
     "tabsLabel": "Roaming views",
+    "daemon": {
+      "usteer": "usteer active",
+      "dawn": "DAWN active",
+      "both": "DAWN + usteer active",
+      "none": "No roaming daemon"
+    },
     "dawnDeprecated": {
       "title": "DAWN is deprecated",
       "body": "NetPulse has detected DAWN on at least one router. DAWN still works, but it is no longer recommended. Consider migrating to usteer for more stable roaming and lower maintenance.",
