@@ -144,7 +144,7 @@ function signalClass(s: number): string {
 export default function Roaming() {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { devices, isDemo } = useNetPulse()
+  const { devices, isDemo, dawnDeprecated } = useNetPulse()
   const [tab, setTab] = useState<Tab>('matrix')
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
@@ -467,6 +467,33 @@ export default function Roaming() {
           </motion.button>
         </div>
       </header>
+
+      {/* Banner de deprecación de DAWN (#426). Solo aparece cuando el backend
+          detecta al menos un router con DAWN en uso. */}
+      {dawnDeprecated && (
+        <motion.div
+          initial={initial}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut', delay: 0.04 }}
+          className="flex items-start gap-3 rounded-xl border border-warn/30 bg-warn/10 p-4 text-text-primary"
+          role="status"
+          aria-live="polite"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warn" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-medium">{t('roaming.dawnDeprecated.title')}</p>
+            <p className="text-sm leading-relaxed text-text-secondary">{t('roaming.dawnDeprecated.body')}</p>
+            <a
+              href="https://github.com/gnacho/netpulse/issues/426"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block text-sm font-medium text-warn hover:underline"
+            >
+              {t('roaming.dawnDeprecated.link')}
+            </a>
+          </div>
+        </motion.div>
+      )}
 
       {/* ② Pestañas */}
       <div

@@ -105,6 +105,8 @@ export interface NetPulseData {
   topology?: TopoSemantics
   /** Disponibilidad de usteer (roaming); ausente = no mostrar /roaming. */
   usteer?: { available: boolean }
+  /** true si algún router reporta DAWN; la UI avisa de su deprecación (#426). */
+  dawnDeprecated?: boolean
   /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
   orchestration?: boolean
 }
@@ -470,6 +472,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       vm,
       topology: o.topology,
       usteer: o.usteer,
+      dawnDeprecated: o.dawnDeprecated,
       orchestration: o.orchestration,
       ...(o.devices ? { devices: o.devices } : {}),
     }))

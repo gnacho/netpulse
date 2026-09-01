@@ -361,6 +361,10 @@ type Overview struct {
 	// la app muestra la entrada /roaming. Puntero: ausente en snapshots viejos y
 	// cuando ningún router tiene usteer → nil = no mostrar la página.
 	Usteer *UsteerOverview `json:"usteer,omitempty"`
+	// DawnDeprecated: true si algún router sigue reportando DAWN. DAWN ya no
+	// se mantiene activamente; la UI muestra un aviso recomendando migrar a
+	// usteer (#426).
+	DawnDeprecated bool `json:"dawnDeprecated,omitempty"`
 	// Orchestration: el menú de orquestación (escritura en routers) está
 	// oculto por defecto y solo se muestra si el admin lo activa en Ajustes
 	// (#121). Default false (omitempty).

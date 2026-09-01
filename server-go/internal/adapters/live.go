@@ -134,6 +134,9 @@ type routerPolled struct {
 	// discovery: mDNS services + randomized MACs (#338). nil = sin datos
 	// (umdns no instalado o sonda fallida).
 	discovery *probe.DiscoveryData
+	// dawnDetected: el agente reportó una sección DAWN en el payload. Se
+	// usa para mostrar el aviso de deprecación (#426).
+	dawnDetected bool
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -2208,6 +2211,13 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// (SPEC-ALERTAS §3-4): UnreadAlerts = no leídas que pasaron config.
 	alertsCopy := l.engine.List()
 	unread := l.engine.UnreadCount()
+	dawnDeprecated := false
+	for _, p := range polled {
+		if p.dawnDetected {
+			dawnDeprecated = true
+			break
+		}
+	}
 	return &Overview{
 		Health:  computeHealth(routerList, adguard),
 		WAN:     wan,
@@ -2221,6 +2231,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes), // SPEC-65 D65-3
 		Devices:           devices,
 		Usteer:            &UsteerOverview{Available: l.usteerAvailableCached()},
+		DawnDeprecated:    dawnDeprecated,
 		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
