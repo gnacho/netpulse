@@ -437,7 +437,27 @@
       "title": "DAWN está en desuso",
       "body": "NetPulse ha detectado DAWN en al menos un router. DAWN sigue funcionando, pero ya no se recomienda. Considera migrar a usteer para un roaming más estable y un mantenimiento menor.",
       "link": "Ver issue #426 con los pasos de migración"
-    }
+    },
+    "reanchor": {
+      "title": "Re-anclaje manual",
+      "description": "Clientes WiFi que estarían mejor en otro AP según el hearing map. La acción expulsa al cliente del AP actual para que elija otro.",
+      "loading": "Analizando ubicación WiFi…",
+      "error": "No se pudo calcular el re-anclaje. Comprueba que usteer o DAWN están activos y accesibles.",
+      "noApi": "Disponible solo con backend en vivo.",
+      "empty": "No hay clientes anclados en un AP claramente peor. La red está bien repartida.",
+      "hint": "Los dispositivos que ignoran 802.11v no obedecen las sugerencias del daemon. Aquí se sugiere un AP mejor y se fuerza la desconexión con del_client + ban_time; el cliente decide a dónde reasociarse.",
+      "source": "Datos de {{daemon}}",
+      "colClient": "Cliente",
+      "colCurrent": "AP actual",
+      "colRecommended": "AP recomendado",
+      "colDelta": "Mejora",
+      "colAction": "Acción",
+      "move": "Mover",
+      "moving": "Moviendo…",
+      "moved": "Expulsado",
+      "moveFailed": "Fallo"
+    },
+    "tabReanchor": "Reanclar"
   },
   "notFound": {
     "construction": "Esta página está en construcción. El mockup la completará en la siguiente iteración."

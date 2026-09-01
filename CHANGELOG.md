@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.24.0] - 2026-09-01
+
+### Added
+
+- **Asesor de re-anclaje WiFi (#403)**: nuevo panel "Reanclar" en `/roaming` que lista clientes conectados a un AP subóptimo y sugiere un AP mejor según el hearing map. Soporta usteer (preferido) y DAWN como fallback. Incluye endpoints `/api/wifi-reanchor/recommendations` y `/api/wifi-reanchor/{mac}/move`, y ejecuta `del_client` con `ban_time` al aprobar el movimiento.
+
 ## [2.23.6] - 2026-09-01
 
 ### Added

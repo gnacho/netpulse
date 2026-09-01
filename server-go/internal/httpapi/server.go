@@ -49,7 +49,7 @@ import (
 // Version es la versión del backend (app.js:18). Es una var (no const) para
 // que goreleaser la inyecte con -X httpapi.Version={{.Version}} y el health
 // reporte la versión del tag; los builds locales caen al fallback.
-var Version = "2.23.6"
+var Version = "2.24.0"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
@@ -270,6 +270,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/topology", s.handleTopology)
 	mux.HandleFunc("GET /api/usteer", s.handleUsteer)
 	mux.HandleFunc("POST /api/usteer/{mac}/kick", s.handleUsteerKick)
+	s.registerReanchorRoutes(mux)
 	mux.HandleFunc("GET /api/dot11r", s.handleDot11r)
 	mux.HandleFunc("GET /api/survey", s.handleSurvey)
 	mux.HandleFunc("GET /api/roam-events", s.handleRoamEvents)

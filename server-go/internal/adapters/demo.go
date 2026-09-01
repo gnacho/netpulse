@@ -191,6 +191,11 @@ func (d *Demo) GetUsteer(context.Context) (*Usteer, error) { return nil, nil }
 // KickUsteerClient no-op en demo.
 func (d *Demo) KickUsteerClient(context.Context, string) error { return errors.New("not available in demo") }
 
+// GetReanchorRecommendations no-op en demo.
+func (d *Demo) GetReanchorRecommendations(context.Context, ReanchorConfig) ([]ReanchorRecommendation, RoamingDaemon, error) {
+	return []ReanchorRecommendation{}, RoamingDaemonNone, nil
+}
+
 func (d *Demo) GetDot11r(context.Context) (*Dot11rOverview, error) { return nil, nil }
 
 func (d *Demo) GetSurvey(context.Context) (*SurveyOverview, error) { return nil, nil }

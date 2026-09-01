@@ -464,3 +464,21 @@ export interface AlertQuery {
   page?: number
   pageSize?: number
 }
+
+export interface ReanchorRecommendation {
+  mac: string
+  currentBssid: string
+  currentHostname: string
+  currentIface: string
+  currentSignal: number
+  recommendedBssid: string
+  recommendedHostname: string
+  recommendedIface: string
+  recommendedSignal: number
+  deltaDbm: number
+}
+
+export interface ReanchorResponse {
+  daemon: 'none' | 'dawn' | 'usteer' | 'both'
+  recommendations: ReanchorRecommendation[]
+}
