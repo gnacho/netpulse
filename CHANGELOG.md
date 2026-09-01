@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.23.3] - 2026-09-01
+
+### Changed
+
+- **Migracion del daemon de roaming de DAWN a usteer (#410)**: el backend, agente y frontend ahora usan usteer, el daemon oficial de OpenWrt para client steering. Reemplaza las sondas DAWN por `local_info`, `remote_info` y `connected_clients` de usteer; actualiza las vistas `/roaming` y `/orchestration` y los textos i18n ES/EN; renombra `DawnPanel` a `UsteerPanel` y elimina helpers y tests de DAWN obsoletos.
+
 ## [2.23.1] - 2026-09-01
 
 ### Fixed
