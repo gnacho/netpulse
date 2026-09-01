@@ -237,6 +237,17 @@ CREATE TABLE IF NOT EXISTS update_history (
 );
 CREATE INDEX IF NOT EXISTS idx_update_history_ts ON update_history(ts DESC);
 
+-- Overrides manuales de dispositivo (issue #437): alias, icono y estado de
+-- bloqueo por banda. La clave es la MAC normalizada (minúsculas, ':').
+CREATE TABLE IF NOT EXISTS device_overrides (
+  mac         TEXT PRIMARY KEY,
+  name        TEXT,
+  icon        TEXT,
+  banned_bands TEXT NOT NULL DEFAULT '', -- lista separada por comas: '2.4,5,6'
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
 -- Per-port time series (issue #302): raw (7d) -> 5m (1y) -> daily (forever).
 CREATE TABLE IF NOT EXISTS port_series_raw (
   router_id TEXT NOT NULL,
@@ -295,7 +306,6 @@ CREATE TABLE IF NOT EXISTS port_series_daily (
   PRIMARY KEY (router_id, port_id, date)
 );
 `
-
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
 type DB struct {

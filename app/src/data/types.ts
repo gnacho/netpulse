@@ -202,6 +202,10 @@ export interface Device {
    * puede seguir infiriendo como fallback para datos viejos, B2).
    */
   infra?: DeviceInfra
+  /** Segundos restantes del lease DHCP (issue #437). */
+  leaseRemaining?: number | null
+  /** Nombre del icono manual elegido por el usuario (issue #437). */
+  iconOverride?: string
 }
 
 /**

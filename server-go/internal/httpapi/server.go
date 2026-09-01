@@ -177,7 +177,7 @@ func NewHandler(d Deps) http.Handler {
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
 		secret: d.Secret, agents: d.Agents, pool: d.Pool,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
-		agentHub:    d.AgentHub,
+		agentHub:        d.AgentHub,
 		serverFP:        d.ServerFP,
 		ingestLimit:     newIPRateLimit(ingestRateLimit, ingestRateWindow),
 		upgrades:        newUpgradeTracker(),
@@ -243,6 +243,9 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/routers", s.handleRouters)
 	mux.HandleFunc("GET /api/routers/{id}", s.handleRouterDetail)
 	mux.HandleFunc("GET /api/devices", s.handleDevices)
+	mux.Handle("PUT /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverridePut)))
+	mux.Handle("GET /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverrideGet)))
+	mux.Handle("PUT /api/devices/{mac}/ban", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBanPut)))
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /api/alerts/config", s.handleAlertsConfigGet)
 	mux.HandleFunc("PUT /api/alerts/config", s.handleAlertsConfigPut)

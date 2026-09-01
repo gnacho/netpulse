@@ -216,13 +216,13 @@ type Live struct {
 	// en la tabla metrics, para evitar filas duplicadas cuando se reutiliza el
 	// snapshot cacheado de un router SNMP.
 	snmpLastMetricsTick map[string]int64
-	lastPolled  map[string]*routerPolled
-	failCount   map[string]int
-	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
-	engine      *alerts.Engine
-	wgActive    map[string]bool
-	weakAlerted map[string]int64
-	onlineMacs  map[string]bool
+	lastPolled          map[string]*routerPolled
+	failCount           map[string]int
+	lastErr             map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
+	engine              *alerts.Engine
+	wgActive            map[string]bool
+	weakAlerted         map[string]int64
+	onlineMacs          map[string]bool
 	// unknownGrace: ticks consecutivos online+sin nombre (Name == MAC) por
 	// MAC. unknownAlerted: MACs que ya dispararon la alerta de desconocido
 	// (issue #248, persistido en kv: cada MAC alerta UNA sola vez).
@@ -245,11 +245,11 @@ type Live struct {
 	usteerAvailable bool
 	usteerCheckedAt time.Time
 	usteerChecking  bool
-	seenOnlineMacs bool
-	wanDown        map[string]int
-	backhaulCache  map[string]backhaulCacheEntry
-	lldpCache      map[string]lldpCacheEntry
-	wanInfoCache   map[string]wanInfoCacheEntry
+	seenOnlineMacs  bool
+	wanDown         map[string]int
+	backhaulCache   map[string]backhaulCacheEntry
+	lldpCache       map[string]lldpCacheEntry
+	wanInfoCache    map[string]wanInfoCacheEntry
 
 	// Agentes nativos (Tier 2): último payload por slug + flag de caída
 	// (degradado a SSH tras emitir la alerta, SPEC-AGENTE-PILOTO §1).
@@ -338,7 +338,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
 		portMon:              NewPortMonitor(cfg != nil && cfg.GhostPortEnabled),
-		suppression:         alerts.NewSuppressionGraph(),
+		suppression:          alerts.NewSuppressionGraph(),
 	}
 	l.loadRouterMacs()
 	l.engine.SetSuppression(l.suppression)
@@ -1862,6 +1862,24 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			rows.Close()
 		}
 	}
+	// issue #437: overrides manuales de dispositivo (alias, icono, bandas baneadas).
+	type overrideInfo struct {
+		Name        string
+		Icon        string
+		BannedBands string
+	}
+	deviceOverrides := map[string]overrideInfo{}
+	if l.db != nil {
+		if rows, err := l.db.Query("SELECT mac, name, icon, banned_bands FROM device_overrides"); err == nil {
+			for rows.Next() {
+				var mac, name, icon, bannedBands string
+				if rows.Scan(&mac, &name, &icon, &bannedBands) == nil {
+					deviceOverrides[mac] = overrideInfo{Name: name, Icon: icon, BannedBands: bannedBands}
+				}
+			}
+			rows.Close()
+		}
+	}
 	lldpCapsByMac := map[string]string{}
 	for _, p := range polled {
 		for _, nb := range p.lldp {
@@ -1895,28 +1913,44 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 				d.Name = mac
 			}
 			d.IP = lease.IP
+			if lease.LeaseExpiresAt != nil {
+				remaining := int(*lease.LeaseExpiresAt - now/1000)
+				if remaining < 0 {
+					remaining = 0
+				}
+				d.LeaseRemaining = &remaining
+			}
 		} else {
 			d.Name = mac
-		// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
-		// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
-		if gl, ok := glByMac[mac]; ok {
-			d.IP = gl.IP
-			if gl.Hostname != "" {
-				d.Name = gl.Hostname
+			// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
+			// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
+			if gl, ok := glByMac[mac]; ok {
+				d.IP = gl.IP
+				if gl.Hostname != "" {
+					d.Name = gl.Hostname
+				}
 			}
 		}
-	}
-	// Fallback ARP (#377): el DHCP vive en otro equipo, pero cualquier
-	// router de la flota que enrute la LAN conoce la MAC→IP.
-	if d.IP == "" {
-		if ip, ok := arpByMac[mac]; ok {
-			d.IP = ip
+		// Fallback ARP (#377): el DHCP vive en otro equipo, pero cualquier
+		// router de la flota que enrute la LAN conoce la MAC→IP.
+		if d.IP == "" {
+			if ip, ok := arpByMac[mac]; ok {
+				d.IP = ip
+			}
 		}
-	}
-	// issue #196: la allowlist manda sobre el nombre por defecto. Con
-	// alias (Name != MAC) el dispositivo deja de ser "desconocido".
+		// issue #196: la allowlist manda sobre el nombre por defecto. Con
+		// alias (Name != MAC) el dispositivo deja de ser "desconocido".
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
+		}
+		// issue #437: overrides manuales (alias/icono) mandan sobre el nombre auto-descubierto.
+		if ov, ok := deviceOverrides[mac]; ok {
+			if ov.Name != "" {
+				d.Name = ov.Name
+			}
+			if ov.Icon != "" {
+				d.IconOverride = ov.Icon
+			}
 		}
 		vendorClass := ""
 		clientID := ""

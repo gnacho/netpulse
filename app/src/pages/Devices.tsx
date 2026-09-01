@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -19,7 +19,7 @@ import {
   Wifi,
   X,
 } from 'lucide-react'
-import { DEVICE_ICONS, DeviceRow, SignalIcon } from '@/components/DeviceRow'
+import { DeviceRow, deviceIcon, SignalIcon } from '@/components/DeviceRow'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
 import { MetricBar } from '@/components/MetricBar'
@@ -40,50 +40,19 @@ import { dhcpLease, numLocale } from '@/i18n'
 import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
-import { cn } from '@/lib/utils'
+import { DeviceEditSheet } from '@/components/DeviceEditSheet'
+import { cn, fetchJson } from '@/lib/utils'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
 import type { DeviceType } from '@/data/mock'
 
-// ---------------------------------------------------------------------------
-// Rename local (única escritura de la app — devices.md §④)
-// ---------------------------------------------------------------------------
-
-const NAMES_KEY = 'netpulse-device-names'
-
-function loadRenames(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(NAMES_KEY)
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
-  } catch {
-    return {}
-  }
-}
-
-function useRenames(): [Record<string, string>, (id: string, name: string | null) => void] {
-  const [renames, setRenames] = useState<Record<string, string>>(loadRenames)
-  const setName = useCallback((id: string, name: string | null) => {
-    setRenames((prev) => {
-      const next = { ...prev }
-      if (name && name.trim()) next[id] = name.trim()
-      else delete next[id]
-      try {
-        localStorage.setItem(NAMES_KEY, JSON.stringify(next))
-      } catch {
-        /* almacenamiento no disponible: el rename vive solo en memoria */
-      }
-      return next
-    })
-  }, [])
-  return [renames, setName]
-}
 
 // ---------------------------------------------------------------------------
 // Constantes de la página
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
-type SortKey = 'name' | 'ip' | 'router' | 'band' | 'signal' | 'traffic' | 'type'
+type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'traffic' | 'type'
 
 /** Orden canónico de los tipos de dispositivo para los chips de filtro. */
 const TYPE_ORDER = [
@@ -597,26 +566,14 @@ function DetailItem({ label, children, mono }: { label: string; children: React.
 
 function DeviceDetail({
   device,
-  name,
   infra,
-  onRename,
+  onEdit,
 }: {
   device: ClientDevice
-  name: string
   infra?: InfraInfo
-  onRename: (id: string, name: string | null) => void
+  onEdit: () => void
 }) {
-  // El panel se desmonta al colapsar: el borrador siempre arranca del nombre actual
   const { t } = useTranslation()
-  const [draft, setDraft] = useState(name)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const commit = () => {
-    const value = draft.trim()
-    if (value === name) return
-    onRename(device.id, value === device.name ? null : value || null)
-  }
-
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
       <DetailItem label="MAC" mono>
@@ -649,31 +606,19 @@ function DeviceDetail({
           )}
         </DetailItem>
       )}
-      <div className="col-span-2">
-        <label htmlFor={`rename-${device.id}`} className="text-label uppercase text-text-muted">
-          {t('devices.detail.rename')}
-        </label>
-        <div className="relative mt-1 max-w-xs">
-          <Pencil className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" strokeWidth={1.75} />
-          <Input
-            id={`rename-${device.id}`}
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') inputRef.current?.blur()
-              if (e.key === 'Escape') {
-                setDraft(name)
-                inputRef.current?.blur()
-              }
-            }}
-            maxLength={40}
-            placeholder={device.name}
-            className="h-9 rounded-lg border-border bg-elevated pl-9 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent/50"
-          />
+      <div className="col-span-2 flex items-center justify-between rounded-xl border border-border bg-elevated/40 px-4 py-3">
+        <div>
+          <div className="text-label uppercase text-text-muted">{t('devices.detail.rename')}</div>
+          <p className="mt-0.5 text-caption text-text-muted">{t('devices.edit.description')}</p>
         </div>
-        <p className="mt-1 text-caption text-text-muted">{t('devices.detail.renameLocal')}</p>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+        >
+          <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {t('devices.edit.action')}
+        </button>
       </div>
     </div>
   )
@@ -712,7 +657,7 @@ function ExpandPanel({ open, children }: { open: boolean; children: React.ReactN
 
 /** Tile de icono con punto de luz si es nuevo (devices.md §④ "Nuevos") */
 function DeviceTile({ device, size = 'md' }: { device: ClientDevice; size?: 'md' | 'lg' }) {
-  const Icon = device.iconOverride ?? DEVICE_ICONS[device.type]
+  const Icon = deviceIcon(device)
   return (
     <div
       className={cn(
@@ -783,6 +728,19 @@ function SignalCell({ device }: { device: ClientDevice }) {
   )
 }
 
+function LeaseCell({ device }: { device: ClientDevice }) {
+  const { t } = useTranslation()
+  if (device.leaseRemaining == null || device.leaseRemaining <= 0) {
+    return <span className="font-mono text-mono-sm text-text-muted">—</span>
+  }
+  const days = Math.floor(device.leaseRemaining / 86400)
+  const hours = Math.floor((device.leaseRemaining % 86400) / 3600)
+  const minutes = Math.floor((device.leaseRemaining % 3600) / 60)
+  if (days > 0) return <span className="font-mono text-mono-sm text-text-secondary">{t('devices.leaseDaysHours', { days, hours })}</span>
+  if (hours > 0) return <span className="font-mono text-mono-sm text-text-secondary">{t('devices.leaseHoursMinutes', { hours, minutes })}</span>
+  return <span className="font-mono text-mono-sm text-warn">{t('devices.leaseMinutes', { minutes })}</span>
+}
+
 function TrafficCell({ device }: { device: ClientDevice }) {
   if (!device.online) return <span className="font-mono text-mono-sm text-text-muted">—</span>
   return (
@@ -796,29 +754,27 @@ function TrafficCell({ device }: { device: ClientDevice }) {
 }
 
 const ROW_GRID =
-  'md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.2fr)_minmax(0,0.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.2fr)_1.5rem]'
+  'md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.1fr)_1.5rem] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,0.55fr)_minmax(0,0.9fr)_minmax(0,0.75fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,1fr)_1.5rem]'
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
   device,
-  name,
   infra,
   expanded,
   index,
   onToggle,
   onCopyIp,
   onNavigateRouter,
-  onRename,
+  onEdit,
 }: {
   device: ClientDevice
-  name: string
   infra?: InfraInfo
   expanded: boolean
   index: number
   onToggle: () => void
   onCopyIp: (ip: string) => void
   onNavigateRouter: (id: string) => void
-  onRename: (id: string, name: string | null) => void
+  onEdit: () => void
 }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -849,11 +805,22 @@ function ListRow({
         )}
       >
         {/* Dispositivo */}
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="group flex min-w-0 items-center gap-3">
           <DeviceTile device={device} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-text-primary">{name}</span>
+              <span className="truncate text-sm font-medium text-text-primary">{device.name}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit()
+                }}
+                aria-label={t('devices.edit.action')}
+                className="rounded-md p-1 text-text-muted opacity-0 transition-colors hover:text-accent group-hover:opacity-100 focus:opacity-100"
+              >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </button>
               {device.isNew && <NewPill />}
               {infra && <InfraBadge info={infra} />}
               <TypeBadge type={device.type} className="lg:hidden" />
@@ -878,6 +845,10 @@ function ListRow({
           <span className="font-mono text-mono-sm text-text-primary">{device.ip}</span>
           <span className="font-mono text-caption text-text-muted">{device.mac}</span>
         </button>
+        {/* Tiempo restante del lease */}
+        <div className="hidden lg:block">
+          <LeaseCell device={device} />
+        </div>
         {/* Router */}
         <div className="min-w-0">
           <RouterChipLink routerId={device.routerId} onNavigate={onNavigateRouter} />
@@ -901,10 +872,10 @@ function ListRow({
       </div>
       {/* Móvil: DeviceRow compartido en card */}
       <div className={cn('md:hidden', !device.online && 'opacity-55')}>
-        <DeviceRow device={{ ...device, name }} variant="full" onClick={onToggle} />
+        <DeviceRow device={device} variant="full" onClick={onToggle} />
       </div>
       <ExpandPanel open={expanded}>
-        <DeviceDetail device={device} name={name} infra={infra} onRename={onRename} />
+        <DeviceDetail device={device} infra={infra} onEdit={onEdit} />
       </ExpandPanel>
     </motion.div>
   )
@@ -941,22 +912,20 @@ function SignalBars({ device }: { device: ClientDevice }) {
 /** Tarjeta de la vista grid (devices.md §④) */
 function GridCard({
   device,
-  name,
   infra,
   expanded,
   index,
   onToggle,
   onNavigateRouter,
-  onRename,
+  onEdit,
 }: {
   device: ClientDevice
-  name: string
   infra?: InfraInfo
   expanded: boolean
   index: number
   onToggle: () => void
   onNavigateRouter: (id: string) => void
-  onRename: (id: string, name: string | null) => void
+  onEdit: () => void
 }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -988,10 +957,23 @@ function GridCard({
       >
         <div className="flex items-start justify-between gap-2">
           <DeviceTile device={device} size="lg" />
-          {!device.online ? <StatusPill tone="muted" label={t('common.status.offline')} /> : device.isNew ? <NewPill /> : null}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
+              aria-label={t('devices.edit.action')}
+              className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-hover hover:text-accent"
+            >
+              <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </button>
+            {!device.online ? <StatusPill tone="muted" label={t('common.status.offline')} /> : device.isNew ? <NewPill /> : null}
+          </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-text-primary">{name}</span>
+          <span className="truncate text-sm font-medium text-text-primary">{device.name}</span>
           {infra && <InfraBadge info={infra} />}
           <TypeBadge type={device.type} />
         </div>
@@ -1012,7 +994,7 @@ function GridCard({
         </div>
       </div>
       <ExpandPanel open={expanded}>
-        <DeviceDetail device={device} name={name} infra={infra} onRename={onRename} />
+        <DeviceDetail device={device} infra={infra} onEdit={onEdit} />
       </ExpandPanel>
     </motion.div>
   )
@@ -1027,14 +1009,28 @@ export default function Devices() {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const { devices, deviceTotals, isDemo, routers, distributionNodes } = useNetPulse()
-  const [renames, setRename] = useRenames()
+  const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { name?: string; iconOverride?: string | null }>>(() => {
+    try {
+      const raw = localStorage.getItem('netpulse-device-overrides')
+      return raw ? (JSON.parse(raw) as Record<string, { name?: string; iconOverride?: string | null }>) : {}
+    } catch {
+      return {}
+    }
+  })
 
   // Lista enriquecida de clientes: en demo local expande el canon a los 65
   // del dataset reconciliado; en live solo fusiona metadatos conocidos sobre
   // la API. D6: los equipos de infraestructura (host hipervisor, sus CTs y
   // switches gestionados con LLDP) se reclasifican al grupo de filtro 'infra'.
   const { allDevices, infraById } = useMemo(() => {
-    const list = buildClientDevices(devices, isDemo)
+    const list = buildClientDevices(devices, isDemo).map((d) => {
+      const ov = deviceOverrides[d.id]
+      return {
+        ...d,
+        name: ov?.name ?? d.name,
+        iconOverride: ov?.iconOverride ?? d.iconOverride,
+      }
+    })
     const hosts = new Set(
       distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId).map((n) => n.hostDeviceId!),
     )
@@ -1054,7 +1050,7 @@ export default function Devices() {
     }
     if (infra.size === 0) return { allDevices: list, infraById: infra }
     return { allDevices: list.map((d) => (infra.has(d.id) ? { ...d, group: 'infra' as const } : d)), infraById: infra }
-  }, [devices, isDemo, distributionNodes])
+  }, [devices, isDemo, distributionNodes, deviceOverrides])
 
   const [searchParams] = useSearchParams()
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
@@ -1096,8 +1092,6 @@ export default function Devices() {
 
   const showToast = useCallback((msg: string) => setToast({ id: Date.now(), msg }), [])
 
-  const nameOf = useCallback((d: ClientDevice) => renames[d.id] ?? d.name, [renames])
-
   const groupCounts = useMemo(() => {
     const counts = Object.fromEntries(GROUP_ORDER.map((g) => [g, 0])) as Record<FilterGroup, number>
     for (const d of allDevices) counts[d.group]++
@@ -1124,7 +1118,7 @@ export default function Devices() {
       if (typeFilter !== 'all' && d.type !== typeFilter) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
       if (q) {
-        const hay = `${nameOf(d)} ${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
+        const hay = `${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -1136,7 +1130,7 @@ export default function Devices() {
         let c = 0
         switch (sort.key) {
           case 'name':
-            c = nameOf(a).localeCompare(nameOf(b), numLocale())
+            c = a.name.localeCompare(b.name, numLocale())
             break
           case 'ip':
             c = ipNum(a.ip) - ipNum(b.ip)
@@ -1146,6 +1140,9 @@ export default function Devices() {
             break
           case 'band':
             c = a.band.localeCompare(b.band)
+            break
+          case 'lease':
+            c = (a.leaseRemaining ?? Number.MAX_SAFE_INTEGER) - (b.leaseRemaining ?? Number.MAX_SAFE_INTEGER)
             break
           case 'signal':
             c = (a.signalDbm ?? -999) - (b.signalDbm ?? -999)
@@ -1160,7 +1157,7 @@ export default function Devices() {
         if (c !== 0) return dir * c
         // Desempate: online primero, luego nombre
         if (a.online !== b.online) return a.online ? -1 : 1
-        return nameOf(a).localeCompare(nameOf(b), numLocale())
+        return a.name.localeCompare(b.name, numLocale())
       })
     }
     // Online primero (por tráfico desc), conocidos offline al final (devices.md §④)
@@ -1168,7 +1165,7 @@ export default function Devices() {
       if (a.online !== b.online) return a.online ? -1 : 1
       return a.online ? b.trafficMbps - a.trafficMbps : a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, onlyOnline, onlyWeak, router, band, typeFilter, groups, q, nameOf, sort, routers])
+  }, [allDevices, onlyOnline, onlyWeak, router, band, typeFilter, groups, q, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1196,12 +1193,62 @@ export default function Devices() {
     [showToast, t],
   )
 
-  const handleRename = useCallback(
-    (id: string, name: string | null) => {
-      setRename(id, name)
-      showToast(t('devices.nameUpdated'))
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [savingOverride, setSavingOverride] = useState(false)
+
+  const persistOverride = useCallback(
+    (id: string, patch: { name?: string; iconOverride?: string | null } | null) => {
+      setDeviceOverrides((prev) => {
+        const next = { ...prev }
+        if (patch && (patch.name != null || patch.iconOverride != null)) {
+          next[id] = { name: patch.name, iconOverride: patch.iconOverride }
+        } else {
+          delete next[id]
+        }
+        try {
+          localStorage.setItem('netpulse-device-overrides', JSON.stringify(next))
+        } catch {
+          /* ignore */
+        }
+        return next
+      })
     },
-    [setRename, showToast, t],
+    []
+  )
+
+  const handleEditSave = useCallback(
+    async (device: ClientDevice, name: string | null, iconOverride: string | null) => {
+      const nextName = name === device.name ? null : name
+      const nextIcon = iconOverride === device.iconOverride ? null : iconOverride
+      if (nextName == null && nextIcon == null) {
+        setEditingId(null)
+        return
+      }
+
+      persistOverride(device.id, { name: nextName ?? undefined, iconOverride: nextIcon ?? undefined })
+
+      if (!isDemo) {
+        setSavingOverride(true)
+        const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/override`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: nextName,
+            icon: nextIcon,
+          }),
+        })
+        setSavingOverride(false)
+        if (!res.ok) {
+          persistOverride(device.id, null)
+          showToast(t('devices.edit.saveError'))
+          return
+        }
+      }
+
+      setEditingId(null)
+      showToast(t('devices.edit.saved'))
+    },
+    [isDemo, persistOverride, showToast, t]
   )
 
   const navigateRouter = useCallback((id: string) => navigate(`/routers/${id}`), [navigate])
@@ -1356,6 +1403,9 @@ export default function Devices() {
             <span className="hidden lg:block">
               <SortHeader label="IP / MAC" k="ip" sort={sort} onSort={toggleSort} />
             </span>
+            <span className="hidden lg:block">
+              <SortHeader label={t('devices.colLease')} k="lease" sort={sort} onSort={toggleSort} />
+            </span>
             <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />
@@ -1368,14 +1418,13 @@ export default function Devices() {
                 <ListRow
                   key={d.id}
                   device={d}
-                  name={nameOf(d)}
                   infra={infraById.get(d.id)}
                   expanded={expandedId === d.id}
                   index={i}
                   onToggle={() => setExpandedId((prev) => (prev === d.id ? null : d.id))}
                   onCopyIp={copyIp}
                   onNavigateRouter={navigateRouter}
-                  onRename={handleRename}
+                  onEdit={() => setEditingId(d.id)}
                 />
               ))}
             </AnimatePresence>
@@ -1388,18 +1437,27 @@ export default function Devices() {
               <GridCard
                 key={d.id}
                 device={d}
-                name={nameOf(d)}
                 infra={infraById.get(d.id)}
                 expanded={expandedId === d.id}
                 index={i}
                 onToggle={() => setExpandedId((prev) => (prev === d.id ? null : d.id))}
                 onNavigateRouter={navigateRouter}
-                onRename={handleRename}
+                onEdit={() => setEditingId(d.id)}
               />
             ))}
           </AnimatePresence>
         </div>
       )}
+
+      <DeviceEditSheet
+        open={editingId !== null}
+        device={filtered.find((d) => d.id === editingId) ?? null}
+        currentName={filtered.find((d) => d.id === editingId)?.name ?? ''}
+        isDemo={isDemo}
+        saving={savingOverride}
+        onClose={() => setEditingId(null)}
+        onSave={handleEditSave}
+      />
 
       <Toast toast={toast} />
     </div>

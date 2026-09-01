@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -148,13 +149,14 @@ type WanInfo struct {
 }
 
 // DhcpLease es {mac, ip, hostname} (mac en mayúsculas) + señales de huella
-// DHCP (vendor class y client-id) cuando el firmware las expone.
+// DHCP (vendor class y client-id) y expiración del lease cuando se dispone.
 type DhcpLease struct {
-	MAC         string `json:"mac"`
-	IP          string `json:"ip"`
-	Hostname    string `json:"hostname"`
-	VendorClass string `json:"vendorClass,omitempty"`
-	ClientID    string `json:"clientId,omitempty"`
+	MAC            string `json:"mac"`
+	IP             string `json:"ip"`
+	Hostname       string `json:"hostname"`
+	VendorClass    string `json:"vendorClass,omitempty"`
+	ClientID       string `json:"clientId,omitempty"`
+	LeaseExpiresAt *int64 `json:"leaseExpiresAt,omitempty"` // Unix segundos; nil si no se conoce
 }
 
 // WirelessClient es {signalDbm, band} por MAC.
@@ -405,6 +407,7 @@ func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 		Hostname string `json:"hostname"`
 		VendorID string `json:"vendorid"`
 		ClientID string `json:"clientid"`
+		Expires  int64  `json:"expires"` // segundos restantes o absoluto según firmware
 	}
 	var data struct {
 		Lease  []leaseJSON `json:"lease"`
@@ -426,7 +429,11 @@ func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 		if ip == "" {
 			ip = l.IP
 		}
-		out = append(out, DhcpLease{MAC: strings.ToUpper(l.MAC), IP: ip, Hostname: l.Hostname, VendorClass: l.VendorID, ClientID: l.ClientID})
+		lease := DhcpLease{MAC: strings.ToUpper(l.MAC), IP: ip, Hostname: l.Hostname, VendorClass: l.VendorID, ClientID: l.ClientID}
+		if l.Expires > 0 {
+			lease.LeaseExpiresAt = &l.Expires
+		}
+		out = append(out, lease)
 	}
 	return out, nil
 }
@@ -477,6 +484,7 @@ func ParseWanStatus(raw []byte) WanInfo {
 // <expiry> <mac> <ip> <hostname> <clientid>
 func ParseDhcpLeasesFile(out string) []DhcpLease {
 	leases := []DhcpLease{}
+	now := time.Now().Unix()
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		if line == "" {
 			continue
@@ -493,7 +501,11 @@ func ParseDhcpLeasesFile(out string) []DhcpLease {
 		if len(p) > 4 && p[4] != "*" {
 			clientID = p[4]
 		}
-		leases = append(leases, DhcpLease{MAC: strings.ToUpper(p[1]), IP: p[2], Hostname: hostname, ClientID: clientID})
+		var exp *int64
+		if secs, err := strconv.ParseInt(p[0], 10, 64); err == nil && secs > now {
+			exp = &secs
+		}
+		leases = append(leases, DhcpLease{MAC: strings.ToUpper(p[1]), IP: p[2], Hostname: hostname, ClientID: clientID, LeaseExpiresAt: exp})
 	}
 	return leases
 }

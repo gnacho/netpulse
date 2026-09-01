@@ -1,12 +1,17 @@
 import {
   Camera,
+  Car,
   CircuitBoard,
   Gamepad2,
+  Home,
   Laptop,
   Lightbulb,
   Monitor,
   Network,
+  Plug,
+  Printer,
   Server,
+  Shield,
   SignalHigh,
   SignalLow,
   SignalMedium,
@@ -15,6 +20,8 @@ import {
   Speaker,
   Tablet,
   Tv,
+  Watch,
+  Wifi,
   Cable,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -39,6 +46,35 @@ export const DEVICE_ICONS: Record<DeviceType, LucideIcon> = {
   servidor: Server,
   switch: Network,
   desconocido: CircuitBoard,
+}
+
+export const ICON_OVERRIDES: Record<string, LucideIcon> = {
+  monitor: Monitor,
+  laptop: Laptop,
+  smartphone: Smartphone,
+  tablet: Tablet,
+  tv: Tv,
+  gamepad: Gamepad2,
+  camera: Camera,
+  speaker: Speaker,
+  router: Network,
+  server: Server,
+  watch: Watch,
+  car: Car,
+  home: Home,
+  printer: Printer,
+  plug: Plug,
+  shield: Shield,
+  'help-circle': CircuitBoard,
+  wifi: Wifi,
+  ethernet: Cable,
+}
+
+export const ALLOWED_ICONS = Object.keys(ICON_OVERRIDES) as string[]
+
+export function deviceIcon(device: Device): LucideIcon {
+  const override = device.iconOverride ? ICON_OVERRIDES[device.iconOverride] : undefined
+  return override ?? DEVICE_ICONS[device.type] ?? CircuitBoard
 }
 
 const SIGNAL_ICONS = {
@@ -83,7 +119,7 @@ export function DeviceRow({ device, variant = 'compact', className, onClick }: D
   const { t } = useTranslation()
   const { routers } = useNetPulse()
   const routerName = (id: string) => routers.find((r) => r.id === id)?.name ?? id
-  const Icon = DEVICE_ICONS[device.type] ?? CircuitBoard
+  const Icon = deviceIcon(device)
   return (
     <div
       onClick={onClick}
