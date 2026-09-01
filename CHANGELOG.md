@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+<<<<<<< HEAD
+## [Unreleased]
+
+### Fixed
+
+- **El updater ahora protege claves SSH, known_hosts y base de datos durante las actualizaciones (#425)**: `deploy/update.sh` hace copia de seguridad de `data/.ssh/` y de la BD antes de `git reset --hard`; restaura `.ssh/` si git lo elimino; conserva el binario anterior como `.prev` hasta pasar un healthcheck post-reinicio; si el servidor no ve routers/agentes, aplica rollback al binario, claves y BD anteriores y reinicia. Ademas, `sshkey.EnsureKeypair` restaura el ultimo backup disponible si el par de claves desaparece, evitando regeneraciones accidentales.
+
 ## [2.23.4] - 2026-09-01
 
 ### Added
