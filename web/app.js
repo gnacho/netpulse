@@ -1241,6 +1241,7 @@ function setStage(i) {
 
 function initTheater() {
   const steps = [...document.querySelectorAll('.tstep')]
+  if (!steps.length) return
   if (!('IntersectionObserver' in window)) { setStage(0); return }
   const io = new IntersectionObserver(entries => {
     entries.forEach(en => { if (en.isIntersecting) setStage(parseInt(en.target.dataset.stage, 10)) })
