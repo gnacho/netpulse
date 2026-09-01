@@ -469,7 +469,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	cached := l.extrasCache[cfg.ID]
 	l.mu.Unlock()
 
-	out := &routerPolled{cfg: cfg, client: l.clients[cfg.ID], net: &NetDevBps{}}
+	out := &routerPolled{cfg: cfg, client: l.clients[cfg.ID], net: &NetDevBps{}, polledAt: time.Now().UnixMilli()}
 	sysInfo := &SysInfo{}
 	ramPct := 0
 

@@ -1065,7 +1065,8 @@
       "firmwareTargetHint": "Opcional. Si el firmware instalado no coincide con esta versión, NetPulse lo avisa.",
       "snmpEnabled": "Sondeo SNMP",
       "snmpCommunity": "Comunidad (SNMPv2c)",
-      "snmpPort": "Puerto"
+      "snmpPort": "Puerto",
+      "snmpPollInterval": "Intervalo (s)"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

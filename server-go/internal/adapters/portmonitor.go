@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	flapWindow         = 10 * time.Minute
-	flapThreshold      = 5
-	ghostConsecutive   = 3
-	ghostMinHistory   = 12
-	degradedConsec     = 3
-	degradedMinHistory = 12
+	flapWindow             = 10 * time.Minute
+	flapThreshold          = 5
+	ghostConsecutive       = 3
+	ghostMinHistory        = 12
+	snmpGhostMinDuration   = 5 * time.Minute
+	degradedConsec         = 3
+	degradedMinHistory     = 12
 )
 
 type portKey struct {
@@ -23,13 +24,14 @@ type portKey struct {
 }
 
 type portState struct {
-	up           bool
-	transitions  []time.Time
-	speedMbps    int
-	speedHistory []int
-	trafficTotal uint64
-	zeroStreak   int
-	hadTraffic   bool
+	up             bool
+	transitions    []time.Time
+	speedMbps      int
+	speedHistory   []int
+	trafficTotal   uint64
+	zeroStreak     int
+	hadTraffic     bool
+	lastTrafficAt  time.Time
 	// Incidentes abiertos (issue #366): mientras la condición persiste hay
 	// UNA sola alerta viva por puerto (EmitOrUpdate la refresca in situ);
 	// la flag dispara la alerta de recuperación exactamente una vez.
@@ -148,6 +150,7 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now tim
 		st.zeroStreak = 0
 		st.hadTraffic = false
 		st.trafficTotal = 0
+		st.lastTrafficAt = time.Time{}
 		st.ghostActive = false
 		return
 	}
@@ -158,12 +161,14 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now tim
 		st.trafficTotal = total
 		st.hadTraffic = false
 		st.zeroStreak = 0
+		st.lastTrafficAt = time.Time{}
 		st.ghostActive = false
 		return
 	}
 	if total > st.trafficTotal {
 		st.hadTraffic = true
 		st.zeroStreak = 0
+		st.lastTrafficAt = now
 	} else if st.hadTraffic {
 		st.zeroStreak++
 	}
@@ -172,6 +177,11 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now tim
 		return
 	}
 	if st.zeroStreak >= ghostConsecutive {
+		// issue #414: los puertos SNMP se sondean con menos frecuencia; exigir
+		// también un tiempo mínimo de silencio para reducir falsos positivos.
+		if p.Snmp && now.Sub(st.lastTrafficAt) < snmpGhostMinDuration {
+			return
+		}
 		st.ghostActive = true
 		engine.EmitOrUpdate(alerts.AlertEvent{
 			ID:          fmt.Sprintf("alert-ghost-%s-%s", key.routerID, key.portID),

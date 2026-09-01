@@ -94,9 +94,10 @@ type routerInput struct {
 	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
 	FirmwareTarget *string `json:"firmware_target"`
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
-	SnmpEnabled   *bool   `json:"snmp_enabled"`
-	SnmpCommunity *string `json:"snmp_community"`
-	SnmpPort      *int    `json:"snmp_port"`
+	SnmpEnabled       *bool   `json:"snmp_enabled"`
+	SnmpCommunity     *string `json:"snmp_community"`
+	SnmpPort          *int    `json:"snmp_port"`
+	SnmpPollInterval  *int    `json:"snmp_poll_interval"` // issue #414; segundos
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -198,6 +199,14 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	snmpInterval := 60
+	if in.SnmpPollInterval != nil {
+		snmpInterval = *in.SnmpPollInterval
+		if snmpInterval < 10 || snmpInterval > 3600 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "snmp_poll_interval must be between 10 and 3600")
+			return
+		}
+	}
 	for _, rt := range routerstore.ListRouters(s.db.DB) {
 		if rt.Host == host {
 			writeError(w, http.StatusConflict, "duplicate_host", "Ya hay un router con "+host)
@@ -207,7 +216,7 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
 		FirmwareTarget: firmwareTarget,
-		SnmpEnabled: snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort,
+		SnmpEnabled: snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -281,6 +290,15 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		v := strings.TrimSpace(*in.FirmwareTarget)
 		firmwareTarget = &v
 	}
+	var snmpPollInterval *int
+	if in.SnmpPollInterval != nil {
+		v := *in.SnmpPollInterval
+		if v < 10 || v > 3600 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "snmp_poll_interval must be between 10 and 3600")
+			return
+		}
+		snmpPollInterval = &v
+	}
 	var snmpPort *int
 	if in.SnmpPort != nil {
 		p := *in.SnmpPort
@@ -299,7 +317,7 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
 		FirmwareTarget: firmwareTarget,
-		SnmpEnabled: in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort,
+		SnmpEnabled: in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

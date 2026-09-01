@@ -10,6 +10,21 @@ import (
 )
 
 func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
+	// issue #414: si no ha pasado el intervalo configurado, reutiliza el último
+	// sondeo real para no martillear al switch con SNMP cada 5 s.
+	interval := cfg.SnmpPollInterval
+	if interval <= 0 {
+		interval = 60
+	}
+	now := l.now()
+	l.mu.Lock()
+	last, hasLast := l.lastPolled[cfg.ID]
+	lastPoll := l.snmpLastPoll[cfg.ID]
+	l.mu.Unlock()
+	if hasLast && last != nil && now.Sub(lastPoll) < time.Duration(interval)*time.Second {
+		return last, nil
+	}
+
 	session, err := npsnmp.NewSession(npsnmp.Config{
 		Host:      cfg.Host,
 		Port:      cfg.SnmpPort,
@@ -55,6 +70,10 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		})
 	}
 
+	for i := range ethPorts {
+		ethPorts[i].Snmp = true
+	}
+
 	prevPorts := l.snmpPrevPorts(cfg.ID)
 	l.mu.Lock()
 	l.snmpPortCache(cfg.ID, ethPorts)
@@ -92,12 +111,17 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		uptimeSec = float64(sysInfo.UpTimeSec)
 	}
 
-	return &routerPolled{
+	p := &routerPolled{
 		cfg:       cfg,
 		uptimeSec: uptimeSec,
 		ports:     ethPorts,
 		fdb:       fdbMap,
-	}, nil
+		polledAt:  now.UnixMilli(),
+	}
+	l.mu.Lock()
+	l.snmpLastPoll[cfg.ID] = now
+	l.mu.Unlock()
+	return p, nil
 }
 
 type snmpPortSample struct {

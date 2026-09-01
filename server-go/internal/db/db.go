@@ -402,6 +402,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_enabled", "ALTER TABLE routers ADD COLUMN snmp_enabled INTEGER NOT NULL DEFAULT 0")
 	migrate(sqldb, "routers", "snmp_community", "ALTER TABLE routers ADD COLUMN snmp_community TEXT")
 	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
+	// issue #414: intervalo de polling SNMP configurable (segundos; default 60).
+	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria

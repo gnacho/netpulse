@@ -451,6 +451,9 @@ type EthPort struct {
 	ConnectedTo string   `json:"connectedTo,omitempty"`
 	DeviceMac   string   `json:"deviceMac,omitempty"`
 	Detail      string   `json:"detail,omitempty"`
+	// Snmp indica que el puerto proviene de un switch gestionado por SNMP
+	// (issue #414). Se usa para aplicar histeresis temporal en ghost-port.
+	Snmp bool `json:"-"`
 	// Health: per-port health score (issue #299). Ausente si no se ha
 	// calculado (demo sin datos, puertos sin muestras).
 	Health *PortHealth `json:"health,omitempty"`
@@ -711,9 +714,10 @@ type RouterConfig struct {
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
 	// SnmpEnabled activa el poller SNMP; Community es la comunidad SNMPv2c
 	// ("" = "public"); Port es el puerto UDP (0 = 161 por defecto).
-	SnmpEnabled   bool   `json:"snmp_enabled"`
-	SnmpCommunity string `json:"snmp_community,omitempty"`
-	SnmpPort      int    `json:"snmp_port,omitempty"`
+	SnmpEnabled       bool `json:"snmp_enabled"`
+	SnmpCommunity     string `json:"snmp_community,omitempty"`
+	SnmpPort          int    `json:"snmp_port,omitempty"`
+	SnmpPollInterval  int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
 }
 
 // ---------------------------------------------------------------------------

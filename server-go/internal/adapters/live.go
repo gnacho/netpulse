@@ -137,6 +137,9 @@ type routerPolled struct {
 	// dawnDetected: el agente reportó una sección DAWN en el payload. Se
 	// usa para mostrar el aviso de deprecación (#426).
 	dawnDetected bool
+	// polledAt (issue #414): epoch ms en que se realizó el sondeo real. Se
+	// usa para deduplicar filas de métricas cuando SNMP se cachea.
+	polledAt int64
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -207,6 +210,12 @@ type Live struct {
 	// snmpPorts (issue #309): contadores del último poll SNMP por router y
 	// puerto. Se usa para calcular rxBps/txBps entre polls sucesivos.
 	snmpPorts map[string]map[string]snmpPortSample
+	// snmpLastPoll (issue #414): timestamp del último poll SNMP real por router.
+	snmpLastPoll map[string]time.Time
+	// snmpLastMetricsTick (issue #414): polledAt del último tick que se persistió
+	// en la tabla metrics, para evitar filas duplicadas cuando se reutiliza el
+	// snapshot cacheado de un router SNMP.
+	snmpLastMetricsTick map[string]int64
 	lastPolled  map[string]*routerPolled
 	failCount   map[string]int
 	lastErr     map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
@@ -303,6 +312,8 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastAgentIf:          map[string]*agentIfSample{},
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
+		snmpLastPoll:         map[string]time.Time{},
+		snmpLastMetricsTick:  map[string]int64{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
 		lastErr:              map[string]error{},
@@ -437,6 +448,16 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.snmpPorts {
 		if !ids[id] {
 			delete(l.snmpPorts, id)
+		}
+	}
+	for id := range l.snmpLastPoll {
+		if !ids[id] {
+			delete(l.snmpLastPoll, id)
+		}
+	}
+	for id := range l.snmpLastMetricsTick {
+		if !ids[id] {
+			delete(l.snmpLastMetricsTick, id)
 		}
 	}
 	for id := range l.lastPolled {
@@ -943,6 +964,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
+		polledAt: l.now().UnixMilli(),
 	}, nil
 }
 
@@ -2688,9 +2710,13 @@ func (l *Live) AlertsEngine() *alerts.Engine { return l.engine }
 func (l *Live) GetMetricsRows(context.Context) []MetricsRow {
 	l.mu.Lock()
 	polled := l.lastPolled
-	l.mu.Unlock()
 	rows := []MetricsRow{}
 	for id, p := range polled {
+		// issue #414: los routers SNMP cacheados repiten el mismo snapshot
+		// entre polls reales; no se vuelve a persistir la misma fila.
+		if p.cfg.SnmpEnabled && p.polledAt != 0 && p.polledAt <= l.snmpLastMetricsTick[id] {
+			continue
+		}
 		row := MetricsRow{
 			RouterID:  id,
 			CPU:       fptr(float64(p.cpu)),
@@ -2703,7 +2729,11 @@ func (l *Live) GetMetricsRows(context.Context) []MetricsRow {
 			row.TxBps = p.net.TxBps
 		}
 		rows = append(rows, row)
+		if p.cfg.SnmpEnabled {
+			l.snmpLastMetricsTick[id] = p.polledAt
+		}
 	}
+	l.mu.Unlock()
 	return rows
 }
 
