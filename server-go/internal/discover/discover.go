@@ -41,6 +41,7 @@ const (
 // Result es un candidato a router.
 type Result struct {
 	Host       string  `json:"host"`
+	Hostname   string  `json:"hostname,omitempty"`
 	IsGateway  bool    `json:"isGateway"`
 	Authorized bool    `json:"authorized"`
 	Model      *string `json:"model"`
@@ -254,6 +255,29 @@ func probeSsh(ctx context.Context, host, keyPath string) (bool, *string) {
 	}
 }
 
+// reverseHostname intenta obtener el FQDN de una IP y validarlo con DNS
+// directo. Devuelve el hostname (sin punto final) o cadena vacía.
+func reverseHostname(ip string) string {
+	names, err := net.LookupAddr(ip)
+	if err != nil || len(names) == 0 {
+		return ""
+	}
+	for _, n := range names {
+		// Solo devolver nombres que resuelven de vuelta a la IP (evita
+		// fallback genéricos de PTR mal configurados).
+		ips, lerr := net.LookupIP(n)
+		if lerr != nil {
+			continue
+		}
+		for _, resolved := range ips {
+			if resolved.String() == ip {
+				return strings.TrimSuffix(n, ".")
+			}
+		}
+	}
+	return ""
+}
+
 // selfIPs: IPs propias del servidor (para excluirlas del barrido).
 func selfIPs() map[string]bool {
 	out, err := exec.Command("sh", "-c", `ip -o -4 addr show | grep -oP "inet \K[0-9.]+"`).Output()
@@ -339,8 +363,13 @@ func Routers(ctx context.Context, db *sql.DB, keyPath string, force bool) Respon
 			return Response{Subnet: &subnet, Results: []Result{}, Cached: false, Error: "cancelled"}
 		}
 		authorized, model := probeSsh(ctx, c.h, keyPath)
+		hostname := ""
+		if authorized {
+			hostname = reverseHostname(c.h)
+		}
 		results = append(results, Result{
 			Host:       c.h,
+			Hostname:   hostname,
 			IsGateway:  c.h == gwIP,
 			Authorized: authorized,
 			Model:      model,

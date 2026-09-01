@@ -282,6 +282,7 @@ interface ConfigRouter {
 
 interface DiscoverCandidate {
   host: string
+  hostname?: string
   isGateway: boolean
   authorized: boolean
   model: string | null
@@ -432,18 +433,21 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   const addCandidate = async (cand: DiscoverCandidate) => {
     try {
+      const host = cand.hostname?.trim() || cand.host
       const res = await fetch('/api/config/routers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          host: cand.host,
+          host,
           name: cand.model || undefined,
           type: /GL[.-]?iNet|GL-[A-Z]/i.test(cand.model || '') ? 'glinet' : 'openwrt',
           gateway: cand.isGateway,
         }),
       })
       if (!res.ok && res.status !== 409) throw new Error(`HTTP ${res.status}`)
-      setCandidates((prev) => prev?.map((x) => (x.host === cand.host ? { ...x, configured: true } : x)) ?? prev)
+      setCandidates((prev) =>
+        prev?.map((x) => (x.host === cand.host ? { ...x, configured: true } : x)) ?? prev,
+      )
       await load()
       refresh()
       onSaved()
@@ -674,7 +678,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-text-primary">
-                      {cand.model || cand.host}
+                      {cand.model || cand.hostname || cand.host}
                     </span>
                     {cand.isGateway && (
                       <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
@@ -682,7 +686,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                       </span>
                     )}
                   </div>
-                  <div className="font-mono text-caption text-text-muted">{cand.host}</div>
+                  <div className="font-mono text-caption text-text-muted">{cand.hostname ? `${cand.host} (${cand.hostname})` : cand.host}</div>
                 </div>
                 {cand.configured ? (
                   <span className="shrink-0 text-caption text-text-muted">{t('settings.routers.alreadyAdded')}</span>
