@@ -62,6 +62,12 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			diff = computed
 			method = m
 		}
+
+		// Fase 18: añadir ownership_mode y uci_set_managed para las secciones
+		// que el plan va a tocar. Esto evita que un módulo pise configuración
+		// manual ajena sin marcarla primero como gestionada por NetPulse.
+		diff = orchestr.WrapOwnership(diff)
+
 		user := auth.UserFromContext(r.Context())
 		username := ""
 		if user != nil {
@@ -86,42 +92,53 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 	})))
 
 	mux.Handle("POST /api/plans/{id}/apply", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		plan, err := mgr.GetPlan(id)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "not_found")
+		s.applyPlanHandler(w, r, mgr, r.PathValue("id"))
+	})))
+
+	// POST /api/orchestr/apply — crea un plan y lo aplica en un solo paso
+	// (equivalente a POST /api/plans seguido de POST /api/plans/{id}/apply).
+	mux.Handle("POST /api/orchestr/apply", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			RouterID string          `json:"routerId"`
+			Resource string          `json:"resource"`
+			Diff     []executor.Op   `json:"diff"`
+			Desired  json.RawMessage `json:"desired"`
+		}
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body",
+				`Se esperaba { "routerId": "...", "resource": "adguard", "desired": {...} }`)
 			return
 		}
-		if plan.Status != "pending" {
-			writeError(w, http.StatusConflict, "plan_not_pending", "El plan ya fue aplicado o está en curso")
+		if body.RouterID == "" || body.Resource == "" {
+			writeError(w, http.StatusBadRequest, "invalid_body",
+				`Se esperaba { "routerId": "...", "resource": "adguard", "desired": {...} }`)
 			return
 		}
-		// Intentar delegar en NetGrip si el router tiene executor token.
-		if ok, err := s.applyViaNetGrip(plan.RouterID, plan.ID, plan.Diff); err != nil {
-			writeError(w, http.StatusBadGateway, "netgrip_error", err.Error())
-			return
-		} else if ok {
-			mgr.SetApplying(plan.ID)
-			if err := mgr.SetResult(plan.ID, netgripApplyResult()); err != nil {
-				log.Printf("[netpulse] error marcando plan aplicado vía NetGrip: %v", err)
+		diff := body.Diff
+		var method string
+		if len(diff) == 0 && len(body.Desired) > 0 {
+			computed, m, err := s.computeModuleDiff(body.Resource, body.RouterID, body.Desired)
+			if err != nil {
+				s.writeModuleErr(w, err)
+				return
 			}
-			writeJSON(w, http.StatusAccepted, map[string]string{"status": "applying", "planId": id})
+			diff = computed
+			method = m
+		}
+		diff = orchestr.WrapOwnership(diff)
+
+		user := auth.UserFromContext(r.Context())
+		username := ""
+		if user != nil {
+			username = user.Username
+		}
+		plan, err := mgr.CreatePlan(body.RouterID, body.Resource, body.Desired, diff, username)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "plan_error")
 			return
 		}
-		if s.agentHub == nil {
-			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
-			return
-		}
-		// Fallback: enviar Ops al agente vía SSE.
-		applyData, _ := json.Marshal(map[string]any{"plan_id": id, "ops": plan.Diff})
-		sent := s.agentHub.Send(plan.RouterID, "apply", json.RawMessage(applyData))
-		if !sent {
-			writeError(w, http.StatusServiceUnavailable, "agent_not_connected",
-				"El agente no está conectado vía SSE")
-			return
-		}
-		mgr.SetApplying(id)
-		writeJSON(w, http.StatusAccepted, map[string]string{"status": "applying", "planId": id})
+		plan.Method = method
+		s.applyPlanHandler(w, r, mgr, plan.ID)
 	})))
 
 	// POST /api/plans/{id}/rollback — revertir un plan ya aplicado.
@@ -237,6 +254,46 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 		}
 		writeJSON(w, http.StatusOK, entries)
 	})))
+}
+
+// applyPlanHandler aplica un plan pendiente, intentando NetGrip primero y
+// fallback a SSE. Escribe la respuesta HTTP y no devuelve nada.
+func (s *server) applyPlanHandler(w http.ResponseWriter, r *http.Request, mgr *orchestr.Manager, id string) {
+	plan, err := mgr.GetPlan(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if plan.Status != "pending" {
+		writeError(w, http.StatusConflict, "plan_not_pending", "El plan ya fue aplicado o está en curso")
+		return
+	}
+	// Intentar delegar en NetGrip si el router tiene executor token.
+	if ok, err := s.applyViaNetGrip(plan.RouterID, plan.ID, plan.Diff); err != nil {
+		writeError(w, http.StatusBadGateway, "netgrip_error", err.Error())
+		return
+	} else if ok {
+		mgr.SetApplying(plan.ID)
+		if err := mgr.SetResult(plan.ID, netgripApplyResult()); err != nil {
+			log.Printf("[netpulse] error marcando plan aplicado vía NetGrip: %v", err)
+		}
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "applying", "planId": id})
+		return
+	}
+	if s.agentHub == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
+		return
+	}
+	// Fallback: enviar Ops al agente vía SSE.
+	applyData, _ := json.Marshal(map[string]any{"plan_id": id, "ops": plan.Diff})
+	sent := s.agentHub.Send(plan.RouterID, "apply", json.RawMessage(applyData))
+	if !sent {
+		writeError(w, http.StatusServiceUnavailable, "agent_not_connected",
+			"El agente no está conectado vía SSE")
+		return
+	}
+	mgr.SetApplying(id)
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "applying", "planId": id})
 }
 
 func bearerToken(r *http.Request) string {

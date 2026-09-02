@@ -30,10 +30,12 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/baselines"
+	"github.com/gnacho/netpulse/server-go/internal/channelplan"
 	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -99,10 +101,14 @@ type Deps struct {
 	Presence *presence.Store
 	// WiFiSLE: WiFi Service Level Expectations (#342). nil → sin SLEs.
 	WiFiSLE *wifisle.Store
+	// ChannelPlan: scans pasivos y recomendaciones de canal (#452).
+	ChannelPlan *channelplan.Store
 	// PathAnalysis: mtr path analysis (#343). nil → sin path data.
 	PathAnalysis *pathanalysis.Store
 	// ConfigBackup: snapshots UCI de NetGrip (#34). nil → sin backup.
 	ConfigBackup *configbackup.Store
+	// Firmware: targets y upgrades de firmware (#453).
+	Firmware *firmware.Store
 }
 
 type server struct {
@@ -163,12 +169,16 @@ type server struct {
 
 	// WiFiSLE: WiFi Service Level Expectations (#342). nil = sin SLEs.
 	wifiSLE *wifisle.Store
-
+	// ChannelPlan: scans pasivos y recomendaciones de canal (#452).
+	channelPlan *channelplan.Store
 	// PathAnalysis: mtr path analysis (#343). nil = sin path data.
 	pathAnalysis *pathanalysis.Store
 
 	// ConfigBackup: snapshots UCI de NetGrip (#34). nil = sin backup.
 	configBackup *configbackup.Store
+
+	// Firmware: targets y upgrades de firmware (#453).
+	firmware *firmware.Store
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -187,8 +197,10 @@ func NewHandler(d Deps) http.Handler {
 		internetHealth:  d.InternetHealth,
 		presence:        d.Presence,
 		wifiSLE:         d.WiFiSLE,
+		channelPlan:     d.ChannelPlan,
 		pathAnalysis:    d.PathAnalysis,
 		configBackup:    d.ConfigBackup,
+		firmware:        d.Firmware,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -272,6 +284,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/presence/people", s.handlePresencePeople)
 	mux.HandleFunc("GET /api/wifi-sles", s.handleWiFiSLESummary)
 	mux.HandleFunc("GET /api/wifi-sles/series", s.handleWiFiSLESeries)
+	s.registerChannelPlanRoutes(mux)
+	s.registerFirmwareRoutes(mux)
 	mux.HandleFunc("GET /api/path/summaries", s.handlePathSummaries)
 	mux.HandleFunc("GET /api/path/latest", s.handlePathLatest)
 	mux.HandleFunc("GET /api/path/history", s.handlePathHistory)

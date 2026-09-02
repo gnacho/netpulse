@@ -122,6 +122,7 @@
       "warning": "Atención"
     },
     "active": "Activo",
+    "unknown": "Desconocido",
     "breadcrumb": "Miga de pan",
     "cable": "Cable",
     "clients": "Clientes",
@@ -154,7 +155,8 @@
     "adminOnly": "Solo administrador",
     "back": "Atrás",
     "cancel": "Cancelar",
-    "loading": "Cargando..."
+    "loading": "Cargando...",
+    "save": "Guardar"
   },
   "devices": {
     "badges": {
@@ -363,7 +365,9 @@
     "topologyDesc": "Mapa visual de la red",
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
-    "orchestration": "Orquestación"
+    "orchestration": "Orquestación",
+    "channelPlan": "Plan de canales",
+    "firmwareUpgrades": "Actualizaciones de firmware"
   },
   "roaming": {
     "subtitle": "Estado de la itinerancia WiFi y la malla WiFi",
@@ -1340,6 +1344,40 @@
   "demo": {
     "banner": "Modo demo — los cambios no se aplican al sistema",
     "exit": "Salir del demo"
+  },
+  "channelPlan": {
+    "title": "Plan de canales WiFi",
+    "subtitle": "Recomendaciones de canal a partir de scans de vecinos.",
+    "router": "Dispositivo",
+    "band": "Banda",
+    "currentChannel": "Canal actual",
+    "recommendedChannel": "Canal recomendado",
+    "neighbors": "APs vecinos",
+    "noScans": "No hay scans recientes. Activa el agente en un router para recoger vecinos.",
+    "noRadios": "Este dispositivo no reporta radios WiFi.",
+    "apply": "Aplicar canal",
+    "scanInfo": "Scans de las últimas 24 h"
+  },
+  "firmwareUpgrades": {
+    "title": "Actualizaciones de firmware",
+    "subtitle": "Programa actualizaciones de firmware OpenWrt y sigue el progreso por dispositivo.",
+    "currentVersion": "Versión actual",
+    "targetVersion": "Versión objetivo",
+    "model": "Modelo / target",
+    "targetUrl": "URL de la imagen",
+    "checksum": "Checksum SHA256",
+    "upgrade": "Actualizar ahora",
+    "inProgress": "En progreso",
+    "empty": "No hay dispositivos configurados para actualizar firmware.",
+    "status": {
+      "requested": "Solicitada",
+      "downloading": "Descargando",
+      "backing_up": "Haciendo copia",
+      "verifying": "Verificando",
+      "flashing": "Flasheando",
+      "done": "Completada",
+      "failed": "Fallida"
+    }
   },
   "orchestration": {
     "title": "Orquestación",

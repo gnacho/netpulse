@@ -86,6 +86,8 @@ var (
 	reMode        = regexp.MustCompile(`^[0-7]{3,4}$`)
 	// base64 estándar (sin newlines). La validación final la hace base64.Decode.
 	reBase64 = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
+	// reBool: true|false (para flags como ownership_mode.enforce).
+	reBool = regexp.MustCompile(`^(true|false)$`)
 
 	// tcp_check: host (IPv4 o hostname simple) + puerto (1-65535).
 	reHost = regexp.MustCompile(`^([0-9]{1,3}[.]){3}[0-9]{1,3}$|^[a-zA-Z0-9.-]{1,253}$`)
@@ -166,6 +168,29 @@ var allowlist = map[string]opSpec{
 		required: map[string]*regexp.Regexp{"config": reConfig, "section": reSection, "type": reSection},
 		build: func(a map[string]string) (string, []string) {
 			return "uci", []string{"set", a["config"] + "." + a["section"] + "=" + a["type"]}
+		},
+		configs: func(a map[string]string) []string { return []string{a["config"]} },
+	},
+	// ownership_mode: activa/desactiva el modo de ownership UCI. Cuando
+	// enforce=true, el executor rechaza tocar secciones que no estén
+	// marcadas con np_managed=1, evitando que un módulo pise config ajena.
+	// Debe ser la primera op del plan; en el executor actúa como no-op.
+	"ownership_mode": {
+		required: map[string]*regexp.Regexp{"enforce": reBool},
+		exec:     func(_ Runner, _ map[string]string) int { return 0 },
+		configs:  func(a map[string]string) []string { return nil },
+	},
+	// uci_set_managed: marca una sección como gestionada por NetPulse
+	// (np_managed=1). Si la sección no existe, es un no-op: no queremos
+	// crear secciones huérfanas solo por marcarlas.
+	"uci_set_managed": {
+		required: map[string]*regexp.Regexp{"config": reConfig, "section": reSection},
+		exec: func(run Runner, a map[string]string) int {
+			if !sectionExists(run, a["config"], a["section"]) {
+				return 0
+			}
+			_, code := run.Run("uci", "set", fmt.Sprintf("%s.%s.np_managed=1", a["config"], a["section"]))
+			return code
 		},
 		configs: func(a map[string]string) []string { return []string{a["config"]} },
 	},
@@ -437,6 +462,17 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 		}
 	}
 
+	// 1b. Modo ownership: si hay una op ownership_mode con enforce=true,
+	// las ops posteriores solo podrán tocar secciones marcadas como
+	// np_managed=1. Esto evita que módulos distintos pisen config ajena.
+	enforceOwnership := false
+	for _, op := range ops {
+		if op.Kind == "ownership_mode" && op.Args["enforce"] == "true" {
+			enforceOwnership = true
+			break
+		}
+	}
+
 	// 2. Snapshot de los configs UCI afectados.
 	affected := affectedConfigs(ops)
 	snapshots := map[string]string{}
@@ -449,6 +485,67 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 
 	// 3. Ejecutar Ops (staged, sin commit aún).
 	for _, op := range ops {
+		if op.Kind == "ownership_mode" {
+			// No-op en runtime: solo activa el flag en la fase de parseo.
+			continue
+		}
+
+		if enforceOwnership {
+			switch op.Kind {
+			case "uci_add":
+				// Crear sección anónima y marcarla como gestionada.
+				cfg, secType := op.Args["config"], op.Args["type"]
+				out, code := e.run.Run("uci", "add", cfg, secType)
+				if code != 0 {
+					e.revertStaged(affected)
+					return ApplyResult{Status: "failed", Op: op.Desc, Error: fmt.Sprintf("uci_add exit %d", code), DurationMs: ms(e.now(), start)}
+				}
+				secName := strings.TrimSpace(out)
+				if secName == "" {
+					secName = fmt.Sprintf("@%s[-1]", secType)
+				}
+				if _, code := e.run.Run("uci", "set", fmt.Sprintf("%s.%s.np_managed=1", cfg, secName)); code != 0 {
+					e.revertStaged(affected)
+					return ApplyResult{Status: "failed", Op: op.Desc, Error: "uci_set_managed failed after uci_add", DurationMs: ms(e.now(), start)}
+				}
+				continue
+			case "uci_set_named":
+				cfg, sec, secType := op.Args["config"], op.Args["section"], op.Args["type"]
+				if sectionExists(e.run, cfg, sec) {
+					if err := ownershipCheck(e.run, cfg, sec); err != nil {
+						e.revertStaged(affected)
+						return ApplyResult{Status: "failed", Op: op.Desc, Error: err.Error(), DurationMs: ms(e.now(), start)}
+					}
+				}
+				if _, code := e.run.Run("uci", "set", fmt.Sprintf("%s.%s=%s", cfg, sec, secType)); code != 0 {
+					e.revertStaged(affected)
+					return ApplyResult{Status: "failed", Op: op.Desc, Error: fmt.Sprintf("uci_set_named exit %d", code), DurationMs: ms(e.now(), start)}
+				}
+				if _, code := e.run.Run("uci", "set", fmt.Sprintf("%s.%s.np_managed=1", cfg, sec)); code != 0 {
+					e.revertStaged(affected)
+					return ApplyResult{Status: "failed", Op: op.Desc, Error: "uci_set_managed failed after uci_set_named", DurationMs: ms(e.now(), start)}
+				}
+				continue
+			case "uci_set_managed":
+				// Esta op permite marcar/takeover secciones sin comprobación.
+				code := allowlist[op.Kind].exec(e.run, op.Args)
+				if code != 0 {
+					e.revertStaged(affected)
+					return ApplyResult{Status: "failed", Op: op.Desc, Error: fmt.Sprintf("uci_set_managed exit %d", code), DurationMs: ms(e.now(), start)}
+				}
+				continue
+			}
+
+			// Ops que tocan una sección existente: uci_set, uci_delete,
+			// uci_add_list, uci_delete_section.
+			if cfg, sec, ok := opTargetConfigSection(op); ok {
+				if err := ownershipCheck(e.run, cfg, sec); err != nil {
+					e.revertStaged(affected)
+					return ApplyResult{Status: "failed", Op: op.Desc, Error: err.Error(), DurationMs: ms(e.now(), start)}
+				}
+			}
+		}
+
 		spec := allowlist[op.Kind]
 		var code int
 		if spec.exec != nil {
@@ -543,6 +640,35 @@ func affectedConfigs(ops []Op) []string {
 		}
 	}
 	return out
+}
+
+// sectionExists comprueba si una sección UCI existe (uci show cfg.sec).
+func sectionExists(run Runner, config, section string) bool {
+	_, code := run.Run("uci", "show", fmt.Sprintf("%s.%s", config, section))
+	return code == 0
+}
+
+// ownershipCheck devuelve error si la sección existe y no está marcada como
+// gestionada por NetPulse (np_managed=1). Si no existe, permite crearla.
+func ownershipCheck(run Runner, config, section string) error {
+	if !sectionExists(run, config, section) {
+		return nil
+	}
+	out, code := run.Run("uci", "get", fmt.Sprintf("%s.%s.np_managed", config, section))
+	if code == 0 && strings.TrimSpace(out) == "1" {
+		return nil
+	}
+	return fmt.Errorf("section_not_managed: %s.%s is not owned by NetPulse", config, section)
+}
+
+// opTargetConfigSection devuelve el config/section de ops que tocan una
+// sección UCI existente, para aplicar el ownership check.
+func opTargetConfigSection(op Op) (string, string, bool) {
+	switch op.Kind {
+	case "uci_set", "uci_delete", "uci_add_list", "uci_delete_section":
+		return op.Args["config"], op.Args["section"], true
+	}
+	return "", "", false
 }
 
 func ms(now, start time.Time) int64 {

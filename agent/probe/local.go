@@ -278,6 +278,11 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 				p.radiosMu.Unlock()
 			}
 		}
+		// Scan pasivo de vecinos (#452), solo en sondeo completo para no
+		// consumir tiempo/capacidad en el path de eventos.
+		if out := p.runBest(ctx, CmdScan, 10*time.Second); out != "" {
+			wd.Scans = ParseScan(out)
+		}
 	} else {
 		p.radiosMu.Lock()
 		cached := p.radiosCache

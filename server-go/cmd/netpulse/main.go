@@ -40,6 +40,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -221,6 +222,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("config backup schema: %w", err)
 	}
+	fwStore := firmware.NewStore(dbHandle.DB)
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -444,6 +446,7 @@ func run() error {
 		WiFiSLE:         wifiSLE,
 		PathAnalysis:    pathStore,
 		ConfigBackup:    cfgBackup,
+		Firmware:        fwStore,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

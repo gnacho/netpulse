@@ -304,6 +304,50 @@ CREATE TABLE IF NOT EXISTS port_series_daily (
   speed_mbps INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (router_id, port_id, date)
 );
+
+-- wifi_scans: scans pasivos de vecinos recogidos por el agente (#452).
+-- Se guardan por push para poder hacer recomendaciones de canal.
+CREATE TABLE IF NOT EXISTS wifi_scans (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  router_id   TEXT NOT NULL,
+  iface       TEXT NOT NULL,
+  bssid       TEXT NOT NULL,
+  ssid        TEXT NOT NULL DEFAULT '',
+  channel     INTEGER NOT NULL,
+  freq        INTEGER NOT NULL,
+  signal_dbm  INTEGER NOT NULL,
+  ts          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wifi_scans_router_ts ON wifi_scans(router_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_wifi_scans_channel ON wifi_scans(channel, freq);
+
+-- Firmware upgrades de routers OpenWrt (#453).
+-- firmware_targets: información de firmware soportado por router.
+CREATE TABLE IF NOT EXISTS firmware_targets (
+  router_id       TEXT PRIMARY KEY,
+  model           TEXT NOT NULL,
+  current_version TEXT NOT NULL DEFAULT '',
+  target_version  TEXT NOT NULL DEFAULT '',
+  target_url      TEXT NOT NULL DEFAULT '',
+  checksum        TEXT NOT NULL DEFAULT '',
+  updated_at      INTEGER NOT NULL
+);
+
+-- firmware_upgrades: historial y estado de upgrades en curso.
+CREATE TABLE IF NOT EXISTS firmware_upgrades (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  router_id      TEXT NOT NULL,
+  target_version TEXT NOT NULL,
+  target_url     TEXT NOT NULL,
+  checksum       TEXT NOT NULL DEFAULT '',
+  status         TEXT NOT NULL DEFAULT 'idle',
+  error          TEXT NOT NULL DEFAULT '',
+  backup_path    TEXT,
+  started_at     INTEGER NOT NULL,
+  finished_at    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_firmware_upgrades_router_started ON firmware_upgrades(router_id, started_at DESC);
+
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.

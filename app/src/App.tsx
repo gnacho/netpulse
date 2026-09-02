@@ -11,8 +11,10 @@ import Devices from '@/pages/Devices'
 import Topology from '@/pages/Topology'
 import Alerts from '@/pages/Alerts'
 import Roaming from '@/pages/Roaming'
+import ChannelPlan from '@/pages/ChannelPlan'
 import Reports from '@/pages/Reports'
 import Orchestration from '@/pages/Orchestration'
+import FirmwareUpgrades from '@/pages/FirmwareUpgrades'
 import Settings from '@/pages/Settings'
 import Placeholder from '@/pages/Placeholder'
 
@@ -44,6 +46,8 @@ export default function App() {
         <Route path="topology" element={<Topology />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="roaming" element={<Roaming />} />
+        <Route path="wifi/channel-plan" element={<ChannelPlan />} />
+        <Route path="firmware-upgrades" element={<FirmwareUpgrades />} />
         <Route path="reports" element={<Reports />} />
         <Route path="orchestration" element={<Orchestration />} />
         <Route path="settings" element={<Settings />} />

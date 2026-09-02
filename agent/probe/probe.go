@@ -74,6 +74,10 @@ const (
 		`tx=$(echo "$info" | sed -n 's/.*Tx-Power: \([0-9]*\).*/\1/p' | head -1); ` +
 		`n=$(iwinfo "$i" assoclist 2>/dev/null | grep -c '^[0-9A-Fa-f:]'); ` +
 		`echo "$freq|$ch|$ht|$tx|$n"; done`
+	// CmdScan (#452): scan pasivo de vecinos con `iw dev`. Lista interfaces,
+	// emite "==IFACE==<iface>" antes de cada scan y parsea BSS/freq/signal/SSID.
+	// Si `iw` no está disponible, la sección Scans queda vacía (best-effort).
+	CmdScan = `for i in $(iw dev 2>/dev/null | awk '/Interface / {print $2}'); do echo "==IFACE==$i"; iw dev "$i" scan 2>/dev/null; done`
 	// CmdPortStates: "<name> <operstate> <speed>" por interfaz.
 	CmdPortStates = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
 		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1)"; done`
@@ -1095,6 +1099,78 @@ func ParseRadios(out string) []Radio {
 		radios = append(radios, *byBand[b])
 	}
 	return radios
+}
+
+// ParseScan parsea la salida de CmdScan: bloques "==IFACE==<iface>" seguidos de
+// la salida de `iw dev <iface> scan`. Extrae BSS, freq, signal y SSID.
+func ParseScan(out string) []ScanResult {
+	var res []ScanResult
+	iface := ""
+	var current *ScanResult
+	flush := func() {
+		if current != nil && current.BSSID != "" && current.Freq > 0 {
+			current.Channel = FreqToChannel(current.Freq)
+			if current.Channel > 0 {
+				res = append(res, *current)
+			}
+		}
+		current = nil
+	}
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "==IFACE==") {
+			flush()
+			iface = strings.TrimPrefix(line, "==IFACE==")
+			continue
+		}
+		if strings.HasPrefix(line, "BSS ") {
+			flush()
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			bssid := strings.ToUpper(strings.Split(fields[1], "(")[0])
+			current = &ScanResult{Iface: iface, BSSID: bssid}
+			continue
+		}
+		if current == nil {
+			continue
+		}
+		if strings.HasPrefix(line, "freq:") {
+			v, _ := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "freq:")))
+			current.Freq = v
+			continue
+		}
+		if strings.HasPrefix(line, "signal:") {
+			v, _ := strconv.ParseFloat(strings.Fields(strings.TrimPrefix(line, "signal:"))[0], 64)
+			current.Signal = int(v)
+			continue
+		}
+		if strings.HasPrefix(line, "SSID:") {
+			current.SSID = strings.TrimSpace(strings.TrimPrefix(line, "SSID:"))
+			continue
+		}
+	}
+	flush()
+	return res
+}
+
+// FreqToChannel convierte frecuencia (MHz) a número de canal 802.11.
+func FreqToChannel(freq int) int {
+	switch {
+	case freq >= 2412 && freq <= 2484:
+		if freq == 2484 {
+			return 14
+		}
+		return (freq-2412)/5 + 1
+	case freq >= 5180 && freq <= 5885:
+		// 5 GHz UNII-1/2/3: 36, 40, 44, ... 165
+		return (freq-5180)/5 + 36
+	case freq >= 5955 && freq <= 7115:
+		// 6 GHz: 1-229 (PSCO no se soporta en esta fase)
+		return (freq-5955)/5 + 1
+	}
+	return 0
 }
 
 var (

@@ -50,6 +50,9 @@ Tras el release v2.25.0 quedan mejoras estructurales pendientes, algunas sugerid
 
 - [ ] #448 cerrado.
 - [ ] #451, #452, #453 cerrados y mergeados.
+- [x] #451 cerrado y mergeado.
+- [x] #452 cerrado y mergeado.
+- [x] #453 cerrado y mergeado.
 - [ ] `go test ./...`, `npm run build` y `npm run lint` verdes en `main`.
 - [ ] `CHANGELOG.md` refleja v2.26.0.
 - [ ] Tag `v2.26.0` creado y CI verde.
@@ -60,9 +63,9 @@ Tras el release v2.25.0 quedan mejoras estructurales pendientes, algunas sugerid
 | Phase | Title | Contribution | Detail | Status |
 |-------|-------|--------------|--------|--------|
 | 1 | Bugfix agente gateway #448 | Cerrar panic en `iwevents` | [Phase 1](phases/phase-1.md) | completed |
-| 2 | Apply seguro con rollback | Implementar #451 | [Phase 2](phases/phase-2.md) | in_progress |
-| 3 | Channel planning | Implementar #452 | [Phase 3](phases/phase-3.md) | pending |
-| 4 | Firmware upgrades | Implementar #453 | [Phase 4](phases/phase-4.md) | pending |
+| 2 | Apply seguro con rollback | Implementar #451 | [Phase 2](phases/phase-2.md) | completed |
+| 3 | Channel planning | Implementar #452 | [Phase 3](phases/phase-3.md) | completed |
+| 4 | Firmware upgrades | Implementar #453 | [Phase 4](phases/phase-4.md) | completed |
 | 5 | Release v2.26.0 | Empaquetar y desplegar | [Phase 5](phases/phase-5.md) | pending |
 
 ## Risks & Open Questions

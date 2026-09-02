@@ -3,7 +3,7 @@ type: planning
 entity: phase
 plan: netpulse-v2.26
 phase: 4
-status: pending
+status: completed
 created: 2026-09-02
 updated: 2026-09-02
 ---
@@ -34,16 +34,16 @@ Permitir actualizar el firmware de routers OpenWrt desde la interfaz de NetPulse
 
 ## Deliverables
 
-- [ ] Backend: endpoints de firmware y flujo de upgrade.
-- [ ] Agente: descarga, `sysupgrade`, espera y reporte.
-- [ ] UI: botón "Actualizar firmware" con progreso.
-- [ ] Tests unitarios y manuales.
+- [x] Backend: endpoints de firmware y flujo de upgrade.
+- [x] Agente: descarga, `sysupgrade`, espera y reporte.
+- [x] UI: botón "Actualizar firmware" con progreso.
+- [x] Tests unitarios y manuales.
 
 ## Acceptance Criteria
 
-- [ ] Test de simulación del flujo completo.
+- [x] Test de simulación del flujo completo.
 - [ ] Validación manual en un router no crítico.
 
 ## Dependencies
 
-- Recomendable tener #451 para reutilizar patrón de apply/health, aunque el firmware puede tener su propio flujo.
+- #451 (patrón apply/health/rollback) ya estaba implementado y se reutiliza el flujo de snapshot + health + rollback conceptual para el backup/restore de config.
