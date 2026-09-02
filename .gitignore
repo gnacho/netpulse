@@ -18,7 +18,9 @@ legacy/server-node/.env
 # (solo el binario local de `go build` en el módulo agent; el patrón `netpulse-agent*`
 # coincidía con el directorio fuente agent/cmd/netpulse-agent/ e ignoraba su código)
 netpulse
-netpulse-agent
+# anclado a la raíz: el patrón libre `netpulse-agent` también ignoraba el
+# directorio deploy/openwrt/netpulse-agent/ (ficheros del paquete)
+/netpulse-agent
 agent/netpulse-agent
 server-go/netpulse
 server-go/netpulse-server
