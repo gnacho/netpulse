@@ -470,6 +470,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	l.mu.Unlock()
 
 	out := &routerPolled{cfg: cfg, client: l.clients[cfg.ID], net: &NetDevBps{}, polledAt: time.Now().UnixMilli()}
+	// #441: conservar el kind del agente: los pushers externos (beacon/
+	// scraper) no llevan sección system y el router queda sin vitals.
+	out.agentKind = p.Kind
 	sysInfo := &SysInfo{}
 	ramPct := 0
 
@@ -494,6 +497,21 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		out.lossPct = sd.LossPct
 		out.backhaul = sd.Backhaul
 		out.brMac = sd.BridgeMAC
+	} else if cached != nil && cached.system != nil {
+		// #441: push event-driven (wireless-only) sin system → conserva las
+		// últimas vitals buenas cacheadas en vez de pintar ceros falsos.
+		// Solo vitals/uptime: net/latencia/backhaul no se reciclan (evita
+		// duplicar tráfico con muestras viejas).
+		sd := cached.system
+		if sd.CPU != nil {
+			out.cpu = *sd.CPU
+		}
+		if sd.Temp != nil {
+			out.temp = *sd.Temp
+		}
+		if sd.SysInfo != nil {
+			sysInfo = sd.SysInfo
+		}
 	}
 	mem := sysInfo.Memory
 	if mem.Total > 0 {
@@ -605,8 +623,14 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if freshPayload {
 		l.lastObsTs[cfg.ID] = p.Ts
 	}
+	// #441: el cache de system guarda la última sección BUENA (un push
+	// wireless-only no la invalida).
+	sysSnap := p.Data.System
+	if sysSnap == nil && cached != nil {
+		sysSnap = cached.system
+	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb, luci: out.luci}
+		wireless: out.wireless, fdb: out.fdb, luci: out.luci, system: sysSnap}
 	l.mu.Unlock()
 
 	// Solo con un payload NUEVO alimentamos las series y el monitor de

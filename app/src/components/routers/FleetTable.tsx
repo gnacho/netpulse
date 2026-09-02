@@ -41,12 +41,13 @@ function sortValue(r: Router, key: SortKey): string | number {
       return r.name
     case 'status':
       return STATUS_ORDER[r.status]
+    // #441: sin vitals → -1 para ordenarlos al final en asc.
     case 'cpu':
-      return r.cpu
+      return r.cpu ?? -1
     case 'ram':
-      return r.ram
+      return r.ram ?? -1
     case 'temp':
-      return r.temp
+      return r.temp ?? -1
     case 'clients':
       return r.clients
     case 'traffic':
@@ -59,6 +60,9 @@ function sortValue(r: Router, key: SortKey): string | number {
 function TempCell({ router }: { router: Router }) {
   const { t } = useTranslation()
   const hot = router.hotMetric === 'temp'
+  if (router.temp === null) {
+    return <span className="font-mono text-mono-sm text-text-faint">—</span>
+  }
   return (
     <span
       className={cn(
@@ -69,6 +73,19 @@ function TempCell({ router }: { router: Router }) {
     >
       {router.temp} °C
     </span>
+  )
+}
+
+/** Celda CPU/RAM con barra; sin vitals (#441) un guion discreto. */
+function VitalCell({ value }: { value: number | null }) {
+  if (value === null) {
+    return <span className="font-mono text-mono-sm text-text-faint">—</span>
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-9 font-mono text-mono-sm text-text-primary">{value} %</span>
+      <div className="w-[60px]"><MetricBar value={value} /></div>
+    </div>
   )
 }
 
@@ -180,16 +197,10 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                     />
                   </td>
                   <td className="py-3 pr-3">
-                    <div key={refreshKey} className="flex items-center gap-2">
-                      <span className="w-9 font-mono text-mono-sm text-text-primary">{r.cpu} %</span>
-                      <div className="w-[60px]"><MetricBar value={r.cpu} /></div>
-                    </div>
+                    <div key={refreshKey}><VitalCell value={r.cpu} /></div>
                   </td>
                   <td className="py-3 pr-3">
-                    <div key={refreshKey} className="flex items-center gap-2">
-                      <span className="w-9 font-mono text-mono-sm text-text-primary">{r.ram} %</span>
-                      <div className="w-[60px]"><MetricBar value={r.ram} /></div>
-                    </div>
+                    <div key={refreshKey}><VitalCell value={r.ram} /></div>
                   </td>
                   <td className="py-3 pr-3"><TempCell router={r} /></td>
                   <td className="py-3 pr-3 text-right font-mono text-mono-sm text-text-primary">{r.clients}</td>
@@ -238,7 +249,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                     pulse={r.status !== 'online'}
                   />
                   <span className={cn('font-mono text-mono-sm', r.hotMetric === 'temp' ? 'text-warn' : 'text-text-secondary')}>
-                    {r.temp} °C
+                    {r.temp === null ? '—' : `${r.temp} °C`}
                   </span>
                   <ChevronDown className={cn('h-4 w-4 text-text-muted transition-transform', open && 'rotate-180')} strokeWidth={1.75} />
                 </span>
@@ -253,9 +264,9 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                   >
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-border px-3.5 py-3">
                       {[
-                        ['CPU', `${r.cpu} %`],
-                        ['RAM', `${r.ram} %`],
-                        [t('routers.colTemp'), `${r.temp} °C`],
+                        ['CPU', r.cpu === null ? '—' : `${r.cpu} %`],
+                        ['RAM', r.ram === null ? '—' : `${r.ram} %`],
+                        [t('routers.colTemp'), r.temp === null ? '—' : `${r.temp} °C`],
                         [t('routers.colClients'), String(r.clients)],
                         [t('routers.colTraffic'), `↓ ${fmtEs(extras.trafficNow, 1)} Mbps`],
                         ['Uptime', fmtUptime(r.uptime)],

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams } from 'react-router'
-import { AlertTriangle, ArrowLeft, Router as RouterIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Gauge, Router as RouterIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { relTime } from '@/i18n'
 import { useNetPulse } from '@/data/DataProvider'
@@ -119,9 +119,21 @@ export default function RouterDetail() {
         </motion.div>
       )}
 
-      {/* ② Rendimiento */}
+      {/* ② Rendimiento (#441: placeholder si la fuente no puede dar vitals) */}
       <div className="lg:col-span-8">
-        <RouterPerformance router={router} />
+        {router.vitalsAvailable === false ? (
+          <section className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface p-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-elevated text-text-muted">
+              <Gauge className="h-6 w-6" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h2 className="font-display text-h2 text-text-primary">{t('routerDetail.perf.unavailableTitle')}</h2>
+              <p className="mx-auto mt-1 max-w-md text-sm text-text-secondary">{t('routerDetail.perf.unavailableBody')}</p>
+            </div>
+          </section>
+        ) : (
+          <RouterPerformance router={router} />
+        )}
       </div>
 
       {/* ③ Info + Red (en móvil va la última) */}

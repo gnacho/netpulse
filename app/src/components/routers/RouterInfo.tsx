@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ExternalLink, RotateCcw, Terminal } from 'lucide-react'
+import { Check, ExternalLink, LayoutDashboard, Terminal } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { fmtUptime } from '@/i18n'
@@ -9,7 +9,6 @@ import { StatusPill } from '@/components/StatusPill'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
-import { useAuth } from '@/data/AuthContext'
 import { useAgentFor } from '@/hooks/useAgentFor'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -24,18 +23,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 /** ③ Info + Red (router-detail.md §③) — definition list + acciones ghost. */
 export function RouterInfo({ router, extras }: { router: Router; extras?: RouterExtras }) {
   const { t } = useTranslation()
-  const { isDemo, reinstallAgent } = useNetPulse()
-  const auth = useAuth()
-  const agent = useAgentFor(router.id)
-  // Solo los dispositivos OpenWrt (glinet/openwrt, o sin tipo conocido) usan
-  // el agente nativo: en managed-switch/external (scrapers) no hay reinstall.
-  const isOpenWrt = router.type === undefined || router.type === '' || router.type === 'glinet' || router.type === 'openwrt'
-  const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
+  const { isDemo } = useNetPulse()
+  // #442: routers con el panel NetGrip (agente embebido) tienen una segunda
+  // web UI en el puerto 8080.
+  const hasNetgrip = useAgentFor(router.id)?.kind === 'netgrip'
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
-  const [reinstallState, setReinstallState] = useState<'idle' | 'busy' | 'done' | 'fail'>('idle')
-  const [reinstallMsg, setReinstallMsg] = useState('')
   const timer = useRef<number | null>(null)
 
   useEffect(() => () => {
@@ -74,22 +68,6 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     setToast(ok)
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setToast(false), 1800)
-  }
-
-  const reinstall = async () => {
-    if (reinstallState === 'busy') return
-    if (!window.confirm(t('routerDetail.info.reinstallConfirm', { router: router.name }))) return
-    setReinstallState('busy')
-    setReinstallMsg('')
-    const res = await reinstallAgent(router.id)
-    if (res && !res.error) {
-      setReinstallState('done')
-      setReinstallMsg(res.recovered ? t('routerDetail.info.reinstallDone') : t('routerDetail.info.reinstallPending'))
-    } else {
-      setReinstallState('fail')
-      setReinstallMsg(res?.error ?? t('routerDetail.info.reinstallFail'))
-    }
-    window.setTimeout(() => setReinstallState('idle'), 8000)
   }
 
   const rows: { label: string; node: React.ReactNode }[] = [
@@ -148,6 +126,8 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
         ))}
       </dl>
       <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3.5">
+        {/* #442: "Abrir WebUI" genérico: LuCI en OpenWrt, web del fabricante
+            en switches gestionados/beacon (ninguno de los dos es "LuCI"). */}
         <a
           href={`http://${router.ip}`}
           target="_blank"
@@ -155,8 +135,20 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
         >
           <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
-          {t('routerDetail.info.openLuci')}
+          {t('routerDetail.info.openWebUi')}
         </a>
+        {hasNetgrip && (
+          <a
+            href={`http://${router.ip}:8080`}
+            target="_blank"
+            rel="noreferrer"
+            title={t('routerDetail.info.netgripTip')}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {t('routerDetail.info.openNetgrip')}
+          </a>
+        )}
         <button
           onClick={copySsh}
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
@@ -164,35 +156,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('routerDetail.info.copySsh')}
         </button>
-        {isOpenWrt && (agent || router.agentOnly) && auth?.role === 'admin' && (
-          <button
-            onClick={() => void reinstall()}
-            disabled={reinstallState === 'busy'}
-            title={t('routerDetail.info.reinstallTip')}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-caption font-semibold transition-colors disabled:opacity-50 ${
-              reinstallState === 'done'
-                ? 'border-ok/40 bg-ok/10 text-ok'
-                : reinstallState === 'fail'
-                  ? 'border-danger/40 bg-danger/10 text-danger'
-                  : agentMissing || !agent?.fresh
-                    ? 'border-danger/40 bg-danger/10 text-danger hover:border-danger hover:bg-danger/20'
-                    : 'border-border text-text-secondary hover:border-accent/40 hover:text-accent'
-            }`}
-          >
-            <RotateCcw className={`h-3.5 w-3.5 ${reinstallState === 'busy' ? 'animate-spin' : ''}`} strokeWidth={1.75} />
-            {reinstallState === 'busy'
-              ? t('routerDetail.info.reinstalling')
-              : reinstallState === 'done'
-                ? t('routerDetail.info.reinstalled')
-                : reinstallState === 'fail'
-                  ? t('routerDetail.info.reinstallRetry')
-                  : t('routerDetail.info.reinstall')}
-          </button>
-        )}
       </div>
-      {reinstallMsg && reinstallState !== 'idle' && (
-        <p className={`mt-2 text-caption ${reinstallState === 'fail' ? 'text-danger' : 'text-text-muted'}`}>{reinstallMsg}</p>
-      )}
 
       {/* Toast "Comando copiado" */}
       <AnimatePresence>

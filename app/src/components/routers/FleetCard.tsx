@@ -199,18 +199,26 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
           ))}
         </div>
 
-        {/* Métricas con barras */}
+        {/* Métricas con barras (#441: sin pintar para fuentes sin vitals) */}
         <div key={refreshKey} className="mt-4 space-y-2.5">
-          <MetricRow icon={Cpu} label="CPU" value={`${router.cpu} %`} pct={router.cpu} hot={router.hotMetric === 'cpu'} />
-          <MetricRow icon={MemoryStick} label={t('common.memory')} value={`${router.ram} %`} pct={router.ram} hot={router.hotMetric === 'ram'} />
-          <MetricRow
-            icon={Thermometer}
-            label={t('common.temperature')}
-            value={`${router.temp} °C`}
-            pct={Math.min(100, (router.temp / 90) * 100)}
-            hot={router.hotMetric === 'temp'}
-            title={router.hotMetric === 'temp' ? t('routers.tempThreshold') : undefined}
-          />
+          {router.vitalsAvailable === false ? (
+            <p className="text-caption text-text-muted" title={t('routers.noVitalsTip')}>
+              {t('routers.noVitals')}
+            </p>
+          ) : (
+            <>
+              <MetricRow icon={Cpu} label="CPU" value={`${router.cpu} %`} pct={router.cpu ?? 0} hot={router.hotMetric === 'cpu'} />
+              <MetricRow icon={MemoryStick} label={t('common.memory')} value={`${router.ram} %`} pct={router.ram ?? 0} hot={router.hotMetric === 'ram'} />
+              <MetricRow
+                icon={Thermometer}
+                label={t('common.temperature')}
+                value={`${router.temp} °C`}
+                pct={Math.min(100, ((router.temp ?? 0) / 90) * 100)}
+                hot={router.hotMetric === 'temp'}
+                title={router.hotMetric === 'temp' ? t('routers.tempThreshold') : undefined}
+              />
+            </>
+          )}
         </div>
 
         {/* Mini-gráfico de tráfico 24h */}

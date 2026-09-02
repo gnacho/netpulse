@@ -66,7 +66,9 @@ export function RouterPerformance({ router }: { router: Router }) {
   const data = useMemo(() => perfSeries(router, range), [router, range])
   const captions = useMemo(() => perfCaptions(router, data), [router, data])
 
-  const current: Record<SeriesDef['key'], number> = { cpu: router.cpu, ram: router.ram, temp: router.temp }
+  // #441: null cuando la fuente no reporta vitals (el panel no se monta,
+  // pero el tipo lo exige); se normaliza a 0 para el render defensivo.
+  const current: Record<SeriesDef['key'], number> = { cpu: router.cpu ?? 0, ram: router.ram ?? 0, temp: router.temp ?? 0 }
   const captionByKey: Record<SeriesDef['key'], string> = { cpu: captions.cpu, ram: captions.ram, temp: captions.temp }
 
   return (

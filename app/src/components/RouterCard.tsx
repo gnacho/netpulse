@@ -91,9 +91,14 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2">
-          <MiniMetric icon={Cpu} value={`${router.cpu} %`} label="CPU" hot={router.hotMetric === 'cpu'} />
-          <MiniMetric icon={MemoryStick} value={`${router.ram} %`} label="RAM" hot={router.hotMetric === 'ram'} />
-          <MiniMetric icon={Thermometer} value={`${router.temp} °C`} label={t('common.temperature')} hot={router.hotMetric === 'temp'} />
+          {/* #441: sin vitals (switch SNMP/beacon) no se pintan ceros falsos */}
+          {router.vitalsAvailable !== false && (
+            <>
+              <MiniMetric icon={Cpu} value={`${router.cpu} %`} label="CPU" hot={router.hotMetric === 'cpu'} />
+              <MiniMetric icon={MemoryStick} value={`${router.ram} %`} label="RAM" hot={router.hotMetric === 'ram'} />
+              <MiniMetric icon={Thermometer} value={`${router.temp} °C`} label={t('common.temperature')} hot={router.hotMetric === 'temp'} />
+            </>
+          )}
           <MiniMetric icon={Users} value={String(router.clients)} label={t('common.clients')} />
         </div>
 
