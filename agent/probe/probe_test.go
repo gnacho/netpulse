@@ -836,3 +836,57 @@ func TestParseUsteer(t *testing.T) {
 		t.Error("ParseUsteer con JSON inválido debería devolver nil")
 	}
 }
+
+// TestParseScanExtraeVecinos (#452): parsea la salida de `iw dev` scan.
+func TestParseScanExtraeVecinos(t *testing.T) {
+	out := `==IFACE==wlan0
+BSS 00:11:22:33:44:55(on wlan0)
+	TSF: 12345
+	freq: 2437
+	beacon interval: 100 TUs
+	capability: ESS (0x0001)
+	signal: -62.00 dBm
+	last seen: 0 ms
+	SSID: vecino-2g
+BSS aa:bb:cc:dd:ee:ff(on wlan0)
+	freq: 2462
+	signal: -80.00 dBm
+	SSID: 
+==IFACE==wlan1
+BSS 11:22:33:44:55:66(on wlan1)
+	freq: 5180
+	signal: -55.00 dBm
+	SSID: vecino-5g
+`
+	got := ParseScan(out)
+	if len(got) != 3 {
+		t.Fatalf("esperaba 3 resultados, got %d: %+v", len(got), got)
+	}
+	if got[0].Iface != "wlan0" || got[0].BSSID != "00:11:22:33:44:55" || got[0].SSID != "vecino-2g" || got[0].Freq != 2437 || got[0].Channel != 6 || got[0].Signal != -62 {
+		t.Errorf("primer scan incorrecto: %+v", got[0])
+	}
+	if got[1].Channel != 11 {
+		t.Errorf("segundo scan channel incorrecto: %+v", got[1])
+	}
+	if got[2].Iface != "wlan1" || got[2].Channel != 36 || got[2].Signal != -55 {
+		t.Errorf("tercer scan incorrecto: %+v", got[2])
+	}
+}
+
+func TestParseScanVacio(t *testing.T) {
+	if got := ParseScan(""); len(got) != 0 {
+		t.Fatalf("esperaba [] vacío, got %d", len(got))
+	}
+}
+
+func TestFreqToChannel(t *testing.T) {
+	cases := []struct{ freq, want int }{
+		{2412, 1}, {2437, 6}, {2462, 11}, {2484, 14},
+		{5180, 36}, {5260, 52}, {5500, 100}, {5955, 1},
+	}
+	for _, c := range cases {
+		if got := FreqToChannel(c.freq); got != c.want {
+			t.Errorf("FreqToChannel(%d) = %d, want %d", c.freq, got, c.want)
+		}
+	}
+}

@@ -122,6 +122,7 @@
       "warning": "Warning"
     },
     "active": "Active",
+    "unknown": "Unknown",
     "breadcrumb": "Breadcrumb",
     "cable": "Wired",
     "clients": "Clients",
@@ -154,7 +155,8 @@
     "adminOnly": "Admin only",
     "back": "Back",
     "cancel": "Cancel",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "save": "Save"
   },
   "devices": {
     "badges": {
@@ -363,7 +365,9 @@
     "topologyDesc": "Visual network map",
     "collapse": "Collapse menu",
     "expand": "Expand menu",
-    "orchestration": "Orchestration"
+    "orchestration": "Orchestration",
+    "channelPlan": "Channel plan",
+    "firmwareUpgrades": "Firmware upgrades"
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
@@ -1340,6 +1344,40 @@
   "demo": {
     "banner": "Demo mode — changes are not applied to the system",
     "exit": "Exit demo"
+  },
+  "channelPlan": {
+    "title": "WiFi channel plan",
+    "subtitle": "Channel recommendations from neighbor scans.",
+    "router": "Router",
+    "band": "Band",
+    "currentChannel": "Current channel",
+    "recommendedChannel": "Recommended channel",
+    "neighbors": "Neighbor APs",
+    "noScans": "No recent scans. Enable the agent on a router to collect neighbors.",
+    "noRadios": "This router does not report WiFi radios.",
+    "apply": "Apply channel",
+    "scanInfo": "Scans from the last 24 hours"
+  },
+  "firmwareUpgrades": {
+    "title": "Firmware upgrades",
+    "subtitle": "Schedule OpenWrt firmware upgrades and track progress per router.",
+    "currentVersion": "Current version",
+    "targetVersion": "Target version",
+    "model": "Model / target",
+    "targetUrl": "Image URL",
+    "checksum": "SHA256 checksum",
+    "upgrade": "Upgrade now",
+    "inProgress": "In progress",
+    "empty": "No routers configured for firmware upgrades.",
+    "status": {
+      "requested": "Requested",
+      "downloading": "Downloading",
+      "backing_up": "Backing up",
+      "verifying": "Verifying",
+      "flashing": "Flashing",
+      "done": "Done",
+      "failed": "Failed"
+    }
   },
   "orchestration": {
     "title": "Orchestration",

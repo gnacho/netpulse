@@ -3,7 +3,7 @@ type: planning
 entity: phase
 plan: netpulse-v2.26
 phase: 2
-status: in_progress
+status: completed
 created: 2026-09-02
 updated: 2026-09-02
 ---
@@ -33,16 +33,16 @@ Permitir a NetPulse aplicar cambios de configuración en routers OpenWrt de form
 
 ## Deliverables
 
-- [ ] Cambios en agente Go para ejecutar apply/rollback.
-- [ ] Endpoint backend `/api/orchestr/apply`.
-- [ ] UI de preview con diff y botón "Aplicar".
-- [ ] Tests de agente y backend.
+- [x] Cambios en agente Go para ejecutar apply/rollback.
+- [x] Endpoint backend `/api/orchestr/apply`.
+- [x] UI de preview con diff y botón "Aplicar" (ya existente; ahora respeta ownership).
+- [x] Tests de agente y backend.
 
 ## Acceptance Criteria
 
-- [ ] Test unitario de apply exitoso y rollback por timeout.
-- [ ] Test que rechaza cambios en secciones no gestionadas.
-- [ ] Validación manual en router no crítico.
+- [x] Test unitario de apply exitoso y rollback por timeout.
+- [x] Test que rechaza cambios en secciones no gestionadas.
+- [x] Validación manual en router no crítico.
 
 ## Dependencies
 

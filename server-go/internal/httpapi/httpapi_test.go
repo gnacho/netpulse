@@ -16,6 +16,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/channelplan"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -87,13 +88,17 @@ func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 	}
 	orchestrMgr := orchestr.New(d)
 	adapter := adapters.NewDemo()
+	agents := adapters.NewAgentRegistry(0)
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
+	chPlan := channelplan.NewStore(d.DB)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapter, Hub: hub, Secret: secret,
 		Started:       time.Now(),
 		TokenStore:    tokenStore,
 		ConfigBackup:  configBackup,
 		Orchestr:      orchestrMgr,
+		Agents:        agents,
+		ChannelPlan:   chPlan,
 	})
 	srv := httptest.NewServer(handler)
 	ts := &testServer{Server: srv, db: d, secret: secret}

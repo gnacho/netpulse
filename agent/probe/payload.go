@@ -34,8 +34,8 @@ type PayloadData struct {
 	// con el dnsmasq en otro router): cualquier router de la flota que
 	// enrute la LAN conoce el mapa completo.
 	Arp    map[string]string `json:"arp,omitempty"`
-	Dawn   *DawnData          `json:"dawn,omitempty"`   // Fase 14: DAWN roaming (solo si instalado; compat rollback)
-	Usteer *UsteerData        `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
+	Dawn   *DawnData         `json:"dawn,omitempty"`   // Fase 14: DAWN roaming (solo si instalado; compat rollback)
+	Usteer *UsteerData       `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
 	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están
 	// definidas en /etc/config/luci.
 	LuCI *LuCILabels `json:"luci,omitempty"`
@@ -68,6 +68,19 @@ type SystemData struct {
 type WirelessData struct {
 	Clients map[string]WirelessClient `json:"clients"` // {} = sin clientes; sección ausente = sonda fallida
 	Radios  []Radio                   `json:"radios"`
+	// Scans: redes vecinas vistas por cada interfaz WiFi (Fase 18/#452).
+	// nil/ausente = el scan no se pudo realizar en este push.
+	Scans []ScanResult `json:"scans,omitempty"`
+}
+
+// ScanResult es un AP vecino detectado por un scan pasivo.
+type ScanResult struct {
+	Iface   string `json:"iface"`   // interfaz que hizo el scan, p. ej. wlan0
+	BSSID   string `json:"bssid"`   // MAC del AP vecino
+	SSID    string `json:"ssid"`    // ESSID (puede estar vacío)
+	Channel int    `json:"channel"` // canal numérico
+	Freq    int    `json:"freq"`    // frecuencia en MHz
+	Signal  int    `json:"signal"`  // dBm (negativo)
 }
 
 // DHCPData: leases ipv4 (mac en mayúsculas) + clientes GL.iNet.

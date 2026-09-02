@@ -113,6 +113,10 @@ func Run(ctx context.Context, opts Options) error {
 	log.Info("[netpulse-agent] agente iniciado", "version", opts.Version, "slug", opts.Slug, "server", opts.Server, "interval", opts.Interval)
 	a.setRunning(true)
 
+	// #453: si existe un upgrade de firmware pendiente de un reboot anterior,
+	// reportamos el resultado final ahora que el agente ha vuelto.
+	checkPendingFirmwareUpgrade(opts, transport)
+
 	// Eventos nl80211 en tiempo real (new/del station): push inmediato de
 	// wireless sin esperar al ciclo de sondeo.
 	if iwevents.Available() {
@@ -167,6 +171,9 @@ func Run(ctx context.Context, opts Options) error {
 					} else {
 						go handleUpgrade(opts, transport, ev.Data)
 					}
+				}
+				if ev.Name == "firmware_upgrade" && ev.Data != "" {
+					go handleFirmwareUpgrade(opts, transport, ev.Data)
 				}
 				log.Debug("[netpulse-agent] SSE evento", "event", ev.Name)
 			})

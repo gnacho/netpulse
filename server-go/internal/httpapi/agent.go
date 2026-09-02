@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -225,6 +226,14 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.agents.Ingest(&p)
+	// Fase 18 (#452): persistir scans pasivos de vecinos si el payload trae
+	// datos wireless. Se guardan incluso si el payload no es "fresco" para no
+	// perder la muestra recién recibida.
+	if s.channelPlan != nil && p.Data.Wireless != nil && len(p.Data.Wireless.Scans) > 0 {
+		if err := s.channelPlan.SaveScan(p.Router, p.Ts, p.Data.Wireless.Scans); err != nil {
+			log.Printf("[netpulse] error guardando scans de %s: %v", p.Router, err)
+		}
+	}
 	// #401: si hay un upgrade en marcha y este push ya reporta la versión
 	// objetivo, el ciclo se cierra con el paso terminal "done" en vez de
 	// dejar el estado en "restarting" hasta el TTL.

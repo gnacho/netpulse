@@ -12,11 +12,12 @@ import (
 // fakeRunner registra los comandos ejecutados y devuelve respuestas canned.
 type fakeRunner struct {
 	calls     []string
-	responses map[string]int // prefix → exitCode (0 si no está)
+	responses map[string]int    // prefix → exitCode (0 si no está)
+	outputs   map[string]string // prefix → stdout cuando exitCode es 0
 }
 
 func newFakeRunner() *fakeRunner {
-	return &fakeRunner{responses: map[string]int{}}
+	return &fakeRunner{responses: map[string]int{}, outputs: map[string]string{}}
 }
 
 func (f *fakeRunner) Run(name string, args ...string) (string, int) {
@@ -26,9 +27,18 @@ func (f *fakeRunner) Run(name string, args ...string) (string, int) {
 	for prefix, code := range f.responses {
 		if strings.HasPrefix(cmd, prefix) {
 			if code == 0 {
+				if out, ok := f.outputs[prefix]; ok {
+					return out, 0
+				}
 				return "ok", 0
 			}
 			return "", code
+		}
+	}
+	// Respuestas por defecto con stdout custom (p. ej. uci get value=1).
+	for prefix, out := range f.outputs {
+		if strings.HasPrefix(cmd, prefix) {
+			return out, 0
 		}
 	}
 	return "ok", 0 // default success
@@ -614,5 +624,164 @@ func TestTcpCheckExecOpenThenClosed(t *testing.T) {
 	ln.Close()
 	if rc := spec.exec(nil, map[string]string{"host": "127.0.0.1", "port": port}); rc != 1 {
 		t.Errorf("puerto cerrado: esperaba 1, got %d", rc)
+	}
+}
+
+// --- Fase 18: ownership UCI ---
+
+func TestValidateOwnershipMode(t *testing.T) {
+	if err := Validate(Op{Kind: "ownership_mode", Args: map[string]string{"enforce": "true"}}); err != nil {
+		t.Fatalf("ownership_mode enforce=true debería validar: %v", err)
+	}
+	if err := Validate(Op{Kind: "ownership_mode", Args: map[string]string{"enforce": "false"}}); err != nil {
+		t.Fatalf("ownership_mode enforce=false debería validar: %v", err)
+	}
+	if err := Validate(Op{Kind: "ownership_mode", Args: map[string]string{"enforce": "yes"}}); err == nil {
+		t.Fatal("ownership_mode enforce=yes debería rechazarse")
+	}
+	if err := Validate(Op{Kind: "ownership_mode", Args: map[string]string{}}); err == nil {
+		t.Fatal("ownership_mode sin enforce debería rechazarse")
+	}
+}
+
+func TestValidateUciSetManaged(t *testing.T) {
+	if err := Validate(Op{Kind: "uci_set_managed", Args: map[string]string{"config": "wireless", "section": "guest"}}); err != nil {
+		t.Fatalf("uci_set_managed válido rechazado: %v", err)
+	}
+	if err := Validate(Op{Kind: "uci_set_managed", Args: map[string]string{"config": "wireless", "section": "bad;rm"}}); err == nil {
+		t.Fatal("uci_set_managed con section malicioso debería rechazarse")
+	}
+	if err := Validate(Op{Kind: "uci_set_managed", Args: map[string]string{"config": "wireless"}}); err == nil {
+		t.Fatal("uci_set_managed sin section debería rechazarse")
+	}
+}
+
+func TestApplyOwnershipBlocksUnmanaged(t *testing.T) {
+	fr := newFakeRunner()
+	// La sección dhcp.@dnsmasq[0] existe pero no está gestionada.
+	fr.responses["uci show dhcp.@dnsmasq[0]"] = 0
+	fr.responses["uci get dhcp.@dnsmasq[0].np_managed"] = 1
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "ownership_mode", Args: map[string]string{"enforce": "true"}},
+		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "1.1.1.1"}},
+		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "failed" {
+		t.Fatalf("esperaba failed, got %s", res.Status)
+	}
+	if !strings.Contains(res.Error, "section_not_managed") {
+		t.Fatalf("error debería ser section_not_managed, got %q", res.Error)
+	}
+}
+
+func TestApplyOwnershipAllowsManaged(t *testing.T) {
+	fr := newFakeRunner()
+	fr.responses["uci show dhcp.@dnsmasq[0]"] = 0
+	fr.responses["uci get dhcp.@dnsmasq[0].np_managed"] = 0
+	fr.outputs["uci get dhcp.@dnsmasq[0].np_managed"] = "1"
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "ownership_mode", Args: map[string]string{"enforce": "true"}},
+		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "1.1.1.1"}},
+		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "applied" {
+		t.Fatalf("esperaba applied, got %s (error=%s)", res.Status, res.Error)
+	}
+}
+
+func TestApplyOwnershipUciAddMarksManaged(t *testing.T) {
+	fr := newFakeRunner()
+	// uci add wireless wifi-iface devuelve el nombre de la sección creada;
+	// fakeRunner devuelve "ok" por defecto, que usamos como nombre.
+	fr.outputs["uci get wireless.@wifi-iface[-1].np_managed"] = "1"
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "ownership_mode", Args: map[string]string{"enforce": "true"}},
+		{Kind: "uci_add", Args: map[string]string{"config": "wireless", "type": "wifi-iface"}, Desc: "Add guest iface"},
+		{Kind: "uci_set", Args: map[string]string{"config": "wireless", "section": "@wifi-iface[-1]", "option": "ssid", "value": "NetPulse-Guest"}},
+		{Kind: "uci_commit", Args: map[string]string{"config": "wireless"}},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "applied" {
+		t.Fatalf("esperaba applied, got %s (error=%s)", res.Status, res.Error)
+	}
+	got := strings.Join(fr.calls, "\n")
+	if !strings.Contains(got, "uci add wireless wifi-iface") {
+		t.Error("falta uci add wireless wifi-iface")
+	}
+	if !strings.Contains(got, "uci set wireless.ok.np_managed=1") {
+		t.Errorf("falta uci set wireless.ok.np_managed=1 tras uci_add. Calls:\n%s", got)
+	}
+}
+
+func TestApplyOwnershipUciSetNamedMarksManaged(t *testing.T) {
+	fr := newFakeRunner()
+	// La sección network.guest no existe todavía.
+	fr.responses["uci show network.guest"] = 1
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "ownership_mode", Args: map[string]string{"enforce": "true"}},
+		{Kind: "uci_set_named", Args: map[string]string{"config": "network", "section": "guest", "type": "interface"}},
+		{Kind: "uci_commit", Args: map[string]string{"config": "network"}},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "applied" {
+		t.Fatalf("esperaba applied, got %s (error=%s)", res.Status, res.Error)
+	}
+	got := strings.Join(fr.calls, "\n")
+	if !strings.Contains(got, "uci set network.guest=interface") {
+		t.Error("falta uci set network.guest=interface")
+	}
+	if !strings.Contains(got, "uci set network.guest.np_managed=1") {
+		t.Errorf("falta uci set network.guest.np_managed=1. Calls:\n%s", got)
+	}
+}
+
+func TestApplyOwnershipUciSetManagedTakeover(t *testing.T) {
+	fr := newFakeRunner()
+	// Sección existente no gestionada; uci_set_managed debe poder marcarla.
+	fr.responses["uci set wireless.guest.np_managed=1"] = 0
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "ownership_mode", Args: map[string]string{"enforce": "true"}},
+		{Kind: "uci_set_managed", Args: map[string]string{"config": "wireless", "section": "guest"}},
+		{Kind: "uci_commit", Args: map[string]string{"config": "wireless"}},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "applied" {
+		t.Fatalf("esperaba applied, got %s (error=%s)", res.Status, res.Error)
+	}
+}
+
+func TestApplyOwnershipDisabled(t *testing.T) {
+	fr := newFakeRunner()
+	// Con enforce=false no debe importar si la sección está gestionada.
+	fr.responses["uci show dhcp.@dnsmasq[0]"] = 0
+	fr.responses["uci get dhcp.@dnsmasq[0].np_managed"] = 1
+
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	ops := []Op{
+		{Kind: "ownership_mode", Args: map[string]string{"enforce": "false"}},
+		{Kind: "uci_set", Args: map[string]string{"config": "dhcp", "section": "@dnsmasq[0]", "option": "server", "value": "1.1.1.1"}},
+		{Kind: "uci_commit", Args: map[string]string{"config": "dhcp"}},
+	}
+
+	res := e.Apply(ops)
+	if res.Status != "applied" {
+		t.Fatalf("esperaba applied con ownership desactivado, got %s (error=%s)", res.Status, res.Error)
 	}
 }

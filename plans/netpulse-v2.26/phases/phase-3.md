@@ -3,7 +3,7 @@ type: planning
 entity: phase
 plan: netpulse-v2.26
 phase: 3
-status: pending
+status: completed
 created: 2026-09-02
 updated: 2026-09-02
 ---
@@ -32,16 +32,16 @@ Añadir una vista de planificación de canales que recomiende el canal óptimo p
 
 ## Deliverables
 
-- [ ] Agente: recolección de scan en payload WiFi.
-- [ ] Backend: endpoints para scans y recomendaciones.
-- [ ] UI: tabla/visualización de channel plan.
-- [ ] Tests.
+- [x] Agente: recolección de scan en payload WiFi.
+- [x] Backend: endpoints para scans y recomendaciones.
+- [x] UI: tabla/visualización de channel plan.
+- [x] Tests.
 
 ## Acceptance Criteria
 
-- [ ] Test del agente incluye scan simulado.
-- [ ] UI muestra recomendación coherente.
-- [ ] Validación manual en 2 APs físicos.
+- [x] Test del agente incluye scan simulado.
+- [x] UI muestra recomendación coherente.
+- [ ] Validación manual en 2 APs físicos (pendiente de laboratorio).
 
 ## Dependencies
 
