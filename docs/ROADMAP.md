@@ -1,8 +1,6 @@
 # NetPulse — Hoja de ruta
 
-> Actualizada: 2026-08-08 (**v2.8.0**: Fase 14 completa + Fase 15 parcial;
-> Fases 15-16 pendientes; **Fase 17 "escribir en routers"** + programa de
-> beta-testing Fases 18-20 esqueleto acordado).
+> Actualizada: 2026-09-02 (**v2.25.0** publicado: acciones de router en tabla, vitales condicionales, timeline compacta de upgrades, comparación de builds; **v2.26.0** planificado: #448 bugfix, #451 apply seguro con ownership UCI, #452 channel planning, #453 firmware upgrades).
 
 ## Estado actual ✅
 
@@ -599,21 +597,19 @@ E2E. Pendiente:
 
 ---
 
-## Fase 17 — Escribir en los routers (esqueleto, por rellenar)
+## Fase 17 — Escribir en los routers (en progreso, v2.26.0)
 
-> **Por definir**. Esqueleto acordado 8-Ago-2026; el detalle de cada módulo
-> vivirá en su propio issue cuando se arranque (Fases 18-20).
+> **En desarrollo**: [#451](https://github.com/gnacho/netpulse/issues/451), [#452](https://github.com/gnacho/netpulse/issues/452), [#453](https://github.com/gnacho/netpulse/issues/453). Esqueleto acordado 8-Ago-2026; el detalle de cada módulo vive en su propio issue.
 
-Objetivo: NetPulse pasa de **monitor** a **gestor completo** de la red
-OpenWrt. Cada módulo no solo configura UCI sino que **despliega el servicio
-enterero**: instala paquetes, escribe scripts de soporte, configura
-firewall/dnsmasq/network, activa el servicio y deja todo revertible.
+### v2.26.0 — Fundación segura de escritura
 
-Continúa la Fase 10 (motor plan→apply→state ✅) ampliándola a despliegues
-completos (instalador unificado + provisioner de scripts + healthcheck con
-auto-rollback). Los módulos concretos se agrupan por riesgo en Fases 18-20.
+Antes de desplegar módulos completos se estabilizan tres primitivas de seguridad:
 
-**índice de módulos** (cada uno es un issue independiente):
+1. **Ownership UCI + apply seguro con rollback (#451)**: las secciones gestionadas por NetPulse se marcan con `np_managed`, el executor rechaza tocar secciones ajenas y el apply usa el rollback nativo de OpenWrt (o snapshot+revert) con healthcheck post-cambio.
+2. **Channel planning (#452)**: el agente recoge scan de vecinos (`iwinfo scan`) y la UI recomienda canal óptimo por radio, aplicable vía #451.
+3. **Firmware upgrades (#453)**: descarga de imagen oficial, verificación, `sysupgrade` vía agente y recuperación si se pierde conectividad. Reutiliza el motor de #451.
+
+Estos tres issues cierran los prerrequisitos comunes listados más abajo y desbloquean los módulos de bajo riesgo (Fase 18).
 
 | # | Módulo | Fase | Riesgo |
 |---|---|---|---|
