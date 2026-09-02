@@ -11,7 +11,7 @@ updated: 2026-09-02
 
 ## Active Phase
 
-- Validacion manual del upgrade de firmware en un router no critico.
+- Phase 5: Release v2.26.0.
 
 ## Pending
 
@@ -20,7 +20,7 @@ updated: 2026-09-02
 
 ## In Progress
 
-- [ ] Validacion manual del upgrade de firmware en un router no critico.
+- [ ] Phase 5: Release v2.26.0 (CHANGELOG listo, pendiente tag + deploy a producción CT 226).
 
 ## Completed
 
@@ -28,6 +28,7 @@ updated: 2026-09-02
 - [x] Phase 1: bugfix agente gateway #448 (PR #454).
 - [x] Phase 2: Apply seguro con rollback (#451).
 - [x] Phase 4: Firmware upgrades (#453).
+- [x] Validación manual del upgrade de firmware en RT4 (dummy 404 + upgrade ASU real E2E, 2026-09-02).
 
 ## Blocked
 

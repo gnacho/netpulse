@@ -5,6 +5,20 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.0] - 2026-09-02
+
+### Added
+
+- **Apply seguro de configuración con rollback y ownership UCI (#451)**: el orquestador aplica cambios UCI marcando propiedad por integración; si el health check post-apply falla, revierte automáticamente a la configuración previa.
+- **Planificación de canales WiFi (#452)**: nuevo panel de channel planning con escaneos pasivos de vecinos (agente) y recomendaciones de canal por radio; endpoints de channel plan e inventario de radios.
+- **Actualización de firmware de routers OpenWrt (#453)**: el servidor define un target de firmware por router (URL + SHA256) y envía el comando al agente vía SSE; el agente descarga y verifica la imagen, hace backup de la config con `sysupgrade -b`, flashea y reporta el resultado tras el reinicio mediante un fichero pendiente. UI con progreso y resultado. Validado E2E en un router real (imagen oficial ASU).
+
+### Fixed
+
+- **Flujo del upgrade de firmware (#453)**: el comando SSE viaja como objeto JSON (antes base64 y el agente no podía parsearlo); `finished_at` nullable en el store; inyección del reloj en `NewLive` (panic en `pollRouter`); los endpoints `firmware-progress` y `firmware-result` aceptan Bearer del agente.
+- **Watchdog del agente reiniciaba cada 2 min**: `pgrep -x` de BusyBox compara la línea de comando completa y nunca matcheaba `/usr/sbin/netpulse-agent`; sustituido por `pidof`.
+- **CI go-server roto desde v2.25.0 (#458)**: los binarios de agente se construyen ahora antes de los tests (`TestOpenArmVariants` los abre) y el binario arm se llama `netpulse-agent-arm`, el nombre que resuelve `normalizeArch` (antes `armv7` era imposible de servir vía `/api/agents/{slug}/binary`).
+
 ## [2.25.0] - 2026-09-02
 
 ### Added
