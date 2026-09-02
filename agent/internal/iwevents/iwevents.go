@@ -9,7 +9,6 @@ package iwevents
 import (
 	"bufio"
 	"context"
-	"io"
 	"log"
 	"os/exec"
 	"strings"
@@ -53,7 +52,6 @@ func Listen(ctx context.Context, onEvent func(Event)) error {
 		onEvent(ev)
 	}
 	_ = cmd.Wait()
-	_, _ = io.Copy(io.Discard, cmd.Stderr.(io.Reader))
 	return nil
 }
 
