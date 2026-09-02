@@ -2,7 +2,6 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
@@ -147,12 +146,12 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
 			return
 		}
-		cmd, _ := json.Marshal(map[string]any{
+		cmd := map[string]any{
 			"upgradeId":  upgradeID,
 			"targetUrl":  target.TargetURL,
 			"checksum":   target.Checksum,
 			"keepConfig": true,
-		})
+		}
 		if !s.agentHub.Send(id, "firmware_upgrade", cmd) {
 			// El agente no está conectado: marcar fallo y devolver 503.
 			_ = s.firmware.SetStatus(upgradeID, "failed", "agent not connected", "")

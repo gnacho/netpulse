@@ -312,6 +312,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		cfg:                  cfg,
 		db:                   d,
 		pool:                 pool,
+		now:                  time.Now,
 		lastGood:             map[string]*Router{},
 		lastStatus:           map[string]string{},
 		boardCache:           map[string]*BoardInfo{},

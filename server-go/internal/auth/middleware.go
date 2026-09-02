@@ -57,12 +57,13 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 	_, _ = w.Write(data)
 }
 
-// isAgentReportPath: /api/agents/{slug}/binary|stream|apply-result|upgrade-result|upgrade-progress.
+// isAgentReportPath: /api/agents/{slug}/binary|stream|apply-result|upgrade-result|upgrade-progress|firmware-progress|firmware-result.
 func isAgentReportPath(path string) bool {
 	return strings.HasPrefix(path, "/api/agents/") &&
 		(strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") ||
 			strings.HasSuffix(path, "/apply-result") || strings.HasSuffix(path, "/upgrade-result") ||
-			strings.HasSuffix(path, "/upgrade-progress"))
+			strings.HasSuffix(path, "/upgrade-progress") || strings.HasSuffix(path, "/firmware-progress") ||
+			strings.HasSuffix(path, "/firmware-result"))
 }
 
 // isAnonymousPath indica si la ruta no requiere sesión (auth propia en el handler).
@@ -80,8 +81,9 @@ func isAnonymousPath(path string) bool {
 // de equipo), /api/agents/pair (pairing token de un solo uso, Fase 9 R3),
 // /api/agents/{slug}/binary (auth Bearer por token de agente,
 // Fase 6.2), /api/agents/{slug}/stream (SSE bidireccional, Fase 7.3),
-// /api/agents/{slug}/apply-result, /api/agents/{slug}/upgrade-result y
-// /api/agents/{slug}/upgrade-progress (reportes del agente, auth Bearer).
+// /api/agents/{slug}/apply-result, /api/agents/{slug}/upgrade-result,
+// /api/agents/{slug}/upgrade-progress, /api/agents/{slug}/firmware-progress y
+// /api/agents/{slug}/firmware-result (reportes del agente, auth Bearer).
 // POST /api/config-backup (issue #340): recibe snapshots UCI desde NetGrip;
 // auth Bearer por token de agente validado en el handler.
 // Acepta Bearer tokens de API (#330) como alternativa a la cookie de sesión.

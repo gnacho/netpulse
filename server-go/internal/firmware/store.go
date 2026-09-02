@@ -19,16 +19,16 @@ type Target struct {
 
 // Upgrade es el estado de un upgrade iniciado.
 type Upgrade struct {
-	ID            int64  `json:"id"`
-	RouterID      string `json:"routerId"`
-	TargetVersion string `json:"targetVersion"`
-	TargetURL     string `json:"targetUrl"`
-	Checksum      string `json:"checksum"`
-	Status        string `json:"status"`
-	Error         string `json:"error,omitempty"`
-	BackupPath    string `json:"backupPath,omitempty"`
-	StartedAt     int64  `json:"startedAt"`
-	FinishedAt    int64  `json:"finishedAt,omitempty"`
+	ID            int64   `json:"id"`
+	RouterID      string  `json:"routerId"`
+	TargetVersion string  `json:"targetVersion"`
+	TargetURL     string  `json:"targetUrl"`
+	Checksum      string  `json:"checksum"`
+	Status        string  `json:"status"`
+	Error         string  `json:"error,omitempty"`
+	BackupPath    string  `json:"backupPath,omitempty"`
+	StartedAt     int64   `json:"startedAt"`
+	FinishedAt    *int64  `json:"finishedAt,omitempty"`
 }
 
 // Store persiste targets y upgrades.
@@ -123,18 +123,22 @@ func (s *Store) SetStatus(id int64, status, errMsg, backupPath string) error {
 // LatestUpgrade devuelve el upgrade más reciente de un router.
 func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 	var u Upgrade
+	var finished sql.NullInt64
 	err := s.db.QueryRow(`
 		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at
 		FROM firmware_upgrades
 		WHERE router_id = ?
 		ORDER BY started_at DESC
 		LIMIT 1
-	`, routerID).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &u.Error, &u.BackupPath, &u.StartedAt, &u.FinishedAt)
+	`, routerID).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &u.Error, &u.BackupPath, &u.StartedAt, &finished)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if finished.Valid {
+		u.FinishedAt = &finished.Int64
 	}
 	return &u, nil
 }
@@ -142,15 +146,19 @@ func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 // GetUpgradeByID busca un upgrade por ID (para validar propiedad del agente).
 func (s *Store) GetUpgradeByID(id int64) (*Upgrade, error) {
 	var u Upgrade
+	var finished sql.NullInt64
 	err := s.db.QueryRow(`
 		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at
 		FROM firmware_upgrades WHERE id = ?
-	`, id).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &u.Error, &u.BackupPath, &u.StartedAt, &u.FinishedAt)
+	`, id).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &u.Error, &u.BackupPath, &u.StartedAt, &finished)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if finished.Valid {
+		u.FinishedAt = &finished.Int64
 	}
 	return &u, nil
 }
