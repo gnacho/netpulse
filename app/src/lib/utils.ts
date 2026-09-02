@@ -29,6 +29,9 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     ta.style.position = 'fixed'
     ta.style.opacity = '0'
     document.body.appendChild(ta)
+    // focus() antes de select(): con el foco aún en el botón, Chromium
+    // devuelve false en execCommand aunque la selección exista.
+    ta.focus()
     ta.select()
     ta.setSelectionRange(0, text.length)
     const ok = document.execCommand('copy')
