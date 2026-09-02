@@ -154,6 +154,10 @@ type extrasSnapshot struct {
 	fdb      map[string]string
 	luci     *probe.LuCILabels
 	vlans    []VlanPort
+	// system (#441): última sección system BUENA del payload del agente.
+	// Los pushes event-driven (wireless-only) van sin ella; sin este cache
+	// las vitals del router parpadeaban a 0 entre pushes completos.
+	system *probe.SystemData
 }
 
 // backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.

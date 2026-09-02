@@ -3,6 +3,8 @@ package adapters
 import (
 	"context"
 	"testing"
+
+	"github.com/gnacho/netpulse/agent/probe"
 )
 
 // #441: los routers cuya fuente no puede reportar métricas de sistema (SNMP,
@@ -91,5 +93,42 @@ func TestMetricsRowsWithoutVitals(t *testing.T) {
 	row := byID["rt1"]
 	if row.CPU == nil || *row.CPU != 12 {
 		t.Fatalf("rt1: CPU=%v, esperaba 12", row.CPU)
+	}
+}
+
+// #441: los pushes event-driven del agente (BuildWireless, sin sección
+// system) no deben tumbar las vitals a 0: polledFromAgent conserva la última
+// sección system buena cacheada (anti-parpadeo, igual que ports/radios/fdb).
+func TestPolledFromAgentSystemAntiparpadeo(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{{ID: "ap1", Host: "192.168.8.4", Name: "AP1"}}, nil)
+	cfg := l.routers[0]
+
+	cpu, temp := 23, 51
+	full := &probe.Payload{Router: "ap1", Ts: 1000, Version: "t", Kind: "netgrip"}
+	sys := &probe.SysInfo{Uptime: 98765}
+	sys.Memory.Total = 400
+	sys.Memory.Available = 200 // 50% usado
+	full.Data.System = &probe.SystemData{SysInfo: sys, CPU: &cpu, Temp: &temp}
+
+	out := l.polledFromAgent(cfg, full)
+	if out.cpu != 23 || out.temp != 51 || out.ram != 50 {
+		t.Fatalf("vitals del push completo: cpu=%d ram=%d temp=%d", out.cpu, out.ram, out.temp)
+	}
+	if out.agentKind != "netgrip" {
+		t.Fatalf("agentKind=%q, esperaba netgrip", out.agentKind)
+	}
+
+	// Push event-driven (wireless-only): SIN system → conserva las vitals.
+	partial := &probe.Payload{Router: "ap1", Ts: 1010, Version: "t", Kind: "netgrip"}
+	partial.Data.Wireless = &probe.WirelessData{Clients: map[string]probe.WirelessClient{}}
+	out2 := l.polledFromAgent(cfg, partial)
+	if out2.cpu != 23 || out2.temp != 51 || out2.ram != 50 {
+		t.Fatalf("anti-parpadeo vitals: cpu=%d ram=%d temp=%d", out2.cpu, out2.ram, out2.temp)
+	}
+
+	// Un router con agente netgrip nativo SÍ tiene vitals (no se marca).
+	r := l.buildRouter(out2, nil)
+	if r.VitalsAvailable != nil {
+		t.Fatalf("VitalsAvailable=%v, esperaba nil (agente netgrip con system)", r.VitalsAvailable)
 	}
 }
