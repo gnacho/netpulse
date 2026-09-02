@@ -1,5 +1,6 @@
 // users.go — CRUD de usuarios (paridad routes/users.js).
 //
+//	PUT  /api/auth/password      (autenticado — cambia la PROPIA contraseña)
 //	PUT  /api/users/me/language   (cualquier rol — fuera del gate admin)
 //	PUT  /api/users/me/display-name (cualquier rol — fuera del gate admin)
 //	GET  /api/users               (admin)
@@ -220,6 +221,48 @@ func (s *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"user": map[string]any{"id": id, "username": username, "role": role, "language": language},
 	})
+}
+
+// handleMyPassword (#465): PUT /api/auth/password {current, password} → 204.
+// Verifica la contraseña actual contra el hash almacenado, aplica la misma
+// política que el alta (10..128) e invalida las demás sesiones del usuario;
+// la sesión que pide el cambio sigue viva (no se desloguea a sí mismo).
+func (s *server) handleMyPassword(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserFromContext(r.Context())
+	var body struct {
+		Current  *string `json:"current"`
+		Password *string `json:"password"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_input", "current y password son obligatorios")
+		return
+	}
+	if body.Current == nil || body.Password == nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "current y password son obligatorios")
+		return
+	}
+	if len(*body.Password) < 10 || len(*body.Password) > 128 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "password mínimo 10 caracteres")
+		return
+	}
+	var hash string
+	err := s.db.QueryRow("SELECT pass_hash FROM users WHERE id = ?", me.ID).Scan(&hash)
+	if err != nil || !auth.CheckPassword(*body.Current, hash) {
+		writeError(w, http.StatusUnauthorized, "invalid_credentials", "la contraseña actual no es correcta")
+		return
+	}
+	newHash, err := auth.HashPassword(*body.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	_, _ = s.db.Exec("UPDATE users SET pass_hash = ? WHERE id = ?", newHash, me.ID)
+	if current := auth.SessionIDFromRequest(s.db, s.secret, r); current != "" {
+		_, _ = s.db.Exec("DELETE FROM sessions WHERE user_id = ? AND id <> ?", me.ID, current)
+	} else {
+		auth.DestroyUserSessions(s.db, me.ID)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleSetPassword: {password 6..128} → 204 + destroyUserSessions.

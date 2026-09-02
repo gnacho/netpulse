@@ -249,6 +249,9 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/auth/me", s.handleMe(mode))
+	// Cambio de la PROPIA contraseña (Settings > Mi sesión, #465): va tras el
+	// RequireAuth global, sin gate admin; cualquier rol puede cambiar la suya.
+	mux.HandleFunc("PUT /api/auth/password", s.handleMyPassword)
 
 	// --- Datos (sesión; con no-store) ---
 	mux.HandleFunc("GET /api/overview", s.handleOverview)

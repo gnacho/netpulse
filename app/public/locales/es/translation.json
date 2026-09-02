@@ -204,6 +204,7 @@
       "tv": "TV y consolas"
     },
     "ipCopied": "IP copiada",
+    "ipCopyFailed": "No se pudo copiar la IP",
     "listView": "Vista de lista",
     "nameUpdated": "Nombre actualizado",
     "colLease": "Tiempo restante",
@@ -1099,6 +1100,7 @@
       "sshKeyCaption": "Autorízala en cada router (Sistema → Administración → claves SSH, o /etc/dropbear/authorized_keys). NetPulse solo lee: estado, clientes y tráfico.",
       "copy": "Copiar",
       "copied": "Copiada",
+      "copyFailed": "No se pudo copiar; selecciona la clave a mano",
       "agentOnly": "Solo agente (sin SSH)",
       "agentOnlyBadge": "Solo agente",
       "edit": "Editar",
@@ -1194,6 +1196,7 @@
       "nameSaved": "Nombre guardado",
       "pwCurrent": "Contraseña actual",
       "pwNew": "Nueva contraseña",
+      "pwMinLength": "Al menos 10 caracteres",
       "pwConfirm": "Repite la contraseña",
       "pwMismatch": "Las contraseñas no coinciden",
       "pwSubmit": "Cambiar contraseña",

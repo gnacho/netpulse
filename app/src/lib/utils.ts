@@ -6,6 +6,43 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Copiar al portapapeles con fallback para orígenes no seguros (#466).
+ * La API async clipboard (navigator.clipboard) solo existe en contexto
+ * seguro (HTTPS/localhost); NetPulse se suele servir por http://<ip>:3000
+ * en la LAN, así que se cae a textarea + execCommand, que sigue
+ * funcionando dentro de un gesto de usuario. Devuelve false si ambas
+ * vías fallan.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    /* sin permiso o contexto no seguro: probar el fallback */
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    // focus() antes de select(): con el foco aún en el botón, Chromium
+    // devuelve false en execCommand aunque la selección exista.
+    ta.focus()
+    ta.select()
+    ta.setSelectionRange(0, text.length)
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+/**
  * Salir del modo demo (frontend estático sin backend): aquí no hay sesión ni
  * login al que volver. Se intenta cerrar la ventana (la demo se abre en una
  * pestaña propia desde la landing); si el navegador bloquea window.close()

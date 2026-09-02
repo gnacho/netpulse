@@ -53,11 +53,12 @@ jobs:
           npm run build --prefix app
           rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
 
-      - name: Tests Go (ambos módulos)
-        run: |
-          (cd server-go && go test ./...)
-          (cd collector && go test ./...)
-
+      # Antes de los tests: TestOpenArmVariants abre los binarios embebidos
+      # (mismo orden que go.yml desde #459; aquí faltó aplicarlo y las
+      # releases v2.25.0+ se quedaron sin assets). OJO los nombres: Open()
+      # resuelve "agents/netpulse-agent-" + normalizeArch(arch) y esta mapea
+      # armv7/armv7l/armhf -> arm, asi que el fichero se llama
+      # netpulse-agent-arm (con GOARM=7), NO netpulse-agent-armv7 (#458).
       - name: Build agent binaries para embed (todas las arquitecturas)
         env:
           CGO_ENABLED: 0
@@ -68,8 +69,13 @@ jobs:
           (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
           # arm64
           (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
-          # armv7
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
+          # armv7 (fichero "arm": el nombre que busca normalizeArch)
+          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
+
+      - name: Tests Go (ambos módulos)
+        run: |
+          (cd server-go && go test ./...)
+          (cd collector && go test ./...)
 
       - name: Valida config goreleaser
         uses: goreleaser/goreleaser-action@v6

@@ -259,6 +259,82 @@ func TestLogoutRevocaSesion(t *testing.T) {
 	}
 }
 
+func TestMyPasswordChange(t *testing.T) {
+	srv := makeTestServer(t)
+	_, adminCookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	// Alta de ana (rol user)
+	req, _ := http.NewRequest("POST", srv.URL+"/api/users",
+		strings.NewReader(`{"username":"ana","password":"secreto12345","role":"user"}`))
+	req.Header.Set("Cookie", "session="+adminCookie)
+	res, _ := http.DefaultClient.Do(req)
+	res.Body.Close()
+	if res.StatusCode != 201 {
+		t.Fatalf("create ana: got %d want 201", res.StatusCode)
+	}
+
+	// Dos sesiones de ana: la que pide el cambio y otra que debe morir.
+	_, c1, _ := loginCookie(t, srv.URL, "ana", "secreto12345")
+	_, c2, _ := loginCookie(t, srv.URL, "ana", "secreto12345")
+
+	put := func(cookie, jsonBody string) *http.Response {
+		t.Helper()
+		r, _ := http.NewRequest("PUT", srv.URL+"/api/auth/password", strings.NewReader(jsonBody))
+		r.Header.Set("Cookie", "session="+cookie)
+		rq, err := http.DefaultClient.Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rq
+	}
+
+	// Current incorrecto → 401 y la sesión no se toca
+	res = put(c1, `{"current":"no-es-la-clave","password":"nueva-clave-99"}`)
+	res.Body.Close()
+	if res.StatusCode != 401 {
+		t.Fatalf("current malo: got %d want 401", res.StatusCode)
+	}
+	res = get(t, srv.URL, "/api/auth/me", c1)
+	res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("sesión tras 401: got %d want 200", res.StatusCode)
+	}
+
+	// Password corto → 400
+	res = put(c1, `{"current":"secreto12345","password":"corta"}`)
+	res.Body.Close()
+	if res.StatusCode != 400 {
+		t.Fatalf("password corto: got %d want 400", res.StatusCode)
+	}
+
+	// Cambio correcto → 204
+	res = put(c1, `{"current":"secreto12345","password":"nueva-clave-99"}`)
+	res.Body.Close()
+	if res.StatusCode != 204 {
+		t.Fatalf("cambio: got %d want 204", res.StatusCode)
+	}
+
+	// La sesión que pidió el cambio sigue viva; la otra muere.
+	res = get(t, srv.URL, "/api/auth/me", c1)
+	res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("sesión actual: got %d want 200", res.StatusCode)
+	}
+	res = get(t, srv.URL, "/api/auth/me", c2)
+	res.Body.Close()
+	if res.StatusCode != 401 {
+		t.Fatalf("sesión hermana: got %d want 401", res.StatusCode)
+	}
+
+	// Login con la clave nueva OK; con la vieja, 401.
+	if st, _, _ := loginCookie(t, srv.URL, "ana", "nueva-clave-99"); st != 204 {
+		t.Fatalf("login clave nueva: got %d want 204", st)
+	}
+	if st, _, _ := loginCookie(t, srv.URL, "ana", "secreto12345"); st != 401 {
+		t.Fatalf("login clave vieja: got %d want 401", st)
+	}
+}
+
 func TestMutationsCrossOriginRejected(t *testing.T) {
 	// Issue #213: una mutación con Origin cruzado → 403 cross_origin antes
 	// incluso de la autenticación; el login legítimo con Origin propio pasa.
