@@ -77,4 +77,24 @@ fi
 /etc/init.d/netpulse-agent enable
 /etc/init.d/netpulse-agent restart
 
+# Config vacía (#462): el servicio NO arrancará hasta definir server, token
+# y slug. Banner claro en consola y syslog en vez de un fallo silencioso.
+SERVER_CFG=$(uci -q get netpulse-agent.main.server)
+TOKEN_CFG=$(uci -q get netpulse-agent.main.token)
+SLUG_CFG=$(uci -q get netpulse-agent.main.slug)
+if [ -z "$SERVER_CFG" ] || [ -z "$TOKEN_CFG" ] || [ -z "$SLUG_CFG" ]; then
+	logger -t netpulse-agent "config vacía: define server, token y slug; el servicio no arrancará hasta completarla"
+	echo ""
+	echo "netpulse-agent: PENDIENTE DE CONFIGURAR: el servicio no arrancará hasta completarla."
+	echo "  1. Crea el agente en el servidor NetPulse (Ajustes → Agents) y copia su token (se muestra una sola vez)."
+	echo "  2. En este router:"
+	echo "       uci set netpulse-agent.main.server='http://<netpulse-server-ip>:3000'"
+	echo "       uci set netpulse-agent.main.slug='<slug>'"
+	echo "       uci set netpulse-agent.main.token='<token-64-hex>'"
+	echo "       uci commit netpulse-agent"
+	echo "       /etc/init.d/netpulse-agent enable && /etc/init.d/netpulse-agent restart"
+	echo "  (Si el servidor ya puede entrar por SSH a este router, usa el botón Reinstalar de la web y se configura solo.)"
+	echo ""
+fi
+
 exit 0
