@@ -97,6 +97,11 @@ if [ "$UNINSTALL" -eq 1 ]; then
         run $SUDO userdel "$APP_NAME" 2>/dev/null || warn "could not delete user $APP_NAME"
         ok "system user removed"
     fi
+    # Same as install.sh: a leftover login group breaks the next install (#467).
+    if getent group "$APP_NAME" >/dev/null 2>&1; then
+        run $SUDO groupdel "$APP_NAME" 2>/dev/null || warn "could not delete group $APP_NAME (still in use?)"
+        ok "system group removed"
+    fi
     if [ "$PURGE" -eq 1 ]; then
         run $SUDO rm -rf "$STATE_DIR"
         ok "data removed (--purge)"
@@ -247,7 +252,12 @@ run $SUDO install -T -m 0755 "$TMP/$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
 ok "binary installed at $INSTALL_DIR/$BIN_NAME"
 
 if ! id "$APP_NAME" >/dev/null 2>&1; then
-    run $SUDO useradd --system --home-dir "$STATE_DIR" --shell /usr/sbin/nologin "$APP_NAME"
+    # Reuse a leftover login group from a previous uninstall (#467).
+    if getent group "$APP_NAME" >/dev/null 2>&1; then
+        run $SUDO useradd --system -g "$APP_NAME" --home-dir "$STATE_DIR" --shell /usr/sbin/nologin "$APP_NAME"
+    else
+        run $SUDO useradd --system --home-dir "$STATE_DIR" --shell /usr/sbin/nologin "$APP_NAME"
+    fi
     ok "system user $APP_NAME created"
 fi
 run $SUDO install -d -m 0750 -o "$APP_NAME" -g "$APP_NAME" "$STATE_DIR"
