@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.1] - 2026-09-03
+
+### Fixed
+
+- **Cambio de la propia contraseña (#465)**: el formulario de Ajustes llamaba a `PUT /api/auth/password`, un endpoint que no existía en el servidor, así que el cambio nunca funcionaba. Ahora está implementado: verifica la contraseña actual, aplica la política 10..128, invalida el resto de sesiones del usuario y conserva la sesión que pide el cambio. El formulario alinea el mínimo a 10 y lo indica.
+- **Botones de copiar sobre HTTP sin HTTPS (#466)**: `navigator.clipboard` no existe en orígenes no seguros (NetPulse se suele servir por `http://<ip>:3000`), así que copiar la clave SSH no hacía nada y el error se tragaba. Helper compartido con fallback a textarea + `execCommand('copy')` para todos los botones de copia, con aviso visible si ambas vías fallan.
+- **El desinstalador dejaba el grupo `netpulse` (#467)**: la reinstalación moría con `useradd: group netpulse exists`. Los instaladores reutilizan el grupo si ya existe (`-g`) y los desinstaladores lo borran (`groupdel`), en el server y el collector.
+- **El .apk de luci-app-netpulse era un ipk renombrado (#468)**: apk-tools v3 en 24.12+/25.x lo rechazaba con "v2 package format error". El SDK 25.12 genera ahora un paquete v3 firmado real (mismo patrón source-less que el agente); verificado en un router 25.12.5. El asset pasa a llamarse `luci-app-netpulse-<versión>-r1.apk` y el README refleja el patrón nuevo.
+- **Las releases desde v2.25.0 no publicaban ningún asset (#469)**: `release.yml` corría los tests Go antes de compilar los binarios de agente embebidos y moría antes de goreleaser (el mismo desorden que #458 arregló en go.yml), así que no había tarballs ni paquetes y los instaladores fallaban. Además, el job package-server de `openwrt-package.yml` leía el tag de un contexto vacío. Con este tag vuelven los tarballs, checksums y paquetes OpenWrt.
+
 ## [2.26.0] - 2026-09-02
 
 ### Added
