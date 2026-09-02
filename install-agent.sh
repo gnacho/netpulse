@@ -327,7 +327,11 @@ log() { logger -t netpulse-watchdog "$*"; }
 if [ ! -x /usr/sbin/netpulse-agent ] && [ ! -x /tmp/netpulse-agent ]; then
     exit 0
 fi
-if ! pgrep -x netpulse-agent >/dev/null 2>&1; then
+# Nota: BusyBox pgrep -x compara contra la línea de comando completa,
+# no solo el nombre base; /usr/sbin/netpulse-agent no coincide con
+# netpulse-agent. Usamos pidof, que busca por comm/pidof y funciona
+# tanto en BusyBox como en procps-ng.
+if ! pidof netpulse-agent >/dev/null 2>&1; then
     log "agente no está en marcha — reiniciando servicio"
     $INIT restart >/dev/null 2>&1
     exit 0
