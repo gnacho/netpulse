@@ -188,6 +188,18 @@ Settings. Authorize it on each router you want to monitor
 boot via LAN discovery (TCP :22 sweep, ubus/GL-UI fingerprint); the rest
 are added from Settings. Polling is strictly read-only.
 
+### Installing the agents (recommended: let the app do it)
+
+Once the router is in the table and its SSH key is authorized, the app can
+install and start the agent by itself: Settings → Agents → **Reinstall**.
+Over one SSH session the server detects the architecture, downloads the
+embedded agent binary from itself (token-authenticated), verifies its
+SHA256, writes the config, installs the procd init (with a self-heal step
+that re-downloads the binary after a `sysupgrade`, which only preserves
+`/etc`), sets up the watchdog cron and restarts the service. The agent
+shows up as connected within seconds. Re-running it is safe: it rotates
+the token and reinstalls.
+
 ## OpenWrt packages
 
 Every `v*` release ships the agent and the LuCI app as installable OpenWrt
@@ -215,6 +227,22 @@ apk add --allow-untrusted ./netpulse-agent_*.apk ./luci-app-netpulse_*.apk
 both packages together resolves the dependencies without extra feeds. After
 install, LuCI picks up the new pages automatically (the package restarts
 `rpcd` and clears the index cache).
+
+The package ships an empty config, so the service stays inactive until you
+point it at your server (the app cannot know these values). Create the
+agent in the web UI (Settings → Agents) to get its one-time token, then on
+the router:
+
+```sh
+uci set netpulse-agent.main.server='http://<netpulse-server-ip>:3000'
+uci set netpulse-agent.main.slug='<slug>'
+uci set netpulse-agent.main.token='<64-hex token>'
+uci commit netpulse-agent
+service netpulse-agent enable && service netpulse-agent start
+```
+
+If the server can already SSH into the router, prefer the automated path
+above: **Reinstall** does all of this for you.
 
 ## Development
 
