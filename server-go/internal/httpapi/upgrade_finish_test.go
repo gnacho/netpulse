@@ -59,6 +59,22 @@ func TestUpgradeTrackerFinishPrefixesAndStates(t *testing.T) {
 		t.Fatal("v0.26.1 debe cerrar contra target 0.26.1")
 	}
 
+	// #447: mismo x.y.z con build más viejo que el target NO cierra el ciclo
+	// (vercmp.Cmp ignora los sufijos y cerraba con la versión vieja).
+	u4 := newUpgradeTracker()
+	u4.now = func() time.Time { return now }
+	u4.begin("gateway", "2.25.0-443")
+	u4.set("gateway", upgradeStepRestarting, 0, "")
+	if u4.finishIfTarget("gateway", "2.25.0-437") {
+		t.Fatal("2.25.0-437 no debe cerrar contra target 2.25.0-443")
+	}
+	if st, _ := u4.snapshot("gateway"); st.Step != upgradeStepRestarting {
+		t.Fatalf("debe seguir en restarting: %+v", st)
+	}
+	if !u4.finishIfTarget("gateway", "v2.25.0-443") {
+		t.Fatal("v2.25.0-443 debe cerrar contra target 2.25.0-443")
+	}
+
 	// Sin target (estados escritos a mano, upgrades legados): nunca cierra.
 	u.set("solo", upgradeStepRestarting, 0, "")
 	if u.finishIfTarget("solo", "9.9.9") {

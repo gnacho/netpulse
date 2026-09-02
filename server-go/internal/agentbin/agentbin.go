@@ -37,10 +37,10 @@ var (
 	digestMu    sync.Mutex
 	digestCache = map[string]string{}
 )
-
 // Digest devuelve el sha256 (hex) del binario embebido para arch, o "" si no
-// existe o no se puede leer. Cacheado.
+// existe o no se puede leer. Cacheado. Normaliza armv7 -> arm como Open.
 func Digest(arch string) string {
+	arch = normalizeArch(arch)
 	digestMu.Lock()
 	defer digestMu.Unlock()
 	if d, ok := digestCache[arch]; ok {
@@ -73,11 +73,24 @@ func HasBinaries() bool {
 //go:embed agents/*
 var agentsFS embed.FS
 
+func normalizeArch(arch string) string {
+	switch arch {
+	case "aarch64":
+		return "arm64"
+	case "armv7l", "armv7", "armhf":
+		return "arm"
+	case "x86_64":
+		return "amd64"
+	}
+	return arch
+}
+
 // Open devuelve el binario para la arquitectura dada, o error si no existe.
 // Las arquitecturas válidas son las mismas que las builds de goreleaser:
-// "amd64", "arm64", "armv7".
+// "amd64", "arm64", "armv7". Normaliza sinónimos (armv7 -> arm) para que el
+// one-liner del agente, que reporta GOARCH=armv7, encuentre el binario.
 func Open(arch string) (fs.File, error) {
-	name := "agents/netpulse-agent-" + arch
+	name := "agents/netpulse-agent-" + normalizeArch(arch)
 	f, err := agentsFS.Open(name)
 	if err != nil {
 		return nil, err

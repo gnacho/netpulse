@@ -474,10 +474,14 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				// #363: un agente embebido en NetGrip se actualiza vía el
 				// evento SSE upgrade (NetGrip corre su propio self-update);
 				// "hay novedad" = versión reportada < última release de NetGrip.
+				// #447: hay upgrade disponible solo si el agente reporta una
+				// versión MÁS VIEJA que la del binario embebido, build incluido
+				// (mismo criterio que finishIfTarget y upgrade-all: un agente
+				// más nuevo que el embebido no está desactualizado).
 				if agentKind == "netgrip" {
 					item.UpdateAvailable = item.Version != "" && cmpSemver(netgripLatest(), item.Version) > 0
 				} else {
-					item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && item.Version != agentbin.EmbeddedAgentVersion
+					item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
 				}
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {

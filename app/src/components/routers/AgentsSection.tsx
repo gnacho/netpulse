@@ -66,6 +66,14 @@ function hhmmss(ts: number): string {
   })
 }
 
+// Ventanas de visibilidad de la timeline compacta (#446): mientras el reporte
+// está vivo se muestra (ventana de 120 s de activeUpgrade); "done" desaparece
+// en segundos; "failed" aguanta un poco para poder leer el error; un paso no
+// terminal sin reporte fresco (upgrade sin confirmar) tiene un margen corto.
+const TIMELINE_DONE_S = 10
+const TIMELINE_FAILED_S = 60
+const TIMELINE_STALLED_S = 90
+
 /** Fila de un agente con sus acciones de recuperación (estado local). */
 function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undefined }) {
   const { t } = useTranslation()
@@ -90,20 +98,27 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen) ?? t('routers.agents.never') : t('routers.agents.never')
   const live = agent ? activeUpgrade(agent, nowSec) : undefined
 
-  // Tick de 1 s mientras hay upgrade en marcha (elapsed de la timeline).
-  const ticking = live !== undefined
+  // Timeline compacta (#446): una sola línea por agente, visible mientras el
+  // upgrade está en marcha y un instante tras cerrarse (nada de 5 min).
+  const up = agent?.upgrade
+  const showTimeline =
+    up !== undefined &&
+    (live !== undefined
+      ? true
+      : up.step === 'done'
+        ? nowSec - up.ts < TIMELINE_DONE_S
+        : up.step === 'failed'
+          ? nowSec - up.ts < TIMELINE_FAILED_S
+          : up.step !== 'queued' && nowSec - up.ts < TIMELINE_STALLED_S)
+
+  // Tick de 1 s mientras la timeline es visible: progreso en vivo y cuenta
+  // atrás de la desaparición tras done/failed.
+  const ticking = showTimeline
   useEffect(() => {
     if (!ticking) return
     const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
     return () => window.clearInterval(timer)
   }, [ticking])
-
-  // Timeline visible mientras el upgrade está en marcha o hasta 5 min después
-  // del último paso: el recorrido completo queda visible aunque vaya rápido
-  // y sobrevive al parpadeo del poll de agentes (#284).
-  const up = agent?.upgrade
-  const showTimeline =
-    up !== undefined && (live !== undefined || (up.step !== 'queued' && nowSec - up.ts < 300))
 
   const reinstall = async () => {
     if (reinstallState === 'busy') return
@@ -284,49 +299,63 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         )}
       </td>
     </motion.tr>
-    {showTimeline && up && (
-      <motion.tr
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-        className="border-b border-border/60 last:border-0"
-      >
-        <td colSpan={6} className="pb-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-surface px-3.5 py-2.5">
-            <span className="inline-flex items-center gap-1.5 text-label font-medium uppercase text-text-muted">
-              <Clock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-              {t('routers.agent.timeline')}
-              {(() => {
-                const h = up.steps ?? []
-                const first = h[0]
-                const last = h[h.length - 1]
-                if (!first || !last || h.length < 2) return null
-                const dur = Math.max(1, last.ts - first.ts)
-                return <span className="font-mono normal-case">{t('routers.agent.timelineSummary', { count: h.length, secs: dur })}</span>
-              })()}
-            </span>
-            {(up.steps ?? []).map((s, i) => {
-              const isCurrent = i === (up.steps?.length ?? 0) - 1 && live !== undefined
-              return (
-                <span key={`${s.step}-${s.ts}`} className="inline-flex items-center gap-1.5 text-caption">
-                  {isCurrent ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-accent" strokeWidth={2} aria-hidden="true" />
-                  ) : (
-                    <Check className="h-3 w-3 text-ok" strokeWidth={2} aria-hidden="true" />
-                  )}
-                  <span className={isCurrent ? 'font-medium text-text-primary' : 'text-text-secondary'}>
-                    {upgradeStepText(s, t)}
-                    {isCurrent && s.step !== 'queued' ? ` · ${Math.max(0, nowSec - s.ts)}s` : ''}
-                  </span>
-                  <span className="font-mono text-text-muted">{hhmmss(s.ts)}</span>
+    {showTimeline && up &&
+      (() => {
+        // Resumen de una línea (#446): paso actual en vivo, resultado terminal
+        // o último paso conocido si el reporte dejó de llegar. El detalle
+        // completo (paso + HH:MM:SS) queda en tooltip y aria-label.
+        const steps = up.steps ?? []
+        const first = steps[0]
+        const last = steps[steps.length - 1]
+        const dur = first && last && steps.length >= 2 ? Math.max(1, last.ts - first.ts) : undefined
+        const done = up.step === 'done' && live === undefined
+        const failed = up.step === 'failed'
+        const summary =
+          live !== undefined
+            ? `${upgradeStepText(up, t)} · ${Math.max(0, nowSec - (first?.ts ?? up.ts))}s`
+            : done
+              ? t('routers.agent.upgraded') +
+                (dur !== undefined ? ' ' + t('routers.agent.timelineSummary', { count: steps.length, secs: dur }) : '')
+              : failed
+                ? `${t('routers.agent.upgradeFail')}${up.error ? `: ${up.error}` : ''}`
+                : `${upgradeStepText(up, t)} · ${Math.max(0, nowSec - up.ts)}s`
+        const detail = steps.map((s) => `${upgradeStepText(s, t)} ${hhmmss(s.ts)}`).join(' · ')
+        return (
+          <motion.tr
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className="border-b border-border/60 last:border-0"
+          >
+            <td colSpan={6} className="pb-2 pt-0">
+              <div
+                role="status"
+                aria-live="polite"
+                title={detail}
+                aria-label={`${t('routers.agent.timeline')}: ${detail}`}
+                className="flex items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-canvas/60 px-3 py-1 text-caption"
+              >
+                {live !== undefined ? (
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" strokeWidth={2} aria-hidden="true" />
+                ) : done ? (
+                  <Check className="h-3 w-3 shrink-0 text-ok" strokeWidth={2} aria-hidden="true" />
+                ) : (
+                  <Clock className={cn('h-3 w-3 shrink-0', failed ? 'text-danger' : 'text-text-muted')} strokeWidth={2} aria-hidden="true" />
+                )}
+                <span className="shrink-0 text-label font-medium uppercase text-text-muted">{t('routers.agent.timeline')}</span>
+                <span className={cn('truncate font-mono', failed ? 'text-danger' : done ? 'text-ok' : 'text-text-secondary')}>
+                  {summary}
                 </span>
-              )
-            })}
-            {live === undefined && <span className="text-caption text-ok">{t('routers.agent.timelineDone')}</span>}
-          </div>
-        </td>
-      </motion.tr>
-    )}
+                {live !== undefined && up.step === 'downloading' && (up.pct ?? 0) > 0 && (
+                  <span className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-border" aria-hidden="true">
+                    <span className="block h-full rounded-full bg-accent transition-[width]" style={{ width: `${up.pct ?? 0}%` }} />
+                  </span>
+                )}
+              </div>
+            </td>
+          </motion.tr>
+        )
+      })()}
     </>
   )
 }

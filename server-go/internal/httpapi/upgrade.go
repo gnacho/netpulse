@@ -159,7 +159,9 @@ func (u *upgradeTracker) finishIfTarget(slug, version string) bool {
 	case upgradeStepDone, upgradeStepFailed, upgradeStepQueued:
 		return false
 	}
-	if vercmp.Cmp(version, st.Target) < 0 {
+	// #447: comparación con build (-N) para no cerrar el ciclo con un push
+	// que reporte el mismo x.y.z con build más viejo que el objetivo.
+	if vercmp.CmpBuild(version, st.Target) < 0 {
 		return false
 	}
 	u.setLocked(slug, upgradeStepDone, 0, "")
@@ -388,7 +390,10 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 				// external son scrapers que no entienden el comando "upgrade".
 				if !s.routerUpgradeable(slug) {
 					item.Status = "not_openwrt"
-				} else if version != "" && version != agentbin.EmbeddedAgentVersion {
+				// #447: solo hay novedad si el agente es MÁS VIEJO que el
+				// binario embebido (build incluido); un agente más nuevo no
+				// está desactualizado y el botón ofrecería un downgrade.
+				} else if version != "" && vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) < 0 {
 					item.Status = s.sendOrQueueUpgrade(slug)
 					item.Upgraded = item.Status == "sent"
 					if item.Status == "sent" {
