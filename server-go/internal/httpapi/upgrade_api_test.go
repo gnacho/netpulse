@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/agentbin"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -312,7 +313,9 @@ func TestUpgradeResultBearer(t *testing.T) {
 }
 
 // TestAgentsListUpdateAvailable: el campo updateAvailable refleja si la versión
-// reportada por el agente difiere del binario embebido (agentbin.EmbeddedAgentVersion).
+// reportada por el agente es MÁS VIEJA que la del binario embebido
+// (agentbin.EmbeddedAgentVersion), build incluido (#447). Un agente más nuevo
+// que el embebido no está desactualizado (el botón ofrecería un downgrade).
 func TestAgentsListUpdateAvailable(t *testing.T) {
 	ts := makeUpgradeTestServer(t)
 	st, tok := createUpgradeToken(t, ts, "patio")
@@ -338,10 +341,30 @@ func TestAgentsListUpdateAvailable(t *testing.T) {
 		t.Fatalf("versión 0.1.0 debe dar updateAvailable=false: %v", patio)
 	}
 
-	// Push con versión distinta → updateAvailable=true.
-	upgradeIngest(t, ts, tok, upgradePayload("9.9.9"))
+	// Push con versión más vieja → updateAvailable=true.
+	upgradeIngest(t, ts, tok, upgradePayload("0.0.9"))
 	if patio := agentItem(); patio["updateAvailable"] != true {
-		t.Fatalf("versión 9.9.9 debe dar updateAvailable=true: %v", patio)
+		t.Fatalf("versión 0.0.9 debe dar updateAvailable=true: %v", patio)
+	}
+
+	// Push con versión MÁS NUEVA que la embebida → false (no se ofrece
+	// downgrade; antes cualquier versión distinta marcaba novedad, #447).
+	upgradeIngest(t, ts, tok, upgradePayload("9.9.9"))
+	if patio := agentItem(); patio["updateAvailable"] != false {
+		t.Fatalf("versión 9.9.9 (más nueva) debe dar updateAvailable=false: %v", patio)
+	}
+
+	// #447: builds del mismo x.y.z: -437 < -443 marca novedad; -443 no.
+	saved := agentbin.EmbeddedAgentVersion
+	t.Cleanup(func() { agentbin.EmbeddedAgentVersion = saved })
+	agentbin.EmbeddedAgentVersion = "2.25.0-443"
+	upgradeIngest(t, ts, tok, upgradePayload("2.25.0-437"))
+	if patio := agentItem(); patio["updateAvailable"] != true {
+		t.Fatalf("2.25.0-437 contra embebido 2.25.0-443 debe dar updateAvailable=true: %v", patio)
+	}
+	upgradeIngest(t, ts, tok, upgradePayload("2.25.0-443"))
+	if patio := agentItem(); patio["updateAvailable"] != false {
+		t.Fatalf("2.25.0-443 contra embebido 2.25.0-443 debe dar updateAvailable=false: %v", patio)
 	}
 }
 
@@ -359,12 +382,12 @@ func TestAgentsUpgradeAll(t *testing.T) {
 		t.Fatalf("sin admin: got %d want 403/401", res.StatusCode)
 	}
 
-	// "patio" desactualizado y conectado → sent.
+	// "patio" desactualizado (versión más vieja que la embebida) y conectado → sent.
 	st, tok := createUpgradeToken(t, ts, "patio")
 	if st != 201 {
 		t.Fatalf("create patio: %d", st)
 	}
-	upgradeIngest(t, ts, tok, upgradePayload("9.9.9"))
+	upgradeIngest(t, ts, tok, upgradePayload("0.0.9"))
 	cancel, done := openStream(t, ts, "patio", tok)
 	defer func() { cancel(); <-done }()
 
@@ -372,7 +395,7 @@ func TestAgentsUpgradeAll(t *testing.T) {
 	if st, tokO := createUpgradeToken(t, ts, "otro"); st != 201 {
 		t.Fatalf("create otro: %d", st)
 	} else {
-		upgradeIngest(t, ts, tokO, upgradePayloadFor("otro", "9.9.9"))
+		upgradeIngest(t, ts, tokO, upgradePayloadFor("otro", "0.0.9"))
 	}
 	// "aldia" con versión == embebida → up_to_date.
 	st2, tok2 := createUpgradeToken(t, ts, "aldia")
