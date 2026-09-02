@@ -5,6 +5,18 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.25.0] - 2026-09-02
+
+### Added
+
+- **Acciones de router en la tabla y ocultar vitales inexistentes (#445)**: la tabla de routers añade acciones para abrir la web UI genérica y NetGrip; los routers sin métricas de sistema (SNMP/switches/beacon) ya no muestran CPU/RAM/temperatura en 0; las vitales anteriores se reciclan entre pushes parciales del agente.
+- **Timeline compacta de actualización de agentes (#446)**: el panel de agentes muestra el progreso del upgrade en una sola línea por agente, con desaparición rápida tras completarse (10 s) o fallar (60 s), evitando que rompa la tabla.
+
+### Fixed
+
+- **Botón "Actualizar agente" persistente tras upgrade (#447)**: `vercmp` ahora compara también el build del sufijo `-N` (`CmpBuild`), de modo que el frontend y el ciclo de upgrade usan el mismo criterio. Un agente con build más reciente ya no se considera desactualizado.
+- **Upgrade de agentes OpenWrt fallaba con 404 (#449)**: `agentbin.Open` normaliza `armv7`/`armv7l`/`armhf` a `arm`, `aarch64` a `arm64` y `x86_64` a `amd64`, coincidiendo con los nombres de los binarios embebidos.
+
 ## [2.24.0] - 2026-09-01
 
 ### Added
