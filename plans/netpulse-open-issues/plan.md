@@ -2,7 +2,7 @@
 type: planning
 entity: plan
 plan: netpulse-open-issues
-status: active
+status: completed
 created: 2026-09-01
 updated: 2026-09-01
 ---
@@ -98,6 +98,10 @@ Todos los issues del alcance cerrados y mergeados en `main`, con tests verdes, b
 | #414 requiere validar en Mikrotik CSS610 para ajustar thresholds. | Falsos positivos persistentes | Dejar intervalo/threshold configurables y pedir feedback. |
 
 ## Changelog
+
+### 2026-09-02
+
+- Plan completado. v2.24.0 y v2.25.0 publicados. Continua en `plans/netpulse-v2.26`.
 
 ### 2026-09-01
 
