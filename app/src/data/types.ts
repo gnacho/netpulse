@@ -39,9 +39,15 @@ export interface Router {
   status: Status
   /** Salud 0–100 */
   health: number
-  cpu: number // %
-  ram: number // %
-  temp: number // °C
+  /**
+   * #441: false cuando la fuente del router no puede reportar métricas de
+   * sistema (switch SNMP o pusher beacon/scraper). En ese caso cpu/ram/temp
+   * llegan a null y la UI no los pinta. Ausente = disponibles.
+   */
+  vitalsAvailable?: boolean
+  cpu: number | null // %
+  ram: number | null // %
+  temp: number | null // °C
   uptime: string
   clients: number
   /** Métrica en umbral (se pinta --warn), p. ej. 'temp' en Patio */

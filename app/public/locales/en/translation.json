@@ -533,19 +533,12 @@
       "firmwareBase": "(base {{base}})",
       "firmwareTarget": "Target: {{target}}",
       "lastReboot": "Last reboot",
-      "openLuci": "Open LuCI",
+      "openWebUi": "Open web UI",
+      "openNetgrip": "Open NetGrip",
+      "netgripTip": "The NetGrip panel runs on port 8080",
       "timezone": "Timezone",
       "title": "Information",
-      "updated": "Up to date",
-      "reinstall": "Reinstall agent",
-      "reinstalling": "Reinstalling…",
-      "reinstalled": "Reinstalled",
-      "reinstallRetry": "Retry reinstall",
-      "reinstallTip": "Reinstall the agent on this router (binary, config and service) via SSH. Use this if the agent was removed by a firmware update or manual uninstall.",
-      "reinstallConfirm": "Reinstall the agent on {{router}}? The current agent (if any) will be replaced and its token rotated.",
-      "reinstallDone": "Agent reinstalled and reporting again.",
-      "reinstallPending": "Agent installed; waiting for it to report (up to 40s).",
-      "reinstallFail": "Reinstall failed"
+      "updated": "Up to date"
     },
     "latency": {
       "24h": "Latency 24 h",
@@ -559,7 +552,9 @@
       "maxTemp": "max {{temp}} °C",
       "peakCpu": "peak {{pct}} % at {{t}}",
       "ramUsed": "{{used}} MB used of {{total}} MB",
-      "tableCaption": "Performance data ({{range}})"
+      "tableCaption": "Performance data ({{range}})",
+      "unavailableTitle": "No system metrics",
+      "unavailableBody": "This device is monitored through SNMP or a beacon pusher (managed switch): it does not report CPU, RAM or temperature, so there are no charts to show."
     },
     "performance": "Performance",
     "performanceRange": "Performance range",
@@ -771,7 +766,9 @@
       "netgripTip": "The agent lives inside this router's NetGrip panel",
       "netgripHint": "The agent lives in the NetGrip panel: Update upgrades the panel itself"
     },
-    "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s"
+    "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s",
+    "noVitals": "No system metrics",
+    "noVitalsTip": "Monitored through SNMP or a beacon: this device does not report CPU, RAM or temperature"
   },
   "reports": {
     "availability": "Availability",

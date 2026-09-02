@@ -286,8 +286,8 @@ export function perfSeries(router: Router, range: '1h' | '24h' | '7d'): PerfPoin
 
   // Índice del pico: 21:00 en 24h, penúltimo tramo en 1h, viernes en 7d
   const peakIdx = range === '24h' ? 21 : range === '1h' ? 15 : 4
-  const cpuPeak = isGateway ? 61 : Math.min(88, router.cpu + 34)
-  const tempPeak = isGateway ? 58 : router.temp + 4
+  const cpuPeak = isGateway ? 61 : Math.min(88, (router.cpu ?? 0) + 34)
+  const tempPeak = isGateway ? 58 : (router.temp ?? 0) + 4
 
   const points: PerfPoint[] = []
   for (let i = 0; i < n; i++) {
@@ -297,15 +297,15 @@ export function perfSeries(router: Router, range: '1h' | '24h' | '7d'): PerfPoin
         ? 0.7 + 0.3 * (i / (n - 1))
         : 0.55 + 0.45 * Math.sin(((i - 6) / n) * Math.PI * 2 - Math.PI / 2) ** 2
     const wob = noise(i, seed)
-    let cpu = Math.max(2, Math.round(router.cpu * dayShape + wob * 6))
-    const ram = Math.max(10, Math.round(router.ram - 6 + wob * 10 + (i / n) * 4))
-    let temp = Math.max(30, Math.round(router.temp - 5 + wob * 4 + dayShape * 4))
+    let cpu = Math.max(2, Math.round((router.cpu ?? 0) * dayShape + wob * 6))
+    const ram = Math.max(10, Math.round((router.ram ?? 0) - 6 + wob * 10 + (i / n) * 4))
+    let temp = Math.max(30, Math.round((router.temp ?? 0) - 5 + wob * 4 + dayShape * 4))
     if (i === peakIdx) cpu = cpuPeak
     if (i === peakIdx) temp = tempPeak
     points.push({ t: labels[i]!, cpu, ram, temp })
   }
   // La serie termina SIEMPRE en el valor canónico actual
-  points[n - 1] = { t: labels[n - 1]!, cpu: router.cpu, ram: router.ram, temp: router.temp }
+  points[n - 1] = { t: labels[n - 1]!, cpu: router.cpu ?? 0, ram: router.ram ?? 0, temp: router.temp ?? 0 }
   return points
 }
 
@@ -314,7 +314,7 @@ export function perfCaptions(router: Router, data: PerfPoint[]): { cpu: string; 
   if (data.length === 0) throw new Error('perfCaptions: empty perf series')
   const cpuMax = data.reduce((m, p) => (p.cpu > m.cpu ? p : m), data[0]!)
   const tempMax = data.reduce((m, p) => (p.temp > m.temp ? p : m), data[0]!)
-  const ramUsed = Math.round((router.ram / 100) * extras.ramMb)
+  const ramUsed = Math.round(((router.ram ?? 0) / 100) * extras.ramMb)
   return {
     cpu: i18n.t('routerDetail.perf.peakCpu', { pct: cpuMax.cpu, t: cpuMax.t }),
     ram: i18n.t('routerDetail.perf.ramUsed', { used: ramUsed, total: extras.ramMb }),

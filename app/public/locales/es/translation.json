@@ -533,19 +533,12 @@
       "firmwareBase": "(base {{base}})",
       "firmwareTarget": "Objetivo: {{target}}",
       "lastReboot": "Último reinicio",
-      "openLuci": "Abrir LuCI",
+      "openWebUi": "Abrir WebUI",
+      "openNetgrip": "Abrir NetGrip",
+      "netgripTip": "El panel NetGrip corre en el puerto 8080",
       "timezone": "Zona horaria",
       "title": "Información",
-      "updated": "Actualizado",
-      "reinstall": "Reinstalar agente",
-      "reinstalling": "Reinstalando…",
-      "reinstalled": "Reinstalado",
-      "reinstallRetry": "Reintentar reinstall",
-      "reinstallTip": "Reinstala el agente en este router (binario, config y servicio) vía SSH. Úsalo si el agente fue borrado por una actualización de firmware o una desinstalación manual.",
-      "reinstallConfirm": "¿Reinstalar el agente en {{router}}? El agente actual (si lo hay) será sustituido y su token rotado.",
-      "reinstallDone": "Agente reinstalado y empujando de nuevo.",
-      "reinstallPending": "Agente instalado; esperando a que empuje (hasta 40 s).",
-      "reinstallFail": "Fallo al reinstalar"
+      "updated": "Actualizado"
     },
     "latency": {
       "24h": "Latencia 24 h",
@@ -559,7 +552,9 @@
       "maxTemp": "máx {{temp}} °C",
       "peakCpu": "pico {{pct}} % a las {{t}}",
       "ramUsed": "{{used}} MB usados de {{total}} MB",
-      "tableCaption": "Datos de rendimiento ({{range}})"
+      "tableCaption": "Datos de rendimiento ({{range}})",
+      "unavailableTitle": "Sin métricas de sistema",
+      "unavailableBody": "Este dispositivo se monitoriza por SNMP o beacon (switch gestionado): no reporta CPU, RAM ni temperatura, así que no hay gráficas que mostrar."
     },
     "performance": "Rendimiento",
     "performanceRange": "Rango de rendimiento",
@@ -771,7 +766,9 @@
       "netgripTip": "El agente vive dentro del panel NetGrip de este router",
       "netgripHint": "El agente vive en el panel NetGrip: Actualizar actualiza el propio panel"
     },
-    "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s"
+    "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s",
+    "noVitals": "Sin métricas de sistema",
+    "noVitalsTip": "Monitorizado por SNMP o beacon: este dispositivo no reporta CPU, RAM ni temperatura"
   },
   "reports": {
     "availability": "Disponibilidad",

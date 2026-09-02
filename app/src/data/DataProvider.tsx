@@ -357,9 +357,9 @@ const walkPct = (v: number, pct = 5, min = 0) =>
 function demoTick(prev: NetPulseData): NetPulseData {
   const routers = prev.routers.map((r) => ({
     ...r,
-    cpu: walkInt(r.cpu, 2, 2, 97),
-    ram: walkInt(r.ram, 2, 5, 97),
-    temp: walkInt(r.temp, 2, 30, 90),
+    cpu: walkInt(r.cpu ?? 0, 2, 2, 97),
+    ram: walkInt(r.ram ?? 0, 2, 5, 97),
+    temp: walkInt(r.temp ?? 0, 2, 30, 90),
   }))
   const wan: WanInfo = {
     ...prev.wan,

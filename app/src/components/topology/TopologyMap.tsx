@@ -143,9 +143,10 @@ function TooltipCard({
           </div>
           <div className="mt-0.5 text-caption text-text-muted">{tip.router.modelShort} · {tip.router.ip}</div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <MiniStat label="CPU" value={`${tip.router.cpu} %`} />
-            <MiniStat label="RAM" value={`${tip.router.ram} %`} />
-            <MiniStat label={t('routers.colTemp')} value={`${tip.router.temp} °C`} hot={tip.router.hotMetric === 'temp'} />
+            {/* #441: sin vitals (switch SNMP/beacon) se muestra un guion */}
+            <MiniStat label="CPU" value={tip.router.cpu === null ? '—' : `${tip.router.cpu} %`} />
+            <MiniStat label="RAM" value={tip.router.ram === null ? '—' : `${tip.router.ram} %`} />
+            <MiniStat label={t('routers.colTemp')} value={tip.router.temp === null ? '—' : `${tip.router.temp} °C`} hot={tip.router.hotMetric === 'temp'} />
             <MiniStat label={t('routers.colClients')} value={String(tip.router.clients)} />
           </div>
           <div className="mt-2 text-caption font-semibold text-accent">
