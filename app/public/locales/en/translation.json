@@ -1194,6 +1194,7 @@
       "nameSaved": "Name saved",
       "pwCurrent": "Current password",
       "pwNew": "New password",
+      "pwMinLength": "At least 10 characters",
       "pwConfirm": "Repeat password",
       "pwMismatch": "Passwords do not match",
       "pwSubmit": "Change password",

@@ -1194,6 +1194,7 @@
       "nameSaved": "Nombre guardado",
       "pwCurrent": "Contraseña actual",
       "pwNew": "Nueva contraseña",
+      "pwMinLength": "Al menos 10 caracteres",
       "pwConfirm": "Repite la contraseña",
       "pwMismatch": "Las contraseñas no coinciden",
       "pwSubmit": "Cambiar contraseña",

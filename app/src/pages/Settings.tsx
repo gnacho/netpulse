@@ -2972,7 +2972,7 @@ export default function Settings() {
   const [pwChanged, setPwChanged] = useState(false)
 
   const submitOwnPassword = useCallback(async () => {
-    if (pwBusy || !pwCurrent || pwNew.length < 6 || pwNew !== pwConfirm) return
+    if (pwBusy || !pwCurrent || pwNew.length < 10 || pwNew !== pwConfirm) return
     setPwBusy(true)
     setPwError(null)
     setPwChanged(false)
@@ -3922,6 +3922,7 @@ export default function Settings() {
                   aria-label={t('settings.session.pwNew')}
                   className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary"
                 />
+                <p className="-mt-1 text-caption text-text-muted">{t('settings.session.pwMinLength')}</p>
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -3943,7 +3944,7 @@ export default function Settings() {
                 )}
                 <button
                   type="submit"
-                  disabled={pwBusy || !pwCurrent || pwNew.length < 6 || pwNew !== pwConfirm}
+                  disabled={pwBusy || !pwCurrent || pwNew.length < 10 || pwNew !== pwConfirm}
                   className="flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {pwBusy ? t('settings.session.pwSubmitting') : t('settings.session.pwSubmit')}
