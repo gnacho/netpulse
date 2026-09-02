@@ -204,6 +204,7 @@
       "tv": "TV & consoles"
     },
     "ipCopied": "IP copied",
+    "ipCopyFailed": "Could not copy the IP",
     "listView": "List view",
     "nameUpdated": "Name updated",
     "colLease": "Lease time",
@@ -1099,6 +1100,7 @@
       "sshKeyCaption": "Authorize it on each router (System → Administration → SSH keys, or /etc/dropbear/authorized_keys). NetPulse is read-only: status, clients and traffic.",
       "copy": "Copy",
       "copied": "Copied",
+      "copyFailed": "Copy failed; select the key manually",
       "agentOnly": "Agent only (no SSH)",
       "agentOnlyBadge": "Agent only",
       "edit": "Edit",

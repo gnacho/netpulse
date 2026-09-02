@@ -9,7 +9,7 @@ import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
 import { AgentUpgradeButton, activeUpgrade, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
-import { cn } from '@/lib/utils'
+import { cn, copyToClipboard } from '@/lib/utils'
 
 /**
  * Sección de agentes nativos (issue #245, reubicada en /routers por #284):
@@ -29,30 +29,9 @@ function isOpenWrtType(t: string | undefined): boolean {
   return t === undefined || t === '' || t === 'glinet' || t === 'openwrt'
 }
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
-    }
-  } catch {
-    /* fallback abajo */
-  }
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.setAttribute('readonly', '')
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  } catch {
-    return false
-  }
-}
+// copyText: alias del helper compartido con fallback para orígenes no
+// seguros (#466); antes vivía inline aquí y en RouterInfo duplicado.
+const copyText = copyToClipboard
 
 type ReinstallState = 'idle' | 'busy' | 'done' | 'fail'
 type CopyState = 'idle' | 'busy' | 'done' | 'fail'

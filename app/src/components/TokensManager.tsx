@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
+import { copyToClipboard } from '@/lib/utils'
 
 type TokenItem = {
   id: string
@@ -85,12 +86,10 @@ export function TokensManager() {
   )
 
   const copyToken = useCallback(async (raw: string) => {
-    try {
-      await navigator.clipboard.writeText(raw)
-      setCopied(true)
+    const ok = await copyToClipboard(raw)
+    setCopied(ok)
+    if (ok) {
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      /* ignore */
     }
   }, [])
 

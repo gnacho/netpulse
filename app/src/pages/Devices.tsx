@@ -41,7 +41,7 @@ import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
-import { cn, fetchJson } from '@/lib/utils'
+import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
 import type { DeviceType } from '@/data/mock'
@@ -1176,8 +1176,9 @@ export default function Devices() {
 
   const copyIp = useCallback(
     (ip: string) => {
-      void navigator.clipboard?.writeText(ip).catch(() => undefined)
-      showToast(t('devices.ipCopied'))
+      void copyToClipboard(ip).then((ok) => {
+        showToast(t(ok ? 'devices.ipCopied' : 'devices.ipCopyFailed'))
+      })
     },
     [showToast, t],
   )

@@ -10,6 +10,7 @@ import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { useAgentFor } from '@/hooks/useAgentFor'
+import { copyToClipboard } from '@/lib/utils'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -37,34 +38,8 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   }, [])
 
   async function copySsh() {
-    const text = `ssh root@${router.ip}`
-    let ok = false
-    try {
-      // Clipboard API solo funciona en contexto seguro (HTTPS/localhost);
-      // en la LAN HTTP lanza → fallback abajo.
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        ok = true
-      }
-    } catch {
-      ok = false
-    }
-    if (!ok) {
-      // Fallback para HTTP: textarea oculta + execCommand('copy').
-      try {
-        const ta = document.createElement('textarea')
-        ta.value = text
-        ta.setAttribute('readonly', '')
-        ta.style.position = 'fixed'
-        ta.style.opacity = '0'
-        document.body.appendChild(ta)
-        ta.select()
-        ok = document.execCommand('copy')
-        document.body.removeChild(ta)
-      } catch {
-        ok = false
-      }
-    }
+    // Clipboard con fallback HTTP (#466); el helper vive en lib/utils.
+    const ok = await copyToClipboard(`ssh root@${router.ip}`)
     setToast(ok)
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setToast(false), 1800)

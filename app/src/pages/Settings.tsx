@@ -59,7 +59,7 @@ import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBa
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { relTimeFromTs } from '@/i18n'
-import { cn, exitDemo } from '@/lib/utils'
+import { cn, copyToClipboard, exitDemo } from '@/lib/utils'
 import { notifyBanner } from '@/lib/update-check'
 import { ACCENTS, PALETTES, type AccentId, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
@@ -317,6 +317,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
   const [rotating, setRotating] = useState(false)
   const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false)
   const [rotateError, setRotateError] = useState<string | null>(null)
@@ -387,13 +388,15 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   const copyKey = async () => {
     if (!pubkey) return
-    try {
-      await navigator.clipboard.writeText(pubkey.publicKey)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* portapapeles no disponible */
-    }
+    // Helper con fallback para orígenes no seguros (http://<ip> de la LAN):
+    // navigator.clipboard no existe ahí y el botón no copiaba nada (#466).
+    const ok = await copyToClipboard(pubkey.publicKey)
+    setCopyFailed(!ok)
+    setCopied(ok)
+    window.setTimeout(() => {
+      setCopied(false)
+      setCopyFailed(false)
+    }, 1500)
   }
 
   const rotateKey = async () => {
@@ -935,7 +938,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-ok" strokeWidth={2} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              {copied ? t('settings.routers.copied') : t('settings.routers.copy')}
+              {copied ? t('settings.routers.copied') : copyFailed ? t('settings.routers.copyFailed') : t('settings.routers.copy')}
             </button>
             <button
               type="button"
@@ -2430,9 +2433,12 @@ function AdoptionCard() {
   }
 
   const copy = (val: string, label: string) => {
-    navigator.clipboard?.writeText(val)
-    setCopied(label)
-    setTimeout(() => setCopied(null), 2000)
+    void copyToClipboard(val).then((ok) => {
+      if (ok) {
+        setCopied(label)
+        setTimeout(() => setCopied(null), 2000)
+      }
+    })
   }
 
   if (!data?.token) return null
@@ -2675,12 +2681,10 @@ function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
   }
 
   const copy = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
+    const ok = await copyToClipboard(text)
+    if (ok) {
       setCopied(label)
       window.setTimeout(() => setCopied(null), 1500)
-    } catch {
-      /* clipboard unavailable */
     }
   }
 
