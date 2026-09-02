@@ -65,10 +65,11 @@ jobs:
       - name: Copia dist al embed del binario
         run: rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
 
-      - name: Tests Go
-        working-directory: server-go
-        run: go test ./...
-
+      # Antes de los tests: TestOpenArmVariants abre los binarios embebidos
+      # y además go:embed los necesita presentes para compilar el servidor.
+      # OJO los nombres: Open() resuelve "agents/netpulse-agent-" + normalizeArch(arch)
+      # y normalizeArch mapea armv7/armv7l/armhf -> arm, así que el fichero se
+      # llama netpulse-agent-arm (con GOARM=7), NO netpulse-agent-armv7 (#458).
       - name: Build agent binaries para embed (todas las arquitecturas)
         env:
           CGO_ENABLED: 0
@@ -79,8 +80,12 @@ jobs:
           (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
           # arm64
           (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
-          # armv7
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-armv7 ./cmd/netpulse-agent)
+          # armv7 (fichero "arm": el nombre que busca normalizeArch)
+          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
+
+      - name: Tests Go
+        working-directory: server-go
+        run: go test ./...
 
       - name: Build binario (linux/${{ matrix.arch }})
         working-directory: server-go
