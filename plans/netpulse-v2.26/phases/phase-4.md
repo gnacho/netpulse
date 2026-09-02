@@ -44,6 +44,10 @@ Permitir actualizar el firmware de routers OpenWrt desde la interfaz de NetPulse
 - [x] Test de simulación del flujo completo.
 - [ ] Validación manual en un router no crítico.
 
+## Deployment Notes
+
+- Desplegada preview en CT 226 (192.168.1.226) el 2026-09-02: versión `v2.26.0-preview`, health OK, endpoints de firmware responden. Pendiente probar upgrade real en router no crítico.
+
 ## Dependencies
 
 - #451 (patrón apply/health/rollback) ya estaba implementado y se reutiliza el flujo de snapshot + health + rollback conceptual para el backup/restore de config.

@@ -11,7 +11,7 @@ updated: 2026-09-02
 
 ## Active Phase
 
-- Phase 4: Firmware upgrades (#453)
+- Validacion manual del upgrade de firmware en un router no critico.
 
 ## Pending
 
@@ -20,7 +20,7 @@ updated: 2026-09-02
 
 ## In Progress
 
-- [ ] Validación manual del upgrade de firmware en un router no crítico.
+- [ ] Validacion manual del upgrade de firmware en un router no critico.
 
 ## Completed
 
@@ -40,3 +40,4 @@ updated: 2026-09-02
 - Plan creado.
 - Issues #451, #452, #453 creados en GitHub.
 - Backend, agente y UI de firmware upgrades implementados (#453).
+- Desplegada preview del PR #456 en CT 226 (192.168.1.226); health OK y endpoints de firmware responden.
