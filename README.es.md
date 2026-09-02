@@ -147,14 +147,14 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 | **7 — Agente a fondo** | ✅ | Eventos wifi en tiempo real (`iw event`), SSE bidireccional, paquete `.ipk`, profiling (RSS 11-12 MB, CPU <1%) |
 | **8 — Consolidación** | ✅ | Métricas operativas en `/api/health`, registry de agentes persistente, escalera de retención (raw 7d → buckets 5min 1año → daily ∞), recharts v3, webhooks salientes |
 | **9 — On-box** | ✅ | Config UCI, bootstrap AUTH_PASS, TLS autofirmado + SPKI pinning, token de pairing, paquete server OpenWrt |
-| **10 — Orquestación** | 🔄 | Motor plan→apply→state + executor sandboxeado en el agente (10.1), módulo AdGuard (10.2), módulo DAWN (10.9). WireGuard aplazado a la Fase 17 |
+| **10 — Orquestación** | ✅ | Motor plan→apply→state + executor sandboxeado (10.1), módulos AdGuard (10.2), WiFi guest, DDNS, SQM y usteer. WireGuard aplazado a la Fase 17 |
 | **11 — Paquete LuCI** | ✅ | `luci-app-netpulse`: estado local del agente (procd, UCI, logs, restart/rearm) + test connection + puente a la webapp |
 | **12 — Auditoría de seguridad** | ✅ | TRUST_PROXY, anti-replay en ingesta, body cap, password mínima 10 |
 | **13 — Auditoría de robustez** | ✅ | Single-flight GetOverview, SSE write deadline, race en sshpool.dial, %w wrapping |
 | **14 — Visibilidad WiFi/roaming** | ✅ | Matriz de señal DAWN, estado 802.11r por SSID, utilización por canal survey, feed persistente de eventos de roaming (30 días) |
 | **15 — Informes** | 🔄 | Disponibilidad día/semana/mes. Pendiente: tráfico, actividad, resumen de alertas, exportación |
 | **16 — Alertas avanzadas** | 🔮 | Reglas custom por umbral, tipos nuevos (fallo de roaming, congestión de canal), silencio programado, email |
-| **17 — Escribir en routers (esqueleto)** | 🔮 | Motor común de despliegue + índice de 10 módulos (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, Batman, DPI) |
+| **17 — Escribir en routers** | 🔄 | Ownership UCI + apply seguro con rollback (#451), planificación de canales (#452), firmware upgrades (#453); índice completo de módulos (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, Batman, DPI) |
 | **18-20 — Programa de beta-testing** | 🔮 | Grupos de módulos por riesgo (bajo / medio / alto) con canales stable + unstable y beta-testers externos |
 
 Detalle completo en [docs/ROADMAP.md](docs/ROADMAP.md).
