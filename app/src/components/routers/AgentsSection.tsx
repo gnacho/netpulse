@@ -81,6 +81,10 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const isStale = agent !== undefined && !agent.fresh
   const isMissing = agent === undefined && router?.agentOnly === true
   const canRecover = isOpenWrt && (isStale || isMissing) && auth?.role === 'admin'
+  // #443: reinstall disponible SIEMPRE para admins en agentes nativos OpenWrt
+  // (sanos o caídos): antes solo aparecía cuando estaba stale o faltaba, y el
+  // duplicado vivía en la tarjeta Info del detalle.
+  const canReinstall = auth?.role === 'admin' && isOpenWrt && (agent !== undefined || isMissing)
 
   const slug = agent?.slug ?? router?.id ?? ''
   const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen) ?? t('routers.agents.never') : t('routers.agents.never')
@@ -216,7 +220,10 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
               Solo agentes NATIVOS OpenWrt: los externos (switch por beacon)
               no tienen SSH - solo alertan (#291). */}
           {agent && agent.kind !== 'external' && agent.kind !== 'netgrip' && <AgentRearmButton agent={agent} />}
-          {canRecover && (
+          {/* #443: Reinstalar vía SSH desde el server; siempre visible para
+              admins en agentes nativos OpenWrt (la acción se mudó aquí desde
+              la tarjeta Info del detalle). */}
+          {canReinstall && (
             <button
               type="button"
               onClick={() => void reinstall()}
