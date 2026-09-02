@@ -162,9 +162,14 @@ type Router struct {
 	// configurado (clave del servidor no autorizada) — issue #257. La UI lo
 	// pinta como "sin acceso" en vez de "offline" (config issue, no power).
 	AccessMissing bool      `json:"accessMissing,omitempty"`
-	CPU           *int      `json:"cpu"`
-	RAM           *int      `json:"ram"`
-	Temp          *int      `json:"temp"`
+	// VitalsAvailable: false cuando la fuente de datos del router no puede
+	// reportar métricas de sistema (#441): switches sondeados por SNMP (#309)
+	// o pushers externos por beacon/scraper (#291). En ese caso CPU/RAM/Temp
+	// van a null y la UI no los pinta. Ausente = vitals disponibles.
+	VitalsAvailable *bool  `json:"vitalsAvailable,omitempty"`
+	CPU             *int   `json:"cpu"`
+	RAM             *int   `json:"ram"`
+	Temp            *int   `json:"temp"`
 	Uptime        string    `json:"uptime"` // "<d>d <h>h" | "—"
 	Clients       int       `json:"clients"`
 	HotMetric     string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65

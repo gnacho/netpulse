@@ -470,6 +470,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	l.mu.Unlock()
 
 	out := &routerPolled{cfg: cfg, client: l.clients[cfg.ID], net: &NetDevBps{}, polledAt: time.Now().UnixMilli()}
+	// #441: conservar el kind del agente: los pushers externos (beacon/
+	// scraper) no llevan sección system y el router queda sin vitals.
+	out.agentKind = p.Kind
 	sysInfo := &SysInfo{}
 	ramPct := 0
 

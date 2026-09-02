@@ -140,6 +140,10 @@ type routerPolled struct {
 	// polledAt (issue #414): epoch ms en que se realizó el sondeo real. Se
 	// usa para deduplicar filas de métricas cuando SNMP se cachea.
 	polledAt int64
+	// agentKind (#441): kind del agente cuyo payload construyó este sondeo
+	// ("" = sondeo SSH/SNMP directo). "external" = pusher beacon/scraper sin
+	// sección system → sin vitals.
+	agentKind string
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -1032,12 +1036,19 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	for _, h := range history {
 		sparkline = append(sparkline, h.down)
 	}
+	// #441: SNMP y pushers externos no pueden reportar CPU/RAM/temp. Se marca
+	// el router y las vitals van a null (la UI no pinta ceros falsos).
+	noVitals := p.cfg.SnmpEnabled || p.agentKind == "external"
 	r := Router{
 		ID: p.cfg.ID, Name: name, Model: model, ModelShort: model,
 		IP: p.cfg.Host, Status: status, Health: health,
 		CPU: iptr(p.cpu), RAM: iptr(p.ram), Temp: iptr(p.temp),
 		Uptime: fmtUptime(p.uptimeSec), Clients: len(p.leases),
 		Sparkline: sparkline,
+	}
+	if noVitals {
+		r.VitalsAvailable = bptr(false)
+		r.CPU, r.RAM, r.Temp = nil, nil, nil
 	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
@@ -2753,6 +2764,11 @@ func (l *Live) GetMetricsRows(context.Context) []MetricsRow {
 			RAM:       fptr(float64(p.ram)),
 			Temp:      fptr(float64(p.temp)),
 			LatencyMs: p.latencyMs,
+		}
+		// #441: SNMP/pushers externos no tienen vitals reales; no se
+		// persisten ceros que luego pintan series planas.
+		if p.cfg.SnmpEnabled || p.agentKind == "external" {
+			row.CPU, row.RAM, row.Temp = nil, nil, nil
 		}
 		if p.net != nil {
 			row.RxBps = p.net.RxBps
