@@ -220,7 +220,7 @@ the router (LuCI System > Software, or over SSH):
 opkg install ./netpulse-agent_*.ipk ./luci-app-netpulse_*.ipk
 
 # OpenWrt 25.12 (apk)
-apk add --allow-untrusted ./netpulse-agent_*.apk ./luci-app-netpulse_*.apk
+apk add --allow-untrusted ./netpulse-agent-*.apk ./luci-app-netpulse-*.apk
 ```
 
 `luci-app-netpulse` depends on `netpulse-agent` and `luci-base`; installing
