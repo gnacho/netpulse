@@ -3,7 +3,7 @@ type: planning
 entity: phase
 plan: netpulse-v2.26
 phase: 2
-status: pending
+status: in_progress
 created: 2026-09-02
 updated: 2026-09-02
 ---

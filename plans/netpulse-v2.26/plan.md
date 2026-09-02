@@ -59,8 +59,8 @@ Tras el release v2.25.0 quedan mejoras estructurales pendientes, algunas sugerid
 
 | Phase | Title | Contribution | Detail | Status |
 |-------|-------|--------------|--------|--------|
-| 1 | Bugfix agente gateway #448 | Cerrar panic en `iwevents` | [Phase 1](phases/phase-1.md) | pending |
-| 2 | Apply seguro con rollback | Implementar #451 | [Phase 2](phases/phase-2.md) | pending |
+| 1 | Bugfix agente gateway #448 | Cerrar panic en `iwevents` | [Phase 1](phases/phase-1.md) | completed |
+| 2 | Apply seguro con rollback | Implementar #451 | [Phase 2](phases/phase-2.md) | in_progress |
 | 3 | Channel planning | Implementar #452 | [Phase 3](phases/phase-3.md) | pending |
 | 4 | Firmware upgrades | Implementar #453 | [Phase 4](phases/phase-4.md) | pending |
 | 5 | Release v2.26.0 | Empaquetar y desplegar | [Phase 5](phases/phase-5.md) | pending |
