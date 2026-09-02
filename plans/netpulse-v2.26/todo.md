@@ -11,16 +11,16 @@ updated: 2026-09-02
 
 ## Active Phase
 
-- Phase 5: Release v2.26.0.
+- Ninguna: plan v2.26 completado.
 
 ## Pending
 
 - [x] Phase 3: Channel planning (#452)
-- [ ] Phase 5: Release v2.26.0
+- [x] Phase 5: Release v2.26.0
 
 ## In Progress
 
-- [ ] Phase 5: Release v2.26.0 (CHANGELOG listo, pendiente tag + deploy a producción CT 226).
+- Nada.
 
 ## Completed
 
@@ -29,6 +29,7 @@ updated: 2026-09-02
 - [x] Phase 2: Apply seguro con rollback (#451).
 - [x] Phase 4: Firmware upgrades (#453).
 - [x] Validación manual del upgrade de firmware en RT4 (dummy 404 + upgrade ASU real E2E, 2026-09-02).
+- [x] Phase 5: merge PR #456, fix CI #459, CHANGELOG, tag y release v2.26.0, deploy a producción CT 226 vía updater (health v2.26.0, 5 agentes).
 
 ## Blocked
 
