@@ -5,17 +5,27 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [2.26.5] - 2026-09-03
+## [2.26.7] - 2026-09-03
 
 ### Added
 
-- **Vecinos LLDP en el payload del agente (#489)**: el agente sondea `lldpcli` en su ciclo completo e incluye los vecinos (puerto, chasis, IP de gestión, capacidades, puerto remoto) en el push. Hasta ahora la recolección LLDP solo existía en la vía SSH del server, muerta para routers sondeados por agente (el camino recomendado de instalación), de modo que la topología nunca promovía switches gestionados ni identificaba vecinos en esas flotas. El contrato es explícito: `available:false` cuando lldpd no está instalado (alimenta el hint de la UI), vecinos ausentes si la sonda falla esa ronda (anti-parpadeo como las vitales) y lista vacía honesta cuando no hay vecinos. El parser de `lldpcli` pasa a vivir en `agent/probe` compartido por ambas vías. Nota de red: un switch conforme 802.1D filtra el multicast LLDP, así que los vecinos solo aparecen entre equipos directamente cableados o a través de switches no gestionados.
+- **Sección de ayuda dentro de la app (#484)**: nueva página de guía rápida con recorridos guiados para los cinco flujos que un admin necesita el primer día: primer arranque y contraseña, alta de un router, instalación del agente (el botón de un clic primero y el one-liner con token de pairing como alternativa manual), lectura del plan de canales y upgrade de firmware. Los pasos citan las etiquetas reales de la UI renderizadas como chips y escritas en los mismos ficheros de i18n que la interfaz, de modo que la ayuda deriva junto con ella; sin capturas bitmap, que envejecen mal. Paridad completa ES/EN, ítem de navegación y entrada en la paleta de comandos.
+
+### Fixed
+
+- **CSP permite estilos inline para Radix y framer-motion (#485)**: cada apertura de un diálogo (paleta de comandos incluida) logueaba una violación de Content Security Policy y las transiciones de entrada/salida no se ejecutaban. Radix (posicionado) y framer-motion (transform/opacity) escriben atributos style con valores dinámicos imposibles de hashear, así que `style-src` gana `'unsafe-inline'`; `script-src` sigue estricto (`'self'`) y la app no renderiza HTML controlado por el usuario.
 
 ## [2.26.6] - 2026-09-03
 
 ### Changed
 
 - **Página de actualizaciones de firmware más segura (#477, con #494 aplazado)**: la lista solo incluye routers OpenWrt/GL.iNet con agente (los switches gestionados y los dispositivos solo-beacon desaparecen de la página), el formulario se prefiere con el modelo y target detectados por el propio agente y arrancar un upgrade exige confirmar el objetivo (versión actual a objetivo, URL de la imagen, verificación sha256 y aviso de reinicio). Los errores de upgrade antiguos de la tarjeta llevan marca de tiempo relativa para que un fallo viejo no se lea como agente caído. Las actualizaciones programadas quedan como seguimiento (#494).
+
+## [2.26.5] - 2026-09-03
+
+### Added
+
+- **Vecinos LLDP en el payload del agente (#489)**: el agente sondea `lldpcli` en su ciclo completo e incluye los vecinos (puerto, chasis, IP de gestión, capacidades, puerto remoto) en el push. Hasta ahora la recolección LLDP solo existía en la vía SSH del server, muerta para routers sondeados por agente (el camino recomendado de instalación), de modo que la topología nunca promovía switches gestionados ni identificaba vecinos en esas flotas. El contrato es explícito: `available:false` cuando lldpd no está instalado (alimenta el hint de la UI), vecinos ausentes si la sonda falla esa ronda (anti-parpadeo como las vitales) y lista vacía honesta cuando no hay vecinos. El parser de `lldpcli` pasa a vivir en `agent/probe` compartido por ambas vías. Nota de red: un switch conforme 802.1D filtra el multicast LLDP, así que los vecinos solo aparecen entre equipos directamente cableados o a través de switches no gestionados.
 
 ## [2.26.4] - 2026-09-03
 
