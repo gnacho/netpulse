@@ -27,6 +27,10 @@ server-go/netpulse-server
 collector/netpulse-collector
 bin/
 
+# Marcador pre-reinicio del updater (#444): lo escribe update.sh y lo lee el
+# updater al morir el script por el reinicio esperado
+.update-applied
+
 # Binarios de agente embebidos (construidos por CI)
 server-go/internal/agentbin/agents/netpulse-agent-*
 .worktrees/
