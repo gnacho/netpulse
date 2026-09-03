@@ -9,6 +9,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 )
 
 // pendingApplyKey es la clave kv del marcador pre-update.
@@ -70,18 +72,52 @@ func (u *Updater) loadPendingApply() {
 		return
 	}
 	u.finalizeInterrupted()
+	if u.mode != "rolling" {
+		// #480: en estable el marcador de éxito vive en el dataDir, que
+		// llega DESPUÉS de New (WithDataDir) → la confirmación va allí.
+		return
+	}
 	p, ok := readPendingApply(u.db)
 	if !ok {
 		return
 	}
 	defer u.clearPendingApply()
-	if u.mode != "rolling" {
-		return // layout estable: sin auto-apply, no hay nada que confirmar
-	}
 	now := gitShort(u.repoRoot)
 	if now == "" || now == p.From {
 		return // sin cambio o commit desconocido → silencioso
 	}
+	u.mu.Lock()
+	u.pendingApply = &PendingApply{From: p.From, To: now}
+	u.mu.Unlock()
+	fmt.Printf("[netpulse] update confirmado: %s → %s\n", p.From, now)
+}
+
+// loadStablePending confirma (o descarta en silencio) el apply estable
+// pendiente una vez el dataDir está disponible (#480). Idempotente: sin
+// marcador en kv no hace nada. El apply estable mata el proceso con el
+// restart, así que este es el único sitio donde el éxito se puede registrar:
+// exige el marcador de éxito del helper con el objetivo esperado (patrón
+// #444) y re-marca el historial que finalizeInterrupted dejó como fallido.
+func (u *Updater) loadStablePending() {
+	if u.db == nil || u.dataDir == "" {
+		return
+	}
+	p, ok := readPendingApply(u.db)
+	if !ok {
+		return
+	}
+	defer u.clearPendingApply()
+	now := u.version
+	if now == "" || now == "desconocido" || now == p.From {
+		return // sin cambio o versión desconocida → silencioso
+	}
+	marker := readAppliedMarker(u.appliedMarkerPath())
+	if marker == "" || (p.To != "" && marker != strings.TrimSpace(p.To)) {
+		fmt.Printf("[netpulse] apply estable sin marcador de éxito (marker=%q, target=%q); no se confirma\n", marker, p.To)
+		return
+	}
+	_ = os.Remove(u.appliedMarkerPath())
+	u.markInterruptedAsSuccess(strings.TrimSpace(p.To))
 	u.mu.Lock()
 	u.pendingApply = &PendingApply{From: p.From, To: now}
 	u.mu.Unlock()

@@ -114,9 +114,18 @@ if [ "$UNINSTALL" -eq 1 ]; then
         run $SUDO rm -f "/etc/systemd/system/$SERVICE_NAME.service"
         # Units de reinicio bajo demanda (issue #4): si existen, quitarlas
         if [ -f "/etc/systemd/system/$SERVICE_NAME-restart.path" ]; then
-            run $SUDO systemctl disable --now "$SERVICE_NAME-restart.path" 2>/dev/null || true
+            run $SUDO systemctl disable --now "$SERVICE_NAME-restart.path" 2>/dev/null
             run $SUDO rm -f "/etc/systemd/system/$SERVICE_NAME-restart.path" \
                 "/etc/systemd/system/$SERVICE_NAME-restart.service"
+        fi
+        # Auto-update estable (#480): unidades + helper + marcadores residuales
+        if [ -f "/etc/systemd/system/$SERVICE_NAME-stable-update.path" ]; then
+            run $SUDO systemctl disable --now "$SERVICE_NAME-stable-update.path" 2>/dev/null
+            run $SUDO rm -f "/etc/systemd/system/$SERVICE_NAME-stable-update.path" \
+                "/etc/systemd/system/$SERVICE_NAME-stable-update.service" \
+                "$INSTALL_DIR/$APP_NAME-stable-apply"
+            run $SUDO rm -f "$STATE_DIR/data/.stable-update" \
+                "$STATE_DIR/data/.update-applied" "$STATE_DIR/data/.stable-update.error"
         fi
         run $SUDO systemctl daemon-reload
         ok "systemd unit removed"
@@ -393,12 +402,121 @@ Description=Reinicio de $SERVICE_NAME solicitado por el servidor
 Type=oneshot
 ExecStart=/bin/sh -c "rm -f $STATE_DIR/data/.restart-me; /bin/systemctl restart $SERVICE_NAME.service"
 EOF
+
+    # Auto-update estable (#480): el servidor deja el binario nuevo en
+    # escena + marcador .stable-update; esta unit .path dispara el helper
+    # root que verifica, hace swap y reinicia con rollback.
+    $SUDO tee "/etc/systemd/system/$SERVICE_NAME-stable-update.path" >/dev/null <<EOF
+[Unit]
+Description=Vigila el marcador de auto-update estable de $SERVICE_NAME
+
+[Path]
+PathChanged=$STATE_DIR/data/.stable-update
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    $SUDO tee "/etc/systemd/system/$SERVICE_NAME-stable-update.service" >/dev/null <<EOF
+[Unit]
+Description=Aplica el update estable de $SERVICE_NAME (swap+restart)
+
+[Service]
+Type=oneshot
+Environment=STATE_DIR=$STATE_DIR
+Environment=SERVER_BIN=$INSTALL_DIR/$BIN_NAME
+Environment=SERVICE=$SERVICE_NAME
+ExecStart=$INSTALL_DIR/$APP_NAME-stable-apply
+EOF
+    $SUDO tee "$INSTALL_DIR/$APP_NAME-stable-apply" >/dev/null <<'EOF_HELPER'
+#!/bin/sh
+# netpulse-stable-apply — helper root del auto-update estable (#480).
+# Lo dispara netpulse-stable-update.path cuando el servidor deja el binario
+# nuevo en escena con el marcador .stable-update (target/sha256/staged).
+# Reverifica el sha256, swap atómico, reinicio y healthcheck; rollback si
+# el servicio no vuelve a levantar. Sin curl, acepta sin verificar salud.
+set -u
+
+STATE_DIR="${STATE_DIR:-/var/lib/netpulse}"
+SERVER_BIN="${SERVER_BIN:-/usr/local/bin/netpulse}"
+SERVICE="${SERVICE:-netpulse}"
+DATA_DIR="$STATE_DIR/data"
+MARKER="$DATA_DIR/.stable-update"
+APPLIED="$DATA_DIR/.update-applied"
+ERRFILE="$DATA_DIR/.stable-update.error"
+BACKUP="$SERVER_BIN.bak-selfupdate"
+LOG_TAG="netpulse-stable-apply"
+
+log() { logger -t "$LOG_TAG" "$*" 2>/dev/null || echo "$LOG_TAG: $*"; }
+fail() {
+    log "ERROR: $*"
+    rm -f "$MARKER"
+    echo "$*" > "$ERRFILE" 2>/dev/null || true
+    exit 1
+}
+
+[ -f "$MARKER" ] || exit 0
+
+target=""; sha=""; staged=""
+while IFS='=' read -r k v; do
+    case "$k" in
+        target) target="$v" ;;
+        sha256) sha="$v" ;;
+        staged) staged="$v" ;;
+    esac
+done < "$MARKER"
+[ -n "$target" ] && [ -n "$sha" ] && [ -n "$staged" ] || fail "stable_marker_invalid"
+case "$target" in v[0-9]*) ;; *) fail "stable_marker_invalid" ;; esac
+[ -f "$staged" ] || fail "stable_marker_invalid"
+
+echo "$sha  $staged" | sha256sum -c - >/dev/null 2>&1 || fail "stable_checksum_mismatch"
+
+cp -a "$SERVER_BIN" "$BACKUP" 2>/dev/null || true
+install -T -m 0755 "$staged" "$SERVER_BIN" || fail "stable_install_failed"
+
+# Marcador de éxito ANTES del reinicio (patrón #444): el arranque nuevo lo
+# usa para confirmar el apply en el historial.
+printf '%s\n' "$target" > "$APPLIED"
+rm -f "$MARKER" "$staged"
+log "swap a $target hecho; reiniciando $SERVICE"
+systemctl restart "$SERVICE.service" || fail "stable_install_failed"
+
+if ! command -v curl >/dev/null 2>&1; then
+    log "curl no disponible; healthcheck omitido"
+    rm -f "$ERRFILE"
+    exit 0
+fi
+PORT=""
+[ -f "$STATE_DIR/.env" ] && PORT=$(sed -n 's/^PORT=//p' "$STATE_DIR/.env" | head -1)
+PORT="${PORT:-3000}"
+# Budget generoso: el stop del servicio puede tardar hasta TimeoutStopSec
+# (90 s) si un tick del poller queda atascado en SNMP lentos (#481), más el
+# arranque con primer poll en curso.
+i=0
+while [ "$i" -lt 70 ]; do
+    if curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+        log "healthcheck OK tras actualizar a $target"
+        rm -f "$ERRFILE"
+        exit 0
+    fi
+    i=$((i + 1))
+    sleep 3
+done
+
+log "healthcheck falló tras 210s; rollback a $BACKUP"
+cp -a "$BACKUP" "$SERVER_BIN" 2>/dev/null || true
+systemctl restart "$SERVICE.service" 2>/dev/null || true
+rm -f "$APPLIED"
+fail "stable_healthcheck_failed"
+EOF_HELPER
+    $SUDO chmod 0755 "$INSTALL_DIR/$APP_NAME-stable-apply"
 fi
 run $SUDO systemctl daemon-reload
 if [ "$UPGRADING" -eq 1 ]; then run $SUDO systemctl restart "$SERVICE_NAME"
 else run $SUDO systemctl enable --now "$SERVICE_NAME"; fi
 run $SUDO systemctl enable --now "$SERVICE_NAME-restart.path" 2>/dev/null \
     || warn "could not enable $SERVICE_NAME-restart.path (demo/update auto-restart)"
+run $SUDO systemctl enable --now "$SERVICE_NAME-stable-update.path" 2>/dev/null \
+    || warn "could not enable $SERVICE_NAME-stable-update.path (stable self-update)"
 
 if [ "$DRY_RUN" -eq 0 ]; then
     sleep 3
@@ -443,6 +561,7 @@ printf '      firewall-cmd --permanent --add-port=%s/tcp && firewall-cmd --reloa
 printf '      ufw allow %s/tcp\n' "$PORT"
 printf '  - Live mode: authorize the server SSH public key on each router\n'
 printf '    (Settings shows it; append to /etc/dropbear/authorized_keys).\n'
-printf '  - The in-app updater follows rolling builds from main; for stable\n'
-printf '    updates re-run this script.\n'
+printf '  - Auto-update: the app downloads, verifies (sha256) and applies new\n'
+printf '    stable versions by itself (root helper %s-stable-apply; rollback\n' "$APP_NAME"
+printf '    if the health check fails). Re-run this script for manual updates.\n'
 printf '%s================================================%s\n\n' "$C_G" "$C_0"
