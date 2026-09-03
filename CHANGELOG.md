@@ -5,6 +5,19 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.2] - 2026-09-03
+
+### Added
+
+- **Instalación del agente en un clic desde la tabla de agentes (#483)**: todo router OpenWrt tiene ahora fila en la página Routers aunque aún no tenga agente, con botón **Instalar agente** que lo registra (crea su token al vuelo) y lo despliega por SSH (binario, config, servicio y watchdog), igual que ya hacía Reinstalar. El listado de agentes expone el hostname del board para no duplicar filas en routers legacy cuyo id de overview difiere del de tabla. El README deja de señalar el menú "Ajustes → Agentes" que no existía.
+- **Self-update estable del updater (#482)** y escalado del supervisor: un rearme que no recupera el agente termina en reinstalación completa (#476).
+
+### Fixed
+
+- **Plan de canales WiFi de punta a punta (#475)**: cuatro defectos apilados. El server no cableaba el store (la ruta nunca se registraba: `not_found` y scans descartados); el parser del agente leía `freq: 5260.0` como entero y tiraba todos los BSS; cada push reinsertaba los mismos vecinos y el score desbordaba (recomendaciones con MaxInt64) hasta que la lectura deduplica por BSSID; y la página mandaba el id del overview (`flint2`) mientras los datos viven bajo el slug (`gateway`). Además, `wifi_scans` lleva purga (48 h) y la UI trata `radios/scans` nulos sin romperse.
+- **Updater: el kill por reinicio diferido cuenta como éxito (#474)** y el asset `go-latest` se construye en cada commit de main, cerrando el falso "update_exit_-1".
+- **Auditación de Dependabot**: las 4 alertas high eran `fast-uri`; cerradas con su bump (#460).
+
 ## [2.26.1] - 2026-09-03
 
 ### Fixed
