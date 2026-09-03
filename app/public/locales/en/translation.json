@@ -368,7 +368,8 @@
     "expand": "Expand menu",
     "orchestration": "Orchestration",
     "channelPlan": "Channel plan",
-    "firmwareUpgrades": "Firmware upgrades"
+    "firmwareUpgrades": "Firmware upgrades",
+    "help": "Help"
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
@@ -1611,5 +1612,72 @@
     "connectTime": "Connect",
     "dhcpSuccess": "DHCP",
     "dnsLatency": "DNS"
+  },
+  "help": {
+    "title": "Quick guide",
+    "subtitle": "Walkthroughs for the tasks a first-day admin actually needs, quoting the buttons exactly as they appear in the app.",
+    "flowsAria": "Guided walkthroughs",
+    "docsFooter": "This guide lives inside the app and quotes the real interface labels, so it always matches the version you are running.",
+    "docsLink": "Full documentation on GitHub",
+    "flows": {
+      "firstLogin": {
+        "title": "First run and password",
+        "subtitle": "Sign in for the first time and secure the admin account",
+        "intro": "The first admin user is created at server startup from the AUTH_PASS variable in .env; from then on the hash stored in the database is what counts.",
+        "steps": [
+          "Open the app and sign in with the admin user and the bootstrap password.",
+          "Go to ⟦Settings⟧ → ⟦Change my password⟧: it asks for your current password and the new one (10 to 128 characters). Your other sessions are signed out when it changes.",
+          "If you like, install NetPulse as an app from ⟦Settings⟧ → ⟦Install app⟧."
+        ],
+        "tip": "Create read-only users for anyone who just needs to look, from the users section in ⟦Settings⟧."
+      },
+      "addRouter": {
+        "title": "Onboard a router or switch",
+        "subtitle": "Add a device to the fleet",
+        "intro": "Devices are managed from Settings, not from the devices page: onboarding, editing and network discovery live there.",
+        "steps": [
+          "Go to ⟦Settings⟧ → the ⟦Devices⟧ section and click ⟦Add device⟧.",
+          "Fill in IP or hostname, name and type. Tick ⟦Is the gateway⟧ for the gateway; pick the matching type for managed switches.",
+          "For the server to poll over SSH, authorize its key: copy it from ⟦Server SSH key⟧ and install it on the router.",
+          "You can also click ⟦Discover on the network⟧ to detect candidates automatically."
+        ],
+        "tip": "A switch or AP without SSH can run in ⟦Agent only (no SSH)⟧ mode: all data will arrive through the agent."
+      },
+      "installAgent": {
+        "title": "Install the agent on a router",
+        "subtitle": "The recommended path for complete data",
+        "intro": "The agent probes the router locally (WiFi, DHCP, FDB, LLDP) and pushes the data to the server; without it the client list stays empty.",
+        "steps": [
+          "Go to ⟦Devices⟧ and scroll to the ⟦Agents⟧ section: every OpenWrt router has a row, agent or not.",
+          "Click ⟦Install agent⟧ on the router's row: it registers the token and deploys over SSH (binary, config, service and watchdog) in one click if the SSH key is already authorized.",
+          "Within seconds the router shows as online in that same table. ⟦Reinstall⟧ repeats the whole process and is what keeps the agent alive across firmware upgrades.",
+          "Manual path, or a version without the button? ⟦Settings⟧ → ⟦Agent adoption⟧ → ⟦Show token⟧, then run install-agent.sh with --pairing-token from a machine with SSH access to the router."
+        ],
+        "tip": "The pairing token is reusable for several routers until you rotate it with ⟦Rotate token⟧; each agent trades it for its own token on first contact."
+      },
+      "channelPlan": {
+        "title": "Read the channel plan",
+        "subtitle": "Pick the WiFi channel with the least interference",
+        "intro": "The page collects the passive neighbour scans pushed by the agents and scores each channel; the recommendation balances your current channel against the candidates.",
+        "steps": [
+          "Open ⟦Channel plan⟧ in the menu (marked as labs).",
+          "Pick the router: each radio shows its current channel, the neighbours it hears and the score of every candidate channel.",
+          "The highlighted recommendation is the channel with the least overlap; compare it with the current channel before touching anything."
+        ],
+        "tip": "Scans arrive with the agent pushes: if a router reports no neighbours, check that its agent is online."
+      },
+      "firmware": {
+        "title": "Upgrade a router's firmware",
+        "subtitle": "Controlled flash with verification and backup",
+        "intro": "The server tells the agent which image to flash; the agent downloads it, verifies the sha256, backs up the config and flashes with sysupgrade.",
+        "steps": [
+          "Open ⟦Firmware upgrades⟧ in the menu (labs, admin only).",
+          "Pick the router: the form preloads the detected system (model and current version). Paste the image URL and its sha256.",
+          "Click ⟦Upgrade now⟧: the confirmation summarises router, target version, URL and checksum, and warns about the downtime while it reboots.",
+          "Follow the progress on the same page; the final result lands when the router finishes booting."
+        ],
+        "tip": "After a flash only /etc survives: the agent's self-heal restores the binary at boot, and ⟦Reinstall⟧ puts everything fresh if needed."
+      }
+    }
   }
 }

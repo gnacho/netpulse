@@ -6,6 +6,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import PullToRefresh from '@/components/PullToRefresh'
 import {
+  CircleHelp,
   ArrowLeft,
   BarChart3,
   Bell,
@@ -62,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
   { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true, badge: 'labs' },
+  { to: '/help', labelKey: 'nav.help', icon: CircleHelp },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
@@ -83,6 +85,7 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/alerts/, 'nav.alerts'],
   [/^\/reports/, 'nav.reports'],
   [/^\/orchestration/, 'nav.orchestration'],
+  [/^\/help/, 'nav.help'],
   [/^\/settings/, 'nav.settings'],
 ]
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
-import { Bell, LayoutDashboard, MonitorSmartphone, Router as RouterIcon, Settings, Waypoints } from 'lucide-react'
+import { Bell, CircleHelp, LayoutDashboard, MonitorSmartphone, Router as RouterIcon, Settings, Waypoints } from 'lucide-react'
 import {
   CommandDialog,
   CommandEmpty,
@@ -19,6 +19,7 @@ const PAGES = [
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
+  { to: '/help', labelKey: 'nav.help', icon: CircleHelp },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ] as const
 
