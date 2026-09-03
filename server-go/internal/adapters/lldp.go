@@ -7,11 +7,11 @@ package adapters
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"sort"
 	"strings"
 	"time"
+
+	"github.com/gnacho/netpulse/agent/probe"
 )
 
 // lldpTimeout: timeout corto de la sonda (≤5 s, contrato C2).
@@ -76,7 +76,7 @@ func (c *OpenWrtClient) LldpNeighbors(ctx context.Context) ([]LldpNeighbor, erro
 	if c.lldpDownCached() {
 		return nil, ErrLldpUnavailable
 	}
-	out, err := c.pool.RunCtx(ctx, c.Host, "lldpcli -f json show neighbors", lldpTimeout)
+	out, err := c.pool.RunCtx(ctx, c.Host, probe.CmdLldpNeighbors, lldpTimeout)
 	if err != nil {
 		if isLldpUnavailable(err) {
 			c.cacheLldpDown()
@@ -84,13 +84,13 @@ func (c *OpenWrtClient) LldpNeighbors(ctx context.Context) ([]LldpNeighbor, erro
 		}
 		return nil, err
 	}
-	neighbors, perr := parseLldpNeighbors([]byte(out))
+	neighbors, perr := probe.ParseLldpNeighbors([]byte(out))
 	if perr != nil {
 		// Salida no JSON (p.ej. mensaje de error de lldpcli con exit 0):
 		// no es "no instalado", se reintenta en el próximo tick lento.
 		return nil, perr
 	}
-	return neighbors, nil
+	return lldpFromProbe(neighbors), nil
 }
 
 // isLldpUnavailable: el comando no existe en el router (exit 127 del shell,
@@ -104,142 +104,15 @@ func isLldpUnavailable(err error) bool {
 	return strings.Contains(msg, "status 127") || strings.Contains(msg, "not found")
 }
 
-// parseLldpNeighbors parsea `lldpcli -f json show neighbors`:
-//
-//	{"lldp":{"interface":[{"name","chassis":{<nombre>:{id{type,value},descr,
-//	  mgmt-ip,capability[]}},"port":{id{type,value},descr}}]}}
-//
-// Defensivo: campos ausentes o de tipo inesperado se ignoran (best-effort de
-// encoding/json rellena lo compatible); interface también se acepta como
-// mapa nombre→objeto (versiones viejas de lldpd). Error solo si la raíz no
-// es JSON válido.
-func parseLldpNeighbors(data []byte) ([]LldpNeighbor, error) {
-	var root struct {
-		Lldp struct {
-			Ifaces json.RawMessage `json:"interface"`
-		} `json:"lldp"`
+// lldpFromProbe: conversión probe.LldpNeighbor → LldpNeighbor (campos
+// idénticos; el parser vive en agent/probe desde #489 para compartirlo con
+// la sonda del agente).
+func lldpFromProbe(nbs []probe.LldpNeighbor) []LldpNeighbor {
+	out := make([]LldpNeighbor, len(nbs))
+	for i, n := range nbs {
+		out[i] = LldpNeighbor(n)
 	}
-	if err := json.Unmarshal(data, &root); err != nil {
-		return nil, err
-	}
-	if len(root.Lldp.Ifaces) == 0 || string(root.Lldp.Ifaces) == "null" {
-		return []LldpNeighbor{}, nil
-	}
-	var entries []json.RawMessage
-	if err := json.Unmarshal(root.Lldp.Ifaces, &entries); err != nil {
-		// Forma mapa: {"lan3": {...}, "lan1": {...}} (lldpd viejo)
-		var byName map[string]json.RawMessage
-		if err2 := json.Unmarshal(root.Lldp.Ifaces, &byName); err2 != nil {
-			// Ni array ni mapa: forma desconocida → sin datos, no error
-			return []LldpNeighbor{}, nil
-		}
-		names := make([]string, 0, len(byName))
-		for name := range byName {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		neighbors := make([]LldpNeighbor, 0, len(names))
-		for _, name := range names {
-			// En la forma mapa el nombre de la interfaz es la CLAVE
-			neighbors = append(neighbors, parseLldpEntry(byName[name], name))
-		}
-		return neighbors, nil
-	}
-	neighbors := make([]LldpNeighbor, 0, len(entries))
-	for _, raw := range entries {
-		neighbors = append(neighbors, parseLldpEntry(raw, ""))
-	}
-	return neighbors, nil
-}
-
-// parseLldpEntry parsea una entrada de interface (nunca entra en pánico:
-// los Unmarshal secundarios ignoran el error a propósito — best-effort).
-// fallbackName es la clave de la forma mapa (lldpd viejo, sin campo "name").
-func parseLldpEntry(raw json.RawMessage, fallbackName string) LldpNeighbor {
-	var e struct {
-		Name    string                     `json:"name"`
-		Chassis map[string]json.RawMessage `json:"chassis"`
-		Port    json.RawMessage            `json:"port"`
-	}
-	// Best-effort: un campo de tipo inesperado (chassis como cadena, port
-	// como número…) no invalida el resto de la entrada.
-	_ = json.Unmarshal(raw, &e)
-	n := LldpNeighbor{Port: e.Name}
-	if n.Port == "" {
-		n.Port = fallbackName
-	}
-
-	// Chassis: mapa nombre→datos (normalmente uno; el primero ordenado)
-	keys := make([]string, 0, len(e.Chassis))
-	for k := range e.Chassis {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	if len(keys) > 0 {
-		n.Chassis = keys[0]
-		var ch struct {
-			ID struct {
-				Type  string `json:"type"`
-				Value string `json:"value"`
-			} `json:"id"`
-			MgmtIP json.RawMessage `json:"mgmt-ip"`
-			Caps   []struct {
-				Type    string `json:"type"`
-				Enabled bool   `json:"enabled"`
-			} `json:"capability"`
-		}
-		_ = json.Unmarshal(e.Chassis[keys[0]], &ch) // best-effort (ver cabecera)
-		if ch.ID.Type == "mac" {
-			n.ChassisMac = strings.ToUpper(ch.ID.Value)
-		}
-		if n.Chassis == "" {
-			n.Chassis = ch.ID.Value
-		}
-		n.Mgmt = firstMgmtIP(ch.MgmtIP)
-		for _, cap := range ch.Caps {
-			if cap.Enabled && cap.Type != "" {
-				n.Caps = append(n.Caps, cap.Type)
-			}
-		}
-	}
-
-	// Puerto remoto: descr; si no, el id
-	if len(e.Port) > 0 {
-		var p struct {
-			ID struct {
-				Value string `json:"value"`
-			} `json:"id"`
-			Descr string `json:"descr"`
-		}
-		if json.Unmarshal(e.Port, &p) == nil {
-			n.PortDesc = p.Descr
-			if n.PortDesc == "" {
-				n.PortDesc = p.ID.Value
-			}
-		}
-	}
-	return n
-}
-
-// firstMgmtIP: mgmt-ip viene como array (lldpd actual) o string suelto.
-func firstMgmtIP(raw json.RawMessage) string {
-	if len(raw) == 0 || string(raw) == "null" {
-		return ""
-	}
-	var list []string
-	if err := json.Unmarshal(raw, &list); err == nil {
-		for _, ip := range list {
-			if ip != "" {
-				return ip
-			}
-		}
-		return ""
-	}
-	var single string
-	if err := json.Unmarshal(raw, &single); err == nil {
-		return single
-	}
-	return ""
+	return out
 }
 
 // lldpNeighborOnPort: vecino anunciado en un puerto local concreto (nil si

@@ -113,6 +113,9 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.Usteer = p.probeUsteer(ctx)
 	pl.Data.LuCI = p.probeLuCI(ctx)
+	// LLDP (#489): vecinos de lldpd en el payload del agente (antes solo
+	// llegaban por la sonda SSH del server, muerta para routers con agente).
+	pl.Data.Lldp = p.probeLldp(ctx)
 	// Discovery (#338): mDNS services + randomized MAC detection.
 	pl.Data.Discovery = p.probeDiscovery(ctx, pl.Data.Wireless)
 	// NetIf (#305): contadores por iface desde el MISMO /proc/net/dev que
@@ -380,6 +383,26 @@ func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 		fd.Ports = []EthPort{}
 	}
 	return fd
+}
+
+// probeLldp: vecinos LLDP de lldpd (#489). Contrato: Available=false cuando
+// lldpcli no existe (hint "instala lldpd"); Available=true con Neighbors
+// nil si la sonda falla esta ronda (lldpd parado, salida no JSON); [] vacío
+// honesto cuando no hay vecinos. Solo en el sondeo completo (Build): los
+// pushes event-driven no re-sondean y el server conserva el último bueno.
+func (p *Prober) probeLldp(ctx context.Context) *LldpData {
+	if p.runBest(ctx, CmdLldpCheck, 0) == "" {
+		return &LldpData{Available: false}
+	}
+	out := p.runBest(ctx, CmdLldpNeighbors, 5*time.Second)
+	if out == "" {
+		return &LldpData{Available: true}
+	}
+	neighbors, err := ParseLldpNeighbors([]byte(out))
+	if err != nil {
+		return &LldpData{Available: true}
+	}
+	return &LldpData{Available: true, Neighbors: neighbors}
 }
 
 // probeLuCI: etiquetas de puertos/VLANs de LuCI (issue #258), si el router

@@ -574,6 +574,29 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if p.Data.LuCI != nil {
 		out.luci = p.Data.LuCI
 	}
+	// LLDP (#489): vecinos del payload del agente (antes solo llegaban por
+	// la sonda SSH, muerta para routers con agente fresco). Resolución con
+	// anti-parpadeo: manda la sección buena del payload; una sección
+	// fallida (Available=true con Neighbors nil) o ausente (push
+	// event-driven) recicla la última cacheada. Available=false explícito =
+	// lldpd no instalado (hint de UI), y eso SÍ pisa lo cacheado.
+	resolveLldp := func() (nbs []LldpNeighbor, unavailable bool) {
+		ld := p.Data.Lldp
+		if ld == nil || (ld.Available && ld.Neighbors == nil) {
+			ld = nil
+			if cached != nil {
+				ld = cached.lldp
+			}
+		}
+		if ld == nil {
+			return nil, false
+		}
+		if !ld.Available {
+			return nil, true
+		}
+		return lldpFromProbe(ld.Neighbors), false
+	}
+	out.lldp, out.lldpUnavailable = resolveLldp()
 	// Discovery (#338): mDNS services + randomized MACs. Best-effort.
 	if p.Data.Discovery != nil {
 		out.discovery = p.Data.Discovery
@@ -629,8 +652,12 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if sysSnap == nil && cached != nil {
 		sysSnap = cached.system
 	}
+	lldpSnap := p.Data.Lldp
+	if (lldpSnap == nil || (lldpSnap.Available && lldpSnap.Neighbors == nil)) && cached != nil {
+		lldpSnap = cached.lldp // conserva la última sección buena (#489)
+	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb, luci: out.luci, system: sysSnap}
+		wireless: out.wireless, fdb: out.fdb, luci: out.luci, system: sysSnap, lldp: lldpSnap}
 	l.mu.Unlock()
 
 	// Solo con un payload NUEVO alimentamos las series y el monitor de
