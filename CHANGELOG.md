@@ -5,6 +5,14 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.10] - 2026-09-04
+
+### Fixed
+
+- **Descubrimiento de clientes cableados tras puertos con nombres no estándar (#506)**: el agente filtraba las MACs aprendidas en el FDB del bridge con una lista cerrada de nombres de puerto (`lan1`, `wan`, `eth0`...), pensada para excluir los puertos wireless; cualquier puerto físico fuera de esa lista se descartaba en silencio. En el Banana Pi BPI-R4 las jaulas SFP se llaman `sfp-lan`/`sfp-wan` (naming de OpenWrt 25.12+), así que los dispositivos cableados tras el SFP-LAN (p. ej. detrás de un switch no gestionado, con IP estática y sin lease DHCP) jamás aparecían como clientes. El filtro pasa a ser una lista de exclusión: vale cualquier puerto miembro del bridge salvo wireless (`phy*-ap*`, `wlan*`), interfaces virtuales (bridges, túneles, veth, wg, ppp...) y subinterfaces VLAN.
+- **La vía `bridge fdb show` filtraba mal las entradas locales (#506)**: cuando el router no tiene `brctl`, el fallback dejaba pasar las entradas locales del bridge (su propia MAC registrada en cada puerto, flag `permanent`); el servidor interpretaba esa MAC propia como un uplink y descartaba TODOS los clientes cableados de ese puerto. Ahora se excluyen las entradas `permanent`, en paridad con la vía brctl.
+- **AGENT_VERSION alineada con la release (2.26.10)**: los agentes embebidos en el servidor reportaban 0.2.0, menor que los agentes de la flota instalados desde tarball (2.26.x), por lo que nunca se ofrecía su actualización; a partir de aquí el agente embebido ofrece update a toda la flota anterior.
+
 ## [2.26.9] - 2026-09-03
 
 ### Fixed
