@@ -16,6 +16,7 @@ import Reports from '@/pages/Reports'
 import Orchestration from '@/pages/Orchestration'
 import FirmwareUpgrades from '@/pages/FirmwareUpgrades'
 import Settings from '@/pages/Settings'
+import Help from '@/pages/Help'
 import Placeholder from '@/pages/Placeholder'
 
 /**
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="firmware-upgrades" element={<FirmwareUpgrades />} />
         <Route path="reports" element={<Reports />} />
         <Route path="orchestration" element={<Orchestration />} />
+        <Route path="help" element={<Help />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Placeholder title="Página no encontrada" />} />
       </Route>

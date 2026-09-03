@@ -368,7 +368,8 @@
     "expand": "Desplegar menú",
     "orchestration": "Orquestación",
     "channelPlan": "Plan de canales",
-    "firmwareUpgrades": "Actualizaciones de firmware"
+    "firmwareUpgrades": "Actualizaciones de firmware",
+    "help": "Ayuda"
   },
   "roaming": {
     "subtitle": "Estado de la itinerancia WiFi y la malla WiFi",
@@ -1623,5 +1624,72 @@
     "connectTime": "Conexion",
     "dhcpSuccess": "DHCP",
     "dnsLatency": "DNS"
+  },
+  "help": {
+    "title": "Guía rápida",
+    "subtitle": "Los recorridos de las tareas que necesita un admin el primer día, citando los botones tal y como están en la app.",
+    "flowsAria": "Recorridos guiados",
+    "docsFooter": "Esta guía vive dentro de la app y cita las etiquetas reales de la interfaz, así que siempre está al día con la versión que estás usando.",
+    "docsLink": "Documentación completa en GitHub",
+    "flows": {
+      "firstLogin": {
+        "title": "Primer arranque y contraseña",
+        "subtitle": "Entrar por primera vez y asegurar la cuenta admin",
+        "intro": "El primer usuario admin se crea en el arranque del servidor a partir de la variable AUTH_PASS del .env; a partir de ahí manda el hash guardado en la base de datos.",
+        "steps": [
+          "Abre la app e inicia sesión con el usuario admin y la contraseña de arranque.",
+          "Ve a ⟦Ajustes⟧ → ⟦Cambiar mi contraseña⟧: pide la actual y la nueva (entre 10 y 128 caracteres). El resto de tus sesiones se cierran al cambiarla.",
+          "Si quieres, instala NetPulse como aplicación desde ⟦Ajustes⟧ → ⟦Instalar app⟧."
+        ],
+        "tip": "Crea usuarios de solo lectura para quien solo necesite mirar la red desde la sección de usuarios de ⟦Ajustes⟧."
+      },
+      "addRouter": {
+        "title": "Dar de alta un router o switch",
+        "subtitle": "Añadir un equipo a la flota",
+        "intro": "Los equipos se gestionan desde Ajustes, no desde la página de dispositivos: ahí viven el alta, la edición y el descubrimiento de la red.",
+        "steps": [
+          "Ve a ⟦Ajustes⟧ → sección ⟦Dispositivos⟧ y pulsa ⟦Añadir dispositivo⟧.",
+          "Rellena IP o hostname, nombre y tipo. Marca ⟦Es la puerta de enlace⟧ si es el gateway; para switches gestionados elige el tipo correspondiente.",
+          "Para que el server pueda sondear por SSH, autoriza su clave: cópiala desde ⟦Clave SSH del servidor⟧ e instálala en el router.",
+          "También puedes pulsar ⟦Descubrir en la red⟧ para detectar candidatos automáticamente."
+        ],
+        "tip": "Un switch o AP sin SSH puede funcionar en modo ⟦Solo agente (sin SSH)⟧: todos los datos llegarán por el agente."
+      },
+      "installAgent": {
+        "title": "Instalar el agente en un router",
+        "subtitle": "El camino recomendado para tener datos completos",
+        "intro": "El agente sondea el router en local (WiFi, DHCP, FDB, LLDP) y empuja los datos al servidor; sin él, la lista de clientes sale vacía.",
+        "steps": [
+          "Ve a ⟦Dispositivos⟧ y baja hasta la sección ⟦Agentes⟧: todo router OpenWrt tiene fila, tenga agente o no.",
+          "Pulsa ⟦Instalar agente⟧ en la fila del router: se registra el token y se despliega por SSH (binario, config, servicio y watchdog), en un solo clic si la clave SSH ya está autorizada.",
+          "En unos segundos el router pasa a estar en línea en esa misma tabla. ⟦Reinstalar⟧ repite el proceso completo y es lo que mantiene el agente vivo tras upgrades de firmware.",
+          "¿Vía manual o versión sin botón? ⟦Ajustes⟧ → ⟦Adopción de agentes⟧ → ⟦Mostrar token⟧, y desde una máquina con SSH al router ejecuta install-agent.sh con --pairing-token."
+        ],
+        "tip": "El token de pairing es reutilizable para varios routers hasta que lo rotes con ⟦Rotar token⟧; cada agente lo canjea por su token propio al primer contacto."
+      },
+      "channelPlan": {
+        "title": "Leer el plan de canales",
+        "subtitle": "Elegir canal WiFi con la menor interferencia",
+        "intro": "La página recoge los escaneos pasivos de vecinos que mandan los agentes y puntúa cada canal; la recomendación es el mejor balance entre tu canal actual y los candidatos.",
+        "steps": [
+          "Abre ⟦Plan de canales⟧ en el menú (marcado como labs).",
+          "Elige el router: verás cada radio con su canal actual, los vecinos que se oyen y la puntuación de cada canal candidato.",
+          "La recomendación destacada es el canal con menos solapamiento; compárala con el canal actual antes de tocar nada."
+        ],
+        "tip": "Los escaneos llegan con los pushes del agente: si un router no aporta vecinos, revisa que su agente esté en línea."
+      },
+      "firmware": {
+        "title": "Actualizar el firmware de un router",
+        "subtitle": "Flash controlado con verificación y respaldo",
+        "intro": "El servidor le dice al agente qué imagen flashear; el agente descarga, verifica el sha256, respalda la configuración y flashea con sysupgrade.",
+        "steps": [
+          "Abre ⟦Actualizaciones de firmware⟧ en el menú (labs, solo admin).",
+          "Elige el router: el formulario precarga el sistema detectado (modelo y versión actual). Pega la URL de la imagen y su sha256.",
+          "Pulsa ⟦Actualizar ahora⟧: la confirmación resume router, versión objetivo, URL y checksum, y avisa de la caída mientras reinicia.",
+          "Sigue el progreso desde la misma página; el resultado definitivo llega cuando el router termina de arrancar."
+        ],
+        "tip": "Tras un flash solo sobrevive lo de /etc: el self-heal del agente restaura el binario al arrancar, y ⟦Reinstalar⟧ lo deja todo fresco si hiciera falta."
+      }
+    }
   }
 }
