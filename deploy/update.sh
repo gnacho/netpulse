@@ -140,6 +140,11 @@ if [ -f "$SERVER_BIN" ]; then
   rm -rf /opt/netpulse/server-go/pkg.new /tmp/netpulse-go.tgz "$RELEASE_JSON"
 
   echo "STEP:restart"
+  # Marcador de éxito pre-reinicio (#444): el reinicio vía systemd.path mata
+  # este script (hijo del servidor) y sin este fichero el updater registra
+  # "update_exit_-1" aunque el swap haya ido bien. El updater lo interpreta
+  # como el camino de éxito esperado y mantiene el pendingApply (#161).
+  echo "$SHA" > "$REPO_ROOT/.update-applied"
   # Reinicio vía unidad systemd.path del CT (netpulse-go-restart.path vigila
   # este flag y ejecuta systemctl restart netpulse-go.service como root).
   # El dir puede no existir (DATA_DIR real vive en /opt/netpulse/server-go/data):

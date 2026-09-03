@@ -503,6 +503,8 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	if err == nil {
 		err = os.WriteFile(tmpScript, src, 0o755)
 	}
+	// Marcador de un apply previo: fuera antes de empezar (#444).
+	_ = os.Remove(u.appliedMarkerPath())
 	if err != nil {
 		u.mu.Lock()
 		u.updatingStep = nil
@@ -558,6 +560,17 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 			u.lastLog = &log
 			u.updateAvail = false
 			u.finishHistory(historyID, "success", "", dur)
+		} else if marker := readAppliedMarker(u.appliedMarkerPath()); marker != "" && to != nil && marker == strings.TrimSpace(*to) {
+			// #444: el reinicio diferido (systemd.path) mata el script justo
+			// después del swap. Si el marcador pre-reinicio lleva el SHA
+			// objetivo, esto es el camino de éxito, no un fallo: se registra
+			// success y se MANTIENE el pendingApply para la confirmación
+			// post-reinicio (#161).
+			u.setStepLocked("done")
+			log := u.updatingLog
+			u.lastLog = &log
+			u.updateAvail = false
+			u.finishHistory(historyID, "success", "restarted_by_update", dur)
 		} else {
 			code := "update_exit_-1"
 			if ee, ok := waitErr.(*exec.ExitError); ok {
@@ -711,4 +724,20 @@ func (u *Updater) Stop() {
 		close(u.stopCh)
 	}
 	u.wg.Wait()
+}
+
+// appliedMarkerPath: fichero que update.sh escribe justo antes de tocar el
+// flag de reinicio diferido (#444). Vive en la raíz del repo (gitignored).
+func (u *Updater) appliedMarkerPath() string {
+	return filepath.Join(u.repoRoot, ".update-applied")
+}
+
+// readAppliedMarker devuelve el SHA objetivo escrito por update.sh ("" si no
+// existe o no es legible).
+func readAppliedMarker(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }
