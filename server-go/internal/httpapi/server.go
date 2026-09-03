@@ -476,7 +476,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		// Nunca silenciar: un marshal roto dejaría la respuesta sin body
+		// (201 con Content-Length 0 que rompe a los clientes JSON).
+		log.Printf("[netpulse] writeJSON encode error (status %d, %T): %v", status, v, err)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(bytes.TrimSuffix(buf.Bytes(), []byte("\n")))

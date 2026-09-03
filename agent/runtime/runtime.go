@@ -291,8 +291,8 @@ func (a *agent) handleApply(ex *executor.Executor, transport http.RoundTripper, 
 		a.log.Info("[netpulse-agent] apply ejecutado por agente", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
 	}
 
-	postJSON(a.opts, transport, "/api/agents/"+a.opts.Slug+"/apply-result",
-		map[string]any{"planId": payload.PlanID, "result": result})
+	postJSONWithRetry(a.opts, transport, "/api/agents/"+a.opts.Slug+"/apply-result",
+		map[string]any{"planId": payload.PlanID, "result": result}, "apply-result")
 }
 
 func (o Options) logger() *slog.Logger {
