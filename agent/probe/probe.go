@@ -92,11 +92,15 @@ const (
 	// No asume `br-lan` ni `brctl`: detecta el bridge real (br-lan o br0) y usa
 	// `bridge fdb show` como fallback cuando brctl no está (OpenWrt/GLuON
 	// modernos usan iproute2). Issue #253.
+	// La vía bridge excluye las entradas LOCALES (flag "permanent": la MAC del
+	// propio bridge registrada en cada puerto) para paridad con brctl ($3=="no"
+	// allí); sin esto el server ve la MAC propia aprendida en el puerto y lo
+	// clasifica como uplink, descartando TODOS sus clientes cableados (#506).
 	CmdBridgeFDB = `BR=br-lan; [ -d /sys/class/net/$BR ] || BR=br0; ` +
 		`echo "==PORTS=="; for d in /sys/class/net/$BR/brif/*; do [ -r "$d/port_no" ] && echo "$(cat $d/port_no) $(basename $d)"; done; ` +
 		`echo "==MACS=="; if command -v brctl >/dev/null 2>&1; then ` +
 		`brctl showmacs $BR 2>/dev/null | awk 'NR>1 && $3=="no" {print $1, $2}'; ` +
-		`else bridge fdb show br $BR 2>/dev/null | awk 'NF>=3 && $1!="01:" && $1!="33:33:" && $1!="ff:ff:" && $1!="00:00:00:00:00:00" {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1), $1}}'; fi`
+		`else bridge fdb show br $BR 2>/dev/null | awk 'NF>=3 && $1!="01:" && $1!="33:33:" && $1!="ff:ff:" && $1!="00:00:00:00:00:00" && $0 !~ /permanent/ {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1), $1}}'; fi`
 	CmdBridgeMAC       = "cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/br0/address 2>/dev/null"
 	CmdUbusSystemBoard = "ubus call system board"
 	CmdUbusSystemInfo  = "ubus call system info"
