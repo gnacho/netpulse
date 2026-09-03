@@ -101,7 +101,7 @@ if [ -f "$SERVER_BIN" ]; then
   if ! curl -fsSL -m 300 "https://github.com/gnacho/netpulse/releases/download/go-latest/$ASSET" -o /tmp/netpulse-go.tgz; then
     ASSET=$(grep -oP '"name":\s*"\Knetpulse-server-[0-9a-f]+-linux-'"$ARCH"'\.tar\.gz' "$RELEASE_JSON" 2>/dev/null | head -1)
     if [ -n "$ASSET" ] && curl -fsSL -m 300 "https://github.com/gnacho/netpulse/releases/download/go-latest/$ASSET" -o /tmp/netpulse-go.tgz; then
-      echo "binario de CI más reciente disponible ($ASSET)"
+      echo "aviso (#471): sin asset para el commit $SHA; instalando el más reciente ($ASSET). El updater seguirá ofreciendo actualización hasta que main publique un asset propio de su SHA."
     else
       echo "ERROR: sin binario en CI para $ARCH (el CT no puede compilar Go)"
       exit 1

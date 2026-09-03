@@ -5,13 +5,14 @@ name: go-server
 # updater descarga el binario exacto de su commit:
 # netpulse-server-<sha>-linux-<arch>.tar.gz).
 
+# Sin filtro de rutas (#471): si un push a main no toca server-go/ ni app/
+# no se publica asset de ese SHA, y el updater del CT se queda ofreciendo una
+# actualización imposible (cae al asset más viejo y current != latest para
+# siempre). Con este trigger, CADA SHA de main tiene su binario en go-latest.
+
 on:
   push:
     branches: [main]
-    paths:
-      - 'server-go/**'
-      - 'app/**' # el dist va embebido en el binario
-      - '.github/workflows/go.yml'
   workflow_dispatch:
 
 jobs:
