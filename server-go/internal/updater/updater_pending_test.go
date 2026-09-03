@@ -73,12 +73,13 @@ func TestPendingApplyClearedSilentlyWhenUnchanged(t *testing.T) {
 }
 
 func TestPendingApplyIgnoredOnStableLayout(t *testing.T) {
-	// Layout estable (sin deploy/update.sh): el marcador se limpia sin
-	// confirmación (no hay auto-apply en este layout).
+	// Layout estable SIN marcador de éxito del helper (#480): el arranque
+	// con dataDir (vía WithDataDir) limpia el marcador sin confirmar, como
+	// un apply que murió a medias.
 	root := t.TempDir()
 	dbh := openDB(t)
 	seedPending(t, dbh, "oldsha", "newsha")
-	u := New(root, "owner/netpulse", "", "2.0.0", dbh)
+	u := New(root, "owner/netpulse", "", "2.0.0", dbh).WithDataDir(t.TempDir())
 	if u.Status().PendingApply != nil {
 		t.Fatal("en layout estable no debería confirmar")
 	}

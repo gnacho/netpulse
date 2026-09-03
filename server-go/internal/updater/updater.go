@@ -93,8 +93,11 @@ type Updater struct {
 	repo     string
 	token    string
 	version  string // semver embebido (httpapi.Version) para comparar en estable
-	canApply bool   // true si existe deploy/update.sh (layout git)
+	canApply bool   // rolling: deploy/update.sh; estable: unidad root de swap (#480)
 	mode     string // "rolling" (git layout) | "stable" (install.sh)
+	// dataDir: ruta real resuelta de DATA_DIR (WithDataDir). En estable es
+	// donde el auto-apply (#480) deja el staging y los marcadores.
+	dataDir string
 	// db: SQLite para historial (#159) y marcador pendingApply (#161). nil →
 	// persistencia deshabilitada (tests sin BD).
 	db *sql.DB
@@ -129,16 +132,19 @@ type Updater struct {
 }
 
 // New crea el updater. version es el semver embebido (httpapi.Version) usado
-// para comparar contra el último release tag en modo estable. La detección de
-// layout es automática: si existe deploy/update.sh junto a repoRoot, el modo
-// es "rolling" (compara contra main HEAD y puede auto-aplicar); si no, es
-// "stable" (compara contra release tags y NO puede auto-aplicar — el usuario
-// debe re-ejecutar install.sh). db puede ser nil (persistencia deshabilitada).
+// para comparar contra el último release tag en modo estable. La detección
+// de layout es automática: si existe deploy/update.sh junto a repoRoot, el
+// modo es "rolling" (compara contra main HEAD y aplica vía update.sh); si
+// no, es "stable" (compara contra release tags). En estable, con la unidad
+// root de swap instalada por install.sh, el auto-apply también está
+// disponible (#480). db puede ser nil (persistencia deshabilitada).
 func New(repoRoot, repo, token, version string, db *sql.DB) *Updater {
 	canApply := fileExists(filepath.Join(repoRoot, "deploy", "update.sh"))
 	mode := "stable"
 	if canApply {
 		mode = "rolling"
+	} else if stableUnitInstalled() {
+		canApply = true
 	}
 	u := &Updater{
 		repoRoot: repoRoot,
@@ -498,6 +504,32 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 	u.persistPendingApply(from, to)
 	startedAt := time.Now()
 
+	if u.mode == "stable" {
+		// Issue #480: layout single-binary con unidad root de swap. Nada
+		// de update.sh: descargar release estable, verificar y dejar el
+		// binario en escena para el helper root (applyStable). El éxito se
+		// confirma en el arranque siguiente (#444 vía loadPendingApply).
+		if to == nil || strings.TrimSpace(*to) == "" {
+			u.mu.Lock()
+			u.updatingStep = nil
+			code := "stable_no_target"
+			u.err = &code
+			u.broadcastLocked()
+			u.mu.Unlock()
+			u.finishHistory(historyID, "failed", code, time.Since(startedAt))
+			u.clearPendingApply()
+			return false
+		}
+		// Marcador de un apply previo: fuera antes de empezar (#444).
+		_ = os.Remove(u.appliedMarkerPath())
+		u.wg.Add(1)
+		go func() {
+			defer u.wg.Done()
+			u.applyStable(historyID, strings.TrimSpace(*to), startedAt)
+		}()
+		return true
+	}
+
 	tmpScript := filepath.Join(os.TempDir(), fmt.Sprintf("netpulse-update-%d.sh", time.Now().UnixMilli()))
 	src, err := os.ReadFile(filepath.Join(u.repoRoot, "deploy", "update.sh"))
 	if err == nil {
@@ -726,9 +758,14 @@ func (u *Updater) Stop() {
 	u.wg.Wait()
 }
 
-// appliedMarkerPath: fichero que update.sh escribe justo antes de tocar el
-// flag de reinicio diferido (#444). Vive en la raíz del repo (gitignored).
+// appliedMarkerPath: fichero que update.sh (rolling) o el helper root
+// (estable, #480) escriben justo antes de tocar el flag de reinicio (#444).
 func (u *Updater) appliedMarkerPath() string {
+	if u.mode == "stable" && u.dataDir != "" {
+		// En estable el repoRoot (padre del working dir, p.ej. /var/lib)
+		// no es escribible por el servicio: el marcador vive en el dataDir.
+		return filepath.Join(u.dataDir, stableAppliedName)
+	}
 	return filepath.Join(u.repoRoot, ".update-applied")
 }
 

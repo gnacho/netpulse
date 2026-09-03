@@ -87,6 +87,30 @@ func (u *Updater) finalizeInterrupted() {
 	}
 }
 
+// markInterruptedAsSuccess (#480): en estable el apply tiene éxito MATANDO
+// el proceso (swap+restart por la unidad root), así que su entrada queda
+// como failed/interrupted_by_restart hasta el arranque siguiente. Si el
+// marcador del helper confirmó el objetivo (ver loadPendingApply), esa
+// última entrada es el camino de éxito y se re-marca como tal.
+func (u *Updater) markInterruptedAsSuccess(to string) {
+	if u.db == nil || to == "" {
+		return
+	}
+	res, err := u.db.Exec(
+		`UPDATE update_history SET status = 'success', error = 'restarted_by_update'
+		 WHERE id = (SELECT id FROM update_history
+		              WHERE status = 'failed' AND error = 'interrupted_by_restart'
+		                AND version_to = ?
+		              ORDER BY ts DESC LIMIT 1)`, to)
+	if err != nil {
+		fmt.Printf("[netpulse] no se pudo re-marcar el historial de update: %v\n", err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		fmt.Printf("[netpulse] historial: apply estable a %s registrado como éxito\n", to)
+	}
+}
+
 // ListHistory devuelve los últimos `limit` registros de update_history
 // (issue #159), más reciente primero. Cota de 200 por petición.
 func ListHistory(db *sql.DB, limit int) ([]HistoryEntry, error) {
