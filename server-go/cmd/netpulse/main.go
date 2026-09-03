@@ -388,6 +388,18 @@ func run() error {
 			}
 		}
 		rearmSup = rearmer.NewSupervisor(arm, agentReg, dbHandle.DB, rearmEngine, 0, cooldown)
+		// #457: escalado rearm→reinstall (opt-in doble: AUTO_REINSTALL=1 y
+		// PUBLIC_URL configurada; la config ya lo valida como par).
+		if cfg.AutoReinstall && cfg.PublicURL != "" {
+			var rcool time.Duration
+			if v := os.Getenv("NETPULSE_AUTO_REINSTALL_COOLDOWN_S"); v != "" {
+				if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+					rcool = time.Duration(sec) * time.Second
+				}
+			}
+			rearmSup.EnableReinstall(cfg.PublicURL, rcool)
+			log.Printf("[netpulse] escalado auto-reinstall activo (PUBLIC_URL %s)", cfg.PublicURL)
+		}
 		rearmSup.Start()
 		if cooldown <= 0 {
 			cooldown = rearmer.AutoCooldownDefault

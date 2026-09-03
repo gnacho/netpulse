@@ -10,13 +10,18 @@
 package rearmer
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/reinstall"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
@@ -34,6 +39,12 @@ const (
 	AutoCooldownDefault = 600 * time.Second
 	// SupervisorIntervalDefault: cadencia del supervisor.
 	SupervisorIntervalDefault = 30 * time.Second
+
+	// ReinstallSSHWait: margen del script de instalación (descarga incluida).
+	ReinstallSSHWait = 300 * time.Second
+	// ReinstallCooldownDefault: anti-martilleo del escalado reinstall del
+	// supervisor (#457): 1 h por slug.
+	ReinstallCooldownDefault = 3600 * time.Second
 )
 
 // TokenPrefix: prefijo de las claves kv que marcan un slug con agente
@@ -81,8 +92,8 @@ var (
 	// ErrNetgripAgent (#363): el agente de este slug es el NetGrip embebido;
 	// no se rearma ni se reinstala desde el servidor.
 	ErrNetgripAgent = fmt.Errorf("agente embebido en NetGrip: gestionarlo desde el panel NetGrip")
-	ErrNoSSH    = fmt.Errorf("el servidor no tiene pool SSH (modo demo o clave ausente)")
-	ErrNoDB     = fmt.Errorf("db no disponible")
+	ErrNoSSH        = fmt.Errorf("el servidor no tiene pool SSH (modo demo o clave ausente)")
+	ErrNoDB         = fmt.Errorf("db no disponible")
 )
 
 // Rearmer ejecuta rearmes (compartido entre el handler manual y el
@@ -195,23 +206,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 		return Result{}, fmt.Errorf("no pude reiniciar el servicio en %s: %w", host, err)
 	}
 
-	// Esperar a que el agente vuelva a empujar (poll cada 2 s hasta pollWait).
-	recovered := false
-	deadline := time.Now().Add(r.pollWait)
-	pollInterval := 2 * time.Second
-	if r.pollWait < pollInterval {
-		pollInterval = 50 * time.Millisecond
-	}
-	for time.Now().Before(deadline) {
-		time.Sleep(pollInterval)
-		if r.agents == nil {
-			break
-		}
-		if seen, _, _, _, ok := r.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
-			recovered = true
-			break
-		}
-	}
+	recovered := r.waitForPush(slug, prevSeen, before)
 
 	res := Result{Slug: slug, Restarted: true, Recovered: recovered}
 	if recovered {
@@ -231,6 +226,112 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	return res, nil
 }
 
+// Reinstall reinstala el agente completo en el router vía SSH (#457):
+// rota el token, ejecuta el script canónico (binario verificado + config +
+// init self-heal + watchdog) y espera el push de vuelta. Es el escalado
+// cuando un rearme no recupera el agente (proceso muerto o binario perdido
+// por un sysupgrade).
+func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
+	if r.db == nil {
+		return Result{}, ErrNoDB
+	}
+	if publicURL == "" {
+		return Result{}, fmt.Errorf("reinstall automático sin NETPULSE_PUBLIC_URL")
+	}
+	if r.agents != nil {
+		if _, _, kind, _, ok := r.agents.Info(slug); ok && kind == "netgrip" {
+			return Result{}, ErrNetgripAgent
+		}
+	}
+	var exists int
+	if err := r.db.QueryRow("SELECT COUNT(*) FROM kv WHERE key = ?", TokenPrefix+slug).Scan(&exists); err != nil || exists == 0 {
+		return Result{}, ErrNoToken
+	}
+	host := ""
+	for _, rc := range routerstore.ListRouters(r.db) {
+		if rc.ID == slug {
+			if !nativeAgentType(rc.Type) {
+				return Result{}, ErrExternalAgent
+			}
+			host = rc.Host
+			break
+		}
+	}
+	if host == "" {
+		return Result{}, ErrNoRouter
+	}
+	if r.pool == nil {
+		return Result{}, ErrNoSSH
+	}
+
+	// Rotar el token: el script lo instala en el router y el hash nuevo
+	// sustituye al viejo en kv.
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return Result{}, fmt.Errorf("token: %w", err)
+	}
+	token := hex.EncodeToString(buf)
+	sum := sha256.Sum256([]byte(token))
+	if _, err := r.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		TokenPrefix+slug, hex.EncodeToString(sum[:])); err != nil {
+		return Result{}, fmt.Errorf("token kv: %w", err)
+	}
+
+	script := reinstall.Script(slug, token, publicURL, reinstall.Digests())
+
+	before := time.Now()
+	var prevSeen time.Time
+	if r.agents != nil {
+		if seen, _, _, _, ok := r.agents.Info(slug); ok {
+			prevSeen = seen
+		}
+	}
+
+	if _, err := r.pool.Run(host, script, ReinstallSSHWait); err != nil {
+		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)
+	}
+
+	recovered := r.waitForPush(slug, prevSeen, before)
+
+	res := Result{Slug: slug, Restarted: true, Recovered: recovered}
+	if recovered {
+		res.Message = "agente reinstalado y empujando"
+		if r.engine != nil {
+			r.engine.Emit(alerts.AlertEvent{
+				ID:       fmt.Sprintf("alert-agent-reinstall-%s-%d", slug, time.Now().UnixMilli()),
+				Category: alerts.CatSystem, Urgent: false, Severity: "info",
+				Title:       fmt.Sprintf("Agente reinstalado en %s", slug),
+				Description: "Reinstalación completa desde el servidor (binario, config, init y watchdog) — el agente vuelve a empujar",
+				Time:        "ahora mismo", RouterID: slug,
+			})
+		}
+	} else {
+		res.Message = fmt.Sprintf("agente reinstalado, pero aún no ha empujado en %d s", int(r.pollWait.Seconds()))
+	}
+	return res, nil
+}
+
+// waitForPush: poll del registry hasta pollWait esperando un push NUEVO.
+// Extraído del cuerpo de Rearm para compartirlo con Reinstall.
+func (r *Rearmer) waitForPush(slug string, prevSeen, before time.Time) bool {
+	deadline := time.Now().Add(r.pollWait)
+	pollInterval := 2 * time.Second
+	if r.pollWait < pollInterval {
+		pollInterval = 50 * time.Millisecond
+	}
+	for time.Now().Before(deadline) {
+		time.Sleep(pollInterval)
+		if r.agents == nil {
+			return false
+		}
+		if seen, _, _, _, ok := r.agents.Info(slug); ok && seen.After(prevSeen) && seen.After(before.Add(-5*time.Second)) {
+			return true
+		}
+	}
+	return false
+}
+
 // ---------------------------------------------------------------------------
 // Supervisor: auto-rearme tras expiración del TTL (NETPULSE_AUTO_REARM=1)
 // ---------------------------------------------------------------------------
@@ -246,6 +347,14 @@ type Supervisor struct {
 	engine   AlertsEngine
 	interval time.Duration
 	cooldown time.Duration
+
+	// Escalado rearm→reinstall (#457): opt-in (NETPULSE_AUTO_REINSTALL=1 y
+	// NETPULSE_PUBLIC_URL). Cuando un rearme ejecutado NO recupera el push,
+	// se reinstala el agente completo con cooldown propio (1 h por slug).
+	autoReinstall     bool
+	publicURL         string
+	reinstallSlots    map[string]time.Time
+	reinstallCooldown time.Duration
 
 	mu    sync.Mutex
 	slots map[string]time.Time
@@ -273,8 +382,21 @@ func NewSupervisor(r *Rearmer, registry *adapters.AgentRegistry, db *sql.DB, eng
 		rearmer: r, registry: registry, db: db, engine: engine,
 		interval: interval, cooldown: cooldown,
 		slots: map[string]time.Time{}, failIDs: map[string]string{},
+		reinstallSlots: map[string]time.Time{}, reinstallCooldown: ReinstallCooldownDefault,
 		stop: make(chan struct{}), done: make(chan struct{}),
 	}
+}
+
+// EnableReinstall activa el escalado rearm→reinstall del supervisor (#457).
+// Requiere publicURL (NETPULSE_PUBLIC_URL): es la URL con la que el router
+// descarga el binario del servidor. cooldown <= 0 → 1 h.
+func (s *Supervisor) EnableReinstall(publicURL string, cooldown time.Duration) {
+	if cooldown <= 0 {
+		cooldown = ReinstallCooldownDefault
+	}
+	s.autoReinstall = true
+	s.publicURL = publicURL
+	s.reinstallCooldown = cooldown
 }
 
 // Start lanza el loop en una goroutine (no bloquea).
@@ -352,10 +474,34 @@ func (s *Supervisor) CheckOnce() {
 			s.closeFailID(slug)
 			continue
 		}
+		// #457: el rearme no recuperó el agente (proceso muerto o binario
+		// perdido). Si el escalado está activo, reinstalación completa con
+		// cooldown propio; solo para slugs con preconditions válidas.
+		if s.autoReinstall && s.publicURL != "" && s.reinstallSlotFree(slug) {
+			if r2, err := s.rearmer.Reinstall(slug, s.publicURL); err == nil {
+				s.markReinstallSlot(slug)
+				if r2.Recovered {
+					s.closeFailID(slug)
+					continue
+				}
+			} else if !isPreconditionError(err) {
+				// El intento llegó al SSH y falló (router apagado, red
+				// caída): también consume el slot de reinstall.
+				s.markReinstallSlot(slug)
+			}
+		}
 		if s.engine != nil {
 			s.emitFail(slug)
 		}
 	}
+}
+
+// isPreconditionError: true para errores de guard (sin token, router
+// desconocido, externo, netgrip, sin SSH/DB): no consumen el slot.
+func isPreconditionError(err error) bool {
+	return errors.Is(err, ErrNoToken) || errors.Is(err, ErrNoRouter) ||
+		errors.Is(err, ErrExternalAgent) || errors.Is(err, ErrNetgripAgent) ||
+		errors.Is(err, ErrNoSSH) || errors.Is(err, ErrNoDB)
 }
 
 // emitFail: alerta consolidada de fallo (issue #271). La primera vez del
@@ -372,8 +518,8 @@ func (s *Supervisor) emitFail(slug string) {
 	}
 	s.mu.Unlock()
 	s.engine.EmitOrUpdate(alerts.AlertEvent{
-		ID:          id,
-		Category:    alerts.CatSystem, Urgent: false, Severity: "warn",
+		ID:       id,
+		Category: alerts.CatSystem, Urgent: false, Severity: "warn",
 		Title:       fmt.Sprintf("Auto-rearme sin recuperación en %s", slug),
 		Description: fmt.Sprintf("El supervisor reinició netpulse-agent en %s pero el agente no ha vuelto a empujar; próximo intento en %d s", slug, int(s.cooldown.Seconds())),
 		Time:        "ahora mismo", RouterID: slug,
@@ -417,4 +563,20 @@ func (s *Supervisor) markSlot(slug string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.slots[slug] = time.Now()
+}
+
+// reinstallSlotFree: ¿pasó el cooldown de reinstall desde el último
+// intento del slug? (#457)
+func (s *Supervisor) reinstallSlotFree(slug string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	last, ok := s.reinstallSlots[slug]
+	return !ok || time.Since(last) >= s.reinstallCooldown
+}
+
+// markReinstallSlot registra un intento de reinstalación del slug.
+func (s *Supervisor) markReinstallSlot(slug string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reinstallSlots[slug] = time.Now()
 }

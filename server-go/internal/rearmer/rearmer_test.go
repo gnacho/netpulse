@@ -6,6 +6,7 @@ package rearmer_test
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -350,5 +351,88 @@ func TestRearmExternalAgentRejected(t *testing.T) {
 	_, err := env.arm.Rearm("patio")
 	if errors.Is(err, rearmer.ErrExternalAgent) {
 		t.Fatalf("patio (openwrt) no debe rechazarse como externo")
+	}
+}
+
+// #457: Reinstall directo — rota el token, ejecuta el script canónico con
+// la PUBLIC_URL y espera el push de vuelta.
+func TestReinstallInstalaYRecupera(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushViejo("patio")
+	env.expira(time.Minute)
+	env.arm.SetPollWait(200 * time.Millisecond)
+
+	// Push nuevo poco después de "instalar" para que waitForPush lo vea.
+	go func() {
+		time.Sleep(60 * time.Millisecond)
+		env.setNow(env.now.Add(2 * time.Second))
+		env.pushViejo("patio")
+	}()
+
+	res, err := env.arm.Reinstall("patio", "http://192.168.1.226:3000")
+	if err != nil {
+		t.Fatalf("Reinstall: %v", err)
+	}
+	if !res.Restarted || !res.Recovered {
+		t.Fatalf("esperaba reinstalado+recuperado: %+v", res)
+	}
+	if env.ssh.count() != 1 {
+		t.Fatalf("quiero 1 comando SSH, tuve %d", env.ssh.count())
+	}
+	cmd := env.ssh.cmds[0]
+	if !strings.Contains(cmd, `SERVER="http://192.168.1.226:3000"`) || !strings.Contains(cmd, "api/agents/$SLUG/binary") {
+		t.Error("el script no descarga de la PUBLIC_URL indicada")
+	}
+	if !strings.Contains(cmd, "selfheal_binary") {
+		t.Error("el script no instala el init con self-heal")
+	}
+	// El token rotó: el hash en kv ya no es el fakehash original.
+	var stored string
+	if err := env.d.QueryRow("SELECT value FROM kv WHERE key = ?", rearmer.TokenPrefix+"patio").Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored == "fakehash" || len(stored) != 64 {
+		t.Fatalf("token no rotado: %q", stored)
+	}
+}
+
+// #457: el supervisor escala a reinstall cuando el rearme no recupera, y el
+// slot de 1 h evita martillear en pasadas consecutivas.
+func TestSupervisorEscalaAReinstall(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushViejo("patio")
+	env.expira(time.Minute)
+	env.arm.SetPollWait(100 * time.Millisecond)
+
+	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, time.Hour)
+	sup.EnableReinstall("http://192.168.1.226:3000", time.Hour)
+	sup.CheckOnce()
+
+	if env.ssh.count() != 2 {
+		t.Fatalf("quiero 2 comandos SSH (rearm + reinstall), tuve %d", env.ssh.count())
+	}
+	if !strings.Contains(env.ssh.cmds[1], "selfheal_binary") {
+		t.Error("el segundo comando debería ser la reinstalación completa")
+	}
+
+	// Segunda pasada inmediata: slots ocupados → sin más comandos.
+	sup.CheckOnce()
+	if env.ssh.count() != 2 {
+		t.Fatalf("los slots deberían frenar la segunda pasada: %d comandos", env.ssh.count())
+	}
+}
+
+// Sin escalado activo, el rearme fallido se queda en rearm (comportamiento
+// histórico preservado).
+func TestSupervisorSinEscaladoQuedaEnRearm(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushViejo("patio")
+	env.expira(time.Minute)
+	env.arm.SetPollWait(100 * time.Millisecond)
+
+	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, time.Hour)
+	sup.CheckOnce()
+	if env.ssh.count() != 1 {
+		t.Fatalf("sin escalado quiero solo el rearm, tuve %d", env.ssh.count())
 	}
 }
