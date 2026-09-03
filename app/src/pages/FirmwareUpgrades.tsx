@@ -2,8 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
-import { AlertCircle, Cpu, RefreshCw } from 'lucide-react'
+import { AlertCircle, Cpu, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface FirmwareUpgrade {
   id: number
@@ -50,6 +60,7 @@ export default function FirmwareUpgrades() {
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   const sortedRouters = useMemo(() => {
     return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
@@ -136,6 +147,13 @@ export default function FirmwareUpgrades() {
     const s = item.upgrade?.status
     return !!s && s !== 'done' && s !== 'failed'
   }
+
+  // #477: el upgrade usa el target GUARDADO (no el buffer de edición), así
+  // que el modal resume exactamente lo que se va a flashear.
+  const confirmItem = items.find((i) => i.routerId === confirmId)
+  const confirmName = confirmItem
+    ? sortedRouters.find((r) => r.id === confirmItem.routerId)?.name ?? confirmItem.name
+    : ''
 
   return (
     <div className="space-y-4 md:space-y-5">
@@ -277,7 +295,7 @@ export default function FirmwareUpgrades() {
                     {busy[item.routerId] === 'save' ? t('common.loading') : t('common.save')}
                   </button>
                   <button
-                    onClick={() => startUpgrade(item.routerId)}
+                    onClick={() => setConfirmId(item.routerId)}
                     disabled={active || busy[item.routerId] === 'upgrade' || !item.targetVersion}
                     className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
                   >
@@ -293,6 +311,75 @@ export default function FirmwareUpgrades() {
           )
         })}
       </div>
+
+      {/* #477: confirmación antes de descargar/flashear, con el resumen del
+          target guardado y los avisos de verificación y reinicio. */}
+      <AlertDialog open={!!confirmItem} onOpenChange={(open) => !open && setConfirmId(null)}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('firmwareUpgrades.confirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('firmwareUpgrades.confirmReboot')}</AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {confirmItem && (
+            <div className="space-y-3">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-text-muted">{t('firmwareUpgrades.confirmRouter')}</dt>
+                <dd className="min-w-0 font-medium text-text-primary">
+                  {confirmName}
+                  {confirmItem.model ? <span className="font-normal text-text-muted"> · {confirmItem.model}</span> : null}
+                </dd>
+                <dt className="text-text-muted">{t('firmwareUpgrades.confirmVersion')}</dt>
+                <dd className="font-mono text-text-primary">
+                  {confirmItem.currentVersion || t('common.unknown')} → {confirmItem.targetVersion}
+                </dd>
+                <dt className="text-text-muted">{t('firmwareUpgrades.confirmImage')}</dt>
+                <dd className="min-w-0 break-all font-mono text-xs leading-relaxed text-text-secondary">
+                  {confirmItem.targetUrl}
+                </dd>
+                <dt className="text-text-muted">{t('firmwareUpgrades.checksum')}</dt>
+                <dd className="min-w-0 break-all font-mono text-xs leading-relaxed text-text-secondary">
+                  {confirmItem.checksum || t('firmwareUpgrades.confirmNoChecksumShort')}
+                </dd>
+              </dl>
+
+              {confirmItem.checksum ? (
+                <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span>{t('firmwareUpgrades.confirmVerified')}</span>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span>{t('firmwareUpgrades.confirmNoChecksum')}</span>
+                </div>
+              )}
+
+              <div className="flex items-start gap-2.5 rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-secondary">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+                <span>{t('firmwareUpgrades.confirmDowntime')}</span>
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                if (!confirmId) return
+                const id = confirmId
+                setConfirmId(null)
+                void startUpgrade(id)
+              }}
+              disabled={!!confirmId && busy[confirmId] === 'upgrade'}
+            >
+              <Rocket className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {confirmId && busy[confirmId] === 'upgrade' ? t('common.loading') : t('firmwareUpgrades.confirmAction')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
