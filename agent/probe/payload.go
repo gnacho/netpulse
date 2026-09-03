@@ -46,6 +46,10 @@ type PayloadData struct {
 	// Vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sonda
 	// fallida o router sin bridge vlan filtering.
 	Vlans []VlanPort `json:"vlans,omitempty"`
+	// Lldp (#489): vecinos LLDP de lldpd. nil = sonda fallida en este push
+	// (el server conserva el último dato bueno); Available=false = lldpd
+	// no instalado (hint de UI).
+	Lldp *LldpData `json:"lldp,omitempty"`
 	// Discovery: mDNS services and randomized MAC detection (#338).
 	Discovery *DiscoveryData `json:"discovery,omitempty"`
 }
