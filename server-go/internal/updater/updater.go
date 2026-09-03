@@ -27,6 +27,9 @@ const (
 	httpTimeout   = 8 * time.Second
 	logTail       = 4000
 	statusLogTail = 800
+	// maxChangelogCommits: tope de commits del compare que se exponen en el
+	// estado (issue #490); el enlace compareUrl lleva la lista completa.
+	maxChangelogCommits = 30
 )
 
 // APIBase es la base de la API de GitHub (inyectable en tests).
@@ -40,6 +43,13 @@ var BuildCommit string
 type progress struct {
 	Step     string `json:"step"`
 	Progress int    `json:"progress"` // 0-100
+}
+
+// CommitRef: un commit entre la versión actual y la disponible, para el
+// changelog humano del asistente de actualización (issue #490).
+type CommitRef struct {
+	SHA     string `json:"sha"`     // corto (7 chars), solo display
+	Subject string `json:"subject"` // primera línea del mensaje
 }
 
 // stepWeight: porcentaje mostrado MIENTRAS el paso está en ejecución
@@ -73,12 +83,18 @@ type Status struct {
 	LastCheck       *int64  `json:"lastCheck"`
 	// LatestBody: cuerpo del commit (rolling) o notas del release (estable)
 	// mostrado como changelog en el asistente (issue #280).
-	LatestBody    *string `json:"latestBody,omitempty"`
-	Updating      any     `json:"updating"` // false | {"step": ...}
-	Error         *string `json:"error"`
-	LastLog       *string `json:"lastLog"`
-	Repo          string  `json:"repo"`
-	HasToken      bool    `json:"hasToken"`
+	LatestBody *string `json:"latestBody,omitempty"`
+	// Commits: commits entre current y latest (compare de GitHub), newest
+	// first, cap maxChangelogCommits (issue #490). Vacío cuando no hay
+	// actualización o el compare falló: la UI cae a latestBody.
+	Commits []CommitRef `json:"commits,omitempty"`
+	// CompareURL: enlace web al compare completo current...latest (#490).
+	CompareURL string    `json:"compareUrl,omitempty"`
+	Updating   any       `json:"updating"` // false | {"step": ...}
+	Error      *string   `json:"error"`
+	LastLog    *string   `json:"lastLog"`
+	Repo       string    `json:"repo"`
+	HasToken   bool      `json:"hasToken"`
 	// Readiness: pre-flight checks del apply (issue #160). Null en layout
 	// estable (sin auto-apply) o hasta el primer Status().
 	Readiness *Readiness `json:"readiness,omitempty"`
@@ -107,6 +123,11 @@ type Updater struct {
 	latest       *string
 	latestMsg    *string
 	latestBody   *string // cuerpo del commit/notas del release (changelog #280)
+	// compare de GitHub cacheado (issue #490): commits current→latest y
+	// clave "current|latest" del último fetch para no repetir la consulta.
+	commits    []CommitRef
+	compareURL string
+	compareKey string
 	updateAvail  bool
 	lastCheck    *int64
 	updatingStep *string // nil = no actualizando
@@ -342,6 +363,71 @@ func (u *Updater) fetchReleaseBody(ctx context.Context, sha string) string {
 	return ""
 }
 
+// fetchCompare consulta los commits entre base y head (compare de GitHub,
+// issue #490). base/head aceptan SHAs (rolling) o tags (estable); GitHub
+// devuelve los commits oldest→newest y aquí se invierten para que el
+// changelog se lea newest-first. Cualquier error → (nil, ""): el changelog
+// no aparece y el flujo de actualización queda intacto.
+func (u *Updater) fetchCompare(ctx context.Context, base, head string) ([]CommitRef, string) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s/repos/%s/compare/%s...%s", APIBase, u.repo, base, head), nil)
+	if err != nil {
+		return nil, ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "netpulse-updater")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if u.token != "" {
+		req.Header.Set("Authorization", "Bearer "+u.token)
+	}
+	client := &http.Client{Timeout: httpTimeout}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, ""
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return nil, ""
+	}
+	var data struct {
+		Commits []struct {
+			SHA    string `json:"sha"`
+			Commit struct {
+				Message string `json:"message"`
+			} `json:"commit"`
+		} `json:"commits"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(&data); err != nil {
+		return nil, ""
+	}
+	out := make([]CommitRef, 0, len(data.Commits))
+	for i := len(data.Commits) - 1; i >= 0; i-- {
+		c := data.Commits[i]
+		subject := strings.Split(c.Commit.Message, "\n")[0]
+		if subject == "" {
+			continue
+		}
+		sha := c.SHA
+		if len(sha) > 7 {
+			sha = sha[:7]
+		}
+		out = append(out, CommitRef{SHA: sha, Subject: subject})
+		if len(out) >= maxChangelogCommits {
+			break
+		}
+	}
+	return out, fmt.Sprintf("https://github.com/%s/compare/%s...%s", u.repo, base, head)
+}
+
+// compareTagRef normaliza un semver a ref de tag ("2.26.2" → "v2.26.2")
+// para el compare en modo estable; los tags del repo llevan prefijo "v".
+func compareTagRef(s string) string {
+	if !strings.HasPrefix(s, "v") {
+		return "v" + s
+	}
+	return s
+}
+
 // compareSemver compara dos strings semver (con o sin prefijo "v").
 // Devuelve >0 si a > b, 0 si iguales, <0 si a < b. No-parseable → 0.
 func compareSemver(a, b string) int {
@@ -401,6 +487,31 @@ func (u *Updater) Check(ctx context.Context) Status {
 
 	now := time.Now().UnixMilli()
 
+	// Disponibilidad calculada fuera del lock (lógica pura de strings).
+	avail := false
+	if latest != "" && current != "desconocido" {
+		if u.mode == "stable" {
+			avail = compareSemver(latest, current) > 0
+		} else {
+			avail = latest != current
+		}
+	}
+
+	// Changelog humano (issue #490): commits current→latest vía compare,
+	// solo con novedades y solo si el par (current, latest) cambió desde el
+	// último fetch (el check corre cada 24 h; no repetir la misma consulta).
+	key := current + "|" + latest
+	var commits []CommitRef
+	var compareURL string
+	if avail && key != u.compareKey {
+		base, head := current, latestSHA
+		if u.mode == "stable" {
+			base = compareTagRef(current)
+			head = compareTagRef(latest)
+		}
+		commits, compareURL = u.fetchCompare(ctx, base, head)
+	}
+
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.current = current
@@ -413,10 +524,18 @@ func (u *Updater) Check(ctx context.Context) Status {
 	u.latest = &latest
 	u.latestMsg = &latestMsg
 	u.latestBody = &latestBody
-	if u.mode == "stable" {
-		u.updateAvail = latest != "" && current != "desconocido" && compareSemver(latest, current) > 0
+	u.updateAvail = avail
+	if avail {
+		if key != u.compareKey {
+			u.compareKey = key
+			u.commits = commits
+			u.compareURL = compareURL
+		}
 	} else {
-		u.updateAvail = latest != "" && current != "desconocido" && latest != current
+		// Sin novedades: caduca cualquier changelog anterior.
+		u.compareKey = ""
+		u.commits = nil
+		u.compareURL = ""
 	}
 	if u.updateAvail {
 		fmt.Printf("[netpulse] nueva versión disponible: %s → %s (%s)\n", current, latest, latestMsg)
@@ -712,6 +831,8 @@ func (u *Updater) statusLocked() Status {
 		Latest:          u.latest,
 		LatestMsg:       u.latestMsg,
 		LatestBody:      u.latestBody,
+		Commits:         u.commits,
+		CompareURL:      u.compareURL,
 		UpdateAvailable: u.updateAvail,
 		CanApply:        u.canApply,
 		Mode:            u.mode,
@@ -726,11 +847,12 @@ func (u *Updater) statusLocked() Status {
 }
 
 // Start lanza el chequeo inicial y el timer de 6 h (paridad start()).
+// El contexto cubre las llamadas de red del Check: latest + compare (#490).
 func (u *Updater) Start() {
 	u.wg.Add(1)
 	go func() {
 		defer u.wg.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout+2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*httpTimeout+2*time.Second)
 		u.Check(ctx)
 		cancel()
 		t := time.NewTicker(checkInterval)
@@ -740,7 +862,7 @@ func (u *Updater) Start() {
 			case <-u.stopCh:
 				return
 			case <-t.C:
-				ctx, cancel := context.WithTimeout(context.Background(), httpTimeout+2*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 2*httpTimeout+2*time.Second)
 				u.Check(ctx)
 				cancel()
 			}

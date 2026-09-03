@@ -2226,6 +2226,8 @@ interface NetPulseUpdateStatus {
   latest: string | null
   latestMsg: string | null
   latestBody?: string | null
+  commits?: { sha: string; subject: string }[] | null
+  compareUrl?: string | null
   updateAvailable: boolean
   canApply: boolean
   repo: string

@@ -1347,6 +1347,9 @@
       "hideHint": "You can close this window: the update continues on the server",
       "progressLabel": "Update progress",
       "changelogTitle": "What's new",
+      "commitsCount_one": "1 change since your version",
+      "commitsCount_other": "{{count}} changes since your version",
+      "viewCompare": "View the full comparison on GitHub",
       "changelogFallback": "Could not load changelog.",
       "changelogLink": "View release notes on GitHub",
       "downNotice": "The service will be down while it restarts"

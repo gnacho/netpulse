@@ -13,6 +13,7 @@ import {
   Check,
   Circle,
   DownloadCloud,
+  ExternalLink,
   Loader2,
 } from 'lucide-react'
 import {
@@ -28,12 +29,21 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 
+/** Commit entre current y latest (compare de GitHub, issue #490). */
+export interface UpdateCommit {
+  sha: string
+  subject: string
+}
+
 export interface UpdateStatusInfo {
   current: string
   latest: string | null
   latestMsg: string | null
   /** Cuerpo del commit (rolling) o notas del release (estable): changelog. */
   latestBody?: string | null
+  /** Commits current→latest (newest first) + enlace al compare (#490). */
+  commits?: UpdateCommit[] | null
+  compareUrl?: string | null
   updateAvailable: boolean
   canApply: boolean
   repo: string
@@ -309,10 +319,46 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
             {status?.latestMsg && (
               <p className="text-center text-caption text-text-muted">{status.latestMsg}</p>
             )}
-            {/* Changelog (issue #280): cuerpo del commit (rolling) o notas
-                del release (estable), línea a línea con scroll. Los trailers
-                de git (Co-authored-by, Signed-off-by…) son ruido: fuera. */}
-            {changelogLines.length > 0 && (
+            {/* Changelog humano (issue #490): commits current→latest del
+                compare de GitHub, newest first. Fallback (#280): cuerpo del
+                commit (rolling) o notas del release (estable), sin trailers. */}
+            {(status?.commits?.length ?? 0) > 0 && (
+              <p className="text-center text-caption text-text-muted">
+                {t('update.dialog.commitsCount', { count: status!.commits!.length })}
+              </p>
+            )}
+            {(status?.commits?.length ?? 0) > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  {t('update.dialog.changelogTitle')}
+                </p>
+                <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5">
+                  <ul className="flex flex-col gap-1">
+                    {status!.commits!.map((c) => (
+                      <li
+                        key={c.sha + c.subject}
+                        className="flex items-start gap-2 text-caption leading-snug text-text-secondary"
+                      >
+                        <span className="shrink-0 font-mono text-text-muted">{c.sha}</span>
+                        <span className="min-w-0 break-words">{c.subject}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {status?.compareUrl && (
+                  <a
+                    href={status.compareUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-caption text-accent hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" strokeWidth={1.75} aria-hidden="true" />
+                    {t('update.dialog.viewCompare')}
+                  </a>
+                )}
+              </div>
+            )}
+            {(status?.commits?.length ?? 0) === 0 && changelogLines.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   {t('update.dialog.changelogTitle')}
@@ -329,8 +375,9 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                 </div>
               </div>
             )}
-            {/* Issue #404: fallback con enlace si no hay changelog. */}
-            {changelogLines.length === 0 && status?.latest && (
+            {/* Issue #404: fallback con enlace si no hay changelog
+                (ni commits del compare ni body). */}
+            {(status?.commits?.length ?? 0) === 0 && changelogLines.length === 0 && status?.latest && (
               <p className="text-caption text-text-muted">
                 {t('update.dialog.changelogFallback')}{' '}
                 <a
