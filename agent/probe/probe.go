@@ -136,9 +136,15 @@ type BoardInfo struct {
 	Model    string `json:"model"`
 	Hostname string `json:"hostname"`
 	System   string `json:"system"`
-	Release  struct {
+	// BoardName es el board_name de ubus ("redmi,ax6"): el identificador
+	// que casa con los perfiles de ASU (#477).
+	BoardName string `json:"board_name"`
+	Release   struct {
 		Version     string `json:"version"`
 		Description string `json:"description"`
+		// Target es el DISTRIB_TARGET ("qualcommax/ipq807x"), lo que ASU
+		// necesita junto al board_name para localizar la imagen (#477).
+		Target string `json:"target"`
 	} `json:"release"`
 }
 

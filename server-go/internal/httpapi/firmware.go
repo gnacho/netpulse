@@ -19,7 +19,25 @@ type firmwareStatusResponse struct {
 	TargetVersion  string            `json:"targetVersion"`
 	TargetURL      string            `json:"targetUrl"`
 	Checksum       string            `json:"checksum"`
-	Upgrade        *firmware.Upgrade `json:"upgrade,omitempty"`
+	// Detección #477 P2: último board info reportado por el agente/SSH.
+	// detectedBoard es el board_name (perfil ASU) y detectedTarget el
+	// DISTRIB_TARGET; base para el prefill del formulario y el lookup ASU.
+	DetectedModel   string            `json:"detectedModel,omitempty"`
+	DetectedBoard   string            `json:"detectedBoard,omitempty"`
+	DetectedVersion string            `json:"detectedVersion,omitempty"`
+	DetectedTarget  string            `json:"detectedTarget,omitempty"`
+	Upgrade         *firmware.Upgrade `json:"upgrade,omitempty"`
+}
+
+// fillDetectedBoard copia el board info al response (nil-safe).
+func (item *firmwareStatusResponse) fillDetectedBoard(bi *adapters.BoardInfo) {
+	if bi == nil {
+		return
+	}
+	item.DetectedModel = bi.Model
+	item.DetectedBoard = bi.BoardName
+	item.DetectedVersion = bi.Release.Version
+	item.DetectedTarget = bi.Release.Target
 }
 
 // registerFirmwareRoutes registra los endpoints de firmware upgrades.
@@ -72,6 +90,9 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 			}
 			if up, _ := s.firmware.LatestUpgrade(r.ID); up != nil {
 				item.Upgrade = up
+			}
+			if s.adapter != nil {
+				item.fillDetectedBoard(s.adapter.BoardInfoFor(r.ID))
 			}
 			out = append(out, item)
 		}
@@ -282,6 +303,9 @@ func (s *server) firmwareStatus(id string) (*firmwareStatusResponse, error) {
 	}
 	if up != nil {
 		item.Upgrade = up
+	}
+	if s.adapter != nil {
+		item.fillDetectedBoard(s.adapter.BoardInfoFor(id))
 	}
 	return item, nil
 }

@@ -1390,6 +1390,7 @@
     "confirmNoChecksum": "No checksum saved: the agent will flash the image without verifying it.",
     "confirmDowntime": "During the flash and reboot the router is down for several minutes; clients connected to it lose connectivity.",
     "confirmAction": "Yes, upgrade",
+    "detectedPrefix": "Detected system:",
     "status": {
       "requested": "Requested",
       "downloading": "Downloading",

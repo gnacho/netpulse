@@ -821,6 +821,9 @@ type Snapshotter interface {
 	GetRouters(ctx context.Context) []Router
 	// GetRouterDetail devuelve el detalle o (nil, nil) si el id no existe.
 	GetRouterDetail(ctx context.Context, id string) (*RouterDetail, error)
+	// BoardInfoFor devuelve el último ubus system board conocido del router
+	// (vía push del agente o sondeo SSH); nil si nunca se ha visto (#477 P2).
+	BoardInfoFor(id string) *BoardInfo
 	// GetDevices lista todos los dispositivos (sin paginar; la paginación y
 	// filtros los aplica el handler de /api/devices).
 	GetDevices(ctx context.Context) []Device

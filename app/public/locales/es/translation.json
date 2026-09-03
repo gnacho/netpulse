@@ -1390,6 +1390,7 @@
     "confirmNoChecksum": "No hay checksum guardado: el agente flasheará la imagen sin verificar su integridad.",
     "confirmDowntime": "Durante el flash y el reinicio el router queda sin servicio varios minutos; los clientes conectados a él pierden la conexión.",
     "confirmAction": "Sí, actualizar",
+    "detectedPrefix": "Sistema detectado:",
     "status": {
       "requested": "Solicitada",
       "downloading": "Descargando",

@@ -2359,6 +2359,14 @@ func (l *Live) usteerAvailableCached() bool {
 	return avail
 }
 
+// BoardInfoFor (#477): último ubus system board cacheado del router, ya sea
+// por push del agente (polledFromAgent) o por sondeo SSH. Solo lectura.
+func (l *Live) BoardInfoFor(id string) *BoardInfo {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.boardCache[id]
+}
+
 // GetRouters: tarjetas desde la caché del último tick (index.js:600-610).
 func (l *Live) GetRouters(context.Context) []Router {
 	l.mu.Lock()

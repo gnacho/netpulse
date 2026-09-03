@@ -917,3 +917,23 @@ func TestFreqToChannel(t *testing.T) {
 		}
 	}
 }
+
+// TestBoardInfoParsesASUFields: captura real de `ubus call system board` en un
+// Redmi AX6 (rt4). board_name y release.target son los dos valores que ASU
+// necesita para localizar la imagen (#477).
+func TestBoardInfoParsesASUFields(t *testing.T) {
+	raw := `{"kernel":"6.12.94","hostname":"rt4","system":"ARMv8 Processor rev 4","model":"Redmi AX6","board_name":"redmi,ax6","rootfs_type":"squashfs","release":{"distribution":"OpenWrt","version":"25.12.5","firmware_url":"https://downloads.openwrt.org/","revision":"r33051-f5dae5ece4","target":"qualcommax/ipq807x","description":"OpenWrt 25.12.5 r33051-f5dae5ece4"}}`
+	var b BoardInfo
+	if err := json.Unmarshal([]byte(raw), &b); err != nil {
+		t.Fatalf("unmarshal board: %v", err)
+	}
+	if b.BoardName != "redmi,ax6" {
+		t.Errorf("BoardName = %q, want redmi,ax6", b.BoardName)
+	}
+	if b.Release.Target != "qualcommax/ipq807x" {
+		t.Errorf("Release.Target = %q, want qualcommax/ipq807x", b.Release.Target)
+	}
+	if b.Model != "Redmi AX6" || b.Hostname != "rt4" || b.Release.Version != "25.12.5" {
+		t.Errorf("campos básicos corruptos: %+v", b)
+	}
+}

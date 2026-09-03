@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
-import { AlertCircle, Cpu, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { AlertCircle, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   AlertDialog,
@@ -36,6 +36,10 @@ interface FirmwareItem {
   targetVersion: string
   targetUrl: string
   checksum: string
+  detectedModel?: string
+  detectedBoard?: string
+  detectedVersion?: string
+  detectedTarget?: string
   upgrade?: FirmwareUpgrade
 }
 
@@ -76,9 +80,11 @@ export default function FirmwareUpgrades() {
       setItems(data)
       const initialEdits: Record<string, Partial<FirmwareItem>> = {}
       data.forEach((it) => {
+        // #477 P2: si el target guardado no tiene versión actual ni modelo,
+        // se prefillan con lo detectado del último board info del agente.
         initialEdits[it.routerId] = {
-          model: it.model,
-          currentVersion: it.currentVersion,
+          model: it.model || it.detectedBoard || '',
+          currentVersion: it.currentVersion || it.detectedVersion || '',
           targetVersion: it.targetVersion,
           targetUrl: it.targetUrl,
           checksum: it.checksum,
@@ -196,6 +202,13 @@ export default function FirmwareUpgrades() {
         {items.map((item) => {
           const e = edits[item.routerId] ?? {}
           const active = upgradeActive(item)
+          // #477 P2: resumen de lo detectado por el agente (board info).
+          const detectedBits: string[] = []
+          if (item.detectedModel || item.detectedBoard) {
+            detectedBits.push([item.detectedModel, item.detectedBoard ? `(${item.detectedBoard})` : ''].filter(Boolean).join(' '))
+          }
+          if (item.detectedVersion) detectedBits.push(`OpenWrt ${item.detectedVersion}`)
+          if (item.detectedTarget) detectedBits.push(item.detectedTarget)
           return (
             <div
               key={item.routerId}
@@ -278,6 +291,16 @@ export default function FirmwareUpgrades() {
                   />
                 </label>
               </div>
+
+              {detectedBits.length > 0 && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
+                  <Radar className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={1.75} />
+                  <span>
+                    <span className="font-medium text-text-secondary">{t('firmwareUpgrades.detectedPrefix')}</span>{' '}
+                    {detectedBits.join(' · ')}
+                  </span>
+                </p>
+              )}
 
               {item.upgrade?.error && (
                 <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
