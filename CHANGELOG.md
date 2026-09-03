@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.4] - 2026-09-03
+
+### Added
+
+- **Agente para dispositivos MIPS (#488)**: `netpulse-agent` se compila ahora para `mipsle` (little-endian: MT7621 y el resto de ramips) y `mips` (big-endian: ath79 y demás targets BE), ambos soft-float porque estos SoC no llevan FPU. Llega a los tres caminos: tarballs de release, binarios embebidos en el server (el botón Instalar agente y el reintegro POST-flash sirven el binario correcto) y el instalador de una línea. Como `uname -m` devuelve "mips" para ambos endianness, la detección lee el byte EI_DATA del ELF del sistema (truco busybox-safe sin depender de `od -t`). Los paquetes .apk/.ipk del agente siguen siendo aarch64-only de momento; el one-liner y el tarball cubren MIPS.
+
 ## [2.26.3] - 2026-09-03
 
 ### Added
