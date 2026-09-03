@@ -814,7 +814,28 @@ func NaturalLess(a, b string) bool {
 	return a < b
 }
 
-var fdbPortRe = regexp.MustCompile(`^(lan\d+|wan|eth\d+|swp\d+|en[a-z0-9]+)$`)
+// Filtro de puertos del FDB (#506): DENYLIST, no allowlist. El allowlist
+// histórico (lan\d+|wan|eth\d+|swp\d+|en...) descartaba en silencio MACs
+// aprendidas en puertos con nombres no enumerados: las jaulas SFP del BPI-R4
+// se llaman "sfp-lan"/"sfp-wan" (openwrt,netdev-name, 25.12+) y sus
+// dispositivos cableados jamás llegaban a descubrirse. Ahora vale cualquier
+// puerto MIEMBRO del bridge (los no-miembros ya no resuelven en ==PORTS==)
+// salvo los wireless (clientes que llegan por la sección wireless) y las
+// interfaces virtuales.
+var (
+	fdbWirelessRe = regexp.MustCompile(`^(phy\d+-ap|wlan)`)
+	fdbVirtualRe  = regexp.MustCompile(`^(br|lo|veth|wg|tun|tap|ppp|sit|ip6|gre|erspan|dummy|macv|ifb)`)
+)
+
+// fdbPortWired: ¿cuenta este puerto como cableado para el mapa MAC→puerto?
+// Las subinterfaces VLAN (lan1.10, eth0.100) tampoco cuentan: el FDB de un
+// bridge con VLAN filtering reporta el puerto físico.
+func fdbPortWired(port string) bool {
+	if port == "" || strings.ContainsAny(port, ".@") {
+		return false
+	}
+	return !fdbWirelessRe.MatchString(port) && !fdbVirtualRe.MatchString(port)
+}
 
 // ParseBridgeFdb parsea la salida ==PORTS==/==MACS== → MAC aprendida → puerto.
 // Acepta dos formatos en ==MACS==: brctl (`<port_no> <mac>`) y
@@ -849,7 +870,7 @@ func ParseBridgeFdb(out string) map[string]string {
 			portNames[name] = name // puerto también localizable por nombre (bridge fdb)
 		case 'm':
 			no, mac := p[0], p[1]
-			if port, ok := portNames[no]; ok && mac != "" && fdbPortRe.MatchString(port) {
+			if port, ok := portNames[no]; ok && mac != "" && fdbPortWired(port) {
 				m[strings.ToUpper(mac)] = port
 			}
 		}
