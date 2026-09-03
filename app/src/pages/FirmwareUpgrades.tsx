@@ -4,6 +4,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 import { AlertCircle, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { relTimeFromTs } from '@/i18n'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -304,6 +305,10 @@ export default function FirmwareUpgrades() {
 
               {item.upgrade?.error && (
                 <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
+                  {/* Timestamp del fallo: un error antiguo NO debe leerse como
+                      estado presente del agente (feedback #477). */}
+                  {t('firmwareUpgrades.lastFailure')}
+                  {relTimeFromTs(item.upgrade.startedAt) ? ` (${relTimeFromTs(item.upgrade.startedAt)})` : ''}:{' '}
                   {item.upgrade.error}
                 </div>
               )}

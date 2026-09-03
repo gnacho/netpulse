@@ -1391,6 +1391,7 @@
     "confirmDowntime": "Durante el flash y el reinicio el router queda sin servicio varios minutos; los clientes conectados a él pierden la conexión.",
     "confirmAction": "Sí, actualizar",
     "detectedPrefix": "Sistema detectado:",
+    "lastFailure": "Último intento fallido",
     "status": {
       "requested": "Solicitada",
       "downloading": "Descargando",
