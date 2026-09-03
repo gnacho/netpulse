@@ -488,18 +488,21 @@ fi
 PORT=""
 [ -f "$STATE_DIR/.env" ] && PORT=$(sed -n 's/^PORT=//p' "$STATE_DIR/.env" | head -1)
 PORT="${PORT:-3000}"
+# Budget generoso: el stop del servicio puede tardar hasta TimeoutStopSec
+# (90 s) si un tick del poller queda atascado en SNMP lentos (#481), más el
+# arranque con primer poll en curso.
 i=0
-while [ "$i" -lt 45 ]; do
+while [ "$i" -lt 70 ]; do
     if curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
         log "healthcheck OK tras actualizar a $target"
         rm -f "$ERRFILE"
         exit 0
     fi
     i=$((i + 1))
-    sleep 2
+    sleep 3
 done
 
-log "healthcheck falló tras 90s; rollback a $BACKUP"
+log "healthcheck falló tras 210s; rollback a $BACKUP"
 cp -a "$BACKUP" "$SERVER_BIN" 2>/dev/null || true
 systemctl restart "$SERVICE.service" 2>/dev/null || true
 rm -f "$APPLIED"
