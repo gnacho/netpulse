@@ -1347,6 +1347,9 @@
       "hideHint": "Puedes cerrar esta ventana: la actualización continúa en el servidor",
       "progressLabel": "Progreso de la actualización",
       "changelogTitle": "Novedades",
+      "commitsCount_one": "1 cambio desde tu versión",
+      "commitsCount_other": "{{count}} cambios desde tu versión",
+      "viewCompare": "Ver la comparación completa en GitHub",
       "changelogFallback": "No se ha podido cargar el changelog.",
       "changelogLink": "Ver notas del release en GitHub",
       "downNotice": "El servicio estará caído mientras se reinicia"

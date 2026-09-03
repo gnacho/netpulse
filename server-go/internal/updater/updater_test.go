@@ -31,13 +31,19 @@ func TestCheckUpdateAvailable(t *testing.T) {
 		switch r.URL.Path {
 		case "/repos/owner/netpulse/commits/main":
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"sha":"abc1234deadbeef","commit":{"message":"feat: algo\n\nbody"}}`)
-		case "/repos/owner/netpulse/releases":
+		fmt.Fprint(w, `{"sha":"abc1234deadbeef","commit":{"message":"feat: algo\n\nbody"}}`)
+	case "/repos/owner/netpulse/releases":
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[]`)
+	default:
+		// Compare del changelog (issue #490): cualquier path /compare/.
+		if strings.Contains(r.URL.Path, "/compare/") {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `[]`)
-		default:
-			t.Errorf("path: %s", r.URL.Path)
+			fmt.Fprint(w, `{"commits":[{"sha":"abc1234deadbeef","commit":{"message":"feat: algo"}}]}`)
+			return
 		}
+		t.Errorf("path: %s", r.URL.Path)
+	}
 	})
 	// repoRoot con git válido (commit distinto) para updateAvailable.
 	// deploy/update.sh → modo rolling (compara contra main HEAD).
@@ -85,6 +91,11 @@ func TestCheckUsesReleaseBodyWhenCommitBodyEmpty(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `[{"body":"Release notes line 1\nRelease notes line 2","target_commitish":"deadbeefabc1234"}]`)
 		default:
+			// Compare del changelog (issue #490).
+			if strings.Contains(r.URL.Path, "/compare/") {
+				fmt.Fprint(w, `{"commits":[]}`)
+				return
+			}
 			t.Errorf("path: %s", r.URL.Path)
 		}
 	})
@@ -209,6 +220,11 @@ func TestApplyYaEnCursoYScript(t *testing.T) {
 
 func TestStableModeUpdateAvailable(t *testing.T) {
 	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		// Compare del changelog (issue #490).
+		if strings.Contains(r.URL.Path, "/compare/") {
+			fmt.Fprint(w, `{"commits":[]}`)
+			return
+		}
 		if r.URL.Path != "/repos/owner/netpulse/releases/latest" {
 			t.Errorf("path: %s (modo estable debe consultar releases/latest)", r.URL.Path)
 		}

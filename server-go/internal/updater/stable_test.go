@@ -67,6 +67,11 @@ func serveStableRelease(t *testing.T, tag, asset, tgzSum string, tgzBytes []byte
 		if r.URL.Path == "/" {
 			return // probe de readiness: solo comprueba conectividad
 		}
+		// Compare del changelog (issue #490): se tolera sin fallar el test.
+		if strings.Contains(r.URL.Path, "/compare/") {
+			fmt.Fprint(w, `{"commits":[]}`)
+			return
+		}
 		if r.URL.Path != "/repos/owner/netpulse/releases/latest" {
 			t.Errorf("API path inesperado: %s", r.URL.Path)
 			w.WriteHeader(404)
