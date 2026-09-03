@@ -36,6 +36,46 @@ func TestSaveAndRecentScans(t *testing.T) {
 	}
 }
 
+// TestRecentScansDedupBSSID (#475): cada push reinserta los vecinos; la
+// lectura debe devolver UNA fila por BSSID (la observación más reciente).
+func TestRecentScansDedupBSSID(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	// Push 1: vecino A (-70) y vecino B (-50).
+	if err := st.SaveScan("rt1", now-60, []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "AA:AA:AA:AA:AA:01", SSID: "a", Channel: 1, Freq: 2412, Signal: -70},
+		{Iface: "wlan0", BSSID: "BB:BB:BB:BB:BB:02", SSID: "b", Channel: 6, Freq: 2437, Signal: -50},
+	}); err != nil {
+		t.Fatalf("save1: %v", err)
+	}
+	// Push 2 (30 s después): el vecino A ahora se oye más fuerte (-55).
+	if err := st.SaveScan("rt1", now-30, []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "AA:AA:AA:AA:AA:01", SSID: "a", Channel: 1, Freq: 2412, Signal: -55},
+		{Iface: "wlan0", BSSID: "BB:BB:BB:BB:BB:02", SSID: "b", Channel: 6, Freq: 2437, Signal: -50},
+	}); err != nil {
+		t.Fatalf("save2: %v", err)
+	}
+
+	got, err := st.RecentScans("rt1", time.Hour)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("esperaba 2 vecinos dedup, got %d: %+v", len(got), got)
+	}
+	for _, r := range got {
+		if r.BSSID == "AA:AA:AA:AA:AA:01" && r.Signal != -55 {
+			t.Errorf("el vecino A debe reportar la señal MÁS RECIENTE (-55), got %d", r.Signal)
+		}
+	}
+}
+
 func TestRecommendPrefiereCanalLibre(t *testing.T) {
 	d, err := db.Open(t.TempDir())
 	if err != nil {

@@ -15,9 +15,9 @@ legacy/server-node/.env
 .DS_Store
 
 # Binarios compilados
-# (solo el binario local de `go build` en el módulo agent; el patrón `netpulse-agent*`
-# coincidía con el directorio fuente agent/cmd/netpulse-agent/ e ignoraba su código)
-netpulse
+# (ancla los patrones a su ruta: el patrón libre `netpulse` ignoraba el
+# directorio FUENTE server-go/cmd/netpulse/ y bloqueaba `git add` de main.go,
+# igual que `netpulse-agent*` hizo con agent/cmd/netpulse-agent/)
 # anclado a la raíz: el patrón libre `netpulse-agent` también ignoraba el
 # directorio deploy/openwrt/netpulse-agent/ (ficheros del paquete)
 /netpulse-agent

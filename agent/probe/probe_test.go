@@ -873,6 +873,33 @@ BSS 11:22:33:44:55:66(on wlan1)
 	}
 }
 
+// TestParseScanFreqFloat (#475): iw real imprime "freq: 5260.0"; con Atoi el
+// error se tragaba, Freq quedaba 0 y el flush descartaba todos los BSS.
+func TestParseScanFreqFloat(t *testing.T) {
+	out := `==IFACE==wlan1
+BSS 9c:9d:7e:1b:ea:b3(on wlan1)
+	last seen: 945720.058s [boottime]
+	TSF: 419753678847 usec (4d, 20:35:53)
+	freq: 5260.0
+	signal: -61.00 dBm
+	SSID: vecino-dfs
+BSS 8c:de:f9:33:71:59(on wlan1)
+	freq: 5180.0
+	signal: -72.00 dBm
+	SSID: 
+`
+	got := ParseScan(out)
+	if len(got) != 2 {
+		t.Fatalf("esperaba 2 resultados, got %d: %+v", len(got), got)
+	}
+	if got[0].Freq != 5260 || got[0].Channel != 52 || got[0].Signal != -61 {
+		t.Errorf("primer scan incorrecto: %+v", got[0])
+	}
+	if got[1].Freq != 5180 || got[1].Channel != 36 || got[1].SSID != "" {
+		t.Errorf("segundo scan incorrecto: %+v", got[1])
+	}
+}
+
 func TestParseScanVacio(t *testing.T) {
 	if got := ParseScan(""); len(got) != 0 {
 		t.Fatalf("esperaba [] vacío, got %d", len(got))

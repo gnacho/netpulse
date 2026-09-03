@@ -33,6 +33,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
+	"github.com/gnacho/netpulse/server-go/internal/channelplan"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -223,6 +224,14 @@ func run() error {
 		return fmt.Errorf("config backup schema: %w", err)
 	}
 	fwStore := firmware.NewStore(dbHandle.DB)
+
+	// Channel plan (#452/#475): la tabla wifi_scans la crea db.Open; el store
+	// la envuelve. Sin esto la ruta /api/wifi/channel-plan nunca se registra
+	// (not_found en la UI) y la ingesta descarta los scans en silencio.
+	chPlan := channelplan.NewStore(dbHandle.DB)
+	// Los scans llegan con cada push de cada agente y las consultas miran
+	// 24h: sin purga la tabla crecería sin límite. Retención 48h, barrido 6h.
+	go pruneWifiScans(chPlan)
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
@@ -461,6 +470,7 @@ func run() error {
 		PathAnalysis:    pathStore,
 		ConfigBackup:    cfgBackup,
 		Firmware:        fwStore,
+		ChannelPlan:     chPlan,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
@@ -615,4 +625,20 @@ func (a *mainKVAdapter) Set(key, value string) error {
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, value)
 	return err
+}
+
+// pruneWifiScans purga los scans de vecinos más allá de la retención (#475).
+// Corre en su propia goroutine: un barrido al arrancar y luego cada 6h.
+func pruneWifiScans(store *channelplan.Store) {
+	const retention = 48 * time.Hour
+	if err := store.Prune(retention); err != nil {
+		log.Printf("[netpulse] aviso: purge inicial de wifi_scans: %v", err)
+	}
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := store.Prune(retention); err != nil {
+			log.Printf("[netpulse] aviso: purge de wifi_scans: %v", err)
+		}
+	}
 }
