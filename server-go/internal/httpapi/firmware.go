@@ -47,6 +47,11 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 
 		out := make([]firmwareStatusResponse, 0, len(routers))
 		for _, r := range routers {
+			// #477: solo routers con agente nativo OpenWrt/GLiNet; los
+			// managed-switches y pushers externos no tienen sysupgrade.
+			if !agentUpgradeable(r.Type) {
+				continue
+			}
 			// El firmware target legacy vive en routers.firmware_target.
 			model := r.FirmwareTarget
 			if t := targetMap[r.ID]; t != nil {
