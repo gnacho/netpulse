@@ -59,25 +59,32 @@ type ScanRow struct {
 	RouterID string `json:"routerId"`
 }
 
-// RecentScans devuelve los scans recientes de todos los routers (opcionalmente
-// filtrado por routerID) dentro de la ventana de frescura.
+// RecentScans devuelve los vecinos vistos recientemente (opcionalmente
+// filtrado por routerID) dentro de la ventana de fresividad, DEDUPLICADOS por
+// BSSID: cada push del agente reinserta los mismos vecinos, y sin dedup el
+// mismo AP contaba una vez por push (decenas de miles de filas al día),
+// reventaba el score (overflow) y la tabla de vecinos era puro ruido.
+// SQLite: con un único agregado MAX(ts), las columnas "bare" salen de la
+// fila del máximo (https://sqlite.org/lang_select.html#bareagg).
 func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, error) {
 	cutoff := time.Now().Add(-within).Unix()
 	var rows *sql.Rows
 	var err error
 	if routerID != "" {
 		rows, err = s.db.Query(`
-			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, ts
+			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, MAX(ts)
 			FROM wifi_scans
 			WHERE router_id = ? AND ts >= ?
-			ORDER BY ts DESC, signal_dbm ASC
+			GROUP BY bssid
+			ORDER BY signal_dbm ASC, bssid
 		`, routerID, cutoff)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, ts
+			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, MAX(ts)
 			FROM wifi_scans
 			WHERE ts >= ?
-			ORDER BY ts DESC, signal_dbm ASC
+			GROUP BY router_id, bssid
+			ORDER BY signal_dbm ASC, bssid
 		`, cutoff)
 	}
 	if err != nil {

@@ -64,7 +64,7 @@ export default function ChannelPlan() {
         if (!res.ok) throw new Error(await res.text())
         return res.json()
       })
-      .then((d) => setData(d))
+      .then((d) => setData({ ...d, radios: d.radios ?? [], scans: d.scans ?? [] }))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }, [routerId])
