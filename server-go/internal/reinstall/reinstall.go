@@ -29,6 +29,14 @@ case "$ARCH" in
 	aarch64|arm64)  GOARCH=arm64; SHA256="` + digests["arm64"] + `" ;;
 	armv7l|armv7|armhf|arm) GOARCH=arm; SHA256="` + digests["arm"] + `" ;;
 	x86_64|amd64)   GOARCH=amd64; SHA256="` + digests["amd64"] + `" ;;
+	mips)
+		# uname -m dice "mips" para AMBOS endianness: el byte EI_DATA (5º del
+		# ELF) decide. head|tail|tr en vez de "od -t": busybox no lo garantiza.
+		case "$(head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12')" in
+			1) GOARCH=mipsle; SHA256="` + digests["mipsle"] + `" ;;
+			2) GOARCH=mips;  SHA256="` + digests["mips"] + `" ;;
+			*) echo "no pude detectar el endianness de $ARCH"; exit 20 ;;
+		esac ;;
 	*) echo "arch no soportado: $ARCH"; exit 20 ;;
 esac
 
@@ -82,6 +90,12 @@ selfheal_binary() {
 		aarch64|arm64) local ARCH=arm64 ;;
 		armv7l|armv7|armhf|arm) local ARCH=arm ;;
 		x86_64|amd64) local ARCH=amd64 ;;
+		mips)
+			case "$(head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12')" in
+				1) local ARCH=mipsle ;;
+				2) local ARCH=mips ;;
+				*) return 1 ;;
+			esac ;;
 		*) return 1 ;;
 	esac
 	local url tmp
@@ -147,12 +161,14 @@ chmod 0755 "$WATCHDOG"
 `
 }
 
-// Digests devuelve los sha256 de los binarios de agente embebidos para las
-// tres arquitecturas (cadena vacía si el arch no tiene binario).
+// Digests devuelve los sha256 de los binarios de agente embebidos (cadena
+// vacía si el arch no tiene binario).
 func Digests() map[string]string {
 	return map[string]string{
-		"arm64": agentbin.Digest("arm64"),
-		"arm":   agentbin.Digest("arm"),
-		"amd64": agentbin.Digest("amd64"),
+		"arm64":  agentbin.Digest("arm64"),
+		"arm":    agentbin.Digest("arm"),
+		"amd64":  agentbin.Digest("amd64"),
+		"mipsle": agentbin.Digest("mipsle"),
+		"mips":   agentbin.Digest("mips"),
 	}
 }

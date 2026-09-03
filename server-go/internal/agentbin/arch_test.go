@@ -3,7 +3,7 @@ package agentbin
 import "testing"
 
 func TestOpenArmVariants(t *testing.T) {
-	for _, arch := range []string{"amd64", "arm64", "arm", "armv7", "armv7l", "aarch64", "x86_64"} {
+	for _, arch := range []string{"amd64", "arm64", "arm", "armv7", "armv7l", "aarch64", "x86_64", "mipsle", "mips"} {
 		f, err := Open(arch)
 		if err != nil {
 			t.Fatalf("Open(%q) failed: %v", arch, err)
