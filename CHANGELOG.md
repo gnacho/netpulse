@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.3] - 2026-09-03
+
+### Added
+
+- **Changelog humano en el asistente de actualización (#490)**: cuando hay una actualización disponible, el updater consulta el compare de GitHub entre tu versión y la última, y el asistente muestra la lista de commits que entran (sha corto + asunto, lo más reciente primero), cuántos cambios son y un enlace a la comparación completa. Funciona en ambos modos (rolling por SHA, estable por tag), cachea el resultado por par de versiones para no repetir la consulta en cada chequeo de 24 h y degrada sin romper nada si el compare falla: vuelve al cuerpo del commit o a las notas del release, como antes. Las notas de release autogeneradas con un único commit dejan de ser lo único que se ve al actualizar.
+
 ## [2.26.2] - 2026-09-03
 
 ### Added
