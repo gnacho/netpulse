@@ -364,6 +364,11 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 type agentListItem struct {
 	Slug     string `json:"slug"`
 	RouterID string `json:"routerId,omitempty"` // id del router asociado (#282)
+	// Hostname del board del último payload: los routers legacy del overview
+	// se llaman por hostname (flint2) y su id de tabla es otro (gateway);
+	// con esta tercera clave la UI puede emparejar fila↔router sin duplicar
+	// (#483).
+	Hostname string `json:"hostname,omitempty"`
 	LastSeen *int64 `json:"lastSeen"`           // unix SEGUNDOS; null si nunca empujó
 	Version  string `json:"version,omitempty"`
 	Fresh    bool   `json:"fresh"`
@@ -474,6 +479,9 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
 				item.RouterID = resolveAgentRouter(slug, payload, routerByID)
+				if payload != nil && payload.Data.System != nil && payload.Data.System.Board != nil {
+					item.Hostname = strings.ToLower(strings.TrimSpace(payload.Data.System.Board.Hostname))
+				}
 				// Fase 6.3 (issue #243): upgrade disponible si el agente
 				// reporta una versión distinta del binario embebido y el router
 				// asociado es actualizable (nativo OpenWrt/GL.iNet).

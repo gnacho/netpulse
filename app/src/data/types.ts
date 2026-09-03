@@ -409,6 +409,9 @@ export interface AgentInfo {
   slug: string
   /** id del router asociado. Puede no coincidir con `slug` (#282). */
   routerId?: string
+  /** Hostname del board del último payload: tercera clave de emparejamiento
+   *  para routers legacy cuyo id de overview difiere del id de tabla (#483). */
+  hostname?: string
   /** Unix SEGUNDOS del último push; null si nunca empujó */
   lastSeen: number | null
   /** Versión del binario netpulse-agent ("" si aún no se conoce) */

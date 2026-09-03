@@ -190,15 +190,23 @@ are added from Settings. Polling is strictly read-only.
 
 ### Installing the agents (recommended: let the app do it)
 
-Once the router is in the table and its SSH key is authorized, the app can
-install and start the agent by itself: Settings → Agents → **Reinstall**.
-Over one SSH session the server detects the architecture, downloads the
-embedded agent binary from itself (token-authenticated), verifies its
-SHA256, writes the config, installs the procd init (with a self-heal step
-that re-downloads the binary after a `sysupgrade`, which only preserves
-`/etc`), sets up the watchdog cron and restarts the service. The agent
-shows up as connected within seconds. Re-running it is safe: it rotates
-the token and reinstalls.
+Once the router is in the table and the server's SSH key is authorized on
+it, the app can install and start the agent by itself: open the **Routers**
+page and scroll to the agents table at the bottom. Every OpenWrt router
+shows a row there; routers without an agent offer an **Install agent**
+button, and existing agents offer **Reinstall**. Over one SSH session the
+server registers the agent if needed (its token is created on the fly),
+detects the architecture, downloads the embedded agent binary from itself
+(token-authenticated), verifies its SHA256, writes the config, installs
+the procd init (with a self-heal step that re-downloads the binary after a
+`sysupgrade`, which only preserves `/etc`), sets up the watchdog cron and
+restarts the service. The agent shows up as connected within seconds.
+Re-running it is safe: it rotates the token and reinstalls.
+
+For routers the server cannot SSH into, use the pairing token instead:
+Settings → Agent adoption shows a reusable pairing token, and
+`install-agent.sh --pairing-token` (run from any machine that can reach
+both the router and the server) registers the agent on first contact.
 
 ## OpenWrt packages
 
@@ -229,9 +237,12 @@ install, LuCI picks up the new pages automatically (the package restarts
 `rpcd` and clears the index cache).
 
 The package ships an empty config, so the service stays inactive until you
-point it at your server (the app cannot know these values). Create the
-agent in the web UI (Settings → Agents) to get its one-time token, then on
-the router:
+point it at your server (the app cannot know these values). If the server
+can already SSH into the router, skip all of this and press **Install
+agent** in the Routers page agents table: it registers the agent, writes
+the config and starts the service for you. Otherwise, create the agent
+via the pairing token (Settings → Agent adoption plus `install-agent.sh
+--pairing-token`) or `POST /api/agents`, and on the router:
 
 ```sh
 uci set netpulse-agent.main.server='http://<netpulse-server-ip>:3000'

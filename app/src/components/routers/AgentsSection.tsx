@@ -66,7 +66,9 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const isNetgrip = agent?.kind === 'netgrip'
   const isOpenWrt = isOpenWrtType(router?.type)
   const isStale = agent !== undefined && !agent.fresh
-  const isMissing = agent === undefined && router?.agentOnly === true
+  // #483: sin agente = TOD router nativo OpenWrt sin agente (antes solo los
+  // agent-only): la fila ofrece Instalar, que registra y despliega.
+  const isMissing = agent === undefined
   const canRecover = isOpenWrt && (isStale || isMissing) && auth?.role === 'admin'
   // #443: reinstall disponible SIEMPRE para admins en agentes nativos OpenWrt
   // (sanos o caídos): antes solo aparecía cuando estaba stale o faltaba, y el
@@ -101,16 +103,22 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
 
   const reinstall = async () => {
     if (reinstallState === 'busy') return
-    if (!window.confirm(t('routers.agents.reinstallConfirm', { router: router?.name ?? slug }))) return
+    // #483: primera instalación vs reinstalación: mismo endpoint (reinstall
+    // crea el token si el agente no existía), textos distintos.
+    const confirmKey = isMissing ? 'routers.agents.installConfirm' : 'routers.agents.reinstallConfirm'
+    const doneKey = isMissing ? 'routers.agents.installDone' : 'routers.agents.reinstallDone'
+    const pendingKey = isMissing ? 'routers.agents.installPending' : 'routers.agents.reinstallPending'
+    const failKey = isMissing ? 'routers.agents.installFail' : 'routers.agents.reinstallFail'
+    if (!window.confirm(t(confirmKey, { router: router?.name ?? slug }))) return
     setReinstallState('busy')
     setReinstallMsg('')
     const res = await reinstallAgent(slug)
     if (res && !res.error) {
       setReinstallState('done')
-      setReinstallMsg(res.recovered ? t('routers.agents.reinstallDone') : t('routers.agents.reinstallPending'))
+      setReinstallMsg(res.recovered ? t(doneKey) : t(pendingKey))
     } else {
       setReinstallState('fail')
-      setReinstallMsg(res?.error ?? t('routers.agents.reinstallFail'))
+      setReinstallMsg(res?.error ?? t(failKey))
     }
     window.setTimeout(() => setReinstallState('idle'), 8000)
   }
@@ -222,7 +230,7 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
               type="button"
               onClick={() => void reinstall()}
               disabled={reinstallState === 'busy'}
-              title={t('routers.agents.reinstallTip')}
+              title={t(isMissing ? 'routers.agents.installTip' : 'routers.agents.reinstallTip')}
               className={cn(
                 'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
                 reinstallState === 'done'
@@ -234,12 +242,12 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
             >
               <RotateCcw className={cn('h-3.5 w-3.5', reinstallState === 'busy' && 'animate-spin')} strokeWidth={1.75} />
               {reinstallState === 'busy'
-                ? t('routers.agents.reinstalling')
+                ? t(isMissing ? 'routers.agents.installing' : 'routers.agents.reinstalling')
                 : reinstallState === 'done'
-                  ? t('routers.agents.reinstalled')
+                  ? t(isMissing ? 'routers.agents.installed' : 'routers.agents.reinstalled')
                   : reinstallState === 'fail'
                     ? t('routers.agents.reinstallRetry')
-                    : t('routers.agents.reinstall')}
+                    : t(isMissing ? 'routers.agents.install' : 'routers.agents.reinstall')}
             </button>
           )}
           {canRecover && !isNetgrip && (
@@ -445,16 +453,25 @@ export function AgentsSection() {
 
   // Filas: agentes registrados (por slug) + routers agent-only sin agente.
   const rows = useMemo(() => {
-    const agentBySlug = new Map(agents.map((a) => [a.slug, a]))
     const routerBySlug = new Map(routers.map((r) => [r.id, r]))
     const out: { agent?: AgentInfo; router?: Router }[] = agents.map((a) => ({
       agent: a,
       router: routerBySlug.get(a.slug),
     }))
+    // #483: también fila para TODO router nativo OpenWrt sin agente (no solo
+    // agent-only): el botón Instalar registra el agente y lo despliega por
+    // SSH. El emparejamiento usa las tres claves (routerId de tabla, slug y
+    // hostname del board) para no duplicar filas en routers legacy cuyo id
+    // de overview difiere del id de tabla.
     for (const r of routers) {
-      if (r.agentOnly && !agentBySlug.has(r.id) && isOpenWrtType(r.type)) {
-        out.push({ router: r })
-      }
+      if (!isOpenWrtType(r.type)) continue
+      const covered = agents.some(
+        (a) =>
+          a.routerId === r.id ||
+          a.slug === r.id ||
+          (a.hostname !== undefined && a.hostname.toLowerCase() === r.id.toLowerCase()),
+      )
+      if (!covered) out.push({ router: r })
     }
     return out
   }, [agents, routers])
