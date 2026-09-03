@@ -5,6 +5,17 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.8] - 2026-09-03
+
+### Added
+
+- **Aplicar el canal recomendado desde el plan de canales (#500)**: el agente reporta la sección UCI de cada radio (radio0/radio1) y la página del plan deja de ser informativa: botón de aplicar por radio con confirmación (canal actual a objetivo y aviso del reinicio de red), progreso y resultado en vivo, y vuelta al canal anterior con un clic en la misma sesión. Los planes viajan por el motor existente (diff explícito: uci_set + commit + reinicio de red), con delegación al executor de NetGrip o SSE al agente. Traducción completa ES/EN de la página (cabecera "Señal", badge de puerta de enlace) y puntuación actual/mejor por radio como contexto.
+
+### Fixed
+
+- **POST /api/plans con diff explícito respondía 201 sin body**: el plan releído de BD llevaba un desired vacío (json.RawMessage("")) cuyo marshal falla y el error se silenciaba; los clientes JSON recibían EOF. El desired vacío se queda nil y writeJSON loguea los errores de codificación.
+- **El reporte del apply moría al reiniciar la red del propio router**: aplicar ops como "service network restart" cortaba el enlace del agente justo cuando tocaba reportar el resultado y el plan quedaba "applying" eterno; ahora el agente reintenta el apply-result con backoff durante varios minutos.
+
 ## [2.26.7] - 2026-09-03
 
 ### Added
