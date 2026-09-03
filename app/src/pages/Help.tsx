@@ -62,9 +62,9 @@ export default function Help() {
   const { t } = useTranslation()
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <div className="flex w-full flex-col gap-4 md:gap-5">
       <header className="flex flex-col gap-2">
-        <h1 className="flex items-center gap-2.5 text-xl font-semibold text-text-primary">
+        <h1 className="flex items-center gap-2.5 font-display text-h1 text-text-primary">
           <CircleHelp className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
           {t('help.title')}
         </h1>
@@ -80,7 +80,7 @@ export default function Help() {
             const steps = t(`help.flows.${key}.steps`, { returnObjects: true }) as string[]
             return (
               <AccordionItem key={key} value={key}>
-                <AccordionTrigger className="px-4 py-3.5 hover:no-underline">
+                <AccordionTrigger className="px-5 py-4 hover:no-underline">
                   <span className="flex items-center gap-2.5 text-left">
                     <Icon
                       className="h-4 w-4 shrink-0 text-accent"
@@ -97,8 +97,8 @@ export default function Help() {
                     </span>
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <p className="mb-3 text-caption leading-relaxed text-text-secondary">
+                <AccordionContent className="px-5 pb-5">
+                  <p className="mb-3 text-sm leading-relaxed text-text-secondary">
                     <RichText text={t(`help.flows.${key}.intro`)} />
                   </p>
                   <ol className="flex flex-col gap-2.5">
@@ -111,7 +111,7 @@ export default function Help() {
                             >
                               {i + 1}
                             </span>
-                            <span className="text-caption leading-relaxed text-text-secondary">
+                            <span className="text-sm leading-relaxed text-text-secondary">
                               <RichText text={s} />
                             </span>
                           </li>
@@ -119,7 +119,7 @@ export default function Help() {
                       : null}
                   </ol>
                   {t(`help.flows.${key}.tip`, { defaultValue: '' }) && (
-                    <p className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-caption leading-relaxed text-text-secondary">
+                    <p className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm leading-relaxed text-text-secondary">
                       <ListChecks
                         className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-muted"
                         strokeWidth={1.75}
@@ -135,7 +135,7 @@ export default function Help() {
         </Accordion>
       </section>
 
-      <footer className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-4 py-3 text-caption text-text-secondary">
+      <footer className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-5 py-3.5 text-sm text-text-secondary">
         <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
         <span>
           <RichText text={t('help.docsFooter')} />{' '}
