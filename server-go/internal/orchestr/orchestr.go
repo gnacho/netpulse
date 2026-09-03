@@ -79,7 +79,12 @@ func (m *Manager) GetPlan(id string) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.Desired = json.RawMessage(desired)
+	// desired vacío en BD → nil (json.RawMessage("") revienta al serializar
+	// con toolchains recientes: MarshalJSON de un documento vacío es error y
+	// el POST /api/plans respondía 201 sin body).
+	if desired != "" {
+		p.Desired = json.RawMessage(desired)
+	}
 	json.Unmarshal([]byte(diffJSON), &p.Diff)
 	p.Status = status
 	p.CreatedBy = createdBy

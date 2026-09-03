@@ -275,8 +275,19 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		}
 		if combined == "" {
 			if out := p.runBest(ctx, CmdRadios, 8*time.Second); out != "" {
+				radios := ParseRadios(out)
+				// Sección UCI por banda (#500): habilita aplicar cambios de
+				// canal desde el server. Best-effort: sin uci, sin sección.
+				if secOut := p.runBest(ctx, CmdRadioSections, 5*time.Second); secOut != "" {
+					sections := ParseRadioSections(secOut)
+					for i := range radios {
+						if sec, ok := sections[radios[i].Name]; ok {
+							radios[i].Section = sec
+						}
+					}
+				}
 				p.radiosMu.Lock()
-				p.radiosCache, p.radiosAt = ParseRadios(out), time.Now()
+				p.radiosCache, p.radiosAt = radios, time.Now()
 				wd.Radios = p.radiosCache
 				p.radiosMu.Unlock()
 			}

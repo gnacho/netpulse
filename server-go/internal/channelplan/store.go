@@ -112,6 +112,9 @@ type Radio struct {
 	Recommended  int    `json:"recommended"` // canal recomendado; 0 = sin datos
 	CurrentScore int    `json:"currentScore"`
 	BestScore    int    `json:"bestScore"`
+	// Section es la sección UCI de la radio ("radio0") reportada por el
+	// agente (#500); vacía con agentes antiguos (la UI deshabilita apply).
+	Section string `json:"section,omitempty"`
 }
 
 // Recommend recibe el estado wireless del router (radios propias) y devuelve
@@ -140,10 +143,14 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 			freq = bandCenter(band, r.Channel)
 		}
 		rec := Radio{
-			Iface:    ifaceForBand(band), // placeholder; el agente no reporta iface por radio
+			Iface:    r.Section, // sección real si el agente la reporta (#500)
 			Name:     r.Name,
 			Channel:  r.Channel,
 			WidthMhz: r.WidthMhz,
+			Section:  r.Section,
+		}
+		if rec.Iface == "" {
+			rec.Iface = ifaceForBand(band) // placeholder; el agente no reporta iface por radio
 		}
 		candidates := candidateChannels(band)
 		bestCh, bestScore := 0, math.MaxInt

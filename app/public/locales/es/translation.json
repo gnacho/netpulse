@@ -1371,6 +1371,18 @@
     "noScans": "No hay scans recientes. Activa el agente en un router para recoger vecinos.",
     "noRadios": "Este dispositivo no reporta radios WiFi.",
     "apply": "Aplicar canal",
+    "gateway": " (Puerta de enlace)",
+    "signal": "Señal",
+    "score": "Puntuación",
+    "updateAgent": "Actualiza el agente del router para poder aplicar el canal.",
+    "applyingState": "Aplicando…",
+    "appliedState": "Canal aplicado",
+    "failedState": "No se pudo aplicar",
+    "revertTo": "Volver al {{ch}}",
+    "timeout": "Sin respuesta del plan (tiempo agotado)",
+    "applyConfirmTitle": "Cambiar el canal de {{band}}",
+    "applyConfirmBody": "El canal de {{band}} pasará de {{from}} a {{to}}. La red de ese router se reiniciará unos segundos y sus clientes WiFi se reconectarán. El cambio queda registrado como plan y podrás volver al canal anterior con un clic.",
+    "applyConfirmAction": "Aplicar",
     "scanInfo": "Scans de las últimas 24 h"
   },
   "firmwareUpgrades": {

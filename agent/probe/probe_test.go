@@ -937,3 +937,44 @@ func TestBoardInfoParsesASUFields(t *testing.T) {
 		t.Errorf("campos básicos corruptos: %+v", b)
 	}
 }
+
+func TestParseRadioSections(t *testing.T) {
+	out := `wireless.radio0=wifi-device
+wireless.radio0.type='mac80211'
+wireless.radio0.band='2g'
+wireless.radio0.channel='1'
+wireless.default_radio0=wifi-iface
+wireless.radio1=wifi-device
+wireless.radio1.band='5g'
+wireless.radio1.channel='44'
+wireless.default_radio1=wifi-iface
+`
+	got := ParseRadioSections(out)
+	if len(got) != 2 {
+		t.Fatalf("want 2 sections, got %d: %v", len(got), got)
+	}
+	if got["2.4 GHz"] != "radio0" || got["5 GHz"] != "radio1" {
+		t.Errorf("wrong mapping: %v", got)
+	}
+}
+
+func TestParseRadioSectionsLegacyHwmode(t *testing.T) {
+	out := `wireless.wifi0=wifi-device
+wireless.wifi0.hwmode='11g'
+wireless.wifi1=wifi-device
+wireless.wifi1.hwmode='11a'
+`
+	got := ParseRadioSections(out)
+	if got["2.4 GHz"] != "wifi0" || got["5 GHz"] != "wifi1" {
+		t.Errorf("wrong legacy hwmode mapping: %v", got)
+	}
+}
+
+func TestParseRadioSectionsEmpty(t *testing.T) {
+	if got := ParseRadioSections(""); len(got) != 0 {
+		t.Errorf("want empty map, got %v", got)
+	}
+	if got := ParseRadioSections("network.lan=interface\n"); len(got) != 0 {
+		t.Errorf("want empty map for unrelated config, got %v", got)
+	}
+}

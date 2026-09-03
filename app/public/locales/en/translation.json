@@ -1371,6 +1371,18 @@
     "noScans": "No recent scans. Enable the agent on a router to collect neighbors.",
     "noRadios": "This router does not report WiFi radios.",
     "apply": "Apply channel",
+    "gateway": " (Gateway)",
+    "signal": "Signal",
+    "score": "Score",
+    "updateAgent": "Update the router's agent to apply channels.",
+    "applyingState": "Applying…",
+    "appliedState": "Channel applied",
+    "failedState": "Could not apply",
+    "revertTo": "Back to {{ch}}",
+    "timeout": "No response from the plan (timeout)",
+    "applyConfirmTitle": "Change the {{band}} channel",
+    "applyConfirmBody": "The {{band}} channel will move from {{from}} to {{to}}. That router's network restarts for a few seconds and its WiFi clients will reconnect. The change is recorded as a plan and you can go back to the previous channel with one click.",
+    "applyConfirmAction": "Apply",
     "scanInfo": "Scans from the last 24 hours"
   },
   "firmwareUpgrades": {

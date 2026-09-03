@@ -78,6 +78,9 @@ const (
 	// emite "==IFACE==<iface>" antes de cada scan y parsea BSS/freq/signal/SSID.
 	// Si `iw` no está disponible, la sección Scans queda vacía (best-effort).
 	CmdScan = `for i in $(iw dev 2>/dev/null | awk '/Interface / {print $2}'); do echo "==IFACE==$i"; iw dev "$i" scan 2>/dev/null; done`
+	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
+	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
+	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`
 	// CmdPortStates: "<name> <operstate> <speed>" por interfaz.
 	CmdPortStates = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
 		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1)"; done`
@@ -248,6 +251,10 @@ type Radio struct {
 	WidthMhz int     `json:"widthMhz"`
 	PowerDbm float64 `json:"powerDbm"`
 	Clients  int     `json:"clients"`
+	// Section es la sección UCI de la radio ("radio0"), para que el server
+	// pueda construir cambios de canal (uci set wireless.<section>.channel).
+	// Vacía si no se pudo resolver (#500).
+	Section string `json:"section,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1105,6 +1112,57 @@ func ParseRadios(out string) []Radio {
 		radios = append(radios, *byBand[b])
 	}
 	return radios
+}
+
+// ParseRadioSections parsea la salida de CmdRadioSections y devuelve
+// banda ("2.4 GHz"|"5 GHz"|"6 GHz") → sección UCI ("radio0"). Solo se queda
+// con la primera sección por banda (si hay varias, la primera gana; el
+// channel plan trabaja por banda).
+func ParseRadioSections(out string) map[string]string {
+	sections := map[string]string{}
+	secBand := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "wireless.") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimPrefix(parts[0], "wireless.")
+		val := strings.Trim(parts[1], "'")
+		rel, opt, hasOpt := strings.Cut(key, ".")
+		if !hasOpt {
+			if val == "wifi-device" {
+				secBand[rel] = "" // sección conocida, banda pendiente
+			}
+			continue
+		}
+		band, ok := secBand[rel]
+		if !ok || band != "" {
+			continue
+		}
+		switch {
+		case opt == "band" || (opt == "hwmode" && (val == "11g" || val == "11a")):
+			switch {
+			case val == "2g" || val == "11g":
+				secBand[rel] = "2.4 GHz"
+			case val == "5g" || val == "11a":
+				secBand[rel] = "5 GHz"
+			case val == "6g":
+				secBand[rel] = "6 GHz"
+			}
+		}
+	}
+	for sec, band := range secBand {
+		if band != "" {
+			if _, exists := sections[band]; !exists {
+				sections[band] = sec
+			}
+		}
+	}
+	return sections
 }
 
 // ParseScan parsea la salida de CmdScan: bloques "==IFACE==<iface>" seguidos de

@@ -150,3 +150,41 @@ func TestPrune(t *testing.T) {
 		t.Fatalf("esperaba 0 tras prune, got %d", len(got))
 	}
 }
+
+func TestRecommendPasaSeccion(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	radios := []probe.Radio{
+		{Name: "2.4 GHz", Channel: 1, WidthMhz: 20, Section: "radio0"},
+		{Name: "5 GHz", Channel: 44, WidthMhz: 80},
+	}
+	recs, err := st.Recommend("rt1", radios, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("esperaba 2 recomendaciones, got %d", len(recs))
+	}
+	var sec, nosec *channelplan.Radio
+	for i := range recs {
+		if recs[i].Section != "" {
+			sec = &recs[i]
+		} else {
+			nosec = &recs[i]
+		}
+	}
+	if sec == nil || nosec == nil {
+		t.Fatalf("esperaba una radio con sección y otra sin: %+v", recs)
+	}
+	if sec.Section != "radio0" || sec.Iface != "radio0" {
+		t.Errorf("la sección no pasa al plan: %+v", *sec)
+	}
+	if nosec.Iface == "" {
+		t.Errorf("sin sección el iface debe caer al placeholder: %+v", *nosec)
+	}
+}
