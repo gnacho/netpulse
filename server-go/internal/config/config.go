@@ -63,6 +63,8 @@ type Config struct {
 	GithubToken     string
 	ServerRoot      string
 	AutoRearm       bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	AutoReinstall   bool   // NETPULSE_AUTO_REINSTALL=1: el supervisor escala rearm→reinstall (#457); exige PUBLIC_URL
+	PublicURL       string // NETPULSE_PUBLIC_URL: URL base con la que los routers alcanzan al server (reinstall/self-heal)
 	BeaconListen    string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
 	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
 	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
@@ -241,6 +243,36 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		default:
 			errs.issues = append(errs.issues, issue{"NETPULSE_AUTO_REARM", "Invalid enum value. Expected '0' | '1'"})
 		}
+	}
+
+	// NETPULSE_AUTO_REINSTALL: '0'|'1', opcional (#457). El supervisor
+	// escala rearm→reinstall cuando el reinicio no recupera el agente.
+	// Exige NETPULSE_PUBLIC_URL: sin ella no hay forma fiable de decirle al
+	// router desde dónde descargar el binario.
+	autoReinstall := false
+	if v, ok := env["NETPULSE_AUTO_REINSTALL"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			autoReinstall = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_AUTO_REINSTALL", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
+	// NETPULSE_PUBLIC_URL: URL base (http(s)://host[:port]) con la que los
+	// ROUTERS alcanzan al servidor. Opcional; la usan el reinstall (manual y
+	// del supervisor) como fuente preferente.
+	publicURL := strings.TrimSpace(env["NETPULSE_PUBLIC_URL"])
+	if publicURL != "" {
+		if !strings.HasPrefix(publicURL, "http://") && !strings.HasPrefix(publicURL, "https://") {
+			errs.issues = append(errs.issues, issue{"NETPULSE_PUBLIC_URL", "String must contain a http:// or https:// prefix"})
+		} else {
+			publicURL = strings.TrimRight(publicURL, "/")
+		}
+	}
+	if autoReinstall && publicURL == "" {
+		errs.issues = append(errs.issues, issue{"NETPULSE_AUTO_REINSTALL", "NETPULSE_PUBLIC_URL is required when auto-reinstall is enabled"})
 	}
 
 	// MAX_SSE_CLIENTS: int 1..100, default 10
@@ -452,6 +484,8 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		GithubToken:     githubToken,
 		ServerRoot:      serverRoot,
 		AutoRearm:       autoRearm,
+		AutoReinstall:   autoReinstall,
+		PublicURL:       publicURL,
 		BeaconListen:    beaconListen,
 		AgentAutoenroll: agentAutoenroll,
 		Onbox:           onbox,
