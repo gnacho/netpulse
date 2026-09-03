@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.9] - 2026-09-03
+
+### Fixed
+
+- **La sección de ayuda ocupa el mismo ancho y tamaño que el resto de la app (#503)**: se limitaba a sí misma a 768px y usaba letra pequeña (13px) en pasos, intros y pies; ahora sigue el contenedor estándar (1160px a 1440px de viewport, igual que Inicio) y el cuerpo sube al text-sm de la aplicación.
+
 ## [2.26.8] - 2026-09-03
 
 ### Added
