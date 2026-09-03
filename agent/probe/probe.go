@@ -1137,8 +1137,12 @@ func ParseScan(out string) []ScanResult {
 			continue
 		}
 		if strings.HasPrefix(line, "freq:") {
-			v, _ := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "freq:")))
-			current.Freq = v
+			// iw imprime la frecuencia como float ("freq: 5260.0"): Atoi
+			// fallaba en silencio, Freq quedaba 0 y el flush descartaba TODOS
+			// los BSS (scans siempre vacíos, #475).
+			if f, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimPrefix(line, "freq:")), 64); err == nil {
+				current.Freq = int(f)
+			}
 			continue
 		}
 		if strings.HasPrefix(line, "signal:") {
