@@ -25,6 +25,18 @@ import (
 
 // firmwareTestServer crea un servidor de test con firmware + agent hub activos.
 func firmwareTestServer(t *testing.T) (*testServer, *sse.AgentHub) {
+	return firmwareTestServerWithAdapter(t, adapters.NewDemo())
+}
+
+// detectAdapter envuelve un Snapshotter y sirve un BoardInfoFor fijo (#477).
+type detectAdapter struct {
+	adapters.Snapshotter
+	boards map[string]*adapters.BoardInfo
+}
+
+func (f *detectAdapter) BoardInfoFor(id string) *adapters.BoardInfo { return f.boards[id] }
+
+func firmwareTestServerWithAdapter(t *testing.T, adapter adapters.Snapshotter) (*testServer, *sse.AgentHub) {
 	t.Helper()
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
@@ -50,7 +62,6 @@ func firmwareTestServer(t *testing.T) (*testServer, *sse.AgentHub) {
 	fwStore := firmware.NewStore(d.DB)
 	configBackup, _ := configbackup.NewStore(d)
 	orchestrMgr := orchestr.New(d)
-	adapter := adapters.NewDemo()
 	agents := adapters.NewAgentRegistry(0)
 	agentHub := sse.NewAgentHub(func(_, _ string) bool { return true })
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
@@ -132,6 +143,66 @@ func TestFirmwareTargetCRUD(t *testing.T) {
 	}
 	if body["targetVersion"] != "23.05.4" {
 		t.Fatalf("targetVersion no coincide: %v", body["targetVersion"])
+	}
+}
+
+// TestFirmwareListSurfacesDetectedBoard (#477 P2): la lista y el detalle
+// exponen el board info reportado por el agente (board_name, release.version,
+// release.target) para que la UI pueda prefillar el formulario.
+func TestFirmwareListSurfacesDetectedBoard(t *testing.T) {
+	boards := map[string]*adapters.BoardInfo{}
+	srv, _ := firmwareTestServerWithAdapter(t, &detectAdapter{
+		Snapshotter: adapters.NewDemo(),
+		boards:      boards,
+	})
+	cookie := adminCookieFor(t, srv)
+	rid := addTestRouter(t, srv.db)
+
+	detected := &adapters.BoardInfo{Model: "Redmi AX6", BoardName: "redmi,ax6"}
+	detected.Release.Version = "25.12.5"
+	detected.Release.Target = "qualcommax/ipq807x"
+	boards[rid] = detected
+
+	res := get(t, srv.URL, "/api/firmware-upgrades", cookie)
+	arr := readJSONArray(t, res)
+	res.Body.Close()
+	if len(arr) != 1 {
+		t.Fatalf("esperaba 1 router, got %d", len(arr))
+	}
+	item := arr[0].(map[string]any)
+	for k, want := range map[string]string{
+		"detectedModel": "Redmi AX6", "detectedBoard": "redmi,ax6",
+		"detectedVersion": "25.12.5", "detectedTarget": "qualcommax/ipq807x",
+	} {
+		if item[k] != want {
+			t.Fatalf("%s = %v, want %q", k, item[k], want)
+		}
+	}
+
+	// El detalle individual también lleva la detección.
+	res = get(t, srv.URL, "/api/firmware-upgrades/"+rid, cookie)
+	body := readJSON(t, res)
+	res.Body.Close()
+	if body["detectedBoard"] != "redmi,ax6" {
+		t.Fatalf("detalle sin detectedBoard: %v", body["detectedBoard"])
+	}
+}
+
+// TestFirmwareListWithoutDetectedBoard: sin board info los campos detectados
+// no viajan (omitempty), la UI no muestra detección.
+func TestFirmwareListWithoutDetectedBoard(t *testing.T) {
+	srv, _ := firmwareTestServer(t)
+	cookie := adminCookieFor(t, srv)
+	addTestRouter(t, srv.db)
+
+	res := get(t, srv.URL, "/api/firmware-upgrades", cookie)
+	arr := readJSONArray(t, res)
+	res.Body.Close()
+	item := arr[0].(map[string]any)
+	for _, k := range []string{"detectedModel", "detectedBoard", "detectedVersion", "detectedTarget"} {
+		if _, ok := item[k]; ok {
+			t.Fatalf("%s no debería viajar sin detección: %v", k, item[k])
+		}
 	}
 }
 

@@ -272,6 +272,9 @@ func (d *Demo) GetRouters(context.Context) []Router {
 	return d.routersCopy()
 }
 
+// BoardInfoFor: demo no sondea hardware real, sin detección (#477).
+func (d *Demo) BoardInfoFor(string) *BoardInfo { return nil }
+
 // GetRouterDetail (demo.js:152-178): extras canónicos, series deterministas,
 // y solo para flint2 adguard/wireguard/adguardSeries24h/wanLatency/
 // wgPeerExtras/wgTotals30d. Id desconocido → (nil, nil).
