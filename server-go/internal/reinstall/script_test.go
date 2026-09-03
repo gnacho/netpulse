@@ -15,9 +15,11 @@ func scriptForTest() string {
 		strings.Repeat("a1", 32), // 64 hex como un token real
 		"http://192.168.1.226:3000",
 		map[string]string{
-			"arm64": "cafebabe",
-			"arm":   "deadbeef",
-			"amd64": "abcd1234",
+			"arm64":  "cafebabe",
+			"arm":    "deadbeef",
+			"amd64":  "abcd1234",
+			"mipsle": "0123feed",
+			"mips":   "4567beef",
 		},
 	)
 }
@@ -52,6 +54,21 @@ func TestScriptArchAndDigests(t *testing.T) {
 	}
 	if strings.Contains(s, "arch=armv7\"") {
 		t.Error("el script no debe pedir arch=armv7 (normalizeArch espera arm)")
+	}
+	// #488: uname -m "mips" no distingue endianness; el script lo detecta
+	// con el byte EI_DATA del ELF y mapea a mipsle/mips con su digest.
+	for _, want := range []string{
+		`1) GOARCH=mipsle; SHA256="0123feed"`,
+		`2) GOARCH=mips;  SHA256="4567beef"`,
+		`head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12'`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script sin %q", want)
+		}
+	}
+	if strings.Count(s, "mipsle") < 2 {
+		t.Errorf("el self-heal del init también debe resolver mipsle (apariciones: %d)",
+			strings.Count(s, "mipsle"))
 	}
 	if !strings.Contains(s, `GOT=$(sha256sum /tmp/netpulse-agent.new | awk '{print $1}')`) {
 		t.Error("sin verificación sha256sum")

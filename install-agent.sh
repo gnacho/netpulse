@@ -3,8 +3,8 @@
 # NetPulse Agent — one-liner installer (OpenWrt, vía SSH desde esta máquina)
 #
 #   Instala el agente nativo netpulse-agent en un router/AP OpenWrt: copia el
-#   binario (arm64/armv7), escribe /etc/netpulse-agent.env (chmod 600) e
-#   instala el servicio procd (respawn) habilitado y arrancado.
+#   binario (arm64/armv7/mipsle/mips), escribe /etc/netpulse-agent.env (chmod
+#   600) e instala el servicio procd (respawn) habilitado y arrancado.
 #
 # Uso (el token lo genera POST /api/agents y se muestra UNA sola vez):
 #   sh install-agent.sh --host 192.168.8.3 \
@@ -206,7 +206,18 @@ else
     case "$ARCH" in
         aarch64|arm64) GOARCH=arm64 ;;
         armv7l|armv7)  GOARCH=armv7 ;;
-        *) fatal 20 "arquitectura no soportada: $ARCH (release: arm64, armv7)" ;;
+        mips)
+            # uname -m dice "mips" para AMBOS endianness. El byte EI_DATA
+            # (5º del ELF del sistema) decide: 0x01 = little (mipsle,
+            # MT7621/ramips), 0x02 = big (mips, ath79). head|tail|tr en vez
+            # de "od -t": busybox od no garantiza -t/-j/-N (#488).
+            END=$(ssh "$SSH" 'head -c 6 /bin/sh | tail -c 1 | tr "\001\002" "12"')
+            case "$END" in
+                1) GOARCH=mipsle ;;
+                2) GOARCH=mips ;;
+                *) fatal 20 "no pude detectar el endianness MIPS de $HOST" ;;
+            esac ;;
+        *) fatal 20 "arquitectura no soportada: $ARCH (release: arm64, armv7, mipsle, mips)" ;;
     esac
     if command -v curl >/dev/null 2>&1; then FETCH="curl -fsSL --retry 3 --connect-timeout 10"
     elif command -v wget >/dev/null 2>&1; then FETCH="wget -q -O-"

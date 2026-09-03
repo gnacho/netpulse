@@ -50,7 +50,8 @@ builds:
 
   # Agente nativo OpenWrt (Fase 6): binario stateless que empuja al servidor.
   # arm64 = GL-MT6000 + APs (Cortex-A53); armv7 por si aparece un AP más
-  # viejo; amd64 para pilotos locales.
+  # viejo; amd64 para pilotos locales; mipsle (softfloat) = MT7621 y resto
+  # de ramips/lantiq LE; mips (softfloat) = ath79 y targets BE (#488).
   - id: netpulse-agent
     dir: agent
     main: ./cmd/netpulse-agent
@@ -58,8 +59,11 @@ builds:
     env:
       - CGO_ENABLED=0
     goos: [linux]
-    goarch: [amd64, arm64, arm]
+    goarch: [amd64, arm64, arm, mipsle, mips]
     goarm: [7]
+    # Los SoC MIPS de OpenWrt (MT7621, AR7xxx/AR9xxx...) no llevan FPU:
+    # softfloat para ambos endianness.
+    gomips: [softfloat]
     flags: [-trimpath]
     # -X main.Version: sin esto el agente reporta "0.1.0" para siempre
     # (main.go declara var Version con fallback para builds locales).

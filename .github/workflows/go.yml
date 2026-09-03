@@ -83,6 +83,10 @@ jobs:
           (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
           # armv7 (fichero "arm": el nombre que busca normalizeArch)
           (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
+          # mipsle softfloat (MT7621 y resto de MIPS little-endian) y mips
+          # softfloat (big-endian, ath79): sin FPU en ambos (#488)
+          (cd agent && GOARCH=mipsle GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-mipsle ./cmd/netpulse-agent)
+          (cd agent && GOARCH=mips GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=$AGENT_VERSION" -o ../server-go/internal/agentbin/agents/netpulse-agent-mips ./cmd/netpulse-agent)
 
       - name: Tests Go
         working-directory: server-go
