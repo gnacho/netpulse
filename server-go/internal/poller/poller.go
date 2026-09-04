@@ -105,11 +105,21 @@ func (p *Poller) tickOnce() {
 // las inyecciones kv del httpapi).
 func (p *Poller) SetEnrich(fn func(*adapters.Overview)) { p.enrich = fn }
 
-// Stop detiene el bucle y espera a que termine el tick en curso.
+// stopWait acota cuánto espera Stop al tick en curso. Issue #481: un sondeo
+// SNMP/SSH lento (o una primitiva de red sin deadline) no debe colgar el
+// apagado hasta que systemd mate el proceso por TimeoutStopSec; cuando main
+// retorna, el proceso muere igualmente y se lleva la goroutine colgada.
+var stopWait = 15 * time.Second
+
+// Stop detiene el bucle y espera al tick en curso como mucho stopWait.
 func (p *Poller) Stop() {
 	p.once.Do(func() {
 		close(p.stopCh)
-		<-p.doneCh
+		select {
+		case <-p.doneCh:
+		case <-time.After(stopWait):
+			log.Printf("[netpulse] poller: el tick en curso no terminó en %v; el apagado continúa igualmente", stopWait)
+		}
 	})
 }
 
