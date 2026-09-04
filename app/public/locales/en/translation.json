@@ -450,8 +450,6 @@
       "legendFree": "< 40% (free)",
       "legendBusy": "40-70% (busy)",
       "legendCongested": "≥ 70% (congested)",
-      "matrixTitle": "Channel matrix",
-      "matrixHint": "each dot is a neighbor network on that channel (signal)"
     },
     "events": {
       "title": "Roaming events",
