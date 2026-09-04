@@ -546,7 +546,7 @@ func run() error {
 		log.Printf("[netpulse] datos: %s · estáticos: %s", cfg.DataDir, staticDesc)
 		p.Start()
 		upd.Start()
-		fwScheduler.Start()
+		go fwScheduler.Start()
 		if eventsCollector != nil {
 			eventsCollector.Start()
 		}
