@@ -1448,7 +1448,8 @@
       "flashing": "Flashing",
       "done": "Done",
       "failed": "Failed"
-    }
+    },
+    "dismiss": "Dismiss notice"
   },
   "orchestration": {
     "title": "Orchestration",

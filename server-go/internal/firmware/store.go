@@ -124,13 +124,14 @@ func (s *Store) SetStatus(id int64, status, errMsg, backupPath string) error {
 func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 	var u Upgrade
 	var finished sql.NullInt64
+	var errStr, backup sql.NullString
 	err := s.db.QueryRow(`
 		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at
 		FROM firmware_upgrades
 		WHERE router_id = ?
 		ORDER BY started_at DESC
 		LIMIT 1
-	`, routerID).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &u.Error, &u.BackupPath, &u.StartedAt, &finished)
+	`, routerID).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &errStr, &backup, &u.StartedAt, &finished)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -139,6 +140,12 @@ func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 	}
 	if finished.Valid {
 		u.FinishedAt = &finished.Int64
+	}
+	if errStr.Valid {
+		u.Error = errStr.String
+	}
+	if backup.Valid {
+		u.BackupPath = backup.String
 	}
 	return &u, nil
 }
@@ -147,18 +154,41 @@ func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 func (s *Store) GetUpgradeByID(id int64) (*Upgrade, error) {
 	var u Upgrade
 	var finished sql.NullInt64
+	var errStr, backup sql.NullString
 	err := s.db.QueryRow(`
 		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at
 		FROM firmware_upgrades WHERE id = ?
-	`, id).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &u.Error, &u.BackupPath, &u.StartedAt, &finished)
+	`, id).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &errStr, &backup, &u.StartedAt, &finished)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	if errStr.Valid {
+		u.Error = errStr.String
+	}
+	if backup.Valid {
+		u.BackupPath = backup.String
+	}
 	if finished.Valid {
 		u.FinishedAt = &finished.Int64
 	}
 	return &u, nil
+}
+
+// DismissLatest borra el último intento de upgrade del router si está
+// terminado (failed o done). Un upgrade en curso (requested/running) no se
+// toca: el aviso de error obsoleto debe poder descartarse (#519) sin poder
+// cancelar una operación viva por accidente.
+func (s *Store) DismissLatest(routerID string) error {
+	up, err := s.LatestUpgrade(routerID)
+	if err != nil {
+		return err
+	}
+	if up == nil || (up.Status != "failed" && up.Status != "done") {
+		return nil
+	}
+	_, err = s.db.Exec(`DELETE FROM firmware_upgrades WHERE id = ?`, up.ID)
+	return err
 }

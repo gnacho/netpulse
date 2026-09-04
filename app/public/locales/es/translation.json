@@ -1448,7 +1448,8 @@
       "flashing": "Flasheando",
       "done": "Completada",
       "failed": "Fallida"
-    }
+    },
+    "dismiss": "Descartar aviso"
   },
   "orchestration": {
     "title": "Orquestación",
