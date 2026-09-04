@@ -651,8 +651,15 @@ type Dot11rIface struct {
 	Ifname  string `json:"ifname"`  // wlan0, wlan1 (puede estar vacío en configs muy nuevas)
 	SSID    string `json:"ssid"`
 	MAC     string `json:"mac"`               // macaddr (BSSID del BSS)
+	Mac     string `json:"mac"`               // macaddr (BSSID del BSS)
 	Channel int    `json:"channel,omitempty"` // mapeado desde radio.channel
 	Band    string `json:"band,omitempty"`    // "2.4 GHz"|"5 GHz" desde radio.band
+
+	// Network es la red del bridge a la que pertenece la iface (lan/guest/iot...)
+	// y Disabled si la iface está desactivada (#541): las redes invitadas/iot y
+	// las ifaces inactivas no deben contar para usteer.
+	Network  string `json:"network,omitempty"`
+	Disabled bool   `json:"disabled,omitempty"`
 
 	Encryption string `json:"encryption,omitempty"` // psk2/sae/psk2-mixed...
 
