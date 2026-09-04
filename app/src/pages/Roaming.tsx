@@ -360,7 +360,11 @@ export default function Roaming() {
         let msg = t('roaming.kick.error')
         try {
           const j = (await res.json()) as { error?: string; message?: string }
-          if (j.message) msg = j.message
+          if (res.status === 404 || j.error === 'not_found') {
+            // #533: el cliente ya no está en ningún AP (se desconectó o se
+            // movió): mensaje propio traducido, no el crudo del backend.
+            msg = t('roaming.kick.notFound')
+          } else if (j.message) msg = j.message
           else if (j.error) msg = j.error
         } catch { /* si el body no es JSON, usamos el mensaje por defecto */ }
         setKickError(`${nameByMac.get(mac) ?? mac}: ${msg}`)

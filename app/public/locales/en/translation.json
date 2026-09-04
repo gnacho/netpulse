@@ -400,7 +400,8 @@
     "kick": {
       "title": "Kick from AP to force reconnection",
       "label": "Kick {{name}}",
-      "error": "Could not kick the client"
+      "error": "Could not kick the client",
+      "notFound": "is no longer connected to any access point: it may have disconnected or roamed off the network. The list refreshes automatically."
     },
     "dot11r": {
       "title": "802.11r status",
