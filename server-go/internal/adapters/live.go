@@ -935,12 +935,13 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood, vlans: vlansGood}
 	l.mu.Unlock()
 
-	// Uso de RAM: #513 (con Cached del agente, fórmula clásica sin caché
-	// reclamable; sin Cached, MemAvailable). Ver memUsagePct.
+	// Uso de RAM: #513. Si el agente reporta memory.used (procesos) lo
+	// usamos (lo que el usuario percibe como uso real); si no, la fórmula
+	// clásica sin caché reclamable (Cached) o MemAvailable. Ver memUsagePct.
 	mem := sysInfo.Memory
 	ramPct := 0
 	if mem.Total > 0 {
-		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available)
+		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used)
 	}
 
 	isGw := gw != nil && cfg.ID == gw.ID

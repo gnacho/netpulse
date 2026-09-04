@@ -6,15 +6,18 @@ import "math"
 
 // memUsagePct devuelve el % de RAM en uso.
 //
-// Con Cached > 0 (el agente lo rellena desde /proc/meminfo; ubus system info
-// no lo da) usa la fórmula clásica que no cuenta la caché de ficheros como
-// consumida (paridad LuCI/htop): used = total - free - buffered - cached.
-// Sin Cached (payloads viejos o sondeo SSH de ubus) cae a la fórmula previa
-// basada en MemAvailable, que en root ubifs/overlay tiende a sobreestimar el
-// uso porque el kernel cuenta poca caché como reclamable a corto plazo.
-func memUsagePct(total, free, buffered, cached, available float64) int {
+// Prioridad: si el agente reporta `usedProc` (suma de VmRSS de procesos) lo
+// usamos directamente, porque es lo que el usuario percibe como uso real.
+// Si no llega, con Cached > 0 usa la fórmula clásica que no cuenta la caché de
+// ficheros como consumida (paridad LuCI/htop): used = total - free - buffered
+// - cached. Sin Cached cae a la fórmula previa basada en MemAvailable, que en
+// root ubifs/overlay tiende a sobreestimar el uso (#513).
+func memUsagePct(total, free, buffered, cached, available, usedProc float64) int {
 	if total <= 0 {
 		return 0
+	}
+	if usedProc > 0 && usedProc < total {
+		return int(math.Round(usedProc / total * 100))
 	}
 	if cached > 0 {
 		used := total - free - buffered - cached
