@@ -1,6 +1,11 @@
 # Dependencias
 dist/
 node_modules/
+# node_modules sin barra: también ignora el SYMLINK app/node_modules (git
+# trata un symlink como archivo y `node_modules/` no lo cubre; un `git add -A`
+# en un worktree con el symlink lo commiteó y rompió goreleaser: "dirty state"
+# al borrar npm ci el enlace durante la release v2.26.13/14)
+app/node_modules
 
 # Backend: datos y secretos
 server/data/
