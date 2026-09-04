@@ -425,6 +425,10 @@ func run() error {
 		return checkAgentToken(dbHandle, slug, token)
 	})
 
+	// Scheduler de upgrades programados (#494): tick 30 s, reutiliza el motor
+	// compartido (firmware.Engine) del flujo manual vía el AgentHub.
+	fwScheduler := firmware.NewScheduler(fwStore, firmware.NewEngine(fwStore, agentHub))
+
 	// Fase 9 R2/R3: TLS autofirmado + pairing token (on-box only).
 	// Se generan ANTES del handler para que serverFP esté disponible en Deps.
 	var (
@@ -542,6 +546,7 @@ func run() error {
 		log.Printf("[netpulse] datos: %s · estáticos: %s", cfg.DataDir, staticDesc)
 		p.Start()
 		upd.Start()
+		fwScheduler.Start()
 		if eventsCollector != nil {
 			eventsCollector.Start()
 		}
@@ -571,6 +576,7 @@ func run() error {
 		}
 		p.Stop()
 		upd.Stop()
+		fwScheduler.Stop()
 		if eventsCollector != nil {
 			eventsCollector.Stop()
 		}

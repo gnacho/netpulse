@@ -182,6 +182,9 @@ type server struct {
 
 	// Firmware: targets y upgrades de firmware (#453).
 	firmware *firmware.Store
+	// FirmwareEngine: motor compartido de upgrades (manual + programados #494).
+	// Se construye desde Deps.Firmware + Deps.AgentHub.
+	firmwareEngine *firmware.Engine
 
 	// Speedtest: scheduler del test de velocidad WAN (#511). nil → rutas
 	// /api/speedtest/* y /api/settings/speedtest responden 503 (demo).
@@ -208,6 +211,7 @@ func NewHandler(d Deps) http.Handler {
 		pathAnalysis:    d.PathAnalysis,
 		configBackup:    d.ConfigBackup,
 		firmware:        d.Firmware,
+		firmwareEngine:  firmware.NewEngine(d.Firmware, d.AgentHub),
 		speedtest:       d.Speedtest,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de

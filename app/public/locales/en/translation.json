@@ -1447,8 +1447,13 @@
       "verifying": "Verifying",
       "flashing": "Flashing",
       "done": "Done",
-      "failed": "Failed"
+      "failed": "Failed",
+      "scheduled": "Scheduled"
     },
+    "schedule": "Schedule",
+    "scheduleAt": "Schedule for",
+    "scheduledFor": "Scheduled for {{time}}",
+    "cancelSchedule": "Cancel schedule",
     "dismiss": "Dismiss notice"
   },
   "orchestration": {
