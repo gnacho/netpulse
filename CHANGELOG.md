@@ -5,6 +5,17 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.13] - 2026-09-04
+
+### Added
+
+- **Upgrades de firmware programados y desatendidos (#494)**: además de lanzar un upgrade al momento, ahora se puede programar para una hora concreta (p. ej. de madrugada). El router muestra "Programada para <hora>" con opción de cancelar; el servidor la dispara solo cuando toca, reutilizando exactamente el mismo flujo validado del manual (validación de imagen ASU, backup pre-upgrade y flash, todo en el agente). El flujo manual no cambia.
+- **Descubrimiento de dispositivos cableados por tabla ARP (#507)**: los hosts con IP estática (sin lease DHCP) que no se ven por WiFi ni por FDB ahora aparecen como dispositivos cableados mientras el router los tiene en su tabla ARP (el agente ya la recogía; antes solo servía para rellenar la IP de dispositivos conocidos). Solo IPv4 por ahora; aparecen mientras están activos y desaparecen al envejecer la entrada (decisión: sin persistencia, lista sin huérfanos).
+
+### Fixed
+
+- **El apagado se colgaba hasta TimeoutStopSec cuando un sondeo SNMP/SSH lento bloqueaba el tick del poller (#481)**: `Stop()` esperaba indefinidamente al tick en curso. Ahora espera como mucho 15 s (loggea si se rinde) y el proceso continúa el cierre; el tick ya termina solo por los timeouts del cliente SNMP.
+
 ## [2.26.12] - 2026-09-04
 
 ### Fixed
