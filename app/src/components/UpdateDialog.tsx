@@ -28,6 +28,7 @@ import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
+import { updateErrorText } from '@/lib/updateErrors'
 
 /** Commit entre current y latest (compare de GitHub, issue #490). */
 export interface UpdateCommit {
@@ -470,7 +471,8 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-danger">{t('update.dialog.failed')}</p>
-                {errorCode && <p className="mt-0.5 font-mono text-caption text-text-muted">{errorCode}</p>}
+                <p className="mt-0.5 text-caption text-text-secondary">{updateErrorText(t, errorCode)}</p>
+                {errorCode && <p className="mt-0.5 font-mono text-[11px] text-text-muted">{errorCode}</p>}
               </div>
             </div>
             <DialogFooter>

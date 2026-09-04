@@ -1354,6 +1354,13 @@
       "changelogFallback": "Could not load changelog.",
       "changelogLink": "View release notes on GitHub",
       "downNotice": "The service will be down while it restarts"
+    },
+    "errors": {
+      "exitRestart": "The server restarted itself to apply the update (the normal final step). If the version has not changed in a few minutes, check for updates again.",
+      "exitCode": "The update process exited with code {{code}}. Check the update log for details.",
+      "noTarget": "No target version known: check for updates before applying.",
+      "noToken": "GitHub request limit reached; it resets within the hour. Try again later.",
+      "generic": "The update failed ({{code}}). Check the update log for details."
     }
   },
   "demo": {
