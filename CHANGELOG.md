@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.12] - 2026-09-04
+
+### Fixed
+
+- **El plan de canales mostraba un score absurdo (9223372036854775807) o nada (#518)**: cuando el canal actual del router era DFS (52/100/112/116...), no estaba en la lista de canales candidatos (solo no-DFS) y el score del canal actual quedaba sin calcular, pintando el valor máximo de un entero de 64 bits. Ahora el score del canal actual se calcula siempre (es informativo), aunque el canal no sea recomendable. Además, el mensaje de "sin escaneos" explica ahora que los routers con NetGrip no escanean vecinos y orienta a seleccionar un router con el agente NetPulse.
+- **El aviso de un intento de actualización de firmware fallido quedaba para siempre y no se podía cerrar (#519)**: un fallo antiguo (p. ej. "agent not connected" de un incidente pasado) seguía mostrándose aunque el router ya estuviera sano y en la versión objetivo. Nuevo botón "Descartar aviso" en la tarjeta (endpoint `DELETE /api/firmware-upgrades/{routerId}/failure`, que solo borra intentos terminados; un upgrade en curso nunca se toca). De paso, se arregló un fallo latente por el que los upgrades en curso no aparecían en la lista (el escaneo de columnas NULL fallaba en silencio).
+
 ## [2.26.11] - 2026-09-04
 
 ### Added
