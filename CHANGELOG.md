@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.14] - 2026-09-04
+
+### Fixed
+
+- **Acciones de dispositivo (reserva IP + bloqueo) endurecidas y con tests (#439)**: la funcionalidad (reservar IP estática en el DHCP del gateway y bloquear/desbloquear el acceso de un dispositivo por MAC desde su ficha de edición) se ha endurecido: la resolución del router objetivo es ahora fiable (basada en la configuración, no en heurísticas); las reservas detectan y rechazan conflictos de IP (409) y son idempotentes; el bloqueo usa una regla de firewall con nombre determinista; y todas las escrituras son transaccionales con `uci commit` como límite atómico y rollback si el reinicio del servicio (dnsmasq/firewall) falla - nunca se deja una configuración a medias. 23 tests nuevos con SSH simulado.
+
 ## [2.26.13] - 2026-09-04
 
 ### Added
