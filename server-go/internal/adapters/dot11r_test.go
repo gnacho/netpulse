@@ -220,3 +220,23 @@ func TestUnquoteUci(t *testing.T) {
 		}
 	}
 }
+
+func TestDot11rSkip(t *testing.T) {
+	cases := []struct {
+		name string
+		ifc  Dot11rIface
+		want bool
+	}{
+		{"red principal lan", Dot11rIface{Network: "lan", Disabled: false}, false},
+		{"red invitada guest", Dot11rIface{Network: "guest", Disabled: false}, true},
+		{"red iot", Dot11rIface{Network: "iot", Disabled: false}, true},
+		{"red wan", Dot11rIface{Network: "wan", Disabled: false}, true},
+		{"iface deshabilitada", Dot11rIface{Network: "lan", Disabled: true}, true},
+		{"sin red (indeterminada) se deja pasar", Dot11rIface{Network: "", Disabled: false}, false},
+	}
+	for _, c := range cases {
+		if got := dot11rSkip(c.ifc); got != c.want {
+			t.Errorf("%s: dot11rSkip = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

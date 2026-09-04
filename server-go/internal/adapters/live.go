@@ -3137,6 +3137,8 @@ func parseUciWireless(out string) []Dot11rIface {
 			MAC:                f["macaddr"],
 			Channel:            di.channel,
 			Band:               di.band,
+			Network:            f["network"],
+			Disabled:           f["disabled"] == "1",
 			Encryption:         f["encryption"],
 			Dot11REnabled:      f["ieee80211r"] == "1",
 			MobilityDomain:     f["mobility_domain"],
@@ -3151,6 +3153,21 @@ func parseUciWireless(out string) []Dot11rIface {
 		})
 	}
 	return ifaces
+}
+
+// dot11rSkip (#541): una iface no debe contar para usteer si pertenece a una
+// red invitada/aislada (guest/iot/wan) o está deshabilitada. La red principal
+// de roaming es "lan" (o la red no aislada). Si no puede determinarse, se deja
+// pasar (mejor mostrar de más que ocultar la principal por un nombre raro).
+func dot11rSkip(ifc Dot11rIface) bool {
+	if ifc.Disabled {
+		return true
+	}
+	switch ifc.Network {
+	case "guest", "iot", "wan":
+		return true
+	}
+	return false
 }
 
 // unquoteUci quita las comillas simples que uci envuelve a los valores y
@@ -3200,7 +3217,7 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 		r.Ifaces = ifaces
 		out.Routers = append(out.Routers, r)
 		for _, ifc := range ifaces {
-			if ifc.SSID == "" {
+			if ifc.SSID == "" || dot11rSkip(ifc) {
 				continue
 			}
 			ssidIfaces[ifc.SSID] = append(ssidIfaces[ifc.SSID], dot11rIfaceRef{routerID: cfg.ID, iface: ifc})
