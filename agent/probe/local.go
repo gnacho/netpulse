@@ -154,12 +154,17 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 	if out := p.runBest(ctx, CmdUbusSystemInfo, 0); out != "" {
 		var si SysInfo
 		if err := json.Unmarshal([]byte(out), &si); err == nil {
-			// ubus system info no expone la caché de ficheros (Cached), que
-			// la fórmula de uso clásica (total-free-buffers-cached) necesita
-			// para no contar RAM reclamable como usada (#513). /proc/meminfo
-			// local la da; fallback silencioso si no está (host sin proc).
-			if cached := readMeminfoCachedKB(); cached > 0 {
-				si.Memory.Cached = float64(cached) * 1024 // ubus va en bytes
+			if si.Memory.Total > 0 {
+				// ubus system info no expone la caché de ficheros, la lee el
+				// agente de /proc/meminfo (fallback silencioso si no existe).
+				if cached := readMeminfoCachedKB(); cached > 0 {
+					si.Memory.Cached = float64(cached) * 1024
+				}
+				// Y el uso real (lo que el usuario percibe) es la memoria de
+				// los procesos; así el server no sobreestima en ubifs (#513).
+				if rss := sumProcRSS(); rss > 0 && rss < si.Memory.Total {
+					si.Memory.Used = rss
+				}
 			}
 			sd.SysInfo = &si
 			any = true

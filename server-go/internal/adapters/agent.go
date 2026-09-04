@@ -514,7 +514,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	}
 	mem := sysInfo.Memory
 	if mem.Total > 0 {
-		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available)
+		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used)
 	}
 	out.sysInfo = sysInfo
 	out.ram = ramPct
