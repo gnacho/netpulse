@@ -1835,6 +1835,34 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			}
 		}
 	}
+	// (4) ARP (#507): hosts cableados con IP estática visibles SOLO en la
+	// tabla ARP del router (ni wireless, ni FDB, ni lease, ni device_attrib).
+	// Presencia en la tabla = activo recientemente → online este tick. No se
+	// persiste: cuando la entrada envejece, el host desaparece del snapshot.
+	// Se itera en orden de router ID para atribuir deterministamente el
+	// RouterID correcto cuando varios routers ven la misma MAC (misma LAN).
+	// La exclusión de MACs de router/bridge se aplica en el bucle de
+	// dispositivos (routerMacs), igual que para leases/known: aquí no se
+	// duplica ese filtro.
+	arpRouterIDs := make([]string, 0, len(polled))
+	for routerID := range polled {
+		arpRouterIDs = append(arpRouterIDs, routerID)
+	}
+	sort.Strings(arpRouterIDs)
+	for _, routerID := range arpRouterIDs {
+		for mac := range polled[routerID].arp {
+			if _, ok := seen[mac]; ok {
+				continue
+			}
+			if _, ok := leasesByMac[mac]; ok {
+				continue
+			}
+			if _, ok := known[mac]; ok {
+				continue
+			}
+			seen[mac] = seenInfo{routerID, "cable", nil}
+		}
+	}
 
 	allMacs := map[string]bool{}
 	for mac := range leasesByMac {
