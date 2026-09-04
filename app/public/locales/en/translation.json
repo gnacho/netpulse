@@ -649,7 +649,14 @@
       "fiber": "Fiber {{plan}}",
       "publicIp": "Public IP",
       "title": "WAN network",
-      "totalToday": "Total today"
+      "totalToday": "Total today",
+      "speedtestTitle": "Measured speed",
+      "speedtestEmpty": "No measurements yet. Enable it in Settings or run a test.",
+      "speedtestRun": "Run test",
+      "speedtestRunning": "Measuring...",
+      "speedtestFailed": "Last test failed",
+      "planPct": "{{pct}} % of plan",
+      "speedtestServer": "server {{name}}"
     },
     "wireguard": {
       "lastIp": "Last IP",
@@ -1276,7 +1283,25 @@
     "paletteNetpulse": "NetPulse",
     "paletteNoc": "Warm NOC",
     "palettePhosphor": "Phosphor",
-    "paletteElectric": "Electric"
+    "paletteElectric": "Electric",
+    "speedtest": {
+      "title": "WAN speed test",
+      "caption": "Real periodic measurement from the server against speedtest.net",
+      "enabled": "Periodic test enabled",
+      "interval": "Interval",
+      "intervalH": "every {{hours}} h",
+      "alertPct": "Alert below {{pct}} % of the plan",
+      "alertPctHint": "0 = alert off. Uses the contracted plan declared above (download only).",
+      "serverId": "speedtest.net server (ID, 0 = automatic)",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "saveError": "Could not save",
+      "invalid": "Invalid values",
+      "hint": "Each test saturates the link for a few seconds and consumes data: avoid short intervals on capped connections.",
+      "lastResult": "Last test: {{when}} · {{down}} Mbps ↓ / {{up}} Mbps ↑",
+      "unavailable": "Not available in this mode"
+    }
   },
   "statcard": {
     "vsPrevious": "vs previous"
