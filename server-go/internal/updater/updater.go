@@ -711,12 +711,20 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 			u.lastLog = &log
 			u.updateAvail = false
 			u.finishHistory(historyID, "success", "", dur)
-		} else if marker := readAppliedMarker(u.appliedMarkerPath()); marker != "" && to != nil && marker == strings.TrimSpace(*to) {
-			// #444: el reinicio diferido (systemd.path) mata el script justo
-			// después del swap. Si el marcador pre-reinicio lleva el SHA
-			// objetivo, esto es el camino de éxito, no un fallo: se registra
-			// success y se MANTIENE el pendingApply para la confirmación
-			// post-reinicio (#161).
+		} else if marker := readAppliedMarker(u.appliedMarkerPath()); marker != "" {
+			// #444/#512: el reinicio diferido (systemd.path) mata el script
+			// justo después del swap. Si el marcador pre-reinicio existe, el
+			// swap se hizo y pidió el reinicio: es el camino de éxito, no un
+			// fallo. update.sh escribe el SHA COMPLETO (git rev-parse) y el
+			// check guarda el corto, así que se compara por prefijo (#512).
+			// Si además el SHA no casa con el target registrado, main avanzó
+			// entre el check y el fetch: el marcador es la verdad del terreno
+			// y se rectifican historial y pendingApply al SHA instalado.
+			if to != nil && !markerMatchesTarget(marker, *to) {
+				short := shortSHA(marker)
+				u.updateHistoryTarget(historyID, short)
+				u.retargetPendingApply(short)
+			}
 			u.setStepLocked("done")
 			log := u.updatingLog
 			u.lastLog = &log
@@ -899,4 +907,32 @@ func readAppliedMarker(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
+}
+
+// markerMatchesTarget compara el SHA del marcador (completo, 40 chars, lo
+// que escribe `git rev-parse HEAD` en update.sh) con el target registrado
+// (corto, 7 chars, lo que guarda el check) por PREFIJO y sin distinguir
+// mayúsculas (#512: la igualdad literal hacía imposible el camino de éxito
+// de #444 y todo apply con reinicio registraba "update_exit_-1").
+func markerMatchesTarget(marker, target string) bool {
+	m := strings.ToLower(strings.TrimSpace(marker))
+	t := strings.ToLower(strings.TrimSpace(target))
+	if m == "" || t == "" {
+		return false
+	}
+	n := len(m)
+	if len(t) < n {
+		n = len(t)
+	}
+	return m[:n] == t[:n]
+}
+
+// shortSHA trunca un SHA al formato corto de display (7 chars), aceptando
+// ambos formatos como entrada.
+func shortSHA(sha string) string {
+	s := strings.TrimSpace(sha)
+	if len(s) > 7 {
+		return s[:7]
+	}
+	return s
 }

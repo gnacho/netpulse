@@ -1379,6 +1379,13 @@
       "changelogFallback": "No se ha podido cargar el changelog.",
       "changelogLink": "Ver notas del release en GitHub",
       "downNotice": "El servicio estará caído mientras se reinicia"
+    },
+    "errors": {
+      "exitRestart": "El servidor se reinició para aplicar la actualización (el paso final normal). Si en unos minutos la versión no ha cambiado, vuelve a comprobar actualizaciones.",
+      "exitCode": "El proceso de actualización terminó con el código {{code}}. Revisa el registro para más detalle.",
+      "noTarget": "No se conoce la versión objetivo: comprueba actualizaciones antes de aplicar.",
+      "noToken": "Se alcanzó el límite de peticiones a GitHub; se recupera solo en la próxima hora. Reintenta más tarde.",
+      "generic": "La actualización falló ({{code}}). Revisa el registro para más detalle."
     }
   },
   "demo": {

@@ -156,3 +156,15 @@ func ListHistory(db *sql.DB, limit int) ([]HistoryEntry, error) {
 	}
 	return out, rows.Err()
 }
+
+// updateHistoryTarget rectifica el version_to de una entrada en curso (#512
+// drift: main avanzó entre el check y el fetch; el marcador del script lleva
+// el SHA realmente instalado).
+func (u *Updater) updateHistoryTarget(id int64, to string) {
+	if u.db == nil || id < 0 || to == "" {
+		return
+	}
+	if _, err := u.db.Exec(`UPDATE update_history SET version_to = ? WHERE id = ?`, to, id); err != nil {
+		fmt.Printf("[netpulse] no se pudo rectificar el target del historial: %v\n", err)
+	}
+}

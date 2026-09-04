@@ -131,3 +131,24 @@ func (u *Updater) AckPending() {
 	u.pendingApply = nil
 	u.mu.Unlock()
 }
+
+// retargetPendingApply rectifica el To del marcador persistido (#512 drift):
+// la confirmación post-arranque compara el commit del binario nuevo, que es
+// el SHA del marcador, no el que el check vio al lanzar el apply.
+func (u *Updater) retargetPendingApply(to string) {
+	if u.db == nil || to == "" {
+		return
+	}
+	p, ok := readPendingApply(u.db)
+	if !ok || p.To == to {
+		return
+	}
+	p.To = to
+	data, err := json.Marshal(p)
+	if err != nil {
+		return
+	}
+	_, _ = u.db.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		pendingApplyKey, string(data))
+}
