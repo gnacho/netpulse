@@ -28,6 +28,13 @@ type Poller struct {
 	db      *db.DB
 	hub     *sse.Hub
 
+	// enrich (opcional) inyecta en cada overview los campos que viven en el
+	// kv del server (orchestration, plan contratado #151, speedtest #511)
+	// ANTES de cacheálo y emitirlo por SSE. Sin esto, el snapshot del SSE
+	// pisaría la copia enriquecida que sirvió /api/overview y esos campos
+	// desaparecerían de la UI al primer evento.
+	enrich func(*adapters.Overview)
+
 	mu           sync.RWMutex
 	lastOverview *adapters.Overview
 	lastAdguard  *adapters.AdGuardStats
@@ -94,6 +101,10 @@ func (p *Poller) tickOnce() {
 	p.tick()
 }
 
+// SetEnrich fija el hook de enriquecimiento del overview (main lo cablea con
+// las inyecciones kv del httpapi).
+func (p *Poller) SetEnrich(fn func(*adapters.Overview)) { p.enrich = fn }
+
 // Stop detiene el bucle y espera a que termine el tick en curso.
 func (p *Poller) Stop() {
 	p.once.Do(func() {
@@ -119,6 +130,9 @@ func (p *Poller) tick() {
 			log.Printf("[netpulse] error en tick del poller: %v", err)
 		}
 		return
+	}
+	if p.enrich != nil {
+		p.enrich(overview)
 	}
 
 	p.mu.Lock()

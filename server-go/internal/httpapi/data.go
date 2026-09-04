@@ -3,6 +3,7 @@
 package httpapi
 
 import (
+	"database/sql"
 	"math"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 )
 
 var bands = []string{"5 GHz", "2.4 GHz", "cable"}
@@ -117,22 +119,33 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	engine := s.adapter.AlertsEngine()
 	out.Alerts = engine.List()
 	out.UnreadAlerts = engine.UnreadCount()
-	// Menú de orquestación: opt-in por admin (#121). Se expone aquí (no en el
-	// adapter) porque el kv vive en el server, no en el poller.
-	out.Orchestration = kvGetBool(s.db.DB, orchestrationKey)
+	EnrichOverview(s.db.DB, s.speedtest, &out)
+	writeJSON(w, http.StatusOK, &out)
+}
+
+// EnrichOverview inyecta los campos que viven en el kv del server (menú de
+// orquestación #121, velocidad contratada #151 y última medición del
+// speedtest #511). La usan handleOverview Y el poller antes de emitir el
+// snapshot SSE: sin la segunda, el evento pisaría la copia enriquecida del
+// HTTP y los campos desaparecerían de la UI al primer snapshot (bug
+// preexistente de #151 que el speedtest hizo evidente).
+func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Overview) {
+	// Menú de orquestación: opt-in por admin (#121). Se expone aquí (no en
+	// el adapter) porque el kv vive en el server, no en el poller.
+	out.Orchestration = kvGetBool(handle, orchestrationKey)
 	// Velocidad WAN contratada (#151): declarada por el admin en Ajustes y
-	// persistida en kv. Se inyecta aquí por el mismo motivo que orchestration.
-	if v, ok := kvGetFloat(s.db.DB, wanSpeedDownKey); ok {
+	// persistida en kv.
+	if v, ok := kvGetFloat(handle, wanSpeedDownKey); ok {
 		out.WAN.ContractDownMbps = &v
 	}
-	if v, ok := kvGetFloat(s.db.DB, wanSpeedUpKey); ok {
+	if v, ok := kvGetFloat(handle, wanSpeedUpKey); ok {
 		out.WAN.ContractUpMbps = &v
 	}
 	// Última medición real del speedtest (#511): el scheduler escribe la
 	// serie; aquí solo se expone la última para la tarjeta WAN. nil (demo o
 	// sin ningún test) → campos ausentes y la UI muestra su estado vacío.
-	if s.speedtest != nil {
-		if last, err := s.speedtest.Store().Latest(); err == nil && last != nil {
+	if sched != nil {
+		if last, err := sched.Store().Latest(); err == nil && last != nil {
 			down, up := last.DownMbps, last.UpMbps
 			ts := last.TS.UnixMilli()
 			out.WAN.SpeedtestDownMbps = &down
@@ -141,7 +154,6 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 			out.WAN.SpeedtestServer = last.ServerName
 		}
 	}
-	writeJSON(w, http.StatusOK, &out)
 }
 
 // handleRouters: {routers: [Router…]}.

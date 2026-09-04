@@ -133,7 +133,8 @@ export function WanLatency() {
 // ---------------------------------------------------------------------------
 
 type SpeedtestItem = {
-  ts: number
+  /** ISO 8601 (time.Time serializado por el API). */
+  ts: string
   downMbps: number
   upMbps: number
   pingMs?: number
@@ -207,7 +208,9 @@ function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
   const { running, lastError, last, points, starting, run } = useSpeedtestState()
 
   const busy = running || starting
-  const when = last ? (relTimeFromTs(last.ts) ?? '') : ''
+  // El API serializa ts como ISO 8601; relTimeFromTs espera unix SEGUNDOS
+  // (SPEC-ALERTAS, igual que las alertas).
+  const when = last ? (relTimeFromTs(Math.floor(new Date(last.ts).getTime() / 1000)) ?? '') : ''
   const planPct =
     contractDown && contractDown > 0 && last ? Math.round((last.downMbps / contractDown) * 100) : null
 

@@ -468,6 +468,12 @@ func run() error {
 		stScheduler.SetContractDown(func() (float64, bool) {
 			return httpapi.WanContractDown(dbHandle.DB)
 		})
+		// El snapshot SSE debe llevar las mismas inyecciones kv que
+		// /api/overview (contratado #151, speedtest #511): sin esto el
+		// primer evento pisaría los campos en la UI.
+		p.SetEnrich(func(ov *adapters.Overview) {
+			httpapi.EnrichOverview(dbHandle.DB, stScheduler, ov)
+		})
 		go stScheduler.Start()
 	}
 
