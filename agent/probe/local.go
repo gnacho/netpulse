@@ -154,6 +154,13 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 	if out := p.runBest(ctx, CmdUbusSystemInfo, 0); out != "" {
 		var si SysInfo
 		if err := json.Unmarshal([]byte(out), &si); err == nil {
+			// Report the used amount as process RSS so the server does not
+			// overreport on ubifs/overlay routers (#513).
+			if si.Memory.Total > 0 {
+				if rss := sumProcRSS(); rss > 0 && rss < si.Memory.Total {
+					si.Memory.Used = rss
+				}
+			}
 			sd.SysInfo = &si
 			any = true
 		}

@@ -515,11 +515,15 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	}
 	mem := sysInfo.Memory
 	if mem.Total > 0 {
-		avail := mem.Available
-		if avail == 0 {
-			avail = mem.Free + mem.Buffered
+		if mem.Used > 0 && mem.Used < mem.Total {
+			ramPct = int(math.Round(mem.Used / mem.Total * 100))
+		} else {
+			avail := mem.Available
+			if avail == 0 {
+				avail = mem.Free + mem.Buffered
+			}
+			ramPct = int(math.Round((mem.Total - avail) / mem.Total * 100))
 		}
-		ramPct = int(math.Round((mem.Total - avail) / mem.Total * 100))
 	}
 	out.sysInfo = sysInfo
 	out.ram = ramPct

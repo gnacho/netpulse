@@ -935,15 +935,21 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood, vlans: vlansGood}
 	l.mu.Unlock()
 
-	// Uso real de RAM como en la UI del router: used = total − available
+	// Uso real de RAM: preferimos la memoria de los procesos (reportada por el
+	// agente como sumProcRSS) porque (total-available) sobrereporta en routers
+	// ubifs/overlay (#513); si el agente no la trae, caemos al cálculo clásico.
 	mem := sysInfo.Memory
 	ramPct := 0
 	if mem.Total > 0 {
-		avail := mem.Available
-		if avail == 0 {
-			avail = mem.Free + mem.Buffered
+		if mem.Used > 0 && mem.Used < mem.Total {
+			ramPct = int(math.Round(mem.Used / mem.Total * 100))
+		} else {
+			avail := mem.Available
+			if avail == 0 {
+				avail = mem.Free + mem.Buffered
+			}
+			ramPct = int(math.Round((mem.Total - avail) / mem.Total * 100))
 		}
-		ramPct = int(math.Round((mem.Total - avail) / mem.Total * 100))
 	}
 
 	isGw := gw != nil && cfg.ID == gw.ID

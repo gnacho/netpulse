@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -128,6 +129,7 @@ type SysInfo struct {
 		Free      float64 `json:"free"`
 		Buffered  float64 `json:"buffered"`
 		Available float64 `json:"available"`
+		Used      float64 `json:"used"` // suma de VmRSS de procesos (#513)
 	} `json:"memory"`
 }
 
@@ -1360,4 +1362,46 @@ func ParseArp(out string) map[string]string {
 		m[mac] = f[0]
 	}
 	return m
+}
+
+// sumProcRSS returns the total VmRSS (bytes) of every user-space process
+// (/proc/<pid>/status): the memory actually held by processes, excluding the
+// kernel page cache that inflates (total-available) on ubifs/overlay routers.
+func sumProcRSS() float64 {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return 0
+	}
+	var total float64
+	for _, e := range entries {
+		if !allDigits(e.Name()) {
+			continue
+		}
+		b, err := os.ReadFile("/proc/" + e.Name() + "/status")
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			if !strings.HasPrefix(line, "VmRSS:") {
+				continue
+			}
+			f := strings.Fields(line)
+			if len(f) >= 2 {
+				if v, err := strconv.ParseFloat(f[1], 64); err == nil {
+					total += v * 1024
+				}
+			}
+			break
+		}
+	}
+	return total
+}
+
+func allDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
