@@ -5,6 +5,25 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.0] - 2026-09-05
+
+> **Nota de versionado**: las releases 2.26.13 y 2.26.14 no llegaron a
+> publicarse como releases de GitHub (un symlink `app/node_modules` commiteado
+> por error rompía goreleaser con "dirty state"). Su código está en main y se
+> consolida aquí, en la **v2.28.0**.
+
+### Added
+
+- **Upgrades de firmware programados y desatendidos (#494)**: además de lanzar un upgrade al momento, ahora se puede programar para una hora concreta (p. ej. de madrugada). El router muestra "Programada para <hora>" con opción de cancelar; el servidor la dispara solo cuando toca, reutilizando exactamente el mismo flujo validado del manual (validación de imagen ASU, backup pre-upgrade y flash, todo en el agente). El flujo manual no cambia.
+- **Descubrimiento de dispositivos cableados por tabla ARP (#507)**: los hosts con IP estática (sin lease DHCP) que no se ven por WiFi ni por FDB ahora aparecen como dispositivos cableados mientras el router los tiene en su tabla ARP (el agente ya la recogía; antes solo servía para rellenar la IP de dispositivos conocidos). Solo IPv4 por ahora; aparecen mientras están activos y desaparecen al envejecer la entrada (sin persistencia, lista sin huérfanos).
+- **Manual de usuario por área y menú (#418)**: `docs/manual.es.md` y `docs/manual.en.md`, una sección por pantalla de la app con qué muestra, qué datos necesita, cómo leerla, las decisiones de diseño relevantes y procedimientos paso a paso, enlazados desde el README.
+
+### Fixed
+
+- **El apagado se colgaba hasta TimeoutStopSec cuando un sondeo SNMP/SSH lento bloqueaba el tick del poller (#481)**: `Stop()` esperaba indefinidamente al tick en curso. Ahora espera como mucho 15 s (loggea si se rinde) y el proceso continúa el cierre.
+- **Acciones de dispositivo (reserva IP + bloqueo) endurecidas (#439)**: resolución del router objetivo fiable (basada en configuración), las reservas detectan conflictos de IP (409) y son idempotentes, el bloqueo usa una regla de firewall con nombre determinista y las escrituras son transaccionales con rollback si el reinicio del servicio falla. Validado en producción y documentado en el manual.
+- **Release pipeline**: se elimina el symlink `app/node_modules` del repositorio (rompía goreleaser en cada tag) y se ignora explícitamente.
+
 ## [2.26.14] - 2026-09-04
 
 ### Fixed
