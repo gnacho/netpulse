@@ -5,6 +5,18 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.26.11] - 2026-09-04
+
+### Added
+
+- **Test de velocidad WAN periódico (#511)**: medición real de bajada, subida, latencia y jitter (pérdida de paquetes donde el servidor la aporta) contra speedtest.net desde el host del servidor, con programación configurable (6/12/24 h o ejecución manual), historial en SQLite con retención anual, porcentaje frente al plan contratado (#151), gráfica de los últimos 7 días y botón "Ejecutar test" con progreso en vivo en la tarjeta WAN. Alerta con silencio hasta recuperación cuando la bajada medida queda por debajo de un porcentaje configurable del plan. Configuración en Ajustes, Datos y umbrales.
+
+### Fixed
+
+- **Falso "la actualización falló" en cada actualización con reinicio (#512)**: `update.sh` escribe el marcador de éxito con el SHA completo (40 caracteres, `git rev-parse HEAD`) mientras el comprobador lo comparaba literalmente con el objetivo corto (7 caracteres), así que el reinicio esperado del script (systemd mata su cgroup al aplicar) se registraba siempre como `update_exit_-1` aunque el binario nuevo arrancara bien. La comparación pasa a ser por prefijo y el marcador se trata como la verdad del terreno: si el swap se hizo y pidió reinicio, es éxito; si main avanzó entre la comprobación y la aplicación, se rectifican el historial y el marcador de confirmación post-arranque al SHA realmente instalado.
+- **El diálogo de actualización explica los errores en lenguaje humano (#512)**: códigos como `update_exit_-1` se traducen a un texto claro (castellano e inglés); el código técnico queda como detalle de depuración.
+- **El porcentaje de RAM del router sobreestimaba el consumo (#513)**: se calculaba con `(total - MemAvailable) / total` y `MemAvailable` es pesimista en sistemas de ficheros ubifs/overlay (cuenta poca caché como reclamable a corto plazo), de modo que un punto de acceso descargado podía marcar en torno al 80%. El agente nativo lee ahora `/proc/meminfo` para enviar la caché de ficheros, y el servidor usa la fórmula clásica que no la cuenta como consumida (paridad con LuCI/htop). El ajuste llega a los routers al actualizar el agente de la flota.
+
 ## [2.26.10] - 2026-09-04
 
 ### Fixed
