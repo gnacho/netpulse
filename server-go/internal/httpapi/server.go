@@ -36,6 +36,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -109,6 +110,8 @@ type Deps struct {
 	ConfigBackup *configbackup.Store
 	// Firmware: targets y upgrades de firmware (#453).
 	Firmware *firmware.Store
+	// Speedtest: scheduler del test periódico WAN (#511). nil → 503.
+	Speedtest *speedtest.Scheduler
 }
 
 type server struct {
@@ -179,6 +182,10 @@ type server struct {
 
 	// Firmware: targets y upgrades de firmware (#453).
 	firmware *firmware.Store
+
+	// Speedtest: scheduler del test de velocidad WAN (#511). nil → rutas
+	// /api/speedtest/* y /api/settings/speedtest responden 503 (demo).
+	speedtest *speedtest.Scheduler
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -201,6 +208,7 @@ func NewHandler(d Deps) http.Handler {
 		pathAnalysis:    d.PathAnalysis,
 		configBackup:    d.ConfigBackup,
 		firmware:        d.Firmware,
+		speedtest:       d.Speedtest,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -406,6 +414,7 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Ajustes globales en kv (issue #121: orchestration opt-in) ---
 	s.registerSettingsRoutes(mux)
+	s.registerSpeedtestRoutes(mux)
 
 	// --- Copias de seguridad (issue #158) ---
 	s.registerBackupRoutes(mux)

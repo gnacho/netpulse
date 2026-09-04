@@ -42,6 +42,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -450,6 +451,26 @@ func run() error {
 		}
 	}
 
+	// Speedtest WAN periódico (#511): store + runner + scheduler. Las
+	// alertas de "velocidad por debajo del plan" se emiten por el MISMO
+	// motor del adapter (la lista de eventos es por instancia). Solo en
+	// live: en demo no hay red real que medir y las rutas quedan en 503.
+	var stScheduler *speedtest.Scheduler
+	if !cfg.DemoMode {
+		stStore, err := speedtest.NewStore(dbHandle.DB)
+		if err != nil {
+			return fmt.Errorf("speedtest schema: %w", err)
+		}
+		stScheduler = speedtest.NewScheduler(stStore, dbHandle.DB, speedtest.SpeedtestNetRunner{})
+		if adapter != nil {
+			stScheduler.SetAlertEmitter(adapter.AlertsEngine())
+		}
+		stScheduler.SetContractDown(func() (float64, bool) {
+			return httpapi.WanContractDown(dbHandle.DB)
+		})
+		go stScheduler.Start()
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
 		DB:              dbHandle,
@@ -470,6 +491,7 @@ func run() error {
 		PathAnalysis:    pathStore,
 		ConfigBackup:    cfgBackup,
 		Firmware:        fwStore,
+		Speedtest:       stScheduler,
 		ChannelPlan:     chPlan,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()

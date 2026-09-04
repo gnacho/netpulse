@@ -128,6 +128,19 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	if v, ok := kvGetFloat(s.db.DB, wanSpeedUpKey); ok {
 		out.WAN.ContractUpMbps = &v
 	}
+	// Última medición real del speedtest (#511): el scheduler escribe la
+	// serie; aquí solo se expone la última para la tarjeta WAN. nil (demo o
+	// sin ningún test) → campos ausentes y la UI muestra su estado vacío.
+	if s.speedtest != nil {
+		if last, err := s.speedtest.Store().Latest(); err == nil && last != nil {
+			down, up := last.DownMbps, last.UpMbps
+			ts := last.TS.UnixMilli()
+			out.WAN.SpeedtestDownMbps = &down
+			out.WAN.SpeedtestUpMbps = &up
+			out.WAN.SpeedtestTs = &ts
+			out.WAN.SpeedtestServer = last.ServerName
+		}
+	}
 	writeJSON(w, http.StatusOK, &out)
 }
 

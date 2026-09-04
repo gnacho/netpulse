@@ -68,6 +68,13 @@ type WAN struct {
 	// adapter no los conoce.
 	ContractDownMbps *float64 `json:"contractDownMbps,omitempty"`
 	ContractUpMbps   *float64 `json:"contractUpMbps,omitempty"`
+	// Medición real del test de velocidad (issue #511), inyectada igual que
+	// la contratada: último resultado del scheduler. Puntero/0 = sin datos
+	// (feature desactivada o sin ningún test aún).
+	SpeedtestDownMbps *float64 `json:"speedtestDownMbps,omitempty"`
+	SpeedtestUpMbps   *float64 `json:"speedtestUpMbps,omitempty"`
+	SpeedtestTs       *int64   `json:"speedtestTsMs,omitempty"`
+	SpeedtestServer   string   `json:"speedtestServer,omitempty"`
 }
 
 // TrafficPoint es un punto {t, down, up} de las series de tráfico WAN.

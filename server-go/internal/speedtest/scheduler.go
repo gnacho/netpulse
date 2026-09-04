@@ -93,6 +93,9 @@ func NewScheduler(store *Store, db *sql.DB, runner Runner) *Scheduler {
 // adapter live en main).
 func (s *Scheduler) SetAlertEmitter(e AlertEmitter) { s.emit = e }
 
+// Store expone el store para las rutas de lectura (history/latest).
+func (s *Scheduler) Store() *Store { return s.store }
+
 // SetContractDown inyecta el lector del plan contratado.
 func (s *Scheduler) SetContractDown(fn func() (float64, bool)) { s.contractDown = fn }
 
