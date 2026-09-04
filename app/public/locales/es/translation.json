@@ -649,7 +649,14 @@
       "fiber": "Fibra {{plan}}",
       "publicIp": "IP pública",
       "title": "Red WAN",
-      "totalToday": "Total hoy"
+      "totalToday": "Total hoy",
+      "speedtestTitle": "Velocidad medida",
+      "speedtestEmpty": "Sin mediciones todavía. Actívalo en Ajustes o lanza un test.",
+      "speedtestRun": "Ejecutar test",
+      "speedtestRunning": "Midiendo...",
+      "speedtestFailed": "El último test falló",
+      "planPct": "{{pct}} % del plan",
+      "speedtestServer": "servidor {{name}}"
     },
     "wireguard": {
       "lastIp": "Última IP",
@@ -1276,7 +1283,25 @@
     "paletteNetpulse": "NetPulse",
     "paletteNoc": "NOC Calido",
     "palettePhosphor": "Fosforo",
-    "paletteElectric": "Electrico"
+    "paletteElectric": "Electrico",
+    "speedtest": {
+      "title": "Test de velocidad WAN",
+      "caption": "Medición periódica real desde el servidor contra speedtest.net",
+      "enabled": "Test periódico activado",
+      "interval": "Intervalo",
+      "intervalH": "cada {{hours}} h",
+      "alertPct": "Alertar por debajo del {{pct}} % del plan",
+      "alertPctHint": "0 = alerta desactivada. Usa el plan contratado declarado arriba (solo bajada).",
+      "serverId": "Servidor speedtest.net (ID, 0 = automático)",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "saved": "Guardado",
+      "saveError": "No se pudo guardar",
+      "invalid": "Valores inválidos",
+      "hint": "Cada test satura el enlace durante unos segundos y consume datos: evita intervalos cortos en líneas con límite de datos.",
+      "lastResult": "Último test: {{when}} · {{down}} Mbps ↓ / {{up}} Mbps ↑",
+      "unavailable": "No disponible en este modo"
+    }
   },
   "statcard": {
     "vsPrevious": "vs anterior"

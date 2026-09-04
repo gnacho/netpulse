@@ -85,6 +85,12 @@ export interface WanInfo {
   /** Velocidad contratada declarada por el admin (Mbps, issue #151). Ausente si no configurada. */
   contractDownMbps?: number
   contractUpMbps?: number
+  /** Última medición real del speedtest (issue #511). Ausente sin tests. */
+  speedtestDownMbps?: number
+  speedtestUpMbps?: number
+  /** Unix ms de la última medición. */
+  speedtestTsMs?: number
+  speedtestServer?: string
 }
 
 export interface TrafficPoint {
