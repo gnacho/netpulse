@@ -1400,7 +1400,7 @@
     "currentChannel": "Current channel",
     "recommendedChannel": "Recommended channel",
     "neighbors": "Neighbor APs",
-    "noScans": "No recent scans. Enable the agent on a router to collect neighbors.",
+    "noScans": "No recent scans for this router. Routers running NetGrip (gateway, APs managed by its panel) do not scan neighbors; routers with the NetPulse agent do. Pick another router from the list (e.g. rt2 or rt4) to see its plan.",
     "noRadios": "This router does not report WiFi radios.",
     "apply": "Apply channel",
     "gateway": " (Gateway)",
