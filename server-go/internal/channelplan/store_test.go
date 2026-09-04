@@ -188,3 +188,44 @@ func TestRecommendPasaSeccion(t *testing.T) {
 		t.Errorf("sin sección el iface debe caer al placeholder: %+v", *nosec)
 	}
 }
+
+func TestRecommendCurrentDfsChannelScoreNotMaxInt(t *testing.T) {
+	// #518: si el canal ACTUAL es DFS (112) y no está en candidateChannels
+	// (solo no-DFS), su score debe calcularse igual (es informativo) y no
+	// quedarse en MaxInt (la UI pintaba 9223372036854775807).
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	scans := []probe.ScanResult{
+		{Iface: "wlan1", BSSID: "aa:bb:cc:dd:ee:01", SSID: "V", Channel: 112, Freq: 5560, Signal: -60},
+		{Iface: "wlan1", BSSID: "aa:bb:cc:dd:ee:02", SSID: "W", Channel: 44, Freq: 5220, Signal: -55},
+		{Iface: "wlan1", BSSID: "aa:bb:cc:dd:ee:03", SSID: "X", Channel: 116, Freq: 5580, Signal: -70},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	radios := []probe.Radio{{Name: "5 GHz", Channel: 112, WidthMhz: 80}}
+	recs, err := st.Recommend("rt1", radios, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("esperaba 1 radio, got %d", len(recs))
+	}
+	rec := recs[0]
+	if rec.CurrentScore > 1_000_000_000_000 {
+		t.Fatalf("currentScore no debe ser MaxInt (canal DFS): %d", rec.CurrentScore)
+	}
+	if rec.Recommended == 112 {
+		t.Errorf("no debería recomendar el DFS 112 ocupado: %+v", rec)
+	}
+	if rec.Recommended != 36 {
+		t.Errorf("debería recomendar el 36 libre (no-DFS), got %d", rec.Recommended)
+	}
+}

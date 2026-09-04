@@ -165,6 +165,13 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 				bestCh = ch
 			}
 		}
+		// #518: el canal ACTUAL puede ser DFS (52/100/112/116...) y no estar en
+		// candidateChannels (solo no-DFS para recomendar). Su score es
+		// informativo ("cuánto ruido tengo ahora") y debe calcularse igual,
+		// no quedarse en MaxInt y pintar 9223372036854775807 en la UI.
+		if currentScore == math.MaxInt {
+			currentScore = channelScore(byBand[band], r.Channel)
+		}
 		if bestCh != 0 && bestScore != math.MaxInt {
 			rec.Recommended = bestCh
 			rec.CurrentScore = currentScore
