@@ -1078,6 +1078,50 @@ function noiseClass(dbm: number): string {
   return 'text-ok'
 }
 
+// spectrumCellColor (#535): color de la celda de canal según la ocupación.
+// Verde = libre, ámbar = ocupado, rojo = congestionado (misma escala busyClass).
+function spectrumCellBg(p: number): string {
+  if (p >= 70) return 'bg-danger/30'
+  if (p >= 40) return 'bg-warn/30'
+  return 'bg-ok/25'
+}
+
+// SurveySpectrum (#535): tira horizontal de espectro por radio. Un bloque por
+// canal (ordenado por frecuencia), coloreado por uso (busyPct), con el canal
+// en el que opera la radio (inUse) resaltado con borde. Tooltip con el detalle
+// (canal, frecuencia, ruido, uso). Visualización al estilo channel_analysis de
+// LuCI, sin tocar la tabla de detalle que se mantiene debajo.
+function SurveySpectrum({ radio }: { radio: SurveyRadio }) {
+  const { t } = useTranslation()
+  const chans = useMemo(() => [...radio.channels].sort((a, b) => a.freq - b.freq), [radio.channels])
+  if (chans.length === 0) return null
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex flex-col gap-1 pb-1">
+        <div className="flex items-end gap-1">
+          {chans.map((c) => (
+            <div key={c.freq} className="flex flex-col items-center gap-0.5">
+              <div
+                title={`${t('roaming.survey.colChannel')} ${c.channel} · ${c.freq} MHz · ${t('roaming.survey.colNoise')} ${c.noiseDbm} dBm · ${t('roaming.survey.colBusy')} ${c.busyPct.toFixed(1)}%`}
+                className={cn(
+                  'h-7 w-7 sm:w-8 rounded-md ring-1 ring-inset transition-colors',
+                  spectrumCellBg(c.busyPct),
+                  c.inUse
+                    ? 'ring-2 ring-accent'
+                    : 'ring-border/60',
+                )}
+              />
+              <span className={cn('font-mono text-[10px] leading-none', c.inUse ? 'font-semibold text-accent' : 'text-text-muted')}>
+                {c.channel}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SurveyPanel({
   overview,
   loading,
@@ -1181,6 +1225,10 @@ function SurveyPanel({
                 <div className="mb-2 flex items-center gap-2">
                   <span className="rounded-md bg-elevated px-2 py-0.5 font-mono text-caption text-text-secondary">{radio.device}</span>
                   <span className="text-caption text-text-muted">{radio.band}</span>
+                </div>
+                {/* Espectro por canal (#535): vista gráfica al estilo channel_analysis */}
+                <div className="mb-3">
+                  <SurveySpectrum radio={radio} />
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full border-separate border-spacing-0 text-left text-sm">
