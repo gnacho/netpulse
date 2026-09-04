@@ -29,6 +29,61 @@ func TestBuildDevicesArpFallback(t *testing.T) {
 	}
 }
 
+// TestBuildDevicesArpDiscovery: una MAC visible SOLO por ARP (sin wireless,
+// sin FDB, sin lease, sin device_attrib) aparece como dispositivo cableado
+// online con la IP de la tabla ARP y el RouterID del router que la reportó
+// (#507).
+func TestBuildDevicesArpDiscovery(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	polled := map[string]*routerPolled{
+		"patio": {
+			cfg: RouterConfig{ID: "patio", Name: "Patio", Host: "192.168.1.2"},
+			arp: map[string]string{
+				"AA:BB:CC:DD:EE:FF": "192.168.1.60",
+			},
+		},
+	}
+	devs := l.buildDevices(polled)
+	if len(devs) != 1 {
+		t.Fatalf("esperado 1 dispositivo, got %d: %+v", len(devs), devs)
+	}
+	d := devs[0]
+	if d.MAC != "AA:BB:CC:DD:EE:FF" {
+		t.Fatalf("MAC esperada AA:BB:CC:DD:EE:FF, got %q", d.MAC)
+	}
+	if d.IP != "192.168.1.60" {
+		t.Fatalf("IP esperada 192.168.1.60, got %q", d.IP)
+	}
+	if d.Band != "cable" {
+		t.Fatalf("Band esperada cable, got %q", d.Band)
+	}
+	if !d.Online {
+		t.Fatalf("Online esperado true (presencia ARP = activo reciente)")
+	}
+	if d.RouterID != "patio" {
+		t.Fatalf("RouterID esperado patio, got %q", d.RouterID)
+	}
+}
+
+// TestBuildDevicesArpRouterExcluded: una MAC de bridge/router presente en la
+// tabla ARP NO debe aparecer como dispositivo (#507).
+func TestBuildDevicesArpRouterExcluded(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	polled := map[string]*routerPolled{
+		"patio": {
+			cfg:   RouterConfig{ID: "patio", Name: "Patio", Host: "192.168.1.2"},
+			brMac: "AA:BB:CC:DD:EE:FF",
+			arp: map[string]string{
+				"AA:BB:CC:DD:EE:FF": "192.168.1.60",
+			},
+		},
+	}
+	devs := l.buildDevices(polled)
+	if len(devs) != 0 {
+		t.Fatalf("esperado 0 dispositivos (bridge MAC excluida), got %d: %+v", len(devs), devs)
+	}
+}
+
 func TestPolledFromAgentArp(t *testing.T) {
 	l := NewLive(nil, nil, nil, nil)
 	pl := &probe.Payload{Router: "patio", Version: "0.1.0"}
