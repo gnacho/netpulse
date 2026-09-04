@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
-import { AlertCircle, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { AlertCircle, CalendarClock, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
 import {
@@ -27,6 +27,8 @@ interface FirmwareUpgrade {
   backupPath?: string
   startedAt: number
   finishedAt?: number
+  /** Epoch ms UTC de una programación desatendida (#494); ausente = flujo manual. */
+  scheduledFor?: number
 }
 
 interface FirmwareItem {
@@ -52,6 +54,7 @@ const STATUS_COLORS: Record<string, string> = {
   flashing: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30',
   done: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
   failed: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
+  scheduled: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
 }
 
 export default function FirmwareUpgrades() {
@@ -66,6 +69,8 @@ export default function FirmwareUpgrades() {
   const [busy, setBusy] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  // #494: hora local elegida para programar (datetime-local) por router.
+  const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({})
 
   const sortedRouters = useMemo(() => {
     return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
@@ -164,10 +169,48 @@ export default function FirmwareUpgrades() {
     }
   }
 
+  // #494: programar un upgrade desatendido (hora local → epoch ms UTC).
+  const scheduleUpgrade = async (id: string) => {
+    const at = scheduleAt[id]
+    if (!at) return
+    const scheduledFor = new Date(at).getTime()
+    setBusy((prev) => ({ ...prev, [id]: 'schedule' }))
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledFor }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.message ?? await res.text())
+      await fetchItems()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy((prev) => ({ ...prev, [id]: '' }))
+    }
+  }
+
+  // #494: cancelar una programación aún no iniciada.
+  const cancelSchedule = async (id: string) => {
+    setBusy((prev) => ({ ...prev, [id]: 'cancel' }))
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/schedule`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      await fetchItems()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy((prev) => ({ ...prev, [id]: '' }))
+    }
+  }
+
   const upgradeActive = (item: FirmwareItem) => {
     const s = item.upgrade?.status
-    return !!s && s !== 'done' && s !== 'failed'
+    return !!s && s !== 'done' && s !== 'failed' && s !== 'scheduled'
   }
+
+  const scheduledPending = (item: FirmwareItem) => item.upgrade?.status === 'scheduled'
 
   // #477: el upgrade usa el target GUARDADO (no el buffer de edición), así
   // que el modal resume exactamente lo que se va a flashear.
@@ -217,6 +260,7 @@ export default function FirmwareUpgrades() {
         {items.map((item) => {
           const e = edits[item.routerId] ?? {}
           const active = upgradeActive(item)
+          const scheduled = scheduledPending(item)
           // #477 P2: resumen de lo detectado por el agente (board info).
           const detectedBits: string[] = []
           if (item.detectedModel || item.detectedBoard) {
@@ -339,7 +383,7 @@ export default function FirmwareUpgrades() {
               )}
 
               {isAdmin && (
-                <div className="mt-4 flex items-center gap-3">
+                <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => saveTarget(item.routerId)}
                     disabled={busy[item.routerId] === 'save' || !e.targetVersion || !e.targetUrl || !e.model}
@@ -347,17 +391,54 @@ export default function FirmwareUpgrades() {
                   >
                     {busy[item.routerId] === 'save' ? t('common.loading') : t('common.save')}
                   </button>
-                  <button
-                    onClick={() => setConfirmId(item.routerId)}
-                    disabled={active || busy[item.routerId] === 'upgrade' || !item.targetVersion}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
-                  >
-                    {active
-                      ? t('firmwareUpgrades.inProgress')
-                      : busy[item.routerId] === 'upgrade'
-                        ? t('common.loading')
-                        : t('firmwareUpgrades.upgrade')}
-                  </button>
+                  {scheduled ? (
+                    // #494: programación pendiente → hora + cancelar (sin
+                    // "actualizar ahora" para no pisar la fila programada).
+                    <>
+                      <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
+                        <CalendarClock className="h-4 w-4 text-accent" strokeWidth={1.75} />
+                        {t('firmwareUpgrades.scheduledFor', {
+                          time: item.upgrade?.scheduledFor ? new Date(item.upgrade.scheduledFor).toLocaleString() : '',
+                        })}
+                      </span>
+                      <button
+                        onClick={() => void cancelSchedule(item.routerId)}
+                        disabled={busy[item.routerId] === 'cancel'}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
+                      >
+                        {busy[item.routerId] === 'cancel' ? t('common.loading') : t('firmwareUpgrades.cancelSchedule')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setConfirmId(item.routerId)}
+                        disabled={active || busy[item.routerId] === 'upgrade' || !item.targetVersion}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
+                      >
+                        {active
+                          ? t('firmwareUpgrades.inProgress')
+                          : busy[item.routerId] === 'upgrade'
+                            ? t('common.loading')
+                            : t('firmwareUpgrades.upgrade')}
+                      </button>
+                      <input
+                        type="datetime-local"
+                        value={scheduleAt[item.routerId] ?? ''}
+                        onChange={(ev) => setScheduleAt((prev) => ({ ...prev, [item.routerId]: ev.target.value }))}
+                        disabled={active || !item.targetVersion}
+                        aria-label={t('firmwareUpgrades.scheduleAt')}
+                        className="h-9 rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary disabled:opacity-60"
+                      />
+                      <button
+                        onClick={() => void scheduleUpgrade(item.routerId)}
+                        disabled={active || busy[item.routerId] === 'schedule' || !scheduleAt[item.routerId] || !item.targetVersion}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
+                      >
+                        {busy[item.routerId] === 'schedule' ? t('common.loading') : t('firmwareUpgrades.schedule')}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

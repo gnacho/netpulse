@@ -1447,8 +1447,13 @@
       "verifying": "Verificando",
       "flashing": "Flasheando",
       "done": "Completada",
-      "failed": "Fallida"
+      "failed": "Fallida",
+      "scheduled": "Programada"
     },
+    "schedule": "Programar",
+    "scheduleAt": "Programar para",
+    "scheduledFor": "Programada para el {{time}}",
+    "cancelSchedule": "Cancelar programación",
     "dismiss": "Descartar aviso"
   },
   "orchestration": {

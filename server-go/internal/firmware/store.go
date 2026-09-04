@@ -29,6 +29,10 @@ type Upgrade struct {
 	BackupPath    string  `json:"backupPath,omitempty"`
 	StartedAt     int64   `json:"startedAt"`
 	FinishedAt    *int64  `json:"finishedAt,omitempty"`
+	// ScheduledFor: programación desatendida (#494), epoch ms UTC. nil = el
+	// upgrade es del flujo manual/inmediato. Nota: StartedAt/FinishedAt siguen
+	// en unix SEGUNDOS (convención previa), ScheduledFor en ms.
+	ScheduledFor *int64 `json:"scheduledFor,omitempty"`
 }
 
 // Store persiste targets y upgrades.
@@ -120,26 +124,29 @@ func (s *Store) SetStatus(id int64, status, errMsg, backupPath string) error {
 	return err
 }
 
-// LatestUpgrade devuelve el upgrade más reciente de un router.
-func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
+// rowScanner abstrae *sql.Row y *sql.Rows para un único helper de escaneo.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanUpgrade escanea una fila completa de firmware_upgrades (11 columnas,
+// incluida scheduled_for #494). Reutilizada por LatestUpgrade, GetUpgradeByID
+// y DueScheduled para no duplicar el mapeo de columnas.
+func scanUpgrade(sc rowScanner) (*Upgrade, error) {
 	var u Upgrade
-	var finished sql.NullInt64
+	var finished, scheduled sql.NullInt64
 	var errStr, backup sql.NullString
-	err := s.db.QueryRow(`
-		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at
-		FROM firmware_upgrades
-		WHERE router_id = ?
-		ORDER BY started_at DESC
-		LIMIT 1
-	`, routerID).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &errStr, &backup, &u.StartedAt, &finished)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
+	if err := sc.Scan(
+		&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum,
+		&u.Status, &errStr, &backup, &u.StartedAt, &finished, &scheduled,
+	); err != nil {
 		return nil, err
 	}
 	if finished.Valid {
 		u.FinishedAt = &finished.Int64
+	}
+	if scheduled.Valid {
+		u.ScheduledFor = &scheduled.Int64
 	}
 	if errStr.Valid {
 		u.Error = errStr.String
@@ -150,31 +157,37 @@ func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 	return &u, nil
 }
 
-// GetUpgradeByID busca un upgrade por ID (para validar propiedad del agente).
-func (s *Store) GetUpgradeByID(id int64) (*Upgrade, error) {
-	var u Upgrade
-	var finished sql.NullInt64
-	var errStr, backup sql.NullString
-	err := s.db.QueryRow(`
-		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at
-		FROM firmware_upgrades WHERE id = ?
-	`, id).Scan(&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum, &u.Status, &errStr, &backup, &u.StartedAt, &finished)
+// LatestUpgrade devuelve el upgrade más reciente de un router.
+func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
+	u, err := scanUpgrade(s.db.QueryRow(`
+		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for
+		FROM firmware_upgrades
+		WHERE router_id = ?
+		ORDER BY started_at DESC
+		LIMIT 1
+	`, routerID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if errStr.Valid {
-		u.Error = errStr.String
+	return u, nil
+}
+
+// GetUpgradeByID busca un upgrade por ID (para validar propiedad del agente).
+func (s *Store) GetUpgradeByID(id int64) (*Upgrade, error) {
+	u, err := scanUpgrade(s.db.QueryRow(`
+		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for
+		FROM firmware_upgrades WHERE id = ?
+	`, id))
+	if err == sql.ErrNoRows {
+		return nil, nil
 	}
-	if backup.Valid {
-		u.BackupPath = backup.String
+	if err != nil {
+		return nil, err
 	}
-	if finished.Valid {
-		u.FinishedAt = &finished.Int64
-	}
-	return &u, nil
+	return u, nil
 }
 
 // DismissLatest borra el último intento de upgrade del router si está
@@ -191,4 +204,81 @@ func (s *Store) DismissLatest(routerID string) error {
 	}
 	_, err = s.db.Exec(`DELETE FROM firmware_upgrades WHERE id = ?`, up.ID)
 	return err
+}
+
+// ScheduleUpgrade crea o actualiza la fila 'scheduled' del router (#494).
+// Una fila por router: si ya hay una pendiente, se actualizan target y hora;
+// si no, se inserta. scheduledFor es epoch ms UTC.
+func (s *Store) ScheduleUpgrade(routerID, targetVersion, targetURL, checksum string, scheduledFor int64) (int64, error) {
+	var id int64
+	err := s.db.QueryRow(`
+		SELECT id FROM firmware_upgrades WHERE router_id = ? AND status = 'scheduled'
+	`, routerID).Scan(&id)
+	switch {
+	case err == nil:
+		_, err = s.db.Exec(`
+			UPDATE firmware_upgrades
+			SET target_version = ?, target_url = ?, checksum = ?, scheduled_for = ?, started_at = ?
+			WHERE id = ?
+		`, targetVersion, targetURL, checksum, scheduledFor, time.Now().Unix(), id)
+		return id, err
+	case err == sql.ErrNoRows:
+		res, err := s.db.Exec(`
+			INSERT INTO firmware_upgrades (router_id, target_version, target_url, checksum, status, started_at, scheduled_for)
+			VALUES (?, ?, ?, ?, 'scheduled', ?, ?)
+		`, routerID, targetVersion, targetURL, checksum, time.Now().Unix(), scheduledFor)
+		if err != nil {
+			return 0, err
+		}
+		return res.LastInsertId()
+	default:
+		return 0, err
+	}
+}
+
+// CancelScheduled borra la fila 'scheduled' pendiente del router (#494).
+// No-op si no hay programación pendiente.
+func (s *Store) CancelScheduled(routerID string) error {
+	_, err := s.db.Exec(`
+		DELETE FROM firmware_upgrades WHERE router_id = ? AND status = 'scheduled'
+	`, routerID)
+	return err
+}
+
+// DueScheduled devuelve las programaciones vencidas (status 'scheduled' y
+// scheduled_for <= nowMs), ordenadas por hora para lanzarlas en orden.
+func (s *Store) DueScheduled(nowMs int64) ([]Upgrade, error) {
+	rows, err := s.db.Query(`
+		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for
+		FROM firmware_upgrades
+		WHERE status = 'scheduled' AND scheduled_for <= ?
+		ORDER BY scheduled_for ASC
+	`, nowMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Upgrade{}
+	for rows.Next() {
+		u, err := scanUpgrade(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *u)
+	}
+	return out, rows.Err()
+}
+
+// StartScheduled pasa una fila 'scheduled' vencida a 'requested' (#494).
+// Guarded: solo transiciona si sigue en 'scheduled' (single-flight frente a
+// un segundo tick o a un cancelado). Devuelve true si la transición se aplicó.
+func (s *Store) StartScheduled(id int64) (bool, error) {
+	res, err := s.db.Exec(`
+		UPDATE firmware_upgrades SET status = 'requested' WHERE id = ? AND status = 'scheduled'
+	`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
