@@ -1110,127 +1110,53 @@ interface ChannelPlanData {
   scans: Scan[]
 }
 
-// SurveyMatrix (#538): matriz tipo channel_analysis del LuCI, pero moderna:
-// filas = radios de cada router, columnas = canales (ordenados por frecuencia),
-// cada celda coloreada por uso (busyPct, heatmap verde→ámbar→rojo), el canal
-// en el que opera la radio (inUse) resaltado con anillo, y superpuestas las
-// redes vecinas (puntos por señal) de los scans del channel-plan. La tabla de
-// detalle se mantiene debajo del componente.
-function SurveyMatrix({
-  overview,
-  band,
-  scansByRouter,
-}: {
-  overview: SurveyOverview
-  band: SurveyBand
-  scansByRouter: Record<string, Scan[]>
-}) {
-  const bands: string[] = band === 'all' ? ['2.4 GHz', '5 GHz', '6 GHz'] : [band]
-  return (
-    <>
-      {bands
-        .filter(
-          (b) => overview.routers.some((r) => r.available && r.radios.some((rd) => rd.band === b)),
-        )
-        .map((b) => (
-          <SurveyMatrixBand
-            key={b}
-            band={b}
-            overview={overview}
-            scansByRouter={scansByRouter}
-          />
-        ))}
-    </>
-  )
-}
-
-function SurveyMatrixBand({
-  band,
-  overview,
-  scansByRouter,
-}: {
-  band: string
-  overview: SurveyOverview
-  scansByRouter: Record<string, Scan[]>
-}) {
+// SurveyBars (#538): gráfico de barras horizontales por canal para una radio
+// (estilo channel_analysis del LuCI, suave): cada canal es una fila con una
+// barra cuyo ancho indica la ocupación (busyPct, gradiente verde->ámbar->rojo)
+// y, apilados dentro de la barra, los vecinos detectados en ese canal (segmentos
+// coloreados por señal). El canal en uso se marca a la derecha. Tooltip con
+// el detalle de cada canal (frecuencia, ruido, uso, redes).
+function SurveyBars({ radio, scans }: { radio: SurveyRadio; scans: Scan[] }) {
   const { t } = useTranslation()
-  // Radios de esta banda (de todos los routers disponibles).
-  const radios = overview.routers
-    .filter((r) => r.available)
-    .flatMap((r) =>
-      r.radios
-        .filter((rd) => rd.band === band)
-        .map((rd) => ({ routerId: r.routerId, name: r.name, radio: rd })),
-    )
-  if (radios.length === 0) return null
-
-  // Columnas = canales presentes en la unión de todas las radios de la banda.
-  const chans = Array.from(new Set(radios.flatMap((x) => x.radio.channels.map((c) => c.channel ?? 0))))
-    .filter((c) => c > 0)
-    .sort((a, b) => a - b)
+  const chans = useMemo(() => [...radio.channels].sort((a, b) => a.freq - b.freq), [radio.channels])
+  if (chans.length === 0) return null
 
   return (
-    <div className="overflow-x-auto pb-1">
-      <div className="mb-1 flex items-center gap-2">
-        <span className="rounded-md bg-elevated px-2 py-0.5 text-caption font-medium text-text-secondary">{band}</span>
-        <span className="text-caption text-text-muted">{t('roaming.survey.matrixHint')}</span>
-      </div>
-      <div className="inline-flex flex-col gap-1.5">
-        {/* Cabecera de canales */}
-        <div className="flex items-center gap-1.5">
-          <div className="w-40 shrink-0" />
-          <div className="flex gap-1">
-            {chans.map((ch) => (
-              <div key={ch} className="w-10 shrink-0 text-center font-mono text-[10px] leading-none text-text-muted">
-                {ch}
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Filas = radios */}
-        {radios.map(({ routerId, name, radio }) => (
-          <div key={radio.device + routerId} className="flex items-center gap-1.5">
-            <div className="w-40 shrink-0 truncate text-caption text-text-secondary">
-              <span className="font-medium text-text-primary">{name}</span>
-              <span className="ml-1 font-mono text-[10px] text-text-muted">{radio.device}</span>
+    <div className="flex flex-col gap-1.5">
+      {chans.map((c) => {
+        const neighbors = scans.filter((s) => s.channel === c.channel && s.iface === radio.device)
+        const label = `${t('roaming.survey.colChannel')} ${c.channel} · ${c.freq} MHz · ${t('roaming.survey.colNoise')} ${c.noiseDbm} dBm · ${t('roaming.survey.colBusy')} ${c.busyPct.toFixed(1)}%` +
+          (neighbors.length ? '\n' + neighbors.map((s) => `${s.ssid} (${s.signal} dBm)`).join('\n') : '')
+        return (
+          <div key={c.freq} className="flex items-center gap-2">
+            <span className={cn('w-8 shrink-0 text-right font-mono text-mono-sm', c.inUse ? 'font-semibold text-accent' : 'text-text-muted')}>
+              {c.channel || '—'}
+            </span>
+            <div title={label} className="flex h-5 flex-1 items-stretch overflow-hidden rounded-full bg-canvas ring-1 ring-inset ring-border/50">
+              {/* Ocupación (ancho = busyPct, gradiente) */}
+              <div
+                className={cn('h-full rounded-l-full transition-[width] duration-500', spectrumCellBg(c.busyPct))}
+                style={{ width: `${Math.min(100, Math.max(1, c.busyPct))}%` }}
+              />
+              {/* Vecinos apilados (un segmento por red, color por señal) */}
+              {neighbors.slice(0, 8).map((s) => (
+                <span
+                  key={s.bssid}
+                  className={cn('my-1 w-1.5 shrink-0 rounded-full', signalDot(s.signal))}
+                />
+              ))}
             </div>
-            <div className="flex gap-1">
-              {chans.map((ch) => {
-                const c = radio.channels.find((x) => x.channel === ch)
-                const neighbors = (scansByRouter[routerId] ?? []).filter(
-                  (s) => s.channel === ch && s.iface === radio.device,
-                )
-                const label = c
-                  ? `${t('roaming.survey.colChannel')} ${ch} · ${c.freq} MHz · ${t('roaming.survey.colNoise')} ${c.noiseDbm} dBm · ${t('roaming.survey.colBusy')} ${c.busyPct.toFixed(1)}%\n` +
-                    neighbors.map((s) => `${s.ssid} (${s.signal} dBm)`).join('\n')
-                  : `${t('roaming.survey.colChannel')} ${ch}`
-                return (
-                  <div
-                    key={ch}
-                    title={label}
-                    className={cn(
-                      'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-md ring-1 ring-inset transition-colors',
-                      c ? spectrumCellBg(c.busyPct) : 'bg-muted/10 ring-border/40',
-                      c?.inUse && 'ring-2 ring-accent',
-                    )}
-                  >
-                    {neighbors.length > 0 && (
-                      <div className="flex items-center gap-0.5">
-                        {neighbors.map((s) => (
-                          <span key={s.bssid} className={cn('h-2 w-2 rounded-full', signalDot(s.signal))} />
-                        ))}
-                      </div>
-                    )}
-                    {c?.inUse && (
-                      <span className="absolute -top-1 right-1 h-1.5 w-1.5 rounded-full bg-accent" />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <span className={cn('w-14 shrink-0 font-mono text-[10px] text-text-muted', noiseClass(c.noiseDbm))}>
+              {c.noiseDbm} dBm
+            </span>
+            {c.inUse && (
+              <span className="shrink-0 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                {t('roaming.survey.inUse')}
+              </span>
+            )}
           </div>
-        ))}
-      </div>
+        )
+      })}
     </div>
   )
 }
@@ -1337,33 +1263,7 @@ function SurveyPanel({
         </div>
       </div>
 
-      {/* Matriz de canales por radio (#538): vista gráfica tipo channel_analysis */}
-      {overview.available && (
-        <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-          <h3 className="mb-3 font-display text-h3 text-text-primary">{t('roaming.survey.matrixTitle')}</h3>
-          <SurveyMatrix overview={overview} band={band} scansByRouter={scansByRouter} />
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ok/40 ring-1 ring-inset ring-ok/40" />
-              {t('roaming.survey.legendFree')}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warn/40 ring-1 ring-inset ring-warn/40" />
-              {t('roaming.survey.legendBusy')}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger/40 ring-1 ring-inset ring-danger/40" />
-              {t('roaming.survey.legendCongested')}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-accent" />
-              {t('roaming.survey.inUse')}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Tabla por router */}
+      {/* Grafiquito de canales por router (el de abajo dibuja las barras por radio) */}
       {overview.routers.map((r) => {
         const radios = r.radios.filter((rd) => band === 'all' || rd.band === band)
         if (!r.available || radios.length === 0) {
@@ -1382,6 +1282,10 @@ function SurveyPanel({
                 <div className="mb-2 flex items-center gap-2">
                   <span className="rounded-md bg-elevated px-2 py-0.5 font-mono text-caption text-text-secondary">{radio.device}</span>
                   <span className="text-caption text-text-muted">{radio.band}</span>
+                </div>
+                {/* Barras por canal (#538): uso + vecinos apilados, estilo channel_analysis */}
+                <div className="mb-3">
+                  <SurveyBars radio={radio} scans={scansByRouter[r.routerId] ?? []} />
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full border-separate border-spacing-0 text-left text-sm">

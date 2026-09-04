@@ -450,8 +450,6 @@
       "legendFree": "< 40% (libre)",
       "legendBusy": "40-70% (ocupado)",
       "legendCongested": "≥ 70% (congestionado)",
-      "matrixTitle": "Matriz de canales",
-      "matrixHint": "cada punto es una red vecina en ese canal (señal)"
     },
     "events": {
       "title": "Eventos de itinerancia",
