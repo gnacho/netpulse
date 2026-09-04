@@ -400,7 +400,8 @@
     "kick": {
       "title": "Expulsar del AP para forzar reconexión",
       "label": "Expulsar a {{name}}",
-      "error": "No se pudo expulsar al cliente"
+      "error": "No se pudo expulsar al cliente",
+      "notFound": "ya no está conectado a ningún punto de acceso: puede que se haya desconectado o movido a otra red. La lista se refresca sola."
     },
     "dot11r": {
       "title": "Estado 802.11r",
