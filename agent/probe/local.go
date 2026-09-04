@@ -154,9 +154,14 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 	if out := p.runBest(ctx, CmdUbusSystemInfo, 0); out != "" {
 		var si SysInfo
 		if err := json.Unmarshal([]byte(out), &si); err == nil {
-			// Report the used amount as process RSS so the server does not
-			// overreport on ubifs/overlay routers (#513).
 			if si.Memory.Total > 0 {
+				// ubus system info no expone la caché de ficheros, la lee el
+				// agente de /proc/meminfo (fallback silencioso si no existe).
+				if cached := readMeminfoCachedKB(); cached > 0 {
+					si.Memory.Cached = float64(cached) * 1024
+				}
+				// Y el uso real (lo que el usuario percibe) es la memoria de
+				// los procesos; así el server no sobreestima en ubifs (#513).
 				if rss := sumProcRSS(); rss > 0 && rss < si.Memory.Total {
 					si.Memory.Used = rss
 				}
@@ -282,8 +287,19 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		}
 		if combined == "" {
 			if out := p.runBest(ctx, CmdRadios, 8*time.Second); out != "" {
+				radios := ParseRadios(out)
+				// Sección UCI por banda (#500): habilita aplicar cambios de
+				// canal desde el server. Best-effort: sin uci, sin sección.
+				if secOut := p.runBest(ctx, CmdRadioSections, 5*time.Second); secOut != "" {
+					sections := ParseRadioSections(secOut)
+					for i := range radios {
+						if sec, ok := sections[radios[i].Name]; ok {
+							radios[i].Section = sec
+						}
+					}
+				}
 				p.radiosMu.Lock()
-				p.radiosCache, p.radiosAt = ParseRadios(out), time.Now()
+				p.radiosCache, p.radiosAt = radios, time.Now()
 				wd.Radios = p.radiosCache
 				p.radiosMu.Unlock()
 			}

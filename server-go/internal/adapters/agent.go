@@ -12,7 +12,6 @@ package adapters
 
 import (
 	"fmt"
-	"math"
 	"strings"
 	"sync"
 	"time"
@@ -515,15 +514,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	}
 	mem := sysInfo.Memory
 	if mem.Total > 0 {
-		if mem.Used > 0 && mem.Used < mem.Total {
-			ramPct = int(math.Round(mem.Used / mem.Total * 100))
-		} else {
-			avail := mem.Available
-			if avail == 0 {
-				avail = mem.Free + mem.Buffered
-			}
-			ramPct = int(math.Round((mem.Total - avail) / mem.Total * 100))
-		}
+		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used)
 	}
 	out.sysInfo = sysInfo
 	out.ram = ramPct

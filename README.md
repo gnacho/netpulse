@@ -132,6 +132,17 @@ only been tested with my own hardware (a GL.iNet Flint 2 gateway and three
 Xiaomi AX6 access points running OpenWrt) plus WireGuard and AdGuard Home.
 Other OpenWrt devices should work, but yours would be the first to tell.
 
+## User manual
+
+Area by area and menu by menu, what each screen shows, what data it needs,
+how to read it and the design decisions behind it, plus step-by-step
+procedures (add a router, read the health score, use the topology map,
+interpret the channel plan, schedule a firmware upgrade, reserve an IP,
+block a device):
+
+- [Manual de usuario (español)](docs/manual.es.md)
+- [User manual (English)](docs/manual.en.md)
+
 ## Roadmap
 
 | Phase | Status | Highlights |

@@ -79,6 +79,13 @@ func validWanSpeed(v float64) bool {
 	return v > 0 && v <= maxContractMbps
 }
 
+// WanContractDown expone el plan contratado de bajada (#151) fuera del
+// paquete: lo usa cmd/netpulse para inyectárselo al scheduler del speedtest
+// (#511) sin duplicar la clave kv.
+func WanContractDown(handle *sql.DB) (float64, bool) {
+	return kvGetFloat(handle, wanSpeedDownKey)
+}
+
 // registerSettingsRoutes: GET/PUT /api/settings/orchestration (admin) y
 // GET/PUT /api/settings/wanspeed (admin, #151).
 func (s *server) registerSettingsRoutes(mux *http.ServeMux) {

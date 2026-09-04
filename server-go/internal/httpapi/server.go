@@ -36,6 +36,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -51,7 +52,7 @@ import (
 // Version es la versión del backend (app.js:18). Es una var (no const) para
 // que goreleaser la inyecte con -X httpapi.Version={{.Version}} y el health
 // reporte la versión del tag; los builds locales caen al fallback.
-var Version = "2.26.7"
+var Version = "2.28.0"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {
@@ -109,6 +110,8 @@ type Deps struct {
 	ConfigBackup *configbackup.Store
 	// Firmware: targets y upgrades de firmware (#453).
 	Firmware *firmware.Store
+	// Speedtest: scheduler del test periódico WAN (#511). nil → 503.
+	Speedtest *speedtest.Scheduler
 }
 
 type server struct {
@@ -179,6 +182,13 @@ type server struct {
 
 	// Firmware: targets y upgrades de firmware (#453).
 	firmware *firmware.Store
+	// FirmwareEngine: motor compartido de upgrades (manual + programados #494).
+	// Se construye desde Deps.Firmware + Deps.AgentHub.
+	firmwareEngine *firmware.Engine
+
+	// Speedtest: scheduler del test de velocidad WAN (#511). nil → rutas
+	// /api/speedtest/* y /api/settings/speedtest responden 503 (demo).
+	speedtest *speedtest.Scheduler
 }
 
 // NewHandler ensambla el handler HTTP completo (API + estáticos + SPA).
@@ -201,6 +211,8 @@ func NewHandler(d Deps) http.Handler {
 		pathAnalysis:    d.PathAnalysis,
 		configBackup:    d.ConfigBackup,
 		firmware:        d.Firmware,
+		firmwareEngine:  firmware.NewEngine(d.Firmware, d.AgentHub),
+		speedtest:       d.Speedtest,
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -406,6 +418,7 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Ajustes globales en kv (issue #121: orchestration opt-in) ---
 	s.registerSettingsRoutes(mux)
+	s.registerSpeedtestRoutes(mux)
 
 	// --- Copias de seguridad (issue #158) ---
 	s.registerBackupRoutes(mux)
@@ -476,7 +489,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		// Nunca silenciar: un marshal roto dejaría la respuesta sin body
+		// (201 con Content-Length 0 que rompe a los clientes JSON).
+		log.Printf("[netpulse] writeJSON encode error (status %d, %T): %v", status, v, err)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(bytes.TrimSuffix(buf.Bytes(), []byte("\n")))

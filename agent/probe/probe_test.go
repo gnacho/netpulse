@@ -371,6 +371,46 @@ func TestParseFdbExcluyeWireless(t *testing.T) {
 	}
 }
 
+// TestParseFdbDenylistPuertos — #506: el allowlist histórico descartaba en
+// silencio puertos físicos con nombres no enumerados (las jaulas SFP del
+// BPI-R4 se llaman sfp-lan/sfp-wan; también "lan" suelto o usb0). El filtro
+// invertido conserva cualquier miembro físico del bridge y solo excluye
+// wireless (phy*-ap*, wlan*) y virtuales (br*, lo, veth*, wg*, túneles,
+// subinterfaces VLAN).
+func TestParseFdbDenylistPuertos(t *testing.T) {
+	out := "==PORTS==\n" +
+		"1 sfp-lan\n2 sfp-wan\n3 eth1\n4 lan\n5 usb0\n6 swp1\n7 enp2s0\n" +
+		"8 phy0-ap0\n9 phy1-ap1\n10 wlan0\n11 br-lan\n12 br0\n13 lo\n" +
+		"14 veth0\n15 wg0\n16 tunl0\n17 tap0\n18 pppoe-wan\n19 lan1.10\n" +
+		"==MACS==\n" +
+		// sfp-lan resuelto por port_no (vía brctl); el resto por nombre.
+		"1 aa:00:00:00:00:01\n" +
+		"sfp-wan aa:00:00:00:00:02\neth1 aa:00:00:00:00:03\nlan aa:00:00:00:00:04\n" +
+		"usb0 aa:00:00:00:00:05\nswp1 aa:00:00:00:00:06\nenp2s0 aa:00:00:00:00:07\n" +
+		"phy0-ap0 bb:00:00:00:00:01\nphy1-ap1 bb:00:00:00:00:02\nwlan0 bb:00:00:00:00:03\n" +
+		"br-lan bb:00:00:00:00:04\nbr0 bb:00:00:00:00:05\nlo bb:00:00:00:00:06\nveth0 bb:00:00:00:00:07\n" +
+		"wg0 bb:00:00:00:00:08\ntunl0 bb:00:00:00:00:09\ntap0 bb:00:00:00:00:0a\n" +
+		"pppoe-wan bb:00:00:00:00:0b\nlan1.10 bb:00:00:00:00:0c\n"
+	fdb := ParseBridgeFdb(out)
+	want := map[string]string{
+		"AA:00:00:00:00:01": "sfp-lan",
+		"AA:00:00:00:00:02": "sfp-wan",
+		"AA:00:00:00:00:03": "eth1",
+		"AA:00:00:00:00:04": "lan",
+		"AA:00:00:00:00:05": "usb0",
+		"AA:00:00:00:00:06": "swp1",
+		"AA:00:00:00:00:07": "enp2s0",
+	}
+	if len(fdb) != len(want) {
+		t.Fatalf("esperaba %d MACs (solo puertos físicos), tengo %d: %+v", len(want), len(fdb), fdb)
+	}
+	for mac, port := range want {
+		if fdb[mac] != port {
+			t.Fatalf("MAC %s: esperaba puerto %s, tengo %q", mac, port, fdb[mac])
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Prober local con runner fake
 // ---------------------------------------------------------------------------
@@ -935,5 +975,46 @@ func TestBoardInfoParsesASUFields(t *testing.T) {
 	}
 	if b.Model != "Redmi AX6" || b.Hostname != "rt4" || b.Release.Version != "25.12.5" {
 		t.Errorf("campos básicos corruptos: %+v", b)
+	}
+}
+
+func TestParseRadioSections(t *testing.T) {
+	out := `wireless.radio0=wifi-device
+wireless.radio0.type='mac80211'
+wireless.radio0.band='2g'
+wireless.radio0.channel='1'
+wireless.default_radio0=wifi-iface
+wireless.radio1=wifi-device
+wireless.radio1.band='5g'
+wireless.radio1.channel='44'
+wireless.default_radio1=wifi-iface
+`
+	got := ParseRadioSections(out)
+	if len(got) != 2 {
+		t.Fatalf("want 2 sections, got %d: %v", len(got), got)
+	}
+	if got["2.4 GHz"] != "radio0" || got["5 GHz"] != "radio1" {
+		t.Errorf("wrong mapping: %v", got)
+	}
+}
+
+func TestParseRadioSectionsLegacyHwmode(t *testing.T) {
+	out := `wireless.wifi0=wifi-device
+wireless.wifi0.hwmode='11g'
+wireless.wifi1=wifi-device
+wireless.wifi1.hwmode='11a'
+`
+	got := ParseRadioSections(out)
+	if got["2.4 GHz"] != "wifi0" || got["5 GHz"] != "wifi1" {
+		t.Errorf("wrong legacy hwmode mapping: %v", got)
+	}
+}
+
+func TestParseRadioSectionsEmpty(t *testing.T) {
+	if got := ParseRadioSections(""); len(got) != 0 {
+		t.Errorf("want empty map, got %v", got)
+	}
+	if got := ParseRadioSections("network.lan=interface\n"); len(got) != 0 {
+		t.Errorf("want empty map for unrelated config, got %v", got)
 	}
 }

@@ -400,7 +400,8 @@
     "kick": {
       "title": "Expulsar del AP para forzar reconexión",
       "label": "Expulsar a {{name}}",
-      "error": "No se pudo expulsar al cliente"
+      "error": "No se pudo expulsar al cliente",
+      "notFound": "ya no está conectado a ningún punto de acceso: puede que se haya desconectado o movido a otra red. La lista se refresca sola."
     },
     "dot11r": {
       "title": "Estado 802.11r",
@@ -448,7 +449,9 @@
       "inUse": "En uso",
       "legendFree": "< 40% (libre)",
       "legendBusy": "40-70% (ocupado)",
-      "legendCongested": "≥ 70% (congestionado)"
+      "legendCongested": "≥ 70% (congestionado)",
+      "matrixTitle": "Matriz de canales",
+      "matrixHint": "cada punto es una red vecina en ese canal (señal)"
     },
     "events": {
       "title": "Eventos de itinerancia",
@@ -649,7 +652,14 @@
       "fiber": "Fibra {{plan}}",
       "publicIp": "IP pública",
       "title": "Red WAN",
-      "totalToday": "Total hoy"
+      "totalToday": "Total hoy",
+      "speedtestTitle": "Velocidad medida",
+      "speedtestEmpty": "Sin mediciones todavía. Actívalo en Ajustes o lanza un test.",
+      "speedtestRun": "Ejecutar test",
+      "speedtestRunning": "Midiendo...",
+      "speedtestFailed": "El último test falló",
+      "planPct": "{{pct}} % del plan",
+      "speedtestServer": "servidor {{name}}"
     },
     "wireguard": {
       "lastIp": "Última IP",
@@ -1276,7 +1286,25 @@
     "paletteNetpulse": "NetPulse",
     "paletteNoc": "NOC Calido",
     "palettePhosphor": "Fosforo",
-    "paletteElectric": "Electrico"
+    "paletteElectric": "Electrico",
+    "speedtest": {
+      "title": "Test de velocidad WAN",
+      "caption": "Medición periódica real desde el servidor contra speedtest.net",
+      "enabled": "Test periódico activado",
+      "interval": "Intervalo",
+      "intervalH": "cada {{hours}} h",
+      "alertPct": "Alertar por debajo del {{pct}} % del plan",
+      "alertPctHint": "0 = alerta desactivada. Usa el plan contratado declarado arriba (solo bajada).",
+      "serverId": "Servidor speedtest.net (ID, 0 = automático)",
+      "save": "Guardar",
+      "saving": "Guardando...",
+      "saved": "Guardado",
+      "saveError": "No se pudo guardar",
+      "invalid": "Valores inválidos",
+      "hint": "Cada test satura el enlace durante unos segundos y consume datos: evita intervalos cortos en líneas con límite de datos.",
+      "lastResult": "Último test: {{when}} · {{down}} Mbps ↓ / {{up}} Mbps ↑",
+      "unavailable": "No disponible en este modo"
+    }
   },
   "statcard": {
     "vsPrevious": "vs anterior"
@@ -1354,6 +1382,13 @@
       "changelogFallback": "No se ha podido cargar el changelog.",
       "changelogLink": "Ver notas del release en GitHub",
       "downNotice": "El servicio estará caído mientras se reinicia"
+    },
+    "errors": {
+      "exitRestart": "El servidor se reinició para aplicar la actualización (el paso final normal). Si en unos minutos la versión no ha cambiado, vuelve a comprobar actualizaciones.",
+      "exitCode": "El proceso de actualización terminó con el código {{code}}. Revisa el registro para más detalle.",
+      "noTarget": "No se conoce la versión objetivo: comprueba actualizaciones antes de aplicar.",
+      "noToken": "Se alcanzó el límite de peticiones a GitHub; se recupera solo en la próxima hora. Reintenta más tarde.",
+      "generic": "La actualización falló ({{code}}). Revisa el registro para más detalle."
     }
   },
   "demo": {
@@ -1368,9 +1403,21 @@
     "currentChannel": "Canal actual",
     "recommendedChannel": "Canal recomendado",
     "neighbors": "APs vecinos",
-    "noScans": "No hay scans recientes. Activa el agente en un router para recoger vecinos.",
+    "noScans": "Sin escaneos recientes para este router. Los routers que corren NetGrip (gateway, APs gestionados por su panel) no escanean vecinos; los que llevan el agente NetPulse sí. Selecciona otro router de la lista (p. ej. rt2 o rt4) para ver su plan.",
     "noRadios": "Este dispositivo no reporta radios WiFi.",
     "apply": "Aplicar canal",
+    "gateway": " (Puerta de enlace)",
+    "signal": "Señal",
+    "score": "Puntuación",
+    "updateAgent": "Actualiza el agente del router para poder aplicar el canal.",
+    "applyingState": "Aplicando…",
+    "appliedState": "Canal aplicado",
+    "failedState": "No se pudo aplicar",
+    "revertTo": "Volver al {{ch}}",
+    "timeout": "Sin respuesta del plan (tiempo agotado)",
+    "applyConfirmTitle": "Cambiar el canal de {{band}}",
+    "applyConfirmBody": "El canal de {{band}} pasará de {{from}} a {{to}}. La red de ese router se reiniciará unos segundos y sus clientes WiFi se reconectarán. El cambio queda registrado como plan y podrás volver al canal anterior con un clic.",
+    "applyConfirmAction": "Aplicar",
     "scanInfo": "Scans de las últimas 24 h"
   },
   "firmwareUpgrades": {
@@ -1403,8 +1450,14 @@
       "verifying": "Verificando",
       "flashing": "Flasheando",
       "done": "Completada",
-      "failed": "Fallida"
-    }
+      "failed": "Fallida",
+      "scheduled": "Programada"
+    },
+    "schedule": "Programar",
+    "scheduleAt": "Programar para",
+    "scheduledFor": "Programada para el {{time}}",
+    "cancelSchedule": "Cancelar programación",
+    "dismiss": "Descartar aviso"
   },
   "orchestration": {
     "title": "Orquestación",

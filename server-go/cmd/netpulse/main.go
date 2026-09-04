@@ -42,6 +42,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -424,6 +425,10 @@ func run() error {
 		return checkAgentToken(dbHandle, slug, token)
 	})
 
+	// Scheduler de upgrades programados (#494): tick 30 s, reutiliza el motor
+	// compartido (firmware.Engine) del flujo manual vía el AgentHub.
+	fwScheduler := firmware.NewScheduler(fwStore, firmware.NewEngine(fwStore, agentHub))
+
 	// Fase 9 R2/R3: TLS autofirmado + pairing token (on-box only).
 	// Se generan ANTES del handler para que serverFP esté disponible en Deps.
 	var (
@@ -450,6 +455,32 @@ func run() error {
 		}
 	}
 
+	// Speedtest WAN periódico (#511): store + runner + scheduler. Las
+	// alertas de "velocidad por debajo del plan" se emiten por el MISMO
+	// motor del adapter (la lista de eventos es por instancia). Solo en
+	// live: en demo no hay red real que medir y las rutas quedan en 503.
+	var stScheduler *speedtest.Scheduler
+	if !cfg.DemoMode {
+		stStore, err := speedtest.NewStore(dbHandle.DB)
+		if err != nil {
+			return fmt.Errorf("speedtest schema: %w", err)
+		}
+		stScheduler = speedtest.NewScheduler(stStore, dbHandle.DB, speedtest.SpeedtestNetRunner{})
+		if adapter != nil {
+			stScheduler.SetAlertEmitter(adapter.AlertsEngine())
+		}
+		stScheduler.SetContractDown(func() (float64, bool) {
+			return httpapi.WanContractDown(dbHandle.DB)
+		})
+		// El snapshot SSE debe llevar las mismas inyecciones kv que
+		// /api/overview (contratado #151, speedtest #511): sin esto el
+		// primer evento pisaría los campos en la UI.
+		p.SetEnrich(func(ov *adapters.Overview) {
+			httpapi.EnrichOverview(dbHandle.DB, stScheduler, ov)
+		})
+		go stScheduler.Start()
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
 		DB:              dbHandle,
@@ -470,6 +501,7 @@ func run() error {
 		PathAnalysis:    pathStore,
 		ConfigBackup:    cfgBackup,
 		Firmware:        fwStore,
+		Speedtest:       stScheduler,
 		ChannelPlan:     chPlan,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
@@ -514,6 +546,7 @@ func run() error {
 		log.Printf("[netpulse] datos: %s · estáticos: %s", cfg.DataDir, staticDesc)
 		p.Start()
 		upd.Start()
+		go fwScheduler.Start()
 		if eventsCollector != nil {
 			eventsCollector.Start()
 		}
@@ -543,6 +576,7 @@ func run() error {
 		}
 		p.Stop()
 		upd.Stop()
+		fwScheduler.Stop()
 		if eventsCollector != nil {
 			eventsCollector.Stop()
 		}

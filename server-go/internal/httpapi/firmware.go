@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
@@ -99,8 +100,23 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		writeJSON(w, http.StatusOK, out)
 	})))
 
-	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("routerId")
+	// DELETE /api/firmware-upgrades/{routerId}/failure: descarta el último
+	// intento de upgrade terminado (failed/done) del router (#519). Permite
+	// cerrar un aviso de error obsoleto sin poder cancelar un upgrade vivo.
+	mux.Handle("DELETE /api/firmware-upgrades/{routerId}/failure", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		routerID := r.PathValue("routerId")
+		if routerID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "routerId requerido")
+			return
+		}
+		if err := s.firmware.DismissLatest(routerID); err != nil {
+			writeError(w, http.StatusInternalServerError, "firmware_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})))
+
+	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {		id := r.PathValue("routerId")
 		item, err := s.firmwareStatus(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error")
@@ -145,47 +161,78 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/upgrade", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("routerId")
+		// #494: el flujo manual delega en el motor compartido (mismo que el
+		// scheduler). El contrato HTTP no cambia: mismos códigos y mensajes.
+		if s.agentHub == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
+			return
+		}
+		upgradeID, err := s.firmwareEngine.StartUpgrade(id)
+		switch {
+		case errors.Is(err, firmware.ErrNoTarget):
+			writeError(w, http.StatusBadRequest, "no_target", "Configura el target de firmware antes de actualizar")
+		case errors.Is(err, firmware.ErrUpgradeInProgress):
+			writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
+		case errors.Is(err, firmware.ErrAgentNotConnected):
+			writeError(w, http.StatusServiceUnavailable, "agent_not_connected", "El agente no está conectado vía SSE")
+		case err != nil:
+			writeError(w, http.StatusInternalServerError, "firmware_error")
+		default:
+			writeJSON(w, http.StatusAccepted, map[string]any{"upgradeId": upgradeID, "status": "requested"})
+		}
+	})))
+
+	// POST /api/firmware-upgrades/{routerId}/schedule: programa un upgrade
+	// desatendido para el target conocido del router (#494).
+	mux.Handle("POST /api/firmware-upgrades/{routerId}/schedule", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("routerId")
+		var body struct {
+			ScheduledFor int64 `json:"scheduledFor"`
+		}
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
+			return
+		}
+		if body.ScheduledFor <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid_body", "scheduledFor (epoch ms) es requerido")
+			return
+		}
 		target, err := s.firmware.GetTarget(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error")
 			return
 		}
 		if target == nil || target.TargetURL == "" {
-			writeError(w, http.StatusBadRequest, "no_target", "Configura el target de firmware antes de actualizar")
+			writeError(w, http.StatusBadRequest, "no_target", "Configura el target de firmware antes de programar")
 			return
 		}
-
-		// Si hay un upgrade en curso reciente, rechazar.
-		if up, _ := s.firmware.LatestUpgrade(id); up != nil && up.Status != "done" && up.Status != "failed" {
-			writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
+		// Rechazar si hay un upgrade activo; una programación ya pendiente se
+		// actualiza (UPSERT en el store), no se duplica.
+		if up, _ := s.firmware.LatestUpgrade(id); up != nil && up.Status != "done" && up.Status != "failed" && up.Status != "scheduled" {
+			writeError(w, http.StatusBadRequest, "upgrade_in_progress", "Ya hay un upgrade en curso")
 			return
 		}
-
-		upgradeID, err := s.firmware.BeginUpgrade(id, target.TargetVersion, target.TargetURL, target.Checksum)
+		upgradeID, err := s.firmware.ScheduleUpgrade(id, target.TargetVersion, target.TargetURL, target.Checksum, body.ScheduledFor)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error")
 			return
 		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "upgradeId": upgradeID})
+	})))
 
-		// Enviar comando al agente vía SSE.
-		if s.agentHub == nil {
-			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
+	// DELETE /api/firmware-upgrades/{routerId}/schedule: cancela una
+	// programación aún no iniciada (#494). No-op si no hay ninguna.
+	mux.Handle("DELETE /api/firmware-upgrades/{routerId}/schedule", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		routerID := r.PathValue("routerId")
+		if routerID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "routerId requerido")
 			return
 		}
-		cmd := map[string]any{
-			"upgradeId":  upgradeID,
-			"targetUrl":  target.TargetURL,
-			"checksum":   target.Checksum,
-			"keepConfig": true,
-		}
-		if !s.agentHub.Send(id, "firmware_upgrade", cmd) {
-			// El agente no está conectado: marcar fallo y devolver 503.
-			_ = s.firmware.SetStatus(upgradeID, "failed", "agent not connected", "")
-			writeError(w, http.StatusServiceUnavailable, "agent_not_connected", "El agente no está conectado vía SSE")
+		if err := s.firmware.CancelScheduled(routerID); err != nil {
+			writeError(w, http.StatusInternalServerError, "firmware_error")
 			return
 		}
-		_ = s.firmware.SetStatus(upgradeID, "requested", "", "")
-		writeJSON(w, http.StatusAccepted, map[string]any{"upgradeId": upgradeID, "status": "requested"})
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})))
 
 	// El agente reporta progreso del upgrade (Bearer, misma auth que ingesta).

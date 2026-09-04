@@ -935,21 +935,13 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood, vlans: vlansGood}
 	l.mu.Unlock()
 
-	// Uso real de RAM: preferimos la memoria de los procesos (reportada por el
-	// agente como sumProcRSS) porque (total-available) sobrereporta en routers
-	// ubifs/overlay (#513); si el agente no la trae, caemos al cálculo clásico.
+	// Uso de RAM: #513. Si el agente reporta memory.used (procesos) lo
+	// usamos (lo que el usuario percibe como uso real); si no, la fórmula
+	// clásica sin caché reclamable (Cached) o MemAvailable. Ver memUsagePct.
 	mem := sysInfo.Memory
 	ramPct := 0
 	if mem.Total > 0 {
-		if mem.Used > 0 && mem.Used < mem.Total {
-			ramPct = int(math.Round(mem.Used / mem.Total * 100))
-		} else {
-			avail := mem.Available
-			if avail == 0 {
-				avail = mem.Free + mem.Buffered
-			}
-			ramPct = int(math.Round((mem.Total - avail) / mem.Total * 100))
-		}
+		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used)
 	}
 
 	isGw := gw != nil && cfg.ID == gw.ID
@@ -1842,6 +1834,34 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 					}
 				}
 			}
+		}
+	}
+	// (4) ARP (#507): hosts cableados con IP estática visibles SOLO en la
+	// tabla ARP del router (ni wireless, ni FDB, ni lease, ni device_attrib).
+	// Presencia en la tabla = activo recientemente → online este tick. No se
+	// persiste: cuando la entrada envejece, el host desaparece del snapshot.
+	// Se itera en orden de router ID para atribuir deterministamente el
+	// RouterID correcto cuando varios routers ven la misma MAC (misma LAN).
+	// La exclusión de MACs de router/bridge se aplica en el bucle de
+	// dispositivos (routerMacs), igual que para leases/known: aquí no se
+	// duplica ese filtro.
+	arpRouterIDs := make([]string, 0, len(polled))
+	for routerID := range polled {
+		arpRouterIDs = append(arpRouterIDs, routerID)
+	}
+	sort.Strings(arpRouterIDs)
+	for _, routerID := range arpRouterIDs {
+		for mac := range polled[routerID].arp {
+			if _, ok := seen[mac]; ok {
+				continue
+			}
+			if _, ok := leasesByMac[mac]; ok {
+				continue
+			}
+			if _, ok := known[mac]; ok {
+				continue
+			}
+			seen[mac] = seenInfo{routerID, "cable", nil}
 		}
 	}
 

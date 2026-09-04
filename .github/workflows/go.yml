@@ -39,7 +39,7 @@ jobs:
       # (agentbin.EmbeddedAgentVersion): el campo updateAvailable de
       # GET /api/agents compara la versión reportada del agente contra esa
       # versión. Bumpear aquí y en agentbin.md el valor único de verdad.
-      AGENT_VERSION: "0.2.0"
+      AGENT_VERSION: "2.26.11"
     strategy:
       matrix:
         arch: [amd64, arm64]

@@ -28,6 +28,13 @@ type Poller struct {
 	db      *db.DB
 	hub     *sse.Hub
 
+	// enrich (opcional) inyecta en cada overview los campos que viven en el
+	// kv del server (orchestration, plan contratado #151, speedtest #511)
+	// ANTES de cacheálo y emitirlo por SSE. Sin esto, el snapshot del SSE
+	// pisaría la copia enriquecida que sirvió /api/overview y esos campos
+	// desaparecerían de la UI al primer evento.
+	enrich func(*adapters.Overview)
+
 	mu           sync.RWMutex
 	lastOverview *adapters.Overview
 	lastAdguard  *adapters.AdGuardStats
@@ -94,11 +101,25 @@ func (p *Poller) tickOnce() {
 	p.tick()
 }
 
-// Stop detiene el bucle y espera a que termine el tick en curso.
+// SetEnrich fija el hook de enriquecimiento del overview (main lo cablea con
+// las inyecciones kv del httpapi).
+func (p *Poller) SetEnrich(fn func(*adapters.Overview)) { p.enrich = fn }
+
+// stopWait acota cuánto espera Stop al tick en curso. Issue #481: un sondeo
+// SNMP/SSH lento (o una primitiva de red sin deadline) no debe colgar el
+// apagado hasta que systemd mate el proceso por TimeoutStopSec; cuando main
+// retorna, el proceso muere igualmente y se lleva la goroutine colgada.
+var stopWait = 15 * time.Second
+
+// Stop detiene el bucle y espera al tick en curso como mucho stopWait.
 func (p *Poller) Stop() {
 	p.once.Do(func() {
 		close(p.stopCh)
-		<-p.doneCh
+		select {
+		case <-p.doneCh:
+		case <-time.After(stopWait):
+			log.Printf("[netpulse] poller: el tick en curso no terminó en %v; el apagado continúa igualmente", stopWait)
+		}
 	})
 }
 
@@ -119,6 +140,9 @@ func (p *Poller) tick() {
 			log.Printf("[netpulse] error en tick del poller: %v", err)
 		}
 		return
+	}
+	if p.enrich != nil {
+		p.enrich(overview)
 	}
 
 	p.mu.Lock()

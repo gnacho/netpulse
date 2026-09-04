@@ -344,7 +344,10 @@ CREATE TABLE IF NOT EXISTS firmware_upgrades (
   error          TEXT NOT NULL DEFAULT '',
   backup_path    TEXT,
   started_at     INTEGER NOT NULL,
-  finished_at    INTEGER
+  finished_at    INTEGER,
+  -- #494: programación de upgrades desatendidos (epoch ms UTC; NULL = flujo
+  -- manual/inmediato sin programar). started_at/finished_at siguen en segundos.
+  scheduled_for  INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_firmware_upgrades_router_started ON firmware_upgrades(router_id, started_at DESC);
 
@@ -457,6 +460,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
 	// issue #414: intervalo de polling SNMP configurable (segundos; default 60).
 	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
+	// issue #494: upgrades desatendidos programados (epoch ms UTC; NULL = manual).
+	migrate(sqldb, "firmware_upgrades", "scheduled_for", "ALTER TABLE firmware_upgrades ADD COLUMN scheduled_for INTEGER")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria

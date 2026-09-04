@@ -1851,6 +1851,161 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
 }
 
 // ---------------------------------------------------------------------------
+// Test de velocidad WAN (issue #511) — configuración del test periódico.
+// Sub-sección de «Datos y umbrales» junto a la velocidad contratada: el
+// umbral de alerta (% del plan) depende de ella.
+// ---------------------------------------------------------------------------
+
+function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; disabled?: boolean }) {
+  const { t } = useTranslation()
+  const [enabled, setEnabled] = useState(false)
+  const [intervalHours, setIntervalHours] = useState(12)
+  const [alertPct, setAlertPct] = useState(50)
+  const [serverId, setServerId] = useState('0')
+  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    let alive = true
+    void fetch('/api/settings/speedtest')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d || loaded.current) return
+        loaded.current = true
+        setEnabled(!!d.enabled)
+        if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
+        if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
+        if (typeof d.serverId === 'number') setServerId(String(d.serverId))
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const save = useCallback(async () => {
+    const sid = Number(serverId)
+    if (![6, 12, 24].includes(intervalHours) || !Number.isInteger(sid) || sid < 0 || alertPct < 0 || alertPct > 90) {
+      setError(t('settings.speedtest.invalid'))
+      return
+    }
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await fetch('/api/settings/speedtest', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, intervalHours, serverId: sid, alertPct }),
+      })
+      if (!res.ok) {
+        setError(t('settings.speedtest.saveError'))
+        return
+      }
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }, [enabled, intervalHours, serverId, alertPct, onSaved, t])
+
+  return (
+    <div className="mt-4 space-y-3 border-t border-border pt-4">
+      <div>
+        <div className="text-sm font-medium text-text-primary">{t('settings.speedtest.title')}</div>
+        <div className="text-caption text-text-muted">{t('settings.speedtest.caption')}</div>
+      </div>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-label uppercase text-text-muted">{t('settings.speedtest.enabled')}</span>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          disabled={disabled || loading}
+          aria-label={t('settings.speedtest.enabled')}
+          className="h-4 w-4 accent-[rgb(var(--accent))]"
+        />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.interval')}</span>
+          <select
+            value={intervalHours}
+            onChange={(e) => setIntervalHours(Number(e.target.value))}
+            disabled={disabled || loading}
+            aria-label={t('settings.speedtest.interval')}
+            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+          >
+            {[6, 12, 24].map((h) => (
+              <option key={h} value={h}>
+                {t('settings.speedtest.intervalH', { hours: h })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPct', { pct: alertPct })}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            max="90"
+            step="1"
+            value={alertPct}
+            onChange={(e) => setAlertPct(Number(e.target.value))}
+            disabled={disabled || loading}
+            aria-label={t('settings.speedtest.alertPct', { pct: alertPct })}
+            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+          />
+        </label>
+      </div>
+      <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
+      <label className="block">
+        <span className="text-label uppercase text-text-muted">{t('settings.speedtest.serverId')}</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min="0"
+          step="1"
+          value={serverId}
+          onChange={(e) => setServerId(e.target.value)}
+          disabled={disabled || loading}
+          aria-label={t('settings.speedtest.serverId')}
+          className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+        />
+      </label>
+      <p className="text-caption text-text-muted">{t('settings.speedtest.hint')}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={disabled || busy || loading}
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? t('settings.speedtest.saving') : t('settings.speedtest.save')}
+        </button>
+        {saved && (
+          <span role="status" className="text-caption text-ok">
+            {t('settings.speedtest.saved')}
+          </span>
+        )}
+        {error && (
+          <span role="alert" className="text-caption text-danger">
+            {error}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
@@ -3403,6 +3558,9 @@ export default function Settings() {
 
             {/* Velocidad WAN contratada (issue #151) — sub-sección del mismo ámbito */}
             <WanSpeedCard onSaved={notify} disabled={isDemo} />
+
+            {/* Test de velocidad WAN periódico (issue #511) */}
+            <SpeedtestCard onSaved={notify} disabled={isDemo} />
           </Card>
         </div>
 

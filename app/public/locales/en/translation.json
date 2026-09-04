@@ -400,7 +400,8 @@
     "kick": {
       "title": "Kick from AP to force reconnection",
       "label": "Kick {{name}}",
-      "error": "Could not kick the client"
+      "error": "Could not kick the client",
+      "notFound": "is no longer connected to any access point: it may have disconnected or roamed off the network. The list refreshes automatically."
     },
     "dot11r": {
       "title": "802.11r status",
@@ -448,7 +449,9 @@
       "inUse": "In use",
       "legendFree": "< 40% (free)",
       "legendBusy": "40-70% (busy)",
-      "legendCongested": "≥ 70% (congested)"
+      "legendCongested": "≥ 70% (congested)",
+      "matrixTitle": "Channel matrix",
+      "matrixHint": "each dot is a neighbor network on that channel (signal)"
     },
     "events": {
       "title": "Roaming events",
@@ -649,7 +652,14 @@
       "fiber": "Fiber {{plan}}",
       "publicIp": "Public IP",
       "title": "WAN network",
-      "totalToday": "Total today"
+      "totalToday": "Total today",
+      "speedtestTitle": "Measured speed",
+      "speedtestEmpty": "No measurements yet. Enable it in Settings or run a test.",
+      "speedtestRun": "Run test",
+      "speedtestRunning": "Measuring...",
+      "speedtestFailed": "Last test failed",
+      "planPct": "{{pct}} % of plan",
+      "speedtestServer": "server {{name}}"
     },
     "wireguard": {
       "lastIp": "Last IP",
@@ -1276,7 +1286,25 @@
     "paletteNetpulse": "NetPulse",
     "paletteNoc": "Warm NOC",
     "palettePhosphor": "Phosphor",
-    "paletteElectric": "Electric"
+    "paletteElectric": "Electric",
+    "speedtest": {
+      "title": "WAN speed test",
+      "caption": "Real periodic measurement from the server against speedtest.net",
+      "enabled": "Periodic test enabled",
+      "interval": "Interval",
+      "intervalH": "every {{hours}} h",
+      "alertPct": "Alert below {{pct}} % of the plan",
+      "alertPctHint": "0 = alert off. Uses the contracted plan declared above (download only).",
+      "serverId": "speedtest.net server (ID, 0 = automatic)",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "saveError": "Could not save",
+      "invalid": "Invalid values",
+      "hint": "Each test saturates the link for a few seconds and consumes data: avoid short intervals on capped connections.",
+      "lastResult": "Last test: {{when}} · {{down}} Mbps ↓ / {{up}} Mbps ↑",
+      "unavailable": "Not available in this mode"
+    }
   },
   "statcard": {
     "vsPrevious": "vs previous"
@@ -1354,6 +1382,13 @@
       "changelogFallback": "Could not load changelog.",
       "changelogLink": "View release notes on GitHub",
       "downNotice": "The service will be down while it restarts"
+    },
+    "errors": {
+      "exitRestart": "The server restarted itself to apply the update (the normal final step). If the version has not changed in a few minutes, check for updates again.",
+      "exitCode": "The update process exited with code {{code}}. Check the update log for details.",
+      "noTarget": "No target version known: check for updates before applying.",
+      "noToken": "GitHub request limit reached; it resets within the hour. Try again later.",
+      "generic": "The update failed ({{code}}). Check the update log for details."
     }
   },
   "demo": {
@@ -1368,9 +1403,21 @@
     "currentChannel": "Current channel",
     "recommendedChannel": "Recommended channel",
     "neighbors": "Neighbor APs",
-    "noScans": "No recent scans. Enable the agent on a router to collect neighbors.",
+    "noScans": "No recent scans for this router. Routers running NetGrip (gateway, APs managed by its panel) do not scan neighbors; routers with the NetPulse agent do. Pick another router from the list (e.g. rt2 or rt4) to see its plan.",
     "noRadios": "This router does not report WiFi radios.",
     "apply": "Apply channel",
+    "gateway": " (Gateway)",
+    "signal": "Signal",
+    "score": "Score",
+    "updateAgent": "Update the router's agent to apply channels.",
+    "applyingState": "Applying…",
+    "appliedState": "Channel applied",
+    "failedState": "Could not apply",
+    "revertTo": "Back to {{ch}}",
+    "timeout": "No response from the plan (timeout)",
+    "applyConfirmTitle": "Change the {{band}} channel",
+    "applyConfirmBody": "The {{band}} channel will move from {{from}} to {{to}}. That router's network restarts for a few seconds and its WiFi clients will reconnect. The change is recorded as a plan and you can go back to the previous channel with one click.",
+    "applyConfirmAction": "Apply",
     "scanInfo": "Scans from the last 24 hours"
   },
   "firmwareUpgrades": {
@@ -1403,8 +1450,14 @@
       "verifying": "Verifying",
       "flashing": "Flashing",
       "done": "Done",
-      "failed": "Failed"
-    }
+      "failed": "Failed",
+      "scheduled": "Scheduled"
+    },
+    "schedule": "Schedule",
+    "scheduleAt": "Schedule for",
+    "scheduledFor": "Scheduled for {{time}}",
+    "cancelSchedule": "Cancel schedule",
+    "dismiss": "Dismiss notice"
   },
   "orchestration": {
     "title": "Orchestration",

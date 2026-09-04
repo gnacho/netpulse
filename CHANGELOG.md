@@ -5,6 +5,86 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.0] - 2026-09-05
+
+> **Nota de versionado**: las releases 2.26.13 y 2.26.14 no llegaron a
+> publicarse como releases de GitHub (un symlink `app/node_modules` commiteado
+> por error rompía goreleaser con "dirty state"). Su código está en main y se
+> consolida aquí, en la **v2.28.0**.
+
+### Added
+
+- **Upgrades de firmware programados y desatendidos (#494)**: además de lanzar un upgrade al momento, ahora se puede programar para una hora concreta (p. ej. de madrugada). El router muestra "Programada para <hora>" con opción de cancelar; el servidor la dispara solo cuando toca, reutilizando exactamente el mismo flujo validado del manual (validación de imagen ASU, backup pre-upgrade y flash, todo en el agente). El flujo manual no cambia.
+- **Descubrimiento de dispositivos cableados por tabla ARP (#507)**: los hosts con IP estática (sin lease DHCP) que no se ven por WiFi ni por FDB ahora aparecen como dispositivos cableados mientras el router los tiene en su tabla ARP (el agente ya la recogía; antes solo servía para rellenar la IP de dispositivos conocidos). Solo IPv4 por ahora; aparecen mientras están activos y desaparecen al envejecer la entrada (sin persistencia, lista sin huérfanos).
+- **Manual de usuario por área y menú (#418)**: `docs/manual.es.md` y `docs/manual.en.md`, una sección por pantalla de la app con qué muestra, qué datos necesita, cómo leerla, las decisiones de diseño relevantes y procedimientos paso a paso, enlazados desde el README.
+
+### Fixed
+
+- **El apagado se colgaba hasta TimeoutStopSec cuando un sondeo SNMP/SSH lento bloqueaba el tick del poller (#481)**: `Stop()` esperaba indefinidamente al tick en curso. Ahora espera como mucho 15 s (loggea si se rinde) y el proceso continúa el cierre.
+- **Acciones de dispositivo (reserva IP + bloqueo) endurecidas (#439)**: resolución del router objetivo fiable (basada en configuración), las reservas detectan conflictos de IP (409) y son idempotentes, el bloqueo usa una regla de firewall con nombre determinista y las escrituras son transaccionales con rollback si el reinicio del servicio falla. Validado en producción y documentado en el manual.
+- **Release pipeline**: se elimina el symlink `app/node_modules` del repositorio (rompía goreleaser en cada tag) y se ignora explícitamente.
+
+## [2.26.14] - 2026-09-04
+
+### Fixed
+
+- **Acciones de dispositivo (reserva IP + bloqueo) endurecidas y con tests (#439)**: la funcionalidad (reservar IP estática en el DHCP del gateway y bloquear/desbloquear el acceso de un dispositivo por MAC desde su ficha de edición) se ha endurecido: la resolución del router objetivo es ahora fiable (basada en la configuración, no en heurísticas); las reservas detectan y rechazan conflictos de IP (409) y son idempotentes; el bloqueo usa una regla de firewall con nombre determinista; y todas las escrituras son transaccionales con `uci commit` como límite atómico y rollback si el reinicio del servicio (dnsmasq/firewall) falla - nunca se deja una configuración a medias. 23 tests nuevos con SSH simulado.
+
+## [2.26.13] - 2026-09-04
+
+### Added
+
+- **Upgrades de firmware programados y desatendidos (#494)**: además de lanzar un upgrade al momento, ahora se puede programar para una hora concreta (p. ej. de madrugada). El router muestra "Programada para <hora>" con opción de cancelar; el servidor la dispara solo cuando toca, reutilizando exactamente el mismo flujo validado del manual (validación de imagen ASU, backup pre-upgrade y flash, todo en el agente). El flujo manual no cambia.
+- **Descubrimiento de dispositivos cableados por tabla ARP (#507)**: los hosts con IP estática (sin lease DHCP) que no se ven por WiFi ni por FDB ahora aparecen como dispositivos cableados mientras el router los tiene en su tabla ARP (el agente ya la recogía; antes solo servía para rellenar la IP de dispositivos conocidos). Solo IPv4 por ahora; aparecen mientras están activos y desaparecen al envejecer la entrada (decisión: sin persistencia, lista sin huérfanos).
+
+### Fixed
+
+- **El apagado se colgaba hasta TimeoutStopSec cuando un sondeo SNMP/SSH lento bloqueaba el tick del poller (#481)**: `Stop()` esperaba indefinidamente al tick en curso. Ahora espera como mucho 15 s (loggea si se rinde) y el proceso continúa el cierre; el tick ya termina solo por los timeouts del cliente SNMP.
+
+## [2.26.12] - 2026-09-04
+
+### Fixed
+
+- **El plan de canales mostraba un score absurdo (9223372036854775807) o nada (#518)**: cuando el canal actual del router era DFS (52/100/112/116...), no estaba en la lista de canales candidatos (solo no-DFS) y el score del canal actual quedaba sin calcular, pintando el valor máximo de un entero de 64 bits. Ahora el score del canal actual se calcula siempre (es informativo), aunque el canal no sea recomendable. Además, el mensaje de "sin escaneos" explica ahora que los routers con NetGrip no escanean vecinos y orienta a seleccionar un router con el agente NetPulse.
+- **El aviso de un intento de actualización de firmware fallido quedaba para siempre y no se podía cerrar (#519)**: un fallo antiguo (p. ej. "agent not connected" de un incidente pasado) seguía mostrándose aunque el router ya estuviera sano y en la versión objetivo. Nuevo botón "Descartar aviso" en la tarjeta (endpoint `DELETE /api/firmware-upgrades/{routerId}/failure`, que solo borra intentos terminados; un upgrade en curso nunca se toca). De paso, se arregló un fallo latente por el que los upgrades en curso no aparecían en la lista (el escaneo de columnas NULL fallaba en silencio).
+
+## [2.26.11] - 2026-09-04
+
+### Added
+
+- **Test de velocidad WAN periódico (#511)**: medición real de bajada, subida, latencia y jitter (pérdida de paquetes donde el servidor la aporta) contra speedtest.net desde el host del servidor, con programación configurable (6/12/24 h o ejecución manual), historial en SQLite con retención anual, porcentaje frente al plan contratado (#151), gráfica de los últimos 7 días y botón "Ejecutar test" con progreso en vivo en la tarjeta WAN. Alerta con silencio hasta recuperación cuando la bajada medida queda por debajo de un porcentaje configurable del plan. Configuración en Ajustes, Datos y umbrales.
+
+### Fixed
+
+- **Falso "la actualización falló" en cada actualización con reinicio (#512)**: `update.sh` escribe el marcador de éxito con el SHA completo (40 caracteres, `git rev-parse HEAD`) mientras el comprobador lo comparaba literalmente con el objetivo corto (7 caracteres), así que el reinicio esperado del script (systemd mata su cgroup al aplicar) se registraba siempre como `update_exit_-1` aunque el binario nuevo arrancara bien. La comparación pasa a ser por prefijo y el marcador se trata como la verdad del terreno: si el swap se hizo y pidió reinicio, es éxito; si main avanzó entre la comprobación y la aplicación, se rectifican el historial y el marcador de confirmación post-arranque al SHA realmente instalado.
+- **El diálogo de actualización explica los errores en lenguaje humano (#512)**: códigos como `update_exit_-1` se traducen a un texto claro (castellano e inglés); el código técnico queda como detalle de depuración.
+- **El porcentaje de RAM del router sobreestimaba el consumo (#513)**: se calculaba con `(total - MemAvailable) / total` y `MemAvailable` es pesimista en sistemas de ficheros ubifs/overlay (cuenta poca caché como reclamable a corto plazo), de modo que un punto de acceso descargado podía marcar en torno al 80%. El agente nativo lee ahora `/proc/meminfo` para enviar la caché de ficheros, y el servidor usa la fórmula clásica que no la cuenta como consumida (paridad con LuCI/htop). El ajuste llega a los routers al actualizar el agente de la flota.
+
+## [2.26.10] - 2026-09-04
+
+### Fixed
+
+- **Descubrimiento de clientes cableados tras puertos con nombres no estándar (#506)**: el agente filtraba las MACs aprendidas en el FDB del bridge con una lista cerrada de nombres de puerto (`lan1`, `wan`, `eth0`...), pensada para excluir los puertos wireless; cualquier puerto físico fuera de esa lista se descartaba en silencio. En el Banana Pi BPI-R4 las jaulas SFP se llaman `sfp-lan`/`sfp-wan` (naming de OpenWrt 25.12+), así que los dispositivos cableados tras el SFP-LAN (p. ej. detrás de un switch no gestionado, con IP estática y sin lease DHCP) jamás aparecían como clientes. El filtro pasa a ser una lista de exclusión: vale cualquier puerto miembro del bridge salvo wireless (`phy*-ap*`, `wlan*`), interfaces virtuales (bridges, túneles, veth, wg, ppp...) y subinterfaces VLAN.
+- **La vía `bridge fdb show` filtraba mal las entradas locales (#506)**: cuando el router no tiene `brctl`, el fallback dejaba pasar las entradas locales del bridge (su propia MAC registrada en cada puerto, flag `permanent`); el servidor interpretaba esa MAC propia como un uplink y descartaba TODOS los clientes cableados de ese puerto. Ahora se excluyen las entradas `permanent`, en paridad con la vía brctl.
+- **AGENT_VERSION alineada con la release (2.26.10)**: los agentes embebidos en el servidor reportaban 0.2.0, menor que los agentes de la flota instalados desde tarball (2.26.x), por lo que nunca se ofrecía su actualización; a partir de aquí el agente embebido ofrece update a toda la flota anterior.
+
+## [2.26.9] - 2026-09-03
+
+### Fixed
+
+- **La sección de ayuda ocupa el mismo ancho y tamaño que el resto de la app (#503)**: se limitaba a sí misma a 768px y usaba letra pequeña (13px) en pasos, intros y pies; ahora sigue el contenedor estándar (1160px a 1440px de viewport, igual que Inicio) y el cuerpo sube al text-sm de la aplicación.
+
+## [2.26.8] - 2026-09-03
+
+### Added
+
+- **Aplicar el canal recomendado desde el plan de canales (#500)**: el agente reporta la sección UCI de cada radio (radio0/radio1) y la página del plan deja de ser informativa: botón de aplicar por radio con confirmación (canal actual a objetivo y aviso del reinicio de red), progreso y resultado en vivo, y vuelta al canal anterior con un clic en la misma sesión. Los planes viajan por el motor existente (diff explícito: uci_set + commit + reinicio de red), con delegación al executor de NetGrip o SSE al agente. Traducción completa ES/EN de la página (cabecera "Señal", badge de puerta de enlace) y puntuación actual/mejor por radio como contexto.
+
+### Fixed
+
+- **POST /api/plans con diff explícito respondía 201 sin body**: el plan releído de BD llevaba un desired vacío (json.RawMessage("")) cuyo marshal falla y el error se silenciaba; los clientes JSON recibían EOF. El desired vacío se queda nil y writeJSON loguea los errores de codificación.
+- **El reporte del apply moría al reiniciar la red del propio router**: aplicar ops como "service network restart" cortaba el enlace del agente justo cuando tocaba reportar el resultado y el plan quedaba "applying" eterno; ahora el agente reintenta el apply-result con backoff durante varios minutos.
+
 ## [2.26.7] - 2026-09-03
 
 ### Added
