@@ -132,6 +132,20 @@ export default function FirmwareUpgrades() {
     }
   }
 
+  // #519: descartar el aviso de un intento de upgrade fallido/obsoleto.
+  const dismissUpgrade = async (id: string) => {
+    setBusy((prev) => ({ ...prev, [id]: 'dismiss' }))
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/failure`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      await fetchItems()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy((prev) => ({ ...prev, [id]: '' }))
+    }
+  }
+
   const startUpgrade = async (id: string) => {
     setBusy((prev) => ({ ...prev, [id]: 'upgrade' }))
     try {
@@ -304,12 +318,23 @@ export default function FirmwareUpgrades() {
               )}
 
               {item.upgrade?.error && (
-                <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
                   {/* Timestamp del fallo: un error antiguo NO debe leerse como
                       estado presente del agente (feedback #477). */}
-                  {t('firmwareUpgrades.lastFailure')}
-                  {relTimeFromTs(item.upgrade.startedAt) ? ` (${relTimeFromTs(item.upgrade.startedAt)})` : ''}:{' '}
-                  {item.upgrade.error}
+                  <span>
+                    {t('firmwareUpgrades.lastFailure')}
+                    {relTimeFromTs(item.upgrade.startedAt) ? ` (${relTimeFromTs(item.upgrade.startedAt)})` : ''}:{' '}
+                    {item.upgrade.error}
+                  </span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => void dismissUpgrade(item.routerId)}
+                      disabled={busy[item.routerId] === 'dismiss' || active}
+                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-rose-500/40 px-2.5 text-xs font-medium transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                    >
+                      {busy[item.routerId] === 'dismiss' ? t('common.loading') : t('firmwareUpgrades.dismiss')}
+                    </button>
+                  )}
                 </div>
               )}
 

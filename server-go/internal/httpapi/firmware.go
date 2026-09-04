@@ -99,8 +99,23 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		writeJSON(w, http.StatusOK, out)
 	})))
 
-	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("routerId")
+	// DELETE /api/firmware-upgrades/{routerId}/failure: descarta el último
+	// intento de upgrade terminado (failed/done) del router (#519). Permite
+	// cerrar un aviso de error obsoleto sin poder cancelar un upgrade vivo.
+	mux.Handle("DELETE /api/firmware-upgrades/{routerId}/failure", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		routerID := r.PathValue("routerId")
+		if routerID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "routerId requerido")
+			return
+		}
+		if err := s.firmware.DismissLatest(routerID); err != nil {
+			writeError(w, http.StatusInternalServerError, "firmware_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})))
+
+	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {		id := r.PathValue("routerId")
 		item, err := s.firmwareStatus(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error")
