@@ -135,6 +135,10 @@ type SysInfo struct {
 		Free      float64 `json:"free"`
 		Buffered  float64 `json:"buffered"`
 		Available float64 `json:"available"`
+		// Cached: caché de ficheros (Cached de /proc/meminfo). ubus system
+		// info no la trae; el agente local la rellena para que el servidor
+		// calcule el uso excluyendo RAM reclamable (#513).
+		Cached float64 `json:"cached,omitempty"`
 	} `json:"memory"`
 }
 

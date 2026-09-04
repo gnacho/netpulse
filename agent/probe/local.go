@@ -154,6 +154,13 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 	if out := p.runBest(ctx, CmdUbusSystemInfo, 0); out != "" {
 		var si SysInfo
 		if err := json.Unmarshal([]byte(out), &si); err == nil {
+			// ubus system info no expone la caché de ficheros (Cached), que
+			// la fórmula de uso clásica (total-free-buffers-cached) necesita
+			// para no contar RAM reclamable como usada (#513). /proc/meminfo
+			// local la da; fallback silencioso si no está (host sin proc).
+			if cached := readMeminfoCachedKB(); cached > 0 {
+				si.Memory.Cached = float64(cached) * 1024 // ubus va en bytes
+			}
 			sd.SysInfo = &si
 			any = true
 		}
