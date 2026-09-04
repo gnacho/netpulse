@@ -1,16 +1,27 @@
-// device_actions.go — acciones directas sobre routers para un dispositivo:
-// reserva DHCP estática en gateway y bloqueo MAC en el router de atache.
-// (issue #439)
+// device_actions.go — acciones directas sobre routers para un dispositivo
+// (issue #439): reserva DHCP estática en el gateway y bloqueo MAC en el router
+// de atache. Escriben /etc/config/dhcp y /etc/config/firewall vía SSH
+// (SSHRunner, fakeable en tests) usando uci, con `uci commit` como límite
+// atómico y rollback si el reinicio del servicio falla (sin config a medias).
 package httpapi
 
 import (
-	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+)
+
+// Techos para los comandos uci sobre SSH (show = lectura, apply = escritura
+// + commit + reload). Los fija el skill de ejecución; no son configurables.
+const (
+	uciShowTimeout  = 10 * time.Second
+	uciApplyTimeout = 20 * time.Second
 )
 
 var reUciLine = regexp.MustCompile(`^([a-z0-9_]+)\.([^=]+)=(.*)$`)
@@ -24,24 +35,16 @@ func uciValue(raw string) string {
 	return raw
 }
 
-// routerHost devuelve la IP/host de gestión SSH de un router por ID.
-func (s *server) routerHost(ctx context.Context, routerID string) string {
-	for _, r := range s.adapter.GetRouters(ctx) {
-		if r.ID == routerID {
-			return r.IP
+// gatewayHost devuelve el host SSH del gateway (router con is_gateway), o ""
+// si no hay gateway configurado o es agent-only. El gateway es quien sirve
+// DHCP (dnsmasq), así que es el target de las reservas de lease.
+func (s *server) gatewayHost() string {
+	for _, r := range routerstore.ListRouters(s.db.DB) {
+		if r.IsGateway && !r.AgentOnly && r.Host != "" {
+			return r.Host
 		}
 	}
 	return ""
-}
-
-// gatewayRouterID devuelve el router marcado como gateway, o "gateway" como fallback.
-func (s *server) gatewayRouterID(ctx context.Context) string {
-	for _, r := range s.adapter.GetRouters(ctx) {
-		if r.RoleBadge == "Principal" || strings.Contains(strings.ToLower(r.Role), "gateway") {
-			return r.ID
-		}
-	}
-	return "gateway"
 }
 
 // uciShow ejecuta `uci show <config>` en un host y devuelve líneas parseables.
@@ -49,82 +52,111 @@ func (s *server) uciShow(host, config string) ([]string, error) {
 	if s.pool == nil {
 		return nil, fmt.Errorf("no hay pool SSH")
 	}
-	out, err := s.pool.Run(host, fmt.Sprintf("uci show %s", config), 10*time.Second)
+	out, err := s.pool.Run(host, fmt.Sprintf("uci show %s", config), uciShowTimeout)
 	if err != nil {
 		return nil, err
 	}
 	return strings.Split(out, "\n"), nil
 }
 
-// runUCI ejecuta una lista de comandos UCI + reinicio de servicio en un host.
-func (s *server) runUCI(host string, commands []string, serviceName string) error {
+// runUCICommands encadena comandos uci + `uci commit <config>` en UNA sesión
+// SSH. `uci commit` es el límite atómico: si un `uci set/delete` falla antes,
+// el `&&` corta y /etc/config queda intacto (staging descartado).
+func (s *server) runUCICommands(host, config string, commands []string) error {
 	if s.pool == nil {
 		return fmt.Errorf("no hay pool SSH")
 	}
-	script := strings.Join(commands, " && ")
-	if serviceName != "" {
-		script += fmt.Sprintf(" && /etc/init.d/%s restart", serviceName)
-	}
-	_, err := s.pool.Run(host, script, 20*time.Second)
+	script := strings.Join(append(commands, "uci commit "+config), " && ")
+	_, err := s.pool.Run(host, script, uciApplyTimeout)
 	return err
 }
 
-// dhcpHost representa una sección host de dhcp UCI.
-type dhcpHost struct {
-	Section  string
-	Name     string
-	Hostname string
-	MAC      string
-	IP       string
+// reloadService reinicia el servicio procd que aplica la config commitada.
+func (s *server) reloadService(host, service string) error {
+	if s.pool == nil {
+		return fmt.Errorf("no hay pool SSH")
+	}
+	_, err := s.pool.Run(host, "/etc/init.d/"+service+" restart", uciApplyTimeout)
+	return err
 }
 
-// parseDhcpHosts parsea `uci show dhcp` y devuelve todas las secciones host.
+// ---------------------------------------------------------------------------
+// Reserva DHCP (host sections de /etc/config/dhcp)
+// ---------------------------------------------------------------------------
+
+// dhcpHost representa una sección host de dhcp UCI.
+type dhcpHost struct {
+	Section string
+	Name    string
+	MAC     string
+	IP      string
+}
+
+// uciTypeSections devuelve el conjunto de secciones de un config cuya línea de
+// tipo (`cfg.<section>=<type>`) coincide con el tipo pedido.
+func uciTypeSections(lines []string, config, typ string) map[string]bool {
+	sections := map[string]bool{}
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		m := reUciLine.FindStringSubmatch(line)
+		if m == nil || m[1] != config {
+			continue
+		}
+		if strings.Index(m[2], ".") >= 0 {
+			continue // es una opción, no la línea de tipo
+		}
+		if uciValue(m[3]) == typ {
+			sections[m[2]] = true
+		}
+	}
+	return sections
+}
+
+// parseDhcpHosts parsea `uci show dhcp` y devuelve SOLO las secciones de tipo
+// host (named `dhcp.np_host_x=host` y anónimas `dhcp.@host[0]=host`), filtrando
+// el ruido de @dnsmasq[0], lan, wan, etc.
 func parseDhcpHosts(lines []string) []*dhcpHost {
+	hostSections := uciTypeSections(lines, "dhcp", "host")
+
 	var hosts []*dhcpHost
-	current := map[string]*dhcpHost{}
+	bySection := map[string]*dhcpHost{}
 	for _, raw := range lines {
 		line := strings.TrimSpace(raw)
 		if line == "" {
 			continue
 		}
 		m := reUciLine.FindStringSubmatch(line)
-		if m == nil {
+		if m == nil || m[1] != "dhcp" {
 			continue
 		}
-		config, rest, value := m[1], m[2], uciValue(m[3])
-		if config != "dhcp" {
-			continue
-		}
-		// rest puede ser nombre de sección o @host[idx]
-		dot := strings.Index(rest, ".")
+		dot := strings.Index(m[2], ".")
 		if dot < 0 {
 			continue
 		}
-		section, option := rest[:dot], rest[dot+1:]
-		if !strings.HasPrefix(value, "host") && option == "" {
-			// dhcp.hosts=host
+		section, option := m[2][:dot], m[2][dot+1:]
+		if !hostSections[section] {
 			continue
 		}
-		if _, ok := current[section]; !ok {
-			h := &dhcpHost{Section: section}
-			current[section] = h
+		h := bySection[section]
+		if h == nil {
+			h = &dhcpHost{Section: section}
+			bySection[section] = h
 			hosts = append(hosts, h)
 		}
 		switch option {
 		case "name":
-			current[section].Name = value
-		case "hostname":
-			current[section].Hostname = value
+			h.Name = uciValue(m[3])
 		case "mac":
-			current[section].MAC = value
+			h.MAC = uciValue(m[3])
 		case "ip":
-			current[section].IP = value
+			h.IP = uciValue(m[3])
 		}
 	}
 	return hosts
 }
 
-// findDhcpHost busca una sección host cuya MAC coincida (sin importar formato).
+// findDhcpHost busca una sección host cuya MAC coincida (sin importar el
+// formato; admite varias MACs separadas por coma/espacio en una misma sección).
 func findDhcpHost(hosts []*dhcpHost, mac string) *dhcpHost {
 	macNorm := normalizeMAC(mac)
 	for _, h := range hosts {
@@ -137,6 +169,12 @@ func findDhcpHost(hosts []*dhcpHost, mac string) *dhcpHost {
 	return nil
 }
 
+// dhcpHostSection es el nombre de sección determinista para la reserva de una
+// MAC (uci set dhcp.np_host_<mac12>=host).
+func dhcpHostSection(mac string) string {
+	return "np_host_" + strings.ReplaceAll(mac, ":", "")
+}
+
 // handleDeviceReservationGet devuelve la reserva DHCP estática de un dispositivo.
 func (s *server) handleDeviceReservationGet(w http.ResponseWriter, r *http.Request) {
 	mac := normalizeMAC(r.PathValue("mac"))
@@ -144,8 +182,7 @@ func (s *server) handleDeviceReservationGet(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	gwID := s.gatewayRouterID(r.Context())
-	host := s.routerHost(r.Context(), gwID)
+	host := s.gatewayHost()
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
 		return
@@ -161,8 +198,6 @@ func (s *server) handleDeviceReservationGet(w http.ResponseWriter, r *http.Reque
 			"reserved": true,
 			"ip":       h.IP,
 			"name":     h.Name,
-			"hostname": h.Hostname,
-			"section":  h.Section,
 		})
 		return
 	}
@@ -170,6 +205,8 @@ func (s *server) handleDeviceReservationGet(w http.ResponseWriter, r *http.Reque
 }
 
 // handleDeviceReservationPut crea o actualiza una reserva DHCP estática.
+// Idempotente (misma MAC+IP → no-op). Rechaza con 409 si OTRA MAC ya tiene
+// reservada la IP pedida.
 func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Request) {
 	mac := normalizeMAC(r.PathValue("mac"))
 	if len(mac) != 17 {
@@ -188,8 +225,7 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_ip")
 		return
 	}
-	gwID := s.gatewayRouterID(r.Context())
-	host := s.routerHost(r.Context(), gwID)
+	host := s.gatewayHost()
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
 		return
@@ -200,28 +236,52 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	hosts := parseDhcpHosts(lines)
-	var commands []string
-	if h := findDhcpHost(hosts, mac); h != nil {
-		commands = append(commands,
-			fmt.Sprintf("uci set dhcp.%s.ip='%s'", h.Section, body.IP),
-		)
-		if body.Hostname != "" {
-			commands = append(commands, fmt.Sprintf("uci set dhcp.%s.hostname='%s'", h.Section, body.Hostname))
+
+	// Conflicto: otra MAC (distinta de ésta) ya tiene esa IP reservada.
+	for _, h := range hosts {
+		if h.IP != body.IP {
+			continue
 		}
+		if findDhcpHost([]*dhcpHost{h}, mac) != nil {
+			continue // es la sección de esta misma MAC (update idempotente)
+		}
+		writeError(w, http.StatusConflict, "ip_conflict",
+			fmt.Sprintf("la IP %s ya está reservada para %s", body.IP, h.MAC))
+		return
+	}
+
+	existing := findDhcpHost(hosts, mac)
+	var apply, rollback []string
+	if existing != nil {
+		oldIP := existing.IP
+		apply = append(apply, fmt.Sprintf("uci set dhcp.%s.ip='%s'", existing.Section, body.IP))
+		if body.Hostname != "" && body.Hostname != existing.Name {
+			apply = append(apply, fmt.Sprintf("uci set dhcp.%s.name='%s'", existing.Section, body.Hostname))
+		}
+		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.ip='%s'", existing.Section, oldIP))
 	} else {
-		section := "np_host_" + strings.ReplaceAll(mac, ":", "")
-		commands = append(commands,
+		section := dhcpHostSection(mac)
+		name := body.Hostname
+		if name == "" {
+			name = mac
+		}
+		apply = append(apply,
 			fmt.Sprintf("uci set dhcp.%s=host", section),
-			fmt.Sprintf("uci set dhcp.%s.name='%s'", section, body.Hostname),
+			fmt.Sprintf("uci set dhcp.%s.name='%s'", section, name),
 			fmt.Sprintf("uci set dhcp.%s.mac='%s'", section, mac),
 			fmt.Sprintf("uci set dhcp.%s.ip='%s'", section, body.IP),
 		)
-		if body.Hostname != "" {
-			commands = append(commands, fmt.Sprintf("uci set dhcp.%s.hostname='%s'", section, body.Hostname))
-		}
+		rollback = append(rollback, fmt.Sprintf("uci delete dhcp.%s", section))
 	}
-	commands = append(commands, "uci commit dhcp")
-	if err := s.runUCI(host, commands, "dnsmasq"); err != nil {
+
+	if err := s.runUCICommands(host, "dhcp", apply); err != nil {
+		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
+		return
+	}
+	if err := s.reloadService(host, "dnsmasq"); err != nil {
+		if rbErr := s.runUCICommands(host, "dhcp", rollback); rbErr != nil {
+			log.Printf("[netpulse] rollback reserva %s falló: %v", mac, rbErr)
+		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
 	}
@@ -235,8 +295,7 @@ func (s *server) handleDeviceReservationDelete(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	gwID := s.gatewayRouterID(r.Context())
-	host := s.routerHost(r.Context(), gwID)
+	host := s.gatewayHost()
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
 		return
@@ -252,16 +311,38 @@ func (s *server) handleDeviceReservationDelete(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusNotFound, "not_reserved")
 		return
 	}
-	commands := []string{
-		fmt.Sprintf("uci delete dhcp.%s", h.Section),
-		"uci commit dhcp",
+
+	// Rollback = re-crear la sección tal cual estaba (si el reload falla).
+	var rollback []string
+	rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s=host", h.Section))
+	if h.Name != "" {
+		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.name='%s'", h.Section, h.Name))
 	}
-	if err := s.runUCI(host, commands, "dnsmasq"); err != nil {
+	if h.MAC != "" {
+		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.mac='%s'", h.Section, h.MAC))
+	}
+	if h.IP != "" {
+		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.ip='%s'", h.Section, h.IP))
+	}
+
+	apply := []string{fmt.Sprintf("uci delete dhcp.%s", h.Section)}
+	if err := s.runUCICommands(host, "dhcp", apply); err != nil {
+		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
+		return
+	}
+	if err := s.reloadService(host, "dnsmasq"); err != nil {
+		if rbErr := s.runUCICommands(host, "dhcp", rollback); rbErr != nil {
+			log.Printf("[netpulse] rollback borrado reserva %s falló: %v", mac, rbErr)
+		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mac": mac})
 }
+
+// ---------------------------------------------------------------------------
+// Bloqueo de dispositivo (rule de /etc/config/firewall, fw4)
+// ---------------------------------------------------------------------------
 
 // firewallRule representa una sección rule de firewall UCI.
 type firewallRule struct {
@@ -271,64 +352,89 @@ type firewallRule struct {
 	Target  string
 }
 
-// parseFirewallRules parsea `uci show firewall` y devuelve las rules.
+// parseFirewallRules parsea `uci show firewall` y devuelve las reglas (named
+// `firewall.np_block_x=rule` y anónimas `firewall.@rule[0]=rule`).
 func parseFirewallRules(lines []string) []*firewallRule {
+	ruleSections := uciTypeSections(lines, "firewall", "rule")
+
 	var rules []*firewallRule
-	current := map[string]*firewallRule{}
+	bySection := map[string]*firewallRule{}
 	for _, raw := range lines {
 		line := strings.TrimSpace(raw)
 		if line == "" {
 			continue
 		}
 		m := reUciLine.FindStringSubmatch(line)
-		if m == nil {
+		if m == nil || m[1] != "firewall" {
 			continue
 		}
-		config, rest, value := m[1], m[2], uciValue(m[3])
-		if config != "firewall" {
-			continue
-		}
-		dot := strings.Index(rest, ".")
+		dot := strings.Index(m[2], ".")
 		if dot < 0 {
 			continue
 		}
-		section, option := rest[:dot], rest[dot+1:]
-		if _, ok := current[section]; !ok {
-			if strings.HasPrefix(section, "@rule[") || (strings.HasPrefix(value, "rule") && option == "") {
-				r := &firewallRule{Section: section}
-				current[section] = r
-				rules = append(rules, r)
-			}
-		}
-		r, ok := current[section]
-		if !ok {
+		section, option := m[2][:dot], m[2][dot+1:]
+		if !ruleSections[section] {
 			continue
+		}
+		r := bySection[section]
+		if r == nil {
+			r = &firewallRule{Section: section}
+			bySection[section] = r
+			rules = append(rules, r)
 		}
 		switch option {
 		case "name":
-			r.Name = value
+			r.Name = uciValue(m[3])
 		case "src_mac":
-			r.SrcMAC = value
+			r.SrcMAC = uciValue(m[3])
 		case "target":
-			r.Target = value
+			r.Target = uciValue(m[3])
 		}
 	}
 	return rules
 }
 
+// blockRuleSection es el nombre de sección determinista para el bloqueo de una
+// MAC (uci set firewall.np_block_<mac12>=rule).
+func blockRuleSection(mac string) string {
+	return "np_block_" + strings.ReplaceAll(mac, ":", "")
+}
+
+// blockRuleName es el nombre legible de la regla (mostrado en LuCI).
 func blockRuleName(mac string) string {
 	return "np-block-" + strings.ReplaceAll(mac, ":", "")
 }
 
-// findBlockRule busca la regla de bloqueo de una MAC.
+// findBlockRule busca la regla de bloqueo de una MAC: por sección determinista
+// o por nombre legado (reglas anónimas `@rule[N]` con name='np-block-<mac>').
 func findBlockRule(rules []*firewallRule, mac string) *firewallRule {
-	want := blockRuleName(mac)
-	for _, rule := range rules {
-		if rule.Name == want {
-			return rule
+	section := blockRuleSection(mac)
+	name := blockRuleName(mac)
+	for _, r := range rules {
+		if r.Section == section || r.Name == name {
+			return r
 		}
 	}
 	return nil
+}
+
+// blockRuleApply/blockRuleRollback construyen los comandos uci de la regla
+// fw4. Forma mínima correcta (drop de tráfico reenviado desde la MAC, sin
+// romper su lease DHCP, que es input al router): src=lan, dest=*, target=DROP,
+// src_mac=<mac>.
+func blockRuleApply(section, mac string) []string {
+	return []string{
+		fmt.Sprintf("uci set firewall.%s=rule", section),
+		fmt.Sprintf("uci set firewall.%s.name='%s'", section, blockRuleName(mac)),
+		fmt.Sprintf("uci set firewall.%s.src='lan'", section),
+		fmt.Sprintf("uci set firewall.%s.dest='*'", section),
+		fmt.Sprintf("uci set firewall.%s.target='DROP'", section),
+		fmt.Sprintf("uci set firewall.%s.src_mac='%s'", section, mac),
+	}
+}
+
+func blockRuleRollback(section string) []string {
+	return []string{fmt.Sprintf("uci delete firewall.%s", section)}
 }
 
 // handleDeviceBlockGet indica si un dispositivo está bloqueado.
@@ -343,7 +449,7 @@ func (s *server) handleDeviceBlockGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_router")
 		return
 	}
-	host := s.routerHost(r.Context(), routerID)
+	host := s.hostOfRouter(routerID)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_router")
 		return
@@ -376,7 +482,7 @@ func (s *server) handleDeviceBlockPut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_router")
 		return
 	}
-	host := s.routerHost(r.Context(), body.RouterID)
+	host := s.hostOfRouter(body.RouterID)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_router")
 		return
@@ -391,16 +497,15 @@ func (s *server) handleDeviceBlockPut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mac": mac, "already": true})
 		return
 	}
-	commands := []string{
-		"uci add firewall rule",
-		"uci set firewall.@rule[-1].name='" + blockRuleName(mac) + "'",
-		"uci set firewall.@rule[-1].src='lan'",
-		"uci set firewall.@rule[-1].dest='*'",
-		"uci set firewall.@rule[-1].target='DROP'",
-		"uci set firewall.@rule[-1].src_mac='" + mac + "'",
-		"uci commit firewall",
+	section := blockRuleSection(mac)
+	if err := s.runUCICommands(host, "firewall", blockRuleApply(section, mac)); err != nil {
+		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
+		return
 	}
-	if err := s.runUCI(host, commands, "firewall"); err != nil {
+	if err := s.reloadService(host, "firewall"); err != nil {
+		if rbErr := s.runUCICommands(host, "firewall", blockRuleRollback(section)); rbErr != nil {
+			log.Printf("[netpulse] rollback bloqueo %s falló: %v", mac, rbErr)
+		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
 	}
@@ -425,7 +530,7 @@ func (s *server) handleDeviceBlockDelete(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "missing_router")
 		return
 	}
-	host := s.routerHost(r.Context(), body.RouterID)
+	host := s.hostOfRouter(body.RouterID)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_router")
 		return
@@ -441,11 +546,25 @@ func (s *server) handleDeviceBlockDelete(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mac": mac, "already": true})
 		return
 	}
-	commands := []string{
-		fmt.Sprintf("uci delete firewall.%s", br.Section),
-		"uci commit firewall",
+	apply := []string{fmt.Sprintf("uci delete firewall.%s", br.Section)}
+	rollback := []string{fmt.Sprintf("uci set firewall.%s=rule", br.Section)}
+	if br.Name != "" {
+		rollback = append(rollback, fmt.Sprintf("uci set firewall.%s.name='%s'", br.Section, br.Name))
 	}
-	if err := s.runUCI(host, commands, "firewall"); err != nil {
+	if br.SrcMAC != "" {
+		rollback = append(rollback, fmt.Sprintf("uci set firewall.%s.src_mac='%s'", br.Section, br.SrcMAC))
+	}
+	if br.Target != "" {
+		rollback = append(rollback, fmt.Sprintf("uci set firewall.%s.target='%s'", br.Section, br.Target))
+	}
+	if err := s.runUCICommands(host, "firewall", apply); err != nil {
+		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
+		return
+	}
+	if err := s.reloadService(host, "firewall"); err != nil {
+		if rbErr := s.runUCICommands(host, "firewall", rollback); rbErr != nil {
+			log.Printf("[netpulse] rollback desbloqueo %s falló: %v", mac, rbErr)
+		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
 	}
