@@ -132,3 +132,42 @@ func TestPolledFromAgentSystemAntiparpadeo(t *testing.T) {
 		t.Fatalf("VitalsAvailable=%v, esperaba nil (agente netgrip con system)", r.VitalsAvailable)
 	}
 }
+
+// #537: RouterServingDHCP devuelve el router cuyo snapshot reportó la MAC en
+// su tabla de leases (el servidor DHCP real, no necesariamente el gateway).
+func TestRouterServingDHCP(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	l.lastPolled = map[string]*routerPolled{
+		// El gateway tiene los leases de la LAN principal (otras MACs).
+		"gateway": {cfg: RouterConfig{ID: "gateway", Host: "192.168.1.1", IsGateway: true},
+			leases: []DhcpLease{{MAC: "AA:BB:CC:DD:EE:01", IP: "192.168.1.10"}, {MAC: "AA:BB:CC:DD:EE:02", IP: "192.168.1.11"}}},
+		// El router "lab" (LAN 2.x, dnsmasq propio) reporta el lease de la MAC.
+		"lab": {cfg: RouterConfig{ID: "lab", Host: "192.168.2.1"},
+			leases: []DhcpLease{{MAC: devMACLease, IP: "192.168.2.50"}}},
+		// Agent-only: reporta leases pero no tiene SSH → nunca es el target.
+		"sw-ao": {cfg: RouterConfig{ID: "sw-ao", Host: "192.168.1.9", AgentOnly: true},
+			leases: []DhcpLease{{MAC: devMACLease, IP: "192.168.2.51"}}},
+	}
+
+	if got := l.RouterServingDHCP(devMACLease); got != "lab" {
+		t.Fatalf("RouterServingDHCP(%s) = %q, esperaba lab", devMACLease, got)
+	}
+	// MAC servida por el gateway (LAN principal).
+	if got := l.RouterServingDHCP("AA:BB:CC:DD:EE:01"); got != "gateway" {
+		t.Fatalf("RouterServingDHCP(MAC gateway) = %q, esperaba gateway", got)
+	}
+	// MAC con minúsculas se normaliza.
+	if got := l.RouterServingDHCP("aa:bb:cc:dd:ee:01"); got != "gateway" {
+		t.Fatalf("RouterServingDHCP(mac minúsculas) = %q, esperaba gateway", got)
+	}
+	// MAC sin lease en ningún router → "".
+	if got := l.RouterServingDHCP("EE:EE:EE:EE:EE:EE"); got != "" {
+		t.Fatalf("RouterServingDHCP(sin lease) = %q, esperaba vacío", got)
+	}
+	// Vacío → "".
+	if got := l.RouterServingDHCP(""); got != "" {
+		t.Fatalf("RouterServingDHCP(vacío) = %q, esperaba vacío", got)
+	}
+}
+
+const devMACLease = "AA:BB:CC:DD:EE:FF"

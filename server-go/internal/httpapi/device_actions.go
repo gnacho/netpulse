@@ -37,7 +37,7 @@ func uciValue(raw string) string {
 
 // gatewayHost devuelve el host SSH del gateway (router con is_gateway), o ""
 // si no hay gateway configurado o es agent-only. El gateway es quien sirve
-// DHCP (dnsmasq), así que es el target de las reservas de lease.
+// DHCP (dnsmasq), así que es el target por defecto de las reservas de lease.
 func (s *server) gatewayHost() string {
 	for _, r := range routerstore.ListRouters(s.db.DB) {
 		if r.IsGateway && !r.AgentOnly && r.Host != "" {
@@ -45,6 +45,32 @@ func (s *server) gatewayHost() string {
 		}
 	}
 	return ""
+}
+
+// leaseRouterResolver lo implementa el adapter live para decir qué router
+// reportó la MAC en su tabla de leases DHCP (issue #537). La demo no lo
+// implementa → la reserva cae al gateway, como antes.
+type leaseRouterResolver interface {
+	RouterServingDHCP(mac string) string
+}
+
+// reservationTargetHost resuelve DÓNDE vive la reserva DHCP de un dispositivo
+// (issue #537): no siempre en el gateway global. Un dispositivo cuya IP la
+// concede un router con su propio dnsmasq (p. ej. una LAN separada tras un AP
+// con DHCP propio) debe reservarse en ESE router, que es quien reportó su
+// lease. Orden:
+//  1. Router que reportó la MAC en leases (RouterServingDHCP), si el adapter
+//     lo soporta y el router es alcanzable por SSH.
+//  2. Fallback: el gateway (red gestionada clásica con un solo servidor DHCP).
+func (s *server) reservationTargetHost(mac string) string {
+	if lr, ok := s.adapter.(leaseRouterResolver); ok {
+		if routerID := lr.RouterServingDHCP(mac); routerID != "" {
+			if host := s.hostOfRouter(routerID); host != "" {
+				return host
+			}
+		}
+	}
+	return s.gatewayHost()
 }
 
 // uciShow ejecuta `uci show <config>` en un host y devuelve líneas parseables.
@@ -182,7 +208,7 @@ func (s *server) handleDeviceReservationGet(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	host := s.gatewayHost()
+	host := s.reservationTargetHost(mac)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
 		return
@@ -225,7 +251,7 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_ip")
 		return
 	}
-	host := s.gatewayHost()
+	host := s.reservationTargetHost(mac)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
 		return
@@ -295,7 +321,7 @@ func (s *server) handleDeviceReservationDelete(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	host := s.gatewayHost()
+	host := s.reservationTargetHost(mac)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
 		return
