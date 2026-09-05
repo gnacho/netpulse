@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.3] - 2026-09-05
+
+### Added
+
+- **Tráfico por cliente en vivo (#551)**: el detalle de un dispositivo ahora muestra su tráfico real (actual, total y gráfico por rangos 24 h / 7 d / 30 d) cuando la fuente del router lo reporta. Por router la fuente preferente es **nlbwmon** (cubre cableados y todo lo que enruta); si no está disponible se usan los **contadores por estación de `ubus hostapd get_clients`** (`bytes.rx/tx`, clientes wifi asociados a ese AP), que el agente ya reporta. La store de ancho de banda por cliente (creada en el #337/#357) queda cableada de extremo a extremo: ingesta por deltas con rollups que calculan tasas reales (antes dejaban los bps a 0), API `GET /api/devices/{mac}/traffic` y tasa actual por cliente en el overview. Nota: los clientes cableados del gateway no tendrán tráfico hasta que su pusher (NetGrip) emita la sección `clientBw`; en un router con agente NetPulse y nlbwmon instalado queda cubierto todo.
+
+### Changed
+
+- **Análisis de canales rediseñado al estilo LuCI (#542, #545, #557)**: una gráfica por banda (2.4 GHz y 5 GHz) para que el hueco de frecuencia y el solape de etiquetas de canal desaparezcan; eje X con slots de canal uniformes por banda; el selector de router muestra todos los disponibles (primero los que escanean) y avisa cuando uno no reporta escaneos (NetGrip); se ignora el ruido por debajo de -90 dBm. Consolidado aquí al revisar el histórico entre v2.28.2 y main.
+
 ## [2.28.2] - 2026-09-05
 
 ### Added
