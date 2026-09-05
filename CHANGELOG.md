@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.4] - 2026-09-05
+
+### Added
+
+- **Identificación de hosts Proxmox y sus contenedores vía la API del cluster (#561)**: el detalle de Dispositivos y la topología ahora sellan correctamente los hosts de Proxmox VE como **hipervisor** y sus CTs/VMs como **contenedores** colgados de su host, con nombres e IPs reales. La heurística de red (FDB/OUI) no podía deducir la relación contenedor→host cuando un puerto del router mezcla dispositivos o los CTs usan MACs no estándar; la relación vive en el cluster. La integración es de **solo lectura** (token API con privilegios de auditoría, `PVEAuditor`) y se configura en Ajustes > Proxmox VE (URL del cluster + token). Nota: en PVE 9.x los privilegios de un token no se editan desde la UI; se asignan por CLI (`pvesh set /access/acl -path / -roles PVEAuditor -tokens "usuario@realm!token"`).
+
+### Changed
+
+- **CI: Node 24 (Active LTS Krypton) y `.nvmrc`/`engines` fijados (#542, #560)**: los workflows usan Node 24 y el repo declara la versión para reproducibilidad.
+
 ## [2.28.3] - 2026-09-05
 
 ### Added
