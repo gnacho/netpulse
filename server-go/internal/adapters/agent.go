@@ -592,6 +592,25 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		return lldpFromProbe(ld.Neighbors), false
 	}
 	out.lldp, out.lldpUnavailable = resolveLldp()
+	// ClientBw (#551): contadores nlbwmon por MAC. Anti-parpadeo idéntico a
+	// LLDP: la sección buena del payload manda; una sección fallida
+	// (Available=true con Hosts nil) o ausente (push event-driven) recicla
+	// la última cacheada; Available=false explícito = nlbwmon no instalado
+	// y eso SÍ pisa lo cacheado (el server cae a hostapd bytes).
+	resolveClientBw := func() *probe.ClientBwData {
+		cb := p.Data.ClientBw
+		if cb == nil || (cb.Available && cb.Hosts == nil) {
+			cb = nil
+			if cached != nil {
+				cb = cached.clientBw
+			}
+		}
+		if cb == nil || !cb.Available {
+			return nil
+		}
+		return cb
+	}
+	out.clientBw = resolveClientBw()
 	// Discovery (#338): mDNS services + randomized MACs. Best-effort.
 	if p.Data.Discovery != nil {
 		out.discovery = p.Data.Discovery
@@ -652,7 +671,8 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		lldpSnap = cached.lldp // conserva la última sección buena (#489)
 	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb, luci: out.luci, system: sysSnap, lldp: lldpSnap}
+		wireless: out.wireless, fdb: out.fdb, luci: out.luci, system: sysSnap, lldp: lldpSnap,
+		clientBw: out.clientBw}
 	l.mu.Unlock()
 
 	// Solo con un payload NUEVO alimentamos las series y el monitor de
@@ -662,6 +682,12 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// del siguiente push).
 	if freshPayload {
 		l.recordPortSamples(cfg.ID, out.ports)
+		// #551: tráfico por cliente (nlbwmon preferente, hostapd fallback).
+		// now = ts del payload (no el reloj del server) para que el dt del
+		// delta sea el intervalo real entre pushes del agente.
+		if samples, source, ok := resolveClientBwSources(out.wireless, out.clientBw); ok {
+			l.recordClientBwSamples(cfg.ID, time.Unix(p.Ts, 0), samples, source)
+		}
 		l.portMon.Observe(cfg.ID, out.ports, l.engine)
 	}
 

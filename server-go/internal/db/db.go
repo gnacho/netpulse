@@ -19,6 +19,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
 )
 
@@ -365,6 +366,9 @@ type DB struct {
 	rollbackJournal bool
 	// PortSeries: per-port time series store (issue #302).
 	PortSeries *portseries.Store
+	// ClientBW: per-client bandwidth store (issue #337/#551). Wiring añadido
+	// en el #551: la ingesta escribe samples delta por (mac, router).
+	ClientBW *clientbw.Store
 }
 
 // NowMS devuelve el epoch actual en milisegundos (como Date.now()).
@@ -480,6 +484,12 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		return nil, fmt.Errorf("port_series store: %w", err)
 	}
 	d.PortSeries = ps
+	cb, err := clientbw.NewStore(sqldb)
+	if err != nil {
+		sqldb.Close()
+		return nil, fmt.Errorf("client_bw store: %w", err)
+	}
+	d.ClientBW = cb
 	d.wg.Add(1)
 	go d.maintenanceLoop()
 	return d, nil
@@ -605,6 +615,11 @@ func (d *DB) NightlyJob() {
 	// Per-port time series rollup (issue #302).
 	if d.PortSeries != nil {
 		d.PortSeries.NightlyJob()
+	}
+
+	// Per-client bandwidth rollup (#337/#551).
+	if d.ClientBW != nil {
+		d.ClientBW.NightlyJob()
 	}
 }
 

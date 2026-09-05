@@ -2,6 +2,7 @@ package clientbw
 
 import (
 	"database/sql"
+	"log"
 	"time"
 )
 
@@ -11,6 +12,11 @@ const (
 	BucketMS          = 5 * 60 * 1000
 )
 
+// client_bw_raw guarda una muestra por (mac, router_id, ts): los bytes del
+// INTERVALO (delta entre contadores absolutos de dos sondeos) y el rate medio
+// de ese intervalo (rx_bps = delta*8/dt). El server calcula ambos en la
+// ingesta desde los contadores acumulados que reporta la fuente (nlbwmon o
+// hostapd bytes por estación, issue #551).
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS client_bw_raw (
   mac TEXT NOT NULL,
@@ -18,6 +24,8 @@ CREATE TABLE IF NOT EXISTS client_bw_raw (
   ts INTEGER NOT NULL,
   rx_bytes INTEGER NOT NULL DEFAULT 0,
   tx_bytes INTEGER NOT NULL DEFAULT 0,
+  rx_bps REAL NOT NULL DEFAULT 0,
+  tx_bps REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (mac, router_id, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_client_bw_raw_ts ON client_bw_raw(ts);
@@ -52,6 +60,8 @@ CREATE TABLE IF NOT EXISTS client_bw_daily (
 );
 `
 
+// Sample es una muestra de tráfico de UN cliente en UN router: bytes del
+// intervalo (delta) y rate medio del intervalo en bps.
 type Sample struct {
 	MAC      string
 	RouterID string
@@ -79,8 +89,30 @@ func NewStore(db *sql.DB) (*Store, error) {
 		if _, err := db.Exec(schemaSQL); err != nil {
 			return nil, err
 		}
+		// Migración tolerante: DBs creadas antes del #551 no tienen las
+		// columnas bps en raw (el esquema viejo las ignoraba).
+		ensureColumn(db, "client_bw_raw", "rx_bps", "ALTER TABLE client_bw_raw ADD COLUMN rx_bps REAL NOT NULL DEFAULT 0")
+		ensureColumn(db, "client_bw_raw", "tx_bps", "ALTER TABLE client_bw_raw ADD COLUMN tx_bps REAL NOT NULL DEFAULT 0")
 	}
 	return &Store{db: db}, nil
+}
+
+func ensureColumn(db *sql.DB, table, column, alterSQL string) {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err == nil && name == column {
+			return
+		}
+	}
+	_, _ = db.Exec(alterSQL)
 }
 
 func (s *Store) Insert(sample Sample) error {
@@ -88,9 +120,10 @@ func (s *Store) Insert(sample Sample) error {
 		return nil
 	}
 	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO client_bw_raw (mac, router_id, ts, rx_bytes, tx_bytes)
-		 VALUES (?,?,?,?,?)`,
-		sample.MAC, sample.RouterID, sample.TS.UnixMilli(), sample.RxBytes, sample.TxBytes)
+		`INSERT OR REPLACE INTO client_bw_raw (mac, router_id, ts, rx_bytes, tx_bytes, rx_bps, tx_bps)
+		 VALUES (?,?,?,?,?,?,?)`,
+		sample.MAC, sample.RouterID, sample.TS.UnixMilli(), sample.RxBytes, sample.TxBytes,
+		sample.RxBps, sample.TxBps)
 	return err
 }
 
@@ -114,7 +147,7 @@ func (s *Store) GetSeries(mac, routerID string, from, to time.Time, resolution s
 
 func (s *Store) queryRaw(mac, routerID string, fromMs, toMs int64) ([]Point, error) {
 	rows, err := s.db.Query(
-		`SELECT ts, rx_bytes, tx_bytes FROM client_bw_raw
+		`SELECT ts, rx_bytes, tx_bytes, rx_bps, tx_bps FROM client_bw_raw
 		 WHERE mac = ? AND router_id = ? AND ts >= ? AND ts <= ?
 		 ORDER BY ts`, mac, routerID, fromMs, toMs)
 	if err != nil {
@@ -125,7 +158,7 @@ func (s *Store) queryRaw(mac, routerID string, fromMs, toMs int64) ([]Point, err
 	for rows.Next() {
 		var p Point
 		var ts int64
-		if err := rows.Scan(&ts, &p.RxBytes, &p.TxBytes); err == nil {
+		if err := rows.Scan(&ts, &p.RxBytes, &p.TxBytes, &p.RxBps, &p.TxBps); err == nil {
 			p.TS = time.UnixMilli(ts)
 			out = append(out, p)
 		}
@@ -189,7 +222,8 @@ func (s *Store) RollupRawTo5m(window time.Duration) error {
 		SELECT
 			mac, router_id, (ts / ?) * ?, COUNT(*),
 			SUM(rx_bytes), SUM(tx_bytes),
-			0, 0, 0, 0, 0, 0
+			MIN(rx_bps), MAX(rx_bps), AVG(rx_bps),
+			MIN(tx_bps), MAX(tx_bps), AVG(tx_bps)
 		FROM client_bw_raw
 		WHERE ts >= ?
 		GROUP BY mac, router_id, (ts / ?)`,
@@ -207,7 +241,7 @@ func (s *Store) Rollup5mToDaily(window time.Duration) error {
 			(mac, router_id, date, n, rx_bytes, tx_bytes, rx_bps_avg, tx_bps_avg)
 		SELECT
 			mac, router_id, strftime('%Y-%m-%d', bucket_ts / 1000, 'unixepoch'),
-			SUM(n), SUM(rx_bytes), SUM(tx_bytes), 0, 0
+			SUM(n), SUM(rx_bytes), SUM(tx_bytes), AVG(rx_bps_avg), AVG(tx_bps_avg)
 		FROM client_bw_5m
 		WHERE bucket_ts >= ?
 		GROUP BY mac, router_id, strftime('%Y-%m-%d', bucket_ts / 1000, 'unixepoch')`,
@@ -225,6 +259,23 @@ func (s *Store) Purge() error {
 	_, _ = s.db.Exec("DELETE FROM client_bw_raw WHERE ts < ?", rawCutoff)
 	_, _ = s.db.Exec("DELETE FROM client_bw_5m WHERE bucket_ts < ?", bucketCutoff)
 	return nil
+}
+
+// NightlyJob: escalera de rollup + purga (patrón portseries). La agrega
+// DB.NightlyJob tras los rollups de métricas.
+func (s *Store) NightlyJob() {
+	start := time.Now()
+	log.Printf("[netpulse:clientbw] nightly rollup: start")
+	if err := s.RollupRawTo5m(48 * time.Hour); err != nil {
+		log.Printf("[netpulse:clientbw] rollup raw->5m error: %v", err)
+	}
+	if err := s.Rollup5mToDaily(35 * 24 * time.Hour); err != nil {
+		log.Printf("[netpulse:clientbw] rollup 5m->daily error: %v", err)
+	}
+	if err := s.Purge(); err != nil {
+		log.Printf("[netpulse:clientbw] purge error: %v", err)
+	}
+	log.Printf("[netpulse:clientbw] nightly rollup: done (%s)", time.Since(start).Round(time.Millisecond))
 }
 
 func (s *Store) TopClients(routerID string, since time.Time, limit int) ([]TopClient, error) {
