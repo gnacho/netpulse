@@ -517,7 +517,9 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	l.gatewayCfg = pickGateway(l.routers)
 	l.clients = map[string]*OpenWrtClient{}
 	for _, c := range l.routers {
-		if !c.AgentOnly {
+		// RouterOS no habla SSH/ubus: se sondea por su REST API (routeros_live.go),
+		// sin cliente SSH.
+		if !c.AgentOnly && c.Type != "routeros" {
 			l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
 		}
 	}
@@ -953,6 +955,9 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	}
 	if cfg.SnmpEnabled {
 		return l.pollRouterSNMP(cfg)
+	}
+	if cfg.Type == "routeros" {
+		return l.pollRouterROS(cfg)
 	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]

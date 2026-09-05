@@ -537,6 +537,11 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		}
 	}
 
+	// RouterOS (Type "routeros"): credenciales de la REST API nativa.
+	migrate(sqldb, "routers", "routeros_user", "ALTER TABLE routers ADD COLUMN routeros_user TEXT")
+	migrate(sqldb, "routers", "routeros_password", "ALTER TABLE routers ADD COLUMN routeros_password TEXT")
+	migrate(sqldb, "routers", "routeros_insecure", "ALTER TABLE routers ADD COLUMN routeros_insecure INTEGER NOT NULL DEFAULT 0")
+
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria
 	// (backup + reset de login_attempts) sobre una DB ya Go.

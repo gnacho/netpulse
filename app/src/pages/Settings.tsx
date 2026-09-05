@@ -357,7 +357,7 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
 // Gestión de routers (modo live): CRUD contra /api/config/routers
 // ---------------------------------------------------------------------------
 
-type RouterType = 'glinet' | 'openwrt' | 'managed-switch' | 'external'
+type RouterType = 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external'
 
 interface ConfigRouter {
   id: string
@@ -374,6 +374,11 @@ interface ConfigRouter {
   ssh_port?: number
   temp_threshold?: number | null
   console_polling?: boolean
+  // RouterOS: routeros_user viaja tal cual; routeros_password NUNCA se
+  // devuelve (json:"-" en el server, igual que la clave SSH) — dejar el
+  // campo en blanco en el form de edición conserva la password existente.
+  routeros_user?: string
+  routeros_insecure?: boolean
 }
 
 interface DiscoverCandidate {
@@ -425,6 +430,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
   const [editSshPort, setEditSshPort] = useState(22)
   const [editTempThreshold, setEditTempThreshold] = useState('')
+  const [editRouterOSUser, setEditRouterOSUser] = useState('')
+  const [editRouterOSPassword, setEditRouterOSPassword] = useState('')
+  const [editRouterOSInsecure, setEditRouterOSInsecure] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -618,6 +626,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
     setEditSshPort(r.ssh_port ?? 22)
     setEditTempThreshold(r.temp_threshold != null ? String(r.temp_threshold) : '')
+    setEditRouterOSUser(r.routeros_user ?? '')
+    setEditRouterOSPassword('') // blank = conservar la password existente
+    setEditRouterOSInsecure(r.routeros_insecure ?? false)
     setError(null)
   }
 
@@ -644,6 +655,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           ssh_port: editSshPort,
           temp_threshold: editTempThreshold.trim() === '' ? 0 : Number(editTempThreshold),
           console_polling: editConsolePolling,
+          routeros_user: editType === 'routeros' ? editRouterOSUser.trim() : undefined,
+          routeros_password: editRouterOSPassword || undefined,
+          routeros_insecure: editType === 'routeros' ? editRouterOSInsecure : undefined,
         }),
       })
       if (res.status === 409) {
@@ -971,6 +985,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             options={[
               { value: 'openwrt', label: 'OpenWrt' },
               { value: 'glinet', label: 'GL.iNet' },
+              { value: 'routeros', label: 'RouterOS' },
               { value: 'managed-switch', label: t('settings.routers.typeManaged') },
               { value: 'external', label: t('settings.routers.typeExternal') },
             ]}
@@ -1140,6 +1155,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   options={[
                     { value: 'openwrt', label: 'OpenWrt' },
                     { value: 'glinet', label: 'GL.iNet' },
+                    { value: 'routeros', label: 'RouterOS' },
                     { value: 'managed-switch', label: t('settings.routers.typeManaged') },
                     { value: 'external', label: t('settings.routers.typeExternal') },
                   ]}
@@ -1238,6 +1254,44 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                         </div>
                     </div>
                   )}
+                </div>
+              )}
+              {editType === 'routeros' && (
+                <div className="space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label htmlFor="routeros-user" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                        {t('settings.routers.routerosUser')}
+                      </label>
+                      <input
+                        id="routeros-user"
+                        type="text"
+                        value={editRouterOSUser}
+                        onChange={(e) => setEditRouterOSUser(e.target.value)}
+                        placeholder="admin"
+                        aria-label={t('settings.routers.routerosUser')}
+                        className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="routeros-password" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                        {t('settings.routers.routerosPassword')}
+                      </label>
+                      <input
+                        id="routeros-password"
+                        type="password"
+                        value={editRouterOSPassword}
+                        onChange={(e) => setEditRouterOSPassword(e.target.value)}
+                        placeholder={t('settings.routers.routerosPasswordPlaceholder')}
+                        aria-label={t('settings.routers.routerosPassword')}
+                        className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                    <Switch checked={editRouterOSInsecure} onCheckedChange={setEditRouterOSInsecure} />
+                    {t('settings.routers.routerosInsecure')}
+                  </label>
                 </div>
               )}
               {error && <p className="text-caption text-danger">{error}</p>}

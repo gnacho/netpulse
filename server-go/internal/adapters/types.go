@@ -166,7 +166,7 @@ type Router struct {
 	// dispositivo ni entidades por router en ese caso. Ausente = no se
 	// expone (lo hace NetPulse).
 	SelfExpose *bool `json:"selfExpose,omitempty"`
-	// Type: "glinet"|"openwrt"|"managed-switch"|"external". El frontend lo usa
+	// Type: "glinet"|"openwrt"|"routeros"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
 	Type   string `json:"type,omitempty"`
@@ -883,7 +883,7 @@ type RouterConfig struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Host      string `json:"host"`
-	Type      string `json:"type"` // "glinet"|"openwrt"
+	Type      string `json:"type"` // "glinet"|"openwrt"|"routeros"
 	IsGateway bool   `json:"is_gateway"`
 	AgentOnly bool   `json:"agent_only"`
 	CreatedAt int64  `json:"created_at"` // epoch ms
@@ -909,6 +909,12 @@ type RouterConfig struct {
 	// de este router. NULL/ausente = DefaultTempThreshold (65). Un router que
 	// corre más caliente sube el suyo sin ocultar problemas en los más frescos.
 	TempThreshold *int `json:"temp_threshold,omitempty"`
+	// RouterOS: credenciales de la REST API nativa (Type "routeros"). User no
+	// es secreto; Password nunca se serializa de vuelta (json:"-"), igual que
+	// la clave privada ed25519 del servidor.
+	RouterOSUser     string `json:"routeros_user,omitempty"`
+	RouterOSPassword string `json:"-"`
+	RouterOSInsecure bool   `json:"routeros_insecure"` // acepta TLS autofirmado (RouterOS de fábrica)
 }
 
 // TempThresholdValue resuelve el umbral efectivo de temperatura alta (°C) de

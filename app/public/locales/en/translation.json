@@ -1496,7 +1496,11 @@
       "tempThresholdHint": "High-temperature alert threshold. Empty = 65 °C by default. A router that runs hotter can raise its own without hiding issues in cooler ones.",
       "openWrtBadge": "OpenWrt",
       "consolePolling": "Console polling",
-      "consolePollingHint": "The server logs into the switch web UI to read firmware, uptime and MAC. The firmware console allows a single session: every poll kicks whoever is logged in. Disable it if it kicks you out (with beacon v1.3+ the data arrives via UDP anyway)."
+      "consolePollingHint": "The server logs into the switch web UI to read firmware, uptime and MAC. The firmware console allows a single session: every poll kicks whoever is logged in. Disable it if it kicks you out (with beacon v1.3+ the data arrives via UDP anyway).",
+      "routerosUser": "RouterOS user",
+      "routerosPassword": "RouterOS password",
+      "routerosPasswordPlaceholder": "Leave blank to keep current",
+      "routerosInsecure": "Accept self-signed TLS certificate"
     },
     "overrides": {
       "title": "Topology — manual tagging",

@@ -1496,7 +1496,11 @@
       "tempThresholdHint": "Umbral de alerta por temperatura alta. Vacío = 65 °C por defecto. Un router que corre más caliente puede subir el suyo sin ocultar problemas en los más frescos.",
       "openWrtBadge": "OpenWrt",
       "consolePolling": "Sondeo por consola",
-      "consolePollingHint": "El server entra en la web del switch para leer firmware, uptime y MAC. La consola del firmware admite una sola sesión: cada sondeo cierra la sesión de cualquiera que esté dentro. Desactívalo si te echa de la web (con el beacon v1.3+ los datos llegan igual por UDP)."
+      "consolePollingHint": "El server entra en la web del switch para leer firmware, uptime y MAC. La consola del firmware admite una sola sesión: cada sondeo cierra la sesión de cualquiera que esté dentro. Desactívalo si te echa de la web (con el beacon v1.3+ los datos llegan igual por UDP).",
+      "routerosUser": "Usuario RouterOS",
+      "routerosPassword": "Contraseña RouterOS",
+      "routerosPasswordPlaceholder": "Déjalo en blanco para conservar la actual",
+      "routerosInsecure": "Aceptar certificado TLS autofirmado"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",
