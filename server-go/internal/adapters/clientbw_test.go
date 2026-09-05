@@ -163,3 +163,28 @@ func countRawClientBW(t *testing.T, d *db.DB) int {
 	}
 	return n
 }
+
+// TestClientBwRateForPriorizaFuente: cuando una MAC es reportada por nlbwmon
+// (router que enruta) y por hostapd a la vez, el rate de la lista usa el de
+// nlbwmon (el del gateway ya contabiliza todo el tráfico; sumar doblaría).
+func TestClientBwRateForPriorizaFuente(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	t0 := time.Now()
+	t1 := t0.Add(10 * time.Second)
+
+	// hostapd en ap1 y nlbwmon en gw reportan la misma MAC.
+	l.recordClientBwSamples("ap1", t0, []clientBwSample{{mac: "AA:BB:CC:DD:EE:01", rx: 10000}}, "hostapd")
+	l.recordClientBwSamples("gw", t0, []clientBwSample{{mac: "AA:BB:CC:DD:EE:01", rx: 20000}}, "nlbwmon")
+	l.recordClientBwSamples("ap1", t1, []clientBwSample{{mac: "AA:BB:CC:DD:EE:01", rx: 10100}}, "hostapd")
+	l.recordClientBwSamples("gw", t1, []clientBwSample{{mac: "AA:BB:CC:DD:EE:01", rx: 20200}}, "nlbwmon")
+
+	rx, tx := l.clientBwRateFor("AA:BB:CC:DD:EE:01")
+	// 200 bytes en 10 s → 160 bps (nlbwmon), no 80 del hostapd.
+	if rx != 160 {
+		t.Fatalf("rate rx: %.0f (want 160 del nlbwmon)", rx)
+	}
+	if tx != 0 {
+		t.Fatalf("rate tx: %.0f (want 0)", tx)
+	}
+}

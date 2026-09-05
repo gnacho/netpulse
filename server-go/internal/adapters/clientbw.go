@@ -8,6 +8,15 @@
 // enruta el router); si no, se usan los contadores hostapd por estación
 // (clientes wifi asociados a ese AP). La demo no alimenta la store: sus datos
 // sintéticos de tráfico por device siguen intactos.
+//
+// Solapamiento futuro (nota, no bloquea): cuando el pusher del gateway (NetGrip)
+// emita clientBw con nlbwmon, el gateway reportará TODAS las MACs (cable + wifi
+// que enruta) y los APs seguirán reportando hostapd de sus clientes wifi → la
+// misma MAC tendría filas de dos fuentes y GetMACSeries sumaría el doble. La
+// flota actual NO solapa (APs sin nlbwmon, gateway sin clientBw aún): rt2/rt4
+// reportan hostapd y el gateway nada. Antes de activar nlbwmon en el gateway
+// hay que decidir la reconciliación (p. ej. marcar source en la fila y que la
+// agregación por device filtre por la fuente del router que enruta).
 package adapters
 
 import (
@@ -122,17 +131,29 @@ func (l *Live) recordClientBwSamples(routerID string, now time.Time, samples []c
 
 // clientBwRateFor devuelve (rxBps, txBps) del último intervalo conocido del
 // cliente en cualquier router (para el TrafficMbps del device en la lista).
-// Protegido por mu. Sin datos → 0,0.
+// Protegido por mu. Sin datos → 0,0. Prioriza nlbwmon sobre hostapd cuando
+// una MAC es reportada por varias fuentes (el nlbwmon del router que enruta
+// ya contabiliza todo el tráfico de la MAC; sumar hostapd doblaría).
 func (l *Live) clientBwRateFor(mac string) (rxBps, txBps float64) {
 	mac = canonBWMac(mac)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for _, byMac := range l.lastClientBw {
-		if c := byMac[mac]; c != nil {
-			return c.rxBps, c.txBps
-		}
+	if c := l.findClientBwRate(mac, "nlbwmon"); c != nil {
+		return c.rxBps, c.txBps
+	}
+	if c := l.findClientBwRate(mac, "hostapd"); c != nil {
+		return c.rxBps, c.txBps
 	}
 	return 0, 0
+}
+
+func (l *Live) findClientBwRate(mac, source string) *clientBwCounter {
+	for _, byMac := range l.lastClientBw {
+		if c := byMac[mac]; c != nil && c.source == source {
+			return c
+		}
+	}
+	return nil
 }
 
 // resolveClientBwSources resuelve los contadores por MAC de un sondeo con la
