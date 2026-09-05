@@ -1110,13 +1110,13 @@ function ChannelAnalysisChart({ scans }: { scans: Scan[] }) {
   const padT = 18
   const padB = 26
   const dBmMax = -20
-  const dBmMin = -95
+  const dBmMin = -92
   if (!range) {
     return <div className="text-caption text-text-muted">{t('roaming.survey.empty')}</div>
   }
   const x = (freq: number) => padL + ((freq - range.fmin) / (range.fmax - range.fmin)) * (W - padL - padR)
   const y = (dbm: number) => padT + ((dBmMax - dbm) / (dBmMax - dBmMin)) * (H - padT - padB)
-  const gridDbm = [-25, -50, -75, -95]
+  const gridDbm = [-25, -50, -75, -92]
   const chans = Array.from(new Set(scans.map((s) => s.channel))).filter((c) => c > 0).sort((a, b) => a - b)
 
   return (
@@ -1200,7 +1200,7 @@ function ChannelAnalysisView({
     if (!routers.some((r) => r.routerId === rid)) setRid(routers[0]?.routerId ?? '')
   }, [routers, rid])
   const name = routers.find((r) => r.routerId === rid)?.name ?? rid
-  const allScans = scansByRouter[rid] ?? []
+  const allScans = (scansByRouter[rid] ?? []).filter((s) => s.signal >= -90)
   const scans = band === 'all' ? allScans : allScans.filter((s) => bandOfFreq(s.freq) === band)
   const bandOptions: SurveyBand[] = ['all', '2.4 GHz', '5 GHz']
 
