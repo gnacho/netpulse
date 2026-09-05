@@ -2060,6 +2060,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			d.Band = k.band
 			d.SignalDbm = k.signal
 		}
+		// #551: TrafficMbps del cliente desde el rate en memoria (nlbwmon u
+		// hostapd) sin consultar la store en cada rebuild. Solo online; los
+		// offline no tienen rate (la UI pinta "—").
+		if isSeen {
+			if rxBps, txBps := l.clientBwRateFor(mac); rxBps+txBps > 0 {
+				d.TrafficMbps = (rxBps + txBps) / 1e6
+			}
+		}
 		devices = append(devices, d)
 	}
 	return devices

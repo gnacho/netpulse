@@ -145,6 +145,94 @@ func (s *Store) GetSeries(mac, routerID string, from, to time.Time, resolution s
 	}
 }
 
+// GetMACSeries devuelve la serie de un cliente (MAC) agregando a través de
+// TODOS los routers: un dispositivo puede verse en varios APs a lo largo del
+// día (roaming), y la UI del detalle quiere el total, no el de un router.
+func (s *Store) GetMACSeries(mac string, from, to time.Time, resolution string) ([]Point, error) {
+	if s.db == nil {
+		return nil, nil
+	}
+	fromMs, toMs := from.UnixMilli(), to.UnixMilli()
+	switch resolution {
+	case "raw":
+		return s.queryRawMAC(mac, fromMs, toMs)
+	case "5m":
+		return s.query5mMAC(mac, fromMs, toMs)
+	case "daily":
+		return s.queryDailyMAC(mac, from, to)
+	default:
+		return s.queryRawMAC(mac, fromMs, toMs)
+	}
+}
+
+func (s *Store) queryRawMAC(mac string, fromMs, toMs int64) ([]Point, error) {
+	rows, err := s.db.Query(
+		`SELECT ts, SUM(rx_bytes), SUM(tx_bytes), AVG(rx_bps), AVG(tx_bps)
+		 FROM client_bw_raw
+		 WHERE mac = ? AND ts >= ? AND ts <= ?
+		 GROUP BY ts ORDER BY ts`, mac, fromMs, toMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Point
+	for rows.Next() {
+		var p Point
+		var ts int64
+		if err := rows.Scan(&ts, &p.RxBytes, &p.TxBytes, &p.RxBps, &p.TxBps); err == nil {
+			p.TS = time.UnixMilli(ts)
+			out = append(out, p)
+		}
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) query5mMAC(mac string, fromMs, toMs int64) ([]Point, error) {
+	rows, err := s.db.Query(
+		`SELECT bucket_ts, SUM(rx_bytes), SUM(tx_bytes), AVG(rx_bps_avg), AVG(tx_bps_avg)
+		 FROM client_bw_5m
+		 WHERE mac = ? AND bucket_ts >= ? AND bucket_ts <= ?
+		 GROUP BY bucket_ts ORDER BY bucket_ts`, mac, fromMs, toMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Point
+	for rows.Next() {
+		var p Point
+		var ts int64
+		if err := rows.Scan(&ts, &p.RxBytes, &p.TxBytes, &p.RxBps, &p.TxBps); err == nil {
+			p.TS = time.UnixMilli(ts)
+			out = append(out, p)
+		}
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) queryDailyMAC(mac string, from, to time.Time) ([]Point, error) {
+	fromDate := from.Format("2006-01-02")
+	toDate := to.Format("2006-01-02")
+	rows, err := s.db.Query(
+		`SELECT date, SUM(rx_bytes), SUM(tx_bytes), AVG(rx_bps_avg), AVG(tx_bps_avg)
+		 FROM client_bw_daily
+		 WHERE mac = ? AND date >= ? AND date <= ?
+		 GROUP BY date ORDER BY date`, mac, fromDate, toDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Point
+	for rows.Next() {
+		var p Point
+		var date string
+		if err := rows.Scan(&date, &p.RxBytes, &p.TxBytes, &p.RxBps, &p.TxBps); err == nil {
+			p.TS, _ = time.Parse("2006-01-02", date)
+			out = append(out, p)
+		}
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) queryRaw(mac, routerID string, fromMs, toMs int64) ([]Point, error) {
 	rows, err := s.db.Query(
 		`SELECT ts, rx_bytes, tx_bytes, rx_bps, tx_bps FROM client_bw_raw

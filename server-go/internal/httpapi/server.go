@@ -316,6 +316,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/device-events", s.handleDeviceEvents)
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
 	mux.HandleFunc("GET /api/routers/{id}/ports/{portId}/series", s.handlePortSeries)
+	mux.HandleFunc("GET /api/devices/{mac}/traffic", s.handleDeviceTraffic)
 	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	mux.HandleFunc("GET /api/reports/weekly", s.handleWeeklyReport)
 	mux.HandleFunc("GET /api/reports/availability", s.handleAvailabilityReport)

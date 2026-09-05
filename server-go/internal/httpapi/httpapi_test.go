@@ -19,6 +19,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/channelplan"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
+	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -1035,5 +1036,71 @@ func TestPortSeriesInvalidResolution(t *testing.T) {
 	defer res.Body.Close()
 	if res.StatusCode != 400 {
 		t.Errorf("expected 400 for invalid resolution, got %d", res.StatusCode)
+	}
+}
+
+func TestDeviceTrafficEndpoint(t *testing.T) {
+	srv := makeTestServer(t)
+	defer srv.Close()
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	if srv.db.ClientBW == nil {
+		t.Fatal("ClientBW store not initialized")
+	}
+	now := time.Now()
+	err := srv.db.ClientBW.Insert(clientbw.Sample{
+		MAC: "aa:bb:cc:dd:ee:01", RouterID: "rt2", TS: now,
+		RxBytes: 1000, TxBytes: 2000, RxBps: 8000, TxBps: 16000,
+	})
+	if err != nil {
+		t.Fatalf("insert sample: %v", err)
+	}
+
+	from := now.Add(-time.Hour).Unix()
+	to := now.Add(time.Hour).Unix()
+	req, _ := http.NewRequest("GET",
+		fmt.Sprintf("%s/api/devices/aa:bb:cc:dd:ee:01/traffic?from=%d&to=%d", srv.URL, from, to), nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	points, ok := body["points"].([]any)
+	if !ok || len(points) == 0 {
+		t.Fatalf("expected points, got %T %v", body["points"], body["points"])
+	}
+	// La MAC del path se normaliza: formato con guiones también vale.
+	req2, _ := http.NewRequest("GET",
+		fmt.Sprintf("%s/api/devices/aa-bb-cc-dd-ee-01/traffic?from=%d&to=%d", srv.URL, from, to), nil)
+	req2.Header.Set("Cookie", "session="+cookie)
+	res2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("request guiones: %v", err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != 200 {
+		t.Fatalf("guiones expected 200, got %d", res2.StatusCode)
+	}
+}
+
+func TestDeviceTrafficInvalidMAC(t *testing.T) {
+	srv := makeTestServer(t)
+	defer srv.Close()
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	req, _ := http.NewRequest("GET", srv.URL+"/api/devices/not-a-mac/traffic", nil)
+	req.Header.Set("Cookie", "session="+cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 400 {
+		t.Fatalf("expected 400 for invalid mac, got %d", res.StatusCode)
 	}
 }

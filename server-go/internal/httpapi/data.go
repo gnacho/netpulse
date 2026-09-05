@@ -12,6 +12,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
@@ -579,4 +580,67 @@ func (s *server) handlePortSeries(w http.ResponseWriter, r *http.Request) {
 		"routerId":   routerID,
 		"portId":     portID,
 	})
+}
+
+// handleDeviceTraffic: GET /api/devices/{mac}/traffic
+// Serie de tráfico por cliente (issue #551) agregando a través de TODOS los
+// routers (roaming). Query params: from (unix s), to (unix s), resolution
+// (raw|5m|daily). La UI del detalle lo llama bajo demanda (patrón portseries).
+func (s *server) handleDeviceTraffic(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil || s.db.ClientBW == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	mac := normalizeMAC(r.PathValue("mac"))
+	if len(mac) != len("aa:bb:cc:dd:ee:ff") {
+		writeError(w, http.StatusBadRequest, "invalid_mac")
+		return
+	}
+	q := r.URL.Query()
+	now := time.Now()
+	to := now
+	from := now.Add(-24 * time.Hour)
+	if v := q.Get("from"); v != "" {
+		if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
+			from = time.Unix(ts, 0)
+		}
+	}
+	if v := q.Get("to"); v != "" {
+		if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
+			to = time.Unix(ts, 0)
+		}
+	}
+	resolution := q.Get("resolution")
+	if resolution == "" {
+		resolution = clientbwResolution(from, to)
+	}
+	if resolution != "raw" && resolution != "5m" && resolution != "daily" {
+		writeError(w, http.StatusBadRequest, "invalid_resolution")
+		return
+	}
+	points, err := s.db.ClientBW.GetMACSeries(mac, from, to, resolution)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_error", err.Error())
+		return
+	}
+	if points == nil {
+		points = []clientbw.Point{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"points":     points,
+		"resolution": resolution,
+		"mac":        mac,
+	})
+}
+
+// clientbwResolution elige el tier según el rango (misma escala que portseries).
+func clientbwResolution(from, to time.Time) string {
+	dur := to.Sub(from)
+	if dur <= 24*time.Hour {
+		return "raw"
+	}
+	if dur <= 30*24*time.Hour {
+		return "5m"
+	}
+	return "daily"
 }

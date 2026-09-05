@@ -120,6 +120,37 @@ func TestTopClients(t *testing.T) {
 	}
 }
 
+func TestGetMACSeriesAgregaRouters(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Now().Truncate(time.Minute).Add(time.Minute)
+	// La misma MAC vista en dos routers (roaming) a la misma hora.
+	for _, rid := range []string{"rt2", "rt4"} {
+		for i := 0; i < 3; i++ {
+			_ = s.Insert(Sample{
+				MAC: "aa:bb:cc:dd:ee:ff", RouterID: rid,
+				TS:      now.Add(time.Duration(i) * time.Minute),
+				RxBytes: 1000, TxBytes: 500, RxBps: 8000, TxBps: 4000,
+			})
+		}
+	}
+	// GetSeries con router filtra; GetMACSeries agrega ambos.
+	one, err := s.GetSeries("aa:bb:cc:dd:ee:ff", "rt2", now.Add(-time.Hour), now.Add(time.Hour), "raw")
+	if err != nil || len(one) != 3 {
+		t.Fatalf("serie por router: %d %v", len(one), err)
+	}
+	all, err := s.GetMACSeries("aa:bb:cc:dd:ee:ff", now.Add(-time.Hour), now.Add(time.Hour), "raw")
+	if err != nil {
+		t.Fatalf("serie mac: %v", err)
+	}
+	// Mismo ts en ambos routers → cada punto agrega 2 muestras.
+	if len(all) != 3 {
+		t.Fatalf("serie mac puntos: %d (want 3)", len(all))
+	}
+	if all[0].RxBytes != 2000 || all[0].TxBytes != 1000 {
+		t.Fatalf("agregación mac: %+v", all[0])
+	}
+}
+
 func TestNilDB(t *testing.T) {
 	s, err := NewStore(nil)
 	if err != nil {

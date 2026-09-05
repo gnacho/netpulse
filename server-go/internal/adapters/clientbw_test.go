@@ -91,6 +91,10 @@ func TestRecordClientBwSamplesDeltas(t *testing.T) {
 	if rxBps != 800 || txBps != 400 {
 		t.Fatalf("bps: rx=%.0f tx=%.0f (want 800/400)", rxBps, txBps)
 	}
+	// El rate del último intervalo queda en memoria para el TrafficMbps.
+	if rrx, rtx := l.clientBwRateFor("AA:BB:CC:DD:EE:01"); rrx != 800 || rtx != 400 {
+		t.Fatalf("rate en memoria: rx=%.0f tx=%.0f (want 800/400)", rrx, rtx)
+	}
 
 	// Reinicio del contador (hostapd se reinició al reasociar / nlbwmon nuevo
 	// periodo): contador BAJA → re-siembra, no escribe delta gigante.
