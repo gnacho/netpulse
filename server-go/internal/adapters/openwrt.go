@@ -27,7 +27,20 @@ import (
 const (
 	ubusHTTPTimeout = 4 * time.Second
 	iwinfoTimeout   = 8 * time.Second
+	// radiosTTL (#368/#373, paridad con el agente): el resumen de radios
+	// (canal/htmode/txpower) apenas cambia; cachearlo evita correr iwinfo en
+	// cada poll de 5 s del server contra APs de bajas prestaciones (p.ej.
+	// Archer A7 v5). El agente usa el mismo TTL desde el PR #373.
+	radiosTTL = 5 * time.Minute
 )
+
+// poolRunner es el subconjunto de *SSHPool que usa OpenWrtClient (Run para
+// los comandos y RunCtx para LLDP). Permite inyectar un runner falso en
+// tests, igual que sshRunner para las funciones live sueltas.
+type poolRunner interface {
+	Run(host, cmd string, timeout time.Duration) (string, error)
+	RunCtx(ctx context.Context, host, cmd string, timeout time.Duration) (string, error)
+}
 
 // OpenWrtClient es el cliente de un router (uno por router del config).
 type OpenWrtClient struct {
@@ -35,7 +48,7 @@ type OpenWrtClient struct {
 	User     string // para ubus HTTP (default root)
 	Password string
 
-	pool *SSHPool
+	pool poolRunner
 
 	// mu protege el estado mutable del cliente (sid, lastStat, lastNetDev,
 	// lldpDownUntil): los handlers HTTP pueden sondear (p.ej. GetSurvey) en
@@ -51,6 +64,12 @@ type OpenWrtClient struct {
 	// lldpDownUntil: indisponibilidad de lldpd cacheada (≥5 min) para no
 	// martillear con un comando que no existe. Acceso serializado por mu.
 	lldpDownUntil time.Time
+
+	// radiosMu serializa la caché de radios (radiosCache/radiosAt): el
+	// poller y los handlers HTTP pueden sondear el mismo cliente en paralelo.
+	radiosMu    sync.Mutex
+	radiosCache []Radio // resumen por banda, refrescado cada radiosTTL
+	radiosAt    time.Time
 }
 
 type cpuSample struct{ total, idleAll float64 }
@@ -79,7 +98,7 @@ type (
 )
 
 // NewOpenWrtClient crea el cliente de un router.
-func NewOpenWrtClient(cfg RouterConfig, pool *SSHPool, user, password string) *OpenWrtClient {
+func NewOpenWrtClient(cfg RouterConfig, pool poolRunner, user, password string) *OpenWrtClient {
 	if user == "" {
 		user = "root"
 	}
@@ -386,8 +405,32 @@ func parseDhcpLeasesFile(out string) []DhcpLease {
 	return probe.ParseDhcpLeasesFile(out)
 }
 
-// GetWirelessClients: iwinfo assoclist por radio → mapa MAC → cliente.
+// GetWirelessClients: clientes wifi asociados (MAC → señal/banda). Port del
+// fix #373 (#368) al sondeo SSH: ubus hostapd get_clients primero (una
+// llamada ubus barata por AP, sin ucode/iwinfo), fallback de iwinfo combinado
+// en UNA pasada por interfaz, y como último recurso el par legacy. Vacío si
+// el router no expone ninguna fuente wireless.
 func (c *OpenWrtClient) GetWirelessClients() map[string]WirelessClient {
+	// 1. ubus hostapd get_clients (barato; APs con hostapd ubus moderno).
+	// Autoritativo cuando hay objetos hostapd.* (incluso con 0 clientes: un
+	// AP vacío no debe caer al fallback iwinfo en cada poll de 5 s del
+	// server). Solo si ubus no expone objetos se baja al fallback.
+	if out, err := c.pool.Run(c.Host, probe.CmdHostapdClients, iwinfoTimeout); err == nil && strings.Contains(out, "==AP==") {
+		return probe.ParseHostapdClients(out)
+	}
+	// 2. iwinfo combinado en UNA pasada (info + assoclist juntos por interfaz;
+	// emite clientes y radios). Mitad de spawns que el par legacy de abajo.
+	// Las radios se cachean aunque no haya clientes (GetRadios no re-sondea).
+	if out, err := c.pool.Run(c.Host, probe.CmdWirelessCombined, iwinfoTimeout); err == nil {
+		clients, radios := probe.ParseWirelessCombined(out)
+		if len(radios) > 0 {
+			c.setRadiosCache(radiosToAdapter(radios))
+		}
+		if len(clients) > 0 {
+			return clients
+		}
+	}
+	// 3. Último recurso: par legacy (equipos donde el combinado no aplica).
 	out, err := c.pool.Run(c.Host, probe.CmdIwinfoAssoc, iwinfoTimeout)
 	if err != nil {
 		return map[string]WirelessClient{}
@@ -398,6 +441,53 @@ func (c *OpenWrtClient) GetWirelessClients() map[string]WirelessClient {
 // parseWirelessClients parsea líneas "<mac> <sig> <freq>" del bucle iwinfo.
 func parseWirelessClients(out string) map[string]WirelessClient {
 	return probe.ParseWirelessClients(out)
+}
+
+// GetRadios: radios activas por banda (canal/htmode/txpower + nº clientes).
+// Cacheadas radiosTTL (5 min): el resumen de radios apenas cambia y correr
+// CmdRadios (iwinfo) en CADA poll de 5 s del server quemaba CPU en APs de
+// bajas prestaciones (port #373 al sondeo SSH). Si la caché está fresca se
+// devuelve sin tocar el router; si caducó (o está vacía) se refresca.
+func (c *OpenWrtClient) GetRadios() []Radio {
+	c.radiosMu.Lock()
+	cached := c.radiosCache
+	if len(cached) > 0 && time.Since(c.radiosAt) < radiosTTL {
+		c.radiosMu.Unlock()
+		return cached
+	}
+	c.radiosMu.Unlock()
+
+	// Refresco. Prioridad al combinado (una pasada por interfaz) cuando ubus
+	// no estuvo disponible para clientes: el propio comando emite las radios.
+	out, err := c.pool.Run(c.Host, probe.CmdWirelessCombined, iwinfoTimeout)
+	if err == nil {
+		if _, radios := probe.ParseWirelessCombined(out); len(radios) > 0 {
+			rs := radiosToAdapter(radios)
+			c.setRadiosCache(rs)
+			return rs
+		}
+	}
+	out, err = c.pool.Run(c.Host, probe.CmdRadios, iwinfoTimeout)
+	if err != nil {
+		return []Radio{}
+	}
+	rs := parseRadios(out)
+	if len(rs) > 0 {
+		c.setRadiosCache(rs)
+	}
+	return rs
+}
+
+// setRadiosCache guarda el resumen de radios con su timestamp (best-effort:
+// no falla si la caché está vacía; el poller reintenta en el próximo ciclo).
+func (c *OpenWrtClient) setRadiosCache(rs []Radio) {
+	if len(rs) == 0 {
+		return
+	}
+	c.radiosMu.Lock()
+	c.radiosCache = rs
+	c.radiosAt = time.Now()
+	c.radiosMu.Unlock()
 }
 
 // GetWirelessUplink: true si el router tiene uplink inalámbrico (alguna
@@ -554,15 +644,6 @@ func (c *OpenWrtClient) GetBridgeVlans() []probe.VlanPort {
 // ---------------------------------------------------------------------------
 // Radios WiFi
 // ---------------------------------------------------------------------------
-
-// GetRadios: radios activas agregadas por banda (iwinfo info + assoclist).
-func (c *OpenWrtClient) GetRadios() []Radio {
-	out, err := c.pool.Run(c.Host, probe.CmdRadios, iwinfoTimeout)
-	if err != nil {
-		return []Radio{}
-	}
-	return parseRadios(out)
-}
 
 // parseRadios: líneas "freq|ch|ht|tx|n" agregadas por banda (suma clientes).
 func parseRadios(out string) []Radio {
