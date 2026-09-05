@@ -1189,127 +1189,94 @@ interface ChannelPlanData {
 function ChannelAnalysisView({
   over,
   band,
-  setBand,
   scansByRouter,
 }: {
   over: SurveyOverview
   band: SurveyBand
-  setBand: (b: SurveyBand) => void
   scansByRouter: Record<string, Scan[]>
 }) {
   const { t } = useTranslation()
-  // Todos los routers disponibles; los que tienen escaneos (datos) primero.
-  const hasData = (rid: string) => (scansByRouter[rid] ?? []).length > 0
-  const routers = over.routers.filter((r) => r.available).slice().sort((a, b) => (hasData(b.routerId) ? 1 : 0) - (hasData(a.routerId) ? 1 : 0))
-  const [rid, setRid] = useState<string>(routers[0]?.routerId ?? '')
-  useEffect(() => {
-    if (!routers.some((r) => r.routerId === rid)) setRid(routers.find((r) => hasData(r.routerId))?.routerId ?? routers[0]?.routerId ?? '')
-  }, [routers, rid])
-  const router = routers.find((r) => r.routerId === rid)
-  const name = router?.name ?? rid
-  const allScans = (scansByRouter[rid] ?? []).filter((s) => s.signal >= -90)
-  // Una sola banda activa a la vez (el usuario no quiere ver ambas juntas); si
-  // la prop es "all" lo tratamos como 2.4 GHz por defecto.
+  // Una sola banda activa a la vez (controlada desde el header del panel); si la
+  // prop es "all" lo tratamos como 2.4 GHz por defecto.
   const activeBand = band === '5 GHz' ? '5 GHz' : '2.4 GHz'
   const channels = bandChannels(activeBand)
-  // Red propia: por cada radio del router en "in use" se dibuja una montaña a
-  // -25 dBm en su canal (el AP del propio router), para que se vea como referencia.
-  const ownScans: Scan[] = (router?.radios ?? []).flatMap((radio) => {
-    if (radio.band !== activeBand) return []
-    const ch = radio.channels.find((c) => c.inUse)
-    if (!ch) return []
-    return [{ iface: radio.device, bssid: `own-${radio.device}`, ssid: `${t('roaming.survey.ownLabel')} (${name})`, channel: ch.channel, freq: ch.freq, signal: -25, routerId: rid, own: true }]
-  })
-  const bandScans = allScans.filter((s) => bandOfFreq(s.freq) === activeBand)
-  const scans = [...ownScans, ...bandScans]
-  const bandOptions: SurveyBand[] = ['2.4 GHz', '5 GHz']
+  // Los routers con escaneos (datos) primero; el resto se muestra igualmente
+  // con su aviso de "sin escaneos".
+  const hasData = (rid: string) => (scansByRouter[rid] ?? []).length > 0
+  const routers = over.routers.filter((r) => r.available).slice().sort((a, b) => (hasData(b.routerId) ? 1 : 0) - (hasData(a.routerId) ? 1 : 0))
 
   if (routers.length === 0) {
     return <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">{t('roaming.survey.empty')}</div>
   }
-  const noData = !hasData(rid) && ownScans.length === 0
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-caption font-medium text-text-muted">{t('roaming.survey.router')}</span>
-          <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-elevated p-1">
-            {routers.map((r) => (
-              <button
-                key={r.routerId}
-                onClick={() => setRid(r.routerId)}
-                className={cn('rounded-md px-2.5 py-1 text-caption font-medium transition-colors', rid === r.routerId ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary')}
-              >
-                {r.name}
-              </button>
-            ))}
+    <div className="space-y-4">
+      {routers.map((router) => {
+        const name = router.name
+        const allScans = (scansByRouter[router.routerId] ?? []).filter((s) => s.signal >= -90)
+        // Red propia: montaña a -25 dBm en el canal en uso de cada radio.
+        const ownScans: Scan[] = (router.radios ?? []).flatMap((radio) => {
+          if (radio.band !== activeBand) return []
+          const ch = radio.channels.find((c) => c.inUse)
+          if (!ch) return []
+          return [{ iface: radio.device, bssid: `own-${radio.device}`, ssid: `${t('roaming.survey.ownLabel')} (${name})`, channel: ch.channel, freq: ch.freq, signal: -25, routerId: router.routerId, own: true }]
+        })
+        const bandScans = allScans.filter((s) => bandOfFreq(s.freq) === activeBand)
+        const scans = [...ownScans, ...bandScans]
+        const noData = !hasData(router.routerId) && ownScans.length === 0
+        return (
+          <div key={router.routerId} className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+            <h3 className="mb-2 font-display text-h3 text-text-primary">{name}</h3>
+            <div className="mb-1 font-mono text-caption text-text-muted">{activeBand}</div>
+            {noData && (
+              <p className="rounded-lg bg-warn/10 px-3 py-2 text-caption text-warn">
+                {t('roaming.survey.noScans')}
+              </p>
+            )}
+            {!noData && (
+              <>
+                <ChannelAnalysisChart bandName={activeBand} channels={channels} scans={scans} />
+                {bandScans.length > 0 && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full border-separate border-spacing-0 text-left text-sm">
+                      <thead>
+                        <tr className="text-label uppercase text-text-muted">
+                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSignal')}</th>
+                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSsid')}</th>
+                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
+                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBssid')}</th>
+                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scans.slice().sort((a, b) => b.signal - a.signal).map((s) => (
+                          <tr key={s.bssid + s.channel}>
+                            <td className="border-b border-border/60 py-2 pr-3">
+                              <span className="inline-flex items-center gap-2">
+                                <span className={cn('inline-block h-2 w-8 rounded-full', s.own ? 'bg-accent' : signalDot(s.signal))} />
+                                <span className="font-mono text-mono-sm text-text-secondary">{s.signal} dBm</span>
+                              </span>
+                            </td>
+                            <td className="border-b border-border/60 py-2 pr-3">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.own ? '#8b5cf6' : ssidColor(s.ssid || s.bssid) }} />
+                                <span className="text-text-primary">{s.ssid || <em className="text-text-muted">hidden</em>}</span>
+                              </span>
+                            </td>
+                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">{s.channel}</td>
+                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.bssid}</td>
+                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.freq} MHz</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        </div>
-        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
-          {bandOptions.map((b) => (
-            <button
-              key={b}
-              onClick={() => setBand(b)}
-              className={cn('rounded-md px-2.5 py-1 text-caption font-medium transition-colors', activeBand === b ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary')}
-            >
-              {b}
-            </button>
-          ))}
-        </div>
-      </div>
-      <h3 className="mb-2 font-display text-h3 text-text-primary">{name}</h3>
-      {noData && (
-        <p className="mb-3 rounded-lg bg-warn/10 px-3 py-2 text-caption text-warn">
-          {t('roaming.survey.noScans')}
-        </p>
-      )}
-      {!noData && (
-        <>
-          <div className="flex flex-col gap-4">
-            <div>
-              <div className="mb-1 font-mono text-caption text-text-muted">{activeBand}</div>
-              <ChannelAnalysisChart bandName={activeBand} channels={channels} scans={scans} />
-            </div>
-          </div>
-          {bandScans.length > 0 && (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full border-separate border-spacing-0 text-left text-sm">
-                <thead>
-                  <tr className="text-label uppercase text-text-muted">
-                    <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSignal')}</th>
-                    <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSsid')}</th>
-                    <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
-                    <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBssid')}</th>
-                    <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scans.slice().sort((a, b) => b.signal - a.signal).map((s) => (
-                    <tr key={s.bssid + s.channel}>
-                      <td className="border-b border-border/60 py-2 pr-3">
-                        <span className="inline-flex items-center gap-2">
-                          <span className={cn('inline-block h-2 w-8 rounded-full', s.own ? 'bg-accent' : signalDot(s.signal))} />
-                          <span className="font-mono text-mono-sm text-text-secondary">{s.signal} dBm</span>
-                        </span>
-                      </td>
-                      <td className="border-b border-border/60 py-2 pr-3">
-                        <span className="inline-flex items-center gap-2">
-                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.own ? '#8b5cf6' : ssidColor(s.ssid || s.bssid) }} />
-                          <span className="text-text-primary">{s.ssid || <em className="text-text-muted">hidden</em>}</span>
-                        </span>
-                      </td>
-                      <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">{s.channel}</td>
-                      <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.bssid}</td>
-                      <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.freq} MHz</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
+        )
+      })}
     </div>
   )
 }
@@ -1380,7 +1347,7 @@ function SurveyPanel({
     )
   }
 
-  const bandOptions: SurveyBand[] = ['all', '2.4 GHz', '5 GHz']
+  const bandOptions: SurveyBand[] = ['2.4 GHz', '5 GHz']
 
   return (
     <motion.section
@@ -1406,10 +1373,10 @@ function SurveyPanel({
                 onClick={() => setBand(b)}
                 className={cn(
                   'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                  band === b ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+                  (band === b || (band === 'all' && b === '2.4 GHz')) ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
                 )}
               >
-                {b === 'all' ? t('roaming.matrix.allBands') : b}
+                {b}
               </button>
             ))}
           </div>
@@ -1417,7 +1384,7 @@ function SurveyPanel({
       </div>
 
       {/* Análisis de canales (#542): cascada de curvas + tabla de vecinos */}
-      <ChannelAnalysisView over={overview} band={band} setBand={setBand} scansByRouter={scansByRouter} />
+      <ChannelAnalysisView over={overview} band={band} scansByRouter={scansByRouter} />
 
       {/* Leyenda */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
