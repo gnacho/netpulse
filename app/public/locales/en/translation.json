@@ -450,7 +450,10 @@
       "inUse": "In use",
       "legendFree": "< 40% (free)",
       "legendBusy": "40-70% (busy)",
-      "legendCongested": "≥ 70% (congested)"
+      "legendCongested": "≥ 70% (congested)",
+      "colSignal": "Signal (dBm)",
+      "colSsid": "Network (SSID)",
+      "router": "Router"
     },
     "events": {
       "title": "Roaming events",
