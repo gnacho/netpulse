@@ -1309,6 +1309,22 @@
       "hint": "Cada test satura el enlace durante unos segundos y consume datos: evita intervalos cortos en líneas con límite de datos.",
       "lastResult": "Último test: {{when}} · {{down}} Mbps ↓ / {{up}} Mbps ↑",
       "unavailable": "No disponible en este modo"
+    },
+    "proxmox": {
+      "title": "Proxmox VE",
+      "caption": "Inventario del cluster para identificar hosts y sus contenedores",
+      "hint": "Conecta con la API de solo lectura del cluster Proxmox (token con permisos Sys.Audit y VM.Audit). El inventario sella el host como hipervisor y sus CTs/VMs como contenedores colgados de él en Dispositivos, con nombres e IPs reales. Crea el token en Datacenter > Permisos > API Tokens.",
+      "configured": "Configurado",
+      "notConfigured": "Sin configurar",
+      "edit": "Editar configuración de Proxmox",
+      "url": "URL del cluster",
+      "tokenId": "Token ID (usuario@realm!nombre)",
+      "secret": "Secret del token",
+      "secretKeep": "Secret actual (déjalo vacío para conservarlo)",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "disable": "Desactivar",
+      "errorGeneric": "No se pudo guardar la configuración de Proxmox."
     }
   },
   "statcard": {
