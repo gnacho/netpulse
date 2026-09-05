@@ -50,6 +50,10 @@ type PayloadData struct {
 	// (el server conserva el último dato bueno); Available=false = lldpd
 	// no instalado (hint de UI).
 	Lldp *LldpData `json:"lldp,omitempty"`
+	// ClientBw (#551): tráfico por cliente desde nlbwmon del router. nil =
+	// sonda fallida en este push; Available=false = nlbwmon no instalado
+	// (el server usa entonces hostapd bytes por estación).
+	ClientBw *ClientBwData `json:"clientBw,omitempty"`
 	// Discovery: mDNS services and randomized MAC detection (#338).
 	Discovery *DiscoveryData `json:"discovery,omitempty"`
 }
