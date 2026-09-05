@@ -449,7 +449,7 @@
       "inUse": "In use",
       "legendFree": "< 40% (free)",
       "legendBusy": "40-70% (busy)",
-      "legendCongested": "≥ 70% (congested)",
+      "legendCongested": "≥ 70% (congested)"
     },
     "events": {
       "title": "Roaming events",
