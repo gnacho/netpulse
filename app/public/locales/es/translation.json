@@ -186,6 +186,7 @@
       "renameLocal": "Solo se guarda en este navegador.",
       "traffic24h": "Tráfico 24 h",
       "trafficCurrent": "Tráfico actual",
+      "traffic": "Tráfico por cliente",
       "unfiltered": "Sin filtrar"
     },
     "deviceType": "Tipo de dispositivo",
