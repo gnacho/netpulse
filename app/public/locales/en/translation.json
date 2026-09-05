@@ -454,7 +454,8 @@
       "colSignal": "Signal (dBm)",
       "colSsid": "Network (SSID)",
       "router": "Router",
-      "noScans": "This router does not report channel scans. NetGrip routers do not scan; use one running the NetPulse agent or check it is active."
+      "noScans": "This router does not report channel scans. NetGrip routers do not scan; use one running the NetPulse agent or check it is active.",
+      "ownLabel": "Own network"
     },
     "events": {
       "title": "Roaming events",

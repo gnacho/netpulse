@@ -454,7 +454,8 @@
       "colSignal": "Señal (dBm)",
       "colSsid": "Red (SSID)",
       "router": "Router",
-      "noScans": "Este router no envía escaneos de canales. Si corre NetGrip no escanea; usa un router con el agente NetPulse o revisa que esté activo."
+      "noScans": "Este router no envía escaneos de canales. Si corre NetGrip no escanea; usa un router con el agente NetPulse o revisa que esté activo.",
+      "ownLabel": "Red propia"
     },
     "events": {
       "title": "Eventos de itinerancia",
