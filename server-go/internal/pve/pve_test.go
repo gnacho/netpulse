@@ -19,7 +19,9 @@ func TestMACsOfConfigLXC(t *testing.T) {
 		"memory":   float64(2048),
 	}
 	macs := MACsOfConfig(cfg)
-	want := []string{"BC:24:11:A4:9E:BB", "BC:24:11:00:00:01"}
+	sort.Strings(macs)
+	want := []string{"BC:24:11:00:00:01", "BC:24:11:A4:9E:BB"}
+	sort.Strings(want)
 	if !reflect.DeepEqual(macs, want) {
 		t.Fatalf("macs lxc: %v (want %v)", macs, want)
 	}
