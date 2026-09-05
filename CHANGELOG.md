@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.2] - 2026-09-05
+
+### Added
+
+- **Análisis de canales: eje X con todos los canales de la banda y red propia visible (#542, #554)**: la gráfica muestra cada canal de la banda activa (2.4 GHz: 1-13; 5 GHz: UNII-1..4) aunque esté vacío, como el análisis de LuCI; la red gestionada se dibuja como una montaña violeta en su canal en uso a -25 dBm (no aparece en los escaneos externos); y se muestra una sola banda a la vez (selector 2.4 GHz / 5 GHz, sin "Todos").
+
+### Fixed
+
+- **La reserva DHCP se escribe en el router que sirve el lease, no siempre en el gateway (#537)**: las acciones de reserva (GET/PUT/DELETE /api/devices/{mac}/reservation) apuntaban siempre al gateway global. En una LAN separada cuyo DHCP lo concede otro router (p. ej. un AP/lab con su propio dnsmasq, como rt-lab en 192.168.2.x) la reserva acababa en el gateway equivocado. Ahora el servidor resuelve el router que reportó el lease de esa MAC (el dnsmasq que se la concedió) y escribe allí; si no hay lease conocido cae al gateway, como antes. El bloqueo de dispositivo ya apuntaba al router de atache.
+
 ## [2.28.1] - 2026-09-05
 
 ### Fixed
