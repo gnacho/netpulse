@@ -47,8 +47,14 @@ func getAvailability(t *testing.T, ts *testServer, query string) (int, []availab
 // TestAvailabilityDayAgrupaPorDia: una fila por router y día; upPct = upMin/1440.
 func TestAvailabilityDayAgrupaPorDia(t *testing.T) {
 	ts := makeTestServer(t)
-	insertDaily(t, ts, "gw", "2026-08-06", 17280, sqlNull{true, 1.0}, 1e8, 5e7, 20, 60) // día completo
-	insertDaily(t, ts, "gw", "2026-08-05", 8640, sqlNull{true, 2.0}, 1e8, 5e7, 20, 60)  // medio día
+	// Fechas relativas a "hoy" (UTC) para que siempre caigan dentro de
+	// range=day&n=30 independientemente del día en que corra el CI
+	// (antes usaba fechas fijas 2026-08-05 que quedaban fuera de rango
+	// y hacían el test flaky según el calendario).
+	dayBefore := time.Now().UTC().AddDate(0, 0, -2).Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	insertDaily(t, ts, "gw", yesterday, 17280, sqlNull{true, 1.0}, 1e8, 5e7, 20, 60) // día completo
+	insertDaily(t, ts, "gw", dayBefore, 8640, sqlNull{true, 2.0}, 1e8, 5e7, 20, 60)  // medio día
 
 	status, items := getAvailability(t, ts, "?range=day&n=30")
 	if status != http.StatusOK {
@@ -57,20 +63,20 @@ func TestAvailabilityDayAgrupaPorDia(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("items = %d, esperaba 2 (un daily por día): %+v", len(items), items)
 	}
-	// Orden: bucket DESC → 2026-08-06 primero.
-	if items[0].Bucket != "2026-08-06" {
-		t.Fatalf("items[0].bucket = %q, esperaba 2026-08-06", items[0].Bucket)
+	// Orden: bucket DESC → el día más reciente primero.
+	if items[0].Bucket != yesterday {
+		t.Fatalf("items[0].bucket = %q, esperaba %s", items[0].Bucket, yesterday)
 	}
 	byDate := map[string]availabilityEntry{}
 	for _, it := range items {
 		byDate[it.Bucket] = it
 	}
-	if byDate["2026-08-06"].UpPct < 99.9 {
-		t.Fatalf("día completo upPct=%v, esperaba ~100", byDate["2026-08-06"].UpPct)
+	if byDate[yesterday].UpPct < 99.9 {
+		t.Fatalf("día completo upPct=%v, esperaba ~100", byDate[yesterday].UpPct)
 	}
-	// 2026-08-05 es un día pasado completo → 8640 muestras = 720 min de 1440 → 50%.
-	if byDate["2026-08-05"].UpPct < 49.9 || byDate["2026-08-05"].UpPct > 50.1 {
-		t.Fatalf("medio día pasado upPct=%v, esperaba ~50", byDate["2026-08-05"].UpPct)
+	// El otro día es pasado completo → 8640 muestras = 720 min de 1440 → 50%.
+	if byDate[dayBefore].UpPct < 49.9 || byDate[dayBefore].UpPct > 50.1 {
+		t.Fatalf("medio día pasado upPct=%v, esperaba ~50", byDate[dayBefore].UpPct)
 	}
 }
 
