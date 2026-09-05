@@ -1093,34 +1093,34 @@ function bandOfFreq(freq: number): string {
 }
 
 // ChannelAnalysisChart (#542): gráfico de cascada de la ocupación por canal,
-// réplica del "channel analysis" del LuCI: eje X = canales por frecuencia,
-// eje Y = señal dBm (-95 abajo, -20 arriba), y cada red vecina es una "montaña"
-// centrada en su canal, altura = su señal, anchura ~20 MHz, color por SSID.
-function ChannelAnalysisChart({ scans }: { scans: Scan[] }) {
+// réplica del "channel analysis" del LuCI. Dibuja UNA banda (2.4 o 5 GHz) con
+// su propio gráfico: eje X = canales de la banda en slots uniformes (sin hueco
+// por frecuencia ni solape entre bandas), eje Y = señal dBm (-92 abajo, -20
+// arriba), cada red vecina es una "montaña" centrada en su canal, altura = su
+// señal, anchura ~ slot, color por SSID. Filtra el ruido (< -90 dBm) antes.
+function ChannelAnalysisChart({ bandName, scans }: { bandName: string; scans: Scan[] }) {
   const { t } = useTranslation()
-  const range = useMemo(() => {
-    if (scans.length === 0) return null
-    const f = scans.map((s) => s.freq)
-    return { fmin: Math.min(...f) - 10, fmax: Math.max(...f) + 10 }
-  }, [scans])
+  const chans = useMemo(() => Array.from(new Set(scans.map((s) => s.channel))).filter((c) => c > 0).sort((a, b) => a - b), [scans])
   const W = 900
-  const H = 260
+  const H = 240
   const padL = 46
   const padR = 16
   const padT = 18
   const padB = 26
   const dBmMax = -20
   const dBmMin = -92
-  if (!range) {
+  if (chans.length === 0 || scans.length === 0) {
     return <div className="text-caption text-text-muted">{t('roaming.survey.empty')}</div>
   }
-  const x = (freq: number) => padL + ((freq - range.fmin) / (range.fmax - range.fmin)) * (W - padL - padR)
+  const innerW = W - padL - padR
+  const slot = innerW / chans.length
+  const cx = (i: number) => padL + slot * i + slot / 2
   const y = (dbm: number) => padT + ((dBmMax - dbm) / (dBmMax - dBmMin)) * (H - padT - padB)
   const gridDbm = [-25, -50, -75, -92]
-  const chans = Array.from(new Set(scans.map((s) => s.channel))).filter((c) => c > 0).sort((a, b) => a - b)
+  const half = Math.min(slot * 0.45, 22)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={t('roaming.survey.title')}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${bandName} · ${t('roaming.survey.title')}`}>
       {gridDbm.map((d) => (
         <g key={d}>
           <line x1={padL} y1={y(d)} x2={W - padR} y2={y(d)} stroke="currentColor" className="text-border" strokeWidth={0.5} />
@@ -1129,36 +1129,32 @@ function ChannelAnalysisChart({ scans }: { scans: Scan[] }) {
           </text>
         </g>
       ))}
-      {/* Montañas: primero las de menor señal para que las fuertes tapen */}
-      {[...scans].sort((a, b) => a.signal - b.signal).map((s, i) => {
-        const cx = x(s.freq)
-        const cy = y(s.signal)
-        const base = y(dBmMin)
-        const half = 22
-        const col = ssidColor(s.ssid || s.bssid)
-        return (
-          <path
-            key={s.bssid + i}
-            d={`M ${cx - half} ${base + 8} C ${cx - half} ${(base + 8 + cy) / 2}, ${cx - half * 0.5} ${cy}, ${cx} ${cy} C ${cx + half * 0.5} ${cy}, ${cx + half} ${(base + 8 + cy) / 2}, ${cx + half} ${base + 8} Z`}
-            fill={col}
-            fillOpacity={0.28}
-            stroke={col}
-            strokeOpacity={0.5}
-            strokeWidth={1}
-          >
-            <title>{`${s.ssid || s.bssid} · ${s.channel} · ${s.signal} dBm`}</title>
-          </path>
-        )
-      })}
-      {chans.map((c) => {
-        const s = scans.find((sc) => sc.channel === c)
-        const cx = s ? x(s.freq) : 0
-        return (
-          <text key={c} x={cx} y={H - 6} textAnchor="middle" className="fill-text-muted" fontSize={9}>
-            {c}
-          </text>
-        )
-      })}
+      {chans.map((c, i) =>
+        scans.filter((s) => s.channel === c).slice().sort((a, b) => a.signal - b.signal).map((s) => {
+          const x0 = cx(i)
+          const cy = y(s.signal)
+          const base = y(dBmMin)
+          const col = ssidColor(s.ssid || s.bssid)
+          return (
+            <path
+              key={`${s.bssid}-${s.channel}`}
+              d={`M ${x0 - half} ${base + 8} C ${x0 - half} ${(base + 8 + cy) / 2}, ${x0 - half * 0.5} ${cy}, ${x0} ${cy} C ${x0 + half * 0.5} ${cy}, ${x0 + half} ${(base + 8 + cy) / 2}, ${x0 + half} ${base + 8} Z`}
+              fill={col}
+              fillOpacity={0.28}
+              stroke={col}
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            >
+              <title>{`${s.ssid || s.bssid} · ${s.channel} · ${s.signal} dBm`}</title>
+            </path>
+          )
+        })
+      )}
+      {chans.map((c, i) => (
+        <text key={c} x={cx(i)} y={H - 6} textAnchor="middle" className="fill-text-muted" fontSize={9}>
+          {c}
+        </text>
+      ))}
     </svg>
   )
 }
@@ -1194,26 +1190,31 @@ function ChannelAnalysisView({
   scansByRouter: Record<string, Scan[]>
 }) {
   const { t } = useTranslation()
-  const routers = over.routers.filter((r) => r.available && (scansByRouter[r.routerId] ?? []).length > 0)
+  // Todos los routers disponibles; los que tienen escaneos (datos) primero.
+  const hasData = (rid: string) => (scansByRouter[rid] ?? []).length > 0
+  const routers = over.routers.filter((r) => r.available).slice().sort((a, b) => (hasData(b.routerId) ? 1 : 0) - (hasData(a.routerId) ? 1 : 0))
   const [rid, setRid] = useState<string>(routers[0]?.routerId ?? '')
   useEffect(() => {
-    if (!routers.some((r) => r.routerId === rid)) setRid(routers[0]?.routerId ?? '')
+    if (!routers.some((r) => r.routerId === rid)) setRid(routers.find((r) => hasData(r.routerId))?.routerId ?? routers[0]?.routerId ?? '')
   }, [routers, rid])
   const name = routers.find((r) => r.routerId === rid)?.name ?? rid
   const allScans = (scansByRouter[rid] ?? []).filter((s) => s.signal >= -90)
   const scans = band === 'all' ? allScans : allScans.filter((s) => bandOfFreq(s.freq) === band)
+  // Bandas a dibujar: en "all" mostramos 2.4 y 5 por separado (como el LuCI).
+  const bandList = band === 'all' ? ['2.4 GHz', '5 GHz'] : [band]
   const bandOptions: SurveyBand[] = ['all', '2.4 GHz', '5 GHz']
 
   if (routers.length === 0) {
     return <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">{t('roaming.survey.empty')}</div>
   }
+  const noData = !hasData(rid)
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-caption font-medium text-text-muted">{t('roaming.survey.router')}</span>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-elevated p-1">
             {routers.map((r) => (
               <button
                 key={r.routerId}
@@ -1238,7 +1239,26 @@ function ChannelAnalysisView({
         </div>
       </div>
       <h3 className="mb-2 font-display text-h3 text-text-primary">{name}</h3>
-      <ChannelAnalysisChart scans={scans} />
+      {noData && (
+        <p className="mb-3 rounded-lg bg-warn/10 px-3 py-2 text-caption text-warn">
+          {t('roaming.survey.noScans')}
+        </p>
+      )}
+      {!noData && (
+        <div className="flex flex-col gap-4">
+          {bandList.map((b) => {
+            const bandScans = allScans.filter((s) => bandOfFreq(s.freq) === b)
+            if (bandScans.length === 0) return null
+            return (
+              <div key={b}>
+                <div className="mb-1 font-mono text-caption text-text-muted">{b}</div>
+                <ChannelAnalysisChart bandName={b} scans={bandScans} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {scans.length > 0 && (
       <div className="mt-4 overflow-x-auto">
         <table className="w-full border-separate border-spacing-0 text-left text-sm">
           <thead>
@@ -1273,6 +1293,7 @@ function ChannelAnalysisView({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }

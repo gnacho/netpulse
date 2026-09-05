@@ -379,7 +379,7 @@
     "empty": "Ningún router tiene usteer activo. Instálalo en OpenWrt para ver la malla de itinerancia.",
     "tabMatrix": "Matriz",
     "tab11r": "802.11r",
-    "tabSurvey": "Survey",
+    "tabSurvey": "Análisis de canales",
     "tabEvents": "Eventos",
     "comingSoon": "Próximamente",
     "matrix": {
@@ -436,7 +436,7 @@
       "unreachable": "Router no accesible por SSH."
     },
     "survey": {
-      "title": "Utilización por canal",
+      "title": "Análisis de canales",
       "description": "Noise floor y ocupación de cada canal wifi (iw survey dump). Los canales congestionados son la causa más habitual de WiFi lento en casa.",
       "empty": "Ningún router devolvió datos de survey. Verifica que el comando `iw dev wlanX survey dump` funciona en tus routers.",
       "unreachable": "Router no accesible por SSH o sin interfaces wifi.",
@@ -453,7 +453,8 @@
       "legendCongested": "≥ 70% (congestionado)",
       "colSignal": "Señal (dBm)",
       "colSsid": "Red (SSID)",
-      "router": "Router"
+      "router": "Router",
+      "noScans": "Este router no envía escaneos de canales. Si corre NetGrip no escanea; usa un router con el agente NetPulse o revisa que esté activo."
     },
     "events": {
       "title": "Eventos de itinerancia",
