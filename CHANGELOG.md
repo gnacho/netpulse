@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.1] - 2026-09-05
+
+### Fixed
+
+- **El sondeo SSH ya no satura APs de bajas prestaciones (#550)**: el servidor, cuando sondea un router por SSH (sin agente), seguía usando el par de comandos previo al #373: clientes por `iwinfo assoclist` y resumen de radios por `iwinfo` en cada tick de 5 s. En un AP de un solo núcleo (p. ej. Archer A7 v5) eso disparaba la carga. Ahora el sondeo SSH replica el fix que el agente tiene desde #373: clientes vía `ubus hostapd get_clients` (autoritativo incluso con un AP vacío, sin caer a iwinfo), iwinfo solo en una pasada combinada como fallback, y el resumen de radios cacheado 5 minutos en vez de refrescarse en cada poll.
+
 ## [2.28.0] - 2026-09-05
 
 > **Nota de versionado**: las releases 2.26.13 y 2.26.14 no llegaron a
