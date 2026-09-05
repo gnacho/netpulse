@@ -442,6 +442,7 @@
       "unreachable": "Router no accesible por SSH o sin interfaces wifi.",
       "colChannel": "Canal",
       "colFreq": "MHz",
+      "colBssid": "BSSID",
       "colNoise": "Noise",
       "colBusy": "Ocupación",
       "colRx": "RX",
