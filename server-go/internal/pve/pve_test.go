@@ -117,3 +117,23 @@ func TestConfigEnabled(t *testing.T) {
 		t.Fatal("config completa debería ser enabled")
 	}
 }
+
+func TestNodeIP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[
+			{"iface":"eno1","type":"eth","address":""},
+			{"iface":"vmbr0","type":"bridge","address":"192.168.1.101"},
+			{"iface":"vmbr0","type":"bridge","address":"fe80::1"}
+		]}`))
+	}))
+	defer srv.Close()
+	c := NewClient(Config{URL: srv.URL, TokenID: "a!b", Secret: "c"})
+	ip, err := c.NodeIP(context.Background(), "citadel-02")
+	if err != nil {
+		t.Fatalf("nodeip: %v", err)
+	}
+	if ip != "192.168.1.101" {
+		t.Fatalf("ip: %q", ip)
+	}
+}

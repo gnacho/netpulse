@@ -43,6 +43,10 @@ type pveInventory struct {
 	ctByMAC map[string]pveVM
 	// nodeNames: nodos del cluster (p. ej. "citadel-01").
 	nodeNames map[string]bool
+	// nodeIPs: nodo → IP del bridge vmbr0 (p. ej. citadel-02 → 192.168.1.101).
+	// Permite casar el device HOST por IP cuando NetPulse no conoce su nombre
+	// (el host aparece solo por MAC/IP).
+	nodeIPs map[string]string
 }
 
 type pveVM struct {
@@ -115,10 +119,21 @@ func (l *Live) fetchPveInventory(client *pve.Client) *pveInventory {
 	inv := &pveInventory{
 		ctByMAC:   map[string]pveVM{},
 		nodeNames: map[string]bool{},
+		nodeIPs:   map[string]string{},
 	}
 	for _, r := range resources {
 		if r.Type == "node" {
-			inv.nodeNames[r.Name] = true
+			// El nombre del nodo viene en `node`, no en `name` (que los
+			// nodos dejan vacío en cluster/resources).
+			if r.Node != "" {
+				inv.nodeNames[r.Node] = true
+				// IP del host (vmbr0) para casar el device HOST por IP.
+				if ip, err := client.NodeIP(ctx, r.Node); err == nil && ip != "" {
+					inv.nodeIPs[r.Node] = ip
+				} else if err != nil {
+					log.Printf("[netpulse:pve] nodeip %s: %v", r.Node, err)
+				}
+			}
 			continue
 		}
 		if r.Type != "lxc" && r.Type != "qemu" {
@@ -167,14 +182,34 @@ func applyPVEInfra(devices []Device, inv *pveInventory) {
 	if inv == nil || len(inv.ctByMAC) == 0 {
 		return
 	}
-	// Índices.
+	// Índices. El host de un nodo se casa por IP del nodo (vmbr0, la que da
+	// el cluster) con prioridad, y por nombre del device como fallback. Un
+	// host físico con dos NICs aparece como dos devices (p. ej. citadel-01
+	// con .100 vmbr0 y .243 de gestión): el device con la IP del nodo es el
+	// host correcto (online); el otro (nombre coincidente pero IP distinta)
+	// NO debe ganar.
 	hostIDByNode := map[string]string{} // node → id del device host
 	hostIdxByID := map[string]int{}
+	nodeNameByID := map[string]string{} // id del device host → nombre del nodo
 	for i := range devices {
 		hostIdxByID[devices[i].ID] = i
+		if devices[i].IP != "" {
+			for node, ip := range inv.nodeIPs {
+				if devices[i].IP == ip {
+					hostIDByNode[node] = devices[i].ID
+					nodeNameByID[devices[i].ID] = node
+				}
+			}
+		}
+	}
+	// Pasada 2: por nombre, solo si el nodo aún no tiene host por IP.
+	for i := range devices {
+		if _, ok := hostIDByNode[devices[i].Name]; ok {
+			continue // el nodo ya tiene host (por IP)
+		}
 		if inv.nodeNames[devices[i].Name] {
-			// El host se casa por nombre (device "citadel-01" ↔ nodo).
 			hostIDByNode[devices[i].Name] = devices[i].ID
+			nodeNameByID[devices[i].ID] = devices[i].Name
 		}
 	}
 	// Casar cada CT por MAC.
@@ -185,17 +220,40 @@ func applyPVEInfra(devices []Device, inv *pveInventory) {
 		}
 		hostID := hostIDByNode[vm.Node]
 		devices[idx].Infra = "ct"
-		if hostID != "" && devices[idx].AttachTo == "" {
+		// El sello PVE es ground truth: si el CT tiene host conocido, cuelga
+		// de él (sobreescribe el attachTo inferido por L2, que en puertos
+		// mezclados apunta a un nodo "inferred" genérico).
+		if hostID != "" {
 			devices[idx].AttachTo = hostID
 		}
 	}
-	// Sellar los hosts.
-	for _, id := range hostIDByNode {
+	// Sellar los hosts y renombrarlos con el nombre del nodo cuando el device
+	// solo se conoce por MAC (p. ej. "FE:C9:95:97:15:30" → "citadel-01").
+	for node, id := range hostIDByNode {
 		if idx, ok := hostIdxByID[id]; ok {
 			devices[idx].Infra = "hypervisor"
+			if name, ok := nodeNameByID[id]; ok && looksLikeMACName(devices[idx].Name) {
+				devices[idx].Name = name
+				_ = node
+			}
 		}
 	}
 }
+
+// looksLikeMACName: true si el nombre del device es una MAC (no tiene nombre
+// real asignado por lease/alias). Formato "AA:BB:CC:DD:EE:FF" o con guiones.
+func looksLikeMACName(name string) bool {
+	hex := 0
+	for _, r := range name {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') {
+			hex++
+		} else if r != ':' && r != '-' {
+			return false
+		}
+	}
+	return hex == 12
+}
+
 // macToDeviceID: el ID de device es la MAC en minúsculas con guiones.
 func macToDeviceID(mac string) string {
 	return strings.ToLower(strings.ReplaceAll(mac, ":", "-"))

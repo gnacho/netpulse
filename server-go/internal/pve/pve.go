@@ -18,6 +18,7 @@ package pve
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,11 +51,17 @@ type Client struct {
 	hc  *http.Client
 }
 
-// NewClient crea el cliente (sin red: solo guarda config).
+// NewClient crea el cliente (sin red: solo guarda config). TLS: los clusters
+// PVE usan un certificado self-signed (pve-api-daemon genera uno propio al
+// instalar); el cliente acepta cualquier cert (InsecureSkipVerify) porque la
+// autenticación real es el token API, no el cert. Una CA fija configurable se
+// podría añadir en el futuro si hiciera falta.
 func NewClient(cfg Config) *Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #561
 	return &Client{
 		cfg: cfg,
-		hc:  &http.Client{Timeout: httpTimeout},
+		hc:  &http.Client{Timeout: httpTimeout, Transport: transport},
 	}
 }
 
@@ -119,6 +126,34 @@ func (c *Client) VMConfig(ctx context.Context, node, typ string, vmid int) (map[
 		return nil, err
 	}
 	return out, nil
+}
+
+// NodeIP: GET /nodes/{node}/network → IP IPv4 del bridge vmbr0 (o el primer
+// iface con address IPv4). Identifica al host físico del nodo en la LAN.
+func (c *Client) NodeIP(ctx context.Context, node string) (string, error) {
+	path := fmt.Sprintf("/api2/json/nodes/%s/network", url.PathEscape(node))
+	var out []struct {
+		Iface   string `json:"iface"`
+		Type    string `json:"type"`
+		Address string `json:"address"`
+	}
+	if err := c.get(ctx, path, &out); err != nil {
+		return "", err
+	}
+	// Preferencia: vmbr0 (bridge principal); si no, cualquier iface con IPv4.
+	var fallback string
+	for _, i := range out {
+		if !strings.Contains(i.Address, ".") {
+			continue
+		}
+		if i.Iface == "vmbr0" {
+			return i.Address, nil
+		}
+		if fallback == "" {
+			fallback = i.Address
+		}
+	}
+	return fallback, nil
 }
 
 // MACsOfConfig extrae las MACs de una config de VM/CT. Proxmox expone cada
