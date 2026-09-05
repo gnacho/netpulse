@@ -8,6 +8,7 @@ package httpapi
 import (
 	"database/sql"
 	"net/http"
+	urlpkg "net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -37,6 +38,8 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/config/routers/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteConfigRouter)))
 	mux.Handle("GET /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleGetAdguardConfig)))
 	mux.Handle("PUT /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handlePutAdguardConfig)))
+	mux.Handle("GET /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handleGetProxmoxConfig)))
+	mux.Handle("PUT /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handlePutProxmoxConfig)))
 }
 
 // syncRouters replica sync() de config.js: adapter.setRouters(listRouters(db)).
@@ -447,6 +450,75 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 	}
 	if in.Password != "" {
 		if _, err := s.db.Exec(upsert, "adguard_pass", in.Password); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /api/config/proxmox — {url, tokenId, tokenSet} (el secret nunca se
+// devuelve). Config de la integración PVE del #561.
+func (s *server) handleGetProxmoxConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"url":      kvGet(s.db.DB, "proxmox_url"),
+		"tokenId":  kvGet(s.db.DB, "proxmox_token_id"),
+		"tokenSet": kvGet(s.db.DB, "proxmox_token_secret") != "",
+	})
+}
+
+type proxmoxInput struct {
+	URL     *string `json:"url"` // nil = no tocar; "" = desactivar
+	TokenID string  `json:"tokenId"`
+	Secret  string  `json:"secret"` // solo si viene (se conserva el anterior)
+}
+
+// PUT /api/config/proxmox — upsert en kv (secret solo si viene). 204.
+// url: base del cluster pve (p. ej. "https://192.168.1.100:8006").
+// tokenId: "USER@REALM!TOKENID"; secret: la parte UUID del token.
+func (s *server) handlePutProxmoxConfig(w http.ResponseWriter, r *http.Request) {
+	var in proxmoxInput
+	if st := readJSONBody(w, r, &in); st != 0 {
+		writeBodyError(w, st, "invalid_json", "")
+		return
+	}
+	tokenID := strings.TrimSpace(in.TokenID)
+	if len(tokenID) > 128 || len(in.Secret) > 256 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "token too long")
+		return
+	}
+	upsert := "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+	if in.URL != nil {
+		url := strings.TrimRight(strings.TrimSpace(*in.URL), "/")
+		if url == "" {
+			// url vacío = desactivar la integración: limpia todo.
+			for _, k := range []string{"proxmox_url", "proxmox_token_id", "proxmox_token_secret"} {
+				if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", k); err != nil {
+					writeError(w, http.StatusInternalServerError, "internal_error")
+					return
+				}
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		u, err := urlpkg.Parse(url)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "url must be a valid http(s) URL")
+			return
+		}
+		if _, err := s.db.Exec(upsert, "proxmox_url", url); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	}
+	if tokenID != "" {
+		if _, err := s.db.Exec(upsert, "proxmox_token_id", tokenID); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	}
+	if in.Secret != "" {
+		if _, err := s.db.Exec(upsert, "proxmox_token_secret", in.Secret); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
