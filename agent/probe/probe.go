@@ -179,10 +179,17 @@ type DhcpLease struct {
 	LeaseExpiresAt *int64 `json:"leaseExpiresAt,omitempty"` // Unix segundos; nil si no se conoce
 }
 
-// WirelessClient es {signalDbm, band} por MAC.
+// WirelessClient es {signalDbm, band} por MAC + contadores de tráfico de la
+// estación cuando el driver los expone (#551). RxBytes/TxBytes son contadores
+// ACUMULADOS desde que la estación se asoció (ubus hostapd get_clients →
+// hostapd_drv_read_sta_data); el server calcula el delta entre muestras para
+// obtener bytes del intervalo. omitempty: ausentes si la fuente no los da
+// (iwinfo, drivers sin read_sta_data).
 type WirelessClient struct {
 	SignalDbm int    `json:"signalDbm"`
 	Band      string `json:"band"`
+	RxBytes   uint64 `json:"rxBytes,omitempty"`
+	TxBytes   uint64 `json:"txBytes,omitempty"`
 }
 
 // PortState es {name, up, speed} de una interfaz (/sys operstate+speed).
@@ -1025,6 +1032,9 @@ var nonDigitRe = regexp.MustCompile(`\D`)
 
 // ParseRadios: líneas "freq|ch|ht|tx|n" agregadas por banda (suma clientes).
 // hostapdClientsJSON es el shape de `ubus call hostapd.<if> get_clients`.
+// El objeto por estación incluye `bytes:{rx,tx}` (acumulados desde la
+// asociación) y `packets` cuando el driver responde a read_sta_data (#551);
+// si no los expone, quedan a cero.
 type hostapdClientsJSON struct {
 	Freq    float64 `json:"freq"`
 	Clients map[string]struct {
@@ -1032,6 +1042,10 @@ type hostapdClientsJSON struct {
 		Assoc      bool `json:"assoc"`
 		Authorized bool `json:"authorized"`
 		Signal     int  `json:"signal"`
+		Bytes      struct {
+			Rx uint64 `json:"rx"`
+			Tx uint64 `json:"tx"`
+		} `json:"bytes"`
 	} `json:"clients"`
 }
 
@@ -1039,7 +1053,8 @@ type hostapdClientsJSON struct {
 // "==AP==hostapd.phy0-ap0" seguidos del JSON de get_clients. Solo cuenta
 // estaciones asociadas y autorizadas (equivalente a iwinfo assoclist); la
 // banda sale del "freq" del bloque (>=5 GHz = "5 GHz"). Mismo shape que
-// ParseWirelessClients.
+// ParseWirelessClients. RxBytes/TxBytes son los contadores acumulados de la
+// estación si el driver los reportó (issue #551).
 func ParseHostapdClients(out string) map[string]WirelessClient {
 	m := map[string]WirelessClient{}
 	for _, chunk := range strings.Split(out, "==AP==") {
@@ -1068,7 +1083,10 @@ func ParseHostapdClients(out string) map[string]WirelessClient {
 			if !st.Assoc || !st.Authorized {
 				continue
 			}
-			m[strings.ToUpper(mac)] = WirelessClient{SignalDbm: st.Signal, Band: band}
+			m[strings.ToUpper(mac)] = WirelessClient{
+				SignalDbm: st.Signal, Band: band,
+				RxBytes: st.Bytes.Rx, TxBytes: st.Bytes.Tx,
+			}
 		}
 	}
 	return m

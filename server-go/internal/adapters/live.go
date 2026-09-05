@@ -122,6 +122,10 @@ type routerPolled struct {
 	// lldpUnavailable: lldpd no está instalado en este router (issue #247) →
 	// el view-model expone `lldpAvailable:false` para el hint de instalación.
 	lldpUnavailable bool
+	// clientBw (#551): contadores nlbwmon por MAC del último payload del
+	// agente. nil = nlbwmon no instalado o sonda no disponible (→ la fuente
+	// de tráfico por cliente cae a hostapd bytes de wireless).
+	clientBw *probe.ClientBwData
 	// luci: etiquetas de puertos/VLANs de LuCI (issue #258), si el router las
 	// define en /etc/config/luci. Fuente de nombres para la topología.
 	luci *probe.LuCILabels
@@ -162,6 +166,10 @@ type extrasSnapshot struct {
 	// los pushes event-driven van sin ella y la topología no debe perder
 	// los switches managed entre pushes completos.
 	lldp *probe.LldpData
+	// clientBw (#551): última sección clientbw del payload del agente.
+	// Los pushes event-driven van sin ella; conservar la última buena evita
+	// que la fuente nlbwmon parpadee entre pushes completos.
+	clientBw *probe.ClientBwData
 }
 
 // backhaulCacheTTL: el medio del uplink cambia muy raro; no se sondea cada 5 s.
@@ -216,6 +224,10 @@ type Live struct {
 	// (contadores absolutos + ts) para calcular los rates por boca con el
 	// delta entre payloads (issue #305). Protegido por mu.
 	lastAgentIf map[string]*agentIfSample
+	// lastClientBw (#551): contadores absolutos por (router, mac) de la
+	// última muestra observada, para calcular el delta por cliente entre
+	// polls. Mapa: routerID → mac → estado. Protegido por mu.
+	lastClientBw map[string]map[string]*clientBwCounter
 	// lastObsTs: ts del último payload del agente que alimentó las series
 	// por puerto y el PortMonitor (issue #365). Protegido por mu.
 	lastObsTs map[string]int64
@@ -323,6 +335,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		layoutCache:          map[string][]PortLayout{},
 		extrasCache:          map[string]*extrasSnapshot{},
 		lastAgentIf:          map[string]*agentIfSample{},
+		lastClientBw:         map[string]map[string]*clientBwCounter{},
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
@@ -456,6 +469,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.lastAgentIf {
 		if !ids[id] {
 			delete(l.lastAgentIf, id)
+		}
+	}
+	for id := range l.lastClientBw {
+		if !ids[id] {
+			delete(l.lastClientBw, id)
 		}
 	}
 	for id := range l.snmpPorts {
@@ -966,6 +984,16 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		tempV = *temp
 	}
 	l.recordPortSamples(cfg.ID, portsGood)
+	// #551: tráfico por cliente. La vía SSH no sondea nlbwmon (el router
+	// gestionado por SSH raramente lo corre); la fuente resuelta es hostapd
+	// bytes por estación cuando el driver los expone. Gate de frescura:
+	// solo con la sonda wireless de ESTE poll (wireless != nil); si falló y
+	// se recicla la cache, los contadores repetidos darían deltas 0.
+	if wireless != nil {
+		if samples, source, ok := resolveClientBwSources(wireless, nil); ok {
+			l.recordClientBwSamples(cfg.ID, time.Now(), samples, source)
+		}
+	}
 	l.portMon.Observe(cfg.ID, portsGood, l.engine)
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
@@ -2031,6 +2059,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			d.RouterID = k.routerID
 			d.Band = k.band
 			d.SignalDbm = k.signal
+		}
+		// #551: TrafficMbps del cliente desde el rate en memoria (nlbwmon u
+		// hostapd) sin consultar la store en cada rebuild. Solo online; los
+		// offline no tienen rate (la UI pinta "—").
+		if isSeen {
+			if rxBps, txBps := l.clientBwRateFor(mac); rxBps+txBps > 0 {
+				d.TrafficMbps = (rxBps + txBps) / 1e6
+			}
 		}
 		devices = append(devices, d)
 	}

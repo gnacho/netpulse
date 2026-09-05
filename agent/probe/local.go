@@ -116,6 +116,8 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	// LLDP (#489): vecinos de lldpd en el payload del agente (antes solo
 	// llegaban por la sonda SSH del server, muerta para routers con agente).
 	pl.Data.Lldp = p.probeLldp(ctx)
+	// ClientBw (#551): tráfico por cliente desde nlbwmon (solo si instalado).
+	pl.Data.ClientBw = p.probeClientBw(ctx)
 	// Discovery (#338): mDNS services + randomized MAC detection.
 	pl.Data.Discovery = p.probeDiscovery(ctx, pl.Data.Wireless)
 	// NetIf (#305): contadores por iface desde el MISMO /proc/net/dev que
@@ -426,6 +428,25 @@ func (p *Prober) probeLldp(ctx context.Context) *LldpData {
 		return &LldpData{Available: true}
 	}
 	return &LldpData{Available: true, Neighbors: neighbors}
+}
+
+// probeClientBw: contadores por MAC de nlbwmon (#551). Contrato: Available=
+// false cuando nlbw no está instalado (el server usa hostapd bytes); true con
+// Hosts nil si la sonda falla esta ronda; {} vacío honesto si el daemon no
+// tiene datos aún. Solo en el sondeo completo (Build), como LLDP.
+func (p *Prober) probeClientBw(ctx context.Context) *ClientBwData {
+	if p.runBest(ctx, CmdNlbwmonCheck, 0) == "" {
+		return &ClientBwData{Available: false}
+	}
+	out := p.runBest(ctx, CmdNlbwmonJSON, 5*time.Second)
+	if out == "" {
+		return &ClientBwData{Available: true}
+	}
+	hosts, err := ParseNlbwJSON([]byte(out))
+	if err != nil {
+		return &ClientBwData{Available: true}
+	}
+	return &ClientBwData{Available: true, Hosts: hosts}
 }
 
 // probeLuCI: etiquetas de puertos/VLANs de LuCI (issue #258), si el router

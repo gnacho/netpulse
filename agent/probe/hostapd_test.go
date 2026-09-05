@@ -43,6 +43,37 @@ func TestParseHostapdClientsBasura(t *testing.T) {
 	}
 }
 
+// #551: el parser de ubus hostapd get_clients debe conservar los contadores
+// rx/tx por estación (bytes.rx/tx) que el driver expone, para que el server
+// calcule el tráfico por cliente. Los drivers que NO los reportan dejan el
+// campo a cero (compatibilidad).
+func TestParseHostapdClientsBytes(t *testing.T) {
+	withBytes := `==AP==hostapd.phy0-ap0
+{
+	"freq": 2437,
+	"clients": {
+		"AA:BB:CC:DD:EE:FF": {
+			"auth": true, "assoc": true, "authorized": true, "signal": -55,
+			"bytes": { "rx": 123456, "tx": 654321 }
+		},
+		"11:22:33:44:55:66": {
+			"auth": true, "assoc": true, "authorized": true, "signal": -70
+		}
+	}
+}`
+	m := ParseHostapdClients(withBytes)
+	if len(m) != 2 {
+		t.Fatalf("clientes: %d (want 2)", len(m))
+	}
+	c := m["AA:BB:CC:DD:EE:FF"]
+	if c.RxBytes != 123456 || c.TxBytes != 654321 {
+		t.Fatalf("contadores no parseados: rx=%d tx=%d (want 123456/654321)", c.RxBytes, c.TxBytes)
+	}
+	if c2 := m["11:22:33:44:55:66"]; c2.RxBytes != 0 || c2.TxBytes != 0 {
+		t.Fatalf("estación sin bytes debe quedar a 0: %+v", c2)
+	}
+}
+
 func TestParseWirelessCombined(t *testing.T) {
 	out := `R|2.437|6|HE20|22|2
 C|AA:BB:CC:DD:EE:FF|-55|2.437
