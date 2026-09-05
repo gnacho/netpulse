@@ -27,6 +27,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/oui"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
+	"github.com/gnacho/netpulse/server-go/internal/pve"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -311,6 +312,14 @@ type Live struct {
 	agStd *AdGuardClient
 	agGL  *AdGuardGlinetClient
 	agKey string
+
+	// PVE (#561): cliente del cluster Proxmox + caché del inventario. El
+	// cliente se reconstruye si cambia la config (pveKey); el inventario
+	// (resources + MACs por VM) se refresca con TTL para no martillear la API.
+	pveClient *pve.Client
+	pveKey    string
+	pveInv    *pveInventory
+	pveInvAt  time.Time
 
 	sfMu   sync.Mutex
 	sfCall *sfCall
@@ -2258,6 +2267,11 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	if l.db != nil {
 		devices, distNodes = applyTopologyOverrides(devices, distNodes, loadTopologyOverrides(l.db))
 	}
+	// Capa 3 PVE (#561): si hay cluster Proxmox configurado, el inventario
+	// read-only sella hypervisor/ct con attachTo correcto (la relación
+	// CT→host no es deducible del L2). Va DESPUÉS de los overrides manuales:
+	// un override explícito del usuario tiene prioridad sobre el sello.
+	l.sealProxmoxInfra(devices)
 	// Supresión topológica (#332): actualizar grafo parent→child.
 	// Todos los no-gateway cuelgan del gateway.
 	l.mu.Lock()
@@ -2815,6 +2829,8 @@ func (l *Live) GetDevices(context.Context) []Device {
 	polled := l.lastPolled
 	l.mu.Unlock()
 	devices, _ := inferTopology(polled, l.buildDevices(polled))
+	// #561: sellado de infraestructura con el inventario PVE (si configurado).
+	l.sealProxmoxInfra(devices)
 	return devices
 }
 

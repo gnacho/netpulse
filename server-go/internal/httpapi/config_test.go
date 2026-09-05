@@ -421,3 +421,66 @@ func TestConfigRoutersSNMP(t *testing.T) {
 		t.Fatalf("POST invalid snmp_port: %d; want 400", res.StatusCode)
 	}
 }
+
+// TestProxmoxConfig (#561): PUT/GET /api/config/proxmox
+//   - guardar url+token, GET no devuelve el secret (solo tokenSet)
+//   - url vacía desactiva (limpia kv)
+//   - url inválida → 400
+func TestProxmoxConfig(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie,
+		`{"url":"https://192.168.1.100:8006","tokenId":"root@pam!netpulse","secret":"uuid-1234"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT proxmox: %d %v", res.StatusCode, body)
+	}
+
+	res = doReq(t, "GET", srv.URL+"/api/config/proxmox", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET proxmox: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["url"] != "https://192.168.1.100:8006" || body["tokenId"] != "root@pam!netpulse" {
+		t.Fatalf("GET proxmox body: %v", body)
+	}
+	if _, present := body["secret"]; present {
+		t.Fatalf("GET proxmox no debe devolver el secret: %v", body)
+	}
+	if body["tokenSet"] != true {
+		t.Fatalf("tokenSet esperado true: %v", body)
+	}
+
+	// Actualizar solo el secret conserva url/tokenId.
+	res = doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie,
+		`{"secret":"uuid-9999"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT proxmox secret: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/proxmox", cookie, "")
+	body = readJSON(t, res)
+	if body["url"] != "https://192.168.1.100:8006" || body["tokenId"] != "root@pam!netpulse" {
+		t.Fatalf("GET tras update secret: %v", body)
+	}
+
+	// URL inválida → 400
+	res = doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie,
+		`{"url":"no-es-url","tokenId":"a!b","secret":"c"}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("url inválida: esperado 400, got %d", res.StatusCode)
+	}
+
+	// Desactivar: url vacía limpia todo.
+	res = doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie, `{"url":""}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT proxmox desactivar: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/proxmox", cookie, "")
+	body = readJSON(t, res)
+	if body["url"] != "" || body["tokenId"] != "" || body["tokenSet"] != false {
+		t.Fatalf("GET tras desactivar: %v", body)
+	}
+}
