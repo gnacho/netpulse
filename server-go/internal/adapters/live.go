@@ -2782,6 +2782,33 @@ func (l *Live) GetDevices(context.Context) []Device {
 	return devices
 }
 
+// RouterServingDHCP devuelve el id del router cuyo último sondeo reportó la
+// MAC en su tabla de leases DHCP (issue #537). Ese router es el que sirve
+// DHCP al dispositivo (no necesariamente el gateway global: una LAN separada
+// tras un router/AP con su propio dnsmasq, p. ej. rt-lab en 192.168.2.x, es
+// quien concede el lease). Vacío si ningún router la reportó (IP estática o
+// sin lease en el último snapshot).
+func (l *Live) RouterServingDHCP(mac string) string {
+	mac = strings.ToUpper(strings.TrimSpace(mac))
+	if mac == "" {
+		return ""
+	}
+	l.mu.Lock()
+	polled := l.lastPolled
+	l.mu.Unlock()
+	for id, p := range polled {
+		if p == nil || p.cfg.AgentOnly {
+			continue // agent-only no tiene vía SSH para escribir la reserva
+		}
+		for _, le := range p.leases {
+			if strings.ToUpper(le.MAC) == mac {
+				return id
+			}
+		}
+	}
+	return ""
+}
+
 // GetAlerts: copia de las alertas en memoria.
 func (l *Live) GetAlerts(context.Context) []AlertEvent {
 	return l.engine.List()

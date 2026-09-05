@@ -32,6 +32,7 @@ const (
 // --- fake SSHRunner (por subcadena, en orden) ---
 
 type sshRule struct {
+	host     string // opcional: si no vacío, la regla solo aplica a ese host SSH
 	contains string
 	out      string
 	err      error
@@ -40,14 +41,19 @@ type sshRule struct {
 type scriptedSSH struct {
 	mu    sync.Mutex
 	cmds  []string
+	hosts []string
 	rules []sshRule
 }
 
-func (f *scriptedSSH) Run(_host, cmd string, _ time.Duration) (string, error) {
+func (f *scriptedSSH) Run(host, cmd string, _ time.Duration) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cmds = append(f.cmds, cmd)
+	f.hosts = append(f.hosts, host)
 	for _, r := range f.rules {
+		if r.host != "" && r.host != host {
+			continue
+		}
 		if strings.Contains(cmd, r.contains) {
 			return r.out, r.err
 		}
@@ -60,6 +66,20 @@ func (f *scriptedSSH) saw(substr string) bool {
 	defer f.mu.Unlock()
 	for _, c := range f.cmds {
 		if strings.Contains(c, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// sawHost es como saw pero acotado a un host SSH concreto (issue #537: la
+// reserva debe escribirse en el router que sirve DHCP, no siempre en el
+// gateway).
+func (f *scriptedSSH) sawHost(host, substr string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, c := range f.cmds {
+		if i < len(f.hosts) && f.hosts[i] == host && strings.Contains(c, substr) {
 			return true
 		}
 	}
@@ -130,7 +150,7 @@ type deviceActionsTestServer struct {
 	cookie string
 }
 
-func makeDeviceActionsTestServer(t *testing.T, ssh *scriptedSSH) *deviceActionsTestServer {
+func makeDeviceActionsTestServer(t *testing.T, ssh *scriptedSSH, adapterOpt ...adapters.Snapshotter) *deviceActionsTestServer {
 	t.Helper()
 	dataDir := t.TempDir()
 	cfg, err := config.Load(map[string]string{
@@ -169,8 +189,12 @@ func makeDeviceActionsTestServer(t *testing.T, ssh *scriptedSSH) *deviceActionsT
 	if ssh != nil {
 		runner = ssh
 	}
+	adapter := adapters.Snapshotter(adapters.NewDemo())
+	if len(adapterOpt) > 0 && adapterOpt[0] != nil {
+		adapter = adapterOpt[0]
+	}
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Config: cfg, DB: d, Adapter: adapters.NewDemo(), Hub: hub, Secret: secret,
+		Config: cfg, DB: d, Adapter: adapter, Hub: hub, Secret: secret,
 		Agents: agents, Pool: runner, Started: time.Now(),
 	})
 	srv := httptest.NewServer(handler)
@@ -613,5 +637,157 @@ func TestDeviceActionsAdminOnly(t *testing.T) {
 		if got := do(t, rt.method, ts.URL, rt.path, userCookie).StatusCode; got != 403 {
 			t.Errorf("%s %s como user: got %d want 403", rt.method, rt.path, got)
 		}
+	}
+}
+
+// --- #537: la reserva DHCP va al router que sirve el lease, no siempre al
+// gateway global ---
+
+// leaseAwareAdapter envuelve un adapter de test (Demo) añadiéndole la
+// resolución de "qué router reportó el lease de la MAC" (RouterServingDHCP).
+// sirve: MAC → router ID (el router que concede DHCP a esa MAC).
+type leaseAwareAdapter struct {
+	adapters.Snapshotter
+	sirve map[string]string
+}
+
+func (a *leaseAwareAdapter) RouterServingDHCP(mac string) string {
+	return a.sirve[strings.ToUpper(mac)]
+}
+
+// El AP "patio" (192.168.1.2) es quien reporta el lease de devMAC: su host
+// tiene dhcpDevHost (la reserva ya existe ahí). El gateway (192.168.1.1) NO la
+// tiene. Con esto, la reserva debe escribirse/leerse en 192.168.1.2.
+func TestReservationTargetsServingRouter(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{host: "192.168.1.2", contains: "uci show dhcp", out: dhcpDevHost},
+		{host: "192.168.1.1", contains: "uci show dhcp", out: dhcpEmpty},
+	}}
+	adapter := &leaseAwareAdapter{
+		Snapshotter: adapters.NewDemo(),
+		sirve:       map[string]string{strings.ToUpper(devMAC): "patio"},
+	}
+	// "patio" es el Name del router creado con host 192.168.1.2 en el helper;
+	// el helper guarda apID. Construimos el server y después recuperamos el
+	// ID real del AP para el mapa (por si el helper genera IDs distintos).
+	ts := makeDeviceActionsTestServer(t, ssh, adapter)
+	adapter.sirve[strings.ToUpper(devMAC)] = ts.apID
+
+	// GET: debe leer el uci show dhcp del AP (192.168.1.2), donde está la
+	// reserva → reserved=true.
+	res := deviceReq(t, "GET", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET reservation: %d", res.StatusCode)
+	}
+	body := decodeBody(t, res)
+	if body["reserved"] != true || body["ip"] != "192.168.1.60" {
+		t.Errorf("reserved payload (desde el router que sirve DHCP): %v", body)
+	}
+	if !ssh.sawHost("192.168.1.2", "uci show dhcp") {
+		t.Fatalf("GET no consultó el router que sirve DHCP: %v", ssh.hosts)
+	}
+}
+
+// PUT: al crear la reserva de un dispositivo cuyo lease lo sirve el AP, el
+// write debe ir al AP (192.168.1.2), NO al gateway (192.168.1.1).
+func TestReservationPutTargetsServingRouter(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{host: "192.168.1.2", contains: "uci show dhcp", out: dhcpEmpty},
+		{host: "192.168.1.1", contains: "uci show dhcp", out: dhcpEmpty},
+	}}
+	adapter := &leaseAwareAdapter{Snapshotter: adapters.NewDemo()}
+	ts := makeDeviceActionsTestServer(t, ssh, adapter)
+	adapter.sirve = map[string]string{strings.ToUpper(devMAC): ts.apID}
+
+	res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie,
+		`{"ip":"192.168.1.60","hostname":"tv-salon"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT reservation: %d (body %v)", res.StatusCode, decodeBody(t, res))
+	}
+	res.Body.Close()
+	if !ssh.sawHost("192.168.1.2", "uci set dhcp.np_host_aabbccddeeff=host") {
+		t.Error("la reserva debe escribirse en el router que sirve DHCP (192.168.1.2)")
+	}
+	if ssh.sawHost("192.168.1.1", "uci set dhcp.") {
+		t.Error("la reserva NO debe escribirse en el gateway (192.168.1.1)")
+	}
+	if !ssh.sawHost("192.168.1.2", "/etc/init.d/dnsmasq restart") {
+		t.Error("dnsmasq debe reiniciarse en el router que sirve DHCP")
+	}
+}
+
+// DELETE: si la reserva está en el router que sirve DHCP (no en el gateway),
+// se borra de ahí.
+func TestReservationDeleteTargetsServingRouter(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{host: "192.168.1.2", contains: "uci show dhcp", out: dhcpDevHost},
+		{host: "192.168.1.1", contains: "uci show dhcp", out: dhcpEmpty},
+	}}
+	adapter := &leaseAwareAdapter{Snapshotter: adapters.NewDemo()}
+	ts := makeDeviceActionsTestServer(t, ssh, adapter)
+	adapter.sirve = map[string]string{strings.ToUpper(devMAC): ts.apID}
+
+	res := deviceReq(t, "DELETE", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("DELETE reservation: %d (body %v)", res.StatusCode, decodeBody(t, res))
+	}
+	res.Body.Close()
+	if !ssh.sawHost("192.168.1.2", "uci delete dhcp.np_host_aabbccddeeff") {
+		t.Error("el borrado debe ir al router que sirve DHCP (192.168.1.2)")
+	}
+	if ssh.sawHost("192.168.1.1", "uci delete dhcp.") {
+		t.Error("el borrado NO debe ir al gateway (192.168.1.1)")
+	}
+}
+
+// Sin resolver (adapter por defecto, demo): la reserva sigue cayendo al
+// gateway (red gestionada clásica) - compatibilidad con el comportamiento
+// previo.
+func TestReservationFallsBackToGatewayWithoutResolver(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{host: "192.168.1.1", contains: "uci show dhcp", out: dhcpEmpty},
+		{host: "192.168.1.2", contains: "uci show dhcp", out: dhcpEmpty},
+	}}
+	ts := makeDeviceActionsTestServer(t, ssh) // demo: sin RouterServingDHCP
+
+	res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie,
+		`{"ip":"192.168.1.60","hostname":"tv-salon"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT reservation: %d", res.StatusCode)
+	}
+	res.Body.Close()
+	if !ssh.sawHost("192.168.1.1", "uci set dhcp.np_host_aabbccddeeff=host") {
+		t.Error("sin resolver, la reserva debe ir al gateway (192.168.1.1)")
+	}
+}
+
+// El resolver apunta a un router agent-only (sin SSH): no se puede escribir
+// ahí → cae al gateway (hostOfRouter devuelve vacío para agent-only).
+func TestReservationSkipsAgentOnlyServingRouter(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{host: "192.168.1.1", contains: "uci show dhcp", out: dhcpEmpty},
+	}}
+	adapter := &leaseAwareAdapter{Snapshotter: adapters.NewDemo()}
+	ts := makeDeviceActionsTestServer(t, ssh, adapter)
+	// Creamos un router agent-only con host y apuntamos el resolver ahí.
+	agentOnly, err := routerstore.AddRouter(ts.db.DB, routerstore.AddInput{
+		Name: "sw-ao", Host: "192.168.1.9", Type: "openwrt", AgentOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("AddRouter agent-only: %v", err)
+	}
+	adapter.sirve = map[string]string{strings.ToUpper(devMAC): agentOnly.ID}
+
+	res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie,
+		`{"ip":"192.168.1.60","hostname":"tv-salon"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT reservation: %d", res.StatusCode)
+	}
+	res.Body.Close()
+	if !ssh.sawHost("192.168.1.1", "uci set dhcp.np_host_aabbccddeeff=host") {
+		t.Error("router agent-only sin SSH → la reserva debe caer al gateway")
+	}
+	if ssh.sawHost("192.168.1.9", "uci set dhcp.") {
+		t.Error("no debe intentar escribir en el router agent-only")
 	}
 }
