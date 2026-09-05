@@ -1065,32 +1065,102 @@ function Flag({ on, label }: { on: boolean; label?: string }) {
 
 type SurveyBand = 'all' | '2.4 GHz' | '5 GHz'
 
-function busyClass(p: number): string {
-  if (p >= 70) return 'bg-danger/15 text-danger ring-danger/30'
-  if (p >= 40) return 'bg-warn/15 text-warn ring-warn/30'
-  return 'bg-ok/15 text-ok ring-ok/30'
-}
-
-function noiseClass(dbm: number): string {
-  // Más cercano a 0 = peor. -90 óptimo, -70 malo.
-  if (dbm >= -75) return 'text-danger'
-  if (dbm >= -85) return 'text-warn'
-  return 'text-ok'
-}
-
-// spectrumCellColor: color de la celda de canal según la ocupación.
-// Verde = libre, ámbar = ocupado, rojo = congestionado (misma escala busyClass).
-function spectrumCellBg(p: number): string {
-  if (p >= 70) return 'bg-danger/30'
-  if (p >= 40) return 'bg-warn/30'
-  return 'bg-ok/25'
-}
-
 // señal → color (#538): verde fuerte a muy buena, ámbar intermedia, roja débil.
 function signalDot(signal: number): string {
   if (signal >= -55) return 'bg-ok'
   if (signal >= -70) return 'bg-warn'
   return 'bg-danger'
+}
+
+// ssidColor (#542): color pastel determinista por SSID (hash), como el canal
+// analysis del LuCI: cada red vecina su color para reconocerla en la cascada.
+const SSID_PALETTE = [
+  '#c084fc', '#f472b6', '#34d399', '#60a5fa', '#fbbf24',
+  '#f87171', '#2dd4bf', '#a78bfa', '#facc15', '#fb923c',
+]
+function ssidColor(s: string): string {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return SSID_PALETTE[h % SSID_PALETTE.length] ?? '#a78bfa'
+}
+
+// bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
+function bandOfFreq(freq: number): string {
+  if (freq >= 2412 && freq <= 2484) return '2.4 GHz'
+  if (freq >= 5180 && freq <= 5885) return '5 GHz'
+  if (freq >= 5955) return '6 GHz'
+  return `${freq} MHz`
+}
+
+// ChannelAnalysisChart (#542): gráfico de cascada de la ocupación por canal,
+// réplica del "channel analysis" del LuCI: eje X = canales por frecuencia,
+// eje Y = señal dBm (-95 abajo, -20 arriba), y cada red vecina es una "montaña"
+// centrada en su canal, altura = su señal, anchura ~20 MHz, color por SSID.
+function ChannelAnalysisChart({ scans }: { scans: Scan[] }) {
+  const { t } = useTranslation()
+  const range = useMemo(() => {
+    if (scans.length === 0) return null
+    const f = scans.map((s) => s.freq)
+    return { fmin: Math.min(...f) - 10, fmax: Math.max(...f) + 10 }
+  }, [scans])
+  const W = 900
+  const H = 260
+  const padL = 46
+  const padR = 16
+  const padT = 18
+  const padB = 26
+  const dBmMax = -20
+  const dBmMin = -95
+  if (!range) {
+    return <div className="text-caption text-text-muted">{t('roaming.survey.empty')}</div>
+  }
+  const x = (freq: number) => padL + ((freq - range.fmin) / (range.fmax - range.fmin)) * (W - padL - padR)
+  const y = (dbm: number) => padT + ((dBmMax - dbm) / (dBmMax - dBmMin)) * (H - padT - padB)
+  const gridDbm = [-25, -50, -75, -95]
+  const chans = Array.from(new Set(scans.map((s) => s.channel))).filter((c) => c > 0).sort((a, b) => a - b)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={t('roaming.survey.title')}>
+      {gridDbm.map((d) => (
+        <g key={d}>
+          <line x1={padL} y1={y(d)} x2={W - padR} y2={y(d)} stroke="currentColor" className="text-border" strokeWidth={0.5} />
+          <text x={padL - 6} y={y(d) + 3} textAnchor="end" className="fill-text-muted" fontSize={9}>
+            {d} dBm
+          </text>
+        </g>
+      ))}
+      {/* Montañas: primero las de menor señal para que las fuertes tapen */}
+      {[...scans].sort((a, b) => a.signal - b.signal).map((s, i) => {
+        const cx = x(s.freq)
+        const cy = y(s.signal)
+        const base = y(dBmMin)
+        const half = 22
+        const col = ssidColor(s.ssid || s.bssid)
+        return (
+          <path
+            key={s.bssid + i}
+            d={`M ${cx - half} ${base + 8} C ${cx - half} ${(base + 8 + cy) / 2}, ${cx - half * 0.5} ${cy}, ${cx} ${cy} C ${cx + half * 0.5} ${cy}, ${cx + half} ${(base + 8 + cy) / 2}, ${cx + half} ${base + 8} Z`}
+            fill={col}
+            fillOpacity={0.28}
+            stroke={col}
+            strokeOpacity={0.5}
+            strokeWidth={1}
+          >
+            <title>{`${s.ssid || s.bssid} · ${s.channel} · ${s.signal} dBm`}</title>
+          </path>
+        )
+      })}
+      {chans.map((c) => {
+        const s = scans.find((sc) => sc.channel === c)
+        const cx = s ? x(s.freq) : 0
+        return (
+          <text key={c} x={cx} y={H - 6} textAnchor="middle" className="fill-text-muted" fontSize={9}>
+            {c}
+          </text>
+        )
+      })}
+    </svg>
+  )
 }
 
 // Neighbor scan del channel-plan (#538): red visible en un canal.
@@ -1110,53 +1180,99 @@ interface ChannelPlanData {
   scans: Scan[]
 }
 
-// SurveyBars (#538): gráfico de barras horizontales por canal para una radio
-// (estilo channel_analysis del LuCI, suave): cada canal es una fila con una
-// barra cuyo ancho indica la ocupación (busyPct, gradiente verde->ámbar->rojo)
-// y, apilados dentro de la barra, los vecinos detectados en ese canal (segmentos
-// coloreados por señal). El canal en uso se marca a la derecha. Tooltip con
-// el detalle de cada canal (frecuencia, ruido, uso, redes).
-function SurveyBars({ radio, scans }: { radio: SurveyRadio; scans: Scan[] }) {
+// ChannelAnalysisView (#542): vista del análisis de canales (réplica del LuCI).
+// Selector de router + filtro de banda, cascada de curvas y tabla de vecinos.
+function ChannelAnalysisView({
+  over,
+  band,
+  setBand,
+  scansByRouter,
+}: {
+  over: SurveyOverview
+  band: SurveyBand
+  setBand: (b: SurveyBand) => void
+  scansByRouter: Record<string, Scan[]>
+}) {
   const { t } = useTranslation()
-  const chans = useMemo(() => [...radio.channels].sort((a, b) => a.freq - b.freq), [radio.channels])
-  if (chans.length === 0) return null
+  const routers = over.routers.filter((r) => r.available && (scansByRouter[r.routerId] ?? []).length > 0)
+  const [rid, setRid] = useState<string>(routers[0]?.routerId ?? '')
+  useEffect(() => {
+    if (!routers.some((r) => r.routerId === rid)) setRid(routers[0]?.routerId ?? '')
+  }, [routers, rid])
+  const name = routers.find((r) => r.routerId === rid)?.name ?? rid
+  const allScans = scansByRouter[rid] ?? []
+  const scans = band === 'all' ? allScans : allScans.filter((s) => bandOfFreq(s.freq) === band)
+  const bandOptions: SurveyBand[] = ['all', '2.4 GHz', '5 GHz']
+
+  if (routers.length === 0) {
+    return <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">{t('roaming.survey.empty')}</div>
+  }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {chans.map((c) => {
-        const neighbors = scans.filter((s) => s.channel === c.channel && s.iface === radio.device)
-        const label = `${t('roaming.survey.colChannel')} ${c.channel} · ${c.freq} MHz · ${t('roaming.survey.colNoise')} ${c.noiseDbm} dBm · ${t('roaming.survey.colBusy')} ${c.busyPct.toFixed(1)}%` +
-          (neighbors.length ? '\n' + neighbors.map((s) => `${s.ssid} (${s.signal} dBm)`).join('\n') : '')
-        return (
-          <div key={c.freq} className="flex items-center gap-2">
-            <span className={cn('w-8 shrink-0 text-right font-mono text-mono-sm', c.inUse ? 'font-semibold text-accent' : 'text-text-muted')}>
-              {c.channel || '—'}
-            </span>
-            <div title={label} className="flex h-5 flex-1 items-stretch overflow-hidden rounded-full bg-canvas ring-1 ring-inset ring-border/50">
-              {/* Ocupación (ancho = busyPct, gradiente) */}
-              <div
-                className={cn('h-full rounded-l-full transition-[width] duration-500', spectrumCellBg(c.busyPct))}
-                style={{ width: `${Math.min(100, Math.max(1, c.busyPct))}%` }}
-              />
-              {/* Vecinos apilados (un segmento por red, color por señal) */}
-              {neighbors.slice(0, 8).map((s) => (
-                <span
-                  key={s.bssid}
-                  className={cn('my-1 w-1.5 shrink-0 rounded-full', signalDot(s.signal))}
-                />
-              ))}
-            </div>
-            <span className={cn('w-14 shrink-0 font-mono text-[10px] text-text-muted', noiseClass(c.noiseDbm))}>
-              {c.noiseDbm} dBm
-            </span>
-            {c.inUse && (
-              <span className="shrink-0 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                {t('roaming.survey.inUse')}
-              </span>
-            )}
+    <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-caption font-medium text-text-muted">{t('roaming.survey.router')}</span>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
+            {routers.map((r) => (
+              <button
+                key={r.routerId}
+                onClick={() => setRid(r.routerId)}
+                className={cn('rounded-md px-2.5 py-1 text-caption font-medium transition-colors', rid === r.routerId ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary')}
+              >
+                {r.name}
+              </button>
+            ))}
           </div>
-        )
-      })}
+        </div>
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
+          {bandOptions.map((b) => (
+            <button
+              key={b}
+              onClick={() => setBand(b)}
+              className={cn('rounded-md px-2.5 py-1 text-caption font-medium transition-colors', band === b ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary')}
+            >
+              {b === 'all' ? t('roaming.matrix.allBands') : b}
+            </button>
+          ))}
+        </div>
+      </div>
+      <h3 className="mb-2 font-display text-h3 text-text-primary">{name}</h3>
+      <ChannelAnalysisChart scans={scans} />
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full border-separate border-spacing-0 text-left text-sm">
+          <thead>
+            <tr className="text-label uppercase text-text-muted">
+              <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSignal')}</th>
+              <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSsid')}</th>
+              <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
+              <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBssid')}</th>
+              <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scans.slice().sort((a, b) => b.signal - a.signal).map((s) => (
+              <tr key={s.bssid}>
+                <td className="border-b border-border/60 py-2 pr-3">
+                  <span className="inline-flex items-center gap-2">
+                    <span className={cn('inline-block h-2 w-8 rounded-full', signalDot(s.signal))} />
+                    <span className="font-mono text-mono-sm text-text-secondary">{s.signal} dBm</span>
+                  </span>
+                </td>
+                <td className="border-b border-border/60 py-2 pr-3">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ssidColor(s.ssid || s.bssid) }} />
+                    <span className="text-text-primary">{s.ssid || <em className="text-text-muted">hidden</em>}</span>
+                  </span>
+                </td>
+                <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">{s.channel}</td>
+                <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.bssid}</td>
+                <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.freq} MHz</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -1263,76 +1379,8 @@ function SurveyPanel({
         </div>
       </div>
 
-      {/* Grafiquito de canales por router (el de abajo dibuja las barras por radio) */}
-      {overview.routers.map((r) => {
-        const radios = r.radios.filter((rd) => band === 'all' || rd.band === band)
-        if (!r.available || radios.length === 0) {
-          return (
-            <div key={r.routerId} className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="font-display text-h3 text-text-primary">{r.name}</h3>
-              <p className="mt-2 text-caption text-text-muted">{t('roaming.survey.unreachable')}</p>
-            </div>
-          )
-        }
-        return (
-          <div key={r.routerId} className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-            <h3 className="mb-3 font-display text-h3 text-text-primary">{r.name}</h3>
-            {radios.map((radio) => (
-              <div key={radio.device} className="mb-4 last:mb-0">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="rounded-md bg-elevated px-2 py-0.5 font-mono text-caption text-text-secondary">{radio.device}</span>
-                  <span className="text-caption text-text-muted">{radio.band}</span>
-                </div>
-                {/* Barras por canal (#538): uso + vecinos apilados, estilo channel_analysis */}
-                <div className="mb-3">
-                  <SurveyBars radio={radio} scans={scansByRouter[r.routerId] ?? []} />
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-separate border-spacing-0 text-left text-sm">
-                    <thead>
-                      <tr className="text-label uppercase text-text-muted">
-                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
-                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
-                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colNoise')}</th>
-                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBusy')}</th>
-                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colRx')}</th>
-                        <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colTx')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {radio.channels.map((c) => (
-                        <tr key={c.freq} className={cn(c.inUse && 'bg-accent/5')}>
-                          <td className="border-b border-border/60 py-2 pr-3">
-                            <span className="font-mono text-text-primary">
-                              {c.channel || '—'}
-                              {c.inUse && (
-                                <span className="ml-1.5 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                                  {t('roaming.survey.inUse')}
-                                </span>
-                              )}
-                            </span>
-                          </td>
-                          <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{c.freq}</td>
-                          <td className={cn('border-b border-border/60 py-2 pr-3 font-mono text-mono-sm', noiseClass(c.noiseDbm))}>
-                            {c.noiseDbm} dBm
-                          </td>
-                          <td className="border-b border-border/60 py-2 pr-3">
-                            <span className={cn('inline-block min-w-[3.5rem] rounded-md px-2 py-0.5 text-center font-mono text-mono-sm ring-1 ring-inset', busyClass(c.busyPct))}>
-                              {c.busyPct.toFixed(1)}%
-                            </span>
-                          </td>
-                          <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-secondary">{c.rxPct.toFixed(1)}%</td>
-                          <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-secondary">{c.txPct.toFixed(1)}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      })}
+      {/* Análisis de canales (#542): cascada de curvas + tabla de vecinos */}
+      <ChannelAnalysisView over={overview} band={band} setBand={setBand} scansByRouter={scansByRouter} />
 
       {/* Leyenda */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
