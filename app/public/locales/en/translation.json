@@ -379,7 +379,7 @@
     "empty": "No router has usteer enabled. Install it on OpenWrt to see the roaming mesh.",
     "tabMatrix": "Matrix",
     "tab11r": "802.11r",
-    "tabSurvey": "Survey",
+    "tabSurvey": "Channel analysis",
     "tabEvents": "Events",
     "comingSoon": "Coming soon",
     "matrix": {
@@ -436,7 +436,7 @@
       "unreachable": "Router not reachable over SSH."
     },
     "survey": {
-      "title": "Channel utilization",
+      "title": "Channel analysis",
       "description": "Noise floor and load on each WiFi channel (iw survey dump). Congested channels are the most common cause of slow home WiFi.",
       "empty": "No router returned survey data. Verify that `iw dev wlanX survey dump` works on your routers.",
       "unreachable": "Router not reachable over SSH or no wireless interfaces.",
@@ -453,7 +453,8 @@
       "legendCongested": "≥ 70% (congested)",
       "colSignal": "Signal (dBm)",
       "colSsid": "Network (SSID)",
-      "router": "Router"
+      "router": "Router",
+      "noScans": "This router does not report channel scans. NetGrip routers do not scan; use one running the NetPulse agent or check it is active."
     },
     "events": {
       "title": "Roaming events",
