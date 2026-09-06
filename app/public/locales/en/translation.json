@@ -728,7 +728,6 @@
     "gatewayLatency": "Gateway latency",
     "highTemp": "High temperature: {{temp}} °C · ventilation recommended",
     "mainGateway": "Main gateway",
-    "msToGateway": "{{ms}} ms to gateway",
     "sortBy": "Sort by {{column}}",
     "statusAria": "{{online}} routers online, {{warnings}} with warnings",
     "summary": "{{total}} routers · {{online}} online · {{warnings}} with warnings",

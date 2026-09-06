@@ -728,7 +728,6 @@
     "gatewayLatency": "Latencia a la puerta de enlace",
     "highTemp": "Temperatura alta: {{temp}} °C · ventilación recomendada",
     "mainGateway": "Puerta de enlace",
-    "msToGateway": "{{ms}} ms a la puerta de enlace",
     "sortBy": "Ordenar por {{column}}",
     "statusAria": "{{online}} equipos online, {{warnings}} con aviso",
     "summary": "{{total}} equipos · {{online}} online · {{warnings}} con aviso",

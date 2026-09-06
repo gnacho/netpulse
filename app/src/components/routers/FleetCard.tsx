@@ -65,9 +65,8 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const agentDown = isOpenWrt && agent !== undefined && !agent.fresh
   const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
-  const isGateway = router.id === 'flint2'
-  // El gateway real lo marca el server (roleBadge 'Principal'); su tarjeta
-  // lleva la pill verde "puerta de enlace" junto al nombre.
+  // El gateway real lo marca el server (roleBadge 'Principal'): su tarjeta
+  // lleva la pill verde "puerta de enlace", el tile en acento y su modelo.
   const isPrimary = router.roleBadge === 'Principal'
   const traffic = router.sparkline.map((v, i) => ({ i, v }))
 
@@ -120,7 +119,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               layoutId={`router-tile-${router.id}`}
               className={cn(
                 'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
-                isGateway
+                isPrimary
                   ? 'bg-gradient-to-br from-accent to-tunnel text-canvas'
                   : 'bg-accent-soft text-accent',
               )}
@@ -134,9 +133,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} />
               </div>
               <div className="truncate text-caption text-text-muted">
-                {isGateway ? 'GL.iNet Flint 2 · GL-MT6000' : `OpenWrt · ${router.modelShort}`}
+                {isPrimary ? router.model : `OpenWrt · ${router.modelShort}`}
               </div>
-              {isGateway && (
+              {isPrimary && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-0.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-ok" />
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">AdGuard</span>
