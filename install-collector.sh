@@ -200,7 +200,7 @@ fi
 if [ -z "$NETPULSE_VERSION" ]; then
     info "resolving latest stable version"
     NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
-        | grep '"tag_name"' | head -1 | cut -d'"' -f4) \
+        | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4) \
         || fatal 31 "could not resolve the latest version. Use --version=X.Y.Z"
     [ -n "$NETPULSE_VERSION" ] || fatal 31 "no stable release found yet. Use --version=X.Y.Z"
 fi

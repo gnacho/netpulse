@@ -171,7 +171,7 @@ HANDOFF
         elif command -v wget >/dev/null 2>&1; then FETCH="wget -q -O-"
         else fatal 21 "necesito curl o wget"; fi
         NG_TAG=$($FETCH "https://api.github.com/repos/gnacho/netgrip/releases/latest" \
-            | grep '"tag_name"' | head -1 | cut -d'"' -f4) || fatal 41 "no pude resolver la última release de NetGrip"
+            | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4) || fatal 41 "no pude resolver la última release de NetGrip"
         NG_VER=$(echo "$NG_TAG" | sed 's/^v//')
         ARCH=$(ssh $SSH_IDENT_ARGS "$SSH" uname -m)
         case "$ARCH" in
@@ -249,7 +249,7 @@ else
     if [ -z "$NETPULSE_VERSION" ]; then
         info "resolviendo última release"
         NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
-            | grep '"tag_name"' | head -1 | cut -d'"' -f4) \
+            | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4) \
             || fatal 31 "no pude resolver la última release; usa --version=X.Y.Z"
     fi
     VERSION_NORM=$(echo "$NETPULSE_VERSION" | sed 's/^v//')
