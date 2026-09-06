@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.9] - 2026-09-06
+
+### Changed
+
+- **La tarjeta del gateway en "Dispositivos" se identifica por rol, no por id de demo (#597)**: antes detectaba el gateway con el id demo `flint2`, así que en modo live la tarjeta nunca recibía el tratamiento de router principal. Ahora usa `roleBadge Principal`, igual que el detalle del router, y el subtítulo muestra el `model` real del dispositivo (se elimina el literal "GL.iNet Flint 2 · GL-MT6000" tanto de la tarjeta como de la cabecera de detalle). Se elimina también la clave de traducción `msToGateway` (quedó sin uso tras quitar el footer en #593).
+
 ## [2.28.8] - 2026-09-06
 
 ### Fixed
