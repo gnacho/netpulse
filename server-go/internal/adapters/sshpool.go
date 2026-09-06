@@ -12,9 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,7 +89,14 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 		}
 		var keyErr *knownhosts.KeyError
 		if errors.As(err, &keyErr) && len(keyErr.Want) > 0 {
-			return err // clave CAMBIADA → rechazar
+			// Clave cambiada (#567): el probe de discovery (ssh del sistema) y el
+			// pool (librería Go) pueden negociar un algoritmo de host-key distinto
+			// y comparten el mismo known_hosts. Antes se rechazaba (MITM), lo que
+			// bloqueaba routers cuyo swap/flash rotó la clave. En un monitor LAN
+			// self-hosted re-onboardamos con aviso (accept-new con refresh).
+			log.Printf("ssh %s: host key changed (%s -> %s); re-onboarding",
+				hostname, ssh.FingerprintSHA256(keyErr.Want[0].Key), ssh.FingerprintSHA256(key))
+			return p.refreshHostKey(hostname, key)
 		}
 		// Host desconocido → accept-new
 		line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
@@ -99,6 +108,38 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 		_, ferr = f.WriteString(line + "\n")
 		return ferr
 	}, nil
+}
+
+// refreshHostKey reemplaza la entrada known_hosts de un host por la clave nueva
+// (#567). Quita las líneas previas de ese host (la lista de hosts de una línea
+// puede ser separada por comas) y añade la nueva.
+func (p *SSHPool) refreshHostKey(hostname string, key ssh.PublicKey) error {
+	norm := knownhosts.Normalize(hostname)
+	line := knownhosts.Line([]string{norm}, key)
+	var keep []string
+	if data, err := os.ReadFile(p.khPath); err == nil {
+		for _, ln := range strings.Split(string(data), "\n") {
+			if strings.TrimSpace(ln) == "" {
+				continue
+			}
+			fields := strings.Fields(ln)
+			if len(fields) == 0 {
+				continue
+			}
+			drop := false
+			for _, h := range strings.Split(fields[0], ",") {
+				if knownhosts.Normalize(h) == norm {
+					drop = true
+					break
+				}
+			}
+			if !drop {
+				keep = append(keep, ln)
+			}
+		}
+	}
+	keep = append(keep, line)
+	return os.WriteFile(p.khPath, []byte(strings.Join(keep, "\n")+"\n"), 0o600)
 }
 
 // dial abre (o reabre) la conexión a un host respetando el backoff.
