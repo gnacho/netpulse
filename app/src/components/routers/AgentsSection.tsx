@@ -494,6 +494,13 @@ export function AgentsSection() {
       <div className="mb-4">
         <h2 id="agents-section-title" className="font-display text-h2 text-text-primary">{t('routers.agents.title')}</h2>
         <p className="text-caption text-text-muted">{t('routers.agents.subtitle', { total, down })}</p>
+        {rows.length > 0 && (
+          <div className="mt-3 flex flex-col gap-1.5 rounded-xl border border-border/60 bg-canvas/50 px-3 py-2.5">
+            <p className="text-caption font-medium text-text-secondary">{t('routers.agents.installChoice')}</p>
+            <p className="text-caption text-text-muted">{t('routers.agents.installChoiceNetgrip')}</p>
+            <p className="text-caption text-text-muted">{t('routers.agents.installChoiceNative')}</p>
+          </div>
+        )}
       </div>
       <DiscoveredStrip />
       {rows.length === 0 ? (

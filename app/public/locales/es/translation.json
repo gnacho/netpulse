@@ -753,6 +753,9 @@
     "agents": {
       "subtitle": "{{total}} agente(s) · {{down}} sin reportar",
       "empty": "Sin agentes registrados.",
+      "installChoice": "¿Cómo cubrir un router OpenWrt sin agente? NetGrip (recomendado en routers que puedan alojarlo) o agente nativo. NetPulse no instala NetGrip: la elección se hace al alta.",
+      "installChoiceNetgrip": "NetGrip: panel en el router (puerto 8090) con agente NetPulse embebido y su propia gestión (toggles de servicios). Se instala desde el propio router; luego NetPulse no despliega el agente standalone encima.",
+      "installChoiceNative": "Agente nativo: telemetría ligera gestionada desde NetPulse (reinstalar/actualizar), sin web UI en el router.",
       "colDevice": "Equipo",
       "colStatus": "Estado",
       "colLastSeen": "Último push",
