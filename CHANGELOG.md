@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.5] - 2026-09-06
+
+### Fixed
+
+- **El "copy command" para instalar un agente no era ejecutable (#571)**: la app generaba el one-liner con opciones separadas por espacio (`--binary /tmp/netpulse-agent ...`), pero el instalador solo aceptaba `--opt=value`, así que abortaba en la primera opción con `opción desconocida: --binary` y nunca llegaba al paso SSH. El instalador ahora acepta tanto `--opt value` como `--opt=value`.
+- **El instalador no usaba la llave SSH del servidor (#572)**: `install-agent.sh` hacía `ssh root@IP` sin identidad explícita; si el router solo autoriza la llave que genera NetPulse (la que muestra Ajustes), el SSH fallaba aunque `ssh -i <llave> root@IP` funcionara. Ahora se acepta `--ssh-key <ruta>`, se reenvía con `-i` a todos los `ssh`/`scp`, y el copy-command la incluye automáticamente.
+
 ## [2.28.4] - 2026-09-05
 
 ### Added
