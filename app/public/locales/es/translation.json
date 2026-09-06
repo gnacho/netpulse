@@ -187,6 +187,7 @@
       "traffic24h": "Tráfico 24 h",
       "trafficCurrent": "Tráfico actual",
       "traffic": "Tráfico por cliente",
+      "trafficNoSource": "Sin tráfico por cliente: los clientes por cable necesitan nlbwmon en el router (los WiFi usan los contadores de hostapd).",
       "unfiltered": "Sin filtrar"
     },
     "deviceType": "Tipo de dispositivo",

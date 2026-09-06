@@ -141,7 +141,7 @@ export function DeviceTrafficDetail({ mac, online }: { mac: string; online: bool
         </div>
       ) : (
         <div className="flex h-8 items-center justify-center text-caption text-text-muted">
-          {t('routerDetail.ports.seriesNoData')}
+          {t('devices.detail.trafficNoSource')}
         </div>
       )}
     </div>

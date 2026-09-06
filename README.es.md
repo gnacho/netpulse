@@ -96,6 +96,8 @@ NetPulse descubre dispositivos clientes a partir de tres fuentes que se ejecutan
 
 LLDP solo se usa para identificar routers/switches vecinos, no dispositivos finales. El descubrimiento requiere que el agente de NetPulse esté corriendo en el router que ve a los clientes; una instalación nueva con solo routers dados de alta manualmente y sin agente en el gateway mostrará una lista de dispositivos vacía hasta que se instale el agente.
 
+El tráfico por cliente prefiere `nlbwmon` para los clientes por cable (contadores por MAC) y cae a los contadores de bytes de hostapd para los WiFi. `nlbwmon` no viene en todos los builds de OpenWrt y puede ser pesado en memoria en routers con poca RAM; `vnstat` mide totales por interfaz, no tráfico por MAC, así que no es un sustituto. Si un cliente por cable no muestra serie de tráfico, instala `nlbwmon` en ese router (o confía en el fallback WiFi).
+
 ## Capturas
 
 **Topología: inferida en vivo del FDB del bridge, túneles incluidos**

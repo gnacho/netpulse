@@ -95,6 +95,8 @@ NetPulse discovers client devices from three sources that run on the monitored r
 
 LLDP is used only to identify neighbouring routers/switches, not end devices. Discovery requires the NetPulse agent to be running on the router that sees the clients; a fresh install with only manually onboarded routers and no agent on the gateway will show an empty device list until the agent is installed.
 
+Per-client traffic prefers `nlbwmon` for wired clients (per-MAC counters) and falls back to the hostapd byte counters for Wi-Fi clients. `nlbwmon` is not included in every OpenWrt build and can be memory-hungry on very low-RAM routers; `vnstat` tracks per-interface totals, not per-client MAC traffic, so it is not a substitute. If a wired client shows no traffic series, install `nlbwmon` on that router (or rely on the Wi-Fi fallback).
+
 ## Screenshots
 
 **Topology: inferred live from the bridge FDB, tunnels included**

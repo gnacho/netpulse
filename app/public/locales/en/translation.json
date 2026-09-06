@@ -187,6 +187,7 @@
       "traffic24h": "Traffic 24 h",
       "trafficCurrent": "Current traffic",
       "traffic": "Client traffic",
+      "trafficNoSource": "No per-client traffic: wired clients need nlbwmon on the router (WiFi uses hostapd counters).",
       "unfiltered": "Unfiltered"
     },
     "deviceType": "Device type",
