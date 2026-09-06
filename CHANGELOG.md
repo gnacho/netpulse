@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.8] - 2026-09-06
+
+### Fixed
+
+- **Las tarjetas de "Dispositivos" marcaban a todos los routers como "Gateway principal" (#593)**: el footer de cada `FleetCard` pintaba la etiqueta del gateway siempre que la latencia al gateway no estuviera disponible, y en modo live esos extras nunca llegan (solo la demo los rellena), así que la etiqueta salía en todas las tarjetas, incluidos APs y switches. Ahora la indicación es una **pill verde "Puerta de enlace"** junto al nombre, visible solo en la tarjeta del router con `roleBadge Principal` (el gateway real), y se elimina la fila del footer con el texto y el enlace "Ver detalle" (toda la tarjeta ya es clicable).
+
+### Changed
+
+- **Copy en español sin anglicismos**: las cadenas visibles pasan de "gateway" a "puerta de enlace" (pill de tarjeta, "Estado de la puerta de enlace", enlaces y latencia en el detalle de AP, captions de AdGuard/reserva/aviso, copy de Orchestration y tooltip vía Internet). El texto en inglés no cambia.
+
 ## [2.28.7] - 2026-09-06
 
 ### Fixed
