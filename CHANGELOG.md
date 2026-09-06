@@ -5,6 +5,25 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.6] - 2026-09-06
+
+### Fixed
+
+- **Los instaladores no parseaban el tag de la release correctamente (#564)**: `install.sh`, `install-agent.sh` y `install-collector.sh` resolvían `releases/latest` con un corte posicional (`cut -d'"' -f4`); cuando GitHub devuelve el JSON minificado en una línea, el campo 4 es la URL de la release, no el tag, y la descarga apuntaba a una URL inválida. Ahora extraen `tag_name` por nombre (`grep -oE`). El instalador además informa de su propia versión.
+- **El servidor no encontraba el fichero de leases de dnsmasq en ubicaciones no estándar (#568)**: el fichero se leía siempre de `/tmp/dhcp.leases`; ahora se resuelve vía UCI (`dhcp.@dnsmasq[0].leasefile`) con fallback, y aplica al agente y al sondeo SSH.
+- **El SSH al gateway fallaba por host-key (#567)**: el probe de discovery (ssh del sistema) y el pool (librería Go) negocian un algoritmo de host-key distinto y comparten `known_hosts`; ante una clave conocida pero distinta el pool rechazaba (protección MITM) y dropbear veía "Exit before auth". Ahora re-onboarda con aviso (accept-new con refresh), acorde al modelo de confianza de una LAN self-hosted.
+- **Se mostraba un timezone hardcodeado y firmware "actualizado" en falso (#566)**: la tarjeta de información del router mostraba `Europe/Madrid` y una pill "actualizado" antes de tener datos reales. Ahora usa el timezone del router si existe (si no, `—`) y oculta la pill de firmware sin datos reales.
+
+### Added
+
+- **Apk genérico aarch64 (#573)**: se publica un `.apk` con arch `aarch64_generic` (target `armsr/armv8`) además del `aarch64_cortex-a53`, para routers aarch64 fuera de cortex-a53 (antes `apk add` fallaba con `uninstallable arch`).
+- **Elección honesta agente nativo vs NetGrip (#570)**: la sección de agentes explica ambas opciones (descripción corta, puerto 8090 de NetGrip, recomendación) para routers OpenWrt sin agente. NetPulse no instala NetGrip: la elección se hace al alta.
+- **Mensaje honesto de "sin tráfico por cliente" (#574)**: el detalle de dispositivo indica que los clientes por cable necesitan nlbwmon (los WiFi usan hostapd), y se documenta el caveat de RAM de nlbwmon.
+
+### Other
+
+- **#569**: rearmado de un agente NetGrip stale reiniciando el servicio netgrip (PR de la otra sesión, mergeada).
+
 ## [2.28.5] - 2026-09-06
 
 ### Fixed
