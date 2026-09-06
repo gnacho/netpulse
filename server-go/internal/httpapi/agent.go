@@ -355,9 +355,16 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 		scheme = "https"
 	}
 	server := scheme + "://" + r.Host
+	// #572: el copy-command corre en el server, donde la llave de routers del
+	// app (cfg.SSHKeyPath) puede ser la única autorizada en el router. Si el
+	// script no la pasa, el SSH cae a la default (~/.ssh/id_*) y falla.
+	sshKeyArg := ""
+	if s.cfg != nil && s.cfg.SSHKeyPath != "" {
+		sshKeyArg = " --ssh-key=" + s.cfg.SSHKeyPath
+	}
 	return fmt.Sprintf(
-		"curl -fsSL -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary /tmp/netpulse-agent --host %s --server %s --slug %s --token %s",
-		token, server, slug, host, server, slug, token)
+		"curl -fsSL -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary=/tmp/netpulse-agent --host=%s --server=%s --slug=%s --token=%s%s",
+		token, server, slug, host, server, slug, token, sshKeyArg)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.

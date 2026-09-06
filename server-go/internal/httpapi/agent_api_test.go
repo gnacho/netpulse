@@ -146,7 +146,7 @@ func TestIngestTokenValidoEInvalido(t *testing.T) {
 	if status != 201 || token == "" {
 		t.Fatalf("create: %d token=%q", status, token)
 	}
-	if !strings.Contains(install, "install-agent.sh") || !strings.Contains(install, token) || !strings.Contains(install, "--slug patio") {
+	if !strings.Contains(install, "install-agent.sh") || !strings.Contains(install, token) || !strings.Contains(install, "--slug=patio") || !strings.Contains(install, "--ssh-key=") {
 		t.Fatalf("one-liner: %q", install)
 	}
 	// kv guarda sha256, NUNCA el token en claro

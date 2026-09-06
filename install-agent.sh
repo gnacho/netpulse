@@ -22,6 +22,9 @@
 #                   y obtiene el token real automáticamente; Fase 9 R3)
 #   --server-fp X   SHA-256 SPKI del servidor en hex (obligatorio si --server es https://)
 #   --ssh-user X    usuario SSH del router (default: root)
+#   --ssh-key X     ruta a la identidad privada SSH (opción -i). OBLIGATORIA en
+#                   el server para routers que solo autorizan la llave del
+#                   NetPulse (la que muestra Settings); se pasa a ssh/scp.
 #   --binary X      binario local a copiar (default: descarga de la release)
 #   --version X.Y.Z versión a descargar (default: latest)
 #   --tmp           instala el binario en /tmp (RAM) en vez de /usr/sbin:
@@ -34,6 +37,8 @@
 #                   limitarse a entregarle la config (--force permite bajar de
 #                   versión)
 #
+# Nota: todas las opciones admiten `--opt value` y `--opt=value` (#571).
+#
 # Requisitos: ssh/scp al router (OpenWrt con dropbear), curl o wget local.
 # =============================================================================
 set -eu
@@ -44,7 +49,7 @@ ENV_FILE="/etc/netpulse-agent.env"
 INIT_NAME="netpulse-agent"
 INIT_DST="/etc/init.d/$INIT_NAME"
 
-HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; SSH_USER="root"; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0; UPDATE_NETGRIP=0; NETGRIP_FORCE=0
+HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; SSH_USER="root"; SSH_KEY=""; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0; UPDATE_NETGRIP=0; NETGRIP_FORCE=0
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     C_G=$(printf '\033[32m'); C_R=$(printf '\033[31m'); C_Y=$(printf '\033[33m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
@@ -54,37 +59,54 @@ ok()    { printf '%s✓%s %s\n' "$C_G" "$C_0" "$*"; }
 warn()  { printf '%s!%s %s\n' "$C_Y" "$C_0" "$*" >&2; }
 fatal() { _c=$1; shift; printf '%s✗ %s%s\n' "$C_R" "$*" "$C_0" >&2; exit "$_c"; }
 
-usage() { sed -n '2,33p' "$0"; exit 0; }
+usage() { sed -n '2,/^# Requisitos/p' "$0" | sed '$d'; exit 0; }
 
-for arg in "$@"; do
-    case "$arg" in
-        --host=*)     HOST="${arg#*=}" ;;
-        --server=*)   SERVER="${arg#*=}" ;;
-        --slug=*)     SLUG="${arg#*=}" ;;
-        --token=*)    TOKEN="${arg#*=}" ;;
-        --pairing-token=*) PAIRING_TOKEN="${arg#*=}" ;;
-        --server-fp=*) SERVER_FP="${arg#*=}" ;;
-        --ssh-user=*) SSH_USER="${arg#*=}" ;;
-        --binary=*)   BINARY="${arg#*=}" ;;
-        --version=*)  NETPULSE_VERSION="${arg#*=}" ;;
-        --tmp)        USE_TMP=1 ;;
-        --uninstall)  UNINSTALL=1 ;;
-        --update-netgrip) UPDATE_NETGRIP=1 ;;
-        --force)      NETGRIP_FORCE=1 ;;
-        -h|--help)    usage ;;
-        *) fatal 10 "opción desconocida: $arg (prueba --help)" ;;
+# #571: acepta tanto `--opt value` como `--opt=value` (el copy-command de la app
+# y la cabecera de ayuda usan la forma con espacio).
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --host)             HOST="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --host=*)           HOST="${1#*=}"; shift ;;
+        --server)           SERVER="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --server=*)         SERVER="${1#*=}"; shift ;;
+        --slug)             SLUG="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --slug=*)           SLUG="${1#*=}"; shift ;;
+        --token)            TOKEN="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --token=*)          TOKEN="${1#*=}"; shift ;;
+        --pairing-token)    PAIRING_TOKEN="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --pairing-token=*)  PAIRING_TOKEN="${1#*=}"; shift ;;
+        --server-fp)        SERVER_FP="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --server-fp=*)      SERVER_FP="${1#*=}"; shift ;;
+        --ssh-user)         SSH_USER="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --ssh-user=*)       SSH_USER="${1#*=}"; shift ;;
+        --ssh-key)          SSH_KEY="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --ssh-key=*)        SSH_KEY="${1#*=}"; shift ;;
+        --binary)           BINARY="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --binary=*)         BINARY="${1#*=}"; shift ;;
+        --version)          NETPULSE_VERSION="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --version=*)        NETPULSE_VERSION="${1#*=}"; shift ;;
+        --tmp)              USE_TMP=1; shift ;;
+        --uninstall)        UNINSTALL=1; shift ;;
+        --update-netgrip)   UPDATE_NETGRIP=1; shift ;;
+        --force)            NETGRIP_FORCE=1; shift ;;
+        -h|--help)          usage ;;
+        *) fatal 10 "opción desconocida: $1 (prueba --help)" ;;
     esac
 done
 
 [ -n "$HOST" ] || fatal 11 "falta --host (IP del router)"
 SSH="$SSH_USER@$HOST"
+# #572: identidad SSH explícita (p. ej. la llave de routers del server). Si no
+# se pasa, el cliente usa la default (~/.ssh/id_*) como antes.
+SSH_IDENT_ARGS=""
+if [ -n "$SSH_KEY" ]; then SSH_IDENT_ARGS="-i $SSH_KEY"; fi
 command -v ssh >/dev/null 2>&1 || fatal 12 "necesito ssh"
 command -v scp >/dev/null 2>&1 || fatal 12 "necesito scp"
 
 # --------------------------------------------------------------- uninstall --
 if [ "$UNINSTALL" -eq 1 ]; then
     info "desinstalando $BIN_NAME de $SSH"
-    ssh "$SSH" "
+    ssh $SSH_IDENT_ARGS "$SSH" "
         $INIT_DST stop 2>/dev/null || true
         $INIT_DST disable 2>/dev/null || true
         rm -f $INIT_DST $ENV_FILE /usr/sbin/$BIN_NAME /tmp/$BIN_NAME
@@ -113,7 +135,7 @@ ssh -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true \
 # Si el router ya corre NetGrip, su agente EMBEBIDO cubre el sondeo: no se
 # instala el standalone. Se le entrega la config (sin pisar la existente) y
 # opcionalmente se actualiza el propio NetGrip (--update-netgrip).
-if ssh "$SSH" '[ -x /usr/sbin/netgrip ] || [ -f /etc/init.d/netgrip ]'; then
+if ssh $SSH_IDENT_ARGS "$SSH" '[ -x /usr/sbin/netgrip ] || [ -f /etc/init.d/netgrip ]'; then
     info "NetGrip detectado en $HOST: el agente embebido ya cubre este router"
     # Token line igual que el flujo normal
     if [ -n "$PAIRING_TOKEN" ]; then
@@ -123,7 +145,7 @@ if ssh "$SSH" '[ -x /usr/sbin/netgrip ] || [ -f /etc/init.d/netgrip ]'; then
     fi
     HANDOFF_FP=""
     [ -n "$SERVER_FP" ] && HANDOFF_FP="NETPULSE_SERVER_FP=$SERVER_FP"
-    ssh "$SSH" "NG_ENV=/etc/netgrip/netpulse.env sh -s" <<HANDOFF
+    ssh $SSH_IDENT_ARGS "$SSH" "NG_ENV=/etc/netgrip/netpulse.env sh -s" <<HANDOFF
 set -eu
 if [ ! -f "\$NG_ENV" ]; then
     mkdir -p /etc/netgrip
@@ -144,19 +166,19 @@ HANDOFF
 
     if [ "$UPDATE_NETGRIP" -eq 1 ]; then
         # Versión instalada (registry apk/opkg; vacío si es binario manual)
-        CUR=$(ssh "$SSH" "(apk info netgrip 2>/dev/null || opkg status netgrip 2>/dev/null | sed -n 's/^Version: //p') | head -1")
+        CUR=$(ssh $SSH_IDENT_ARGS "$SSH" "(apk info netgrip 2>/dev/null || opkg status netgrip 2>/dev/null | sed -n 's/^Version: //p') | head -1")
         if command -v curl >/dev/null 2>&1; then FETCH="curl -fsSL --retry 3 --connect-timeout 10"
         elif command -v wget >/dev/null 2>&1; then FETCH="wget -q -O-"
         else fatal 21 "necesito curl o wget"; fi
         NG_TAG=$($FETCH "https://api.github.com/repos/gnacho/netgrip/releases/latest" \
             | grep '"tag_name"' | head -1 | cut -d'"' -f4) || fatal 41 "no pude resolver la última release de NetGrip"
         NG_VER=$(echo "$NG_TAG" | sed 's/^v//')
-        ARCH=$(ssh "$SSH" uname -m)
+        ARCH=$(ssh $SSH_IDENT_ARGS "$SSH" uname -m)
         case "$ARCH" in
             aarch64|arm64) NG_ARCH=arm64 ;;
             *) fatal 20 "NetGrip solo publica builds arm64 (router: $ARCH)" ;;
         esac
-        if ssh "$SSH" command -v apk >/dev/null 2>&1; then
+        if ssh $SSH_IDENT_ARGS "$SSH" command -v apk >/dev/null 2>&1; then
             NG_ASSET="netgrip-${NG_VER}-r1-${NG_ARCH}.apk"; NG_INST="apk add --allow-untrusted /tmp/netgrip-update.pkg"
         else
             NG_ASSET="netgrip_${NG_VER}-1_aarch64_cortex-a53.ipk"; NG_INST="opkg install /tmp/netgrip-update.pkg"
@@ -167,7 +189,7 @@ HANDOFF
             CUR_V=$(echo "$CUR" | sed 's/^netgrip-//; s/ description:.*//; s/-r[0-9]*$//')
             if [ "$CUR_V" = "$NG_VER" ]; then
                 ok "NetGrip ya está en $NG_VER; nada que hacer (usa --force para reinstalar)"
-                ssh "$SSH" "/etc/init.d/netgrip restart >/dev/null 2>&1 || true"
+                ssh $SSH_IDENT_ARGS "$SSH" "/etc/init.d/netgrip restart >/dev/null 2>&1 || true"
                 ok "agente embebido rearmado (slug $SLUG)"
                 exit 0
             fi
@@ -178,12 +200,12 @@ HANDOFF
             fi
         fi
         $FETCH "$NG_URL" -o "$TMP/netgrip-update.pkg" || fatal 42 "descarga falló: $NG_URL"
-        scp -Oq "$TMP/netgrip-update.pkg" "$SSH:/tmp/netgrip-update.pkg"
-        ssh "$SSH" "$NG_INST && rm -f /tmp/netgrip-update.pkg"
+        scp -Oq $SSH_IDENT_ARGS "$TMP/netgrip-update.pkg" "$SSH:/tmp/netgrip-update.pkg"
+        ssh $SSH_IDENT_ARGS "$SSH" "$NG_INST && rm -f /tmp/netgrip-update.pkg"
         ok "NetGrip actualizado a $NG_TAG"
     fi
 
-    ssh "$SSH" "/etc/init.d/netgrip restart >/dev/null 2>&1 || true"
+    ssh $SSH_IDENT_ARGS "$SSH" "/etc/init.d/netgrip restart >/dev/null 2>&1 || true"
     ok "agente embebido de NetGrip rearmado (server $SERVER, slug $SLUG)"
     info "el agente standalone NO se instala en routers con NetGrip"
     exit 0
@@ -202,7 +224,7 @@ if [ -n "$BINARY" ]; then
     cp "$BINARY" "$TMP/$BIN_NAME"
     info "usando binario local: $BINARY"
 else
-    ARCH=$(ssh "$SSH" uname -m) || fatal 31 "no pude detectar la arquitectura de $HOST"
+    ARCH=$(ssh $SSH_IDENT_ARGS "$SSH" uname -m) || fatal 31 "no pude detectar la arquitectura de $HOST"
     case "$ARCH" in
         aarch64|arm64) GOARCH=arm64 ;;
         armv7l|armv7)  GOARCH=armv7 ;;
@@ -211,7 +233,7 @@ else
             # (5º del ELF del sistema) decide: 0x01 = little (mipsle,
             # MT7621/ramips), 0x02 = big (mips, ath79). head|tail|tr en vez
             # de "od -t": busybox od no garantiza -t/-j/-N (#488).
-            END=$(ssh "$SSH" 'head -c 6 /bin/sh | tail -c 1 | tr "\001\002" "12"')
+            END=$(ssh $SSH_IDENT_ARGS "$SSH" 'head -c 6 /bin/sh | tail -c 1 | tr "\001\002" "12"')
             case "$END" in
                 1) GOARCH=mipsle ;;
                 2) GOARCH=mips ;;
@@ -254,11 +276,11 @@ info "copiando binario → $SSH:$BIN_DST"
 # Reinstalación: si hay una versión previa en marcha, parar el servicio ANTES
 # del scp — el proceso vivo tiene el binario abierto y la copia falla con
 # "Text file busy". El servicio se reactiva al final (enable + restart).
-ssh "$SSH" "/etc/init.d/$INIT_NAME stop >/dev/null 2>&1 || true"
+ssh $SSH_IDENT_ARGS "$SSH" "/etc/init.d/$INIT_NAME stop >/dev/null 2>&1 || true"
 # -O: protocolo SCP legacy — dropbear (OpenWrt) no tiene sftp-server y el
 # scp de OpenSSH ≥9 usa SFTP por defecto → "connection closed" sin esto.
-scp -Oq "$TMP/$BIN_NAME" "$SSH:$BIN_DST"
-ssh "$SSH" "chmod 0755 $BIN_DST"
+scp -Oq $SSH_IDENT_ARGS "$TMP/$BIN_NAME" "$SSH:$BIN_DST"
+ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $BIN_DST"
 ok "binario en $BIN_DST"
 
 # Config (chmod 600: el token solo lo lee root)
@@ -274,7 +296,7 @@ FP_LINE=""
 if [ -n "$SERVER_FP" ]; then
     FP_LINE="NETPULSE_SERVER_FP=$SERVER_FP"
 fi
-ssh "$SSH" "cat > $ENV_FILE && chmod 600 $ENV_FILE" <<EOF
+ssh $SSH_IDENT_ARGS "$SSH" "cat > $ENV_FILE && chmod 600 $ENV_FILE" <<EOF
 # netpulse-agent — config (generado por install-agent.sh)
 NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
@@ -290,11 +312,11 @@ ok "config escrita"
 info "instalando servicio procd"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -f "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" ]; then
-    scp -Oq "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" "$SSH:$INIT_DST"
+    scp -Oq $SSH_IDENT_ARGS "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" "$SSH:$INIT_DST"
 else
     # Instalación vía curl|sh (sin repo a mano): init embebido — es el MISMO
     # contenido que agent/deploy/netpulse-agent.init (mantener ambos a la par).
-    ssh "$SSH" "cat > $INIT_DST" <<'INITEOF'
+    ssh $SSH_IDENT_ARGS "$SSH" "cat > $INIT_DST" <<'INITEOF'
 #!/bin/sh /etc/rc.common
 # netpulse-agent — agente nativo NetPulse para OpenWrt (SPEC-AGENTE-PILOTO §2)
 START=99
@@ -315,7 +337,7 @@ start_service() {
 }
 INITEOF
 fi
-ssh "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
+ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
 ok "servicio $INIT_NAME habilitado y arrancado"
 
 # ------------------------------------------------------------ watchdog cron --
@@ -325,9 +347,9 @@ ok "servicio $INIT_NAME habilitado y arrancado"
 info "instalando watchdog (cron, cada 2 min)"
 WATCHDOG_DST="/usr/sbin/netpulse-watchdog"
 if [ -f "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" ]; then
-    scp -Oq "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" "$SSH:$WATCHDOG_DST"
+    scp -Oq $SSH_IDENT_ARGS "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" "$SSH:$WATCHDOG_DST"
 else
-    ssh "$SSH" "cat > $WATCHDOG_DST" <<'WATCHDOGEOF'
+    ssh $SSH_IDENT_ARGS "$SSH" "cat > $WATCHDOG_DST" <<'WATCHDOGEOF'
 #!/bin/sh
 INIT=/etc/init.d/netpulse-agent
 HB=/tmp/netpulse-agent.heartbeat
@@ -362,7 +384,7 @@ fi
 exit 0
 WATCHDOGEOF
 fi
-ssh "$SSH" "
+ssh $SSH_IDENT_ARGS "$SSH" "
     chmod 0755 $WATCHDOG_DST
     mkdir -p /etc/crontabs
     sed -i '/netpulse-watchdog/d' /etc/crontabs/root 2>/dev/null
@@ -373,9 +395,9 @@ ssh "$SSH" "
 ok "watchdog en cron (*/2 * * * *)"
 
 sleep 2
-if ssh "$SSH" "logread -e $INIT_NAME" 2>/dev/null | tail -2 | grep -q .; then
+if ssh $SSH_IDENT_ARGS "$SSH" "logread -e $INIT_NAME" 2>/dev/null | tail -2 | grep -q .; then
     info "últimas líneas de syslog:"
-    ssh "$SSH" "logread -e $INIT_NAME | tail -2" || true
+    ssh $SSH_IDENT_ARGS "$SSH" "logread -e $INIT_NAME | tail -2" || true
 fi
 
 printf '\n%s================ %s instalado ================%s\n' "$C_G" "$BIN_NAME" "$C_0"
