@@ -28,6 +28,14 @@ import (
 const (
 	// Cmd es el comando de reinicio del servicio procd del agente.
 	Cmd = "/etc/init.d/netpulse-agent restart"
+	// CmdNetgrip (#569): reinicia el servicio NetGrip del router. El agente
+	// embebido vive DENTRO del proceso netgrip: reiniciar el servicio recarga
+	// el env desde disco (NETPULSE_*) y relanza el agente, lo que recupera un
+	// NetGrip cuyo proceso arrastra un token/estado obsoleto en memoria (401s
+	// eternos en ingest). NO instala nada sobre el panel: solo lo reinicia.
+	// stop explícito + arranque: "restart" de procd puede ser no-op en NetGrip
+	// (PID intacto), stop+start es el patrón verificado.
+	CmdNetgrip = "/etc/init.d/netgrip stop; sleep 1; /etc/init.d/netgrip start"
 	// SSHWait: timeout del comando SSH de reinicio.
 	SSHWait = 10 * time.Second
 	// PollWait: cuánto esperar el push de vuelta tras el reinicio.
@@ -152,11 +160,19 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	if r.db == nil {
 		return Result{}, ErrNoDB
 	}
-	// #363: los agentes embebidos en NetGrip no se rearman por SSH (el
-	// servicio del agente es el propio panel).
+	// #363 + #569: un agente embebido en NetGrip NO se rearma con el init del
+	// agente nativo (el servicio del agente es el propio panel NetGrip).
+	// - FRESH (el panel empuja): no hay nada que rearmar → ErrNetgripAgent.
+	// - STALE (el panel no reporta): se reinicia el SERVICIO netgrip por SSH
+	//   (CmdNetgrip), que recarga el env y relanza el agente embebido; es la
+	//   vía de recuperación real para un NetGrip caído (#569).
+	cmd := Cmd
 	if r.agents != nil {
 		if _, _, kind, _, ok := r.agents.Info(slug); ok && kind == "netgrip" {
-			return Result{}, ErrNetgripAgent
+			if _, fresh := r.agents.Fresh(slug); fresh {
+				return Result{}, ErrNetgripAgent
+			}
+			cmd = CmdNetgrip
 		}
 	}
 	// El slug debe tener token registrado (si no, 404 como DELETE).
@@ -202,7 +218,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 		}
 	}
 
-	if _, err := r.pool.Run(host, Cmd, SSHWait); err != nil {
+	if _, err := r.pool.Run(host, cmd, SSHWait); err != nil {
 		return Result{}, fmt.Errorf("no pude reiniciar el servicio en %s: %w", host, err)
 	}
 
@@ -216,7 +232,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 				ID:       fmt.Sprintf("alert-agent-rearm-%s-%d", slug, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false, Severity: "info",
 				Title:       fmt.Sprintf("Agente rearmado en %s", slug),
-				Description: "Reinicio del servicio netpulse-agent desde el servidor — el agente vuelve a empujar",
+				Description: "Reinicio del servicio del agente desde el servidor — el agente vuelve a empujar",
 				Time:        "ahora mismo", RouterID: slug,
 			})
 		}

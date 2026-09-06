@@ -16,12 +16,16 @@ type RearmState = 'idle' | 'busy' | 'ok' | 'pending' | 'fail'
 /**
  * Botón «Rearmar» (Fase 5, Plan B): solo aparece con un agente registrado,
  * NO fresh (caído) y sesión con rol admin (la API exige admin en el rearme;
- * auditoría v2.4.0 §2, issue #7). Reinicia el servicio procd en el router
- * vía POST /api/agents/{slug}/rearm y refleja el resultado real:
+ * auditoría v2.4.0 §2, issue #7). Reinicia el servicio del agente en el
+ * router vía POST /api/agents/{slug}/rearm y refleja el resultado real:
  *   ok      → el agente volvió a empujar (recuperado)
  *   pending → reiniciado pero sin push en 30 s
  *   fail    → petición fallida (SSH, cooldown, sin servidor…)
  * El estado ok/pending/fail dura 6 s y vuelve a idle.
+ *
+ * #569: para un agente NetGrip stale el botón dice «Reiniciar NetGrip» (el
+ * backend reinicia el SERVICIO netgrip, que recarga el env del agente
+ * embebido); para un agente nativo dice «Rearmar» (reinicia netpulse-agent).
  */
 export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
   const { t } = useTranslation()
@@ -32,11 +36,13 @@ export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
   if (!agent || agent.fresh) return null
   if (auth?.role !== 'admin') return null
 
+  const netgrip = agent.kind === 'netgrip'
   const label =
-    state === 'busy' ? t('routers.agent.rearming')
+    state === 'busy' ? (netgrip ? t('routers.agent.netgripRestarting') : t('routers.agent.rearming'))
     : state === 'ok' ? t('routers.agent.rearmOk')
     : state === 'pending' ? t('routers.agent.rearmPending')
     : state === 'fail' ? t('routers.agent.rearmFail')
+    : netgrip ? t('routers.agent.netgripRestart')
     : t('routers.agent.rearm')
 
   const onClick = async () => {
@@ -53,7 +59,7 @@ export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
       type="button"
       onClick={onClick}
       disabled={state === 'busy'}
-      title={t('routers.agent.staleTip')}
+      title={netgrip ? t('routers.agent.netgripRestartTip') : t('routers.agent.staleTip')}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50',
         state === 'ok' ? 'bg-ok text-canvas'

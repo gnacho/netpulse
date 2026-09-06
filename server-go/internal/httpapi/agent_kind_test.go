@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// TestAgentsNetgripKind (#363): un push con kind "netgrip" se lista como tal,
-// no marca updateAvailable y el servidor rechaza upgrade, rearm y reinstall
-// (el agente es el panel NetGrip; se gestiona desde el propio router).
+// TestAgentsNetgripKind (#363): un push con kind "netgrip" se lista como tal
+// y el servidor rechaza rearm de un NetGrip FRESH (el agente es el panel
+// NetGrip; un NetGrip stale SÍ se rearma reiniciando el servicio, #569).
 func TestAgentsNetgripKind(t *testing.T) {
 	ts := makeAgentTestServer(t)
 	_, token, _ := createAgentToken(t, ts, "patio")
