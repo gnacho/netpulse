@@ -3,7 +3,8 @@ name: openwrt-package
 # Builds the OpenWrt packages for the released agent and attaches them to the
 # published release:
 #   - netpulse-agent as .ipk (24.10 SDK, mediatek/filogic) and .apk (25.12
-#     SDK, qualcommax/ipq807x).
+#     SDK: qualcommax/ipq807x -> aarch64_cortex-a53 y armsr/armv8 ->
+#     aarch64_generic, para routers aarch64 fuera de cortex-a53).
 #   - luci-app-netpulse (arch all) as .ipk and .apk (#236).
 #   - netpulse on-box server as .ipk and .apk (#364).
 #
@@ -42,6 +43,9 @@ jobs:
             format: ipk
           - sdk-version: 25.12.5
             sdk-target: qualcommax/ipq807x
+            format: apk
+          - sdk-version: 25.12.5
+            sdk-target: armsr/armv8
             format: apk
 
     steps:
@@ -184,6 +188,9 @@ jobs:
             format: ipk
           - sdk-version: 25.12.5
             sdk-target: qualcommax/ipq807x
+            format: apk
+          - sdk-version: 25.12.5
+            sdk-target: armsr/armv8
             format: apk
 
     steps:
