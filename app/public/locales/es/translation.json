@@ -78,7 +78,7 @@
     },
     "hints": {
       "agent-down": "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
-      "gateway-unreachable": "Comprueba la conexión entre el gateway y el resto de la red.",
+      "gateway-unreachable": "Comprueba la conexión entre la puerta de enlace y el resto de la red.",
       "high-temperature": "Mejora la ventilación y aleja el router de fuentes de calor.",
       "port-flapping": "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
       "device-offline": "Verifica la alimentación y el cable de red del equipo.",
@@ -228,7 +228,7 @@
       "banHint": "Próximamente: impedir que se conecte a redes 2.4/5/6 GHz.",
       "demoNotice": "En modo demo los cambios solo se guardan en este navegador.",
       "reserveTitle": "Reservar IP",
-      "reserveHint": "Sin reserva DHCP en el gateway.",
+      "reserveHint": "Sin reserva DHCP en la puerta de enlace.",
       "reservedAs": "Reservado como {{ip}}",
       "useCurrentIp": "Usar IP actual",
       "removeReserve": "Quitar",
@@ -526,10 +526,10 @@
     },
     "backhaul": {
       "linkLoad": "% carga enlace",
-      "loadAria": "Carga del enlace al Gateway en las últimas 24 horas",
-      "signalAria": "Señal del enlace al Gateway en las últimas 24 horas",
-      "wiredLink": "Enlace por cable al Gateway",
-      "wirelessLink": "Enlace wireless al Gateway (uplink)"
+      "loadAria": "Carga del enlace a la puerta de enlace en las últimas 24 horas",
+      "signalAria": "Señal del enlace a la puerta de enlace en las últimas 24 horas",
+      "wiredLink": "Enlace por cable a la puerta de enlace",
+      "wirelessLink": "Enlace inalámbrico a la puerta de enlace (uplink)"
     },
     "backToRouters": "Volver a Routers",
     "clients": {
@@ -654,7 +654,7 @@
       "vlanId": "ID VLAN"
     },
     "wan": {
-      "chartAria": "Tráfico WAN del gateway. Descarga actual {{down}} Mbps, subida {{up}} Mbps.",
+      "chartAria": "Tráfico WAN de la puerta de enlace. Descarga actual {{down}} Mbps, subida {{up}} Mbps.",
       "fiber": "Fibra {{plan}}",
       "publicIp": "IP pública",
       "title": "Red WAN",
@@ -725,10 +725,10 @@
     "firmwareAvailable": "Disponible: {{version}}",
     "firmwareOutdated": "Desactualizado",
     "firmwareTargetHint": "Objetivo: {{target}}",
-    "gatewayLatency": "Latencia al gateway",
+    "gatewayLatency": "Latencia a la puerta de enlace",
     "highTemp": "Temperatura alta: {{temp}} °C · ventilación recomendada",
-    "mainGateway": "Gateway principal",
-    "msToGateway": "{{ms}} ms al gateway",
+    "mainGateway": "Puerta de enlace",
+    "msToGateway": "{{ms}} ms a la puerta de enlace",
     "sortBy": "Ordenar por {{column}}",
     "statusAria": "{{online}} equipos online, {{warnings}} con aviso",
     "summary": "{{total}} equipos · {{online}} online · {{warnings}} con aviso",
@@ -890,7 +890,7 @@
     "signal": "Señal",
     "traffic": "Tráfico",
     "connection": "Conexión",
-    "viaInternet": "vía Internet → gateway",
+    "viaInternet": "vía Internet → puerta de enlace",
     "peerVia": "VPN · vía Internet",
     "lldpIdentified": "Identificado vía LLDP: chasis \"{{chassis}}\" · mgmt {{mgmt}} · caps {{caps}} · puerto remoto {{port}}",
     "dist": {
@@ -1206,7 +1206,7 @@
     "services": {
       "title": "Servicios",
       "caption": "Qué servicios se muestran en el panel",
-      "adguardCaption": "DNS filtrado en el gateway",
+      "adguardCaption": "DNS filtrado en la puerta de enlace",
       "wireguardCaption": "Túneles VPN WireGuard",
       "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
       "labs": "Labs (aplicaciones experimentales)",
@@ -1341,7 +1341,7 @@
   "topbar": {
     "alertsUnread": "Alertas, {{count}} sin leer",
     "demoMode": "Modo demo",
-    "gatewayStatus": "Estado del gateway",
+    "gatewayStatus": "Estado de la puerta de enlace",
     "live": "En vivo",
     "networkHealth": "Salud de la red: {{score}}",
     "networkHealth100": "Salud de la red: {{score}} de 100",
@@ -1432,7 +1432,7 @@
     "currentChannel": "Canal actual",
     "recommendedChannel": "Canal recomendado",
     "neighbors": "APs vecinos",
-    "noScans": "Sin escaneos recientes para este router. Los routers que corren NetGrip (gateway, APs gestionados por su panel) no escanean vecinos; los que llevan el agente NetPulse sí. Selecciona otro router de la lista (p. ej. rt2 o rt4) para ver su plan.",
+    "noScans": "Sin escaneos recientes para este router. Los routers que corren NetGrip (la puerta de enlace, los APs gestionados por su panel) no escanean vecinos; los que llevan el agente NetPulse sí. Selecciona otro router de la lista (p. ej. rt2 o rt4) para ver su plan.",
     "noRadios": "Este dispositivo no reporta radios WiFi.",
     "apply": "Aplicar canal",
     "gateway": " (Puerta de enlace)",
@@ -1492,7 +1492,7 @@
     "title": "Orquestación",
     "subtitle": "Configura servicios de red de forma declarativa. Cada cambio pasa por un plan revisable antes de aplicarse.",
     "router": "Router",
-    "gateway": "Gateway",
+    "gateway": "Puerta de enlace",
     "generatePlan": "Generar plan",
     "plan": "Plan",
     "apply": "Aplicar",
@@ -1510,12 +1510,12 @@
     },
     "warn": {
       "managed_by_firmware": "Este router trae un AdGuard Home del fabricante (GL.iNet). NetPulse no lo gestiona para no romper su UI: configúralo desde la interfaz del router.",
-      "gateway_only": "Este módulo solo está disponible en el router principal (gateway). Activa el permiso para routers no-gateway para probarlo en otro equipo."
+      "gateway_only": "Este módulo solo está disponible en el router principal (la puerta de enlace). Activa el permiso para routers que no son la puerta de enlace para probarlo en otro equipo."
     },
     "adguard": {
       "enable": "Activar AdGuard Home",
-      "allowNonGateway": "Permitir AdGuard en routers no-gateway",
-      "nonGatewayWarning": "AdGuard solo filtra el DNS de toda la red desde el gateway. En otro router solo filtraría a sus clientes; además el despliegue exige RAM libre suficiente y que el gateway no lo tenga ya activo.",
+      "allowNonGateway": "Permitir AdGuard en routers fuera de la puerta de enlace",
+      "nonGatewayWarning": "AdGuard solo filtra el DNS de toda la red desde la puerta de enlace. En otro router solo filtraría a sus clientes; además el despliegue exige RAM libre suficiente y que la puerta de enlace no lo tenga ya activo.",
       "port": "Puerto",
       "upstream": "DNS upstream",
       "method": {
@@ -1527,7 +1527,7 @@
     },
     "guestwifi": {
       "enable": "Activar red WiFi de invitados",
-      "allowNonGateway": "Permitir WiFi de invitados en routers no-gateway",
+      "allowNonGateway": "Permitir WiFi de invitados en routers fuera de la puerta de enlace",
       "nonGatewayWarning": "La red de invitados se crea en este router con subred y firewall propios, aislada de la LAN.",
       "ssid": "SSID",
       "password": "Contraseña",
@@ -1542,8 +1542,8 @@
     },
     "ddns": {
       "enable": "Activar DDNS",
-      "allowNonGateway": "Permitir DDNS en routers no-gateway",
-      "nonGatewayWarning": "El DDNS apunta un dominio a la IP pública. En un router no-gateway el alcance depende de la configuración de red.",
+      "allowNonGateway": "Permitir DDNS en routers fuera de la puerta de enlace",
+      "nonGatewayWarning": "El DDNS apunta un dominio a la IP pública. En un router que no es la puerta de enlace el alcance depende de la configuración de red.",
       "service": "Proveedor",
       "domain": "Dominio",
       "username": "Usuario",
@@ -1555,8 +1555,8 @@
     },
     "sqm": {
       "enable": "Activar QoS (SQM)",
-      "allowNonGateway": "Permitir QoS en routers no-gateway",
-      "nonGatewayWarning": "El SQM prioriza el tráfico y reduce la latencia bajo congestión en la interfaz elegida. En un no-gateway solo aplica a su propio enlace.",
+      "allowNonGateway": "Permitir QoS en routers fuera de la puerta de enlace",
+      "nonGatewayWarning": "El SQM prioriza el tráfico y reduce la latencia bajo congestión en la interfaz elegida. En un router que no es la puerta de enlace solo aplica a su propio enlace.",
       "interface": "Interfaz",
       "download": "Descarga (kbit/s)",
       "upload": "Subida (kbit/s)",
@@ -1575,8 +1575,8 @@
       }
     },
     "wireguard": {
-      "allowNonGateway": "Permitir WireGuard en routers no-gateway",
-      "nonGatewayWarning": "El túnel WireGuard puede vivir en cualquier router con WireGuard configurado. La gestión de peers no está limitada al gateway.",
+      "allowNonGateway": "Permitir WireGuard en routers fuera de la puerta de enlace",
+      "nonGatewayWarning": "El túnel WireGuard puede vivir en cualquier router con WireGuard configurado. La gestión de peers no está limitada a la puerta de enlace.",
       "interface": "Interfaz",
       "adminPeer": "Pubkey del admin (no se borra)",
       "adminPeerPlaceholder": "Clave pública base64 de tu propio peer (anti-lockout)",
@@ -1594,7 +1594,7 @@
     },
     "usteer": {
       "enable": "Activar usteer (itinerancia WiFi)",
-      "allowNonGateway": "Permitir usteer en routers no-gateway",
+      "allowNonGateway": "Permitir usteer en routers fuera de la puerta de enlace",
       "nonGatewayWarning": "usteer puede ejecutarse en cualquier AP con WiFi; solo necesita el paquete, wpad completo y los parámetros de itinerancia alineados.",
       "ssid": "SSID (vacío = todas)",
       "mobilityDomain": "Dominio de movilidad",
@@ -1731,7 +1731,7 @@
         "intro": "Los equipos se gestionan desde Ajustes, no desde la página de dispositivos: ahí viven el alta, la edición y el descubrimiento de la red.",
         "steps": [
           "Ve a ⟦Ajustes⟧ → sección ⟦Dispositivos⟧ y pulsa ⟦Añadir dispositivo⟧.",
-          "Rellena IP o hostname, nombre y tipo. Marca ⟦Es la puerta de enlace⟧ si es el gateway; para switches gestionados elige el tipo correspondiente.",
+          "Rellena IP o hostname, nombre y tipo. Marca ⟦Es la puerta de enlace⟧ si es la puerta de enlace; para switches gestionados elige el tipo correspondiente.",
           "Para que el server pueda sondear por SSH, autoriza su clave: cópiala desde ⟦Clave SSH del servidor⟧ e instálala en el router.",
           "También puedes pulsar ⟦Descubrir en la red⟧ para detectar candidatos automáticamente."
         ],
