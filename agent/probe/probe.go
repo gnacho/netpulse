@@ -33,7 +33,12 @@ const (
 	// CmdPingGateway: ping corto al gateway desde un AP. %s = host gateway.
 	CmdPingGateway = "ping -c 2 -W 2 %s 2>/dev/null | tail -1"
 	CmdDhcpUbus    = "ubus call dhcp ipv4leases"
-	CmdDhcpFile    = "cat /tmp/dhcp.leases 2>/dev/null || true"
+	// CmdDhcpFile: cat del fichero de leases de dnsmasq. Resuelve la ubicación
+	// real vía UCI (dhcp.@dnsmasq[0].leasefile), porque puede NO ser la
+	// standard /tmp/dhcp.leases (p. ej. en un SSD montado, #568); si el valor
+	// UCI no existe o está vacío, cae a /tmp/dhcp.leases. Busybox: test -n y
+	// comillas simples para $f.
+	CmdDhcpFile = `f=$(uci -q get dhcp.@dnsmasq[0].leasefile 2>/dev/null); [ -n "$f" ] || f=/tmp/dhcp.leases; cat "$f" 2>/dev/null || true`
 	// CmdGlClients (GL.iNet): base de clientes completa del firmware. Es un
 	// SUPERSET de dhcp.leases: incluye equipos con IP estática o sin lease
 	// DHCP que el dnsmasq del Flint2 no lista (issue #5 bug 1).
