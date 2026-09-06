@@ -1,15 +1,19 @@
 package adapters
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 func newTestPool(t *testing.T) *SSHPool {
@@ -123,5 +127,80 @@ func TestSSHPoolSingleFlight_LeaderFails(t *testing.T) {
 	}
 	if failures != N {
 		t.Errorf("%d errores, esperaba %d", failures, N)
+	}
+}
+
+func genTestKey(t *testing.T) (ssh.Signer, ssh.PublicKey) {
+	t.Helper()
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, err := ssh.NewPublicKey(priv.Public())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signer, pub
+}
+
+// TestRefreshHostKeyReplacesEntry: el refresh reemplaza la línea del host por la
+// clave nueva, conserva los demás hosts y deja UNA sola entrada (#567).
+func TestRefreshHostKeyReplacesEntry(t *testing.T) {
+	pool := newTestPool(t)
+	host := "host.example"
+	other := "other.example"
+
+	_, oldPub := genTestKey(t)
+	_, otherPub := genTestKey(t)
+	oldLine := knownhosts.Line([]string{knownhosts.Normalize(host)}, oldPub) + "\n"
+	otherLine := knownhosts.Line([]string{knownhosts.Normalize(other)}, otherPub) + "\n"
+	if err := os.WriteFile(pool.khPath, []byte(oldLine+otherLine), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, newPub := genTestKey(t)
+	if err := pool.refreshHostKey(host, newPub); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(pool.khPath)
+	s := string(data)
+	if strings.Contains(s, oldLine) {
+		t.Fatal("la línea antigua del host no se eliminó")
+	}
+	if !strings.Contains(s, otherLine) {
+		t.Fatal("se perdió un host no relacionado")
+	}
+	if n := strings.Count(s, knownhosts.Normalize(host)); n != 1 {
+		t.Fatalf("esperaba 1 entrada para %s, hay %d", host, n)
+	}
+}
+
+// TestHostKeyCallbackReOnboardsOnChangedKey: una clave conocida pero distinta
+// ya NO se rechaza; el callback re-onboarda (nil) y actualiza la entrada (#567).
+func TestHostKeyCallbackReOnboardsOnChangedKey(t *testing.T) {
+	pool := newTestPool(t)
+	host := "host.example"
+	_, oldPub := genTestKey(t)
+	oldLine := knownhosts.Line([]string{knownhosts.Normalize(host)}, oldPub) + "\n"
+	if err := os.WriteFile(pool.khPath, []byte(oldLine), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cb, err := pool.hostKeyCallback()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, newPub := genTestKey(t)
+	if err := cb(host, &net.IPAddr{IP: net.ParseIP("1.2.3.4")}, newPub); err != nil {
+		t.Fatalf("callback devolvió error en clave cambiada: %v", err)
+	}
+	data, _ := os.ReadFile(pool.khPath)
+	if !strings.Contains(string(data), knownhosts.Normalize(host)) {
+		t.Fatal("no se re-onboardó el host")
 	}
 }
