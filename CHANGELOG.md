@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.7] - 2026-09-06
+
+### Fixed
+
+- **Colisión de nombres de los `.apk` en la release (#573, fix #586)**: se construía el `.apk` con dos targets (`qualcommax/ipq807x` y `armsr/armv8`) que generaban el **mismo nombre de fichero** (sin el arch), así que en el upload (`--clobber`) solo sobrevivía uno. Ahora se publica un **único `.apk` `aarch64_generic`** (target `armsr/armv8`), instalable en aarch64 genérico y en cortex-a53; el `.ipk` cortex-a53 se mantiene para opkg. (Nota: fix al workflow de empaquetado OpenWrt, sin cambio de código runtime.)
+
 ## [2.28.6] - 2026-09-06
 
 ### Fixed
