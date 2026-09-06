@@ -67,7 +67,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
           <div className="min-w-0">
             <h1 className="font-display text-h1 text-text-primary">{router.name}</h1>
             <p className="text-caption text-text-muted">
-              {isGateway ? 'GL.iNet Flint 2 · GL-MT6000' : `OpenWrt · ${router.modelShort}`}
+              {isGateway ? router.model : `OpenWrt · ${router.modelShort}`}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {pills.map((p, i) => (
