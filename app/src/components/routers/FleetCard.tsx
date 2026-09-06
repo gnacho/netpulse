@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { AlertTriangle, Cable, ChevronRight, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users, Wifi } from 'lucide-react'
+import { AlertTriangle, Cable, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Area, AreaChart, ResponsiveContainer } from 'recharts'
@@ -8,7 +8,6 @@ import { fmtUptime } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { HealthRing } from '@/components/HealthRing'
 import { MetricBar } from '@/components/MetricBar'
-import { Sparkline } from '@/components/Sparkline'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
 import { useAgentFor } from '@/hooks/useAgentFor'
@@ -67,6 +66,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
   const isGateway = router.id === 'flint2'
+  // El gateway real lo marca el server (roleBadge 'Principal'); su tarjeta
+  // lleva la pill verde "puerta de enlace" junto al nombre.
+  const isPrimary = router.roleBadge === 'Principal'
   const traffic = router.sparkline.map((v, i) => ({ i, v }))
 
   return (
@@ -128,6 +130,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h3 className="truncate font-display text-h2 text-text-primary">{router.name}</h3>
+                {isPrimary && <StatusPill tone="ok" label={t('routers.mainGateway')} />}
                 <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} />
               </div>
               <div className="truncate text-caption text-text-muted">
@@ -262,24 +265,6 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
             <Cable className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> {t('common.cable')} · {extras.bandSplit.cable}
-          </span>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3.5">
-          {extras.gatewayLatencyMs !== undefined ? (
-            <span className="flex items-center gap-2">
-              <Sparkline data={extras.gatewayLatencySpark} width={72} height={20} color="#34D399" />
-              <span className="font-mono text-caption text-text-muted" title={t('routers.gatewayLatency')}>
-                {t('routers.msToGateway', { ms: extras.gatewayLatencyMs })}
-              </span>
-            </span>
-          ) : (
-            <span className="font-mono text-caption text-text-muted">{t('routers.mainGateway')}</span>
-          )}
-          <span className="inline-flex items-center gap-1 text-caption font-semibold text-accent">
-            {t('common.viewDetailShort')}
-            <ChevronRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
           </span>
         </div>
       </Link>
