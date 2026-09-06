@@ -436,3 +436,52 @@ func TestSupervisorSinEscaladoQuedaEnRearm(t *testing.T) {
 		t.Fatalf("sin escalado quiero solo el rearm, tuve %d", env.ssh.count())
 	}
 }
+
+// pushNetgrip simula un push de un agente embebido en NetGrip (kind netgrip).
+func (e *rearmEnv) pushNetgrip(slug string) {
+	e.reg.Ingest(&probe.Payload{Router: slug, Ts: e.now.Unix(), Version: "0.70.0", Kind: "netgrip"})
+}
+
+// TestRearmNetgripStaleUsaCmdNetgrip (#569): un agente NetGrip STALE (sin
+// push reciente) SÍ se rearma reiniciando el servicio netgrip del router (no
+// el netpulse-agent, que no existe en ese escenario).
+func TestRearmNetgripStaleUsaCmdNetgrip(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushNetgrip("patio")
+	env.expira(time.Minute)
+	env.arm.SetPollWait(100 * time.Millisecond)
+
+	res, err := env.arm.Rearm("patio")
+	if err != nil {
+		t.Fatalf("rearm netgrip stale: %v", err)
+	}
+	if !res.Restarted {
+		t.Fatalf("rearm netgrip stale: Restarted=false %+v", res)
+	}
+	if env.ssh.count() != 1 {
+		t.Fatalf("quiero 1 comando SSH, tuve %d", env.ssh.count())
+	}
+	cmd := env.ssh.cmds[0]
+	if !strings.Contains(cmd, "/etc/init.d/netgrip") {
+		t.Fatalf("el rearm netgrip debe reiniciar el servicio netgrip, cmd=%q", cmd)
+	}
+	if strings.Contains(cmd, "netpulse-agent") {
+		t.Fatalf("el rearm netgrip NO debe tocar netpulse-agent, cmd=%q", cmd)
+	}
+}
+
+// TestRearmNetgripFreshRechazado (#569): un NetGrip FRESH (empujando) no
+// tiene nada que rearmar: se sigue rechazando con ErrNetgripAgent (el panel
+// está vivo; rearmarlo reiniciaría el servicio sin necesidad).
+func TestRearmNetgripFreshRechazado(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushNetgrip("patio") // push reciente: dentro del TTL
+
+	res, err := env.arm.Rearm("patio")
+	if !errors.Is(err, rearmer.ErrNetgripAgent) {
+		t.Fatalf("netgrip fresh: quiero ErrNetgripAgent, tuve %v (%+v)", err, res)
+	}
+	if env.ssh.count() != 0 {
+		t.Fatalf("netgrip fresh no debe ejecutar SSH, tuve %d", env.ssh.count())
+	}
+}

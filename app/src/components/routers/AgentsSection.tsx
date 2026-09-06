@@ -212,10 +212,20 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         <div className="flex flex-wrap items-center gap-2">
           {/* Actualizar: self-update del agente con progreso en vivo (#243).
               NetGrip (#363): el evento SSE dispara el self-update del propio
-              panel; rearm/reinstall no aplican (no hay proceso standalone). */}
+              panel; el reinstall no aplica (no hay proceso standalone), y el
+              rearm de un NetGrip STALE reinicia el servicio netgrip (#569). */}
           <AgentUpgradeButton agent={agent} className="h-8" />
           {isNetgrip ? (
-            <span className="text-caption text-text-muted">{t('routers.agents.netgripHint')}</span>
+            // #569: un NetGrip STALE (caído) SÍ se puede recuperar desde
+            // aquí: el botón reinicia el servicio netgrip del router por SSH
+            // (recarga el env del agente embebido). El hint explica el caso
+            // fresco; el stale ofrece el botón + su hint.
+            <>
+              {!agent?.fresh && <AgentRearmButton agent={agent} />}
+              <span className="text-caption text-text-muted">
+                {agent?.fresh ? t('routers.agents.netgripHint') : t('routers.agents.netgripStaleHint')}
+              </span>
+            </>
           ) : (
             <>
           {/* Rearm: canal preferente para heartbeat stale (proceso vivo).

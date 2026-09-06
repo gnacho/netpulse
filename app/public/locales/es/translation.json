@@ -682,6 +682,9 @@
       "staleTip": "Agente registrado pero sin respuesta — reinstálalo desde el detalle",
       "rearm": "Rearmar",
       "rearming": "Reiniciando…",
+      "netgripRestart": "Reiniciar NetGrip",
+      "netgripRestarting": "Reiniciando NetGrip…",
+      "netgripRestartTip": "Reinicia el servicio NetGrip del router: recarga el agente embebido desde su config",
       "rearmOk": "Agente rearmado",
       "rearmPending": "Reiniciado; esperando el primer push",
       "rearmFail": "No se pudo rearmar",
@@ -793,7 +796,8 @@
       "kindNetgrip": "NetGrip",
       "kindExternal": "Externo",
       "netgripTip": "El agente vive dentro del panel NetGrip de este router",
-      "netgripHint": "El agente vive en el panel NetGrip: Actualizar actualiza el propio panel"
+      "netgripHint": "El agente vive en el panel NetGrip: Actualizar actualiza el propio panel",
+      "netgripStaleHint": "El agente vive en el panel NetGrip. Si no reporta, reinícialo con el botón (reinicia el servicio NetGrip en el router) o actualiza el panel si hay versión nueva."
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s",
     "noVitals": "Sin métricas de sistema",
