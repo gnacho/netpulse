@@ -99,6 +99,8 @@ export interface RouterExtras {
   flash: string
   ramMb: number
   bandSplit: BandSplit
+  /** Zona horaria del router (p. ej. 'Europe/Madrid'); vacía si se desconoce. */
+  timezone?: string
   /** Tráfico actual ↓ Mbps (routers.md §③) */
   trafficNow: number
   /** Latencia al gateway en ms (solo APs; gateway = latencia WAN vía mock) */

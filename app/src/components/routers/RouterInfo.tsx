@@ -61,17 +61,17 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
             <StatusPill tone="warn" label={t('routers.firmwareOutdated')} />
           ) : ex.firmwareUpdated ? (
             <StatusPill tone="ok" label={t('routerDetail.info.updated')} />
-          ) : (
+          ) : ex.firmwareAvailable ? (
             <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
-              <StatusPill tone="warn" label={ex.firmwareAvailable ?? ''} />
+              <StatusPill tone="warn" label={ex.firmwareAvailable} />
             </span>
-          )}
+          ) : null}
         </span>
       ),
     },
     { label: 'Uptime', node: fmtUptime(router.uptime) },
     { label: t('routerDetail.info.lastReboot'), node: ex.lastReboot },
-    { label: t('routerDetail.info.timezone'), node: 'Europe/Madrid' },
+    { label: t('routerDetail.info.timezone'), node: ex.timezone ?? '—' },
     {
       label: t('routerDetail.info.access'),
       node: (

@@ -307,7 +307,7 @@ function emptyBundle(): NetPulseData {
 export const EMPTY_EXTRAS: RouterExtras = {
   mac: '—',
   firmware: '—',
-  firmwareUpdated: true,
+  firmwareUpdated: false,
   lastReboot: '—',
   soc: '—',
   flash: '—',
