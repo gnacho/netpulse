@@ -30,6 +30,10 @@ INSTALL_DIR="/usr/local/bin"
 STATE_DIR="/var/lib/$APP_NAME"
 SERVICE_NAME="$APP_NAME"
 
+# Versión de ESTE instalador (bumpear en cada release junto a httpapi.Version,
+# para poder saber qué install.sh se está ejecutando; ver CHANGELOG).
+INSTALLER_VERSION="2.28.5"
+
 NETPULSE_VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0; DEMO=0
 
 # ---------------------------------------------------------------- logging ---
@@ -169,6 +173,7 @@ if [ ! -d /run/systemd/system ] || ! command -v systemctl >/dev/null 2>&1; then
     fatal 23 "NetPulse needs systemd (this machine doesn't run it). See https://github.com/$GH_REPO for manual setup"
 fi
 info "detected: $OS_PRETTY · linux/$GOARCH · systemd"
+info "install.sh version: $INSTALLER_VERSION"
 
 if command -v curl >/dev/null 2>&1; then FETCH="curl -fsSL --retry 3 --connect-timeout 10"
 elif command -v wget >/dev/null 2>&1; then FETCH="wget -q -O-"
@@ -256,7 +261,7 @@ fi
 if [ -z "$NETPULSE_VERSION" ]; then
     info "resolving latest stable version"
     NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
-        | grep '"tag_name"' | head -1 | cut -d'"' -f4) \
+        | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4) \
         || fatal 31 "could not resolve the latest version (GitHub rate-limit?). Use --version=X.Y.Z"
     [ -n "$NETPULSE_VERSION" ] || fatal 31 "no stable release found yet. Use --version=X.Y.Z"
 fi
