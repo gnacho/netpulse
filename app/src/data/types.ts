@@ -131,7 +131,7 @@ export interface AdGuardStats {
   rules: number
 }
 
-export type PeerType = 'movil' | 'portatil' | 'tablet' | 'sitio'
+export type PeerType = 'movil' | 'portatil' | 'tablet' | 'sitio' | 'desconocido'
 
 /**
  * Rol de infraestructura sellado server-side (SPEC-65 D65-2):
