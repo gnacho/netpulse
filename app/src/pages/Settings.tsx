@@ -14,7 +14,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Ellipsis,
   FileText,
   FlaskConical,
   Gauge,
@@ -55,7 +54,6 @@ import { TopologyOverridesManager } from '@/components/topology/TopologyOverride
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -661,43 +659,33 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     )}
                   </td>
                   <td className="px-3.5 py-2.5">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+                    <span className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(r)}
+                        aria-label={t('settings.routers.edit')}
+                        title={t('settings.routers.edit')}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                      >
+                        <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </button>
+                      {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
                         <button
                           type="button"
-                          aria-label={t('settings.routers.actions')}
-                          className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                          onClick={() => void regenerateToken(r)}
+                          disabled={regenerating === r.id}
+                          aria-label={t('settings.routers.regenerateToken')}
+                          title={t('settings.routers.regenerateToken')}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger disabled:opacity-50"
                         >
-                          <Ellipsis className="h-4 w-4" strokeWidth={1.75} />
+                          {regenerating === r.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+                          ) : (
+                            <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          )}
                         </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => openEdit(r)}>
-                          <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                          {t('settings.routers.edit')}
-                        </DropdownMenuItem>
-                        {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
-                          <DropdownMenuItem
-                            onSelect={() => void regenerateToken(r)}
-                            disabled={regenerating === r.id}
-                          >
-                            {regenerating === r.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-                            ) : (
-                              <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            )}
-                            {t('settings.routers.regenerateToken')}
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem
-                          onSelect={() => setConfirmDeleteFor(r.id)}
-                          className="text-danger focus:text-danger"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                          {t('settings.routers.delete')}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      )}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -987,22 +975,35 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 </div>
               )}
               {error && <p className="text-caption text-danger">{error}</p>}
-              <div className="flex justify-end gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditing(null)}
-                  className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+                  onClick={() => {
+                    setConfirmDeleteFor(editing.id)
+                    setEditing(null)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
                 >
-                  {t('settings.users.cancel')}
+                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                  {t('settings.routers.delete')}
                 </button>
-                <button
-                  type="submit"
-                  disabled={editSubmitting || !editHost.trim()}
-                  className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
-                >
-                  <Pencil className="h-4 w-4" strokeWidth={2} />
-                  {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(null)}
+                    className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+                  >
+                    {t('settings.users.cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting || !editHost.trim()}
+                    className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+                  >
+                    <Pencil className="h-4 w-4" strokeWidth={2} />
+                    {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
+                  </button>
+                </div>
               </div>
             </form>
           </DialogContent>
@@ -2292,7 +2293,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [enabled, setEnabled] = useState(false)
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
-  const [serverUrl, setServerUrl] = useState('')
+  const [serverUrl, setServerUrl] = useState('https://speedtest.net')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2309,7 +2310,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         setEnabled(!!d.enabled)
         if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
-        if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
+        if (typeof d.serverUrl === 'string' && d.serverUrl) setServerUrl(d.serverUrl)
       })
       .catch(() => undefined)
       .finally(() => {
@@ -2440,7 +2441,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           />
           <button
             type="button"
-            onClick={() => setServerUrl('')}
+            onClick={() => setServerUrl('https://speedtest.net')}
             disabled={disabled || loading}
             title={t('settings.speedtest.serverRestore')}
             aria-label={t('settings.speedtest.serverRestore')}
@@ -2770,12 +2771,6 @@ function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; 
       {state === 'unsupported' && (
         <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
           {t('settings.push.unsupported')}
-        </p>
-      )}
-
-      {state === 'insecure' && (
-        <p className="rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
-          {t('settings.push.insecure')}
         </p>
       )}
 
@@ -4036,6 +4031,7 @@ export default function Settings() {
                     <div className="border-t border-border pt-1">
                       <SwitchRow
                         label={t('settings.reduceMotion')}
+                        caption={t('settings.reduceMotionCaption')}
                         checked={!reduceMotion}
                         onCheckedChange={(v) => {
                           setReduceMotion(!v)
@@ -4565,6 +4561,11 @@ export default function Settings() {
 
               {/* Derecha: Sistema */}
               <div>
+                {pushContext() === 'insecure' && (
+                  <p className="mb-3 rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
+                    {t('settings.push.insecure')}
+                  </p>
+                )}
                 <SystemInfoBlock bare />
               </div>
             </div>
