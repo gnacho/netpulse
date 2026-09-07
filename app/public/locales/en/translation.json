@@ -1287,7 +1287,15 @@
       "saving": "Saving…",
       "saved": "Saved",
       "invalid": "Enter speeds greater than 0 and at most 100000 Mbps",
-      "saveError": "Could not save the speed"
+      "saveError": "Could not save the speed",
+      "runTest": "Run speed test",
+      "testCaption": "Measures the real speed from the server and fills the fields with the result. Then press Save.",
+      "testApplied": "Measurement applied: {{down}} ↓ / {{up}} ↑ Mbps",
+      "testFailed": "The speed test failed",
+      "testHint": "The test saturates the link for a few seconds. You can leave this page; fields are filled when it finishes.",
+      "phaseServer": "Finding server",
+      "phaseDown": "Measuring download",
+      "phaseUp": "Measuring upload"
     },
     "knownMacs": {
       "title": "Trusted devices",
@@ -1347,7 +1355,18 @@
       "saving": "Saving…",
       "disable": "Disable",
       "errorGeneric": "Could not save the Proxmox configuration."
-    }
+    },
+    "sections": {
+      "personalization": "Personalization",
+      "notifications": "Notifications",
+      "network": "Network & devices",
+      "integrations": "Integrations",
+      "administration": "Administration",
+      "account": "Account",
+      "about": "About",
+      "label": "Settings sections"
+    },
+    "theme": "Theme"
   },
   "statcard": {
     "vsPrevious": "vs previous"

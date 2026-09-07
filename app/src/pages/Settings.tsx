@@ -16,11 +16,13 @@ import {
   EyeOff,
   FileText,
   FlaskConical,
+  Gauge,
   Github,
   HardDrive,
   Heart,
   History,
   KeyRound,
+  Loader2,
   LogOut,
   MonitorSmartphone,
   Moon,
@@ -1954,6 +1956,87 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
   const [saved, setSaved] = useState(false)
   const loaded = useRef(false)
 
+  // ——— Test manual real (issue #627 / #511): POST /api/speedtest/run y poll
+  // de /api/speedtest/status. La API solo expone running/last (no la fase
+  // concreta), así que la barra de fases es una progresión estimada local.
+  const [testing, setTesting] = useState(false)
+  const [testDone, setTestDone] = useState(false)
+  const [testError, setTestError] = useState<string | null>(null)
+  const [testProgress, setTestProgress] = useState(0)
+  const pollTimer = useRef<number | undefined>(undefined)
+  const progTimer = useRef<number | undefined>(undefined)
+  const testStarted = useRef(0)
+  const testPhase = testProgress < 8 ? 0 : testProgress < 55 ? 1 : 2
+
+  const stopTestTimers = () => {
+    window.clearInterval(pollTimer.current)
+    window.clearInterval(progTimer.current)
+    pollTimer.current = undefined
+    progTimer.current = undefined
+  }
+
+  const runTest = async () => {
+    if (testing || disabled) return
+    setTesting(true)
+    setTestDone(false)
+    setTestError(null)
+    setTestProgress(0)
+    testStarted.current = Date.now()
+    try {
+      const res = await fetch('/api/speedtest/run', { method: 'POST' })
+      if (res.status === 503) {
+        setTesting(false)
+        setTestError(t('settings.speedtest.unavailable'))
+        return
+      }
+      if (!res.ok && res.status !== 409) {
+        setTesting(false)
+        setTestError(t('settings.wanSpeed.testFailed'))
+        return
+      }
+    } catch {
+      setTesting(false)
+      setTestError(t('settings.wanSpeed.testFailed'))
+      return
+    }
+
+    // Progresión visual (~30 s de estimación) mientras el poll confirma running.
+    progTimer.current = window.setInterval(() => {
+      setTestProgress((p) => Math.min(100, Math.max(p, ((Date.now() - testStarted.current) / 30000) * 100)))
+    }, 300)
+
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/speedtest/status')
+        if (!r.ok) return
+        const st = (await r.json()) as {
+          running: boolean
+          lastError?: string
+          last?: { downMbps?: number; upMbps?: number } | null
+        }
+        if (st.running) return
+        // Terminó: aplicar el último resultado real a los campos (sin guardar).
+        stopTestTimers()
+        setTestProgress(100)
+        if (st.last && typeof st.last.downMbps === 'number' && typeof st.last.upMbps === 'number') {
+          setDown(String(Math.round(st.last.downMbps)))
+          setUp(String(Math.round(st.last.upMbps)))
+          setTestDone(true)
+          window.setTimeout(() => setTestDone(false), 4000)
+        } else {
+          setTestError(st.lastError || t('settings.wanSpeed.testFailed'))
+        }
+        setTesting(false)
+      } catch {
+        /* el siguiente poll reintentará */
+      }
+    }
+    pollTimer.current = window.setInterval(() => void poll(), 1500)
+  }
+
+  // Limpieza al desmontar.
+  useEffect(() => stopTestTimers, [])
+
   // Carga el valor persistido una sola vez al montar (no se pisa al guardar).
   useEffect(() => {
     let alive = true
@@ -2006,6 +2089,13 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
     }
   }, [down, up, onSaved, refreshOverview, t])
 
+  const phaseLabel =
+    testPhase === 0
+      ? t('settings.wanSpeed.phaseServer')
+      : testPhase === 1
+        ? t('settings.wanSpeed.phaseDown')
+        : t('settings.wanSpeed.phaseUp')
+
   return (
     <div className="mt-4 space-y-3 border-t border-border pt-4">
       <div>
@@ -2045,11 +2135,77 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
         </label>
       </div>
       <p className="text-caption text-text-muted">{t('settings.wanSpeed.hint')}</p>
+
+      {/* Test manual con progreso de fases */}
+      {!disabled && (
+        <div className="rounded-xl border border-border bg-elevated/60 p-3">
+          {testing ? (
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-caption font-medium text-accent">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  {phaseLabel}…
+                </span>
+                <span className="font-mono text-[10px] text-text-muted">{Math.round(testProgress)} %</span>
+              </div>
+              {/* Barra de progreso de fases */}
+              <div className="flex items-center gap-1.5">
+                {[t('settings.wanSpeed.phaseServer'), t('settings.wanSpeed.phaseDown'), t('settings.wanSpeed.phaseUp')].map(
+                  (label, i) => {
+                    const active = i === testPhase
+                    const done = i < testPhase || testProgress >= 100
+                    return (
+                      <span
+                        key={label}
+                        className={cn(
+                          'h-1.5 flex-1 rounded-full transition-colors duration-300',
+                          done || active ? 'bg-accent' : 'bg-border-strong',
+                        )}
+                      />
+                    )
+                  },
+                )}
+              </div>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-border/60">
+                <div
+                  className="h-full rounded-full bg-accent/70 transition-[width] duration-300 ease-linear"
+                  style={{ width: `${testProgress}%` }}
+                />
+              </div>
+              <p className="text-caption text-text-muted">{t('settings.wanSpeed.testHint')}</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void runTest()}
+                disabled={disabled || busy || loading}
+                className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-canvas px-3 text-[13px] font-medium text-text-primary transition-colors hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Gauge className="h-4 w-4" strokeWidth={1.75} />
+                {t('settings.wanSpeed.runTest')}
+              </button>
+              {testDone && (
+                <span role="status" className="text-caption text-ok">
+                  {t('settings.wanSpeed.testApplied', { down, up })}
+                </span>
+              )}
+              {testError && (
+                <span role="alert" className="text-caption text-danger">
+                  {testError}
+                </span>
+              )}
+              <span className="text-caption text-text-muted">{t('settings.wanSpeed.testCaption')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => void save()}
-          disabled={disabled || busy || loading}
+          disabled={disabled || busy || loading || testing}
           className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? t('settings.wanSpeed.saving') : t('settings.wanSpeed.save')}
@@ -3261,6 +3417,88 @@ function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Rediseño columna única (mockup v3): etiqueta de sección con línea
+// ---------------------------------------------------------------------------
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex scroll-mt-32 items-center gap-3">
+      <h2 className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+        {children}
+      </h2>
+      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+    </div>
+  )
+}
+
+interface SettingsIndexItem {
+  href: string
+  label: string
+  /** Sección visible solo con backend real (no demo). */
+  adminOnly?: boolean
+}
+
+/** Índice sticky de la página (scroll-spy). Las secciones se anclan por id. */
+function SettingsIndex({ items }: { items: SettingsIndexItem[] }) {
+  const { t } = useTranslation()
+  const [active, setActive] = useState<string>(items[0]?.href ?? '')
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(`#${entry.target.id}`)
+        }
+      },
+      // La sección "activa" es la que cruza la franja central del viewport.
+      { rootMargin: '-20% 0px -65% 0px', threshold: 0 },
+    )
+    for (const item of items) {
+      const el = document.getElementById(item.href.slice(1))
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+  }, [items])
+
+  const go = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault()
+    const el = document.getElementById(href.slice(1))
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Corrige el ancla tras el scrollIntoView sin CSS scroll-margin.
+    const topbar = 56 + 8
+    const y = el.getBoundingClientRect().top + window.scrollY - topbar
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' })
+    setActive(href)
+    history.replaceState(null, '', href)
+  }
+
+  return (
+    <nav
+      aria-label={t('settings.sections.label')}
+      className="sticky top-14 z-20 -mx-4 mt-5 border-b border-border bg-canvas/85 px-4 py-2 backdrop-blur-md md:-mx-6 md:px-6"
+    >
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {items.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            onClick={(e) => go(e, item.href)}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150',
+              active === item.href
+                ? 'bg-accent-soft text-accent'
+                : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+            )}
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  )
+}
+
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
@@ -3573,8 +3811,26 @@ export default function Settings() {
     setDeferred(null)
   }
 
+  // ——— Índice de secciones (rediseño v3): estable entre renders ———
+  const settingsIndexItems = useMemo(
+    () => [
+      { href: '#sec-personalizacion', label: t('settings.sections.personalization') },
+      { href: '#sec-notificaciones', label: t('settings.sections.notifications') },
+      ...(!isDemo && auth?.role === 'admin'
+        ? [
+            { href: '#sec-red', label: t('settings.sections.network') },
+            { href: '#sec-integraciones', label: t('settings.sections.integrations') },
+            { href: '#sec-admin', label: t('settings.sections.administration') },
+          ]
+        : []),
+      { href: '#sec-cuenta', label: t('settings.sections.account') },
+      { href: '#sec-acerca', label: t('settings.sections.about') },
+    ],
+    [t, isDemo, auth?.role],
+  )
+
   return (
-    <div className="mx-auto w-full max-w-[1100px]">
+    <div className="mx-auto w-full max-w-[1180px]">
       {/* ① Page header */}
       <nav aria-label={t('common.breadcrumb')} className="mb-1 text-caption text-text-muted">
         <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
@@ -3612,9 +3868,45 @@ export default function Settings() {
         </motion.div>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
-        {/* ④ Datos y umbrales */}
-        <div className="lg:col-span-7">
+      {/* Índice de la página (rediseño v3): navegación rápida entre secciones */}
+      <SettingsIndex items={settingsIndexItems} />
+      {/* Tarjetas apiladas a ancho completo (rediseño v3): una columna, con
+          etiquetas de sección. El orden visual lo controla `order-*`; los
+          ids de cada SectionLabel alimentan el índice sticky y el scroll-spy. */}
+      <div className="mt-4 flex flex-col gap-4 md:gap-5">
+        <div className="scroll-mt-32 order-10" id="sec-personalizacion">
+          <SectionLabel>{t('settings.sections.personalization')}</SectionLabel>
+        </div>
+
+        {/* El resto de etiquetas viven aquí con su order; flex las coloca
+            junto a la primera tarjeta de cada sección. */}
+        <div className="scroll-mt-32 order-50" id="sec-notificaciones">
+          <SectionLabel>{t('settings.sections.notifications')}</SectionLabel>
+        </div>
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="scroll-mt-32 order-80" id="sec-red">
+            <SectionLabel>{t('settings.sections.network')}</SectionLabel>
+          </div>
+        )}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="scroll-mt-32 order-130" id="sec-integraciones">
+            <SectionLabel>{t('settings.sections.integrations')}</SectionLabel>
+          </div>
+        )}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="scroll-mt-32 order-160" id="sec-admin">
+            <SectionLabel>{t('settings.sections.administration')}</SectionLabel>
+          </div>
+        )}
+        <div className="scroll-mt-32 order-190" id="sec-cuenta">
+          <SectionLabel>{t('settings.sections.account')}</SectionLabel>
+        </div>
+        <div className="scroll-mt-32 order-220" id="sec-acerca">
+          <SectionLabel>{t('settings.sections.about')}</SectionLabel>
+        </div>
+
+        {/* ④ Datos y umbrales (primera tarjeta de Personalización) */}
+        <div className="order-30">
           <Card
             title={t('settings.data.title')}
             caption={t('settings.data.caption')}
@@ -3784,172 +4076,183 @@ export default function Settings() {
         </div>
 
         {/* ② Apariencia */}
-        <div className="lg:col-span-5">
+        <div className="order-20">
           <Card title={t('settings.appearance')} caption={t('settings.appearanceCaption')} index={0} reduce={reduce}>
-            {/* Tema: 3 cards visuales */}
-            <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label={t('nav.theme')}>
-              {THEME_OPTIONS.map((opt) => {
-                const active = mode === opt.value
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => {
-                      setMode(opt.value)
+            {/* Tema (2/3, previews casi cuadrados) | Paleta (1/3, en columna) */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Tema: 3 cards visuales */}
+              <div className="lg:col-span-2">
+                <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.theme')}</div>
+                <div className="mt-2.5 grid grid-cols-3 gap-3" role="radiogroup" aria-label={t('nav.theme')}>
+                  {THEME_OPTIONS.map((opt) => {
+                    const active = mode === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setMode(opt.value)
+                          notify()
+                        }}
+                        className={cn(
+                          'group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors duration-150',
+                          active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
+                        )}
+                      >
+                        <span className="relative block aspect-[4/3] overflow-hidden rounded-lg">
+                          <ThemePreview variant={opt.value} />
+                          <AnimatePresence>
+                            {active && (
+                              <motion.span
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0 }}
+                                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                                className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-canvas"
+                              >
+                                <Check className="h-3 w-3" strokeWidth={2.5} />
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </span>
+                        <span className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-text-primary">
+                          <opt.icon className={cn('h-3.5 w-3.5', active ? 'text-accent' : 'text-text-muted')} strokeWidth={1.75} />
+                          {t(opt.labelKey)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Paleta completa (#19-#20) — en columna (una por fila) */}
+              <div>
+                <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
+                <div className="mt-2.5 flex flex-col gap-2.5">
+                  {PALETTES.map((p) => {
+                    const active = paletteId === p.id
+                    return (
+                      <motion.button
+                        key={p.id}
+                        type="button"
+                        aria-label={t(p.labelKey)}
+                        aria-pressed={active}
+                        whileTap={reduce ? undefined : { scale: 0.98 }}
+                        onClick={() => {
+                          setPaletteId(p.id)
+                          notify()
+                        }}
+                        className={cn(
+                          'group relative flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all duration-150',
+                          active
+                            ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
+                            : 'border-border hover:border-border-strong',
+                        )}
+                      >
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span
+                            className="h-4 w-4 rounded-full"
+                            style={{ backgroundColor: `rgb(${p.dark.accent})` }}
+                          />
+                          <span
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
+                          />
+                          <span
+                            className="ml-0.5 h-3 w-6 rounded"
+                            style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
+                          />
+                        </span>
+                        <span className="text-[11px] font-medium text-text-primary">{t(p.labelKey)}</span>
+                        {active && (
+                          <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={2.5} />
+                        )}
+                      </motion.button>
+                    )
+                  })}
+                </div>
+                <p className="mt-2 text-caption text-text-muted">{t('settings.paletteCaption')}</p>
+              </div>
+            </div>
+
+            {/* Acento + Densidad (bajo tema/paleta) */}
+            <div className="mt-6 grid gap-x-6 gap-y-5 border-t border-border pt-5 lg:grid-cols-3">
+              {/* Acento (override fino sobre la paleta) */}
+              <div className="lg:col-span-2">
+                <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  {ACCENTS.map((a) => {
+                    const active = accentId === a.id
+                    return (
+                      <motion.button
+                        key={a.id}
+                        type="button"
+                        aria-label={t('settings.accentAria', { label: t(a.labelKey) })}
+                        aria-pressed={active}
+                        whileTap={reduce ? undefined : { scale: 0.8 }}
+                        onClick={() => {
+                          setAccentId(a.id)
+                          notify()
+                        }}
+                        className={cn(
+                          'flex h-8 w-8 items-center justify-center rounded-full transition-shadow duration-150',
+                          active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-border-strong hover:ring-offset-2 hover:ring-offset-surface',
+                        )}
+                        style={{ backgroundColor: a.swatch }}
+                      >
+                        {active && <Check className="h-3.5 w-3.5 text-[#070B12]" strokeWidth={2.5} />}
+                      </motion.button>
+                    )
+                  })}
+                  <span className="text-caption text-text-muted">{t('settings.accentCaption')}</span>
+                </div>
+              </div>
+
+              {/* Densidad + animaciones */}
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-text-primary">{t('settings.density')}</div>
+                    <div className="text-caption text-text-muted">{t('settings.densityCaption')}</div>
+                  </div>
+                  <SegmentedControl
+                    options={[
+                      { value: 'comoda', label: t('settings.densityComfy') },
+                      { value: 'compacta', label: t('settings.densityCompact') },
+                    ]}
+                    value={density}
+                    onChange={(v) => {
+                      setDensity(v)
                       notify()
                     }}
-                    className={cn(
-                      'group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors duration-150',
-                      active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
-                    )}
-                  >
-                    <span className="relative block h-20 overflow-hidden rounded-lg sm:h-24">
-                      <ThemePreview variant={opt.value} />
-                      <AnimatePresence>
-                        {active && (
-                          <motion.span
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                            className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-canvas"
-                          >
-                            <Check className="h-3 w-3" strokeWidth={2.5} />
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-text-primary">
-                      <opt.icon className={cn('h-3.5 w-3.5', active ? 'text-accent' : 'text-text-muted')} strokeWidth={1.75} />
-                      {t(opt.labelKey)}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Paleta completa (#19-#20) */}
-            <div className="mt-5">
-              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
-              <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                {PALETTES.map((p) => {
-                  const active = paletteId === p.id
-                  return (
-                    <motion.button
-                      key={p.id}
-                      type="button"
-                      aria-label={t(p.labelKey)}
-                      aria-pressed={active}
-                      whileTap={reduce ? undefined : { scale: 0.95 }}
-                      onClick={() => {
-                        setPaletteId(p.id)
-                        notify()
-                      }}
-                      className={cn(
-                        'group relative flex flex-col items-start gap-1.5 rounded-xl border p-3 transition-all duration-150',
-                        active
-                          ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
-                          : 'border-border hover:border-border-strong',
-                      )}
-                    >
-                      <div className="flex w-full items-center gap-1.5">
-                        <span
-                          className="h-5 w-5 shrink-0 rounded-full"
-                          style={{ backgroundColor: `rgb(${p.dark.accent})` }}
-                        />
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
-                        />
-                        <span
-                          className="ml-auto h-4 w-8 rounded"
-                          style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-medium text-text-secondary">{t(p.labelKey)}</span>
-                      {active && (
-                        <Check className="absolute right-2 top-2 h-3.5 w-3.5 text-accent" strokeWidth={2.5} />
-                      )}
-                    </motion.button>
-                  )
-                })}
+                    ariaLabel={t('settings.density')}
+                  />
+                </div>
+                <div className="mt-2 border-t border-border pt-1">
+                  <SwitchRow
+                    label={t('settings.reduceMotion')}
+                    caption={t('settings.reduceMotionCaption')}
+                    checked={reduceMotion}
+                    onCheckedChange={(v) => {
+                      setReduceMotion(v)
+                      notify()
+                    }}
+                  />
+                </div>
               </div>
-              <p className="mt-1.5 text-caption text-text-muted">{t('settings.paletteCaption')}</p>
-            </div>
-
-            {/* Acento (override fino sobre la paleta) */}
-            <div className="mt-4">
-              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
-              <div className="mt-2 flex items-center gap-3">
-                {ACCENTS.map((a) => {
-                  const active = accentId === a.id
-                  return (
-                    <motion.button
-                      key={a.id}
-                      type="button"
-                      aria-label={t('settings.accentAria', { label: t(a.labelKey) })}
-                      aria-pressed={active}
-                      whileTap={reduce ? undefined : { scale: 0.8 }}
-                      onClick={() => {
-                        setAccentId(a.id)
-                        notify()
-                      }}
-                      className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-full transition-shadow duration-150',
-                        active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-border-strong hover:ring-offset-2 hover:ring-offset-surface',
-                      )}
-                      style={{ backgroundColor: a.swatch }}
-                    >
-                      {active && <Check className="h-3.5 w-3.5 text-[#070B12]" strokeWidth={2.5} />}
-                    </motion.button>
-                  )
-                })}
-                <span className="ml-1 text-caption text-text-muted">{t('settings.accentCaption')}</span>
-              </div>
-            </div>
-
-            {/* Densidad + animaciones */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.density')}</div>
-                <div className="text-caption text-text-muted">{t('settings.densityCaption')}</div>
-              </div>
-              <SegmentedControl
-                options={[
-                  { value: 'comoda', label: t('settings.densityComfy') },
-                  { value: 'compacta', label: t('settings.densityCompact') },
-                ]}
-                value={density}
-                onChange={(v) => {
-                  setDensity(v)
-                  notify()
-                }}
-                ariaLabel={t('settings.density')}
-              />
-            </div>
-            <div className="border-t border-border pt-2">
-              <SwitchRow
-                label={t('settings.reduceMotion')}
-                caption={t('settings.reduceMotionCaption')}
-                checked={reduceMotion}
-                onCheckedChange={(v) => {
-                  setReduceMotion(v)
-                  notify()
-                }}
-              />
             </div>
           </Card>
         </div>
 
         {/* Servicios visibles (checks) */}
-        <div className="lg:col-span-7">
+        <div className="order-40">
           <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} orchOn={orchOn} orchBusy={orchBusy} toggleOrchestration={toggleOrchestration} />
         </div>
 
         {/* ⑤ Notificaciones visuales */}
-        <div className="lg:col-span-5">
+        <div className="order-60">
           <Card title={t('settings.notif.title')} caption={t('settings.notif.caption')} index={3} reduce={reduce}>
             <div className="divide-y divide-border">
               <SwitchRow
@@ -4004,11 +4307,20 @@ export default function Settings() {
           </Card>
         </div>
 
+        {/* Telegram (#326): notificaciones directas al bot — sección Notificaciones */}
+        {!isDemo && (
+          <div className="order-70">
+            <Card title={t('settings.telegram.title')} caption={t('settings.telegram.description')} index={4} reduce={reduce}>
+              <TelegramCard onSaved={notify} bare />
+            </Card>
+          </div>
+        )}
+
         {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
             Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
             Routers y AdGuard son tarjetas de dominio que siguen en el grid. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-170">
             <div className="rounded-2xl border border-l-4 border-l-accent bg-accent/[0.03] p-4 shadow-soft md:p-5">
               <div className="flex flex-wrap items-start gap-3 sm:gap-4">
                 <div className="flex h-9 shrink-0 items-center gap-2">
@@ -4083,7 +4395,7 @@ export default function Settings() {
         {/* Historial de actualizaciones (issue #159) — solo admin y modo live;
             el updater es un mecanismo de auto-aplicación que no existe en demo */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-180">
             <UpdateHistoryCard />
           </div>
         )}
@@ -4091,7 +4403,7 @@ export default function Settings() {
         {/* Gestión de routers — solo admin y con backend (modo live); la API
             exige rol admin en las mutaciones (auditoría v2.4.0 §2, #7) */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-90">
             <RoutersManager reduce={reduce} onSaved={notify} />
           </div>
         )}
@@ -4100,7 +4412,7 @@ export default function Settings() {
             como hipervisor/switch y asignar dispositivos a hosts. Solo admin
             y modo live; los cambios se aplican server-side en el overview. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-100">
             <Card
               title={t('settings.overrides.title')}
               caption={t('settings.overrides.caption')}
@@ -4115,7 +4427,7 @@ export default function Settings() {
         {/* Dispositivos de confianza (issue #196): allowlist de MACs que no
             avisan como «desconocido» y cuyo nombre se usa como alias. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-110">
             <Card
               title={t('settings.knownMacs.title')}
               caption={t('settings.knownMacs.caption')}
@@ -4127,26 +4439,24 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Adopción de agentes (pairing token + server fingerprint) — media
-            anchura junto a AdGuard Home (issue #146). */}
+        {/* Adopción de agentes (pairing token + server fingerprint) */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-6">
+          <div className="order-120">
             <AdoptionCard />
           </div>
         )}
 
-        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible;
-            media anchura, en la misma fila que la adopción de agentes. */}
+        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
         {!isDemo && auth?.role === 'admin' && services.adguard && (
-          <div className="lg:col-span-6">
+          <div className="order-140">
             <AdGuardManager reduce={reduce} onSaved={notify} />
           </div>
         )}
 
         {/* Proxmox VE (#561): inventario read-only del cluster para sellar
-            hypervisor/ct. Media anchura junto a AdGuard/adopción. */}
+            hypervisor/ct. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-6">
+          <div className="order-150">
             <ProxmoxManager reduce={reduce} onSaved={notify} />
           </div>
         )}
@@ -4154,7 +4464,7 @@ export default function Settings() {
         {/* Mi perfil (issue #119): card canónica del shared-shell — avatar,
             nombre editable (clic → input inline ✓/✕), idioma, contraseña y
             salir en UNA línea en desktop (envuelve en móvil). */}
-        <div className="lg:col-span-12">
+        <div className="order-200">
           <Card title={t('settings.session.title')} index={5} reduce={reduce}>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-4 lg:flex-nowrap">
               {/* Avatar */}
@@ -4350,7 +4660,7 @@ export default function Settings() {
 
         {/* API Tokens (#330): bearer tokens con scopes para integraciones */}
         {!isDemo && (
-          <div className="lg:col-span-12">
+          <div className="order-210">
             <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
               <TokensManager />
             </Card>
@@ -4358,7 +4668,7 @@ export default function Settings() {
         )}
 
         {/* ⑥ Acerca de */}
-        <div className="lg:col-span-12">
+        <div className="order-230">
           <Card title={t('settings.about.title')} index={6} reduce={reduce}>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="flex items-start gap-4">
@@ -4436,9 +4746,6 @@ export default function Settings() {
                 </button>
               ) : null}
             </div>
-
-            {/* Telegram (#326): notificaciones directas al bot */}
-            {!isDemo && <TelegramCard onSaved={notify} />}
 
             {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
             <SystemInfoBlock />
