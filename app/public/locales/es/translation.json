@@ -1123,6 +1123,8 @@
       "empty": "Sin routers configurados todavía. La puerta de enlace se autodetecta al arrancar el servidor; si no aparece, añádela aquí.",
       "host": "IP o hostname",
       "name": "Nombre (opcional)",
+      "role": "Rol",
+      "actions": "Acciones",
       "type": "Tipo",
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",
@@ -1328,9 +1330,10 @@
       "enabled": "Test periódico activado",
       "interval": "Intervalo",
       "intervalH": "cada {{hours}} h",
-      "alertPct": "Alertar por debajo del {{pct}} % del plan",
+      "alertPctLabel": "Alerta umbral (% del plan)",
       "alertPctHint": "0 = alerta desactivada. Usa el plan contratado declarado arriba (solo bajada).",
-      "serverId": "Servidor speedtest.net (ID, 0 = automático)",
+      "serverId": "Servidor de test de velocidad",
+      "serverRestore": "Restaurar",
       "save": "Guardar",
       "saving": "Guardando...",
       "saved": "Guardado",
@@ -1424,7 +1427,9 @@
       "duration": "Duración",
       "success": "Correcto",
       "failed": "Falló",
-      "running": "En curso"
+      "running": "En curso",
+      "download": "Descargar .log",
+      "summary": "{{count}} entradas · última: {{date}} — {{status}}"
     },
     "dialog": {
       "title": "Actualizar NetPulse",

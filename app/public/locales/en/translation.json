@@ -1123,6 +1123,8 @@
       "empty": "No routers configured yet. The gateway is auto-detected when the server boots; if it's missing, add it here.",
       "host": "IP or hostname",
       "name": "Name (optional)",
+      "role": "Role",
+      "actions": "Actions",
       "type": "Type",
       "gateway": "Is the gateway",
       "gatewayBadge": "Main",
@@ -1328,9 +1330,10 @@
       "enabled": "Periodic test enabled",
       "interval": "Interval",
       "intervalH": "every {{hours}} h",
-      "alertPct": "Alert below {{pct}} % of the plan",
+      "alertPctLabel": "Alert threshold (% of plan)",
       "alertPctHint": "0 = alert off. Uses the contracted plan declared above (download only).",
-      "serverId": "speedtest.net server (ID, 0 = automatic)",
+      "serverId": "Speed test server",
+      "serverRestore": "Restore",
       "save": "Save",
       "saving": "Saving...",
       "saved": "Saved",
@@ -1424,7 +1427,9 @@
       "duration": "Duration",
       "success": "Success",
       "failed": "Failed",
-      "running": "Running"
+      "running": "Running",
+      "download": "Download .log",
+      "summary": "{{count}} entries · last: {{date}} — {{status}}"
     },
     "dialog": {
       "title": "Update NetPulse",

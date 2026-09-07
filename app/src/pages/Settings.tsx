@@ -29,9 +29,10 @@ import {
   Pencil,
   Plus,
   Lock,
-  Radar,
-  RefreshCw,
-  RotateCw,
+   Radar,
+   RefreshCw,
+   RotateCcw,
+   RotateCw,
   Router as RouterIcon,
    Server,
     Shield,
@@ -581,8 +582,35 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   }
 
   return (
-    <Card title={t('settings.routers.title')} caption={t('settings.routers.caption')} index={4} reduce={reduce}>
-      {/* Lista configurada */}
+    <Card
+      title={t('settings.routers.title')}
+      caption={t('settings.routers.caption')}
+      index={4}
+      reduce={reduce}
+      headerSlot={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void discover()}
+            disabled={scanning}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+          >
+            <Radar className={cn('h-4 w-4', scanning && 'animate-pulse')} strokeWidth={1.75} />
+            {scanning ? t('settings.routers.discovering') : t('settings.routers.discover')}
+          </button>
+          <button
+            type="button"
+            aria-expanded={showAddForm}
+            onClick={() => setShowAddForm((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 py-2 text-sm font-medium text-accent transition-colors duration-150 hover:brightness-105"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.routers.addDevice')}
+          </button>
+        </div>
+      }
+    >
+      {/* Lista configurada (tabla como en el mockup: IP | Nombre | Rol | Acciones) */}
       {loading ? (
         <p className="text-caption text-text-muted">…</p>
       ) : list.length === 0 ? (
@@ -590,101 +618,85 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           {t('settings.routers.empty')}
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {list.map((r) => (
-            <li
-              key={r.id}
-              className="flex flex-col gap-2.5 rounded-xl border border-border bg-elevated p-3.5"
-            >
-              <div className="flex items-start gap-2.5">
-                <RouterIcon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate font-mono text-sm font-medium text-text-primary">{r.host}</span>
-                    {r.is_gateway && (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full border-collapse text-left text-[13px]">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">IP</th>
+                <th className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">{t('settings.routers.name')}</th>
+                <th className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">{t('settings.routers.role')}</th>
+                <th className="px-3.5 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-text-muted">{t('settings.routers.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 transition-colors last:border-0 hover:bg-hover/40">
+                  <td className="px-3.5 py-2.5 font-mono text-[12px] font-medium text-text-primary">{r.host}</td>
+                  <td className="px-3.5 py-2.5 text-text-secondary">{r.name && r.name !== r.host ? r.name : '—'}</td>
+                  <td className="px-3.5 py-2.5">
+                    {r.is_gateway ? (
+                      <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                         {t('settings.routers.gatewayBadge')}
                       </span>
-                    )}
-                    {r.agent_only && (
-                      <span className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted ring-1 ring-inset ring-border">
+                    ) : r.agent_only ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
                         {t('settings.routers.agentOnlyBadge')}
                       </span>
+                    ) : (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
+                        {t('settings.routers.typeManaged')}
+                      </span>
                     )}
-                  </div>
-                  {r.name && r.name !== r.host && (
-                    <div className="mt-0.5 truncate text-caption text-text-muted">{r.name}</div>
-                  )}
-                </div>
-              </div>
-              {confirmDeleteFor === r.id ? (
-                <span className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void remove(r)}
-                    className="rounded-lg bg-danger px-2.5 py-1.5 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90"
-                  >
-                    {t('settings.users.confirmDelete')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteFor(null)}
-                    className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                  >
-                    {t('settings.users.cancel')}
-                  </button>
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(r)}
-                    aria-label={t('settings.routers.edit')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-                  >
-                    <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteFor(r.id)}
-                    aria-label={t('settings.routers.delete')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
-                  >
-                    <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                  </button>
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+                  </td>
+                  <td className="px-3.5 py-2.5">
+                    {confirmDeleteFor === r.id ? (
+                      <span className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void remove(r)}
+                          className="rounded-lg bg-danger px-2.5 py-1 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90"
+                        >
+                          {t('settings.users.confirmDelete')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteFor(null)}
+                          className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                        >
+                          {t('settings.users.cancel')}
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(r)}
+                          aria-label={t('settings.routers.edit')}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                        >
+                          <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteFor(r.id)}
+                          aria-label={t('settings.routers.delete')}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Descubrimiento en la LAN + alta manual (issue #144): los dos botones
-          en la misma fila; debajo, candidatos y form de alta. */}
+      {/* Panel de descubrimiento (candidatos) y alta manual (issue #144) */}
       <div className="mt-4 border-t border-border pt-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-caption text-text-muted">{t('settings.routers.discoverCaption')}</p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void discover()}
-              disabled={scanning}
-              className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
-            >
-              <Radar className={cn('h-4 w-4', scanning && 'animate-pulse')} strokeWidth={1.75} />
-              {scanning ? t('settings.routers.discovering') : t('settings.routers.discover')}
-            </button>
-            <button
-              type="button"
-              aria-expanded={showAddForm}
-              onClick={() => setShowAddForm((v) => !v)}
-              className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-            >
-              <Plus className="h-4 w-4" strokeWidth={1.75} />
-              {t('settings.routers.addDevice')}
-            </button>
-          </div>
-        </div>
+        <p className="text-caption text-text-muted">{t('settings.routers.discoverCaption')}</p>
         {candidates !== null && (
           <ul className="mt-3 flex flex-col gap-2">
             {candidates.length === 0 && (
@@ -2341,7 +2353,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </select>
         </label>
         <label className="block">
-          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPct', { pct: alertPct })}</span>
+          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -2351,26 +2363,40 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             value={alertPct}
             onChange={(e) => setAlertPct(Number(e.target.value))}
             disabled={disabled || loading}
-            aria-label={t('settings.speedtest.alertPct', { pct: alertPct })}
+            aria-label={t('settings.speedtest.alertPctLabel')}
             className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           />
         </label>
       </div>
       <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
-      <label className="block">
+      <div>
         <span className="text-label uppercase text-text-muted">{t('settings.speedtest.serverId')}</span>
-        <input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          step="1"
-          value={serverId}
-          onChange={(e) => setServerId(e.target.value)}
-          disabled={disabled || loading}
-          aria-label={t('settings.speedtest.serverId')}
-          className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
-        />
-      </label>
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            step="1"
+            value={serverId}
+            onChange={(e) => setServerId(e.target.value)}
+            disabled={disabled || loading}
+            placeholder="speedtest"
+            aria-label={t('settings.speedtest.serverId')}
+            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setServerId('0')}
+            disabled={disabled || loading}
+            title={t('settings.speedtest.serverRestore')}
+            aria-label={t('settings.speedtest.serverRestore')}
+            className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <span className="hidden sm:inline">{t('settings.speedtest.serverRestore')}</span>
+          </button>
+        </div>
+      </div>
       <p className="text-caption text-text-muted">{t('settings.speedtest.hint')}</p>
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -2910,6 +2936,7 @@ interface UpdateHistoryRow {
 function UpdateHistoryCard() {
   const { t } = useTranslation()
   const [rows, setRows] = useState<UpdateHistoryRow[] | null>(null)
+  const [open, setOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -2929,46 +2956,96 @@ function UpdateHistoryCard() {
   const statusCls = (s: string) =>
     s === 'success' ? 'text-ok' : s === 'failed' ? 'text-rose-500' : 'text-amber-600 dark:text-amber-400'
 
+  const downloadLog = () => {
+    if (!rows) return
+    const lines = ['# NetPulse — historial de actualizaciones', '# exportado ' + new Date().toISOString(), '', 'fecha\tdesde\thasta\tiniciado_por\tduracion\testado', ...rows.map((r) => [new Date(r.ts).toISOString(), r.versionFrom ?? '', r.versionTo ?? '', r.initiatedBy ?? '', r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : '', r.status].join('\t'))]
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'netpulse-historial-actualizaciones.log'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const count = rows?.length ?? 0
+  const last = rows && rows[0] ? rows[0] : null
+
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 md:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <History className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-text-primary">{t('update.history.title')}</h3>
-      </div>
-      {rows === null ? (
-        <p className="text-xs text-text-muted">{t('settings.about.checking')}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-xs text-text-secondary">{t('update.history.empty')}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[540px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-border text-text-muted">
-                <th className="py-2 pr-3 font-medium">{t('update.history.date')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.from')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.to')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.initiatedBy')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.duration')}</th>
-                <th className="py-2 font-medium">{t('update.history.status')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border/60 last:border-0">
-                  <td className="whitespace-nowrap py-2 pr-3 text-text-secondary">
-                    {relTimeFromTs(r.ts) ?? new Date(r.ts).toLocaleString()}
-                  </td>
-                  <td className="py-2 pr-3 font-mono text-text-primary">{r.versionFrom ?? '—'}</td>
-                  <td className="py-2 pr-3 font-mono text-text-primary">{r.versionTo ?? '—'}</td>
-                  <td className="py-2 pr-3 text-text-secondary">{r.initiatedBy || '—'}</td>
-                  <td className="py-2 pr-3 text-text-secondary">
-                    {r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)} s` : '—'}
-                  </td>
-                  <td className={cn('py-2 font-semibold', statusCls(r.status))}>{statusLabel(r.status)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Cabecera colapsable (como el mockup) */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary">{t('update.history.title')}</h3>
+            <p className="text-xs text-text-muted">
+              {rows === null
+                ? t('settings.about.checking')
+                : last
+                  ? t('update.history.summary', { count, date: relTimeFromTs(last.ts) ?? new Date(last.ts).toLocaleString(), status: statusLabel(last.status) })
+                  : t('update.history.empty')}
+            </p>
+          </div>
+        </div>
+        <span className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              downloadLog()
+            }}
+            disabled={!rows || rows.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {t('update.history.download')}
+          </button>
+          <ChevronDown className={cn('h-4 w-4 text-text-muted transition-transform duration-200', open && 'rotate-180')} strokeWidth={2} />
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {rows === null ? (
+            <p className="text-xs text-text-muted">{t('settings.about.checking')}</p>
+          ) : rows.length === 0 ? (
+            <p className="text-xs text-text-secondary">{t('update.history.empty')}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[540px] text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-text-muted">
+                    <th className="py-2 pr-3 font-medium">{t('update.history.date')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.from')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.to')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.initiatedBy')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.duration')}</th>
+                    <th className="py-2 font-medium">{t('update.history.status')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b border-border/60 last:border-0">
+                      <td className="whitespace-nowrap py-2 pr-3 text-text-secondary">
+                        {relTimeFromTs(r.ts) ?? new Date(r.ts).toLocaleString()}
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-text-primary">{r.versionFrom ?? '—'}</td>
+                      <td className="py-2 pr-3 font-mono text-text-primary">{r.versionTo ?? '—'}</td>
+                      <td className="py-2 pr-3 text-text-secondary">{r.initiatedBy || '—'}</td>
+                      <td className="py-2 pr-3 text-text-secondary">
+                        {r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)} s` : '—'}
+                      </td>
+                      <td className={cn('py-2 font-semibold', statusCls(r.status))}>{statusLabel(r.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -3857,10 +3934,10 @@ export default function Settings() {
         ? [
             { href: '#sec-red', label: t('settings.sections.network') },
             { href: '#sec-integraciones', label: t('settings.sections.integrations') },
+            { href: '#sec-cuenta', label: t('settings.sections.account') },
             { href: '#sec-admin', label: t('settings.sections.administration') },
           ]
         : []),
-      { href: '#sec-cuenta', label: t('settings.sections.account') },
       { href: '#sec-acerca', label: t('settings.sections.about') },
     ],
     [t, isDemo, auth?.role],
@@ -3931,14 +4008,14 @@ export default function Settings() {
           </div>
         )}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="scroll-mt-32 order-160" id="sec-admin">
-            <SectionLabel>{t('settings.sections.administration')}</SectionLabel>
+          <div className="scroll-mt-32 order-160" id="sec-cuenta">
+            <SectionLabel>{t('settings.sections.account')}</SectionLabel>
           </div>
         )}
-        <div className="scroll-mt-32 order-190" id="sec-cuenta">
-          <SectionLabel>{t('settings.sections.account')}</SectionLabel>
+        <div className="scroll-mt-32 order-190" id="sec-admin">
+          <SectionLabel>{t('settings.sections.administration')}</SectionLabel>
         </div>
-        <div className="scroll-mt-32 order-220" id="sec-acerca">
+        <div className="scroll-mt-32 order-230" id="sec-acerca">
           <SectionLabel>{t('settings.sections.about')}</SectionLabel>
         </div>
 
@@ -4357,7 +4434,7 @@ export default function Settings() {
             Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
             Routers y AdGuard son tarjetas de dominio que siguen en el grid. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="order-170">
+          <div className="order-200">
             <div className="rounded-2xl border border-l-4 border-l-accent bg-accent/[0.03] p-4 shadow-soft md:p-5">
               <div className="flex flex-wrap items-start gap-3 sm:gap-4">
                 <div className="flex h-9 shrink-0 items-center gap-2">
@@ -4432,7 +4509,7 @@ export default function Settings() {
         {/* Historial de actualizaciones (issue #159) — solo admin y modo live;
             el updater es un mecanismo de auto-aplicación que no existe en demo */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="order-180">
+          <div className="order-210">
             <UpdateHistoryCard />
           </div>
         )}
@@ -4501,7 +4578,7 @@ export default function Settings() {
         {/* Mi perfil (issue #119): card canónica del shared-shell — avatar,
             nombre editable (clic → input inline ✓/✕), idioma, contraseña y
             salir en UNA línea en desktop (envuelve en móvil). */}
-        <div className="order-200">
+        <div className="order-170">
           <Card title={t('settings.session.title')} index={5} reduce={reduce}>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-4 lg:flex-nowrap">
               {/* Avatar */}
@@ -4697,7 +4774,7 @@ export default function Settings() {
 
         {/* API Tokens (#330): bearer tokens con scopes para integraciones */}
         {!isDemo && (
-          <div className="order-210">
+          <div className="order-180">
             <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
               <TokensManager />
             </Card>
