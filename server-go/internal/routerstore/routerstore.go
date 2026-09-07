@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -35,9 +35,9 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw, ao, snmpEn, snmpPort, snmpInterval int
+		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort int
 		var name, ft, snmpComm sql.NullString
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort); err != nil {
 			continue
 		}
 		r.Name = name.String
@@ -48,6 +48,7 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		r.SnmpCommunity = snmpComm.String
 		r.SnmpPort = snmpPort
 		r.SnmpPollInterval = snmpInterval
+		r.SSHPort = sshPort
 		out = append(out, r)
 	}
 	return out
@@ -127,10 +128,13 @@ type AddInput struct {
 	// FirmwareTarget: versión objetivo (issue #241). "" = sin comprobar.
 	FirmwareTarget string
 	// SNMP (issue #309): credenciales para sondeo SNMP.
-	SnmpEnabled       bool
-	SnmpCommunity     string
-	SnmpPort          int
-	SnmpPollInterval  int // issue #414; 0 = default 60
+	SnmpEnabled      bool
+	SnmpCommunity    string
+	SnmpPort         int
+	SnmpPollInterval int // issue #414; 0 = default 60
+	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
+	// estándar). 0/ausente → 22.
+	SSHPort int
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -175,9 +179,13 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if snmpPort <= 0 {
 		snmpPort = 161
 	}
+	sshPort := in.SSHPort
+	if sshPort <= 0 {
+		sshPort = 22
+	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -213,10 +221,12 @@ type UpdateInput struct {
 	// FirmwareTarget: versión objetivo (issue #241). nil = no tocar; "" = limpiar.
 	FirmwareTarget *string
 	// SNMP (issue #309): nil = no tocar; puntero a bool/string/int = aplicar.
-	SnmpEnabled       *bool
-	SnmpCommunity     *string
-	SnmpPort          *int
-	SnmpPollInterval  *int // issue #414
+	SnmpEnabled      *bool
+	SnmpCommunity    *string
+	SnmpPort         *int
+	SnmpPollInterval *int // issue #414
+	// SSHPort (issue #605): puerto SSH; nil = no tocar.
+	SSHPort *int
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -296,6 +306,14 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 			v = 60
 		}
 		sets = append(sets, "snmp_poll_interval = ?")
+		args = append(args, v)
+	}
+	if in.SSHPort != nil {
+		v := *in.SSHPort
+		if v <= 0 {
+			v = 22
+		}
+		sets = append(sets, "ssh_port = ?")
 		args = append(args, v)
 	}
 	if len(sets) > 0 {

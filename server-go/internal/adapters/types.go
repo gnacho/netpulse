@@ -13,6 +13,8 @@ package adapters
 
 import (
 	"context"
+	"net"
+	"strconv"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -804,6 +806,20 @@ type RouterConfig struct {
 	SnmpCommunity    string `json:"snmp_community,omitempty"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
+	// estándar). 0/ausente → 22. Se usa en el pool, discovery e install.
+	SSHPort int `json:"ssh_port,omitempty"`
+}
+
+// SSHAddr devuelve el destino `host:port` para conectar por SSH, usando
+// SSHPort (default 22). Es lo que recibe el pool (`pool.Run`) y los probes
+// que arman `ssh` con `-p`.
+func (c RouterConfig) SSHAddr() string {
+	port := c.SSHPort
+	if port <= 0 {
+		port = 22
+	}
+	return net.JoinHostPort(c.Host, strconv.Itoa(port))
 }
 
 // ---------------------------------------------------------------------------

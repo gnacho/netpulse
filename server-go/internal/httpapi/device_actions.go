@@ -41,7 +41,7 @@ func uciValue(raw string) string {
 func (s *server) gatewayHost() string {
 	for _, r := range routerstore.ListRouters(s.db.DB) {
 		if r.IsGateway && !r.AgentOnly && r.Host != "" {
-			return r.Host
+			return r.SSHAddr()
 		}
 	}
 	return ""

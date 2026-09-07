@@ -1157,7 +1157,9 @@
       "snmpEnabled": "SNMP polling",
       "snmpCommunity": "Community (SNMPv2c)",
       "snmpPort": "Port",
-      "snmpPollInterval": "Interval (s)"
+      "snmpPollInterval": "Interval (s)",
+      "sshPort": "SSH port",
+      "sshPortHint": "SSH port of the router (default 22)"
     },
     "overrides": {
       "title": "Topology — manual tagging",

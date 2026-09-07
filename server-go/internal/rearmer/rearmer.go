@@ -188,7 +188,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 			if !nativeAgentType(rc.Type) {
 				return Result{}, ErrExternalAgent
 			}
-			host = rc.Host
+			host = rc.SSHAddr()
 			break
 		}
 	}
@@ -269,7 +269,7 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 			if !nativeAgentType(rc.Type) {
 				return Result{}, ErrExternalAgent
 			}
-			host = rc.Host
+			host = rc.SSHAddr()
 			break
 		}
 	}

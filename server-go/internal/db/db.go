@@ -464,6 +464,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
 	// issue #414: intervalo de polling SNMP configurable (segundos; default 60).
 	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
+	// issue #605: puerto SSH por router (dropbear en puerto no estándar).
+	migrate(sqldb, "routers", "ssh_port", "ALTER TABLE routers ADD COLUMN ssh_port INTEGER NOT NULL DEFAULT 22")
 	// issue #494: upgrades desatendidos programados (epoch ms UTC; NULL = manual).
 	migrate(sqldb, "firmware_upgrades", "scheduled_for", "ALTER TABLE firmware_upgrades ADD COLUMN scheduled_for INTEGER")
 
