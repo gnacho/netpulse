@@ -537,6 +537,12 @@ corte) habría sido trivial con esta visibilidad.
    solapamiento de canales.
 5. **14.5 — Eventos de roaming**: timeline con assoc/disassoc/roam
    (cruzando hearing maps consecutivos + iw events ya capturados).
+6. **14.6 — Polish de la gráfica del análisis de canales**
+   ([#618](https://github.com/gnacho/netpulse/issues/618)): la vista "plan de
+   canales" (montañas) funciona, pero el polish visual se puede mejorar:
+   claridad de la montaña de la red propia, legibilidad de la curva por
+   canal y layout general. Subjetivo, sin bug funcional, baja prioridad.
+   Refinamiento sobre la vista del sub-item 14.4 (WiFi survey).
 
 **Deploy**: agentes actualizados (ya en v2.8.0). UI nueva sin tocar routers.
 
