@@ -1065,6 +1065,7 @@
       "sound": "Sonido al llegar una alerta",
       "soundOff": "Desactivado",
       "soundOn": "Activado — suena un beep suave",
+      "testSound": "Probar beep de alerta",
       "title": "Notificaciones visuales"
     },
     "push": {

@@ -1740,7 +1740,7 @@ function fmtUptime(s: number): string {
   return `${Math.floor(s)}s`
 }
 
-function SystemInfoBlock() {
+function SystemInfoBlock({ bare = false }: { bare?: boolean }) {
   const { t } = useTranslation()
   const [info, setInfo] = useState<SystemInfoData | null>(null)
   const [failed, setFailed] = useState(false)
@@ -1789,7 +1789,7 @@ function SystemInfoBlock() {
   ]
 
   return (
-    <div className="mt-5 border-t border-border pt-4">
+    <div className={bare ? '' : 'mt-5 border-t border-border pt-4'}>
       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">
         {t('settings.about.system')}
       </div>
@@ -2224,7 +2224,7 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
           type="button"
           onClick={() => void save()}
           disabled={disabled || busy || loading || testing}
-          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? t('settings.wanSpeed.saving') : t('settings.wanSpeed.save')}
         </button>
@@ -2403,7 +2403,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           type="button"
           onClick={() => void save()}
           disabled={disabled || busy || loading}
-          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? t('settings.speedtest.saving') : t('settings.speedtest.save')}
         </button>
@@ -3119,6 +3119,15 @@ function AdoptionCard() {
             <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
           {copied === 'token' && <span className="text-[10px] text-ok">✓</span>}
+          <button
+            type="button"
+            onClick={() => setConfirmRotate(true)}
+            disabled={busy}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+            {t('settings.adoption.rotate')}
+          </button>
         </div>
 
         {data.server_fp && (
@@ -3131,16 +3140,6 @@ function AdoptionCard() {
           </div>
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={() => setConfirmRotate(true)}
-        disabled={busy}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
-        {t('settings.adoption.rotate')}
-      </button>
 
       {/* Confirmación de rotación (issue #145): invalida todos los pairings
           pendientes, no puede ser un clic suelto. */}
@@ -4400,18 +4399,27 @@ export default function Settings() {
                   }
                 }}
                 trailing={
-                  <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-elevated text-text-secondary">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playBeep()
+                      setWaveKey((k) => k + 1)
+                    }}
+                    aria-label={t('settings.notif.testSound')}
+                    title={t('settings.notif.testSound')}
+                    className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-elevated text-text-secondary transition-colors hover:text-accent"
+                  >
                     <Volume2 className="h-4 w-4" strokeWidth={1.75} />
-                    {sound && !reduce && (
+                    {!reduce && (
                       <motion.span
                         key={waveKey}
-                        className="absolute inset-0 rounded-lg border border-accent"
+                        className="pointer-events-none absolute inset-0 rounded-lg border border-accent"
                         initial={{ opacity: 0.8, scale: 1 }}
                         animate={{ opacity: 0, scale: 1.5 }}
                         transition={{ duration: 0.6, ease: 'easeOut' }}
                       />
                     )}
-                  </span>
+                  </button>
                 }
               />
             </div>
@@ -4784,85 +4792,91 @@ export default function Settings() {
         {/* ⑥ Acerca de */}
         <div className="order-230">
           <Card title={t('settings.about.title')} index={6} reduce={reduce}>
+            {/* Dos columnas como el mockup: izq descripción+enlaces | der Sistema */}
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="flex items-start gap-4">
-                <motion.img
-                  src="/logo.svg"
-                  alt=""
-                  className="h-12 w-12 shrink-0"
-                  initial={reduce ? false : { opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }}
-                />
-                <div>
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-display text-h2 font-bold text-text-primary">NetPulse</span>
-                    <span className="font-mono text-caption text-text-muted">v{pkg.version}</span>
+              <div>
+                <div className="flex items-start gap-4">
+                  <motion.img
+                    src="/logo.svg"
+                    alt=""
+                    className="h-12 w-12 shrink-0"
+                    initial={reduce ? false : { opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                  />
+                  <div>
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-display text-h2 font-bold text-text-primary">NetPulse</span>
+                      <span className="font-mono text-caption text-text-muted">v{pkg.version}</span>
+                    </div>
+                    <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
+                      {t('settings.about.desc')}
+                    </p>
                   </div>
-                  <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
-                    {t('settings.about.desc')}
-                  </p>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
+                    { icon: FileText, label: t('settings.about.changelog'), href: 'https://netpulse.cloudless.club' },
+                    { icon: Heart, label: t('settings.about.madeAtHome'), href: 'https://ko-fi.com/gnacho' },
+                    { icon: ShieldCheck, label: t('settings.about.privacy'), href: 'https://cloudless.club' },
+                  ].map((item, i) => {
+                    const cls = "flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                    return (
+                      <motion.div
+                        key={item.label}
+                        initial={reduce ? false : { opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeOut', delay: reduce ? 0 : 0.2 + i * 0.06 }}
+                      >
+                        {item.href ? (
+                          <a href={item.href} target="_blank" rel="noreferrer" className={cls}>
+                            <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                            <span className="leading-snug">{item.label}</span>
+                          </a>
+                        ) : (
+                          <div className={cls}>
+                            <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                            <span className="leading-snug">{item.label}</span>
+                          </div>
+                        )}
+                      </motion.div>
+                    )
+                  })}
+                </div>
+
+                {/* Push + PWA compactos (issue #156) */}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <PushNotificationsCard reduce={reduce} onSaved={notify} compact />
+                  {!installed && (
+                    <Confetti burstKey={confettiKey} reduce={reduce} />
+                  )}
+                  {installed ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                      <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                      {t('settings.pwa.installed')}
+                    </span>
+                  ) : isIOS ? (
+                    <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
+                  ) : deferred ? (
+                    <button
+                      type="button"
+                      onClick={() => void install()}
+                      className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                    >
+                      <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                      {t('settings.pwa.install')}
+                    </button>
+                  ) : null}
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {[
-                  { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
-                  { icon: FileText, label: t('settings.about.changelog'), href: 'https://netpulse.cloudless.club' },
-                  { icon: Heart, label: t('settings.about.madeAtHome'), href: 'https://ko-fi.com/gnacho' },
-                  { icon: ShieldCheck, label: t('settings.about.privacy'), href: 'https://cloudless.club' },
-                ].map((item, i) => {
-                  const cls = "flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-                  return (
-                    <motion.div
-                      key={item.label}
-                      initial={reduce ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, ease: 'easeOut', delay: reduce ? 0 : 0.2 + i * 0.06 }}
-                    >
-                      {item.href ? (
-                        <a href={item.href} target="_blank" rel="noreferrer" className={cls}>
-                          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                          <span className="leading-snug">{item.label}</span>
-                        </a>
-                      ) : (
-                        <div className={cls}>
-                          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                          <span className="leading-snug">{item.label}</span>
-                        </div>
-                      )}
-                    </motion.div>
-                  )
-                })}
+
+              {/* Derecha: Sistema */}
+              <div>
+                <SystemInfoBlock bare />
               </div>
             </div>
-
-            {/* Push + PWA compactos (issue #156): botones bajo Acerca de, antes de Sistema */}
-            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              <PushNotificationsCard reduce={reduce} onSaved={notify} compact />
-              {!installed && (
-                <Confetti burstKey={confettiKey} reduce={reduce} />
-              )}
-              {installed ? (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-                  <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
-                  {t('settings.pwa.installed')}
-                </span>
-              ) : isIOS ? (
-                <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
-              ) : deferred ? (
-                <button
-                  type="button"
-                  onClick={() => void install()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
-                >
-                  <Download className="h-3.5 w-3.5" strokeWidth={2} />
-                  {t('settings.pwa.install')}
-                </button>
-              ) : null}
-            </div>
-
-            {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
-            <SystemInfoBlock />
           </Card>
         </div>
       </div>

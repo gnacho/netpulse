@@ -188,7 +188,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
             type="button"
             onClick={() => void save()}
             disabled={busy || !cfg.botToken || !cfg.chatId}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
             {t('common.save')}
@@ -198,7 +198,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
             type="button"
             onClick={() => void test()}
             disabled={busy || !cfg.enabled}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'testing' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -283,7 +283,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
             type="button"
             onClick={() => void save()}
             disabled={busy || !cfg.botToken || !cfg.chatId}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'saving' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -297,7 +297,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
             type="button"
             onClick={() => void test()}
             disabled={busy || !cfg.enabled}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'testing' ? (
               <Loader2 className="h-4 w-4 animate-spin" />

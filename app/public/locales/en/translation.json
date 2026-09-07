@@ -1065,6 +1065,7 @@
       "sound": "Sound when an alert arrives",
       "soundOff": "Off",
       "soundOn": "On — plays a soft beep",
+      "testSound": "Test alert beep",
       "title": "Visual notifications"
     },
     "push": {
