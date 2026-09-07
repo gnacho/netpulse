@@ -32,7 +32,7 @@ SERVICE_NAME="$APP_NAME"
 
 # Versión de ESTE instalador (bumpear en cada release junto a httpapi.Version,
 # para poder saber qué install.sh se está ejecutando; ver CHANGELOG).
-INSTALLER_VERSION="2.28.10"
+INSTALLER_VERSION="2.28.11"
 
 NETPULSE_VERSION=""; UNATTENDED=0; DRY_RUN=0; UNINSTALL=0; PURGE=0; DEMO=0
 
