@@ -40,6 +40,12 @@ export interface Router {
   /** Salud 0–100 */
   health: number
   /**
+   * #603: el router responde pero su host key SSH no casa con la registrada.
+   * La conexión se rechaza (posible MITM) hasta que el admin confirme el
+   * re-onboard explícito (POST /api/routers/{id}/accept-host-key).
+   */
+  hostKeyChanged?: boolean
+  /**
    * #441: false cuando la fuente del router no puede reportar métricas de
    * sistema (switch SNMP o pusher beacon/scraper). En ese caso cpu/ram/temp
    * llegan a null y la UI no los pinta. Ausente = disponibles.

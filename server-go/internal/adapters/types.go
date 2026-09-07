@@ -168,19 +168,23 @@ type Router struct {
 	// AccessMissing: el router responde pero el acceso SSH/ubus no está
 	// configurado (clave del servidor no autorizada) — issue #257. La UI lo
 	// pinta como "sin acceso" en vez de "offline" (config issue, no power).
-	AccessMissing bool      `json:"accessMissing,omitempty"`
+	AccessMissing bool `json:"accessMissing,omitempty"`
+	// HostKeyChanged: el host presenta una clave SSH distinta a la registrada
+	// (issue #603). Se rechaza la conexión (posible MITM) hasta que el admin
+	// confirme el re-onboard explícito tras verificar fuera de banda.
+	HostKeyChanged bool `json:"hostKeyChanged,omitempty"`
 	// VitalsAvailable: false cuando la fuente de datos del router no puede
 	// reportar métricas de sistema (#441): switches sondeados por SNMP (#309)
 	// o pushers externos por beacon/scraper (#291). En ese caso CPU/RAM/Temp
 	// van a null y la UI no los pinta. Ausente = vitals disponibles.
-	VitalsAvailable *bool  `json:"vitalsAvailable,omitempty"`
-	CPU             *int   `json:"cpu"`
-	RAM             *int   `json:"ram"`
-	Temp            *int   `json:"temp"`
-	Uptime        string    `json:"uptime"` // "<d>d <h>h" | "—"
-	Clients       int       `json:"clients"`
-	HotMetric     string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65
-	Sparkline     []float64 `json:"sparkline"`
+	VitalsAvailable *bool     `json:"vitalsAvailable,omitempty"`
+	CPU             *int      `json:"cpu"`
+	RAM             *int      `json:"ram"`
+	Temp            *int      `json:"temp"`
+	Uptime          string    `json:"uptime"` // "<d>d <h>h" | "—"
+	Clients         int       `json:"clients"`
+	HotMetric       string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65
+	Sparkline       []float64 `json:"sparkline"`
 	// Backhaul: medio del uplink del router ("cable"|"wifi"). Ausente =
 	// cable/desconocido (router sin wifi o sonda no disponible).
 	Backhaul string `json:"backhaul,omitempty"`
