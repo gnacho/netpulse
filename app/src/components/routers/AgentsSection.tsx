@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Check, Clipboard, Clock, Loader2, Radar, RotateCcw } from 'lucide-react'
+import { Check, Clipboard, Clock, Loader2, Radar, RotateCcw, Unplug } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
@@ -56,10 +56,12 @@ const TIMELINE_STALLED_S = 90
 /** Fila de un agente con sus acciones de recuperación (estado local). */
 function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undefined }) {
   const { t } = useTranslation()
-  const { reinstallAgent, createAgentInstall } = useNetPulse()
+  const { reinstallAgent, uninstallAgent, createAgentInstall, refreshAgents } = useNetPulse()
   const auth = useAuth()
   const [reinstallState, setReinstallState] = useState<ReinstallState>('idle')
   const [reinstallMsg, setReinstallMsg] = useState('')
+  const [uninstallState, setUninstallState] = useState<ReinstallState>('idle')
+  const [uninstallMsg, setUninstallMsg] = useState('')
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
 
@@ -74,6 +76,11 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   // (sanos o caídos): antes solo aparecía cuando estaba stale o faltaba, y el
   // duplicado vivía en la tarjeta Info del detalle.
   const canReinstall = auth?.role === 'admin' && isOpenWrt && (agent !== undefined || isMissing)
+  // #624: desinstalar el agente vía SSH (liberar espacio en routers con poco
+  // room, p. ej. UniFi 6 Lite). Solo agentes nativos OpenWrt con agente
+  // presente: no tiene sentido desinstalar algo que no está, ni un NetGrip
+  // (que se gestiona desde su propio panel) ni un scraper externo.
+  const canUninstall = auth?.role === 'admin' && isOpenWrt && agent !== undefined && agent.kind !== 'external' && agent.kind !== 'netgrip'
 
   const slug = agent?.slug ?? router?.id ?? ''
   const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen) ?? t('routers.agents.never') : t('routers.agents.never')
@@ -121,6 +128,27 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
       setReinstallMsg(res?.error ?? t(failKey))
     }
     window.setTimeout(() => setReinstallState('idle'), 8000)
+  }
+
+  // #624: desinstala el agente del router (detiene init, borra binario/env)
+  // y revoca su token. Confirmación explícita: acción destructiva.
+  const uninstall = async () => {
+    if (uninstallState === 'busy') return
+    if (!window.confirm(t('routers.agents.uninstallConfirm', { router: router?.name ?? slug }))) return
+    setUninstallState('busy')
+    setUninstallMsg('')
+    const res = await uninstallAgent(slug)
+    if (res && !res.error) {
+      setUninstallState('done')
+      setUninstallMsg(t('routers.agents.uninstallDone'))
+      // #624: tras desinstalar, refrescar la lista para que la fila pase a
+      // "instalar" (agente ausente).
+      await refreshAgents()
+    } else {
+      setUninstallState('fail')
+      setUninstallMsg(res?.error ?? t('routers.agents.uninstallFail'))
+    }
+    window.setTimeout(() => setUninstallState('idle'), 8000)
   }
 
   const copyCmd = async () => {
@@ -260,6 +288,34 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
                     : t(isMissing ? 'routers.agents.install' : 'routers.agents.reinstall')}
             </button>
           )}
+          {/* #624: Desinstalar vía SSH desde el server — libera espacio en
+              routers con poco room (p. ej. UniFi 6 Lite) donde el reinstall
+              no cabe; hay que quitarlo antes de reinstalar. */}
+          {canUninstall && (
+            <button
+              type="button"
+              onClick={() => void uninstall()}
+              disabled={uninstallState === 'busy'}
+              title={t('routers.agents.uninstallTip')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
+                uninstallState === 'done'
+                  ? 'border-ok/40 bg-ok/10 text-ok'
+                  : uninstallState === 'fail'
+                    ? 'border-danger/40 bg-danger/10 text-danger'
+                    : 'border-border text-text-secondary hover:border-danger/40 hover:text-danger',
+              )}
+            >
+              <Unplug className={cn('h-3.5 w-3.5', uninstallState === 'busy' && 'animate-pulse')} strokeWidth={1.75} />
+              {uninstallState === 'busy'
+                ? t('routers.agents.uninstalling')
+                : uninstallState === 'done'
+                  ? t('routers.agents.uninstalled')
+                  : uninstallState === 'fail'
+                    ? t('routers.agents.uninstallRetry')
+                    : t('routers.agents.uninstall')}
+            </button>
+          )}
           {canRecover && !isNetgrip && (
             <button
               type="button"
@@ -292,6 +348,11 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         {reinstallMsg && reinstallState !== 'idle' && (
           <p className={cn('mt-1.5 text-caption', reinstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>
             {reinstallMsg}
+          </p>
+        )}
+        {uninstallMsg && uninstallState !== 'idle' && (
+          <p className={cn('mt-1.5 text-caption', uninstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>
+            {uninstallMsg}
           </p>
         )}
       </td>

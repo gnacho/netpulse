@@ -349,6 +349,9 @@ func NewHandler(d Deps) http.Handler {
 	// servicio procd) vía SSH — recupera un agente borrado por una
 	// actualización de firmware o una desinstalación manual.
 	mux.Handle("POST /api/agents/{slug}/reinstall", auth.RequireAdmin(http.HandlerFunc(s.handleAgentReinstall)))
+	// #624: desinstalar el agente nativo del router por SSH (liberar espacio
+	// en routers con poco room, p. ej. UniFi 6 Lite) y revocar su token.
+	mux.Handle("POST /api/agents/{slug}/uninstall", auth.RequireAdmin(http.HandlerFunc(s.handleAgentUninstall)))
 	// Fase 6.2: servir binario del agente desde el propio servidor (sin GitHub).
 	// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
 	// instalación incluye el token y se ejecuta en el router, sin sesión admin.
