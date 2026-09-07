@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.11] - 2026-09-07
+
+### Fixed
+
+- **El agente degradaba el WiFi de los APs (#591)**: lanzaba un `iw dev scan` (scan activo que saca la radio del canal) en cada sondeo completo, es decir cada ~30-37 s por dispositivo (medido en la tabla de scans). En puntos de acceso eso provoca desconexiones de dispositivos IoT y pérdida de señal. Ahora el scan se ejecuta como mucho cada 10 minutos, tras el arranque, o de inmediato cuando el servidor pide un refresh por SSE. La versión de agente embebida sube a 2.26.12 para que la flota se actualice. Se corrige además un test flaky de orden de mapa en `TestParseUsteer` que rompía el CI.
+- **El re-onboard SSH auto-aceptaba claves cambiadas (#603)**: ante una clave de host distinta en un host conocido, el pool renovaba `known_hosts` en silencio (accept-new con refresh), lo que anulaba la protección MITM. Ahora la conexión se rechaza y el router se marca como `unreachable/hostKeyChanged`; un admin debe confirmar el re-onboard explícitamente (nuevo endpoint `POST /api/routers/{id}/accept-host-key` y botón en el detalle del router), que borra la entrada y vuelve a hacer TOFU en el siguiente sondeo. El tipo de clave registrado es el que presente el dropbear del router (ssh-rsa en nuestra flota OpenWrt), no se fuerza RSA.
+
 ## [2.28.10] - 2026-09-07
 
 ### Fixed
