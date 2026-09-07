@@ -5,14 +5,6 @@
  * se aplican antes del primer render (sobreviven reload).
  */
 
-export const ACCENTS = [
-  { id: 'cyan', dark: '34 211 238', light: '8 145 178', swatch: '#22D3EE', labelKey: 'settings.accentCyan' },
-  { id: 'violet', dark: '167 139 250', light: '124 58 237', swatch: '#A78BFA', labelKey: 'settings.accentViolet' },
-  { id: 'emerald', dark: '52 211 153', light: '5 150 105', swatch: '#34D399', labelKey: 'settings.accentEmerald' },
-  { id: 'amber', dark: '251 191 36', light: '217 119 6', swatch: '#FBBF24', labelKey: 'settings.accentAmber' },
-] as const
-
-export type AccentId = (typeof ACCENTS)[number]['id']
 export type ThemeMode = 'dark' | 'light' | 'system'
 
 export interface PaletteDef {
