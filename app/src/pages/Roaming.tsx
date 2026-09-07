@@ -416,6 +416,26 @@ export default function Roaming() {
     return arr
   }, [aps, weakOnly, nameByMac])
 
+  // #600: agrupar las columnas de la matriz por dispositivo (AP) y dentro por
+  // banda. La cabecera pasa a dos niveles: nombre del AP (colSpan) + banda.
+  const apGroups = useMemo(() => {
+    const byHost = new Map<string, UsteerAP[]>()
+    for (const ap of aps) {
+      const key = ap.hostname || ap.bssid
+      const arr = byHost.get(key) ?? []
+      arr.push(ap)
+      byHost.set(key, arr)
+    }
+    const groups: { host: string; aps: UsteerAP[] }[] = []
+    for (const [host, arr] of byHost) {
+      arr.sort((a, b) => (a.band === '5 GHz' ? 1 : 0) - (b.band === '5 GHz' ? 1 : 0) || a.freq - b.freq)
+      groups.push({ host, aps: arr })
+    }
+    groups.sort((a, b) => a.host.localeCompare(b.host))
+    return groups
+  }, [aps])
+  const flatAps = useMemo(() => apGroups.flatMap((g) => g.aps), [apGroups])
+
   const bandOptions: Band[] = ['all', '2.4 GHz', '5 GHz']
   const tabs: { id: Tab; label: string; soon: boolean }[] = [
     { id: 'matrix', label: t('roaming.tabMatrix'), soon: false },
@@ -693,17 +713,23 @@ export default function Roaming() {
                   <table className="w-full border-separate border-spacing-0 text-left text-sm">
                     <thead>
                       <tr>
-                        <th className="sticky left-0 z-10 bg-surface pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">
+                        <th rowSpan={2} className="sticky left-0 z-10 bg-surface pb-2.5 pr-3 text-label font-medium uppercase text-text-muted">
                           {t('roaming.matrix.colClient')}
                         </th>
-                        {aps.map((ap) => (
-                          <th key={ap.bssid} className="pb-2.5 pl-2 pr-3 text-label font-medium text-text-secondary">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-medium text-text-primary">{ap.hostname}</span>
-                              <span className="font-mono text-caption text-text-muted">
-                                {ap.band === '5 GHz' ? '5G' : '2.4G'}
-                              </span>
-                            </div>
+                        {apGroups.map((g) => (
+                          <th
+                            key={`${g.host}-grp`}
+                            colSpan={g.aps.length}
+                            className="border-b border-border/60 pb-1 pl-2 pr-3 pt-0 text-center text-label font-medium text-text-primary"
+                          >
+                            <span className="inline-block max-w-[12rem] truncate align-middle">{g.host}</span>
+                          </th>
+                        ))}
+                      </tr>
+                      <tr>
+                        {flatAps.map((ap) => (
+                          <th key={ap.bssid} className="pb-2.5 pl-2 pr-3 text-center font-mono text-caption text-text-muted">
+                            {ap.band === '5 GHz' ? '5G' : '2.4G'}
                           </th>
                         ))}
                       </tr>
@@ -731,8 +757,8 @@ export default function Roaming() {
                                 </button>
                               </div>
                             </th>
-                            {aps.map((ap) => {
-                              const s = r.signals.get(ap.bssid)
+                             {flatAps.map((ap) => {
+                               const s = r.signals.get(ap.bssid)
                               return (
                                 <td key={ap.bssid} className="border-b border-border/60 py-2 pl-2 pr-3">
                                   {s !== undefined ? (
@@ -961,7 +987,9 @@ function Dot11rPanel({
               </tr>
             </thead>
             <tbody>
-              {overview.routers.flatMap((r) => {
+              {overview.routers
+                .filter((r) => r.ifaces.length > 0) // #601: excluir dispositivos sin radios (p. ej. el gateway)
+                .flatMap((r) => {
                 if (r.ifaces.length === 0) {
                   return [
                     <tr key={`${r.routerId}-none`}>
