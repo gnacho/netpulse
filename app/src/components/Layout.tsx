@@ -36,6 +36,7 @@ import { UpdateBanner } from '@/components/UpdateBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn, exitDemo } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -209,19 +210,27 @@ function GatewayStatus() {
 // Sidebar desktop (≥1024px) — 232px
 // ---------------------------------------------------------------------------
 
-/** Items de nav visibles según el overview. /roaming solo si hay usteer. */
+/** Items de nav visibles según el overview. /roaming solo si hay usteer.
+ *  La visibilidad de funcionalidades Labs (canales, actualizaciones) se
+ *  controla desde la tarjeta Servicios en Ajustes (useServicesVisibility). */
 function useVisibleNavItems(): NavItem[] {
   const { usteer, orchestration } = useNetPulse()
+  const [services] = useServicesVisibility()
   const usteerAvailable = !!usteer?.available
+  const labsOn = services.labs
   return useMemo(
     () =>
       NAV_ITEMS.filter(
         (it) =>
           (it.to !== '/roaming' || usteerAvailable) &&
           // Orquestación: opt-in del admin (#121). Oculto por defecto.
-          (it.to !== '/orchestration' || !!orchestration),
+          (it.to !== '/orchestration' || !!orchestration) &&
+          // Funcionalidades Labs controladas por cada toggle (rediseño v3):
+          // solo se muestran en el nav si Labs está activo y su toggle encendido.
+          (it.to !== '/wifi/channel-plan' || (labsOn && services.canales)) &&
+          (it.to !== '/firmware-upgrades' || (labsOn && services.actualizaciones)),
       ),
-    [usteerAvailable, orchestration],
+    [usteerAvailable, orchestration, labsOn, services.canales, services.actualizaciones],
   )
 }
 

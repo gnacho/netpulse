@@ -2490,7 +2490,8 @@ function ServicesCard({
       </div>
 
       {services.labs && (
-        <div className="mt-4 space-y-3 border-t border-border pt-4">
+        <div className="mt-4 space-y-2 border-t border-border pt-4">
+          {/* Orquestación (opt-in del admin) */}
           <div className="rounded-xl bg-elevated px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -2505,6 +2506,44 @@ function ServicesCard({
               />
             </div>
           </div>
+
+          {/* Funcionalidades Labs individuales (rediseño v3) */}
+          <SwitchRow
+            label={t('settings.labs.canales')}
+            caption={t('settings.labs.canalesCaption')}
+            checked={services.canales}
+            disabled={disabled}
+            onCheckedChange={(v) => {
+              setService('canales', v)
+              onSaved()
+            }}
+          />
+          <SwitchRow
+            label={t('settings.labs.actualizaciones')}
+            caption={t('settings.labs.actualizacionesCaption')}
+            checked={services.actualizaciones}
+            disabled={disabled}
+            onCheckedChange={(v) => {
+              setService('actualizaciones', v)
+              onSaved()
+            }}
+          />
+          <SwitchRow
+            icon={FlaskConical}
+            label={t('settings.labs.regenToken')}
+            caption={t('settings.labs.regenTokenCaption')}
+            checked={services.tokenRegen}
+            disabled={disabled}
+            onCheckedChange={(v) => {
+              setService('tokenRegen', v)
+              onSaved()
+            }}
+            trailing={
+              <span className="rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger">
+                {t('settings.labs.badge')}
+              </span>
+            }
+          />
 
           <ExternalDevicesManager onSaved={onSaved} />
         </div>
@@ -3407,7 +3446,7 @@ function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
                     type="button"
                     disabled={generatingFor === d.slug}
                     onClick={() => regenerate(d.slug)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-accent disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
                     {generatingFor === d.slug ? '\u2026' : t('settings.labs.rotateToken')}

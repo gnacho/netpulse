@@ -10,10 +10,25 @@ export interface ServicesVisibility {
   wireguard: boolean
   openvpn: boolean
   labs: boolean
+  /** Funcionalidades individuales de Labs (rediseño v3): cada una se
+   *  activa/desactiva por separado y controla su entrada en el nav/sidebar. */
+  canales: boolean
+  actualizaciones: boolean
+  tokenRegen: boolean
 }
 
 const KEY = 'netpulse-services'
-const DEFAULTS: ServicesVisibility = { adguard: true, wireguard: true, openvpn: false, labs: false }
+const DEFAULTS: ServicesVisibility = {
+  adguard: true,
+  wireguard: true,
+  openvpn: false,
+  labs: false,
+  // Por defecto, al activar Labs se muestran las 3 funcionalidades activas;
+  // el admin las puede desactivar individualmente.
+  canales: true,
+  actualizaciones: true,
+  tokenRegen: true,
+}
 
 export function getServicesVisibility(): ServicesVisibility {
   try {

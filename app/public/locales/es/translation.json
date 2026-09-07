@@ -369,8 +369,8 @@
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
     "orchestration": "Orquestación",
-    "channelPlan": "Plan de canales",
-    "firmwareUpgrades": "Actualizaciones de firmware",
+    "channelPlan": "Canales",
+    "firmwareUpgrades": "Actualizaciones",
     "help": "Ayuda"
   },
   "roaming": {
@@ -1218,7 +1218,14 @@
       "ingestHint": "Usa este token para autenticar la ingesta del scraper:",
       "dismiss": "Cerrar",
       "deleteTitle": "Revocar token del dispositivo",
-      "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token."
+      "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token.",
+      "canales": "Canales",
+      "canalesCaption": "Planificador de canales WiFi (LABS)",
+      "actualizaciones": "Actualizaciones",
+      "actualizacionesCaption": "Actualizaciones de firmware (LABS)",
+      "regenToken": "Regenerar token",
+      "regenTokenCaption": "Rotación del token de agentes externos (LABS)",
+      "badge": "LABS"
     },
     "saved": "Preferencias guardadas",
     "services": {
