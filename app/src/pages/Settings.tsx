@@ -2103,12 +2103,14 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
         : t('settings.wanSpeed.phaseUp')
 
   return (
-    <div className="mt-4 space-y-3 border-t border-border pt-4">
+    <div className="space-y-3">
       <div>
         <div className="text-sm font-medium text-text-primary">{t('settings.wanSpeed.title')}</div>
         <div className="text-caption text-text-muted">{t('settings.wanSpeed.caption')}</div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+
+      {/* Descarga + Subida + test de velocidad en la MISMA fila */}
+      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.down')}</span>
           <input
@@ -2139,49 +2141,18 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
             className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
-      </div>
-      <p className="text-caption text-text-muted">{t('settings.wanSpeed.hint')}</p>
-
-      {/* Test manual con progreso de fases */}
-      {!disabled && (
-        <div className="rounded-xl border border-border bg-elevated/60 p-3">
-          {testing ? (
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="flex items-center gap-2 text-caption font-medium text-accent">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                  {phaseLabel}…
-                </span>
-                <span className="font-mono text-[10px] text-text-muted">{Math.round(testProgress)} %</span>
-              </div>
-              {/* Barra de progreso de fases */}
-              <div className="flex items-center gap-1.5">
-                {[t('settings.wanSpeed.phaseServer'), t('settings.wanSpeed.phaseDown'), t('settings.wanSpeed.phaseUp')].map(
-                  (label, i) => {
-                    const active = i === testPhase
-                    const done = i < testPhase || testProgress >= 100
-                    return (
-                      <span
-                        key={label}
-                        className={cn(
-                          'h-1.5 flex-1 rounded-full transition-colors duration-300',
-                          done || active ? 'bg-accent' : 'bg-border-strong',
-                        )}
-                      />
-                    )
-                  },
-                )}
-              </div>
-              <div className="h-1 w-full overflow-hidden rounded-full bg-border/60">
-                <div
-                  className="h-full rounded-full bg-accent/70 transition-[width] duration-300 ease-linear"
-                  style={{ width: `${testProgress}%` }}
-                />
-              </div>
-              <p className="text-caption text-text-muted">{t('settings.wanSpeed.testHint')}</p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-3">
+        {!disabled && (
+          <div className="lg:justify-self-end">
+            {testing ? (
+              <button
+                type="button"
+                disabled
+                className="inline-flex h-9 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-xl border border-accent/40 bg-accent-soft px-3 text-[13px] font-medium text-accent opacity-70"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+                {phaseLabel}…
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={() => void runTest()}
@@ -2191,19 +2162,48 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
                 <Gauge className="h-4 w-4" strokeWidth={1.75} />
                 {t('settings.wanSpeed.runTest')}
               </button>
-              {testDone && (
-                <span role="status" className="text-caption text-ok">
-                  {t('settings.wanSpeed.testApplied', { down, up })}
-                </span>
-              )}
-              {testError && (
-                <span role="alert" className="text-caption text-danger">
-                  {testError}
-                </span>
-              )}
-              <span className="text-caption text-text-muted">{t('settings.wanSpeed.testCaption')}</span>
-            </div>
-          )}
+            )}
+          </div>
+        )}
+      </div>
+
+      <p className="text-caption text-text-muted">{t('settings.wanSpeed.hint')}</p>
+
+      {/* Barra de fases cuando corre el test */}
+      {!disabled && testing && (
+        <div className="space-y-2.5 rounded-xl border border-border bg-elevated/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-2 text-caption font-medium text-accent">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              {phaseLabel}…
+            </span>
+            <span className="font-mono text-[10px] text-text-muted">{Math.round(testProgress)} %</span>
+          </div>
+          {/* Barra de progreso de fases */}
+          <div className="flex items-center gap-1.5">
+            {[t('settings.wanSpeed.phaseServer'), t('settings.wanSpeed.phaseDown'), t('settings.wanSpeed.phaseUp')].map(
+              (label, i) => {
+                const active = i === testPhase
+                const done = i < testPhase || testProgress >= 100
+                return (
+                  <span
+                    key={label}
+                    className={cn(
+                      'h-1.5 flex-1 rounded-full transition-colors duration-300',
+                      done || active ? 'bg-accent' : 'bg-border-strong',
+                    )}
+                  />
+                )
+              },
+            )}
+          </div>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-border/60">
+            <div
+              className="h-full rounded-full bg-accent/70 transition-[width] duration-300 ease-linear"
+              style={{ width: `${testProgress}%` }}
+            />
+          </div>
+          <p className="text-caption text-text-muted">{t('settings.wanSpeed.testHint')}</p>
         </div>
       )}
 
@@ -2219,6 +2219,16 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
         {saved && (
           <span role="status" className="text-caption text-ok">
             {t('settings.wanSpeed.saved')}
+          </span>
+        )}
+        {testDone && (
+          <span role="status" className="text-caption text-ok">
+            {t('settings.wanSpeed.testApplied', { down, up })}
+          </span>
+        )}
+        {testError && (
+          <span role="alert" className="text-caption text-danger">
+            {testError}
           </span>
         )}
         {error && (
@@ -2297,7 +2307,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   }, [enabled, intervalHours, serverId, alertPct, onSaved, t])
 
   return (
-    <div className="mt-4 space-y-3 border-t border-border pt-4">
+    <div className="space-y-3">
       <div>
         <div className="text-sm font-medium text-text-primary">{t('settings.speedtest.title')}</div>
         <div className="text-caption text-text-muted">{t('settings.speedtest.caption')}</div>
@@ -2414,31 +2424,52 @@ function ServicesCard({
   ]
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
-      <div className="flex flex-col divide-y divide-border/60">
-        {rows.map((r) => (
+      <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+        <div className="divide-y divide-border/60">
           <SwitchRow
-            key={r.key}
-            label={r.label}
-            caption={r.caption}
-            checked={services[r.key]}
+            label={rows[0]!.label}
+            caption={rows[0]!.caption}
+            checked={services[rows[0]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService(r.key, v)
+              setService(rows[0]!.key, v)
               onSaved()
             }}
           />
-        ))}
-        <div className="py-3">
           <SwitchRow
-            label={t('settings.services.labs')}
-            caption={t('settings.services.labsCaption')}
-            checked={services.labs}
+            label={rows[1]!.label}
+            caption={rows[1]!.caption}
+            checked={services[rows[1]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService('labs', v)
+              setService(rows[1]!.key, v)
               onSaved()
             }}
           />
+        </div>
+        <div className="divide-y divide-border/60">
+          <SwitchRow
+            label={rows[2]!.label}
+            caption={rows[2]!.caption}
+            checked={services[rows[2]!.key]}
+            disabled={disabled}
+            onCheckedChange={(v) => {
+              setService(rows[2]!.key, v)
+              onSaved()
+            }}
+          />
+          <div className="py-3">
+            <SwitchRow
+              label={t('settings.services.labs')}
+              caption={t('settings.services.labsCaption')}
+              checked={services.labs}
+              disabled={disabled}
+              onCheckedChange={(v) => {
+                setService('labs', v)
+                onSaved()
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -3932,25 +3963,27 @@ export default function Settings() {
               </div>
             }
           >
-            {/* Unidades + refresco */}
+            {/* cols-2: Unidades + decimal + Refresco (izq) | umbrales (der) */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.data.units')}</div>
-                <div className="mt-2">
-                  <SegmentedControl
-                    options={[
-                      { value: 'mbps', label: 'Mbps' },
-                      { value: 'mbs', label: 'MB/s' },
-                    ]}
-                    value={units}
-                    onChange={(v) => {
-                      setUnits(v)
-                      notify()
-                    }}
-                    ariaLabel={t('settings.data.units')}
-                  />
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.data.units')}</div>
+                  <div className="mt-2">
+                    <SegmentedControl
+                      options={[
+                        { value: 'mbps', label: 'Mbps' },
+                        { value: 'mbs', label: 'MB/s' },
+                      ]}
+                      value={units}
+                      onChange={(v) => {
+                        setUnits(v)
+                        notify()
+                      }}
+                      ariaLabel={t('settings.data.units')}
+                    />
+                  </div>
                 </div>
-                <div className="mt-2">
+                <div>
                   <SwitchRow
                     label={t('settings.data.decimalEs')}
                     checked={decimalEs}
@@ -3960,124 +3993,127 @@ export default function Settings() {
                     }}
                   />
                 </div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.data.refresh')}</div>
-                <div className="mt-2">
-                  <SegmentedControl
-                    options={[
-                      { value: '3', label: '3 s' },
-                      { value: '5', label: '5 s' },
-                      { value: '10', label: '10 s' },
-                      { value: '0', label: t('settings.data.paused') },
-                    ]}
-                    value={refresh}
-                    onChange={(v) => {
-                      setRefresh(v)
-                      notify()
-                    }}
-                    ariaLabel={t('settings.data.refresh')}
-                  />
-                </div>
-                <p className="mt-2 text-caption text-text-muted">{t('settings.data.mockNote')}</p>
-              </div>
-            </div>
-
-            {/* Sliders de umbrales */}
-            <div className="mt-4 space-y-5 border-t border-border pt-4">
-              {(
-                [
-                  {
-                    key: 'temp',
-                    label: t('settings.data.tempLabel'),
-                    value: tempT,
-                    set: setTempT,
-                    min: 50,
-                    max: 85,
-                    format: (v: number) => `${v} °C`,
-                    caption: tempHot
-                      ? t('settings.data.tempCaptionHot', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 })
-                      : t('settings.data.tempCaptionOk', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 }),
-                    captionHot: tempHot,
-                  },
-                  {
-                    key: 'signal',
-                    label: t('topology.weakSignal'),
-                    value: signalT,
-                    set: setSignalT,
-                    min: -80,
-                    max: -60,
-                    format: (v: number) => `${v} dBm`.replace('-', '−'),
-                    caption:
-                      weakCount === 0
-                        ? t('settings.data.signalCaptionNone')
-                        : t('settings.data.signalCaption', { count: weakCount }),
-                    captionHot: weakCount > 0,
-                  },
-                  {
-                    key: 'latency',
-                    label: t('settings.data.latencyLabel'),
-                    value: latencyT,
-                    set: setLatencyT,
-                    min: 20,
-                    max: 200,
-                    format: (v: number) => `${v} ms`,
-                    caption: latencyHot
-                      ? t('settings.data.latencyCaptionHot', { ms: wan.latencyMs })
-                      : t('settings.data.latencyCaptionOk', { ms: wan.latencyMs }),
-                    captionHot: latencyHot,
-                  },
-                ] as const
-              ).map((s) => (
-                <div key={s.key}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <label htmlFor={`th-${s.key}`} className="text-sm font-medium text-text-primary">
-                      {s.label}
-                    </label>
-                    <motion.span
-                      key={s.value}
-                      animate={reduce ? undefined : { scale: [1.15, 1] }}
-                      transition={{ duration: 0.18 }}
-                      className="font-mono text-mono-sm text-accent"
-                    >
-                      {s.format(s.value)}
-                    </motion.span>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.data.refresh')}</div>
+                  <div className="mt-2">
+                    <SegmentedControl
+                      options={[
+                        { value: '3', label: '3 s' },
+                        { value: '5', label: '5 s' },
+                        { value: '10', label: '10 s' },
+                        { value: '0', label: t('settings.data.paused') },
+                      ]}
+                      value={refresh}
+                      onChange={(v) => {
+                        setRefresh(v)
+                        notify()
+                      }}
+                      ariaLabel={t('settings.data.refresh')}
+                    />
                   </div>
-                  <Slider
-                    id={`th-${s.key}`}
-                    min={s.min}
-                    max={s.max}
-                    step={1}
-                    value={[s.value]}
-                    onValueChange={([v]) => {
-                      if (v === undefined) return
-                      s.set(v)
-                      notify()
-                    }}
-                    className="mt-3"
-                    aria-label={s.label}
-                  />
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.p
-                      key={s.caption}
-                      initial={reduce ? false : { opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={reduce ? undefined : { opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className={cn('mt-1.5 text-caption', s.captionHot ? 'text-warn' : 'text-text-muted')}
-                    >
-                      {s.caption}
-                    </motion.p>
-                  </AnimatePresence>
+                  <p className="mt-2 text-caption text-text-muted">{t('settings.data.mockNote')}</p>
                 </div>
-              ))}
+              </div>
+
+              {/* Sliders de umbrales */}
+              <div className="space-y-5">
+                {(
+                  [
+                    {
+                      key: 'temp',
+                      label: t('settings.data.tempLabel'),
+                      value: tempT,
+                      set: setTempT,
+                      min: 50,
+                      max: 85,
+                      format: (v: number) => `${v} °C`,
+                      caption: tempHot
+                        ? t('settings.data.tempCaptionHot', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 })
+                        : t('settings.data.tempCaptionOk', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 }),
+                      captionHot: tempHot,
+                    },
+                    {
+                      key: 'signal',
+                      label: t('topology.weakSignal'),
+                      value: signalT,
+                      set: setSignalT,
+                      min: -80,
+                      max: -60,
+                      format: (v: number) => `${v} dBm`.replace('-', '−'),
+                      caption:
+                        weakCount === 0
+                          ? t('settings.data.signalCaptionNone')
+                          : t('settings.data.signalCaption', { count: weakCount }),
+                      captionHot: weakCount > 0,
+                    },
+                    {
+                      key: 'latency',
+                      label: t('settings.data.latencyLabel'),
+                      value: latencyT,
+                      set: setLatencyT,
+                      min: 20,
+                      max: 200,
+                      format: (v: number) => `${v} ms`,
+                      caption: latencyHot
+                        ? t('settings.data.latencyCaptionHot', { ms: wan.latencyMs })
+                        : t('settings.data.latencyCaptionOk', { ms: wan.latencyMs }),
+                      captionHot: latencyHot,
+                    },
+                  ] as const
+                ).map((s) => (
+                  <div key={s.key}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <label htmlFor={`th-${s.key}`} className="text-sm font-medium text-text-primary">
+                        {s.label}
+                      </label>
+                      <motion.span
+                        key={s.value}
+                        animate={reduce ? undefined : { scale: [1.15, 1] }}
+                        transition={{ duration: 0.18 }}
+                        className="font-mono text-mono-sm text-accent"
+                      >
+                        {s.format(s.value)}
+                      </motion.span>
+                    </div>
+                    <Slider
+                      id={`th-${s.key}`}
+                      min={s.min}
+                      max={s.max}
+                      step={1}
+                      value={[s.value]}
+                      onValueChange={([v]) => {
+                        if (v === undefined) return
+                        s.set(v)
+                        notify()
+                      }}
+                      className="mt-3"
+                      aria-label={s.label}
+                    />
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.p
+                        key={s.caption}
+                        initial={reduce ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={reduce ? undefined : { opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className={cn('mt-1.5 text-caption', s.captionHot ? 'text-warn' : 'text-text-muted')}
+                      >
+                        {s.caption}
+                      </motion.p>
+                    </AnimatePresence>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Velocidad WAN contratada (issue #151) — sub-sección del mismo ámbito */}
-            <WanSpeedCard onSaved={notify} disabled={isDemo} />
+            {/* divider: Velocidad WAN contratada (izq) | Test de velocidad periódico (der) */}
+            <div className="mt-4 grid gap-6 border-t border-border pt-4 sm:grid-cols-2">
+              {/* Velocidad WAN contratada (issue #151) — sub-sección del mismo ámbito */}
+              <WanSpeedCard onSaved={notify} disabled={isDemo} />
 
-            {/* Test de velocidad WAN periódico (issue #511) */}
-            <SpeedtestCard onSaved={notify} disabled={isDemo} />
+              {/* Test de velocidad WAN periódico (issue #511) */}
+              <SpeedtestCard onSaved={notify} disabled={isDemo} />
+            </div>
           </Card>
         </div>
 
@@ -4128,58 +4164,58 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Paleta + acento + densidad (60%) */}
+              {/* Paleta (2 columnas, con acento debajo) | densidad + animaciones (60%) */}
               <div className="xl:col-span-3">
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  {/* Paleta completa (#19-#20) — en columna (una por fila) */}
-                  <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      {PALETTES.map((p) => {
-                        const active = paletteId === p.id
-                        return (
-                          <motion.button
-                            key={p.id}
-                            type="button"
-                            aria-label={t(p.labelKey)}
-                            aria-pressed={active}
-                            whileTap={reduce ? undefined : { scale: 0.98 }}
-                            onClick={() => {
-                              setPaletteId(p.id)
-                              notify()
-                            }}
-                            className={cn(
-                              'group relative flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 transition-all duration-150',
-                              active
-                                ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
-                                : 'border-border hover:border-border-strong',
-                            )}
-                          >
-                            <span className="flex shrink-0 items-center gap-1">
-                              <span
-                                className="h-3.5 w-3.5 rounded-full"
-                                style={{ backgroundColor: `rgb(${p.dark.accent})` }}
-                              />
-                              <span
-                                className="h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
-                              />
-                              <span
-                                className="ml-0.5 h-2.5 w-5 rounded"
-                                style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
-                              />
-                            </span>
-                            <span className="text-[11px] font-medium text-text-primary">{t(p.labelKey)}</span>
-                            {active && (
-                              <Check className="ml-auto h-3 w-3 shrink-0 text-accent" strokeWidth={2.5} />
-                            )}
-                          </motion.button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
+                  {/* Paleta en 2 columnas + acento debajo */}
                   <div className="flex flex-col gap-6">
+                    <div>
+                      <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
+                      <div className="mt-2 grid grid-cols-2 gap-1.5">
+                        {PALETTES.map((p) => {
+                          const active = paletteId === p.id
+                          return (
+                            <motion.button
+                              key={p.id}
+                              type="button"
+                              aria-label={t(p.labelKey)}
+                              aria-pressed={active}
+                              whileTap={reduce ? undefined : { scale: 0.98 }}
+                              onClick={() => {
+                                setPaletteId(p.id)
+                                notify()
+                              }}
+                              className={cn(
+                                'group relative flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 transition-all duration-150',
+                                active
+                                  ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
+                                  : 'border-border hover:border-border-strong',
+                              )}
+                            >
+                              <span className="flex shrink-0 items-center gap-1">
+                                <span
+                                  className="h-3.5 w-3.5 rounded-full"
+                                  style={{ backgroundColor: `rgb(${p.dark.accent})` }}
+                                />
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
+                                />
+                                <span
+                                  className="ml-0.5 h-2.5 w-5 rounded"
+                                  style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
+                                />
+                              </span>
+                              <span className="text-[11px] font-medium text-text-primary">{t(p.labelKey)}</span>
+                              {active && (
+                                <Check className="ml-auto h-3 w-3 shrink-0 text-accent" strokeWidth={2.5} />
+                              )}
+                            </motion.button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
                     {/* Acento (override fino sobre la paleta) */}
                     <div>
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
@@ -4210,35 +4246,35 @@ export default function Settings() {
                       </div>
                       <p className="mt-1.5 text-caption text-text-muted">{t('settings.accentCaption')}</p>
                     </div>
+                  </div>
 
-                    {/* Densidad + animaciones */}
-                    <div>
-                      <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.density')}</div>
-                      <div className="mt-2">
-                        <SegmentedControl
-                          options={[
-                            { value: 'comoda', label: t('settings.densityComfy') },
-                            { value: 'compacta', label: t('settings.densityCompact') },
-                          ]}
-                          value={density}
-                          onChange={(v) => {
-                            setDensity(v)
-                            notify()
-                          }}
-                          ariaLabel={t('settings.density')}
-                        />
-                      </div>
-                      <div className="mt-2 border-t border-border pt-1">
-                        <SwitchRow
-                          label={t('settings.reduceMotion')}
-                          caption={t('settings.reduceMotionCaption')}
-                          checked={reduceMotion}
-                          onCheckedChange={(v) => {
-                            setReduceMotion(v)
-                            notify()
-                          }}
-                        />
-                      </div>
+                  {/* Densidad + animaciones (a la derecha) */}
+                  <div>
+                    <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.density')}</div>
+                    <div className="mt-2">
+                      <SegmentedControl
+                        options={[
+                          { value: 'comoda', label: t('settings.densityComfy') },
+                          { value: 'compacta', label: t('settings.densityCompact') },
+                        ]}
+                        value={density}
+                        onChange={(v) => {
+                          setDensity(v)
+                          notify()
+                        }}
+                        ariaLabel={t('settings.density')}
+                      />
+                    </div>
+                    <div className="mt-2 border-t border-border pt-1">
+                      <SwitchRow
+                        label={t('settings.reduceMotion')}
+                        caption={t('settings.reduceMotionCaption')}
+                        checked={reduceMotion}
+                        onCheckedChange={(v) => {
+                          setReduceMotion(v)
+                          notify()
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -4255,7 +4291,7 @@ export default function Settings() {
         {/* ⑤ Notificaciones visuales */}
         <div className="order-60">
           <Card title={t('settings.notif.title')} caption={t('settings.notif.caption')} index={3} reduce={reduce}>
-            <div className="divide-y divide-border">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-3">
               <SwitchRow
                 label={t('settings.notif.badge')}
                 caption={t('settings.notif.badgeCaption')}
