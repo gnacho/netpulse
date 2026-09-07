@@ -1157,7 +1157,9 @@
       "snmpEnabled": "Sondeo SNMP",
       "snmpCommunity": "Comunidad (SNMPv2c)",
       "snmpPort": "Puerto",
-      "snmpPollInterval": "Intervalo (s)"
+      "snmpPollInterval": "Intervalo (s)",
+      "sshPort": "Puerto SSH",
+      "sshPortHint": "Puerto SSH del router (22 por defecto)"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

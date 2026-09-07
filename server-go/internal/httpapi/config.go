@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	hostRe    = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	hostRe     = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 	hostPortRe = regexp.MustCompile(`^([a-zA-Z0-9._-]+)(:[0-9]{1,5})?$`)
 )
 
@@ -97,10 +97,13 @@ type routerInput struct {
 	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
 	FirmwareTarget *string `json:"firmware_target"`
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
-	SnmpEnabled       *bool   `json:"snmp_enabled"`
-	SnmpCommunity     *string `json:"snmp_community"`
-	SnmpPort          *int    `json:"snmp_port"`
-	SnmpPollInterval  *int    `json:"snmp_poll_interval"` // issue #414; segundos
+	SnmpEnabled      *bool   `json:"snmp_enabled"`
+	SnmpCommunity    *string `json:"snmp_community"`
+	SnmpPort         *int    `json:"snmp_port"`
+	SnmpPollInterval *int    `json:"snmp_poll_interval"` // issue #414; segundos
+	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
+	// estándar). Ausente/0 → 22.
+	SSHPort *int `json:"ssh_port"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -216,10 +219,20 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	sshPort := 0
+	if in.SSHPort != nil {
+		p := *in.SSHPort
+		if p < 1 || p > 65535 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "ssh_port must be between 1 and 65535")
+			return
+		}
+		sshPort = p
+	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
 		FirmwareTarget: firmwareTarget,
-		SnmpEnabled: snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
+		SnmpEnabled:    snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
+		SSHPort: sshPort,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -316,11 +329,21 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		v := strings.TrimSpace(*in.SnmpCommunity)
 		snmpCommunity = &v
 	}
+	var sshPort *int
+	if in.SSHPort != nil {
+		p := *in.SSHPort
+		if p < 1 || p > 65535 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "ssh_port must be between 1 and 65535")
+			return
+		}
+		sshPort = &p
+	}
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
 		FirmwareTarget: firmwareTarget,
-		SnmpEnabled: in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
+		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
+		SSHPort: sshPort,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

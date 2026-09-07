@@ -203,3 +203,24 @@ func TestHostKeyCallbackRejectsChangedKey(t *testing.T) {
 		t.Fatal("el known_hosts no debería tocarse al rechazar la clave cambiada")
 	}
 }
+
+func TestAddrOf(t *testing.T) {
+	if got := addrOf("192.168.1.2"); got != "192.168.1.2:22" {
+		t.Fatalf("addrOf(sin puerto) = %q, esperaba 192.168.1.2:22", got)
+	}
+	if got := addrOf("192.168.1.2:2222"); got != "192.168.1.2:2222" {
+		t.Fatalf("addrOf(con puerto) = %q, esperaba 192.168.1.2:2222", got)
+	}
+}
+
+func TestRouterConfigSSHAddr(t *testing.T) {
+	if got := (RouterConfig{Host: "192.168.1.2"}).SSHAddr(); got != "192.168.1.2:22" {
+		t.Fatalf("SSHAddr sin puerto = %q", got)
+	}
+	if got := (RouterConfig{Host: "192.168.1.2", SSHPort: 2222}).SSHAddr(); got != "192.168.1.2:2222" {
+		t.Fatalf("SSHAddr con puerto = %q", got)
+	}
+	if got := (RouterConfig{Host: "10.0.0.5", SSHPort: -1}).SSHAddr(); got != "10.0.0.5:22" {
+		t.Fatalf("SSHAddr con puerto inválido = %q", got)
+	}
+}

@@ -880,7 +880,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 
 	// Calienta la conexión SSH en serie (equivalente al `ssh true` del JS:
 	// las llamadas de abajo multiplexan sobre la conexión ya establecida).
-	if _, err := l.pool.Run(cfg.Host, "true", 0); err != nil {
+	if _, err := l.pool.Run(cfg.SSHAddr(), "true", 0); err != nil {
 		return nil, err
 	}
 	// Layout de puertos (board.json): se lee una vez y se cachea
@@ -1734,7 +1734,7 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 			peerNames[d.IP] = WGPeerName{ID: d.ID, Name: d.Name, Type: d.Type}
 		}
 	}
-	stats, err := GetWireGuardStats(l.pool, gw.Host, l.cfg.WGInterface, "", peerNames)
+	stats, err := GetWireGuardStats(l.pool, gw.SSHAddr(), l.cfg.WGInterface, "", peerNames)
 	if err != nil {
 		log.Printf("[netpulse] WireGuard no disponible: %v", err)
 		return &WireGuardStats{Interface: l.cfg.WGInterface, Subnet: "", Status: "inactive", Peers: []WGPeer{}}
@@ -2480,7 +2480,7 @@ func (l *Live) usteerAvailableCached() bool {
 	}
 	l.mu.Lock()
 	l.usteerChecking = true
-	host := gw.Host
+	host := gw.SSHAddr()
 	l.mu.Unlock()
 	go func() {
 		out, err := l.pool.Run(host, "ubus call usteer local_info", 4*time.Second)
@@ -3007,7 +3007,7 @@ func (l *Live) GetUsteer(context.Context) (*Usteer, error) {
 			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
 		}
-		localOut, err := l.pool.Run(cfg.Host, "ubus call usteer local_info", 0)
+		localOut, err := l.pool.Run(cfg.SSHAddr(), "ubus call usteer local_info", 0)
 		if err != nil {
 			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
@@ -3017,7 +3017,7 @@ func (l *Live) GetUsteer(context.Context) (*Usteer, error) {
 			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
 		}
-		clientsOut, _ := l.pool.Run(cfg.Host, "ubus call usteer connected_clients", 0)
+		clientsOut, _ := l.pool.Run(cfg.SSHAddr(), "ubus call usteer connected_clients", 0)
 		clientsByIface := map[string]map[string]usteerClientRaw{}
 		_ = json.Unmarshal([]byte(clientsOut), &clientsByIface)
 
@@ -3340,7 +3340,7 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 			out.Routers = append(out.Routers, r)
 			continue
 		}
-		uciOut, err := l.pool.Run(cfg.Host, "uci show wireless", 0)
+		uciOut, err := l.pool.Run(cfg.SSHAddr(), "uci show wireless", 0)
 		if err != nil {
 			out.Routers = append(out.Routers, r)
 			continue
@@ -3639,7 +3639,7 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 			continue
 		}
 		// Lista de interfaces wifi (wlanX).
-		devsOut, err := l.pool.Run(cfg.Host, "iw dev 2>/dev/null | awk '/Interface/ {print $2}'", 0)
+		devsOut, err := l.pool.Run(cfg.SSHAddr(), "iw dev 2>/dev/null | awk '/Interface/ {print $2}'", 0)
 		if err != nil {
 			out.Routers = append(out.Routers, r)
 			continue
@@ -3662,7 +3662,7 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 		r.Available = true
 		any = true
 		for _, dev := range devs {
-			surveyOut, err := l.pool.Run(cfg.Host, "iw dev "+dev+" survey dump 2>/dev/null", 0)
+			surveyOut, err := l.pool.Run(cfg.SSHAddr(), "iw dev "+dev+" survey dump 2>/dev/null", 0)
 			if err != nil {
 				continue
 			}

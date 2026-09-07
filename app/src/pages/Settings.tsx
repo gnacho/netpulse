@@ -280,6 +280,7 @@ interface ConfigRouter {
   snmp_community: string
   snmp_port: number
   snmp_poll_interval: number
+  ssh_port?: number
 }
 
 interface DiscoverCandidate {
@@ -302,6 +303,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [type, setType] = useState<RouterType>('openwrt')
   const [gateway, setGateway] = useState(false)
   const [agentOnly, setAgentOnly] = useState(false)
+  const [addSshPort, setAddSshPort] = useState(22)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
   const [editing, setEditing] = useState<ConfigRouter | null>(null)
@@ -315,6 +317,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
   const [editSnmpPort, setEditSnmpPort] = useState(161)
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
+  const [editSshPort, setEditSshPort] = useState(22)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -477,6 +480,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           type,
           gateway,
           agent_only: agentOnly,
+          ssh_port: addSshPort,
         }),
       })
       if (res.status === 409) {
@@ -489,6 +493,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setType('openwrt')
       setGateway(false)
       setAgentOnly(false)
+      setAddSshPort(22)
       setShowAddForm(false)
       await load()
       refresh()
@@ -512,6 +517,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditSnmpCommunity(r.snmp_community ?? '')
     setEditSnmpPort(r.snmp_port ?? 161)
     setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
+    setEditSshPort(r.ssh_port ?? 22)
     setError(null)
   }
 
@@ -535,6 +541,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           snmp_community: editSnmpCommunity.trim() || undefined,
           snmp_port: editSnmpPort,
           snmp_poll_interval: editSnmpPollInterval,
+          ssh_port: editSshPort,
         }),
       })
       if (res.status === 409) {
@@ -738,6 +745,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             aria-label={t('settings.routers.name')}
             className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={addSshPort}
+            onChange={(e) => setAddSshPort(Number(e.target.value))}
+            placeholder={t('settings.routers.sshPort')}
+            aria-label={t('settings.routers.sshPort')}
+            title={t('settings.routers.sshPortHint')}
+            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
           <SegmentedControl
@@ -803,6 +821,22 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder={t('settings.routers.name')}
                   aria-label={t('settings.routers.name')}
+                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="ssh-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                  {t('settings.routers.sshPort')}
+                </label>
+                <input
+                  id="ssh-port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={editSshPort}
+                  onChange={(e) => setEditSshPort(Number(e.target.value))}
+                  aria-label={t('settings.routers.sshPort')}
+                  title={t('settings.routers.sshPortHint')}
                   className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
               </div>

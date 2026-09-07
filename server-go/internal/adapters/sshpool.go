@@ -32,6 +32,16 @@ const (
 	sshBackoffMax     = 5 * time.Minute
 )
 
+// addrOf devuelve el destino `host:port` para conectar. Los callers pasan el
+// host ya con puerto (RouterConfig.SSHAddr, issue #605); si vienen sin puerto
+// (back-compat) se asume 22.
+func addrOf(host string) string {
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		return host
+	}
+	return net.JoinHostPort(host, "22")
+}
+
 // SSHPool gestiona conexiones persistentes a los routers.
 type SSHPool struct {
 	keyPath string
@@ -210,7 +220,7 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		HostKeyCallback: cb,
 		Timeout:         sshDialTimeout,
 	}
-	client, err := p.dialTCP("tcp", net.JoinHostPort(host, "22"), cfg)
+	client, err := p.dialTCP("tcp", addrOf(host), cfg)
 
 	p.mu.Lock()
 	close(entry.dialing)

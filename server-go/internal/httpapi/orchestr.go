@@ -506,7 +506,7 @@ func (s *server) gatewayInfo(routerID string) (bool, string) {
 func (s *server) hostOfRouter(routerID string) string {
 	for _, r := range routerstore.ListRouters(s.db.DB) {
 		if r.ID == routerID && !r.AgentOnly && r.Host != "" {
-			return r.Host
+			return r.SSHAddr()
 		}
 	}
 	return ""

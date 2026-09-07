@@ -31,9 +31,9 @@ import (
 
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
-	"github.com/gnacho/netpulse/server-go/internal/reinstall"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
+	"github.com/gnacho/netpulse/server-go/internal/reinstall"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
@@ -376,7 +376,7 @@ type agentListItem struct {
 	// con esta tercera clave la UI puede emparejar fila↔router sin duplicar
 	// (#483).
 	Hostname string `json:"hostname,omitempty"`
-	LastSeen *int64 `json:"lastSeen"`           // unix SEGUNDOS; null si nunca empujó
+	LastSeen *int64 `json:"lastSeen"` // unix SEGUNDOS; null si nunca empujó
 	Version  string `json:"version,omitempty"`
 	Fresh    bool   `json:"fresh"`
 	// UpdateAvailable: true si el agente reportó una versión distinta de la
@@ -682,7 +682,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	host := ""
 	for _, rc := range routerstore.ListRouters(s.db.DB) {
 		if rc.ID == slug {
-			host = rc.Host
+			host = rc.SSHAddr()
 			break
 		}
 	}

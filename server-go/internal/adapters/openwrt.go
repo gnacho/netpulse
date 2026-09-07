@@ -102,7 +102,8 @@ func NewOpenWrtClient(cfg RouterConfig, pool poolRunner, user, password string) 
 	if user == "" {
 		user = "root"
 	}
-	return &OpenWrtClient{Host: cfg.Host, User: user, Password: password, pool: pool}
+	// Host aquí es el destino `host:port` (#605) para el pool SSH.
+	return &OpenWrtClient{Host: cfg.SSHAddr(), User: user, Password: password, pool: pool}
 }
 
 // ---------------------------------------------------------------------------
