@@ -1208,8 +1208,16 @@ interface Scan {
 
 interface ChannelPlanData {
   routerId: string
-  radios: unknown[]
+  radios: PlanRadio[]
   scans: Scan[]
+}
+
+/** Radio recomendada del channel-plan (para mostrar el ancho del canal propio). */
+interface PlanRadio {
+  name: string
+  channel: number
+  widthMhz: number
+  band?: string
 }
 
 // ChannelAnalysisView (#542): vista del análisis de canales (réplica del LuCI).
@@ -1218,10 +1226,12 @@ function ChannelAnalysisView({
   over,
   band,
   scansByRouter,
+  radiosByRouter,
 }: {
   over: SurveyOverview
   band: SurveyBand
   scansByRouter: Record<string, Scan[]>
+  radiosByRouter: Record<string, PlanRadio[]>
 }) {
   const { t } = useTranslation()
   // Una sola banda activa a la vez (controlada desde el header del panel); si la
@@ -1232,6 +1242,12 @@ function ChannelAnalysisView({
   // con su aviso de "sin escaneos".
   const hasData = (rid: string) => (scansByRouter[rid] ?? []).length > 0
   const routers = over.routers.filter((r) => r.available).slice().sort((a, b) => (hasData(b.routerId) ? 1 : 0) - (hasData(a.routerId) ? 1 : 0))
+
+  // #602: ancho de canal de la radio propia, cruzando con el channel-plan.
+  const ownWidth = (routerId: string, band: string, channel: number): number => {
+    const r = (radiosByRouter[routerId] ?? []).find((x) => x.name === band && x.channel === channel)
+    return r && r.widthMhz > 0 ? r.widthMhz : 0
+  }
 
   if (routers.length === 0) {
     return <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">{t('roaming.survey.empty')}</div>
@@ -1291,7 +1307,13 @@ function ChannelAnalysisView({
                                 <span className="text-text-primary">{s.ssid || <em className="text-text-muted">hidden</em>}</span>
                               </span>
                             </td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">{s.channel}</td>
+                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">
+                              {s.channel}
+                              {s.own && (() => {
+                                const w = ownWidth(router.routerId, activeBand, s.channel)
+                                return w > 0 ? <span className="ml-1 text-caption text-text-muted">· {w} MHz</span> : null
+                              })()}
+                            </td>
                             <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.bssid}</td>
                             <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.freq} MHz</td>
                           </tr>
@@ -1331,15 +1353,20 @@ function SurveyPanel({
   // Vecinos por router (capa de la matriz survey, #538): cada router con
   // survey pide su canal-plan (scans) para superponer quién ocupa cada canal.
   const [scansByRouter, setScansByRouter] = useState<Record<string, Scan[]>>({})
+  const [radiosByRouter, setRadiosByRouter] = useState<Record<string, PlanRadio[]>>({})
   useEffect(() => {
     if (!overview?.available) return
     let active = true
     setScansByRouter({})
+    setRadiosByRouter({})
     for (const r of overview.routers) {
       if (!r.available) continue
       fetchJson<ChannelPlanData>(`/api/wifi/channel-plan?routerId=${encodeURIComponent(r.routerId)}`)
         .then((res) => {
-          if (res.ok && active) setScansByRouter((prev) => ({ ...prev, [r.routerId]: res.data.scans ?? [] }))
+          if (res.ok && active) {
+            setScansByRouter((prev) => ({ ...prev, [r.routerId]: res.data.scans ?? [] }))
+            setRadiosByRouter((prev) => ({ ...prev, [r.routerId]: res.data.radios ?? [] }))
+          }
         })
         .catch(() => { /* capa opcional: la matriz funciona solo con el survey */ })
     }
@@ -1412,7 +1439,7 @@ function SurveyPanel({
       </div>
 
       {/* Análisis de canales (#542): cascada de curvas + tabla de vecinos */}
-      <ChannelAnalysisView over={overview} band={band} scansByRouter={scansByRouter} />
+      <ChannelAnalysisView over={overview} band={band} scansByRouter={scansByRouter} radiosByRouter={radiosByRouter} />
 
       {/* Leyenda */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
