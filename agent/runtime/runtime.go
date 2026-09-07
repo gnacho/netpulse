@@ -193,7 +193,10 @@ func Run(ctx context.Context, opts Options) error {
 			a.setRunning(false)
 			return nil
 		case <-refreshCh:
-			// refresh inmediato pedido por el servidor
+			// refresh inmediato pedido por el servidor. Además del sondeo,
+			// forzamos el scan pasivo (no esperar al throttle #591): el
+			// usuario está mirando datos frescos de canales.
+			prober.ForceScan()
 		case <-time.After(client.Delay(opts.Interval)):
 		}
 	}

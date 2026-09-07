@@ -827,11 +827,19 @@ func TestParseUsteer(t *testing.T) {
 	if len(s.APs) != 2 {
 		t.Fatalf("esperaba 2 APs locales, obtuve %d", len(s.APs))
 	}
-	if !s.APs[0].Local {
-		t.Error("el AP local debería tener Local=true")
+	if !s.APs[0].Local || !s.APs[1].Local {
+		t.Error("los APs locales deberían tener Local=true")
 	}
-	if s.APs[0].BSSID != "9C:9D:7E:1B:EA:B3" {
-		t.Errorf("BSSID local = %q (esperaba uppercased)", s.APs[0].BSSID)
+	// Los BSSID deben ir en mayúsculas. Sin asumir orden (ParseUsteer itera
+	// un mapa): comprobar el conjunto de los dos APs locales.
+	got := map[string]bool{}
+	for _, ap := range s.APs {
+		got[ap.BSSID] = true
+	}
+	for _, want := range []string{"9C:9D:7E:1B:EA:B2", "9C:9D:7E:1B:EA:B3"} {
+		if !got[want] {
+			t.Errorf("falta el AP local %s (BSSID en mayúsculas): %v", want, s.APs)
+		}
 	}
 
 	// 2. APs remotos: hostname = IP de la clave, Local=false.
