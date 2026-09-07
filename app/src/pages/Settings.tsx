@@ -1018,7 +1018,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.sshKeyCaption')}</p>
         {pubkey && (
           <div className="mt-2.5 flex items-start gap-2">
-            <code className="min-w-0 flex-1 break-all rounded-lg bg-canvas px-3 py-2 font-mono text-[11px] leading-relaxed text-text-secondary">
+            <code className="min-w-0 flex-1 break-all rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-[11px] leading-relaxed text-text-secondary">
               {pubkey.publicKey}
             </code>
             <button
@@ -2166,7 +2166,7 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
             onChange={(e) => setDown(e.target.value)}
             disabled={disabled || loading}
             aria-label={t('settings.wanSpeed.down')}
-            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="mt-1 h-9 w-full rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
         <label className="block">
@@ -2178,7 +2178,7 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
             onChange={(e) => setUp(e.target.value)}
             disabled={disabled || loading}
             aria-label={t('settings.wanSpeed.up')}
-            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="mt-1 h-9 w-full rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
         {!disabled && (
@@ -2292,7 +2292,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [enabled, setEnabled] = useState(false)
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
-  const [serverId, setServerId] = useState('0')
+  const [serverUrl, setServerUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2309,7 +2309,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         setEnabled(!!d.enabled)
         if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
-        if (typeof d.serverId === 'number') setServerId(String(d.serverId))
+        if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
       })
       .catch(() => undefined)
       .finally(() => {
@@ -2321,9 +2321,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   }, [])
 
   const save = useCallback(async () => {
-    const raw = serverId.trim()
-    const sid = raw === '' || raw === '0' || raw.toLowerCase() === 'speedtest' ? 0 : Number(raw)
-    if (![6, 12, 24].includes(intervalHours) || !Number.isInteger(sid) || sid < 0 || alertPct < 0 || alertPct > 90) {
+    const raw = serverUrl.trim()
+    const urlOk = raw === '' || /^https?:\/\/.+\..+/.test(raw)
+    if (![12, 24, 168, 720].includes(intervalHours) || !urlOk || alertPct < 0 || alertPct > 90) {
       setError(t('settings.speedtest.invalid'))
       return
     }
@@ -2333,7 +2333,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       const res = await fetch('/api/settings/speedtest', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, intervalHours, serverId: sid, alertPct }),
+        body: JSON.stringify({ enabled, intervalHours, serverUrl, alertPct }),
       })
       if (!res.ok) {
         setError(t('settings.speedtest.saveError'))
@@ -2345,7 +2345,38 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [enabled, intervalHours, serverId, alertPct, onSaved, t])
+  }, [enabled, intervalHours, serverUrl, alertPct, onSaved, t])
+
+  // «Probar»: guarda la URL del servidor y lanza un test de velocidad
+  // inmediato (usa esa URL en el backend).
+  const testUrl = useCallback(async () => {
+    if (!serverUrl.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      const sRes = await fetch('/api/settings/speedtest', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, intervalHours, serverUrl, alertPct }),
+      })
+      if (!sRes.ok) {
+        setError(t('settings.speedtest.saveError'))
+        return
+      }
+      const runRes = await fetch('/api/speedtest/run', { method: 'POST' })
+      if (!runRes.ok) {
+        setError(t('settings.speedtest.testFailed'))
+        return
+      }
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    } catch {
+      setError(t('settings.speedtest.testFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }, [serverUrl, enabled, intervalHours, alertPct, onSaved, t])
 
   return (
     <div className="space-y-3">
@@ -2353,17 +2384,12 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         <div className="text-sm font-medium text-text-primary">{t('settings.speedtest.title')}</div>
         <div className="text-caption text-text-muted">{t('settings.speedtest.caption')}</div>
       </div>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-label uppercase text-text-muted">{t('settings.speedtest.enabled')}</span>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          disabled={disabled || loading}
-          aria-label={t('settings.speedtest.enabled')}
-          className="h-4 w-4 accent-[rgb(var(--accent))]"
-        />
-      </label>
+      <SwitchRow
+        label={t('settings.speedtest.enabled')}
+        checked={enabled}
+        onCheckedChange={(v) => setEnabled(v)}
+        disabled={disabled || loading}
+      />
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.speedtest.interval')}</span>
@@ -2374,9 +2400,13 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             aria-label={t('settings.speedtest.interval')}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
-            {[6, 12, 24].map((h) => (
+            {[12, 24, 168, 720].map((h) => (
               <option key={h} value={h}>
-                {t('settings.speedtest.intervalH', { hours: h })}
+                {h === 168
+                  ? t('settings.speedtest.intervalWeek')
+                  : h === 720
+                    ? t('settings.speedtest.intervalMonth')
+                    : t('settings.speedtest.intervalH', { hours: h })}
               </option>
             ))}
           </select>
@@ -2400,17 +2430,17 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         <div className="mt-1 flex items-center gap-2">
           <input
             type="text"
-            inputMode="text"
-            value={serverId === '0' || serverId === '' ? 'speedtest' : serverId}
-            onChange={(e) => setServerId(e.target.value)}
+            inputMode="url"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
             disabled={disabled || loading}
-            placeholder="speedtest"
+            placeholder="https://speedtest.net"
             aria-label={t('settings.speedtest.serverId')}
             className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <button
             type="button"
-            onClick={() => setServerId('0')}
+            onClick={() => setServerUrl('')}
             disabled={disabled || loading}
             title={t('settings.speedtest.serverRestore')}
             aria-label={t('settings.speedtest.serverRestore')}
@@ -2418,6 +2448,15 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           >
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
             <span className="hidden sm:inline">{t('settings.speedtest.serverRestore')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void testUrl()}
+            disabled={disabled || busy || loading || !serverUrl.trim()}
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Gauge className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.speedtest.test')}
           </button>
         </div>
       </div>
@@ -4470,7 +4509,7 @@ export default function Settings() {
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {[
                     { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
-                    { icon: FileText, label: t('settings.about.changelog'), href: 'https://netpulse.cloudless.club' },
+                    { icon: FileText, label: t('settings.about.visitWeb'), href: 'https://netpulse.cloudless.club' },
                     { icon: Heart, label: t('settings.about.madeAtHome'), href: 'https://ko-fi.com/gnacho' },
                     { icon: ShieldCheck, label: t('settings.about.privacy'), href: 'https://cloudless.club' },
                   ].map((item, i) => {

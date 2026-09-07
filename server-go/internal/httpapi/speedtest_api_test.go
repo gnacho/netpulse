@@ -29,7 +29,7 @@ type fakeRunner struct {
 	release chan struct{}
 }
 
-func (f fakeRunner) Run(ctx context.Context, serverID int) (speedtest.Result, error) {
+func (f fakeRunner) Run(ctx context.Context, serverURL string) (speedtest.Result, error) {
 	if f.release != nil {
 		<-f.release
 	}
@@ -115,7 +115,7 @@ func TestSpeedtestSettingsRoundtrip(t *testing.T) {
 	srv := makeSpeedtestServer(t, fakeRunner{})
 	cookie := adminCookie(t, srv)
 	res, body := speedtestRequest(t, "PUT", srv.URL, "/api/settings/speedtest", cookie,
-		`{"enabled":true,"intervalHours":12,"serverId":0,"alertPct":50}`)
+		`{"enabled":true,"intervalHours":12,"serverUrl":"https://speedtest.example.com","alertPct":50}`)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("PUT: status %d (%v)", res.StatusCode, body)
 	}

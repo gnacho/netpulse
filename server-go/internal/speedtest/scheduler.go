@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,17 +42,17 @@ const (
 
 // Settings persistidas en kv (claves settings.speedtest.*).
 type Settings struct {
-	Enabled       bool `json:"enabled"`
-	IntervalHours int  `json:"intervalHours"`
-	ServerID      int  `json:"serverId"`
-	AlertPct      int  `json:"alertPct"`
+	Enabled       bool   `json:"enabled"`
+	IntervalHours int    `json:"intervalHours"`
+	ServerURL     string `json:"serverUrl"`
+	AlertPct      int    `json:"alertPct"`
 }
 
 // Claves kv (mismo formato que settings.wan.speed_* de #151).
 const (
 	kvEnabled   = "settings.speedtest.enabled"
 	kvInterval  = "settings.speedtest.interval_h"
-	kvServerID  = "settings.speedtest.server_id"
+	kvServerURL = "settings.speedtest.server_url"
 	kvAlertPct  = "settings.speedtest.alert_pct"
 	kvContractD = "settings.wan.speed_down" // del issue #151 (lectura)
 )
@@ -156,7 +158,7 @@ func (s *Scheduler) executeLocked(st Settings, origin string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
-	res, err := s.runner.Run(ctx, st.ServerID)
+	res, err := s.runner.Run(ctx, st.ServerURL)
 	if err != nil {
 		s.setLastError(err)
 		return err
@@ -264,8 +266,8 @@ func (s *Scheduler) LoadSettings() Settings {
 	if v, ok := kvInt(s.db, kvInterval); ok && validInterval(v) {
 		st.IntervalHours = v
 	}
-	if v, ok := kvInt(s.db, kvServerID); ok && v > 0 {
-		st.ServerID = v
+	if v := kvGet(s.db, kvServerURL); v != "" {
+		st.ServerURL = v
 	}
 	if v, ok := kvInt(s.db, kvAlertPct); ok && v >= 0 && v <= 90 {
 		st.AlertPct = v
@@ -278,15 +280,15 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 	if !validInterval(st.IntervalHours) {
 		return fmt.Errorf("intervalo inválido (%d): permite %v", st.IntervalHours, ValidIntervals)
 	}
-	if st.ServerID < 0 {
-		return errors.New("serverId no puede ser negativo")
+	if strings.TrimSpace(st.ServerURL) != "" && !validServerURL(st.ServerURL) {
+		return errors.New("serverUrl debe ser una URL http(s) válida")
 	}
 	if st.AlertPct < 0 || st.AlertPct > 90 {
 		return errors.New("alertPct debe estar entre 0 y 90 (0 = desactivada)")
 	}
 	kvSet(s.db, kvEnabled, boolStr(st.Enabled))
 	kvSet(s.db, kvInterval, fmt.Sprintf("%d", st.IntervalHours))
-	kvSet(s.db, kvServerID, fmt.Sprintf("%d", st.ServerID))
+	kvSet(s.db, kvServerURL, strings.TrimSpace(st.ServerURL))
 	kvSet(s.db, kvAlertPct, fmt.Sprintf("%d", st.AlertPct))
 	return nil
 }
@@ -298,6 +300,15 @@ func validInterval(v int) bool {
 		}
 	}
 	return false
+}
+
+// validServerURL: la URL del servidor de test debe ser http(s) con host.
+func validServerURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 func boolStr(b bool) string {
