@@ -44,6 +44,11 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
   }, [])
 
   const save = useCallback(async () => {
+    if (!cfg.botToken.trim() || !cfg.chatId.trim()) {
+      setError(t('settings.telegram.incomplete'))
+      setState('error')
+      return
+    }
     setState('saving')
     setError('')
     try {
@@ -71,9 +76,14 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
       setError('Network error')
       setState('error')
     }
-  }, [cfg, onSaved])
+  }, [cfg, onSaved, t])
 
   const test = useCallback(async () => {
+    if (!cfg.enabled) {
+      setError(t('settings.telegram.incomplete'))
+      setState('error')
+      return
+    }
     setState('testing')
     setError('')
     try {
@@ -90,7 +100,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
       setError('Network error')
       setState('error')
     }
-  }, [])
+  }, [cfg.enabled, t])
 
   if (state === 'loading') {
     return bare ? (
@@ -139,7 +149,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
                 value={cfg.botToken}
                 onChange={(e) => setCfg((c) => ({ ...c, botToken: e.target.value }))}
                 placeholder="123456:ABC-DEF1234..."
-                className="flex-1 rounded-md border border-border bg-canvas px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                className="flex-1 rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
               />
               <button
                 type="button"
@@ -167,7 +177,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
               value={cfg.chatId}
               onChange={(e) => setCfg((c) => ({ ...c, chatId: e.target.value }))}
               placeholder="-100123456789"
-              className="w-full rounded-md border border-border bg-canvas px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
             {chatName && (
               <p className="mt-1 text-[10px] text-text-muted">
@@ -187,7 +197,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
           <button
             type="button"
             onClick={() => void save()}
-            disabled={busy || !cfg.botToken || !cfg.chatId}
+            disabled={busy}
             className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
@@ -197,8 +207,8 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
           <button
             type="button"
             onClick={() => void test()}
-            disabled={busy || !cfg.enabled}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={busy}
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'testing' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -235,7 +245,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
                 value={cfg.botToken}
                 onChange={(e) => setCfg((c) => ({ ...c, botToken: e.target.value }))}
                 placeholder="123456:ABC-DEF1234..."
-                className="flex-1 rounded-md border border-border bg-canvas px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                className="flex-1 rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
               />
               <button
                 type="button"
@@ -262,7 +272,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
               value={cfg.chatId}
               onChange={(e) => setCfg((c) => ({ ...c, chatId: e.target.value }))}
               placeholder="-100123456789"
-              className="w-full rounded-md border border-border bg-canvas px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
             {chatName && (
               <p className="mt-1 text-[10px] text-text-muted">
@@ -282,7 +292,7 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
           <button
             type="button"
             onClick={() => void save()}
-            disabled={busy || !cfg.botToken || !cfg.chatId}
+            disabled={busy}
             className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'saving' ? (
@@ -296,8 +306,8 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
           <button
             type="button"
             onClick={() => void test()}
-            disabled={busy || !cfg.enabled}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={busy}
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {state === 'testing' ? (
               <Loader2 className="h-4 w-4 animate-spin" />

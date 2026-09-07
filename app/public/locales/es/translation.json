@@ -1095,7 +1095,8 @@
       "chatId": "ID del chat",
       "bot": "Bot",
       "chat": "Chat",
-      "sendTest": "Enviar prueba"
+      "sendTest": "Enviar prueba",
+      "incomplete": "Completa el token del bot y el ID del chat o activa las notificaciones"
     },
     "pwa": {
       "caption": "App instalable · PWA",

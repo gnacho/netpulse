@@ -755,7 +755,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setHost(e.target.value)}
             placeholder={t('settings.routers.host')}
             aria-label={t('settings.routers.host')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
             type="text"
@@ -763,10 +763,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setName(e.target.value)}
             placeholder={t('settings.routers.name')}
             aria-label={t('settings.routers.name')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
-            type="number"
+            type="text"
             min={1}
             max={65535}
             value={addSshPort}
@@ -774,7 +774,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             placeholder={t('settings.routers.sshPort')}
             aria-label={t('settings.routers.sshPort')}
             title={t('settings.routers.sshPortHint')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -833,7 +833,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditHost(e.target.value)}
                   placeholder={t('settings.routers.host')}
                   aria-label={t('settings.routers.host')}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
                 <input
                   type="text"
@@ -841,7 +841,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder={t('settings.routers.name')}
                   aria-label={t('settings.routers.name')}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
               </div>
               <div>
@@ -850,14 +850,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 </label>
                 <input
                   id="ssh-port"
-                  type="number"
+                  type="text"
                   min={1}
                   max={65535}
                   value={editSshPort}
                   onChange={(e) => setEditSshPort(Number(e.target.value))}
                   aria-label={t('settings.routers.sshPort')}
                   title={t('settings.routers.sshPortHint')}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -892,7 +892,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditFirmwareTarget(e.target.value)}
                   placeholder={t('settings.routers.firmwareTargetPlaceholder')}
                   aria-label={t('settings.routers.firmwareTarget')}
-                  className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
                 <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
               </div>
@@ -915,7 +915,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           onChange={(e) => setEditSnmpCommunity(e.target.value)}
                           placeholder="public"
                           aria-label={t('settings.routers.snmpCommunity')}
-                          className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                          className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                         />
                       </div>
                         <div>
@@ -924,13 +924,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           </label>
                           <input
                             id="snmp-port"
-                            type="number"
+                            type="text"
                             min={1}
                             max={65535}
                             value={editSnmpPort}
                             onChange={(e) => setEditSnmpPort(Number(e.target.value))}
                             aria-label={t('settings.routers.snmpPort')}
-                            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                           />
                         </div>
                         <div>
@@ -939,13 +939,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           </label>
                           <input
                             id="snmp-poll-interval"
-                            type="number"
+                            type="text"
                             min={10}
                             max={3600}
                             value={editSnmpPollInterval}
                             onChange={(e) => setEditSnmpPollInterval(Number(e.target.value))}
                             aria-label={t('settings.routers.snmpPollInterval')}
-                            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                           />
                         </div>
                     </div>
@@ -1257,7 +1257,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
                   placeholder={t('settings.users.newPassword')}
                   aria-label={t('settings.users.newPassword')}
                   autoComplete="new-password"
-                  className="min-w-0 flex-1 rounded-lg border border-border bg-canvas px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
                 <button
                   type="submit"
@@ -1293,7 +1293,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
             onChange={(e) => setNewUser(e.target.value)}
             placeholder={t('settings.users.username')}
             aria-label={t('settings.users.username')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
             type="password"
@@ -1304,7 +1304,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
             placeholder={t('settings.users.password')}
             aria-label={t('settings.users.password')}
             autoComplete="new-password"
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -1449,7 +1449,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             value={mode}
             onChange={(e) => setMode(e.target.value as 'glinet' | 'standard')}
             aria-label={t('settings.adguard.mode')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
             <option value="glinet">{t('settings.adguard.modeGlinet')}</option>
             <option value="standard">{t('settings.adguard.modeStandard')}</option>
@@ -1461,11 +1461,11 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setHost(e.target.value)}
             placeholder={mode === 'glinet' ? t('settings.adguard.hostGlinet') : t('settings.adguard.hostStandard')}
             aria-label={t('settings.adguard.host')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           {mode === 'standard' && (
             <input
-              type="number"
+              type="text"
               min={1}
               max={65535}
               required
@@ -1473,7 +1473,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               onChange={(e) => setPort(e.target.value)}
               placeholder={t('settings.adguard.port')}
               aria-label={t('settings.adguard.port')}
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           )}
           <input
@@ -1482,7 +1482,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setUser(e.target.value)}
             placeholder={mode === 'glinet' ? t('settings.adguard.userGlinet') : t('settings.adguard.userStandard')}
             aria-label={t('settings.adguard.user')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
             type="password"
@@ -1491,7 +1491,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             placeholder={passSet ? t('settings.adguard.passKeep') : t('settings.adguard.pass')}
             aria-label={t('settings.adguard.pass')}
             autoComplete="new-password"
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -1646,7 +1646,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setURL(e.target.value)}
             placeholder="https://192.168.1.100:8006"
             aria-label={t('settings.proxmox.url')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <input
@@ -1655,7 +1655,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               onChange={(e) => setTokenId(e.target.value)}
               placeholder="root@pam!netpulse"
               aria-label={t('settings.proxmox.tokenId')}
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
             <input
               type="password"
@@ -1664,7 +1664,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               placeholder={tokenSet ? t('settings.proxmox.secretKeep') : t('settings.proxmox.secret')}
               aria-label={t('settings.proxmox.secret')}
               autoComplete="new-password"
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           </div>
         </div>
@@ -2126,31 +2126,25 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.down')}</span>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0.1"
-            max="100000"
-            step="any"
             value={down}
             onChange={(e) => setDown(e.target.value)}
             disabled={disabled || loading}
             aria-label={t('settings.wanSpeed.down')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.up')}</span>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0.1"
-            max="100000"
-            step="any"
             value={up}
             onChange={(e) => setUp(e.target.value)}
             disabled={disabled || loading}
             aria-label={t('settings.wanSpeed.up')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
         {!disabled && (
@@ -2169,7 +2163,7 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
                 type="button"
                 onClick={() => void runTest()}
                 disabled={disabled || busy || loading}
-                className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-canvas px-3 text-[13px] font-medium text-text-primary transition-colors hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-primary transition-colors hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Gauge className="h-4 w-4" strokeWidth={1.75} />
                 {t('settings.wanSpeed.runTest')}
@@ -2293,7 +2287,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   }, [])
 
   const save = useCallback(async () => {
-    const sid = Number(serverId)
+    const raw = serverId.trim()
+    const sid = raw === '' || raw === '0' || raw.toLowerCase() === 'speedtest' ? 0 : Number(raw)
     if (![6, 12, 24].includes(intervalHours) || !Number.isInteger(sid) || sid < 0 || alertPct < 0 || alertPct > 90) {
       setError(t('settings.speedtest.invalid'))
       return
@@ -2343,7 +2338,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             onChange={(e) => setIntervalHours(Number(e.target.value))}
             disabled={disabled || loading}
             aria-label={t('settings.speedtest.interval')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
             {[6, 12, 24].map((h) => (
               <option key={h} value={h}>
@@ -2355,16 +2350,13 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
           <input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min="0"
-            max="90"
-            step="1"
             value={alertPct}
             onChange={(e) => setAlertPct(Number(e.target.value))}
             disabled={disabled || loading}
             aria-label={t('settings.speedtest.alertPctLabel')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           />
         </label>
       </div>
@@ -2373,16 +2365,14 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         <span className="text-label uppercase text-text-muted">{t('settings.speedtest.serverId')}</span>
         <div className="mt-1 flex items-center gap-2">
           <input
-            type="number"
-            inputMode="numeric"
-            min="0"
-            step="1"
-            value={serverId}
+            type="text"
+            inputMode="text"
+            value={serverId === '0' || serverId === '' ? 'speedtest' : serverId}
             onChange={(e) => setServerId(e.target.value)}
             disabled={disabled || loading}
             placeholder="speedtest"
             aria-label={t('settings.speedtest.serverId')}
-            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <button
             type="button"
@@ -3452,7 +3442,7 @@ function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               type="text"
-              className="h-9 rounded-lg border border-border bg-canvas px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+              className="h-9 rounded-lg border border-border bg-elevated px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
               placeholder={t('settings.labs.namePlaceholder')}
               value={addName}
               onChange={(e) => setAddName(e.target.value)}
@@ -3460,7 +3450,7 @@ function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
             />
             <input
               type="text"
-              className="h-9 rounded-lg border border-border bg-canvas px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+              className="h-9 rounded-lg border border-border bg-elevated px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
               placeholder={t('settings.routers.host')}
               value={addHost}
               onChange={(e) => setAddHost(e.target.value)}
