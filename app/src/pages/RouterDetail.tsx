@@ -132,7 +132,7 @@ export default function RouterDetail() {
             </div>
           </section>
         ) : (
-          <RouterPerformance router={router} />
+          <RouterPerformance router={router} liveSeries={detail?.series} totalRamMb={detail?.extras?.ramMb} />
         )}
       </div>
 

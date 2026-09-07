@@ -311,15 +311,26 @@ export function perfSeries(router: Router, range: '1h' | '24h' | '7d'): PerfPoin
   return points
 }
 
-export function perfCaptions(router: Router, data: PerfPoint[]): { cpu: string; ram: string; temp: string } {
-  const extras = getRouterExtras(router.id)
-  if (data.length === 0) throw new Error('perfCaptions: empty perf series')
+export function perfCaptions(router: Router, data: PerfPoint[], totalMb?: number): { cpu: string; ram: string; temp: string } {
+  // totalMb es la RAM total real (live, del backend). En demo (sin totalMb)
+  // se usa el resolver demo, igual que antes.
+  const total = totalMb && totalMb > 0 ? totalMb : getRouterExtras(router.id).ramMb
+  if (data.length === 0) {
+    const cpu = router.cpu ?? 0
+    const temp = router.temp ?? 0
+    const ramUsed = Math.round(((router.ram ?? 0) / 100) * total)
+    return {
+      cpu: i18n.t('routerDetail.perf.peakCpu', { pct: cpu, t: '—' }),
+      ram: i18n.t('routerDetail.perf.ramUsed', { used: ramUsed, total }),
+      temp: i18n.t('routerDetail.perf.maxTemp', { temp }),
+    }
+  }
   const cpuMax = data.reduce((m, p) => (p.cpu > m.cpu ? p : m), data[0]!)
   const tempMax = data.reduce((m, p) => (p.temp > m.temp ? p : m), data[0]!)
-  const ramUsed = Math.round(((router.ram ?? 0) / 100) * extras.ramMb)
+  const ramUsed = Math.round(((router.ram ?? 0) / 100) * total)
   return {
     cpu: i18n.t('routerDetail.perf.peakCpu', { pct: cpuMax.cpu, t: cpuMax.t }),
-    ram: i18n.t('routerDetail.perf.ramUsed', { used: ramUsed, total: extras.ramMb }),
+    ram: i18n.t('routerDetail.perf.ramUsed', { used: ramUsed, total }),
     temp: i18n.t('routerDetail.perf.maxTemp', { temp: tempMax.temp }),
   }
 }

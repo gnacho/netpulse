@@ -3,6 +3,8 @@ import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, Responsiv
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import type { Router } from '@/data/mock'
+import type { PerfSeriesLive } from '@/data/DataProvider'
+import { useNetPulse } from '@/data/DataProvider'
 import { CountUp } from '@/components/CountUp'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -58,13 +60,26 @@ function PerfTooltip({
   )
 }
 
-/** ② Rendimiento (router-detail.md §②) — 3 áreas con crosshair sincronizado. */
-export function RouterPerformance({ router }: { router: Router }) {
+/** ② Rendimiento (router-detail.md §②) — 3 áreas con crosshair sincronizado.
+ * En live usa las series reales que sirve el backend (por router y rango);
+ * en demo conserva la serie sintética canónica. */
+export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: Router; liveSeries?: PerfSeriesLive; totalRamMb?: number }) {
   const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
   const [range, setRange] = useState<PerfRange>('24h')
   const reduce = useReducedMotion()
-  const data = useMemo(() => perfSeries(router, range), [router, range])
-  const captions = useMemo(() => perfCaptions(router, data), [router, data])
+  const data = useMemo(() => {
+    if (isDemo) return perfSeries(router, range)
+    const pts = liveSeries?.[range]
+    if (pts && pts.length > 0) return pts as PerfPoint[]
+    // Sin historia todavía (router recién dado de alta): un punto con el
+    // valor actual para que el gráfico y los captions no se rompan.
+    return [{ t: '', cpu: router.cpu ?? 0, ram: router.ram ?? 0, temp: router.temp ?? 0 }]
+  }, [isDemo, router, range, liveSeries])
+  const captions = useMemo(
+    () => perfCaptions(router, data, isDemo ? undefined : totalRamMb),
+    [router, data, isDemo, totalRamMb],
+  )
 
   // #441: null cuando la fuente no reporta vitals (el panel no se monta,
   // pero el tipo lo exige); se normaliza a 0 para el render defensivo.
