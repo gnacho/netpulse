@@ -176,7 +176,7 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 | **11 — Paquete LuCI** | ✅ | `luci-app-netpulse`: estado local del agente (procd, UCI, logs, restart/rearm) + test connection + puente a la webapp |
 | **12 — Auditoría de seguridad** | ✅ | TRUST_PROXY, anti-replay en ingesta, body cap, password mínima 10 |
 | **13 — Auditoría de robustez** | ✅ | Single-flight GetOverview, SSE write deadline, race en sshpool.dial, %w wrapping |
-| **14 — Visibilidad WiFi/roaming** | ✅ | Matriz de señal DAWN, estado 802.11r por SSID, utilización por canal survey, feed persistente de eventos de roaming (30 días) |
+| **14 — Visibilidad WiFi/roaming** | ✅ | Matriz de señal DAWN, estado 802.11r por SSID, utilización por canal survey, feed persistente de eventos de roaming (30 días). Polish pendiente: claridad de la gráfica del análisis de canales ([#618](https://github.com/gnacho/netpulse/issues/618)) |
 | **15 — Informes** | 🔄 | Disponibilidad día/semana/mes. Pendiente: tráfico, actividad, resumen de alertas, exportación, e insights de red por cliente/VLAN ([#588](https://github.com/gnacho/netpulse/issues/588)) |
 | **16 — Alertas avanzadas** | 🔮 | Reglas custom por umbral, tipos nuevos (fallo de roaming, congestión de canal), silencio programado, email |
 | **17 — Escribir en routers** | 🔄 | Ownership UCI + apply seguro con rollback (#451), planificación de canales (#452), firmware upgrades (#453); índice completo de módulos (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, Batman, DPI) |

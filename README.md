@@ -184,7 +184,7 @@ block a device):
 | **11 — LuCI package** | ✅ | `luci-app-netpulse` shipped as `.ipk`/`.apk` on every release: local agent status/view (procd, UCI, logs, restart/rearm) + bridge to the web app |
 | **12 — Security audit** | ✅ | TRUST_PROXY, anti-replay on ingest, body cap, password min 10 |
 | **13 — Robustness audit** | ✅ | Single-flight GetOverview, SSE write deadline, sshpool dial race, error wrapping |
-| **14 — WiFi/roaming visibility** | ✅ | DAWN signal matrix, 802.11r status per SSID, channel utilization survey, persistent roaming events feed (30d) |
+| **14 — WiFi/roaming visibility** | ✅ | DAWN signal matrix, 802.11r status per SSID, channel utilization survey, persistent roaming events feed (30d). Polish pending: channel-analysis chart clarity ([#618](https://github.com/gnacho/netpulse/issues/618)) |
 | **15 — Reports** | 🔄 | Daily/week/month availability. Pending: traffic, activity, alert summary, export, and per-client/VLAN network insights ([#588](https://github.com/gnacho/netpulse/issues/588)) |
 | **16 — Advanced alerts** | 🔮 | Custom threshold rules, new alert types (roaming failure, channel congestion), scheduled silence, email |
 | **17 — Write to routers** | 🔄 | UCI ownership + safe apply with rollback (#451), channel planning (#452), firmware upgrades (#453); full module index (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, Batman, DPI) |
