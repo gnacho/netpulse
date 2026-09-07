@@ -69,10 +69,28 @@ import type { RouterExtras } from '@/components/routers/routerExtras'
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'demo'
 
+/** Punto de la serie real de rendimiento que sirve el backend (cpu/ram %,
+ * temp °C) agregado por bucket; `t` es la etiqueta ya formateada. */
+export interface LivePerfPoint {
+  t: string
+  cpu: number
+  ram: number
+  temp: number
+}
+
+/** Series 1h/24h/7d del detalle de router (live). En demo no llegan. */
+export interface PerfSeriesLive {
+  '1h'?: LivePerfPoint[]
+  '24h'?: LivePerfPoint[]
+  '7d'?: LivePerfPoint[]
+}
+
 export interface RouterDetailData {
   router: Router
   extras: RouterExtras
   clients: Device[]
+  /** Series reales de rendimiento del router (live; ausente en demo). */
+  series?: PerfSeriesLive
   /** Solo en el gateway */
   adguard?: AdGuardStats
   wireguard?: WireGuardStats
@@ -960,6 +978,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         backhaul?: RouterExtras['backhaul'] | null
         clients?: Device[]
         extras?: RouterExtras
+        series?: PerfSeriesLive
         adguard?: AdGuardStats
         wireguard?: WireGuardStats
         vlans?: VlanPort[]
@@ -975,6 +994,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         router: json.router,
         extras,
         clients: json.clients ?? [],
+        series: json.series,
         adguard: json.adguard,
         wireguard: json.wireguard,
         vlans: json.vlans,
