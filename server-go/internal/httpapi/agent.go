@@ -34,6 +34,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/reinstall"
+	"github.com/gnacho/netpulse/server-go/internal/uninstall"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
@@ -757,6 +758,80 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, reinstallResponse{
 		Slug: slug, Token: token, Installed: true, Recovered: recovered,
 		Message: map[bool]string{true: "agente instalado y empujando", false: "agente instalado; aún no ha empujado en 40 s"}[recovered],
+	})
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/agents/{slug}/uninstall — #624: desinstalar el agente nativo del
+// router vía SSH y olvidar su token. Es la inversa del reinstall: detiene y
+// deshabilita el init procd, borra binario/watchdog/env y la línea de cron,
+// y termina borrando el token del slug en kv (el agente ya no empujará).
+// Pensado para routers con poco espacio libre (p. ej. UniFi 6 Lite) donde el
+// reinstall no cabe y hay que liberar espacio antes de reinstalar.
+// ---------------------------------------------------------------------------
+
+type uninstallResponse struct {
+	Slug  string `json:"slug"`
+	Gone  bool   `json:"gone"` // el script SSH se ejecutó (agente fuera del router)
+	Token bool   `json:"token"` // el token del slug se revocó
+}
+
+func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !agentSlugRe.MatchString(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if s.db == nil || s.pool == nil {
+		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
+		return
+	}
+	// Igual que el reinstall: jamás desinstalar un agente embebido en NetGrip
+	// (lo gestiona el propio panel NetGrip del router).
+	if s.agentKindOf(slug) == "netgrip" {
+		writeError(w, http.StatusConflict, "netgrip_managed", "agente embebido en NetGrip: desinstálalo desde el panel NetGrip del propio router")
+		return
+	}
+
+	// Router del slug (misma resolución de host que usa rearm/reinstall).
+	host := ""
+	for _, rc := range routerstore.ListRouters(s.db.DB) {
+		if rc.ID == slug {
+			host = rc.Host
+			break
+		}
+	}
+	if host == "" {
+		writeError(w, http.StatusConflict, "router_unknown", "no hay router con ese slug en la tabla routers")
+		return
+	}
+	// Solamente agentes nativos OpenWrt: un managed-switch/external es un
+	// scraper sin el binario netpulse-agent → no se desinstala por SSH.
+	if !s.routerUpgradeable(slug) {
+		writeError(w, http.StatusConflict, "not_openwrt",
+			"este dispositivo no usa el agente nativo OpenWrt (scraper); quítalo con su propio mecanismo")
+		return
+	}
+
+	// Ejecutar la desinstalación en el router (idempotente; margen moderado).
+	if _, err := s.pool.Run(host, uninstall.Script(), 60*time.Second); err != nil {
+		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+		return
+	}
+
+	// Revocar el token del slug (el agente ya no volverá a empujar).
+	tokenRevoked := false
+	if res, err := s.db.Exec("DELETE FROM kv WHERE key = ?", agentTokenKey(slug)); err == nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			tokenRevoked = true
+		}
+	}
+	if s.agents != nil {
+		s.agents.Forget(slug)
+	}
+
+	writeJSON(w, http.StatusOK, uninstallResponse{
+		Slug: slug, Gone: true, Token: tokenRevoked,
 	})
 }
 
