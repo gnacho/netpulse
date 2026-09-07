@@ -53,11 +53,15 @@ const PEER_ICONS: Record<PeerType, LucideIcon> = {
   portatil: Laptop,
   tablet: Tablet,
   sitio: Waypoints,
+  desconocido: Waypoints,
 }
 
 function PeerRow({ peer, index }: { peer: WGPeer; index: number }) {
   const { t } = useTranslation()
-  const Icon = PEER_ICONS[peer.type]
+  // #592: el servidor puede enviar un tipo no mapeado ("desconocido"/otro);
+  // sin fallback el <Icon/> sería undefined y React crasheaba ("Element type
+  // is invalid") con un cliente WireGuard activo, dejando la UI en negro.
+  const Icon = PEER_ICONS[peer.type] ?? Waypoints
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}

@@ -15,6 +15,7 @@ const PEER_ICONS: Record<PeerType, LucideIcon> = {
   portatil: Laptop,
   tablet: Tablet,
   sitio: Network,
+  desconocido: Network,
 }
 
 function PeerRow({ peer, index }: { peer: WGPeer; index: number }) {
