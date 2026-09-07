@@ -4240,10 +4240,10 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Paleta (2 columnas, con acento debajo) | densidad + animaciones (60%) */}
+              {/* Paleta (2 columnas) | acento + densidad + animaciones (60%) */}
               <div className="xl:col-span-3">
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  {/* Paleta en 2 columnas + acento debajo */}
+                  {/* Paleta en 2 columnas */}
                   <div className="flex flex-col gap-6">
                     <div>
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
@@ -4291,7 +4291,10 @@ export default function Settings() {
                         })}
                       </div>
                     </div>
+                  </div>
 
+                  {/* Acento + densidad + animaciones (a la derecha) */}
+                  <div className="flex flex-col gap-6">
                     {/* Acento (override fino sobre la paleta) */}
                     <div>
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
@@ -4320,28 +4323,27 @@ export default function Settings() {
                           )
                         })}
                       </div>
-                      <p className="mt-1.5 text-caption text-text-muted">{t('settings.accentCaption')}</p>
                     </div>
-                  </div>
 
-                  {/* Densidad + animaciones (a la derecha) */}
-                  <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.density')}</div>
-                    <div className="mt-2">
-                      <SegmentedControl
-                        options={[
-                          { value: 'comoda', label: t('settings.densityComfy') },
-                          { value: 'compacta', label: t('settings.densityCompact') },
-                        ]}
-                        value={density}
-                        onChange={(v) => {
-                          setDensity(v)
-                          notify()
-                        }}
-                        ariaLabel={t('settings.density')}
-                      />
+                    {/* Densidad */}
+                    <div>
+                      <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.density')}</div>
+                      <div className="mt-2">
+                        <SegmentedControl
+                          options={[
+                            { value: 'comoda', label: t('settings.densityComfy') },
+                            { value: 'compacta', label: t('settings.densityCompact') },
+                          ]}
+                          value={density}
+                          onChange={(v) => {
+                            setDensity(v)
+                            notify()
+                          }}
+                          ariaLabel={t('settings.density')}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-2 border-t border-border pt-1">
+                    <div className="border-t border-border pt-1">
                       <SwitchRow
                         label={t('settings.reduceMotion')}
                         caption={t('settings.reduceMotionCaption')}
