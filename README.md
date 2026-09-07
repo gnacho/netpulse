@@ -85,6 +85,28 @@ anomalies, and warns you.
 - **Optional collector sidecar**: TCP latency probes per router with its
   own long-term time series.
 
+## What's new
+
+Each release is pushed to the fleet through the built-in auto-updater. Newer
+versions surface a short, human-readable "what changed" panel in the app so
+you know what to expect before you update. Here is a running summary of the
+latest improvements, each linked to the GitHub issue that drove it.
+
+> These are written for people, not changelogs: what the feature does for you,
+> not the function names behind it.
+
+### Latest (v2.28.12)
+
+- **Set a custom SSH port per router** ([#605](https://github.com/gnacho/netpulse/issues/605)). Not every router keeps its SSH daemon on port 22 - some run it elsewhere. Now each router can be given its own SSH port when you add or edit it, and every server-side path (probing, actions, agent install, gateway discovery) uses it automatically. Leave it empty and NetPulse keeps using 22.
+- **Roaming matrix grouped per device** ([#600](https://github.com/gnacho/netpulse/issues/600)). In WiFi Roaming → Matrix, columns are now grouped under the access point's name, with a header row that labels each band (2.4G/5G). No more a loose column per AP-band.
+- **Cleaner 802.11r wording and no phantom devices** ([#601](https://github.com/gnacho/netpulse/issues/601)). The section title is now "By AP" instead of "By router", the column is "Device", and devices without radios (like the gateway) no longer show up in the per-router detail. Routers discovered automatically are also named after their hostname, not their hardware model, so the UI shows device names across the app.
+- **Own channel width in the channel scan** ([#602](https://github.com/gnacho/netpulse/issues/602)). In the channel analysis, the row for your own network now shows the channel width (for example `1 · 20 MHz`) next to the channel number, cross-referenced with the router's channel plan.
+- **The UI no longer goes black when a WireGuard client connects** ([#592](https://github.com/gnacho/netpulse/issues/592)). NetPulse reports a WireGuard peer's type as plain text, and uses "unknown" when it cannot match a type. The Home card built the peer icon with no fallback, so an unknown (or unmatched) peer produced a blank icon and React crashed the whole page the moment a WireGuard client connected (or when you opened the UI from a connected client). NetPulse now has a fallback icon for these, plus a known "unknown" type, so the page keeps rendering.
+
+### Earlier (v2.28.11)
+
+- **The agent no longer degrades your Wi-Fi while scanning** ([#591](https://github.com/gnacho/netpulse/issues/591)). The per-router agent used to run a full active Wi-Fi scan on every probe, so ~every 30-37s per device. On access points that pulls the radio off channel and drops IoT/weak clients. It now scans at most every 10 minutes, after boot, or immediately when the server asks for a refresh - and the embedded agent version bumps so the fleet updates itself.
+
 ### What gets discovered
 
 NetPulse discovers client devices from three sources that run on the monitored routers:

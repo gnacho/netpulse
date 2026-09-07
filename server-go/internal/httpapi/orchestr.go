@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -596,9 +597,16 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 // no hay NetGrip configurado o no responde (fallback a SSE); (false, error)
 // si NetGrip devolvió error explícito.
 func (s *server) applyViaNetGrip(routerID string, planID string, ops []executor.Op) (bool, error) {
-	host := s.hostOfRouter(routerID)
-	if host == "" {
+	sshHost := s.hostOfRouter(routerID)
+	if sshHost == "" {
 		return false, nil
+	}
+	// hostOfRouter devuelve "host:puerto_ssh" (SSHAddr, issue #605); NetGrip
+	// habla por HTTP en un puerto propio (8080), así que necesitamos solo el
+	// host. Cae por si el pool ya entrega un host pelado.
+	host := sshHost
+	if h, _, err := net.SplitHostPort(sshHost); err == nil {
+		host = h
 	}
 	execToken := ""
 	if s.db != nil {

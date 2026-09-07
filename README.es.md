@@ -86,6 +86,29 @@ visor global: analiza tu red, detecta anomalías y te avisa.
 - **Sidecar collector opcional**: sondeo de latencia TCP por router con
   sus propias series temporales de largo plazo.
 
+## Novedades
+
+Cada versión se empuja a la flota a través del actualizador automático
+incorporado. Las versiones nuevas muestran en la app un panel breve y en
+lenguaje humano de "qué ha cambiado" para que sepas qué esperar antes de
+actualizar. Aquí tienes un resumen en clave de las últimas mejoras, cada una
+enlazada al issue de GitHub que la originó.
+
+> Están escritas para personas, no como changelog: qué hace la función por ti,
+> no los nombres de las funciones internas.
+
+### Última (v2.28.12)
+
+- **Puerto SSH personalizado por router** ([#605](https://github.com/gnacho/netpulse/issues/605)). No todos los routers dejan el daemon SSH en el puerto 22: algunos lo tienen en otro. Ahora cada router admite su propio puerto SSH al darlo de alta o editarlo, y todos los caminos del servidor (sondeo, acciones, instalación del agente, descubrimiento del gateway) lo usan automáticamente. Déjalo vacío y NetPulse sigue usando el 22.
+- **Matriz de itinerancia agrupada por dispositivo** ([#600](https://github.com/gnacho/netpulse/issues/600)). En WiFi Roaming → Matriz, las columnas se agrupan ahora bajo el nombre del punto de acceso, con una fila de cabecera que etiqueta cada banda (2.4G/5G). Ya no hay una columna suelta por AP-banda.
+- **Nombres de 802.11r más claros y sin dispositivos fantasma** ([#601](https://github.com/gnacho/netpulse/issues/601)). El título de la sección pasa a "Por AP" en lugar de "Por router", la columna a "Dispositivo", y los equipos sin radios (como el gateway) ya no aparecen en el detalle por router. Los routers descubiertos automáticamente se nombran por su hostname, no por el modelo de hardware, así la UI muestra nombres de dispositivo en toda la app.
+- **Ancho de canal propio en el análisis de canales** ([#602](https://github.com/gnacho/netpulse/issues/602)). En el análisis de canales, la fila de tu propia red muestra ahora el ancho de canal (por ejemplo `1 · 20 MHz`) junto al número de canal, cruzado con el channel-plan del router.
+- **La UI ya no se queda en negro al conectarse un cliente WireGuard** ([#592](https://github.com/gnacho/netpulse/issues/592)). NetPulse envía el tipo de peer WireGuard como texto plano y usa "desconocido" cuando no encuentra tipo. La tarjeta de la Home construía el icono sin fallback, así que un peer desconocido (o no mapeado) producía un icono en blanco y React tiraba toda la página en cuanto un cliente WireGuard se conectaba (o al abrir la UI desde él). NetPulse tiene ahora un icono de respaldo para estos casos y un tipo "desconocido" conocido, así la página sigue renderizando.
+
+### Anterior (v2.28.11)
+
+- **El agente ya no degrada tu WiFi al escanear** ([#591](https://github.com/gnacho/netpulse/issues/591)). El agente por router lanzaba un escaneo WiFi activo completo en cada sondeo, es decir cada ~30-37 s por dispositivo. En puntos de acceso eso saca la radio del canal y suelta clientes IoT/débiles. Ahora escanea como mucho cada 10 minutos, tras el arranque, o de inmediato cuando el servidor pide un refresh, y la versión de agente embebida sube para que la flota se actualice sola.
+
 ### Qué se descubre
 
 NetPulse descubre dispositivos clientes a partir de tres fuentes que se ejecutan en los routers monitorizados:
