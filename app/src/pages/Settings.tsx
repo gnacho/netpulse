@@ -448,7 +448,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           host,
-          name: cand.model || undefined,
+          name: cand.hostname?.trim() || undefined,
           type: /GL[.-]?iNet|GL-[A-Z]/i.test(cand.model || '') ? 'glinet' : 'openwrt',
           gateway: cand.isGateway,
         }),
