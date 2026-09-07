@@ -1127,6 +1127,7 @@
       "name": "Nombre (opcional)",
       "role": "Rol",
       "actions": "Acciones",
+      "regenerateToken": "Regenerar token",
       "type": "Tipo",
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",

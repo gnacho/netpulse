@@ -14,7 +14,6 @@ export interface ServicesVisibility {
    *  activa/desactiva por separado y controla su entrada en el nav/sidebar. */
   canales: boolean
   actualizaciones: boolean
-  tokenRegen: boolean
 }
 
 const KEY = 'netpulse-services'
@@ -27,7 +26,6 @@ const DEFAULTS: ServicesVisibility = {
   // el admin las puede desactivar individualmente.
   canales: true,
   actualizaciones: true,
-  tokenRegen: true,
 }
 
 export function getServicesVisibility(): ServicesVisibility {

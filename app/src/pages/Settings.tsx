@@ -315,6 +315,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [addSshPort, setAddSshPort] = useState(22)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState<string | null>(null)
+  // Slugs con agente nativo (GET /api/agents): marcan qué routers tienen
+  // acceso root para poder regenerar su token (Labs).
+  const [agentSlugs, setAgentSlugs] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<ConfigRouter | null>(null)
   const [editHost, setEditHost] = useState('')
   const [editName, setEditName] = useState('')
@@ -340,14 +344,18 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/config/routers')
-      if (res.status === 401) {
+      const [rRes, aRes] = await Promise.all([fetch('/api/config/routers'), fetch('/api/agents')])
+      if (rRes.status === 401 || aRes.status === 401) {
         window.location.assign('/login')
         return
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = (await res.json()) as { routers: ConfigRouter[] }
+      if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`)
+      const json = (await rRes.json()) as { routers: ConfigRouter[] }
       setList(json.routers)
+      if (aRes.ok) {
+        const { agents } = (await aRes.json()) as { agents: Array<{ slug: string }> }
+        setAgentSlugs(new Set(agents.map((a) => a.slug)))
+      }
       setError(null)
     } catch {
       setError(t('settings.routers.errorGeneric'))
@@ -357,29 +365,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   }, [t])
 
   useEffect(() => {
-    let disposed = false
-    void (async () => {
-      try {
-        const res = await fetch('/api/config/routers')
-        if (res.status === 401) {
-          window.location.assign('/login')
-          return
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const json = (await res.json()) as { routers: ConfigRouter[] }
-        if (disposed) return
-        setList(json.routers)
-        setError(null)
-      } catch {
-        if (!disposed) setError(t('settings.routers.errorGeneric'))
-      } finally {
-        if (!disposed) setLoading(false)
-      }
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [t])
+    void load()
+  }, [load])
 
   // Clave pública SSH del servidor (para autorizarla en los routers)
   useEffect(() => {
@@ -581,6 +568,29 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }
 
+  // Regenerar token del agente (Labs): solo routers-agente con acceso root
+  // (openwrt/glinet nativos; switch gestionado y external no tienen SSH/root).
+  const regenerateToken = async (r: ConfigRouter) => {
+    if (regenerating) return
+    setRegenerating(r.id)
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: r.id }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const agent = (await res.json()) as { slug: string; token: string; install: string }
+      // Copia el token al portapapeles y refuerza la fila.
+      await copyToClipboard(agent.token)
+      onSaved()
+    } catch {
+      setError(t('settings.routers.errorGeneric'))
+    } finally {
+      setRegenerating(null)
+    }
+  }
+
   return (
     <Card
       title={t('settings.routers.title')}
@@ -676,6 +686,22 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                         >
                           <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
                         </button>
+                        {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
+                          <button
+                            type="button"
+                            onClick={() => void regenerateToken(r)}
+                            disabled={regenerating === r.id}
+                            aria-label={t('settings.routers.regenerateToken')}
+                            title={t('settings.routers.regenerateToken')}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger disabled:opacity-50"
+                          >
+                            {regenerating === r.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+                            ) : (
+                              <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+                            )}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteFor(r.id)}
@@ -2490,62 +2516,41 @@ function ServicesCard({
       </div>
 
       {services.labs && (
-        <div className="mt-4 space-y-2 border-t border-border pt-4">
-          {/* Orquestación (opt-in del admin) */}
-          <div className="rounded-xl bg-elevated px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="text-sm font-medium text-text-primary">{t('settings.admin.orchestration')}</span>
-                <p className="text-caption text-text-muted">{t('settings.services.orchestrationHint')}</p>
-              </div>
-              <Switch
-                checked={orchOn}
-                onCheckedChange={(v) => void toggleOrchestration(v)}
-                disabled={orchBusy || disabled}
-                aria-label={t('settings.admin.orchestration')}
-              />
-            </div>
+        <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-0 border-t border-border pt-4 sm:grid-cols-2">
+          <div className="divide-y divide-border/60">
+            {/* Orquestación (opt-in del admin) */}
+            <SwitchRow
+              label={t('settings.admin.orchestration')}
+              caption={t('settings.services.orchestrationHint')}
+              checked={orchOn}
+              onCheckedChange={(v) => void toggleOrchestration(v)}
+              disabled={orchBusy || disabled}
+            />
+            {/* Canales */}
+            <SwitchRow
+              label={t('settings.labs.canales')}
+              caption={t('settings.labs.canalesCaption')}
+              checked={services.canales}
+              disabled={disabled}
+              onCheckedChange={(v) => {
+                setService('canales', v)
+                onSaved()
+              }}
+            />
           </div>
-
-          {/* Funcionalidades Labs individuales (rediseño v3) */}
-          <SwitchRow
-            label={t('settings.labs.canales')}
-            caption={t('settings.labs.canalesCaption')}
-            checked={services.canales}
-            disabled={disabled}
-            onCheckedChange={(v) => {
-              setService('canales', v)
-              onSaved()
-            }}
-          />
-          <SwitchRow
-            label={t('settings.labs.actualizaciones')}
-            caption={t('settings.labs.actualizacionesCaption')}
-            checked={services.actualizaciones}
-            disabled={disabled}
-            onCheckedChange={(v) => {
-              setService('actualizaciones', v)
-              onSaved()
-            }}
-          />
-          <SwitchRow
-            icon={FlaskConical}
-            label={t('settings.labs.regenToken')}
-            caption={t('settings.labs.regenTokenCaption')}
-            checked={services.tokenRegen}
-            disabled={disabled}
-            onCheckedChange={(v) => {
-              setService('tokenRegen', v)
-              onSaved()
-            }}
-            trailing={
-              <span className="rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger">
-                {t('settings.labs.badge')}
-              </span>
-            }
-          />
-
-          <ExternalDevicesManager onSaved={onSaved} />
+          <div className="divide-y divide-border/60">
+            {/* Actualizaciones */}
+            <SwitchRow
+              label={t('settings.labs.actualizaciones')}
+              caption={t('settings.labs.actualizacionesCaption')}
+              checked={services.actualizaciones}
+              disabled={disabled}
+              onCheckedChange={(v) => {
+                setService('actualizaciones', v)
+                onSaved()
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -3196,368 +3201,6 @@ function AdoptionCard() {
   )
 }
 
-// --- External devices / scrapers (Labs, issue #154) ---
-
-interface ExternalDevice {
-  slug: string
-  host: string
-  type: RouterType
-  lastSeen: number | null
-  version: string
-  fresh: boolean
-  hasToken: boolean
-}
-
-function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
-  const { t, i18n } = useTranslation()
-  const { refresh } = useNetPulse()
-  const [devices, setDevices] = useState<ExternalDevice[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
-
-  // Add form
-  const [showAdd, setShowAdd] = useState(false)
-  const [addName, setAddName] = useState('')
-  const [addHost, setAddHost] = useState('')
-  const [addType, setAddType] = useState<RouterType>('managed-switch')
-  const [submitting, setSubmitting] = useState(false)
-
-  // Token reveal state
-  const [generatingFor, setGeneratingFor] = useState<string | null>(null)
-  const [revealed, setRevealed] = useState<{ slug: string; token: string } | null>(null)
-
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const [rRes, aRes] = await Promise.all([fetch('/api/config/routers'), fetch('/api/agents')])
-      if (!rRes.ok || !aRes.ok) throw new Error(`HTTP ${rRes.status}/${aRes.status}`)
-      const { routers } = (await rRes.json()) as { routers: ConfigRouter[] }
-      const { agents } = (await aRes.json()) as {
-        agents: Array<{ slug: string; lastSeen: number | null; version: string; fresh: boolean }>
-      }
-      const agentMap = new Map(agents.map((a) => [a.slug, a]))
-      const ext: ExternalDevice[] = []
-      for (const r of routers) {
-        if (!r.agent_only) continue
-        const a = agentMap.get(r.id)
-        ext.push({
-          slug: r.id,
-          host: r.host,
-          type: r.type,
-          lastSeen: a?.lastSeen ?? null,
-          version: a?.version ?? '',
-          fresh: a?.fresh ?? false,
-          hasToken: agentMap.has(r.id),
-        })
-      }
-      for (const a of agents) {
-        if (!ext.some((d) => d.slug === a.slug)) {
-          ext.push({
-            slug: a.slug,
-            host: '',
-            type: 'external',
-            lastSeen: a.lastSeen,
-            version: a.version,
-            fresh: a.fresh,
-            hasToken: true,
-          })
-        }
-      }
-      setDevices(ext)
-      setError(null)
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    } finally {
-      setLoading(false)
-    }
-  }, [t])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const create = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!addHost.trim() || submitting) return
-    const name = addName.trim() || addHost.trim()
-    setSubmitting(true)
-    setError(null)
-    try {
-      const rRes = await fetch('/api/config/routers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, host: addHost.trim(), type: addType, agent_only: true }),
-      })
-      if (rRes.status === 409) {
-        setError(t('settings.routers.errorDuplicate'))
-        setSubmitting(false)
-        return
-      }
-      if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`)
-      const { router } = (await rRes.json()) as { router: { id: string } }
-
-      const aRes = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: router.id }),
-      })
-      if (!aRes.ok) throw new Error(`HTTP ${aRes.status}`)
-      const agent = (await aRes.json()) as { slug: string; token: string; install: string }
-
-      setAddName('')
-      setAddHost('')
-      setAddType('managed-switch')
-      setShowAdd(false)
-      setRevealed({ slug: agent.slug, token: agent.token })
-      await load()
-      refresh()
-      onSaved()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('settings.routers.errorGeneric'))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const regenerate = async (slug: string) => {
-    setGeneratingFor(slug)
-    try {
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const agent = (await res.json()) as { slug: string; token: string; install: string }
-      setRevealed({ slug: agent.slug, token: agent.token })
-      await load()
-      onSaved()
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    } finally {
-      setGeneratingFor(null)
-    }
-  }
-
-  const remove = async (slug: string) => {
-    try {
-      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}`, { method: 'DELETE' })
-      if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`)
-      setConfirmDelete(null)
-      await load()
-      refresh()
-      onSaved()
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    }
-  }
-
-  const copy = async (text: string, label: string) => {
-    const ok = await copyToClipboard(text)
-    if (ok) {
-      setCopied(label)
-      window.setTimeout(() => setCopied(null), 1500)
-    }
-  }
-
-  const fmtLastSeen = (ts: number | null): string => {
-    if (!ts) return '\u2014'
-    const diff = Date.now() - ts * 1000
-    if (diff < 60_000) return t('settings.labs.justNow')
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
-    return new Date(ts * 1000).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' })
-  }
-
-  if (loading) return <p className="py-3 text-caption text-text-muted">{t('settings.labs.loading')}</p>
-
-  return (
-    <div className="space-y-4">
-      {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">{error}</p>}
-
-      {/* New token reveal */}
-      {revealed && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold text-text-primary">
-              {t('settings.labs.tokenFor', { slug: revealed.slug })}
-            </p>
-            <button
-              type="button"
-              onClick={() => setRevealed(null)}
-              className="rounded-lg p-1 text-text-muted hover:text-text-primary"
-              aria-label={t('settings.labs.dismiss')}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="mb-2 text-caption text-amber-600 dark:text-amber-400">{t('settings.labs.tokenOnce')}</p>
-          <div className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs break-all text-text-primary">
-            <span className="flex-1 select-all">{revealed.token}</span>
-            <button
-              type="button"
-              onClick={() => copy(revealed.token, 'token')}
-              className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-hover hover:text-accent"
-              aria-label={t('settings.labs.copyToken')}
-            >
-              {copied === 'token' ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          <p className="mt-2 text-caption text-text-muted">{t('settings.labs.ingestHint')}</p>
-          <pre className="mt-1 overflow-x-auto rounded-lg bg-elevated p-3 text-[11px] text-text-secondary">
-            {`curl -X POST http://${window.location.hostname}:3000/api/ingest/agent \\
-  -H 'Authorization: Bearer ${revealed.token}' \\
-  -H 'Content-Type: application/json' \\
-  -d '{...}'`}
-          </pre>
-        </div>
-      )}
-
-      {/* Device list */}
-      {devices.length === 0 ? (
-        <p className="py-2 text-caption text-text-muted">{t('settings.labs.empty')}</p>
-      ) : (
-        <div className="space-y-2">
-          {devices.map((d) => (
-            <div
-              key={d.slug}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-elevated px-4 py-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-medium text-text-primary">{d.slug}</span>
-                  {d.fresh && (
-                    <span className="inline-flex h-2 w-2 rounded-full bg-ok" title={t('settings.labs.fresh')} />
-                  )}
-                </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
-                  <span>{d.host || '\u2014'}</span>
-                  <span className="inline-flex rounded-full bg-elevated-alt px-2 py-0.5 text-[10px] font-medium text-text-secondary">
-                    {d.type}
-                  </span>
-                  <span>{t('settings.labs.lastSeen')}: {fmtLastSeen(d.lastSeen)}</span>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {d.hasToken ? (
-                  <button
-                    type="button"
-                    disabled={generatingFor === d.slug}
-                    onClick={() => regenerate(d.slug)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    {generatingFor === d.slug ? '\u2026' : t('settings.labs.rotateToken')}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => regenerate(d.slug)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-amber-600 transition-colors hover:bg-amber-500/10"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    {t('settings.labs.noToken')}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(d.slug)}
-                  className="rounded-lg p-1.5 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                  aria-label={`${t('settings.routers.delete')} ${d.slug}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Add button */}
-      {showAdd ? (
-        <form onSubmit={create} className="space-y-3 rounded-xl border border-border bg-elevated p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
-              type="text"
-              className="h-9 rounded-lg border border-border bg-elevated px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
-              placeholder={t('settings.labs.namePlaceholder')}
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              autoFocus
-            />
-            <input
-              type="text"
-              className="h-9 rounded-lg border border-border bg-elevated px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
-              placeholder={t('settings.routers.host')}
-              value={addHost}
-              onChange={(e) => setAddHost(e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <SegmentedControl
-              options={[
-                { value: 'managed-switch', label: t('settings.routers.typeManaged') },
-                { value: 'external', label: t('settings.routers.typeExternal') },
-              ]}
-              value={addType}
-              onChange={(v) => setAddType(v as RouterType)}
-              ariaLabel={t('settings.routers.type')}
-            />
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAdd(false)}
-                className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-text-muted hover:text-text-primary"
-              >
-                {t('settings.labs.cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || !addHost.trim()}
-                className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-canvas transition-opacity hover:opacity-90 disabled:opacity-40"
-              >
-                <Plus className="h-4 w-4" />
-                {submitting ? t('settings.routers.adding') : t('settings.labs.addDevice')}
-              </button>
-            </div>
-          </div>
-        </form>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowAdd(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-elevated/50 py-3 text-[13px] font-medium text-text-muted transition-colors hover:border-accent/50 hover:text-accent"
-        >
-          <Plus className="h-4 w-4" />
-          {t('settings.labs.addDevice')}
-        </button>
-      )}
-
-      {/* Delete confirmation */}
-      {confirmDelete && (
-        <AlertDialog open onOpenChange={() => setConfirmDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('settings.labs.deleteTitle')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('settings.labs.deleteDesc', { slug: confirmDelete })}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t('settings.labs.cancel')}</AlertDialogCancel>
-              <AlertDialogAction onClick={() => remove(confirmDelete)} className="bg-danger text-white hover:bg-danger/90">
-                {t('settings.routers.delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Rediseño columna única (mockup v3): etiqueta de sección con línea
@@ -4222,11 +3865,11 @@ export default function Settings() {
         {/* ② Apariencia: tema (40%) | paleta + acento + densidad (60%) */}
         <div className="order-20">
           <Card title={t('settings.appearance')} caption={t('settings.appearanceCaption')} index={0} reduce={reduce}>
-            <div className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
               {/* Tema (40%): 3 tarjetas en fila, previews que distinguen claro/oscuro/sistema */}
-              <div className="h-full xl:col-span-2">
+              <div className="xl:col-span-2">
                 <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.theme')}</div>
-                <div className="mt-2 grid h-full grid-cols-3 gap-2" role="radiogroup" aria-label={t('nav.theme')}>
+                <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('nav.theme')}>
                   {THEME_OPTIONS.map((opt) => {
                     const active = mode === opt.value
                     return (
@@ -4240,11 +3883,11 @@ export default function Settings() {
                           notify()
                         }}
                         className={cn(
-                          'group relative flex h-full flex-col gap-1.5 rounded-xl border p-1.5 text-left transition-colors duration-150',
+                          'group relative flex flex-col gap-1.5 rounded-xl border p-1.5 text-left transition-colors duration-150',
                           active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
                         )}
                       >
-                        <span className="relative block min-h-[120px] flex-1 overflow-hidden rounded-lg">
+                        <span className="relative block aspect-[4/3] overflow-hidden rounded-lg">
                           <ThemePreview variant={opt.value} />
                           {active && (
                             <motion.span
@@ -4267,13 +3910,13 @@ export default function Settings() {
               </div>
 
               {/* Paleta (2 columnas) | densidad + animaciones (60%) */}
-              <div className="h-full xl:col-span-3">
-                <div className="grid h-full grid-cols-1 gap-6 sm:grid-cols-2">
-                  {/* Paleta en 2 columnas, tarjetas altas (misma altura que Tema) */}
-                  <div className="flex h-full flex-col gap-6">
-                    <div className="flex h-full flex-col">
+              <div className="xl:col-span-3">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  {/* Paleta en 2 columnas, contenido ampliado */}
+                  <div className="flex flex-col gap-6">
+                    <div>
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
-                      <div className="mt-2 grid flex-1 grid-cols-2 grid-rows-2 gap-2">
+                      <div className="mt-2 grid grid-cols-2 gap-2">
                         {PALETTES.map((p) => {
                           const active = paletteId === p.id
                           return (
@@ -4288,7 +3931,7 @@ export default function Settings() {
                                 notify()
                               }}
                               className={cn(
-                                'group relative flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border px-2 py-5 transition-all duration-150',
+                                'group relative flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border px-2 py-4 transition-all duration-150',
                                 active
                                   ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
                                   : 'border-border hover:border-border-strong',
