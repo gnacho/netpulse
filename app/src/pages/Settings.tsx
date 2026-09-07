@@ -3912,8 +3912,8 @@ export default function Settings() {
               {/* Paleta (2 columnas) | densidad + animaciones (60%) */}
               <div className="xl:col-span-3">
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  {/* Paleta en 2 columnas, contenido ampliado */}
-                  <div className="flex flex-col gap-6">
+                  {/* Paleta en 2 columnas, tarjetas compactas (misma altura que Tema) */}
+                  <div className="flex flex-col gap-4">
                     <div>
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
                       <div className="mt-2 grid grid-cols-2 gap-2">
@@ -3931,29 +3931,29 @@ export default function Settings() {
                                 notify()
                               }}
                               className={cn(
-                                'group relative flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border px-2 py-4 transition-all duration-150',
+                                'group relative flex items-center gap-2 rounded-lg border px-2 py-2 transition-all duration-150',
                                 active
                                   ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
                                   : 'border-border hover:border-border-strong',
                               )}
                             >
-                              <span className="flex shrink-0 items-center gap-1.5">
+                              <span className="flex shrink-0 items-center gap-1">
                                 <span
-                                  className="h-4 w-4 rounded-full"
+                                  className="h-3.5 w-3.5 rounded-full"
                                   style={{ backgroundColor: `rgb(${p.dark.accent})` }}
                                 />
                                 <span
-                                  className="h-3 w-3 rounded-full"
+                                  className="h-2.5 w-2.5 rounded-full"
                                   style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
                                 />
                                 <span
-                                  className="ml-0.5 h-3 w-6 rounded"
+                                  className="ml-0.5 h-2.5 w-5 rounded"
                                   style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
                                 />
                               </span>
-                              <span className="text-xs font-medium text-text-primary">{t(p.labelKey)}</span>
+                              <span className="min-w-0 truncate text-[11px] font-medium text-text-primary">{t(p.labelKey)}</span>
                               {active && (
-                                <Check className="absolute right-2 top-2 h-3 w-3 shrink-0 text-accent" strokeWidth={2.5} />
+                                <Check className="ml-auto h-3 w-3 shrink-0 text-accent" strokeWidth={2.5} />
                               )}
                             </motion.button>
                           )
@@ -3962,8 +3962,8 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  {/* Densidad + animaciones (a la derecha) */}
-                  <div className="flex flex-col gap-6">
+                  {/* Densidad + Desactivar animaciones (a la derecha) */}
+                  <div className="flex flex-col gap-4">
                     {/* Densidad */}
                     <div>
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.density')}</div>
@@ -3985,7 +3985,6 @@ export default function Settings() {
                     <div className="border-t border-border pt-1">
                       <SwitchRow
                         label={t('settings.reduceMotion')}
-                        caption={t('settings.reduceMotionCaption')}
                         checked={reduceMotion}
                         onCheckedChange={(v) => {
                           setReduceMotion(v)

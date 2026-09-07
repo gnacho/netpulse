@@ -1117,7 +1117,7 @@
       "title": "NetPulse en tu pantalla de inicio",
       "compact": "Instala NetPulse como app: pantalla completa, sin barra del navegador y acceso instantáneo."
     },
-    "reduceMotion": "Reducir animaciones",
+    "reduceMotion": "Desactivar animaciones",
     "reduceMotionCaption": "Desactiva pulsos, tweens y entradas escalonadas",
     "routers": {
       "title": "Dispositivos",
