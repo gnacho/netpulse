@@ -1210,6 +1210,10 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		r.Status = "unreachable"
 		r.AccessMissing = true
 	}
+	if l.hostKeyChanged(cfg.ID) {
+		r.Status = "unreachable"
+		r.HostKeyChanged = true
+	}
 	return r
 }
 
@@ -1220,6 +1224,44 @@ func (l *Live) accessMissing(routerID string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return isAccessError(l.lastErr[routerID])
+}
+
+// hostKeyChanged: el último fallo de sondeo fue una clave SSH distinta a la
+// registrada (issue #603). El router está vivo; la conexión se rechaza hasta
+// que el admin confirme el re-onboard.
+func (l *Live) hostKeyChanged(routerID string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return isHostKeyError(l.lastErr[routerID])
+}
+
+// AcceptHostKey confirma el re-onboard de un router tras una host key cambiada
+// (#603): borra su entrada known_hosts (siguiente sondeo = TOFU) y resetea el
+// error para que el router deje de mostrarse como "host key changed".
+func (l *Live) AcceptHostKey(routerID string) error {
+	if l.pool == nil {
+		return errors.New("ssh pool no configurado")
+	}
+	l.mu.Lock()
+	var host string
+	for _, c := range l.routers {
+		if c.ID == routerID {
+			host = c.Host
+			break
+		}
+	}
+	l.mu.Unlock()
+	if host == "" {
+		return fmt.Errorf("router %q no configurado", routerID)
+	}
+	if err := l.pool.RemoveHostKey(host); err != nil {
+		return err
+	}
+	l.mu.Lock()
+	delete(l.lastErr, routerID)
+	l.failCount[routerID] = 0
+	l.mu.Unlock()
+	return nil
 }
 
 // isAccessError: ¿el error indica que el router RESPONDE pero el acceso
@@ -1243,6 +1285,17 @@ func isAccessError(err error) bool {
 		}
 	}
 	return false
+}
+
+// isHostKeyError: el router responde pero su host key no casa con la
+// registrada (issue #603). No es un fallo de acceso ni una caída: requiere
+// confirmación explícita de re-onboard.
+func isHostKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var hk *HostKeyChangedError
+	return errors.As(err, &hk) || strings.Contains(strings.ToLower(err.Error()), "re-onboard required")
 }
 
 // pollAll sondea todos los routers en paralelo (Promise.allSettled).
@@ -1309,9 +1362,10 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		// Alerta solo tras 2 fallos seguidos (un fallo suelto no es una caída).
 		// issue #257: un fallo de ACCESO (SSH responde pero la clave no está
 		// autorizada) no es una caída — el router está vivo; la UI lo marca
-		// como "sin acceso" y no merece una alerta crítica de offline.
-		accessErr := isAccessError(res.err)
-		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" && !accessErr {
+		// como "sin acceso" y no merece una alerta crítica de offline. Igual
+		// para una host key cambiada (#603): requiere re-onboard, no es offline.
+		quietErr := isAccessError(res.err) || isHostKeyError(res.err)
+		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" && !quietErr {
 			name := res.cfg.Name
 			if name == "" {
 				name = res.cfg.Host

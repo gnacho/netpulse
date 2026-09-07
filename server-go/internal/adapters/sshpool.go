@@ -89,14 +89,18 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 		}
 		var keyErr *knownhosts.KeyError
 		if errors.As(err, &keyErr) && len(keyErr.Want) > 0 {
-			// Clave cambiada (#567): el probe de discovery (ssh del sistema) y el
-			// pool (librería Go) pueden negociar un algoritmo de host-key distinto
-			// y comparten el mismo known_hosts. Antes se rechazaba (MITM), lo que
-			// bloqueaba routers cuyo swap/flash rotó la clave. En un monitor LAN
-			// self-hosted re-onboardamos con aviso (accept-new con refresh).
-			log.Printf("ssh %s: host key changed (%s -> %s); re-onboarding",
-				hostname, ssh.FingerprintSHA256(keyErr.Want[0].Key), ssh.FingerprintSHA256(key))
-			return p.refreshHostKey(hostname, key)
+			// Clave cambiada (#603): NO se auto-acepta. Una clave distinta en
+			// un host ya conocido es un evento de seguridad (posible MITM);
+			// el operador debe confirmar el re-onboard explícitamente tras
+			// verificar fuera de banda (p. ej. tras un flash del router). El
+			// error tipado alimenta el estado "host key changed" del router.
+			oldFP := ""
+			if len(keyErr.Want) > 0 {
+				oldFP = ssh.FingerprintSHA256(keyErr.Want[0].Key)
+			}
+			newFP := ssh.FingerprintSHA256(key)
+			log.Printf("ssh %s: host key changed (%s -> %s); re-onboard requerido", hostname, oldFP, newFP)
+			return &HostKeyChangedError{Host: hostname, OldFP: oldFP, NewFP: newFP}
 		}
 		// Host desconocido → accept-new
 		line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
@@ -110,12 +114,25 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 	}, nil
 }
 
-// refreshHostKey reemplaza la entrada known_hosts de un host por la clave nueva
-// (#567). Quita las líneas previas de ese host (la lista de hosts de una línea
-// puede ser separada por comas) y añade la nueva.
-func (p *SSHPool) refreshHostKey(hostname string, key ssh.PublicKey) error {
+// HostKeyChangedError: el host presenta una clave distinta a la registrada en
+// known_hosts. No se auto-acepta: la conexión se rechaza hasta que el admin
+// confirme el re-onboard (RemoveHostKey + siguiente sondeo hace TOFU).
+type HostKeyChangedError struct {
+	Host  string
+	OldFP string
+	NewFP string
+}
+
+func (e *HostKeyChangedError) Error() string {
+	return "ssh host key changed for " + e.Host + " (" + e.OldFP + " -> " + e.NewFP + "); re-onboard required"
+}
+
+// RemoveHostKey elimina la entrada known_hosts de un host (confirmación de
+// re-onboard #603). Quita las líneas previas de ese host (la lista de hosts
+// de una línea puede ser separada por comas); el siguiente sondeo la vuelve a
+// registrar con TOFU.
+func (p *SSHPool) RemoveHostKey(hostname string) error {
 	norm := knownhosts.Normalize(hostname)
-	line := knownhosts.Line([]string{norm}, key)
 	var keep []string
 	if data, err := os.ReadFile(p.khPath); err == nil {
 		for _, ln := range strings.Split(string(data), "\n") {
@@ -138,7 +155,6 @@ func (p *SSHPool) refreshHostKey(hostname string, key ssh.PublicKey) error {
 			}
 		}
 	}
-	keep = append(keep, line)
 	return os.WriteFile(p.khPath, []byte(strings.Join(keep, "\n")+"\n"), 0o600)
 }
 

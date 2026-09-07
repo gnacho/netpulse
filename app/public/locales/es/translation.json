@@ -562,6 +562,11 @@
     },
     "notFound": "Router no encontrado",
     "notFoundDesc": "No existe ningún equipo con el identificador «{{id}}».",
+    "hostKeyTitle": "Clave SSH del equipo cambiada",
+    "hostKeyBody": "La clave SSH que presenta este equipo no coincide con la registrada. Para protegerte de un posible ataque de intermediario (MITM), NetPulse ha bloqueado la conexión. Si acabas de reinstalar o flashear el equipo, confirma la nueva clave para volver a conectarte.",
+    "hostKeyConfirm": "Confirmar nueva clave",
+    "hostKeyBusy": "Confirmando…",
+    "hostKeyDone": "Clave aceptada: reconectando…",
     "perf": {
       "chartAria": "{{label}} de {{name}}, rango {{range}}. Valor actual {{value}} {{unit}}.",
       "maxTemp": "máx {{temp}} °C",

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams } from 'react-router'
-import { AlertTriangle, ArrowLeft, Gauge, Router as RouterIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Gauge, Router as RouterIcon, ShieldAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { relTime } from '@/i18n'
 import { useNetPulse } from '@/data/DataProvider'
 import type { RouterDetailData } from '@/data/DataProvider'
+import { useAuth } from '@/data/AuthContext'
 import { AdGuardPanel } from '@/components/routers/AdGuardPanel'
 import { BackhaulPanel } from '@/components/routers/BackhaulPanel'
 import { PortPanel } from '@/components/routers/PortPanel'
@@ -25,10 +26,26 @@ export default function RouterDetail() {
   const { id = '' } = useParams()
   const location = useLocation()
   const reduce = useReducedMotion()
+  const auth = useAuth()
+  const isAdmin = auth?.role === 'admin'
   const { routers, alerts, getRouterDetail } = useNetPulse()
   const router = routers.find((r) => r.id === id)
   const isGateway = router?.roleBadge === 'Principal'
   const [detail, setDetail] = useState<RouterDetailData | null>(null)
+  const [hkBusy, setHkBusy] = useState(false)
+  const [hkDone, setHkDone] = useState(false)
+
+  // #603: confirmación explícita del re-onboard tras una host key cambiada.
+  async function handleAcceptHostKey() {
+    if (hkBusy) return
+    setHkBusy(true)
+    try {
+      const res = await fetch(`/api/routers/${encodeURIComponent(id)}/accept-host-key`, { method: 'POST' })
+      if (res.status === 202 || res.status === 200) setHkDone(true)
+    } finally {
+      setHkBusy(false)
+    }
+  }
 
   // Detalle vivo del backend (extras: radios, bocas LAN con dispositivo, info)
   // NO se nullea al refrescar ni se sustituye si no cambia nada: evita
@@ -93,6 +110,35 @@ export default function RouterDetail() {
       <div className="lg:col-span-12">
         <RouterDetailHeader router={router} />
       </div>
+
+      {/* #603: host key cambiada → requiere re-onboard explícito (MITM) */}
+      {router.hostKeyChanged && (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.35 }}
+          className="lg:col-span-12"
+        >
+          <div role="alert" className="flex items-start gap-3 rounded-2xl border border-danger/50 bg-danger/10 px-5 py-4">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-danger" strokeWidth={1.75} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-danger">{t('routerDetail.hostKeyTitle')}</div>
+              <p className="mt-0.5 text-sm text-text-secondary">{t('routerDetail.hostKeyBody')}</p>
+              {hkDone && <p className="mt-1 text-sm font-medium text-ok">{t('routerDetail.hostKeyDone')}</p>}
+            </div>
+            {isAdmin && !hkDone && (
+              <button
+                type="button"
+                onClick={() => void handleAcceptHostKey()}
+                disabled={hkBusy}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-danger/40 bg-canvas px-3 py-2 text-sm font-semibold text-danger transition-colors hover:border-danger disabled:opacity-50"
+              >
+                {hkBusy ? t('routerDetail.hostKeyBusy') : t('routerDetail.hostKeyConfirm')}
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Banner contextual (Patio) */}
       {router.status === 'warn' && router.hotMetric === 'temp' && (

@@ -147,9 +147,9 @@ func genTestKey(t *testing.T) (ssh.Signer, ssh.PublicKey) {
 	return signer, pub
 }
 
-// TestRefreshHostKeyReplacesEntry: el refresh reemplaza la línea del host por la
-// clave nueva, conserva los demás hosts y deja UNA sola entrada (#567).
-func TestRefreshHostKeyReplacesEntry(t *testing.T) {
+// TestRemoveHostKeyEliminaEntrada: RemoveHostKey quita la línea del host,
+// conserva los demás hosts y deja el fichero sin esa entrada (#603).
+func TestRemoveHostKeyEliminaEntrada(t *testing.T) {
 	pool := newTestPool(t)
 	host := "host.example"
 	other := "other.example"
@@ -162,27 +162,24 @@ func TestRefreshHostKeyReplacesEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, newPub := genTestKey(t)
-	if err := pool.refreshHostKey(host, newPub); err != nil {
+	if err := pool.RemoveHostKey(host); err != nil {
 		t.Fatal(err)
 	}
 
 	data, _ := os.ReadFile(pool.khPath)
 	s := string(data)
-	if strings.Contains(s, oldLine) {
-		t.Fatal("la línea antigua del host no se eliminó")
+	if strings.Contains(s, knownhosts.Normalize(host)) {
+		t.Fatal("la entrada del host no se eliminó")
 	}
 	if !strings.Contains(s, otherLine) {
 		t.Fatal("se perdió un host no relacionado")
 	}
-	if n := strings.Count(s, knownhosts.Normalize(host)); n != 1 {
-		t.Fatalf("esperaba 1 entrada para %s, hay %d", host, n)
-	}
 }
 
-// TestHostKeyCallbackReOnboardsOnChangedKey: una clave conocida pero distinta
-// ya NO se rechaza; el callback re-onboarda (nil) y actualiza la entrada (#567).
-func TestHostKeyCallbackReOnboardsOnChangedKey(t *testing.T) {
+// TestHostKeyCallbackRejectsChangedKey: una clave conocida pero distinta NO se
+// acepta en silencio: el callback devuelve HostKeyChangedError y no toca el
+// known_hosts (#603). El re-onboard es una confirmación explícita del admin.
+func TestHostKeyCallbackRejectsChangedKey(t *testing.T) {
 	pool := newTestPool(t)
 	host := "host.example"
 	_, oldPub := genTestKey(t)
@@ -196,11 +193,13 @@ func TestHostKeyCallbackReOnboardsOnChangedKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, newPub := genTestKey(t)
-	if err := cb(host, &net.IPAddr{IP: net.ParseIP("1.2.3.4")}, newPub); err != nil {
-		t.Fatalf("callback devolvió error en clave cambiada: %v", err)
+	err = cb(host+":22", &net.TCPAddr{IP: net.ParseIP("1.2.3.4"), Port: 22}, newPub)
+	var hk *HostKeyChangedError
+	if !errors.As(err, &hk) {
+		t.Fatalf("clave cambiada debería devolver HostKeyChangedError, obtuve: %v", err)
 	}
 	data, _ := os.ReadFile(pool.khPath)
-	if !strings.Contains(string(data), knownhosts.Normalize(host)) {
-		t.Fatal("no se re-onboardó el host")
+	if !strings.Contains(string(data), oldLine) {
+		t.Fatal("el known_hosts no debería tocarse al rechazar la clave cambiada")
 	}
 }

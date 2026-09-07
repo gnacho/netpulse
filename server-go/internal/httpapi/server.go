@@ -36,13 +36,13 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
-	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
 	"github.com/gnacho/netpulse/server-go/internal/presence"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/security"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
@@ -316,6 +316,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/device-events", s.handleDeviceEvents)
 	mux.HandleFunc("GET /api/adguard/clients", s.handleAdguardClients)
 	mux.HandleFunc("GET /api/routers/{id}/ports/{portId}/series", s.handlePortSeries)
+	mux.Handle("POST /api/routers/{id}/accept-host-key", auth.RequireAdmin(http.HandlerFunc(s.handleAcceptHostKey)))
 	mux.HandleFunc("GET /api/devices/{mac}/traffic", s.handleDeviceTraffic)
 	mux.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	mux.HandleFunc("GET /api/reports/weekly", s.handleWeeklyReport)

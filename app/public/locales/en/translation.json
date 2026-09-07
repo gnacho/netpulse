@@ -562,6 +562,11 @@
     },
     "notFound": "Router not found",
     "notFoundDesc": "There is no device with the identifier \"{{id}}\".",
+    "hostKeyTitle": "SSH host key changed",
+    "hostKeyBody": "The SSH host key presented by this device no longer matches the recorded one. To protect against a man-in-the-middle attack, NetPulse has blocked the connection. If you just reinstalled or flashed the device, confirm the new key to reconnect.",
+    "hostKeyConfirm": "Confirm new key",
+    "hostKeyBusy": "Confirming…",
+    "hostKeyDone": "Key accepted: reconnecting…",
     "perf": {
       "chartAria": "{{label}} of {{name}}, range {{range}}. Current value {{value}} {{unit}}.",
       "maxTemp": "max {{temp}} °C",
