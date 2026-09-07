@@ -557,6 +557,15 @@ en informes accionables.
 4. **15.4 — Resumen de alertas**: conteo por categoría/severidad/tiempo.
    Tendencia (¿va mejorando la red?).
 5. **15.5 — Exportación**: CSV de tablas, PNG de gráficas.
+6. **15.6 — Insights de red (por cliente/VLAN)** ([#588](https://github.com/gnacho/netpulse/issues/588)):
+   respuesta del foro que pide "más insights de red": protocolos, conexiones,
+   tráfico, broadcasts, agrupados por cliente y por VLAN. Histórico a largo
+   plazo (sobre los datos ya colectados por `metrics_buckets`/`metrics_daily`)
+   + inspección en vivo de flujos (conversaciones por cliente/VLAN). La parte
+   de "live flows" es un complemento: se apoya en el **[DPI/ntopng
+   (17.11)**](#fase-17--escribir-en-los-routers-en-progreso-v260) una vez que
+   ese módulo exista, pero el núcleo (histórico por cliente/VLAN) se puede
+   abordar sin tocar los routers.
 
 **Deploy**: sin cambios en routers (los datos ya se colectan).
 
