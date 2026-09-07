@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.10] - 2026-09-07
+
+### Fixed
+
+- **El total de RAM del detalle de router siempre salía como 512 MB (#590)**: el caption "X MB usados de Y MB" se calculaba con el resolver de extras de demo (cuyo fallback para cualquier router desconocido es la entrada demo con 512 MB) aunque se estuviera en live. Ahora usa el `ramMb` real que devuelve el backend (`/api/routers/{id}`).
+
+### Added
+
+- **Panel de rendimiento con historia real en live**: el detalle de router ya mostraba las series reales (1h/24h/7d de cpu/ram/temp agregadas por el server) pero el front las ignoraba y pintaba la serie sintética de demo (siempre "picaba" a las 21:00 y partía del valor actual con ruido). Ahora, en live, las tres curvas usan la historia real por rango; la demo conserva su serie canónica. Sin historia todavía (router recién dado de alta) se muestra un punto con el valor actual sin romper el panel.
+
 ## [2.28.9] - 2026-09-06
 
 ### Changed
