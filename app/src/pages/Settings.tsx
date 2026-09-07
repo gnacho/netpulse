@@ -4183,11 +4183,11 @@ export default function Settings() {
         {/* ② Apariencia: tema (40%) | paleta + acento + densidad (60%) */}
         <div className="order-20">
           <Card title={t('settings.appearance')} caption={t('settings.appearanceCaption')} index={0} reduce={reduce}>
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+            <div className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-5">
               {/* Tema (40%): 3 tarjetas en fila, previews que distinguen claro/oscuro/sistema */}
-              <div className="xl:col-span-2">
+              <div className="h-full xl:col-span-2">
                 <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.theme')}</div>
-                <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('nav.theme')}>
+                <div className="mt-2 grid h-full grid-cols-3 gap-2" role="radiogroup" aria-label={t('nav.theme')}>
                   {THEME_OPTIONS.map((opt) => {
                     const active = mode === opt.value
                     return (
@@ -4201,11 +4201,11 @@ export default function Settings() {
                           notify()
                         }}
                         className={cn(
-                          'group relative flex flex-col gap-1.5 rounded-xl border p-1.5 text-left transition-colors duration-150',
+                          'group relative flex h-full flex-col gap-1.5 rounded-xl border p-1.5 text-left transition-colors duration-150',
                           active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
                         )}
                       >
-                        <span className="relative block aspect-[4/3] overflow-hidden rounded-lg">
+                        <span className="relative block min-h-[120px] flex-1 overflow-hidden rounded-lg">
                           <ThemePreview variant={opt.value} />
                           {active && (
                             <motion.span
@@ -4228,13 +4228,13 @@ export default function Settings() {
               </div>
 
               {/* Paleta (2 columnas) | densidad + animaciones (60%) */}
-              <div className="xl:col-span-3">
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  {/* Paleta en 2 columnas, tarjetas altas */}
-                  <div className="flex flex-col gap-6">
-                    <div>
+              <div className="h-full xl:col-span-3">
+                <div className="grid h-full grid-cols-1 gap-6 sm:grid-cols-2">
+                  {/* Paleta en 2 columnas, tarjetas altas (misma altura que Tema) */}
+                  <div className="flex h-full flex-col gap-6">
+                    <div className="flex h-full flex-col">
                       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="mt-2 grid flex-1 grid-cols-2 grid-rows-2 gap-2">
                         {PALETTES.map((p) => {
                           const active = paletteId === p.id
                           return (
@@ -4249,27 +4249,27 @@ export default function Settings() {
                                 notify()
                               }}
                               className={cn(
-                                'group relative flex flex-col items-center gap-2 rounded-lg border px-2 py-4 transition-all duration-150',
+                                'group relative flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border px-2 py-5 transition-all duration-150',
                                 active
                                   ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
                                   : 'border-border hover:border-border-strong',
                               )}
                             >
-                              <span className="flex shrink-0 items-center gap-1">
+                              <span className="flex shrink-0 items-center gap-1.5">
                                 <span
-                                  className="h-3.5 w-3.5 rounded-full"
+                                  className="h-4 w-4 rounded-full"
                                   style={{ backgroundColor: `rgb(${p.dark.accent})` }}
                                 />
                                 <span
-                                  className="h-2.5 w-2.5 rounded-full"
+                                  className="h-3 w-3 rounded-full"
                                   style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
                                 />
                                 <span
-                                  className="ml-0.5 h-2.5 w-5 rounded"
+                                  className="ml-0.5 h-3 w-6 rounded"
                                   style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
                                 />
                               </span>
-                              <span className="text-[11px] font-medium text-text-primary">{t(p.labelKey)}</span>
+                              <span className="text-xs font-medium text-text-primary">{t(p.labelKey)}</span>
                               {active && (
                                 <Check className="absolute right-2 top-2 h-3 w-3 shrink-0 text-accent" strokeWidth={2.5} />
                               )}
