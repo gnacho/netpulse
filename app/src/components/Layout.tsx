@@ -223,8 +223,8 @@ function useVisibleNavItems(): NavItem[] {
       NAV_ITEMS.filter(
         (it) =>
           (it.to !== '/roaming' || usteerAvailable) &&
-          // Orquestación: opt-in del admin (#121). Oculto por defecto.
-          (it.to !== '/orchestration' || !!orchestration) &&
+          // Orquestación: opt-in del admin (#121) y solo con Labs activo.
+          (it.to !== '/orchestration' || (labsOn && !!orchestration)) &&
           // Funcionalidades Labs controladas por cada toggle (rediseño v3):
           // solo se muestran en el nav si Labs está activo y su toggle encendido.
           (it.to !== '/wifi/channel-plan' || (labsOn && services.canales)) &&

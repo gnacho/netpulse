@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Ellipsis,
   FileText,
   FlaskConical,
   Gauge,
@@ -54,6 +55,7 @@ import { TopologyOverridesManager } from '@/components/topology/TopologyOverride
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -659,59 +661,43 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     )}
                   </td>
                   <td className="px-3.5 py-2.5">
-                    {confirmDeleteFor === r.id ? (
-                      <span className="flex items-center justify-end gap-1.5">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          onClick={() => void remove(r)}
-                          className="rounded-lg bg-danger px-2.5 py-1 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90"
+                          aria-label={t('settings.routers.actions')}
+                          className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
                         >
-                          {t('settings.users.confirmDelete')}
+                          <Ellipsis className="h-4 w-4" strokeWidth={1.75} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteFor(null)}
-                          className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                        >
-                          {t('settings.users.cancel')}
-                        </button>
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(r)}
-                          aria-label={t('settings.routers.edit')}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-                        >
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => openEdit(r)}>
                           <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                        </button>
+                          {t('settings.routers.edit')}
+                        </DropdownMenuItem>
                         {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
-                          <button
-                            type="button"
-                            onClick={() => void regenerateToken(r)}
+                          <DropdownMenuItem
+                            onSelect={() => void regenerateToken(r)}
                             disabled={regenerating === r.id}
-                            aria-label={t('settings.routers.regenerateToken')}
-                            title={t('settings.routers.regenerateToken')}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger disabled:opacity-50"
                           >
                             {regenerating === r.id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
                             ) : (
                               <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
                             )}
-                          </button>
+                            {t('settings.routers.regenerateToken')}
+                          </DropdownMenuItem>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteFor(r.id)}
-                          aria-label={t('settings.routers.delete')}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
+                        <DropdownMenuItem
+                          onSelect={() => setConfirmDeleteFor(r.id)}
+                          className="text-danger focus:text-danger"
                         >
-                          <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                        </button>
-                      </span>
-                    )}
+                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          {t('settings.routers.delete')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -719,6 +705,28 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           </table>
         </div>
       )}
+
+      <AlertDialog open={confirmDeleteFor !== null} onOpenChange={(open) => !open && setConfirmDeleteFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.routers.deleteDesc')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const target = list.find((x) => x.id === confirmDeleteFor)
+                if (target) void remove(target)
+              }}
+              className="bg-danger text-canvas hover:bg-danger/90"
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {t('settings.routers.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Panel de descubrimiento (candidatos) y alta manual (issue #144) */}
       <div className="mt-4 border-t border-border pt-4">
@@ -3597,6 +3605,7 @@ export default function Settings() {
   const settingsIndexItems = useMemo(
     () => [
       { href: '#sec-personalizacion', label: t('settings.sections.personalization') },
+      { href: '#sec-servicios', label: t('settings.sections.services') },
       { href: '#sec-notificaciones', label: t('settings.sections.notifications') },
       ...(!isDemo && auth?.role === 'admin'
         ? [
@@ -3662,6 +3671,9 @@ export default function Settings() {
 
         {/* El resto de etiquetas viven aquí con su order; flex las coloca
             junto a la primera tarjeta de cada sección. */}
+        <div className="scroll-mt-32 order-40" id="sec-servicios">
+          <SectionLabel>{t('settings.sections.services')}</SectionLabel>
+        </div>
         <div className="scroll-mt-32 order-50" id="sec-notificaciones">
           <SectionLabel>{t('settings.sections.notifications')}</SectionLabel>
         </div>
@@ -3999,8 +4011,8 @@ export default function Settings() {
           </Card>
         </div>
 
-        {/* Servicios visibles (checks) */}
-        <div className="order-40">
+        {/* Servicios visibles (checks) — sección independiente */}
+        <div className="order-45">
           <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} orchOn={orchOn} orchBusy={orchBusy} toggleOrchestration={toggleOrchestration} />
         </div>
 

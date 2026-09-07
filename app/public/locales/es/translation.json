@@ -1134,8 +1134,10 @@
       "add": "Añadir",
       "addDevice": "Añadir dispositivo",
       "adding": "Añadiendo…",
-      "delete": "Eliminar",
+       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar {name}? El histórico de métricas se conserva.",
+      "deleteTitle": "¿Eliminar dispositivo?",
+      "deleteDesc": "Se quitará de la configuración. Las métricas históricas se conservan.",
       "errorDuplicate": "Ya existe un router con esa IP",
       "errorGeneric": "No se pudo guardar. Inténtalo de nuevo.",
       "hint": "El sondeo usa SSH con la clave del servidor (solo lectura). Los routers nuevos aparecen en el dashboard en unos segundos.",
@@ -1370,7 +1372,8 @@
       "errorGeneric": "No se pudo guardar la configuración de Proxmox."
     },
     "sections": {
-      "personalization": "Personalización",
+      "personalization": "Configuración",
+      "services": "Servicios",
       "notifications": "Notificaciones",
       "network": "Red y dispositivos",
       "integrations": "Integraciones",

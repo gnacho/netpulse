@@ -1136,6 +1136,8 @@
       "adding": "Adding…",
       "delete": "Delete",
       "deleteConfirm": "Delete {name}? Metrics history is kept.",
+      "deleteTitle": "Delete device?",
+      "deleteDesc": "It will be removed from the configuration. Historical metrics are kept.",
       "errorDuplicate": "A router with that IP already exists",
       "errorGeneric": "Could not save. Please try again.",
       "hint": "Polling uses SSH with the server's key (read-only). New routers show up on the dashboard within a few seconds.",
@@ -1370,7 +1372,8 @@
       "errorGeneric": "Could not save the Proxmox configuration."
     },
     "sections": {
-      "personalization": "Personalization",
+      "personalization": "Configuration",
+      "services": "Services",
       "notifications": "Notifications",
       "network": "Network & devices",
       "integrations": "Integrations",
