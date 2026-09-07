@@ -5,6 +5,22 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.12] - 2026-09-07
+
+### Added
+
+- **Puerto SSH configurable por router (#605)**: varios routers exponen su dropbear en un puerto distinto de 22. Ahora cada router admite un `ssh_port` (formulario de alta/edición en Ajustes) y todo el camino SSH del servidor (pool, sondeo, acciones, orquestación, rearm, instalación del agente y descubrimiento del gateway) usa `host:puerto`. Sin puerto configurado se sigue usando 22.
+- **Matriz de itinerancia agrupada por dispositivo (#600)**: en WiFi Roaming → Matriz, las columnas se agrupan por punto de acceso (nombre) con una fila de cabecera que etiqueta cada banda (2.4G/5G), en lugar de una columna suelta por AP-banda.
+
+### Changed
+
+- **802.11r: nombres y exclusión (#601)**: el título de la sección pasa de "Por router" a "Por AP", la columna "Router" a "Dispositivo", y los equipos sin radios (p. ej. el gateway) ya no aparecen en el detalle por router. Además, al añadir un router por descubrimiento ya no se usa el modelo de hardware como nombre (se usa el hostname), así la UI muestra nombres de dispositivo en lugar de modelos en toda la app.
+- **Análisis de canales: ancho del canal propio (#602)**: la fila de la red propia en la tabla muestra el ancho de canal (`· N MHz`) junto al número de canal, cruzando con el channel-plan del router.
+
+### Fixed
+
+- **La UI se quedaba en negro al conectarse un cliente WireGuard (#592)**: el servidor envía el tipo de peer como texto libre y usa `desconocido` cuando no hay tipo mapeado; la tarjeta de WireGuard de la Home construía el icono con `PEER_ICONS[peer.type]` sin fallback, así que un peer `desconocido` (o no mapeado) producía un icono `undefined` y React crasheaba ("Element type is invalid") en cuanto un cliente WireGuard se conectaba (o al abrir la UI desde él). Se añade `desconocido` a los mapas de iconos y un fallback.
+
 ## [2.28.11] - 2026-09-07
 
 ### Fixed

@@ -51,7 +51,10 @@ func (f *scriptedSSH) Run(host, cmd string, _ time.Duration) (string, error) {
 	f.cmds = append(f.cmds, cmd)
 	f.hosts = append(f.hosts, host)
 	for _, r := range f.rules {
-		if r.host != "" && r.host != host {
+		// Desde #605 el pool entrega "host:puerto_ssh"; la regla puede estar
+		// escrita con el host pelado, así que consideramos ambos equivalentes
+		// cuando el puerto es el por defecto (22).
+		if r.host != "" && r.host != host && r.host+":22" != host {
 			continue
 		}
 		if strings.Contains(cmd, r.contains) {
@@ -75,11 +78,22 @@ func (f *scriptedSSH) saw(substr string) bool {
 // sawHost es como saw pero acotado a un host SSH concreto (issue #537: la
 // reserva debe escribirse en el router que sirve DHCP, no siempre en el
 // gateway).
+//
+// Desde el issue #605 el pool recibe siempre "host:puerto" (SSHAddr), así que
+// un router SSH por defecto llega como "192.168.1.2:22". Comparar solo el host
+// para que los tests escritos con el host "pelado" sigan validando.
 func (f *scriptedSSH) sawHost(host, substr string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for i, c := range f.cmds {
-		if i < len(f.hosts) && f.hosts[i] == host && strings.Contains(c, substr) {
+		if i >= len(f.hosts) {
+			continue
+		}
+		seen := f.hosts[i]
+		if seen != host && seen != host+":22" {
+			continue
+		}
+		if strings.Contains(c, substr) {
 			return true
 		}
 	}
