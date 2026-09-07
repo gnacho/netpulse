@@ -3997,9 +3997,9 @@ export default function Settings() {
                     <div className="border-t border-border pt-1">
                       <SwitchRow
                         label={t('settings.reduceMotion')}
-                        checked={reduceMotion}
+                        checked={!reduceMotion}
                         onCheckedChange={(v) => {
-                          setReduceMotion(v)
+                          setReduceMotion(!v)
                           notify()
                         }}
                       />
