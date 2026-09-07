@@ -185,7 +185,7 @@ block a device):
 | **12 — Security audit** | ✅ | TRUST_PROXY, anti-replay on ingest, body cap, password min 10 |
 | **13 — Robustness audit** | ✅ | Single-flight GetOverview, SSE write deadline, sshpool dial race, error wrapping |
 | **14 — WiFi/roaming visibility** | ✅ | DAWN signal matrix, 802.11r status per SSID, channel utilization survey, persistent roaming events feed (30d) |
-| **15 — Reports** | 🔄 | Daily/week/month availability. Pending: traffic, activity, alert summary, export |
+| **15 — Reports** | 🔄 | Daily/week/month availability. Pending: traffic, activity, alert summary, export, and per-client/VLAN network insights ([#588](https://github.com/gnacho/netpulse/issues/588)) |
 | **16 — Advanced alerts** | 🔮 | Custom threshold rules, new alert types (roaming failure, channel congestion), scheduled silence, email |
 | **17 — Write to routers** | 🔄 | UCI ownership + safe apply with rollback (#451), channel planning (#452), firmware upgrades (#453); full module index (AdGuard full, WiFi guest, DDNS, QoS, WireGuard, OpenVPN, Tailscale, Batman, DPI) |
 | **18-20 — Beta-testing program** | 🔮 | Module groups by risk (low / medium / high) with stable + unstable release channels and external beta-testers |
