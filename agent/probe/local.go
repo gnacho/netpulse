@@ -79,13 +79,53 @@ type Prober struct {
 	radiosMu    sync.Mutex
 	radiosCache []Radio
 	radiosAt    time.Time
+
+	// scanMu protege el throttle del scan pasivo de vecinos (#591): el scan
+	// activo (`iw dev scan`) saca la radio del canal y degrada a los clientes
+	// si se repite en cada sondeo (cada ~30 s). Se ejecuta como mucho cada
+	// scanMinInterval, o antes si el server pide un refresh explícito.
+	scanMu     sync.Mutex
+	lastScanAt time.Time
+	scanForced bool
 }
 
 const radiosTTL = 5 * time.Minute
 
+// scanMinInterval: mínimo entre scans pasivos de vecinos. Los datos de
+// "Análisis de canales" apenas cambian; 10 minutos mantienen el mapa fresco
+// sin martillear el aire con off-channel scans (#591).
+const scanMinInterval = 10 * time.Minute
+
 // NewProber crea el prober con el runner dado.
 func NewProber(run Runner, opts Options) *Prober {
 	return &Prober{run: run, opts: opts}
+}
+
+// ForceScan pide un scan en el próximo Build (lo usa el runtime cuando el
+// server envía "refresh" por SSE): no espera al intervalo del throttle.
+func (p *Prober) ForceScan() {
+	p.scanMu.Lock()
+	p.scanForced = true
+	p.scanMu.Unlock()
+}
+
+// scanDue decide si toca lanzar CmdScan en este sondeo completo: true si hay
+// un force pendiente (refresh del server) o si pasó scanMinInterval desde el
+// último intento. La primera Build tras arrancar también escanea (lastScanAt
+// cero). Al devolver true registra el intento para no repetirlo en el ciclo.
+func (p *Prober) scanDue() bool {
+	p.scanMu.Lock()
+	defer p.scanMu.Unlock()
+	if p.scanForced {
+		p.scanForced = false
+		p.lastScanAt = time.Now()
+		return true
+	}
+	if p.lastScanAt.IsZero() || time.Since(p.lastScanAt) >= scanMinInterval {
+		p.lastScanAt = time.Now()
+		return true
+	}
+	return false
 }
 
 // runBest es best-effort: error → "" (la sección queda ausente).
@@ -306,10 +346,12 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 				p.radiosMu.Unlock()
 			}
 		}
-		// Scan pasivo de vecinos (#452), solo en sondeo completo para no
-		// consumir tiempo/capacidad en el path de eventos.
-		if out := p.runBest(ctx, CmdScan, 10*time.Second); out != "" {
-			wd.Scans = ParseScan(out)
+		// Scan pasivo de vecinos (#452): SOLO en sondeo completo y con
+		// throttle (#591) para no sacar la radio del canal en cada push.
+		if p.scanDue() {
+			if out := p.runBest(ctx, CmdScan, 10*time.Second); out != "" {
+				wd.Scans = ParseScan(out)
+			}
 		}
 	} else {
 		p.radiosMu.Lock()
