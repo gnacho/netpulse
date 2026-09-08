@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- **El plan de canales no contaba la propia malla como interferencia ni sugería un bloque que cruzara a DFS (#631)**: los BSSID de los APs de la propia red ya no se puntúan como vecinos (se excluyen por prefijo MAC de los routers monitorizados), y los canales candidatos se validan contra el ancho de la radio: a 40/80/160 MHz solo se ofrecen bloques que no entran en canales DFS (52-64, 100-144). Evita recomendar un canal que ya usan los satélites de tu malla o un bloque de 80 MHz que cruce a banda DFS.
+- **El rearm ahora recupera un agente en 401 por token desincronizado (#630)**: si reiniciar el proceso no hace que el agente vuelva a empujar, NetPulse regenera el token y lo aplica en el propio router (reescribe el `.env` + reinicia) sin reinstalar. Además, la rotación de token en un reinstall es atómica: si el SSH falla, el servidor restaura el hash anterior, así el agente no se queda empujando un token que ya no se acepta (401 eterno).
+
 ## [2.28.13] - 2026-09-08
 
 ### Added
