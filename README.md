@@ -95,7 +95,12 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.13)
+### Latest (v2.28.14)
+
+- **The channel plan no longer counts your own mesh as interference, and won't suggest a channel that crosses into DFS** ([#631](https://github.com/gnacho/netpulse/issues/631)). In the channel analysis, the BSSIDs of your own access points no longer score as neighbors (they are excluded by matching the MAC prefix of your monitored routers), and candidate channels are validated against the radio width: at 40/80/160 MHz only blocks that stay out of DFS channels (52-64, 100-144) are offered. This stops NetPulse recommending a channel your mesh satellites already use, or an 80 MHz block that would cross into a DFS band.
+- **Rearm now recovers an agent stuck in a 401 loop** ([#630](https://github.com/gnacho/netpulse/issues/630)). If a restart doesn't bring the agent back, NetPulse regenerates the agent token and applies it on the router (rewrites the env + restarts) without a reinstall, so a token that drifted out of sync is fixed in place. Token rotation on a reinstall is also atomic: if the SSH step fails, the server restores the previous token so the agent never ends up pushing a token that is no longer accepted.
+
+### Earlier (v2.28.13)
 
 - **A cleaner Settings page, one column at a time** ([#627](https://github.com/gnacho/netpulse/issues/627)). The Settings page is now a single column with a sticky index that follows you as you scroll, so each card (Appearance, Data & thresholds, Services, Network, Integrations, Administration, Account, About) is full-width and easier to use. The Appearance card shows real theme previews (light/dark/system) and a two-column palette; the WAN speed test runs a real test from the server and fills download/up in place. Labs toggles appear individually (Orchestration, Channels, Upgrades) once Labs is on.
 - **Regenerate an agent token without reinstalling** ([#627](https://github.com/gnacho/netpulse/issues/627)). When you regenerate a router's agent token from Settings, NetPulse now pushes the new token to the router and restarts the agent in place, so the device keeps reporting without a reinstall. The install one-liner is only needed when the router can't be reached over SSH.
