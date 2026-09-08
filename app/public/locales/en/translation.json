@@ -123,6 +123,7 @@
     },
     "active": "Active",
     "unknown": "Unknown",
+    "copy": "Copy",
     "breadcrumb": "Breadcrumb",
     "cable": "Wired",
     "clients": "Clients",
