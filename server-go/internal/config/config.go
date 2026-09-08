@@ -69,6 +69,13 @@ type Config struct {
 	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
 	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
 	GhostPortEnabled bool  // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
+	// RTLConsolePass (NETPULSE_RTL_PASS): contraseña web de la consola de
+	// switches RTLPlayground (KP-9000, #639) para el sondeo HTTP de firmware
+	// y uptime. Default "1234" (la que trae el firmware tras flasheo).
+	RTLConsolePass string
+	// RTLConsolePollSec (NETPULSE_RTL_POLL_S): cadencia del sondeo HTTP de la
+	// consola RTLPlayground en segundos. 0/ausente → 300 (5 min).
+	RTLConsolePollSec int
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -420,6 +427,23 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_RTL_PASS / NETPULSE_RTL_POLL_S: sondeo HTTP de la consola de
+	// switches RTLPlayground (KP-9000) para firmware + uptime (#639). La pass
+	// por defecto es la del firmware tras flasheo; la cadencia 300 s (5 min).
+	rtlPass := strings.TrimSpace(env["NETPULSE_RTL_PASS"])
+	if rtlPass == "" {
+		rtlPass = "1234"
+	}
+	rtlPollSec := 300
+	if v, ok := env["NETPULSE_RTL_POLL_S"]; ok && v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			errs.issues = append(errs.issues, issue{"NETPULSE_RTL_POLL_S", "Expected a positive integer"})
+		} else {
+			rtlPollSec = n
+		}
+	}
+
 	if len(errs.issues) > 0 {
 		return nil, &errs
 	}
@@ -490,6 +514,8 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		AgentAutoenroll: agentAutoenroll,
 		Onbox:           onbox,
 		GhostPortEnabled: ghostPortEnabled,
+		RTLConsolePass:   rtlPass,
+		RTLConsolePollSec: rtlPollSec,
 	}, nil
 }
 

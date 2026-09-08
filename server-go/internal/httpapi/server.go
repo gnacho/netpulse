@@ -155,6 +155,10 @@ type server struct {
 	beaconCandMu sync.Mutex
 	beaconCand   map[string]beaconCandidate
 
+	// rtlConsole (#639): sondeo HTTP de la consola de switches RTLPlayground
+	// (firmware + uptime) para agentes external/beacon. nil si desactivado.
+	rtlConsole *rtlConsoleCache
+
 	// Ventana de frescura del `ts` del agente (anti-replay, auditoría #2).
 	maxTsDrift time.Duration
 
@@ -257,6 +261,12 @@ func NewHandler(d Deps) http.Handler {
 		} else {
 			log.Printf("[netpulse] beacon UDP escuchando en %s", la)
 		}
+	}
+	// #639: sondeo HTTP de consola RTLPlayground para beacons external. El
+	// caché se crea siempre que haya config (pass/cadencia con defaults);
+	// solo hace red cuando un beacon de un slug sin datos (o caducado) llega.
+	if d.Config != nil {
+		s.rtlConsole = newRtlConsoleCache(d.Config.RTLConsolePass, d.Config.RTLConsolePollSec)
 	}
 	mode := d.Adapter.Mode()
 
