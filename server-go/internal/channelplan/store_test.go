@@ -151,6 +151,73 @@ func TestPrune(t *testing.T) {
 	}
 }
 
+// TestRecommendExcluyeMallaPropia (#631): un AP de la propia malla (BSSID que
+// comparte los 5 primeros octetos con la MAC de un router monitorizado) no
+// debe puntuar como vecino, así el canal que ocupa queda libre para
+// recomendarlo.
+func TestRecommendExcluyeMallaPropia(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+	if _, err := d.DB.Exec(`INSERT INTO routers (id, name, host, type, mac, is_gateway, created_at)
+		VALUES ('rt2', 'RT2 AX6', '192.168.1.2', 'openwrt', '8C:DE:F9:33:71:58', 0, ?)`,
+		time.Now().UnixMilli()); err != nil {
+		t.Fatalf("insert router: %v", err)
+	}
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	// La propia malla (prefijo 8C:DE:F9:33:71) ocupa el canal 1 con señal
+	// fortísima (-30); sin la exclusión penalizaría el 1 y recomendaría 6/11.
+	scans := []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "8C:DE:F9:33:71:59", SSID: "temiscira", Channel: 1, Freq: 2412, Signal: -30},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "2.4 GHz", Channel: 1, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("esperaba 1 radio, got %d", len(recs))
+	}
+	// Con el AP propio excluido, el canal 1 (ocupado solo por la malla) queda
+	// libre y es el primero de la lista no-DFS (1,6,11) con score 0.
+	if recs[0].Recommended != 1 {
+		t.Fatalf("la propia malla debería excluirse y dejar libre el 1, got %d", recs[0].Recommended)
+	}
+}
+
+// TestRecommendAnchura80NoCruzaDfs (#631): a 80 MHz el canal 44 ocupa el
+// bloque 44-56 que entra en canales DFS (52+), así que no debe ofrecerse como
+// candidato; se recomienda el 36, único bloque UNII-1 no-DFS a ese ancho.
+func TestRecommendAnchura80NoCruzaDfs(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "5 GHz", Channel: 44, WidthMhz: 80}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("esperaba 1 radio, got %d", len(recs))
+	}
+	if recs[0].Recommended == 44 {
+		t.Fatalf("a 80 MHz el 44 cruza a DFS y no debe recomendarse: %+v", recs[0])
+	}
+	if recs[0].Recommended != 36 {
+		t.Fatalf("a 80 MHz solo el bloque 36-48 es no-DFS: got %d", recs[0].Recommended)
+	}
+}
+
 func TestRecommendPasaSeccion(t *testing.T) {
 	d, err := db.Open(t.TempDir())
 	if err != nil {

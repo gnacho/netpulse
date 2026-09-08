@@ -125,9 +125,19 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		return nil, err
 	}
 
-	// Agrupar scans por banda y canal.
+	// #631: la malla propia (los APs de los routers monitorizados) NO debe
+	// contarse como "vecino": sus BSSIDs comparten los primeros 5 octetos con
+	// la MAC del router (radios = MAC base, +1, +2...). Se excluyen del
+	// scoring para que la recomendación optimice contra interferencia externa
+	// y no sugiera canales que la propia malla ya ocupa (autointerferencia).
+	ownPrefixes := s.ownMeshPrefixes()
+
+	// Agrupar scans por banda y canal (descartando la propia malla).
 	byBand := map[string]map[int][]ScanRow{}
 	for _, sc := range scans {
+		if isOwnMeshBSSID(sc.BSSID, ownPrefixes) {
+			continue
+		}
 		band := bandForFreq(sc.Freq)
 		if byBand[band] == nil {
 			byBand[band] = map[int][]ScanRow{}
@@ -152,7 +162,7 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		if rec.Iface == "" {
 			rec.Iface = ifaceForBand(band) // placeholder; el agente no reporta iface por radio
 		}
-		candidates := candidateChannels(band)
+		candidates := candidateChannels(band, r.WidthMhz)
 		bestCh, bestScore := 0, math.MaxInt
 		currentScore := math.MaxInt
 		for _, ch := range candidates {
@@ -203,17 +213,98 @@ func channelScore(scans map[int][]ScanRow, channel int) int {
 	return int(score)
 }
 
-func candidateChannels(band string) []int {
+// candidateChannels devuelve los canales candidatos no-DFS para la banda,
+// filtrando por el ancho del radio (#631): a 40/80/160 MHz solo valen los
+// canales cuyo bloque completo (canales ch..ch+(n-1)*4, n=w/20) no entra en
+// un canal DFS (52-64, 100-144) ni se sale de la banda.
+func candidateChannels(band string, widthMhz int) []int {
+	var base []int
 	switch band {
 	case "2.4 GHz":
-		return []int{1, 6, 11}
+		base = []int{1, 6, 11}
 	case "5 GHz":
-		// UNII-1/2/3 canales no-DFS preferidos para uso doméstico.
-		return []int{36, 40, 44, 48, 149, 153, 157, 161, 165}
+		// UNII-1/3 canales no-DFS preferidos para uso doméstico.
+		base = []int{36, 40, 44, 48, 149, 153, 157, 161, 165}
 	case "6 GHz":
-		return []int{1, 5, 9, 13, 17, 21, 25, 29}
+		base = []int{1, 5, 9, 13, 17, 21, 25, 29}
+	default:
+		return nil
 	}
-	return nil
+	if widthMhz <= 20 {
+		return base
+	}
+	out := make([]int, 0, len(base))
+	for _, ch := range base {
+		if validForWidth(ch, widthMhz, band) {
+			out = append(out, ch)
+		}
+	}
+	return out
+}
+
+// validForWidth indica si un canal al ancho dado ocupa un bloque fuera de
+// canales DFS (5 GHz) y dentro de la banda.
+func validForWidth(ch, widthMhz int, band string) bool {
+	if band != "5 GHz" {
+		// 2.4 y 6 GHz no tienen canales DFS en el ámbito doméstico.
+		return true
+	}
+	n := widthMhz / 20 // 1,2,4,8 para 20/40/80/160
+	if n < 1 {
+		n = 1
+	}
+	for i := 0; i < n; i++ {
+		cc := ch + i*4
+		if cc > 165 || isDFSChannel(cc) {
+			return false
+		}
+	}
+	return true
+}
+
+// isDFSChannel: canales que en ETSI/EU requieren detección DFS (radio no
+// puede usarlos sin radar) — UNII-2A (52-64) y UNII-2C (100-144).
+func isDFSChannel(ch int) bool {
+	return (ch >= 52 && ch <= 64) || (ch >= 100 && ch <= 144)
+}
+
+// ownMeshPrefixes devuelve los primeros 5 octetos de la MAC de cada router
+// monitorizado (tabla routers). Un BSSID cuyo prefijo coincida es un AP de la
+// propia malla y no debe computarse como vecino (#631).
+func (s *Store) ownMeshPrefixes() []string {
+	var out []string
+	if s.db == nil {
+		return out
+	}
+	rows, err := s.db.Query(`SELECT mac FROM routers WHERE mac IS NOT NULL AND mac <> ''`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var mac string
+		if rows.Scan(&mac) == nil {
+			mac = strings.ToUpper(strings.TrimSpace(mac))
+			if len(mac) >= 14 {
+				out = append(out, mac[:14]) // "AA:BB:CC:DD:EE"
+			}
+		}
+	}
+	return out
+}
+
+func isOwnMeshBSSID(bssid string, prefixes []string) bool {
+	b := strings.ToUpper(strings.TrimSpace(bssid))
+	if len(b) < 14 {
+		return false
+	}
+	pref := b[:14]
+	for _, p := range prefixes {
+		if p == pref {
+			return true
+		}
+	}
+	return false
 }
 
 func bandForFreq(freq int) string {
