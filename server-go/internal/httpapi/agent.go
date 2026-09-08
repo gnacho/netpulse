@@ -131,6 +131,37 @@ func newAgentToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
+// rotateAgentTokenAtomic instala un token nuevo en kv (el hash del server) y
+// ejecuta `apply`, que debe desplegarlo en el router. Si `apply` falla, se
+// restaura el hash previo para que el agente no se quede en 401 eterno (#630).
+// Devuelve el token en claro (la única vez que viaja).
+func (s *server) rotateAgentTokenAtomic(slug string, apply func(token string) error) (string, error) {
+	oldHash, hadOld := "", false
+	if s.db != nil {
+		if err := s.db.QueryRow("SELECT value FROM kv WHERE key = ?", agentTokenKey(slug)).Scan(&oldHash); err == nil {
+			hadOld = true
+		}
+	}
+	token, err := newAgentToken()
+	if err != nil {
+		return "", err
+	}
+	if _, err := s.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		agentTokenKey(slug), hashAgentToken(token)); err != nil {
+		return "", err
+	}
+	if err := apply(token); err != nil {
+		if hadOld {
+			_, _ = s.db.Exec("UPDATE kv SET value = ? WHERE key = ?", oldHash, agentTokenKey(slug))
+		} else {
+			_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentTokenKey(slug))
+		}
+		return "", err
+	}
+	return token, nil
+}
+
 // checkAgentToken: ¿el Bearer es válido para el slug? (comparación en
 // tiempo constante sobre los hashes).
 func (s *server) checkAgentToken(slug, token string) bool {
@@ -744,19 +775,6 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rotar el token (el env del router se reescribe con el nuevo).
-	token, err := newAgentToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "token_error")
-		return
-	}
-	if _, err := s.db.Exec(
-		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-		agentTokenKey(slug), hashAgentToken(token)); err != nil {
-		writeError(w, http.StatusInternalServerError, "token_error")
-		return
-	}
-
 	// URL base del server (para que el router descargue el binario).
 	// NETPULSE_PUBLIC_URL manda si está configurada (#457): sin ella, llamar
 	// al endpoint vía localhost haría que el router descargue de localhost.
@@ -769,9 +787,6 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		serverURL = s.cfg.PublicURL
 	}
 
-	// Script de instalación canónico (compartido con el supervisor, #457).
-	script := reinstall.Script(slug, token, serverURL, reinstall.Digests())
-
 	before := time.Now()
 	var prevSeen time.Time
 	if s.agents != nil {
@@ -780,8 +795,14 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Descarga + verificación + swap: margen generoso para enlaces lentos.
-	if _, err := s.pool.Run(host, script, 300*time.Second); err != nil {
+	// Rotar el token de forma ATÓMICA (#630): el script lo instala en el router
+	// y, si el SSH falla, se restaura el hash previo en kv — así el agente no
+	// se queda empujando un token que el servidor ya no acepta (401 eterno).
+	token, err := s.rotateAgentTokenAtomic(slug, func(t string) error {
+		_, runErr := s.pool.Run(host, reinstall.Script(slug, t, serverURL, reinstall.Digests()), 300*time.Second)
+		return runErr
+	})
+	if err != nil {
 		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
 		return
 	}

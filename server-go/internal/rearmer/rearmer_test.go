@@ -23,11 +23,15 @@ import (
 type fakeSSH struct {
 	mu   sync.Mutex
 	cmds []string
+	fail bool // devolver error en Run (simula SSH caído)
 }
 
 func (f *fakeSSH) Run(host, cmd string, _ time.Duration) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.fail {
+		return "", errors.New("ssh down")
+	}
 	f.cmds = append(f.cmds, host+":"+cmd)
 	return "", nil
 }
@@ -138,8 +142,10 @@ func TestSupervisorRearmaAgenteExpirado(t *testing.T) {
 	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, time.Hour)
 	sup.CheckOnce()
 
-	if env.ssh.count() != 1 {
-		t.Fatalf("quiero 1 comando SSH de rearme, tuve %d", env.ssh.count())
+	// #630: el rearm nativo incluye el push de token si el restart no
+	// recupera, así que son 2 comandos (restart + token push).
+	if env.ssh.count() != 2 {
+		t.Fatalf("quiero 2 comandos SSH de rearme (restart + token push), tuve %d", env.ssh.count())
 	}
 }
 
@@ -192,8 +198,8 @@ func TestSupervisorCooldownLargo(t *testing.T) {
 	sup.CheckOnce()
 	sup.CheckOnce() // segundo tick inmediato: cooldown largo lo frena
 
-	if env.ssh.count() != 1 {
-		t.Fatalf("cooldown del supervisor: quiero 1 rearme, tuve %d", env.ssh.count())
+	if env.ssh.count() != 2 {
+		t.Fatalf("cooldown del supervisor: quiero 2 (rearm nativo), tuve %d", env.ssh.count())
 	}
 }
 
@@ -229,8 +235,10 @@ func TestSupervisorConsolidaFallosRepetidos(t *testing.T) {
 		time.Sleep(40 * time.Millisecond) // deja pasar el cooldown del slot
 	}
 
-	if got := env.ssh.count(); got != 3 {
-		t.Fatalf("quiero 3 reintentos SSH, tuve %d", got)
+	// #630: cada rearme nativo hace restart + token push (2), así que 3
+	// intentos = 6 comandos SSH.
+	if got := env.ssh.count(); got != 6 {
+		t.Fatalf("quiero 6 reintentos SSH (3 × restart+token), tuve %d", got)
 	}
 	evs := env.engine.events()
 	fails := []alerts.AlertEvent{}
@@ -354,6 +362,55 @@ func TestRearmExternalAgentRejected(t *testing.T) {
 	}
 }
 
+// #630: si reiniciar el proceso no recupera el agente (posible 401 por token
+// desincronizado), el Rearmer NOSCALA a un push de token en caliente para un
+// agente nativo — segundo comando SSH con el TokenPushScript.
+func TestRearmEscalaTokenPushSiNoRecupera(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.arm.SetPollWait(50 * time.Millisecond)
+
+	res, err := env.arm.Rearm("patio")
+	if err != nil {
+		t.Fatalf("rearm: %v", err)
+	}
+	if !res.Restarted {
+		t.Fatalf("esperaba restart: %+v", res)
+	}
+	if env.ssh.count() != 2 {
+		t.Fatalf("quiero 2 comandos SSH (restart + token push), tuve %d", env.ssh.count())
+	}
+	if !strings.Contains(env.ssh.cmds[1], "NETPULSE_TOKEN=") || !strings.Contains(env.ssh.cmds[1], `"$INIT" restart`) {
+		t.Fatalf("el segundo SSH debe ser el TokenPushScript: %q", env.ssh.cmds[1])
+	}
+	// El token rotó (intento de arreglar el 401): el hash ya no es el fakehash.
+	var stored string
+	if err := env.d.QueryRow("SELECT value FROM kv WHERE key = ?", rearmer.TokenPrefix+"patio").Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored == "fakehash" || len(stored) != 64 {
+		t.Fatalf("token no rotado tras la escalada: %q", stored)
+	}
+}
+
+// #630: si el SSH del reinstall falla, la rotación es ATÓMICA — el hash del
+// token en kv se restaura al previo (rollback), así el agente no se queda
+// empujando un token que el servidor ya no acepta.
+func TestReinstallRotaAtomicYRollbackSiSSHFalla(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.ssh.fail = true
+
+	if _, err := env.arm.Reinstall("patio", "http://192.168.1.226:3000"); err == nil {
+		t.Fatal("esperaba error de SSH")
+	}
+	var stored string
+	if err := env.d.QueryRow("SELECT value FROM kv WHERE key = ?", rearmer.TokenPrefix+"patio").Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != "fakehash" {
+		t.Fatalf("rollback esperado al hash previo, got %q", stored)
+	}
+}
+
 // #457: Reinstall directo — rota el token, ejecuta el script canónico con
 // la PUBLIC_URL y espera el push de vuelta.
 func TestReinstallInstalaYRecupera(t *testing.T) {
@@ -408,16 +465,21 @@ func TestSupervisorEscalaAReinstall(t *testing.T) {
 	sup.EnableReinstall("http://192.168.1.226:3000", time.Hour)
 	sup.CheckOnce()
 
-	if env.ssh.count() != 2 {
-		t.Fatalf("quiero 2 comandos SSH (rearm + reinstall), tuve %d", env.ssh.count())
+	// #630: la cadena de escalado es restart → token push → reinstall, así
+	// que si nada recupera hay 3 comandos SSH.
+	if env.ssh.count() != 3 {
+		t.Fatalf("quiero 3 comandos SSH (rearm + token push + reinstall), tuve %d", env.ssh.count())
 	}
-	if !strings.Contains(env.ssh.cmds[1], "selfheal_binary") {
-		t.Error("el segundo comando debería ser la reinstalación completa")
+	if !strings.Contains(env.ssh.cmds[1], "NETPULSE_TOKEN=") {
+		t.Error("el segundo comando debe ser el push de token en caliente")
+	}
+	if !strings.Contains(env.ssh.cmds[2], "selfheal_binary") {
+		t.Error("el tercer comando debería ser la reinstalación completa")
 	}
 
 	// Segunda pasada inmediata: slots ocupados → sin más comandos.
 	sup.CheckOnce()
-	if env.ssh.count() != 2 {
+	if env.ssh.count() != 3 {
 		t.Fatalf("los slots deberían frenar la segunda pasada: %d comandos", env.ssh.count())
 	}
 }
@@ -432,8 +494,10 @@ func TestSupervisorSinEscaladoQuedaEnRearm(t *testing.T) {
 
 	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, time.Hour)
 	sup.CheckOnce()
-	if env.ssh.count() != 1 {
-		t.Fatalf("sin escalado quiero solo el rearm, tuve %d", env.ssh.count())
+	// #630: el rearm nativo ahora incluye el push de token si el restart no
+	// recupera, así que sin escalado activo hay 2 comandos (restart + token).
+	if env.ssh.count() != 2 {
+		t.Fatalf("sin escalado quiero rearm + token push, tuve %d", env.ssh.count())
 	}
 }
 

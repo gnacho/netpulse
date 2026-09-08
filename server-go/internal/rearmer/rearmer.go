@@ -82,6 +82,65 @@ type Result struct {
 	Message   string
 }
 
+// --- helpers de token (atómicos, #630) ----------------------------------------
+
+// newAgentToken genera un token aleatorio de 32 bytes en hex (64 chars).
+func newAgentToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+func tokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func (r *Rearmer) readKV(key string) (string, bool) {
+	if r.db == nil {
+		return "", false
+	}
+	var v string
+	if err := r.db.QueryRow("SELECT value FROM kv WHERE key = ?", key).Scan(&v); err != nil {
+		return "", false
+	}
+	return v, true
+}
+
+func (r *Rearmer) writeKV(key, value string) error {
+	_, err := r.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		key, value)
+	return err
+}
+
+// rotateTokenAtomic instala un token nuevo en el *servidor* (kv), ejecuta
+// `apply` (que debe instalarlo en el router) y, si apply falla, restaura el
+// hash previo. Así un reinstall/rearme que falle a mitad NO deja al agente
+// empujando un token que el servidor ya no acepta (401 eterno, #630).
+func (r *Rearmer) rotateTokenAtomic(slug string, apply func(token string) error) error {
+	oldHash, hadOld := r.readKV(TokenPrefix + slug)
+	token, err := newAgentToken()
+	if err != nil {
+		return err
+	}
+	if err := r.writeKV(TokenPrefix+slug, tokenHash(token)); err != nil {
+		return err
+	}
+	if err := apply(token); err != nil {
+		// Rollback: restaura el hash previo (o borra la clave si no había).
+		if hadOld {
+			_ = r.writeKV(TokenPrefix+slug, oldHash)
+		} else if r.db != nil {
+			_, _ = r.db.Exec("DELETE FROM kv WHERE key = ?", TokenPrefix+slug)
+		}
+		return err
+	}
+	return nil
+}
+
 // ErrCooldown se devuelve cuando el slug se rearmó hace poco.
 type ErrCooldown struct{ Wait time.Duration }
 
@@ -224,6 +283,25 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 
 	recovered := r.waitForPush(slug, prevSeen, before)
 
+	// #630: si reiniciar el proceso no recuperó el agente, puede ser un 401
+	// por desincronización de token (el server rotó el token pero el .env del
+	// router lo mantiene antiguo). Solo para agentes NATIVOS (cmd = Cmd): se
+	// regenera el token y se aplica en caliente (reescribe el .env + restart),
+	// que es la vía que arregla el desync sin reinstalar. Los NetGrip se
+	// recuperan con su propio CmdNetgrip (recarga env en memoria).
+	if !recovered && cmd == Cmd {
+		before2 := time.Now()
+		prevSeen2 := prevSeen
+		if err := r.rotateTokenAtomic(slug, func(t string) error {
+			_, err := r.pool.Run(host, reinstall.TokenPushScript(slug, t), SSHWait)
+			return err
+		}); err == nil {
+			if r.waitForPush(slug, prevSeen2, before2) {
+				recovered = true
+			}
+		}
+	}
+
 	res := Result{Slug: slug, Restarted: true, Recovered: recovered}
 	if recovered {
 		res.Message = "servicio reiniciado y el agente volvió a empujar"
@@ -280,22 +358,9 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 		return Result{}, ErrNoSSH
 	}
 
-	// Rotar el token: el script lo instala en el router y el hash nuevo
-	// sustituye al viejo en kv.
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return Result{}, fmt.Errorf("token: %w", err)
-	}
-	token := hex.EncodeToString(buf)
-	sum := sha256.Sum256([]byte(token))
-	if _, err := r.db.Exec(
-		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-		TokenPrefix+slug, hex.EncodeToString(sum[:])); err != nil {
-		return Result{}, fmt.Errorf("token kv: %w", err)
-	}
-
-	script := reinstall.Script(slug, token, publicURL, reinstall.Digests())
-
+	// Rotar el token de forma ATÓMICA (#630): el script lo instala en el
+	// router; si el SSH falla se restaura el hash previo en kv, así el agente
+	// no se queda empujando un token que el servidor ya no acepta.
 	before := time.Now()
 	var prevSeen time.Time
 	if r.agents != nil {
@@ -303,8 +368,10 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 			prevSeen = seen
 		}
 	}
-
-	if _, err := r.pool.Run(host, script, ReinstallSSHWait); err != nil {
+	if err := r.rotateTokenAtomic(slug, func(t string) error {
+		_, err := r.pool.Run(host, reinstall.Script(slug, t, publicURL, reinstall.Digests()), ReinstallSSHWait)
+		return err
+	}); err != nil {
 		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)
 	}
 
