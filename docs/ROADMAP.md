@@ -543,6 +543,16 @@ corte) habría sido trivial con esta visibilidad.
    claridad de la montaña de la red propia, legibilidad de la curva por
    canal y layout general. Subjetivo, sin bug funcional, baja prioridad.
    Refinamiento sobre la vista del sub-item 14.4 (WiFi survey).
+7. **14.7 — Tabla de la matriz de roaming: agrupar por AP/SSID y contador
+   de APs** ([#626](https://github.com/gnacho/netpulse/issues/626)): revisita
+   de #600 tras el feedback del foro (crowedavid). La vista "Roaming →
+   Matriz" muestra instancias de wifi virtual sueltas sin indicar su AP/SSID.
+   Pide: agrupar las instancias bajo su AP y su SSID, etiquetar el AP por su
+   **nombre** (no el modelo de hardware), fila de cabecera agrupada por SSID,
+   ordenación por columna (cliente/AP/SSID/banda) y corregir el contador
+   "N APs" (debe contar APs **físicos**, no instancias de wifi virtual).
+   Subjetivo/UX, sin bug funcional, baja prioridad. Refinamiento del sub-item
+   14.2 (Roaming matrix).
 
 **Deploy**: agentes actualizados (ya en v2.8.0). UI nueva sin tocar routers.
 
