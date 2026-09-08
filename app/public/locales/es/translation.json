@@ -123,6 +123,7 @@
     },
     "active": "Activo",
     "unknown": "Desconocido",
+    "copy": "Copiar",
     "breadcrumb": "Miga de pan",
     "cable": "Cable",
     "clients": "Clientes",
@@ -369,8 +370,8 @@
     "collapse": "Plegar menú",
     "expand": "Desplegar menú",
     "orchestration": "Orquestación",
-    "channelPlan": "Plan de canales",
-    "firmwareUpgrades": "Actualizaciones de firmware",
+    "channelPlan": "Canales",
+    "firmwareUpgrades": "Actualizaciones",
     "help": "Ayuda"
   },
   "roaming": {
@@ -965,6 +966,7 @@
     },
     "about": {
       "changelog": "Registro de cambios",
+      "visitWeb": "Visitar web",
       "code": "Código",
       "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza routers y APs con algunos servicios como AdGuard Home + WireGuard de momento. Fase 1: solo lectura.",
       "madeAtHome": "Apoya el proyecto en Ko-fi",
@@ -1065,6 +1067,7 @@
       "sound": "Sonido al llegar una alerta",
       "soundOff": "Desactivado",
       "soundOn": "Activado — suena un beep suave",
+      "testSound": "Probar beep de alerta",
       "title": "Notificaciones visuales"
     },
     "push": {
@@ -1094,7 +1097,8 @@
       "chatId": "ID del chat",
       "bot": "Bot",
       "chat": "Chat",
-      "sendTest": "Enviar prueba"
+      "sendTest": "Enviar prueba",
+      "incomplete": "Completa el token del bot y el ID del chat o activa las notificaciones"
     },
     "pwa": {
       "caption": "App instalable · PWA",
@@ -1115,7 +1119,7 @@
       "title": "NetPulse en tu pantalla de inicio",
       "compact": "Instala NetPulse como app: pantalla completa, sin barra del navegador y acceso instantáneo."
     },
-    "reduceMotion": "Reducir animaciones",
+    "reduceMotion": "Animaciones activadas",
     "reduceMotionCaption": "Desactiva pulsos, tweens y entradas escalonadas",
     "routers": {
       "title": "Dispositivos",
@@ -1123,14 +1127,23 @@
       "empty": "Sin routers configurados todavía. La puerta de enlace se autodetecta al arrancar el servidor; si no aparece, añádela aquí.",
       "host": "IP o hostname",
       "name": "Nombre (opcional)",
+      "role": "Rol",
+      "actions": "Acciones",
+      "regenerateToken": "Regenerar token",
+      "rotateTokenTitle": "¿Regenerar el token del dispositivo?",
+      "rotateTokenCaption": "Se generará un token nuevo para «{{name}}». El actual dejará de funcionar de inmediato; deberás reinstalar el agente con el nuevo token. No se puede deshacer.",
+      "rotateTokenHotApplied": "Token regenerado y aplicado al dispositivo sin reinstalar.",
+      "rotateTokenManualNeeded": "Token regenerado. El servidor no pudo aplicarlo en el agente; reinstala el agente para que use el token nuevo.",
       "type": "Tipo",
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",
       "add": "Añadir",
       "addDevice": "Añadir dispositivo",
       "adding": "Añadiendo…",
-      "delete": "Eliminar",
+       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar {name}? El histórico de métricas se conserva.",
+      "deleteTitle": "¿Eliminar dispositivo?",
+      "deleteDesc": "Se quitará de la configuración. Las métricas históricas se conservan.",
       "errorDuplicate": "Ya existe un router con esa IP",
       "errorGeneric": "No se pudo guardar. Inténtalo de nuevo.",
       "hint": "El sondeo usa SSH con la clave del servidor (solo lectura). Los routers nuevos aparecen en el dashboard en unos segundos.",
@@ -1214,7 +1227,14 @@
       "ingestHint": "Usa este token para autenticar la ingesta del scraper:",
       "dismiss": "Cerrar",
       "deleteTitle": "Revocar token del dispositivo",
-      "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token."
+      "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token.",
+      "canales": "Canales",
+      "canalesCaption": "Planificador de canales WiFi (LABS)",
+      "actualizaciones": "Actualizaciones",
+      "actualizacionesCaption": "Actualizaciones de firmware (LABS)",
+      "regenToken": "Regenerar token",
+      "regenTokenCaption": "Rotación del token de agentes externos (LABS)",
+      "badge": "LABS"
     },
     "saved": "Preferencias guardadas",
     "services": {
@@ -1287,7 +1307,15 @@
       "saving": "Guardando…",
       "saved": "Guardada",
       "invalid": "Introduce velocidades mayores que 0 y como máximo 100000 Mbps",
-      "saveError": "No se pudo guardar la velocidad"
+      "saveError": "No se pudo guardar la velocidad",
+      "runTest": "Hacer test de velocidad",
+      "testCaption": "Mide la velocidad real desde el servidor y rellena los campos con el resultado. Luego pulsa Guardar.",
+      "testApplied": "Medición aplicada: {{down}} ↓ / {{up}} ↑ Mbps",
+      "testFailed": "El test de velocidad falló",
+      "testHint": "El test satura el enlace unos segundos. Puedes dejar la página; al terminar se rellenan los campos.",
+      "phaseServer": "Buscando servidor",
+      "phaseDown": "Midiendo descarga",
+      "phaseUp": "Midiendo subida"
     },
     "knownMacs": {
       "title": "Dispositivos de confianza",
@@ -1320,9 +1348,14 @@
       "enabled": "Test periódico activado",
       "interval": "Intervalo",
       "intervalH": "cada {{hours}} h",
-      "alertPct": "Alertar por debajo del {{pct}} % del plan",
+      "intervalWeek": "cada semana",
+      "intervalMonth": "cada mes",
+      "alertPctLabel": "Alerta umbral (% del plan)",
       "alertPctHint": "0 = alerta desactivada. Usa el plan contratado declarado arriba (solo bajada).",
-      "serverId": "Servidor speedtest.net (ID, 0 = automático)",
+      "serverId": "Servidor de test de velocidad",
+      "serverRestore": "Restaurar",
+      "test": "Probar",
+      "testFailed": "No se pudo lanzar el test. Revisa la URL.",
       "save": "Guardar",
       "saving": "Guardando...",
       "saved": "Guardado",
@@ -1347,7 +1380,19 @@
       "saving": "Guardando…",
       "disable": "Desactivar",
       "errorGeneric": "No se pudo guardar la configuración de Proxmox."
-    }
+    },
+    "sections": {
+      "personalization": "Configuración",
+      "services": "Servicios",
+      "notifications": "Notificaciones",
+      "network": "Red y dispositivos",
+      "integrations": "Integraciones",
+      "administration": "Administración",
+      "account": "Cuenta",
+      "about": "Acerca de",
+      "label": "Secciones de Ajustes"
+    },
+    "theme": "Tema"
   },
   "statcard": {
     "vsPrevious": "vs anterior"
@@ -1405,7 +1450,9 @@
       "duration": "Duración",
       "success": "Correcto",
       "failed": "Falló",
-      "running": "En curso"
+      "running": "En curso",
+      "download": "Descargar .log",
+      "summary": "{{count}} entradas · última: {{date}} — {{status}}"
     },
     "dialog": {
       "title": "Actualizar NetPulse",
@@ -1485,6 +1532,8 @@
     "confirmDowntime": "Durante el flash y el reinicio el router queda sin servicio varios minutos; los clientes conectados a él pierden la conexión.",
     "confirmAction": "Sí, actualizar",
     "detectedPrefix": "Sistema detectado:",
+    "detectImage": "Autodetectar imagen",
+    "detectImageBusy": "Detectando…",
     "lastFailure": "Último intento fallido",
     "status": {
       "requested": "Solicitada",

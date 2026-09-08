@@ -66,11 +66,11 @@ func TestSettingsRoundtripAndValidation(t *testing.T) {
 	if got.Enabled || got.IntervalHours != DefaultIntervalHours {
 		t.Fatalf("defaults inesperados: %+v", got)
 	}
-	if err := sched.SaveSettings(Settings{Enabled: true, IntervalHours: 24, ServerID: 1234, AlertPct: 60}); err != nil {
+	if err := sched.SaveSettings(Settings{Enabled: true, IntervalHours: 24, ServerURL: "https://speedtest.example.com", AlertPct: 60}); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	got = sched.LoadSettings()
-	if !got.Enabled || got.IntervalHours != 24 || got.ServerID != 1234 || got.AlertPct != 60 {
+	if !got.Enabled || got.IntervalHours != 24 || got.ServerURL != "https://speedtest.example.com" || got.AlertPct != 60 {
 		t.Fatalf("roundtrip: %+v", got)
 	}
 	if err := sched.SaveSettings(Settings{IntervalHours: 5}); err == nil {
@@ -190,7 +190,7 @@ func TestMaybeAlertDebounce(t *testing.T) {
 // fakeRunner devuelve un resultado fijo sin red.
 type fakeRunner struct{}
 
-func (fakeRunner) Run(ctx context.Context, serverID int) (Result, error) {
+func (fakeRunner) Run(ctx context.Context, serverURL string) (Result, error) {
 	return Result{DownMbps: 100, UpMbps: 30, ServerName: "fake"}, nil
 }
 
@@ -200,11 +200,11 @@ type countingRunner struct {
 	inner fakeRunner
 }
 
-func (c *countingRunner) Run(ctx context.Context, serverID int) (Result, error) {
+func (c *countingRunner) Run(ctx context.Context, serverURL string) (Result, error) {
 	c.mu.Lock()
 	c.n++
 	c.mu.Unlock()
-	return c.inner.Run(ctx, serverID)
+	return c.inner.Run(ctx, serverURL)
 }
 
 func (c *countingRunner) calls() int {
@@ -217,7 +217,7 @@ type blockingRunner struct {
 	release chan struct{}
 }
 
-func (b *blockingRunner) Run(ctx context.Context, serverID int) (Result, error) {
+func (b *blockingRunner) Run(ctx context.Context, serverURL string) (Result, error) {
 	<-b.release
 	return Result{DownMbps: 50, UpMbps: 10, ServerName: "blocked"}, nil
 }

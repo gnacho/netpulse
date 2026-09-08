@@ -16,20 +16,23 @@ import {
   EyeOff,
   FileText,
   FlaskConical,
+  Gauge,
   Github,
   HardDrive,
   Heart,
   History,
   KeyRound,
+  Loader2,
   LogOut,
   MonitorSmartphone,
   Moon,
   Pencil,
   Plus,
   Lock,
-  Radar,
-  RefreshCw,
-  RotateCw,
+   Radar,
+   RefreshCw,
+   RotateCcw,
+   RotateCw,
   Router as RouterIcon,
    Server,
     Shield,
@@ -62,7 +65,7 @@ import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { relTimeFromTs } from '@/i18n'
 import { cn, copyToClipboard, exitDemo } from '@/lib/utils'
 import { notifyBanner } from '@/lib/update-check'
-import { ACCENTS, PALETTES, type AccentId, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
+import { PALETTES, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
 import pkg from '../../package.json'
 
@@ -193,15 +196,21 @@ function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trail
 // ---------------------------------------------------------------------------
 
 function ThemePreview({ variant }: { variant: ThemeMode }) {
-  // Preview pintado con los tokens reales (scope .light/.dark): prohibido hex duplicados.
+  // Preview pintado con los tokens reales (scope .light/.dark) mediante estilos
+  // inline: así el color cambia con el scope del div (las clases bg-* de
+  // Tailwind resuelven --color-* en :root y NO heredan el scope interno).
+  // Prohibido hex duplicados: siempre via var(--token).
   const half = (
-    <div className="flex h-full w-full flex-col gap-1 bg-canvas p-1.5">
-      <div className="h-1.5 w-2/3 rounded-full bg-text-primary/15" />
+    <div
+      className="flex h-full w-full flex-col gap-1 p-1.5"
+      style={{ backgroundColor: 'rgb(var(--canvas))' }}
+    >
+      <div className="h-1.5 w-2/3 rounded-full" style={{ backgroundColor: 'rgb(var(--text-primary) / 0.25)' }} />
       <div className="flex flex-1 gap-1">
-        <div className="w-1/4 rounded-sm bg-elevated" />
+        <div className="w-1/3 rounded-sm" style={{ backgroundColor: 'rgb(var(--elevated))' }} />
         <div className="flex flex-1 flex-col gap-1">
-          <div className="h-1/2 rounded-sm bg-accent/60" />
-          <div className="flex-1 rounded-sm bg-elevated" />
+          <div className="h-1/2 rounded-sm" style={{ backgroundColor: 'rgb(var(--accent))' }} />
+          <div className="flex-1 rounded-sm" style={{ backgroundColor: 'rgb(var(--elevated))' }} />
         </div>
       </div>
     </div>
@@ -306,6 +315,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [addSshPort, setAddSshPort] = useState(22)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
+  const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState<string | null>(null)
+  // Aviso tras regenerar el token: "hot" (aplicado en caliente) o "manual".
+  const [regenerateNotice, setRegenerateNotice] = useState<'hot' | 'manual' | null>(null)
+  // Slugs con agente nativo (GET /api/agents): marcan qué routers tienen
+  // acceso root para poder regenerar su token (Labs).
+  const [agentSlugs, setAgentSlugs] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<ConfigRouter | null>(null)
   const [editHost, setEditHost] = useState('')
   const [editName, setEditName] = useState('')
@@ -331,14 +347,18 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/config/routers')
-      if (res.status === 401) {
+      const [rRes, aRes] = await Promise.all([fetch('/api/config/routers'), fetch('/api/agents')])
+      if (rRes.status === 401 || aRes.status === 401) {
         window.location.assign('/login')
         return
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = (await res.json()) as { routers: ConfigRouter[] }
+      if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`)
+      const json = (await rRes.json()) as { routers: ConfigRouter[] }
       setList(json.routers)
+      if (aRes.ok) {
+        const { agents } = (await aRes.json()) as { agents: Array<{ slug: string }> }
+        setAgentSlugs(new Set(agents.map((a) => a.slug)))
+      }
       setError(null)
     } catch {
       setError(t('settings.routers.errorGeneric'))
@@ -348,29 +368,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   }, [t])
 
   useEffect(() => {
-    let disposed = false
-    void (async () => {
-      try {
-        const res = await fetch('/api/config/routers')
-        if (res.status === 401) {
-          window.location.assign('/login')
-          return
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const json = (await res.json()) as { routers: ConfigRouter[] }
-        if (disposed) return
-        setList(json.routers)
-        setError(null)
-      } catch {
-        if (!disposed) setError(t('settings.routers.errorGeneric'))
-      } finally {
-        if (!disposed) setLoading(false)
-      }
-    })()
-    return () => {
-      disposed = true
-    }
-  }, [t])
+    void load()
+  }, [load])
 
   // Clave pública SSH del servidor (para autorizarla en los routers)
   useEffect(() => {
@@ -572,9 +571,64 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }
 
+  // Regenerar token del agente (Labs): solo routers-agente con acceso root
+  // (openwrt/glinet nativos; switch gestionado y external no tienen SSH/root).
+  // Envía hot:true para que el servidor, si puede, aplique el token en
+  // caliente (rewrite del .env + restart por SSH) y el router no quede
+  // offline esperando un reinstall.
+  const regenerateToken = async (r: ConfigRouter) => {
+    if (regenerating) return
+    setRegenerating(r.id)
+    setRegenerateNotice(null)
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: r.id, hot: true }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const agent = (await res.json()) as { slug: string; token: string; install: string; method?: string }
+      // Copia el token al portapapeles y refuerza la fila.
+      await copyToClipboard(agent.token)
+      setRegenerateNotice(agent.method === 'hot' ? 'hot' : 'manual')
+      onSaved()
+    } catch {
+      setError(t('settings.routers.errorGeneric'))
+    } finally {
+      setRegenerating(null)
+    }
+  }
+
   return (
-    <Card title={t('settings.routers.title')} caption={t('settings.routers.caption')} index={4} reduce={reduce}>
-      {/* Lista configurada */}
+    <Card
+      title={t('settings.routers.title')}
+      caption={t('settings.routers.caption')}
+      index={4}
+      reduce={reduce}
+      headerSlot={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void discover()}
+            disabled={scanning}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+          >
+            <Radar className={cn('h-4 w-4', scanning && 'animate-pulse')} strokeWidth={1.75} />
+            {scanning ? t('settings.routers.discovering') : t('settings.routers.discover')}
+          </button>
+          <button
+            type="button"
+            aria-expanded={showAddForm}
+            onClick={() => setShowAddForm((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 py-2 text-sm font-medium text-accent transition-colors duration-150 hover:brightness-105"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.routers.addDevice')}
+          </button>
+        </div>
+      }
+    >
+      {/* Lista configurada (tabla como en el mockup: IP | Nombre | Rol | Acciones) */}
       {loading ? (
         <p className="text-caption text-text-muted">…</p>
       ) : list.length === 0 ? (
@@ -582,101 +636,133 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           {t('settings.routers.empty')}
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {list.map((r) => (
-            <li
-              key={r.id}
-              className="flex flex-col gap-2.5 rounded-xl border border-border bg-elevated p-3.5"
-            >
-              <div className="flex items-start gap-2.5">
-                <RouterIcon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate font-mono text-sm font-medium text-text-primary">{r.host}</span>
-                    {r.is_gateway && (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full border-collapse text-left text-[13px]">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">IP</th>
+                <th className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">{t('settings.routers.name')}</th>
+                <th className="px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">{t('settings.routers.role')}</th>
+                <th className="px-3.5 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-text-muted">{t('settings.routers.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 transition-colors last:border-0 hover:bg-hover/40">
+                  <td className="px-3.5 py-2.5 font-mono text-[12px] font-medium text-text-primary">{r.host}</td>
+                  <td className="px-3.5 py-2.5 text-text-secondary">{r.name && r.name !== r.host ? r.name : '—'}</td>
+                  <td className="px-3.5 py-2.5">
+                    {r.is_gateway ? (
+                      <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                         {t('settings.routers.gatewayBadge')}
                       </span>
-                    )}
-                    {r.agent_only && (
-                      <span className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted ring-1 ring-inset ring-border">
+                    ) : r.agent_only ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
                         {t('settings.routers.agentOnlyBadge')}
                       </span>
+                    ) : (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
+                        {t('settings.routers.typeManaged')}
+                      </span>
                     )}
-                  </div>
-                  {r.name && r.name !== r.host && (
-                    <div className="mt-0.5 truncate text-caption text-text-muted">{r.name}</div>
-                  )}
-                </div>
-              </div>
-              {confirmDeleteFor === r.id ? (
-                <span className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void remove(r)}
-                    className="rounded-lg bg-danger px-2.5 py-1.5 text-[11px] font-semibold text-canvas transition-opacity hover:opacity-90"
-                  >
-                    {t('settings.users.confirmDelete')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteFor(null)}
-                    className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-                  >
-                    {t('settings.users.cancel')}
-                  </button>
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(r)}
-                    aria-label={t('settings.routers.edit')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-                  >
-                    <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteFor(r.id)}
-                    aria-label={t('settings.routers.delete')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger"
-                  >
-                    <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                  </button>
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+                  </td>
+                  <td className="px-3.5 py-2.5">
+                    <span className="flex items-center justify-end gap-1.5">
+                      {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRotateFor(r.id)}
+                          disabled={regenerating === r.id}
+                          aria-label={t('settings.routers.regenerateToken')}
+                          title={t('settings.routers.regenerateToken')}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors duration-150 hover:border-danger/60 hover:bg-danger/10 disabled:opacity-50"
+                        >
+                          {regenerating === r.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+                          ) : (
+                            <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEdit(r)}
+                        aria-label={t('settings.routers.edit')}
+                        title={t('settings.routers.edit')}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                      >
+                        <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Descubrimiento en la LAN + alta manual (issue #144): los dos botones
-          en la misma fila; debajo, candidatos y form de alta. */}
+      {regenerateNotice && (
+        <p className={cn('mt-2 text-caption font-medium', regenerateNotice === 'hot' ? 'text-accent' : 'text-danger')}>
+          {regenerateNotice === 'hot'
+            ? t('settings.routers.rotateTokenHotApplied')
+            : t('settings.routers.rotateTokenManualNeeded')}
+        </p>
+      )}
+
+      <AlertDialog open={confirmDeleteFor !== null} onOpenChange={(open) => !open && setConfirmDeleteFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.routers.deleteDesc')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const target = list.find((x) => x.id === confirmDeleteFor)
+                if (target) void remove(target)
+              }}
+              className="bg-danger text-canvas hover:bg-danger/90"
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {t('settings.routers.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRotateFor !== null} onOpenChange={(open) => !open && setConfirmRotateFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.rotateTokenTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('settings.routers.rotateTokenCaption', { name: list.find((x) => x.id === confirmRotateFor)?.name ?? list.find((x) => x.id === confirmRotateFor)?.host ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={regenerating !== null}>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const target = list.find((x) => x.id === confirmRotateFor)
+                if (target) {
+                  setConfirmRotateFor(null)
+                  void regenerateToken(target)
+                }
+              }}
+              disabled={regenerating !== null}
+              className="bg-danger text-canvas hover:bg-danger/90"
+            >
+              <RotateCw className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {t('settings.routers.regenerateToken')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Panel de descubrimiento (candidatos) y alta manual (issue #144) */}
       <div className="mt-4 border-t border-border pt-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-caption text-text-muted">{t('settings.routers.discoverCaption')}</p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void discover()}
-              disabled={scanning}
-              className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
-            >
-              <Radar className={cn('h-4 w-4', scanning && 'animate-pulse')} strokeWidth={1.75} />
-              {scanning ? t('settings.routers.discovering') : t('settings.routers.discover')}
-            </button>
-            <button
-              type="button"
-              aria-expanded={showAddForm}
-              onClick={() => setShowAddForm((v) => !v)}
-              className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-            >
-              <Plus className="h-4 w-4" strokeWidth={1.75} />
-              {t('settings.routers.addDevice')}
-            </button>
-          </div>
-        </div>
+        <p className="text-caption text-text-muted">{t('settings.routers.discoverCaption')}</p>
         {candidates !== null && (
           <ul className="mt-3 flex flex-col gap-2">
             {candidates.length === 0 && (
@@ -735,7 +821,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setHost(e.target.value)}
             placeholder={t('settings.routers.host')}
             aria-label={t('settings.routers.host')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
             type="text"
@@ -743,10 +829,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setName(e.target.value)}
             placeholder={t('settings.routers.name')}
             aria-label={t('settings.routers.name')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
-            type="number"
+            type="text"
             min={1}
             max={65535}
             value={addSshPort}
@@ -754,7 +840,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             placeholder={t('settings.routers.sshPort')}
             aria-label={t('settings.routers.sshPort')}
             title={t('settings.routers.sshPortHint')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -813,7 +899,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditHost(e.target.value)}
                   placeholder={t('settings.routers.host')}
                   aria-label={t('settings.routers.host')}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
                 <input
                   type="text"
@@ -821,7 +907,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder={t('settings.routers.name')}
                   aria-label={t('settings.routers.name')}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
               </div>
               <div>
@@ -830,14 +916,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 </label>
                 <input
                   id="ssh-port"
-                  type="number"
+                  type="text"
                   min={1}
                   max={65535}
                   value={editSshPort}
                   onChange={(e) => setEditSshPort(Number(e.target.value))}
                   aria-label={t('settings.routers.sshPort')}
                   title={t('settings.routers.sshPortHint')}
-                  className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -872,7 +958,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   onChange={(e) => setEditFirmwareTarget(e.target.value)}
                   placeholder={t('settings.routers.firmwareTargetPlaceholder')}
                   aria-label={t('settings.routers.firmwareTarget')}
-                  className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
                 <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
               </div>
@@ -895,7 +981,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           onChange={(e) => setEditSnmpCommunity(e.target.value)}
                           placeholder="public"
                           aria-label={t('settings.routers.snmpCommunity')}
-                          className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                          className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                         />
                       </div>
                         <div>
@@ -904,13 +990,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           </label>
                           <input
                             id="snmp-port"
-                            type="number"
+                            type="text"
                             min={1}
                             max={65535}
                             value={editSnmpPort}
                             onChange={(e) => setEditSnmpPort(Number(e.target.value))}
                             aria-label={t('settings.routers.snmpPort')}
-                            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                           />
                         </div>
                         <div>
@@ -919,13 +1005,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           </label>
                           <input
                             id="snmp-poll-interval"
-                            type="number"
+                            type="text"
                             min={10}
                             max={3600}
                             value={editSnmpPollInterval}
                             onChange={(e) => setEditSnmpPollInterval(Number(e.target.value))}
                             aria-label={t('settings.routers.snmpPollInterval')}
-                            className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                           />
                         </div>
                     </div>
@@ -933,22 +1019,35 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 </div>
               )}
               {error && <p className="text-caption text-danger">{error}</p>}
-              <div className="flex justify-end gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditing(null)}
-                  className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+                  onClick={() => {
+                    setConfirmDeleteFor(editing.id)
+                    setEditing(null)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
                 >
-                  {t('settings.users.cancel')}
+                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                  {t('settings.routers.delete')}
                 </button>
-                <button
-                  type="submit"
-                  disabled={editSubmitting || !editHost.trim()}
-                  className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
-                >
-                  <Pencil className="h-4 w-4" strokeWidth={2} />
-                  {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(null)}
+                    className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+                  >
+                    {t('settings.users.cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting || !editHost.trim()}
+                    className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+                  >
+                    <Pencil className="h-4 w-4" strokeWidth={2} />
+                    {editSubmitting ? t('settings.routers.saving') : t('settings.routers.save')}
+                  </button>
+                </div>
               </div>
             </form>
           </DialogContent>
@@ -964,7 +1063,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.sshKeyCaption')}</p>
         {pubkey && (
           <div className="mt-2.5 flex items-start gap-2">
-            <code className="min-w-0 flex-1 break-all rounded-lg bg-canvas px-3 py-2 font-mono text-[11px] leading-relaxed text-text-secondary">
+            <code className="min-w-0 flex-1 break-all rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-[11px] leading-relaxed text-text-secondary">
               {pubkey.publicKey}
             </code>
             <button
@@ -1237,7 +1336,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
                   placeholder={t('settings.users.newPassword')}
                   aria-label={t('settings.users.newPassword')}
                   autoComplete="new-password"
-                  className="min-w-0 flex-1 rounded-lg border border-border bg-canvas px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
                 <button
                   type="submit"
@@ -1273,7 +1372,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
             onChange={(e) => setNewUser(e.target.value)}
             placeholder={t('settings.users.username')}
             aria-label={t('settings.users.username')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
             type="password"
@@ -1284,7 +1383,7 @@ function UsersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => voi
             placeholder={t('settings.users.password')}
             aria-label={t('settings.users.password')}
             autoComplete="new-password"
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -1429,7 +1528,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             value={mode}
             onChange={(e) => setMode(e.target.value as 'glinet' | 'standard')}
             aria-label={t('settings.adguard.mode')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
             <option value="glinet">{t('settings.adguard.modeGlinet')}</option>
             <option value="standard">{t('settings.adguard.modeStandard')}</option>
@@ -1441,11 +1540,11 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setHost(e.target.value)}
             placeholder={mode === 'glinet' ? t('settings.adguard.hostGlinet') : t('settings.adguard.hostStandard')}
             aria-label={t('settings.adguard.host')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           {mode === 'standard' && (
             <input
-              type="number"
+              type="text"
               min={1}
               max={65535}
               required
@@ -1453,7 +1552,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               onChange={(e) => setPort(e.target.value)}
               placeholder={t('settings.adguard.port')}
               aria-label={t('settings.adguard.port')}
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           )}
           <input
@@ -1462,7 +1561,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setUser(e.target.value)}
             placeholder={mode === 'glinet' ? t('settings.adguard.userGlinet') : t('settings.adguard.userStandard')}
             aria-label={t('settings.adguard.user')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <input
             type="password"
@@ -1471,7 +1570,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             placeholder={passSet ? t('settings.adguard.passKeep') : t('settings.adguard.pass')}
             aria-label={t('settings.adguard.pass')}
             autoComplete="new-password"
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -1626,7 +1725,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             onChange={(e) => setURL(e.target.value)}
             placeholder="https://192.168.1.100:8006"
             aria-label={t('settings.proxmox.url')}
-            className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <input
@@ -1635,7 +1734,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               onChange={(e) => setTokenId(e.target.value)}
               placeholder="root@pam!netpulse"
               aria-label={t('settings.proxmox.tokenId')}
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
             <input
               type="password"
@@ -1644,7 +1743,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               placeholder={tokenSet ? t('settings.proxmox.secretKeep') : t('settings.proxmox.secret')}
               aria-label={t('settings.proxmox.secret')}
               autoComplete="new-password"
-              className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           </div>
         </div>
@@ -1720,7 +1819,7 @@ function fmtUptime(s: number): string {
   return `${Math.floor(s)}s`
 }
 
-function SystemInfoBlock() {
+function SystemInfoBlock({ bare = false }: { bare?: boolean }) {
   const { t } = useTranslation()
   const [info, setInfo] = useState<SystemInfoData | null>(null)
   const [failed, setFailed] = useState(false)
@@ -1769,7 +1868,7 @@ function SystemInfoBlock() {
   ]
 
   return (
-    <div className="mt-5 border-t border-border pt-4">
+    <div className={bare ? '' : 'mt-5 border-t border-border pt-4'}>
       <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">
         {t('settings.about.system')}
       </div>
@@ -1954,6 +2053,87 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
   const [saved, setSaved] = useState(false)
   const loaded = useRef(false)
 
+  // ——— Test manual real (issue #627 / #511): POST /api/speedtest/run y poll
+  // de /api/speedtest/status. La API solo expone running/last (no la fase
+  // concreta), así que la barra de fases es una progresión estimada local.
+  const [testing, setTesting] = useState(false)
+  const [testDone, setTestDone] = useState(false)
+  const [testError, setTestError] = useState<string | null>(null)
+  const [testProgress, setTestProgress] = useState(0)
+  const pollTimer = useRef<number | undefined>(undefined)
+  const progTimer = useRef<number | undefined>(undefined)
+  const testStarted = useRef(0)
+  const testPhase = testProgress < 8 ? 0 : testProgress < 55 ? 1 : 2
+
+  const stopTestTimers = () => {
+    window.clearInterval(pollTimer.current)
+    window.clearInterval(progTimer.current)
+    pollTimer.current = undefined
+    progTimer.current = undefined
+  }
+
+  const runTest = async () => {
+    if (testing || disabled) return
+    setTesting(true)
+    setTestDone(false)
+    setTestError(null)
+    setTestProgress(0)
+    testStarted.current = Date.now()
+    try {
+      const res = await fetch('/api/speedtest/run', { method: 'POST' })
+      if (res.status === 503) {
+        setTesting(false)
+        setTestError(t('settings.speedtest.unavailable'))
+        return
+      }
+      if (!res.ok && res.status !== 409) {
+        setTesting(false)
+        setTestError(t('settings.wanSpeed.testFailed'))
+        return
+      }
+    } catch {
+      setTesting(false)
+      setTestError(t('settings.wanSpeed.testFailed'))
+      return
+    }
+
+    // Progresión visual (~30 s de estimación) mientras el poll confirma running.
+    progTimer.current = window.setInterval(() => {
+      setTestProgress((p) => Math.min(100, Math.max(p, ((Date.now() - testStarted.current) / 30000) * 100)))
+    }, 300)
+
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/speedtest/status')
+        if (!r.ok) return
+        const st = (await r.json()) as {
+          running: boolean
+          lastError?: string
+          last?: { downMbps?: number; upMbps?: number } | null
+        }
+        if (st.running) return
+        // Terminó: aplicar el último resultado real a los campos (sin guardar).
+        stopTestTimers()
+        setTestProgress(100)
+        if (st.last && typeof st.last.downMbps === 'number' && typeof st.last.upMbps === 'number') {
+          setDown(String(Math.round(st.last.downMbps)))
+          setUp(String(Math.round(st.last.upMbps)))
+          setTestDone(true)
+          window.setTimeout(() => setTestDone(false), 4000)
+        } else {
+          setTestError(st.lastError || t('settings.wanSpeed.testFailed'))
+        }
+        setTesting(false)
+      } catch {
+        /* el siguiente poll reintentará */
+      }
+    }
+    pollTimer.current = window.setInterval(() => void poll(), 1500)
+  }
+
+  // Limpieza al desmontar.
+  useEffect(() => stopTestTimers, [])
+
   // Carga el valor persistido una sola vez al montar (no se pisa al guardar).
   useEffect(() => {
     let alive = true
@@ -2006,57 +2186,134 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
     }
   }, [down, up, onSaved, refreshOverview, t])
 
+  const phaseLabel =
+    testPhase === 0
+      ? t('settings.wanSpeed.phaseServer')
+      : testPhase === 1
+        ? t('settings.wanSpeed.phaseDown')
+        : t('settings.wanSpeed.phaseUp')
+
   return (
-    <div className="mt-4 space-y-3 border-t border-border pt-4">
+    <div className="space-y-3">
       <div>
         <div className="text-sm font-medium text-text-primary">{t('settings.wanSpeed.title')}</div>
         <div className="text-caption text-text-muted">{t('settings.wanSpeed.caption')}</div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+
+      {/* Descarga + Subida + test de velocidad en la MISMA fila */}
+      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.down')}</span>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0.1"
-            max="100000"
-            step="any"
             value={down}
             onChange={(e) => setDown(e.target.value)}
             disabled={disabled || loading}
             aria-label={t('settings.wanSpeed.down')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="mt-1 h-9 w-full rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.wanSpeed.up')}</span>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0.1"
-            max="100000"
-            step="any"
             value={up}
             onChange={(e) => setUp(e.target.value)}
             disabled={disabled || loading}
             aria-label={t('settings.wanSpeed.up')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="mt-1 h-9 w-full rounded-lg border border-border bg-elevated px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
+        {!disabled && (
+          <div className="lg:justify-self-end">
+            {testing ? (
+              <button
+                type="button"
+                disabled
+                className="inline-flex h-9 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-xl border border-accent/40 bg-accent-soft px-3 text-[13px] font-medium text-accent opacity-70"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+                {phaseLabel}…
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void runTest()}
+                disabled={disabled || busy || loading}
+                className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-elevated px-3 text-[13px] font-medium text-text-primary transition-colors hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Gauge className="h-4 w-4" strokeWidth={1.75} />
+                {t('settings.wanSpeed.runTest')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
       <p className="text-caption text-text-muted">{t('settings.wanSpeed.hint')}</p>
+
+      {/* Barra de fases cuando corre el test */}
+      {!disabled && testing && (
+        <div className="space-y-2.5 rounded-xl border border-border bg-elevated/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-2 text-caption font-medium text-accent">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              {phaseLabel}…
+            </span>
+            <span className="font-mono text-[10px] text-text-muted">{Math.round(testProgress)} %</span>
+          </div>
+          {/* Barra de progreso de fases */}
+          <div className="flex items-center gap-1.5">
+            {[t('settings.wanSpeed.phaseServer'), t('settings.wanSpeed.phaseDown'), t('settings.wanSpeed.phaseUp')].map(
+              (label, i) => {
+                const active = i === testPhase
+                const done = i < testPhase || testProgress >= 100
+                return (
+                  <span
+                    key={label}
+                    className={cn(
+                      'h-1.5 flex-1 rounded-full transition-colors duration-300',
+                      done || active ? 'bg-accent' : 'bg-border-strong',
+                    )}
+                  />
+                )
+              },
+            )}
+          </div>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-border/60">
+            <div
+              className="h-full rounded-full bg-accent/70 transition-[width] duration-300 ease-linear"
+              style={{ width: `${testProgress}%` }}
+            />
+          </div>
+          <p className="text-caption text-text-muted">{t('settings.wanSpeed.testHint')}</p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => void save()}
-          disabled={disabled || busy || loading}
-          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={disabled || busy || loading || testing}
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? t('settings.wanSpeed.saving') : t('settings.wanSpeed.save')}
         </button>
         {saved && (
           <span role="status" className="text-caption text-ok">
             {t('settings.wanSpeed.saved')}
+          </span>
+        )}
+        {testDone && (
+          <span role="status" className="text-caption text-ok">
+            {t('settings.wanSpeed.testApplied', { down, up })}
+          </span>
+        )}
+        {testError && (
+          <span role="alert" className="text-caption text-danger">
+            {testError}
           </span>
         )}
         {error && (
@@ -2080,7 +2337,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [enabled, setEnabled] = useState(false)
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
-  const [serverId, setServerId] = useState('0')
+  const [serverUrl, setServerUrl] = useState('https://speedtest.net')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2097,7 +2354,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         setEnabled(!!d.enabled)
         if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
-        if (typeof d.serverId === 'number') setServerId(String(d.serverId))
+        if (typeof d.serverUrl === 'string' && d.serverUrl) setServerUrl(d.serverUrl)
       })
       .catch(() => undefined)
       .finally(() => {
@@ -2109,8 +2366,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   }, [])
 
   const save = useCallback(async () => {
-    const sid = Number(serverId)
-    if (![6, 12, 24].includes(intervalHours) || !Number.isInteger(sid) || sid < 0 || alertPct < 0 || alertPct > 90) {
+    const raw = serverUrl.trim()
+    const urlOk = raw === '' || /^https?:\/\/.+\..+/.test(raw)
+    if (![12, 24, 168, 720].includes(intervalHours) || !urlOk || alertPct < 0 || alertPct > 90) {
       setError(t('settings.speedtest.invalid'))
       return
     }
@@ -2120,7 +2378,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       const res = await fetch('/api/settings/speedtest', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, intervalHours, serverId: sid, alertPct }),
+        body: JSON.stringify({ enabled, intervalHours, serverUrl, alertPct }),
       })
       if (!res.ok) {
         setError(t('settings.speedtest.saveError'))
@@ -2132,25 +2390,51 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [enabled, intervalHours, serverId, alertPct, onSaved, t])
+  }, [enabled, intervalHours, serverUrl, alertPct, onSaved, t])
+
+  // «Probar»: guarda la URL del servidor y lanza un test de velocidad
+  // inmediato (usa esa URL en el backend).
+  const testUrl = useCallback(async () => {
+    if (!serverUrl.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      const sRes = await fetch('/api/settings/speedtest', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, intervalHours, serverUrl, alertPct }),
+      })
+      if (!sRes.ok) {
+        setError(t('settings.speedtest.saveError'))
+        return
+      }
+      const runRes = await fetch('/api/speedtest/run', { method: 'POST' })
+      if (!runRes.ok) {
+        setError(t('settings.speedtest.testFailed'))
+        return
+      }
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+      onSaved()
+    } catch {
+      setError(t('settings.speedtest.testFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }, [serverUrl, enabled, intervalHours, alertPct, onSaved, t])
 
   return (
-    <div className="mt-4 space-y-3 border-t border-border pt-4">
+    <div className="space-y-3">
       <div>
         <div className="text-sm font-medium text-text-primary">{t('settings.speedtest.title')}</div>
         <div className="text-caption text-text-muted">{t('settings.speedtest.caption')}</div>
       </div>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-label uppercase text-text-muted">{t('settings.speedtest.enabled')}</span>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          disabled={disabled || loading}
-          aria-label={t('settings.speedtest.enabled')}
-          className="h-4 w-4 accent-[rgb(var(--accent))]"
-        />
-      </label>
+      <SwitchRow
+        label={t('settings.speedtest.enabled')}
+        checked={enabled}
+        onCheckedChange={(v) => setEnabled(v)}
+        disabled={disabled || loading}
+      />
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.speedtest.interval')}</span>
@@ -2159,53 +2443,75 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             onChange={(e) => setIntervalHours(Number(e.target.value))}
             disabled={disabled || loading}
             aria-label={t('settings.speedtest.interval')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
-            {[6, 12, 24].map((h) => (
+            {[12, 24, 168, 720].map((h) => (
               <option key={h} value={h}>
-                {t('settings.speedtest.intervalH', { hours: h })}
+                {h === 168
+                  ? t('settings.speedtest.intervalWeek')
+                  : h === 720
+                    ? t('settings.speedtest.intervalMonth')
+                    : t('settings.speedtest.intervalH', { hours: h })}
               </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPct', { pct: alertPct })}</span>
+          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
           <input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min="0"
-            max="90"
-            step="1"
             value={alertPct}
             onChange={(e) => setAlertPct(Number(e.target.value))}
             disabled={disabled || loading}
-            aria-label={t('settings.speedtest.alertPct', { pct: alertPct })}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            aria-label={t('settings.speedtest.alertPctLabel')}
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           />
         </label>
       </div>
       <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
-      <label className="block">
+      <div>
         <span className="text-label uppercase text-text-muted">{t('settings.speedtest.serverId')}</span>
-        <input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          step="1"
-          value={serverId}
-          onChange={(e) => setServerId(e.target.value)}
-          disabled={disabled || loading}
-          aria-label={t('settings.speedtest.serverId')}
-          className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
-        />
-      </label>
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            type="text"
+            inputMode="url"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            disabled={disabled || loading}
+            placeholder="https://speedtest.net"
+            aria-label={t('settings.speedtest.serverId')}
+            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setServerUrl('https://speedtest.net')}
+            disabled={disabled || loading}
+            title={t('settings.speedtest.serverRestore')}
+            aria-label={t('settings.speedtest.serverRestore')}
+            className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <span className="hidden sm:inline">{t('settings.speedtest.serverRestore')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void testUrl()}
+            disabled={disabled || busy || loading || !serverUrl.trim()}
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Gauge className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.speedtest.test')}
+          </button>
+        </div>
+      </div>
       <p className="text-caption text-text-muted">{t('settings.speedtest.hint')}</p>
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => void save()}
           disabled={disabled || busy || loading}
-          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? t('settings.speedtest.saving') : t('settings.speedtest.save')}
         </button>
@@ -2252,52 +2558,91 @@ function ServicesCard({
   ]
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
-      <div className="flex flex-col divide-y divide-border/60">
-        {rows.map((r) => (
+      <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+        <div className="divide-y divide-border/60">
           <SwitchRow
-            key={r.key}
-            label={r.label}
-            caption={r.caption}
-            checked={services[r.key]}
+            label={rows[0]!.label}
+            caption={rows[0]!.caption}
+            checked={services[rows[0]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService(r.key, v)
+              setService(rows[0]!.key, v)
               onSaved()
             }}
           />
-        ))}
-        <div className="py-3">
           <SwitchRow
-            label={t('settings.services.labs')}
-            caption={t('settings.services.labsCaption')}
-            checked={services.labs}
+            label={rows[1]!.label}
+            caption={rows[1]!.caption}
+            checked={services[rows[1]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService('labs', v)
+              setService(rows[1]!.key, v)
               onSaved()
             }}
           />
         </div>
+        <div className="divide-y divide-border/60">
+          <SwitchRow
+            label={rows[2]!.label}
+            caption={rows[2]!.caption}
+            checked={services[rows[2]!.key]}
+            disabled={disabled}
+            onCheckedChange={(v) => {
+              setService(rows[2]!.key, v)
+              onSaved()
+            }}
+          />
+          <div className="py-3">
+            <SwitchRow
+              label={t('settings.services.labs')}
+              caption={t('settings.services.labsCaption')}
+              checked={services.labs}
+              disabled={disabled}
+              onCheckedChange={(v) => {
+                setService('labs', v)
+                onSaved()
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {services.labs && (
-        <div className="mt-4 space-y-3 border-t border-border pt-4">
-          <div className="rounded-xl bg-elevated px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="text-sm font-medium text-text-primary">{t('settings.admin.orchestration')}</span>
-                <p className="text-caption text-text-muted">{t('settings.services.orchestrationHint')}</p>
-              </div>
-              <Switch
-                checked={orchOn}
-                onCheckedChange={(v) => void toggleOrchestration(v)}
-                disabled={orchBusy || disabled}
-                aria-label={t('settings.admin.orchestration')}
-              />
-            </div>
+        <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-0 border-t border-border pt-4 sm:grid-cols-2">
+          <div className="divide-y divide-border/60">
+            {/* Orquestación (opt-in del admin) */}
+            <SwitchRow
+              label={t('settings.admin.orchestration')}
+              caption={t('settings.services.orchestrationHint')}
+              checked={orchOn}
+              onCheckedChange={(v) => void toggleOrchestration(v)}
+              disabled={orchBusy || disabled}
+            />
+            {/* Canales */}
+            <SwitchRow
+              label={t('settings.labs.canales')}
+              caption={t('settings.labs.canalesCaption')}
+              checked={services.canales}
+              disabled={disabled}
+              onCheckedChange={(v) => {
+                setService('canales', v)
+                onSaved()
+              }}
+            />
           </div>
-
-          <ExternalDevicesManager onSaved={onSaved} />
+          <div className="divide-y divide-border/60">
+            {/* Actualizaciones */}
+            <SwitchRow
+              label={t('settings.labs.actualizaciones')}
+              caption={t('settings.labs.actualizacionesCaption')}
+              checked={services.actualizaciones}
+              disabled={disabled}
+              onCheckedChange={(v) => {
+                setService('actualizaciones', v)
+                onSaved()
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -2470,12 +2815,6 @@ function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; 
       {state === 'unsupported' && (
         <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
           {t('settings.push.unsupported')}
-        </p>
-      )}
-
-      {state === 'insecure' && (
-        <p className="rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
-          {t('settings.push.insecure')}
         </p>
       )}
 
@@ -2717,6 +3056,7 @@ interface UpdateHistoryRow {
 function UpdateHistoryCard() {
   const { t } = useTranslation()
   const [rows, setRows] = useState<UpdateHistoryRow[] | null>(null)
+  const [open, setOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -2736,46 +3076,96 @@ function UpdateHistoryCard() {
   const statusCls = (s: string) =>
     s === 'success' ? 'text-ok' : s === 'failed' ? 'text-rose-500' : 'text-amber-600 dark:text-amber-400'
 
+  const downloadLog = () => {
+    if (!rows) return
+    const lines = ['# NetPulse — historial de actualizaciones', '# exportado ' + new Date().toISOString(), '', 'fecha\tdesde\thasta\tiniciado_por\tduracion\testado', ...rows.map((r) => [new Date(r.ts).toISOString(), r.versionFrom ?? '', r.versionTo ?? '', r.initiatedBy ?? '', r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : '', r.status].join('\t'))]
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'netpulse-historial-actualizaciones.log'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const count = rows?.length ?? 0
+  const last = rows && rows[0] ? rows[0] : null
+
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 md:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <History className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-text-primary">{t('update.history.title')}</h3>
-      </div>
-      {rows === null ? (
-        <p className="text-xs text-text-muted">{t('settings.about.checking')}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-xs text-text-secondary">{t('update.history.empty')}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[540px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-border text-text-muted">
-                <th className="py-2 pr-3 font-medium">{t('update.history.date')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.from')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.to')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.initiatedBy')}</th>
-                <th className="py-2 pr-3 font-medium">{t('update.history.duration')}</th>
-                <th className="py-2 font-medium">{t('update.history.status')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border/60 last:border-0">
-                  <td className="whitespace-nowrap py-2 pr-3 text-text-secondary">
-                    {relTimeFromTs(r.ts) ?? new Date(r.ts).toLocaleString()}
-                  </td>
-                  <td className="py-2 pr-3 font-mono text-text-primary">{r.versionFrom ?? '—'}</td>
-                  <td className="py-2 pr-3 font-mono text-text-primary">{r.versionTo ?? '—'}</td>
-                  <td className="py-2 pr-3 text-text-secondary">{r.initiatedBy || '—'}</td>
-                  <td className="py-2 pr-3 text-text-secondary">
-                    {r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)} s` : '—'}
-                  </td>
-                  <td className={cn('py-2 font-semibold', statusCls(r.status))}>{statusLabel(r.status)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Cabecera colapsable (como el mockup) */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary">{t('update.history.title')}</h3>
+            <p className="text-xs text-text-muted">
+              {rows === null
+                ? t('settings.about.checking')
+                : last
+                  ? t('update.history.summary', { count, date: relTimeFromTs(last.ts) ?? new Date(last.ts).toLocaleString(), status: statusLabel(last.status) })
+                  : t('update.history.empty')}
+            </p>
+          </div>
+        </div>
+        <span className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              downloadLog()
+            }}
+            disabled={!rows || rows.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {t('update.history.download')}
+          </button>
+          <ChevronDown className={cn('h-4 w-4 text-text-muted transition-transform duration-200', open && 'rotate-180')} strokeWidth={2} />
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {rows === null ? (
+            <p className="text-xs text-text-muted">{t('settings.about.checking')}</p>
+          ) : rows.length === 0 ? (
+            <p className="text-xs text-text-secondary">{t('update.history.empty')}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[540px] text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-text-muted">
+                    <th className="py-2 pr-3 font-medium">{t('update.history.date')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.from')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.to')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.initiatedBy')}</th>
+                    <th className="py-2 pr-3 font-medium">{t('update.history.duration')}</th>
+                    <th className="py-2 font-medium">{t('update.history.status')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b border-border/60 last:border-0">
+                      <td className="whitespace-nowrap py-2 pr-3 text-text-secondary">
+                        {relTimeFromTs(r.ts) ?? new Date(r.ts).toLocaleString()}
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-text-primary">{r.versionFrom ?? '—'}</td>
+                      <td className="py-2 pr-3 font-mono text-text-primary">{r.versionTo ?? '—'}</td>
+                      <td className="py-2 pr-3 text-text-secondary">{r.initiatedBy || '—'}</td>
+                      <td className="py-2 pr-3 text-text-secondary">
+                        {r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)} s` : '—'}
+                      </td>
+                      <td className={cn('py-2 font-semibold', statusCls(r.status))}>{statusLabel(r.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2849,6 +3239,15 @@ function AdoptionCard() {
             <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
           {copied === 'token' && <span className="text-[10px] text-ok">✓</span>}
+          <button
+            type="button"
+            onClick={() => setConfirmRotate(true)}
+            disabled={busy}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+            {t('settings.adoption.rotate')}
+          </button>
         </div>
 
         {data.server_fp && (
@@ -2861,16 +3260,6 @@ function AdoptionCard() {
           </div>
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={() => setConfirmRotate(true)}
-        disabled={busy}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-hover disabled:opacity-60"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
-        {t('settings.adoption.rotate')}
-      </button>
 
       {/* Confirmación de rotación (issue #145): invalida todos los pairings
           pendientes, no puede ser un clic suelto. */}
@@ -2898,366 +3287,86 @@ function AdoptionCard() {
   )
 }
 
-// --- External devices / scrapers (Labs, issue #154) ---
 
-interface ExternalDevice {
-  slug: string
-  host: string
-  type: RouterType
-  lastSeen: number | null
-  version: string
-  fresh: boolean
-  hasToken: boolean
+// ---------------------------------------------------------------------------
+// Rediseño columna única (mockup v3): etiqueta de sección con línea
+// ---------------------------------------------------------------------------
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex scroll-mt-32 items-center gap-3">
+      <h2 className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+        {children}
+      </h2>
+      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+    </div>
+  )
 }
 
-function ExternalDevicesManager({ onSaved }: { onSaved: () => void }) {
-  const { t, i18n } = useTranslation()
-  const { refresh } = useNetPulse()
-  const [devices, setDevices] = useState<ExternalDevice[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
+interface SettingsIndexItem {
+  href: string
+  label: string
+  /** Sección visible solo con backend real (no demo). */
+  adminOnly?: boolean
+}
 
-  // Add form
-  const [showAdd, setShowAdd] = useState(false)
-  const [addName, setAddName] = useState('')
-  const [addHost, setAddHost] = useState('')
-  const [addType, setAddType] = useState<RouterType>('managed-switch')
-  const [submitting, setSubmitting] = useState(false)
-
-  // Token reveal state
-  const [generatingFor, setGeneratingFor] = useState<string | null>(null)
-  const [revealed, setRevealed] = useState<{ slug: string; token: string } | null>(null)
-
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const [rRes, aRes] = await Promise.all([fetch('/api/config/routers'), fetch('/api/agents')])
-      if (!rRes.ok || !aRes.ok) throw new Error(`HTTP ${rRes.status}/${aRes.status}`)
-      const { routers } = (await rRes.json()) as { routers: ConfigRouter[] }
-      const { agents } = (await aRes.json()) as {
-        agents: Array<{ slug: string; lastSeen: number | null; version: string; fresh: boolean }>
-      }
-      const agentMap = new Map(agents.map((a) => [a.slug, a]))
-      const ext: ExternalDevice[] = []
-      for (const r of routers) {
-        if (!r.agent_only) continue
-        const a = agentMap.get(r.id)
-        ext.push({
-          slug: r.id,
-          host: r.host,
-          type: r.type,
-          lastSeen: a?.lastSeen ?? null,
-          version: a?.version ?? '',
-          fresh: a?.fresh ?? false,
-          hasToken: agentMap.has(r.id),
-        })
-      }
-      for (const a of agents) {
-        if (!ext.some((d) => d.slug === a.slug)) {
-          ext.push({
-            slug: a.slug,
-            host: '',
-            type: 'external',
-            lastSeen: a.lastSeen,
-            version: a.version,
-            fresh: a.fresh,
-            hasToken: true,
-          })
-        }
-      }
-      setDevices(ext)
-      setError(null)
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    } finally {
-      setLoading(false)
-    }
-  }, [t])
-
+/** Índice sticky de la página (scroll-spy). Las secciones se anclan por id. */
+function SettingsIndex({ items }: { items: SettingsIndexItem[] }) {
+  const { t } = useTranslation()
+  const [active, setActive] = useState<string>(items[0]?.href ?? '')
   useEffect(() => {
-    void load()
-  }, [load])
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(`#${entry.target.id}`)
+        }
+      },
+      // La sección "activa" es la que cruza la franja central del viewport.
+      { rootMargin: '-20% 0px -65% 0px', threshold: 0 },
+    )
+    for (const item of items) {
+      const el = document.getElementById(item.href.slice(1))
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+  }, [items])
 
-  const create = async (e: React.FormEvent) => {
+  const go = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault()
-    if (!addHost.trim() || submitting) return
-    const name = addName.trim() || addHost.trim()
-    setSubmitting(true)
-    setError(null)
-    try {
-      const rRes = await fetch('/api/config/routers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, host: addHost.trim(), type: addType, agent_only: true }),
-      })
-      if (rRes.status === 409) {
-        setError(t('settings.routers.errorDuplicate'))
-        setSubmitting(false)
-        return
-      }
-      if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`)
-      const { router } = (await rRes.json()) as { router: { id: string } }
-
-      const aRes = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: router.id }),
-      })
-      if (!aRes.ok) throw new Error(`HTTP ${aRes.status}`)
-      const agent = (await aRes.json()) as { slug: string; token: string; install: string }
-
-      setAddName('')
-      setAddHost('')
-      setAddType('managed-switch')
-      setShowAdd(false)
-      setRevealed({ slug: agent.slug, token: agent.token })
-      await load()
-      refresh()
-      onSaved()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('settings.routers.errorGeneric'))
-    } finally {
-      setSubmitting(false)
-    }
+    const el = document.getElementById(href.slice(1))
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Corrige el ancla tras el scrollIntoView sin CSS scroll-margin.
+    const topbar = 56 + 8
+    const y = el.getBoundingClientRect().top + window.scrollY - topbar
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' })
+    setActive(href)
+    history.replaceState(null, '', href)
   }
-
-  const regenerate = async (slug: string) => {
-    setGeneratingFor(slug)
-    try {
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const agent = (await res.json()) as { slug: string; token: string; install: string }
-      setRevealed({ slug: agent.slug, token: agent.token })
-      await load()
-      onSaved()
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    } finally {
-      setGeneratingFor(null)
-    }
-  }
-
-  const remove = async (slug: string) => {
-    try {
-      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}`, { method: 'DELETE' })
-      if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`)
-      setConfirmDelete(null)
-      await load()
-      refresh()
-      onSaved()
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    }
-  }
-
-  const copy = async (text: string, label: string) => {
-    const ok = await copyToClipboard(text)
-    if (ok) {
-      setCopied(label)
-      window.setTimeout(() => setCopied(null), 1500)
-    }
-  }
-
-  const fmtLastSeen = (ts: number | null): string => {
-    if (!ts) return '\u2014'
-    const diff = Date.now() - ts * 1000
-    if (diff < 60_000) return t('settings.labs.justNow')
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
-    return new Date(ts * 1000).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' })
-  }
-
-  if (loading) return <p className="py-3 text-caption text-text-muted">{t('settings.labs.loading')}</p>
 
   return (
-    <div className="space-y-4">
-      {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">{error}</p>}
-
-      {/* New token reveal */}
-      {revealed && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold text-text-primary">
-              {t('settings.labs.tokenFor', { slug: revealed.slug })}
-            </p>
-            <button
-              type="button"
-              onClick={() => setRevealed(null)}
-              className="rounded-lg p-1 text-text-muted hover:text-text-primary"
-              aria-label={t('settings.labs.dismiss')}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="mb-2 text-caption text-amber-600 dark:text-amber-400">{t('settings.labs.tokenOnce')}</p>
-          <div className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs break-all text-text-primary">
-            <span className="flex-1 select-all">{revealed.token}</span>
-            <button
-              type="button"
-              onClick={() => copy(revealed.token, 'token')}
-              className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-hover hover:text-accent"
-              aria-label={t('settings.labs.copyToken')}
-            >
-              {copied === 'token' ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          <p className="mt-2 text-caption text-text-muted">{t('settings.labs.ingestHint')}</p>
-          <pre className="mt-1 overflow-x-auto rounded-lg bg-elevated p-3 text-[11px] text-text-secondary">
-            {`curl -X POST http://${window.location.hostname}:3000/api/ingest/agent \\
-  -H 'Authorization: Bearer ${revealed.token}' \\
-  -H 'Content-Type: application/json' \\
-  -d '{...}'`}
-          </pre>
-        </div>
-      )}
-
-      {/* Device list */}
-      {devices.length === 0 ? (
-        <p className="py-2 text-caption text-text-muted">{t('settings.labs.empty')}</p>
-      ) : (
-        <div className="space-y-2">
-          {devices.map((d) => (
-            <div
-              key={d.slug}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-elevated px-4 py-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-medium text-text-primary">{d.slug}</span>
-                  {d.fresh && (
-                    <span className="inline-flex h-2 w-2 rounded-full bg-ok" title={t('settings.labs.fresh')} />
-                  )}
-                </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
-                  <span>{d.host || '\u2014'}</span>
-                  <span className="inline-flex rounded-full bg-elevated-alt px-2 py-0.5 text-[10px] font-medium text-text-secondary">
-                    {d.type}
-                  </span>
-                  <span>{t('settings.labs.lastSeen')}: {fmtLastSeen(d.lastSeen)}</span>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {d.hasToken ? (
-                  <button
-                    type="button"
-                    disabled={generatingFor === d.slug}
-                    onClick={() => regenerate(d.slug)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-accent disabled:opacity-50"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    {generatingFor === d.slug ? '\u2026' : t('settings.labs.rotateToken')}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => regenerate(d.slug)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-amber-600 transition-colors hover:bg-amber-500/10"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    {t('settings.labs.noToken')}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(d.slug)}
-                  className="rounded-lg p-1.5 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                  aria-label={`${t('settings.routers.delete')} ${d.slug}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Add button */}
-      {showAdd ? (
-        <form onSubmit={create} className="space-y-3 rounded-xl border border-border bg-elevated p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
-              type="text"
-              className="h-9 rounded-lg border border-border bg-canvas px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
-              placeholder={t('settings.labs.namePlaceholder')}
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              autoFocus
-            />
-            <input
-              type="text"
-              className="h-9 rounded-lg border border-border bg-canvas px-3 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
-              placeholder={t('settings.routers.host')}
-              value={addHost}
-              onChange={(e) => setAddHost(e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <SegmentedControl
-              options={[
-                { value: 'managed-switch', label: t('settings.routers.typeManaged') },
-                { value: 'external', label: t('settings.routers.typeExternal') },
-              ]}
-              value={addType}
-              onChange={(v) => setAddType(v as RouterType)}
-              ariaLabel={t('settings.routers.type')}
-            />
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAdd(false)}
-                className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-text-muted hover:text-text-primary"
-              >
-                {t('settings.labs.cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || !addHost.trim()}
-                className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-canvas transition-opacity hover:opacity-90 disabled:opacity-40"
-              >
-                <Plus className="h-4 w-4" />
-                {submitting ? t('settings.routers.adding') : t('settings.labs.addDevice')}
-              </button>
-            </div>
-          </div>
-        </form>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowAdd(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-elevated/50 py-3 text-[13px] font-medium text-text-muted transition-colors hover:border-accent/50 hover:text-accent"
-        >
-          <Plus className="h-4 w-4" />
-          {t('settings.labs.addDevice')}
-        </button>
-      )}
-
-      {/* Delete confirmation */}
-      {confirmDelete && (
-        <AlertDialog open onOpenChange={() => setConfirmDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('settings.labs.deleteTitle')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('settings.labs.deleteDesc', { slug: confirmDelete })}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t('settings.labs.cancel')}</AlertDialogCancel>
-              <AlertDialogAction onClick={() => remove(confirmDelete)} className="bg-danger text-white hover:bg-danger/90">
-                {t('settings.routers.delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </div>
+    <nav
+      aria-label={t('settings.sections.label')}
+      className="sticky top-14 z-20 -mx-4 mt-5 border-b border-border bg-canvas/85 px-4 py-2 backdrop-blur-md md:-mx-6 md:px-6"
+    >
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {items.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            onClick={(e) => go(e, item.href)}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150',
+              active === item.href
+                ? 'bg-accent-soft text-accent'
+                : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+            )}
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+    </nav>
   )
 }
 
@@ -3472,7 +3581,6 @@ export default function Settings() {
 
   // ——— Paleta completa (canvas, surface, accent, semantic...) ———
   const [paletteId, setPaletteId] = useStoredState<PaletteId>('netpulse-palette', 'netpulse')
-  const [accentId, setAccentId] = useStoredState<AccentId>('netpulse-accent', 'cyan')
   useEffect(() => {
     const palette = PALETTES.find((x) => x.id === paletteId) ?? PALETTES[0]!
     const vars = resolvedLight ? palette.light : palette.dark
@@ -3481,9 +3589,7 @@ export default function Settings() {
       root.style.setProperty(`--${key}`, value)
     }
     root.setAttribute('data-palette', paletteId)
-    const a = ACCENTS.find((x) => x.id === accentId) ?? ACCENTS[0]
-    root.style.setProperty('--accent', resolvedLight ? a.light : a.dark)
-  }, [paletteId, accentId, resolvedLight])
+  }, [paletteId, resolvedLight])
 
   // ——— Densidad (compacta ≈ −15 % de tamaños/paddings vía rem) ———
   const [density, setDensity] = useStoredState<'comoda' | 'compacta'>('netpulse-density', 'comoda')
@@ -3573,8 +3679,27 @@ export default function Settings() {
     setDeferred(null)
   }
 
+  // ——— Índice de secciones (rediseño v3): estable entre renders ———
+  const settingsIndexItems = useMemo(
+    () => [
+      { href: '#sec-personalizacion', label: t('settings.sections.personalization') },
+      { href: '#sec-servicios', label: t('settings.sections.services') },
+      { href: '#sec-notificaciones', label: t('settings.sections.notifications') },
+      ...(!isDemo && auth?.role === 'admin'
+        ? [
+            { href: '#sec-red', label: t('settings.sections.network') },
+            { href: '#sec-integraciones', label: t('settings.sections.integrations') },
+            { href: '#sec-cuenta', label: t('settings.sections.account') },
+            { href: '#sec-admin', label: t('settings.sections.administration') },
+          ]
+        : []),
+      { href: '#sec-acerca', label: t('settings.sections.about') },
+    ],
+    [t, isDemo, auth?.role],
+  )
+
   return (
-    <div className="mx-auto w-full max-w-[1100px]">
+    <div className="mx-auto w-full max-w-[1180px]">
       {/* ① Page header */}
       <nav aria-label={t('common.breadcrumb')} className="mb-1 text-caption text-text-muted">
         <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
@@ -3612,9 +3737,48 @@ export default function Settings() {
         </motion.div>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
-        {/* ④ Datos y umbrales */}
-        <div className="lg:col-span-7">
+      {/* Índice de la página (rediseño v3): navegación rápida entre secciones */}
+      <SettingsIndex items={settingsIndexItems} />
+      {/* Tarjetas apiladas a ancho completo (rediseño v3): una columna, con
+          etiquetas de sección. El orden visual lo controla `order-*`; los
+          ids de cada SectionLabel alimentan el índice sticky y el scroll-spy. */}
+      <div className="mt-4 flex flex-col gap-4 md:gap-5">
+        <div className="scroll-mt-32 order-10" id="sec-personalizacion">
+          <SectionLabel>{t('settings.sections.personalization')}</SectionLabel>
+        </div>
+
+        {/* El resto de etiquetas viven aquí con su order; flex las coloca
+            junto a la primera tarjeta de cada sección. */}
+        <div className="scroll-mt-32 order-40" id="sec-servicios">
+          <SectionLabel>{t('settings.sections.services')}</SectionLabel>
+        </div>
+        <div className="scroll-mt-32 order-50" id="sec-notificaciones">
+          <SectionLabel>{t('settings.sections.notifications')}</SectionLabel>
+        </div>
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="scroll-mt-32 order-80" id="sec-red">
+            <SectionLabel>{t('settings.sections.network')}</SectionLabel>
+          </div>
+        )}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="scroll-mt-32 order-130" id="sec-integraciones">
+            <SectionLabel>{t('settings.sections.integrations')}</SectionLabel>
+          </div>
+        )}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="scroll-mt-32 order-160" id="sec-cuenta">
+            <SectionLabel>{t('settings.sections.account')}</SectionLabel>
+          </div>
+        )}
+        <div className="scroll-mt-32 order-190" id="sec-admin">
+          <SectionLabel>{t('settings.sections.administration')}</SectionLabel>
+        </div>
+        <div className="scroll-mt-32 order-230" id="sec-acerca">
+          <SectionLabel>{t('settings.sections.about')}</SectionLabel>
+        </div>
+
+        {/* ④ Datos y umbrales (primera tarjeta de Personalización) */}
+        <div className="order-30">
           <Card
             title={t('settings.data.title')}
             caption={t('settings.data.caption')}
@@ -3634,25 +3798,27 @@ export default function Settings() {
               </div>
             }
           >
-            {/* Unidades + refresco */}
+            {/* cols-2: Unidades + decimal + Refresco (izq) | umbrales (der) */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.data.units')}</div>
-                <div className="mt-2">
-                  <SegmentedControl
-                    options={[
-                      { value: 'mbps', label: 'Mbps' },
-                      { value: 'mbs', label: 'MB/s' },
-                    ]}
-                    value={units}
-                    onChange={(v) => {
-                      setUnits(v)
-                      notify()
-                    }}
-                    ariaLabel={t('settings.data.units')}
-                  />
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.data.units')}</div>
+                  <div className="mt-2">
+                    <SegmentedControl
+                      options={[
+                        { value: 'mbps', label: 'Mbps' },
+                        { value: 'mbs', label: 'MB/s' },
+                      ]}
+                      value={units}
+                      onChange={(v) => {
+                        setUnits(v)
+                        notify()
+                      }}
+                      ariaLabel={t('settings.data.units')}
+                    />
+                  </div>
                 </div>
-                <div className="mt-2">
+                <div>
                   <SwitchRow
                     label={t('settings.data.decimalEs')}
                     checked={decimalEs}
@@ -3662,296 +3828,277 @@ export default function Settings() {
                     }}
                   />
                 </div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.data.refresh')}</div>
-                <div className="mt-2">
-                  <SegmentedControl
-                    options={[
-                      { value: '3', label: '3 s' },
-                      { value: '5', label: '5 s' },
-                      { value: '10', label: '10 s' },
-                      { value: '0', label: t('settings.data.paused') },
-                    ]}
-                    value={refresh}
-                    onChange={(v) => {
-                      setRefresh(v)
-                      notify()
-                    }}
-                    ariaLabel={t('settings.data.refresh')}
-                  />
-                </div>
-                <p className="mt-2 text-caption text-text-muted">{t('settings.data.mockNote')}</p>
-              </div>
-            </div>
-
-            {/* Sliders de umbrales */}
-            <div className="mt-4 space-y-5 border-t border-border pt-4">
-              {(
-                [
-                  {
-                    key: 'temp',
-                    label: t('settings.data.tempLabel'),
-                    value: tempT,
-                    set: setTempT,
-                    min: 50,
-                    max: 85,
-                    format: (v: number) => `${v} °C`,
-                    caption: tempHot
-                      ? t('settings.data.tempCaptionHot', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 })
-                      : t('settings.data.tempCaptionOk', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 }),
-                    captionHot: tempHot,
-                  },
-                  {
-                    key: 'signal',
-                    label: t('topology.weakSignal'),
-                    value: signalT,
-                    set: setSignalT,
-                    min: -80,
-                    max: -60,
-                    format: (v: number) => `${v} dBm`.replace('-', '−'),
-                    caption:
-                      weakCount === 0
-                        ? t('settings.data.signalCaptionNone')
-                        : t('settings.data.signalCaption', { count: weakCount }),
-                    captionHot: weakCount > 0,
-                  },
-                  {
-                    key: 'latency',
-                    label: t('settings.data.latencyLabel'),
-                    value: latencyT,
-                    set: setLatencyT,
-                    min: 20,
-                    max: 200,
-                    format: (v: number) => `${v} ms`,
-                    caption: latencyHot
-                      ? t('settings.data.latencyCaptionHot', { ms: wan.latencyMs })
-                      : t('settings.data.latencyCaptionOk', { ms: wan.latencyMs }),
-                    captionHot: latencyHot,
-                  },
-                ] as const
-              ).map((s) => (
-                <div key={s.key}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <label htmlFor={`th-${s.key}`} className="text-sm font-medium text-text-primary">
-                      {s.label}
-                    </label>
-                    <motion.span
-                      key={s.value}
-                      animate={reduce ? undefined : { scale: [1.15, 1] }}
-                      transition={{ duration: 0.18 }}
-                      className="font-mono text-mono-sm text-accent"
-                    >
-                      {s.format(s.value)}
-                    </motion.span>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.data.refresh')}</div>
+                  <div className="mt-2">
+                    <SegmentedControl
+                      options={[
+                        { value: '3', label: '3 s' },
+                        { value: '5', label: '5 s' },
+                        { value: '10', label: '10 s' },
+                        { value: '0', label: t('settings.data.paused') },
+                      ]}
+                      value={refresh}
+                      onChange={(v) => {
+                        setRefresh(v)
+                        notify()
+                      }}
+                      ariaLabel={t('settings.data.refresh')}
+                    />
                   </div>
-                  <Slider
-                    id={`th-${s.key}`}
-                    min={s.min}
-                    max={s.max}
-                    step={1}
-                    value={[s.value]}
-                    onValueChange={([v]) => {
-                      if (v === undefined) return
-                      s.set(v)
-                      notify()
-                    }}
-                    className="mt-3"
-                    aria-label={s.label}
-                  />
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.p
-                      key={s.caption}
-                      initial={reduce ? false : { opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={reduce ? undefined : { opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className={cn('mt-1.5 text-caption', s.captionHot ? 'text-warn' : 'text-text-muted')}
-                    >
-                      {s.caption}
-                    </motion.p>
-                  </AnimatePresence>
+                  <p className="mt-2 text-caption text-text-muted">{t('settings.data.mockNote')}</p>
                 </div>
-              ))}
+              </div>
+
+              {/* Sliders de umbrales */}
+              <div className="space-y-5">
+                {(
+                  [
+                    {
+                      key: 'temp',
+                      label: t('settings.data.tempLabel'),
+                      value: tempT,
+                      set: setTempT,
+                      min: 50,
+                      max: 85,
+                      format: (v: number) => `${v} °C`,
+                      caption: tempHot
+                        ? t('settings.data.tempCaptionHot', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 })
+                        : t('settings.data.tempCaptionOk', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 }),
+                      captionHot: tempHot,
+                    },
+                    {
+                      key: 'signal',
+                      label: t('topology.weakSignal'),
+                      value: signalT,
+                      set: setSignalT,
+                      min: -80,
+                      max: -60,
+                      format: (v: number) => `${v} dBm`.replace('-', '−'),
+                      caption:
+                        weakCount === 0
+                          ? t('settings.data.signalCaptionNone')
+                          : t('settings.data.signalCaption', { count: weakCount }),
+                      captionHot: weakCount > 0,
+                    },
+                    {
+                      key: 'latency',
+                      label: t('settings.data.latencyLabel'),
+                      value: latencyT,
+                      set: setLatencyT,
+                      min: 20,
+                      max: 200,
+                      format: (v: number) => `${v} ms`,
+                      caption: latencyHot
+                        ? t('settings.data.latencyCaptionHot', { ms: wan.latencyMs })
+                        : t('settings.data.latencyCaptionOk', { ms: wan.latencyMs }),
+                      captionHot: latencyHot,
+                    },
+                  ] as const
+                ).map((s) => (
+                  <div key={s.key}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <label htmlFor={`th-${s.key}`} className="text-sm font-medium text-text-primary">
+                        {s.label}
+                      </label>
+                      <motion.span
+                        key={s.value}
+                        animate={reduce ? undefined : { scale: [1.15, 1] }}
+                        transition={{ duration: 0.18 }}
+                        className="font-mono text-mono-sm text-accent"
+                      >
+                        {s.format(s.value)}
+                      </motion.span>
+                    </div>
+                    <Slider
+                      id={`th-${s.key}`}
+                      min={s.min}
+                      max={s.max}
+                      step={1}
+                      value={[s.value]}
+                      onValueChange={([v]) => {
+                        if (v === undefined) return
+                        s.set(v)
+                        notify()
+                      }}
+                      className="mt-3"
+                      aria-label={s.label}
+                    />
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.p
+                        key={s.caption}
+                        initial={reduce ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={reduce ? undefined : { opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className={cn('mt-1.5 text-caption', s.captionHot ? 'text-warn' : 'text-text-muted')}
+                      >
+                        {s.caption}
+                      </motion.p>
+                    </AnimatePresence>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Velocidad WAN contratada (issue #151) — sub-sección del mismo ámbito */}
-            <WanSpeedCard onSaved={notify} disabled={isDemo} />
+            {/* divider: Velocidad WAN contratada (izq) | Test de velocidad periódico (der) */}
+            <div className="mt-4 grid gap-6 border-t border-border pt-4 sm:grid-cols-2">
+              {/* Velocidad WAN contratada (issue #151) — sub-sección del mismo ámbito */}
+              <WanSpeedCard onSaved={notify} disabled={isDemo} />
 
-            {/* Test de velocidad WAN periódico (issue #511) */}
-            <SpeedtestCard onSaved={notify} disabled={isDemo} />
+              {/* Test de velocidad WAN periódico (issue #511) */}
+              <SpeedtestCard onSaved={notify} disabled={isDemo} />
+            </div>
           </Card>
         </div>
 
-        {/* ② Apariencia */}
-        <div className="lg:col-span-5">
+        {/* ② Apariencia: tema (40%) | paleta + acento + densidad (60%) */}
+        <div className="order-20">
           <Card title={t('settings.appearance')} caption={t('settings.appearanceCaption')} index={0} reduce={reduce}>
-            {/* Tema: 3 cards visuales */}
-            <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label={t('nav.theme')}>
-              {THEME_OPTIONS.map((opt) => {
-                const active = mode === opt.value
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => {
-                      setMode(opt.value)
-                      notify()
-                    }}
-                    className={cn(
-                      'group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors duration-150',
-                      active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
-                    )}
-                  >
-                    <span className="relative block h-20 overflow-hidden rounded-lg sm:h-24">
-                      <ThemePreview variant={opt.value} />
-                      <AnimatePresence>
-                        {active && (
-                          <motion.span
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                            className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-canvas"
-                          >
-                            <Check className="h-3 w-3" strokeWidth={2.5} />
-                          </motion.span>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+              {/* Tema (40%): 3 tarjetas en fila, previews que distinguen claro/oscuro/sistema */}
+              <div className="xl:col-span-2">
+                <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.theme')}</div>
+                <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label={t('nav.theme')}>
+                  {THEME_OPTIONS.map((opt) => {
+                    const active = mode === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setMode(opt.value)
+                          notify()
+                        }}
+                        className={cn(
+                          'group relative flex flex-col gap-1.5 rounded-xl border p-1.5 text-left transition-colors duration-150',
+                          active ? 'border-accent bg-accent-soft' : 'border-border bg-elevated hover:border-accent/40',
                         )}
-                      </AnimatePresence>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-0.5 text-xs font-medium text-text-primary">
-                      <opt.icon className={cn('h-3.5 w-3.5', active ? 'text-accent' : 'text-text-muted')} strokeWidth={1.75} />
-                      {t(opt.labelKey)}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+                      >
+                        <span className="relative block aspect-[4/3] overflow-hidden rounded-lg">
+                          <ThemePreview variant={opt.value} />
+                          {active && (
+                            <motion.span
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-canvas"
+                            >
+                              <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                            </motion.span>
+                          )}
+                        </span>
+                        <span className="flex items-center gap-1 px-0.5 text-[11px] font-medium text-text-primary">
+                          <opt.icon className={cn('h-3 w-3', active ? 'text-accent' : 'text-text-muted')} strokeWidth={1.75} />
+                          {t(opt.labelKey)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
-            {/* Paleta completa (#19-#20) */}
-            <div className="mt-5">
-              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
-              <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                {PALETTES.map((p) => {
-                  const active = paletteId === p.id
-                  return (
-                    <motion.button
-                      key={p.id}
-                      type="button"
-                      aria-label={t(p.labelKey)}
-                      aria-pressed={active}
-                      whileTap={reduce ? undefined : { scale: 0.95 }}
-                      onClick={() => {
-                        setPaletteId(p.id)
-                        notify()
-                      }}
-                      className={cn(
-                        'group relative flex flex-col items-start gap-1.5 rounded-xl border p-3 transition-all duration-150',
-                        active
-                          ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
-                          : 'border-border hover:border-border-strong',
-                      )}
-                    >
-                      <div className="flex w-full items-center gap-1.5">
-                        <span
-                          className="h-5 w-5 shrink-0 rounded-full"
-                          style={{ backgroundColor: `rgb(${p.dark.accent})` }}
-                        />
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
-                        />
-                        <span
-                          className="ml-auto h-4 w-8 rounded"
-                          style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
+              {/* Paleta (2 columnas) | densidad + animaciones (60%) */}
+              <div className="xl:col-span-3">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  {/* Paleta en 2 columnas, tarjetas compactas (misma altura que Tema) */}
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.palette')}</div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {PALETTES.map((p) => {
+                          const active = paletteId === p.id
+                          return (
+                            <motion.button
+                              key={p.id}
+                              type="button"
+                              aria-label={t(p.labelKey)}
+                              aria-pressed={active}
+                              whileTap={reduce ? undefined : { scale: 0.98 }}
+                              onClick={() => {
+                                setPaletteId(p.id)
+                                notify()
+                              }}
+                              className={cn(
+                                'group relative flex items-center gap-2 rounded-lg border px-2 py-3.5 transition-all duration-150',
+                                active
+                                  ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
+                                  : 'border-border hover:border-border-strong',
+                              )}
+                            >
+                              <span className="flex shrink-0 items-center gap-1">
+                                <span
+                                  className="h-3.5 w-3.5 rounded-full"
+                                  style={{ backgroundColor: `rgb(${p.dark.accent})` }}
+                                />
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: `rgb(${p.dark.tunnel})` }}
+                                />
+                                <span
+                                  className="ml-0.5 h-2.5 w-5 rounded"
+                                  style={{ backgroundColor: `rgb(${p.dark.canvas})`, border: `1px solid rgb(${p.dark.border})` }}
+                                />
+                              </span>
+                              <span className="min-w-0 truncate text-[11px] font-medium text-text-primary">{t(p.labelKey)}</span>
+                              {active && (
+                                <Check className="ml-auto h-3 w-3 shrink-0 text-accent" strokeWidth={2.5} />
+                              )}
+                            </motion.button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Densidad + Desactivar animaciones (a la derecha) */}
+                  <div className="flex flex-col gap-4">
+                    {/* Densidad */}
+                    <div>
+                      <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.density')}</div>
+                      <div className="mt-2">
+                        <SegmentedControl
+                          options={[
+                            { value: 'comoda', label: t('settings.densityComfy') },
+                            { value: 'compacta', label: t('settings.densityCompact') },
+                          ]}
+                          value={density}
+                          onChange={(v) => {
+                            setDensity(v)
+                            notify()
+                          }}
+                          ariaLabel={t('settings.density')}
                         />
                       </div>
-                      <span className="text-[11px] font-medium text-text-secondary">{t(p.labelKey)}</span>
-                      {active && (
-                        <Check className="absolute right-2 top-2 h-3.5 w-3.5 text-accent" strokeWidth={2.5} />
-                      )}
-                    </motion.button>
-                  )
-                })}
+                    </div>
+                    <div className="border-t border-border pt-1">
+                      <SwitchRow
+                        label={t('settings.reduceMotion')}
+                        caption={t('settings.reduceMotionCaption')}
+                        checked={!reduceMotion}
+                        onCheckedChange={(v) => {
+                          setReduceMotion(!v)
+                          notify()
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p className="mt-1.5 text-caption text-text-muted">{t('settings.paletteCaption')}</p>
-            </div>
-
-            {/* Acento (override fino sobre la paleta) */}
-            <div className="mt-4">
-              <div className="text-caption font-semibold uppercase tracking-[0.06em] text-text-muted">{t('settings.accent')}</div>
-              <div className="mt-2 flex items-center gap-3">
-                {ACCENTS.map((a) => {
-                  const active = accentId === a.id
-                  return (
-                    <motion.button
-                      key={a.id}
-                      type="button"
-                      aria-label={t('settings.accentAria', { label: t(a.labelKey) })}
-                      aria-pressed={active}
-                      whileTap={reduce ? undefined : { scale: 0.8 }}
-                      onClick={() => {
-                        setAccentId(a.id)
-                        notify()
-                      }}
-                      className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-full transition-shadow duration-150',
-                        active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-border-strong hover:ring-offset-2 hover:ring-offset-surface',
-                      )}
-                      style={{ backgroundColor: a.swatch }}
-                    >
-                      {active && <Check className="h-3.5 w-3.5 text-[#070B12]" strokeWidth={2.5} />}
-                    </motion.button>
-                  )
-                })}
-                <span className="ml-1 text-caption text-text-muted">{t('settings.accentCaption')}</span>
-              </div>
-            </div>
-
-            {/* Densidad + animaciones */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{t('settings.density')}</div>
-                <div className="text-caption text-text-muted">{t('settings.densityCaption')}</div>
-              </div>
-              <SegmentedControl
-                options={[
-                  { value: 'comoda', label: t('settings.densityComfy') },
-                  { value: 'compacta', label: t('settings.densityCompact') },
-                ]}
-                value={density}
-                onChange={(v) => {
-                  setDensity(v)
-                  notify()
-                }}
-                ariaLabel={t('settings.density')}
-              />
-            </div>
-            <div className="border-t border-border pt-2">
-              <SwitchRow
-                label={t('settings.reduceMotion')}
-                caption={t('settings.reduceMotionCaption')}
-                checked={reduceMotion}
-                onCheckedChange={(v) => {
-                  setReduceMotion(v)
-                  notify()
-                }}
-              />
             </div>
           </Card>
         </div>
 
-        {/* Servicios visibles (checks) */}
-        <div className="lg:col-span-7">
+        {/* Servicios visibles (checks) — sección independiente */}
+        <div className="order-45">
           <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} orchOn={orchOn} orchBusy={orchBusy} toggleOrchestration={toggleOrchestration} />
         </div>
 
         {/* ⑤ Notificaciones visuales */}
-        <div className="lg:col-span-5">
+        <div className="order-60">
           <Card title={t('settings.notif.title')} caption={t('settings.notif.caption')} index={3} reduce={reduce}>
-            <div className="divide-y divide-border">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-3">
               <SwitchRow
                 label={t('settings.notif.badge')}
                 caption={t('settings.notif.badgeCaption')}
@@ -3983,18 +4130,27 @@ export default function Settings() {
                   }
                 }}
                 trailing={
-                  <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-elevated text-text-secondary">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playBeep()
+                      setWaveKey((k) => k + 1)
+                    }}
+                    aria-label={t('settings.notif.testSound')}
+                    title={t('settings.notif.testSound')}
+                    className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-elevated text-text-secondary transition-colors hover:text-accent"
+                  >
                     <Volume2 className="h-4 w-4" strokeWidth={1.75} />
-                    {sound && !reduce && (
+                    {!reduce && (
                       <motion.span
                         key={waveKey}
-                        className="absolute inset-0 rounded-lg border border-accent"
+                        className="pointer-events-none absolute inset-0 rounded-lg border border-accent"
                         initial={{ opacity: 0.8, scale: 1 }}
                         animate={{ opacity: 0, scale: 1.5 }}
                         transition={{ duration: 0.6, ease: 'easeOut' }}
                       />
                     )}
-                  </span>
+                  </button>
                 }
               />
             </div>
@@ -4004,11 +4160,20 @@ export default function Settings() {
           </Card>
         </div>
 
+        {/* Telegram (#326): notificaciones directas al bot — sección Notificaciones */}
+        {!isDemo && (
+          <div className="order-70">
+            <Card title={t('settings.telegram.title')} caption={t('settings.telegram.description')} index={4} reduce={reduce}>
+              <TelegramCard onSaved={notify} bare />
+            </Card>
+          </div>
+        )}
+
         {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
             Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
             Routers y AdGuard son tarjetas de dominio que siguen en el grid. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-200">
             <div className="rounded-2xl border border-l-4 border-l-accent bg-accent/[0.03] p-4 shadow-soft md:p-5">
               <div className="flex flex-wrap items-start gap-3 sm:gap-4">
                 <div className="flex h-9 shrink-0 items-center gap-2">
@@ -4083,7 +4248,7 @@ export default function Settings() {
         {/* Historial de actualizaciones (issue #159) — solo admin y modo live;
             el updater es un mecanismo de auto-aplicación que no existe en demo */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-210">
             <UpdateHistoryCard />
           </div>
         )}
@@ -4091,7 +4256,7 @@ export default function Settings() {
         {/* Gestión de routers — solo admin y con backend (modo live); la API
             exige rol admin en las mutaciones (auditoría v2.4.0 §2, #7) */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-90">
             <RoutersManager reduce={reduce} onSaved={notify} />
           </div>
         )}
@@ -4100,7 +4265,7 @@ export default function Settings() {
             como hipervisor/switch y asignar dispositivos a hosts. Solo admin
             y modo live; los cambios se aplican server-side en el overview. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-100">
             <Card
               title={t('settings.overrides.title')}
               caption={t('settings.overrides.caption')}
@@ -4115,7 +4280,7 @@ export default function Settings() {
         {/* Dispositivos de confianza (issue #196): allowlist de MACs que no
             avisan como «desconocido» y cuyo nombre se usa como alias. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-12">
+          <div className="order-110">
             <Card
               title={t('settings.knownMacs.title')}
               caption={t('settings.knownMacs.caption')}
@@ -4127,26 +4292,24 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Adopción de agentes (pairing token + server fingerprint) — media
-            anchura junto a AdGuard Home (issue #146). */}
+        {/* Adopción de agentes (pairing token + server fingerprint) */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-6">
+          <div className="order-120">
             <AdoptionCard />
           </div>
         )}
 
-        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible;
-            media anchura, en la misma fila que la adopción de agentes. */}
+        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
         {!isDemo && auth?.role === 'admin' && services.adguard && (
-          <div className="lg:col-span-6">
+          <div className="order-140">
             <AdGuardManager reduce={reduce} onSaved={notify} />
           </div>
         )}
 
         {/* Proxmox VE (#561): inventario read-only del cluster para sellar
-            hypervisor/ct. Media anchura junto a AdGuard/adopción. */}
+            hypervisor/ct. */}
         {!isDemo && auth?.role === 'admin' && (
-          <div className="lg:col-span-6">
+          <div className="order-150">
             <ProxmoxManager reduce={reduce} onSaved={notify} />
           </div>
         )}
@@ -4154,7 +4317,7 @@ export default function Settings() {
         {/* Mi perfil (issue #119): card canónica del shared-shell — avatar,
             nombre editable (clic → input inline ✓/✕), idioma, contraseña y
             salir en UNA línea en desktop (envuelve en móvil). */}
-        <div className="lg:col-span-12">
+        <div className="order-170">
           <Card title={t('settings.session.title')} index={5} reduce={reduce}>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-4 lg:flex-nowrap">
               {/* Avatar */}
@@ -4350,7 +4513,7 @@ export default function Settings() {
 
         {/* API Tokens (#330): bearer tokens con scopes para integraciones */}
         {!isDemo && (
-          <div className="lg:col-span-12">
+          <div className="order-180">
             <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
               <TokensManager />
             </Card>
@@ -4358,90 +4521,98 @@ export default function Settings() {
         )}
 
         {/* ⑥ Acerca de */}
-        <div className="lg:col-span-12">
+        <div className="order-230">
           <Card title={t('settings.about.title')} index={6} reduce={reduce}>
+            {/* Dos columnas como el mockup: izq descripción+enlaces | der Sistema */}
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="flex items-start gap-4">
-                <motion.img
-                  src="/logo.svg"
-                  alt=""
-                  className="h-12 w-12 shrink-0"
-                  initial={reduce ? false : { opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }}
-                />
-                <div>
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-display text-h2 font-bold text-text-primary">NetPulse</span>
-                    <span className="font-mono text-caption text-text-muted">v{pkg.version}</span>
+              <div>
+                <div className="flex items-start gap-4">
+                  <motion.img
+                    src="/logo.svg"
+                    alt=""
+                    className="h-12 w-12 shrink-0"
+                    initial={reduce ? false : { opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                  />
+                  <div>
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-display text-h2 font-bold text-text-primary">NetPulse</span>
+                      <span className="font-mono text-caption text-text-muted">v{pkg.version}</span>
+                    </div>
+                    <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
+                      {t('settings.about.desc')}
+                    </p>
                   </div>
-                  <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
-                    {t('settings.about.desc')}
-                  </p>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
+                    { icon: FileText, label: t('settings.about.visitWeb'), href: 'https://netpulse.cloudless.club' },
+                    { icon: Heart, label: t('settings.about.madeAtHome'), href: 'https://ko-fi.com/gnacho' },
+                    { icon: ShieldCheck, label: t('settings.about.privacy'), href: 'https://cloudless.club' },
+                  ].map((item, i) => {
+                    const cls = "flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+                    return (
+                      <motion.div
+                        key={item.label}
+                        initial={reduce ? false : { opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeOut', delay: reduce ? 0 : 0.2 + i * 0.06 }}
+                      >
+                        {item.href ? (
+                          <a href={item.href} target="_blank" rel="noreferrer" className={cls}>
+                            <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                            <span className="leading-snug">{item.label}</span>
+                          </a>
+                        ) : (
+                          <div className={cls}>
+                            <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                            <span className="leading-snug">{item.label}</span>
+                          </div>
+                        )}
+                      </motion.div>
+                    )
+                  })}
+                </div>
+
+                {/* Push + PWA compactos (issue #156) */}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <PushNotificationsCard reduce={reduce} onSaved={notify} compact />
+                  {!installed && (
+                    <Confetti burstKey={confettiKey} reduce={reduce} />
+                  )}
+                  {installed ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+                      <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                      {t('settings.pwa.installed')}
+                    </span>
+                  ) : isIOS ? (
+                    <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
+                  ) : deferred ? (
+                    <button
+                      type="button"
+                      onClick={() => void install()}
+                      className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                    >
+                      <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                      {t('settings.pwa.install')}
+                    </button>
+                  ) : null}
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {[
-                  { icon: Github, label: t('settings.about.code'), href: 'https://github.com/gnacho/netpulse' },
-                  { icon: FileText, label: t('settings.about.changelog'), href: 'https://netpulse.cloudless.club' },
-                  { icon: Heart, label: t('settings.about.madeAtHome'), href: 'https://ko-fi.com/gnacho' },
-                  { icon: ShieldCheck, label: t('settings.about.privacy'), href: 'https://cloudless.club' },
-                ].map((item, i) => {
-                  const cls = "flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5 text-sm text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-                  return (
-                    <motion.div
-                      key={item.label}
-                      initial={reduce ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, ease: 'easeOut', delay: reduce ? 0 : 0.2 + i * 0.06 }}
-                    >
-                      {item.href ? (
-                        <a href={item.href} target="_blank" rel="noreferrer" className={cls}>
-                          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                          <span className="leading-snug">{item.label}</span>
-                        </a>
-                      ) : (
-                        <div className={cls}>
-                          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                          <span className="leading-snug">{item.label}</span>
-                        </div>
-                      )}
-                    </motion.div>
-                  )
-                })}
+
+              {/* Derecha: Sistema */}
+              <div>
+                {pushContext() === 'insecure' && (
+                  <p className="mb-3 rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
+                    {t('settings.push.insecure')}
+                  </p>
+                )}
+                <SystemInfoBlock bare />
               </div>
             </div>
-
-            {/* Push + PWA compactos (issue #156): botones bajo Acerca de, antes de Sistema */}
-            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              <PushNotificationsCard reduce={reduce} onSaved={notify} compact />
-              {!installed && (
-                <Confetti burstKey={confettiKey} reduce={reduce} />
-              )}
-              {installed ? (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-                  <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
-                  {t('settings.pwa.installed')}
-                </span>
-              ) : isIOS ? (
-                <span className="shrink-0 text-caption text-text-muted">{t('settings.pwa.iosHow')}</span>
-              ) : deferred ? (
-                <button
-                  type="button"
-                  onClick={() => void install()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
-                >
-                  <Download className="h-3.5 w-3.5" strokeWidth={2} />
-                  {t('settings.pwa.install')}
-                </button>
-              ) : null}
-            </div>
-
-            {/* Telegram (#326): notificaciones directas al bot */}
-            {!isDemo && <TelegramCard onSaved={notify} />}
-
-            {/* Sistema: datos del servidor (SPEC-65 D65-7e) */}
-            <SystemInfoBlock />
           </Card>
         </div>
       </div>

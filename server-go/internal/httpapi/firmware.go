@@ -129,6 +129,37 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		writeJSON(w, http.StatusOK, item)
 	})))
 
+	// #629: resolver la imagen de firmware de un router a partir del board
+	// info que reporta el propio firmware (board_name + target + version),
+	// consultando el índice de descargas (downloads.openwrt.org). Devuelve
+	// {version,target,board,imageName,url,checksum} para prerellenar el
+	// formulario de Actualizaciones. `?version=` opcional: si se pasa se
+	// resuelve para esa versión (p.ej. el target del upgrade); si no, la
+	// versión instalada (la "existente").
+	mux.Handle("GET /api/firmware-upgrades/{routerId}/image", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("routerId")
+		if s.adapter == nil || s.imageResolver == nil {
+			writeError(w, http.StatusServiceUnavailable, "image_unavailable", "no hay adapter/resolutor de imagen")
+			return
+		}
+		bi := s.adapter.BoardInfoFor(id)
+		if bi == nil || bi.BoardName == "" || bi.Release.Target == "" || bi.Release.Version == "" {
+			writeError(w, http.StatusNotFound, "not_resolvable",
+				"el router no reporta board/target/version para resolver la imagen")
+			return
+		}
+		version := r.URL.Query().Get("version")
+		if version == "" {
+			version = bi.Release.Version
+		}
+		img, err := s.imageResolver.Resolve(r.Context(), version, bi.Release.Target, bi.BoardName)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_resolvable", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, img)
+	})))
+
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/target", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("routerId")
 		var body struct {

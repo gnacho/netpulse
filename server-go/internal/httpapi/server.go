@@ -110,6 +110,9 @@ type Deps struct {
 	ConfigBackup *configbackup.Store
 	// Firmware: targets y upgrades de firmware (#453).
 	Firmware *firmware.Store
+	// FirmwareImage resuelve la imagen de un router desde el índice de
+	// descargas (downloads.openwrt.org). nil → se construye el por defecto.
+	FirmwareImage *firmware.ImageResolver
 	// Speedtest: scheduler del test periódico WAN (#511). nil → 503.
 	Speedtest *speedtest.Scheduler
 }
@@ -182,6 +185,8 @@ type server struct {
 
 	// Firmware: targets y upgrades de firmware (#453).
 	firmware *firmware.Store
+	// imageResolver resuelve la imagen de un router (downloads.openwrt.org).
+	imageResolver *firmware.ImageResolver
 	// FirmwareEngine: motor compartido de upgrades (manual + programados #494).
 	// Se construye desde Deps.Firmware + Deps.AgentHub.
 	firmwareEngine *firmware.Engine
@@ -212,7 +217,11 @@ func NewHandler(d Deps) http.Handler {
 		configBackup:    d.ConfigBackup,
 		firmware:        d.Firmware,
 		firmwareEngine:  firmware.NewEngine(d.Firmware, d.AgentHub),
+		imageResolver:   d.FirmwareImage,
 		speedtest:       d.Speedtest,
+	}
+	if s.imageResolver == nil {
+		s.imageResolver = firmware.NewImageResolver()
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos

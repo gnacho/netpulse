@@ -265,7 +265,7 @@ export function RulesManager() {
               <div className="flex-1">
                 <label className="mb-1 block text-caption font-medium text-text-secondary">{t('alertRules.threshold')}</label>
                 <Input
-                  type="number"
+                  type="text"
                   value={editing.condition.threshold}
                   onChange={(e) => setEditing({ ...editing, condition: { ...editing.condition, threshold: Number(e.target.value) } })}
                   className="h-8 text-sm"

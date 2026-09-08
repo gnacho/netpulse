@@ -123,6 +123,7 @@
     },
     "active": "Active",
     "unknown": "Unknown",
+    "copy": "Copy",
     "breadcrumb": "Breadcrumb",
     "cable": "Wired",
     "clients": "Clients",
@@ -369,8 +370,8 @@
     "collapse": "Collapse menu",
     "expand": "Expand menu",
     "orchestration": "Orchestration",
-    "channelPlan": "Channel plan",
-    "firmwareUpgrades": "Firmware upgrades",
+    "channelPlan": "Channels",
+    "firmwareUpgrades": "Updates",
     "help": "Help"
   },
   "roaming": {
@@ -965,6 +966,7 @@
     },
     "about": {
       "changelog": "Changelog",
+      "visitWeb": "Visit website",
       "code": "Source code",
       "desc": "Network control panel for OpenWRT devices. Monitors routers and APs with some services like AdGuard Home + WireGuard for now. Phase 1: read-only.",
       "madeAtHome": "Support the project on Ko-fi",
@@ -1065,6 +1067,7 @@
       "sound": "Sound when an alert arrives",
       "soundOff": "Off",
       "soundOn": "On — plays a soft beep",
+      "testSound": "Test alert beep",
       "title": "Visual notifications"
     },
     "push": {
@@ -1094,7 +1097,8 @@
       "chatId": "Chat ID",
       "bot": "Bot",
       "chat": "Chat",
-      "sendTest": "Send test"
+      "sendTest": "Send test",
+      "incomplete": "Fill in the bot token and chat ID or enable notifications"
     },
     "pwa": {
       "caption": "Installable app · PWA",
@@ -1115,7 +1119,7 @@
       "title": "NetPulse on your home screen",
       "compact": "Install NetPulse as an app: full screen, no browser bar, instant access."
     },
-    "reduceMotion": "Reduce animations",
+    "reduceMotion": "Animations enabled",
     "reduceMotionCaption": "Disables pulses, tweens and staggered entrances",
     "routers": {
       "title": "Devices",
@@ -1123,6 +1127,13 @@
       "empty": "No routers configured yet. The gateway is auto-detected when the server boots; if it's missing, add it here.",
       "host": "IP or hostname",
       "name": "Name (optional)",
+      "role": "Role",
+      "actions": "Actions",
+      "regenerateToken": "Regenerate token",
+      "rotateTokenTitle": "Regenerate device token?",
+      "rotateTokenCaption": "A new token will be generated for “{{name}}”. The current one will stop working immediately; you'll need to reinstall the agent with the new token. This cannot be undone.",
+      "rotateTokenHotApplied": "Token regenerated and applied to the device without reinstalling.",
+      "rotateTokenManualNeeded": "Token regenerated. The server could not apply it to the agent; reinstall the agent to use the new token.",
       "type": "Type",
       "gateway": "Is the gateway",
       "gatewayBadge": "Main",
@@ -1131,6 +1142,8 @@
       "adding": "Adding…",
       "delete": "Delete",
       "deleteConfirm": "Delete {name}? Metrics history is kept.",
+      "deleteTitle": "Delete device?",
+      "deleteDesc": "It will be removed from the configuration. Historical metrics are kept.",
       "errorDuplicate": "A router with that IP already exists",
       "errorGeneric": "Could not save. Please try again.",
       "hint": "Polling uses SSH with the server's key (read-only). New routers show up on the dashboard within a few seconds.",
@@ -1214,7 +1227,14 @@
       "ingestHint": "Use this token to authenticate the scraper’s ingest:",
       "dismiss": "Dismiss",
       "deleteTitle": "Revoke device token",
-      "deleteDesc": "The token for “{{slug}}” will be revoked. The scraper will stop sending data until you regenerate the token."
+      "deleteDesc": "The token for “{{slug}}” will be revoked. The scraper will stop sending data until you regenerate the token.",
+      "canales": "Channels",
+      "canalesCaption": "WiFi channel planner (LABS)",
+      "actualizaciones": "Updates",
+      "actualizacionesCaption": "Firmware updates (LABS)",
+      "regenToken": "Regenerate token",
+      "regenTokenCaption": "Rotate external agent token (LABS)",
+      "badge": "LABS"
     },
     "saved": "Preferences saved",
     "services": {
@@ -1287,7 +1307,15 @@
       "saving": "Saving…",
       "saved": "Saved",
       "invalid": "Enter speeds greater than 0 and at most 100000 Mbps",
-      "saveError": "Could not save the speed"
+      "saveError": "Could not save the speed",
+      "runTest": "Run speed test",
+      "testCaption": "Measures the real speed from the server and fills the fields with the result. Then press Save.",
+      "testApplied": "Measurement applied: {{down}} ↓ / {{up}} ↑ Mbps",
+      "testFailed": "The speed test failed",
+      "testHint": "The test saturates the link for a few seconds. You can leave this page; fields are filled when it finishes.",
+      "phaseServer": "Finding server",
+      "phaseDown": "Measuring download",
+      "phaseUp": "Measuring upload"
     },
     "knownMacs": {
       "title": "Trusted devices",
@@ -1320,9 +1348,14 @@
       "enabled": "Periodic test enabled",
       "interval": "Interval",
       "intervalH": "every {{hours}} h",
-      "alertPct": "Alert below {{pct}} % of the plan",
+      "intervalWeek": "every week",
+      "intervalMonth": "every month",
+      "alertPctLabel": "Alert threshold (% of plan)",
       "alertPctHint": "0 = alert off. Uses the contracted plan declared above (download only).",
-      "serverId": "speedtest.net server (ID, 0 = automatic)",
+      "serverId": "Speed test server",
+      "serverRestore": "Restore",
+      "test": "Test",
+      "testFailed": "Could not start the test. Check the URL.",
       "save": "Save",
       "saving": "Saving...",
       "saved": "Saved",
@@ -1347,7 +1380,19 @@
       "saving": "Saving…",
       "disable": "Disable",
       "errorGeneric": "Could not save the Proxmox configuration."
-    }
+    },
+    "sections": {
+      "personalization": "Configuration",
+      "services": "Services",
+      "notifications": "Notifications",
+      "network": "Network & devices",
+      "integrations": "Integrations",
+      "administration": "Administration",
+      "account": "Account",
+      "about": "About",
+      "label": "Settings sections"
+    },
+    "theme": "Theme"
   },
   "statcard": {
     "vsPrevious": "vs previous"
@@ -1405,7 +1450,9 @@
       "duration": "Duration",
       "success": "Success",
       "failed": "Failed",
-      "running": "Running"
+      "running": "Running",
+      "download": "Download .log",
+      "summary": "{{count}} entries · last: {{date}} — {{status}}"
     },
     "dialog": {
       "title": "Update NetPulse",
@@ -1485,6 +1532,8 @@
     "confirmDowntime": "During the flash and reboot the router is down for several minutes; clients connected to it lose connectivity.",
     "confirmAction": "Yes, upgrade",
     "detectedPrefix": "Detected system:",
+    "detectImage": "Autodetect image",
+    "detectImageBusy": "Detecting…",
     "lastFailure": "Last failed attempt",
     "status": {
       "requested": "Requested",

@@ -71,6 +71,8 @@ export default function FirmwareUpgrades() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   // #494: hora local elegida para programar (datetime-local) por router.
   const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({})
+  // #629: estado de "autodetectar imagen" por router.
+  const [resolveBusy, setResolveBusy] = useState<Record<string, boolean>>({})
 
   const sortedRouters = useMemo(() => {
     return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
@@ -111,6 +113,52 @@ export default function FirmwareUpgrades() {
   const updateEdit = (id: string, patch: Partial<FirmwareItem>) => {
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
   }
+
+  // #629: resolver la imagen del firmware a partir del board info detectado
+  // (vía /image) y prerellenar targetVersion/targetUrl/checksum. Se resuelve
+  // para la versión objetivo ya escrita (edits), o la detectada si no hay.
+  const resolveImage = async (id: string) => {
+    const e = edits[id]
+    if (!e) return
+    setResolveBusy((prev) => ({ ...prev, [id]: true }))
+    setError('')
+    try {
+      const item = items.find((x) => x.routerId === id)
+      const ver = e.targetVersion || item?.detectedVersion || ''
+      const qs = ver ? `?version=${encodeURIComponent(ver)}` : ''
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/image${qs}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
+      }
+      const img = (await res.json()) as { version?: string; url: string; checksum?: string }
+      setEdits((prev) => ({
+        ...prev,
+        [id]: {
+          ...prev[id],
+          targetVersion: prev[id]?.targetVersion || img.version || '',
+          targetUrl: img.url,
+          checksum: img.checksum || '',
+        },
+      }))
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setResolveBusy((prev) => ({ ...prev, [id]: false }))
+    }
+  }
+
+  // Auto-prerrelleno: al cargar, para routers con board detectado y sin target
+  // configurado, se resuelve la imagen automáticamente (no sobreescribe un
+  // target ya guardado).
+  useEffect(() => {
+    items.forEach((it) => {
+      if (it.detectedBoard && !it.targetUrl) {
+        void resolveImage(it.routerId)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
 
   const saveTarget = async (id: string) => {
     const e = edits[id]
@@ -352,13 +400,28 @@ export default function FirmwareUpgrades() {
               </div>
 
               {detectedBits.length > 0 && (
-                <p className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-                  <Radar className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={1.75} />
-                  <span>
-                    <span className="font-medium text-text-secondary">{t('firmwareUpgrades.detectedPrefix')}</span>{' '}
-                    {detectedBits.join(' · ')}
-                  </span>
-                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <p className="flex items-center gap-1.5 text-xs text-text-muted">
+                    <Radar className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={1.75} />
+                    <span>
+                      <span className="font-medium text-text-secondary">{t('firmwareUpgrades.detectedPrefix')}</span>{' '}
+                      {detectedBits.join(' · ')}
+                    </span>
+                  </p>
+                  {isAdmin && item.detectedBoard && (
+                    <button
+                      type="button"
+                      onClick={() => void resolveImage(item.routerId)}
+                      disabled={resolveBusy[item.routerId]}
+                      className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+                    >
+                      <Radar className={cn('h-3.5 w-3.5', resolveBusy[item.routerId] && 'animate-pulse')} strokeWidth={1.75} />
+                      {resolveBusy[item.routerId]
+                        ? t('firmwareUpgrades.detectImageBusy')
+                        : t('firmwareUpgrades.detectImage')}
+                    </button>
+                  )}
+                </div>
               )}
 
               {item.upgrade?.error && (

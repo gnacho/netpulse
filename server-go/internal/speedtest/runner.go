@@ -10,38 +10,43 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
-// Runner ejecuta una medición completa. serverID > 0 fija el servidor de
-// speedtest.net; 0 = autoselección del más cercano por latencia.
+// Runner ejecuta una medición completa. serverURL vacío = autoselección del
+// servidor más cercano por latencia; con URL = usar ese servidor concreto
+// (p. ej. un servidor de speedtest remoto indicado por el admin).
 type Runner interface {
-	Run(ctx context.Context, serverID int) (Result, error)
+	Run(ctx context.Context, serverURL string) (Result, error)
 }
+
+// userAgent identifica la app en las peticiones a los servidores Ookla.
+const userAgent = "netpulse-wan-monitor"
 
 // SpeedtestNetRunner es la implementación real (showwin/speedtest-go, MIT).
 // Sin estado: seguro para llamarlo en serie desde el scheduler.
 type SpeedtestNetRunner struct{}
 
-// userAgent identifica la app en las peticiones a los servidores Ookla.
-const userAgent = "netpulse-wan-monitor"
-
-func (SpeedtestNetRunner) Run(ctx context.Context, serverID int) (Result, error) {
+func (SpeedtestNetRunner) Run(ctx context.Context, serverURL string) (Result, error) {
 	client := speedtest.New(
 		speedtest.WithUserConfig(&speedtest.UserConfig{UserAgent: userAgent}))
-	list, err := client.FetchServers()
-	if err != nil {
-		return Result{}, fmt.Errorf("fetch servers: %w", err)
+
+	var srv *speedtest.Server
+	if serverURL != "" {
+		// Servidor concreto indicado por el admin: se corre el test contra esa
+		// URL sin pasar por el discovery global.
+		srv = &speedtest.Server{URL: serverURL, Context: client}
+	} else {
+		list, err := client.FetchServers()
+		if err != nil {
+			return Result{}, fmt.Errorf("fetch servers: %w", err)
+		}
+		targets, err := list.FindServer(nil)
+		if err != nil {
+			return Result{}, fmt.Errorf("find server: %w", err)
+		}
+		if len(targets) == 0 {
+			return Result{}, fmt.Errorf("no speedtest servers available")
+		}
+		srv = targets[0]
 	}
-	var ids []int
-	if serverID > 0 {
-		ids = []int{serverID}
-	}
-	targets, err := list.FindServer(ids)
-	if err != nil {
-		return Result{}, fmt.Errorf("find server: %w", err)
-	}
-	if len(targets) == 0 {
-		return Result{}, fmt.Errorf("no speedtest servers available")
-	}
-	srv := targets[0]
 
 	// Ping primero (barato) y luego las mediciones pesadas. Los tres
 	// métodos respetan ctx: el timeout del scheduler corta el test.
