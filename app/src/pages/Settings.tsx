@@ -3977,7 +3977,7 @@ export default function Settings() {
                                 notify()
                               }}
                               className={cn(
-                                'group relative flex items-center gap-2 rounded-lg border px-2 py-2 transition-all duration-150',
+                                'group relative flex items-center gap-2 rounded-lg border px-2 py-2.5 transition-all duration-150',
                                 active
                                   ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent)/0.3)]'
                                   : 'border-border hover:border-border-strong',
