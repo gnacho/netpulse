@@ -5,6 +5,22 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.13] - 2026-09-08
+
+### Added
+
+- **Botón de desinstalación del agente (#624)**: en routers con poco espacio libre (p. ej. UniFi 6 Lite) el `reinstall` no cabía; ahora hay una acción "Desinstalar" que retira el agente limpio (detiene/deshabilita el init, borra binario, `.env`, watchdog y cron).
+- **Rotación del token del agente en caliente**: al regenerar el token de un dispositivo en Ajustes, NetPulse ahora lo aplica en el propio router por SSH (reescribe `/etc/netpulse-agent.env` y reinicia el servicio), así el dispositivo sigue reportando **sin reinstalar**. El one-liner de instalación solo se necesita cuando el router no es alcanzable por SSH.
+- **Autodetección de la imagen de firmware (#629)**: en Actualizaciones, NetPulse resuelve la imagen del router a partir de su propio firmware (`board_name` + `target` + `version`) consultando el índice de descargas de OpenWrt y **prerrellena** la URL y el checksum, con un botón "Autodetectar imagen". Si no se puede resolver, se mantiene la entrada manual.
+
+### Changed
+
+- **Ajustes rediseñados a una columna (#627)**: la página de Ajustes pasa a una columna única con un índice fijo que te sigue al hacer scroll (scroll-spy); cada tarjeta (Apariencia, Datos y umbrales, Servicios, Red, Integraciones, Administración, Cuenta, Acerca de) ocupa el ancho completo y es más manejable. La tarjeta Apariencia muestra previews reales del tema (claro/oscuro/sistema) y la paleta en dos columnas; el test de velocidad WAN se ejecuta real desde el servidor y rellena descarga/subida en su sitio. Los toggles de Laboratorio se muestran individuales (Orquestación, Canales, Actualizaciones) al activar Labs.
+
+### Fixed
+
+- **Los botones de copiar mostraban la clave i18n cruda (#628)**: los botones de copiar token/huella de la tarjeta de adopción usaban `common.copy`, una clave inexistente, así que el tooltip mostraba literalmente `common.copy`. Añadida la clave `common.copy` ("Copiar"/"Copy").
+
 ## [2.28.12] - 2026-09-07
 
 ### Added

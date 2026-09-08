@@ -95,7 +95,18 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.12)
+### Latest (v2.28.13)
+
+- **A cleaner Settings page, one column at a time** ([#627](https://github.com/gnacho/netpulse/issues/627)). The Settings page is now a single column with a sticky index that follows you as you scroll, so each card (Appearance, Data & thresholds, Services, Network, Integrations, Administration, Account, About) is full-width and easier to use. The Appearance card shows real theme previews (light/dark/system) and a two-column palette; the WAN speed test runs a real test from the server and fills download/up in place. Labs toggles appear individually (Orchestration, Channels, Upgrades) once Labs is on.
+- **Regenerate an agent token without reinstalling** ([#627](https://github.com/gnacho/netpulse/issues/627)). When you regenerate a router's agent token from Settings, NetPulse now pushes the new token to the router and restarts the agent in place, so the device keeps reporting without a reinstall. The install one-liner is only needed when the router can't be reached over SSH.
+- **Actualizaciones: autodetect the firmware image** ([#629](https://github.com/gnacho/netpulse/issues/629)). On the firmware upgrades page, NetPulse looks up the router's image from its own firmware (board + target + version) on the OpenWrt download index and prefills the URL and checksum, with an "Autodetect image" button. Manual entry stays available when it can't be resolved.
+- **Uninstall the agent on tight routers** ([#624](https://github.com/gnacho/netpulse/issues/624)). Routers with little free space (like the UniFi 6 Lite) couldn't fit a reinstall; there's now a clean "Uninstall" action that stops and removes the agent.
+
+### Fixed
+
+- **Copy buttons show the raw i18n key** ([#628](https://github.com/gnacho/netpulse/issues/628)). The copy buttons in the adoption card used a missing `common.copy` key, so their tooltip showed `common.copy`; the key now exists and translates to "Copy"/"Copiar".
+
+### Earlier (v2.28.12)
 
 - **Set a custom SSH port per router** ([#605](https://github.com/gnacho/netpulse/issues/605)). Not every router keeps its SSH daemon on port 22 - some run it elsewhere. Now each router can be given its own SSH port when you add or edit it, and every server-side path (probing, actions, agent install, gateway discovery) uses it automatically. Leave it empty and NetPulse keeps using 22.
 - **Roaming matrix grouped per device** ([#600](https://github.com/gnacho/netpulse/issues/600)). In WiFi Roaming → Matrix, columns are now grouped under the access point's name, with a header row that labels each band (2.4G/5G). No more a loose column per AP-band.

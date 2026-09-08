@@ -97,7 +97,18 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.12)
+### Última (v2.28.13)
+
+- **Una página de Ajustes más limpia, a una columna** ([#627](https://github.com/gnacho/netpulse/issues/627)). La página de Ajustes pasa a una columna única con un índice fijo que te sigue al hacer scroll, así cada tarjeta (Apariencia, Datos y umbrales, Servicios, Red, Integraciones, Administración, Cuenta, Acerca de) ocupa el ancho completo y es más manejable. La tarjeta Apariencia muestra previews reales del tema (claro/oscuro/sistema) y la paleta en dos columnas; el test de velocidad WAN se ejecuta real desde el servidor y rellena descarga/subida en su sitio. Los toggles de Laboratorio aparecen individuales (Orquestación, Canales, Actualizaciones) al activar Labs.
+- **Regenerar el token de un agente sin reinstalar** ([#627](https://github.com/gnacho/netpulse/issues/627)). Al regenerar el token de un dispositivo desde Ajustes, NetPulse ahora lo aplica en el propio router por SSH y reinicia el agente, así el dispositivo sigue reportando **sin reinstalar**. El one-liner de instalación solo hace falta cuando el router no es alcanzable por SSH.
+- **Actualizaciones: autodetecta la imagen de firmware** ([#629](https://github.com/gnacho/netpulse/issues/629)). En la página de actualizaciones de firmware, NetPulse resuelve la imagen del router a partir de su propio firmware (board + target + version) en el índice de descargas de OpenWrt y **prerrellena** la URL y el checksum, con un botón "Autodetectar imagen". La entrada manual se mantiene cuando no se puede resolver.
+- **Desinstalar el agente en routers justos** ([#624](https://github.com/gnacho/netpulse/issues/624)). En routers con poco espacio libre (como el UniFi 6 Lite) no cabía un reinstall; ahora hay una acción "Desinstalar" limpia que detiene y retira el agente.
+
+### Arreglado
+
+- **Los botones de copiar mostraban la clave i18n cruda** ([#628](https://github.com/gnacho/netpulse/issues/628)). Los botones de copiar de la tarjeta de adopción usaban una clave `common.copy` inexistente, así que el tooltip mostraba `common.copy`; la clave ya existe y traduce a "Copy"/"Copiar".
+
+### Anterior (v2.28.12)
 
 - **Puerto SSH personalizado por router** ([#605](https://github.com/gnacho/netpulse/issues/605)). No todos los routers dejan el daemon SSH en el puerto 22: algunos lo tienen en otro. Ahora cada router admite su propio puerto SSH al darlo de alta o editarlo, y todos los caminos del servidor (sondeo, acciones, instalación del agente, descubrimiento del gateway) lo usan automáticamente. Déjalo vacío y NetPulse sigue usando el 22.
 - **Matriz de itinerancia agrupada por dispositivo** ([#600](https://github.com/gnacho/netpulse/issues/600)). En WiFi Roaming → Matriz, las columnas se agrupan ahora bajo el nombre del punto de acceso, con una fila de cabecera que etiqueta cada banda (2.4G/5G). Ya no hay una columna suelta por AP-banda.
