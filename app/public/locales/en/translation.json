@@ -1531,6 +1531,8 @@
     "confirmDowntime": "During the flash and reboot the router is down for several minutes; clients connected to it lose connectivity.",
     "confirmAction": "Yes, upgrade",
     "detectedPrefix": "Detected system:",
+    "detectImage": "Autodetect image",
+    "detectImageBusy": "Detecting…",
     "lastFailure": "Last failed attempt",
     "status": {
       "requested": "Requested",

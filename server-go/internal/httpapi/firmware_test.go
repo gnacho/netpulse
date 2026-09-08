@@ -36,7 +36,11 @@ type detectAdapter struct {
 
 func (f *detectAdapter) BoardInfoFor(id string) *adapters.BoardInfo { return f.boards[id] }
 
-func firmwareTestServerWithAdapter(t *testing.T, adapter adapters.Snapshotter) (*testServer, *sse.AgentHub) {
+func firmwareTestServerWithAdapter(t *testing.T, adapter adapters.Snapshotter, resolver ...*firmware.ImageResolver) (*testServer, *sse.AgentHub) {
+	var imageResolver *firmware.ImageResolver
+	if len(resolver) > 0 {
+		imageResolver = resolver[0]
+	}
 	t.Helper()
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
@@ -71,6 +75,7 @@ func firmwareTestServerWithAdapter(t *testing.T, adapter adapters.Snapshotter) (
 		ConfigBackup: configBackup,
 		Orchestr:     orchestrMgr,
 		Firmware:     fwStore,
+		FirmwareImage: imageResolver,
 		AgentHub:     agentHub,
 		ChannelPlan:  chPlan,
 		Agents:       agents,
@@ -292,4 +297,105 @@ func postJSON(t *testing.T, base, path, payload, cookie string) *http.Response {
 		t.Fatalf("POST %s: %v", path, err)
 	}
 	return res
+}
+
+// firmwareImagesServer emula el índice de descargas de OpenWrt (profiles.json)
+// para el target de test; devuelve la URL base para un ImageResolver.
+func firmwareImagesServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	doc := map[string]any{"profiles": map[string]any{
+		"redmi_ax6": map[string]any{
+			"image_prefix":      "openwrt-25.12.5-qualcommax-ipq807x-redmi_ax6",
+			"supported_devices": []string{"redmi,ax6"},
+			"images": []any{
+				map[string]any{"filesystem": "squashfs", "name": "openwrt-25.12.5-qualcommax-ipq807x-redmi_ax6-squashfs-sysupgrade.bin", "sha256": "a6729a1a5214ae61c9fdc40408951e0c84c2d1bb0b38c3496f7823fa345f22b6", "type": "sysupgrade"},
+			},
+		},
+	}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/targets/qualcommax/ipq807x/profiles.json") {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(doc)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestFirmwareImageResolve: el endpoint resuelve la imagen y el sha256 de un
+// router a partir de su board info detectado (#629).
+func TestFirmwareImageResolve(t *testing.T) {
+	imgSrv := firmwareImagesServer(t)
+	resolver := firmware.NewImageResolver()
+	resolver.BaseURL = imgSrv.URL
+	boards := map[string]*adapters.BoardInfo{}
+	srv, _ := firmwareTestServerWithAdapter(t, &detectAdapter{Snapshotter: adapters.NewDemo(), boards: boards}, resolver)
+	cookie := adminCookieFor(t, srv)
+	rid := addTestRouter(t, srv.db)
+
+	detected := &adapters.BoardInfo{Model: "Redmi AX6", BoardName: "redmi,ax6"}
+	detected.Release.Version = "25.12.5"
+	detected.Release.Target = "qualcommax/ipq807x"
+	boards[rid] = detected
+
+	res := get(t, srv.URL, "/api/firmware-upgrades/"+rid+"/image", cookie)
+	body := readJSON(t, res)
+	res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("status %d: %v", res.StatusCode, body)
+	}
+	if body["version"] != "25.12.5" {
+		t.Fatalf("version: %v", body["version"])
+	}
+	if body["checksum"] != "a6729a1a5214ae61c9fdc40408951e0c84c2d1bb0b38c3496f7823fa345f22b6" {
+		t.Fatalf("checksum: %v", body["checksum"])
+	}
+	u, _ := body["url"].(string)
+	if !strings.Contains(u, "redmi_ax6-squashfs-sysupgrade.bin") {
+		t.Fatalf("url: %q", u)
+	}
+}
+
+// TestFirmwareImageResolveVersionOverride: `?version=` resuelve para una
+// versión distinta de la instalada (el target del upgrade).
+func TestFirmwareImageResolveVersionOverride(t *testing.T) {
+	imgSrv := firmwareImagesServer(t)
+	resolver := firmware.NewImageResolver()
+	resolver.BaseURL = imgSrv.URL
+	boards := map[string]*adapters.BoardInfo{}
+	srv, _ := firmwareTestServerWithAdapter(t, &detectAdapter{Snapshotter: adapters.NewDemo(), boards: boards}, resolver)
+	cookie := adminCookieFor(t, srv)
+	rid := addTestRouter(t, srv.db)
+
+	detected := &adapters.BoardInfo{Model: "Redmi AX6", BoardName: "redmi,ax6"}
+	detected.Release.Version = "25.12.5"
+	detected.Release.Target = "qualcommax/ipq807x"
+	boards[rid] = detected
+
+	res := get(t, srv.URL, "/api/firmware-upgrades/"+rid+"/image?version=24.10.0", cookie)
+	body := readJSON(t, res)
+	res.Body.Close()
+	if body["version"] != "24.10.0" {
+		t.Fatalf("version debe ser la pasada: %v", body["version"])
+	}
+}
+
+// TestFirmwareImageNotResolvable: sin board info (o sin perfil) → 404.
+func TestFirmwareImageNotResolvable(t *testing.T) {
+	imgSrv := firmwareImagesServer(t)
+	resolver := firmware.NewImageResolver()
+	resolver.BaseURL = imgSrv.URL
+	boards := map[string]*adapters.BoardInfo{}
+	srv, _ := firmwareTestServerWithAdapter(t, &detectAdapter{Snapshotter: adapters.NewDemo(), boards: boards}, resolver)
+	cookie := adminCookieFor(t, srv)
+	rid := addTestRouter(t, srv.db)
+	// Sin board detectado → no hay nada que resolver.
+
+	res := get(t, srv.URL, "/api/firmware-upgrades/"+rid+"/image", cookie)
+	body := readJSON(t, res)
+	res.Body.Close()
+	if res.StatusCode != 404 {
+		t.Fatalf("status %d esperado 404: %v", res.StatusCode, body)
+	}
 }
