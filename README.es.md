@@ -97,7 +97,12 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.13)
+### Última (v2.28.14)
+
+- **El plan de canales ya no cuenta tu propia malla como interferencia ni sugiere un canal que cruce a DFS** ([#631](https://github.com/gnacho/netpulse/issues/631)). En el análisis de canales, los BSSID de tus propios puntos de acceso ya no puntúan como vecinos (se excluyen emparejando el prefijo MAC de tus routers monitorizados), y los canales candidatos se validan contra el ancho de la radio: a 40/80/160 MHz solo se ofrecen bloques que no entran en canales DFS (52-64, 100-144). Evita que NetPulse recomiende un canal que ya usan los satélites de tu malla, o un bloque de 80 MHz que cruzaría a banda DFS.
+- **El rearm ahora recupera un agente atascado en bucle de 401** ([#630](https://github.com/gnacho/netpulse/issues/630)). Si un reinicio no trae de vuelta al agente, NetPulse regenera el token del agente y lo aplica en el router (reescribe el `.env` y reinicia) sin reinstalar, así un token desincronizado se arregla en caliente. La rotación de token en un reinstall también es atómica: si el SSH falla, el servidor restaura el token anterior, para que el agente nunca se quede empujando un token que ya no se acepta.
+
+### Anterior (v2.28.13)
 
 - **Una página de Ajustes más limpia, a una columna** ([#627](https://github.com/gnacho/netpulse/issues/627)). La página de Ajustes pasa a una columna única con un índice fijo que te sigue al hacer scroll, así cada tarjeta (Apariencia, Datos y umbrales, Servicios, Red, Integraciones, Administración, Cuenta, Acerca de) ocupa el ancho completo y es más manejable. La tarjeta Apariencia muestra previews reales del tema (claro/oscuro/sistema) y la paleta en dos columnas; el test de velocidad WAN se ejecuta real desde el servidor y rellena descarga/subida en su sitio. Los toggles de Laboratorio aparecen individuales (Orquestación, Canales, Actualizaciones) al activar Labs.
 - **Regenerar el token de un agente sin reinstalar** ([#627](https://github.com/gnacho/netpulse/issues/627)). Al regenerar el token de un dispositivo desde Ajustes, NetPulse ahora lo aplica en el propio router por SSH y reinicia el agente, así el dispositivo sigue reportando **sin reinstalar**. El one-liner de instalación solo hace falta cuando el router no es alcanzable por SSH.
