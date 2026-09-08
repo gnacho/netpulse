@@ -186,6 +186,9 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 			Kind: "external", Interval: beaconIntervalSec,
 			Data: probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 		}
+		// #639: conservar el System (firmware/uptime) también en el datagrama
+		// FDB dedicado, para no perderlo entre FDB y beacon periódico.
+		s.attachRTLConsole(p.Slug, src, fdbPayload)
 		s.agents.Ingest(fdbPayload)
 		s.persistAgentState(p.Slug, s.agents.Snapshot(p.Slug))
 		s.beaconSeqNote(p.Slug, p.Seq)
@@ -248,6 +251,10 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		Interval: beaconIntervalSec,
 		Data:     probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 	}
+	// #639: el beacon no lleva firmware/uptime; el server los obtiene de la
+	// consola HTTP del switch (poll cacheado) y los adjunta como System para
+	// que polledFromAgent los convierta en board/uptimeSec.
+	s.attachRTLConsole(p.Slug, src, pl)
 	// Fallback de cambios de link por delta entre beacons (#291): si el
 	// firmware no manda eventos, el cambio se detecta comparando el payload
 	// anterior. Con eventos, el título idéntico hace que el dedup del engine
@@ -474,6 +481,12 @@ func (s *server) beaconSeqNote(slug string, seq uint32) {
 	// boot, así que un salto a 1 (o 0) desde uno mayor = reinicio del
 	// switch. El wrap de uint32 daría el mismo salto una vez cada 136 años.
 	if had && seq <= 1 && old > 1 {
+		// #639: un reboot invalida el bootUnix cacheado de la consola (el
+		// contador de segundos del switch volvió a 0); el próximo beacon
+		// re-sincroniza con un poll nuevo.
+		if s.rtlConsole != nil {
+			s.rtlConsole.invalidate(slug)
+		}
 		if eng := s.alertsEngine(); eng != nil {
 			eng.Emit(alerts.AlertEvent{
 				ID:       fmt.Sprintf("beacon-reboot-%s-%d", slug, time.Now().UnixMilli()),
