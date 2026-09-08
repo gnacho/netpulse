@@ -122,6 +122,34 @@ func TestScriptFinishesWithStart(t *testing.T) {
 	}
 }
 
+func TestTokenPushScriptConfig(t *testing.T) {
+	s := reinstall.TokenPushScript("test-router", strings.Repeat("c3", 32))
+	for _, want := range []string{
+		"/etc/netpulse-agent.env",
+		"NETPULSE_TOKEN=" + strings.Repeat("c3", 32),
+		"sed -n 's/^NETPULSE_SERVER=//p' \"$ENV_FILE\"",
+		"sed -n 's/^NETPULSE_SLUG=//p' \"$ENV_FILE\"",
+		"chmod 600 \"$ENV_FILE.tmp\"",
+		"mv -f \"$ENV_FILE.tmp\" \"$ENV_FILE\"",
+		"\"$INIT\" restart",
+		"exit 30",
+		"exit 31",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("TokenPushScript sin %q", want)
+		}
+	}
+	// No debe descargar binario ni tocar init/watchdog/cron (rotate ligero).
+	if strings.Contains(s, "/binary?arch=") {
+		t.Error("TokenPushScript no debe descargar el binario")
+	}
+	for _, notWant := range []string{"watchdog", "crontab", "/etc/init.d/netpulse-agent >", "GOT=$(sha256sum"} {
+		if strings.Contains(s, notWant) {
+			t.Errorf("TokenPushScript no debe contener %q (rotate ligero)", notWant)
+		}
+	}
+}
+
 func TestScriptEmptyDigestSkipsVerify(t *testing.T) {
 	s := reinstall.Script(
 		"r", strings.Repeat("b2", 32), "http://s:3000",

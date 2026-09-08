@@ -1131,6 +1131,8 @@
       "regenerateToken": "Regenerar token",
       "rotateTokenTitle": "¿Regenerar el token del dispositivo?",
       "rotateTokenCaption": "Se generará un token nuevo para «{{name}}». El actual dejará de funcionar de inmediato; deberás reinstalar el agente con el nuevo token. No se puede deshacer.",
+      "rotateTokenHotApplied": "Token regenerado y aplicado al dispositivo sin reinstalar.",
+      "rotateTokenManualNeeded": "Token regenerado. El servidor no pudo aplicarlo en el agente; reinstala el agente para que use el token nuevo.",
       "type": "Tipo",
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",

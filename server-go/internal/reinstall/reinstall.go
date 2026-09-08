@@ -161,6 +161,37 @@ chmod 0755 "$WATCHDOG"
 `
 }
 
+// TokenPushScript construye el POSIX sh que rota el token en CALIENTE: solo
+// reescribe el token en /etc/netpulse-agent.env (conservando server y slug,
+// escritura atómica) y reinicia el servicio. No descarga binario, no toca
+// init/watchdog/cron: es la versión ligera de reinstall para cuando el token
+// cambia pero el binario y la config ya están bien (rotate "en caliente").
+func TokenPushScript(slug, token string) string {
+	return `#!/bin/sh
+set -e
+ENV_FILE=/etc/netpulse-agent.env
+INIT=/etc/init.d/netpulse-agent
+# El env debe existir: el router ya tenía el agente instalado.
+[ -f "$ENV_FILE" ] || { echo "netpulse-agent.env no existe; token no actualizado"; exit 30; }
+# Conservar el server y el slug del env existente para no romper la config.
+SERVER=$(sed -n 's/^NETPULSE_SERVER=//p' "$ENV_FILE" | head -n1)
+SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
+[ -n "$SLUG" ] || { echo "netpulse-agent.env sin NETPULSE_SLUG"; exit 31; }
+umask 077
+cat > "$ENV_FILE.tmp" <<EOF
+NETPULSE_SERVER=$SERVER
+NETPULSE_SLUG=$SLUG
+NETPULSE_TOKEN=` + token + `
+EOF
+chmod 600 "$ENV_FILE.tmp"
+# Swap atómico: el proceso vivo sigue leyendo el archivo íntegro.
+mv -f "$ENV_FILE.tmp" "$ENV_FILE"
+# procd rearma solito por el file (procd_set_param file), pero por
+# determinismo reiniciamos el servicio explícitamente.
+[ -x "$INIT" ] && "$INIT" restart >/dev/null 2>&1 || true
+`
+}
+
 // Digests devuelve los sha256 de los binarios de agente embebidos (cadena
 // vacía si el arch no tiene binario).
 func Digests() map[string]string {

@@ -1131,6 +1131,8 @@
       "regenerateToken": "Regenerate token",
       "rotateTokenTitle": "Regenerate device token?",
       "rotateTokenCaption": "A new token will be generated for “{{name}}”. The current one will stop working immediately; you'll need to reinstall the agent with the new token. This cannot be undone.",
+      "rotateTokenHotApplied": "Token regenerated and applied to the device without reinstalling.",
+      "rotateTokenManualNeeded": "Token regenerated. The server could not apply it to the agent; reinstall the agent to use the new token.",
       "type": "Type",
       "gateway": "Is the gateway",
       "gatewayBadge": "Main",

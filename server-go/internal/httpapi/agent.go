@@ -302,13 +302,25 @@ type agentCreateResponse struct {
 	Slug    string `json:"slug"`
 	Token   string `json:"token"`
 	Install string `json:"install"`
+	// Method indica si el token nuevo se aplicó al agente "en caliente" vía
+	// SSH ("hot") o si hay que instalarlo a mano ("manual", ver Install).
+	Method string `json:"method"`
 }
 
 // handleAgentsCreate: genera (o rota) el token de un slug. 201 con el token
-// en claro UNA vez + el one-liner de instalación.
+// en claro UNA vez + el one-liner de instalación. Cuando el router es un
+// agente nativo OpenWrt al que el servidor llega por SSH, el token también
+// se aplica "en caliente" (reescribe el .env del router + restart) para que
+// el agente no se quede offline esperando un reinstall.
 func (s *server) handleAgentsCreate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Slug string `json:"slug"`
+		// Hot pide aplicar el token en caliente (reescribir el .env del
+		// router + restart por SSH). La UI de "Regenerar token" lo envía
+		// true; el rearm NO (va a reinstalar de todos modos, evitar un SSH
+		// redundante). Default false = solo se rota en kv (comportamiento
+		// previo) y se entrega el one-liner para instalar a mano.
+		Hot bool `json:"hot"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
 		writeBodyError(w, st, "invalid_body", `Se esperaba { "slug": "<equipo>" } (a-z, 0-9, guiones)`)
@@ -330,11 +342,44 @@ func (s *server) handleAgentsCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "token_error")
 		return
 	}
+	method := "manual"
+	if body.Hot {
+		method = s.rotateTokenHot(body.Slug, token)
+	}
 	writeJSON(w, http.StatusCreated, agentCreateResponse{
 		Slug:    body.Slug,
 		Token:   token,
 		Install: s.agentInstallLine(r, body.Slug, token),
+		Method:  method,
 	})
+}
+
+// rotateTokenHot aplica el token nuevo en el .env del router por SSH cuando
+// es posible (agente nativo OpenWrt con router en la tabla). Devuelve "hot"
+// si se aplicó, "manual" si hay que instalarlo a mano. Nunca rompe el flujo:
+// si no hay SSH o el push falla, el token ya rotado se entrega vía Install.
+func (s *server) rotateTokenHot(slug, token string) string {
+	if s.db == nil || s.pool == nil {
+		return "manual"
+	}
+	// #363: jamás tocar un agente NetGrip embebido vía SSH.
+	if s.agentKindOf(slug) == "netgrip" {
+		return "manual"
+	}
+	host := ""
+	for _, rc := range routerstore.ListRouters(s.db.DB) {
+		if rc.ID == slug {
+			host = rc.SSHAddr()
+			break
+		}
+	}
+	if host == "" || !s.routerUpgradeable(slug) {
+		return "manual"
+	}
+	if _, err := s.pool.Run(host, reinstall.TokenPushScript(slug, token), 60*time.Second); err != nil {
+		return "manual"
+	}
+	return "hot"
 }
 
 // agentInstallLine: one-liner de instalación vía SSH desde esta máquina.

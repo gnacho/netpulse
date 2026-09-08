@@ -317,6 +317,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
   const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
+  // Aviso tras regenerar el token: "hot" (aplicado en caliente) o "manual".
+  const [regenerateNotice, setRegenerateNotice] = useState<'hot' | 'manual' | null>(null)
   // Slugs con agente nativo (GET /api/agents): marcan qué routers tienen
   // acceso root para poder regenerar su token (Labs).
   const [agentSlugs, setAgentSlugs] = useState<Set<string>>(new Set())
@@ -571,19 +573,24 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   // Regenerar token del agente (Labs): solo routers-agente con acceso root
   // (openwrt/glinet nativos; switch gestionado y external no tienen SSH/root).
+  // Envía hot:true para que el servidor, si puede, aplique el token en
+  // caliente (rewrite del .env + restart por SSH) y el router no quede
+  // offline esperando un reinstall.
   const regenerateToken = async (r: ConfigRouter) => {
     if (regenerating) return
     setRegenerating(r.id)
+    setRegenerateNotice(null)
     try {
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: r.id }),
+        body: JSON.stringify({ slug: r.id, hot: true }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const agent = (await res.json()) as { slug: string; token: string; install: string }
+      const agent = (await res.json()) as { slug: string; token: string; install: string; method?: string }
       // Copia el token al portapapeles y refuerza la fila.
       await copyToClipboard(agent.token)
+      setRegenerateNotice(agent.method === 'hot' ? 'hot' : 'manual')
       onSaved()
     } catch {
       setError(t('settings.routers.errorGeneric'))
@@ -693,6 +700,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             </tbody>
           </table>
         </div>
+      )}
+
+      {regenerateNotice && (
+        <p className={cn('mt-2 text-caption font-medium', regenerateNotice === 'hot' ? 'text-accent' : 'text-danger')}>
+          {regenerateNotice === 'hot'
+            ? t('settings.routers.rotateTokenHotApplied')
+            : t('settings.routers.rotateTokenManualNeeded')}
+        </p>
       )}
 
       <AlertDialog open={confirmDeleteFor !== null} onOpenChange={(open) => !open && setConfirmDeleteFor(null)}>
