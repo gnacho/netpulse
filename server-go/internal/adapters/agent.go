@@ -681,7 +681,13 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// congelados dispara alertas fantasma ("zero bytes" que solo es espera
 	// del siguiente push).
 	if freshPayload {
-		l.recordPortSamples(cfg.ID, out.ports)
+		// Los pushers external/beacon persisten sus propias series con
+		// contadores de tramas en recordBeaconPortSamples (httpapi/beacon.go);
+		// los EthPort de su payload no llevan contadores, así que pasar por
+		// recordPortSamples escribiría filas a 0 intercaladas con las buenas.
+		if out.agentKind != "external" {
+			l.recordPortSamples(cfg.ID, out.ports)
+		}
 		// #551: tráfico por cliente (nlbwmon preferente, hostapd fallback).
 		// now = ts del payload (no el reloj del server) para que el dt del
 		// delta sea el intervalo real entre pushes del agente.
