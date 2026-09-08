@@ -211,6 +211,35 @@ func TestRearmSinRouter409(t *testing.T) {
 	}
 }
 
+// TestReinstallRotaAtomicYRollbackHttpapi (#630): si el SSH del reinstall
+// manual falla, el hash del token en kv NO debe quedar rotado (rollback al
+// valor previo), evitando el 401 eterno del agente.
+func TestReinstallRotaAtomicYRollbackHttpapi(t *testing.T) {
+	ssh := &fakeSSH{fail: true}
+	ts := makeRearmTestServer(t, ssh, 1500*time.Millisecond)
+	if _, err := ts.db.Exec("INSERT INTO kv (key, value) VALUES (?, ?)", "agent.token.patio", "fakehash"); err != nil {
+		t.Fatalf("seed token: %v", err)
+	}
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/agents/patio/reinstall", nil)
+	req.Header.Set("Cookie", "session="+ts.cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post reinstall: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadGateway {
+		t.Fatalf("esperaba 502 ssh_failed, got %d", res.StatusCode)
+	}
+	var stored string
+	if err := ts.db.QueryRow("SELECT value FROM kv WHERE key = 'agent.token.patio'").Scan(&stored); err != nil {
+		t.Fatalf("kv rollback: %v", err)
+	}
+	if stored != "fakehash" {
+		t.Fatalf("rollback esperado al hash previo, got %q", stored)
+	}
+}
+
 func TestRearmRecuperado200(t *testing.T) {
 	ssh := &fakeSSH{}
 	ts := makeRearmTestServer(t, ssh, 1500*time.Millisecond)
