@@ -1129,6 +1129,8 @@
       "role": "Role",
       "actions": "Actions",
       "regenerateToken": "Regenerate token",
+      "rotateTokenTitle": "Regenerate device token?",
+      "rotateTokenCaption": "A new token will be generated for “{{name}}”. The current one will stop working immediately; you'll need to reinstall the agent with the new token. This cannot be undone.",
       "type": "Type",
       "gateway": "Is the gateway",
       "gatewayBadge": "Main",

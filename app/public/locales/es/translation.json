@@ -1129,6 +1129,8 @@
       "role": "Rol",
       "actions": "Acciones",
       "regenerateToken": "Regenerar token",
+      "rotateTokenTitle": "¿Regenerar el token del dispositivo?",
+      "rotateTokenCaption": "Se generará un token nuevo para «{{name}}». El actual dejará de funcionar de inmediato; deberás reinstalar el agente con el nuevo token. No se puede deshacer.",
       "type": "Tipo",
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",

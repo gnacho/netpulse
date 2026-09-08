@@ -315,6 +315,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [addSshPort, setAddSshPort] = useState(22)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
+  const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
   // Slugs con agente nativo (GET /api/agents): marcan qué routers tienen
   // acceso root para poder regenerar su token (Labs).
@@ -660,6 +661,22 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   </td>
                   <td className="px-3.5 py-2.5">
                     <span className="flex items-center justify-end gap-1.5">
+                      {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRotateFor(r.id)}
+                          disabled={regenerating === r.id}
+                          aria-label={t('settings.routers.regenerateToken')}
+                          title={t('settings.routers.regenerateToken')}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors duration-150 hover:border-danger/60 hover:bg-danger/10 disabled:opacity-50"
+                        >
+                          {regenerating === r.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+                          ) : (
+                            <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          )}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => openEdit(r)}
@@ -669,22 +686,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                       >
                         <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
                       </button>
-                      {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
-                        <button
-                          type="button"
-                          onClick={() => void regenerateToken(r)}
-                          disabled={regenerating === r.id}
-                          aria-label={t('settings.routers.regenerateToken')}
-                          title={t('settings.routers.regenerateToken')}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-danger/40 hover:text-danger disabled:opacity-50"
-                        >
-                          {regenerating === r.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-                          ) : (
-                            <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
-                          )}
-                        </button>
-                      )}
                     </span>
                   </td>
                 </tr>
@@ -711,6 +712,34 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             >
               <Trash2 className="mr-1.5 h-4 w-4" strokeWidth={2} />
               {t('settings.routers.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRotateFor !== null} onOpenChange={(open) => !open && setConfirmRotateFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.rotateTokenTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('settings.routers.rotateTokenCaption', { name: list.find((x) => x.id === confirmRotateFor)?.name ?? list.find((x) => x.id === confirmRotateFor)?.host ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={regenerating !== null}>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const target = list.find((x) => x.id === confirmRotateFor)
+                if (target) {
+                  setConfirmRotateFor(null)
+                  void regenerateToken(target)
+                }
+              }}
+              disabled={regenerating !== null}
+              className="bg-danger text-canvas hover:bg-danger/90"
+            >
+              <RotateCw className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              {t('settings.routers.regenerateToken')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
