@@ -42,6 +42,11 @@ func newRTLConsoleServer(t *testing.T, uptimeSec uint64) *httptest.Server {
 			http.Error(w, "no auth", http.StatusUnauthorized)
 			return
 		}
+		// El firmware exige Content-Type en todo POST (sin él responde 404).
+		if r.Header.Get("Content-Type") == "" {
+			http.Error(w, "no content type", http.StatusNotFound)
+			return
+		}
 		body := make([]byte, 32)
 		n, _ := r.Body.Read(body)
 		if strings.TrimSpace(string(body[:n])) != "time" {

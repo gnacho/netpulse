@@ -194,10 +194,12 @@ func (c *rtlConsoleCache) fetch(host string) (*rtlConsoleEntry, error) {
 	}
 
 	// 3) POST /cmd "time" → uptime en segundos (hex, p. ej. "0x00028e9d").
+	// El firmware exige Content-Type en todo POST (sin él responde 404).
 	cmdReq, err := http.NewRequest(http.MethodPost, base+"/cmd", strings.NewReader("time"))
 	if err != nil {
 		return nil, err
 	}
+	cmdReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	cmdReq.Header.Set("Cookie", cookie)
 	cmdResp, err := client.Do(cmdReq)
 	if err != nil {
