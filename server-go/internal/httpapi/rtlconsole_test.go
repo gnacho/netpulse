@@ -35,7 +35,7 @@ func newRTLConsoleServer(t *testing.T, uptimeSec uint64) *httptest.Server {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"sw_ver":"v0.1.0-e1fa080-dirty","hw_ver":"keepLink KP-9000-9XHML-X V3.1"}`)
+		fmt.Fprintf(w, `{"sw_ver":"v0.1.0-e1fa080-dirty","hw_ver":"keepLink KP-9000-9XHML-X V3.1","mac_address":"78:d8:00:32:31:49"}`)
 	})
 	mux.HandleFunc("/cmd", func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Cookie"), "session=") {
@@ -73,6 +73,9 @@ func TestRtlConsoleFetch(t *testing.T) {
 	}
 	if e.Model != "keepLink KP-9000-9XHML-X V3.1" {
 		t.Fatalf("Model = %q", e.Model)
+	}
+	if e.MAC != "78:d8:00:32:31:49" {
+		t.Fatalf("MAC = %q, esperaba 78:d8:00:32:31:49", e.MAC)
 	}
 	// bootUnix ≈ now - 167581s
 	age := time.Since(e.BootUnix)
@@ -114,6 +117,10 @@ func TestRtlConsoleSnapshotAttachesSystem(t *testing.T) {
 	// uptime derivado ≈ 1h (3600 s) ± margen del poll.
 	if pl.Data.System.SysInfo == nil || pl.Data.System.SysInfo.Uptime < 3590 || pl.Data.System.SysInfo.Uptime > 3700 {
 		t.Fatalf("Uptime inesperado: %+v", pl.Data.System.SysInfo)
+	}
+	// BridgeMAC normalizada a mayúsculas (formato canónico del resto de la app).
+	if pl.Data.System.BridgeMAC != "78:D8:00:32:31:49" {
+		t.Fatalf("BridgeMAC = %q, esperaba 78:D8:00:32:31:49", pl.Data.System.BridgeMAC)
 	}
 }
 

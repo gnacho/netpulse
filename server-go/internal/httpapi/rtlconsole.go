@@ -32,6 +32,7 @@ import (
 type rtlConsoleEntry struct {
 	Firmware  string    // sw_ver de /information.json ("v0.1.0-e1fa080-dirty")
 	Model     string    // hw_ver ("keepLink KP-9000-9XHML-X V3.1")
+	MAC       string    // mac_address (la que el switch usa en runtime)
 	BootUnix  time.Time // now - uptimeSec del poll; el uptime se deriva de aquí
 	PolledAt  time.Time // cuándo se hizo el poll (para la cadencia)
 	InFlight  bool      // hay un poll en curso (serial por slug)
@@ -44,6 +45,7 @@ type rtlConsoleEntry struct {
 type rtlConsoleInfo struct {
 	SwVer string `json:"sw_ver"`
 	HwVer string `json:"hw_ver"`
+	Mac   string `json:"mac_address"`
 }
 
 // rtlConsoleCache: estado del sondeo por slug. Protegido por su mutex.
@@ -127,6 +129,7 @@ func (c *rtlConsoleCache) poll(slug, host string) {
 	}
 	e.Firmware = entry.Firmware
 	e.Model = entry.Model
+	e.MAC = entry.MAC
 	e.BootUnix = entry.BootUnix
 	e.PolledAt = time.Now()
 	e.FailCount = 0
@@ -220,15 +223,16 @@ func (c *rtlConsoleCache) fetch(host string) (*rtlConsoleEntry, error) {
 
 	now := time.Now()
 	return &rtlConsoleEntry{
-		Firmware: info.SwVer, Model: info.HwVer,
+		Firmware: info.SwVer, Model: info.HwVer, MAC: info.Mac,
 		BootUnix: now.Add(-time.Duration(upSec) * time.Second),
 	}, nil
 }
 
-// attachSystem adjunta la sección System (board + uptime) al payload de un
-// beacon periódico si hay datos de consola cacheados. Es el punto de
-// inyección: polledFromAgent mapea System.Board→board y SysInfo.Uptime→
-// uptimeSec, y buildRouter pinta Firmware/Uptime sin cambios en el front.
+// attachSystem adjunta la sección System (board + uptime + MAC) al payload de
+// un beacon periódico si hay datos de consola cacheados. Es el punto de
+// inyección: polledFromAgent mapea System.Board→board, SysInfo.Uptime→
+// uptimeSec y BridgeMAC→brMac, y buildRouter pinta Firmware/Uptime/MAC sin
+// cambios en el front.
 func (s *server) attachRTLConsole(slug, host string, pl *probe.Payload) {
 	if s.rtlConsole == nil || pl == nil {
 		return
@@ -243,8 +247,9 @@ func (s *server) attachRTLConsole(slug, host string, pl *probe.Payload) {
 	b.Model = e.Model
 	b.Release.Description = "RTLPlayground " + e.Firmware
 	sd := &probe.SystemData{
-		Board:   b,
-		SysInfo: &probe.SysInfo{Uptime: time.Since(e.BootUnix).Seconds()},
+		Board:      b,
+		SysInfo:    &probe.SysInfo{Uptime: time.Since(e.BootUnix).Seconds()},
+		BridgeMAC:  strings.ToUpper(e.MAC),
 	}
 	pl.Data.System = sd
 }
