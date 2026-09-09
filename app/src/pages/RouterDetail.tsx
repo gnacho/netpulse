@@ -10,6 +10,7 @@ import { useAuth } from '@/data/AuthContext'
 import { AdGuardPanel } from '@/components/routers/AdGuardPanel'
 import { BackhaulPanel } from '@/components/routers/BackhaulPanel'
 import { PortPanel } from '@/components/routers/PortPanel'
+import { PortSeriesChart } from '@/components/routers/PortSeriesChart'
 import { RadiosPorts } from '@/components/routers/RadiosPorts'
 import { RouterClients } from '@/components/routers/RouterClients'
 import { RouterDetailHeader } from '@/components/routers/RouterDetailHeader'
@@ -27,7 +28,7 @@ export default function RouterDetail() {
   const reduce = useReducedMotion()
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
-  const { routers, alerts, getRouterDetail } = useNetPulse()
+  const { routers, alerts, getRouterDetail, isDemo } = useNetPulse()
   const router = routers.find((r) => r.id === id)
   const isGateway = router?.roleBadge === 'Principal'
   const [detail, setDetail] = useState<RouterDetailData | null>(null)
@@ -198,6 +199,19 @@ export default function RouterDetail() {
         </>
       ) : (
         <RadiosPorts router={router} extras={detail?.extras} />
+      )}
+
+      {/* Historial de tráfico por puerto: tarjeta propia a todo el ancho
+          (issue #654; no va embebido en la tarjeta de Puertos Ethernet). */}
+      {!isDemo && detail?.extras?.ethPorts && detail.extras.ethPorts.length > 0 && (
+        <PortSeriesChart
+          routerId={router.id}
+          ports={detail.extras.ethPorts}
+          // #641: managed-switch/external (beacons RTLPlayground, SNMP) no
+          // reportan byte counters → la serie se muestra en frames/s.
+          unit={router.type === 'managed-switch' || router.type === 'external' ? 'fps' : 'bps'}
+          className="lg:col-span-12"
+        />
       )}
 
       {/* VLANs del bridge (issue #315, read-only) */}
