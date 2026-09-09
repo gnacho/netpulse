@@ -126,6 +126,14 @@ export interface TopologyInput {
   topology?: TopoSemantics
   /** Versión del view-model (SPEC-65 D65-4): la semántica aplica si vm >= 1. */
   vm?: number
+  /**
+   * Posiciones fijadas por el usuario ("lock layout", issue #656): chipId →
+   * {x,y}. Si se pasan, se aplican sobre las calculadas por el layout para
+   * los chips que existan, ANTES de generar los enlaces (así los cables
+   * conectan con la posición real). Los chips sin posición guardada (p. ej.
+   * dispositivos nuevos) conservan su posición automática.
+   */
+  seedPositions?: Record<string, { x: number; y: number }>
 }
 
 /** Chip "+N" de un anillo desbordado (posición ya calculada, geometría local).
@@ -615,7 +623,7 @@ function flowFor(mbps: number, alive = false): { packets: number; packetDur: num
 // Builder
 // ---------------------------------------------------------------------------
 
-export function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [], topology, vm }: TopologyInput): TopologyModel {
+export function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [], topology, vm, seedPositions }: TopologyInput): TopologyModel {
   // SPEC-65 D65-3/D65-9 B2: la semántica server-side aplica con vm >= 1 y
   // `topology` presente; sin ella, fallback EXACTO al cálculo local.
   const sem = topology && (vm ?? 1) >= 1 ? topology : undefined
@@ -1035,6 +1043,23 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     ctsByHost.set(hostId, kids)
     ctCountByHost.set(hostId, kids.length)
     chips.push(...kids)
+  }
+
+  // -- lock layout (issue #656) --------------------------------------------
+  // Aplicar las posiciones fijadas por el usuario sobre las calculadas por el
+  // layout automático. Solo se aplican a los chips que existan en la semilla;
+  // los chips nuevos (sin posición guardada) se quedan en su posición actual,
+  // de modo que el mapa no se reordena aunque aparezcan/desaparezcan nodos.
+  // Va ANTES de la generación de enlaces: los cables se dibujan desde la
+  // posición real del chip tras el override.
+  if (seedPositions) {
+    for (const c of chips) {
+      const p = seedPositions[c.id]
+      if (p) {
+        c.x = p.x
+        c.y = p.y
+      }
+    }
   }
 
   // Chips "+N" de anillos desbordados (solo con semántica server-side):

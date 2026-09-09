@@ -1891,23 +1891,21 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		gwID = gw.ID
 	}
 	// (2) FDB de satélites: pista solo de ESTE tick (no se guarda).
-	// REGLA DE RECONCILIACIÓN: si una MAC cableada aparece tanto en el FDB
-	// del gateway como en el FDB de un satélite, el satélite la ve porque
-	// está bridged al mismo segmento L2 — NO es un cliente directo del
-	// satélite. Solo cuentan como clientes del satélite las MACs que el
-	// gateway NO ve (dispositivos realmente tras ese satélite, sin bridge
-	// al gateway).
-	// EXCEPCIÓN: los routers agent-only (switches con agente propio) son la
-	// fuente más específica — sus dispositivos se conservan con RouterID
-	// del switch, aunque el gateway también los vea en su FDB.
-	gwFDB := map[string]bool{}
-	if gwID != "" {
-		if gwPolled := polled[gwID]; gwPolled != nil {
-			for mac := range gwPolled.fdb {
-				gwFDB[mac] = true
-			}
-		}
-	}
+	// REGLA DE RECONCILIACIÓN (issue #656): una MAC aprendida por un satélite
+	// en una boca que NO es su uplink (boca no-infra) es un cliente cableado
+	// directo de ESE satélite — el FDB la aprendió en un puerto físico suyo.
+	// Aunque el gateway también la vea en su FDB (porque el satélite está
+	// bridged al mismo segmento L2, como un dumb AP/bridge), la boca local
+	// del satélite es la evidencia más específica de dónde va el cable, así
+	// que se atribuye al satélite.
+	// El uplink queda excluido por infraPorts (boca donde se aprende una MAC
+	// de bridge de otro router = tránsito); aquí NO se cuenta.
+	// (3) FDB del gateway: solo las MACs que ningún satélite haya reclamado
+	// en una boca local, para no quedarse fuera si el gateway las ve en su
+	// propio FDB (misma LAN bridged).
+	// EXCEPCIÓN preservada: los routers agent-only (switches con agente
+	// propio) son la fuente más específica — sus dispositivos se conservan
+	// con RouterID del switch (esta ruta ya los trataba por separado).
 	// MACs de bridge de todos los routers sondeados: una boca de satélite
 	// que aprende una de ellas es un UPLINK (enlaza con otro equipo de red),
 	// y lo que aprende por ahí es el resto de la LAN en tránsito, no clientes
@@ -1934,9 +1932,6 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 				continue // uplink: MACs en tránsito, no clientes de este equipo
 			}
 			if _, ok := seen[mac]; !ok {
-				if gwFDB[mac] && !p.cfg.AgentOnly {
-					continue // gateway bridge pasivo, no es cliente del satélite
-				}
 				seen[mac] = seenInfo{routerID, "cable", nil}
 			}
 		}
@@ -2159,6 +2154,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		}
 		devices = append(devices, d)
 	}
+	// Orden estable por MAC (issue #656): buildDevices itera un mapa de Go
+	// (allMacs), cuyo orden es aleatorio entre ticks. Ese orden llega al
+	// frontend y alimenta la asignación de ranuras de los anillos de la
+	// topología → los chips saltaban de posición al refrescar. Ordenar por
+	// MAC hace el contrato determinista para el mismo set de dispositivos.
+	sort.Slice(devices, func(i, j int) bool { return devices[i].MAC < devices[j].MAC })
 	return devices
 }
 

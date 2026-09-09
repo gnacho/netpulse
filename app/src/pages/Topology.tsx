@@ -54,10 +54,6 @@ export default function Topology() {
   const auth = useAuth()
   const { routers, devices, wan, wireguard, distributionNodes, topology, vm, lastSnapshotAt, requestServerRefresh } =
     useNetPulse()
-  const model = useMemo(
-    () => buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes, topology, vm }),
-    [routers, devices, wan, wireguard, distributionNodes, topology, vm],
-  )
   const [showLabels, setShowLabels] = useState(true)
   const [flow, setFlow] = useState(true)
   const [hoverLink, setHoverLink] = useState<string | null>(null)
@@ -72,6 +68,64 @@ export default function Topology() {
   const handleTagDevice = (device: Device) => {
     setTagMac(device.mac ?? device.name)
     setTagSheetOpen(true)
+  }
+
+  // -- lock layout (issue #656) --------------------------------------------
+  // Fija las coordenadas de los chips entre refrescos (persistidas en el
+  // navegador). Con el bloqueo activo, el modelo aplica las posiciones
+  // guardadas sobre las calculadas por el layout automático; los chips sin
+  // posición guardada (dispositivos nuevos) se quedan en su posición actual.
+  const LOCK_KEY = 'netpulse.topology.lock'
+  const POS_KEY = 'netpulse.topology.positions'
+  const [lockLayout, setLockLayout] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(LOCK_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [savedPos, setSavedPos] = useState<Record<string, { x: number; y: number }>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(POS_KEY) || '{}')
+    } catch {
+      return {}
+    }
+  })
+
+  const model = useMemo(
+    () =>
+      buildTopologyModel({
+        routers,
+        devices,
+        wan,
+        wireguard,
+        distributionNodes,
+        topology,
+        vm,
+        seedPositions: lockLayout ? savedPos : undefined,
+      }),
+    [routers, devices, wan, wireguard, distributionNodes, topology, vm, lockLayout, savedPos],
+  )
+
+  const handleLockChange = (checked: boolean) => {
+    setLockLayout(checked)
+    try {
+      localStorage.setItem(LOCK_KEY, checked ? '1' : '0')
+    } catch {
+      /* localStorage no disponible */
+    }
+    if (checked) {
+      // Capturar las posiciones actuales del modelo: serán la semilla para
+      // congelar el layout a partir de ahora.
+      const pos: Record<string, { x: number; y: number }> = {}
+      for (const c of model.chips) pos[c.id] = { x: c.x, y: c.y }
+      setSavedPos(pos)
+      try {
+        localStorage.setItem(POS_KEY, JSON.stringify(pos))
+      } catch {
+        /* si no cabe, se ignora */
+      }
+    }
   }
 
   // Botón "Refrescar": POST /api/refresh → el backend sondea ya y empuja el
@@ -210,6 +264,18 @@ export default function Topology() {
           >
             <Switch checked={flow} onCheckedChange={setFlow} aria-label={t('topology.animateFlow')} />
             {t('topology.flow')}
+          </motion.label>
+          <motion.label
+            {...controlMotion(4)}
+            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
+            title={t('topology.lockLayoutHint')}
+          >
+            <Switch
+              checked={lockLayout}
+              onCheckedChange={handleLockChange}
+              aria-label={t('topology.lockLayout')}
+            />
+            {t('topology.lockLayout')}
           </motion.label>
         </div>
       </header>

@@ -7,9 +7,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [2.28.17] - 2026-09-09
 
+### Added
+
+- **La vista de topología bloquea la posición de los iconos (#656)**: un toggle "Bloquear diseño" congela las coordenadas de los dispositivos entre refrescos (persistidas en el navegador), de modo que los chips dejan de cambiar de sitio cada vez que el mapa se actualiza. Con el bloqueo desactivado, el mapa recalcula el layout automáticamente. Un emisario que se añade o se va no reordena al resto cuando el bloqueo está activo.
+
 ### Fixed
 
 - **Un router OpenWrt ya no cae en falso "host key changed" al sondearlo (#651)**: el descubrimiento (openssh con `accept-new`) registraba en `known_hosts` solo la host key que negociaba (ed25519), pero el sondeo Go negocia otra (ecdsa/rsa) con el mismo servidor; un host con varias host keys daba un falso "ssh host key changed" y exigía un re-onboard sin motivo. Ahora el descubrimiento pinas todas las host keys del router (ed25519, ecdsa y rsa), de forma que el sondeo siempre encuentra la suya sin debilitar la protección anti-MITM: si el router cambia todas sus claves (reflash), la detección de "host key changed" sigue intacta.
+- **Los hosts por cable de un punto de acceso puente (dumb AP) ya se atribuyen al AP, no al router principal (#656)**: cuando un nodo como un dumb AP (sin WAN, `br-lan` puentado a la LAN principal) tiene clientes conectados por cable a sus bocas, el router principal también los ve en su FDB porque comparten el mismo segmento L2. La reconciliación descartaba esas MACs del satélite y las colgaba del router principal. Ahora una MAC que el satélite aprende en una boca local que no es su uplink se atribuye a ese satélite (la boca física es la evidencia más específica); el uplink sigue excluido como tránsito y los routers con agente propio conservan su fuente específica. Además, el orden de los dispositivos es ahora determinista (por MAC), lo que evita que los iconos del mapa salten de posición al refrescar aunque ya no se use el bloqueo de layout.
 
 ## [2.28.16] - 2026-09-09
 
