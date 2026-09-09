@@ -1,9 +1,17 @@
 package sshkey
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 func TestEnsureKeypairRestoresFromBackup(t *testing.T) {
@@ -69,5 +77,139 @@ func TestRestoreLatestBackupIgnoresIncomplete(t *testing.T) {
 	}
 	if _, err := os.Stat(keyPath + ".pub"); err != nil {
 		t.Fatalf("no se generó el par nuevo: %v", err)
+	}
+}
+
+// genPubKey genera una clave pública de un tipo concreto para los tests de
+// merge (los tipos ed25519/ecdsa/rsa generan claves distintas entre sí).
+func genPubKey(t *testing.T, kind string) ssh.PublicKey {
+	t.Helper()
+	var priv any
+	switch kind {
+	case "ed25519":
+		_, p, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatalf("generate ed25519 key: %v", err)
+		}
+		priv = p
+	case "ecdsa":
+		p, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatalf("generate ecdsa key: %v", err)
+		}
+		priv = p
+	case "rsa":
+		p, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("generate rsa key: %v", err)
+		}
+		priv = p
+	default:
+		t.Fatalf("kind no soportado: %s", kind)
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		t.Fatalf("signer %s: %v", kind, err)
+	}
+	return signer.PublicKey()
+}
+
+// lineFor construye una línea known_hosts equivalente a la que escriben
+// accept-new y ssh-keyscan: "<hosts> <tipo> <base64>".
+func lineFor(t *testing.T, host string, key ssh.PublicKey) string {
+	t.Helper()
+	return knownhosts.Line([]string{host}, key)
+}
+
+// TestPinHostKeysMergeNewHost: host desconocido (TOFU) → añade todas las keys.
+func TestPinHostKeysMergeNewHost(t *testing.T) {
+	ed := genPubKey(t, "ed25519")
+	ec := genPubKey(t, "ecdsa")
+	rs := genPubKey(t, "rsa")
+	scan := []khEntry{
+		{hosts: []string{"192.168.1.5"}, key: ed},
+		{hosts: []string{"192.168.1.5"}, key: ec},
+		{hosts: []string{"192.168.1.5"}, key: rs},
+	}
+	got := pinHostKeysMerge("192.168.1.5", scan, nil)
+	if len(got) != 3 {
+		t.Fatalf("host nuevo debería pinar 3 claves, got=%d (%v)", len(got), got)
+	}
+}
+
+// TestPinHostKeysMergeSameIdentity: el host ya tiene ed25519 (casa con el
+// barrido) pero le faltan ecdsa/rsa → añade solo las ausentes.
+func TestPinHostKeysMergeSameIdentity(t *testing.T) {
+	ed := genPubKey(t, "ed25519")
+	ec := genPubKey(t, "ecdsa")
+	rs := genPubKey(t, "rsa")
+	scan := []khEntry{
+		{hosts: []string{"192.168.1.5"}, key: ed},
+		{hosts: []string{"192.168.1.5"}, key: ec},
+		{hosts: []string{"192.168.1.5"}, key: rs},
+	}
+	existing := []khEntry{{hosts: []string{"192.168.1.5"}, key: ed}}
+	got := pinHostKeysMerge("192.168.1.5", scan, existing)
+	if len(got) != 2 {
+		t.Fatalf("deberían añadirse 2 (ecdsa+rsa), got=%d (%v)", len(got), got)
+	}
+}
+
+// TestPinHostKeysMergeChangedIdentity: el host cambió TODAS sus claves
+// (reflash) → no se pinan claves nuevas: se conserva la detección de host key
+// changed en lugar de aceptar en silencio la nueva identidad.
+func TestPinHostKeysMergeChangedIdentity(t *testing.T) {
+	oldEd := genPubKey(t, "ed25519")
+	newEd := genPubKey(t, "ed25519")
+	newEc := genPubKey(t, "ecdsa")
+	newRs := genPubKey(t, "rsa")
+	scan := []khEntry{
+		{hosts: []string{"192.168.1.5"}, key: newEd},
+		{hosts: []string{"192.168.1.5"}, key: newEc},
+		{hosts: []string{"192.168.1.5"}, key: newRs},
+	}
+	existing := []khEntry{{hosts: []string{"192.168.1.5"}, key: oldEd}}
+	if sameIdentity(existing, scan) {
+		t.Fatalf("identidades con todas las claves distintas no deberían casar")
+	}
+	if shouldPinHostKeys(existing, scan) {
+		t.Fatalf("reflash: no debería pinar claves nuevas")
+	}
+}
+
+// TestPinHostKeysMergeNoDuplicates: el host ya tiene las 3 claves → no añade nada.
+func TestPinHostKeysMergeNoDuplicates(t *testing.T) {
+	ed := genPubKey(t, "ed25519")
+	ec := genPubKey(t, "ecdsa")
+	rs := genPubKey(t, "rsa")
+	scan := []khEntry{
+		{hosts: []string{"192.168.1.5"}, key: ed},
+		{hosts: []string{"192.168.1.5"}, key: ec},
+		{hosts: []string{"192.168.1.5"}, key: rs},
+	}
+	existing := []khEntry{
+		{hosts: []string{"192.168.1.5"}, key: ed},
+		{hosts: []string{"192.168.1.5"}, key: ec},
+		{hosts: []string{"192.168.1.5"}, key: rs},
+	}
+	got := pinHostKeysMerge("192.168.1.5", scan, existing)
+	if len(got) != 0 {
+		t.Fatalf("no debería añadir duplicados, got=%d", len(got))
+	}
+}
+
+// TestParseKnownHosts: parsea líneas reales (comentario ignorado, malformadas ignoradas).
+func TestParseKnownHosts(t *testing.T) {
+	ed := genPubKey(t, "ed25519")
+	data := "# host comment\n" + lineFor(t, "192.168.1.5", ed) + "\n\nmalformada\n"
+	entries, err := parseKnownHosts(data)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("se esperaba 1 entrada, got=%d", len(entries))
+	}
+	if entries[0].hosts[0] != "192.168.1.5" {
+		t.Fatalf("host incorrecto: %v", entries[0].hosts)
 	}
 }

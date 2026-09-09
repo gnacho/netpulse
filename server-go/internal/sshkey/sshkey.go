@@ -5,6 +5,8 @@
 package sshkey
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +15,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // BaseArgs replica sshBaseArgs (src/sshkey.js:16-24): los args SSH comunes.
@@ -189,4 +194,164 @@ func generateKeypair(keyPath string) error {
 	_ = os.Chmod(filepath.Dir(keyPath), 0o700)
 	_ = os.Chmod(keyPath, 0o600)
 	return nil
+}
+
+// khEntry es una línea de known_hosts desesquematizada: host(s) y host key.
+type khEntry struct {
+	hosts []string
+	key   ssh.PublicKey
+}
+
+// PinHostKeys registra TODAS las host keys de un host en known_hosts usando
+// ssh-keyscan (ed25519, ecdsa y rsa). Issue #651: el descubrimiento
+// (openssh con StrictHostKeyChecking=accept-new) solo pinaba la clave que
+// negociaba (ed25519), pero el pool de sondeo (crypto/ssh) negocia otra
+// (ecdsa/rsa) con el mismo servidor; un host con varias host keys daba un
+// falso "host key changed" que además caducaba en "re-onboard required".
+// Al pinar todas las claves, el pool encuentra siempre la suya sea cual sea
+// la que presente el servidor.
+//
+// Seguridad (no debilita #603): solo se AÑADEN claves ausentes, y solo si el
+// host ya es de confianza (al menos una clave existente casa con la
+// escaneada, es decir, identidad sin cambios) o si es la primera vez (TOFU).
+// Si TODAS las claves cambiaron (p.ej. tras un reflash), no se toca nada y la
+// detección de "host key changed" sigue intacta. Las entradas existentes no se
+// modifican ni se borran, así que ninguna confianza previa se debilita.
+func PinHostKeys(host, keyPath string) error {
+	scan, err := scanHostKeys(host)
+	if err != nil || len(scan) == 0 {
+		return err
+	}
+
+	khPath := KnownHostsPath(keyPath)
+	existing, err := readKnownHosts(khPath)
+	if err != nil {
+		return err
+	}
+
+	norm := knownhosts.Normalize(host)
+	var existingForHost []khEntry
+	for _, e := range existing {
+		for _, h := range e.hosts {
+			if knownhosts.Normalize(h) == norm {
+				existingForHost = append(existingForHost, e)
+				break
+			}
+		}
+	}
+
+	// Identidad cambiada (reflash): no añadir nada, se conserva la detección.
+	if !shouldPinHostKeys(existingForHost, scan) {
+		return nil
+	}
+
+	toAdd := pinHostKeysMerge(host, scan, existingForHost)
+	if len(toAdd) == 0 {
+		return nil
+	}
+
+	f, err := os.OpenFile(khPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(strings.Join(toAdd, "\n") + "\n")
+	return err
+}
+
+// pinHostKeysMerge devuelve las líneas de claves escaneadas que faltan para
+// `host` (host + algoritmo + claves no presentes ya). Es pura para poder
+// probarla sin depender de ssh-keyscan.
+func pinHostKeysMerge(host string, scan, existingForHost []khEntry) []string {
+	var toAdd []string
+	for _, s := range scan {
+		dup := false
+		for _, e := range existingForHost {
+			if keySame(e.key, s.key) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			toAdd = append(toAdd, knownhosts.Line([]string{host}, s.key))
+		}
+	}
+	return toAdd
+}
+
+// scanHostKeys ejecuta ssh-keyscan sobre un host y devuelve sus host keys.
+func scanHostKeys(host string) ([]khEntry, error) {
+	cmd := exec.Command("ssh-keyscan", "-T", "3", "-t", "ed25519,ecdsa,rsa", host)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, &ExecError{What: "ssh-keyscan", Err: err, Out: string(out)}
+	}
+	return parseKnownHosts(string(out))
+}
+
+func readKnownHosts(path string) ([]khEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return parseKnownHosts(string(data))
+}
+
+// parseKnownHosts parsea líneas de known_hosts (formato plain, sin hash de
+// hostname) en entradas. Ignora comentarios y líneas malformadas; una línea
+// es "<hosts> <tipo-clave> <base64>".
+func parseKnownHosts(data string) ([]khEntry, error) {
+	var out []khEntry
+	for _, ln := range strings.Split(data, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln == "" || strings.HasPrefix(ln, "#") {
+			continue
+		}
+		fields := strings.Fields(ln)
+		if len(fields) < 3 {
+			continue
+		}
+		blob, err := base64.StdEncoding.DecodeString(fields[2])
+		if err != nil {
+			continue
+		}
+		key, err := ssh.ParsePublicKey(blob)
+		if err != nil {
+			continue
+		}
+		out = append(out, khEntry{hosts: strings.Split(fields[0], ","), key: key})
+	}
+	return out, nil
+}
+
+// shouldPinHostKeys: true si procede pinar claves para el host. Es false solo
+// cuando el host ya es conocido y ninguna clave existente casa con el barrido
+// (identidad cambiada, p.ej. reflash): ahí se conserva la detección de "host
+// key changed" en lugar de aceptar en silencio la nueva identidad.
+func shouldPinHostKeys(existingForHost, scan []khEntry) bool {
+	if len(existingForHost) == 0 {
+		return true // host nuevo → TOFU
+	}
+	return sameIdentity(existingForHost, scan)
+}
+
+// keySame: true si dos host keys son idénticas (mismo tipo y material).
+func keySame(a, b ssh.PublicKey) bool {
+	return bytes.Equal(a.Marshal(), b.Marshal())
+}
+
+// sameIdentity: true si al menos una clave existente del host aparece en el
+// barrido actual (identidad sin cambios).
+func sameIdentity(existing, scan []khEntry) bool {
+	for _, e := range existing {
+		for _, s := range scan {
+			if keySame(e.key, s.key) {
+				return true
+			}
+		}
+	}
+	return false
 }
