@@ -10,10 +10,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { animate, motion, useReducedMotion } from 'framer-motion'
-import { Cloud, Laptop, Router as RouterIcon, Smartphone } from 'lucide-react'
+import { Cloud, Laptop, Router as RouterIcon, Server, Smartphone, Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
+import { fmtEs } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
 import { DEVICE_ICONS } from '@/components/DeviceRow'
 import { cn } from '@/lib/utils'
@@ -105,6 +106,7 @@ function TooltipCard({
   touch,
   wan,
   routerName,
+  onTagDevice,
   onPointerEnter,
   onPointerLeave,
 }: {
@@ -113,6 +115,9 @@ function TooltipCard({
   wan: WanInfo
   /** nombre visible del router del que cuelga un nodo (D8: tooltip dist) */
   routerName: (id: string) => string
+  /** etiquetar el dispositivo desde la propia tarjeta (#656 feedback: más
+   *  sencillo que introducir la MAC a mano) */
+  onTagDevice?: (device: Device) => void
   /** puente de hover (issue #255): cancelar el cierre al entrar en el popup */
   onPointerEnter?: () => void
   onPointerLeave?: () => void
@@ -129,6 +134,11 @@ function TooltipCard({
       )}
       style={{ left: tip.left, top: tip.top }}
       role="tooltip"
+      // #656: el pointerdown NO debe burbujear al contenedor del mapa: si lo
+      // hace, arranca un pan (captura de puntero + drag) y cualquier micro
+      // movimiento al pulsar "Etiquetar" desplaza el mapa, un chip pasa bajo
+      // el cursor, su hover reemplaza esta tarjeta y el clic se pierde.
+      onPointerDown={(e) => e.stopPropagation()}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
@@ -231,7 +241,12 @@ function TooltipCard({
         </div>
       )}
       {tip.kind === 'chip' && (
-        <ChipTooltip chip={tip.chip} hostCtCount={tip.hostCtCount} ctHost={tip.ctHost} />
+        <ChipTooltip
+          chip={tip.chip}
+          hostCtCount={tip.hostCtCount}
+          ctHost={tip.ctHost}
+          onTag={onTagDevice ? () => onTagDevice(tip.chip.device) : undefined}
+        />
       )}
       {tip.kind === 'dist' && tip.node.kind === 'managed' && (
         <div>
@@ -285,12 +300,15 @@ function ChipTooltip({
   chip,
   hostCtCount = 0,
   ctHost,
+  onTag,
 }: {
   chip: ChipNode
   /** >0 si el chip es un host hipervisor (badge +N en el mapa) */
   hostCtCount?: number
   /** device host cuando el chip es un CT/VM anidado */
   ctHost?: Device
+  /** etiquetar el dispositivo desde la tarjeta (admin+live) */
+  onTag?: () => void
 }) {
   const { t } = useTranslation()
   const d = chip.device
@@ -323,7 +341,7 @@ function ChipTooltip({
             value={chip.wired ? portName(d.port ?? undefined, d.portLabel) : `${d.signalDbm ?? '—'} dBm`}
             hot={!chip.wired && chip.weak}
           />
-          <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
+          <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps >= 1 ? fmtEs(d.trafficMbps, 1) : fmtEs(d.trafficMbps, 2)} Mbps`} />
         </div>
       </div>
       {d.lldp && (
@@ -350,6 +368,19 @@ function ChipTooltip({
       )}
       {!chip.isCt && chip.weak && (
         <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>
+      )}
+      {onTag && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onTag()
+          }}
+          className="mt-2.5 flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-canvas/40 px-2.5 text-[11px] font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <Tag className="h-3 w-3" strokeWidth={1.75} />
+          {t('topology.tagThis')}
+        </button>
       )}
     </div>
   )
@@ -422,13 +453,32 @@ interface TopologyMapProps {
    * de overrides manuales. Ausente → comportamiento normal.
    */
   onTagDevice?: (device: Device) => void
+  /**
+   * Modo edición de layout (issue #656): si se pasa `editMode`, los nodos router
+   * y los chips se vuelven arrastrables para ajustar distancias (p. ej.
+   * alejar/acercar un satélite). `onMoveNode(id, x, y)` se notifica con la
+   * nueva posición (coordenadas del viewBox) durante el arrastre; la posición
+   * se persiste luego fuera.
+   */
+  editMode?: boolean
+  onMoveNode?: (id: string, x: number, y: number) => void
 }
 
-export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHoverLink, onTagDevice }: TopologyMapProps) {
+export function TopologyMap({
+  model,
+  apiRef,
+  showLabels,
+  flow,
+  hoverLink,
+  onHoverLink,
+  onTagDevice,
+  editMode = false,
+  onMoveNode,
+}: TopologyMapProps) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, hypervisorSourceByHost, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
@@ -439,6 +489,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   /** Retardo de cierre del tooltip (issue #255): el cursor debe poder viajar
    *  desde el nodo hasta el popup sin que este desaparezca. */
   const hoverCloseTimer = useRef<number | null>(null)
+  /** Arrastre de un nodo en modo edición (issue #656): posición base del nodo
+   *  y del cursor al empezar, para moverlo de forma relativa (sin salto). */
+  const dragNode = useRef<{ id: string; startX: number; startY: number; startCX: number; startCY: number } | null>(null)
+  /** Throttle a un cambio por frame: onPointerMove puede disparar muchas veces
+   *  por frame y el re-layout del modelo es caro; se acumula y se aplica una
+   *  vez por requestAnimationFrame. */
+  const dragFrame = useRef<number | null>(null)
+  const dragPending = useRef<{ id: string; x: number; y: number } | null>(null)
 
   const [hoverNode, setHoverNode] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -552,6 +610,41 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
     }
   }, [])
 
+  // -- arrastre de nodos en modo edición (issue #656) ------------------------
+  // En editMode, un pointerdown sobre un nodo router/chip inicia su arrastre
+  // (stopPropagation para no arrancar el pan del lienzo). Durante el move se
+  // re-laya el modelo con la posición del nodo (throttleado a 1/frame); al soltar
+  // se limpia el estado.
+  const startNodeDrag = useCallback(
+    (id: string, startX: number, startY: number, e: ReactPointerEvent) => {
+      if (!editMode || !onMoveNode) return
+      e.stopPropagation()
+      // Registrar el puntero y anular pan/pinch: el onPointerDown del
+      // contenedor NO corre (el stopPropagation lo impide) y sin registro el
+      // onPointerMove hace early-return → el arrastre no movía nada (bug
+      // encontrado al validar el preview).
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      drag.current = null
+      pinch.current = null
+      dragNode.current = { id, startX, startY, startCX: e.clientX, startCY: e.clientY }
+      moved.current = true
+      containerRef.current?.setPointerCapture(e.pointerId)
+      setTooltip(null)
+      setHoverNode(null)
+    },
+    [editMode, onMoveNode],
+  )
+
+  const flushNodeDrag = useCallback(() => {
+    if (dragFrame.current !== null) {
+      cancelAnimationFrame(dragFrame.current)
+      dragFrame.current = null
+    }
+    const p = dragPending.current
+    dragPending.current = null
+    if (p) onMoveNode?.(p.id, Math.round(p.x), Math.round(p.y))
+  }, [onMoveNode])
+
   const onPointerMove = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       if (!pointers.current.has(e.pointerId)) return
@@ -559,6 +652,26 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       const el = containerRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
+
+      // arrastre de nodo en edición: mover al nodo (y su subárbol, vía el
+      // layout del modelo) sin pan del lienzo.
+      if (dragNode.current) {
+        moved.current = true
+        const d = dragNode.current
+        const v = viewRef.current
+        const dx = ((e.clientX - d.startCX) / rect.width) * v.w
+        const dy = ((e.clientY - d.startCY) / rect.height) * v.h
+        dragPending.current = { id: d.id, x: d.startX + dx, y: d.startY + dy }
+        if (dragFrame.current === null) {
+          dragFrame.current = requestAnimationFrame(() => {
+            dragFrame.current = null
+            const p = dragPending.current
+            dragPending.current = null
+            if (p) onMoveNode?.(p.id, Math.round(p.x), Math.round(p.y))
+          })
+        }
+        return
+      }
 
       if (pinch.current && pointers.current.size >= 2) {
         const pts = [...pointers.current.values()]
@@ -594,17 +707,24 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         drag.current = { px: e.clientX, py: e.clientY }
       }
     },
-    [applyView],
+    [applyView, onMoveNode],
   )
 
-  const endPointer = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    pointers.current.delete(e.pointerId)
-    if (pointers.current.size < 2) pinch.current = null
-    if (pointers.current.size === 0) drag.current = null
-    if (containerRef.current?.hasPointerCapture(e.pointerId)) {
-      containerRef.current.releasePointerCapture(e.pointerId)
-    }
-  }, [])
+  const endPointer = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (dragNode.current) {
+        flushNodeDrag()
+        dragNode.current = null
+      }
+      pointers.current.delete(e.pointerId)
+      if (pointers.current.size < 2) pinch.current = null
+      if (pointers.current.size === 0) drag.current = null
+      if (containerRef.current?.hasPointerCapture(e.pointerId)) {
+        containerRef.current.releasePointerCapture(e.pointerId)
+      }
+    },
+    [flushNodeDrag],
+  )
 
   // -- tooltips ---------------------------------------------------------------
   const openTooltip = useCallback((data: TooltipData) => {
@@ -621,9 +741,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   }, [])
 
   // El cierre no es inmediato: si el cursor deja el nodo rumbo al popup (que
-  // flota sobre él), un retardo corto evita que el popup desaparezca antes de
+  // flota sobre él), un retardo evita que el popup desaparezca antes de
   // poder clicarlo (issue #255). Entrar en otro nodo o en el propio popup lo
-  // cancela.
+  // cancela (el tooltip nuevo reemplaza al viejo al instante). #656: 1,2 s
+  // para viajar hasta la tarjeta y usar su botón "Etiquetar"; si el puntero
+  // pasa por otro chip, ese chip abre su propia tarjeta sin esperar.
   const scheduleClose = useCallback(() => {
     if (!hoverCapable) return
     if (hoverCloseTimer.current !== null) return
@@ -631,7 +753,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       hoverCloseTimer.current = null
       setTooltip(null)
       setHoverNode(null)
-    }, 180)
+    }, 1200)
   }, [hoverCapable])
 
   const cancelClose = useCallback(() => {
@@ -645,6 +767,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   useEffect(
     () => () => {
       if (hoverCloseTimer.current !== null) window.clearTimeout(hoverCloseTimer.current)
+      if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current)
     },
     [],
   )
@@ -975,12 +1098,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             <motion.g
               key={node.id}
               transform={`translate(${node.x} ${node.y})`}
-              className="cursor-pointer outline-none"
+              className={editMode ? 'cursor-grab outline-none' : 'cursor-pointer outline-none'}
               role="button"
               tabIndex={0}
+              data-node-id={node.id}
               aria-label={t('topology.routerAria', { name: node.router.name, model: node.router.modelShort, clients: node.router.clients })}
               animate={{ opacity: nodeOpacity(node.id) }}
               transition={{ duration: 0.2 }}
+              onPointerDown={editMode ? (e) => startNodeDrag(node.id, node.x, node.y, e) : undefined}
               onPointerEnter={(e) =>
                 handleNodeHover({ kind: 'router', id: node.id, router: node.router, x: node.x, y: node.y - node.r - 10 }, e)
               }
@@ -1211,6 +1336,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             delay={(1.5 + i * 0.1) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(dv.id)}
+            onDragStart={editMode ? (e) => startNodeDrag(dv.id, dv.x, dv.y, e) : undefined}
             onHover={(e) => handleNodeHover({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 }, e)}
             onLeave={closeHover}
             onFocus={() => handleNodeFocus({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 })}
@@ -1225,9 +1351,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             key={chip.id}
             chip={chip}
             ctCount={ctCountByHost.get(chip.id) ?? 0}
+            hostSource={hypervisorSourceByHost.get(chip.id)}
             delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(chip.id)}
+            onDragStart={editMode ? (e) => startNodeDrag(chip.id, chip.x, chip.y, e) : undefined}
             onHover={(e) => handleNodeHover(chipTip(chip), e)}
             onLeave={closeHover}
             onFocus={() => handleNodeFocus(chipTip(chip))}
@@ -1296,10 +1424,16 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           {[...ctsByHost.keys()].map((hostId, i) => {
             const host = chips.find((c) => c.id === hostId)
             if (!host) return null
+            // #561: el host sellado vía API PVE se etiqueta "Proxmox"; el
+            // inferido por L2 mantiene la etiqueta genérica de hipervisor.
+            const hostKind =
+              hypervisorSourceByHost.get(hostId) === 'proxmox'
+                ? t('topology.host.proxmox')
+                : t('topology.host.hypervisor')
             return (
               <LabelText key={hostId} x={host.x} y={host.y - 38} anchor="middle" delay={(2.18 + i * 0.03) * T}
                 reduce={reduce ?? false} title={host.device.name}
-                sub={`${t('topology.host.hypervisor')} · ${portName(host.device.port ?? undefined, host.device.portLabel)} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
+                sub={`${hostKind} · ${portName(host.device.port ?? undefined, host.device.portLabel)} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
             )
           })}
           {/* Peers */}
@@ -1338,6 +1472,15 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
           touch={!hoverCapable}
           wan={wan}
           routerName={routerName}
+          onTagDevice={
+            onTagDevice
+              ? (device) => {
+                  onTagDevice(device)
+                  setTooltip(null)
+                  setHoverNode(null)
+                }
+              : undefined
+          }
           onPointerEnter={cancelClose}
           onPointerLeave={scheduleClose}
         />
@@ -1401,6 +1544,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
   onFocus,
   onBlur,
   onClick,
+  onDragStart,
 }: {
   dv: DistNodeView
   delay: number
@@ -1411,6 +1555,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
   onFocus: () => void
   onBlur: () => void
   onClick: (e: { stopPropagation: () => void }) => void
+  onDragStart?: (e: ReactPointerEvent) => void
 }) {
   const { t } = useTranslation()
   const SwitchIcon = DEVICE_ICONS.switch
@@ -1418,9 +1563,10 @@ const DistNodeGroup = memo(function DistNodeGroup({
   return (
     <motion.g
       transform={`translate(${dv.x} ${dv.y})`}
-      className="cursor-pointer outline-none"
+      className={onDragStart ? 'cursor-grab outline-none' : 'cursor-pointer outline-none'}
       role="button"
       tabIndex={0}
+      data-node-id={dv.id}
       aria-label={
         managed
           ? `${dv.node.name ?? t('topology.dist.managed')}, LLDP, ${dv.node.ip ?? ''} ${portName(dv.node.port, dv.node.portLabel)}`
@@ -1428,6 +1574,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
       }
       animate={{ opacity }}
       transition={{ duration: 0.2 }}
+      onPointerDown={onDragStart}
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
       onFocus={onFocus}
@@ -1485,6 +1632,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
 const ChipGroup = memo(function ChipGroup({
   chip,
   ctCount,
+  hostSource,
   delay,
   reduce,
   opacity,
@@ -1493,9 +1641,12 @@ const ChipGroup = memo(function ChipGroup({
   onFocus,
   onBlur,
   onClick,
+  onDragStart,
 }: {
   chip: ChipNode
   ctCount: number
+  /** origen del host hipervisores ("proxmox" = sellado vía API PVE, #561) */
+  hostSource?: string
   delay: number
   reduce: boolean
   opacity: number
@@ -1504,14 +1655,24 @@ const ChipGroup = memo(function ChipGroup({
   onFocus: () => void
   onBlur: () => void
   onClick: (e: { stopPropagation: () => void }) => void
+  onDragStart?: (e: ReactPointerEvent) => void
 }) {
   const d = chip.device
   const S = chip.size
   const half = S / 2
   const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
+  // Host hipervisor (Proxmox…): mini NODO redondo con sus CTs detrás, no un
+  // chip cuadrado más (#656 feedback). Acento cuando viene de la API PVE.
+  const isHost = ctCount > 0 && !chip.isCt
+  const hostStroke = hostSource === 'proxmox' ? COLOR.accent : COLOR.ok
   return (
-    <g transform={`translate(${chip.x} ${chip.y})`}>
+    <g
+      transform={`translate(${chip.x} ${chip.y})`}
+      data-node-id={chip.id}
+      className={onDragStart ? 'cursor-grab' : undefined}
+      onPointerDown={onDragStart}
+    >
       <motion.g
         className="cursor-pointer outline-none"
         role="button"
@@ -1533,35 +1694,59 @@ const ChipGroup = memo(function ChipGroup({
           }
         }}
       >
-      <rect
-        x={-half}
-        y={-half}
-        width={S}
-        height={S}
-        rx={7}
-        fill="rgb(var(--elevated))"
-        stroke={stroke}
-        strokeWidth={chip.wired ? 1.3 : 1.1}
-      />
-      <Icon
-        x={-7}
-        y={-7}
-        width={14}
-        height={14}
-        style={{ color: chip.wired ? COLOR.ok : 'rgb(var(--text-primary))' }}
-        strokeWidth={1.9}
-        aria-hidden
-      />
-      {/* badge de banda (wifi): esquina inferior derecha */}
-      {!chip.wired && (
-        <circle
-          cx={half - 2}
-          cy={half - 2}
-          r={3.8}
-          fill={bandColor(chip.band, chip.weak)}
-          stroke="rgb(var(--canvas))"
-          strokeWidth={1.4}
-        />
+      {isHost ? (
+        <>
+          {/* halo suave + círculo del mini nodo */}
+          <circle r={half + 4} fill="none" stroke={hostStroke} strokeWidth={1} opacity={0.35} />
+          <circle
+            r={half}
+            fill="rgb(var(--elevated))"
+            stroke={hostStroke}
+            strokeWidth={1.6}
+          />
+          <Server
+            x={-8}
+            y={-8}
+            width={16}
+            height={16}
+            style={{ color: hostStroke }}
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        </>
+      ) : (
+        <>
+          <rect
+            x={-half}
+            y={-half}
+            width={S}
+            height={S}
+            rx={7}
+            fill="rgb(var(--elevated))"
+            stroke={stroke}
+            strokeWidth={chip.wired ? 1.3 : 1.1}
+          />
+          <Icon
+            x={-7}
+            y={-7}
+            width={14}
+            height={14}
+            style={{ color: chip.wired ? COLOR.ok : 'rgb(var(--text-primary))' }}
+            strokeWidth={1.9}
+            aria-hidden
+          />
+          {/* badge de banda (wifi): esquina inferior derecha */}
+          {!chip.wired && (
+            <circle
+              cx={half - 2}
+              cy={half - 2}
+              r={3.8}
+              fill={bandColor(chip.band, chip.weak)}
+              stroke="rgb(var(--canvas))"
+              strokeWidth={1.4}
+            />
+          )}
+        </>
       )}
       {/* badge LLDP: esquina superior derecha */}
       {d.lldp && (
@@ -1575,8 +1760,8 @@ const ChipGroup = memo(function ChipGroup({
       {/* badge +N de CTs (host hipervisor) */}
       {ctCount > 0 && (
         <g aria-hidden>
-          <circle cx={half + 1} cy={-half - 1} r={8} fill="rgb(var(--elevated))" stroke={COLOR.ok} strokeWidth={1.2} />
-          <text x={half + 1} y={-half + 2} textAnchor="middle" fontSize={8} fontWeight={700} fill={COLOR.ok}>
+          <circle cx={half + 1} cy={-half - 1} r={8} fill="rgb(var(--elevated))" stroke={hostStroke} strokeWidth={1.2} />
+          <text x={half + 1} y={-half + 2} textAnchor="middle" fontSize={8} fontWeight={700} fill={hostStroke}>
             +{ctCount}
           </text>
         </g>

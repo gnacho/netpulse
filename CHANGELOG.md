@@ -7,9 +7,19 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [2.28.17] - 2026-09-09
 
+### Added
+
+- **La topología se puede editar para ajustar las distancias (#656)**: un botón **Editar** (solo administrador) entra en modo edición que permite arrastrar routers/APs, switches o bridges inferidos y dispositivos para acercar o alejar los satélites (lo que cuelga de un nodo lo acompaña). Al guardar, las posiciones se persisten en el navegador y el layout queda **congelado** (ya no se reordena al refrescar); los nodos nuevos se colocan con el auto-layout. Un botón **Restablecer** vuelve al layout automático por defecto.
+
+### Fixed
+
+- **Los dispositivos callados ya no saltan del switch inferido al que están cableados (#656)**: las entradas del FDB caducan a los ~5 min sin tráfico, así que los equipos de AV (TV, receptor, shield…) perdían su evidencia de puerto entre refrescos y el mapa los re-anclaba al router principal hasta que volvían a hablar. El servidor recuerda ahora la última boca real donde se vio cada MAC (30 min de memoria, solo como respaldo del FDB actual) y conserva su atribución de puerto mientras el dispositivo siga conectado.
+- **El tráfico del tooltip de un dispositivo en la topología ya no muestra todos los decimales (#656)**: se formatea con la misma convención que el resto de la app (1 decimal a partir de 1 Mbps, 2 por debajo).
+
 ### Fixed
 
 - **Un router OpenWrt ya no cae en falso "host key changed" al sondearlo (#651)**: el descubrimiento (openssh con `accept-new`) registraba en `known_hosts` solo la host key que negociaba (ed25519), pero el sondeo Go negocia otra (ecdsa/rsa) con el mismo servidor; un host con varias host keys daba un falso "ssh host key changed" y exigía un re-onboard sin motivo. Ahora el descubrimiento pinas todas las host keys del router (ed25519, ecdsa y rsa), de forma que el sondeo siempre encuentra la suya sin debilitar la protección anti-MITM: si el router cambia todas sus claves (reflash), la detección de "host key changed" sigue intacta.
+- **Los hosts por cable de un punto de acceso puente (dumb AP) ya se atribuyen al AP, no al router principal (#656)**: cuando un nodo como un dumb AP (sin WAN, `br-lan` puentado a la LAN principal) tiene clientes conectados por cable a sus bocas, el router principal también los ve en su FDB porque comparten el mismo segmento L2. La reconciliación descartaba esas MACs del satélite y las colgaba del router principal. Ahora una MAC que el satélite aprende en una boca local que no es su uplink se atribuye a ese satélite (la boca física es la evidencia más específica); el uplink sigue excluido como tránsito y los routers con agente propio conservan su fuente específica. Además, el orden de los dispositivos es ahora determinista (por MAC), lo que evita que los iconos del mapa salten de posición al refrescar aunque ya no se use el bloqueo de layout.
 
 ## [2.28.16] - 2026-09-09
 

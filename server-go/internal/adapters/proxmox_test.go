@@ -24,7 +24,7 @@ func TestSealProxmoxInfra(t *testing.T) {
 		{ID: "02-78-f4-02-8a-94", MAC: "02:78:F4:02:8A:94", Name: "homeassistant", RouterID: "gateway", Band: "cable", Port: "lan3", AttachTo: "dist-gateway-lan3"},
 		{ID: "aa-bb-cc-dd-ee-ff", MAC: "AA:BB:CC:DD:EE:FF", Name: "shield", RouterID: "gateway", Band: "cable", Port: "lan3"},
 	}
-	applyPVEInfra(devices, inv)
+	applyPVEInfra(devices, nil, inv)
 
 	if devices[0].Infra != "hypervisor" {
 		t.Fatalf("host citadel-01: infra=%q (want hypervisor)", devices[0].Infra)
@@ -55,7 +55,7 @@ func TestSealProxmoxInfra(t *testing.T) {
 // conocidos → no-op (los devices no cambian).
 func TestSealProxmoxInfraSinInventario(t *testing.T) {
 	devices := []Device{{ID: "c8-ff-bf-0c-60-12", MAC: "C8:FF:BF:0C:60:12", Name: "citadel-01"}}
-	applyPVEInfra(devices, nil)
+	applyPVEInfra(devices, nil, nil)
 	if devices[0].Infra != "" || devices[0].AttachTo != "" {
 		t.Fatalf("sin inventario no debe tocar devices: %+v", devices[0])
 	}
@@ -73,7 +73,7 @@ func TestSealProxmoxInfraHostSinDevice(t *testing.T) {
 	devices := []Device{
 		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "webs", RouterID: "gateway"},
 	}
-	applyPVEInfra(devices, inv)
+	applyPVEInfra(devices, nil, inv)
 	if devices[0].Infra != "ct" {
 		t.Fatalf("webs infra=%q (want ct aunque no haya host device)", devices[0].Infra)
 	}
@@ -97,7 +97,7 @@ func TestSealProxmoxInfraHostPorIP(t *testing.T) {
 		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "E8:FF:1E:DD:C7:ED", IP: "192.168.1.101", RouterID: "switch16"},
 		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "webs", IP: "192.168.1.226", RouterID: "switch16", AttachTo: "dist-switch16-lan8"},
 	}
-	applyPVEInfra(devices, inv)
+	applyPVEInfra(devices, nil, inv)
 	if devices[0].Infra != "hypervisor" {
 		t.Fatalf("host por IP: infra=%q (want hypervisor)", devices[0].Infra)
 	}
@@ -128,7 +128,7 @@ func TestSealProxmoxInfraHostConflictoNICs(t *testing.T) {
 		{ID: "fe-c9-95-97-15-30", MAC: "FE:C9:95:97:15:30", Name: "FE:C9:95:97:15:30", IP: "192.168.1.100", Online: true},
 		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "webs", IP: "192.168.1.226", Online: true},
 	}
-	applyPVEInfra(devices, inv)
+	applyPVEInfra(devices, nil, inv)
 	// El hypervisor debe ser el device con IP .100 (online), no el offline.
 	if devices[1].Infra != "hypervisor" || devices[1].Name != "citadel-01" {
 		t.Fatalf("host por IP debería ganar: %+v (infra=%q name=%q)", devices[1], devices[1].Infra, devices[1].Name)
@@ -146,5 +146,55 @@ func TestSealProxmoxInfraHostConflictoNICs(t *testing.T) {
 func TestPVEMacToDeviceID(t *testing.T) {
 	if got := macToDeviceID("BC:24:11:A4:9E:BB"); got != "bc-24-11-a4-9e-bb" {
 		t.Fatalf("macToDeviceID: %q", got)
+	}
+}
+
+// TestPVEHypervisorDistNodes: el sellado PVE crea un distnode kind=hypervisor
+// por host (con Source=proxmox y HostDeviceID del host) para que el frontend
+// anide los CTs bajo él (grid +N). Un host que ya tenga distnode hypervisor
+// inferido por L2 NO se duplica.
+func TestPVEHypervisorDistNodes(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc"},
+			"02:78:F4:02:8A:94": {Name: "pbs", Node: "citadel-02", Type: "lxc"},
+		},
+		nodeNames: map[string]bool{"citadel-02": true, "citadel-01": true},
+		nodeIPs:   map[string]string{"citadel-02": "192.168.1.101", "citadel-01": "192.168.1.100"},
+	}
+	devices := []Device{
+		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "E8:FF:1E:DD:C7:ED", IP: "192.168.1.101", RouterID: "switch16", Port: "lan8"},
+		{ID: "fe-c9-95-97-15-30", MAC: "FE:C9:95:97:15:30", Name: "FE:C9:95:97:15:30", IP: "192.168.1.100", RouterID: "gateway", Port: "lan1"},
+		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "webs"},
+		{ID: "02-78-f4-02-8a-94", MAC: "02:78:F4:02:8A:94", Name: "pbs"},
+	}
+	// citadel-01 ya tiene distnode hypervisor inferido por L2: no duplicar.
+	dists := []DistributionNode{{ID: "dist-gateway-lan1", Kind: "hypervisor", RouterID: "gateway", HostDeviceID: "fe-c9-95-97-15-30"}}
+	dists = applyPVEInfra(devices, dists, inv)
+
+	if len(dists) != 2 {
+		t.Fatalf("esperado 2 distnodes (L2 + 1 PVE), got %d: %+v", len(dists), dists)
+	}
+	dn := dists[1]
+	if dn.ID != "dist-pve-citadel-02" || dn.Kind != "hypervisor" || dn.Source != "proxmox" {
+		t.Fatalf("distnode PVE mal construido: %+v", dn)
+	}
+	if dn.HostDeviceID != devices[0].ID {
+		t.Fatalf("HostDeviceID=%q (want %q)", dn.HostDeviceID, devices[0].ID)
+	}
+	if dn.Name != "citadel-02" || dn.RouterID != "switch16" || dn.Port != "lan8" {
+		t.Fatalf("distnode PVE con metadatos del host incorrectos: %+v", dn)
+	}
+	if dn.MacCount != 2 {
+		t.Fatalf("MacCount=%d (want 2 CTs sellados)", dn.MacCount)
+	}
+}
+
+// TestPVEHypervisorDistNodesSinHost: sin inventario los distnodes no cambian.
+func TestPVEHypervisorDistNodesSinHost(t *testing.T) {
+	dists := []DistributionNode{{ID: "dist-gateway-lan1", Kind: "inferred"}}
+	out := applyPVEInfra([]Device{{ID: "x", MAC: "AA:BB:CC:DD:EE:FF"}}, dists, nil)
+	if len(out) != 1 || out[0].ID != "dist-gateway-lan1" {
+		t.Fatalf("sin inventario no debe añadir distnodes: %+v", out)
 	}
 }

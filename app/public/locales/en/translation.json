@@ -815,6 +815,11 @@
     "interactiveMap": "Interactive network map",
     "internetAria": "Internet, {{isp}}, fiber {{plan}}",
     "labels": "Labels",
+    "edit": "Edit",
+    "editHint": "Edit the layout: drag routers and devices to adjust spacing. When saved, positions stay fixed and no longer reorder.",
+    "editBanner": "Edit mode: drag routers and devices to adjust the map",
+    "editSave": "Save",
+    "editReset": "Reset to automatic layout",
     "legend": {
       "bandConnection": "Band / connection",
       "healthy": "Healthy",
@@ -859,6 +864,7 @@
     "weakSignal": "Weak signal",
     "zoomControls": "Map zoom controls",
     "tagDevices": "Tag devices",
+    "tagThis": "Tag",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "usteer": {
@@ -885,6 +891,7 @@
     },
     "host": {
       "hypervisor": "hypervisor",
+      "proxmox": "Proxmox",
       "note": "Hypervisor: {{count}} CTs/VMs behind its virtual bridge — not a switch"
     },
     "ct": {

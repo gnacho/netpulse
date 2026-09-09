@@ -126,6 +126,14 @@ export interface TopologyInput {
   topology?: TopoSemantics
   /** Versión del view-model (SPEC-65 D65-4): la semántica aplica si vm >= 1. */
   vm?: number
+  /**
+   * Posiciones fijadas por el usuario ("lock layout", issue #656): chipId →
+   * {x,y}. Si se pasan, se aplican sobre las calculadas por el layout para
+   * los chips que existan, ANTES de generar los enlaces (así los cables
+   * conectan con la posición real). Los chips sin posición guardada (p. ej.
+   * dispositivos nuevos) conservan su posición automática.
+   */
+  seedPositions?: Record<string, { x: number; y: number }>
 }
 
 /** Chip "+N" de un anillo desbordado (posición ya calculada, geometría local).
@@ -153,6 +161,8 @@ export interface TopologyModel {
   ctsByHost: Map<string, ChipNode[]>
   /** nº de CTs por host (badge +N) */
   ctCountByHost: Map<string, number>
+  /** origen del hipervisor por hostId ("" = L2; "proxmox" = API PVE, #561) */
+  hypervisorSourceByHost: Map<string, string>
   /** radios de los anillos wifi realmente usados por router (guías punteadas) */
   ringRadii: Map<string, number[]>
   /**
@@ -615,7 +625,7 @@ function flowFor(mbps: number, alive = false): { packets: number; packetDur: num
 // Builder
 // ---------------------------------------------------------------------------
 
-export function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [], topology, vm }: TopologyInput): TopologyModel {
+export function buildTopologyModel({ routers, devices, wan, wireguard, distributionNodes = [], topology, vm, seedPositions }: TopologyInput): TopologyModel {
   // SPEC-65 D65-3/D65-9 B2: la semántica server-side aplica con vm >= 1 y
   // `topology` presente; sin ella, fallback EXACTO al cálculo local.
   const sem = topology && (vm ?? 1) >= 1 ? topology : undefined
@@ -658,6 +668,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   })
   const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes, ...switchNodes] : [...apNodes, ...switchNodes]
   const routerById = new Map(routerNodes.map((n) => [n.id, n]))
+
+  // -- layout personalizado (issue #656): nodos router ------------------------
+  // Si el admin ha fijado la posición de un router (p. ej. alejar/acercar un
+  // AP/satélite), esa posición manda. Se aplica ANTES del cálculo de anillos y
+  // distnodes para que todo lo que cuelga de ese router (chips wifi/cable,
+  // switches) se RE-DERIVE alrededor de la posición movida. Los nodos sin
+  // semilla conservan el layout automático.
+  if (seedPositions) {
+    for (const rn of routerNodes) {
+      const p = seedPositions[rn.id]
+      if (!p) continue
+      rn.x = p.x
+      rn.y = p.y
+      const isLeft = rn.x < (gatewayNode?.x ?? 500)
+      rn.label = {
+        x: isLeft ? rn.x - rn.r - 6 : rn.x + rn.r + 6,
+        y: rn.y - 6,
+        anchor: isLeft ? ('end' as const) : ('start' as const),
+      }
+    }
+  }
 
   // D1: el switch gestionado existe como Device Y como distnode managed, pero
   // en el mapa se representa SOLO como nodo managed: se excluye de los chips
@@ -726,6 +757,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const hypervisorHosts = new Set(
     distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId).map((n) => n.hostDeviceId!),
   )
+  /** origen del hipervisor por host ("proxmox" = sellado vía API PVE, #561) */
+  const hypervisorSourceByHost = new Map<string, string>()
+  for (const n of distributionNodes) {
+    if (n.kind === 'hypervisor' && n.hostDeviceId && n.source) {
+      hypervisorSourceByHost.set(n.hostDeviceId, n.source)
+    }
+  }
 
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
@@ -843,6 +881,22 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
   }
 
+  // -- layout personalizado (issue #656): distnodes ---------------------------
+  // Igual que los routers: si el admin fijó la posición de un distnode (switch
+  // inferido/gestionado, incluidos los de cadena), se aplica ANTES de colocar
+  // sus chips hijos (abanico/anillos) para que se re-deriven alrededor de la
+  // posición movida. El resolver de colisiones los trata como fixed, así que
+  // nada los desplaza después.
+  if (seedPositions) {
+    for (const dv of distNodes) {
+      const p = seedPositions[dv.id]
+      if (!p) continue
+      dv.x = p.x
+      dv.y = p.y
+      if (anchorPos.has(dv.id)) anchorPos.set(dv.id, { x: p.x, y: p.y })
+    }
+  }
+
   // -- chips de dispositivos --------------------------------------------------
   const chips: ChipNode[] = []
   const mkChip = (d: Device, hubId: string, isCt = false): ChipNode => ({
@@ -927,6 +981,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // APs y switches: a lo largo del vector desde el gateway hasta su posición
       // canónica, empujados hasta quedar a >= clearDist (fuera del círculo).
       const pushOut = (rn: RouterNode) => {
+        // Si el admin fijó este nodo en el layout personalizado, se respeta su
+        // posición (no se le empuja fuera del círculo virtual): la semilla manda.
+        if (seedPositions?.[rn.id]) return
         const dx = rn.x - gatewayNode.x
         const dy = rn.y - gatewayNode.y
         const d = Math.sqrt(dx * dx + dy * dy) || 1
@@ -1019,6 +1076,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     chips.push(...kids)
   }
 
+  // -- layout personalizado (issue #656): HOSTS hipervisores -----------------
+  // La semilla de un host se aplica ANTES de calcular el grid de sus CTs para
+  // que estos se re-deriven alrededor de la posición movida (arrastre del
+  // host = arrastras también sus CTs/VMs). Además el host se dibuja como mini
+  // nodo redondo: tamaño mayor que un chip normal.
+  if (seedPositions) {
+    for (const c of chips) {
+      if (!hypervisorHosts.has(c.id)) continue
+      c.size = 30
+      const p = seedPositions[c.id]
+      if (p) {
+        c.x = p.x
+        c.y = p.y
+      }
+    }
+  } else {
+    for (const c of chips) {
+      if (hypervisorHosts.has(c.id)) c.size = 30
+    }
+  }
+
   // CTs de hipervisores: grid bajo el host (badge +N en el chip del host)
   const ctsByHost = new Map<string, ChipNode[]>()
   const ctCountByHost = new Map<string, number>()
@@ -1035,6 +1113,26 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     ctsByHost.set(hostId, kids)
     ctCountByHost.set(hostId, kids.length)
     chips.push(...kids)
+  }
+
+  // -- lock layout (issue #656) --------------------------------------------
+  // Aplicar las posiciones fijadas por el usuario sobre las calculadas por el
+  // layout automático. Solo se aplican a los chips que existan en la semilla;
+  // los chips nuevos (sin posición guardada) se quedan en su posición actual,
+  // de modo que el mapa no se reordena aunque aparezcan/desaparezcan nodos.
+  // Va ANTES de la generación de enlaces: los cables se dibujan desde la
+  // posición real del chip tras el override.
+  if (seedPositions) {
+    for (const c of chips) {
+      // Los CTs de un host hipervisores con semilla NO se pinnean: siguen la
+      // posición del host (el grid ya se re-derivó alrededor de él arriba).
+      if (c.isCt && hypervisorHosts.has(c.hubId) && seedPositions[c.hubId]) continue
+      const p = seedPositions[c.id]
+      if (p) {
+        c.x = p.x
+        c.y = p.y
+      }
+    }
   }
 
   // Chips "+N" de anillos desbordados (solo con semántica server-side):
@@ -1511,6 +1609,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     distNodes,
     ctsByHost,
     ctCountByHost,
+    hypervisorSourceByHost,
     ringRadii,
     ringOverflowChips,
     links,

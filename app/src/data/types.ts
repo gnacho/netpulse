@@ -263,6 +263,8 @@ export interface DistributionNode {
   hostDeviceId?: string
   /** Nombre descriptivo (host o chasis LLDP del switch gestionado). */
   name?: string
+  /** Origen del hipervisor: ausente = inferido L2; "proxmox" = API PVE (#561). */
+  source?: string
   /** Managed: IP de gestión anunciada por LLDP. */
   ip?: string
   lldp?: LldpInfo | null
