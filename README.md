@@ -95,7 +95,11 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.16)
+### Latest (v2.28.17)
+
+- **An OpenWrt router no longer shows a false "host key changed" when polled** ([#651](https://github.com/gnacho/netpulse/issues/651)). Discovery (OpenSSH with `accept-new`) used to pin only the single host-key algorithm it negotiated (ed25519), while the polling pool (Go) negotiates another one (ecdsa/rsa) with the same server; a router with several host keys then showed a spurious "ssh host key changed" and demanded a pointless re-onboard. Discovery now pins **all** of the router's host keys (ed25519, ecdsa and rsa), so the poller always finds the one it negotiates, without weakening the anti-MITM protection: if a router changes every key (reflash), the "host key changed" detection still kicks in.
+
+### Earlier (v2.28.16)
 
 - **WireGuard peers are now labeled by their OpenWrt-configured name** ([#663](https://github.com/gnacho/netpulse/issues/663)). In the topology, WireGuard peers that weren't already mapped to a NetPulse device now show the human-readable name from the peer's UCI description (priority: NetPulse device name → UCI description → tunnel IP) instead of the raw tunnel IP. The poll reads `wg show dump` and `uci show network` in a single SSH session and preserves a down tunnel's state.
 
