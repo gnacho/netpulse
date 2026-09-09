@@ -10,7 +10,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { animate, motion, useReducedMotion } from 'framer-motion'
-import { Cloud, Laptop, Router as RouterIcon, Smartphone, Tag } from 'lucide-react'
+import { Cloud, Laptop, Router as RouterIcon, Server, Smartphone, Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
@@ -1351,6 +1351,7 @@ export function TopologyMap({
             key={chip.id}
             chip={chip}
             ctCount={ctCountByHost.get(chip.id) ?? 0}
+            hostSource={hypervisorSourceByHost.get(chip.id)}
             delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(chip.id)}
@@ -1631,6 +1632,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
 const ChipGroup = memo(function ChipGroup({
   chip,
   ctCount,
+  hostSource,
   delay,
   reduce,
   opacity,
@@ -1643,6 +1645,8 @@ const ChipGroup = memo(function ChipGroup({
 }: {
   chip: ChipNode
   ctCount: number
+  /** origen del host hipervisores ("proxmox" = sellado vía API PVE, #561) */
+  hostSource?: string
   delay: number
   reduce: boolean
   opacity: number
@@ -1658,6 +1662,10 @@ const ChipGroup = memo(function ChipGroup({
   const half = S / 2
   const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
+  // Host hipervisor (Proxmox…): mini NODO redondo con sus CTs detrás, no un
+  // chip cuadrado más (#656 feedback). Acento cuando viene de la API PVE.
+  const isHost = ctCount > 0 && !chip.isCt
+  const hostStroke = hostSource === 'proxmox' ? COLOR.accent : COLOR.ok
   return (
     <g
       transform={`translate(${chip.x} ${chip.y})`}
@@ -1686,35 +1694,59 @@ const ChipGroup = memo(function ChipGroup({
           }
         }}
       >
-      <rect
-        x={-half}
-        y={-half}
-        width={S}
-        height={S}
-        rx={7}
-        fill="rgb(var(--elevated))"
-        stroke={stroke}
-        strokeWidth={chip.wired ? 1.3 : 1.1}
-      />
-      <Icon
-        x={-7}
-        y={-7}
-        width={14}
-        height={14}
-        style={{ color: chip.wired ? COLOR.ok : 'rgb(var(--text-primary))' }}
-        strokeWidth={1.9}
-        aria-hidden
-      />
-      {/* badge de banda (wifi): esquina inferior derecha */}
-      {!chip.wired && (
-        <circle
-          cx={half - 2}
-          cy={half - 2}
-          r={3.8}
-          fill={bandColor(chip.band, chip.weak)}
-          stroke="rgb(var(--canvas))"
-          strokeWidth={1.4}
-        />
+      {isHost ? (
+        <>
+          {/* halo suave + círculo del mini nodo */}
+          <circle r={half + 4} fill="none" stroke={hostStroke} strokeWidth={1} opacity={0.35} />
+          <circle
+            r={half}
+            fill="rgb(var(--elevated))"
+            stroke={hostStroke}
+            strokeWidth={1.6}
+          />
+          <Server
+            x={-8}
+            y={-8}
+            width={16}
+            height={16}
+            style={{ color: hostStroke }}
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        </>
+      ) : (
+        <>
+          <rect
+            x={-half}
+            y={-half}
+            width={S}
+            height={S}
+            rx={7}
+            fill="rgb(var(--elevated))"
+            stroke={stroke}
+            strokeWidth={chip.wired ? 1.3 : 1.1}
+          />
+          <Icon
+            x={-7}
+            y={-7}
+            width={14}
+            height={14}
+            style={{ color: chip.wired ? COLOR.ok : 'rgb(var(--text-primary))' }}
+            strokeWidth={1.9}
+            aria-hidden
+          />
+          {/* badge de banda (wifi): esquina inferior derecha */}
+          {!chip.wired && (
+            <circle
+              cx={half - 2}
+              cy={half - 2}
+              r={3.8}
+              fill={bandColor(chip.band, chip.weak)}
+              stroke="rgb(var(--canvas))"
+              strokeWidth={1.4}
+            />
+          )}
+        </>
       )}
       {/* badge LLDP: esquina superior derecha */}
       {d.lldp && (
@@ -1728,8 +1760,8 @@ const ChipGroup = memo(function ChipGroup({
       {/* badge +N de CTs (host hipervisor) */}
       {ctCount > 0 && (
         <g aria-hidden>
-          <circle cx={half + 1} cy={-half - 1} r={8} fill="rgb(var(--elevated))" stroke={COLOR.ok} strokeWidth={1.2} />
-          <text x={half + 1} y={-half + 2} textAnchor="middle" fontSize={8} fontWeight={700} fill={COLOR.ok}>
+          <circle cx={half + 1} cy={-half - 1} r={8} fill="rgb(var(--elevated))" stroke={hostStroke} strokeWidth={1.2} />
+          <text x={half + 1} y={-half + 2} textAnchor="middle" fontSize={8} fontWeight={700} fill={hostStroke}>
             +{ctCount}
           </text>
         </g>

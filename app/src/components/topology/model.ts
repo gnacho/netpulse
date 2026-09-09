@@ -1076,6 +1076,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     chips.push(...kids)
   }
 
+  // -- layout personalizado (issue #656): HOSTS hipervisores -----------------
+  // La semilla de un host se aplica ANTES de calcular el grid de sus CTs para
+  // que estos se re-deriven alrededor de la posición movida (arrastre del
+  // host = arrastras también sus CTs/VMs). Además el host se dibuja como mini
+  // nodo redondo: tamaño mayor que un chip normal.
+  if (seedPositions) {
+    for (const c of chips) {
+      if (!hypervisorHosts.has(c.id)) continue
+      c.size = 30
+      const p = seedPositions[c.id]
+      if (p) {
+        c.x = p.x
+        c.y = p.y
+      }
+    }
+  } else {
+    for (const c of chips) {
+      if (hypervisorHosts.has(c.id)) c.size = 30
+    }
+  }
+
   // CTs de hipervisores: grid bajo el host (badge +N en el chip del host)
   const ctsByHost = new Map<string, ChipNode[]>()
   const ctCountByHost = new Map<string, number>()
@@ -1103,6 +1124,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // posición real del chip tras el override.
   if (seedPositions) {
     for (const c of chips) {
+      // Los CTs de un host hipervisores con semilla NO se pinnean: siguen la
+      // posición del host (el grid ya se re-derivó alrededor de él arriba).
+      if (c.isCt && hypervisorHosts.has(c.hubId) && seedPositions[c.hubId]) continue
       const p = seedPositions[c.id]
       if (p) {
         c.x = p.x
