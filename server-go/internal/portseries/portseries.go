@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	RawRetentionMS     = 7 * 24 * 60 * 60 * 1000
-	BucketRetentionMS  = 365 * 24 * 60 * 60 * 1000
-	BucketMS           = 5 * 60 * 1000
+	RawRetentionMS    = 7 * 24 * 60 * 60 * 1000
+	BucketRetentionMS = 365 * 24 * 60 * 60 * 1000
+	BucketMS          = 5 * 60 * 1000
 )
 
 // PortSample is a single data point for a port.
@@ -33,19 +33,19 @@ type PortSample struct {
 
 // PortPoint is a time-series point returned by GetSeries.
 type PortPoint struct {
-	TS        time.Time `json:"ts"`
-	RxBytes   uint64    `json:"rxBytes"`
-	TxBytes   uint64    `json:"txBytes"`
-	RxErrors  uint64    `json:"rxErrors"`
-	TxErrors  uint64    `json:"txErrors"`
-	RxBps     float64   `json:"rxBps"`
-	TxBps     float64   `json:"txBps"`
+	TS       time.Time `json:"ts"`
+	RxBytes  uint64    `json:"rxBytes"`
+	TxBytes  uint64    `json:"txBytes"`
+	RxErrors uint64    `json:"rxErrors"`
+	TxErrors uint64    `json:"txErrors"`
+	RxBps    float64   `json:"rxBps"`
+	TxBps    float64   `json:"txBps"`
 	// RxFps/TxFps: frames per second derived from the cumulative frame
 	// counters (issue #641). Devices without byte counters (RTLPlayground
 	// beacon agents) report traffic this way; bps stays 0 for them.
-	RxFps     float64   `json:"rxFps"`
-	TxFps     float64   `json:"txFps"`
-	SpeedMbps int       `json:"speedMbps"`
+	RxFps     float64 `json:"rxFps"`
+	TxFps     float64 `json:"txFps"`
+	SpeedMbps int     `json:"speedMbps"`
 	// RxFrames/TxFrames: cumulative counters used to derive fps; not part of
 	// the JSON contract.
 	RxFrames uint64 `json:"-"`
@@ -276,6 +276,72 @@ func deriveFps(pts []PortPoint) {
 			pts[i].TxFps = float64(pts[i].TxFrames-pts[i-1].TxFrames) / dt
 		}
 	}
+}
+
+// HourlyFpsTotal devuelve el tráfico agregado del router en frames/s por
+// bucket de una hora (issue #646 follow-up: la tarjeta de la flota de un
+// switch beacon no tiene métricas bps). Por cada hora y puerto se toma el
+// contador acumulado máximo (rx+tx) y el fps de esa hora es el delta respecto
+// a la hora anterior dividido por 3600, sumando todos los puertos. Un
+// contador que baja (reset del dispositivo) no contribuye en esa hora. El
+// slice tiene `hours` entradas (la primera sin anterior = 0); huecos a 0.
+func (s *Store) HourlyFpsTotal(routerID string, hours int) ([]float64, error) {
+	if routerID == "" || hours <= 0 {
+		return nil, nil
+	}
+	const bucketMs = 3600e3
+	// Alinear a hora: el bucket más reciente es la hora en curso (aunque aún
+	// no haya terminado) y hacia atrás `hours` buckets completos.
+	nowMs := time.Now().Truncate(time.Hour).UnixMilli()
+	startMs := nowMs - int64(hours-1)*bucketMs
+	rows, err := s.db.Query(`SELECT (ts / ?) AS h, port_id, MAX(rx_frames), MAX(tx_frames)
+		FROM port_series_raw
+		WHERE router_id = ? AND ts >= ?
+		GROUP BY h, port_id ORDER BY h`, bucketMs, routerID, startMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	// rx[h][port] / tx[h][port] con el último acumulado de esa hora.
+	type acc struct{ rx, tx uint64 }
+	buckets := make([]map[string]acc, hours)
+	for rows.Next() {
+		var h int64
+		var port string
+		var rx, tx uint64
+		if err := rows.Scan(&h, &port, &rx, &tx); err != nil {
+			continue
+		}
+		idx := int(h - startMs/bucketMs)
+		if idx < 0 || idx >= hours {
+			continue
+		}
+		if buckets[idx] == nil {
+			buckets[idx] = map[string]acc{}
+		}
+		buckets[idx][port] = acc{rx: rx, tx: tx}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]float64, hours)
+	for i := 1; i < hours; i++ {
+		var fps float64
+		for port, cur := range buckets[i] {
+			prev, ok := buckets[i-1][port]
+			if !ok {
+				continue
+			}
+			if cur.rx >= prev.rx {
+				fps += float64(cur.rx-prev.rx) / 3600
+			}
+			if cur.tx >= prev.tx {
+				fps += float64(cur.tx-prev.tx) / 3600
+			}
+		}
+		out[i] = fps
+	}
+	return out, nil
 }
 
 // RollupRawTo5m aggregates raw samples into 5-min buckets.
