@@ -16,6 +16,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os/exec"
@@ -363,6 +364,18 @@ func Routers(ctx context.Context, db *sql.DB, keyPath string, force bool) Respon
 			return Response{Subnet: &subnet, Results: []Result{}, Cached: false, Error: "cancelled"}
 		}
 		authorized, model := probeSsh(ctx, c.h, keyPath)
+		if authorized {
+			// Issue #651: pinar TODAS las host keys del router en known_hosts.
+			// El probe openssh (accept-new) solo registra la clave negociada
+			// (ed25519); el pool Go negocia otra (ecdsa/rsa), así que un host
+			// con varias host keys daba falso "host key changed" al probar a
+			// sondearlo. Bombear todas las keys evita el falso positivo sin
+			// debilitar la protección anti-MITM (#603): no se acepta una
+			// identidad con todas las claves cambiadas.
+			if err := sshkey.PinHostKeys(c.h, keyPath); err != nil {
+				log.Printf("[netpulse:discover] pin host keys %s: %v", c.h, err)
+			}
+		}
 		hostname := ""
 		if authorized {
 			hostname = reverseHostname(c.h)
