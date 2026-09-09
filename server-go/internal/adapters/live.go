@@ -1119,6 +1119,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.VitalsAvailable = bptr(false)
 		r.CPU, r.RAM, r.Temp = nil, nil, nil
 	}
+	r.SnmpEnabled = p.cfg.SnmpEnabled
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
 	} else if p.cfg.AgentOnly {

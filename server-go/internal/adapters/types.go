@@ -180,6 +180,11 @@ type Router struct {
 	// o pushers externos por beacon/scraper (#291). En ese caso CPU/RAM/Temp
 	// van a null y la UI no los pinta. Ausente = vitals disponibles.
 	VitalsAvailable *bool  `json:"vitalsAvailable,omitempty"`
+	// SnmpEnabled: true si el router se sondea por SNMP (#309). Distingue un
+	// managed-switch sondeado por SNMP (que sí reporta contadores de bytes →
+	// la UI pinta bps) de un beacon/external que solo reporta tramas (fps)
+	// (#661). Ausente/false = no se sondea por SNMP.
+	SnmpEnabled bool `json:"snmpEnabled,omitempty"`
 	CPU             *int   `json:"cpu"`
 	RAM             *int   `json:"ram"`
 	Temp            *int   `json:"temp"`

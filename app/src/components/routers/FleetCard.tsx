@@ -99,9 +99,14 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
     d.setHours(d.getHours() - (router.sparkline.length - 1 - i))
     return { t: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), v }
   })
-  // Fuentes sin throughput bps (switch beacon/SNMP, #648) dibujan el sparkline
-  // como frames/s agregados; el resto, Mbps.
-  const trafficUnit: 'fps' | 'bps' = router.vitalsAvailable === false ? 'fps' : 'bps'
+  // Fuentes sin throughput bps (switch beacon, #648) dibujan el sparkline
+  // como frames/s agregados; el resto, Mbps. Un managed-switch sondeado por
+  // SNMP sí tiene contadores de bytes → bps (#661).
+  const trafficUnit: 'fps' | 'bps' = router.snmpEnabled
+    ? 'bps'
+    : router.vitalsAvailable === false
+      ? 'fps'
+      : 'bps'
 
   return (
     <motion.article

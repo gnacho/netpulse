@@ -95,16 +95,25 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		}
 	}
 
-	fdbMap := map[string]string{}
-	for _, e := range fdb {
-		name, ok := portIdxToName[e.IfIndex]
-		if !ok || name == "" {
-			continue
-		}
-		fdbMap[e.MAC] = name
-	}
+	// #661: el path SNMP nunca persistía las muestras de puerto, así que el
+	// historial de tráfico del switch quedaba vacío aunque el sondeo leyera los
+	// contadores correctamente. Ahora se registran (misma ruta que SSH/agente).
+	l.recordPortSamples(cfg.ID, ethPorts)
+
+	// FDB → mapa MAC→puerto. Antes se descartaban las entradas cuyo ifIndex no
+	// resolvía a un puerto conocido, lo que dejaba el switch con 0 dispositivos
+	// conectados aunque el FDB viniera lleno (#661). Se cae a bridgePort y a un
+	// nombre generado para no perder MACs (el conteo de clientes solo necesita
+	// la clave; el nombre es secundario).
+	fdbMap := snmpFdbMap(fdb, portIdxToName)
 
 	l.portMon.Observe(cfg.ID, ethPorts, l.engine)
+
+	// #661: agregado de red del switch (suma de la tasa de todos los puertos)
+	// para que la tarjeta de la flota pinte un sparkline con bps reales en
+	// lugar de la línea plana a 0 (los switches SNMP sí tienen contadores de
+	// bytes, a diferencia de los beacons, que solo reportan tramas).
+	netPtr := snmpAggregateNet(ethPorts)
 
 	var uptimeSec float64
 	if sysInfo != nil {
@@ -114,6 +123,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	p := &routerPolled{
 		cfg:       cfg,
 		uptimeSec: uptimeSec,
+		net:       netPtr,
 		ports:     ethPorts,
 		fdb:       fdbMap,
 		polledAt:  now.UnixMilli(),
@@ -149,4 +159,41 @@ func (l *Live) snmpPortCache(routerID string, ports []EthPort) {
 		samples[p.ID] = snmpPortSample{at: now, rxBytes: p.RxBytes, txBytes: p.TxBytes}
 	}
 	l.snmpPorts[routerID] = samples
+}
+
+// snmpFdbMap convierte el FDB (MAC→puerto) en el mapa que consume la
+// topología/dispositivos. #661: NO descarta entradas cuyo ifIndex no resuelve
+// a un puerto conocido (antes eso dejaba el switch con 0 dispositivos);
+// cae a bridgePort y, en último caso, a un nombre generado.
+func snmpFdbMap(fdb []npsnmp.FdbEntry, portIdxToName map[int]string) map[string]string {
+	out := map[string]string{}
+	for _, e := range fdb {
+		name := ""
+		if n, ok := portIdxToName[e.IfIndex]; ok {
+			name = n
+		} else if n, ok := portIdxToName[e.BridgePortIndex]; ok {
+			name = n
+		}
+		if name == "" {
+			name = fmt.Sprintf("port-%d", e.IfIndex)
+		}
+		out[e.MAC] = name
+	}
+	return out
+}
+
+// snmpAggregateNet suma la tasa (bps) de todos los puertos para dar una
+// métrica agregada al switch SNMP (#661). Devuelve nil si todo está a 0
+// (primera muestra sin delta o sin tráfico).
+func snmpAggregateNet(ports []EthPort) *NetDevBps {
+	var aggRx, aggTx float64
+	for i := range ports {
+		aggRx += ports[i].RxBps
+		aggTx += ports[i].TxBps
+	}
+	if aggRx == 0 && aggTx == 0 {
+		return nil
+	}
+	rx, tx := aggRx, aggTx
+	return &NetDevBps{RxBps: &rx, TxBps: &tx}
 }

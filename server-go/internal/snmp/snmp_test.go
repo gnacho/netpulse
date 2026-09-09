@@ -48,6 +48,29 @@ func TestExtractMacFromOid(t *testing.T) {
 	}
 }
 
+// #661: el índice compuesto de la tabla dot1q es <vlan>.M.M.M.M.M.M; la MAC
+// son los últimos 6 octetos.
+func TestExtractMacFromOidLast6(t *testing.T) {
+	prefix := OidDot1qTpFdbPort
+	tests := []struct {
+		name string
+		want string
+	}{
+		{prefix + ".5.0.17.34.51.68.85", "00:11:22:33:44:55"},
+		{prefix + ".0.17.34.51.68.85", "00:11:22:33:44:55"},
+		{prefix + ".100.1.2.3.4.5.6", "01:02:03:04:05:06"},
+		{prefix + ".5.0.17.34.51.68.256", ""},
+		{prefix + ".1.2.3.4.5", ""},
+		{"other.5.0.17.34.51.68.85", ""},
+	}
+	for _, tt := range tests {
+		got := extractMacFromOidLast6(tt.name, prefix)
+		if got != tt.want {
+			t.Errorf("extractMacFromOidLast6(%q) = %q; want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestPortStatsSpeedString(t *testing.T) {
 	tests := []struct {
 		name string
