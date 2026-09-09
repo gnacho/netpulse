@@ -1045,6 +1045,16 @@ func countBand(split *demoBandSplit, band string) {
 	}
 }
 
+// allZeroF: ¿todos los valores del slice son 0 (o vacío)?
+func allZeroF(v []float64) bool {
+	for _, x := range v {
+		if x != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -2387,6 +2397,17 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		}
 		routerList[i].Clients = n
 		routerList[i].BandSplit = &split
+	}
+	// Sparkline de la tarjeta para fuentes sin throughput bps (switch beacon/
+	// SNMP sin métricas agregadas): su línea de tráfico 24h sale de los fps de
+	// sus puertos (port_series), no de la tabla metrics (siempre 0 ahí).
+	for i := range routerList {
+		r := &routerList[i]
+		if r.VitalsAvailable != nil && !*r.VitalsAvailable && allZeroF(r.Sparkline) && l.db != nil && l.db.PortSeries != nil {
+			if sp, err := l.db.PortSeries.HourlyFpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
+				r.Sparkline = sp
+			}
+		}
 	}
 	adguard := l.pollAdGuard(ctx)
 	wireguard := l.pollWireGuard(devices)

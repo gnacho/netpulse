@@ -264,3 +264,41 @@ func TestDeriveFps(t *testing.T) {
 		t.Fatalf("punto 4: rx=%.1f tx=%.1f, esperaba 100/~66.6", pts[4].RxFps, pts[4].TxFps)
 	}
 }
+
+// HourlyFpsTotal: agrega el tráfico del router en fps por hora sumando los
+// deltas de contadores acumulados (rx+tx) de todos sus puertos.
+func TestHourlyFpsTotal(t *testing.T) {
+	s := openTestDB(t)
+	nowHour := time.Now().Truncate(time.Hour)
+	// Un puerto; acumulados que crecen 1.8M rx + 0.9M tx por hora → 750 fps.
+	acc := []struct {
+		off    time.Duration
+		rx, tx uint64
+	}{
+		{-2 * time.Hour, 1_800_000, 900_000},
+		{-1 * time.Hour, 3_600_000, 1_800_000},
+		{0, 5_400_000, 2_700_000},
+	}
+	for _, a := range acc {
+		if err := s.RecordSample(PortSample{RouterID: "sw1", PortID: "p1",
+			TS: nowHour.Add(a.off), RxFrames: a.rx, TxFrames: a.tx}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := s.HourlyFpsTotal("sw1", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 3 {
+		t.Fatalf("esperaba 3 buckets, tengo %d", len(out))
+	}
+	// Primer bucket sin anterior → 0; los dos siguientes ~750 fps.
+	if out[0] != 0 {
+		t.Fatalf("hora 0: %.1f fps, esperaba 0", out[0])
+	}
+	for i := 1; i <= 2; i++ {
+		if out[i] < 749 || out[i] > 751 {
+			t.Fatalf("hora %d: %.1f fps, esperaba ~750", i, out[i])
+		}
+	}
+}
