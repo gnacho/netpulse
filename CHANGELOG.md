@@ -9,7 +9,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
-- **La topología se puede editar para ajustar las distancias (#656)**: un botón **Editar** (solo administrador) entra en modo edición que permite arrastrar routers/APs y dispositivos para acercar o alejar los satélites. Al guardar, las posiciones se persisten en el navegador y el layout queda **congelado** (ya no se reordena al refrescar); los nodos nuevos se colocan con el auto-layout. Un botón **Restablecer** vuelve al layout automático por defecto.
+- **La topología se puede editar para ajustar las distancias (#656)**: un botón **Editar** (solo administrador) entra en modo edición que permite arrastrar routers/APs, switches o bridges inferidos y dispositivos para acercar o alejar los satélites (lo que cuelga de un nodo lo acompaña). Al guardar, las posiciones se persisten en el navegador y el layout queda **congelado** (ya no se reordena al refrescar); los nodos nuevos se colocan con el auto-layout. Un botón **Restablecer** vuelve al layout automático por defecto.
+
+### Fixed
+
+- **El tráfico del tooltip de un dispositivo en la topología ya no muestra todos los decimales (#656)**: se formatea con la misma convención que el resto de la app (1 decimal a partir de 1 Mbps, 2 por debajo).
 
 ### Fixed
 

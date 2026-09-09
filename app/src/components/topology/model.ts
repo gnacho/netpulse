@@ -872,6 +872,22 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
   }
 
+  // -- layout personalizado (issue #656): distnodes ---------------------------
+  // Igual que los routers: si el admin fijó la posición de un distnode (switch
+  // inferido/gestionado, incluidos los de cadena), se aplica ANTES de colocar
+  // sus chips hijos (abanico/anillos) para que se re-deriven alrededor de la
+  // posición movida. El resolver de colisiones los trata como fixed, así que
+  // nada los desplaza después.
+  if (seedPositions) {
+    for (const dv of distNodes) {
+      const p = seedPositions[dv.id]
+      if (!p) continue
+      dv.x = p.x
+      dv.y = p.y
+      if (anchorPos.has(dv.id)) anchorPos.set(dv.id, { x: p.x, y: p.y })
+    }
+  }
+
   // -- chips de dispositivos --------------------------------------------------
   const chips: ChipNode[] = []
   const mkChip = (d: Device, hubId: string, isCt = false): ChipNode => ({

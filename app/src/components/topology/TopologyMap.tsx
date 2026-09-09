@@ -14,6 +14,7 @@ import { Cloud, Laptop, Router as RouterIcon, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
+import { fmtEs } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
 import { DEVICE_ICONS } from '@/components/DeviceRow'
 import { cn } from '@/lib/utils'
@@ -323,7 +324,7 @@ function ChipTooltip({
             value={chip.wired ? portName(d.port ?? undefined, d.portLabel) : `${d.signalDbm ?? '—'} dBm`}
             hot={!chip.wired && chip.weak}
           />
-          <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps} Mbps`} />
+          <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps >= 1 ? fmtEs(d.trafficMbps, 1) : fmtEs(d.trafficMbps, 2)} Mbps`} />
         </div>
       </div>
       {d.lldp && (
@@ -1303,6 +1304,7 @@ export function TopologyMap({
             delay={(1.5 + i * 0.1) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(dv.id)}
+            onDragStart={editMode ? (e) => startNodeDrag(dv.id, dv.x, dv.y, e) : undefined}
             onHover={(e) => handleNodeHover({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 }, e)}
             onLeave={closeHover}
             onFocus={() => handleNodeFocus({ kind: 'dist', id: dv.id, node: dv.node, x: dv.x, y: dv.y - dv.r - 12 })}
@@ -1494,6 +1496,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
   onFocus,
   onBlur,
   onClick,
+  onDragStart,
 }: {
   dv: DistNodeView
   delay: number
@@ -1504,6 +1507,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
   onFocus: () => void
   onBlur: () => void
   onClick: (e: { stopPropagation: () => void }) => void
+  onDragStart?: (e: ReactPointerEvent) => void
 }) {
   const { t } = useTranslation()
   const SwitchIcon = DEVICE_ICONS.switch
@@ -1511,9 +1515,10 @@ const DistNodeGroup = memo(function DistNodeGroup({
   return (
     <motion.g
       transform={`translate(${dv.x} ${dv.y})`}
-      className="cursor-pointer outline-none"
+      className={onDragStart ? 'cursor-grab outline-none' : 'cursor-pointer outline-none'}
       role="button"
       tabIndex={0}
+      data-node-id={dv.id}
       aria-label={
         managed
           ? `${dv.node.name ?? t('topology.dist.managed')}, LLDP, ${dv.node.ip ?? ''} ${portName(dv.node.port, dv.node.portLabel)}`
@@ -1521,6 +1526,7 @@ const DistNodeGroup = memo(function DistNodeGroup({
       }
       animate={{ opacity }}
       transition={{ duration: 0.2 }}
+      onPointerDown={onDragStart}
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
       onFocus={onFocus}
