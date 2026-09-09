@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- **Los dispositivos callados ya no saltan del switch inferido al que están cableados (#656)**: las entradas del FDB caducan a los ~5 min sin tráfico, así que los equipos de AV (TV, receptor, shield…) perdían su evidencia de puerto entre refrescos y el mapa los re-anclaba al router principal hasta que volvían a hablar. El servidor recuerda ahora la última boca real donde se vio cada MAC (30 min de memoria, solo como respaldo del FDB actual) y conserva su atribución de puerto mientras el dispositivo siga conectado.
 - **El tráfico del tooltip de un dispositivo en la topología ya no muestra todos los decimales (#656)**: se formatea con la misma convención que el resto de la app (1 decimal a partir de 1 Mbps, 2 por debajo).
 
 ### Fixed

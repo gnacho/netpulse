@@ -321,6 +321,13 @@ type Live struct {
 	pveInv    *pveInventory
 	pveInvAt  time.Time
 
+	// fdbMemo (#656): última boca REAL donde el FDB vio cada MAC (epoch ms).
+	// Los dispositivos callados (AV: TV, receptor, shield…) caducan su entrada
+	// FDB a los ~5 min sin hablar y "saltaban" del switch inferido al anchor
+	// del gateway entre ticks. La memo se usa SOLO como overlay de inferTopology
+	// (nunca para crear presencia/online) mientras la entrada sea fresca.
+	fdbMemo map[string]fdbPortMemo
+
 	sfMu   sync.Mutex
 	sfCall *sfCall
 }
@@ -372,6 +379,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		agentOutdatedAlerted: map[string]bool{},
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
+		fdbMemo:              map[string]fdbPortMemo{},
 		portMon:              NewPortMonitor(cfg != nil && cfg.GhostPortEnabled),
 		suppression:          alerts.NewSuppressionGraph(),
 	}
@@ -2342,7 +2350,12 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		routerList = append(routerList, router)
 	}
 	devices := l.buildDevices(polled)
-	devices, distNodes := inferTopology(polled, devices)
+	// #656: overlay sticky del FDB. La memo se refresca con el FDB real y se
+	// usa SOLO para inferTopology: los dispositivos callados (entrada FDB
+	// caducada) conservan su boca y no saltan del switch inferido al gateway.
+	nowMs := time.Now().UnixMilli()
+	stickyPolled := overlayStickyFdb(polled, l.updateFdbMemo(polled, nowMs), nowMs)
+	devices, distNodes := inferTopology(stickyPolled, devices)
 	// Capa 2 manual (issue #142): overrides de topología tras el autodiscover.
 	// Sin BD (tests/demo) → no-op.
 	if l.db != nil {
@@ -2933,7 +2946,13 @@ func (l *Live) GetDevices(context.Context) []Device {
 	l.mu.Lock()
 	polled := l.lastPolled
 	l.mu.Unlock()
-	devices, _ := inferTopology(polled, l.buildDevices(polled))
+	// #656: overlay sticky del FDB (paridad con el overview) ANTES del sellado
+	// PVE, que sobreescribe attachTo con ground truth del cluster.
+	detailNowMs := time.Now().UnixMilli()
+	devices, _ := inferTopology(
+		overlayStickyFdb(polled, l.updateFdbMemo(polled, detailNowMs), detailNowMs),
+		l.buildDevices(polled),
+	)
 	// #561: sellado de infraestructura con el inventario PVE (si configurado).
 	// El detalle no consume distnodes, pero el sellado de devices sí corre.
 	l.sealProxmoxInfra(devices, nil)
