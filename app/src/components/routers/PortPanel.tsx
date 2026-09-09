@@ -317,7 +317,13 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
 
       {/* Per-port traffic history (issue #302) */}
       {ports.some((p) => p.up) && !isDemo && (
-        <PortSeriesChart routerId={router.id} portId={ports.find((p) => p.up)!.id} />
+        <PortSeriesChart
+          routerId={router.id}
+          portId={ports.find((p) => p.up)!.id}
+          // #641: managed-switch/external (beacons RTLPlayground, SNMP) no
+          // reportan byte counters → la serie se muestra en frames/s.
+          unit={router.type === 'managed-switch' || router.type === 'external' ? 'fps' : 'bps'}
+        />
       )}
     </section>
   )

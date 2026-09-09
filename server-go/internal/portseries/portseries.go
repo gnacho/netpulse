@@ -40,7 +40,16 @@ type PortPoint struct {
 	TxErrors  uint64    `json:"txErrors"`
 	RxBps     float64   `json:"rxBps"`
 	TxBps     float64   `json:"txBps"`
+	// RxFps/TxFps: frames per second derived from the cumulative frame
+	// counters (issue #641). Devices without byte counters (RTLPlayground
+	// beacon agents) report traffic this way; bps stays 0 for them.
+	RxFps     float64   `json:"rxFps"`
+	TxFps     float64   `json:"txFps"`
 	SpeedMbps int       `json:"speedMbps"`
+	// RxFrames/TxFrames: cumulative counters used to derive fps; not part of
+	// the JSON contract.
+	RxFrames uint64 `json:"-"`
+	TxFrames uint64 `json:"-"`
 }
 
 // SchemaSQL returns the DDL for the port series tables.
@@ -165,7 +174,7 @@ func (s *Store) GetSeries(routerID, portID string, from, to time.Time, resolutio
 
 func (s *Store) getRaw(routerID, portID string, fromMs, toMs int64) ([]PortPoint, error) {
 	rows, err := s.db.Query(`SELECT ts, rx_bytes, tx_bytes, rx_errors, tx_errors,
-		rx_bps, tx_bps, speed_mbps FROM port_series_raw
+		rx_frames, tx_frames, rx_bps, tx_bps, speed_mbps FROM port_series_raw
 		WHERE router_id=? AND port_id=? AND ts>=? AND ts<=?
 		ORDER BY ts`, routerID, portID, fromMs, toMs)
 	if err != nil {
@@ -177,18 +186,22 @@ func (s *Store) getRaw(routerID, portID string, fromMs, toMs int64) ([]PortPoint
 		var tsMs int64
 		var p PortPoint
 		if err := rows.Scan(&tsMs, &p.RxBytes, &p.TxBytes, &p.RxErrors, &p.TxErrors,
-			&p.RxBps, &p.TxBps, &p.SpeedMbps); err != nil {
+			&p.RxFrames, &p.TxFrames, &p.RxBps, &p.TxBps, &p.SpeedMbps); err != nil {
 			return nil, err
 		}
 		p.TS = time.UnixMilli(tsMs)
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	deriveFps(out)
+	return out, nil
 }
 
 func (s *Store) get5m(routerID, portID string, fromMs, toMs int64) ([]PortPoint, error) {
 	rows, err := s.db.Query(`SELECT bucket_ts, rx_bytes, tx_bytes, rx_errors, tx_errors,
-		rx_bps_avg, tx_bps_avg, speed_mbps FROM port_series_5m
+		rx_frames, tx_frames, rx_bps_avg, tx_bps_avg, speed_mbps FROM port_series_5m
 		WHERE router_id=? AND port_id=? AND bucket_ts>=? AND bucket_ts<=?
 		ORDER BY bucket_ts`, routerID, portID, fromMs, toMs)
 	if err != nil {
@@ -200,20 +213,24 @@ func (s *Store) get5m(routerID, portID string, fromMs, toMs int64) ([]PortPoint,
 		var tsMs int64
 		var p PortPoint
 		if err := rows.Scan(&tsMs, &p.RxBytes, &p.TxBytes, &p.RxErrors, &p.TxErrors,
-			&p.RxBps, &p.TxBps, &p.SpeedMbps); err != nil {
+			&p.RxFrames, &p.TxFrames, &p.RxBps, &p.TxBps, &p.SpeedMbps); err != nil {
 			return nil, err
 		}
 		p.TS = time.UnixMilli(tsMs)
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	deriveFps(out)
+	return out, nil
 }
 
 func (s *Store) getDaily(routerID, portID string, from, to time.Time) ([]PortPoint, error) {
 	fromDate := from.UTC().Format("2006-01-02")
 	toDate := to.UTC().Format("2006-01-02")
 	rows, err := s.db.Query(`SELECT date, rx_bytes, tx_bytes, rx_errors, tx_errors,
-		rx_bps_avg, tx_bps_avg, speed_mbps FROM port_series_daily
+		rx_frames, tx_frames, rx_bps_avg, tx_bps_avg, speed_mbps FROM port_series_daily
 		WHERE router_id=? AND port_id=? AND date>=? AND date<=?
 		ORDER BY date`, routerID, portID, fromDate, toDate)
 	if err != nil {
@@ -225,7 +242,7 @@ func (s *Store) getDaily(routerID, portID string, from, to time.Time) ([]PortPoi
 		var dateStr string
 		var p PortPoint
 		if err := rows.Scan(&dateStr, &p.RxBytes, &p.TxBytes, &p.RxErrors, &p.TxErrors,
-			&p.RxBps, &p.TxBps, &p.SpeedMbps); err != nil {
+			&p.RxFrames, &p.TxFrames, &p.RxBps, &p.TxBps, &p.SpeedMbps); err != nil {
 			return nil, err
 		}
 		t, err := time.Parse("2006-01-02", dateStr)
@@ -235,7 +252,30 @@ func (s *Store) getDaily(routerID, portID string, from, to time.Time) ([]PortPoi
 		p.TS = t
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	deriveFps(out)
+	return out, nil
+}
+
+// deriveFps calcula frames/segundo entre puntos consecutivos a partir de los
+// contadores acumulados (rx_frames/tx_frames). Un contador que baja indica un
+// reset del dispositivo (p.ej. reboot del switch): ese intervalo se deja a 0
+// en vez de fabricar un delta negativo. La primera muestra no tiene anterior.
+func deriveFps(pts []PortPoint) {
+	for i := 1; i < len(pts); i++ {
+		dt := pts[i].TS.Sub(pts[i-1].TS).Seconds()
+		if dt <= 0 {
+			continue
+		}
+		if pts[i].RxFrames >= pts[i-1].RxFrames {
+			pts[i].RxFps = float64(pts[i].RxFrames-pts[i-1].RxFrames) / dt
+		}
+		if pts[i].TxFrames >= pts[i-1].TxFrames {
+			pts[i].TxFps = float64(pts[i].TxFrames-pts[i-1].TxFrames) / dt
+		}
+	}
 }
 
 // RollupRawTo5m aggregates raw samples into 5-min buckets.

@@ -9,6 +9,8 @@ interface PortPoint {
   txErrors: number
   rxBps: number
   txBps: number
+  rxFps: number
+  txFps: number
   speedMbps: number
 }
 
@@ -29,19 +31,26 @@ function rangeToSeconds(range: Range): number {
   }
 }
 
-function fmtBps(bps: number): string {
-  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gbps`
-  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`
-  if (bps >= 1e3) return `${Math.round(bps / 1e3)} kbps`
-  return `${Math.round(bps)} bps`
+/** Formatea una tasa: bps → bps/kbps/Mbps/Gbps; fps → fps/kfps. */
+function fmtRate(unit: 'bps' | 'fps', v: number): string {
+  if (unit === 'bps') {
+    if (v >= 1e9) return `${(v / 1e9).toFixed(1)} Gbps`
+    if (v >= 1e6) return `${(v / 1e6).toFixed(1)} Mbps`
+    if (v >= 1e3) return `${Math.round(v / 1e3)} kbps`
+    return `${Math.round(v)} bps`
+  }
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)} kfps`
+  return `${Math.round(v)} fps`
 }
 
-function Sparkline({ points, colorKey }: { points: PortPoint[]; colorKey: 'rxBps' | 'txBps' }) {
+function Sparkline({ points, colorKey, unit }: { points: PortPoint[]; colorKey: 'rx' | 'tx'; unit: 'bps' | 'fps' }) {
   if (points.length < 2) return null
   const W = 200
   const H = 40
   const PAD = 2
-  const values = points.map((p) => p[colorKey])
+  const field = (colorKey === 'rx' ? 'rxBps' : 'txBps') as 'rxBps' | 'txBps'
+  const fpsField = (colorKey === 'rx' ? 'rxFps' : 'txFps') as 'rxFps' | 'txFps'
+  const values = points.map((p) => (unit === 'fps' ? p[fpsField] : p[field]))
   const max = Math.max(...values, 1)
   const stepX = (W - PAD * 2) / (values.length - 1)
   const path = values
@@ -52,8 +61,8 @@ function Sparkline({ points, colorKey }: { points: PortPoint[]; colorKey: 'rxBps
     })
     .join(' ')
   const fillPath = path + ` L${(W - PAD).toFixed(1)},${H - PAD} L${PAD},${H - PAD} Z`
-  const color = colorKey === 'rxBps' ? '#3b82f6' : '#10b981'
-  const fillColor = colorKey === 'rxBps' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.12)'
+  const color = colorKey === 'rx' ? '#3b82f6' : '#10b981'
+  const fillColor = colorKey === 'rx' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.12)'
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
       <path d={fillPath} fill={fillColor} />
@@ -62,7 +71,16 @@ function Sparkline({ points, colorKey }: { points: PortPoint[]; colorKey: 'rxBps
   )
 }
 
-export function PortSeriesChart({ routerId, portId }: { routerId: string; portId: string }) {
+export function PortSeriesChart({
+  routerId,
+  portId,
+  unit = 'bps',
+}: {
+  routerId: string
+  portId: string
+  /** 'bps' para fuentes con byte counters (OpenWrt); 'fps' para beacons/SNMP sin bytes (issue #641). */
+  unit?: 'bps' | 'fps'
+}) {
   const { t } = useTranslation()
   const [range, setRange] = useState<Range>('24h')
   const [data, setData] = useState<PortPoint[]>([])
@@ -92,8 +110,8 @@ export function PortSeriesChart({ routerId, portId }: { routerId: string; portId
   }, [fetchData])
 
   const hasData = data.length > 1
-  const peakRx = hasData ? Math.max(...data.map((p) => p.rxBps)) : 0
-  const peakTx = hasData ? Math.max(...data.map((p) => p.txBps)) : 0
+  const peakRx = hasData ? Math.max(...data.map((p) => (unit === 'fps' ? p.rxFps : p.rxBps))) : 0
+  const peakTx = hasData ? Math.max(...data.map((p) => (unit === 'fps' ? p.txFps : p.txBps))) : 0
 
   return (
     <div className="mt-3 rounded-xl border border-border/60 bg-elevated/30 p-3">
@@ -122,13 +140,13 @@ export function PortSeriesChart({ routerId, portId }: { routerId: string; portId
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="w-5 text-[10px] font-medium text-blue-500">RX</span>
-            <Sparkline points={data} colorKey="rxBps" />
-            <span className="ml-auto font-mono text-[10px] text-text-muted">{fmtBps(peakRx)}</span>
+            <Sparkline points={data} colorKey="rx" unit={unit} />
+            <span className="ml-auto font-mono text-[10px] text-text-muted">{fmtRate(unit, peakRx)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-5 text-[10px] font-medium text-emerald-500">TX</span>
-            <Sparkline points={data} colorKey="txBps" />
-            <span className="ml-auto font-mono text-[10px] text-text-muted">{fmtBps(peakTx)}</span>
+            <Sparkline points={data} colorKey="tx" unit={unit} />
+            <span className="ml-auto font-mono text-[10px] text-text-muted">{fmtRate(unit, peakTx)}</span>
           </div>
         </div>
       ) : (
