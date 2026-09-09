@@ -97,7 +97,11 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.16)
+### Última (v2.28.17)
+
+- **Un router OpenWrt ya no muestra un falso "host key changed" al sondearlo** ([#651](https://github.com/gnacho/netpulse/issues/651)). El descubrimiento (openssh con `accept-new`) solo fijaba la host key del algoritmo que negociaba (ed25519), mientras que el pool de sondeo (Go) negocia otro (ecdsa/rsa) con el mismo servidor; un router con varias host keys mostraba un "ssh host key changed" espurio y pedía un re-onboard sin motivo. El descubrimiento fija ahora **todas** las host keys del router (ed25519, ecdsa y rsa), así el sondeo siempre encuentra la suya, sin debilitar la protección anti-MITM: si un router cambia todas sus claves (reflash), la detección de "host key changed" sigue activa.
+
+### Anterior (v2.28.16)
 
 - **Los peers WireGuard se etiquetan por su nombre configurado en OpenWrt** ([#663](https://github.com/gnacho/netpulse/issues/663)). En la topología, los peers WireGuard que no estaban ya mapeados a un dispositivo NetPulse se muestran ahora con el nombre legible de la descripción UCI del peer (prioridad: nombre del dispositivo NetPulse → descripción UCI → IP del túnel) en lugar de la IP cruda del túnel. El sondeo lee `wg show dump` y `uci show network` en una sola sesión SSH (con marcador de separación) y conserva el estado de un túnel caído.
 
