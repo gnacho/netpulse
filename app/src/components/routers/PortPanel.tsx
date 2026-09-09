@@ -10,7 +10,6 @@ import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { Activity } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { PortSeriesChart } from '@/components/routers/PortSeriesChart'
 
 /**
  * Panel visual de puertos Ethernet - dibuja las bocas RJ45 del chasis con
@@ -314,17 +313,6 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
           </span>
         )}
       </div>
-
-      {/* Per-port traffic history (issue #302) */}
-      {ports.some((p) => p.up) && !isDemo && (
-        <PortSeriesChart
-          routerId={router.id}
-          portId={ports.find((p) => p.up)!.id}
-          // #641: managed-switch/external (beacons RTLPlayground, SNMP) no
-          // reportan byte counters → la serie se muestra en frames/s.
-          unit={router.type === 'managed-switch' || router.type === 'external' ? 'fps' : 'bps'}
-        />
-      )}
     </section>
   )
 }
