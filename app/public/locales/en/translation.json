@@ -815,8 +815,10 @@
     "interactiveMap": "Interactive network map",
     "internetAria": "Internet, {{isp}}, fiber {{plan}}",
     "labels": "Labels",
-    "lockLayout": "Lock layout",
-    "lockLayoutHint": "Keep icon positions fixed across refreshes: the map no longer reorders when it updates.",
+    "edit": "Edit",
+    "editHint": "Edit the layout: drag routers and devices to adjust spacing. When saved, positions stay fixed and no longer reorder.",
+    "editSave": "Save",
+    "editReset": "Reset to automatic layout",
     "legend": {
       "bandConnection": "Band / connection",
       "healthy": "Healthy",

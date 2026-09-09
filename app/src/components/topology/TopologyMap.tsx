@@ -422,9 +422,28 @@ interface TopologyMapProps {
    * de overrides manuales. Ausente → comportamiento normal.
    */
   onTagDevice?: (device: Device) => void
+  /**
+   * Modo edición de layout (issue #656): si se pasa `editMode`, los nodos router
+   * y los chips se vuelven arrastrables para ajustar distancias (p. ej.
+   * alejar/acercar un satélite). `onMoveNode(id, x, y)` se notifica con la
+   * nueva posición (coordenadas del viewBox) durante el arrastre; la posición
+   * se persiste luego fuera.
+   */
+  editMode?: boolean
+  onMoveNode?: (id: string, x: number, y: number) => void
 }
 
-export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHoverLink, onTagDevice }: TopologyMapProps) {
+export function TopologyMap({
+  model,
+  apiRef,
+  showLabels,
+  flow,
+  hoverLink,
+  onHoverLink,
+  onTagDevice,
+  editMode = false,
+  onMoveNode,
+}: TopologyMapProps) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
@@ -439,6 +458,14 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   /** Retardo de cierre del tooltip (issue #255): el cursor debe poder viajar
    *  desde el nodo hasta el popup sin que este desaparezca. */
   const hoverCloseTimer = useRef<number | null>(null)
+  /** Arrastre de un nodo en modo edición (issue #656): posición base del nodo
+   *  y del cursor al empezar, para moverlo de forma relativa (sin salto). */
+  const dragNode = useRef<{ id: string; startX: number; startY: number; startCX: number; startCY: number } | null>(null)
+  /** Throttle a un cambio por frame: onPointerMove puede disparar muchas veces
+   *  por frame y el re-layout del modelo es caro; se acumula y se aplica una
+   *  vez por requestAnimationFrame. */
+  const dragFrame = useRef<number | null>(null)
+  const dragPending = useRef<{ id: string; x: number; y: number } | null>(null)
 
   const [hoverNode, setHoverNode] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -552,6 +579,34 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
     }
   }, [])
 
+  // -- arrastre de nodos en modo edición (issue #656) ------------------------
+  // En editMode, un pointerdown sobre un nodo router/chip inicia su arrastre
+  // (stopPropagation para no arrancar el pan del lienzo). Durante el move se
+  // re-laya el modelo con la posición del nodo (throttleado a 1/frame); al soltar
+  // se limpia el estado.
+  const startNodeDrag = useCallback(
+    (id: string, startX: number, startY: number, e: ReactPointerEvent) => {
+      if (!editMode || !onMoveNode) return
+      e.stopPropagation()
+      dragNode.current = { id, startX, startY, startCX: e.clientX, startCY: e.clientY }
+      moved.current = true
+      containerRef.current?.setPointerCapture(e.pointerId)
+      setTooltip(null)
+      setHoverNode(null)
+    },
+    [editMode, onMoveNode],
+  )
+
+  const flushNodeDrag = useCallback(() => {
+    if (dragFrame.current !== null) {
+      cancelAnimationFrame(dragFrame.current)
+      dragFrame.current = null
+    }
+    const p = dragPending.current
+    dragPending.current = null
+    if (p) onMoveNode?.(p.id, Math.round(p.x), Math.round(p.y))
+  }, [onMoveNode])
+
   const onPointerMove = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       if (!pointers.current.has(e.pointerId)) return
@@ -559,6 +614,26 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
       const el = containerRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
+
+      // arrastre de nodo en edición: mover al nodo (y su subárbol, vía el
+      // layout del modelo) sin pan del lienzo.
+      if (dragNode.current) {
+        moved.current = true
+        const d = dragNode.current
+        const v = viewRef.current
+        const dx = ((e.clientX - d.startCX) / rect.width) * v.w
+        const dy = ((e.clientY - d.startCY) / rect.height) * v.h
+        dragPending.current = { id: d.id, x: d.startX + dx, y: d.startY + dy }
+        if (dragFrame.current === null) {
+          dragFrame.current = requestAnimationFrame(() => {
+            dragFrame.current = null
+            const p = dragPending.current
+            dragPending.current = null
+            if (p) onMoveNode?.(p.id, Math.round(p.x), Math.round(p.y))
+          })
+        }
+        return
+      }
 
       if (pinch.current && pointers.current.size >= 2) {
         const pts = [...pointers.current.values()]
@@ -594,17 +669,24 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
         drag.current = { px: e.clientX, py: e.clientY }
       }
     },
-    [applyView],
+    [applyView, onMoveNode],
   )
 
-  const endPointer = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    pointers.current.delete(e.pointerId)
-    if (pointers.current.size < 2) pinch.current = null
-    if (pointers.current.size === 0) drag.current = null
-    if (containerRef.current?.hasPointerCapture(e.pointerId)) {
-      containerRef.current.releasePointerCapture(e.pointerId)
-    }
-  }, [])
+  const endPointer = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (dragNode.current) {
+        flushNodeDrag()
+        dragNode.current = null
+      }
+      pointers.current.delete(e.pointerId)
+      if (pointers.current.size < 2) pinch.current = null
+      if (pointers.current.size === 0) drag.current = null
+      if (containerRef.current?.hasPointerCapture(e.pointerId)) {
+        containerRef.current.releasePointerCapture(e.pointerId)
+      }
+    },
+    [flushNodeDrag],
+  )
 
   // -- tooltips ---------------------------------------------------------------
   const openTooltip = useCallback((data: TooltipData) => {
@@ -645,6 +727,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
   useEffect(
     () => () => {
       if (hoverCloseTimer.current !== null) window.clearTimeout(hoverCloseTimer.current)
+      if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current)
     },
     [],
   )
@@ -978,9 +1061,11 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
               className="cursor-pointer outline-none"
               role="button"
               tabIndex={0}
+              data-node-id={node.id}
               aria-label={t('topology.routerAria', { name: node.router.name, model: node.router.modelShort, clients: node.router.clients })}
               animate={{ opacity: nodeOpacity(node.id) }}
               transition={{ duration: 0.2 }}
+              onPointerDown={editMode ? (e) => startNodeDrag(node.id, node.x, node.y, e) : undefined}
               onPointerEnter={(e) =>
                 handleNodeHover({ kind: 'router', id: node.id, router: node.router, x: node.x, y: node.y - node.r - 10 }, e)
               }
@@ -1228,6 +1313,7 @@ export function TopologyMap({ model, apiRef, showLabels, flow, hoverLink, onHove
             delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(chip.id)}
+            onDragStart={editMode ? (e) => startNodeDrag(chip.id, chip.x, chip.y, e) : undefined}
             onHover={(e) => handleNodeHover(chipTip(chip), e)}
             onLeave={closeHover}
             onFocus={() => handleNodeFocus(chipTip(chip))}
@@ -1493,6 +1579,7 @@ const ChipGroup = memo(function ChipGroup({
   onFocus,
   onBlur,
   onClick,
+  onDragStart,
 }: {
   chip: ChipNode
   ctCount: number
@@ -1504,6 +1591,7 @@ const ChipGroup = memo(function ChipGroup({
   onFocus: () => void
   onBlur: () => void
   onClick: (e: { stopPropagation: () => void }) => void
+  onDragStart?: (e: ReactPointerEvent) => void
 }) {
   const d = chip.device
   const S = chip.size
@@ -1511,7 +1599,7 @@ const ChipGroup = memo(function ChipGroup({
   const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
   return (
-    <g transform={`translate(${chip.x} ${chip.y})`}>
+    <g transform={`translate(${chip.x} ${chip.y})`} data-node-id={chip.id} onPointerDown={onDragStart}>
       <motion.g
         className="cursor-pointer outline-none"
         role="button"

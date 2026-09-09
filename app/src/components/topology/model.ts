@@ -667,6 +667,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const routerNodes: RouterNode[] = gatewayNode ? [gatewayNode, ...apNodes, ...switchNodes] : [...apNodes, ...switchNodes]
   const routerById = new Map(routerNodes.map((n) => [n.id, n]))
 
+  // -- layout personalizado (issue #656): nodos router ------------------------
+  // Si el admin ha fijado la posición de un router (p. ej. alejar/acercar un
+  // AP/satélite), esa posición manda. Se aplica ANTES del cálculo de anillos y
+  // distnodes para que todo lo que cuelga de ese router (chips wifi/cable,
+  // switches) se RE-DERIVE alrededor de la posición movida. Los nodos sin
+  // semilla conservan el layout automático.
+  if (seedPositions) {
+    for (const rn of routerNodes) {
+      const p = seedPositions[rn.id]
+      if (!p) continue
+      rn.x = p.x
+      rn.y = p.y
+      const isLeft = rn.x < (gatewayNode?.x ?? 500)
+      rn.label = {
+        x: isLeft ? rn.x - rn.r - 6 : rn.x + rn.r + 6,
+        y: rn.y - 6,
+        anchor: isLeft ? ('end' as const) : ('start' as const),
+      }
+    }
+  }
+
   // D1: el switch gestionado existe como Device Y como distnode managed, pero
   // en el mapa se representa SOLO como nodo managed: se excluye de los chips
   // cualquier Device cuya MAC coincida con la chassis-MAC de un distnode.
@@ -935,6 +956,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // APs y switches: a lo largo del vector desde el gateway hasta su posición
       // canónica, empujados hasta quedar a >= clearDist (fuera del círculo).
       const pushOut = (rn: RouterNode) => {
+        // Si el admin fijó este nodo en el layout personalizado, se respeta su
+        // posición (no se le empuja fuera del círculo virtual): la semilla manda.
+        if (seedPositions?.[rn.id]) return
         const dx = rn.x - gatewayNode.x
         const dy = rn.y - gatewayNode.y
         const d = Math.sqrt(dx * dx + dy * dy) || 1

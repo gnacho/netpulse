@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ChevronRight, Maximize, RefreshCw, Tag, ZoomIn, ZoomOut } from 'lucide-react'
+import { Check, ChevronRight, Maximize, Pencil, RefreshCw, RotateCcw, Tag, ZoomIn, ZoomOut } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { LegendCard, LegendSheet } from '@/components/topology/LegendCard'
@@ -62,6 +62,8 @@ export default function Topology() {
   // Etiquetado manual (issue #142 Fase B): clic en un chip abre el panel de
   // overrides con esa MAC preseleccionada. Solo admin y modo live.
   const canTag = !isDemo && auth?.role === 'admin'
+  // Editar layout (issue #656): solo admin y modo live, como "Etiquetar".
+  const canEdit = !isDemo && auth?.role === 'admin'
   const [tagSheetOpen, setTagSheetOpen] = useState(false)
   const [tagMac, setTagMac] = useState<string | undefined>(undefined)
 
@@ -70,23 +72,16 @@ export default function Topology() {
     setTagSheetOpen(true)
   }
 
-  // -- lock layout (issue #656) --------------------------------------------
-  // Fija las coordenadas de los chips entre refrescos (persistidas en el
-  // navegador). Con el bloqueo activo, el modelo aplica las posiciones
-  // guardadas sobre las calculadas por el layout automático; los chips sin
-  // posición guardada (dispositivos nuevos) se quedan en su posición actual.
-  const LOCK_KEY = 'netpulse.topology.lock'
-  const POS_KEY = 'netpulse.topology.positions'
-  const [lockLayout, setLockLayout] = useState<boolean>(() => {
+  // -- editar layout (issue #656) --------------------------------------------
+  // Modo edición: el admin arrastra routers/APs y chips para ajustar distancias
+  // (p. ej. alejar/acercar un satélite). Las posiciones se persisten en el
+  // navegador, y fuera del modo edición el layout queda congelado a lo guardado
+  // (no se reordena); solo se re-edita al entrar de nuevo o al "Restablecer".
+  const LAYOUT_KEY = 'netpulse.topology.layout'
+  const [editMode, setEditMode] = useState(false)
+  const [layout, setLayout] = useState<Record<string, { x: number; y: number }>>(() => {
     try {
-      return localStorage.getItem(LOCK_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
-  const [savedPos, setSavedPos] = useState<Record<string, { x: number; y: number }>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(POS_KEY) || '{}')
+      return JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}')
     } catch {
       return {}
     }
@@ -102,30 +97,34 @@ export default function Topology() {
         distributionNodes,
         topology,
         vm,
-        seedPositions: lockLayout ? savedPos : undefined,
+        seedPositions: Object.keys(layout).length > 0 ? layout : undefined,
       }),
-    [routers, devices, wan, wireguard, distributionNodes, topology, vm, lockLayout, savedPos],
+    [routers, devices, wan, wireguard, distributionNodes, topology, vm, layout],
   )
 
-  const handleLockChange = (checked: boolean) => {
-    setLockLayout(checked)
+  // Durante el arrastre, onMoveNode actualiza la posición del nodo en `layout`
+  // (vía semilla → el modelo recalcula y los hijos se re-derivan alrededor).
+  const handleMoveNode = (id: string, x: number, y: number) => {
+    setLayout((prev) => (prev[id] && prev[id]!.x === x && prev[id]!.y === y ? prev : { ...prev, [id]: { x, y } }))
+  }
+
+  const handleSaveLayout = () => {
     try {
-      localStorage.setItem(LOCK_KEY, checked ? '1' : '0')
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout))
+    } catch {
+      /* si no cabe, se ignora */
+    }
+    setEditMode(false)
+  }
+
+  const handleResetLayout = () => {
+    setLayout({})
+    try {
+      localStorage.removeItem(LAYOUT_KEY)
     } catch {
       /* localStorage no disponible */
     }
-    if (checked) {
-      // Capturar las posiciones actuales del modelo: serán la semilla para
-      // congelar el layout a partir de ahora.
-      const pos: Record<string, { x: number; y: number }> = {}
-      for (const c of model.chips) pos[c.id] = { x: c.x, y: c.y }
-      setSavedPos(pos)
-      try {
-        localStorage.setItem(POS_KEY, JSON.stringify(pos))
-      } catch {
-        /* si no cabe, se ignora */
-      }
-    }
+    setEditMode(false)
   }
 
   // Botón "Refrescar": POST /api/refresh → el backend sondea ya y empuja el
@@ -265,18 +264,45 @@ export default function Topology() {
             <Switch checked={flow} onCheckedChange={setFlow} aria-label={t('topology.animateFlow')} />
             {t('topology.flow')}
           </motion.label>
-          <motion.label
-            {...controlMotion(4)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
-            title={t('topology.lockLayoutHint')}
-          >
-            <Switch
-              checked={lockLayout}
-              onCheckedChange={handleLockChange}
-              aria-label={t('topology.lockLayout')}
-            />
-            {t('topology.lockLayout')}
-          </motion.label>
+          {canEdit && (
+            <motion.div
+              {...controlMotion(4)}
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-surface p-1"
+            >
+              {editMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveLayout}
+                    className="flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90"
+                  >
+                    <Check className="h-4 w-4" strokeWidth={2} />
+                    {t('topology.editSave')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetLayout}
+                    aria-label={t('topology.editReset')}
+                    title={t('topology.editReset')}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+                  >
+                    <RotateCcw className="h-4 w-4" strokeWidth={1.75} />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditMode(true)}
+                  aria-label={t('topology.edit')}
+                  title={t('topology.editHint')}
+                  className="flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-accent"
+                >
+                  <Pencil className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="hidden sm:inline">{t('topology.edit')}</span>
+                </button>
+              )}
+            </motion.div>
+          )}
         </div>
       </header>
 
@@ -294,6 +320,8 @@ export default function Topology() {
           hoverLink={hoverLink}
           onHoverLink={setHoverLink}
           onTagDevice={canTag ? handleTagDevice : undefined}
+          editMode={canEdit && editMode}
+          onMoveNode={canEdit && editMode ? handleMoveNode : undefined}
         />
         {/* Zoom flotante (móvil: los controles del header quedan lejos del mapa) */}
         <div

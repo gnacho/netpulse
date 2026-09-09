@@ -815,8 +815,10 @@
     "interactiveMap": "Mapa interactivo de la red",
     "internetAria": "Internet, {{isp}}, fibra {{plan}}",
     "labels": "Etiquetas",
-    "lockLayout": "Bloquear posición",
-    "lockLayoutHint": "Fija las posiciones de los iconos entre refrescos: el mapa no se reordena al actualizar.",
+    "edit": "Editar",
+    "editHint": "Edita el layout: arrastra los routers y dispositivos para ajustar las distancias. Al guardar, las posiciones quedan fijas y no se reordenan.",
+    "editSave": "Guardar",
+    "editReset": "Restablecer layout automático",
     "legend": {
       "bandConnection": "Banda / conexión",
       "healthy": "Saludable",

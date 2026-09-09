@@ -9,7 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
-- **La vista de topología bloquea la posición de los iconos (#656)**: un toggle "Bloquear diseño" congela las coordenadas de los dispositivos entre refrescos (persistidas en el navegador), de modo que los chips dejan de cambiar de sitio cada vez que el mapa se actualiza. Con el bloqueo desactivado, el mapa recalcula el layout automáticamente. Un emisario que se añade o se va no reordena al resto cuando el bloqueo está activo.
+- **La topología se puede editar para ajustar las distancias (#656)**: un botón **Editar** (solo administrador) entra en modo edición que permite arrastrar routers/APs y dispositivos para acercar o alejar los satélites. Al guardar, las posiciones se persisten en el navegador y el layout queda **congelado** (ya no se reordena al refrescar); los nodos nuevos se colocan con el auto-layout. Un botón **Restablecer** vuelve al layout automático por defecto.
 
 ### Fixed
 
