@@ -97,7 +97,13 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.17)
+### Última (v2.28.18)
+
+- **El mapa de topología refleja ya dónde está enchufado cada equipo, y deja de saltar** ([#656](https://github.com/gnacho/netpulse/issues/656)). Los clientes por cable de un punto de acceso puente (dumb AP en la misma LAN que el router principal) aparecen bajo ese AP en vez de subir al padre; los dispositivos callados (TVs, receptores, reproductores) conservan su sitio en el mapa en lugar de caerse de su switch cada vez que se duermen; y los iconos ya no se intercambian posiciones en cada refresco.
+- **El layout lo ajustas tú** ([#656](https://github.com/gnacho/netpulse/issues/656)). Un modo de edición (solo admin) permite arrastrar routers, switches y dispositivos para acercar o alejar los satélites; al guardar, el layout queda congelado y solo cambia si vuelves a editarlo o lo restableces al automático.
+- **Los hosts de Proxmox se ven como nodos con sus VMs anidadas debajo** ([#561](https://github.com/gnacho/netpulse/issues/561)). Cada host PVE se dibuja como nodo redondo con su nombre, sus contenedores agrupados bajo él con badge +N, y arrastrar el host mueve a toda su familia de VMs. La tarjeta de dispositivo gana además un botón discreto "Etiquetar" para etiquetar sin teclear la MAC.
+
+### Anterior (v2.28.17)
 
 - **Un router OpenWrt ya no muestra un falso "host key changed" al sondearlo** ([#651](https://github.com/gnacho/netpulse/issues/651)). El descubrimiento (openssh con `accept-new`) solo fijaba la host key del algoritmo que negociaba (ed25519), mientras que el pool de sondeo (Go) negocia otro (ecdsa/rsa) con el mismo servidor; un router con varias host keys mostraba un "ssh host key changed" espurio y pedía un re-onboard sin motivo. El descubrimiento fija ahora **todas** las host keys del router (ed25519, ecdsa y rsa), así el sondeo siempre encuentra la suya, sin debilitar la protección anti-MITM: si un router cambia todas sus claves (reflash), la detección de "host key changed" sigue activa.
 
