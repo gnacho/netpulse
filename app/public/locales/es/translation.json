@@ -1148,7 +1148,8 @@
       "snmpPort": "Puerto",
       "snmpPollInterval": "Intervalo (s)",
       "sshPort": "Puerto SSH",
-      "sshPortHint": "Puerto SSH del router (22 por defecto)"
+      "sshPortHint": "Puerto SSH del router (22 por defecto)",
+      "openWrtBadge": "OpenWrt"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

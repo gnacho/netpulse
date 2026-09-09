@@ -660,9 +660,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                       <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
                         {t('settings.routers.agentOnlyBadge')}
                       </span>
-                    ) : (
+                    ) : r.type === 'managed-switch' ? (
                       <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
                         {t('settings.routers.typeManaged')}
+                      </span>
+                    ) : r.type === 'external' ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
+                        {t('settings.routers.typeExternal')}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary ring-1 ring-inset ring-border">
+                        {t('settings.routers.openWrtBadge')}
                       </span>
                     )}
                   </td>
