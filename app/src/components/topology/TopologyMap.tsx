@@ -134,6 +134,11 @@ function TooltipCard({
       )}
       style={{ left: tip.left, top: tip.top }}
       role="tooltip"
+      // #656: el pointerdown NO debe burbujear al contenedor del mapa: si lo
+      // hace, arranca un pan (captura de puntero + drag) y cualquier micro
+      // movimiento al pulsar "Etiquetar" desplaza el mapa, un chip pasa bajo
+      // el cursor, su hover reemplaza esta tarjeta y el clic se pierde.
+      onPointerDown={(e) => e.stopPropagation()}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
@@ -371,9 +376,9 @@ function ChipTooltip({
             e.stopPropagation()
             onTag()
           }}
-          className="mt-2.5 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[12px] font-semibold text-canvas transition-opacity hover:opacity-90"
+          className="mt-2.5 flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-canvas/40 px-2.5 text-[11px] font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
         >
-          <Tag className="h-3.5 w-3.5" strokeWidth={2} />
+          <Tag className="h-3 w-3" strokeWidth={1.75} />
           {t('topology.tagThis')}
         </button>
       )}
