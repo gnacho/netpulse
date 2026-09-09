@@ -294,10 +294,13 @@ func (s *Store) HourlyFpsTotal(routerID string, hours int) ([]float64, error) {
 	// no haya terminado) y hacia atrás `hours` buckets completos.
 	nowMs := time.Now().Truncate(time.Hour).UnixMilli()
 	startMs := nowMs - int64(hours-1)*bucketMs
-	rows, err := s.db.Query(`SELECT (ts / ?) AS h, port_id, MAX(rx_frames), MAX(tx_frames)
+	// Ojo driver (modernc): `ts / ?` con parámetro se evalúa como REAL y un
+	// ts grande (~1.7e12) pierde precisión (496902.006…). CAST a entero con
+	// literal en el divisor fuerza división entera exacta (issue #648).
+	rows, err := s.db.Query(`SELECT CAST(ts / 3600000 AS INTEGER) AS h, port_id, MAX(rx_frames), MAX(tx_frames)
 		FROM port_series_raw
 		WHERE router_id = ? AND ts >= ?
-		GROUP BY h, port_id ORDER BY h`, bucketMs, routerID, startMs)
+		GROUP BY h, port_id ORDER BY h`, routerID, startMs)
 	if err != nil {
 		return nil, err
 	}
