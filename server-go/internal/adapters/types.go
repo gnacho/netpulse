@@ -179,14 +179,18 @@ type Router struct {
 	// reportar métricas de sistema (#441): switches sondeados por SNMP (#309)
 	// o pushers externos por beacon/scraper (#291). En ese caso CPU/RAM/Temp
 	// van a null y la UI no los pinta. Ausente = vitals disponibles.
-	VitalsAvailable *bool     `json:"vitalsAvailable,omitempty"`
-	CPU             *int      `json:"cpu"`
-	RAM             *int      `json:"ram"`
-	Temp            *int      `json:"temp"`
-	Uptime          string    `json:"uptime"` // "<d>d <h>h" | "—"
-	Clients         int       `json:"clients"`
-	HotMetric       string    `json:"hotMetric,omitempty"` // "temp" solo si temp>65
-	Sparkline       []float64 `json:"sparkline"`
+	VitalsAvailable *bool  `json:"vitalsAvailable,omitempty"`
+	CPU             *int   `json:"cpu"`
+	RAM             *int   `json:"ram"`
+	Temp            *int   `json:"temp"`
+	Uptime          string `json:"uptime"` // "<d>d <h>h" | "—"
+	Clients         int    `json:"clients"`
+	// BandSplit: clientes online por banda (2.4/5/6 GHz + cable) — issue #645.
+	// Misma fuente que Clients (mismo recuento), suma ≤ Clients (los clientes
+	// con banda desconocida "—" no caen en ninguna banda).
+	BandSplit *demoBandSplit `json:"bandSplit,omitempty"`
+	HotMetric string         `json:"hotMetric,omitempty"` // "temp" solo si temp>65
+	Sparkline []float64      `json:"sparkline"`
 	// Backhaul: medio del uplink del router ("cable"|"wifi"). Ausente =
 	// cable/desconocido (router sin wifi o sonda no disponible).
 	Backhaul string `json:"backhaul,omitempty"`

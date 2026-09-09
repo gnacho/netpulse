@@ -8,10 +8,13 @@ import (
 	"time"
 )
 
-// demoBandSplit es el {band24, band5, cable} de los extras demo.
+// demoBandSplit es el {band24, band5, band6, cable} de los extras demo y del
+// desglose de clientes live por router (issue #645). Band6 existe para cuando
+// un dispositivo reporte clientes en 6 GHz.
 type demoBandSplit struct {
 	Band24 int `json:"band24"`
 	Band5  int `json:"band5"`
+	Band6  int `json:"band6"`
 	Cable  int `json:"cable"`
 }
 

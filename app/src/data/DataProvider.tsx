@@ -336,7 +336,7 @@ export const EMPTY_EXTRAS: RouterExtras = {
   soc: '—',
   flash: '—',
   ramMb: 0,
-  bandSplit: { band24: 0, band5: 0, cable: 0 },
+  bandSplit: { band24: 0, band5: 0, band6: 0, cable: 0 },
   trafficNow: 0,
   gatewayLatencySpark: [],
   backhaulSignal: [],

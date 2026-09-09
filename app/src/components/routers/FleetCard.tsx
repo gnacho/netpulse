@@ -250,22 +250,34 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
           </div>
         </div>
 
-        {/* Fila clientes */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-caption font-medium text-text-secondary">
-            <Users className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
-            {t('common.clientsCount', { count: router.clients })}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
-            <Wifi className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> 2.4 GHz · {extras.bandSplit.band24}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
-            <Wifi className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> 5 GHz · {extras.bandSplit.band5}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary">
-            <Cable className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> {t('common.cable')} · {extras.bandSplit.cable}
-          </span>
-        </div>
+        {/* Fila clientes (#645): desglose por banda solo cuando hay clientes
+            en esa banda; un switch sin radios wifi no muestra pills de banda. */}
+        {(() => {
+          const bs = router.bandSplit ?? extras.bandSplit
+          const bands: { key: string; label: string; n: number; Icon: typeof Wifi | typeof Cable }[] = [
+            { key: '24', label: '2.4 GHz', n: bs.band24, Icon: Wifi },
+            { key: '5', label: '5 GHz', n: bs.band5, Icon: Wifi },
+            { key: '6', label: '6 GHz', n: bs.band6, Icon: Wifi },
+            { key: 'cable', label: t('common.cable'), n: bs.cable, Icon: Cable },
+          ].filter((b) => b.n > 0)
+          if (router.clients === 0 && bands.length === 0) return null
+          return (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-caption font-medium text-text-secondary">
+                <Users className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
+                {t('common.clientsCount', { count: router.clients })}
+              </span>
+              {bands.map((b) => (
+                <span
+                  key={b.key}
+                  className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-caption text-text-secondary"
+                >
+                  <b.Icon className="h-3 w-3 text-text-muted" strokeWidth={1.75} /> {b.label} · {b.n}
+                </span>
+              ))}
+            </div>
+          )
+        })()}
       </Link>
     </motion.article>
   )
