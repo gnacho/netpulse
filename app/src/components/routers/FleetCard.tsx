@@ -2,10 +2,11 @@ import { Link } from 'react-router'
 import { AlertTriangle, Cable, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Area, AreaChart, ResponsiveContainer } from 'recharts'
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { useTranslation } from 'react-i18next'
 import { fmtUptime } from '@/i18n'
 import type { Router } from '@/data/mock'
+import { fmtRate } from '@/components/routers/PortSeriesChart'
 import { HealthRing } from '@/components/HealthRing'
 import { MetricBar } from '@/components/MetricBar'
 import { StatusPill } from '@/components/StatusPill'
@@ -54,6 +55,28 @@ interface FleetCardProps {
   refreshKey?: number
 }
 
+/** Tooltip del mini-gráfico de tráfico 24h: hora + valor con su unidad. */
+function TrafficTooltip({
+  active,
+  payload,
+  unit,
+}: {
+  active?: boolean
+  payload?: { payload?: { t: string; v: number } }[]
+  unit: 'fps' | 'bps'
+}) {
+  if (!active || !payload?.length || !payload[0]?.payload) return null
+  const p = payload[0].payload
+  return (
+    <div className="rounded-[10px] border border-border-strong bg-elevated px-3 py-2 shadow-lg">
+      <div className="mb-0.5 font-mono text-caption text-text-muted">{p.t}</div>
+      <div className="font-mono text-mono-sm text-text-primary">
+        {unit === 'fps' ? fmtRate('fps', p.v) : `${p.v >= 10 ? p.v.toFixed(0) : p.v.toFixed(1)} Mbps`}
+      </div>
+    </div>
+  )
+}
+
 /** FleetCard grande de /routers (routers.md §②) */
 export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps) {
   const { t } = useTranslation()
@@ -68,7 +91,17 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   // El gateway real lo marca el server (roleBadge 'Principal'): su tarjeta
   // lleva la pill verde "puerta de enlace", el tile en acento y su modelo.
   const isPrimary = router.roleBadge === 'Principal'
-  const traffic = router.sparkline.map((v, i) => ({ i, v }))
+  // Sparkline 24h (buckets horarios, último = hora actual). Etiqueta cada
+  // punto con su hora para el tooltip (#654).
+  const traffic = router.sparkline.map((v, i) => {
+    const d = new Date()
+    d.setMinutes(0, 0, 0)
+    d.setHours(d.getHours() - (router.sparkline.length - 1 - i))
+    return { t: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), v }
+  })
+  // Fuentes sin throughput bps (switch beacon/SNMP, #648) dibujan el sparkline
+  // como frames/s agregados; el resto, Mbps.
+  const trafficUnit: 'fps' | 'bps' = router.vitalsAvailable === false ? 'fps' : 'bps'
 
   return (
     <motion.article
@@ -235,6 +268,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                     <stop offset="100%" stopColor="#22D3EE" stopOpacity={0} />
                   </linearGradient>
                 </defs>
+                <Tooltip content={<TrafficTooltip unit={trafficUnit} />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
                 <Area
                   type="monotone"
                   dataKey="v"
@@ -242,6 +276,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                   strokeWidth={1.75}
                   fill={`url(#fleet-grad-${router.id})`}
                   dot={false}
+                  activeDot={{ r: 3, strokeWidth: 0, fill: '#22D3EE' }}
                   animationDuration={800}
                   animationEasing="ease-out"
                 />
