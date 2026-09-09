@@ -1148,7 +1148,8 @@
       "snmpPort": "Port",
       "snmpPollInterval": "Interval (s)",
       "sshPort": "SSH port",
-      "sshPortHint": "SSH port of the router (default 22)"
+      "sshPortHint": "SSH port of the router (default 22)",
+      "openWrtBadge": "OpenWrt"
     },
     "overrides": {
       "title": "Topology — manual tagging",
