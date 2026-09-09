@@ -5,10 +5,15 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [2.28.16] - 2026-09-09
+
+### Added
+
+- **Los peers WireGuard se etiquetan por su nombre configurado en OpenWrt (#663)**: en la topología, los peers WireGuard que no estaban ya mapeados a un dispositivo NetPulse se muestran ahora con el nombre legible de la descripción UCI del peer (prioridad: nombre del dispositivo NetPulse → descripción UCI → IP del túnel), en lugar de la IP cruda del túnel. El sondeo lee `wg show dump` y `uci show network` en una sola sesión SSH (con marcador de separación) y conserva el estado de un túnel caído.
 
 ### Fixed
 
+- **Un router OpenWrt nativo ya no aparece como "Managed switch" en la tabla de dispositivos (#660)**: la columna Role distinguía solo gateway y "solo agente", y el resto caía en "Managed switch"; ahora se basa en el tipo del dispositivo y muestra "OpenWrt" para los routers nativos (agente SSH), dejando "Managed switch"/External para los sondeados por SNMP.
 - **El switch sondeado por SNMP ya no pierde el historial de tráfico ni los dispositivos conectados (#661)**: el path SNMP calculaba los contadores de bytes y la tasa por puerto pero nunca los persistía, así que la "historia de tráfico" del switch quedaba vacía aunque el sondeo leyera los datos (vía `recordPortSamples`, la misma ruta que SSH/agente). Además, el FDB ya no descarta las MACs cuyo índice no resolvía a un puerto conocido (antes el switch mostraba 0 dispositivos pese a tener clientes) y se añade un fallback a la tabla Q-BRIDGE para los switches que solo la exponen. La tarjeta de la flota pinta ahora el tráfico agregado del switch en bps, y la gráfica de puertos de un switch SNMP usa bps (los beacons sin contadores de bytes siguen en fps).
 
 ## [2.28.15] - 2026-09-09
