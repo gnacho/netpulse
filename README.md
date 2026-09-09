@@ -95,7 +95,19 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.14)
+### Latest (v2.28.15)
+
+- **Port traffic charts now show frames/s for devices that don't count bytes** ([#641](https://github.com/gnacho/netpulse/issues/641)). RTLPlayground switch beacons (KP-9000) only report cumulative frame counters, not bytes. The server now derives frames/s from those counters (raw, 5m and daily) and the port card in the detail page plots fps instead of bps for sources without byte counters, so a managed switch port chart no longer looks empty.
+- **Fleet cards and the router detail show the real per-band client split** ([#645](https://github.com/gnacho/netpulse/issues/645)). Each router card now lists its online clients by band (2.4/5/6 GHz and wired) computed server-side from the same source as the total, and only renders bands that actually have clients: a switch with no WiFi radios no longer shows WiFi bands stuck at zero.
+- **The traffic sparkline of a switch without bps throughput is no longer a flat zero line** ([#648](https://github.com/gnacho/netpulse/issues/648)). For sources that only report per-port frames, the card's 24h traffic mini-chart is now derived from its ports' frames/s instead of the bps table (which was always empty for them), so the KP-9000 card shows its real activity.
+- **RTLPlayground beacon switches report real firmware, uptime and MAC** ([#639](https://github.com/gnacho/netpulse/issues/639)). The server polls the switch's HTTP console for beacon agents, and the router card now shows the actual firmware version, uptime and MAC of the switch instead of placeholders.
+
+### Fixed
+
+- **A managed switch detail page no longer shows its ports twice** ([#644](https://github.com/gnacho/netpulse/issues/644)). The front-panel LED chassis card duplicated the Ethernet ports card with RJ45 jacks; the front panel is gone and the ports card already shows link, health and per-port history.
+- **Port series of a beacon switch are no longer polluted with zeros** ([#642](https://github.com/gnacho/netpulse/issues/642)). External sources only persist their real counters now, keeping the port series clean.
+
+### Earlier (v2.28.14)
 
 - **The channel plan no longer counts your own mesh as interference, and won't suggest a channel that crosses into DFS** ([#631](https://github.com/gnacho/netpulse/issues/631)). In the channel analysis, the BSSIDs of your own access points no longer score as neighbors (they are excluded by matching the MAC prefix of your monitored routers), and candidate channels are validated against the radio width: at 40/80/160 MHz only blocks that stay out of DFS channels (52-64, 100-144) are offered. This stops NetPulse recommending a channel your mesh satellites already use, or an 80 MHz block that would cross into a DFS band.
 - **Rearm now recovers an agent stuck in a 401 loop** ([#630](https://github.com/gnacho/netpulse/issues/630)). If a restart doesn't bring the agent back, NetPulse regenerates the agent token and applies it on the router (rewrites the env + restarts) without a reinstall, so a token that drifted out of sync is fixed in place. Token rotation on a reinstall is also atomic: if the SSH step fails, the server restores the previous token so the agent never ends up pushing a token that is no longer accepted.

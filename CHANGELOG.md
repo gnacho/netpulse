@@ -5,6 +5,20 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.15] - 2026-09-09
+
+### Added
+
+- **La gráfica de tráfico de los puertos muestra frames/s cuando el dispositivo no mide bytes (#641)**: los agentes beacon de switches RTLPlayground (KP-9000) solo reportan contadores acumulados de tramas, no bytes. El servidor deriva ahora frames/s de esos contadores en los tres niveles (raw, 5m, diario) y la tarjeta de Puertos del detalle los pinta como fps en lugar de bps para las fuentes sin contadores de bytes. Una gráfica de puerto de un switch gestionado deja de aparecer "sin datos" y muestra su tráfico real.
+- **El detalle y la flota muestran el desglose real de clientes por banda (#645)**: cada tarjeta de router (y el detalle) indica sus clientes online por banda (2.4/5/6 GHz y cable) calculado en el servidor con la misma fuente que el total. Solo se pintan las bandas con clientes, así un switch sin radios wifi ya no muestra bandas a 0.
+- **El servidor sondea la consola del switch RTLPlayground para firmware, uptime y MAC (#639)**: los agentes beacon de tipo RTLPlayground exponen ahora la versión de firmware real, el tiempo de actividad y la MAC del switch, leídos de su consola HTTP, y se muestran en la tarjeta del router.
+
+### Fixed
+
+- **El tráfico de los puertos de un switch beacon ya no se ensucia con ceros (#642)**: el push del agente intercalaba muestras a 0 con las buenas del beacon. Ahora las fuentes externas solo persisten sus contadores reales, así las series de los puertos quedan limpias.
+- **El detalle de un switch gestionado ya no pinta sus puertos dos veces (#644)**: la tarjeta de chasis con LEDs de salud (front panel) duplicaba a la de Puertos Ethernet con las bocas RJ45. Se eliminó el front panel del detalle: la tarjeta de puertos ya muestra el estado, la salud y el historial por puerto.
+- **La tarjeta de un switch sin throughput en bps ya no muestra la línea de tráfico 24h plana (#648)**: para fuentes que solo reportan tramas por puerto, el mini-gráfico de tráfico de la tarjeta se deriva ahora de los frames/s de sus puertos en lugar de la tabla de bps (que siempre estaba vacía para ellos).
+
 ## [2.28.14] - 2026-09-08
 
 ### Fixed
