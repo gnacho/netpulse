@@ -10,7 +10,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { animate, motion, useReducedMotion } from 'framer-motion'
-import { Cloud, Laptop, Router as RouterIcon, Smartphone } from 'lucide-react'
+import { Cloud, Laptop, Router as RouterIcon, Smartphone, Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
@@ -106,6 +106,7 @@ function TooltipCard({
   touch,
   wan,
   routerName,
+  onTagDevice,
   onPointerEnter,
   onPointerLeave,
 }: {
@@ -114,6 +115,9 @@ function TooltipCard({
   wan: WanInfo
   /** nombre visible del router del que cuelga un nodo (D8: tooltip dist) */
   routerName: (id: string) => string
+  /** etiquetar el dispositivo desde la propia tarjeta (#656 feedback: más
+   *  sencillo que introducir la MAC a mano) */
+  onTagDevice?: (device: Device) => void
   /** puente de hover (issue #255): cancelar el cierre al entrar en el popup */
   onPointerEnter?: () => void
   onPointerLeave?: () => void
@@ -232,7 +236,12 @@ function TooltipCard({
         </div>
       )}
       {tip.kind === 'chip' && (
-        <ChipTooltip chip={tip.chip} hostCtCount={tip.hostCtCount} ctHost={tip.ctHost} />
+        <ChipTooltip
+          chip={tip.chip}
+          hostCtCount={tip.hostCtCount}
+          ctHost={tip.ctHost}
+          onTag={onTagDevice ? () => onTagDevice(tip.chip.device) : undefined}
+        />
       )}
       {tip.kind === 'dist' && tip.node.kind === 'managed' && (
         <div>
@@ -286,12 +295,15 @@ function ChipTooltip({
   chip,
   hostCtCount = 0,
   ctHost,
+  onTag,
 }: {
   chip: ChipNode
   /** >0 si el chip es un host hipervisor (badge +N en el mapa) */
   hostCtCount?: number
   /** device host cuando el chip es un CT/VM anidado */
   ctHost?: Device
+  /** etiquetar el dispositivo desde la tarjeta (admin+live) */
+  onTag?: () => void
 }) {
   const { t } = useTranslation()
   const d = chip.device
@@ -351,6 +363,19 @@ function ChipTooltip({
       )}
       {!chip.isCt && chip.weak && (
         <div className="mt-1 text-caption font-semibold text-warn">{t('topology.weakSignal')}</div>
+      )}
+      {onTag && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onTag()
+          }}
+          className="mt-2.5 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[12px] font-semibold text-canvas transition-opacity hover:opacity-90"
+        >
+          <Tag className="h-3.5 w-3.5" strokeWidth={2} />
+          {t('topology.tagThis')}
+        </button>
       )}
     </div>
   )
@@ -448,7 +473,7 @@ export function TopologyMap({
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, hypervisorSourceByHost, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const viewRef = useRef<View>({ ...INITIAL_VIEW })
@@ -711,9 +736,11 @@ export function TopologyMap({
   }, [])
 
   // El cierre no es inmediato: si el cursor deja el nodo rumbo al popup (que
-  // flota sobre él), un retardo corto evita que el popup desaparezca antes de
+  // flota sobre él), un retardo evita que el popup desaparezca antes de
   // poder clicarlo (issue #255). Entrar en otro nodo o en el propio popup lo
-  // cancela.
+  // cancela (el tooltip nuevo reemplaza al viejo al instante). #656: 1,2 s
+  // para viajar hasta la tarjeta y usar su botón "Etiquetar"; si el puntero
+  // pasa por otro chip, ese chip abre su propia tarjeta sin esperar.
   const scheduleClose = useCallback(() => {
     if (!hoverCapable) return
     if (hoverCloseTimer.current !== null) return
@@ -721,7 +748,7 @@ export function TopologyMap({
       hoverCloseTimer.current = null
       setTooltip(null)
       setHoverNode(null)
-    }, 180)
+    }, 1200)
   }, [hoverCapable])
 
   const cancelClose = useCallback(() => {
@@ -1391,10 +1418,16 @@ export function TopologyMap({
           {[...ctsByHost.keys()].map((hostId, i) => {
             const host = chips.find((c) => c.id === hostId)
             if (!host) return null
+            // #561: el host sellado vía API PVE se etiqueta "Proxmox"; el
+            // inferido por L2 mantiene la etiqueta genérica de hipervisor.
+            const hostKind =
+              hypervisorSourceByHost.get(hostId) === 'proxmox'
+                ? t('topology.host.proxmox')
+                : t('topology.host.hypervisor')
             return (
               <LabelText key={hostId} x={host.x} y={host.y - 38} anchor="middle" delay={(2.18 + i * 0.03) * T}
                 reduce={reduce ?? false} title={host.device.name}
-                sub={`${t('topology.host.hypervisor')} · ${portName(host.device.port ?? undefined, host.device.portLabel)} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
+                sub={`${hostKind} · ${portName(host.device.port ?? undefined, host.device.portLabel)} · ${ctCountByHost.get(hostId) ?? 0} CT`} />
             )
           })}
           {/* Peers */}
@@ -1433,6 +1466,15 @@ export function TopologyMap({
           touch={!hoverCapable}
           wan={wan}
           routerName={routerName}
+          onTagDevice={
+            onTagDevice
+              ? (device) => {
+                  onTagDevice(device)
+                  setTooltip(null)
+                  setHoverNode(null)
+                }
+              : undefined
+          }
           onPointerEnter={cancelClose}
           onPointerLeave={scheduleClose}
         />

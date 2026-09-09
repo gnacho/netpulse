@@ -864,6 +864,7 @@
     "weakSignal": "Weak signal",
     "zoomControls": "Map zoom controls",
     "tagDevices": "Tag devices",
+    "tagThis": "Tag",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "usteer": {
@@ -890,6 +891,7 @@
     },
     "host": {
       "hypervisor": "hypervisor",
+      "proxmox": "Proxmox",
       "note": "Hypervisor: {{count}} CTs/VMs behind its virtual bridge — not a switch"
     },
     "ct": {

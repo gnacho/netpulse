@@ -864,6 +864,7 @@
     "weakSignal": "Señal débil",
     "zoomControls": "Controles de zoom del mapa",
     "tagDevices": "Etiquetar dispositivos",
+    "tagThis": "Etiquetar",
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
     "usteer": {
@@ -890,6 +891,7 @@
     },
     "host": {
       "hypervisor": "hipervisor",
+      "proxmox": "Proxmox",
       "note": "Hipervisor: {{count}} CTs/VMs tras su bridge virtual — no es un switch"
     },
     "ct": {

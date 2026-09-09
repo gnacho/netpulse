@@ -55,7 +55,17 @@ export default function Topology() {
   const { routers, devices, wan, wireguard, distributionNodes, topology, vm, lastSnapshotAt, requestServerRefresh } =
     useNetPulse()
   const [showLabels, setShowLabels] = useState(true)
-  const [flow, setFlow] = useState(true)
+  // Flujo de paquetes: sin toggle propio (feedback #656); lo gobierna el
+  // ajuste "Reducir animaciones" (netpulse-reduce-motion) y, dentro del mapa,
+  // el reduce-motion del SO. Además useReducedMotion del propio mapa apaga
+  // los SMIL si el SO lo pide.
+  const [flow] = useState(() => {
+    try {
+      return localStorage.getItem('netpulse-reduce-motion') !== 'true'
+    } catch {
+      return true
+    }
+  })
   const [hoverLink, setHoverLink] = useState<string | null>(null)
   const mapApi = useRef<TopologyMapApi>({})
 
@@ -257,16 +267,9 @@ export default function Topology() {
             <Switch checked={showLabels} onCheckedChange={setShowLabels} aria-label={t('topology.showLabels')} />
             {t('topology.labels')}
           </motion.label>
-          <motion.label
-            {...controlMotion(3)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
-          >
-            <Switch checked={flow} onCheckedChange={setFlow} aria-label={t('topology.animateFlow')} />
-            {t('topology.flow')}
-          </motion.label>
           {canEdit && (
             <motion.div
-              {...controlMotion(4)}
+              {...controlMotion(3)}
               className="flex items-center gap-1.5 rounded-xl border border-border bg-surface p-1"
             >
               {editMode ? (

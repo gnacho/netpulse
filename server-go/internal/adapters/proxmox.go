@@ -168,19 +168,25 @@ func (l *Live) fetchPveInventory(client *pve.Client) *pveInventory {
 // "citadel-01"). Esto resuelve el caso real donde el host PVE está en la LAN
 // con su nombre y sus CTs (MACs BC:24:11 o locally-administered) ya visibles
 // como devices sin sellar.
-func (l *Live) sealProxmoxInfra(devices []Device) {
+//
+// Además devuelve los distnodes kind=hypervisor de cada host PVE (con
+// Source="proxmox"): sin ellos el frontend no usa la maquinaria de
+// hipervisor (grid de CTs bajo el host, badge +N, enlaces host→CT) y los CTs
+// quedan como un abanico de chips normales. Los hosts que ya tengan un
+// distnode hypervisor inferido por L2 no se duplican.
+func (l *Live) sealProxmoxInfra(devices []Device, dists []DistributionNode) []DistributionNode {
 	inv := l.pveInventoryCached()
 	if inv == nil {
-		return
+		return dists
 	}
-	applyPVEInfra(devices, inv)
+	return applyPVEInfra(devices, dists, inv)
 }
 
 // applyPVEInfra sella devices con un inventario dado (función pura, testeable
 // sin red ni kv). Ver sealProxmoxInfra para el diseño.
-func applyPVEInfra(devices []Device, inv *pveInventory) {
+func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory) []DistributionNode {
 	if inv == nil || len(inv.ctByMAC) == 0 {
-		return
+		return dists
 	}
 	// Índices. El host de un nodo se casa por IP del nodo (vmbr0, la que da
 	// el cluster) con prioridad, y por nombre del device como fallback. Un
@@ -230,14 +236,50 @@ func applyPVEInfra(devices []Device, inv *pveInventory) {
 	// Sellar los hosts y renombrarlos con el nombre del nodo cuando el device
 	// solo se conoce por MAC (p. ej. "FE:C9:95:97:15:30" → "citadel-01").
 	for node, id := range hostIDByNode {
-		if idx, ok := hostIdxByID[id]; ok {
-			devices[idx].Infra = "hypervisor"
-			if name, ok := nodeNameByID[id]; ok && looksLikeMACName(devices[idx].Name) {
-				devices[idx].Name = name
-				_ = node
+		idx, ok := hostIdxByID[id]
+		if !ok {
+			continue
+		}
+		devices[idx].Infra = "hypervisor"
+		if name, ok := nodeNameByID[id]; ok && looksLikeMACName(devices[idx].Name) {
+			devices[idx].Name = name
+			_ = node
+		}
+	}
+	// CTs por host (para el macCount informativo del distnode).
+	ctCountByHost := map[string]int{}
+	for mac := range inv.ctByMAC {
+		if idx, ok := hostIdxByID[macToDeviceID(mac)]; ok {
+			if h := devices[idx].AttachTo; h != "" {
+				ctCountByHost[h]++
 			}
 		}
 	}
+	// Distnodes kind=hypervisor por host PVE: activan en el frontend el grid
+	// de CTs, el badge +N y los enlaces host→CT. Se saltan los hosts que ya
+	// tengan uno inferido por L2 (no duplicar).
+	existingHost := map[string]bool{}
+	for _, dn := range dists {
+		if dn.Kind == "hypervisor" && dn.HostDeviceID != "" {
+			existingHost[dn.HostDeviceID] = true
+		}
+	}
+	for node, id := range hostIDByNode {
+		if existingHost[id] {
+			continue
+		}
+		idx, ok := hostIdxByID[id]
+		if !ok {
+			continue
+		}
+		dists = append(dists, DistributionNode{
+			ID: "dist-pve-" + node, Kind: "hypervisor",
+			RouterID: devices[idx].RouterID, Port: devices[idx].Port, PortLabel: devices[idx].PortLabel,
+			HostDeviceID: id, Name: node, MacCount: ctCountByHost[id],
+			Source: "proxmox",
+		})
+	}
+	return dists
 }
 
 // looksLikeMACName: true si el nombre del device es una MAC (no tiene nombre

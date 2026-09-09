@@ -2350,9 +2350,11 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	}
 	// Capa 3 PVE (#561): si hay cluster Proxmox configurado, el inventario
 	// read-only sella hypervisor/ct con attachTo correcto (la relación
-	// CT→host no es deducible del L2). Va DESPUÉS de los overrides manuales:
-	// un override explícito del usuario tiene prioridad sobre el sello.
-	l.sealProxmoxInfra(devices)
+	// CT→host no es deducible del L2) y crea los distnodes kind=hypervisor
+	// para que el frontend anide los CTs bajo el host. Va DESPUÉS de los
+	// overrides manuales: un override explícito del usuario tiene prioridad
+	// sobre el sello.
+	distNodes = l.sealProxmoxInfra(devices, distNodes)
 	// Supresión topológica (#332): actualizar grafo parent→child.
 	// Todos los no-gateway cuelgan del gateway.
 	l.mu.Lock()
@@ -2933,7 +2935,8 @@ func (l *Live) GetDevices(context.Context) []Device {
 	l.mu.Unlock()
 	devices, _ := inferTopology(polled, l.buildDevices(polled))
 	// #561: sellado de infraestructura con el inventario PVE (si configurado).
-	l.sealProxmoxInfra(devices)
+	// El detalle no consume distnodes, pero el sellado de devices sí corre.
+	l.sealProxmoxInfra(devices, nil)
 	return devices
 }
 

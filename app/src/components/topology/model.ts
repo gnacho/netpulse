@@ -161,6 +161,8 @@ export interface TopologyModel {
   ctsByHost: Map<string, ChipNode[]>
   /** nº de CTs por host (badge +N) */
   ctCountByHost: Map<string, number>
+  /** origen del hipervisor por hostId ("" = L2; "proxmox" = API PVE, #561) */
+  hypervisorSourceByHost: Map<string, string>
   /** radios de los anillos wifi realmente usados por router (guías punteadas) */
   ringRadii: Map<string, number[]>
   /**
@@ -755,6 +757,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const hypervisorHosts = new Set(
     distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId).map((n) => n.hostDeviceId!),
   )
+  /** origen del hipervisor por host ("proxmox" = sellado vía API PVE, #561) */
+  const hypervisorSourceByHost = new Map<string, string>()
+  for (const n of distributionNodes) {
+    if (n.kind === 'hypervisor' && n.hostDeviceId && n.source) {
+      hypervisorSourceByHost.set(n.hostDeviceId, n.source)
+    }
+  }
 
   for (const node of routerNodes) {
     const isGw = node.id === gatewayNode?.id
@@ -1576,6 +1585,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     distNodes,
     ctsByHost,
     ctCountByHost,
+    hypervisorSourceByHost,
     ringRadii,
     ringOverflowChips,
     links,
