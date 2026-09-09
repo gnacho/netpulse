@@ -95,7 +95,13 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.17)
+### Latest (v2.28.18)
+
+- **The topology map now reflects where things are actually plugged, and it stops jumping around** ([#656](https://github.com/gnacho/netpulse/issues/656)). Wired clients of a bridged access point (a dumb AP on the same LAN as the main router) show under that AP instead of drifting up to the parent; quiet devices (TVs, receivers, media players) keep their place on the map instead of falling off their switch whenever they go silent; and client icons no longer swap spots on every refresh.
+- **The layout is yours to adjust** ([#656](https://github.com/gnacho/netpulse/issues/656)). A new edit mode (admin only) lets you drag routers, switches and devices to bring satellites closer or push them apart; once saved, the layout stays frozen and only changes when you edit it again or reset to the automatic arrangement.
+- **Proxmox hosts show as proper nodes with their VMs nested underneath** ([#561](https://github.com/gnacho/netpulse/issues/561)). Each PVE host renders as a round node labeled with its name, its containers grouped beneath it with a +N badge, and dragging the host moves its whole VM family. The device card also gained a discreet "Tag" button so admins can label a device without typing its MAC.
+
+### Earlier (v2.28.17)
 
 - **An OpenWrt router no longer shows a false "host key changed" when polled** ([#651](https://github.com/gnacho/netpulse/issues/651)). Discovery (OpenSSH with `accept-new`) used to pin only the single host-key algorithm it negotiated (ed25519), while the polling pool (Go) negotiates another one (ecdsa/rsa) with the same server; a router with several host keys then showed a spurious "ssh host key changed" and demanded a pointless re-onboard. Discovery now pins **all** of the router's host keys (ed25519, ecdsa and rsa), so the poller always finds the one it negotiates, without weakening the anti-MITM protection: if a router changes every key (reflash), the "host key changed" detection still kicks in.
 
