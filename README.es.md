@@ -97,7 +97,19 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.14)
+### Última (v2.28.15)
+
+- **La gráfica de tráfico de los puertos muestra frames/s cuando el dispositivo no mide bytes** ([#641](https://github.com/gnacho/netpulse/issues/641)). Los beacons de switches RTLPlayground (KP-9000) solo reportan contadores acumulados de tramas, no bytes. El servidor deriva ahora frames/s de esos contadores (raw, 5m y diario) y la tarjeta de Puertos del detalle dibuja fps en lugar de bps para las fuentes sin contadores de bytes, así la gráfica de un puerto de switch gestionado ya no parece vacía.
+- **La flota y el detalle muestran el desglose real de clientes por banda** ([#645](https://github.com/gnacho/netpulse/issues/645)). Cada tarjeta de router indica ahora sus clientes online por banda (2.4/5/6 GHz y cable) calculado en el servidor con la misma fuente que el total, y solo pinta las bandas que tienen clientes: un switch sin radios wifi ya no muestra bandas wifi a 0.
+- **La línea de tráfico 24h de un switch sin throughput en bps ya no es plana** ([#648](https://github.com/gnacho/netpulse/issues/648)). Para las fuentes que solo reportan tramas por puerto, el mini-gráfico de tráfico de la tarjeta se deriva ahora de los frames/s de sus puertos en lugar de la tabla de bps (que para ellas siempre estaba vacía), así la tarjeta del KP-9000 muestra su actividad real.
+- **Los switches beacon RTLPlayground reportan firmware, uptime y MAC reales** ([#639](https://github.com/gnacho/netpulse/issues/639)). El servidor sondea la consola HTTP del switch de los agentes beacon, y la tarjeta del router muestra ahora la versión de firmware real, el tiempo de actividad y la MAC del switch en lugar de marcadores de posición.
+
+### Arreglado
+
+- **El detalle de un switch gestionado ya no pinta sus puertos dos veces** ([#644](https://github.com/gnacho/netpulse/issues/644)). La tarjeta de chasis con LEDs de salud duplicaba a la de Puertos Ethernet con las bocas RJ45; el front panel ha desaparecido y la tarjeta de puertos ya muestra el enlace, la salud y el historial por puerto.
+- **Las series de puertos de un switch beacon ya no se ensucian con ceros** ([#642](https://github.com/gnacho/netpulse/issues/642)). Las fuentes externas solo persisten ahora sus contadores reales, manteniendo limpias las series de los puertos.
+
+### Anterior (v2.28.14)
 
 - **El plan de canales ya no cuenta tu propia malla como interferencia ni sugiere un canal que cruce a DFS** ([#631](https://github.com/gnacho/netpulse/issues/631)). En el análisis de canales, los BSSID de tus propios puntos de acceso ya no puntúan como vecinos (se excluyen emparejando el prefijo MAC de tus routers monitorizados), y los canales candidatos se validan contra el ancho de la radio: a 40/80/160 MHz solo se ofrecen bloques que no entran en canales DFS (52-64, 100-144). Evita que NetPulse recomiende un canal que ya usan los satélites de tu malla, o un bloque de 80 MHz que cruzaría a banda DFS.
 - **El rearm ahora recupera un agente atascado en bucle de 401** ([#630](https://github.com/gnacho/netpulse/issues/630)). Si un reinicio no trae de vuelta al agente, NetPulse regenera el token del agente y lo aplica en el router (reescribe el `.env` y reinicia) sin reinstalar, así un token desincronizado se arregla en caliente. La rotación de token en un reinstall también es atómica: si el SSH falla, el servidor restaura el token anterior, para que el agente nunca se quede empujando un token que ya no se acepta.
