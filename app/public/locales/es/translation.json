@@ -817,6 +817,7 @@
     "labels": "Etiquetas",
     "edit": "Editar",
     "editHint": "Edita el layout: arrastra los routers y dispositivos para ajustar las distancias. Al guardar, las posiciones quedan fijas y no se reordenan.",
+    "editBanner": "Modo edición: arrastra los routers y dispositivos para ajustar el mapa",
     "editSave": "Guardar",
     "editReset": "Restablecer layout automático",
     "legend": {

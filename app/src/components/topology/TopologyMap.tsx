@@ -588,6 +588,13 @@ export function TopologyMap({
     (id: string, startX: number, startY: number, e: ReactPointerEvent) => {
       if (!editMode || !onMoveNode) return
       e.stopPropagation()
+      // Registrar el puntero y anular pan/pinch: el onPointerDown del
+      // contenedor NO corre (el stopPropagation lo impide) y sin registro el
+      // onPointerMove hace early-return → el arrastre no movía nada (bug
+      // encontrado al validar el preview).
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      drag.current = null
+      pinch.current = null
       dragNode.current = { id, startX, startY, startCX: e.clientX, startCY: e.clientY }
       moved.current = true
       containerRef.current?.setPointerCapture(e.pointerId)
@@ -1058,7 +1065,7 @@ export function TopologyMap({
             <motion.g
               key={node.id}
               transform={`translate(${node.x} ${node.y})`}
-              className="cursor-pointer outline-none"
+              className={editMode ? 'cursor-grab outline-none' : 'cursor-pointer outline-none'}
               role="button"
               tabIndex={0}
               data-node-id={node.id}
@@ -1599,7 +1606,12 @@ const ChipGroup = memo(function ChipGroup({
   const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
   return (
-    <g transform={`translate(${chip.x} ${chip.y})`} data-node-id={chip.id} onPointerDown={onDragStart}>
+    <g
+      transform={`translate(${chip.x} ${chip.y})`}
+      data-node-id={chip.id}
+      className={onDragStart ? 'cursor-grab' : undefined}
+      onPointerDown={onDragStart}
+    >
       <motion.g
         className="cursor-pointer outline-none"
         role="button"

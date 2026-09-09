@@ -817,6 +817,7 @@
     "labels": "Labels",
     "edit": "Edit",
     "editHint": "Edit the layout: drag routers and devices to adjust spacing. When saved, positions stay fixed and no longer reorder.",
+    "editBanner": "Edit mode: drag routers and devices to adjust the map",
     "editSave": "Save",
     "editReset": "Reset to automatic layout",
     "legend": {

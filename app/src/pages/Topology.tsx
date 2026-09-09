@@ -323,6 +323,16 @@ export default function Topology() {
           editMode={canEdit && editMode}
           onMoveNode={canEdit && editMode ? handleMoveNode : undefined}
         />
+        {/* Aviso de modo edición (issue #656): recordatorio visible de que los
+            nodos son arrastrables mientras se edita el layout. */}
+        {canEdit && editMode && (
+          <div
+            className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-xl border border-accent/40 bg-elevated/95 px-4 py-2 text-caption font-medium text-accent shadow-lg backdrop-blur-md"
+            role="status"
+          >
+            {t('topology.editBanner')}
+          </div>
+        )}
         {/* Zoom flotante (móvil: los controles del header quedan lejos del mapa) */}
         <div
           className="absolute right-3 top-3 z-10 flex flex-col gap-0.5 rounded-xl border border-border bg-elevated/90 p-1 backdrop-blur-md lg:hidden"
