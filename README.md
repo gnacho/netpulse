@@ -95,7 +95,16 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.15)
+### Latest (v2.28.16)
+
+- **WireGuard peers are now labeled by their OpenWrt-configured name** ([#663](https://github.com/gnacho/netpulse/issues/663)). In the topology, WireGuard peers that weren't already mapped to a NetPulse device now show the human-readable name from the peer's UCI description (priority: NetPulse device name → UCI description → tunnel IP) instead of the raw tunnel IP. The poll reads `wg show dump` and `uci show network` in a single SSH session and preserves a down tunnel's state.
+
+### Fixed
+
+- **A native OpenWrt router no longer shows as "Managed switch" in the devices table** ([#660](https://github.com/gnacho/netpulse/issues/660)). The Role column only distinguished gateway and "agent only", and everything else fell into "Managed switch"; it now switches on the device type and shows "OpenWrt" for native (SSH agent) routers, leaving "Managed switch"/External for SNMP-polled ones.
+- **An SNMP-polled switch no longer loses its traffic history or connected devices** ([#661](https://github.com/gnacho/netpulse/issues/661)). The SNMP path computed the per-port byte counters and rates but never persisted them, so the switch's traffic history was empty even though the poll read the data (now via `recordPortSamples`, the same path as the SSH/agent flows). The FDB also no longer drops MACs whose index didn't resolve to a known port (before, the switch showed 0 devices despite having clients) and there's a Q-BRIDGE MIB fallback for switches that only expose it that way. The fleet card now plots the switch's aggregate traffic in bps, and the port chart of an SNMP switch uses bps (beacons without byte counters keep using fps).
+
+### Earlier (v2.28.15)
 
 - **Port traffic charts now show frames/s for devices that don't count bytes** ([#641](https://github.com/gnacho/netpulse/issues/641)). RTLPlayground switch beacons (KP-9000) only report cumulative frame counters, not bytes. The server now derives frames/s from those counters (raw, 5m and daily) and the port card in the detail page plots fps instead of bps for sources without byte counters, so a managed switch port chart no longer looks empty.
 - **Fleet cards and the router detail show the real per-band client split** ([#645](https://github.com/gnacho/netpulse/issues/645)). Each router card now lists its online clients by band (2.4/5/6 GHz and wired) computed server-side from the same source as the total, and only renders bands that actually have clients: a switch with no WiFi radios no longer shows WiFi bands stuck at zero.
