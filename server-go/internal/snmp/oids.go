@@ -24,4 +24,7 @@ const (
 
 	OidDot1dTpFdbPort    = ".1.3.6.1.2.1.17.4.3.1.2"
 	OidDot1dBasePortIfIndex = ".1.3.6.1.2.1.17.1.4.1.2"
+	// OidDot1qTpFdbPort: tabla FDB de Q-BRIDGE MIB (RFC 4363). Algunos
+	// switches gestionados solo la exponen (y no la dot1d) → fallback (#661).
+	OidDot1qTpFdbPort = ".1.3.6.1.2.1.17.7.1.2.2.1.2"
 )

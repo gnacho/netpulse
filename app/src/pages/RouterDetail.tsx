@@ -207,9 +207,12 @@ export default function RouterDetail() {
         <PortSeriesChart
           routerId={router.id}
           ports={detail.extras.ethPorts}
-          // #641: managed-switch/external (beacons RTLPlayground, SNMP) no
-          // reportan byte counters → la serie se muestra en frames/s.
-          unit={router.type === 'managed-switch' || router.type === 'external' ? 'fps' : 'bps'}
+          // #641/#661: los beacons RTLPlayground solo reportan tramas (fps),
+          // pero un managed-switch sondeado por SNMP sí tiene contadores de
+          // bytes → se pinta en bps.
+          unit={router.type === 'managed-switch' || router.type === 'external'
+            ? (router.snmpEnabled ? 'bps' : 'fps')
+            : 'bps'}
           className="lg:col-span-12"
         />
       )}

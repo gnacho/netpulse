@@ -51,6 +51,12 @@ export interface Router {
    * llegan a null y la UI no los pinta. Ausente = disponibles.
    */
   vitalsAvailable?: boolean
+  /**
+   * #661: true si el router se sondea por SNMP. Distingue un managed-switch
+   * sondeado por SNMP (reporta contadores de bytes → la gráfica se pinta en
+   * bps) de un beacon/external que solo reporta tramas (fps).
+   */
+  snmpEnabled?: boolean
   cpu: number | null // %
   ram: number | null // %
   temp: number | null // °C

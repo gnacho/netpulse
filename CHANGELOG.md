@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- **El switch sondeado por SNMP ya no pierde el historial de tráfico ni los dispositivos conectados (#661)**: el path SNMP calculaba los contadores de bytes y la tasa por puerto pero nunca los persistía, así que la "historia de tráfico" del switch quedaba vacía aunque el sondeo leyera los datos (vía `recordPortSamples`, la misma ruta que SSH/agente). Además, el FDB ya no descarta las MACs cuyo índice no resolvía a un puerto conocido (antes el switch mostraba 0 dispositivos pese a tener clientes) y se añade un fallback a la tabla Q-BRIDGE para los switches que solo la exponen. La tarjeta de la flota pinta ahora el tráfico agregado del switch en bps, y la gráfica de puertos de un switch SNMP usa bps (los beacons sin contadores de bytes siguen en fps).
+
 ## [2.28.15] - 2026-09-09
 
 ### Added
