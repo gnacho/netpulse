@@ -1030,6 +1030,21 @@ func firmwareOutdated(installed, target string) bool {
 }
 
 // buildRouter construye el Router del contrato (index.js:221-249).
+// countBand acumula un cliente en la banda del desglose (issue #645). La
+// banda "—" (desconocida) no cae en ninguna: suma ≤ total de clientes.
+func countBand(split *demoBandSplit, band string) {
+	switch {
+	case strings.HasPrefix(band, "2.4"):
+		split.Band24++
+	case strings.HasPrefix(band, "5"):
+		split.Band5++
+	case strings.HasPrefix(band, "6"):
+		split.Band6++
+	case band == "cable":
+		split.Cable++
+	}
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -2363,12 +2378,15 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	for i := range routerList {
 		n := 0
+		var split demoBandSplit
 		for _, d := range devices {
 			if d.RouterID == routerList[i].ID && d.Online {
 				n++
+				countBand(&split, d.Band)
 			}
 		}
 		routerList[i].Clients = n
+		routerList[i].BandSplit = &split
 	}
 	adguard := l.pollAdGuard(ctx)
 	wireguard := l.pollWireGuard(devices)
@@ -2800,10 +2818,18 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			clients = append(clients, d)
 		}
 	}
+	// Desglose por banda de los clientes online (issue #645): mismo criterio
+	// que la tarjeta de la flota (solo online; "—" no cae en ninguna banda).
+	var bandSplit demoBandSplit
+	for _, d := range clients {
+		if d.Online {
+			countBand(&bandSplit, d.Band)
+		}
+	}
 	extras := liveExtras{
 		MAC: "—", Firmware: "—", FirmwareUpdated: true, LastReboot: "—",
 		Soc: "—", Flash: "—", RamMb: 0,
-		BandSplit:           demoBandSplit{},
+		BandSplit:           bandSplit,
 		GatewayLatencySpark: []float64{},
 		BackhaulSignal:      []float64{},
 		Radios:              radios,

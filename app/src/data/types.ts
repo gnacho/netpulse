@@ -56,6 +56,11 @@ export interface Router {
   temp: number | null // °C
   uptime: string
   clients: number
+  /**
+   * Clientes online por banda (2.4/5/6 GHz + cable), issue #645. Live lo envía
+   * el server (misma fuente que `clients`); en demo no viaja en el Router.
+   */
+  bandSplit?: { band24: number; band5: number; band6: number; cable: number }
   /** Métrica en umbral (se pinta --warn), p. ej. 'temp' en Patio */
   hotMetric?: 'cpu' | 'ram' | 'temp'
   /**

@@ -17,6 +17,8 @@ import { adguard, routers } from '@/data/mock'
 export interface BandSplit {
   band24: number
   band5: number
+  /** Clientes en 6 GHz (issue #645). 0 si el dispositivo no tiene radios 6 GHz. */
+  band6: number
   cable: number
 }
 
@@ -124,7 +126,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     soc: 'MediaTek MT7986A',
     flash: '8 GB eMMC',
     ramMb: 512,
-    bandSplit: { band24: 4, band5: 10, cable: 3 },
+    bandSplit: { band24: 4, band5: 10, band6: 0, cable: 3 },
     trafficNow: 84.2,
     gatewayLatencySpark: [],
     backhaulSignal: [],
@@ -150,7 +152,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     soc: 'MediaTek MT7981B',
     flash: '128 MB NAND',
     ramMb: 256,
-    bandSplit: { band24: 6, band5: 10, cable: 2 },
+    bandSplit: { band24: 6, band5: 10, band6: 0, cable: 2 },
     trafficNow: 51.7,
     gatewayLatencyMs: 1,
     gatewayLatencySpark: [1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 2, 2, 1, 1, 1, 1, 1],
@@ -185,7 +187,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     soc: 'Rockchip RK3399',
     flash: '32 GB microSD',
     ramMb: 1024,
-    bandSplit: { band24: 4, band5: 4, cable: 1 },
+    bandSplit: { band24: 4, band5: 4, band6: 0, cable: 1 },
     trafficNow: 9.4,
     gatewayLatencyMs: 1,
     gatewayLatencySpark: [1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1],
@@ -218,7 +220,7 @@ export const routerExtras: Record<string, RouterExtras> = {
     soc: 'Qualcomm QCA9563',
     flash: '16 MB SPI',
     ramMb: 128,
-    bandSplit: { band24: 5, band5: 1, cable: 0 },
+    bandSplit: { band24: 5, band5: 1, band6: 0, cable: 0 },
     trafficNow: 1.8,
     gatewayLatencyMs: 2,
     gatewayLatencySpark: [2, 2, 3, 2, 2, 2, 3, 2, 2, 3, 2, 2, 3, 3, 2, 2, 3, 4, 3, 2, 2, 2, 2, 2],
