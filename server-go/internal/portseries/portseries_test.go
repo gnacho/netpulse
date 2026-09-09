@@ -233,3 +233,34 @@ func TestNightlyJobIntegration(t *testing.T) {
 		t.Error("expected 5m buckets after nightly job, got 0")
 	}
 }
+
+// #641: deriveFps calcula frames/s entre muestras consecutivas y deja a 0 el
+// intervalo que cruza un reset del contador (p.ej. reboot del switch).
+func TestDeriveFps(t *testing.T) {
+	base := time.Now().Truncate(time.Second)
+	pts := []PortPoint{
+		{TS: base, RxFrames: 0, TxFrames: 0},
+		{TS: base.Add(30 * time.Second), RxFrames: 3000, TxFrames: 1500}, // 100 rx, 50 tx fps
+		{TS: base.Add(60 * time.Second), RxFrames: 6000, TxFrames: 3000}, // 100 rx, 50 tx fps
+		{TS: base.Add(90 * time.Second), RxFrames: 500, TxFrames: 100},   // reset: contador bajó
+		{TS: base.Add(120 * time.Second), RxFrames: 3500, TxFrames: 2100}, // 100 rx, 66.6 tx fps
+	}
+	deriveFps(pts)
+	// primer punto sin anterior → 0
+	if pts[0].RxFps != 0 || pts[0].TxFps != 0 {
+		t.Fatalf("primer punto debería tener fps 0: %+v", pts[0])
+	}
+	if pts[1].RxFps != 100 || pts[1].TxFps != 50 {
+		t.Fatalf("punto 1: rx=%.1f tx=%.1f, esperaba 100/50", pts[1].RxFps, pts[1].TxFps)
+	}
+	if pts[2].RxFps != 100 || pts[2].TxFps != 50 {
+		t.Fatalf("punto 2: rx=%.1f tx=%.1f, esperaba 100/50", pts[2].RxFps, pts[2].TxFps)
+	}
+	// reset: intervalo a 0
+	if pts[3].RxFps != 0 || pts[3].TxFps != 0 {
+		t.Fatalf("punto 3 (reset) debería tener fps 0: %+v", pts[3])
+	}
+	if pts[4].RxFps != 100 || pts[4].TxFps < 66 || pts[4].TxFps > 67 {
+		t.Fatalf("punto 4: rx=%.1f tx=%.1f, esperaba 100/~66.6", pts[4].RxFps, pts[4].TxFps)
+	}
+}
