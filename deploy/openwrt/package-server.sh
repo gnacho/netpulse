@@ -52,6 +52,16 @@ curl -fsSL "$SDK_URL" -o sdk.tar.zst
 tar --zstd -xf sdk.tar.zst
 SDK_DIR="$WORK_DIR/${SDK_NAME%.tar.zst}"
 
+# Package architecture for the .ipk control file. OpenWrt names the staging
+# dir "target-<arch>_musl", so derive it from there instead of hardcoding a
+# single arch (mediatek/filogic -> aarch64_cortex-a53, x86/64 -> x86_64).
+PKG_ARCH="$(find "$SDK_DIR/staging_dir" -maxdepth 1 -type d -name 'target-*_musl*' -print -quit | sed -E 's#.*/target-(.*)_musl.*#\1#')"
+if [ -z "$PKG_ARCH" ]; then
+  echo "ERROR: could not determine package architecture from the SDK" >&2
+  exit 1
+fi
+echo "  Arch: $PKG_ARCH"
+
 # Stage binary and package files (package name: netpulse, like the Makefile)
 cp "$BINARY" "$WORK_DIR/netpulse"
 chmod 755 "$WORK_DIR/netpulse"
@@ -70,7 +80,7 @@ Version: ${PKG_VERSION}-${PKG_RELEASE}
 Depends: curl, ca-bundle
 License: AGPL-3.0-only
 Section: net
-Architecture: aarch64_cortex-a53
+Architecture: ${PKG_ARCH}
 Maintainer: Nacho <netpulse@cloudless.club>
 Description: NetPulse network monitor (on-box server)
  NetPulse server running on-box: serves the web app and ingests agent
@@ -167,7 +177,11 @@ MAKE
   cd "$SDK_DIR"
   make defconfig >/dev/null 2>&1 || true
   make package/netpulse/compile V=s 2>&1 | tail -15
-  find bin/packages -name "netpulse-*.apk" -exec cp {} "$OUT_DIR/" \;
+  # The apk filename carries no arch, so append it: otherwise the armv8 and
+  # x86/64 builds would collide in the release (same name, --clobber).
+  find bin/packages -name "netpulse-*.apk" | while read -r f; do
+    cp "$f" "$OUT_DIR/$(basename "$f" .apk)_${PKG_ARCH}.apk"
+  done
   echo "  APK: $(ls "$OUT_DIR"/netpulse-*.apk 2>/dev/null || echo 'NOT FOUND')"
 
 else
