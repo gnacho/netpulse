@@ -28,6 +28,13 @@ func (s *server) handleAPIHealth(mode string) http.HandlerFunc {
 		if s.hub != nil {
 			sseConnections = s.hub.Size()
 		}
+		// #681: los agentes conectan por el AgentHub (SSE bidireccional),
+		// distinto del hub de UI. Sin este conteo, con toda la flota de
+		// agentes empujando el health solo refleja las pestañas abiertas.
+		agentSseConnections := 0
+		if s.agentHub != nil {
+			agentSseConnections = len(s.agentHub.ConnectedSlugs())
+		}
 		devicesTotal := 0
 		if s.lastOv != nil {
 			if ov := s.lastOv(); ov != nil {
@@ -36,14 +43,15 @@ func (s *server) handleAPIHealth(mode string) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":              dbOk,
-			"version":         Version,
-			"mode":            mode,
-			"uptimeSec":       int64(time.Since(s.started).Seconds()),
-			"db":              dbStatus,
-			"agentsConnected": agentsConnected,
-			"sseConnections":  sseConnections,
-			"devicesTotal":    devicesTotal,
+			"ok":                  dbOk,
+			"version":             Version,
+			"mode":                mode,
+			"uptimeSec":           int64(time.Since(s.started).Seconds()),
+			"db":                  dbStatus,
+			"agentsConnected":     agentsConnected,
+			"sseConnections":      sseConnections,
+			"agentSseConnections": agentSseConnections,
+			"devicesTotal":        devicesTotal,
 		})
 	}
 }

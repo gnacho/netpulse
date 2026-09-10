@@ -863,7 +863,7 @@ func TestHealthEndpoints(t *testing.T) {
 	}
 	// Métricas operativas (Fase 8): los 3 campos presentes; en demo los
 	// agentes/sse son 0 y devicesTotal viene del overview del poller demo.
-	for _, k := range []string{"agentsConnected", "sseConnections", "devicesTotal"} {
+	for _, k := range []string{"agentsConnected", "sseConnections", "agentSseConnections", "devicesTotal"} {
 		if _, ok := body[k].(float64); !ok {
 			t.Fatalf("%s ausente o no numérico: %v", k, body)
 		}
