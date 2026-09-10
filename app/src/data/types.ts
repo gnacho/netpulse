@@ -298,6 +298,11 @@ export interface AlertEvent {
   description: string
   /** Sugerencia accionable por tipo de alerta (issue #310). Ausente si no aplica. */
   hint?: string
+  /** Slug estable del tipo de alerta (issue #310): el frontend traduce
+   *  título/descripción/hint por clave i18n (#671). Ausente = literal. */
+  type?: string
+  /** Variables de interpolación para esas claves (router, mac, temp…). */
+  vars?: Record<string, string>
   /** LEGADO display: "hace 12 min" — fallback si `ts` no es válido */
   time: string
   /** Unix SEGUNDOS; el frontend calcula el tiempo relativo */

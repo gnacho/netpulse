@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { alertRelTime, relTime } from '@/i18n'
+import { alertDescription, alertHint, alertTitle } from '@/lib/alerts-i18n'
 import type { AlertCategory, AlertConfigLevel, AlertSeverity } from '@/data/types'
 import { ALERT_CATEGORIES } from '@/data/alertConfig'
 import { CountUp } from '@/components/CountUp'
@@ -302,7 +303,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-medium text-text-primary">{ev.title}</span>
+              <span className="truncate text-sm font-medium text-text-primary">{alertTitle(t, ev)}</span>
               {ev.urgent && (
                 <span className="shrink-0 rounded-md bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-danger">
                   {t('alerts.urgentBadge')}
@@ -334,9 +335,9 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
               <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>
             </span>
           </div>
-          <p className="mt-0.5 truncate text-caption text-text-secondary">{ev.description}</p>
-          {ev.hint && (
-            <p className="mt-0.5 truncate text-caption italic text-text-muted">{ev.hint}</p>
+          <p className="mt-0.5 truncate text-caption text-text-secondary">{alertDescription(t, ev)}</p>
+          {alertHint(t, ev) && (
+            <p className="mt-0.5 truncate text-caption italic text-text-muted">{alertHint(t, ev)}</p>
           )}
           {ev.suppressedBy && (
             <p className="mt-0.5 truncate text-caption text-text-muted" title={t('alertSuppression.suppressedHint')}>

@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -9,13 +10,13 @@ import (
 )
 
 const (
-	flapWindow             = 10 * time.Minute
-	flapThreshold          = 5
-	ghostConsecutive       = 3
-	ghostMinHistory        = 12
-	snmpGhostMinDuration   = 5 * time.Minute
-	degradedConsec         = 3
-	degradedMinHistory     = 12
+	flapWindow           = 10 * time.Minute
+	flapThreshold        = 5
+	ghostConsecutive     = 3
+	ghostMinHistory      = 12
+	snmpGhostMinDuration = 5 * time.Minute
+	degradedConsec       = 3
+	degradedMinHistory   = 12
 )
 
 type portKey struct {
@@ -24,14 +25,14 @@ type portKey struct {
 }
 
 type portState struct {
-	up             bool
-	transitions    []time.Time
-	speedMbps      int
-	speedHistory   []int
-	trafficTotal   uint64
-	zeroStreak     int
-	hadTraffic     bool
-	lastTrafficAt  time.Time
+	up            bool
+	transitions   []time.Time
+	speedMbps     int
+	speedHistory  []int
+	trafficTotal  uint64
+	zeroStreak    int
+	hadTraffic    bool
+	lastTrafficAt time.Time
 	// Incidentes abiertos (issue #366): mientras la condición persiste hay
 	// UNA sola alerta viva por puerto (EmitOrUpdate la refresca in situ);
 	// la flag dispara la alerta de recuperación exactamente una vez.
@@ -41,10 +42,10 @@ type portState struct {
 }
 
 type PortMonitor struct {
-	mu               sync.Mutex
-	states           map[portKey]*portState
-	now              func() time.Time
-	ghostEnabled     bool
+	mu           sync.Mutex
+	states       map[portKey]*portState
+	now          func() time.Time
+	ghostEnabled bool
 }
 
 func NewPortMonitor(ghostEnabled bool) *PortMonitor {
@@ -123,6 +124,8 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 			Title:       fmt.Sprintf("Port flapping: %s on %s", p.Label, key.routerID),
 			Description: fmt.Sprintf("%d transitions in %s", len(st.transitions), flapWindow),
 			Hint:        alerts.HintFor(alerts.HintPortFlapping),
+			Type:        alerts.HintPortFlapping,
+			Vars:        map[string]string{"port": p.Label, "router": key.routerID, "count": strconv.Itoa(len(st.transitions)), "window": flapWindow.String()},
 			Time:        "ahora mismo",
 			RouterID:    key.routerID,
 		})
@@ -191,6 +194,8 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now tim
 			Title:       fmt.Sprintf("Ghost port: %s went silent", p.Label),
 			Description: fmt.Sprintf("Port had traffic but zero bytes for %d consecutive polls", st.zeroStreak),
 			Hint:        alerts.HintFor(alerts.HintGhostPort),
+			Type:        alerts.HintGhostPort,
+			Vars:        map[string]string{"port": p.Label, "polls": strconv.Itoa(st.zeroStreak)},
 			Time:        "ahora mismo",
 			RouterID:    key.routerID,
 		})
@@ -235,6 +240,8 @@ func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, now 
 			Title:       fmt.Sprintf("Degraded link: %s at %dMbps (was %dMbps)", p.Label, st.speedMbps, prev),
 			Description: fmt.Sprintf("Port negotiated speed dropped from %d to %d Mbps for %d consecutive polls", prev, st.speedMbps, degradedConsec),
 			Hint:        alerts.HintFor(alerts.HintDegradedLink),
+			Type:        alerts.HintDegradedLink,
+			Vars:        map[string]string{"port": p.Label, "speed": strconv.Itoa(st.speedMbps), "prev": strconv.Itoa(prev), "polls": strconv.Itoa(degradedConsec)},
 			Time:        "ahora mismo",
 			RouterID:    key.routerID,
 		})

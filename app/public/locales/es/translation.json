@@ -78,14 +78,73 @@
     },
     "hints": {
       "agent-down": "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
+      "agent-down-ssh": "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
+      "agent-outdated": "Actualiza el agente desde Ajustes, Agentes (botón Actualizar); si es un panel NetGrip, actualiza desde su propio panel.",
+      "degraded-link": "Revisa el cable y los conectores: un enlace degradado suele ser síntoma de cable dañado o conector flojo.",
+      "device-offline": "Verifica la alimentación y el cable de red del equipo.",
+      "firmware-outdated": "NetPulse es de solo lectura: actualiza el firmware desde LuCI.",
       "gateway-unreachable": "Comprueba la conexión entre la puerta de enlace y el resto de la red.",
+      "ghost-port": "Revisa el cable y el dispositivo conectado: un puerto activo que enmudece suele indicar un cable suelto o un equipo apagado.",
       "high-temperature": "Mejora la ventilación y aleja el router de fuentes de calor.",
       "port-flapping": "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
-      "device-offline": "Verifica la alimentación y el cable de red del equipo.",
       "unknown-device": "Si no lo reconoces, bloquéalo o márcalo como de confianza en Ajustes.",
-      "firmware-outdated": "NetPulse es de solo lectura: actualiza el firmware desde LuCI.",
       "wan-down": "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
+      "wan-slow": "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
       "wifi-weak": "Acerca el dispositivo a un punto de acceso o reubica el AP."
+    },
+    "types": {
+      "agent-down": {
+        "title": "Agente caído en {{router}}",
+        "description": "Sin datos del agente de {{router}} desde hace más de {{confirm}} — usando datos cacheados"
+      },
+      "agent-down-ssh": {
+        "title": "Agente caído en {{router}} — volviendo a SSH",
+        "description": "Sin datos del agente de {{router}} desde hace más de {{confirm}} — sondeo SSH reanudado"
+      },
+      "agent-outdated": {
+        "title": "Agente desactualizado en {{router}}",
+        "description": "{{router}} empuja la versión {{version}}; la última disponible del agente {{kind}} es {{latest}}"
+      },
+      "degraded-link": {
+        "title": "Enlace degradado: {{port}} a {{speed}} Mbps (antes {{prev}} Mbps)",
+        "description": "La velocidad negociada cayó de {{prev}} a {{speed}} Mbps durante {{polls}} sondeos consecutivos"
+      },
+      "device-offline": {
+        "title": "{{router}} offline",
+        "description": "Sin respuesta de {{host}}: {{error}}"
+      },
+      "firmware-outdated": {
+        "title": "Firmware desactualizado",
+        "description": "{{router}}: firmware \"{{firmware}}\" no coincide con el target \"{{target}}\""
+      },
+      "ghost-port": {
+        "title": "Ghost port: {{port}} enmudeció",
+        "description": "El puerto tenía tráfico pero 0 bytes durante {{polls}} sondeos consecutivos"
+      },
+      "high-temperature": {
+        "title": "Temperatura alta en {{router}}",
+        "description": "{{temp}} °C, por encima del umbral (65 °C)"
+      },
+      "port-flapping": {
+        "title": "Port flapping: {{port}} en {{router}}",
+        "description": "{{count}} transiciones en {{window}}"
+      },
+      "unknown-device": {
+        "title": "Dispositivo desconocido",
+        "description": "{{mac}} se ha conectado a {{router}}"
+      },
+      "wan-down": {
+        "title": "Internet caído",
+        "description": "{{router}} responde pero no alcanza internet (100 % de pérdida)"
+      },
+      "wan-slow": {
+        "title": "Velocidad WAN por debajo del plan",
+        "description": "Medido {{down}} Mbps de bajada contra {{plan}} Mbps contratados (menos del {{pct}}% del plan)"
+      },
+      "wifi-weak": {
+        "title": "Señal débil en {{device}}",
+        "description": "{{signal}} dBm en {{router}} — revisa cobertura o acerca un AP"
+      }
     }
   },
   "auth": {

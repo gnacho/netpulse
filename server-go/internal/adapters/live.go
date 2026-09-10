@@ -1169,6 +1169,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 			Title:       "Firmware desactualizado",
 			Description: fmt.Sprintf("%s: firmware %q no coincide con el target %q", name, r.Firmware, p.cfg.FirmwareTarget),
 			Hint:        alerts.HintFor(alerts.HintFirmware),
+			Type:        alerts.HintFirmware,
+			Vars:        map[string]string{"router": name, "firmware": r.Firmware, "target": p.cfg.FirmwareTarget},
 			Time:        "ahora mismo", RouterID: p.cfg.ID,
 		})
 	}
@@ -1414,6 +1416,8 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 				Title:       name + " offline",
 				Description: fmt.Sprintf("Sin respuesta de %s: %v", res.cfg.Host, res.err),
 				Hint:        alerts.HintFor(alerts.HintDeviceOffline),
+				Type:        alerts.HintDeviceOffline,
+				Vars:        map[string]string{"router": name, "host": res.cfg.Host, "error": fmt.Sprint(res.err)},
 				Time:        "ahora mismo", RouterID: res.cfg.ID,
 			})
 		}
@@ -1485,6 +1489,8 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 			Title:       "Internet caído",
 			Description: fmt.Sprintf("%s responde pero no alcanza internet (100 %% de pérdida)", name),
 			Hint:        alerts.HintFor(alerts.HintWanDown),
+			Type:        alerts.HintWanDown,
+			Vars:        map[string]string{"router": name},
 			Time:        "ahora mismo", RouterID: cfg.ID,
 		})
 	}
@@ -1572,6 +1578,18 @@ func (l *Live) persistUnknownAlerted(mac string) {
 	_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "unknown_alerted:"+mac)
 }
 
+// routerDisplayName: nombre visible de un router por id ("" si no está en la
+// flota). Usado por las alertas para interpolar la clave i18n {{router}}.
+// Debe llamarse con l.mu tomado.
+func (l *Live) routerDisplayName(id string) string {
+	for _, r := range l.routers {
+		if r.ID == id {
+			return r.Name
+		}
+	}
+	return id
+}
+
 // emitUnknownDevice: evento "dispositivo desconocido se conecta" (category
 // clients, warn, NO urgente — issue #196). "Desconocido" = sin nombre/alias:
 // device_attrib no guarda alias, así que la señal práctica es un cliente sin
@@ -1584,6 +1602,8 @@ func (l *Live) emitUnknownDevice(d Device) {
 		Title:       "Dispositivo desconocido",
 		Description: fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID),
 		Hint:        alerts.HintFor(alerts.HintUnknownDevice),
+		Type:        alerts.HintUnknownDevice,
+		Vars:        map[string]string{"mac": d.MAC, "router": l.routerDisplayName(d.RouterID)},
 		Time:        "ahora mismo", RouterID: d.RouterID,
 	})
 }
@@ -2343,6 +2363,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 				Severity: "warn", Title: "Temperatura alta en " + router.Name,
 				Description: fmt.Sprintf("%d °C, por encima del umbral (65 °C)", *router.Temp),
 				Hint:        alerts.HintFor(alerts.HintHighTemp),
+				Type:        alerts.HintHighTemp,
+				Vars:        map[string]string{"router": router.Name, "temp": strconv.Itoa(*router.Temp)},
 				Time:        "ahora mismo", RouterID: cfg.ID,
 			})
 		}
@@ -2394,6 +2416,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 					Severity: "warn", Title: "Señal débil en " + d.Name,
 					Description: fmt.Sprintf("%d dBm en %s — revisa cobertura o acerca un AP", *d.SignalDbm, d.RouterID),
 					Hint:        alerts.HintFor(alerts.HintWifiWeak),
+					Type:        alerts.HintWifiWeak,
+					Vars:        map[string]string{"device": d.Name, "signal": strconv.Itoa(*d.SignalDbm), "router": d.RouterID},
 					Time:        "ahora mismo", RouterID: d.RouterID,
 				})
 			}

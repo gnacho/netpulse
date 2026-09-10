@@ -400,6 +400,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						Title:       fmt.Sprintf("Agente caído en %s", name),
 						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — usando datos cacheados", name, confirm),
 						Hint:        alerts.HintFor(alerts.HintAgentDown),
+						Type:        alerts.HintAgentDown,
+						Vars:        map[string]string{"router": name, "confirm": confirm.String()},
 						Time:        "ahora mismo", RouterID: cfg.ID,
 					})
 				} else {
@@ -410,6 +412,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
 						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
 						Hint:        alerts.HintFor(alerts.HintAgentDown),
+						Type:        alerts.HintAgentDownSSH,
+						Vars:        map[string]string{"router": name, "confirm": confirm.String()},
 						Time:        "ahora mismo", RouterID: cfg.ID,
 					})
 				}
@@ -741,6 +745,8 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 			Title:       "Agente desactualizado en " + name,
 			Description: fmt.Sprintf("%s empuja la versión %s; la última disponible del agente %s es %s", name, p.Version, kindLabel, ref),
 			Hint:        alerts.HintFor(alerts.HintAgentOutdated),
+			Type:        alerts.HintAgentOutdated,
+			Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel, "latest": ref},
 			Time:        "ahora mismo", RouterID: cfg.ID,
 		})
 	} else if alerted {
