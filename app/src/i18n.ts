@@ -43,6 +43,18 @@ i18n
     returnNull: false,
   })
 
+// #666: el lang del documento debe seguir al idioma activo. index.html declara
+// lang="es"; si un usuario con la UI en inglés no lo actualizamos, el navegador
+// cree que la página es española y ofrece traducirla — y el traductor destroza
+// los datos (hostnames "crowed" → "crowded"). Con el lang correcto, la UI
+// traducida no dispara la oferta de traducción.
+const applyDocLang = (lng?: string) => {
+  const l = (lng ?? i18n.language ?? 'es').slice(0, 2).toLowerCase()
+  document.documentElement.lang = l === 'en' ? 'en' : 'es'
+}
+applyDocLang()
+i18n.on('languageChanged', applyDocLang)
+
 export default i18n
 
 /** Locale numérico según el idioma activo */
