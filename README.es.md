@@ -97,7 +97,13 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.19)
+### Última (v2.28.20)
+
+- **Los clientes callados se quedan en su AP** ([#678](https://github.com/gnacho/netpulse/issues/678)): un dispositivo cableado tras un AP puente que enmudece ya no se va al router principal — el servidor recuerda dónde está el cable de verdad y solo cuentan las observaciones locales.
+- **Las líneas de los túneles VPN siguen a los nodos** ([#677](https://github.com/gnacho/netpulse/issues/677)): reordenar el mapa ya no deja las curvas WireGuard apuntando al vacío; se trazan del peer a donde está Internet realmente.
+- **El agente se recupera solo tras un corte largo** ([#680](https://github.com/gnacho/netpulse/issues/680)): los payloads caducados del buffer se descartan en vez de bloquear la cola con 401 anti-replay.
+
+### Anterior (v2.28.19)
 
 - **Las alertas (y todo lo demás) en tu idioma** ([#671](https://github.com/gnacho/netpulse/issues/671)). Títulos, descripciones y sugerencias de las alertas los generaba el servidor en español y los usuarios con la app en inglés veían el feed mezclado. Los eventos llevan ahora su tipo y sus valores, y la app los traduce al idioma activo — toda la familia, de dispositivos desconocidos a alertas de puertos.
 - **Tus hostnames sobreviven al traductor del navegador** ([#666](https://github.com/gnacho/netpulse/issues/666)). La página declaraba español incluso con la UI en inglés, así que el navegador ofrecía traducirla — y el traductor "corregía" hostnames como crowed-pixeltab a crowded-pixeltab. El idioma declarado sigue ahora a la UI y los datos de red van marcados como no traducibles.
