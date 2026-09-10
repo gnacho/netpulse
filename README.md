@@ -95,7 +95,13 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.19)
+### Latest (v2.28.20)
+
+- **Quiet clients stay on their AP** ([#678](https://github.com/gnacho/netpulse/issues/678)): a wired device behind a bridged AP that goes silent no longer drifts to the main router — the server remembers where the cable actually is, and only local sightings count.
+- **VPN tunnel lines follow the nodes** ([#677](https://github.com/gnacho/netpulse/issues/677)): rearranging the map no longer leaves WireGuard curves pointing at empty space; they are drawn from the peer to wherever Internet actually is.
+- **The agent recovers on its own after a long outage** ([#680](https://github.com/gnacho/netpulse/issues/680)): stale buffered payloads are discarded instead of deadlocking the queue with anti-replay 401s.
+
+### Earlier (v2.28.19)
 
 - **Alerts (and everything else) render in your language** ([#671](https://github.com/gnacho/netpulse/issues/671)). Alert titles, descriptions and suggestions used to be server-generated Spanish, so English users saw a mixed feed. Events now carry their type and values and the app translates them in the active language — the full family, from unknown devices to port alerts.
 - **Your hostnames survive the browser translator** ([#666](https://github.com/gnacho/netpulse/issues/666)). The page used to declare Spanish even with an English UI, which made browsers offer to translate it — and the translator happily "corrected" hostnames like crowed-pixeltab into crowded-pixeltab. The declared language now follows the UI and network data is marked do-not-translate.

@@ -5,6 +5,14 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.20] - 2026-09-10
+
+### Fixed
+
+- **Los clientes callados de un AP puente ya no se cuelgan del router principal (#678)**: cuando un cliente cableado de un dumb AP deja de hablar, su entrada en el FDB del AP caduca y caía al fallback ARP, donde el gateway gana por orden alfabético. La memoria sticky de puerto ahora solo registra bocas locales (nunca el tránsito que el gateway ve por su uplink) y corrige también el router de un dispositivo ya online, sin fabricar presencia; la evidencia fresca de una boca local del gateway sigue mandando.
+- **Las curvas de los túneles WireGuard siguen a los nodos (#677)**: las dos primeras curvas peer→Internet estaban fijadas para la posición canónica de Internet, así que al reordenar el mapa (modo edición o el reposicionamiento automático) dejaban de aterrizar en el nodo y cruzaban lo que hubiera cerca. Ahora la curva se calcula siempre con las posiciones reales del peer y de Internet.
+- **El agente ya no se atasca con payloads viejos en el buffer (#680)**: tras un corte más largo que la ventana anti-replay, la cabeza de la cola no se podía entregar (401 `stale_payload`) y bloqueaba todo lo que venía detrás durante horas. El agente descarta los payloads caducados en el flush y se recupera en el primer ciclo con conectividad.
+
 ## [2.28.19] - 2026-09-10
 
 ### Added
