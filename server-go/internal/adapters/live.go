@@ -2004,6 +2004,45 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			seen[mac] = seenInfo{routerID, "cable", nil}
 		}
 	}
+	// (5) Atribución sticky (#678): un cableado que este tick solo aparece en el
+	// FDB del gateway por su UPLINK (tránsito) o en la tabla ARP —donde gana el
+	// gateway por orden alfabético— recupera el router real donde la memo lo vio
+	// por última vez en una boca local. Solo corrige ATRIBUCIÓN: no crea
+	// presencia (el dispositivo ya estaba en `seen`). Si el gateway lo ve en una
+	// boca NO-uplink, esa evidencia fresca manda y no se toca.
+	if gwID != "" && len(l.fdbMemo) > 0 {
+		gwPolled := polled[gwID]
+		gwInfraPorts := map[string]bool{}
+		if gwPolled != nil {
+			for mac, port := range gwPolled.fdb {
+				if brMacByRouter[mac] {
+					gwInfraPorts[port] = true
+				}
+			}
+		}
+		l.mu.Lock()
+		memo := l.fdbMemo
+		l.mu.Unlock()
+		nowMs := time.Now().UnixMilli()
+		ttlMs := fdbStickyTTL.Milliseconds()
+		for mac, s := range seen {
+			if s.band != "cable" || s.routerID != gwID {
+				continue
+			}
+			m, ok := memo[mac]
+			if !ok || nowMs-m.ts > ttlMs || m.routerID == "" || m.routerID == gwID {
+				continue
+			}
+			// El gateway solo lo ve por el uplink (o no lo ve en su FDB): el
+			// cable está en el satélite según la última observación local.
+			if gwPolled != nil {
+				if port, inFdb := gwPolled.fdb[mac]; inFdb && !gwInfraPorts[port] {
+					continue // boca local del gateway: evidencia fresca, no tocar
+				}
+			}
+			seen[mac] = seenInfo{m.routerID, "cable", nil}
+		}
+	}
 
 	allMacs := map[string]bool{}
 	for mac := range leasesByMac {
@@ -2371,12 +2410,13 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		l.mu.Unlock()
 		routerList = append(routerList, router)
 	}
-	devices := l.buildDevices(polled)
-	// #656: overlay sticky del FDB. La memo se refresca con el FDB real y se
-	// usa SOLO para inferTopology: los dispositivos callados (entrada FDB
-	// caducada) conservan su boca y no saltan del switch inferido al gateway.
+	// #656/#678: refrescar la memo sticky ANTES de buildDevices (su paso 5 la
+	// usa para atribuir al satélite los dispositivos callados) y usarla también
+	// como overlay de inferTopology (puerto/attachTo).
 	nowMs := time.Now().UnixMilli()
-	stickyPolled := overlayStickyFdb(polled, l.updateFdbMemo(polled, nowMs), nowMs)
+	memo := l.updateFdbMemo(polled, nowMs)
+	devices := l.buildDevices(polled)
+	stickyPolled := overlayStickyFdb(polled, memo, nowMs)
 	devices, distNodes := inferTopology(stickyPolled, devices)
 	// Capa 2 manual (issue #142): overrides de topología tras el autodiscover.
 	// Sin BD (tests/demo) → no-op.
@@ -2970,11 +3010,13 @@ func (l *Live) GetDevices(context.Context) []Device {
 	l.mu.Lock()
 	polled := l.lastPolled
 	l.mu.Unlock()
-	// #656: overlay sticky del FDB (paridad con el overview) ANTES del sellado
-	// PVE, que sobreescribe attachTo con ground truth del cluster.
+	// #656/#678: memo sticky fresca ANTES de buildDevices (atribución) y como
+	// overlay de inferTopology (paridad con el overview), ANTES del sellado PVE
+	// (que sobreescribe attachTo con ground truth del cluster).
 	detailNowMs := time.Now().UnixMilli()
+	detailMemo := l.updateFdbMemo(polled, detailNowMs)
 	devices, _ := inferTopology(
-		overlayStickyFdb(polled, l.updateFdbMemo(polled, detailNowMs), detailNowMs),
+		overlayStickyFdb(polled, detailMemo, detailNowMs),
 		l.buildDevices(polled),
 	)
 	// #561: sellado de infraestructura con el inventario PVE (si configurado).
