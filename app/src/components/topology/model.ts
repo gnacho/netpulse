@@ -244,11 +244,10 @@ const PEER_COORDS = [
   { x: 140, y: 26 },
   { x: 860, y: 26 },
 ]
-/** Túneles WG canónicos peer→Internet */
-const WG_PATHS = [
-  { d: 'M 272 44 C 330 82, 410 94, 474 80', dur: 3 },
-  { d: 'M 728 44 C 670 82, 590 94, 526 80', dur: 3.4 },
-]
+/** Duración del paquete animado por peer en los túneles WG. Las curvas se
+ *  calculan SIEMPRE dinámicas (peer → posición real de Internet): las
+ *  estáticas canónicas quedaban desancladas cuando el layout cambia (#677). */
+const WG_DURS = [3, 3.4]
 /** Anillos wifi: radios ajustados para caber muchos chips (el resolver de
  *  colisiones mantiene 0 solapes). Suma de caps = topoGatewayRingCap (60) /
  *  topoAPRingCap (40) del server — deben coincidir para que GW_RING_VISIBLE
@@ -1295,12 +1294,11 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
   }
   peerNodes.forEach((node, i) => {
-    const p = WG_PATHS[i] ?? { d: '', dur: 3.2 }
-    const d = p.d || `M ${node.x + 7} ${node.y + 18} C ${node.x + 60} ${node.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
+    const d = `M ${node.x + 7} ${node.y + 18} C ${node.x + 60} ${node.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
     links.push({
       id: `wg-${node.peer.id}`, kind: 'wg',
       d, lx: 0, ly: 0, label: '',
-      width: 2, packets: 1, packetDur: p.dur,
+      width: 2, packets: 1, packetDur: WG_DURS[i] ?? 3.2,
       from: node.id, to: 'internet',
     })
   })
@@ -1378,12 +1376,11 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         case 'wg': {
           const pn = peerNodes.find((p) => p.id === sl.from)
           if (!pn) return null
-          const p = WG_PATHS[wgIdx] ?? { d: '', dur: 3.2 }
-          const d = p.d || `M ${pn.x + 7} ${pn.y + 18} C ${pn.x + 60} ${pn.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
+          const d = `M ${pn.x + 7} ${pn.y + 18} C ${pn.x + 60} ${pn.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
           return {
             id: `wg-${pn.peer.id}`, kind: 'wg',
             d, lx: 0, ly: 0, label: '',
-            width: 2, packets: 1, packetDur: p.dur,
+            width: 2, packets: 1, packetDur: WG_DURS[wgIdx] ?? 3.2,
             from: sl.from, to: sl.to,
           }
         }
