@@ -3,6 +3,7 @@ package adapters
 
 import (
 	"testing"
+	"time"
 )
 
 // TestOverlayStickyFdb: las MACs recordadas (frescas) que faltan en el FDB
@@ -103,5 +104,75 @@ func TestUpdateFdbMemoRefreshAndPrune(t *testing.T) {
 	}
 	if m, ok := memo["BB:BB:BB:BB:BB:BB"]; !ok || m.port != "lan2" || m.routerID != "gateway" {
 		t.Fatalf("la entrada fresca debería estar: %+v", memo)
+	}
+}
+
+// TestUpdateFdbMemoIgnoresUplinkSightings (#678): la memo solo guarda bocas
+// LOCALES; una observación en la boca que aprende la MAC de bridge de otro
+// router (uplink = tránsito) no se memoriza ni pisa una observación local.
+func TestUpdateFdbMemoIgnoresUplinkSightings(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	now := int64(1_700_000_000_000)
+	polled := map[string]*routerPolled{
+		"gateway": {cfg: RouterConfig{ID: "gateway", IsGateway: true}, brMac: "GG:GG:GG:GG:GG:GG",
+			fdb: map[string]string{
+				"GG:GG:GG:GG:GG:GG": "lan1", // bridge propio
+				"AA:AA:AA:AA:AA:AA": "lan1", // bridge del AP → lan1 = uplink (infra)
+				"44:44:44:44:44:44": "lan1", // cliente del AP, visto en tránsito
+			}},
+		"ap": {cfg: RouterConfig{ID: "ap"}, brMac: "AA:AA:AA:AA:AA:AA",
+			fdb: map[string]string{
+				"AA:AA:AA:AA:AA:AA": "lan1",
+				"44:44:44:44:44:44": "lan3", // boca LOCAL del AP
+			}},
+	}
+	memo := l.updateFdbMemo(polled, now)
+	if m, ok := memo["44:44:44:44:44:44"]; !ok || m.routerID != "ap" || m.port != "lan3" {
+		t.Fatalf("la boca local del AP debe ganar en la memo: %+v", memo["44:44:44:44:44:44"])
+	}
+	// La MAC de bridge del AP en lan1 del gateway no debe memorizarse como cliente.
+	if _, ok := memo["AA:AA:AA:AA:AA:AA"]; ok {
+		t.Fatalf("la MAC de bridge no debería estar en la memo: %+v", memo)
+	}
+}
+
+// TestBuildDevicesStickySatelliteAttribution (#678): un dispositivo callado que
+// este tick solo aparece por ARP (atribuido al gateway por orden alfabético)
+// recupera el satélite donde la memo lo vio por última vez en una boca local.
+func TestBuildDevicesStickySatelliteAttribution(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{{ID: "gateway", Name: "GW", IsGateway: true}}, nil)
+	now := time.Now().UnixMilli()
+	l.fdbMemo["44:44:44:44:44:44"] = fdbPortMemo{routerID: "ap", port: "lan3", ts: now}
+	polled := map[string]*routerPolled{
+		"gateway": {cfg: RouterConfig{ID: "gateway", IsGateway: true}, brMac: "GG:GG:GG:GG:GG:GG",
+			fdb: map[string]string{"GG:GG:GG:GG:GG:GG": "lan1", "AA:AA:AA:AA:AA:AA": "lan1"},
+			arp: map[string]string{"44:44:44:44:44:44": "192.168.13.123"}},
+		"ap": {cfg: RouterConfig{ID: "ap", Name: "Luizjana2"}, brMac: "AA:AA:AA:AA:AA:AA",
+			fdb: map[string]string{"AA:AA:AA:AA:AA:AA": "lan1"}},
+	}
+	devs := l.buildDevices(polled)
+	if d := mustDevice(t, devs, "44:44:44:44:44:44"); d.RouterID != "ap" {
+		t.Fatalf("RouterID=%q (want ap por la memo sticky)", d.RouterID)
+	}
+}
+
+// TestBuildDevicesGatewayLocalWinsOverSticky (#678): si el gateway ve el
+// dispositivo en una boca NO-uplink, esa evidencia fresca manda sobre la memo.
+func TestBuildDevicesGatewayLocalWinsOverSticky(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{{ID: "gateway", Name: "GW", IsGateway: true}}, nil)
+	now := time.Now().UnixMilli()
+	l.fdbMemo["44:44:44:44:44:44"] = fdbPortMemo{routerID: "ap", port: "lan3", ts: now}
+	polled := map[string]*routerPolled{
+		"gateway": {cfg: RouterConfig{ID: "gateway", IsGateway: true}, brMac: "GG:GG:GG:GG:GG:GG",
+			fdb: map[string]string{
+				"GG:GG:GG:GG:GG:GG": "lan1",
+				"44:44:44:44:44:44": "lan4", // boca local del gateway (no infra)
+			}},
+		"ap": {cfg: RouterConfig{ID: "ap"}, brMac: "AA:AA:AA:AA:AA:AA",
+			fdb: map[string]string{"AA:AA:AA:AA:AA:AA": "lan1"}},
+	}
+	devs := l.buildDevices(polled)
+	if d := mustDevice(t, devs, "44:44:44:44:44:44"); d.RouterID != "gateway" {
+		t.Fatalf("RouterID=%q (want gateway: boca local fresca manda)", d.RouterID)
 	}
 }
