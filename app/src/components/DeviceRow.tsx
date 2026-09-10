@@ -134,7 +134,7 @@ export function DeviceRow({ device, variant = 'compact', className, onClick }: D
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-text-primary">{device.name}</span>
+          <span className="truncate text-sm font-medium text-text-primary" translate="no">{device.name}</span>
           {device.isNew && (
             <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
               {t('devices.new')}

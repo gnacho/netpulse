@@ -106,12 +106,12 @@ export function RouterClients({ router }: { router: Router }) {
                         <Icon className="h-4 w-4" strokeWidth={1.75} />
                       </span>
                       <div>
-                        <div className="font-medium text-text-primary">{d.name}</div>
+                        <div className="font-medium text-text-primary" translate="no">{d.name}</div>
                         <div className="text-caption text-text-muted">{d.manufacturer}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 pr-3 font-mono text-mono-sm text-text-secondary">{d.ip}</td>
+                  <td className="py-3 pr-3 font-mono text-mono-sm text-text-secondary" translate="no">{d.ip}</td>
                   <td className="py-3 pr-3 capitalize text-text-secondary">{t(`devices.types.${d.type}`)}</td>
                   <td className="py-3 pr-3">
                     <span className="rounded-full bg-elevated px-2 py-0.5 font-mono text-caption text-text-secondary">{d.band}</span>

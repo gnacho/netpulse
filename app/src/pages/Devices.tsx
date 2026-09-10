@@ -263,7 +263,7 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
           <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-52 rounded-xl border border-border-strong bg-elevated p-3 group-hover:block">
             <div className="mb-1.5 text-label uppercase text-text-muted">{t('devices.stats.seenThisWeek')}</div>
             {newThisWeekDevices.map((d) => (
-              <div key={d.id} className="truncate py-0.5 text-xs text-text-secondary">
+              <div key={d.id} className="truncate py-0.5 text-xs text-text-secondary" translate="no">
                 {d.name}
                 <span className="text-text-muted"> · {d.firstSeen}</span>
               </div>
@@ -818,7 +818,7 @@ function ListRow({
           <DeviceTile device={device} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-text-primary">{device.name}</span>
+              <span className="truncate text-sm font-medium text-text-primary" translate="no">{device.name}</span>
               <button
                 type="button"
                 onClick={(e) => {
@@ -978,7 +978,7 @@ function GridCard({
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-text-primary">{device.name}</span>
+          <span className="truncate text-sm font-medium text-text-primary" translate="no">{device.name}</span>
           {infra && <InfraBadge info={infra} />}
           <TypeBadge type={device.type} />
         </div>
