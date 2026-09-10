@@ -97,7 +97,13 @@ enlazada al issue de GitHub que la originó.
 > Están escritas para personas, no como changelog: qué hace la función por ti,
 > no los nombres de las funciones internas.
 
-### Última (v2.28.18)
+### Última (v2.28.19)
+
+- **Las alertas (y todo lo demás) en tu idioma** ([#671](https://github.com/gnacho/netpulse/issues/671)). Títulos, descripciones y sugerencias de las alertas los generaba el servidor en español y los usuarios con la app en inglés veían el feed mezclado. Los eventos llevan ahora su tipo y sus valores, y la app los traduce al idioma activo — toda la familia, de dispositivos desconocidos a alertas de puertos.
+- **Tus hostnames sobreviven al traductor del navegador** ([#666](https://github.com/gnacho/netpulse/issues/666)). La página declaraba español incluso con la UI en inglés, así que el navegador ofrecía traducirla — y el traductor "corregía" hostnames como crowed-pixeltab a crowded-pixeltab. El idioma declarado sigue ahora a la UI y los datos de red van marcados como no traducibles.
+- **Paquetes OpenWrt para x86/64** ([#672](https://github.com/gnacho/netpulse/issues/672)). El agente y el servidor on-router se publican también para sistemas x86/64 (.ipk 24.10, .apk 25.12), con la arquitectura del paquete derivada del SDK.
+
+### Anterior (v2.28.18)
 
 - **El mapa de topología refleja ya dónde está enchufado cada equipo, y deja de saltar** ([#656](https://github.com/gnacho/netpulse/issues/656)). Los clientes por cable de un punto de acceso puente (dumb AP en la misma LAN que el router principal) aparecen bajo ese AP en vez de subir al padre; los dispositivos callados (TVs, receptores, reproductores) conservan su sitio en el mapa en lugar de caerse de su switch cada vez que se duermen; y los iconos ya no se intercambian posiciones en cada refresco.
 - **El layout lo ajustas tú** ([#656](https://github.com/gnacho/netpulse/issues/656)). Un modo de edición (solo admin) permite arrastrar routers, switches y dispositivos para acercar o alejar los satélites; al guardar, el layout queda congelado y solo cambia si vuelves a editarlo o lo restableces al automático.
