@@ -4,9 +4,10 @@ name: openwrt-package
 # published release:
 #   - netpulse-agent as .ipk (24.10 SDK, mediatek/filogic) and .apk (25.12
 #     SDK, armsr/armv8 -> aarch64_generic, instalable en aarch64 genérico y
-#     en cortex-a53, cubriendo routers fuera de cortex-a53).
+#     en cortex-a53, cubriendo routers fuera de cortex-a53). Also built for
+#     x86/64 (amd64 binary) since #672.
 #   - luci-app-netpulse (arch all) as .ipk and .apk (#236).
-#   - netpulse on-box server as .ipk and .apk (#364).
+#   - netpulse on-box server as .ipk and .apk (#364), also for x86/64 (#672).
 #
 # Triggered on v* tag pushes, the SAME event that runs release.yml. It does
 # not rely on the `release` event for goreleaser-published releases: goreleaser
@@ -41,9 +42,19 @@ jobs:
           - sdk-version: 24.10.5
             sdk-target: mediatek/filogic
             format: ipk
+            goarch: arm64
           - sdk-version: 25.12.5
             sdk-target: armsr/armv8
             format: apk
+            goarch: arm64
+          - sdk-version: 24.10.5
+            sdk-target: x86/64
+            format: ipk
+            goarch: amd64
+          - sdk-version: 25.12.5
+            sdk-target: x86/64
+            format: apk
+            goarch: amd64
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +76,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           for i in $(seq 1 80); do
-            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'netpulse-agent_.*_linux_arm64.tar.gz'; then
+            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q "netpulse-agent_.*_linux_${{ matrix.goarch }}.tar.gz"; then
               echo "Agent tarballs present after $i attempts"
               exit 0
             fi
@@ -75,14 +86,14 @@ jobs:
           echo "ERROR: agent tarballs not found on $TAG after 20 min" >&2
           exit 1
 
-      - name: Download netpulse-agent arm64 binary
+      - name: Download netpulse-agent ${{ matrix.goarch }} binary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          gh release download "$TAG" -p "netpulse-agent_*_linux_arm64.tar.gz" --dir /tmp/agent
+          gh release download "$TAG" -p "netpulse-agent_*_linux_${{ matrix.goarch }}.tar.gz" --dir /tmp/agent
           cd /tmp/agent
-          tar xzf netpulse-agent_*_linux_arm64.tar.gz
+          tar xzf netpulse-agent_*_linux_${{ matrix.goarch }}.tar.gz
           ls -la netpulse-agent
           file netpulse-agent
 
@@ -183,9 +194,19 @@ jobs:
           - sdk-version: 24.10.5
             sdk-target: mediatek/filogic
             format: ipk
+            goarch: arm64
           - sdk-version: 25.12.5
             sdk-target: armsr/armv8
             format: apk
+            goarch: arm64
+          - sdk-version: 24.10.5
+            sdk-target: x86/64
+            format: ipk
+            goarch: amd64
+          - sdk-version: 25.12.5
+            sdk-target: x86/64
+            format: apk
+            goarch: amd64
 
     steps:
       - uses: actions/checkout@v4
@@ -207,7 +228,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           for i in $(seq 1 80); do
-            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'netpulse_.*_linux_arm64.tar.gz'; then
+            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q "netpulse_.*_linux_${{ matrix.goarch }}.tar.gz"; then
               echo "Server tarball present after $i attempts"
               exit 0
             fi
@@ -217,14 +238,14 @@ jobs:
           echo "ERROR: server tarball not found on $TAG after 20 min" >&2
           exit 1
 
-      - name: Download netpulse server arm64 binary
+      - name: Download netpulse server ${{ matrix.goarch }} binary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          gh release download "$TAG" -p "netpulse_*_linux_arm64.tar.gz" --dir /tmp/server
+          gh release download "$TAG" -p "netpulse_*_linux_${{ matrix.goarch }}.tar.gz" --dir /tmp/server
           cd /tmp/server
-          tar xzf netpulse_*_linux_arm64.tar.gz
+          tar xzf netpulse_*_linux_${{ matrix.goarch }}.tar.gz
           ls -la netpulse
           file netpulse
 

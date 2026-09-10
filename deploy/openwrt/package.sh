@@ -62,6 +62,16 @@ curl -fsSL "$SDK_URL" -o sdk.tar.zst
 tar --zstd -xf sdk.tar.zst
 SDK_DIR="$WORK_DIR/${SDK_NAME%.tar.zst}"
 
+# Package architecture for the .ipk control file. OpenWrt names the staging
+# dir "target-<arch>_musl", so derive it from there instead of hardcoding a
+# single arch (mediatek/filogic -> aarch64_cortex-a53, x86/64 -> x86_64).
+PKG_ARCH="$(find "$SDK_DIR/staging_dir" -maxdepth 1 -type d -name 'target-*_musl*' -print -quit | sed -E 's#.*/target-(.*)_musl.*#\1#')"
+if [ -z "$PKG_ARCH" ]; then
+  echo "ERROR: could not determine package architecture from the SDK" >&2
+  exit 1
+fi
+echo "  Arch: $PKG_ARCH"
+
 # Stage the binary and package files
 cp "$BINARY" "$WORK_DIR/netpulse-agent"
 chmod 755 "$WORK_DIR/netpulse-agent"
@@ -81,7 +91,7 @@ Version: ${PKG_VERSION:-0.0.0}-${PKG_RELEASE:-1}
 Depends: iw
 License: AGPL-3.0-only
 Section: utils
-Architecture: aarch64_cortex-a53
+Architecture: ${PKG_ARCH}
 Maintainer: Nacho <netpulse@cloudless.club>
 Description: NetPulse native agent for OpenWrt
  Native OpenWrt agent for NetPulse network monitor. Probes the local
@@ -190,7 +200,11 @@ MAKE
   # cuanto falta .config y muere con 'Error opening terminal' en CI).
   make defconfig >/dev/null 2>&1 || true
   make package/netpulse-agent/compile V=s 2>&1 | tail -20
-  find bin/packages -name "netpulse-agent*.apk" -exec cp {} "$OUT_DIR/" \;
+  # The apk filename carries no arch, so append it: otherwise the armv8 and
+  # x86/64 builds would collide in the release (same name, --clobber).
+  find bin/packages -name "netpulse-agent*.apk" | while read -r f; do
+    cp "$f" "$OUT_DIR/$(basename "$f" .apk)_${PKG_ARCH}.apk"
+  done
   echo "  APK: $(ls "$OUT_DIR"/netpulse-agent*.apk 2>/dev/null || echo 'NOT FOUND')"
 
 else
