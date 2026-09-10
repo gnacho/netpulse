@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.28.21] - 2026-09-10
+
+### Fixed
+
+- **`/api/health` cuenta ahora los SSE de los agentes (#681)**: `sseConnections` solo reflejaba las pestañas del navegador; los agentes conectan por su propio hub y quedaban invisibles (con toda la flota empujando, el health leía 0-1). Se añade `agentSseConnections` alongside, con el mismo significado para el contador de UI.
+
 ## [2.28.20] - 2026-09-10
 
 ### Fixed
