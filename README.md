@@ -95,7 +95,13 @@ latest improvements, each linked to the GitHub issue that drove it.
 > These are written for people, not changelogs: what the feature does for you,
 > not the function names behind it.
 
-### Latest (v2.28.18)
+### Latest (v2.28.19)
+
+- **Alerts (and everything else) render in your language** ([#671](https://github.com/gnacho/netpulse/issues/671)). Alert titles, descriptions and suggestions used to be server-generated Spanish, so English users saw a mixed feed. Events now carry their type and values and the app translates them in the active language — the full family, from unknown devices to port alerts.
+- **Your hostnames survive the browser translator** ([#666](https://github.com/gnacho/netpulse/issues/666)). The page used to declare Spanish even with an English UI, which made browsers offer to translate it — and the translator happily "corrected" hostnames like crowed-pixeltab into crowded-pixeltab. The declared language now follows the UI and network data is marked do-not-translate.
+- **OpenWrt packages for x86/64** ([#672](https://github.com/gnacho/netpulse/issues/672)). The agent and on-router server are now published for x86/64 systems (24.10 .ipk, 25.12 .apk), with the package architecture derived from the SDK.
+
+### Earlier (v2.28.18)
 
 - **The topology map now reflects where things are actually plugged, and it stops jumping around** ([#656](https://github.com/gnacho/netpulse/issues/656)). Wired clients of a bridged access point (a dumb AP on the same LAN as the main router) show under that AP instead of drifting up to the parent; quiet devices (TVs, receivers, media players) keep their place on the map instead of falling off their switch whenever they go silent; and client icons no longer swap spots on every refresh.
 - **The layout is yours to adjust** ([#656](https://github.com/gnacho/netpulse/issues/656)). A new edit mode (admin only) lets you drag routers, switches and devices to bring satellites closer or push them apart; once saved, the layout stays frozen and only changes when you edit it again or reset to the automatic arrangement.
