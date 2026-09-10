@@ -91,7 +91,7 @@ func TestPushBackoffCreceYSeResetea(t *testing.T) {
 	s.mu.Lock()
 	s.fail = false
 	s.mu.Unlock()
-	if err := c.Push(context.Background(), mkPayload(999)); err != nil {
+	if err := c.Push(context.Background(), mkPayload(time.Now().Unix())); err != nil {
 		t.Fatalf("push tras recuperación: %v", err)
 	}
 	if d := c.Delay(interval); d != interval {
@@ -109,9 +109,14 @@ func TestPushBufferDropOldestYDrenadoFIFO(t *testing.T) {
 	c := New(srv.URL, "tok", srv.Client())
 	c.SetBufferCap(100)
 
+	// ts realistas (recientes): los payloads con edad > StaleAfter se
+	// descartarían al drenar en vez de reintentarse (#680) y aquí lo que se
+	// prueba es el FIFO, no el descarte stale.
+	base := time.Now().Unix() - 60
+
 	// Servidor caído: 105 pushes → buffer 100, 5 descartados (los más viejos)
 	for i := 1; i <= 105; i++ {
-		_ = c.Push(context.Background(), mkPayload(int64(i)))
+		_ = c.Push(context.Background(), mkPayload(base+int64(i)))
 	}
 	if c.Buffered() != 100 {
 		t.Fatalf("buffer: %d", c.Buffered())
@@ -120,12 +125,12 @@ func TestPushBufferDropOldestYDrenadoFIFO(t *testing.T) {
 		t.Fatalf("descartados: %d", c.Dropped())
 	}
 
-	// Reconexión: drenado FIFO — el primer ts recibido tras la caída es 6
+	// Reconexión: drenado FIFO — el primer ts recibido tras la caída es base+6
 	s.mu.Lock()
 	s.fail = false
 	s.payloads = nil
 	s.mu.Unlock()
-	if err := c.Push(context.Background(), mkPayload(106)); err != nil {
+	if err := c.Push(context.Background(), mkPayload(base+106)); err != nil {
 		t.Fatalf("drenado: %v", err)
 	}
 	s.mu.Lock()
@@ -133,8 +138,53 @@ func TestPushBufferDropOldestYDrenadoFIFO(t *testing.T) {
 	if len(s.payloads) != 101 {
 		t.Fatalf("drenados: %d", len(s.payloads))
 	}
-	if s.payloads[0].Ts != 6 || s.payloads[100].Ts != 106 {
+	if s.payloads[0].Ts != base+6 || s.payloads[100].Ts != base+106 {
 		t.Fatalf("orden FIFO: primero=%d último=%d", s.payloads[0].Ts, s.payloads[100].Ts)
+	}
+}
+
+// TestPushFlushDescartaStales (#680): un payload buffered con edad >
+// StaleAfter se descarta al drenar (el server lo rechazaría con 401
+// stale_payload para siempre); el drenado sigue y el payload fresco sale.
+func TestPushFlushDescartaStales(t *testing.T) {
+	s := &sink{fail: true}
+	srv := httptest.NewServer(http.HandlerFunc(s.handler))
+	defer srv.Close()
+	c := New(srv.URL, "tok", srv.Client())
+
+	now := time.Now().Unix()
+	staleA := mkPayload(now - 600)  // 10 min de edad: fuera de ventana
+	staleB := mkPayload(now - 480)  // 8 min: ídem
+	fresh := mkPayload(now)         // recién generado
+
+	// Servidor caído: A entra directo al buffer; el Push de B drena (A se
+	// descarta por stale) y B acaba también en el buffer.
+	_ = c.Push(context.Background(), staleA)
+	_ = c.Push(context.Background(), staleB)
+	if c.Buffered() != 1 {
+		t.Fatalf("buffer tras 2 fallos con A descartado: %d", c.Buffered())
+	}
+	if c.DroppedStale() != 1 {
+		t.Fatalf("descartados stale: %d", c.DroppedStale())
+	}
+
+	// Recuperación: el drenado descarta B (stale) y el push fresco sale 202.
+	s.mu.Lock()
+	s.fail = false
+	s.mu.Unlock()
+	if err := c.Push(context.Background(), fresh); err != nil {
+		t.Fatalf("push tras recuperación: %v", err)
+	}
+	if c.DroppedStale() != 2 {
+		t.Fatalf("descartados stale tras recuperación: %d", c.DroppedStale())
+	}
+	if c.Buffered() != 0 {
+		t.Fatalf("buffer debería estar vacío: %d", c.Buffered())
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.payloads) != 1 || s.payloads[0].Ts != now {
+		t.Fatalf("el server solo debería haber recibido el payload fresco: %+v", s.payloads)
 	}
 }
 

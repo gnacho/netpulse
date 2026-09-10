@@ -27,6 +27,11 @@ const (
 	MaxBackoff = 5 * time.Minute
 	// BufferCap: payloads retenidos en RAM durante una caída del servidor.
 	BufferCap = 100
+	// StaleAfter: un payload buffered con más edad que esto JAMÁS superará la
+	// ventana anti-replay del server (maxTsDrift = 5 min): reintentarlo para
+	// siempre convierte una caída >5 min en un deadlock (issue #680). Se
+	// descarta en el drenado en vez de reintentarlo.
+	StaleAfter = 4 * time.Minute
 )
 
 // Client empuja payloads con token, backoff y buffer acotado.
@@ -44,6 +49,8 @@ type Client struct {
 	backoff time.Duration
 	buf     []*probe.Payload
 	dropped uint64
+
+	droppedStale uint64
 }
 
 // New crea el cliente contra serverURL (p. ej. "https://192.168.8.1:3000")
@@ -75,6 +82,13 @@ func (c *Client) Dropped() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.dropped
+}
+
+// DroppedStale: payloads buffered descartados por superar StaleAfter (#680).
+func (c *Client) DroppedStale() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.droppedStale
 }
 
 // Buffered: payloads pendientes de envío.
@@ -142,17 +156,34 @@ func (c *Client) enqueueLocked(p *probe.Payload) {
 	c.buf = append(c.buf, p)
 }
 
-// flushLocked intenta drenar el buffer en orden; para al primer fallo.
+// flushLocked intenta drenar el buffer en orden; para al primer fallo. Los
+// heads más viejos que StaleAfter se descartan sin reintentar (#680): el
+// server los rechazaría con 401 stale_payload y bloquearían el drenado para
+// siempre.
 func (c *Client) flushLocked(ctx context.Context) error {
+	posted := false
 	for len(c.buf) > 0 {
+		if staleSince(c.buf[0], time.Now()) {
+			c.logf("[netpulse-agent] descartado payload buffered stale (ts %d, %s de edad, ventana anti-replay agotada; total descartados por stale: %d)",
+				c.buf[0].Ts, time.Since(time.Unix(c.buf[0].Ts, 0)).Round(time.Second), c.droppedStale+1)
+			c.buf = c.buf[1:]
+			c.droppedStale++
+			continue
+		}
 		if err := c.post(ctx, c.buf[0]); err != nil {
 			c.growBackoffLocked()
 			return err
 		}
+		posted = true
 		c.buf = c.buf[1:]
 	}
-	c.backoff = 0
-	c.logf("[netpulse-agent] buffer drenado tras reconexión")
+	// El backoff solo se resetea si hubo ALGÚN post con éxito: un drenado que
+	// solo descartó stales no prueba que la conectividad se haya recuperado
+	// (el siguiente post fresco decidirá).
+	if posted {
+		c.backoff = 0
+		c.logf("[netpulse-agent] buffer drenado tras reconexión")
+	}
 	return nil
 }
 
@@ -166,6 +197,15 @@ func (c *Client) growBackoffLocked() {
 	if c.backoff > c.maxBackoff {
 		c.backoff = c.maxBackoff
 	}
+}
+
+// staleSince: true si el payload lleva más de StaleAfter generado (un Ts no
+// positivo se considera siempre fresco: no hay dato para valorar).
+func staleSince(p *probe.Payload, now time.Time) bool {
+	if p.Ts <= 0 {
+		return false
+	}
+	return now.Sub(time.Unix(p.Ts, 0)) > StaleAfter
 }
 
 // hmacSign devuelve HMAC-SHA256(token, body) en hex.
