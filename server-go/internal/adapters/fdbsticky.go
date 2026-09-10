@@ -28,14 +28,35 @@ type fdbPortMemo struct {
 
 // updateFdbMemo refresca la memo con el FDB real de este tick y poda las
 // entradas caducadas. Devuelve el snapshot de la memo (para el overlay).
+//
+// Higiene (#678): solo se memorizan observaciones en bocas LOCALES (las que no
+// aprenden la MAC de bridge de otro router = no son uplinks). Así la memo
+// significa "dónde está enchufado el cable" y no se contamina con el tránsito
+// que ve el gateway por su uplink (que si no pisaba la observación local del AP
+// y hacía que un cliente del AP pareciera del router principal).
 func (l *Live) updateFdbMemo(polled map[string]*routerPolled, nowMs int64) map[string]fdbPortMemo {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.fdbMemo == nil {
 		l.fdbMemo = map[string]fdbPortMemo{}
 	}
+	brMacs := map[string]bool{}
+	for _, p := range polled {
+		if p.brMac != "" {
+			brMacs[p.brMac] = true
+		}
+	}
 	for routerID, p := range polled {
+		infraPorts := map[string]bool{}
 		for mac, port := range p.fdb {
+			if brMacs[mac] {
+				infraPorts[port] = true
+			}
+		}
+		for mac, port := range p.fdb {
+			if infraPorts[port] {
+				continue // tránsito por el uplink: no es dónde va el cable
+			}
 			l.fdbMemo[mac] = fdbPortMemo{routerID: routerID, port: port, ts: nowMs}
 		}
 	}
