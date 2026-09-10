@@ -67,6 +67,14 @@ type AlertEvent struct {
 	Ts       int64  `json:"ts"`   // unix SEGUNDOS; el frontend calcula el relativo
 	Read     bool   `json:"read"`
 	RouterID string `json:"routerId"`
+	// Type: slug estable del tipo de alerta (issue #310). Cuando viaja
+	// (#671), el frontend traduce título/descripción/hint por clave i18n
+	// (alerts.types.<slug>.title/.description y alerts.hints.<slug>) en el
+	// idioma del usuario; los literales Title/Description/Hint siguen en el
+	// evento como fallback (servidores viejos, demo, claves sin traducir).
+	Type string `json:"type,omitempty"`
+	// Vars: valores de interpolación para esas claves (router, mac, temp…).
+	Vars map[string]string `json:"vars,omitempty"`
 	// SuppressedBy is the routerId of the parent router whose offline alert
 	// is suppressing this one (issue #332). Empty when not suppressed.
 	SuppressedBy string `json:"suppressedBy,omitempty"`
@@ -74,25 +82,27 @@ type AlertEvent struct {
 
 // Stable alert-type slugs (issue #310): keys of the Hints map.
 const (
-	HintAgentDown      = "agent-down"
-	HintGatewayUnrch   = "gateway-unreachable"
-	HintHighTemp       = "high-temperature"
-	HintPortFlapping   = "port-flapping"
-	HintDeviceOffline  = "device-offline"
-	HintUnknownDevice  = "unknown-device"
-	HintFirmware       = "firmware-outdated"
-	HintWanDown        = "wan-down"
-	HintWifiWeak       = "wifi-weak"
-	HintGhostPort      = "ghost-port"
-	HintDegradedLink   = "degraded-link"
-	HintAgentOutdated  = "agent-outdated"
-	HintWanSlow        = "wan-slow"
+	HintAgentDown     = "agent-down"
+	HintAgentDownSSH  = "agent-down-ssh" // variante: satélite degrada a SSH (#671)
+	HintGatewayUnrch  = "gateway-unreachable"
+	HintHighTemp      = "high-temperature"
+	HintPortFlapping  = "port-flapping"
+	HintDeviceOffline = "device-offline"
+	HintUnknownDevice = "unknown-device"
+	HintFirmware      = "firmware-outdated"
+	HintWanDown       = "wan-down"
+	HintWifiWeak      = "wifi-weak"
+	HintGhostPort     = "ghost-port"
+	HintDegradedLink  = "degraded-link"
+	HintAgentOutdated = "agent-outdated"
+	HintWanSlow       = "wan-slow"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
 // the value into AlertEvent.Hint; the feed and push render it as a helper line.
 var Hints = map[string]string{
 	HintAgentDown:     "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
+	HintAgentDownSSH:  "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
 	HintGatewayUnrch:  "Comprueba la conexión entre el gateway y el resto de la red.",
 	HintHighTemp:      "Mejora la ventilación y aleja el router de fuentes de calor.",
 	HintPortFlapping:  "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",

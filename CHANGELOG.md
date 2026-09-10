@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Las alertas se muestran en el idioma del usuario (#671)**: los textos del feed (título, descripción y sugerencia) los generaba el servidor en español y un usuario con la app en inglés los veía mezclados. Los eventos llevan ahora el slug de su tipo y sus variables, y el frontend los traduce por clave en el idioma activo (con los literales del servidor como respaldo). Migrados los 13 tipos con slug: dispositivo desconocido, router offline, agente caído (y su variante SSH), agente desactualizado, firmware, Internet caído, velocidad WAN lenta, temperatura alta, señal débil, port flapping, ghost port y enlace degradado. Las notificaciones push de las alertas urgentes siguen en español por ahora (seguimiento aparte).
+
 ## [2.28.18] - 2026-09-10
 
 ### Added

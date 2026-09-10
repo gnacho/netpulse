@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -183,10 +184,10 @@ func (s *Scheduler) executeLocked(st Settings, origin string) error {
 
 // Status es la foto para GET /api/speedtest/status.
 type Status struct {
-	Running   bool     `json:"running"`
-	LastError string   `json:"lastError,omitempty"`
-	Last      *Result  `json:"last,omitempty"`
-	NextRun   *int64   `json:"nextRunMs,omitempty"` // unix ms; nil = sin programar
+	Running   bool    `json:"running"`
+	LastError string  `json:"lastError,omitempty"`
+	Last      *Result `json:"last,omitempty"`
+	NextRun   *int64  `json:"nextRunMs,omitempty"` // unix ms; nil = sin programar
 }
 
 // Status compone la foto actual (running, último error, último resultado y
@@ -241,6 +242,8 @@ func (s *Scheduler) maybeAlert(st Settings, res Result) {
 			"Medido %.0f Mbps de bajada contra %.0f Mbps contratados (menos del %d%% del plan)",
 			res.DownMbps, contract, st.AlertPct),
 		Hint: alerts.HintFor(alerts.HintWanSlow),
+		Type: alerts.HintWanSlow,
+		Vars: map[string]string{"down": fmt.Sprintf("%.0f", res.DownMbps), "plan": fmt.Sprintf("%.0f", contract), "pct": strconv.Itoa(st.AlertPct)},
 		Time: "ahora mismo", Ts: res.TS.Unix(),
 	})
 }
