@@ -20,8 +20,8 @@ const wgUciMarker = "===NETPULSE_UCI==="
 
 // wgStatsCommand devuelve el comando que emite el dump de `wg show <iface>`
 // y, a continuación, la config WireGuard UCI. El exit code es el de `wg show`
-// (si el túnel está caído, la llamada falla y GetWireGuardStats devuelve
-// error, igual que antes).
+// (si el túnel está caído, la llamada falla y GetWireGuardStats salta esa
+// interfaz sin tumbar el resto, issue #714).
 func wgStatsCommand(iface string) string {
 	return fmt.Sprintf("wg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; exit $rc", iface, wgUciMarker)
 }
@@ -39,8 +39,10 @@ func parseWGInterfaces(out string) []string {
 // wgInterfaces resuelve qué interfaces sondear. iface vacío o "auto" →
 // descubre todas con `wg show interfaces`; un valor explícito (una interfaz o
 // una lista separada por comas) actúa como filtro/override sin tocar el
-// router para listarlas (#713).
-func wgInterfaces(pool sshRunner, host, iface string) ([]string, error) {
+// router para listarlas (#713). Si el listado falla en modo auto (p. ej. un
+// `wg` sin el subcomando `interfaces`), cae al default histórico `wg0` para
+// no dejar el panel sin datos (#714).
+func wgInterfaces(pool sshRunner, host, iface string) []string {
 	v := strings.TrimSpace(iface)
 	if v != "" && v != "auto" {
 		out := []string{}
@@ -49,13 +51,13 @@ func wgInterfaces(pool sshRunner, host, iface string) ([]string, error) {
 				out = append(out, s)
 			}
 		}
-		return out, nil
+		return out
 	}
 	raw, err := pool.Run(host, wgListCommand, 0)
 	if err != nil {
-		return nil, err
+		return []string{"wg0"}
 	}
-	return parseWGInterfaces(raw), nil
+	return parseWGInterfaces(raw)
 }
 
 // splitWGUci separa la salida combinada en la parte del dump y la parte UCI.
@@ -237,11 +239,13 @@ func buildWGPeer(p WGDumpPeer, peerNames map[string]WGPeerName, descs map[string
 // device). El nombre de cada peer se resuelve en este orden: nombre de device
 // de NetPulse (peerNames) → description del peer en UCI (OpenWrt) → IP del
 // túnel → "Peer <pubkey8>" (issue #659).
+//
+// Tolerancia a fallos (#714): el fallo del dump de UNA interfaz se salta (se
+// acumulan los peers de las que responden); si TODAS fallan se devuelve
+// Status "inactive" SIN error, para que pollWireGuard no loguee "no
+// disponible" en cada tick.
 func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map[string]WGPeerName) (*WireGuardStats, error) {
-	ifaces, err := wgInterfaces(pool, host, iface)
-	if err != nil {
-		return nil, err
-	}
+	ifaces := wgInterfaces(pool, host, iface)
 	stats := &WireGuardStats{
 		Interface: strings.Join(ifaces, ", "),
 		Subnet:    subnet,
@@ -256,11 +260,14 @@ func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map
 	nowSec := time.Now().Unix()
 	descs := map[string]string{}
 	idx := 1
+	ok := 0
 	for _, ifc := range ifaces {
 		out, err := pool.Run(host, wgStatsCommand(ifc), 0)
 		if err != nil {
-			return nil, err
+			// Una interfaz caída no tumba el resto: se salta (#714).
+			continue
 		}
+		ok++
 		dump, uci := splitWGUci(out)
 		for k, v := range parseWGUciDescs(uci) {
 			descs[k] = v
@@ -269,6 +276,10 @@ func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map
 			stats.Peers = append(stats.Peers, buildWGPeer(p, peerNames, descs, nowSec, idx))
 			idx++
 		}
+	}
+	if ok == 0 {
+		// Ninguna interfaz respondió: túnel inactivo, sin error (#714).
+		stats.Status = "inactive"
 	}
 	return stats, nil
 }
