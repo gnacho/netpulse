@@ -341,7 +341,13 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
-	wgInterface := "wg0"
+	// WG_INTERFACE: interfaz(es) WireGuard a sondear. Vacío o "auto" → se
+	// descubren TODAS las interfaces del router (`wg show interfaces`) y se
+	// agregan sus peers (#713). Un valor explícito (una interfaz o una lista
+	// separada por comas, p. ej. "wg0" o "wg0,wg1") actúa como filtro/override
+	// y solo se sondean esas interfaces. Un "wg0" explícito conserva el
+	// comportamiento anterior.
+	wgInterface := "auto"
 	if v, ok := env["WG_INTERFACE"]; ok && v != "" {
 		wgInterface = v
 	}
