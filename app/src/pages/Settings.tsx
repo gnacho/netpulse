@@ -3848,52 +3848,60 @@ export default function Settings() {
               </div>
             }
           >
-            {/* cols-2: Unidades + decimal + Refresco (izq) | umbrales (der) */}
+            {/* cols-2: Unidades de medida (una fila) + Refresco (izq) | umbrales (der) */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-4">
                 <div>
-                  <div className="text-sm font-medium text-text-primary">{t('settings.data.units')}</div>
-                  <div className="mt-2">
-                    <SegmentedControl
-                      options={[
-                        { value: 'mbps', label: 'Mbps' },
-                        { value: 'mbs', label: 'MB/s' },
-                      ]}
-                      value={units}
-                      onChange={(v) => {
-                        setUnits(v)
-                        notify()
-                      }}
-                      ariaLabel={t('settings.data.units')}
-                    />
+                  <div className="text-sm font-medium text-text-primary">{t('settings.data.unitsTitle')}</div>
+                  <div className="mt-2 flex flex-wrap items-start gap-4">
+                    <div>
+                      <div className="text-caption text-text-muted">{t('settings.data.units')}</div>
+                      <div className="mt-1.5">
+                        <SegmentedControl
+                          options={[
+                            { value: 'mbps', label: 'Mbps' },
+                            { value: 'mbs', label: 'MB/s' },
+                          ]}
+                          value={units}
+                          onChange={(v) => {
+                            setUnits(v)
+                            notify()
+                          }}
+                          ariaLabel={t('settings.data.units')}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-caption text-text-muted">{t('settings.data.tempUnit')}</div>
+                      <div className="mt-1.5">
+                        <SegmentedControl
+                          options={[
+                            { value: 'c', label: '°C' },
+                            { value: 'f', label: '°F' },
+                          ]}
+                          value={tempUnit}
+                          onChange={(v) => {
+                            setTempUnit(v)
+                            notify()
+                          }}
+                          ariaLabel={t('settings.data.tempUnit')}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-caption text-text-muted">{t('settings.data.decimalEs')}</div>
+                      <div className="mt-1.5 flex h-9 items-center">
+                        <Switch
+                          checked={decimalEs}
+                          onCheckedChange={(v) => {
+                            setDecimalEs(v)
+                            notify()
+                          }}
+                          aria-label={t('settings.data.decimalEs')}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-text-primary">{t('settings.data.tempUnit')}</div>
-                  <div className="mt-2">
-                    <SegmentedControl
-                      options={[
-                        { value: 'c', label: '°C' },
-                        { value: 'f', label: '°F' },
-                      ]}
-                      value={tempUnit}
-                      onChange={(v) => {
-                        setTempUnit(v)
-                        notify()
-                      }}
-                      ariaLabel={t('settings.data.tempUnit')}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <SwitchRow
-                    label={t('settings.data.decimalEs')}
-                    checked={decimalEs}
-                    onCheckedChange={(v) => {
-                      setDecimalEs(v)
-                      notify()
-                    }}
-                  />
                 </div>
                 <div>
                   <div className="text-sm font-medium text-text-primary">{t('settings.data.refresh')}</div>
