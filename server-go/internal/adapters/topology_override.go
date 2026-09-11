@@ -22,6 +22,7 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -75,14 +76,73 @@ func deviceIndexByMAC(devices []Device) map[string]int {
 	return m
 }
 
+// macRe reconoce una MAC normalizada (6 octetos hex separados por ':').
+var macRe = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
+
+// parentRefKind clasifica el `parent` de un override kind=attach (issue #690).
+type parentRefKind int
+
+const (
+	parentRefInvalid parentRefKind = iota // no resuelve a nada (override ignorado)
+	parentRefMAC                          // MAC de un device (backwards-compatible)
+	parentRefRouter                       // id de router (cuelga del router)
+	parentRefPort                         // id de router + puerto concreto
+)
+
+// routerPort: clave compuesta para localizar un distnode por (router, puerto).
+type routerPort struct{ router, port string }
+
+// parseParentRef clasifica el `parent` de un override attach. Formato:
+//   - MAC ("aa:bb:cc:dd:ee:ff"): cuelga del device con esa MAC (formato
+//     original, se mantiene).
+//   - "<routerId>": cuelga directamente del router.
+//   - "<routerId>:<puerto>": cuelga del puerto concreto del router.
+//
+// No hay ambigüedad: los slugs de router no contienen ':' (routerstore.slugify
+// mapea [^a-z0-9]+ → '-') y las MAC siempre llevan 5 ':'. Un valor con ':' que
+// casa con la regex MAC es una MAC; con exactamente un ':' es router:puerto;
+// sin ':' es un router; cualquier otra forma es inválida.
+func parseParentRef(parent string) (kind parentRefKind, routerID, port, mac string) {
+	p := NormalizeMAC(parent)
+	if p == "" {
+		return parentRefInvalid, "", "", ""
+	}
+	if macRe.MatchString(p) {
+		return parentRefMAC, "", "", p
+	}
+	if i := strings.IndexByte(p, ':'); i >= 0 {
+		routerID, port = p[:i], p[i+1:]
+		if routerID == "" || port == "" {
+			return parentRefInvalid, "", "", ""
+		}
+		return parentRefPort, routerID, port, ""
+	}
+	return parentRefRouter, p, "", ""
+}
+
 // applyTopologyOverrides aplica la capa 2 manual sobre el resultado del
 // autodiscover. Orden determinista por kind (hypervisor → switch → attach)
 // para que los attaches resuelvan sobre los hosts ya sellados.
-func applyTopologyOverrides(devices []Device, dists []DistributionNode, overrides []TopologyOverride) ([]Device, []DistributionNode) {
+func applyTopologyOverrides(routers []Router, devices []Device, dists []DistributionNode, overrides []TopologyOverride) ([]Device, []DistributionNode) {
 	if len(overrides) == 0 {
 		return devices, dists
 	}
 	byMAC := deviceIndexByMAC(devices)
+
+	// routerByID: routers conocidos (para validar el parent router/port).
+	// distByRouterPort: distnodes inferred|managed por (router, puerto) — el
+	// anclaje natural de "colgar de un puerto concreto" (issue #690).
+	routerByID := make(map[string]bool, len(routers))
+	for _, r := range routers {
+		routerByID[r.ID] = true
+	}
+	distByRouterPort := make(map[routerPort]string)
+	for _, dn := range dists {
+		if dn.Kind != "inferred" && dn.Kind != "managed" {
+			continue
+		}
+		distByRouterPort[routerPort{dn.RouterID, dn.Port}] = dn.ID
+	}
 
 	// 1) hypervisor: sellar host + re-anidar CTs OUI del mismo puerto.
 	for _, ov := range overrides {
@@ -160,7 +220,8 @@ func applyTopologyOverrides(devices []Device, dists []DistributionNode, override
 		}
 	}
 
-	// 3) attach: el target cuelga de `parent`.
+	// 3) attach: el target cuelga de `parent` (device por MAC, router o
+	//    router:puerto — issue #690).
 	for _, ov := range overrides {
 		if !ov.Enabled || ov.Kind != "attach" || ov.Parent == "" {
 			continue
@@ -169,15 +230,37 @@ func applyTopologyOverrides(devices []Device, dists []DistributionNode, override
 		if !ok {
 			continue
 		}
-		pIdx, ok := byMAC[NormalizeMAC(ov.Parent)]
-		if !ok {
-			continue
-		}
 		target := &devices[tIdx]
-		parent := &devices[pIdx]
-		target.AttachTo = parent.ID
-		if parent.Infra == "hypervisor" {
-			target.Infra = "ct"
+		kind, routerID, port, mac := parseParentRef(ov.Parent)
+		switch kind {
+		case parentRefMAC:
+			pIdx, ok := byMAC[mac]
+			if !ok {
+				continue
+			}
+			parent := &devices[pIdx]
+			target.AttachTo = parent.ID
+			if parent.Infra == "hypervisor" {
+				target.Infra = "ct"
+			}
+		case parentRefRouter:
+			if !routerByID[routerID] {
+				continue
+			}
+			target.AttachTo = routerID
+		case parentRefPort:
+			if !routerByID[routerID] {
+				continue
+			}
+			if distID, ok := distByRouterPort[routerPort{routerID, port}]; ok {
+				target.AttachTo = distID
+			} else {
+				target.AttachTo = routerID
+				target.Port = port
+			}
+		default:
+			// parent inválido: no-op.
+			continue
 		}
 	}
 	return devices, dists

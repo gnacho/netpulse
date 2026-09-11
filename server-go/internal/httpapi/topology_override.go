@@ -46,6 +46,10 @@ func (s *server) handleTopologyOverrideCreate(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, "invalid_kind")
 		return
 	}
+	// parent (solo kind=attach) acepta: MAC de device (formato original),
+	// id de router, o "routerId:puerto" (issue #690). Solo se exige no vacío;
+	// la resolución final (adapters.applyTopologyOverrides) ignora formas
+	// que no casen con ningún device/router conocido.
 	if body.Kind == "attach" && adapters.NormalizeMAC(body.Parent) == "" {
 		writeError(w, http.StatusBadRequest, "attach_requires_parent")
 		return

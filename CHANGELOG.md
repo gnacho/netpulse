@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- **El override manual `attach` ya puede colgar un dispositivo de un router o de un puerto concreto (#690)**: el `parent` solo admitía la MAC de otro device, así que no había forma de anclar un equipo a un AP ni a una boca determinada cuando la inferencia no podía saberlo (NAT, VM sin OUI de hipervisor, cliente callado en un switch que reporta todas las MAC en una boca, recableados). Ahora `parent` acepta tres formas: la MAC de un device (como hasta ahora, backwards-compatible), el id de un router, o `routerId:puerto` para fijar la boca exacta. En la UI el input libre de MAC se sustituye por un selector (routers, sus puertos y dispositivos) que conserva la edición de los overrides existentes con `parent` = MAC.
+
 ### Fixed
 
 - **Los clientes cableados y callados de un AP puente ya no vuelven a colgarse del router principal (#694)**: la clasificación de los puertos de subida (uplink) se calculaba cada tick solo con las MACs de bridge presentes en ese sondeo, así que un cliente callado cuya brMac ya no estaba en el FDB del gateway acababa atribuido al principal por dos vías transitorias (el FDB del gateway y el fallback ARP, que gana por orden alfabético). Ahora el servidor recuerda los puertos que alguna vez aprendieron la MAC de bridge de otro router (la clasificación de uplink persiste entre ticks y sobrevive a sondeos fallidos), el gateway no pisa la memoria de boca de un satélite en un puerto de uplink, y la memoria de puerto se refresca mientras el dispositivo siga online por ARP/lease aunque no hable por FDB. Además, `GetBridgeFdb` devuelve `nil` ante un fallo de sonda para no sustituir la caché anti-parpadeo por un FDB vacío.

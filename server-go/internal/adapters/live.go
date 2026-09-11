@@ -2421,7 +2421,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// Capa 2 manual (issue #142): overrides de topología tras el autodiscover.
 	// Sin BD (tests/demo) → no-op.
 	if l.db != nil {
-		devices, distNodes = applyTopologyOverrides(devices, distNodes, loadTopologyOverrides(l.db))
+		devices, distNodes = applyTopologyOverrides(routerList, devices, distNodes, loadTopologyOverrides(l.db))
 	}
 	// Capa 3 PVE (#561): si hay cluster Proxmox configurado, el inventario
 	// read-only sella hypervisor/ct con attachTo correcto (la relación

@@ -5,7 +5,7 @@
  * /api/topology/overrides; los cambios se reflejan en el mapa al refrescar el
  * overview (el builder aplica los overrides server-side).
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -33,6 +33,81 @@ const KIND_STYLE: Record<TopologyOverrideKind, string> = {
   hypervisor: 'bg-ok/10 text-ok',
   switch: 'bg-accent-soft text-accent',
   attach: 'bg-info/10 text-info',
+}
+
+/**
+ * Selector del `parent` de un override kind=attach (issue #690). Sustituye al
+ * input libre de MAC: permite elegir un router, un puerto concreto de un
+ * router (`routerId:puerto`) o un device por MAC (formato legacy, se conserva
+ * para no romper la edición de overrides existentes). El valor es el string
+ * que se envía a la API; si un parent existente no casa con ninguna opción
+ * (p. ej. device ya ausente del inventario), se añade como opción para no
+ * perderlo al editar.
+ */
+function ParentPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation()
+  const { routers, devices, distributionNodes } = useNetPulse()
+
+  const portsByRouter = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    const add = (routerId: string, port: string | null | undefined) => {
+      if (!routerId || !port) return
+      const s = map.get(routerId) ?? new Set<string>()
+      s.add(port)
+      map.set(routerId, s)
+    }
+    for (const d of devices) add(d.routerId, d.port)
+    for (const n of distributionNodes) add(n.routerId, n.port)
+    return map
+  }, [devices, distributionNodes])
+
+  const known = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of routers) {
+      s.add(r.id)
+      for (const p of portsByRouter.get(r.id) ?? []) s.add(`${r.id}:${p}`)
+    }
+    for (const d of devices) s.add(d.mac)
+    return s
+  }, [routers, devices, portsByRouter])
+
+  return (
+    <select
+      required
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={t('settings.overrides.parent')}
+      className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+    >
+      <option value="" disabled>
+        {t('settings.overrides.parentPlaceholder')}
+      </option>
+      {value && !known.has(value) && <option value={value}>{value}</option>}
+      <optgroup label={t('settings.overrides.parentRouters')}>
+        {routers.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label={t('settings.overrides.parentPorts')}>
+        {routers.map((r) =>
+          [...(portsByRouter.get(r.id) ?? [])].sort().map((p) => (
+            <option key={`${r.id}:${p}`} value={`${r.id}:${p}`}>
+              {r.name} · {p}
+            </option>
+          )),
+        )}
+      </optgroup>
+      <optgroup label={t('settings.overrides.parentDevices')}>
+        {devices.map((d) => (
+          <option key={d.mac} value={d.mac}>
+            {d.name ? `${d.name} (${d.mac})` : d.mac}
+          </option>
+        ))}
+      </optgroup>
+    </select>
+  )
 }
 
 export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
@@ -301,15 +376,7 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
               ariaLabel={t('settings.overrides.kind')}
             />
             {draft.kind === 'attach' && (
-              <input
-                type="text"
-                required
-                value={draft.parent}
-                onChange={(e) => setDraft((d) => ({ ...d, parent: e.target.value }))}
-                placeholder={t('settings.overrides.parent')}
-                aria-label={t('settings.overrides.parent')}
-                className="w-full rounded-lg border border-border bg-canvas px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              />
+              <ParentPicker value={draft.parent} onChange={(v) => setDraft((d) => ({ ...d, parent: v }))} />
             )}
             <div className="flex items-center justify-end gap-2">
               <button
@@ -350,15 +417,7 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
               ariaLabel={t('settings.overrides.kind')}
             />
             {editDraft.kind === 'attach' && (
-              <input
-                type="text"
-                required
-                value={editDraft.parent}
-                onChange={(e) => setEditDraft((d) => ({ ...d, parent: e.target.value }))}
-                placeholder={t('settings.overrides.parent')}
-                aria-label={t('settings.overrides.parent')}
-                className="w-full rounded-lg border border-border bg-canvas px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              />
+              <ParentPicker value={editDraft.parent} onChange={(v) => setEditDraft((d) => ({ ...d, parent: v }))} />
             )}
             <div className="flex items-center justify-end gap-2">
               <button
