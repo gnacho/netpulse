@@ -11,7 +11,6 @@
   <a href="https://github.com/gnacho/netpulse/releases"><img alt="Release" src="https://img.shields.io/github/v/release/gnacho/netpulse"></a>
   <a href="https://github.com/gnacho/netpulse/actions/workflows/release.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/gnacho/netpulse/release.yml?branch=main"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/gnacho/netpulse"></a>
-  <a href="https://ko-fi.com/gnacho"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Ko--fi-Donate-ff5e5b?logo=ko-fi&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -66,8 +65,7 @@ Three rules shape everything it does:
   app embedded, running on a small box inside your LAN. SQLite for the time
   series, WAL mode, no external services.
 - **Free as in forever.** AGPL-3.0, no premium tier waiting behind a paywall.
-  If it's useful to you, [Ko-fi](https://ko-fi.com/gnacho) is the way to say
-  thanks, never a subscription.
+  If it's useful to you, a star on GitHub is the way to say thanks.
 
 ## What you get
 
