@@ -41,8 +41,8 @@ No necesitas un solo router para ver NetPulse funcionando:
   registro. Navega, cambia el tema, cambia de idioma, mira las
   actualizaciones en vivo.
 - **[netpulse.cloudless.club/features](https://netpulse.cloudless.club/features)**
-  recorre cada pantalla y cada función, con las decisiones técnicas y el
-  alcance honesto de cada una.
+  es el inventario completo: cada pantalla y cada función, con las decisiones
+  técnicas y el alcance honesto de cada una.
 
 ## ¿Por qué NetPulse?
 
@@ -139,8 +139,8 @@ por SNMP también son ciudadanos de primera.
 - **Se actualiza solo**: el updater integrado comprueba releases y las aplica
   con swap atómico.
 
-Hay más, y cada pieza tiene su historia: **[el tour completo de funciones
-vive en la web](https://netpulse.cloudless.club/features)**, y todo lo
+Esto sigue siendo una selección: **[todas las funcionalidades están en la
+web](https://netpulse.cloudless.club/features)**, una a una, y todo lo
 anterior se puede tocar en la **[demo en vivo](https://demo.netpulse.cloudless.club)**.
 
 ## Cómo funciona el descubrimiento

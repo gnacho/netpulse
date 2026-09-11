@@ -40,8 +40,8 @@ You don't need a single router to see NetPulse working:
   with a full sample network loaded, read-only, no sign-up. Click around, change
   the theme, switch languages, watch the live updates.
 - **[netpulse.cloudless.club/features](https://netpulse.cloudless.club/features)**
-  walks through every screen and feature, with the technical decisions and the
-  honest scope of each one.
+  is the complete feature inventory: every screen and feature, with the
+  technical decisions and the honest scope of each one.
 
 ## Why NetPulse?
 
@@ -132,9 +132,8 @@ client splits. SNMP-polled managed switches are first-class citizens too.
 - **Self-updating**: the built-in updater checks for releases and applies them
   with an atomic swap.
 
-There is more, and each piece has a story:
-**[the full feature tour lives on the website](https://netpulse.cloudless.club/features)**,
-and everything above is clickable in the **[live demo](https://demo.netpulse.cloudless.club)**.
+That is still a selection: **[every feature is on the website](https://netpulse.cloudless.club/features)**,
+one by one, and everything above is clickable in the **[live demo](https://demo.netpulse.cloudless.club)**.
 
 ## How discovery works
 
