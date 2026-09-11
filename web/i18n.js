@@ -28,7 +28,7 @@ const DEMO = {
 const I18N = {
   /* ---------------- ENGLISH ---------------- */
   en: {
-    nav: { features: 'Features', club: 'The club', install: 'Install', github: 'GitHub' },
+    nav: { features: 'Features', club: 'The club', install: 'Install', github: 'GitHub', star: 'Star', starAria: 'Star NetPulse on GitHub' },
     hero: {
       eyebrow: 'Read-only home network monitoring',
       t1: 'Your network’s pulse.',
@@ -117,6 +117,8 @@ const I18N = {
       update: 'Update by re-running the same line. Uninstall with sh install.sh --uninstall.',
       connect: 'Connect your routers', connectp: 'The server generates its own ed25519 key pair and shows the public key in Settings. Authorize it on each router (/etc/dropbear/authorized_keys). The gateway auto-detects on first boot via LAN discovery; the rest you add from Settings. Polling is strictly read-only.',
       agentTitle: 'Agent on your routers', agentDesc: 'Install the agent directly on each OpenWrt router. It collects WiFi events, pushes data over SSE, and reports back to the server.', agentCmd: 'opkg install netpulse-agent',
+      onboxTitle: 'No spare box? The router itself works',
+      onboxDesc: 'NetPulse does not need a dedicated machine: the <strong>full server</strong>, not just the agent, runs on the OpenWrt router itself as a native package, with UCI config and self-signed TLS with SPKI pinning. <a href="/features#on-box">See the on-box mode</a>.',
     },
     honest: {
       title: 'About NetPulse',
@@ -156,7 +158,7 @@ const I18N = {
 
   /* ---------------- ESPAÑOL ---------------- */
   es: {
-    nav: { features: 'Funciones', club: 'El club', install: 'Instalar', github: 'GitHub' },
+    nav: { features: 'Funciones', club: 'El club', install: 'Instalar', github: 'GitHub', star: 'Star', starAria: 'Dale una estrella a NetPulse en GitHub' },
     hero: {
       eyebrow: 'Monitorización de solo lectura para tu red doméstica',
       t1: 'El pulso de tu red.',
@@ -233,6 +235,8 @@ const I18N = {
       update: 'Actualiza re-ejecutando la misma línea. Desinstala con sh install.sh --uninstall.',
       connect: 'Conecta tus routers', connectp: 'El servidor genera su propio par de claves ed25519 y muestra la pública en Ajustes. Autorízala en cada router (/etc/dropbear/authorized_keys). El gateway se autodetecta en el primer arranque por descubrimiento LAN; el resto se añade desde Ajustes. El sondeo es estrictamente de solo lectura.',
       agentTitle: 'Agente en tus routers', agentDesc: 'Instala el agente directamente en cada router OpenWrt. Recoge eventos WiFi, envía datos por SSE y reporta al servidor.', agentCmd: 'opkg install netpulse-agent',
+      onboxTitle: '¿Sin caja aparte? El propio router vale',
+      onboxDesc: 'NetPulse no necesita una máquina dedicada: el <strong>servidor completo</strong>, no solo el agente, corre en el propio router OpenWrt como paquete nativo, con configuración UCI y TLS autofirmado con pinning SPKI. <a href="/features#on-box">Conoce el modo on-box</a>.',
     },
     honest: {
       title: 'Acerca de NetPulse',

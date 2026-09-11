@@ -128,6 +128,16 @@ a:hover { text-decoration: underline; }
   color: rgb(var(--accent)); white-space: nowrap; background: rgb(var(--accent) / 0.06);
 }
 .nav-cta:hover { background: rgb(var(--accent) / 0.12); text-decoration: none; }
+.nav-star {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.8125rem; font-weight: 600; padding: 0.4rem 0.7rem;
+  border-radius: var(--radius); border: 1px solid rgb(var(--border));
+  color: rgb(var(--text-secondary)); white-space: nowrap; background: rgb(var(--surface));
+}
+.nav-star:hover { color: rgb(var(--warn)); border-color: rgb(var(--warn) / 0.55); text-decoration: none; }
+.nav-star svg { width: 0.95rem; height: 0.95rem; fill: rgb(var(--warn)); stroke: none; }
+.nav-star .n { font-family: "JetBrains Mono", monospace; font-size: 0.75rem; color: rgb(var(--text-secondary)); }
+@media (max-width: 560px) { .nav-star .label { display: none; } }
 #langSelect {
   margin-left: 0.5rem; background: rgb(var(--surface)); color: rgb(var(--text-secondary));
   border: 1px solid rgb(var(--border)); border-radius: var(--radius); padding: 0.35rem 0.5rem;
