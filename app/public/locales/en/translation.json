@@ -1114,7 +1114,10 @@
       "sysCpu": "CPU",
       "sysRam": "RAM",
       "sysUptime": "Uptime",
-      "demoNoServer": "Server data unavailable (demo)"
+      "demoNoServer": "Server data unavailable (demo)",
+      "checkFailed": "Could not check right now ({{reason}}); try again in a few minutes",
+      "checkErrRate": "GitHub API limit without a token",
+      "checkErrNet": "no connection to GitHub"
     },
     "accent": "Accent",
     "accentAmber": "Amber",

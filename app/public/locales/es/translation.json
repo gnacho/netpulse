@@ -1114,7 +1114,10 @@
       "sysCpu": "CPU",
       "sysRam": "RAM",
       "sysUptime": "Tiempo activo",
-      "demoNoServer": "Datos del servidor no disponibles (demo)"
+      "demoNoServer": "Datos del servidor no disponibles (demo)",
+      "checkFailed": "No se pudo comprobar ahora ({{reason}}); inténtalo de nuevo en unos minutos",
+      "checkErrRate": "límite de la API de GitHub sin token",
+      "checkErrNet": "sin conexión con GitHub"
     },
     "accent": "Acento",
     "accentAmber": "Ámbar",
