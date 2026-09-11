@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, Info, OctagonX } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { relTime } from '@/i18n'
+import { alertRelTime } from '@/i18n'
 import type { AlertSeverity, AlertEvent } from '@/data/mock'
 import { alertDescription, alertHint, alertTitle } from '@/lib/alerts-i18n'
 import { cn } from '@/lib/utils'
@@ -42,7 +42,7 @@ export function AlertItem({ alert, onClick, className }: AlertItemProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-medium text-text-primary">{alertTitle(t, alert)}</span>
-          <span className="shrink-0 text-caption text-text-muted">{relTime(alert.time)}</span>
+          <span className="shrink-0 text-caption text-text-muted">{alertRelTime(alert)}</span>
         </div>
         <p className="mt-0.5 truncate text-caption text-text-secondary">{alertDescription(t, alert)}</p>
         {hint && (

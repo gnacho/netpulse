@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams } from 'react-router'
 import { AlertTriangle, ArrowLeft, Gauge, Router as RouterIcon, ShieldAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { relTime } from '@/i18n'
+import { alertRelTime } from '@/i18n'
 import { useNetPulse } from '@/data/DataProvider'
 import type { RouterDetailData } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
@@ -159,7 +159,7 @@ export default function RouterDetail() {
               </p>
             </div>
             {tempAlert && (
-              <span className="shrink-0 font-mono text-caption text-text-muted">{relTime(tempAlert.time)}</span>
+              <span className="shrink-0 font-mono text-caption text-text-muted">{alertRelTime(tempAlert)}</span>
             )}
           </div>
         </motion.div>
