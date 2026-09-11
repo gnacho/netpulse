@@ -69,7 +69,7 @@ function TempCell({ router }: { router: Router }) {
         'inline-flex rounded-md px-1.5 py-0.5 font-mono text-mono-sm',
         hot ? 'bg-warn/10 text-warn' : 'text-text-primary',
       )}
-      title={hot ? t('routers.tempThreshold') : undefined}
+      title={hot ? t('routers.tempThreshold', { value: router.tempThreshold ?? 65 }) : undefined}
     >
       {router.temp} °C
     </span>

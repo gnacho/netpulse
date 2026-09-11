@@ -290,6 +290,7 @@ interface ConfigRouter {
   snmp_port: number
   snmp_poll_interval: number
   ssh_port?: number
+  temp_threshold?: number | null
 }
 
 interface DiscoverCandidate {
@@ -334,6 +335,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpPort, setEditSnmpPort] = useState(161)
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
   const [editSshPort, setEditSshPort] = useState(22)
+  const [editTempThreshold, setEditTempThreshold] = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -517,6 +519,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditSnmpPort(r.snmp_port ?? 161)
     setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
     setEditSshPort(r.ssh_port ?? 22)
+    setEditTempThreshold(r.temp_threshold != null ? String(r.temp_threshold) : '')
     setError(null)
   }
 
@@ -541,6 +544,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           snmp_port: editSnmpPort,
           snmp_poll_interval: editSnmpPollInterval,
           ssh_port: editSshPort,
+          temp_threshold: editTempThreshold.trim() === '' ? 0 : Number(editTempThreshold),
         }),
       })
       if (res.status === 409) {
@@ -933,6 +937,23 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   title={t('settings.routers.sshPortHint')}
                   className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
+              </div>
+              <div>
+                <label htmlFor="temp-threshold" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                  {t('settings.routers.tempThreshold')}
+                </label>
+                <input
+                  id="temp-threshold"
+                  type="number"
+                  min={0}
+                  max={150}
+                  value={editTempThreshold}
+                  onChange={(e) => setEditTempThreshold(e.target.value)}
+                  placeholder="65"
+                  aria-label={t('settings.routers.tempThreshold')}
+                  className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+                <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.tempThresholdHint')}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <SegmentedControl
@@ -3381,7 +3402,7 @@ function SettingsIndex({ items }: { items: SettingsIndexItem[] }) {
 export default function Settings() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion() ?? false
-  const { devices, routers, wan, isDemo, refresh: refreshOverview } = useNetPulse()
+  const { devices, wan, isDemo, refresh: refreshOverview } = useNetPulse()
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
@@ -3626,17 +3647,14 @@ export default function Settings() {
   const [units, setUnits] = useStoredState<'mbps' | 'mbs'>('netpulse-units', 'mbps')
   const [decimalEs, setDecimalEs] = useStoredState('netpulse-decimal-es', true)
   const [refresh, setRefresh] = useStoredState<'3' | '5' | '10' | '0'>('netpulse-refresh', '3')
-  const [tempT, setTempT] = useStoredState('netpulse-th-temp', 65)
   const [signalT, setSignalT] = useStoredState('netpulse-th-signal', -70)
   const [latencyT, setLatencyT] = useStoredState('netpulse-th-latency', 50)
 
-  const patio = routers.find((r) => r.id === 'patio') ?? routers[routers.length - 1]
-  const tempHot = (patio?.temp ?? 0) > tempT
   const weakCount = devices.filter((d) => d.signalDbm !== null && d.signalDbm < signalT).length
   const latencyHot = wan.latencyMs > latencyT
   const previewScore = Math.max(
     40,
-    Math.min(100, 100 - (tempHot ? 8 : 0) - weakCount * 2 - (latencyHot ? 6 : 0)),
+    Math.min(100, 100 - weakCount * 2 - (latencyHot ? 6 : 0)),
   )
 
   // ——— Notificaciones visuales ———
@@ -3866,19 +3884,6 @@ export default function Settings() {
                 {(
                   [
                     {
-                      key: 'temp',
-                      label: t('settings.data.tempLabel'),
-                      value: tempT,
-                      set: setTempT,
-                      min: 50,
-                      max: 85,
-                      format: (v: number) => `${v} °C`,
-                      caption: tempHot
-                        ? t('settings.data.tempCaptionHot', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 })
-                        : t('settings.data.tempCaptionOk', { name: patio?.name ?? '—', temp: patio?.temp ?? 0 }),
-                      captionHot: tempHot,
-                    },
-                    {
                       key: 'signal',
                       label: t('topology.weakSignal'),
                       value: signalT,
@@ -3950,6 +3955,7 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
+              <p className="mt-4 text-caption leading-relaxed text-text-muted">{t('settings.data.tempNote')}</p>
             </div>
 
             {/* divider: Velocidad WAN contratada (izq) | Test de velocidad periódico (der) */}

@@ -1076,6 +1076,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
 	l.mu.Unlock()
+	// issue #716: umbral de temperatura alta del router (default 65 °C).
+	thr := p.cfg.TempThresholdValue()
 	model := p.cfg.Name
 	if model == "" {
 		model = p.cfg.Host
@@ -1098,7 +1100,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.temp > 75 {
 		health -= 25
-	} else if p.temp > 65 {
+	} else if p.temp > thr {
 		health -= 12
 	}
 	if p.ram > 90 {
@@ -1115,7 +1117,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	isGw := gw != nil && p.cfg.ID == gw.ID
 	status := "online"
-	if p.temp > 65 || p.cpu > 85 {
+	if p.temp > thr || p.cpu > 85 {
 		status = "warn"
 	}
 	sparkline := make([]float64, 0, len(history))
@@ -1130,7 +1132,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		IP: p.cfg.Host, Status: status, Health: health,
 		CPU: iptr(p.cpu), RAM: iptr(p.ram), Temp: iptr(p.temp),
 		Uptime: fmtUptime(p.uptimeSec), Clients: len(p.leases),
-		Sparkline: sparkline,
+		Sparkline: sparkline, TempThreshold: thr,
 	}
 	if noVitals {
 		r.VitalsAvailable = bptr(false)
@@ -1183,7 +1185,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 			Time:        "ahora mismo", RouterID: p.cfg.ID,
 		})
 	}
-	if p.temp > 65 {
+	if p.temp > thr {
 		r.HotMetric = "temp"
 	}
 	return r
@@ -2234,6 +2236,28 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	return devices
 }
 
+// emitTempAlert emite la alerta de temperatura alta UNA vez por proceso
+// (flag, como el JS), usando el umbral del router (issue #716; default 65).
+// Debe llamarse con l.mu tomado.
+func (l *Live) emitTempAlert(cfg RouterConfig, router Router) {
+	thr := cfg.TempThresholdValue()
+	if router.Temp == nil || *router.Temp <= thr || l.lastStatus[cfg.ID+":temp"] == "warn" {
+		return
+	}
+	l.lastStatus[cfg.ID+":temp"] = "warn"
+	l.engine.Emit(AlertEvent{
+		ID:       fmt.Sprintf("alert-temp-%s-%d", cfg.ID, time.Now().UnixMilli()),
+		Category: alerts.CatRouter, Urgent: true,
+		Severity:    "warn",
+		Title:       "Temperatura alta en " + router.Name,
+		Description: fmt.Sprintf("%d °C, por encima del umbral (%d °C)", *router.Temp, thr),
+		Hint:        alerts.HintFor(alerts.HintHighTemp),
+		Type:        alerts.HintHighTemp,
+		Vars:        map[string]string{"router": router.Name, "temp": strconv.Itoa(*router.Temp)},
+		Time:        "ahora mismo", RouterID: cfg.ID,
+	})
+}
+
 // computeHealth (index.js:462-486).
 func computeHealth(routers []Router, adguard *AdGuardStats) HealthScore {
 	score := 100
@@ -2248,10 +2272,16 @@ func computeHealth(routers []Router, adguard *AdGuardStats) HealthScore {
 			score -= 30
 			infraScore -= 40
 			breakdown = append(breakdown, HealthDelta{Label: r.Name + " offline", Delta: -30})
-		} else if r.Temp != nil && *r.Temp > 65 {
-			score -= 8
-			infraScore -= 10
-			breakdown = append(breakdown, HealthDelta{Label: "temp. " + r.Name, Delta: -8})
+		} else if r.Temp != nil {
+			thr := r.TempThreshold
+			if thr <= 0 {
+				thr = DefaultTempThreshold
+			}
+			if *r.Temp > thr {
+				score -= 8
+				infraScore -= 10
+				breakdown = append(breakdown, HealthDelta{Label: "temp. " + r.Name, Delta: -8})
+			}
 		}
 	}
 	if adguard != nil && adguard.Status != "active" {
@@ -2397,20 +2427,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		router := l.buildRouter(p, l.metricsHistory(cfg.ID, "24h"))
 		l.mu.Lock()
 		l.lastGood[cfg.ID] = &router
-		// Alerta de temperatura UNA vez por proceso (flag, como el JS)
-		if router.Temp != nil && *router.Temp > 65 && l.lastStatus[cfg.ID+":temp"] != "warn" {
-			l.lastStatus[cfg.ID+":temp"] = "warn"
-			l.engine.Emit(AlertEvent{
-				ID:       fmt.Sprintf("alert-temp-%s-%d", cfg.ID, time.Now().UnixMilli()),
-				Category: alerts.CatRouter, Urgent: true,
-				Severity: "warn", Title: "Temperatura alta en " + router.Name,
-				Description: fmt.Sprintf("%d °C, por encima del umbral (65 °C)", *router.Temp),
-				Hint:        alerts.HintFor(alerts.HintHighTemp),
-				Type:        alerts.HintHighTemp,
-				Vars:        map[string]string{"router": router.Name, "temp": strconv.Itoa(*router.Temp)},
-				Time:        "ahora mismo", RouterID: cfg.ID,
-			})
-		}
+		l.emitTempAlert(cfg, router)
 		l.mu.Unlock()
 		routerList = append(routerList, router)
 	}
