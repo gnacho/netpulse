@@ -8,7 +8,8 @@
  *   - OK  → modo live: `GET /api/overview` + SSE `/api/stream`
  *     (`snapshot` reemplaza el bundle, `alert` añade alerta). onerror →
  *     `reconnecting` con backoff 2s→5s→15s y polling de `/api/overview`
- *     cada 15 s hasta reconectar. Cualquier 401 → redirect `/login`.
+ *     a la cadencia del ajuste "Intervalo de refresco" hasta reconectar.
+ *     Cualquier 401 → redirect `/login`.
  *   - Fallo → modo demo: `isDemo=true`, tick local cada 3 s con random walk
  *     suave (cpu/ram/temp ±2, tráfico ±5 %, latencia WAN 6–11 ms).
  */
@@ -151,7 +152,7 @@ export interface NetPulseApi extends NetPulseData {
   /**
    * POST /api/refresh (live): fuerza un sondeo inmediato en el backend; el
    * snapshot fresco llega por SSE. Resuelve `true` si toca esperar snapshot
-   * (202 o 429 — el tick de 5 s lo empuja igualmente) y `false` si no hay
+   * (202 o 429 — el siguiente tick del poller lo empuja igualmente) y `false` si no hay
    * backend (demo) o falló la petición. En demo es no-op → false.
    */
   requestServerRefresh: () => Promise<boolean>
@@ -425,8 +426,31 @@ function toQuery(params: Record<string, string | number | undefined>): string {
 /** Flag de módulo (B3): el aviso de vm > VM_SUPPORTED sale UNA sola vez. */
 let vmVersionWarned = false
 
+/**
+ * Cadencia del polling de respaldo del SSE, según el ajuste de UI
+ * "Intervalo de refresco" (clave localStorage `netpulse-refresh`).
+ * Devuelve null si el ajuste está en "Pausado" ('0') o es inválido.
+ */
+function readFallbackPollMs(): number | null {
+  try {
+    const raw = localStorage.getItem('netpulse-refresh')
+    if (raw === null) return DEFAULT_FALLBACK_MS
+    const v = JSON.parse(raw) as unknown
+    if (v === '3') return 3000
+    if (v === '5') return 5000
+    if (v === '10') return 10000
+    if (v === '0') return null
+    return DEFAULT_FALLBACK_MS
+  } catch {
+    return DEFAULT_FALLBACK_MS
+  }
+}
+
 const BACKOFF_MS = [2000, 5000, 15000]
-const POLL_MS = 15000
+// Polling de respaldo del SSE (live): cadencia por defecto si el ajuste
+// "Intervalo de refresco" no está configurado. El ajuste (netpulse-refresh)
+// lo sustituye: '3'|'5'|'10' → segundos, '0' → pausado.
+const DEFAULT_FALLBACK_MS = 15000
 const DEMO_TICK_MS = 3000
 // Refresco del estado de agentes (fresh cambia solo en el backend, TTL ~90 s)
 const AGENTS_POLL_MS = 30000
@@ -461,6 +485,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const bundleRef = useRef(bundle)
   bundleRef.current = bundle
   const modeRef = useRef<'boot' | 'live' | 'demo'>('boot')
+  // Estado de conexión en ref: el listener del ajuste "Intervalo de refresco"
+  // (que cambia la cadencia del polling de respaldo) lo consulta sin rearmar
+  // el effect de boot.
+  const connectionStatusRef = useRef<ConnectionStatus>('demo')
+  const setConnectionStatusTracked = useCallback((s: ConnectionStatus) => {
+    connectionStatusRef.current = s
+    setConnectionStatus(s)
+  }, [])
   // Se sincroniza en applyAlertsConfig y en el fetch del boot (nunca en render)
   const configRef = useRef(alertsConfig)
   // fetchAgents vive dentro del effect de boot; este ref lo expone como
@@ -547,6 +579,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(pollId)
       pollId = undefined
     }
+
+    // Arranca (o re-arma) el polling de respaldo del SSE con la cadencia del
+    // ajuste "Intervalo de refresco". Con el ajuste en "Pausado" no se arranca
+    // nada (el SSE sigue reintentando por su backoff).
+    const startFallbackPoll = () => {
+      stopPolling()
+      const ms = readFallbackPollMs()
+      if (ms === null) return
+      pollId = window.setInterval(() => {
+        void fetchOverview()
+      }, ms)
+    }
     const stopSse = () => {
       es?.close()
       es = null
@@ -561,7 +605,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           applyOverview(JSON.parse((ev as MessageEvent).data as string) as OverviewBundle)
           backoffIdx = 0
           stopPolling()
-          setConnectionStatus('connected')
+          setConnectionStatusTracked('connected')
         } catch {
           /* payload inválido: se ignora */
         }
@@ -581,18 +625,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       es.onopen = () => {
         backoffIdx = 0
         stopPolling()
-        setConnectionStatus('connected')
+        setConnectionStatusTracked('connected')
       }
       es.onerror = () => {
         if (disposed) return
-        setConnectionStatus('reconnecting')
+        setConnectionStatusTracked('reconnecting')
         stopSse()
-        // Polling de respaldo cada 15 s hasta que el SSE reconecte
-        if (pollId === undefined) {
-          pollId = window.setInterval(() => {
-            void fetchOverview()
-          }, POLL_MS)
-        }
+        // Polling de respaldo (cadencia del ajuste "Intervalo de refresco")
+        // hasta que el SSE reconecte.
+        if (pollId === undefined) startFallbackPoll()
         // Reintento SSE con backoff 2s → 5s → 15s
         reconnectId = window.setTimeout(
           () => {
@@ -660,10 +701,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await fetchAlertsConfig()
       await fetchAgents()
       if (disposed) return
-      if (ok) setConnectionStatus('connected')
+      if (ok) setConnectionStatusTracked('connected')
       else {
-        setConnectionStatus('reconnecting')
-        pollId = window.setInterval(() => void fetchOverview(), POLL_MS)
+        setConnectionStatusTracked('reconnecting')
+        startFallbackPoll()
       }
       scheduleAgentsPoll(AGENTS_POLL_MS)
       startSse()
@@ -672,7 +713,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const startDemo = () => {
       modeRef.current = 'demo'
       setIsDemo(true)
-      setConnectionStatus('demo')
+      setConnectionStatusTracked('demo')
       // Demo: el badge de no leídas respeta la config guardada (SPEC §2)
       setBundle((prev) => ({ ...prev, unreadAlerts: countUnreadAlerts(prev.alerts, configRef.current) }))
       tickId = window.setInterval(() => {
@@ -692,15 +733,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       else startDemo()
     })()
 
+    // Si el usuario cambia el ajuste "Intervalo de refresco" en Ajustes, se
+    // re-arma el polling de respaldo al momento (sin recargar). Solo aplica
+    // mientras el SSE está caído y el modo es live; en connected el SSE empuja
+    // y no hay polling que re-armar.
+    const onRefreshChange = () => {
+      if (disposed || modeRef.current !== 'live') return
+      if (connectionStatusRef.current !== 'reconnecting') return
+      startFallbackPoll()
+    }
+    window.addEventListener('netpulse-refresh-change', onRefreshChange)
+
     return () => {
       disposed = true
+      window.removeEventListener('netpulse-refresh-change', onRefreshChange)
       stopSse()
       stopPolling()
       window.clearTimeout(reconnectId)
       window.clearInterval(tickId)
       window.clearTimeout(agentsPollId)
     }
-  }, [applyOverview])
+  }, [applyOverview, setConnectionStatusTracked])
 
   // -- idioma del dataset demo (issue #238) ------------------------------------
   // En demo, los textos propios del canon (nombres de routers/devices, roles,
@@ -735,8 +788,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // Sondeo manual (botón "Refrescar" de Topología): el backend sondea ya y
   // empuja el snapshot por SSE; aquí solo se dispara la petición. Un 429
-  // (anti-martilleo, min 5 s) también cuenta como "espera": el tick regular
-  // de 5 s del poller empujará un snapshot fresco antes del timeout del botón.
+  // (anti-martilleo, min 5 s) también cuenta como "espera": el siguiente tick
+  // del poller empujará un snapshot fresco antes del timeout del botón.
   const requestServerRefresh = useCallback(async (): Promise<boolean> => {
     if (modeRef.current !== 'live') return false
     try {

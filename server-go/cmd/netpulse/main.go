@@ -379,7 +379,7 @@ func run() error {
 		}
 		return p.LastOverview()
 	})
-	p = poller.New(adapter, dbHandle, hub)
+	p = poller.New(adapter, dbHandle, hub, time.Duration(cfg.PollIntervalSec)*time.Second)
 
 	// Estáticos: STATIC_DIR explícito → disco; si no → dist embebido.
 	staticDir := ""
