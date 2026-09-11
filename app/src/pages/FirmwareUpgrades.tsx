@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
-import { AlertCircle, CalendarClock, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { AlertCircle, CalendarClock, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
 import {
@@ -46,6 +46,16 @@ interface FirmwareItem {
   upgrade?: FirmwareUpgrade
 }
 
+/** Resultado de la detección + check de owut por router (#695, Fase 1). */
+interface OwutStatus {
+  owutAvailable: boolean
+  checkRan: boolean
+  upgradeAvailable: boolean
+  buildable: boolean
+  rawOutput?: string
+  error?: string
+}
+
 const STATUS_COLORS: Record<string, string> = {
   requested: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
   downloading: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
@@ -73,6 +83,9 @@ export default function FirmwareUpgrades() {
   const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({})
   // #629: estado de "autodetectar imagen" por router.
   const [resolveBusy, setResolveBusy] = useState<Record<string, boolean>>({})
+  // #695 Fase 1: estado del check owut por router.
+  const [owutBusy, setOwutBusy] = useState<Record<string, boolean>>({})
+  const [owutResult, setOwutResult] = useState<Record<string, OwutStatus>>({})
 
   const sortedRouters = useMemo(() => {
     return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
@@ -159,6 +172,27 @@ export default function FirmwareUpgrades() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
+
+  // #695 Fase 1: detectar owut y ejecutar `owut check` en el router (solo
+  // detección + check para revisión; sin download/install).
+  const runOwutCheck = async (id: string) => {
+    setOwutBusy((prev) => ({ ...prev, [id]: true }))
+    setError('')
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.message ?? body.error ?? await res.text())
+      setOwutResult((prev) => ({ ...prev, [id]: body as OwutStatus }))
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setOwutBusy((prev) => ({ ...prev, [id]: false }))
+    }
+  }
 
   const saveTarget = async (id: string) => {
     const e = edits[id]
@@ -309,6 +343,7 @@ export default function FirmwareUpgrades() {
           const e = edits[item.routerId] ?? {}
           const active = upgradeActive(item)
           const scheduled = scheduledPending(item)
+          const owut = owutResult[item.routerId]
           // #477 P2: resumen de lo detectado por el agente (board info).
           const detectedBits: string[] = []
           if (item.detectedModel || item.detectedBoard) {
@@ -420,6 +455,64 @@ export default function FirmwareUpgrades() {
                         ? t('firmwareUpgrades.detectImageBusy')
                         : t('firmwareUpgrades.detectImage')}
                     </button>
+                  )}
+                </div>
+              )}
+
+              {isAdmin && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <button
+                    type="button"
+                    onClick={() => void runOwutCheck(item.routerId)}
+                    disabled={owutBusy[item.routerId]}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
+                  >
+                    <Terminal className={cn('h-4 w-4', owutBusy[item.routerId] && 'animate-pulse')} strokeWidth={1.75} />
+                    {owutBusy[item.routerId] ? t('firmwareUpgrades.owutBusy') : t('firmwareUpgrades.owutCheck')}
+                  </button>
+                  {owut && (
+                    <div className="mt-3 space-y-2">
+                      {!owut.owutAvailable && (
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                          <span>{t('firmwareUpgrades.owutUnavailable')}</span>
+                        </div>
+                      )}
+                      {owut.error && (
+                        <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                          <span>{t('firmwareUpgrades.owutCheckFailed')}</span>
+                        </div>
+                      )}
+                      {owut.checkRan && owut.buildable && owut.upgradeAvailable && (
+                        <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
+                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                          <span>{t('firmwareUpgrades.owutUpgradeAvailable')}</span>
+                        </div>
+                      )}
+                      {owut.checkRan && owut.buildable && !owut.upgradeAvailable && (
+                        <div className="flex items-start gap-2 rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-secondary">
+                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+                          <span>{t('firmwareUpgrades.owutUpToDate')}</span>
+                        </div>
+                      )}
+                      {owut.checkRan && !owut.buildable && (
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+                          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                          <span>{t('firmwareUpgrades.owutNotBuildable')}</span>
+                        </div>
+                      )}
+                      {owut.rawOutput && (
+                        <details className="rounded-lg border border-border bg-canvas px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-text-secondary">
+                            {t('firmwareUpgrades.owutOutput')}
+                          </summary>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-text-secondary">
+                            {owut.rawOutput}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

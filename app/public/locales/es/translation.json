@@ -1588,7 +1588,15 @@
     "scheduleAt": "Programar para",
     "scheduledFor": "Programada para el {{time}}",
     "cancelSchedule": "Cancelar programación",
-    "dismiss": "Descartar aviso"
+    "dismiss": "Descartar aviso",
+    "owutCheck": "Comprobar con owut",
+    "owutBusy": "Comprobando…",
+    "owutUnavailable": "owut no está disponible en este router (requiere OpenWrt 24.10 o posterior).",
+    "owutUpgradeAvailable": "Hay una actualización disponible y el servidor ASU puede construir la imagen.",
+    "owutUpToDate": "Sin cambios pendientes; no es necesario actualizar.",
+    "owutNotBuildable": "El servidor ASU no puede construir la imagen para este router en este momento.",
+    "owutCheckFailed": "No se pudo ejecutar el check (router inalcanzable o sin respuesta).",
+    "owutOutput": "Salida de owut"
   },
   "orchestration": {
     "title": "Orquestación",
