@@ -3850,11 +3850,14 @@ export default function Settings() {
                       onChange={(v) => {
                         setRefresh(v)
                         notify()
+                        // El DataProvider re-arma el polling de respaldo del
+                        // SSE al instante (sin recargar la página).
+                        window.dispatchEvent(new Event('netpulse-refresh-change'))
                       }}
                       ariaLabel={t('settings.data.refresh')}
                     />
                   </div>
-                  <p className="mt-2 text-caption text-text-muted">{t('settings.data.mockNote')}</p>
+                  <p className="mt-2 text-caption text-text-muted">{t('settings.data.refreshNote')}</p>
                 </div>
               </div>
 

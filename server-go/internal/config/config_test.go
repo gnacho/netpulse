@@ -161,3 +161,45 @@ func TestLoadTLSCertSinKey(t *testing.T) {
 		t.Fatalf("TLS_KEY sin TLS_CERT debe fallar señalando la pareja: %v", err)
 	}
 }
+
+// --- Intervalo del poller (#715) ---
+
+func TestLoadPollIntervalDefault(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PollIntervalSec != 30 {
+		t.Fatalf("PollIntervalSec = %d, esperaba 30 (default)", cfg.PollIntervalSec)
+	}
+}
+
+func TestLoadPollIntervalOverride(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_POLL_INTERVAL": "12"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PollIntervalSec != 12 {
+		t.Fatalf("PollIntervalSec = %d, esperaba 12", cfg.PollIntervalSec)
+	}
+}
+
+func TestLoadPollIntervalInvalido(t *testing.T) {
+	for _, bad := range []string{"0", "-3", "abc", ""} {
+		env := map[string]string{"AUTH_PASS": "segura-y-larga"}
+		if bad != "" {
+			env["NETPULSE_POLL_INTERVAL"] = bad
+		}
+		_, err := Load(env, t.TempDir())
+		if bad == "" {
+			// ausente: válido (usa default)
+			if err != nil {
+				t.Fatalf("sin NETPULSE_POLL_INTERVAL no debe fallar: %v", err)
+			}
+			continue
+		}
+		if err == nil || !strings.Contains(err.Error(), "NETPULSE_POLL_INTERVAL") {
+			t.Fatalf("NETPULSE_POLL_INTERVAL=%q debe fallar señalando la variable: %v", bad, err)
+		}
+	}
+}

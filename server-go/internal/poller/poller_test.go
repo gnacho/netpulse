@@ -23,7 +23,34 @@ func (b *blockingAdapter) GetOverview(context.Context) (*adapters.Overview, erro
 
 func newBlockingPoller() (*Poller, *blockingAdapter) {
 	a := &blockingAdapter{Demo: adapters.NewDemo(), release: make(chan struct{})}
-	return New(a, nil, nil), a
+	return New(a, nil, nil, 0), a
+}
+
+// TestInjectedInterval verifica que Start respeta el intervalo pasado a New:
+// con un intervalo corto, el ticker dispara más ticks además del inmediato
+// (el contador AdGuard de la demo crece en cada tick).
+func TestInjectedInterval(t *testing.T) {
+	a := adapters.NewDemo()
+	p := New(a, nil, nil, 20*time.Millisecond)
+	p.Start()
+	defer p.Stop()
+
+	// Primer tick inmediato.
+	deadline := time.Now().Add(time.Second)
+	for p.LastOverview() == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("el primer tick inmediato no pobló LastOverview")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	before := p.LastOverview().Adguard.Queries24h
+
+	// Tras ~120 ms con ticker de 20 ms deben haber ocurrido varios ticks más.
+	time.Sleep(120 * time.Millisecond)
+	after := p.LastOverview().Adguard.Queries24h
+	if after <= before {
+		t.Fatalf("Adguard.Queries24h no avanzó (%d -> %d): el ticker no usa el intervalo inyectado", before, after)
+	}
 }
 
 func TestStopDoesNotHangOnSlowTick(t *testing.T) {

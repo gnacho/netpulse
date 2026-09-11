@@ -1,6 +1,6 @@
-// Package poller — sondeo cada 5 s (paridad src/poller.js, SPEC §6):
-// tick inmediato + intervalo; adapter.tick → getOverview → persiste (solo
-// live) → broadcast SSE snapshot → alertas nuevas (cebado en el 1er tick).
+// Package poller — sondeo periódico de routers (SPEC §6):
+// tick inmediato + intervalo configurable; adapter.tick → getOverview → persiste
+// (solo live) → broadcast SSE snapshot → alertas nuevas (cebado en el 1er tick).
 // Robustez: un fallo del adapter nunca mata el poller.
 //
 // NOTA (núcleo Go): con el adapter STUB demo esto ya es funcional; el agente
@@ -19,7 +19,9 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 )
 
-// TickMS es el intervalo del poller (5 s).
+// TickMS es el intervalo por defecto del poller (5 s). El valor efectivo lo
+// fija la config (NETPULSE_POLL_INTERVAL, default 30 s) vía New; TickMS solo
+// se usa como respaldo cuando New recibe un intervalo no positivo.
 const TickMS = 5 * time.Second
 
 // Poller ejecuta el bucle de sondeo.
@@ -27,6 +29,9 @@ type Poller struct {
 	adapter adapters.Snapshotter
 	db      *db.DB
 	hub     *sse.Hub
+
+	// interval es la cadencia del ticker (config). <= 0 → TickMS.
+	interval time.Duration
 
 	// enrich (opcional) inyecta en cada overview los campos que viven en el
 	// kv del server (orchestration, plan contratado #151, speedtest #511)
@@ -45,14 +50,18 @@ type Poller struct {
 	doneCh chan struct{}
 	once   sync.Once
 
-	// tickMu serializa los ticks (ticker 5 s + sondeos manuales PollNow).
+	// tickMu serializa los ticks (ticker + sondeos manuales PollNow).
 	tickMu sync.Mutex
 }
 
-// New crea el poller.
-func New(adapter adapters.Snapshotter, d *db.DB, hub *sse.Hub) *Poller {
+// New crea el poller. interval fija la cadencia del ticker (segundos de la
+// config); un valor <= 0 cae a TickMS (respaldo de paquete).
+func New(adapter adapters.Snapshotter, d *db.DB, hub *sse.Hub, interval time.Duration) *Poller {
 	return &Poller{
-		adapter: adapter, db: d, hub: hub,
+		adapter:     adapter,
+		db:          d,
+		hub:         hub,
+		interval:    interval,
 		knownAlerts: map[string]struct{}{},
 		stopCh:      make(chan struct{}), doneCh: make(chan struct{}),
 	}
@@ -65,12 +74,16 @@ func (p *Poller) LastOverview() *adapters.Overview {
 	return p.lastOverview
 }
 
-// Start lanza el bucle: primer tick inmediato + ticker de 5 s.
+// Start lanza el bucle: primer tick inmediato + ticker del intervalo fijado.
 func (p *Poller) Start() {
 	go func() {
 		defer close(p.doneCh)
 		p.tickOnce()
-		t := time.NewTicker(TickMS)
+		interval := p.interval
+		if interval <= 0 {
+			interval = TickMS
+		}
+		t := time.NewTicker(interval)
 		defer t.Stop()
 		for {
 			select {

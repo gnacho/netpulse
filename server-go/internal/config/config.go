@@ -84,6 +84,9 @@ type Config struct {
 	// RTLConsolePollSec (NETPULSE_RTL_POLL_S): cadencia del sondeo HTTP de la
 	// consola RTLPlayground en segundos. 0/ausente → 300 (5 min).
 	RTLConsolePollSec int
+	// PollIntervalSec (NETPULSE_POLL_INTERVAL): cadencia del sondeo SSH del
+	// poller en segundos. Default 30 (antes 5 s hardcoded, #715). Entero > 0.
+	PollIntervalSec int
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -452,6 +455,18 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_POLL_INTERVAL: cadencia del sondeo SSH del poller en segundos
+	// (#715). Entero > 0; default 30 (antes 5 s hardcoded).
+	pollIntervalSec := 30
+	if v, ok := env["NETPULSE_POLL_INTERVAL"]; ok && v != "" {
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil || n <= 0 {
+			errs.issues = append(errs.issues, issue{"NETPULSE_POLL_INTERVAL", "Expected a positive integer"})
+		} else {
+			pollIntervalSec = n
+		}
+	}
+
 	// NETPULSE_TLS_ENABLED: '0'|'1', opcional — HTTPS adicional en un listener
 	// propio (#696). Opt-in explícito: sin la variable, el binario se comporta
 	// exactamente como hoy (solo HTTP en PORT). El modo on-box ya sirve HTTPS
@@ -559,6 +574,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		GhostPortEnabled:  ghostPortEnabled,
 		RTLConsolePass:    rtlPass,
 		RTLConsolePollSec: rtlPollSec,
+		PollIntervalSec:   pollIntervalSec,
 		TLSEnabled:        tlsEnabled,
 		TLSPort:           tlsPort,
 		TLSCert:           tlsCert,

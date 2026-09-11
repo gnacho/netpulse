@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Changed
+
+- **El intervalo del sondeo SSH del servidor pasa a ser configurable y sube de 5 s a 30 s (#715)**: el poller sondeara los routers por SSH cada `NETPULSE_POLL_INTERVAL` segundos (entero > 0, 30 por defecto) en vez de cada 5 s fijos, que añadía una carga base visible en routers pequeños e inesperada para un monitor de solo lectura. El ajuste de UI "Intervalo de refresco" ya no aparenta controlar el sondeo del servidor: ahora gobierna de verdad la cadencia con la que la interfaz reconsulta los datos cuando pierde la conexión en tiempo real (3 s, 5 s, 10 s o pausado), y su etiqueta lo aclara.
+
 ### Added
 
 - **Detección y check de `owut` para upgrades de OpenWrt, Fase 1 (#695)**: el servidor puede detectar si un router tiene disponible `owut` (attended sysupgrade) y ejecutar `owut check` por SSH, exponiendo el resultado para revisión en la UI de Actualizaciones por router: si hay una actualización disponible y si la infraestructura ASU (sysupgrade.openwrt.org) puede construir la imagen. Es solo detección + check; `owut download`/`owut install` llegarán en una fase posterior con confirmación explícita. El flujo sysupgrade actual se mantiene intacto como fallback (owut requiere OpenWrt 24.10+; en 23.05 y anteriores no existe).
