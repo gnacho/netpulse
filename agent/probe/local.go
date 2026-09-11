@@ -49,6 +49,10 @@ type Options struct {
 	WanPingTarget string
 	// GwPingTarget: si no está vacío, ping corto al gateway (latencia) — AP.
 	GwPingTarget string
+	// ScanInterval: mínimo entre scans de vecinos (#591/#699). 0 = usar
+	// DefaultScanInterval; negativo (ScanDisabled) = sin scans periódicos,
+	// solo on-demand vía ForceScan (env NETPULSE_SCAN_INTERVAL).
+	ScanInterval time.Duration
 }
 
 // Prober sondea el equipo local y construye payloads. Mantiene el estado de
@@ -83,22 +87,34 @@ type Prober struct {
 	// scanMu protege el throttle del scan pasivo de vecinos (#591): el scan
 	// activo (`iw dev scan`) saca la radio del canal y degrada a los clientes
 	// si se repite en cada sondeo (cada ~30 s). Se ejecuta como mucho cada
-	// scanMinInterval, o antes si el server pide un refresh explícito.
-	scanMu     sync.Mutex
-	lastScanAt time.Time
-	scanForced bool
+	// scanInterval, o antes si el server pide un refresh explícito.
+	scanMu       sync.Mutex
+	lastScanAt   time.Time
+	scanForced   bool
+	scanInterval time.Duration
 }
 
 const radiosTTL = 5 * time.Minute
 
-// scanMinInterval: mínimo entre scans pasivos de vecinos. Los datos de
-// "Análisis de canales" apenas cambian; 10 minutos mantienen el mapa fresco
-// sin martillear el aire con off-channel scans (#591).
-const scanMinInterval = 10 * time.Minute
+const (
+	// ScanDisabled: sin scans periódicos (solo on-demand vía ForceScan).
+	// Lo selecciona NETPULSE_SCAN_INTERVAL=0; en un AP con clientes Intel
+	// cada off-channel gap puede costar un deauth por beacon-loss (#699).
+	ScanDisabled = -1 * time.Second
+	// DefaultScanInterval: mínimo entre scans de vecinos si no se configura
+	// NETPULSE_SCAN_INTERVAL. Los datos de "Análisis de canales" apenas
+	// cambian; 30 minutos mantienen el mapa razonablemente fresco sin
+	// martillear el aire con off-channel scans (#591/#699).
+	DefaultScanInterval = 30 * time.Minute
+)
 
 // NewProber crea el prober con el runner dado.
 func NewProber(run Runner, opts Options) *Prober {
-	return &Prober{run: run, opts: opts}
+	si := opts.ScanInterval
+	if si == 0 {
+		si = DefaultScanInterval
+	}
+	return &Prober{run: run, opts: opts, scanInterval: si}
 }
 
 // ForceScan pide un scan en el próximo Build (lo usa el runtime cuando el
@@ -110,9 +126,10 @@ func (p *Prober) ForceScan() {
 }
 
 // scanDue decide si toca lanzar CmdScan en este sondeo completo: true si hay
-// un force pendiente (refresh del server) o si pasó scanMinInterval desde el
-// último intento. La primera Build tras arrancar también escanea (lastScanAt
-// cero). Al devolver true registra el intento para no repetirlo en el ciclo.
+// un force pendiente (refresh del server) o si pasó scanInterval desde el
+// último intento. Con ScanDisabled los periódicos no corren nunca (solo
+// force). La primera Build tras arrancar también escanea (lastScanAt cero),
+// salvo desactivado. Al devolver true registra el intento para no repetirlo.
 func (p *Prober) scanDue() bool {
 	p.scanMu.Lock()
 	defer p.scanMu.Unlock()
@@ -121,7 +138,10 @@ func (p *Prober) scanDue() bool {
 		p.lastScanAt = time.Now()
 		return true
 	}
-	if p.lastScanAt.IsZero() || time.Since(p.lastScanAt) >= scanMinInterval {
+	if p.scanInterval < 0 {
+		return false
+	}
+	if p.lastScanAt.IsZero() || time.Since(p.lastScanAt) >= p.scanInterval {
 		p.lastScanAt = time.Now()
 		return true
 	}
