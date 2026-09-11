@@ -157,10 +157,7 @@ func TestWGInterfacesFilter(t *testing.T) {
 		{"wg0,wg1", []string{"wg0", "wg1"}},
 		{" wg0 , wg1 , ", []string{"wg0", "wg1"}},
 	} {
-		got, err := wgInterfaces(f, "host", tc.iface)
-		if err != nil {
-			t.Fatalf("wgInterfaces(%q): %v", tc.iface, err)
-		}
+		got := wgInterfaces(f, "host", tc.iface)
 		if len(got) != len(tc.want) {
 			t.Errorf("wgInterfaces(%q) = %v, want %v", tc.iface, got, tc.want)
 			continue
@@ -180,10 +177,7 @@ func TestWGInterfacesFilter(t *testing.T) {
 		f := &fakeWGRunner{run: func(cmd string) (string, error) {
 			return "wg0 wg1\n", nil
 		}}
-		got, err := wgInterfaces(f, "host", iface)
-		if err != nil {
-			t.Fatalf("wgInterfaces(%q): %v", iface, err)
-		}
+		got := wgInterfaces(f, "host", iface)
 		if len(got) != 2 || got[0] != "wg0" || got[1] != "wg1" {
 			t.Errorf("wgInterfaces(%q) = %v, want [wg0 wg1]", iface, got)
 		}
@@ -317,5 +311,68 @@ func TestGetWireGuardStatsExplicitFilter(t *testing.T) {
 	}
 	if len(f.calls) == 1 && !strings.Contains(f.calls[0], "wg show wg1 dump") {
 		t.Errorf("llamada inesperada: %v", f.calls[0])
+	}
+}
+
+func TestWGInterfacesFallsBackOnListError(t *testing.T) {
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		if cmd == wgListCommand {
+			return "", fmt.Errorf("wg show interfaces no soportado")
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	got := wgInterfaces(f, "host", "auto")
+	if len(got) != 1 || got[0] != "wg0" {
+		t.Errorf("wgInterfaces(auto) = %v, want [wg0]", got)
+	}
+	if len(f.calls) != 1 || f.calls[0] != wgListCommand {
+		t.Errorf("llamadas = %v, want [%s]", f.calls, wgListCommand)
+	}
+}
+
+func TestGetWireGuardStatsOneInterfaceFails(t *testing.T) {
+	dump0 := wgPeerDump("wg0", wgPeerLine("AAA=", "10.0.0.2/32", "0"))
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		switch {
+		case cmd == wgListCommand:
+			return "wg0 wg1\n", nil
+		case strings.Contains(cmd, "wg show wg0 dump"):
+			return wgStatsOutput(dump0, ""), nil
+		case strings.Contains(cmd, "wg show wg1 dump"):
+			return "", fmt.Errorf("exit status 1")
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	stats, err := GetWireGuardStats(f, "host", "auto", "", nil)
+	if err != nil {
+		t.Fatalf("GetWireGuardStats: %v (no debe abortar por una interfaz caída)", err)
+	}
+	if stats.Status != "active" {
+		t.Errorf("Status = %q, want active", stats.Status)
+	}
+	if len(stats.Peers) != 1 {
+		t.Fatalf("len(Peers) = %d, want 1 (solo wg0)", len(stats.Peers))
+	}
+	if stats.Peers[0].Name != "10.0.0.2" {
+		t.Errorf("Name = %q, want 10.0.0.2", stats.Peers[0].Name)
+	}
+}
+
+func TestGetWireGuardStatsAllFail(t *testing.T) {
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		if cmd == wgListCommand {
+			return "wg0 wg1\n", nil
+		}
+		return "", fmt.Errorf("exit status 1")
+	}}
+	stats, err := GetWireGuardStats(f, "host", "auto", "", nil)
+	if err != nil {
+		t.Fatalf("GetWireGuardStats: %v (todas fallan → inactive sin error)", err)
+	}
+	if stats.Status != "inactive" {
+		t.Errorf("Status = %q, want inactive", stats.Status)
+	}
+	if len(stats.Peers) != 0 {
+		t.Errorf("len(Peers) = %d, want 0", len(stats.Peers))
 	}
 }
