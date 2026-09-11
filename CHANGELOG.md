@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Changed
 
+- **La vista de tarjetas de dispositivos aprovecha mejor las pantallas grandes (#711)**: el grid se quedaba en 3 columnas y dejaba mucho espacio sin usar en monitores anchos (el reporte veía solo un par de tarjetas a 1920x990). Ahora añade 4 columnas a partir de `xl` y 5 a partir de `2xl`, con un gap algo menor, para mostrar más dispositivos por pantalla sin cambiar el diseño de la tarjeta.
 - **El intervalo del sondeo SSH del servidor pasa a ser configurable y sube de 5 s a 30 s (#715)**: el poller sondeara los routers por SSH cada `NETPULSE_POLL_INTERVAL` segundos (entero > 0, 30 por defecto) en vez de cada 5 s fijos, que añadía una carga base visible en routers pequeños e inesperada para un monitor de solo lectura. El ajuste de UI "Intervalo de refresco" ya no aparenta controlar el sondeo del servidor: ahora gobierna de verdad la cadencia con la que la interfaz reconsulta los datos cuando pierde la conexión en tiempo real (3 s, 5 s, 10 s o pausado), y su etiqueta lo aclara.
 
 ### Added
