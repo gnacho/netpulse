@@ -303,6 +303,9 @@ NETPULSE_SLUG=$SLUG
 $TOKEN_LINE
 $FP_LINE
 # NETPULSE_INTERVAL=15
+# NETPULSE_SCAN_INTERVAL=0          # min entre scans de vecinos; "0" = sin scans
+#                                   # periódicos (APs con clientes Intel: cada
+#                                   # off-channel gap puede costar un deauth)
 # NETPULSE_WAN_TARGET=1.1.1.1      # solo si este equipo es el gateway
 # NETPULSE_GW_TARGET=192.168.8.1   # ping al gateway (APs)
 EOF
