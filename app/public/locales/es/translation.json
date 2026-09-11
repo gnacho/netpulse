@@ -1168,6 +1168,7 @@
       "tempNote": "El umbral de temperatura alta se configura por router en «Dispositivos» (65 °C por defecto).",
       "title": "Datos y umbrales",
       "units": "Unidades de tráfico",
+      "unitsTitle": "Unidades de medida",
       "tempUnit": "Unidad de temperatura"
     },
     "demo": {

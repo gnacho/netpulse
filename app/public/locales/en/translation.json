@@ -1168,6 +1168,7 @@
       "tempNote": "The high-temperature threshold is set per router in \"Devices\" (65 °C by default).",
       "title": "Data & thresholds",
       "units": "Traffic units",
+      "unitsTitle": "Measurement units",
       "tempUnit": "Temperature unit"
     },
     "demo": {
