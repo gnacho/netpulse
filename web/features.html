@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260911d" />
+  <link rel="stylesheet" href="styles.css?v=20260911e" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -138,11 +138,12 @@
         <div class="card feature reveal">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7l-5.5 10M12 7l5.5 10M7 19h10"/></svg>
           <h3 data-i18n="featuresPage.topologyTitle">Topología en vivo</h3>
-          <p data-i18n="featuresPage.topologyP">Mapa semántico construido desde el FDB del bridge y LLDP cuando está disponible. Dibuja routers, switches, hipervisores, contenedores anidados, clientes cableados e inalámbricos y túneles WireGuard.</p>
+          <p data-i18n="featuresPage.topologyP">Mapa semántico construido desde el FDB del bridge y LLDP cuando está disponible. Dibuja routers, switches, hipervisores, contenedores anidados, clientes cableados e inalámbricos y túneles WireGuard. Y cuando la inferencia no puede saber dónde está enchufado algo, ancla el dispositivo a su router y boca exactos a mano.</p>
           <ul class="feature-list">
             <li data-i18n="featuresPage.topologyL1">Inferencia de switches gestionados e inferidos</li>
             <li data-i18n="featuresPage.topologyL2">Hipervisores con contenedores anidados visibles</li>
             <li data-i18n="featuresPage.topologyL3">Animación de tráfico y estado de enlaces</li>
+            <li data-i18n="featuresPage.topologyL4">Modo edición: arrastra los nodos y guarda tu layout</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -164,7 +165,7 @@
         <div class="card feature reveal">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/><path d="M4 16h16M4 8h16"/></svg>
           <h3 data-i18n="featuresPage.routersTitle">Flota de routers</h3>
-          <p data-i18n="featuresPage.routersP">Vista de conjunto de todos tus routers con CPU, memoria, temperatura, uptime, clientes conectados y mini sparkline de carga de las últimas 24 h.</p>
+          <p data-i18n="featuresPage.routersP">Vista de conjunto de todos tus routers con CPU, memoria, temperatura, uptime, clientes conectados y mini sparkline de carga de las últimas 24 h. Los switches gestionados sondeados por SNMP también son ciudadanos de primera, con su histórico de tráfico y sus clientes.</p>
           <ul class="feature-list">
             <li data-i18n="featuresPage.routersL1">Tarjeta por router con rol (gateway / AP)</li>
             <li data-i18n="featuresPage.routersL2">Alerta por temperatura o uso crítico</li>
@@ -177,11 +178,12 @@
         <div class="card feature reveal">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <h3 data-i18n="featuresPage.agentTitle">Agente y actualización</h3>
-          <p data-i18n="featuresPage.agentP">El agente es un paquete .ipk nativo de OpenWrt con init procd, config UCI y watchdog. El servidor puede servir el binario y gestionar su versión, con aviso cuando hay actualización disponible.</p>
+          <p data-i18n="featuresPage.agentP">El agente es un paquete nativo de OpenWrt (.ipk y .apk, de mips a x86/64) con init procd, config UCI y watchdog. El servidor instala y actualiza la flota entera desde la UI, y rota los tokens en caliente sin reinstalar.</p>
           <ul class="feature-list">
             <li data-i18n="featuresPage.agentL1">Instalación del agente desde la UI del servidor</li>
             <li data-i18n="featuresPage.agentL2">Aviso de agente desactualizado y botón de upgrade</li>
             <li data-i18n="featuresPage.agentL3">Rearme y estado del agente en tiempo real</li>
+            <li data-i18n="featuresPage.agentL4">owut check: comprueba si tu router tiene actualización de firmware</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -216,7 +218,7 @@
         <div class="card feature reveal">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <h3 data-i18n="featuresPage.wireguardTitle">WireGuard</h3>
-          <p data-i18n="featuresPage.wireguardP">Listado de peers, últimos handshakes, transferencia por peer y dibujo del túnel en el mapa de topología.</p>
+          <p data-i18n="featuresPage.wireguardP">Listado de peers, últimos handshakes, transferencia por peer y dibujo del túnel en el mapa de topología, con cada peer etiquetado por su nombre real de la configuración UCI.</p>
           <ul class="feature-list">
             <li data-i18n="featuresPage.wireguardL1">Estado de cada peer y tiempo desde el último handshake</li>
             <li data-i18n="featuresPage.wireguardL2">RX/TX acumulado por túnel</li>
@@ -268,10 +270,10 @@
         <div class="card feature reveal">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <h3 data-i18n="featuresPage.settingsTitle">Ajustes</h3>
-          <p data-i18n="featuresPage.settingsP">Gestión de usuarios (admin/viewer), idioma por usuario, apariencia, routers, servicios (AdGuard, WireGuard), orquestación de configuración y auto-actualización.</p>
+          <p data-i18n="featuresPage.settingsP">Una sola columna con un índice fijo que te sigue al hacer scroll: usuarios y roles, idioma por usuario, apariencia con previews reales, umbrales de datos, routers, servicios e integraciones, orquestación y auto-actualización.</p>
           <ul class="feature-list">
             <li data-i18n="featuresPage.settingsL1">Usuarios con roles y bcrypt</li>
-            <li data-i18n="featuresPage.settingsL2">Orquestación de módulos (WiFi, AdGuard, etc.)</li>
+            <li data-i18n="featuresPage.settingsL2">Test de velocidad WAN real, ejecutado desde el servidor</li>
             <li data-i18n="featuresPage.settingsL3">Auto-actualización con changelog</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
@@ -312,6 +314,7 @@
             <li data-i18n="featuresPage.onboxL1">Binario estático para routers compatibles</li>
             <li data-i18n="featuresPage.onboxL2">Config UCI nativa</li>
             <li data-i18n="featuresPage.onboxL3">Certificado autofirmado con SPKI pinning</li>
+            <li data-i18n="featuresPage.onboxL4">HTTPS opcional para la UI: tus certificados o autofirmado</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -433,8 +436,8 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20260911d"></script>
-  <script src="app.js?v=20260911d"></script>
+  <script src="i18n.js?v=20260911e"></script>
+  <script src="app.js?v=20260911e"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9"></script>
 </body>
 </html>
