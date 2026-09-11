@@ -14,6 +14,21 @@ interface AgentRearmButtonProps {
 type RearmState = 'idle' | 'busy' | 'ok' | 'pending' | 'fail'
 
 /**
+ * #718: mapea el código de error del backend (envelope {error}) a la clave
+ * i18n con el motivo real del fallo de rearme. Cualquier código desconocido
+ * cae al mensaje genérico.
+ */
+const REARM_ERROR_KEYS: Record<string, string> = {
+  not_found: 'routers.agent.rearmFailNoAgent',
+  router_unknown: 'routers.agent.rearmFailNoRouter',
+  not_openwrt: 'routers.agent.rearmFailNotOpenwrt',
+  netgrip_managed: 'routers.agent.rearmFailNetgrip',
+  ssh_unavailable: 'routers.agent.rearmFailNoSSH',
+  cooldown: 'routers.agent.rearmFailCooldown',
+  ssh_failed: 'routers.agent.rearmFailSSH',
+}
+
+/**
  * Botón «Rearmar» (Fase 5, Plan B): solo aparece con un agente registrado,
  * NO fresh (caído) y sesión con rol admin (la API exige admin en el rearme;
  * auditoría v2.4.0 §2, issue #7). Reinicia el servicio del agente en el
@@ -32,16 +47,18 @@ export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
   const { rearmAgent } = useNetPulse()
   const auth = useAuth()
   const [state, setState] = useState<RearmState>('idle')
+  const [failCode, setFailCode] = useState<string | null>(null)
 
   if (!agent || agent.fresh) return null
   if (auth?.role !== 'admin') return null
 
   const netgrip = agent.kind === 'netgrip'
+  const failKey = failCode ? (REARM_ERROR_KEYS[failCode] ?? 'routers.agent.rearmFail') : 'routers.agent.rearmFail'
   const label =
     state === 'busy' ? (netgrip ? t('routers.agent.netgripRestarting') : t('routers.agent.rearming'))
     : state === 'ok' ? t('routers.agent.rearmOk')
     : state === 'pending' ? t('routers.agent.rearmPending')
-    : state === 'fail' ? t('routers.agent.rearmFail')
+    : state === 'fail' ? t(failKey)
     : netgrip ? t('routers.agent.netgripRestart')
     : t('routers.agent.rearm')
 
@@ -49,8 +66,16 @@ export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
     if (state === 'busy') return
     setState('busy')
     const res = await rearmAgent(agent.slug)
-    const next: RearmState = res === null ? 'fail' : res.recovered ? 'ok' : 'pending'
-    setState(next)
+    if (res === null) {
+      setFailCode(null)
+      setState('fail')
+    } else if (res.error) {
+      setFailCode(res.error)
+      setState('fail')
+    } else {
+      setFailCode(null)
+      setState(res.recovered ? 'ok' : 'pending')
+    }
     window.setTimeout(() => setState('idle'), 6000)
   }
 

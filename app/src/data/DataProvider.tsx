@@ -175,10 +175,13 @@ export interface NetPulseApi extends NetPulseData {
   /**
    * Fase 5 (Plan B): POST /api/agents/{slug}/rearm — reinicia el servicio
    * procd del agente en el router (vía SSH del servidor) y espera a que
-   * vuelva a empujar. Devuelve `{ recovered }` o null si la petición falló
-   * (demo siempre null: no hay agentes que rearmar).
+   * vuelva a empujar. Devuelve `{ recovered }` o, si el backend rechaza con
+   * un código de error específico, `{ recovered:false, error: <código> }`
+   * (not_found, router_unknown, not_openwrt, netgrip_managed,
+   * ssh_unavailable, cooldown, ssh_failed…). null si la petición falló por
+   * red o en demo (demo siempre null: no hay agentes que rearmar).
    */
-  rearmAgent: (slug: string) => Promise<{ recovered: boolean; message?: string } | null>
+  rearmAgent: (slug: string) => Promise<{ recovered: boolean; error?: string } | null>
   /**
    * Fase 6.3 (issue #243): POST /api/agents/{slug}/upgrade — ordena al agente
    * que se actualice con el binario embebido del servidor. Resuelve el estado
@@ -926,10 +929,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
    * Fase 5 (Plan B): rearme del servicio del agente en el router. El
    * backend ejecuta `init.d restart` por SSH y espera hasta 30 s el push de
    * vuelta → por eso aquí NO hay timeout corto: se deja respirar. null =
-   * petición fallida (red, 4xx/5xx, demo).
+   * petición fallida (red o demo); `{ recovered:false, error }` = rechazo
+   * del backend con un código de error específico (#718) para que la UI
+   * muestre el motivo real en vez de un mensaje genérico.
    */
   const rearmAgent = useCallback(
-    async (slug: string): Promise<{ recovered: boolean; message?: string } | null> => {
+    async (slug: string): Promise<{ recovered: boolean; error?: string } | null> => {
       if (modeRef.current !== 'live') return null
       try {
         const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/rearm`, {
@@ -937,9 +942,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           signal: AbortSignal.timeout(60_000),
         })
         if (res.status === 401) redirectLogin()
-        if (!res.ok) return null
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string }
+          return { recovered: false, error: body.error ?? 'generic' }
+        }
         const json = (await res.json()) as { recovered?: boolean; message?: string }
-        return { recovered: json.recovered ?? false, message: json.message }
+        return { recovered: json.recovered ?? false }
       } catch {
         return null
       }
