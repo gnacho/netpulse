@@ -1460,7 +1460,12 @@ async function initGhMeta() {
     const r = await fetch('https://api.github.com/repos/gnacho/netpulse', { headers: { Accept: 'application/vnd.github+json' } })
     if (r.ok) {
       const d = await r.json()
-      if (typeof d.stargazers_count === 'number') show('ghStars', `★ ${d.stargazers_count}`)
+      if (typeof d.stargazers_count === 'number') {
+        show('ghStars', `★ ${d.stargazers_count}`)
+        const nav = document.getElementById('navStar')
+        const c = nav && nav.querySelector('[data-n]')
+        if (c) { c.textContent = d.stargazers_count; c.hidden = false }
+      }
     }
     const rel = await fetch('https://api.github.com/repos/gnacho/netpulse/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
     if (rel.ok) {

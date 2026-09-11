@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260901a" />
+  <link rel="stylesheet" href="styles.css?v=20260911a" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -82,6 +82,10 @@
         <a href="/#faq" data-i18n="nav.faq">FAQ</a>
         <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
       </div>
+      <a class="nav-star" id="navStar" href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n-aria="nav.starAria" aria-label="Star NetPulse on GitHub">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span class="label" data-i18n="nav.star">Star</span><span class="n" data-n hidden></span>
+      </a>
       <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
       <a class="nav-cta" href="/#install" data-i18n="featuresPage.cta">Instalar en tu red</a>
     </div>
@@ -300,7 +304,7 @@
         </div>
 
         <!-- On-box -->
-        <div class="card feature reveal">
+        <div class="card feature reveal" id="on-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
           <h3 data-i18n="featuresPage.onboxTitle">Modo on-box</h3>
           <p data-i18n="featuresPage.onboxP">Si no tienes una caja aparte, el servidor puede correr en el propio router OpenWrt, con configuración UCI, pinning TLS y emparejamiento local.</p>
@@ -429,8 +433,8 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20260901a"></script>
-  <script src="app.js?v=20260901a"></script>
+  <script src="i18n.js?v=20260911a"></script>
+  <script src="app.js?v=20260911a"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9"></script>
 </body>
 </html>
