@@ -222,7 +222,7 @@ const AP_ARC_CENTER = 90
 const AP_ARC_HALF = 70
 const AP_BASE_Y = 545
 
-function apCoords(n: number, total: number): { x: number; y: number; r: number; label: { x: number; y: number; anchor: 'end' | 'start' } } {
+function apCoords(n: number, total: number): { x: number; y: number; r: number; label: { x: number; y: number; anchor: 'end' | 'start' | 'middle' } } {
   let angle: number
   if (total === 1) {
     angle = AP_ARC_CENTER
@@ -231,10 +231,13 @@ function apCoords(n: number, total: number): { x: number; y: number; r: number; 
   }
   const x = Math.round(GATEWAY_COORD.x + 280 * Math.cos(rad(angle)))
   const y = Math.round(AP_BASE_Y + 25 * Math.sin(rad(angle - AP_ARC_CENTER)))
-  const isLeft = x < GATEWAY_COORD.x
   return {
     x, y, r: AP_RADIUS,
-    label: { x: isLeft ? x - AP_RADIUS - 6 : x + AP_RADIUS + 6, y: y - 6, anchor: isLeft ? 'end' as const : 'start' as const },
+    // #692: label DEBAJO del nodo (anchor middle). A los lados chocaba con el
+    // abanico cableado (150-210°, oeste) en los APs de la izquierda y con los
+    // chips wifi; el modelo ya excluye el ángulo del label al repartir los
+    // chips wifi, así que colocándolo abajo ese sector queda libre solo.
+    label: { x, y: y + AP_RADIUS + 20, anchor: 'middle' as const },
   }
 }
 const INTERNET_COORD = { x: 500, y: 26 }
