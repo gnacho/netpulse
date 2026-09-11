@@ -1438,7 +1438,9 @@ export function TopologyMap({
           })}
           {/* Peers */}
           {peerNodes.map((node, i) => (
-            <LabelText key={node.id} x={node.x + (i % 2 ? -26 : 26)} y={node.y - 4} anchor={i % 2 ? 'end' : 'start'}
+            // #692: label DEBAJO del icono (anchor middle); a los lados el
+            // texto se montaba sobre el propio icono y sobre el peer vecino.
+            <LabelText key={node.id} x={node.x} y={node.y + 34} anchor="middle"
               delay={(2.2 + i * 0.03) * T} reduce={reduce ?? false}
               title={node.peer.name} sub={t('topology.peerVia')} subColor={COLOR.tunnel} />
           ))}
