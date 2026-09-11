@@ -26,6 +26,38 @@ func wgStatsCommand(iface string) string {
 	return fmt.Sprintf("wg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; exit $rc", iface, wgUciMarker)
 }
 
+// wgListCommand lista las interfaces WireGuard presentes en el router
+// (`wg show interfaces`): nombres separados por espacios en una sola línea.
+const wgListCommand = "wg show interfaces"
+
+// parseWGInterfaces parsea la salida de `wg show interfaces` en una lista de
+// nombres. Salida vacía → lista vacía (sin interfaces).
+func parseWGInterfaces(out string) []string {
+	return strings.Fields(strings.TrimSpace(out))
+}
+
+// wgInterfaces resuelve qué interfaces sondear. iface vacío o "auto" →
+// descubre todas con `wg show interfaces`; un valor explícito (una interfaz o
+// una lista separada por comas) actúa como filtro/override sin tocar el
+// router para listarlas (#713).
+func wgInterfaces(pool sshRunner, host, iface string) ([]string, error) {
+	v := strings.TrimSpace(iface)
+	if v != "" && v != "auto" {
+		out := []string{}
+		for _, part := range strings.Split(v, ",") {
+			if s := strings.TrimSpace(part); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out, nil
+	}
+	raw, err := pool.Run(host, wgListCommand, 0)
+	if err != nil {
+		return nil, err
+	}
+	return parseWGInterfaces(raw), nil
+}
+
 // splitWGUci separa la salida combinada en la parte del dump y la parte UCI.
 func splitWGUci(out string) (string, string) {
 	if idx := strings.Index(out, wgUciMarker); idx >= 0 {
@@ -150,67 +182,93 @@ func parseWGUciDescs(uci string) map[string]string {
 	return out
 }
 
-// GetWireGuardStats obtiene WireGuardStats del gateway vía SSH.
-// peerNames: mapa tunnelIp/pubkey → etiqueta opcional (nombre de device).
-// El nombre de cada peer se resuelve en este orden: nombre de device de
-// NetPulse (peerNames) → description del peer en UCI (OpenWrt) → IP del túnel
-// → "Peer <pubkey8>" (issue #659).
-func GetWireGuardStats(pool *SSHPool, host, iface, subnet string, peerNames map[string]WGPeerName) (*WireGuardStats, error) {
-	out, err := pool.Run(host, wgStatsCommand(iface), 0)
+// buildWGPeer convierte un peer del dump en un WGPeer, resolviendo el nombre
+// con la prioridad de siempre (nombre de device NetPulse → description UCI →
+// tunnelIP → "Peer <pubkey8>", issue #659) y asignando el fallback de ID
+// "peer-<idx>" con un contador global (idx) para que los peers de varias
+// interfaces no colisionen (#713).
+func buildWGPeer(p WGDumpPeer, peerNames map[string]WGPeerName, descs map[string]string, nowSec int64, idx int) WGPeer {
+	tunnelIP := ""
+	if parts := strings.Split(p.AllowedIPs, ","); len(parts) > 0 {
+		tunnelIP = strings.Replace(parts[0], "/32", "", 1)
+	}
+	named, ok := peerNames[tunnelIP]
+	if !ok {
+		named = peerNames[p.Pubkey]
+	}
+	id := named.ID
+	if id == "" {
+		id = "peer-" + strconv.Itoa(idx)
+	}
+	name := named.Name
+	if name == "" {
+		name = descs[p.Pubkey]
+		if name == "" {
+			name = descs[tunnelIP]
+		}
+		if name == "" {
+			name = tunnelIP
+			if name == "" {
+				name = "Peer " + p.Pubkey[:min(len(p.Pubkey), 8)]
+			}
+		}
+	}
+	typ := named.Type
+	if typ == "" {
+		typ = "desconocido"
+	}
+	active := p.HandshakeSec > 0 && nowSec-p.HandshakeSec < handshakeActiveSec
+	lastHandshake := "nunca"
+	if p.HandshakeSec > 0 {
+		lastHandshake = relTime(p.HandshakeSec, nowSec)
+	}
+	return WGPeer{
+		ID: id, Name: name, Type: typ, TunnelIP: tunnelIP,
+		Active: active, LastHandshake: lastHandshake,
+		Rx: fmtBytes(float64(p.RxBytes)), Tx: fmtBytes(float64(p.TxBytes)),
+	}
+}
+
+// GetWireGuardStats obtiene WireGuardStats del gateway vía SSH, agregando los
+// peers de TODAS las interfaces WireGuard del router (issue #713).
+// iface: filtro/override de interfaces a sondear ("auto"/vacío → descubrir
+// todas con `wg show interfaces`; valor → interfaz o lista separada por
+// comas). peerNames: mapa tunnelIp/pubkey → etiqueta opcional (nombre de
+// device). El nombre de cada peer se resuelve en este orden: nombre de device
+// de NetPulse (peerNames) → description del peer en UCI (OpenWrt) → IP del
+// túnel → "Peer <pubkey8>" (issue #659).
+func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map[string]WGPeerName) (*WireGuardStats, error) {
+	ifaces, err := wgInterfaces(pool, host, iface)
 	if err != nil {
 		return nil, err
 	}
-	dump, uci := splitWGUci(out)
-	descs := parseWGUciDescs(uci)
-	peers := ParseWGDump(dump)
-	nowSec := time.Now().Unix()
-
 	stats := &WireGuardStats{
-		Interface: iface,
+		Interface: strings.Join(ifaces, ", "),
 		Subnet:    subnet,
 		Status:    "active", // quirk: siempre que el comando responda
 		Peers:     []WGPeer{},
 	}
-	for i, p := range peers {
-		tunnelIP := ""
-		if parts := strings.Split(p.AllowedIPs, ","); len(parts) > 0 {
-			tunnelIP = strings.Replace(parts[0], "/32", "", 1)
+	if len(ifaces) == 0 {
+		// Sin interfaces WireGuard en el router: no hay túneles que sondear.
+		stats.Status = "inactive"
+		return stats, nil
+	}
+	nowSec := time.Now().Unix()
+	descs := map[string]string{}
+	idx := 1
+	for _, ifc := range ifaces {
+		out, err := pool.Run(host, wgStatsCommand(ifc), 0)
+		if err != nil {
+			return nil, err
 		}
-		named, ok := peerNames[tunnelIP]
-		if !ok {
-			named = peerNames[p.Pubkey]
+		dump, uci := splitWGUci(out)
+		for k, v := range parseWGUciDescs(uci) {
+			descs[k] = v
 		}
-		id := named.ID
-		if id == "" {
-			id = "peer-" + strconv.Itoa(i+1)
+		for _, p := range ParseWGDump(dump) {
+			stats.Peers = append(stats.Peers, buildWGPeer(p, peerNames, descs, nowSec, idx))
+			idx++
 		}
-		name := named.Name
-		if name == "" {
-			name = descs[p.Pubkey]
-			if name == "" {
-				name = descs[tunnelIP]
-			}
-			if name == "" {
-				name = tunnelIP
-				if name == "" {
-					name = "Peer " + p.Pubkey[:min(len(p.Pubkey), 8)]
-				}
-			}
-		}
-		typ := named.Type
-		if typ == "" {
-			typ = "desconocido"
-		}
-		active := p.HandshakeSec > 0 && nowSec-p.HandshakeSec < handshakeActiveSec
-		lastHandshake := "nunca"
-		if p.HandshakeSec > 0 {
-			lastHandshake = relTime(p.HandshakeSec, nowSec)
-		}
-		stats.Peers = append(stats.Peers, WGPeer{
-			ID: id, Name: name, Type: typ, TunnelIP: tunnelIP,
-			Active: active, LastHandshake: lastHandshake,
-			Rx: fmtBytes(float64(p.RxBytes)), Tx: fmtBytes(float64(p.TxBytes)),
-		})
 	}
 	return stats, nil
 }
