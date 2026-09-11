@@ -9,6 +9,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- **El test de velocidad ya no mide basura cuando la URL del servidor apunta a la web de Ookla (#744)**: la tarjeta de ajustes traía `https://speedtest.net` como valor por defecto, placeholder y botón "Restaurar" (no es un servidor de pruebas, es la web), y cualquier guardado escribía esa URL en la config: el resultado era una bajada capada, una subida ~0 y un servidor sin nombre. Ahora el campo nace vacío (autoselección), el botón pasa a "Automático", el servidor rechaza la trampa con un mensaje claro, un saneado al arranque limpia la URL trampa de instalaciones existentes, y una medición con bajada o subida <= 0 se descarta con error en vez de ensuciar la serie.
+
+### Added
+
+- **El botón de test de velocidad vive en la tarjeta Tráfico WAN del Overview (#744)**: la franja de velocidad medida (último test, histórico de 7 días, % del plan y botón de ejecutar) pasa del detalle del gateway a la portada, donde ya vive el resto del tráfico.
+- **Lista de últimos tests (#744)**: en la tarjeta del test, un desplegable "Ver últimos tests" con las últimas mediciones (3/5/10, configurable): cuándo, origen (auto/manual), bajada, subida, ping, jitter y servidor.
+- **Programación con día y hora para el test (#744)**: además de cada N horas, se puede elegir semanal (día de la semana + hora) o mensual (día del mes + hora), con el vencimiento derivado del último resultado persistido (reinicios y actualizaciones no resetean el reloj). Las instalaciones con los antiguos "semanal/mensual" por horas (168/720) migran solas al selector nuevo.
+
+### Fixed
+
 - **Los respaldos automáticos ahora se ejecutan de verdad (#741)**: la configuración (activado, frecuencia, retención) existía y se mostraba en la UI, pero nada en el servidor la leía para disparar el respaldo; el único camino que copiaba la base de datos era el botón manual, así que un respaldo inicial y nada más era el comportamiento esperado del código. Ahora un bucle periódico (patrón del scheduler de speedtest) decide en cada pasada si toca, con el vencimiento derivado SIEMPRE del `last_run` persistido: los reinicios y el auto-updater no resetean el reloj. El run manual y el programado comparten el mismo código con exclusión mutua.
 
 ### Added
