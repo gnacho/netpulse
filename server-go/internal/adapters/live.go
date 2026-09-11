@@ -328,6 +328,14 @@ type Live struct {
 	// (nunca para crear presencia/online) mientras la entrada sea fresca.
 	fdbMemo map[string]fdbPortMemo
 
+	// uplinkPorts (#694): clasificación PERSISTENTE de puertos de subida por
+	// router (routerID → puertos que ALGUNA VEZ aprendieron una brMac de otro
+	// router). Sobrevive a los ticks donde la brMac del AP no está en el FDB
+	// del gateway y a los sondeos fallidos, de modo que el puerto gateway→AP
+	// siga tratándose como uplink y no como boca local (evita que el gateway
+	// pise la memo de un satélite y que el cliente salte al principal).
+	uplinkPorts map[string]map[string]bool
+
 	sfMu   sync.Mutex
 	sfCall *sfCall
 }
@@ -380,6 +388,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
 		fdbMemo:              map[string]fdbPortMemo{},
+		uplinkPorts:          map[string]map[string]bool{},
 		portMon:              NewPortMonitor(cfg != nil && cfg.GhostPortEnabled),
 		suppression:          alerts.NewSuppressionGraph(),
 	}
@@ -1949,12 +1958,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		if routerID == gwID {
 			continue
 		}
-		infraPorts := map[string]bool{}
-		for mac, port := range p.fdb {
-			if brMacByRouter[mac] {
-				infraPorts[port] = true
-			}
-		}
+		infraPorts := l.uplinkPortsFor(routerID, p.fdb, brMacByRouter)
 		for mac, port := range p.fdb {
 			if infraPorts[port] {
 				continue // uplink: MACs en tránsito, no clientes de este equipo
@@ -2014,11 +2018,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		gwPolled := polled[gwID]
 		gwInfraPorts := map[string]bool{}
 		if gwPolled != nil {
-			for mac, port := range gwPolled.fdb {
-				if brMacByRouter[mac] {
-					gwInfraPorts[port] = true
-				}
-			}
+			gwInfraPorts = l.uplinkPortsFor(gwID, gwPolled.fdb, brMacByRouter)
 		}
 		l.mu.Lock()
 		memo := l.fdbMemo
