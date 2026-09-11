@@ -13,13 +13,13 @@ import (
 
 // firmwareStatusResponse es la vista completa de un router para upgrades.
 type firmwareStatusResponse struct {
-	RouterID       string            `json:"routerId"`
-	Name           string            `json:"name"`
-	Model          string            `json:"model"`
-	CurrentVersion string            `json:"currentVersion"`
-	TargetVersion  string            `json:"targetVersion"`
-	TargetURL      string            `json:"targetUrl"`
-	Checksum       string            `json:"checksum"`
+	RouterID       string `json:"routerId"`
+	Name           string `json:"name"`
+	Model          string `json:"model"`
+	CurrentVersion string `json:"currentVersion"`
+	TargetVersion  string `json:"targetVersion"`
+	TargetURL      string `json:"targetUrl"`
+	Checksum       string `json:"checksum"`
 	// Detección #477 P2: último board info reportado por el agente/SSH.
 	// detectedBoard es el board_name (perfil ASU) y detectedTarget el
 	// DISTRIB_TARGET; base para el prefill del formulario y el lookup ASU.
@@ -116,7 +116,8 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})))
 
-	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {		id := r.PathValue("routerId")
+	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("routerId")
 		item, err := s.firmwareStatus(id)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error")
@@ -158,6 +159,35 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, http.StatusOK, img)
+	})))
+
+	// #695 Fase 1: detectar owut y ejecutar `owut check` en el router por SSH
+	// para revisión (sin download/install). On-demand: `owut check` consulta la
+	// infra ASU remota (puede tardar/fallar) y no corre en el sondeo.
+	mux.Handle("POST /api/firmware-upgrades/{routerId}/owut-check", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("routerId")
+		if s.pool == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_ssh",
+				"SSH no configurado (modo demo o sin clave)")
+			return
+		}
+		upgradeable := false
+		for _, rt := range routerstore.ListRouters(s.db.DB) {
+			if rt.ID == id && agentUpgradeable(rt.Type) {
+				upgradeable = true
+				break
+			}
+		}
+		if !upgradeable {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		host := s.hostOfRouter(id)
+		if host == "" {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		writeJSON(w, http.StatusOK, firmware.CheckOwut(s.pool, host))
 	})))
 
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/target", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

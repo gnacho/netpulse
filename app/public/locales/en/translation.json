@@ -1588,7 +1588,15 @@
     "scheduleAt": "Schedule for",
     "scheduledFor": "Scheduled for {{time}}",
     "cancelSchedule": "Cancel schedule",
-    "dismiss": "Dismiss notice"
+    "dismiss": "Dismiss notice",
+    "owutCheck": "Run owut check",
+    "owutBusy": "Checking…",
+    "owutUnavailable": "owut is not available on this router (requires OpenWrt 24.10 or later).",
+    "owutUpgradeAvailable": "An upgrade is available and the ASU server can build the image.",
+    "owutUpToDate": "No pending changes; no upgrade needed.",
+    "owutNotBuildable": "The ASU server cannot build the image for this router right now.",
+    "owutCheckFailed": "The check could not run (router unreachable or not responding).",
+    "owutOutput": "owut output"
   },
   "orchestration": {
     "title": "Orchestration",
