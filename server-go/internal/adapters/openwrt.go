@@ -595,10 +595,12 @@ func naturalLess(a, b string) bool {
 }
 
 // GetBridgeFdb: MAC aprendida → puerto (brctl showmacs + port_no).
+// Devuelve nil en error para que el anti-parpadeo de pollRouter conserve la
+// última lista buena en vez de sustituirla por un FDB vacío (#694).
 func (c *OpenWrtClient) GetBridgeFdb() map[string]string {
 	out, err := c.pool.Run(c.Host, probe.CmdBridgeFDB, 0)
 	if err != nil {
-		return map[string]string{}
+		return nil
 	}
 	return parseBridgeFdb(out)
 }
