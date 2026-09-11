@@ -1323,13 +1323,6 @@ async function copyText(text, btn) {
   setTimeout(() => { btn.textContent = orig }, 1600)
 }
 
-/* ---------- ko-fi placeholder ---------- */
-function initKofi() {
-  // TODO(nacho): URL definitiva de Ko-fi - pendiente de que la cree.
-  const url = 'https://ko-fi.com/gnacho'
-  document.querySelectorAll('.kofi').forEach((a) => { a.href = url })
-}
-
 /* ---------- boot ---------- */
 function initTrafficRanges() {
   const wrap = document.getElementById('trafficRanges')
@@ -1483,7 +1476,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initReveals()
   initTheater()
   initCopy()
-  initKofi()
   initTrafficRanges()
   initSlider()
   initLightbox()
