@@ -41,6 +41,12 @@ load_config() {
 	export NETPULSE_INTERVAL="$interval"
 	export NETPULSE_HEARTBEAT_FILE="$HEARTBEAT_FILE"
 
+	# Intervalo entre scans de vecinos (#699): "0" los desactiva (solo
+	# on-demand). Vacío = default del agente (30m).
+	local scan_interval
+	config_get scan_interval main scan_interval ""
+	[ -n "$scan_interval" ] && export NETPULSE_SCAN_INTERVAL="$scan_interval"
+
 	# Targets de ping (solo se usan si están definidos)
 	local wan_target gw_target
 	config_get wan_target main wan_target ""
