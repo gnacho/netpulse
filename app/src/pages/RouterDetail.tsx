@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from 'react-router'
 import { AlertTriangle, ArrowLeft, Gauge, Router as RouterIcon, ShieldAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { alertRelTime } from '@/i18n'
+import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { useNetPulse } from '@/data/DataProvider'
 import type { RouterDetailData } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
@@ -29,6 +30,7 @@ export default function RouterDetail() {
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
   const { routers, alerts, getRouterDetail, isDemo } = useNetPulse()
+  const [tempUnit] = useTempUnit()
   const router = routers.find((r) => r.id === id)
   const isGateway = router?.roleBadge === 'Principal'
   const [detail, setDetail] = useState<RouterDetailData | null>(null)
@@ -152,7 +154,7 @@ export default function RouterDetail() {
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warn" strokeWidth={1.75} />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-warn">
-                {t('routerDetail.highTempBanner', { temp: router.temp })}
+                {t('routerDetail.highTempBanner', { temp: fmtTemp(router.temp, tempUnit), threshold: fmtTemp(router.tempThreshold ?? 65, tempUnit) })}
               </div>
               <p className="mt-0.5 text-sm text-text-secondary">
                 {t('routerDetail.highTempAdvice')}

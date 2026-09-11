@@ -9,6 +9,7 @@ import type { EthPort, RouterExtras, SfpInfo } from '@/components/routers/router
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { Activity } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
 
 /**
@@ -219,6 +220,7 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
 /** SfpDetail: sección SFP del tooltip (temperatura, potencia óptica, vendor). */
 function SfpDetail({ sfp }: { sfp: SfpInfo }) {
   const { t } = useTranslation()
+  const [tempUnit] = useTempUnit()
   const tempHot = sfp.temperature > 70
   const rxLow = sfp.rxPower < -14
   return (
@@ -230,7 +232,7 @@ function SfpDetail({ sfp }: { sfp: SfpInfo }) {
       <div className="grid grid-cols-2 gap-1.5">
         <MiniStat
           label={t('routerDetail.ports.sfpTemp')}
-          value={`${sfp.temperature.toFixed(1)} °C`}
+          value={fmtTemp(sfp.temperature, tempUnit, 1)}
         />
         <MiniStat
           label={t('routerDetail.ports.sfpRx')}

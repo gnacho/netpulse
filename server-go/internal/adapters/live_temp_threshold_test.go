@@ -88,6 +88,9 @@ func TestEmitTempAlertUsesPerRouterThreshold(t *testing.T) {
 	if !strings.Contains(list[0].Description, "70 °C") {
 		t.Fatalf("la descripción no refleja el umbral del router: %q", list[0].Description)
 	}
+	if list[0].Vars["threshold"] != "70" {
+		t.Fatalf("Vars.threshold=%q, esperaba 70", list[0].Vars["threshold"])
+	}
 }
 
 func TestEmitTempAlertNoAlertBelowThreshold(t *testing.T) {

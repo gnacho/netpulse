@@ -11,6 +11,7 @@ import { MetricBar } from '@/components/MetricBar'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
 import { getRouterExtras, uptimeHours } from '@/components/routers/routerExtras'
+import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
 
 const STATUS_ORDER: Record<Router['status'], number> = { online: 0, warn: 1, offline: 2 }
@@ -59,6 +60,7 @@ function sortValue(r: Router, key: SortKey): string | number {
 
 function TempCell({ router }: { router: Router }) {
   const { t } = useTranslation()
+  const [tempUnit] = useTempUnit()
   const hot = router.hotMetric === 'temp'
   if (router.temp === null) {
     return <span className="font-mono text-mono-sm text-text-faint">—</span>
@@ -69,9 +71,9 @@ function TempCell({ router }: { router: Router }) {
         'inline-flex rounded-md px-1.5 py-0.5 font-mono text-mono-sm',
         hot ? 'bg-warn/10 text-warn' : 'text-text-primary',
       )}
-      title={hot ? t('routers.tempThreshold', { value: router.tempThreshold ?? 65 }) : undefined}
+      title={hot ? t('routers.tempThreshold', { value: fmtTemp(router.tempThreshold ?? 65, tempUnit) }) : undefined}
     >
-      {router.temp} °C
+      {fmtTemp(router.temp, tempUnit)}
     </span>
   )
 }
@@ -95,6 +97,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const { routers, agents } = useNetPulse()
+  const [tempUnit] = useTempUnit()
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [asc, setAsc] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -249,7 +252,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                     pulse={r.status !== 'online'}
                   />
                   <span className={cn('font-mono text-mono-sm', r.hotMetric === 'temp' ? 'text-warn' : 'text-text-secondary')}>
-                    {r.temp === null ? '—' : `${r.temp} °C`}
+                    {r.temp === null ? '—' : fmtTemp(r.temp, tempUnit)}
                   </span>
                   <ChevronDown className={cn('h-4 w-4 text-text-muted transition-transform', open && 'rotate-180')} strokeWidth={1.75} />
                 </span>
@@ -266,7 +269,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                       {[
                         ['CPU', r.cpu === null ? '—' : `${r.cpu} %`],
                         ['RAM', r.ram === null ? '—' : `${r.ram} %`],
-                        [t('routers.colTemp'), r.temp === null ? '—' : `${r.temp} °C`],
+                        [t('routers.colTemp'), r.temp === null ? '—' : fmtTemp(r.temp, tempUnit)],
                         [t('routers.colClients'), String(r.clients)],
                         [t('routers.colTraffic'), `↓ ${fmtEs(extras.trafficNow, 1)} Mbps`],
                         ['Uptime', fmtUptime(r.uptime)],

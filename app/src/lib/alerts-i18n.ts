@@ -13,6 +13,7 @@
  */
 import type { TFunction } from 'i18next'
 import type { AlertEvent } from '@/data/types'
+import { formatAlertTempVars, readTempUnit } from '@/lib/temperature'
 
 export function alertTitle(t: TFunction, ev: AlertEvent): string {
   if (!ev.type) return ev.title
@@ -21,6 +22,14 @@ export function alertTitle(t: TFunction, ev: AlertEvent): string {
 
 export function alertDescription(t: TFunction, ev: AlertEvent): string {
   if (!ev.type) return ev.description
+  // Las alertas de temperatura se muestran en la unidad elegida (issue #717):
+  // la clave `descriptionUnit` espera `{{temp}}`/`{{threshold}}` ya formateados
+  // con su unidad (la `description` original, con °C literal, se conserva para
+  // el push del service worker, que no conoce la preferencia).
+  if (ev.type === 'high-temperature' || ev.type === 'sfp-temp-high') {
+    const vars = formatAlertTempVars(ev.type, ev.vars, readTempUnit())
+    return t(`alerts.types.${ev.type}.descriptionUnit`, { defaultValue: ev.description, ...(vars ?? {}) })
+  }
   return t(`alerts.types.${ev.type}.description`, { defaultValue: ev.description, ...(ev.vars ?? {}) })
 }
 

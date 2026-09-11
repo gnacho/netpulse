@@ -147,7 +147,8 @@
       },
       "high-temperature": {
         "title": "High temperature on {{router}}",
-        "description": "{{temp}} °C, above the threshold (65 °C)"
+        "description": "{{temp}} °C, above the threshold ({{threshold}} °C)",
+        "descriptionUnit": "{{temp}}, above the threshold ({{threshold}})"
       },
       "link-down": {
         "title": "Link down on {{port}}",
@@ -187,7 +188,8 @@
       },
       "sfp-temp-high": {
         "title": "SFP hot on {{port}}",
-        "description": "Temperature {{temp}} °C (threshold {{threshold}} °C)"
+        "description": "Temperature {{temp}} °C (threshold {{threshold}} °C)",
+        "descriptionUnit": "Temperature {{temp}} (threshold {{threshold}})"
       },
       "ssh-access-lost": {
         "title": "SSH access lost on {{router}}",
@@ -680,7 +682,7 @@
       "viewAllDevices": "View all devices"
     },
     "highTempAdvice": "Improve the device's ventilation.",
-    "highTempBanner": "High temperature — {{temp}} °C. Threshold: 65 °C.",
+    "highTempBanner": "High temperature: {{temp}} (threshold {{threshold}}).",
     "info": {
       "access": "Access",
       "copied": "Command copied",
@@ -709,7 +711,7 @@
     "hostKeyDone": "Key accepted: reconnecting…",
     "perf": {
       "chartAria": "{{label}} of {{name}}, range {{range}}. Current value {{value}} {{unit}}.",
-      "maxTemp": "max {{temp}} °C",
+      "maxTemp": "max {{temp}}",
       "peakCpu": "peak {{pct}} % at {{t}}",
       "ramUsed": "{{used}} MB used of {{total}} MB",
       "tableCaption": "Performance data ({{range}})",
@@ -839,12 +841,12 @@
     "firmwareOutdated": "Outdated",
     "firmwareTargetHint": "Target: {{target}}",
     "gatewayLatency": "Gateway latency",
-    "highTemp": "High temperature: {{temp}} °C · ventilation recommended",
+    "highTemp": "High temperature: {{temp}} · ventilation recommended",
     "mainGateway": "Main gateway",
     "sortBy": "Sort by {{column}}",
     "statusAria": "{{online}} routers online, {{warnings}} with warnings",
     "summary": "{{total}} routers · {{online}} online · {{warnings}} with warnings",
-    "tempThreshold": "Threshold: {{value}} °C",
+    "tempThreshold": "Threshold: {{value}}",
     "traffic24h": "Traffic 24 h",
     "trafficAria": "{{name}} traffic over the last 24 hours",
     "upgradingAll": "Updating…",
@@ -1154,7 +1156,8 @@
       "tempLabel": "Warning temperature",
       "tempNote": "The high-temperature threshold is set per router in \"Devices\" (65 °C by default).",
       "title": "Data & thresholds",
-      "units": "Traffic units"
+      "units": "Traffic units",
+      "tempUnit": "Temperature unit"
     },
     "demo": {
       "caption": "Explore NetPulse with a sample network without touching your routers",
