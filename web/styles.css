@@ -422,14 +422,14 @@ footer { border-top: 1px solid rgb(var(--border) / 0.7); padding: 4rem 0; margin
 .foot-col h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgb(var(--text-muted)); margin: 0 0 0.85rem; }
 .foot-col a { display: block; color: rgb(var(--text-secondary)); font-size: 0.95rem; padding: 0.2rem 0; }
 .foot-col a:hover { color: rgb(var(--text-primary)); }
-.kofi {
+.support-link {
   display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem;
   border: 1px solid rgb(var(--warn) / 0.45); color: rgb(var(--warn));
   border-radius: var(--radius); padding: 0.55rem 1.1rem; font-size: 0.9rem; font-weight: 700;
   background: rgb(var(--warn) / 0.06);
 }
-.kofi:hover { background: rgb(var(--warn) / 0.12); text-decoration: none; }
-.kofi svg { width: 1.1rem; height: 1.1rem; }
+.support-link:hover { background: rgb(var(--warn) / 0.12); text-decoration: none; }
+.support-link svg { width: 1.1rem; height: 1.1rem; fill: rgb(var(--warn)); }
 .foot-bottom { margin-top: 2.75rem; padding-top: 1.5rem; border-top: 1px solid rgb(var(--border)); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; color: rgb(var(--text-muted)); font-size: 0.8125rem; }
 
 /* ---------- widget apariencia (flotante) ---------- */

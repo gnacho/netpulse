@@ -11,7 +11,6 @@
   <a href="https://github.com/gnacho/netpulse/releases"><img alt="Release" src="https://img.shields.io/github/v/release/gnacho/netpulse"></a>
   <a href="https://github.com/gnacho/netpulse/actions/workflows/release.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/gnacho/netpulse/release.yml?branch=main"></a>
   <a href="LICENSE"><img alt="Licencia" src="https://img.shields.io/github/license/gnacho/netpulse"></a>
-  <a href="https://ko-fi.com/gnacho"><img alt="Apóyame en Ko-fi" src="https://img.shields.io/badge/Ko--fi-Donate-ff5e5b?logo=ko-fi&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -67,8 +66,8 @@ Tres reglas dan forma a todo lo que hace:
   la web embebida, corriendo en una caja pequeña dentro de tu LAN. SQLite
   para las series temporales, modo WAL, sin servicios externos.
 - **Libre de verdad, para siempre.** AGPL-3.0, sin versión premium esperando
-  detrás de un pago. Si te sirve, [Ko-fi](https://ko-fi.com/gnacho) es la
-  forma de dar las gracias, nunca una suscripción.
+  detrás de un pago. Si te sirve, una estrella en GitHub es la forma de dar
+  las gracias.
 
 ## Qué te llevas
 
