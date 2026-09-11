@@ -1941,7 +1941,7 @@ function SystemInfoBlock({ bare = false }: { bare?: boolean }) {
 
 function BackupsPanel() {
   const { t, i18n } = useTranslation()
-  const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string } | null>(null)
+  const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string; time: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -2061,6 +2061,17 @@ function BackupsPanel() {
                 <option key={d} value={d}>{d} {t('settings.admin.backup.days')}</option>
               ))}
             </select>
+          </label>
+          <label className="flex items-center gap-2 text-caption text-text-muted">
+            <span>{t('settings.admin.backup.time')}</span>
+            <input
+              type="time"
+              value={cfg.time || ''}
+              disabled={busy}
+              onChange={(e) => void save({ time: e.target.value })}
+              className="rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-text-primary"
+            />
+            <span className="hidden text-[11px] text-text-muted sm:inline">{t('settings.admin.backup.timeHint')}</span>
           </label>
         </div>
       )}

@@ -5,6 +5,16 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Los respaldos automáticos ahora se ejecutan de verdad (#741)**: la configuración (activado, frecuencia, retención) existía y se mostraba en la UI, pero nada en el servidor la leía para disparar el respaldo; el único camino que copiaba la base de datos era el botón manual, así que un respaldo inicial y nada más era el comportamiento esperado del código. Ahora un bucle periódico (patrón del scheduler de speedtest) decide en cada pasada si toca, con el vencimiento derivado SIEMPRE del `last_run` persistido: los reinicios y el auto-updater no resetean el reloj. El run manual y el programado comparten el mismo código con exclusión mutua.
+
+### Added
+
+- **Hora fija para el respaldo diario (#741)**: campo opcional `Hora` (HH:MM, hora local) en la tarjeta de Respaldos; vacío mantiene el comportamiento "cada N horas" y con hora fija el respaldo dispara una vez al día a esa hora (ventana de mantenimiento). Validación `HH:MM` en el servidor.
+
 ## [2.28.22] - 2026-09-11
 
 ### Changed

@@ -1070,6 +1070,8 @@
         "days": "días",
         "lastRun": "Último: {{date}}",
         "noBackups": "Sin respaldos todavía",
+        "time": "Hora:",
+        "timeHint": "Vacío = cada N horas; con hora, diario a esa hora",
         "saveError": "No se pudieron guardar los ajustes",
         "error": "No se pudo hacer el respaldo",
         "done": "Respaldo creado correctamente"
