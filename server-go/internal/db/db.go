@@ -466,6 +466,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
 	// issue #605: puerto SSH por router (dropbear en puerto no estándar).
 	migrate(sqldb, "routers", "ssh_port", "ALTER TABLE routers ADD COLUMN ssh_port INTEGER NOT NULL DEFAULT 22")
+	// issue #716: umbral de alerta por temperatura alta (°C). NULL = 65 default.
+	migrate(sqldb, "routers", "temp_threshold", "ALTER TABLE routers ADD COLUMN temp_threshold INTEGER")
 	// issue #494: upgrades desatendidos programados (epoch ms UTC; NULL = manual).
 	migrate(sqldb, "firmware_upgrades", "scheduled_for", "ALTER TABLE firmware_upgrades ADD COLUMN scheduled_for INTEGER")
 

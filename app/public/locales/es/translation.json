@@ -844,7 +844,7 @@
     "sortBy": "Ordenar por {{column}}",
     "statusAria": "{{online}} equipos online, {{warnings}} con aviso",
     "summary": "{{total}} equipos · {{online}} online · {{warnings}} con aviso",
-    "tempThreshold": "Umbral: 65 °C",
+    "tempThreshold": "Umbral: {{value}} °C",
     "traffic24h": "Tráfico 24 h",
     "trafficAria": "Tráfico de {{name}} en las últimas 24 horas",
     "upgradingAll": "Actualizando…",
@@ -1152,6 +1152,7 @@
       "tempCaptionHot": "{{name}} está a {{temp}} °C → aviso activo",
       "tempCaptionOk": "{{name}} está a {{temp}} °C → dentro del límite",
       "tempLabel": "Temperatura de aviso",
+      "tempNote": "El umbral de temperatura alta se configura por router en «Dispositivos» (65 °C por defecto).",
       "title": "Datos y umbrales",
       "units": "Unidades de tráfico"
     },
@@ -1295,6 +1296,8 @@
       "snmpPollInterval": "Intervalo (s)",
       "sshPort": "Puerto SSH",
       "sshPortHint": "Puerto SSH del router (22 por defecto)",
+      "tempThreshold": "Umbral de temperatura (°C)",
+      "tempThresholdHint": "Umbral de alerta por temperatura alta. Vacío = 65 °C por defecto. Un router que corre más caliente puede subir el suyo sin ocultar problemas en los más frescos.",
       "openWrtBadge": "OpenWrt"
     },
     "overrides": {

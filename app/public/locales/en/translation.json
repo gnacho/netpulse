@@ -844,7 +844,7 @@
     "sortBy": "Sort by {{column}}",
     "statusAria": "{{online}} routers online, {{warnings}} with warnings",
     "summary": "{{total}} routers · {{online}} online · {{warnings}} with warnings",
-    "tempThreshold": "Threshold: 65 °C",
+    "tempThreshold": "Threshold: {{value}} °C",
     "traffic24h": "Traffic 24 h",
     "trafficAria": "{{name}} traffic over the last 24 hours",
     "upgradingAll": "Updating…",
@@ -1152,6 +1152,7 @@
       "tempCaptionHot": "{{name}} is at {{temp}} °C → alert active",
       "tempCaptionOk": "{{name}} is at {{temp}} °C → within the limit",
       "tempLabel": "Warning temperature",
+      "tempNote": "The high-temperature threshold is set per router in \"Devices\" (65 °C by default).",
       "title": "Data & thresholds",
       "units": "Traffic units"
     },
@@ -1295,6 +1296,8 @@
       "snmpPollInterval": "Interval (s)",
       "sshPort": "SSH port",
       "sshPortHint": "SSH port of the router (default 22)",
+      "tempThreshold": "Temperature threshold (°C)",
+      "tempThresholdHint": "High-temperature alert threshold. Empty = 65 °C by default. A router that runs hotter can raise its own without hiding issues in cooler ones.",
       "openWrtBadge": "OpenWrt"
     },
     "overrides": {

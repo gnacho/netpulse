@@ -69,6 +69,8 @@ export interface Router {
   bandSplit?: { band24: number; band5: number; band6: number; cable: number }
   /** Métrica en umbral (se pinta --warn), p. ej. 'temp' en Patio */
   hotMetric?: 'cpu' | 'ram' | 'temp'
+  /** Umbral efectivo de temperatura alta (°C) resuelto para este router (issue #716). */
+  tempThreshold?: number
   /**
    * Backhaul del AP (C1): 'wifi' = uplink inalámbrico (se dibuja dashed
    * ámbar); 'cable'/ausente = cableado o desconocido.

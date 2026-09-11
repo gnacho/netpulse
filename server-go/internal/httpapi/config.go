@@ -104,6 +104,9 @@ type routerInput struct {
 	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
 	// estándar). Ausente/0 → 22.
 	SSHPort *int `json:"ssh_port"`
+	// TempThreshold (issue #716): umbral de alerta por temperatura alta (°C).
+	// Ausente = no tocar; 0 = reset a default (65); 1..150 = fijar.
+	TempThreshold *int `json:"temp_threshold"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -338,12 +341,22 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		}
 		sshPort = &p
 	}
+	var tempThreshold *int
+	if in.TempThreshold != nil {
+		v := *in.TempThreshold
+		if v > 150 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "temp_threshold must be between 0 and 150")
+			return
+		}
+		tempThreshold = &v
+	}
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
-		SSHPort: sshPort,
+		SSHPort:       sshPort,
+		TempThreshold: tempThreshold,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

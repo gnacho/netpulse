@@ -255,7 +255,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 value={`${router.temp} °C`}
                 pct={Math.min(100, ((router.temp ?? 0) / 90) * 100)}
                 hot={router.hotMetric === 'temp'}
-                title={router.hotMetric === 'temp' ? t('routers.tempThreshold') : undefined}
+                title={router.hotMetric === 'temp' ? t('routers.tempThreshold', { value: router.tempThreshold ?? 65 }) : undefined}
               />
             </>
           )}

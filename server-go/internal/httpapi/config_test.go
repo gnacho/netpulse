@@ -320,6 +320,74 @@ func TestConfigRoutersFirmwareTarget(t *testing.T) {
 	}
 }
 
+// TestConfigRoutersTempThreshold cubre el umbral de temperatura por router
+// (issue #716): alta sin umbral (default 65), PUT que lo fija, persistencia en
+// la lista, reset a default con 0 y validación de rango.
+func TestConfigRoutersTempThreshold(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	// POST sin umbral → 201 y el campo queda ausente (NULL = default 65).
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"rt1","host":"192.168.8.10","type":"openwrt"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	router := body["router"].(map[string]any)
+	if _, ok := router["temp_threshold"]; ok {
+		t.Fatalf("temp_threshold tras alta debía estar ausente: %v", router)
+	}
+
+	// PUT fija el umbral → 200 y el campo cambia.
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.10","temp_threshold":70}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT temp_threshold: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	rt := body["router"].(map[string]any)
+	if rt["temp_threshold"] != float64(70) {
+		t.Fatalf("temp_threshold tras PUT: %v", rt)
+	}
+
+	// GET persiste el valor en la lista.
+	res = doReq(t, "GET", srv.URL+"/api/config/routers", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET routers: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	var found float64 = -1
+	for _, r := range body["routers"].([]any) {
+		rm := r.(map[string]any)
+		if rm["id"] == "rt1" {
+			found, _ = rm["temp_threshold"].(float64)
+		}
+	}
+	if found != 70 {
+		t.Fatalf("temp_threshold persistido=%v, esperaba 70", found)
+	}
+
+	// PUT con 0 resetea a default (NULL) → campo ausente.
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.10","temp_threshold":0}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT temp_threshold reset: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	rt = body["router"].(map[string]any)
+	if _, ok := rt["temp_threshold"]; ok {
+		t.Fatalf("temp_threshold tras reset debía estar ausente: %v", rt)
+	}
+
+	// Fuera de rango → 400 invalid_input.
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/rt1", cookie,
+		`{"host":"192.168.8.10","temp_threshold":200}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("temp_threshold fuera de rango: esperado 400, got %d", res.StatusCode)
+	}
+}
+
 // TestAdGuardConfigPort cubre PUT /api/config/adguard (#420):
 //   - guardar un puerto distinto de 3000 en modo standard
 //   - GET devuelve el puerto guardado, no 3000

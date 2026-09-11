@@ -179,23 +179,29 @@ type Router struct {
 	// reportar métricas de sistema (#441): switches sondeados por SNMP (#309)
 	// o pushers externos por beacon/scraper (#291). En ese caso CPU/RAM/Temp
 	// van a null y la UI no los pinta. Ausente = vitals disponibles.
-	VitalsAvailable *bool  `json:"vitalsAvailable,omitempty"`
+	VitalsAvailable *bool `json:"vitalsAvailable,omitempty"`
 	// SnmpEnabled: true si el router se sondea por SNMP (#309). Distingue un
 	// managed-switch sondeado por SNMP (que sí reporta contadores de bytes →
 	// la UI pinta bps) de un beacon/external que solo reporta tramas (fps)
 	// (#661). Ausente/false = no se sondea por SNMP.
-	SnmpEnabled bool `json:"snmpEnabled,omitempty"`
-	CPU             *int   `json:"cpu"`
-	RAM             *int   `json:"ram"`
-	Temp            *int   `json:"temp"`
-	Uptime          string `json:"uptime"` // "<d>d <h>h" | "—"
-	Clients         int    `json:"clients"`
+	SnmpEnabled bool   `json:"snmpEnabled,omitempty"`
+	CPU         *int   `json:"cpu"`
+	RAM         *int   `json:"ram"`
+	Temp        *int   `json:"temp"`
+	Uptime      string `json:"uptime"` // "<d>d <h>h" | "—"
+	Clients     int    `json:"clients"`
 	// BandSplit: clientes online por banda (2.4/5/6 GHz + cable) — issue #645.
 	// Misma fuente que Clients (mismo recuento), suma ≤ Clients (los clientes
 	// con banda desconocida "—" no caen en ninguna banda).
 	BandSplit *demoBandSplit `json:"bandSplit,omitempty"`
-	HotMetric string         `json:"hotMetric,omitempty"` // "temp" solo si temp>65
-	Sparkline []float64      `json:"sparkline"`
+	// HotMetric: métrica en umbral, p. ej. "temp" cuando supera el umbral
+	// de temperatura del router (issue #716).
+	HotMetric string `json:"hotMetric,omitempty"`
+	// TempThreshold: umbral efectivo de temperatura alta (°C) resuelto para
+	// este router (el configurado o DefaultTempThreshold). Lo usa computeHealth
+	// y la UI para pintar el umbral real en el tooltip (issue #716).
+	TempThreshold int       `json:"tempThreshold,omitempty"`
+	Sparkline     []float64 `json:"sparkline"`
 	// Backhaul: medio del uplink del router ("cable"|"wifi"). Ausente =
 	// cable/desconocido (router sin wifi o sonda no disponible).
 	Backhaul string `json:"backhaul,omitempty"`
@@ -798,6 +804,11 @@ type MetricsRow struct {
 	TxBps     *float64
 }
 
+// DefaultTempThreshold es el umbral de alerta por temperatura alta (°C)
+// cuando un router no lo configura (issue #716). Un router que corre más
+// caliente puede fijar el suyo sin ocultar problemas en los más frescos.
+const DefaultTempThreshold = 65
+
 // RouterConfig es una fila de la tabla routers (fuente de verdad; is_gateway
 // como booleano, orden is_gateway DESC, created_at ASC — SPEC §8.2).
 type RouterConfig struct {
@@ -821,6 +832,19 @@ type RouterConfig struct {
 	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
 	// estándar). 0/ausente → 22. Se usa en el pool, discovery e install.
 	SSHPort int `json:"ssh_port,omitempty"`
+	// TempThreshold (issue #716): umbral de alerta por temperatura alta (°C)
+	// de este router. NULL/ausente = DefaultTempThreshold (65). Un router que
+	// corre más caliente sube el suyo sin ocultar problemas en los más frescos.
+	TempThreshold *int `json:"temp_threshold,omitempty"`
+}
+
+// TempThresholdValue resuelve el umbral efectivo de temperatura alta (°C) de
+// este router: el configurado o DefaultTempThreshold si no lo hay (issue #716).
+func (c RouterConfig) TempThresholdValue() int {
+	if c.TempThreshold != nil && *c.TempThreshold > 0 {
+		return *c.TempThreshold
+	}
+	return DefaultTempThreshold
 }
 
 // SSHAddr devuelve el destino `host:port` para conectar por SSH, usando

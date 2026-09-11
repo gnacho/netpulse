@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -37,7 +37,8 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		var r adapters.RouterConfig
 		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort int
 		var name, ft, snmpComm sql.NullString
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort); err != nil {
+		var tt sql.NullInt64
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt); err != nil {
 			continue
 		}
 		r.Name = name.String
@@ -49,6 +50,10 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		r.SnmpPort = snmpPort
 		r.SnmpPollInterval = snmpInterval
 		r.SSHPort = sshPort
+		if tt.Valid {
+			v := int(tt.Int64)
+			r.TempThreshold = &v
+		}
 		out = append(out, r)
 	}
 	return out
@@ -227,6 +232,9 @@ type UpdateInput struct {
 	SnmpPollInterval *int // issue #414
 	// SSHPort (issue #605): puerto SSH; nil = no tocar.
 	SSHPort *int
+	// TempThreshold (issue #716): umbral de alerta por temperatura alta (°C).
+	// nil = no tocar; <= 0 = reset a NULL (default 65); > 0 = fijar.
+	TempThreshold *int
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -315,6 +323,15 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 		}
 		sets = append(sets, "ssh_port = ?")
 		args = append(args, v)
+	}
+	if in.TempThreshold != nil {
+		if *in.TempThreshold > 0 {
+			sets = append(sets, "temp_threshold = ?")
+			args = append(args, *in.TempThreshold)
+		} else {
+			// <= 0 = reset a default (NULL), misma convención que snmp_poll_interval.
+			sets = append(sets, "temp_threshold = NULL")
+		}
 	}
 	if len(sets) > 0 {
 		args = append(args, id)
