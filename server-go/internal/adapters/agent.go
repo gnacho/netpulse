@@ -344,6 +344,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 				Severity:    "ok",
 				Title:       "Agente recuperado en " + name,
 				Description: fmt.Sprintf("El agente de %s vuelve a empujar datos — sondeo nativo reanudado", name),
+				Type:        alerts.TypeAgentRecovered,
+				Vars:        map[string]string{"router": name},
 				Time:        "ahora mismo", RouterID: cfg.ID,
 			})
 		}
@@ -359,6 +361,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 					Severity:    "warn",
 					Title:       "Acceso SSH perdido en " + name,
 					Description: fmt.Sprintf("%s no acepta la clave SSH, pero su agente sigue enviando datos. Revisa authorized_keys tras un firmware upgrade.", name),
+					Type:        alerts.TypeSSHAccessLost,
+					Vars:        map[string]string{"router": name},
 					Time:        "ahora mismo", RouterID: cfg.ID,
 				})
 			}
@@ -371,6 +375,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 				Severity:    "ok",
 				Title:       "Acceso SSH recuperado en " + name,
 				Description: fmt.Sprintf("El acceso SSH a %s funciona de nuevo", name),
+				Type:        alerts.TypeSSHAccessRecovered,
+				Vars:        map[string]string{"router": name},
 				Time:        "ahora mismo", RouterID: cfg.ID,
 			})
 		}
@@ -759,6 +765,8 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 			Severity:    "ok",
 			Title:       "Agente actualizado en " + name,
 			Description: fmt.Sprintf("%s ya empuja la versión %s de %s", name, p.Version, kindLabel),
+			Type:        alerts.TypeAgentUpdated,
+			Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel},
 			Time:        "ahora mismo", RouterID: cfg.ID,
 		})
 	}

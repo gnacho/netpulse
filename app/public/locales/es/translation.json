@@ -105,6 +105,26 @@
         "title": "Agente desactualizado en {{router}}",
         "description": "{{router}} empuja la versión {{version}}; la última disponible del agente {{kind}} es {{latest}}"
       },
+      "agent-rearmed": {
+        "title": "Agente rearmado en {{router}}",
+        "description": "Reinicio del servicio del agente desde el servidor - el agente vuelve a empujar"
+      },
+      "agent-recovered": {
+        "title": "Agente recuperado en {{router}}",
+        "description": "El agente de {{router}} vuelve a empujar datos - sondeo nativo reanudado"
+      },
+      "agent-reinstalled": {
+        "title": "Agente reinstalado en {{router}}",
+        "description": "Reinstalación completa desde el servidor (binario, config, init y watchdog) - el agente vuelve a empujar"
+      },
+      "agent-updated": {
+        "title": "Agente actualizado en {{router}}",
+        "description": "{{router}} ya empuja la versión {{version}} de {{kind}}"
+      },
+      "auto-rearm-failed": {
+        "title": "Auto-rearme sin recuperación en {{router}}",
+        "description": "El supervisor reinició netpulse-agent en {{router}} pero el agente no ha vuelto a empujar; próximo intento en {{cooldown}} s"
+      },
       "degraded-link": {
         "title": "Enlace degradado: {{port}} a {{speed}} Mbps (antes {{prev}} Mbps)",
         "description": "La velocidad negociada cayó de {{prev}} a {{speed}} Mbps durante {{polls}} sondeos consecutivos"
@@ -121,13 +141,69 @@
         "title": "Ghost port: {{port}} enmudeció",
         "description": "El puerto tenía tráfico pero 0 bytes durante {{polls}} sondeos consecutivos"
       },
+      "ghost-port-recovered": {
+        "title": "Puerto fantasma recuperado: {{port}} en {{router}}",
+        "description": "El puerto vuelve a mover tráfico"
+      },
       "high-temperature": {
         "title": "Temperatura alta en {{router}}",
         "description": "{{temp}} °C, por encima del umbral (65 °C)"
       },
+      "link-down": {
+        "title": "Link caído en {{port}}",
+        "description": "El beacon del switch reporta pérdida de link"
+      },
+      "link-recovered": {
+        "title": "Velocidad del enlace recuperada: {{port}} en {{router}}",
+        "description": "La velocidad negociada del puerto vuelve a {{speed}} Mbps"
+      },
+      "link-up": {
+        "title": "Link restablecido en {{port}}",
+        "description": "El beacon del switch reporta link activo"
+      },
+      "port-disabled": {
+        "title": "Boca deshabilitada: {{port}}",
+        "description": "Desactivada por la guardia de bucles; se reintentará en 5 min (máx. 3 veces)"
+      },
       "port-flapping": {
         "title": "Port flapping: {{port}} en {{router}}",
         "description": "{{count}} transiciones en {{window}}"
+      },
+      "port-recovered": {
+        "title": "Boca re-habilitada: {{port}}",
+        "description": "La guardia de bucles ha vuelto a habilitar la boca"
+      },
+      "port-stable": {
+        "title": "Puerto estable de nuevo: {{port}} en {{router}}",
+        "description": "El flapping se detuvo, menos de {{threshold}} transiciones en {{window}}"
+      },
+      "router-recovered": {
+        "title": "{{router}} recuperado",
+        "description": "{{router}} vuelve a responder"
+      },
+      "sfp-rx-low": {
+        "title": "SFP RX bajo en {{port}}",
+        "description": "Potencia RX {{rx}} dBm (umbral {{threshold}} dBm)"
+      },
+      "sfp-temp-high": {
+        "title": "SFP caliente en {{port}}",
+        "description": "Temperatura {{temp}} °C (umbral {{threshold}} °C)"
+      },
+      "ssh-access-lost": {
+        "title": "Acceso SSH perdido en {{router}}",
+        "description": "{{router}} no acepta la clave SSH, pero su agente sigue enviando datos. Revisa authorized_keys tras un firmware upgrade."
+      },
+      "ssh-access-recovered": {
+        "title": "Acceso SSH recuperado en {{router}}",
+        "description": "El acceso SSH a {{router}} funciona de nuevo"
+      },
+      "switch-loop": {
+        "title": "Bucle detectado en {{port}}",
+        "description": "La guardia del switch ha detectado la MAC {{mac}} en dos bocas y ha deshabilitado {{port}}"
+      },
+      "switch-rebooted": {
+        "title": "Switch reiniciado",
+        "description": "El contador de beacons de {{router}} volvió a empezar (seq {{seq}} tras {{prev}}): el switch ha arrancado de nuevo"
       },
       "unknown-device": {
         "title": "Dispositivo desconocido",
@@ -144,6 +220,10 @@
       "wifi-weak": {
         "title": "Señal débil en {{device}}",
         "description": "{{signal}} dBm en {{router}} — revisa cobertura o acerca un AP"
+      },
+      "wireguard-handshake": {
+        "title": "Handshake WireGuard",
+        "description": "{{peer}} conectado"
       }
     }
   },

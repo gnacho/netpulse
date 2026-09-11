@@ -98,6 +98,31 @@ const (
 	HintWanSlow       = "wan-slow"
 )
 
+// Additional stable alert-type slugs (issue #712): recovery/info/beacon/rearmer
+// types emitted without Type/Vars in #671. They carry no hint.
+const (
+	TypeAgentRecovered     = "agent-recovered"
+	TypeSSHAccessLost      = "ssh-access-lost"
+	TypeSSHAccessRecovered = "ssh-access-recovered"
+	TypeAgentUpdated       = "agent-updated"
+	TypeRouterRecovered    = "router-recovered"
+	TypeWireguardHandshake = "wireguard-handshake"
+	TypePortStable         = "port-stable"
+	TypeGhostPortRecovered = "ghost-port-recovered"
+	TypeLinkRecovered      = "link-recovered"
+	TypeSwitchLoop         = "switch-loop"
+	TypePortDisabled       = "port-disabled"
+	TypePortRecovered      = "port-recovered"
+	TypeLinkDown           = "link-down"
+	TypeLinkUp             = "link-up"
+	TypeSfpRxLow           = "sfp-rx-low"
+	TypeSfpTempHigh        = "sfp-temp-high"
+	TypeSwitchRebooted     = "switch-rebooted"
+	TypeAgentRearmed       = "agent-rearmed"
+	TypeAgentReinstalled   = "agent-reinstalled"
+	TypeAutoRearmFailed    = "auto-rearm-failed"
+)
+
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
 // the value into AlertEvent.Hint; the feed and push render it as a helper line.
 var Hints = map[string]string{

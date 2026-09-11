@@ -311,6 +311,8 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 				Category: alerts.CatSystem, Urgent: false, Severity: "info",
 				Title:       fmt.Sprintf("Agente rearmado en %s", slug),
 				Description: "Reinicio del servicio del agente desde el servidor — el agente vuelve a empujar",
+				Type:        alerts.TypeAgentRearmed,
+				Vars:        map[string]string{"router": slug},
 				Time:        "ahora mismo", RouterID: slug,
 			})
 		}
@@ -386,6 +388,8 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 				Category: alerts.CatSystem, Urgent: false, Severity: "info",
 				Title:       fmt.Sprintf("Agente reinstalado en %s", slug),
 				Description: "Reinstalación completa desde el servidor (binario, config, init y watchdog) — el agente vuelve a empujar",
+				Type:        alerts.TypeAgentReinstalled,
+				Vars:        map[string]string{"router": slug},
 				Time:        "ahora mismo", RouterID: slug,
 			})
 		}
@@ -605,6 +609,8 @@ func (s *Supervisor) emitFail(slug string) {
 		Category: alerts.CatSystem, Urgent: false, Severity: "warn",
 		Title:       fmt.Sprintf("Auto-rearme sin recuperación en %s", slug),
 		Description: fmt.Sprintf("El supervisor reinició netpulse-agent en %s pero el agente no ha vuelto a empujar; próximo intento en %d s", slug, int(s.cooldown.Seconds())),
+		Type:        alerts.TypeAutoRearmFailed,
+		Vars:        map[string]string{"router": slug, "cooldown": fmt.Sprintf("%d", int(s.cooldown.Seconds()))},
 		Time:        "ahora mismo", RouterID: slug,
 	})
 }
