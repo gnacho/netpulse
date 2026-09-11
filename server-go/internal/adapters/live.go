@@ -1451,6 +1451,8 @@ func (l *Live) emitRouterRecovered(routerID, name string) {
 		Severity:    "ok",
 		Title:       name + " recuperado",
 		Description: fmt.Sprintf("%s vuelve a responder", name),
+		Type:        alerts.TypeRouterRecovered,
+		Vars:        map[string]string{"router": name},
 		Time:        "ahora mismo", RouterID: routerID,
 	})
 }
@@ -1823,6 +1825,8 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 				Category: alerts.CatVPN, Urgent: false,
 				Severity: "info", Title: "Handshake WireGuard",
 				Description: name + " conectado",
+				Type:        alerts.TypeWireguardHandshake,
+				Vars:        map[string]string{"peer": name},
 				Time:        "ahora mismo", RouterID: gw.ID,
 			})
 		}

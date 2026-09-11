@@ -241,6 +241,12 @@ func TestBeaconLoopEventEmitsUrgentAlert(t *testing.T) {
 	if !strings.Contains(a.Title, "boca 2") {
 		t.Fatalf("título sin la boca: %q", a.Title)
 	}
+	if a.Type != alerts.TypeSwitchLoop {
+		t.Fatalf("Type=%q, want %q", a.Type, alerts.TypeSwitchLoop)
+	}
+	if a.Vars["mac"] != "AABBCCDDEEFF" || a.Vars["port"] != "boca 2" {
+		t.Fatalf("Vars=%v", a.Vars)
+	}
 }
 
 // El fallback por delta: dos beacons seguidos con un link cambiado generan
@@ -258,7 +264,13 @@ func TestBeaconDeltaFallbackEmitsLinkChange(t *testing.T) {
 	waitFresh(t, s, "switch16")
 	down := fmt.Sprintf(`{"v":1,"seq":2,"slug":"switch16","token":"%s","ports":[{"n":2,"l":0,"tx":1,"rx":1}]}`, token)
 	sendUDP(t, addr, down)
-	waitForAlert(t, s, "Link caído")
+	a := waitForAlert(t, s, "Link caído")
+	if a.Type != alerts.TypeLinkDown {
+		t.Fatalf("Type=%q, want %q", a.Type, alerts.TypeLinkDown)
+	}
+	if a.Vars["port"] == "" {
+		t.Fatalf("Vars port vacío: %v", a.Vars)
+	}
 }
 
 // Datagrama FDB (v1.2): sustituye la tabla MAC conservando las bocas del
@@ -343,6 +355,12 @@ func TestBeaconSeqResetEmitsRebootAlert(t *testing.T) {
 	if a.Severity != "info" || a.RouterID != "switch16" {
 		t.Fatalf("alerta de reboot mal: %+v", a)
 	}
+	if a.Type != alerts.TypeSwitchRebooted {
+		t.Fatalf("Type=%q, want %q", a.Type, alerts.TypeSwitchRebooted)
+	}
+	if a.Vars["router"] != "switch16" || a.Vars["seq"] == "" || a.Vars["prev"] == "" {
+		t.Fatalf("Vars=%v", a.Vars)
+	}
 }
 
 // Beacon con campo sfp: los datos DDM/DOM se inyectan en la EthPort
@@ -383,5 +401,11 @@ func TestBeaconSFPDataAndAlert(t *testing.T) {
 	a := waitForAlert(t, s, "SFP RX bajo")
 	if a.Severity != "warn" || a.Category != "system" {
 		t.Fatalf("alerta SFP RX mal: %+v", a)
+	}
+	if a.Type != alerts.TypeSfpRxLow {
+		t.Fatalf("Type=%q, want %q", a.Type, alerts.TypeSfpRxLow)
+	}
+	if a.Vars["rx"] == "" || a.Vars["threshold"] == "" {
+		t.Fatalf("Vars=%v", a.Vars)
 	}
 }

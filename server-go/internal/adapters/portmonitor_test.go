@@ -335,8 +335,15 @@ func TestPortMonitorGhostRecovery(t *testing.T) {
 			pm.Observe("r1", []EthPort{port}, engine)
 		}
 	}
-	if n, _ := findAlerts(engine, "Ghost port recovered: LAN1 on r1"); n != 1 {
+	n, last := findAlerts(engine, "Ghost port recovered: LAN1 on r1")
+	if n != 1 {
 		t.Fatalf("recovery alerts = %d, want 1", n)
+	}
+	if last.Type != alerts.TypeGhostPortRecovered {
+		t.Fatalf("Type=%q, want %q", last.Type, alerts.TypeGhostPortRecovered)
+	}
+	if last.Vars["port"] != "LAN1" || last.Vars["router"] != "r1" {
+		t.Fatalf("Vars=%v", last.Vars)
 	}
 }
 

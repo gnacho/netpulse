@@ -105,6 +105,26 @@
         "title": "Agent outdated on {{router}}",
         "description": "{{router}} pushes version {{version}}; the latest available for the {{kind}} agent is {{latest}}"
       },
+      "agent-rearmed": {
+        "title": "Agent rearmed on {{router}}",
+        "description": "Agent service restarted from the server - the agent is pushing again"
+      },
+      "agent-recovered": {
+        "title": "Agent recovered on {{router}}",
+        "description": "The agent on {{router}} is pushing data again - native polling resumed"
+      },
+      "agent-reinstalled": {
+        "title": "Agent reinstalled on {{router}}",
+        "description": "Full reinstall from the server (binary, config, init and watchdog) - the agent is pushing again"
+      },
+      "agent-updated": {
+        "title": "Agent updated on {{router}}",
+        "description": "{{router}} now pushes version {{version}} of {{kind}}"
+      },
+      "auto-rearm-failed": {
+        "title": "Auto-rearm without recovery on {{router}}",
+        "description": "The supervisor restarted netpulse-agent on {{router}} but the agent has not pushed again; next attempt in {{cooldown}} s"
+      },
       "degraded-link": {
         "title": "Degraded link: {{port}} at {{speed}}Mbps (was {{prev}}Mbps)",
         "description": "Negotiated speed dropped from {{prev}} to {{speed}} Mbps for {{polls}} consecutive polls"
@@ -121,13 +141,69 @@
         "title": "Ghost port: {{port}} went silent",
         "description": "Port had traffic but zero bytes for {{polls}} consecutive polls"
       },
+      "ghost-port-recovered": {
+        "title": "Ghost port recovered: {{port}} on {{router}}",
+        "description": "Port is moving traffic again"
+      },
       "high-temperature": {
         "title": "High temperature on {{router}}",
         "description": "{{temp}} °C, above the threshold (65 °C)"
       },
+      "link-down": {
+        "title": "Link down on {{port}}",
+        "description": "The switch beacon reports a link loss"
+      },
+      "link-recovered": {
+        "title": "Link speed recovered: {{port}} on {{router}}",
+        "description": "Port negotiated speed is back to {{speed}} Mbps"
+      },
+      "link-up": {
+        "title": "Link restored on {{port}}",
+        "description": "The switch beacon reports an active link"
+      },
+      "port-disabled": {
+        "title": "Port disabled: {{port}}",
+        "description": "Disabled by the loop guard; will retry in 5 min (max 3 times)"
+      },
       "port-flapping": {
         "title": "Port flapping: {{port}} on {{router}}",
         "description": "{{count}} transitions in {{window}}"
+      },
+      "port-recovered": {
+        "title": "Port re-enabled: {{port}}",
+        "description": "The loop guard re-enabled the port"
+      },
+      "port-stable": {
+        "title": "Port stable again: {{port}} on {{router}}",
+        "description": "Flapping stopped, fewer than {{threshold}} transitions in {{window}}"
+      },
+      "router-recovered": {
+        "title": "{{router}} recovered",
+        "description": "{{router}} is responding again"
+      },
+      "sfp-rx-low": {
+        "title": "SFP RX low on {{port}}",
+        "description": "RX power {{rx}} dBm (threshold {{threshold}} dBm)"
+      },
+      "sfp-temp-high": {
+        "title": "SFP hot on {{port}}",
+        "description": "Temperature {{temp}} °C (threshold {{threshold}} °C)"
+      },
+      "ssh-access-lost": {
+        "title": "SSH access lost on {{router}}",
+        "description": "{{router}} does not accept the SSH key, but its agent keeps sending data. Check authorized_keys after a firmware upgrade."
+      },
+      "ssh-access-recovered": {
+        "title": "SSH access recovered on {{router}}",
+        "description": "SSH access to {{router}} is working again"
+      },
+      "switch-loop": {
+        "title": "Loop detected on {{port}}",
+        "description": "The switch guard detected MAC {{mac}} on two ports and disabled {{port}}"
+      },
+      "switch-rebooted": {
+        "title": "Switch rebooted",
+        "description": "The beacon counter of {{router}} restarted (seq {{seq}} after {{prev}}): the switch booted again"
       },
       "unknown-device": {
         "title": "Unknown device",
@@ -144,6 +220,10 @@
       "wifi-weak": {
         "title": "Weak signal on {{device}}",
         "description": "{{signal}} dBm on {{router}} — check coverage or move closer to an AP"
+      },
+      "wireguard-handshake": {
+        "title": "WireGuard handshake",
+        "description": "{{peer}} connected"
       }
     }
   },

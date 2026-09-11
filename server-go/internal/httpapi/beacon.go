@@ -301,20 +301,30 @@ func (s *server) handleBeaconEvent(p beaconPacket) {
 		ev.Description = fmt.Sprintf(
 			"La guardia del switch ha detectado la MAC %s en dos bocas y ha deshabilitado %s",
 			p.Mac, portName)
+		ev.Type = alerts.TypeSwitchLoop
+		ev.Vars = map[string]string{"port": portName, "mac": p.Mac}
 	case "port_disabled":
 		ev.Title = "Boca deshabilitada: " + portName
 		ev.Description = "Desactivada por la guardia de bucles; se reintentará en 5 min (máx. 3 veces)"
+		ev.Type = alerts.TypePortDisabled
+		ev.Vars = map[string]string{"port": portName}
 	case "port_recovered":
 		ev.Severity = "ok"
 		ev.Title = "Boca re-habilitada: " + portName
 		ev.Description = "La guardia de bucles ha vuelto a habilitar la boca"
+		ev.Type = alerts.TypePortRecovered
+		ev.Vars = map[string]string{"port": portName}
 	case "port_down":
 		ev.Title = "Link caído en " + portName
 		ev.Description = "El beacon del switch reporta pérdida de link"
+		ev.Type = alerts.TypeLinkDown
+		ev.Vars = map[string]string{"port": portName}
 	case "port_up":
 		ev.Severity = "ok"
 		ev.Title = "Link restablecido en " + portName
 		ev.Description = "El beacon del switch reporta link activo"
+		ev.Type = alerts.TypeLinkUp
+		ev.Vars = map[string]string{"port": portName}
 	default:
 		log.Printf("[netpulse:beacon] evento desconocido %q de %s", p.Ev, p.Slug)
 		return
@@ -340,6 +350,8 @@ func (s *server) emitPortLinkChange(slug, label string, up bool) {
 			Category: alerts.CatSystem, Severity: "ok", Time: "ahora mismo",
 			RouterID: slug, Title: "Link restablecido en " + name,
 			Description: "Detectado por el cambio entre beacons",
+			Type:        alerts.TypeLinkUp,
+			Vars:        map[string]string{"port": name},
 		}
 	} else {
 		ev = alerts.AlertEvent{
@@ -347,6 +359,8 @@ func (s *server) emitPortLinkChange(slug, label string, up bool) {
 			Category: alerts.CatSystem, Severity: "warn", Time: "ahora mismo",
 			RouterID: slug, Title: "Link caído en " + name,
 			Description: "Detectado por el cambio entre beacons",
+			Type:        alerts.TypeLinkDown,
+			Vars:        map[string]string{"port": name},
 		}
 	}
 	eng.Emit(ev)
@@ -378,6 +392,8 @@ func (s *server) emitSFPAlerts(slug string, labels map[string]string, sfpByPort 
 				Severity: "warn", Time: "ahora mismo", RouterID: slug,
 				Title:       fmt.Sprintf("SFP RX bajo en %s", portName),
 				Description: fmt.Sprintf("Potencia RX %.1f dBm (umbral %.0f dBm)", sfp.RxPower, sfpAlertRxLow),
+				Type:        alerts.TypeSfpRxLow,
+				Vars:        map[string]string{"port": portName, "rx": fmt.Sprintf("%.1f", sfp.RxPower), "threshold": fmt.Sprintf("%.0f", sfpAlertRxLow)},
 			})
 		}
 		if sfp.Temperature > sfpAlertTempHigh {
@@ -387,6 +403,8 @@ func (s *server) emitSFPAlerts(slug string, labels map[string]string, sfpByPort 
 				Severity: "warn", Time: "ahora mismo", RouterID: slug,
 				Title:       fmt.Sprintf("SFP caliente en %s", portName),
 				Description: fmt.Sprintf("Temperatura %.1f °C (umbral %.0f °C)", sfp.Temperature, sfpAlertTempHigh),
+				Type:        alerts.TypeSfpTempHigh,
+				Vars:        map[string]string{"port": portName, "temp": fmt.Sprintf("%.1f", sfp.Temperature), "threshold": fmt.Sprintf("%.0f", sfpAlertTempHigh)},
 			})
 		}
 	}
@@ -493,6 +511,8 @@ func (s *server) beaconSeqNote(slug string, seq uint32) {
 				Category: alerts.CatSystem, Severity: "info", Time: "ahora mismo",
 				RouterID: slug, Title: "Switch reiniciado",
 				Description: fmt.Sprintf("El contador de beacons de %s volvió a empezar (seq %d tras %d): el switch ha arrancado de nuevo", slug, seq, old),
+				Type:        alerts.TypeSwitchRebooted,
+				Vars:        map[string]string{"router": slug, "seq": fmt.Sprintf("%d", seq), "prev": fmt.Sprintf("%d", old)},
 			})
 		}
 	}
