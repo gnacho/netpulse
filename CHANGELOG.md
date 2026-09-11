@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- **El hostname de las reservas DHCP se valida y se escapa (#693)**: el `hostname` del endpoint `PUT /api/devices/{mac}/reservation` se interpolaba sin sanitizar en el comando `uci set` que corre por SSH como root en el router; una comilla simple rompía el quoting e inyectaba comandos arbitrarios. Ahora solo se aceptan hostnames DNS (letras, dígitos, guiones y puntos, hasta 253 caracteres; el resto recibe 400 `invalid_hostname`) y todos los valores interpolados en comandos uci -incluidos los rollbacks que re-leen config del router- viajan escapados. La UI manda el hostname solo cuando el nombre del dispositivo es un hostname DNS válido.
+
 ## [2.28.21] - 2026-09-10
 
 ### Fixed
