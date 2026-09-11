@@ -1070,6 +1070,8 @@
         "days": "days",
         "lastRun": "Last: {{date}}",
         "noBackups": "No backups yet",
+        "time": "Time:",
+        "timeHint": "Empty = every N hours; with a time, daily at that time",
         "saveError": "Could not save settings",
         "error": "Could not create backup",
         "done": "Backup created successfully"

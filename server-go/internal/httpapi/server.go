@@ -11,6 +11,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -154,6 +155,10 @@ type server struct {
 	beaconSeq    map[string]uint32
 	beaconCandMu sync.Mutex
 	beaconCand   map[string]beaconCandidate
+
+	// Backups automáticos (#741): mutex single-flight entre el run manual
+	// (POST /api/backup/run) y el scheduler periódico.
+	backupMu sync.Mutex
 
 	// rtlConsole (#639): sondeo HTTP de la consola de switches RTLPlayground
 	// (firmware + uptime) para agentes external/beacon. nil si desactivado.
@@ -446,6 +451,13 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Copias de seguridad (issue #158) ---
 	s.registerBackupRoutes(mux)
+
+	// Backups automáticos (#741): el scheduler vive con el handler; el
+	// vencimiento se deriva del last_run persistido, así que reinicios y
+	// auto-updates no resetean el reloj. Solo en live (en demo no hay datos).
+	if s.cfg == nil || !s.cfg.DemoMode {
+		go s.backupLoop(context.Background(), backupTickEvery)
+	}
 
 	// --- Overrides manuales de topología (issue #142; solo admin) ---
 	s.registerTopologyOverrideRoutes(mux)
