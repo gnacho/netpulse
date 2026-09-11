@@ -54,7 +54,7 @@ const TIMELINE_FAILED_S = 60
 const TIMELINE_STALLED_S = 90
 
 /** Fila de un agente con sus acciones de recuperación (estado local). */
-function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undefined }) {
+function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router | undefined; nowSec: number }) {
   const { t } = useTranslation()
   const { reinstallAgent, uninstallAgent, createAgentInstall, refreshAgents } = useNetPulse()
   const auth = useAuth()
@@ -63,7 +63,6 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const [uninstallState, setUninstallState] = useState<ReinstallState>('idle')
   const [uninstallMsg, setUninstallMsg] = useState('')
   const [copyState, setCopyState] = useState<CopyState>('idle')
-  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
 
   const isNetgrip = agent?.kind === 'netgrip'
   const isOpenWrt = isOpenWrtType(router?.type)
@@ -83,7 +82,11 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
   const canUninstall = auth?.role === 'admin' && isOpenWrt && agent !== undefined && agent.kind !== 'external' && agent.kind !== 'netgrip'
 
   const slug = agent?.slug ?? router?.id ?? ''
-  const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen) ?? t('routers.agents.never') : t('routers.agents.never')
+  // #691: el relativo se calcula con el reloj compartido nowSec (prop), no con
+  // Date.now() interno; así avanza segundo a segundo y solo cae cuando llega
+  // un push realmente nuevo (antes se recalculaba en renders esporádicos y
+  // oscilaba hacia atrás con cada snapshot).
+  const lastSeen = agent?.lastSeen ? relTimeFromTs(agent.lastSeen, nowSec * 1000) ?? t('routers.agents.never') : t('routers.agents.never')
   const live = agent ? activeUpgrade(agent, nowSec) : undefined
 
   // Timeline compacta (#446): una sola línea por agente, visible mientras el
@@ -98,15 +101,6 @@ function AgentRow({ agent, router }: { agent?: AgentInfo; router: Router | undef
         : up.step === 'failed'
           ? nowSec - up.ts < TIMELINE_FAILED_S
           : up.step !== 'queued' && nowSec - up.ts < TIMELINE_STALLED_S)
-
-  // Tick de 1 s mientras la timeline es visible: progreso en vivo y cuenta
-  // atrás de la desaparición tras done/failed.
-  const ticking = showTimeline
-  useEffect(() => {
-    if (!ticking) return
-    const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
-    return () => window.clearInterval(timer)
-  }, [ticking])
 
   const reinstall = async () => {
     if (reinstallState === 'busy') return
@@ -547,6 +541,19 @@ export function AgentsSection() {
     return out
   }, [agents, routers])
 
+  // #691: reloj compartido de 1 s para TODA la tabla (relativos de "Visto" y
+  // progreso de timelines). Antes el ticker solo corría dentro de una fila con
+  // timeline de upgrade visible: sin upgrades en marcha la celda "Visto" se
+  // quedaba congelada entre snapshots y saltaba hacia atrás con cada push del
+  // agente (oscilación 39-44-18-23 s del reporte).
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
+  const hasRows = rows.length > 0
+  useEffect(() => {
+    if (!hasRows) return
+    const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [hasRows])
+
   const down = rows.filter(({ agent }) => (agent ? !agent.fresh : true)).length
   const total = rows.length
 
@@ -581,7 +588,7 @@ export function AgentsSection() {
             </thead>
             <tbody>
               {rows.map(({ agent, router }) => (
-                <AgentRow key={agent?.slug ?? router?.id ?? ''} agent={agent} router={router} />
+                <AgentRow key={agent?.slug ?? router?.id ?? ''} agent={agent} router={router} nowSec={nowSec} />
               ))}
             </tbody>
           </table>
