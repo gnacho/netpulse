@@ -15,6 +15,7 @@
 import { clientsClaim } from 'workbox-core'
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
+import { localizePush, pushLang, type PushCatalog } from '@/lib/push-i18n'
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -37,17 +38,44 @@ if (!import.meta.env.DEV) {
 
 // ---------------------------------------------------------------------------
 // Web Push (SPEC-PUSH §2)
-// Payload: {title, body, category, severity, url:"/alerts", tag}
+// Payload: {title, body, type, vars, category, severity, url:"/alerts", tag}
 // ---------------------------------------------------------------------------
 
 interface PushPayload {
   title?: string
   body?: string
+  /** slug estable del tipo de alerta (#689); permite traducir en el SW */
+  type?: string
+  /** variables de interpolación del tipo (#689) */
+  vars?: Record<string, string>
   category?: string
   severity?: string
   url?: string
   tag?: string
   hint?: string
+}
+
+const I18N_CACHE = 'netpulse-i18n-v1'
+
+/**
+ * Catálogo de traducciones del idioma dado, cache-first (#689). Los locales
+ * viven en public/ y se sirven como estáticos; el SW los cachea la primera vez
+ * para no depender de la red en cada push.
+ */
+async function pushCatalog(lang: 'es' | 'en'): Promise<PushCatalog | null> {
+  const url = `/locales/${lang}/translation.json`
+  try {
+    const cache = await caches.open(I18N_CACHE)
+    let res = await cache.match(url)
+    if (!res) {
+      res = await fetch(url)
+      if (res.ok) await cache.put(url, res.clone())
+    }
+    if (!res || !res.ok) return null
+    return (await res.json()) as PushCatalog
+  } catch {
+    return null
+  }
 }
 
 self.addEventListener('push', (event: PushEvent) => {
@@ -62,8 +90,22 @@ async function onPush(event: PushEvent): Promise<void> {
     // Payload no-JSON: notificación genérica (nunca romper el handler)
     payload = {}
   }
-  await self.registration.showNotification(payload.title || 'NetPulse', {
-    body: [payload.body, payload.hint].filter(Boolean).join('\n'),
+  let title = payload.title || 'NetPulse'
+  let body = [payload.body, payload.hint].filter(Boolean).join('\n')
+  // #689: si el evento trae el slug del tipo, traduce al idioma del dispositivo
+  // (catálogo de la app); si falla, se conservan los literales del server.
+  if (payload.type) {
+    const catalog = await pushCatalog(pushLang(navigator.language))
+    const loc = localizePush(catalog, payload.type, payload.vars, {
+      title: payload.title,
+      body: payload.body,
+      hint: payload.hint,
+    })
+    title = loc.title
+    body = [loc.body, loc.hint].filter(Boolean).join('\n')
+  }
+  await self.registration.showNotification(title, {
+    body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     // tag = dedup nativo del navegador (SPEC: tag = id del evento)
