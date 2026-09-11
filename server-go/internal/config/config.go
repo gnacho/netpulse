@@ -42,33 +42,41 @@ type Webhook struct {
 
 // Config es la config normalizada (equivalente al objeto de loadConfig).
 type Config struct {
-	Port            int
-	NodeEnv         string
-	StaticDir       string // resuelta (absoluta)
-	DataDir         string // resuelta (absoluta)
-	SessionSecret   string // "" si falta (autogenerado en kv)
-	AuthUser        string
-	AuthPass        string
-	DemoMode        bool
-	MaxSSEClients   int
-	Routers         []RouterSeed
-	SSHKeyPath      string
-	Adguard         *AdGuard
-	Webhook         *Webhook
-	WGInterface     string
-	CookieSecure    string // "auto" | "always" | "never"
-	TrustProxy      bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
-	MaxTsDriftSec   int    // ventana frescura ts agente en s (0 → default 5 min)
-	GithubRepo      string
-	GithubToken     string
-	ServerRoot      string
-	AutoRearm       bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
-	AutoReinstall   bool   // NETPULSE_AUTO_REINSTALL=1: el supervisor escala rearm→reinstall (#457); exige PUBLIC_URL
-	PublicURL       string // NETPULSE_PUBLIC_URL: URL base con la que los routers alcanzan al server (reinstall/self-heal)
-	BeaconListen    string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
-	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
-	Onbox           bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
-	GhostPortEnabled bool  // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
+	Port             int
+	NodeEnv          string
+	StaticDir        string // resuelta (absoluta)
+	DataDir          string // resuelta (absoluta)
+	SessionSecret    string // "" si falta (autogenerado en kv)
+	AuthUser         string
+	AuthPass         string
+	DemoMode         bool
+	MaxSSEClients    int
+	Routers          []RouterSeed
+	SSHKeyPath       string
+	Adguard          *AdGuard
+	Webhook          *Webhook
+	WGInterface      string
+	CookieSecure     string // "auto" | "always" | "never"
+	TrustProxy       bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
+	MaxTsDriftSec    int    // ventana frescura ts agente en s (0 → default 5 min)
+	GithubRepo       string
+	GithubToken      string
+	ServerRoot       string
+	AutoRearm        bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	AutoReinstall    bool   // NETPULSE_AUTO_REINSTALL=1: el supervisor escala rearm→reinstall (#457); exige PUBLIC_URL
+	PublicURL        string // NETPULSE_PUBLIC_URL: URL base con la que los routers alcanzan al server (reinstall/self-heal)
+	BeaconListen     string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
+	AgentAutoenroll  bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
+	Onbox            bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
+	GhostPortEnabled bool   // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
+	// NETPULSE_TLS_ENABLED=1: listener HTTPS adicional (puerto NETPULSE_TLS_PORT,
+	// default 3443) junto al HTTP de PORT. Opt-in: sin la variable, arranque
+	// idéntico al actual. El modo on-box ya sirve HTTPS en PORT (Fase 9) y no
+	// necesita esta variable (#696).
+	TLSEnabled bool
+	TLSPort    int
+	TLSCert    string // NETPULSE_TLS_CERT: path del cert del usuario (opcional; junto a TLSKey)
+	TLSKey     string // NETPULSE_TLS_KEY: path de la clave del usuario (opcional; junto a TLSCert)
 	// RTLConsolePass (NETPULSE_RTL_PASS): contraseña web de la consola de
 	// switches RTLPlayground (KP-9000, #639) para el sondeo HTTP de firmware
 	// y uptime. Default "1234" (la que trae el firmware tras flasheo).
@@ -444,6 +452,41 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_TLS_ENABLED: '0'|'1', opcional — HTTPS adicional en un listener
+	// propio (#696). Opt-in explícito: sin la variable, el binario se comporta
+	// exactamente como hoy (solo HTTP en PORT). El modo on-box ya sirve HTTPS
+	// en PORT y no necesita esta variable.
+	tlsEnabled := false
+	if v, ok := env["NETPULSE_TLS_ENABLED"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			tlsEnabled = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_TLS_ENABLED", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
+	// NETPULSE_TLS_PORT: int 1..65535, default 3443 (solo relevante si TLS
+	// está habilitado).
+	tlsPort := 3443
+	if v, ok := env["NETPULSE_TLS_PORT"]; ok && v != "" {
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil || n < 1 || n > 65535 {
+			errs.issues = append(errs.issues, issue{"NETPULSE_TLS_PORT", "Expected int 1..65535"})
+		} else {
+			tlsPort = n
+		}
+	}
+
+	// NETPULSE_TLS_CERT / NETPULSE_TLS_KEY: paths del cert del usuario. Ambos
+	// o ninguno (fail-fast si solo viene uno).
+	tlsCert := strings.TrimSpace(env["NETPULSE_TLS_CERT"])
+	tlsKey := strings.TrimSpace(env["NETPULSE_TLS_KEY"])
+	if (tlsCert == "") != (tlsKey == "") {
+		errs.issues = append(errs.issues, issue{"NETPULSE_TLS_CERT/NETPULSE_TLS_KEY", "both must be set together"})
+	}
+
 	if len(errs.issues) > 0 {
 		return nil, &errs
 	}
@@ -487,35 +530,39 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	}
 
 	return &Config{
-		Port:            port,
-		NodeEnv:         nodeEnv,
-		StaticDir:       resolve(staticDir),
-		DataDir:         resolve(dataDir),
-		SessionSecret:   sessionSecret,
-		AuthUser:        authUser,
-		AuthPass:        authPass,
-		DemoMode:        demoMode,
-		MaxSSEClients:   maxSSE,
-		Routers:         routers,
-		SSHKeyPath:      sshKeyPath,
-		Adguard:         adguard,
-		Webhook:         webhook,
-		WGInterface:     wgInterface,
-		CookieSecure:    cookieSecure,
-		TrustProxy:      trustProxy,
-		MaxTsDriftSec:   maxTsDriftSec,
-		GithubRepo:      githubRepo,
-		GithubToken:     githubToken,
-		ServerRoot:      serverRoot,
-		AutoRearm:       autoRearm,
-		AutoReinstall:   autoReinstall,
-		PublicURL:       publicURL,
-		BeaconListen:    beaconListen,
-		AgentAutoenroll: agentAutoenroll,
-		Onbox:           onbox,
-		GhostPortEnabled: ghostPortEnabled,
-		RTLConsolePass:   rtlPass,
+		Port:              port,
+		NodeEnv:           nodeEnv,
+		StaticDir:         resolve(staticDir),
+		DataDir:           resolve(dataDir),
+		SessionSecret:     sessionSecret,
+		AuthUser:          authUser,
+		AuthPass:          authPass,
+		DemoMode:          demoMode,
+		MaxSSEClients:     maxSSE,
+		Routers:           routers,
+		SSHKeyPath:        sshKeyPath,
+		Adguard:           adguard,
+		Webhook:           webhook,
+		WGInterface:       wgInterface,
+		CookieSecure:      cookieSecure,
+		TrustProxy:        trustProxy,
+		MaxTsDriftSec:     maxTsDriftSec,
+		GithubRepo:        githubRepo,
+		GithubToken:       githubToken,
+		ServerRoot:        serverRoot,
+		AutoRearm:         autoRearm,
+		AutoReinstall:     autoReinstall,
+		PublicURL:         publicURL,
+		BeaconListen:      beaconListen,
+		AgentAutoenroll:   agentAutoenroll,
+		Onbox:             onbox,
+		GhostPortEnabled:  ghostPortEnabled,
+		RTLConsolePass:    rtlPass,
 		RTLConsolePollSec: rtlPollSec,
+		TLSEnabled:        tlsEnabled,
+		TLSPort:           tlsPort,
+		TLSCert:           tlsCert,
+		TLSKey:            tlsKey,
 	}, nil
 }
 

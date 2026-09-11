@@ -71,3 +71,93 @@ func TestLoadOnboxCeroEquivaleAHoy(t *testing.T) {
 		t.Fatal("NETPULSE_ONBOX=0 debe dejar Onbox=false (comportamiento actual)")
 	}
 }
+
+// --- TLS adicional (#696) ---
+
+func TestLoadTLSDefaultOff(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TLSEnabled {
+		t.Fatal("TLSEnabled debe ser false por defecto (arranque idéntico al actual)")
+	}
+	if cfg.TLSPort != 3443 {
+		t.Fatalf("TLSPort = %d, esperaba 3443 (default)", cfg.TLSPort)
+	}
+	if cfg.TLSCert != "" || cfg.TLSKey != "" {
+		t.Fatalf("TLSCert/Key = %q/%q, esperaba vacíos por defecto", cfg.TLSCert, cfg.TLSKey)
+	}
+}
+
+func TestLoadTLSEnabledDefaultPort(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "1"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.TLSEnabled {
+		t.Fatal("TLSEnabled debe ser true con NETPULSE_TLS_ENABLED=1")
+	}
+	if cfg.TLSPort != 3443 {
+		t.Fatalf("TLSPort = %d, esperaba 3443 (default)", cfg.TLSPort)
+	}
+}
+
+func TestLoadTLSPortOverride(t *testing.T) {
+	cfg, err := Load(map[string]string{
+		"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "1", "NETPULSE_TLS_PORT": "8443",
+	}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TLSPort != 8443 {
+		t.Fatalf("TLSPort = %d, esperaba 8443", cfg.TLSPort)
+	}
+}
+
+func TestLoadTLSPortInvalido(t *testing.T) {
+	for _, bad := range []string{"0", "65536", "abc"} {
+		_, err := Load(map[string]string{
+			"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_PORT": bad,
+		}, t.TempDir())
+		if err == nil || !strings.Contains(err.Error(), "NETPULSE_TLS_PORT") {
+			t.Fatalf("NETPULSE_TLS_PORT=%q debe fallar señalando la variable: %v", bad, err)
+		}
+	}
+}
+
+func TestLoadTLSEnumInvalido(t *testing.T) {
+	_, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "2"}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_TLS_ENABLED") {
+		t.Fatalf("NETPULSE_TLS_ENABLED=2 debe fallar señalando la variable: %v", err)
+	}
+}
+
+func TestLoadTLSCertKeyPareja(t *testing.T) {
+	cfg, err := Load(map[string]string{
+		"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "1",
+		"NETPULSE_TLS_CERT": "/srv/cert.pem", "NETPULSE_TLS_KEY": "/srv/key.pem",
+	}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TLSCert != "/srv/cert.pem" || cfg.TLSKey != "/srv/key.pem" {
+		t.Fatalf("TLSCert/Key = %q/%q, esperaba los paths del usuario", cfg.TLSCert, cfg.TLSKey)
+	}
+}
+
+func TestLoadTLSCertSinKey(t *testing.T) {
+	_, err := Load(map[string]string{
+		"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_CERT": "/srv/cert.pem",
+	}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_TLS_CERT/NETPULSE_TLS_KEY") {
+		t.Fatalf("TLS_CERT sin TLS_KEY debe fallar señalando la pareja: %v", err)
+	}
+
+	_, err = Load(map[string]string{
+		"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_KEY": "/srv/key.pem",
+	}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_TLS_CERT/NETPULSE_TLS_KEY") {
+		t.Fatalf("TLS_KEY sin TLS_CERT debe fallar señalando la pareja: %v", err)
+	}
+}

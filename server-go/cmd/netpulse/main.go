@@ -33,16 +33,15 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
-	"github.com/gnacho/netpulse/server-go/internal/channelplan"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/channelplan"
 	"github.com/gnacho/netpulse/server-go/internal/collectorreader"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
-	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -51,6 +50,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
@@ -102,6 +102,19 @@ func withSSEWriteTimeout(next http.Handler, long time.Duration) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// newHTTPServer construye un http.Server con los timeouts comunes (issue #210).
+// Compartido entre el listener HTTP de PORT y el listener HTTPS adicional (#696).
+func newHTTPServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       2 * time.Minute,
+	}
 }
 
 func main() {
@@ -455,6 +468,40 @@ func run() error {
 		}
 	}
 
+	// #696: listener HTTPS adicional (NETPULSE_TLS_ENABLED=1). El HTTP de PORT
+	// se mantiene intacto (los agentes y el updater siguen hablando HTTP); la
+	// UI/PWA puede usar HTTPS en NETPULSE_TLS_PORT sin romper la flota. Con
+	// certs del usuario (NETPULSE_TLS_CERT/NETPULSE_TLS_KEY) se cargan; si no,
+	// se genera un autofirmado en DATA_DIR.
+	var extraTLSConf *tls.Config
+	if cfg.TLSEnabled {
+		certPath := cfg.TLSCert
+		keyPath := cfg.TLSKey
+		userCerts := certPath != "" && keyPath != ""
+		if !userCerts {
+			certPath = filepath.Join(cfg.DataDir, "cert.pem")
+			keyPath = filepath.Join(cfg.DataDir, "key.pem")
+		}
+		var err2 error
+		var fp string
+		if userCerts {
+			extraTLSConf, _, err2 = tlscert.Load(certPath, keyPath)
+		} else {
+			extraTLSConf, fp, err2 = tlscert.Ensure(certPath, keyPath)
+		}
+		if err2 != nil {
+			return fmt.Errorf("TLS adicional: %w", err2)
+		}
+		origen := "autofirmado"
+		if userCerts {
+			origen = "usuario"
+		} else {
+			log.Printf("[netpulse] TLS autofirmado: %s", certPath)
+			log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", fp)
+		}
+		log.Printf("[netpulse] HTTPS adicional en :%d (cert %s: %s)", cfg.TLSPort, origen, certPath)
+	}
+
 	// Speedtest WAN periódico (#511): store + runner + scheduler. Las
 	// alertas de "velocidad por debajo del plan" se emiten por el MISMO
 	// motor del adapter (la lista de eventos es por instancia). Solo en
@@ -522,16 +569,16 @@ func run() error {
 		handler = fpMux
 	}
 
-	srv := &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           withSSEWriteTimeout(handler, sseWriteTimeout),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       serverReadTimeout,
-		WriteTimeout:      serverWriteTimeout,
-		IdleTimeout:       2 * time.Minute,
+	srv := newHTTPServer(fmt.Sprintf(":%d", cfg.Port), withSSEWriteTimeout(handler, sseWriteTimeout))
+
+	// Listener HTTPS adicional (#696): mismo handler y timeouts que el HTTP.
+	var tlsSrv *http.Server
+	if extraTLSConf != nil {
+		tlsSrv = newHTTPServer(fmt.Sprintf(":%d", cfg.TLSPort), withSSEWriteTimeout(handler, sseWriteTimeout))
+		tlsSrv.TLSConfig = extraTLSConf
 	}
 
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
 	go func() {
 		scheme := "http"
 		if cfg.Onbox {
@@ -556,6 +603,12 @@ func run() error {
 			errCh <- srv.ListenAndServe()
 		}
 	}()
+
+	if tlsSrv != nil {
+		go func() {
+			errCh <- tlsSrv.ListenAndServeTLS("", "")
+		}()
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
@@ -602,6 +655,9 @@ func run() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(ctx)
+		if tlsSrv != nil {
+			_ = tlsSrv.Shutdown(ctx)
+		}
 		_ = dbHandle.Close()
 	}
 	return nil

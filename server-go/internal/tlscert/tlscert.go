@@ -37,6 +37,17 @@ func Ensure(certPath, keyPath string) (*tls.Config, string, error) {
 	return generate(certPath, keyPath)
 }
 
+// Load carga un par cert/clave existente SIN generar si falta. Es el caso de
+// "certificados del usuario" (NETPULSE_TLS_CERT/NETPULSE_TLS_KEY, #696): si
+// alguno no existe o no parsea, devuelve error en vez de generar un
+// autofirmado en las rutas configuradas.
+func Load(certPath, keyPath string) (*tls.Config, string, error) {
+	if !fileExists(certPath) || !fileExists(keyPath) {
+		return nil, "", fmt.Errorf("cert o clave no encontrados en %s / %s", certPath, keyPath)
+	}
+	return loadExisting(certPath, keyPath)
+}
+
 // Fingerprint calcula el SPKI hash hex de un certificado parsed.
 func Fingerprint(cert *x509.Certificate) string {
 	sum := sha256.Sum256(cert.RawSubjectPublicKeyInfo)

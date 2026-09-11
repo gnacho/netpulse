@@ -68,3 +68,34 @@ func TestGeneratedCertUsableByTLS(t *testing.T) {
 		t.Fatal("cert sin PrivateKey")
 	}
 }
+
+func TestLoadUserCerts(t *testing.T) {
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "cert.pem")
+	keyPath := filepath.Join(dir, "key.pem")
+
+	// Generamos un par con Ensure y luego lo cargamos con Load (caso "certs
+	// del usuario"): debe cargar el existente, no regenerarlo.
+	_, fpGenerated, err := Ensure(certPath, keyPath)
+	if err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	tlsConf, fpLoaded, err := Load(certPath, keyPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(tlsConf.Certificates) != 1 {
+		t.Fatal("tls.Config sin certificados")
+	}
+	if fpLoaded != fpGenerated {
+		t.Fatalf("fingerprint de Load (%s) ≠ Ensure (%s)", fpLoaded, fpGenerated)
+	}
+}
+
+func TestLoadMissingFails(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := Load(filepath.Join(dir, "no-existe.pem"), filepath.Join(dir, "no-existe.key"))
+	if err == nil {
+		t.Fatal("Load con paths inexistentes debe fallar (no genera autofirmado)")
+	}
+}

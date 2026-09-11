@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- **HTTPS nativo opcional para el servidor (#696)**: con `NETPULSE_TLS_ENABLED=1` el servidor escucha HTTPS en un puerto adicional (`NETPULSE_TLS_PORT`, por defecto 3443) **sin tocar el HTTP de `PORT`**, de modo que los agentes y el updater siguen hablando por HTTP y solo la UI/PWA pasa a usar HTTPS. Si configuras `NETPULSE_TLS_CERT` y `NETPULSE_TLS_KEY` se cargan esos certificados (HTTPS válido, necesario para instalar la PWA); si no, se genera un certificado autofirmado en `DATA_DIR` al arrancar para que HTTPS esté disponible sin configurar nada, asumiendo el aviso del navegador (un autofirmado no permite instalar la PWA). Sin ACME.
+
 - **El override manual `attach` ya puede colgar un dispositivo de un router o de un puerto concreto (#690)**: el `parent` solo admitía la MAC de otro device, así que no había forma de anclar un equipo a un AP ni a una boca determinada cuando la inferencia no podía saberlo (NAT, VM sin OUI de hipervisor, cliente callado en un switch que reporta todas las MAC en una boca, recableados). Ahora `parent` acepta tres formas: la MAC de un device (como hasta ahora, backwards-compatible), el id de un router, o `routerId:puerto` para fijar la boca exacta. En la UI el input libre de MAC se sustituye por un selector (routers, sus puertos y dispositivos) que conserva la edición de los overrides existentes con `parent` = MAC.
 
 ### Fixed
