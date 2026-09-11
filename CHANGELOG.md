@@ -14,6 +14,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Added
 
 - **Hora fija para el respaldo diario (#741)**: campo opcional `Hora` (HH:MM, hora local) en la tarjeta de Respaldos; vacío mantiene el comportamiento "cada N horas" y con hora fija el respaldo dispara una vez al día a esa hora (ventana de mantenimiento). Validación `HH:MM` en el servidor.
+- **Los routers con NetGrip se etiquetan como "NetGrip" en toda la flota (#746)**: el badge de agente mostraba el genérico "Agente" para todos, también para los que llevan el agente embebido de NetGrip. Ahora el badge (flota, tarjetas, tabla y detalle) muestra "NetGrip" con tooltip propio ("NetGrip v{versión} · agente embebido"); la tabla de agentes ya lo distinguía y el resto de la UI queda consistente.
 
 ## [2.28.22] - 2026-09-11
 
