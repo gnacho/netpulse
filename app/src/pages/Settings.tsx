@@ -44,6 +44,7 @@ import {
    Volume2,
    Wifi,
    X,
+   ChevronUp,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
@@ -58,6 +59,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
+import { fmtEs } from '@/data/mock'
 import { useAuth } from '@/data/AuthContext'
 import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
@@ -2385,11 +2387,15 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
 // ---------------------------------------------------------------------------
 
 function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; disabled?: boolean }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [enabled, setEnabled] = useState(false)
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
-  const [serverUrl, setServerUrl] = useState('https://speedtest.net')
+  const [serverUrl, setServerUrl] = useState('')
+  const [scheduleKind, setScheduleKind] = useState<'interval' | 'weekly' | 'monthly'>('interval')
+  const [dayOfWeek, setDayOfWeek] = useState(1)
+  const [dayOfMonth, setDayOfMonth] = useState(1)
+  const [schedTime, setSchedTime] = useState('01:00')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2406,7 +2412,20 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         setEnabled(!!d.enabled)
         if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
-        if (typeof d.serverUrl === 'string' && d.serverUrl) setServerUrl(d.serverUrl)
+        if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
+        // Migración visual de los "semanal/mensual" históricos (#744):
+        // 168h/720h sin scheduleKind pasan a weekly/monthly con día y hora.
+        const kind = typeof d.scheduleKind === 'string' ? d.scheduleKind : ''
+        if (kind === 'weekly' || kind === 'monthly') {
+          setScheduleKind(kind)
+        } else if (d.intervalHours === 168) {
+          setScheduleKind('weekly')
+        } else if (d.intervalHours === 720) {
+          setScheduleKind('monthly')
+        }
+        if (typeof d.dayOfWeek === 'number') setDayOfWeek(d.dayOfWeek)
+        if (typeof d.dayOfMonth === 'number') setDayOfMonth(d.dayOfMonth)
+        if (typeof d.time === 'string' && d.time) setSchedTime(d.time)
       })
       .catch(() => undefined)
       .finally(() => {
@@ -2417,10 +2436,36 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     }
   }, [])
 
+  const bodyJson = useCallback(
+    () => ({
+      enabled,
+      intervalHours: scheduleKind === 'interval' ? intervalHours : 12,
+      serverUrl,
+      alertPct,
+      scheduleKind,
+      ...(scheduleKind === 'weekly' ? { dayOfWeek } : {}),
+      ...(scheduleKind === 'monthly' ? { dayOfMonth } : {}),
+      ...(scheduleKind !== 'interval' ? { time: schedTime } : {}),
+    }),
+    [enabled, intervalHours, serverUrl, alertPct, scheduleKind, dayOfWeek, dayOfMonth, schedTime],
+  )
+
   const save = useCallback(async () => {
     const raw = serverUrl.trim()
     const urlOk = raw === '' || /^https?:\/\/.+\..+/.test(raw)
-    if (![12, 24, 168, 720].includes(intervalHours) || !urlOk || alertPct < 0 || alertPct > 90) {
+    if (raw === 'https://speedtest.net' || raw === 'https://www.speedtest.net' || !urlOk) {
+      setError(t('settings.speedtest.invalidServer'))
+      return
+    }
+    if (scheduleKind === 'interval' && ![6, 12, 24, 168, 720].includes(intervalHours)) {
+      setError(t('settings.speedtest.invalid'))
+      return
+    }
+    if (scheduleKind !== 'interval' && !/^\d{2}:\d{2}$/.test(schedTime)) {
+      setError(t('settings.speedtest.invalidSchedule'))
+      return
+    }
+    if (alertPct < 0 || alertPct > 90) {
       setError(t('settings.speedtest.invalid'))
       return
     }
@@ -2430,10 +2475,11 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       const res = await fetch('/api/settings/speedtest', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, intervalHours, serverUrl, alertPct }),
+        body: JSON.stringify(bodyJson()),
       })
       if (!res.ok) {
-        setError(t('settings.speedtest.saveError'))
+        const d = await res.json().catch(() => null)
+        setError(d?.detail || t('settings.speedtest.saveError'))
         return
       }
       setSaved(true)
@@ -2442,7 +2488,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [enabled, intervalHours, serverUrl, alertPct, onSaved, t])
+  }, [serverUrl, intervalHours, alertPct, scheduleKind, schedTime, bodyJson, onSaved, t])
 
   // «Probar»: guarda la URL del servidor y lanza un test de velocidad
   // inmediato (usa esa URL en el backend).
@@ -2454,10 +2500,11 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       const sRes = await fetch('/api/settings/speedtest', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, intervalHours, serverUrl, alertPct }),
+        body: JSON.stringify(bodyJson()),
       })
       if (!sRes.ok) {
-        setError(t('settings.speedtest.saveError'))
+        const d = await sRes.json().catch(() => null)
+        setError(d?.detail || t('settings.speedtest.saveError'))
         return
       }
       const runRes = await fetch('/api/speedtest/run', { method: 'POST' })
@@ -2473,7 +2520,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [serverUrl, enabled, intervalHours, alertPct, onSaved, t])
+  }, [serverUrl, bodyJson, onSaved, t])
 
   return (
     <div className="space-y-3">
@@ -2491,24 +2538,92 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.speedtest.interval')}</span>
           <select
-            value={intervalHours}
-            onChange={(e) => setIntervalHours(Number(e.target.value))}
+            value={scheduleKind}
+            onChange={(e) => setScheduleKind(e.target.value as 'interval' | 'weekly' | 'monthly')}
             disabled={disabled || loading}
             aria-label={t('settings.speedtest.interval')}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
-            {[12, 24, 168, 720].map((h) => (
-              <option key={h} value={h}>
-                {h === 168
-                  ? t('settings.speedtest.intervalWeek')
-                  : h === 720
-                    ? t('settings.speedtest.intervalMonth')
-                    : t('settings.speedtest.intervalH', { hours: h })}
-              </option>
-            ))}
+            <option value="interval">{t('settings.speedtest.kindInterval')}</option>
+            <option value="weekly">{t('settings.speedtest.kindWeekly')}</option>
+            <option value="monthly">{t('settings.speedtest.kindMonthly')}</option>
           </select>
         </label>
-        <label className="block">
+        {scheduleKind === 'interval' ? (
+          <label className="block">
+            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.everyLabel')}</span>
+            <select
+              value={intervalHours}
+              onChange={(e) => setIntervalHours(Number(e.target.value))}
+              disabled={disabled || loading}
+              aria-label={t('settings.speedtest.everyLabel')}
+              className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            >
+              {[6, 12, 24].map((h) => (
+                <option key={h} value={h}>{t('settings.speedtest.intervalH', { hours: h })}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="block">
+            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.dayLabel')}</span>
+            {scheduleKind === 'weekly' ? (
+              <select
+                value={dayOfWeek}
+                onChange={(e) => setDayOfWeek(Number(e.target.value))}
+                disabled={disabled || loading}
+                aria-label={t('settings.speedtest.dayLabel')}
+                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+              >
+                {weekdayNames(i18n.language).map((name, i) => (
+                  <option key={i} value={i}>{name}</option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={dayOfMonth}
+                onChange={(e) => setDayOfMonth(Number(e.target.value))}
+                disabled={disabled || loading}
+                aria-label={t('settings.speedtest.dayLabel')}
+                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+              >
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            )}
+          </label>
+        )}
+      </div>
+      {scheduleKind !== 'interval' && (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block max-w-[220px]">
+            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.timeLabel')}</span>
+            <input
+              type="time"
+              value={schedTime}
+              onChange={(e) => setSchedTime(e.target.value)}
+              disabled={disabled || loading}
+              aria-label={t('settings.speedtest.timeLabel')}
+              className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="block max-w-[160px]">
+            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={alertPct}
+              onChange={(e) => setAlertPct(Number(e.target.value))}
+              disabled={disabled || loading}
+              aria-label={t('settings.speedtest.alertPctLabel')}
+              className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            />
+          </label>
+        </div>
+      )}
+      {scheduleKind === 'interval' && (
+        <label className="block max-w-[160px]">
           <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
           <input
             type="text"
@@ -2520,7 +2635,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           />
         </label>
-      </div>
+      )}
       <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
       <div>
         <span className="text-label uppercase text-text-muted">{t('settings.speedtest.serverId')}</span>
@@ -2531,20 +2646,20 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
             disabled={disabled || loading}
-            placeholder="https://speedtest.net"
+            placeholder={t('settings.speedtest.serverPlaceholder')}
             aria-label={t('settings.speedtest.serverId')}
             className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <button
             type="button"
-            onClick={() => setServerUrl('https://speedtest.net')}
+            onClick={() => setServerUrl('')}
             disabled={disabled || loading}
-            title={t('settings.speedtest.serverRestore')}
-            aria-label={t('settings.speedtest.serverRestore')}
+            title={t('settings.speedtest.serverAuto')}
+            aria-label={t('settings.speedtest.serverAuto')}
             className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-[13px] font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
-            <span className="hidden sm:inline">{t('settings.speedtest.serverRestore')}</span>
+            <span className="hidden sm:inline">{t('settings.speedtest.serverAuto')}</span>
           </button>
           <button
             type="button"
@@ -2578,6 +2693,146 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </span>
         )}
       </div>
+      <SpeedtestRecent disabled={disabled} />
+    </div>
+  )
+}
+
+// weekdayNames: nombres localizados de domingo..sábado (0..6). 2026-09-06 fue
+// domingo; se formatea esa semana completa con el locale activo.
+function weekdayNames(locale: string): string[] {
+  const fmt = new Intl.DateTimeFormat(locale.startsWith('en') ? 'en-GB' : 'es-ES', { weekday: 'long' })
+  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2026, 8, 6 + i)))
+}
+
+type SpeedtestHistoryItem = {
+  ts: string
+  downMbps: number
+  upMbps: number
+  pingMs?: number
+  jitterMs?: number
+  serverName?: string
+  origin?: string
+}
+
+// SpeedtestRecent (#744): lista de los últimos tests con origen (auto/manual),
+// servidor, ping y jitter. Los datos ya viajan en /api/speedtest/history.
+function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
+  const { t, i18n } = useTranslation()
+  const [items, setItems] = useState<SpeedtestHistoryItem[]>([])
+  const [count, setCount] = useState(5)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (disabled) return
+    let alive = true
+    void fetch('/api/speedtest/history?hours=2160')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return
+        const list: SpeedtestHistoryItem[] = d.items ?? []
+        setItems([...list].reverse())
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [disabled])
+
+  const locale = i18n.language?.startsWith('en') ? 'en-GB' : 'es-ES'
+  const fmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="mt-1 text-caption text-accent hover:underline disabled:opacity-50"
+      >
+        {t('settings.speedtest.recentShow')}
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-label uppercase text-text-muted">{t('settings.speedtest.recentTitle')}</span>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-caption text-text-muted">
+            <span>{t('settings.speedtest.recentCount')}</span>
+            <select
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+              aria-label={t('settings.speedtest.recentCount')}
+              className="rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-text-primary"
+            >
+              {[3, 5, 10].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label={t('common.close')}
+            className="text-caption text-text-muted hover:text-text-primary"
+          >
+            <ChevronUp className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-2 text-caption text-text-muted">{t('settings.speedtest.noRecent')}</p>
+      ) : (
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-caption">
+            <thead>
+              <tr className="text-left text-text-muted">
+                <th className="py-1 pr-3 font-medium">{t('settings.speedtest.colWhen')}</th>
+                <th className="py-1 pr-3 font-medium">{t('settings.speedtest.colOrigin')}</th>
+                <th className="py-1 pr-3 font-medium">↓</th>
+                <th className="py-1 pr-3 font-medium">↑</th>
+                <th className="py-1 pr-3 font-medium">ping</th>
+                <th className="py-1 pr-3 font-medium">jitter</th>
+                <th className="py-1 font-medium">{t('settings.speedtest.colServer')}</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono text-text-secondary">
+              {items.slice(0, count).map((it, idx) => (
+                <tr key={`${it.ts}-${idx}`} className="border-t border-border/60">
+                  <td className="py-1.5 pr-3">
+                    {(() => {
+                      try {
+                        return fmt.format(new Date(it.ts))
+                      } catch {
+                        return it.ts
+                      }
+                    })()}
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    <span
+                      className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        it.origin === 'manual'
+                          ? 'border-accent/40 bg-accent/10 text-accent'
+                          : 'border-border bg-surface text-text-muted'
+                      }`}
+                    >
+                      {it.origin === 'manual' ? t('settings.speedtest.originManual') : t('settings.speedtest.originAuto')}
+                    </span>
+                  </td>
+                  <td className="py-1.5 pr-3 text-accent">{fmtEs(it.downMbps, 1)}</td>
+                  <td className="py-1.5 pr-3 text-tunnel">{fmtEs(it.upMbps, 1)}</td>
+                  <td className="py-1.5 pr-3">{it.pingMs !== undefined ? `${fmtEs(it.pingMs, 0)} ms` : '—'}</td>
+                  <td className="py-1.5 pr-3">{it.jitterMs !== undefined ? `${fmtEs(it.jitterMs, 0)} ms` : '—'}</td>
+                  <td className="py-1.5 truncate">{it.serverName || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
 import { StatusPill } from '@/components/StatusPill'
+import { SpeedtestStrip } from '@/components/routers/WanLatency'
 
 // ---------------------------------------------------------------------------
 // Tooltip custom (design.md §7): superficie elevated, valores mono con unidad
@@ -225,6 +226,10 @@ export function WanTraffic() {
           })}
         </p>
       ) : null}
+
+      {/* Velocidad medida + botón de test (#511, movido al Overview en
+          #744 a petición del reportero: el gateway ya no la lleva). */}
+      <SpeedtestStrip contractDown={wan.contractDownMbps} />
     </section>
   )
 }

@@ -96,7 +96,6 @@ export function WanLatency() {
             </div>
           ))}
         </div>
-        <SpeedtestStrip contractDown={wan.contractDownMbps} />
       </section>
 
       {/* 4b. Latencia */}
@@ -203,7 +202,7 @@ function useSpeedtestState() {
   return { running, lastError, last, points, starting, run, reload: load }
 }
 
-function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
+export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
   const { t } = useTranslation()
   const { running, lastError, last, points, starting, run } = useSpeedtestState()
 
