@@ -11,6 +11,12 @@ import {
 import { cn, fetchJson } from '@/lib/utils'
 import type { ClientDevice } from '@/pages/devices-data'
 
+// #693: el server solo acepta hostnames DNS en la reserva DHCP. Un nombre
+// visible libre ("TV Salón") viaja vacío y la reserva usa la MAC como name.
+const DNS_HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+const asDhcpHostname = (name: string) =>
+  name.length > 0 && name.length <= 253 && DNS_HOSTNAME_RE.test(name) ? name : ''
+
 export interface DeviceEditSheetProps {
   open: boolean
   device: ClientDevice | null
@@ -196,7 +202,7 @@ export function DeviceEditSheet({
                     const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/reservation`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ip: reserveDraft, hostname: device.name }),
+                      body: JSON.stringify({ ip: reserveDraft, hostname: asDhcpHostname(device.name) }),
                     })
                     if (res.ok) {
                       setReservation({ reserved: true, ip: reserveDraft, loading: false })

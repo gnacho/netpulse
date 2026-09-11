@@ -75,6 +75,15 @@ func (f *scriptedSSH) saw(substr string) bool {
 	return false
 }
 
+// cmdsSnapshot copia los comandos vistos (para mensajes de fallo).
+func (f *scriptedSSH) cmdsSnapshot() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.cmds))
+	copy(out, f.cmds)
+	return out
+}
+
 // sawHost es como saw pero acotado a un host SSH concreto (issue #537: la
 // reserva debe escribirse en el router que sirve DHCP, no siempre en el
 // gateway).
@@ -596,6 +605,84 @@ func TestReservationInvalidIP(t *testing.T) {
 	body := decodeBody(t, res)
 	if body["error"] != "invalid_ip" {
 		t.Errorf("error code: %v", body["error"])
+	}
+}
+
+// --- #693: hostname de la reserva sin superficie de inyección ---
+
+// El PoC del issue (hostname con comilla simple que rompe el quoting del
+// comando uci) debe rechazarse con 400 SIN llegar a abrir sesión SSH.
+func TestReservationHostnameInjectionRejected(t *testing.T) {
+	ssh := newSSH(dhcpEmpty, fwEmpty)
+	ts := makeDeviceActionsTestServer(t, ssh)
+
+	res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie,
+		`{"ip":"192.168.1.60","hostname":"x'; touch /tmp/netpulse_poc; echo '"}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("hostname inyectable: got %d want 400 (body %v)", res.StatusCode, decodeBody(t, res))
+	}
+	body := decodeBody(t, res)
+	if body["error"] != "invalid_hostname" {
+		t.Errorf("error code: %v", body["error"])
+	}
+	if ssh.saw("uci") || ssh.saw("touch") {
+		t.Error("el payload malicioso no debe generar NINGÚN comando SSH")
+	}
+}
+
+// Hostnames válidos (DNS) pasan; el resto (espacios, sustituciones, unicode)
+// se rechaza con 400 invalid_hostname.
+func TestReservationHostnameValidation(t *testing.T) {
+	ssh := newSSH(dhcpEmpty, fwEmpty)
+	ts := makeDeviceActionsTestServer(t, ssh)
+
+	valid := []string{"tv-salon", "nas.lan", "a"}
+	for _, h := range valid {
+		res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie,
+			`{"ip":"192.168.1.60","hostname":"`+h+`"}`)
+		if res.StatusCode != 200 {
+			t.Errorf("hostname válido %q: got %d want 200 (body %v)", h, res.StatusCode, decodeBody(t, res))
+		}
+		res.Body.Close()
+	}
+
+	invalid := []string{"tv salon", "x$(id)", "x`id`", "pc_1", "télé"}
+	for _, h := range invalid {
+		res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie,
+			`{"ip":"192.168.1.60","hostname":"`+h+`"}`)
+		if res.StatusCode != 400 {
+			t.Errorf("hostname inválido %q: got %d want 400", h, res.StatusCode)
+		}
+		body := decodeBody(t, res)
+		if body["error"] != "invalid_hostname" {
+			t.Errorf("hostname inválido %q: error code %v", h, body["error"])
+		}
+	}
+}
+
+// Defensa en profundidad: el rollback del DELETE re-interpola valores LEÍDOS
+// del router (name de la sección host). Si el router devolviera un name hostil,
+// el comando de rollback debe llevarlo escapado, no crudo (#693).
+func TestReservationDeleteRollbackEscapesHostileName(t *testing.T) {
+	const dhcpHostile = dhcpEmpty + `dhcp.np_host_aabbccddeeff=host
+dhcp.np_host_aabbccddeeff.name='tv'; ping -c1 evil.example; echo '
+dhcp.np_host_aabbccddeeff.mac='aa:bb:cc:dd:ee:ff'
+dhcp.np_host_aabbccddeeff.ip='192.168.1.60'
+`
+	ssh := newSSH(dhcpHostile, fwEmpty, sshRule{contains: "restart", err: errors.New("reload fail")})
+	ts := makeDeviceActionsTestServer(t, ssh)
+
+	res := deviceReq(t, "DELETE", ts.URL, "/api/devices/"+devMAC+"/reservation", ts.cookie, "")
+	if res.StatusCode != 500 {
+		t.Fatalf("DELETE con reload fallido: got %d want 500", res.StatusCode)
+	}
+	res.Body.Close()
+	// El rollback re-crea la sección: el name hostil debe viajar escapado.
+	if !ssh.saw(`name='tv'\''; ping`) {
+		t.Errorf("el rollback debe escapar la comilla simple del name leído del router; cmds: %v", ssh.cmdsSnapshot())
+	}
+	if ssh.saw(`name='tv'; ping`) {
+		t.Error("el name hostil llegó SIN escapar al comando SSH")
 	}
 }
 

@@ -27,12 +27,46 @@ const (
 var reUciLine = regexp.MustCompile(`^([a-z0-9_]+)\.([^=]+)=(.*)$`)
 var reUciQuoted = regexp.MustCompile(`^'(.*)'$`)
 
+// reDhcpHostname: hostname DNS (etiquetas alfanuméricas con guiones internos,
+// separadas por puntos). dnsmasq registra el `name` de la sección host en su
+// DNS local, así que cualquier otra cosa (espacios, acentos, metacaracteres)
+// no es un hostname válido y se rechaza (#693).
+var reDhcpHostname = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
+
 // uciValue devuelve el valor sin comillas de una línea `cfg.sect.opt='val'`.
 func uciValue(raw string) string {
 	if m := reUciQuoted.FindStringSubmatch(raw); m != nil {
 		return m[1]
 	}
 	return raw
+}
+
+// uciQuote escapa v para incrustarlo sin riesgo entre comillas simples de un
+// comando uci: la única forma de salir de '...' es otra comilla simple, que se
+// neutraliza cerrando, escapándola con backslash y reabriendo (secuencia
+// POSIX clásica de cierre-escape-apertura). Sin esto, un hostname tipo
+// `x'; cmd; echo '` inyecta comandos que corren como root en el router vía
+// SSH (#693).
+func uciQuote(v string) string {
+	return strings.ReplaceAll(v, "'", `'\''`)
+}
+
+// uciSetCmd construye `uci set <cfg>.<sect>.<opt>='<valor escapado>'`. Todo
+// valor dinámico de un comando uci pasa por aquí (#693).
+func uciSetCmd(cfg, sect, opt, value string) string {
+	return fmt.Sprintf("uci set %s.%s.%s='%s'", cfg, sect, opt, uciQuote(value))
+}
+
+// validDHCPHostname acepta vacío (= no tocar el name; el alta usará la MAC) o
+// un hostname DNS de hasta 253 caracteres (#693).
+func validDHCPHostname(h string) bool {
+	if h == "" {
+		return true
+	}
+	if len(h) > 253 {
+		return false
+	}
+	return reDhcpHostname.MatchString(h)
 }
 
 // gatewayHost devuelve el host SSH del gateway (router con is_gateway), o ""
@@ -251,6 +285,11 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_ip")
 		return
 	}
+	if !validDHCPHostname(body.Hostname) {
+		writeError(w, http.StatusBadRequest, "invalid_hostname",
+			"el hostname debe ser un nombre DNS válido (letras, dígitos, guiones y puntos)")
+		return
+	}
 	host := s.reservationTargetHost(mac)
 	if host == "" {
 		writeError(w, http.StatusBadRequest, "no_gateway")
@@ -280,11 +319,11 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 	var apply, rollback []string
 	if existing != nil {
 		oldIP := existing.IP
-		apply = append(apply, fmt.Sprintf("uci set dhcp.%s.ip='%s'", existing.Section, body.IP))
+		apply = append(apply, uciSetCmd("dhcp", existing.Section, "ip", body.IP))
 		if body.Hostname != "" && body.Hostname != existing.Name {
-			apply = append(apply, fmt.Sprintf("uci set dhcp.%s.name='%s'", existing.Section, body.Hostname))
+			apply = append(apply, uciSetCmd("dhcp", existing.Section, "name", body.Hostname))
 		}
-		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.ip='%s'", existing.Section, oldIP))
+		rollback = append(rollback, uciSetCmd("dhcp", existing.Section, "ip", oldIP))
 	} else {
 		section := dhcpHostSection(mac)
 		name := body.Hostname
@@ -293,9 +332,9 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		}
 		apply = append(apply,
 			fmt.Sprintf("uci set dhcp.%s=host", section),
-			fmt.Sprintf("uci set dhcp.%s.name='%s'", section, name),
-			fmt.Sprintf("uci set dhcp.%s.mac='%s'", section, mac),
-			fmt.Sprintf("uci set dhcp.%s.ip='%s'", section, body.IP),
+			uciSetCmd("dhcp", section, "name", name),
+			uciSetCmd("dhcp", section, "mac", mac),
+			uciSetCmd("dhcp", section, "ip", body.IP),
 		)
 		rollback = append(rollback, fmt.Sprintf("uci delete dhcp.%s", section))
 	}
@@ -342,13 +381,13 @@ func (s *server) handleDeviceReservationDelete(w http.ResponseWriter, r *http.Re
 	var rollback []string
 	rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s=host", h.Section))
 	if h.Name != "" {
-		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.name='%s'", h.Section, h.Name))
+		rollback = append(rollback, uciSetCmd("dhcp", h.Section, "name", h.Name))
 	}
 	if h.MAC != "" {
-		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.mac='%s'", h.Section, h.MAC))
+		rollback = append(rollback, uciSetCmd("dhcp", h.Section, "mac", h.MAC))
 	}
 	if h.IP != "" {
-		rollback = append(rollback, fmt.Sprintf("uci set dhcp.%s.ip='%s'", h.Section, h.IP))
+		rollback = append(rollback, uciSetCmd("dhcp", h.Section, "ip", h.IP))
 	}
 
 	apply := []string{fmt.Sprintf("uci delete dhcp.%s", h.Section)}
@@ -451,11 +490,11 @@ func findBlockRule(rules []*firewallRule, mac string) *firewallRule {
 func blockRuleApply(section, mac string) []string {
 	return []string{
 		fmt.Sprintf("uci set firewall.%s=rule", section),
-		fmt.Sprintf("uci set firewall.%s.name='%s'", section, blockRuleName(mac)),
+		uciSetCmd("firewall", section, "name", blockRuleName(mac)),
 		fmt.Sprintf("uci set firewall.%s.src='lan'", section),
 		fmt.Sprintf("uci set firewall.%s.dest='*'", section),
 		fmt.Sprintf("uci set firewall.%s.target='DROP'", section),
-		fmt.Sprintf("uci set firewall.%s.src_mac='%s'", section, mac),
+		uciSetCmd("firewall", section, "src_mac", mac),
 	}
 }
 
@@ -575,13 +614,13 @@ func (s *server) handleDeviceBlockDelete(w http.ResponseWriter, r *http.Request)
 	apply := []string{fmt.Sprintf("uci delete firewall.%s", br.Section)}
 	rollback := []string{fmt.Sprintf("uci set firewall.%s=rule", br.Section)}
 	if br.Name != "" {
-		rollback = append(rollback, fmt.Sprintf("uci set firewall.%s.name='%s'", br.Section, br.Name))
+		rollback = append(rollback, uciSetCmd("firewall", br.Section, "name", br.Name))
 	}
 	if br.SrcMAC != "" {
-		rollback = append(rollback, fmt.Sprintf("uci set firewall.%s.src_mac='%s'", br.Section, br.SrcMAC))
+		rollback = append(rollback, uciSetCmd("firewall", br.Section, "src_mac", br.SrcMAC))
 	}
 	if br.Target != "" {
-		rollback = append(rollback, fmt.Sprintf("uci set firewall.%s.target='%s'", br.Section, br.Target))
+		rollback = append(rollback, uciSetCmd("firewall", br.Section, "target", br.Target))
 	}
 	if err := s.runUCICommands(host, "firewall", apply); err != nil {
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
