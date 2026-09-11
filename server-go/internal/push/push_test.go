@@ -204,6 +204,8 @@ func testEvent() alerts.AlertEvent {
 		Title:       "Router sin respuesta",
 		Description: "Sin respuesta de 192.168.8.1",
 		Hint:        "Revisa la alimentación del router",
+		Type:        "router-down",
+		Vars:        map[string]string{"router": "192.168.8.1"},
 	}
 }
 
@@ -268,13 +270,15 @@ func TestNotifierSendsEncryptedPayload(t *testing.T) {
 
 	plain := decryptAES128GCM(t, ua, req.body)
 	var p struct {
-		Title    string `json:"title"`
-		Body     string `json:"body"`
-		Category string `json:"category"`
-		Severity string `json:"severity"`
-		URL      string `json:"url"`
-		Tag      string `json:"tag"`
-		Hint     string `json:"hint"`
+		Title    string            `json:"title"`
+		Body     string            `json:"body"`
+		Type     string            `json:"type"`
+		Vars     map[string]string `json:"vars"`
+		Category string            `json:"category"`
+		Severity string            `json:"severity"`
+		URL      string            `json:"url"`
+		Tag      string            `json:"tag"`
+		Hint     string            `json:"hint"`
 	}
 	if err := json.Unmarshal(plain, &p); err != nil {
 		t.Fatalf("payload no es JSON: %v (%q)", err, plain)
@@ -285,6 +289,10 @@ func TestNotifierSendsEncryptedPayload(t *testing.T) {
 	}
 	if p.Hint != "Revisa la alimentación del router" {
 		t.Fatalf("payload hint: %q", p.Hint)
+	}
+	// #689: el slug y las vars viajan para que el SW pueda traducir el push.
+	if p.Type != "router-down" || p.Vars["router"] != "192.168.8.1" {
+		t.Fatalf("payload type/vars: type=%q vars=%v", p.Type, p.Vars)
 	}
 }
 
