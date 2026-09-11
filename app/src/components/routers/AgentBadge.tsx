@@ -41,16 +41,19 @@ export function AgentBadge({ agent, agentOnly, deviceType, className }: AgentBad
       </span>
     )
   }
+  const isNetgrip = agent.kind === 'netgrip'
   const title = agent.fresh
     ? agent.version
-      ? t('routers.agent.freshTip', { version: agent.version })
+      ? isNetgrip
+        ? t('routers.agent.netgripFreshTip', { version: agent.version })
+        : t('routers.agent.freshTip', { version: agent.version })
       : t('routers.agent.freshTipUnknown')
     : t('routers.agent.staleTip')
   return (
     <span title={title} className={cn('inline-flex', className)}>
       <StatusPill
         tone={agent.fresh ? 'info' : 'danger'}
-        label={agent.fresh ? t('routers.agent.badge') : t('routers.agent.stale')}
+        label={agent.fresh ? (isNetgrip ? t('routers.agent.netgripBadge') : t('routers.agent.badge')) : t('routers.agent.stale')}
         pulse={!agent.fresh}
       />
     </span>

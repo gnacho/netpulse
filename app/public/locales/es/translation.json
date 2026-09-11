@@ -832,7 +832,9 @@
       "timeline": "Actualización",
       "timelineDone": "completado",
       "stepVerifying": "Comprobando integridad",
-      "timelineSummary": "· {{count}} pasos · {{secs}} s"
+      "timelineSummary": "· {{count}} pasos · {{secs}} s",
+      "netgripBadge": "NetGrip",
+      "netgripFreshTip": "NetGrip v{{version}} · agente embebido"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",
