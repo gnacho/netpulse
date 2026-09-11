@@ -34,8 +34,8 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/reinstall"
-	"github.com/gnacho/netpulse/server-go/internal/uninstall"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+	"github.com/gnacho/netpulse/server-go/internal/uninstall"
 	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
 
@@ -336,6 +336,12 @@ type agentCreateResponse struct {
 	// Method indica si el token nuevo se aplicó al agente "en caliente" vía
 	// SSH ("hot") o si hay que instalarlo a mano ("manual", ver Install).
 	Method string `json:"method"`
+	// ManualReason explica por qué no se pudo aplicar en caliente cuando
+	// method == "manual" (#719): "no_ssh" (servidor sin pool SSH o demo),
+	// "netgrip" (agente embebido en NetGrip), "no_router" (sin router en la
+	// tabla o no actualizable) o "ssh_failed" (el push SSH falló). Vacío si
+	// method == "hot" o si el cliente no pidió hot.
+	ManualReason string `json:"manualReason,omitempty"`
 }
 
 // handleAgentsCreate: genera (o rota) el token de un slug. 201 con el token
@@ -374,28 +380,37 @@ func (s *server) handleAgentsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	method := "manual"
+	reason := ""
 	if body.Hot {
-		method = s.rotateTokenHot(body.Slug, token)
+		if m := s.rotateTokenHot(body.Slug, token); m == "hot" {
+			method = "hot"
+		} else {
+			reason = m
+		}
 	}
 	writeJSON(w, http.StatusCreated, agentCreateResponse{
-		Slug:    body.Slug,
-		Token:   token,
-		Install: s.agentInstallLine(r, body.Slug, token),
-		Method:  method,
+		Slug:         body.Slug,
+		Token:        token,
+		Install:      s.agentInstallLine(r, body.Slug, token),
+		Method:       method,
+		ManualReason: reason,
 	})
 }
 
 // rotateTokenHot aplica el token nuevo en el .env del router por SSH cuando
 // es posible (agente nativo OpenWrt con router en la tabla). Devuelve "hot"
-// si se aplicó, "manual" si hay que instalarlo a mano. Nunca rompe el flujo:
-// si no hay SSH o el push falla, el token ya rotado se entrega vía Install.
+// si se aplicó o el motivo del fallback manual (#719): "no_ssh" (servidor
+// sin pool SSH o demo), "netgrip" (agente embebido en NetGrip), "no_router"
+// (sin router en la tabla o no actualizable) o "ssh_failed" (fallo del SSH).
+// Nunca rompe el flujo: si no hay SSH o el push falla, el token ya rotado se
+// entrega vía Install.
 func (s *server) rotateTokenHot(slug, token string) string {
 	if s.db == nil || s.pool == nil {
-		return "manual"
+		return "no_ssh"
 	}
 	// #363: jamás tocar un agente NetGrip embebido vía SSH.
 	if s.agentKindOf(slug) == "netgrip" {
-		return "manual"
+		return "netgrip"
 	}
 	host := ""
 	for _, rc := range routerstore.ListRouters(s.db.DB) {
@@ -405,10 +420,10 @@ func (s *server) rotateTokenHot(slug, token string) string {
 		}
 	}
 	if host == "" || !s.routerUpgradeable(slug) {
-		return "manual"
+		return "no_router"
 	}
 	if _, err := s.pool.Run(host, reinstall.TokenPushScript(slug, token), 60*time.Second); err != nil {
-		return "manual"
+		return "ssh_failed"
 	}
 	return "hot"
 }
@@ -838,7 +853,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 
 type uninstallResponse struct {
 	Slug  string `json:"slug"`
-	Gone  bool   `json:"gone"` // el script SSH se ejecutó (agente fuera del router)
+	Gone  bool   `json:"gone"`  // el script SSH se ejecutó (agente fuera del router)
 	Token bool   `json:"token"` // el token del slug se revocó
 }
 

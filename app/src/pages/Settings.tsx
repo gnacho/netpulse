@@ -320,7 +320,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
   // Aviso tras regenerar el token: "hot" (aplicado en caliente) o "manual".
-  const [regenerateNotice, setRegenerateNotice] = useState<'hot' | 'manual' | null>(null)
+  const [regenerateNotice, setRegenerateNotice] = useState<'hot' | 'netgrip' | 'ssh_failed' | 'no_agent' | null>(null)
   // Slugs con agente nativo (GET /api/agents): marcan qué routers tienen
   // acceso root para poder regenerar su token (Labs).
   const [agentSlugs, setAgentSlugs] = useState<Set<string>>(new Set())
@@ -592,10 +592,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         body: JSON.stringify({ slug: r.id, hot: true }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const agent = (await res.json()) as { slug: string; token: string; install: string; method?: string }
+      const agent = (await res.json()) as { slug: string; token: string; install: string; method?: string; manualReason?: string }
       // Copia el token al portapapeles y refuerza la fila.
       await copyToClipboard(agent.token)
-      setRegenerateNotice(agent.method === 'hot' ? 'hot' : 'manual')
+      // #719: el servidor explica por qué no se pudo aplicar en caliente
+      // (manualReason), para no pedir "reinstalar el agente" cuando no lo hay.
+      setRegenerateNotice(
+        agent.method === 'hot' ? 'hot'
+        : agent.manualReason === 'netgrip' ? 'netgrip'
+        : agent.manualReason === 'ssh_failed' ? 'ssh_failed'
+        : 'no_agent',
+      )
       onSaved()
     } catch {
       setError(t('settings.routers.errorGeneric'))
@@ -719,7 +726,11 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         <p className={cn('mt-2 text-caption font-medium', regenerateNotice === 'hot' ? 'text-accent' : 'text-danger')}>
           {regenerateNotice === 'hot'
             ? t('settings.routers.rotateTokenHotApplied')
-            : t('settings.routers.rotateTokenManualNeeded')}
+            : regenerateNotice === 'netgrip'
+              ? t('settings.routers.rotateTokenNetgrip')
+              : regenerateNotice === 'ssh_failed'
+                ? t('settings.routers.rotateTokenManualNeeded')
+                : t('settings.routers.rotateTokenSavedNoAgent')}
         </p>
       )}
 

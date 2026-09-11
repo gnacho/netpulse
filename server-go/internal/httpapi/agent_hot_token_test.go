@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gnacho/netpulse/agent/probe"
 )
 
 // postAgentCreateHot publica POST /api/agents con body dado y devuelve la
@@ -40,6 +42,9 @@ func TestRotateTokenHot(t *testing.T) {
 	if body["method"] != "hot" {
 		t.Fatalf("quiero method=hot, tuve %v", body["method"])
 	}
+	if _, ok := body["manualReason"]; ok {
+		t.Fatalf("hot no debe traer manualReason, tuve %v", body["manualReason"])
+	}
 	if body["token"] == "" {
 		t.Fatal("sin token")
 	}
@@ -64,6 +69,9 @@ func TestRotateTokenManual(t *testing.T) {
 	}
 	if body["method"] != "manual" {
 		t.Fatalf("quiero method=manual, tuve %v", body["method"])
+	}
+	if body["manualReason"] != "no_router" {
+		t.Fatalf("sin router quiero manualReason=no_router, tuve %v", body["manualReason"])
 	}
 	if ssh.count() != 0 {
 		t.Fatalf("no debe ejecutarse SSH con router desconocido, tuve %d", ssh.count())
@@ -98,7 +106,32 @@ func TestRotateTokenHotSSHFail(t *testing.T) {
 	if body["method"] != "manual" {
 		t.Fatalf("SSH caído quiero method=manual, tuve %v", body["method"])
 	}
+	if body["manualReason"] != "ssh_failed" {
+		t.Fatalf("SSH caído quiero manualReason=ssh_failed, tuve %v", body["manualReason"])
+	}
 	if body["install"] == "" {
 		t.Fatal("debe incluir el one-liner para recuperar manualmente")
+	}
+}
+
+// TestRotateTokenNetgrip (#719): con un agente kind=netgrip, hot:true no
+// toca SSH y devuelve manual con motivo netgrip.
+func TestRotateTokenNetgrip(t *testing.T) {
+	ssh := &fakeSSH{}
+	ts := makeRearmTestServer(t, ssh, 1500*time.Millisecond)
+	ts.agents.Ingest(&probe.Payload{Router: "patio", Ts: time.Now().Unix(), Version: "0.23.0", Kind: "netgrip"})
+
+	status, body := postAgentCreateHot(t, ts.URL, ts.cookie, `{"slug":"patio","hot":true}`)
+	if status != 201 {
+		t.Fatalf("create: %d", status)
+	}
+	if body["method"] != "manual" {
+		t.Fatalf("netgrip quiero method=manual, tuve %v", body["method"])
+	}
+	if body["manualReason"] != "netgrip" {
+		t.Fatalf("netgrip quiero manualReason=netgrip, tuve %v", body["manualReason"])
+	}
+	if ssh.count() != 0 {
+		t.Fatalf("netgrip no debe ejecutarse SSH, tuve %d", ssh.count())
 	}
 }
