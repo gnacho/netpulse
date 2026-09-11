@@ -49,7 +49,7 @@ const I18N = {
       eyebrow: 'About me',
       title: 'There is no company behind NetPulse',
       p1: 'NetPulse was not built to be published. I started it to understand what was happening on my own network, with my own routers, without depending on anyone. And I have used it every day for a long time: it is my unified tool to check that everything is still in order. I develop it in my spare time, between work and family.',
-      p2: 'Over time, and consistently with the principles I believe in, I decided to make it free and share it with the community. The project grows richer through user contributions and use, thank you for using it and for sending suggestions to keep improving it.',
+      p2: 'Over time, and consistently with the principles I believe in, I decided to make it free and share it with the community. The project grows richer through user contributions and use, thank you for using it and for sending suggestions to keep improving it. And if you use it, a star on GitHub would help a lot.',
     },
     theater: {
       title: 'Watch it come alive',
@@ -179,7 +179,7 @@ const I18N = {
       eyebrow: 'Acerca de mí',
       title: 'Detrás de NetPulse no hay una empresa',
       p1: 'NetPulse no nació para publicarse. Lo empecé para entender qué pasaba en mi propia red, con mis propios routers, sin depender de nadie. Y lo he usado a diario durante mucho tiempo: es mi herramienta unificada para comprobar que todo sigue en orden. Lo desarrollo en mi tiempo libre, entre el trabajo y la familia.',
-      p2: 'Con el tiempo, y de forma consecuente con los principios en los que creo, he decidido liberarlo y compartirlo con la comunidad. El proyecto se enriquece con el aporte de los usuarios y el uso, gracias por utilizarlo y por enviarme sugerencias para seguir mejorándolo.',
+      p2: 'Con el tiempo, y de forma consecuente con los principios en los que creo, he decidido liberarlo y compartirlo con la comunidad. El proyecto se enriquece con el aporte de los usuarios y el uso, gracias por utilizarlo y por enviarme sugerencias para seguir mejorándolo. Y si lo usas, me ayudaría mucho una estrella en GitHub.',
     },
     theater: {
       title: 'Míralo cobrar vida',
