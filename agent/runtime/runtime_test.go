@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gnacho/netpulse/agent/probe"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -84,6 +86,48 @@ func TestLoadConfigIntervalFormats(t *testing.T) {
 	opts, err = LoadConfigFromEnv(env)
 	if err != nil || opts.Interval != DefaultInterval {
 		t.Fatalf("NETPULSE_INTERVAL inválido: %v %v (quiero default 30s)", opts.Interval, err)
+	}
+}
+
+// #699: NETPULSE_SCAN_INTERVAL acepta "0" (desactivado), segundos, duración
+// Go, inválido (default) y ausencia (default).
+func TestLoadConfigScanIntervalFormats(t *testing.T) {
+	dir := t.TempDir()
+	base := "NETPULSE_SERVER=http://s\nNETPULSE_TOKEN=t\nNETPULSE_SLUG=s\n"
+
+	env := filepath.Join(dir, "unset.env")
+	writeFile(t, env, base)
+	opts, err := LoadConfigFromEnv(env)
+	if err != nil || opts.ScanInterval != probe.DefaultScanInterval {
+		t.Fatalf("sin NETPULSE_SCAN_INTERVAL: %v %v (quiero default 30m)", opts.ScanInterval, err)
+	}
+
+	env = filepath.Join(dir, "off.env")
+	writeFile(t, env, base+"NETPULSE_SCAN_INTERVAL=0")
+	opts, err = LoadConfigFromEnv(env)
+	if err != nil || opts.ScanInterval != probe.ScanDisabled {
+		t.Fatalf("NETPULSE_SCAN_INTERVAL=0: %v %v (quiero ScanDisabled)", opts.ScanInterval, err)
+	}
+
+	env = filepath.Join(dir, "secs.env")
+	writeFile(t, env, base+"NETPULSE_SCAN_INTERVAL=900")
+	opts, err = LoadConfigFromEnv(env)
+	if err != nil || opts.ScanInterval != 15*time.Minute {
+		t.Fatalf("NETPULSE_SCAN_INTERVAL=900: %v %v", opts.ScanInterval, err)
+	}
+
+	env = filepath.Join(dir, "dur.env")
+	writeFile(t, env, base+"NETPULSE_SCAN_INTERVAL=1h")
+	opts, err = LoadConfigFromEnv(env)
+	if err != nil || opts.ScanInterval != time.Hour {
+		t.Fatalf("NETPULSE_SCAN_INTERVAL=1h: %v %v", opts.ScanInterval, err)
+	}
+
+	env = filepath.Join(dir, "bad.env")
+	writeFile(t, env, base+"NETPULSE_SCAN_INTERVAL=nada")
+	opts, err = LoadConfigFromEnv(env)
+	if err != nil || opts.ScanInterval != probe.DefaultScanInterval {
+		t.Fatalf("NETPULSE_SCAN_INTERVAL inválido: %v %v (quiero default 30m)", opts.ScanInterval, err)
 	}
 }
 

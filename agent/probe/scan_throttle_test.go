@@ -69,13 +69,57 @@ func TestScanThrottleExpiraIntervalo(t *testing.T) {
 	ctx := context.Background()
 
 	p.Build(ctx, "rt2", "test") // arranque: 1 scan
-	// Envejece el último scan más allá de scanMinInterval.
+	// Envejece el último scan más allá del intervalo efectivo.
 	p.scanMu.Lock()
-	p.lastScanAt = time.Now().Add(-(scanMinInterval + time.Minute))
+	p.scanInterval = 10 * time.Minute
+	p.lastScanAt = time.Now().Add(-(p.scanInterval + time.Minute))
 	p.scanMu.Unlock()
 
 	p.Build(ctx, "rt2", "test")
 	if run.scanCalls != 2 {
-		t.Fatalf("pasado scanMinInterval debería volver a escanear, scanCalls=%d", run.scanCalls)
+		t.Fatalf("pasado scanInterval debería volver a escanear, scanCalls=%d", run.scanCalls)
+	}
+}
+
+// #699: ScanDisabled no escanea NUNCA por intervalo (ni siquiera al
+// arrancar); solo ForceScan dispara el scan.
+func TestScanDisabledSoloOnDemand(t *testing.T) {
+	p, run := newScanProber()
+	p.scanMu.Lock()
+	p.scanInterval = ScanDisabled
+	p.scanMu.Unlock()
+	ctx := context.Background()
+
+	p.Build(ctx, "rt2", "test")
+	if run.scanCalls != 0 {
+		t.Fatalf("ScanDisabled no debería escanear al arrancar, scanCalls=%d", run.scanCalls)
+	}
+	p.ForceScan()
+	p.Build(ctx, "rt2", "test")
+	if run.scanCalls != 1 {
+		t.Fatalf("ForceScan con ScanDisabled debería escanear, scanCalls=%d", run.scanCalls)
+	}
+	p.Build(ctx, "rt2", "test")
+	if run.scanCalls != 1 {
+		t.Fatalf("Build tras ForceScan con ScanDisabled no debería reescanear, scanCalls=%d", run.scanCalls)
+	}
+}
+
+// #699: NewProber aplica DefaultScanInterval cuando Options.ScanInterval es
+// cero (compatibilidad con quien no configura nada).
+func TestScanIntervalDefaultCuandoCero(t *testing.T) {
+	p := NewProber(&fakeRunner{}, Options{})
+	p.scanMu.Lock()
+	got := p.scanInterval
+	p.scanMu.Unlock()
+	if got != DefaultScanInterval {
+		t.Fatalf("ScanInterval 0 debería resolver a DefaultScanInterval, got=%v", got)
+	}
+	p2 := NewProber(&fakeRunner{}, Options{ScanInterval: 15 * time.Minute})
+	p2.scanMu.Lock()
+	got2 := p2.scanInterval
+	p2.scanMu.Unlock()
+	if got2 != 15*time.Minute {
+		t.Fatalf("ScanInterval configurado debería respetarse, got=%v", got2)
 	}
 }

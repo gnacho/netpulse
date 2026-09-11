@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/agent/internal/tlspin"
+	"github.com/gnacho/netpulse/agent/probe"
 )
 
 // DefaultEnvFile: env file por defecto del agente standalone.
@@ -59,6 +60,21 @@ func LoadConfigFromEnv(envFile string) (Options, error) {
 			opts.Interval = d
 		} else {
 			slog.Warn("[netpulse-agent] NETPULSE_INTERVAL inválido, usando 30s", "value", v)
+		}
+	}
+	// NETPULSE_SCAN_INTERVAL (#699): mínimo entre scans de vecinos. "0" =
+	// sin scans periódicos (solo on-demand vía refresh del server); número
+	// en segundos o duración Go ("15m"). Sin valor: DefaultScanInterval.
+	opts.ScanInterval = probe.DefaultScanInterval
+	if v := get("NETPULSE_SCAN_INTERVAL"); v != "" {
+		if v == "0" {
+			opts.ScanInterval = probe.ScanDisabled
+		} else if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+			opts.ScanInterval = time.Duration(sec) * time.Second
+		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			opts.ScanInterval = d
+		} else {
+			slog.Warn("[netpulse-agent] NETPULSE_SCAN_INTERVAL inválido, usando 30m", "value", v)
 		}
 	}
 	if err := opts.Validate(); err != nil {

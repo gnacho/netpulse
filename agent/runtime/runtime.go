@@ -35,12 +35,16 @@ const (
 // Options configura Run. Server/Slug y Token (o PairingToken) son
 // obligatorios; Validate los comprueba antes de arrancar.
 type Options struct {
-	Server        string // URL del servidor ("https://..." o "http://...:3000")
-	Token         string // token del equipo (64 hex)
-	Slug          string // slug del equipo (agent.token.<slug> en el servidor)
-	ServerFP      string // SHA-256 del SPKI del servidor en hex (https obligatorio)
-	PairingToken  string // modo bootstrap: pairing una vez y salir
-	Interval      time.Duration
+	Server       string // URL del servidor ("https://..." o "http://...:3000")
+	Token        string // token del equipo (64 hex)
+	Slug         string // slug del equipo (agent.token.<slug> en el servidor)
+	ServerFP     string // SHA-256 del SPKI del servidor en hex (https obligatorio)
+	PairingToken string // modo bootstrap: pairing una vez y salir
+	Interval     time.Duration
+	// ScanInterval: mínimo entre scans de vecinos del prober (#699). 0 =
+	// probe.DefaultScanInterval; probe.ScanDisabled = sin scans periódicos
+	// (env NETPULSE_SCAN_INTERVAL, "0" lo desactiva).
+	ScanInterval  time.Duration
 	WanTarget     string
 	GwTarget      string
 	HeartbeatFile string
@@ -101,6 +105,7 @@ func Run(ctx context.Context, opts Options) error {
 	prober := probe.NewProber(probe.ShellRunner{}, probe.Options{
 		WanPingTarget: opts.WanTarget,
 		GwPingTarget:  opts.GwTarget,
+		ScanInterval:  opts.ScanInterval,
 	})
 
 	a := &agent{opts: opts, log: log, client: client}
@@ -110,7 +115,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	a.hbFile = hbFile
 
-	log.Info("[netpulse-agent] agente iniciado", "version", opts.Version, "slug", opts.Slug, "server", opts.Server, "interval", opts.Interval)
+	log.Info("[netpulse-agent] agente iniciado", "version", opts.Version, "slug", opts.Slug, "server", opts.Server, "interval", opts.Interval, "scan_interval", opts.ScanInterval)
 	a.setRunning(true)
 
 	// #453: si existe un upgrade de firmware pendiente de un reboot anterior,
