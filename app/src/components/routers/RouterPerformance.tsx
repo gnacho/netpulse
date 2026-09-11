@@ -10,6 +10,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import type { PerfPoint } from '@/components/routers/routerExtras'
 import { perfCaptions, perfSeries } from '@/components/routers/routerExtras'
+import { fmtTemp, tempUnitSymbol, toTempUnit, useTempUnit } from '@/lib/temperature'
 
 type PerfRange = '1h' | '24h' | '7d'
 
@@ -46,15 +47,17 @@ function PerfTooltip({
   label?: string
 }) {
   const { t } = useTranslation()
+  const [tempUnit] = useTempUnit()
   if (!active || !payload?.length) return null
   const p = payload[0]!
   const def = SERIES.find((s) => s.key === p.dataKey)
+  const display = def?.key === 'temp' ? fmtTemp(Number(p.value), tempUnit) : `${p.value} ${def?.unit}`
   return (
     <div className="rounded-[10px] border border-border-strong bg-elevated px-3 py-2 shadow-lg">
       <div className="mb-0.5 font-mono text-caption text-text-muted">{label}</div>
       <div className="flex items-center gap-2 font-mono text-mono-sm text-text-primary">
         <span className="h-2 w-2 rounded-full" style={{ background: def?.color ?? '#22D3EE' }} />
-        {def ? t(def.labelKey) : ''}: {p.value} {def?.unit}
+        {def ? t(def.labelKey) : ''}: {display}
       </div>
     </div>
   )
@@ -66,6 +69,7 @@ function PerfTooltip({
 export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: Router; liveSeries?: PerfSeriesLive; totalRamMb?: number }) {
   const { t } = useTranslation()
   const { isDemo } = useNetPulse()
+  const [tempUnit] = useTempUnit()
   const [range, setRange] = useState<PerfRange>('24h')
   const reduce = useReducedMotion()
   const data = useMemo(() => {
@@ -77,15 +81,14 @@ export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: 
     return [{ t: '', cpu: router.cpu ?? 0, ram: router.ram ?? 0, temp: router.temp ?? 0 }]
   }, [isDemo, router, range, liveSeries])
   const captions = useMemo(
-    () => perfCaptions(router, data, isDemo ? undefined : totalRamMb),
-    [router, data, isDemo, totalRamMb],
+    () => perfCaptions(router, data, isDemo ? undefined : totalRamMb, tempUnit),
+    [router, data, isDemo, totalRamMb, tempUnit],
   )
 
   // #441: null cuando la fuente no reporta vitals (el panel no se monta,
   // pero el tipo lo exige); se normaliza a 0 para el render defensivo.
   const current: Record<SeriesDef['key'], number> = { cpu: router.cpu ?? 0, ram: router.ram ?? 0, temp: router.temp ?? 0 }
   const captionByKey: Record<SeriesDef['key'], string> = { cpu: captions.cpu, ram: captions.ram, temp: captions.temp }
-
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -112,7 +115,7 @@ export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: 
                 <span className="text-label uppercase text-text-muted">{t(s.labelKey)}</span>
                 <span className="text-caption text-text-muted sm:hidden">{captionByKey[s.key]}</span>
               </div>
-              <div className="h-[90px]" role="img" aria-label={t('routerDetail.perf.chartAria', { label: t(s.labelKey), name: router.name, range, value: current[s.key], unit: s.unit })}>
+              <div className="h-[90px]" role="img" aria-label={t('routerDetail.perf.chartAria', { label: t(s.labelKey), name: router.name, range, value: s.key === 'temp' ? Math.round(toTempUnit(current[s.key], tempUnit)) : current[s.key], unit: s.key === 'temp' ? tempUnitSymbol(tempUnit) : s.unit })}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data} syncId={SYNC_ID} syncMethod="index" margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                     <defs>
@@ -132,7 +135,7 @@ export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: 
                           stroke="#FBBF24"
                           strokeDasharray="4 4"
                           strokeOpacity={0.8}
-                          label={{ value: '65 °C', position: 'insideTopRight', fill: '#FBBF24', fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
+                          label={{ value: fmtTemp(TEMP_THRESHOLD, tempUnit), position: 'insideTopRight', fill: '#FBBF24', fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
                         />
                       </>
                     )}
@@ -153,8 +156,8 @@ export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: 
             </div>
             <div className="w-20 shrink-0 text-right sm:w-24">
               <div className="kpi-value text-xl font-semibold text-text-primary">
-                <CountUp key={range} value={current[s.key]} />
-                <span className="ml-0.5 text-xs font-medium text-text-secondary">{s.unit}</span>
+                <CountUp key={range} value={s.key === 'temp' ? Math.round(toTempUnit(current[s.key], tempUnit)) : current[s.key]} />
+                <span className="ml-0.5 text-xs font-medium text-text-secondary">{s.key === 'temp' ? tempUnitSymbol(tempUnit) : s.unit}</span>
               </div>
               <div className="mt-0.5 hidden text-caption text-text-muted sm:block">{captionByKey[s.key]}</div>
             </div>
@@ -167,7 +170,7 @@ export function RouterPerformance({ router, liveSeries, totalRamMb }: { router: 
       <span className="sr-only">{t('routerDetail.perf.tableCaption', { range })}</span>
       <table className="sr-only">
         <thead>
-          <tr><th>{t('home.traffic.time')}</th><th>CPU (%)</th><th>{t('common.memory')} (%)</th><th>{t('common.temperature')} (°C)</th></tr>
+          <tr><th>{t('home.traffic.time')}</th><th>CPU (%)</th><th>{t('common.memory')} (%)</th><th>{t('common.temperature')} ({tempUnitSymbol(tempUnit)})</th></tr>
         </thead>
         <tbody>
           {data.map((p: PerfPoint) => (

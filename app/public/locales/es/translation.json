@@ -147,7 +147,8 @@
       },
       "high-temperature": {
         "title": "Temperatura alta en {{router}}",
-        "description": "{{temp}} °C, por encima del umbral (65 °C)"
+        "description": "{{temp}} °C, por encima del umbral ({{threshold}} °C)",
+        "descriptionUnit": "{{temp}}, por encima del umbral ({{threshold}})"
       },
       "link-down": {
         "title": "Link caído en {{port}}",
@@ -187,7 +188,8 @@
       },
       "sfp-temp-high": {
         "title": "SFP caliente en {{port}}",
-        "description": "Temperatura {{temp}} °C (umbral {{threshold}} °C)"
+        "description": "Temperatura {{temp}} °C (umbral {{threshold}} °C)",
+        "descriptionUnit": "Temperatura {{temp}} (umbral {{threshold}})"
       },
       "ssh-access-lost": {
         "title": "Acceso SSH perdido en {{router}}",
@@ -680,7 +682,7 @@
       "viewAllDevices": "Ver todos los dispositivos"
     },
     "highTempAdvice": "Mejora la ventilación del equipo.",
-    "highTempBanner": "Temperatura alta — {{temp}} °C. Umbral: 65 °C.",
+    "highTempBanner": "Temperatura alta: {{temp}} (umbral {{threshold}}).",
     "info": {
       "access": "Acceso",
       "copied": "Comando copiado",
@@ -709,7 +711,7 @@
     "hostKeyDone": "Clave aceptada: reconectando…",
     "perf": {
       "chartAria": "{{label}} de {{name}}, rango {{range}}. Valor actual {{value}} {{unit}}.",
-      "maxTemp": "máx {{temp}} °C",
+      "maxTemp": "máx {{temp}}",
       "peakCpu": "pico {{pct}} % a las {{t}}",
       "ramUsed": "{{used}} MB usados de {{total}} MB",
       "tableCaption": "Datos de rendimiento ({{range}})",
@@ -839,12 +841,12 @@
     "firmwareOutdated": "Desactualizado",
     "firmwareTargetHint": "Objetivo: {{target}}",
     "gatewayLatency": "Latencia a la puerta de enlace",
-    "highTemp": "Temperatura alta: {{temp}} °C · ventilación recomendada",
+    "highTemp": "Temperatura alta: {{temp}} · ventilación recomendada",
     "mainGateway": "Puerta de enlace",
     "sortBy": "Ordenar por {{column}}",
     "statusAria": "{{online}} equipos online, {{warnings}} con aviso",
     "summary": "{{total}} equipos · {{online}} online · {{warnings}} con aviso",
-    "tempThreshold": "Umbral: {{value}} °C",
+    "tempThreshold": "Umbral: {{value}}",
     "traffic24h": "Tráfico 24 h",
     "trafficAria": "Tráfico de {{name}} en las últimas 24 horas",
     "upgradingAll": "Actualizando…",
@@ -1154,7 +1156,8 @@
       "tempLabel": "Temperatura de aviso",
       "tempNote": "El umbral de temperatura alta se configura por router en «Dispositivos» (65 °C por defecto).",
       "title": "Datos y umbrales",
-      "units": "Unidades de tráfico"
+      "units": "Unidades de tráfico",
+      "tempUnit": "Unidad de temperatura"
     },
     "demo": {
       "caption": "Explora NetPulse con una red de ejemplo sin tocar tus routers",

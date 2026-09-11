@@ -2253,7 +2253,7 @@ func (l *Live) emitTempAlert(cfg RouterConfig, router Router) {
 		Description: fmt.Sprintf("%d °C, por encima del umbral (%d °C)", *router.Temp, thr),
 		Hint:        alerts.HintFor(alerts.HintHighTemp),
 		Type:        alerts.HintHighTemp,
-		Vars:        map[string]string{"router": router.Name, "temp": strconv.Itoa(*router.Temp)},
+		Vars:        map[string]string{"router": router.Name, "temp": strconv.Itoa(*router.Temp), "threshold": strconv.Itoa(thr)},
 		Time:        "ahora mismo", RouterID: cfg.ID,
 	})
 }

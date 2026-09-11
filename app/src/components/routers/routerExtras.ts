@@ -9,6 +9,7 @@
 import i18n, { dayAbbr } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { adguard, routers } from '@/data/mock'
+import { fmtTemp, type TempUnit } from '@/lib/temperature'
 
 // ---------------------------------------------------------------------------
 // Extras por router
@@ -313,7 +314,7 @@ export function perfSeries(router: Router, range: '1h' | '24h' | '7d'): PerfPoin
   return points
 }
 
-export function perfCaptions(router: Router, data: PerfPoint[], totalMb?: number): { cpu: string; ram: string; temp: string } {
+export function perfCaptions(router: Router, data: PerfPoint[], totalMb?: number, unit: TempUnit = 'c'): { cpu: string; ram: string; temp: string } {
   // totalMb es la RAM total real (live, del backend). En demo (sin totalMb)
   // se usa el resolver demo, igual que antes.
   const total = totalMb && totalMb > 0 ? totalMb : getRouterExtras(router.id).ramMb
@@ -324,7 +325,7 @@ export function perfCaptions(router: Router, data: PerfPoint[], totalMb?: number
     return {
       cpu: i18n.t('routerDetail.perf.peakCpu', { pct: cpu, t: '—' }),
       ram: i18n.t('routerDetail.perf.ramUsed', { used: ramUsed, total }),
-      temp: i18n.t('routerDetail.perf.maxTemp', { temp }),
+      temp: i18n.t('routerDetail.perf.maxTemp', { temp: fmtTemp(temp, unit) }),
     }
   }
   const cpuMax = data.reduce((m, p) => (p.cpu > m.cpu ? p : m), data[0]!)
@@ -333,7 +334,7 @@ export function perfCaptions(router: Router, data: PerfPoint[], totalMb?: number
   return {
     cpu: i18n.t('routerDetail.perf.peakCpu', { pct: cpuMax.cpu, t: cpuMax.t }),
     ram: i18n.t('routerDetail.perf.ramUsed', { used: ramUsed, total }),
-    temp: i18n.t('routerDetail.perf.maxTemp', { temp: tempMax.temp }),
+    temp: i18n.t('routerDetail.perf.maxTemp', { temp: fmtTemp(tempMax.temp, unit) }),
   }
 }
 

@@ -17,6 +17,7 @@ import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/m
 import { fmtEs } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
 import { DEVICE_ICONS } from '@/components/DeviceRow'
+import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
 import type { ChipNode, DistNodeView, RouterNode, TopologyModel } from './model'
 import { COLOR, VB_H, VB_W, bandColor, linkColor, statusColor } from './model'
@@ -123,6 +124,7 @@ function TooltipCard({
   onPointerLeave?: () => void
 }) {
   const { t } = useTranslation()
+  const [tempUnit] = useTempUnit()
   return (
     <div
       className={cn(
@@ -156,7 +158,7 @@ function TooltipCard({
             {/* #441: sin vitals (switch SNMP/beacon) se muestra un guion */}
             <MiniStat label="CPU" value={tip.router.cpu === null ? '—' : `${tip.router.cpu} %`} />
             <MiniStat label="RAM" value={tip.router.ram === null ? '—' : `${tip.router.ram} %`} />
-            <MiniStat label={t('routers.colTemp')} value={tip.router.temp === null ? '—' : `${tip.router.temp} °C`} hot={tip.router.hotMetric === 'temp'} />
+            <MiniStat label={t('routers.colTemp')} value={tip.router.temp === null ? '—' : fmtTemp(tip.router.temp, tempUnit)} hot={tip.router.hotMetric === 'temp'} />
             <MiniStat label={t('routers.colClients')} value={String(tip.router.clients)} />
           </div>
           <div className="mt-2 text-caption font-semibold text-accent">

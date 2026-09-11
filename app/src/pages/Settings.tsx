@@ -64,6 +64,7 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { relTimeFromTs } from '@/i18n'
 import { cn, copyToClipboard, exitDemo } from '@/lib/utils'
+import { useTempUnit } from '@/lib/temperature'
 import { notifyBanner } from '@/lib/update-check'
 import { PALETTES, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
@@ -3645,6 +3646,7 @@ export default function Settings() {
 
   // ——— Datos y umbrales ———
   const [units, setUnits] = useStoredState<'mbps' | 'mbs'>('netpulse-units', 'mbps')
+  const [tempUnit, setTempUnit] = useTempUnit()
   const [decimalEs, setDecimalEs] = useStoredState('netpulse-decimal-es', true)
   const [refresh, setRefresh] = useStoredState<'3' | '5' | '10' | '0'>('netpulse-refresh', '3')
   const [signalT, setSignalT] = useStoredState('netpulse-th-signal', -70)
@@ -3841,6 +3843,23 @@ export default function Settings() {
                         notify()
                       }}
                       ariaLabel={t('settings.data.units')}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.data.tempUnit')}</div>
+                  <div className="mt-2">
+                    <SegmentedControl
+                      options={[
+                        { value: 'c', label: '°C' },
+                        { value: 'f', label: '°F' },
+                      ]}
+                      value={tempUnit}
+                      onChange={(v) => {
+                        setTempUnit(v)
+                        notify()
+                      }}
+                      ariaLabel={t('settings.data.tempUnit')}
                     />
                   </div>
                 </div>

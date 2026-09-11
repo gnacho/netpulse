@@ -14,6 +14,7 @@ import { AgentBadge } from '@/components/routers/AgentBadge'
 import { useAgentFor } from '@/hooks/useAgentFor'
 import { getRouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
+import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
 
 function MetricRow({
@@ -81,6 +82,7 @@ function TrafficTooltip({
 export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps) {
   const { t } = useTranslation()
   const { isDemo } = useNetPulse()
+  const [tempUnit] = useTempUnit()
   const agent = useAgentFor(router.id)
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
@@ -129,7 +131,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
           <div className="mb-4 -mx-6 -mt-6 flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-6 py-2.5">
             <AlertTriangle className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} />
             <span className="text-caption font-semibold text-warn">
-              {t('routers.highTemp', { temp: router.temp })}
+              {t('routers.highTemp', { temp: fmtTemp(router.temp, tempUnit) })}
             </span>
           </div>
         )}
@@ -252,10 +254,10 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               <MetricRow
                 icon={Thermometer}
                 label={t('common.temperature')}
-                value={`${router.temp} °C`}
+                value={fmtTemp(router.temp, tempUnit)}
                 pct={Math.min(100, ((router.temp ?? 0) / 90) * 100)}
                 hot={router.hotMetric === 'temp'}
-                title={router.hotMetric === 'temp' ? t('routers.tempThreshold', { value: router.tempThreshold ?? 65 }) : undefined}
+                title={router.hotMetric === 'temp' ? t('routers.tempThreshold', { value: fmtTemp(router.tempThreshold ?? 65, tempUnit) }) : undefined}
               />
             </>
           )}
