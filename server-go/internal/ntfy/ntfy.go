@@ -273,6 +273,15 @@ func formatMessage(ev alerts.AlertEvent) string {
 	return out
 }
 
+// MaskTopic redacta el topic (secreto del canal) para logs y diagnósticos:
+// nunca expone su valor, solo su longitud.
+func MaskTopic(topic string) string {
+	if topic == "" {
+		return ""
+	}
+	return fmt.Sprintf("*** (%d chars)", len(topic))
+}
+
 // SendTest publica un mensaje de prueba contra la config guardada (botón de
 // la UI): es a la vez la validación del canal (ntfy no tiene getMe).
 func SendTest(kv kvStore) error {

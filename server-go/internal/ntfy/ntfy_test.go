@@ -137,6 +137,17 @@ func TestFormatMessage(t *testing.T) {
 	}
 }
 
+// B1: el topic (secreto del canal) nunca se registra en claro.
+func TestMaskTopic(t *testing.T) {
+	got := MaskTopic("top-secreto-123")
+	if contains(got, "top-secreto-123") || !contains(got, "***") {
+		t.Fatalf("el topic debe quedar enmascarado: %q", got)
+	}
+	if got := MaskTopic(""); got != "" {
+		t.Fatalf("topic vacío: %q", got)
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

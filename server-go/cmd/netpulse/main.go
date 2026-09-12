@@ -357,7 +357,7 @@ func run() error {
 	// cada evento): activable desde la UI sin reiniciar el servicio.
 	ntfyNotifier := ntfy.NewNotifier(&mainKVAdapter{db: dbHandle.DB})
 	if ntfyCfg := ntfy.LoadConfig(&mainKVAdapter{db: dbHandle.DB}); ntfyCfg.Enabled && ntfyCfg.Topic != "" {
-		log.Printf("[netpulse] ntfy activo: %s/%s", ntfyCfg.Server, ntfyCfg.Topic)
+		log.Printf("[netpulse] ntfy activo: %s/%s", ntfyCfg.Server, ntfy.MaskTopic(ntfyCfg.Topic))
 	}
 
 	// Notifier compuesto: push + webhook + telegram + ntfy (SetNotifier solo admite UNO).
