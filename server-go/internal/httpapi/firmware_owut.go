@@ -295,15 +295,16 @@ func (s *server) emitFirmwareResult(routerID, from, to, origin string, ok bool, 
 		RouterID: routerID,
 		Time:     "ahora mismo",
 		Ts:       time.Now().Unix(),
-		Type:     "firmware-upgrade",
 		Vars:     map[string]string{"router": name, "from": from, "to": to, "origin": originTxt},
 	}
 	if ok {
 		ev.Severity = "info"
+		ev.Type = "firmware-upgrade-done"
 		ev.Title = "Firmware actualizado"
 		ev.Description = fmt.Sprintf("%s: %s -> %s (owut, %s)", name, from, to, originTxt)
 	} else {
 		ev.Severity = "warn"
+		ev.Type = "firmware-upgrade-failed"
 		ev.Title = "Actualización de firmware fallida"
 		ev.Description = fmt.Sprintf("%s: objetivo %s (owut, %s): %s", name, to, originTxt, detail)
 		ev.Vars["detail"] = detail

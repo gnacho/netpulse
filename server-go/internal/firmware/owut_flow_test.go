@@ -63,6 +63,17 @@ func TestParseOwutVersions(t *testing.T) {
 	if _, ok := byVer["22.03-SNAPSHOT"]; ok {
 		t.Fatalf("un SNAPSHOT no debe aparecer")
 	}
+	if _, ok := byVer["SNAPSHOT"]; ok {
+		t.Fatalf("el SNAPSHOT literal de fin de rama no debe aparecer")
+	}
+}
+
+func TestParseOwutVersionsBranchSnapshot(t *testing.T) {
+	// El server ASU cierra cada rama con "SNAPSHOT" (sin versión): fuera.
+	vs := ParseOwutVersions("  25.12 release branch\n    25.12.4\n    SNAPSHOT (latest)\n", "25.12.4")
+	if len(vs) != 1 || vs[0].Version != "25.12.4" {
+		t.Fatalf("esperaba solo 25.12.4, got %+v", vs)
+	}
 }
 
 func TestVersionCmp(t *testing.T) {

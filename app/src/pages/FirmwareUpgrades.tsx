@@ -513,15 +513,19 @@ export default function FirmwareUpgrades() {
           const rec = recurrence[item.routerId]
           const targetSel = e.targetVersion ?? ''
           const majorWarn = majorJumpJS(detectedCurrent, targetSel)
-          // Opciones del desplegable: detectada + todas las estables (desc).
+          // Opciones del desplegable (#761): la instalada + superiores (si
+          // las hubiera) + el target ya guardado (downgrade explícito previo).
           const currentVer = item.detectedVersion || ''
           const opts: string[] = []
           if (currentVer && !opts.includes(currentVer)) opts.push(currentVer)
-          if (item.targetVersion && !opts.includes(item.targetVersion)) opts.push(item.targetVersion)
-          const list = (versions?.versions ?? []).map((v) => v.version)
-          list.forEach((v) => {
-            if (!opts.includes(v)) opts.push(v)
-          })
+          if (item.targetVersion && item.targetVersion !== currentVer && !opts.includes(item.targetVersion)) {
+            opts.push(item.targetVersion)
+          }
+          ;(versions?.versions ?? [])
+            .filter((v) => v.newer)
+            .forEach((v) => {
+              if (!opts.includes(v.version)) opts.push(v.version)
+            })
           return (
             <div
               key={item.routerId}

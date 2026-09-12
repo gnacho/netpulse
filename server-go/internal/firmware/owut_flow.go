@@ -79,10 +79,16 @@ func ParseOwutVersions(out, current string) []OwutVersion {
 	return versions
 }
 
-// stableVersion filtra release candidates y snapshots del desplegable.
+// stableVersion filtra release candidates y snapshots del desplegable
+// (incluido el "SNAPSHOT" literal con que cierra cada rama del server ASU).
 func stableVersion(v string) bool {
+	if v == "SNAPSHOT" || !strings.ContainsFunc(v, isDigitRune) {
+		return false
+	}
 	return !strings.Contains(v, "-rc") && !strings.HasSuffix(v, "-SNAPSHOT")
 }
+
+func isDigitRune(r rune) bool { return r >= '0' && r <= '9' }
 
 // VersionCmp compara dos versiones OpenWrt ("25.12.5") numéricamente por
 // componentes; devuelve -1/0/1. Componentes no numéricos valen 0.
