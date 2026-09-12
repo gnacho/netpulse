@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
-import { AlertCircle, CalendarClock, Cpu, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
+import { AlertCircle, CalendarClock, Cpu, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
 import {
@@ -142,6 +142,8 @@ export default function FirmwareUpgrades() {
   const [owutConfirmId, setOwutConfirmId] = useState<string | null>(null)
   // #761: paquetes a excluir de la build ASU (locales sin feed, p. ej. netgrip).
   const [removePkgs, setRemovePkgs] = useState<Record<string, string>>({})
+  // #761: upgrade done cuya fiesta ya se cerro (routerId -> upgrade.id).
+  const [dismissedDone, setDismissedDone] = useState<Record<string, number>>({})
   // #761: programación recurrente.
   const [recurrence, setRecurrence] = useState<Record<string, RecurrenceCfg>>({})
   const [recNext, setRecNext] = useState<Record<string, number>>({})
@@ -164,6 +166,23 @@ export default function FirmwareUpgrades() {
       if (!res.ok) throw new Error(await res.text())
       const data = (await res.json()) as FirmwareItem[]
       setItems(data)
+      // #761: al completar un upgrade, el check previo (banner verde / salida)
+      // queda caduco: fuera, que no vuelva tras el exito.
+      const nowMs = Date.now()
+      data.forEach((it) => {
+        if (
+          it.upgrade?.status === 'done' &&
+          it.upgrade.finishedAt &&
+          nowMs / 1000 - it.upgrade.finishedAt < 600
+        ) {
+          setOwutResult((prev) => {
+            if (!prev[it.routerId]) return prev
+            const next = { ...prev }
+            delete next[it.routerId]
+            return next
+          })
+        }
+      })
       const initialEdits: Record<string, Partial<FirmwareItem>> = {}
       data.forEach((it) => {
         // #477 P2 / #761: modelo y versión actual SIEMPRE prefilleados con
@@ -555,6 +574,57 @@ export default function FirmwareUpgrades() {
             .forEach((v) => {
               if (!opts.includes(v.version)) opts.push(v.version)
             })
+          // #761: exito reciente (owut done < 10 min sin cerrar): fiesta.
+          const justDone =
+            item.upgrade &&
+            item.upgrade.status === 'done' &&
+            item.upgrade.engine === 'owut' &&
+            item.upgrade.finishedAt &&
+            Date.now() / 1000 - item.upgrade.finishedAt < 600 &&
+            dismissedDone[item.routerId] !== item.upgrade.id
+          if (justDone && item.upgrade) {
+            const up = item.upgrade
+            const dur = Math.max(1, (up.finishedAt ?? up.startedAt) - up.startedAt)
+            return (
+              <div key={item.routerId} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5" data-testid="fw-success">
+                <div className="mb-6 flex items-center gap-3">
+                  <Cpu className="h-5 w-5 text-accent" strokeWidth={1.75} />
+                  <div>
+                    <h2 className="text-base font-semibold text-text-primary">
+                      {sortedRouters.find((r) => r.id === item.routerId)?.name ?? item.name}
+                    </h2>
+                    <p className="text-xs text-text-muted">{detectedModel || item.model || t('common.unknown')}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <PartyPopper className="h-16 w-16 text-emerald-500" strokeWidth={1.5} />
+                  <p className="text-lg font-semibold text-text-primary">{t('firmwareUpgrades.successTitle')}</p>
+                  <p className="max-w-md text-sm text-text-secondary">
+                    {t('firmwareUpgrades.successBody', {
+                      to: up.targetVersion,
+                      dur: String(dur),
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDismissedDone((prev) => ({ ...prev, [item.routerId]: up.id }))
+                      setOwutResult((prev) => {
+                        if (!prev[item.routerId]) return prev
+                        const next = { ...prev }
+                        delete next[item.routerId]
+                        return next
+                      })
+                      void fetchItems()
+                    }}
+                    className="mt-2 inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-canvas transition-colors hover:bg-accent/90"
+                  >
+                    {t('firmwareUpgrades.successDismiss')}
+                  </button>
+                </div>
+              </div>
+            )
+          }
           // #761: mientras corre el upgrade, la tarjeta ES el proceso (icono,
           // fase, barra y consola); el resto del formulario desaparece.
           if (active && item.upgrade) {

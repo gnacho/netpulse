@@ -1775,7 +1775,10 @@
     "consoleDownload": "descargando imagen...",
     "consoleVerify": "verificando sha256...",
     "consoleWrite": "escribiendo firmware...",
-    "consoleReboot": "el router se está reiniciando; esperando a que vuelva (hasta 15 min)"
+    "consoleReboot": "el router se está reiniciando; esperando a que vuelva (hasta 15 min)",
+    "successTitle": "¡Actualización completada!",
+    "successBody": "El router quedó en {{to}} en {{dur}} s: reinició y volvió solo, con los paquetes al día. Si excluiste algún paquete del stack, comprueba que su servicio sigue activo.",
+    "successDismiss": "Entendido"
   },
   "orchestration": {
     "title": "Orquestación",

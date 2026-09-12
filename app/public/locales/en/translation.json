@@ -1775,7 +1775,10 @@
     "consoleDownload": "downloading image...",
     "consoleVerify": "verifying sha256...",
     "consoleWrite": "writing firmware...",
-    "consoleReboot": "router is rebooting; waiting for it to come back (up to 15 min)"
+    "consoleReboot": "router is rebooting; waiting for it to come back (up to 15 min)",
+    "successTitle": "Upgrade completed!",
+    "successBody": "The router is now on {{to}} in {{dur}} s: it rebooted and came back on its own, packages up to date. If you excluded a stack package, check its service is still running.",
+    "successDismiss": "Got it"
   },
   "orchestration": {
     "title": "Orchestration",
