@@ -54,6 +54,7 @@ interface OwutStatus {
   checkRan: boolean
   upgradeAvailable: boolean
   buildable: boolean
+  missingPkgs?: string[]
   rawOutput?: string
   error?: string
 }
@@ -97,6 +98,9 @@ const STATUS_COLORS: Record<string, string> = {
   failed: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
   scheduled: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
 }
+
+/** versionRe: misma regla que el backend para aceptar un targetVersion. */
+const versionRe = /^\d+\.\d+(\.\d+)?(-[a-zA-Z0-9.]+)?$/
 
 /** majorJumpJS: mismo criterio que el backend (primer componente distinto). */
 function majorJumpJS(current: string, target: string): boolean {
@@ -525,7 +529,12 @@ export default function FirmwareUpgrades() {
           const currentVer = item.detectedVersion || ''
           const opts: string[] = []
           if (currentVer && !opts.includes(currentVer)) opts.push(currentVer)
-          if (item.targetVersion && item.targetVersion !== currentVer && !opts.includes(item.targetVersion)) {
+          if (
+            item.targetVersion &&
+            item.targetVersion !== currentVer &&
+            versionRe.test(item.targetVersion) &&
+            !opts.includes(item.targetVersion)
+          ) {
             opts.push(item.targetVersion)
           }
           ;(versions?.versions ?? [])
@@ -557,6 +566,23 @@ export default function FirmwareUpgrades() {
                   </span>
                 )}
               </div>
+
+              {active && item.upgrade && (
+                <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-300">
+                  <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 animate-pulse" strokeWidth={1.75} />
+                  <span>
+                    {item.upgrade.engine === 'owut'
+                      ? t('firmwareUpgrades.upgradeRunningOwut', {
+                          elapsed: relTimeFromTs(item.upgrade.startedAt),
+                          step:
+                            item.upgrade.status === 'rebooting'
+                              ? t('firmwareUpgrades.stepRebooting')
+                              : t('firmwareUpgrades.stepWorking'),
+                        })
+                      : t('firmwareUpgrades.inProgress')}
+                  </span>
+                </div>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="flex flex-col gap-1">
@@ -694,7 +720,9 @@ export default function FirmwareUpgrades() {
                     <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
                       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
                       <span>
-                        {t('firmwareUpgrades.owutNotBuildable')} {t('firmwareUpgrades.owutNotBuildableHint')}
+                        {owut.missingPkgs?.length
+                          ? t('firmwareUpgrades.missingPkgsBanner', { pkgs: owut.missingPkgs.join(', ') })
+                          : `${t('firmwareUpgrades.owutNotBuildable')} ${t('firmwareUpgrades.owutNotBuildableHint')}`}
                       </span>
                     </div>
                   )}
@@ -718,7 +746,7 @@ export default function FirmwareUpgrades() {
                   <span>
                     {t('firmwareUpgrades.lastFailure')}
                     {relTimeFromTs(item.upgrade.startedAt) ? ` (${relTimeFromTs(item.upgrade.startedAt)})` : ''}:{' '}
-                    {item.upgrade.error}
+                    {item.upgrade.error || t('firmwareUpgrades.emptyFailure')}
                   </span>
                   {isAdmin && (
                     <button
@@ -765,8 +793,15 @@ export default function FirmwareUpgrades() {
                     </button>
                     <button
                       onClick={() => {
-                        if (owutAvail) setOwutConfirmId(item.routerId)
-                        else setConfirmId(item.routerId)
+                        if (owutAvail) {
+                          const missing = owut?.missingPkgs ?? []
+                          if (missing.length && !(removePkgs[item.routerId] ?? '').trim()) {
+                            setRemovePkgs((prev) => ({ ...prev, [item.routerId]: missing.join(' ') }))
+                          }
+                          setOwutConfirmId(item.routerId)
+                        } else {
+                          setConfirmId(item.routerId)
+                        }
                       }}
                       disabled={active || busy[item.routerId] === 'upgrade' || scheduled || !targetSel}
                       className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"

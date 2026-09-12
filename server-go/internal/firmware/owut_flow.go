@@ -251,6 +251,15 @@ func ParsePlatform(out string) Platform {
 	return p
 }
 
+// OpenWrtVersionRe: versión destino válida para -V ("25.12.5", "24.10.2").
+// Evita que textos libres guardados como target disparen upgrades sin sentido.
+var OpenWrtVersionRe = regexp.MustCompile(`^\d+\.\d+(\.\d+)?(-[a-zA-Z0-9.]+)?$`)
+
+// ValidOpenWrtVersion informa de si target parece una versión OpenWrt.
+func ValidOpenWrtVersion(v string) bool {
+	return OpenWrtVersionRe.MatchString(strings.TrimSpace(v))
+}
+
 // shQuote entrecomilla un valor para shell POSIX (single-quote escaping).
 func shQuote(v string) string {
 	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"

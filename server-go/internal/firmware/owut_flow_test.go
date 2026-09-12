@@ -190,3 +190,20 @@ func TestParsePlatform(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMissingPkgs(t *testing.T) {
+	// Salida real de owut check -v en un router con un paquete local sin feed.
+	out := `Collecting package data ...
+  netgrip                            0.71.0-r1                      missing to-version
+1 packages missing in target version, cannot upgrade
+46 packages are out-of-date
+It is safe to proceed with an upgrade (re-run with '--verbose' for details)
+`
+	pkgs := ParseMissingPkgs(out)
+	if len(pkgs) != 1 || pkgs[0] != "netgrip" {
+		t.Fatalf("ParseMissingPkgs = %v, esperaba [netgrip]", pkgs)
+	}
+	if got := ParseMissingPkgs("sin nada relevante"); got != nil {
+		t.Fatalf("sin matches debe devolver nil, got %v", got)
+	}
+}

@@ -1760,7 +1760,12 @@
     "excludePkgs": "Packages to exclude from the ASU image",
     "excludePkgsHint": "Only needed when the check complains about packages outside the official repos (they are lost on upgrade; reinstall them afterwards).",
     "owutNotBuildableHint": "Usually a package installed outside the official repos: check the output and exclude it when upgrading.",
-    "vendorNote": "This router runs vendor firmware (GL.iNet): NetPulse does not manage its upgrades. Use the GL.iNet panel (Upgrade Firmware), which already offers the latest official release for the model."
+    "vendorNote": "This router runs vendor firmware (GL.iNet): NetPulse does not manage its upgrades. Use the GL.iNet panel (Upgrade Firmware), which already offers the latest official release for the model.",
+    "missingPkgsBanner": "These packages are not in the official feeds: {{pkgs}}. They will be excluded from the image if you keep them while upgrading (they are lost; reinstall afterwards).",
+    "upgradeRunningOwut": "owut upgrade in progress {{step}} · {{elapsed}}. It can take several minutes and the router reboots at the end.",
+    "stepWorking": "(building the image on ASU and downloading)",
+    "stepRebooting": "(waiting for the router to come back from reboot)",
+    "emptyFailure": "no details: check the Comprobar output or retry"
   },
   "orchestration": {
     "title": "Orchestration",

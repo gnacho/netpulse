@@ -61,6 +61,10 @@ type OwutStatus struct {
 	// Buildable: la infraestructura ASU puede construir la imagen (owut salió
 	// con código 0, es decir, sin paquetes missing ni build failures).
 	Buildable bool `json:"buildable"`
+	// MissingPkgs (#761): paquetes instalados fuera de los feeds oficiales
+	// ("missing to-version") que bloquean la build de ASU. La UI los muestra
+	// y ofrece excluirlos del upgrade (-r): se pierden y hay que reinstalar.
+	MissingPkgs []string `json:"missingPkgs,omitempty"`
 	// RawOutput: salida completa de `owut check` (sin la línea de exit code).
 	RawOutput string `json:"rawOutput,omitempty"`
 	// Error: fallo de transporte (router inalcanzable, timeout SSH), no un
@@ -89,6 +93,7 @@ func CheckOwut(runner Runner, host string) OwutStatus {
 	status.CheckRan = raw != ""
 	status.RawOutput = raw
 	status.UpgradeAvailable, status.Buildable = parseOwutCheck(raw, exitCode)
+	status.MissingPkgs = ParseMissingPkgs(raw)
 	return status
 }
 
@@ -112,6 +117,25 @@ func extractExitCode(out string) (int, string) {
 	// Elimina la línea del marcador (y el \n previo que le precede).
 	raw := owutExitRe.ReplaceAllString(out, "")
 	return code, strings.TrimRight(raw, "\n")
+}
+
+// owutMissingRe caza las líneas de paquete del reporte de owut:
+//
+//	netgrip    0.71.0-r1    missing to-version
+var owutMissingRe = regexp.MustCompile(`(?m)^\s{2,}([a-zA-Z0-9][a-zA-Z0-9._+-]*)\s+\S+\s+missing to-version\s*$`)
+
+// ParseMissingPkgs extrae los paquetes instalados fuera de los feeds
+// oficiales (bloquean la build de ASU). Función pura.
+func ParseMissingPkgs(out string) []string {
+	var pkgs []string
+	seen := map[string]bool{}
+	for _, m := range owutMissingRe.FindAllStringSubmatch(out, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			pkgs = append(pkgs, m[1])
+		}
+	}
+	return pkgs
 }
 
 // parseOwutCheck interpreta la salida de `owut check` a dos señales claras:

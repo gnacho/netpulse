@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -146,6 +147,11 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusBadRequest, "invalid_body", "targetVersion es requerido")
 			return
 		}
+		if !firmware.ValidOpenWrtVersion(body.TargetVersion) {
+			writeError(w, http.StatusBadRequest, "invalid_target_version",
+				"targetVersion debe ser una versión OpenWrt (p. ej. 25.12.5), no un texto libre")
+			return
+		}
 		if host := s.hostOfRouter(id); host != "" && s.platform(id, host).Vendor != "" {
 			writeError(w, http.StatusUnprocessableEntity, "vendor_firmware",
 				"El router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones, usa su propio panel.")
@@ -256,6 +262,10 @@ func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string,
 		s.awaitReboot(id, routerID, target, origin, from)
 	default:
 		msg := owutTail(out, err)
+		if strings.TrimSpace(msg) == "" {
+			msg = fmt.Sprintf("owut terminó sin salida (exit %d)", exit)
+		}
+		log.Printf("[firmware] owut upgrade %s falló (exit %d): %s", routerID, exit, msg)
 		_ = s.firmware.SetStatus(id, "failed", msg, "")
 		s.emitFirmwareResult(routerID, from, target, origin, false, msg)
 	}
