@@ -284,6 +284,13 @@ func TestCloseCancelsInFlightPublish(t *testing.T) {
 	}
 }
 
+// B9: Close es idempotente.
+func TestCloseIsIdempotent(t *testing.T) {
+	n := NewNotifier(&fakeKV{})
+	n.Close()
+	n.Close() // no debe paniquear
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

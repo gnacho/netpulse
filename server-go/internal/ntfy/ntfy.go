@@ -127,13 +127,14 @@ func validTopic(t string) bool {
 
 // Notifier satisface alerts.Notifier.
 type Notifier struct {
-	kv     kvStore
-	queue  chan alerts.AlertEvent
-	done   chan struct{}
-	wg     sync.WaitGroup
-	client *http.Client
-	ctx    context.Context
-	cancel context.CancelFunc
+	kv        kvStore
+	queue     chan alerts.AlertEvent
+	done      chan struct{}
+	wg        sync.WaitGroup
+	client    *http.Client
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 // NewNotifier arranca el worker de la cola.
@@ -166,12 +167,15 @@ func (n *Notifier) Notify(ev alerts.AlertEvent) {
 	}
 }
 
-// Close detiene el worker y cancela cualquier publicación en curso.
+// Close detiene el worker y cancela cualquier publicación en curso. Es
+// idempotente: una segunda llamada no paniquea.
 func (n *Notifier) Close() {
-	if n.cancel != nil {
-		n.cancel()
-	}
-	close(n.done)
+	n.closeOnce.Do(func() {
+		if n.cancel != nil {
+			n.cancel()
+		}
+		close(n.done)
+	})
 	n.wg.Wait()
 }
 
