@@ -239,6 +239,15 @@ export default function FirmwareUpgrades() {
     return () => clearInterval(iv)
   }, [anyActive])
 
+  // Barra de progreso fluida: reloj local de 1s mientras hay upgrade activo
+  // (patron del ticker de agentes #691; el fetch sigue a 10 s).
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    if (!anyActive) return
+    const iv = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => clearInterval(iv)
+  }, [anyActive])
+
   const updateEdit = (id: string, patch: Partial<FirmwareItem>) => {
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
   }
@@ -546,6 +555,75 @@ export default function FirmwareUpgrades() {
             .forEach((v) => {
               if (!opts.includes(v.version)) opts.push(v.version)
             })
+          // #761: mientras corre el upgrade, la tarjeta ES el proceso (icono,
+          // fase, barra y consola); el resto del formulario desaparece.
+          if (active && item.upgrade) {
+            const up = item.upgrade
+            const elapsed = Math.max(0, nowSec - up.startedAt)
+            const rebooting = up.status === 'rebooting'
+            const pct = rebooting ? 96 : Math.min((elapsed / 300) * 95, 95)
+            const phase = rebooting
+              ? t('firmwareUpgrades.stepRebooting')
+              : elapsed < 90
+                ? t('firmwareUpgrades.phaseBuild')
+                : elapsed < 300
+                  ? t('firmwareUpgrades.phaseDownload')
+                  : t('firmwareUpgrades.phaseFlash')
+            const stamp = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+            const cmdVer =
+              up.targetVersion && item.detectedVersion && up.targetVersion !== item.detectedVersion
+                ? ` -V '${up.targetVersion}'`
+                : ''
+            const lines: string[] = [
+              `$ owut upgrade -q${cmdVer}`,
+              `[${stamp(0)}] ${t('firmwareUpgrades.consoleContact')}`,
+            ]
+            if (elapsed >= 10) lines.push(`[${stamp(10)}] ${t('firmwareUpgrades.consoleBuild')}`)
+            if (elapsed >= 90) lines.push(`[${stamp(90)}] ${t('firmwareUpgrades.consoleDownload')}`)
+            if (elapsed >= 180) lines.push(`[${stamp(180)}] ${t('firmwareUpgrades.consoleVerify')}`)
+            if (elapsed >= 300) lines.push(`[${stamp(300)}] ${t('firmwareUpgrades.consoleWrite')}`)
+            if (rebooting) lines.push(`[${stamp(elapsed)}] ${t('firmwareUpgrades.consoleReboot')}`)
+            return (
+              <div key={item.routerId} className="rounded-2xl border border-border bg-surface p-5">
+                <div className="mb-6 flex items-center gap-3">
+                  <Cpu className="h-5 w-5 text-accent" strokeWidth={1.75} />
+                  <div>
+                    <h2 className="text-base font-semibold text-text-primary">
+                      {sortedRouters.find((r) => r.id === item.routerId)?.name ?? item.name}
+                    </h2>
+                    <p className="text-xs text-text-muted">{detectedModel || item.model || t('common.unknown')}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      'ml-auto rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                      STATUS_COLORS[up.status] ?? 'bg-text-muted/10 text-text-muted border-text-muted/30'
+                    )}
+                  >
+                    {t(`firmwareUpgrades.status.${up.status}`, { defaultValue: up.status })}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center gap-3 py-4" data-testid="fw-progress">
+                  <RefreshCw className="h-14 w-14 animate-pulse text-accent" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-text-primary">{phase}</p>
+                  <p className="font-mono text-xs text-text-muted">{stamp(elapsed)}</p>
+                  <div className="w-full max-w-md">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-accent/20">
+                      <div
+                        className="h-full rounded-full bg-accent transition-all duration-1000 ease-linear"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <pre className="mt-2 w-full max-w-md overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-canvas px-3 py-2.5 font-mono text-xs leading-relaxed text-text-secondary">
+                    {lines.join('\n')}
+                    {'\n'}
+                    <span className="animate-pulse">▌</span>
+                  </pre>
+                </div>
+              </div>
+            )
+          }
           return (
             <div
               key={item.routerId}
@@ -570,23 +648,6 @@ export default function FirmwareUpgrades() {
                   </span>
                 )}
               </div>
-
-              {active && item.upgrade && (
-                <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-300">
-                  <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 animate-pulse" strokeWidth={1.75} />
-                  <span>
-                    {item.upgrade.engine === 'owut'
-                      ? t('firmwareUpgrades.upgradeRunningOwut', {
-                          elapsed: relTimeFromTs(item.upgrade.startedAt),
-                          step:
-                            item.upgrade.status === 'rebooting'
-                              ? t('firmwareUpgrades.stepRebooting')
-                              : t('firmwareUpgrades.stepWorking'),
-                        })
-                      : t('firmwareUpgrades.inProgress')}
-                  </span>
-                </div>
-              )}
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="flex flex-col gap-1">
@@ -700,7 +761,7 @@ export default function FirmwareUpgrades() {
               </details>
               )}
 
-              {owut && (
+              {!active && owut && (
                 <div className="mt-3 space-y-2">
                   {owut.error && (
                     <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">

@@ -1766,7 +1766,16 @@
     "stepWorking": "(building the image on ASU and downloading)",
     "stepRebooting": "(waiting for the router to come back from reboot)",
     "emptyFailure": "no details: check the Comprobar output or retry",
-    "missingPkgsBannerStack": "These packages are not in the official feeds: {{pkgs}}. Own-stack ones (netgrip / agent) will be excluded from the image but their files survive the update; anything else is lost (reinstall it afterwards)."
+    "missingPkgsBannerStack": "These packages are not in the official feeds: {{pkgs}}. Own-stack ones (netgrip / agent) will be excluded from the image but their files survive the update; anything else is lost (reinstall it afterwards).",
+    "phaseBuild": "Building the image on ASU (usually takes 1-3 min)",
+    "phaseDownload": "Downloading and verifying the image",
+    "phaseFlash": "About to flash: the router reboots shortly",
+    "consoleContact": "contacting sysupgrade.openwrt.org...",
+    "consoleBuild": "requesting image build from ASU...",
+    "consoleDownload": "downloading image...",
+    "consoleVerify": "verifying sha256...",
+    "consoleWrite": "writing firmware...",
+    "consoleReboot": "router is rebooting; waiting for it to come back (up to 15 min)"
   },
   "orchestration": {
     "title": "Orchestration",

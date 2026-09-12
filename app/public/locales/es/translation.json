@@ -1766,7 +1766,16 @@
     "stepWorking": "(construyendo la imagen en ASU y descargando)",
     "stepRebooting": "(esperando a que el router vuelva del reinicio)",
     "emptyFailure": "sin detalles: consulta la salida de Comprobar o reintenta",
-    "missingPkgsBannerStack": "Estos paquetes no están en los feeds oficiales: {{pkgs}}. Los del propio stack (netgrip / agente) se excluirán de la imagen pero sus ficheros se conservan tras el update; cualquier otro se pierde (reinstálalo después)."
+    "missingPkgsBannerStack": "Estos paquetes no están en los feeds oficiales: {{pkgs}}. Los del propio stack (netgrip / agente) se excluirán de la imagen pero sus ficheros se conservan tras el update; cualquier otro se pierde (reinstálalo después).",
+    "phaseBuild": "Construyendo la imagen en ASU (suele tardar 1-3 min)",
+    "phaseDownload": "Descargando y verificando la imagen",
+    "phaseFlash": "A punto de flashear: el router se reiniciará en breve",
+    "consoleContact": "contactando con sysupgrade.openwrt.org...",
+    "consoleBuild": "solicitando build de la imagen a ASU...",
+    "consoleDownload": "descargando imagen...",
+    "consoleVerify": "verificando sha256...",
+    "consoleWrite": "escribiendo firmware...",
+    "consoleReboot": "el router se está reiniciando; esperando a que vuelva (hasta 15 min)"
   },
   "orchestration": {
     "title": "Orquestación",
