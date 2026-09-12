@@ -71,6 +71,7 @@ import { useTempUnit } from '@/lib/temperature'
 import { notifyBanner } from '@/lib/update-check'
 import { PALETTES, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
+import NtfyCard from '@/components/NtfyCard'
 import pkg from '../../package.json'
 
 // ---------------------------------------------------------------------------
@@ -4706,6 +4707,15 @@ export default function Settings() {
           <div className="order-70">
             <Card title={t('settings.telegram.title')} caption={t('settings.telegram.description')} index={4} reduce={reduce}>
               <TelegramCard onSaved={notify} bare />
+            </Card>
+          </div>
+        )}
+
+        {/* ntfy (#766): notificaciones via ntfy.sh o self-hosted */}
+        {!isDemo && (
+          <div className="order-71">
+            <Card title={t('settings.ntfy.title')} caption={t('settings.ntfy.description')} index={4} reduce={reduce}>
+              <NtfyCard onSaved={notify} />
             </Card>
           </div>
         )}

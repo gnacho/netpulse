@@ -43,6 +43,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
+	"github.com/gnacho/netpulse/server-go/internal/ntfy"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
 	"github.com/gnacho/netpulse/server-go/internal/poller"
@@ -352,12 +353,19 @@ func run() error {
 		log.Printf("[netpulse] telegram activo: chat %s", tgCfg.ChatID)
 	}
 
-	// Notifier compuesto: push + webhook + telegram (SetNotifier solo admite UNO).
+	// ntfy (#766): el notifier vive SIEMPRE (el worker decide por config en
+	// cada evento): activable desde la UI sin reiniciar el servicio.
+	ntfyNotifier := ntfy.NewNotifier(&mainKVAdapter{db: dbHandle.DB})
+	if ntfyCfg := ntfy.LoadConfig(&mainKVAdapter{db: dbHandle.DB}); ntfyCfg.Enabled && ntfyCfg.Topic != "" {
+		log.Printf("[netpulse] ntfy activo: %s/%s", ntfyCfg.Server, ntfyCfg.Topic)
+	}
+
+	// Notifier compuesto: push + webhook + telegram + ntfy (SetNotifier solo admite UNO).
 	// OJO nil-encapsulado (issue #57): meter un `(*webhook.Notifier)(nil)` en
 	// la cadena lo empaqueta en la interfaz con tipo pero valor nil → la
 	// interfaz NO es nil y `if n != nil` de notifierChain no lo filtra →
 	// panic al Notify. Filtrar ANTES de empaquetar.
-	if pushNotifier != nil || webhookNotifier != nil || telegramNotifier != nil {
+	if pushNotifier != nil || webhookNotifier != nil || telegramNotifier != nil || ntfyNotifier != nil {
 		chain := notifierChain{}
 		if pushNotifier != nil {
 			chain = append(chain, pushNotifier)
@@ -367,6 +375,9 @@ func run() error {
 		}
 		if telegramNotifier != nil {
 			chain = append(chain, telegramNotifier)
+		}
+		if ntfyNotifier != nil {
+			chain = append(chain, ntfyNotifier)
 		}
 		adapter.AlertsEngine().SetNotifier(chain)
 	}
@@ -657,6 +668,9 @@ func run() error {
 		}
 		if telegramNotifier != nil {
 			telegramNotifier.Close()
+		}
+		if ntfyNotifier != nil {
+			ntfyNotifier.Close()
 		}
 		// Salvavidas de 3 s: salir igualmente aunque el server no cierre.
 		lifeline := time.AfterFunc(3*time.Second, func() {
