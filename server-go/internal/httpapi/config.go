@@ -501,11 +501,15 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 // para no romper frontends cacheados.
 func (s *server) handleGetProxmoxConfig(w http.ResponseWriter, r *http.Request) {
 	instances := pve.LoadInstances(s.db.DB)
-	if instances == nil {
-		instances = []pve.Instance{}
+	// Vista sanitizada: el secret JAMAS sale del server (#764).
+	view := make([]map[string]string, 0, len(instances))
+	for _, in := range instances {
+		view = append(view, map[string]string{
+			"id": in.ID, "name": in.Name, "url": in.URL, "tokenId": in.TokenID,
+		})
 	}
 	out := map[string]any{
-		"instances": instances,
+		"instances": view,
 		"url":       "",
 		"tokenId":   "",
 		"tokenSet":  false,

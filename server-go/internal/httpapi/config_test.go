@@ -519,6 +519,15 @@ func TestProxmoxConfig(t *testing.T) {
 	if body["tokenSet"] != true {
 		t.Fatalf("tokenSet esperado true: %v", body)
 	}
+	// #764: el secret jamas viaja, tampoco dentro de instances.
+	for _, raw := range body["instances"].([]any) {
+		m, _ := raw.(map[string]any)
+		for k := range m {
+			if strings.EqualFold(k, "secret") || strings.EqualFold(k, "Secret") {
+				t.Fatalf("instance con secret en el GET: %v", m)
+			}
+		}
+	}
 
 	// Actualizar solo el secret conserva url/tokenId.
 	res = doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie,
