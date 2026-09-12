@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260911e" />
+  <link rel="stylesheet" href="styles.css?v=20260912a" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -49,7 +49,7 @@
         "operatingSystem": "Linux",
         "url": "https://github.com/gnacho/netpulse",
         "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-        "description": "Monitor de red OpenWrt/GL.iNet de solo lectura, autoalojado y libre (AGPL-3.0). Topología en vivo, salud de la red, WiFi, roaming, puertos, alertas e informes.",
+        "description": "Monitor de red OpenWrt/GL.iNet en vivo, autoalojado y libre (AGPL-3.0). Topología en vivo, salud de la red, WiFi, roaming, puertos, alertas e informes.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
         "isAccessibleForFree": true,
         "featureList": "Dashboard, topology map, devices, routers, agent management, WiFi roaming, switch ports, WireGuard, AdGuard Home, alerts, reports, settings, demo mode, LuCI app, auto-updater, on-box mode"
@@ -117,7 +117,7 @@
       <div class="reveal">
         <span class="eyebrow" data-i18n="featuresPage.inventoryEyebrow">Inventario de funciones</span>
         <h2 class="font-display text-balance" data-i18n="featuresPage.inventoryTitle">De la red a la interfaz</h2>
-        <p class="lead" data-i18n="featuresPage.inventoryLead">NetPulse lee datos de tus routers y los muestra en una sola pantalla. Todo es solo lectura: ver, no tocar.</p>
+        <p class="lead" data-i18n="featuresPage.inventoryLead">NetPulse lee datos de tus routers y los muestra en una sola pantalla. El sondeo es de solo lectura; lo que escribe es siempre explícito y con rollback.</p>
       </div>
 
       <div class="features features-detail">
@@ -343,8 +343,8 @@
         </details>
 
         <details class="decision card reveal">
-          <summary data-i18n="featuresPage.decReadonlyTitle">¿Por qué solo lectura?</summary>
-          <p data-i18n="featuresPage.decReadonlyP">El servidor genera su propio par ed25519 y tú autorizas la clave pública en cada router. Desde ahí solo lee: ubus, /proc, iwinfo, bridge fdb, wg show. No puede cambiar tu red, ni siquiera accidentalmente. La única excepción son las acciones voluntarias de orquestación, que se aplican como planes explícitos.</p>
+          <summary data-i18n="featuresPage.decReadonlyTitle">¿Por qué el sondeo es de solo lectura?</summary>
+          <p data-i18n="featuresPage.decReadonlyP">El servidor genera su propio par ed25519 y tú autorizas la clave pública en cada router. Desde ahí el sondeo solo lee: ubus, /proc, iwinfo, bridge fdb, wg show. Las acciones que escriben (reservar una IP, bloquear un dispositivo, orquestar servicios, actualizar firmware) son siempre explícitas, las lanza un admin y se aplican con snapshot y rollback automático.</p>
         </details>
 
         <details class="decision card reveal">
@@ -393,7 +393,7 @@
             </svg>
             NetPulse
           </a>
-          <p class="caption text-muted" data-i18n="footer.tagline">Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.</p>
+          <p class="caption text-muted" data-i18n="footer.tagline">Monitorización en vivo para redes domésticas, autoalojada y libre para siempre.</p>
         </div>
         <div class="foot-col">
           <h4 data-i18n="footer.project">Proyecto</h4>
@@ -436,8 +436,8 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20260911e"></script>
-  <script src="app.js?v=20260911e"></script>
+  <script src="i18n.js?v=20260912a"></script>
+  <script src="app.js?v=20260912a"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9"></script>
 </body>
 </html>

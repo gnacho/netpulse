@@ -82,7 +82,7 @@
       "agent-outdated": "Update the agent from Settings, Agents (Update button); if it's a NetGrip panel, update it from its own panel.",
       "degraded-link": "Check the cable and connectors: a degraded link is often a sign of a damaged cable or a loose connector.",
       "device-offline": "Verify the device power and network cable.",
-      "firmware-outdated": "NetPulse is read-only: update the firmware from LuCI.",
+      "firmware-outdated": "Your router has newer firmware available; check Firmware upgrades (Labs) or LuCI.",
       "gateway-unreachable": "Check the connection between the gateway and the rest of the network.",
       "ghost-port": "Check the cable and the connected device: an active port that goes silent usually means a loose cable or a powered-off device.",
       "high-temperature": "Improve ventilation and keep the router away from heat sources.",
@@ -512,7 +512,7 @@
     "expand": "Expand menu",
     "orchestration": "Orchestration",
     "channelPlan": "Channels",
-    "firmwareUpgrades": "Updates",
+    "firmwareUpgrades": "Firmware upgrades",
     "help": "Help"
   },
   "roaming": {
@@ -1095,7 +1095,7 @@
       "changelog": "Changelog",
       "visitWeb": "Visit website",
       "code": "Source code",
-      "desc": "Network control panel for OpenWRT devices. Monitors routers and APs with some services like AdGuard Home + WireGuard for now. Phase 1: read-only.",
+      "desc": "Network control panel for OpenWRT devices. Monitors routers and APs, and applies explicit admin actions (reservations, blocks, orchestration, firmware) with snapshot and rollback.",
       "madeAtHome": "Support the project on Ko-fi",
       "privacy": "100% private · 0% cloud",
       "title": "About",
@@ -1372,8 +1372,8 @@
       "deleteDesc": "The token for “{{slug}}” will be revoked. The scraper will stop sending data until you regenerate the token.",
       "canales": "Channels",
       "canalesCaption": "WiFi channel planner (LABS)",
-      "actualizaciones": "Updates",
-      "actualizacionesCaption": "Firmware updates (LABS)",
+      "actualizaciones": "Firmware upgrades",
+      "actualizacionesCaption": "Firmware upgrades (LABS)",
       "regenToken": "Regenerate token",
       "regenTokenCaption": "Rotate external agent token (LABS)",
       "badge": "LABS"
