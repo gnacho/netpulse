@@ -160,6 +160,10 @@ type server struct {
 	// (POST /api/backup/run) y el scheduler periódico.
 	backupMu sync.Mutex
 
+	// Avisos externos (announcements.json del repo): caché del último
+	// fetch; nil si el refresco no está activo.
+	announcements *announcementCache
+
 	// rtlConsole (#639): sondeo HTTP de la consola de switches RTLPlayground
 	// (firmware + uptime) para agentes external/beacon. nil si desactivado.
 	rtlConsole *rtlConsoleCache
@@ -451,6 +455,10 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Copias de seguridad (issue #158) ---
 	s.registerBackupRoutes(mux)
+
+	// Avisos externos para todas las instancias (siempre: también en demo).
+	s.startAnnouncements()
+	s.registerAnnouncementRoutes(mux)
 
 	// Backups automáticos (#741): el scheduler vive con el handler; el
 	// vencimiento se deriva del last_run persistido, así que reinicios y

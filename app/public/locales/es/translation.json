@@ -2009,5 +2009,9 @@
         "tip": "Tras un flash solo sobrevive lo de /etc: el self-heal del agente restaura el binario al arrancar, y ⟦Reinstalar⟧ lo deja todo fresco si hiciera falta."
       }
     }
+  },
+  "announcement": {
+    "link": "Ver más",
+    "dismiss": "Descartar aviso"
   }
 }

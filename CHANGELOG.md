@@ -9,6 +9,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- **Avisos externos para todas las instancias**: el servidor consulta `announcements.json` del repositorio (raw de GitHub, refresco cada 6 h, fail-silent) y expone el aviso vigente en `/api/announcement`; la UI lo pinta con el mismo estilo que el aviso de actualización, con enlace opcional y descarte persistente por identificador. Primer aviso publicado: el programa de beta testers de NetGrip está abierto. Fuente configurable con `NETPULSE_ANNOUNCEMENTS_URL`.
+
+
+### Added
+
 - **Previsualización de los comandos antes de escribir en el router (#754)**: reservar una IP o bloquear un dispositivo ya no aplica directo. Al confirmar la acción, NetPulse pide primero el plan al servidor (`?dry_run=1`: construye los mismos comandos uci sin ejecutarlos) y lo muestra en la ficha del dispositivo -comandos que se ejecutarán y, plegables, los de rollback-, con el router identificado. Nada se aplica hasta pulsar "Ejecutar y aplicar"; desbloquear y eliminar reserva siguen siendo directos. Estilo LuCI "Unsaved Changes", pedido por la comunidad.
 
 
