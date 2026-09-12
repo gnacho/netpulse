@@ -8,8 +8,8 @@
         "en": "NetGrip beta tester program is open"
       },
       "body": {
-        "es": "Buscamos testers para NetGrip, el panel compañero que corre en tu router OpenWrt: toggles de servicios con rollback, clientes, tráfico por aplicación. Estrena sus funciones antes que nadie y ayúdanos a pulirlas.",
-        "en": "We are looking for testers for NetGrip, the companion panel that runs on your OpenWrt router: service toggles with rollback, clients, per-app traffic. Try its features first and help us polish them."
+        "es": "NetGrip es el panel compañero de NetPulse: corre en tu propio router OpenWrt y controla WireGuard, WiFi de invitados, QoS o DNS con un clic y con rollback automático. Buscamos testers con routers OpenWrt (ARM o x86) que lo prueben en su red y nos cuenten qué falla: los beta testers estrenan cada función antes que nadie y marcan qué se construye.",
+        "en": "NetGrip is NetPulse's companion panel: it runs on your own OpenWrt router and drives WireGuard, guest Wi-Fi, QoS or DNS with one click and automatic rollback. We are looking for testers with OpenWrt routers (ARM or x86) to run it on their network and tell us what breaks: beta testers get every feature first and steer what gets built."
       },
       "url": "https://netgrip.cloudless.club",
       "urlLabel": {
