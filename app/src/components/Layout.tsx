@@ -33,6 +33,7 @@ import { HealthRing } from '@/components/HealthRing'
 import InstallPrompt from '@/components/InstallPrompt'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
+import { AnnouncementBanner } from '@/components/AnnouncementBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -759,6 +760,7 @@ function Shell() {
         <MobileHeader />
         <main className="[view-transition-name:netpulse-content] mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
           {isDemo && <DemoBanner />}
+          <AnnouncementBanner />
           <UpdateBanner />
           {/* Confirmación post-update (issue #161): toast al cargar si el
               último apply llegó a arrancar con el commit nuevo. */}

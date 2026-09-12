@@ -380,7 +380,11 @@
       "blocked": "Blocked",
       "allowed": "Allowed",
       "block": "Block",
-      "unblock": "Unblock"
+      "unblock": "Unblock",
+      "planTitle": "These commands will run on {{host}}:",
+      "planRollback": "Rollback commands (if anything fails)",
+      "planRun": "Run and apply",
+      "planNone": "Nothing to apply"
     },
     "new": "New",
     "onlyOnline": "Only online",
@@ -2005,5 +2009,9 @@
         "tip": "After a flash only /etc survives: the agent's self-heal restores the binary at boot, and ⟦Reinstall⟧ puts everything fresh if needed."
       }
     }
+  },
+  "announcement": {
+    "link": "See more",
+    "dismiss": "Dismiss announcement"
   }
 }

@@ -339,6 +339,12 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		rollback = append(rollback, fmt.Sprintf("uci delete dhcp.%s", section))
 	}
 
+	// Dry-run (#754): devolver el plan sin ejecutar nada en el router.
+	if r.URL.Query().Get("dry_run") == "1" {
+		writeDevicePlan(w, mac, host, apply, rollback)
+		return
+	}
+
 	if err := s.runUCICommands(host, "dhcp", apply); err != nil {
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
@@ -351,6 +357,19 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mac": mac, "ip": body.IP})
+}
+
+// writeDevicePlan responde un dry-run (#754): comandos que SE EJECUTARÍAN
+// (apply) y su plan de vuelta (rollback), sin tocar el router.
+func writeDevicePlan(w http.ResponseWriter, mac, host string, apply, rollback []string) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"dryRun":   true,
+		"mac":      mac,
+		"host":     host,
+		"apply":    apply,
+		"rollback": rollback,
+	})
 }
 
 // handleDeviceReservationDelete elimina la reserva DHCP estática.
@@ -563,6 +582,12 @@ func (s *server) handleDeviceBlockPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	section := blockRuleSection(mac)
+	// Dry-run (#754): plan sin ejecutar (el check de "ya bloqueado" sí corre:
+	// es lectura uci show, no escribe nada).
+	if r.URL.Query().Get("dry_run") == "1" {
+		writeDevicePlan(w, mac, host, blockRuleApply(section, mac), blockRuleRollback(section))
+		return
+	}
 	if err := s.runUCICommands(host, "firewall", blockRuleApply(section, mac)); err != nil {
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return

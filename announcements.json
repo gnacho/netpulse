@@ -1,0 +1,23 @@
+{
+  "announcements": [
+    {
+      "id": "netgrip-beta-2026-09",
+      "urgency": "info",
+      "title": {
+        "es": "Programa de beta testers de NetGrip abierto",
+        "en": "NetGrip beta tester program is open"
+      },
+      "body": {
+        "es": "Buscamos testers para NetGrip, el panel compañero que corre en tu router OpenWrt: toggles de servicios con rollback, clientes, tráfico por aplicación. Estrena sus funciones antes que nadie y ayúdanos a pulirlas.",
+        "en": "We are looking for testers for NetGrip, the companion panel that runs on your OpenWrt router: service toggles with rollback, clients, per-app traffic. Try its features first and help us polish them."
+      },
+      "url": "https://netgrip.cloudless.club",
+      "urlLabel": {
+        "es": "Ver NetGrip",
+        "en": "See NetGrip"
+      },
+      "starts": "2026-09-12",
+      "expires": "2026-11-01"
+    }
+  ]
+}
