@@ -89,12 +89,18 @@ type Status struct {
 	// actualización o el compare falló: la UI cae a latestBody.
 	Commits []CommitRef `json:"commits,omitempty"`
 	// CompareURL: enlace web al compare completo current...latest (#490).
-	CompareURL string    `json:"compareUrl,omitempty"`
-	Updating   any       `json:"updating"` // false | {"step": ...}
-	Error      *string   `json:"error"`
-	LastLog    *string   `json:"lastLog"`
-	Repo       string    `json:"repo"`
-	HasToken   bool      `json:"hasToken"`
+	CompareURL string  `json:"compareUrl,omitempty"`
+	Updating   any     `json:"updating"` // false | {"step": ...}
+	Error      *string `json:"error"`
+	LastLog    *string `json:"lastLog"`
+	Repo       string  `json:"repo"`
+	HasToken   bool    `json:"hasToken"`
+	// CheckFailed (#743): el último Check no pudo completar el fetch a
+	// GitHub (rate limit anónimo, red, timeout). UpdateAvailable refleja
+	// entonces el último estado CONOCIDO, no una comprobación fresca: la UI
+	// debe mostrar "no se pudo comprobar" en vez de "estás en la última".
+	CheckFailed bool   `json:"checkFailed,omitempty"`
+	CheckErr    string `json:"checkErr,omitempty"`
 	// Readiness: pre-flight checks del apply (issue #160). Null en layout
 	// estable (sin auto-apply) o hasta el primer Status().
 	Readiness *Readiness `json:"readiness,omitempty"`
@@ -118,18 +124,20 @@ type Updater struct {
 	// persistencia deshabilitada (tests sin BD).
 	db *sql.DB
 
-	mu           sync.Mutex
-	current      string
-	latest       *string
-	latestMsg    *string
-	latestBody   *string // cuerpo del commit/notas del release (changelog #280)
+	mu         sync.Mutex
+	current    string
+	latest     *string
+	latestMsg  *string
+	latestBody *string // cuerpo del commit/notas del release (changelog #280)
 	// compare de GitHub cacheado (issue #490): commits current→latest y
 	// clave "current|latest" del último fetch para no repetir la consulta.
-	commits    []CommitRef
-	compareURL string
-	compareKey string
+	commits      []CommitRef
+	compareURL   string
+	compareKey   string
 	updateAvail  bool
 	lastCheck    *int64
+	checkFailed  bool    // #743: el último Check no llegó a completarse
+	checkErr     string  // #743: errCode del último Check fallido
 	updatingStep *string // nil = no actualizando
 	updatingPct  int     // 0-100 (issue #280); peso del paso o PROGRESS explícito
 	updatingLog  string
@@ -517,10 +525,14 @@ func (u *Updater) Check(ctx context.Context) Status {
 	u.current = current
 	u.lastCheck = &now
 	if errCode != "" {
-		u.err = &errCode // no_token no es un error visible: el banner no aparece
+		u.err = &errCode
+		u.checkFailed = true
+		u.checkErr = errCode // no_token no lanza el banner (#743): solo marca el check como fallido
 		return u.statusLocked()
 	}
 	u.err = nil
+	u.checkFailed = false
+	u.checkErr = ""
 	u.latest = &latest
 	u.latestMsg = &latestMsg
 	u.latestBody = &latestBody
@@ -850,6 +862,8 @@ func (u *Updater) statusLocked() Status {
 		LastLog:         lastLog,
 		Repo:            u.repo,
 		HasToken:        u.token != "",
+		CheckFailed:     u.checkFailed,
+		CheckErr:        u.checkErr,
 		PendingApply:    u.pendingApply,
 	}
 }

@@ -3253,6 +3253,22 @@ interface NetPulseUpdateStatus {
   repo: string
   updating: false | { step: string }
   readiness?: UpdateReadiness | null
+  checkFailed?: boolean
+  checkErr?: string
+}
+
+// checkErrText mapea el errCode crudo del updater a un motivo humano (#743).
+function checkErrText(err: string | undefined, t: (k: string) => string): string {
+  switch (err) {
+    case 'no_token':
+    case 'github_403':
+      return t('settings.about.checkErrRate')
+    case 'network':
+    case 'timeout':
+      return t('settings.about.checkErrNet')
+    default:
+      return err || t('settings.about.checkErrNet')
+  }
 }
 
 function UpdateCheckInline() {
@@ -3327,6 +3343,10 @@ function UpdateCheckInline() {
       {status?.updateAvailable && status.latest ? (
         <span className="text-[10px] font-medium text-accent">
           {t('settings.about.updateAvailable', { version: status.latest })}
+        </span>
+      ) : status?.checkFailed ? (
+        <span role="alert" className="text-[10px] font-medium text-warn">
+          {t('settings.about.checkFailed', { reason: checkErrText(status.checkErr, t) })}
         </span>
       ) : status?.updateAvailable === false ? (
         <span className="text-[10px] font-medium text-ok">{t('settings.about.upToDateShort')}</span>

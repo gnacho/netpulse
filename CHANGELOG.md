@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- **"Comprobar actualizaciones" ya no dice que estás en la última versión cuando no pudo comprobar (#743)**: si el fetch a GitHub fallaba (límite de la API anónima, red, timeout), el botón devolvía el estado del último check exitoso -posiblemente de hace 24 h- sin ninguna señal, y la UI lo pintaba como "estás en la última versión". El reportero lo clavó: una release publicada dos horas antes no aparecía. Ahora el estado lleva `checkFailed` con el motivo (límite de GitHub sin token, sin conexión) y la UI muestra "No se pudo comprobar ahora (motivo); inténtalo de nuevo en unos minutos" en lugar de un falso todo-ok.
+
+### Fixed
+
 - **El test de velocidad ya no mide basura cuando la URL del servidor apunta a la web de Ookla (#744)**: la tarjeta de ajustes traía `https://speedtest.net` como valor por defecto, placeholder y botón "Restaurar" (no es un servidor de pruebas, es la web), y cualquier guardado escribía esa URL en la config: el resultado era una bajada capada, una subida ~0 y un servidor sin nombre. Ahora el campo nace vacío (autoselección), el botón pasa a "Automático", el servidor rechaza la trampa con un mensaje claro, un saneado al arranque limpia la URL trampa de instalaciones existentes, y una medición con bajada o subida <= 0 se descarta con error en vez de ensuciar la serie.
 
 ### Added
