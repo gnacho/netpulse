@@ -131,13 +131,15 @@ export default function FirmwareUpgrades() {
   const [versionsBusy, setVersionsBusy] = useState<Record<string, boolean>>({})
   const [installBusy, setInstallBusy] = useState<Record<string, boolean>>({})
   const [owutConfirmId, setOwutConfirmId] = useState<string | null>(null)
+  // #761: paquetes a excluir de la build ASU (locales sin feed, p. ej. netgrip).
+  const [removePkgs, setRemovePkgs] = useState<Record<string, string>>({})
   // #761: programación recurrente.
   const [recurrence, setRecurrence] = useState<Record<string, RecurrenceCfg>>({})
   const [recNext, setRecNext] = useState<Record<string, number>>({})
   const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [recKind, setRecKind] = useState<'once' | 'weekly' | 'monthly'>('once')
   const [recAt, setRecAt] = useState('')
-  const [recDow, setRecDow] = useState(5)
+  const [recDow, setRecDow] = useState(1)
   const [recDom, setRecDom] = useState(1)
   const [recTime, setRecTime] = useState('04:00')
 
@@ -160,7 +162,7 @@ export default function FirmwareUpgrades() {
         initialEdits[it.routerId] = {
           model: it.detectedBoard || it.detectedModel || it.model || '',
           currentVersion: it.detectedVersion || it.currentVersion || '',
-          targetVersion: it.targetVersion,
+          targetVersion: it.targetVersion || it.detectedVersion || '',
           targetUrl: it.targetUrl,
           checksum: it.checksum,
         }
@@ -373,7 +375,10 @@ export default function FirmwareUpgrades() {
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-upgrade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetVersion: e.targetVersion }),
+        body: JSON.stringify({
+          targetVersion: e.targetVersion,
+          removePackages: (removePkgs[id] ?? '').split(/[\s,]+/).filter(Boolean),
+        }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
@@ -675,7 +680,9 @@ export default function FirmwareUpgrades() {
                   {owut.checkRan && !owut.buildable && (
                     <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
                       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
-                      <span>{t('firmwareUpgrades.owutNotBuildable')}</span>
+                      <span>
+                        {t('firmwareUpgrades.owutNotBuildable')} {t('firmwareUpgrades.owutNotBuildableHint')}
+                      </span>
                     </div>
                   )}
                   {owut.rawOutput && (
@@ -915,6 +922,18 @@ export default function FirmwareUpgrades() {
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
                 <span>{t('firmwareUpgrades.confirmDowntime')}</span>
               </div>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-caption text-text-muted">{t('firmwareUpgrades.excludePkgs')}</span>
+                <input
+                  type="text"
+                  value={removePkgs[owutConfirm.routerId] ?? ''}
+                  onChange={(ev) => setRemovePkgs((prev) => ({ ...prev, [owutConfirm.routerId]: ev.target.value }))}
+                  placeholder="netgrip"
+                  className="rounded-lg border border-border bg-canvas px-3 py-2 font-mono text-sm text-text-primary"
+                />
+                <span className="text-xs text-text-muted">{t('firmwareUpgrades.excludePkgsHint')}</span>
+              </label>
             </div>
           )}
 
@@ -990,7 +1009,7 @@ export default function FirmwareUpgrades() {
                       onChange={(ev) => setRecDow(Number(ev.target.value))}
                       className="h-9 rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary"
                     >
-                      {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                      {[1, 2, 3, 4, 5, 6, 0].map((d) => (
                         <option key={d} value={d}>
                           {dowLabel(i18n.language, d)}
                         </option>

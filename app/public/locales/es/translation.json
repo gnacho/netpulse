@@ -1756,7 +1756,10 @@
     "recNeedDate": "Elige fecha y hora para la programación única",
     "recScheduled": "Programado ({{kind}}): {{when}}",
     "recRemove": "Quitar programación",
-    "recIdempotentHint": "Cada intento avisa del resultado (alerta, push y Telegram si está configurado). Si el router ya está en la versión objetivo, no hace nada."
+    "recIdempotentHint": "Cada intento avisa del resultado (alerta, push y Telegram si está configurado). Si el router ya está en la versión objetivo, no hace nada.",
+    "excludePkgs": "Paquetes a excluir de la imagen ASU",
+    "excludePkgsHint": "Solo necesarios si el check objeta paquetes instalados fuera de los repos oficiales (se pierden al actualizar; reinstálalos después).",
+    "owutNotBuildableHint": "Suele ser un paquete instalado que no está en los repos oficiales: revisa la salida y exclúyelo al actualizar."
   },
   "orchestration": {
     "title": "Orquestación",

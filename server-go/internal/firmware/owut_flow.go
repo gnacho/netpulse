@@ -132,15 +132,21 @@ func MajorJump(current, target string) bool {
 }
 
 // owutInstallCmd detecta el gestor de paquetes del router e instala owut.
-// Solo apk (24.10+ snapshots recientes y 25.x) u opkg (24.10): en releases sin
-// paquete owut (23.05 y anteriores) el comando falla con el error del gestor.
-const owutInstallCmd = `if command -v apk >/dev/null 2>&1; then apk update && apk add owut; ` +
+// El reintento con el repo oficial de OpenWrt cubre los firmware de vendor
+// (p. ej. GL.iNet op25) cuyos mirrors propios no empaquetan owut: se usa la
+// versión del propio router (/etc/openwrt_release) y el arch de apk. En
+// releases sin paquete owut (23.05 y anteriores) el comando falla con el
+// error del gestor.
+const owutInstallCmd = `if command -v apk >/dev/null 2>&1; then ` +
+	`apk update >/dev/null 2>&1; ` +
+	`apk add owut || apk add --repository "https://downloads.openwrt.org/releases/$(. /etc/openwrt_release 2>/dev/null; echo ${DISTRIB_RELEASE%%-*})/packages/$(apk --print-arch)/packages/packages.adb" owut; ` +
 	`elif command -v opkg >/dev/null 2>&1; then opkg update && opkg install owut; ` +
 	`else printf '__no_pm__\n'; fi 2>&1; printf '\n__owut_exit__=%d\n' $?`
 
-// InstallOwut instala el paquete owut en el router con el gestor disponible.
-// Devuelve la salida del gestor; error si no hay gestor, falla la instalación
-// o falla el transporte SSH.
+// InstallOwut instala el paquete owut en el router con el gestor disponible
+// (con reintento vía repo oficial para firmware de vendor). Devuelve la
+// salida del gestor; error si no hay gestor, falla la instalación o falla el
+// transporte SSH.
 func InstallOwut(runner Runner, host string) (string, error) {
 	if runner == nil || host == "" {
 		return "", fmt.Errorf("firmware: runner o host vacío")
@@ -154,7 +160,11 @@ func InstallOwut(runner Runner, host string) (string, error) {
 		return raw, fmt.Errorf("firmware: el router no tiene apk ni opkg")
 	}
 	if exit != 0 {
-		return raw, fmt.Errorf("firmware: instalación de owut falló (exit %d)", exit)
+		tail := raw
+		if len(tail) > 300 {
+			tail = "..." + tail[len(tail)-300:]
+		}
+		return raw, fmt.Errorf("instalación de owut falló (exit %d): %s", exit, strings.TrimSpace(tail))
 	}
 	return raw, nil
 }
@@ -162,12 +172,33 @@ func InstallOwut(runner Runner, host string) (string, error) {
 // OwutUpgradeCmd construye el comando de upgrade desatendido. Con target
 // distinto de la versión actual añade -V TARGET (salto de versión); si son
 // iguales (o current desconocida) reconstruye la versión instalada con los
-// paquetes al día.
-func OwutUpgradeCmd(target, current string) string {
+// paquetes al día. removePkgs excluye paquetes locales que no están en los
+// feeds oficiales ( owut "-r"): sin ellos ASU se niega a construir la imagen.
+func OwutUpgradeCmd(target, current string, removePkgs []string) string {
+	cmd := "owut upgrade -q"
 	if target != "" && current != "" && target != current {
-		return "owut upgrade -q -V " + shQuote(target)
+		cmd += " -V " + shQuote(target)
 	}
-	return "owut upgrade -q"
+	if pkgs := sanitizeRemovePkgs(removePkgs); pkgs != "" {
+		cmd += " -r " + shQuote(pkgs)
+	}
+	return cmd
+}
+
+// pkgNameRe: nombre de paquete apk/opkg sano (defensa contra inyección en
+// el comando SSH; el shQuote ya protege, esto limita el abuso).
+var pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+-]*$`)
+
+// sanitizeRemovePkgs filtra y une la lista de exclusiones (máx 20).
+func sanitizeRemovePkgs(list []string) string {
+	var keep []string
+	for _, p := range list {
+		p = strings.TrimSpace(p)
+		if p != "" && pkgNameRe.MatchString(p) && len(keep) < 20 {
+			keep = append(keep, p)
+		}
+	}
+	return strings.Join(keep, " ")
 }
 
 // RunOwutUpgrade ejecuta el comando de upgrade con el wrapper de exit code y

@@ -114,20 +114,26 @@ func TestMajorJump(t *testing.T) {
 }
 
 func TestOwutUpgradeCmd(t *testing.T) {
-	if got := OwutUpgradeCmd("25.12.7", "25.12.5"); got != "owut upgrade -q -V '25.12.7'" {
+	if got := OwutUpgradeCmd("25.12.7", "25.12.5", nil); got != "owut upgrade -q -V '25.12.7'" {
 		t.Fatalf("salto de versión: %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.5", "25.12.5"); got != "owut upgrade -q" {
+	if got := OwutUpgradeCmd("25.12.5", "25.12.5", nil); got != "owut upgrade -q" {
 		t.Fatalf("misma versión (rebuild de paquetes): %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.7", ""); got != "owut upgrade -q" {
+	if got := OwutUpgradeCmd("25.12.7", "", nil); got != "owut upgrade -q" {
 		t.Fatalf("current desconocida: %q", got)
+	}
+	if got := OwutUpgradeCmd("25.12.5", "25.12.5", []string{"netgrip", ""}); got != "owut upgrade -q -r 'netgrip'" {
+		t.Fatalf("exclusión de paquete local: %q", got)
+	}
+	if got := OwutUpgradeCmd("25.12.5", "25.12.5", []string{"a;rm -rf /", "b"}); got != "owut upgrade -q -r 'b'" {
+		t.Fatalf("nombres hostiles se filtran: %q", got)
 	}
 }
 
 func TestRunOwutUpgradeParsesExit(t *testing.T) {
 	f := &fakeSSHRunner{out: "There are no changes to upgrade\n__owut_exit__=0\n"}
-	exit, out, err := RunOwutUpgrade(f, "h", OwutUpgradeCmd("25.12.5", "25.12.5"))
+	exit, out, err := RunOwutUpgrade(f, "h", OwutUpgradeCmd("25.12.5", "25.12.5", nil))
 	if err != nil || exit != 0 || !strings.Contains(out, "no changes") {
 		t.Fatalf("exit=%d err=%v out=%q", exit, err, out)
 	}

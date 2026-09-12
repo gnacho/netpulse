@@ -115,7 +115,8 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/owut-upgrade", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("routerId")
 		var body struct {
-			TargetVersion string `json:"targetVersion"`
+			TargetVersion string   `json:"targetVersion"`
+			RemovePkgs    []string `json:"removePackages"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			return
@@ -124,7 +125,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusBadRequest, "invalid_body", "targetVersion es requerido")
 			return
 		}
-		upgradeID, err := s.startOwutUpgrade(id, body.TargetVersion, "manual")
+		upgradeID, err := s.startOwutUpgrade(id, body.TargetVersion, "manual", body.RemovePkgs)
 		switch {
 		case errors.Is(err, firmware.ErrUpgradeInProgress):
 			writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
@@ -176,7 +177,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 // startOwutUpgrade crea la fila del upgrade y lanza la goroutine que lo
 // ejecuta por SSH. El POST responde 202 inmediatamente; el progreso se sigue
 // por GET /api/firmware-upgrades (item.upgrade).
-func (s *server) startOwutUpgrade(routerID, targetVersion, origin string) (int64, error) {
+func (s *server) startOwutUpgrade(routerID, targetVersion, origin string, removePkgs []string) (int64, error) {
 	host := s.hostOfRouter(routerID)
 	if host == "" {
 		return 0, errRouterNotFound
@@ -192,19 +193,19 @@ func (s *server) startOwutUpgrade(routerID, targetVersion, origin string) (int64
 		return 0, err
 	}
 	_ = s.firmware.SetEngine(id, "owut")
-	go s.runOwutUpgrade(id, routerID, host, targetVersion, origin)
+	go s.runOwutUpgrade(id, routerID, host, targetVersion, origin, removePkgs)
 	return id, nil
 }
 
 // runOwutUpgrade ejecuta `owut upgrade` y decide la transición. La muerte de
 // la sesión SSH tras >owutSSHMinRun es el final NORMAL del flash (el sysupgrade
 // reinicia el router); el resultado se confirma mirando el board info.
-func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string) {
+func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string, removePkgs []string) {
 	from := ""
 	if s.boardVersionFn != nil {
 		from = s.boardVersionFn(routerID)
 	}
-	cmd := firmware.OwutUpgradeCmd(target, from)
+	cmd := firmware.OwutUpgradeCmd(target, from, removePkgs)
 	_ = s.firmware.SetStatus(id, "running", "", "")
 	start := time.Now()
 	exit, out, err := firmware.RunOwutUpgrade(s.pool, host, cmd)
@@ -443,7 +444,7 @@ func (s *server) runRecurrenceShot(routerID string) {
 	firmware.SetRecurrenceLastRun(s.db.DB, routerID, time.Now().UnixMilli())
 	host := s.hostOfRouter(routerID)
 	if host != "" && s.pool != nil && s.owutInstalled(routerID, host) {
-		if _, err := s.startOwutUpgrade(routerID, target.TargetVersion, "scheduled"); err != nil {
+		if _, err := s.startOwutUpgrade(routerID, target.TargetVersion, "scheduled", nil); err != nil {
 			s.emitFirmwareResult(routerID, current, target.TargetVersion, "scheduled", false, err.Error())
 		}
 		return

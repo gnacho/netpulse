@@ -1756,7 +1756,10 @@
     "recNeedDate": "Pick a date and time for the one-shot schedule",
     "recScheduled": "Scheduled ({{kind}}): {{when}}",
     "recRemove": "Remove schedule",
-    "recIdempotentHint": "Every attempt reports its result (alert, push and Telegram when configured). If the router is already on the target version, nothing happens."
+    "recIdempotentHint": "Every attempt reports its result (alert, push and Telegram when configured). If the router is already on the target version, nothing happens.",
+    "excludePkgs": "Packages to exclude from the ASU image",
+    "excludePkgsHint": "Only needed when the check complains about packages outside the official repos (they are lost on upgrade; reinstall them afterwards).",
+    "owutNotBuildableHint": "Usually a package installed outside the official repos: check the output and exclude it when upgrading."
   },
   "orchestration": {
     "title": "Orchestration",
