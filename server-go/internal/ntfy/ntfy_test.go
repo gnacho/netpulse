@@ -221,6 +221,34 @@ func TestFormatMessageTruncatesOnRuneBoundary(t *testing.T) {
 	}
 }
 
+// B7: el test no publica si el canal está desactivado.
+func TestSendTestRequiresEnabled(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	kv := &fakeKV{m: map[string]string{
+		"ntfy.server":  srv.URL,
+		"ntfy.topic":   "x",
+		"ntfy.enabled": "false",
+	}}
+	if err := SendTest(kv); err == nil {
+		t.Fatalf("test debe fallar con el canal desactivado")
+	}
+	if calls != 0 {
+		t.Fatalf("no debe publicar desactivado: %d", calls)
+	}
+	kv.m["ntfy.enabled"] = "true"
+	if err := SendTest(kv); err != nil {
+		t.Fatalf("test con canal activo: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("debe publicar una vez activo: %d", calls)
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

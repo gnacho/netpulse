@@ -363,9 +363,13 @@ func MaskTopic(topic string) string {
 }
 
 // SendTest publica un mensaje de prueba contra la config guardada (botón de
-// la UI): es a la vez la validación del canal (ntfy no tiene getMe).
+// la UI): es a la vez la validación del canal (ntfy no tiene getMe). Exige el
+// canal activado, igual que el worker antes de enviar.
 func SendTest(kv kvStore) error {
 	cfg := LoadConfig(kv)
+	if !cfg.Enabled {
+		return fmt.Errorf("el canal ntfy está desactivado")
+	}
 	if cfg.Topic == "" {
 		return fmt.Errorf("topic es requerido")
 	}

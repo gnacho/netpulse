@@ -94,4 +94,24 @@ func TestNtfySettingsTestFailsVisibly(t *testing.T) {
 	}
 }
 
+// TestNtfySettingsTestRequiresEnabled: el endpoint de test no publica con el
+// canal desactivado (misma decisión que el worker).
+func TestNtfySettingsTestRequiresEnabled(t *testing.T) {
+	ts, _ := makeOwutTestServer(t, nil)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+	res := putJSONPath(t, ts.URL, "/api/settings/ntfy",
+		`{"enabled":false,"topic":"mi-topic"}`, cookie)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT desactivado: %d", res.StatusCode)
+	}
+	res = postJSON(t, ts.URL, "/api/settings/ntfy/test", "{}", cookie)
+	if res.StatusCode == 200 {
+		t.Fatalf("test con canal desactivado debe fallar")
+	}
+	body := readJSON(t, res)
+	if msg, _ := body["message"].(string); msg == "" {
+		t.Fatalf("el fallo debe llevar mensaje: %v", body)
+	}
+}
+
 var _ = httpapi.Version
