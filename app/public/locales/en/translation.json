@@ -226,6 +226,14 @@
       "wireguard-handshake": {
         "title": "WireGuard handshake",
         "description": "{{peer}} connected"
+      },
+      "firmware-upgrade-done": {
+        "title": "Firmware upgraded",
+        "description": "{{router}}: {{from}} → {{to}} (owut, {{origin}})"
+      },
+      "firmware-upgrade-failed": {
+        "title": "Firmware upgrade failed",
+        "description": "{{router}}: target {{to}} (owut, {{origin}}): {{detail}}"
       }
     }
   },
@@ -1708,7 +1716,9 @@
       "flashing": "Flashing",
       "done": "Done",
       "failed": "Failed",
-      "scheduled": "Scheduled"
+      "scheduled": "Scheduled",
+      "running": "running",
+      "rebooting": "rebooting"
     },
     "schedule": "Schedule",
     "scheduleAt": "Schedule for",
@@ -1722,7 +1732,31 @@
     "owutUpToDate": "No pending changes; no upgrade needed.",
     "owutNotBuildable": "The ASU server cannot build the image for this router right now.",
     "owutCheckFailed": "The check could not run (router unreachable or not responding).",
-    "owutOutput": "owut output"
+    "owutOutput": "owut output",
+    "check": "Check",
+    "installOwut": "Install owut",
+    "installingOwut": "Installing owut...",
+    "notDetected": "Not detected",
+    "installedTag": "installed",
+    "latestTag": "latest",
+    "majorWarn": "Major version jump ({{from}} → {{to}}): review the release notes before upgrading",
+    "advanced": "Advanced (URL and checksum)",
+    "owutConfirmTitle": "Upgrade with owut (ASU)",
+    "owutConfirmBody": "The ASU server will build a stock OpenWrt image and the router will install it. The session drops when it reboots.",
+    "owutConfirmPackages": "The ASU image keeps the packages you installed on the router",
+    "scheduleTitle": "Schedule upgrade",
+    "scheduleBody": "Date/time and recurrence. It only flashes when the installed version differs from the target.",
+    "rec_once": "Once",
+    "rec_weekly": "Weekly",
+    "rec_monthly": "Monthly",
+    "recDate": "Date and time",
+    "recDay": "Day of the week",
+    "recDayOfMonth": "Day of the month",
+    "recTime": "Time",
+    "recNeedDate": "Pick a date and time for the one-shot schedule",
+    "recScheduled": "Scheduled ({{kind}}): {{when}}",
+    "recRemove": "Remove schedule",
+    "recIdempotentHint": "Every attempt reports its result (alert, push and Telegram when configured). If the router is already on the target version, nothing happens."
   },
   "orchestration": {
     "title": "Orchestration",
