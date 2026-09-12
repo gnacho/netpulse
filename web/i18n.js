@@ -30,7 +30,7 @@ const I18N = {
   en: {
     nav: { features: 'Features', club: 'The club', install: 'Install', github: 'GitHub', star: 'Star', starAria: 'Star NetPulse on GitHub' },
     hero: {
-      eyebrow: 'Read-only home network monitoring',
+      eyebrow: 'Live monitoring for your OpenWrt home network',
       t1: 'Your network’s pulse.',
       t2: 'Real time. No cloud.',
       sub: 'NetPulse watches over OpenWrt routers, maps your topology, scores your network health and alerts you, all from a single self-hosted binary. Nothing leaves your LAN.',
@@ -96,7 +96,7 @@ const I18N = {
     agent: { title: 'netpulse-agent', uci: 'UCI config', procd: 'procd init', watchdog: 'watchdog', sse: 'SSE connection', events: 'iw events', rss: '12 MB RSS', pid: 'pid 987', install: 'opkg install', config: 'Configuring', enabled: 'Enabled · respawn', connected: 'Connected to server', running: 'Agent running' },
     features: {
       title: 'Everything a home NOC needs',
-      lead: 'Read-only by design: NetPulse can see your network, never change it.',
+      lead: 'Monitoring is read-only: it watches your network and does not touch it. Anything that writes (reservations, blocks, orchestration, firmware) is explicit and covered by rollback.',
       f1t: 'Live topology', f1p: 'Inferred from bridge FDB + LLDP. Wired and wireless clients, managed and inferred switches, hypervisors with nested containers.',
       f2t: 'Devices', f2p: 'Every client classified by hostname patterns + OUI, with band, signal, first-seen and the router it talks to.',
       f3t: 'WireGuard', f3p: 'Peers, last handshakes and per-peer transfer, with tunnels drawn on the map.',
@@ -125,10 +125,10 @@ const I18N = {
       p1: 'NetPulse is a personal project, built for my own network and published as free software (AGPL-3.0). It is and will always be free and community-driven. I work on it in my spare time: many ideas, little time, and it evolves following my own needs first.',
       p2: 'If you like the project, the best way to help it grow is a star on GitHub and sharing it with others.',
       p3: 'Honest scope note: so far it has only been tested on my own hardware, a GL.iNet Flint 2 gateway and three Xiaomi AX6 access points on OpenWrt, plus WireGuard and AdGuard Home. Other OpenWrt devices should work, but yours would be the first to tell me.',
-      p4: 'The agent installs as a native .ipk package on OpenWrt (opkg install netpulse-agent). It ships with procd init, UCI config, a watchdog, and iw event listeners so WiFi changes appear in <3 seconds. Runs on the router itself, ~12 MB RSS, strictly read-only.',
+      p4: 'The agent installs as a native .ipk package on OpenWrt (opkg install netpulse-agent). It ships with procd init, UCI config, a watchdog, and iw event listeners so WiFi changes appear in <3 seconds. Runs on the router itself, ~12 MB RSS.',
     },
     footer: {
-      tagline: 'Read-only monitoring for home networks, self-hosted and free forever.',
+      tagline: 'Live monitoring for home networks, self-hosted and free forever.',
       project: 'Project', releases: 'Releases', roadmap: 'Roadmap', license: 'License',
       community: 'Community', issues: 'Issues', discussions: 'Discussions', contribute: 'Contribute',
       support: 'Support', star: 'Star it on GitHub', rights: 'AGPL-3.0 · Built at home, for home networks.',
@@ -160,7 +160,7 @@ const I18N = {
   es: {
     nav: { features: 'Funciones', club: 'El club', install: 'Instalar', github: 'GitHub', star: 'Star', starAria: 'Dale una estrella a NetPulse en GitHub' },
     hero: {
-      eyebrow: 'Monitorización de solo lectura para tu red doméstica',
+      eyebrow: 'Monitorización en vivo para tu red doméstica OpenWrt',
       t1: 'El pulso de tu red.',
       t2: 'En tiempo real. Sin nube.',
       sub: 'NetPulse vigila tus routers OpenWrt, dibuja la topología, puntúa la salud de la red y te avisa, todo desde un único binario autoalojado. Nada sale de tu LAN.',
@@ -214,7 +214,7 @@ const I18N = {
     agent: { title: 'netpulse-agent', uci: 'config UCI', procd: 'init procd', watchdog: 'watchdog', sse: 'conexión SSE', events: 'eventos iw', rss: '12 MB RSS', pid: 'pid 987', install: 'opkg install', config: 'Configurando', enabled: 'Activado · respawn', connected: 'Conectado al servidor', running: 'Agente en marcha' },
     features: {
       title: 'Todo lo que necesita un NOC doméstico',
-      lead: 'Solo lectura por diseño: NetPulse puede ver tu red, nunca cambiarla.',
+      lead: 'El sondeo es de solo lectura: mira tu red y no la toca. Lo que escribe (reservas, bloqueos, orquestación, firmware) es siempre explícito y con rollback.',
       f1t: 'Topología en vivo', f1p: 'Inferida del FDB del bridge + LLDP. Clientes cableados e inalámbricos, switches gestionados e inferidos, hipervisores con contenedores anidados.',
       f2t: 'Dispositivos', f2p: 'Cada cliente clasificado por patrones de hostname + OUI, con banda, señal, primer visto y el router al que habla.',
       f3t: 'WireGuard', f3p: 'Peers, últimos handshakes y transferencia por peer, con túneles dibujados en el mapa.',
@@ -243,10 +243,10 @@ const I18N = {
       p1: 'NetPulse es un proyecto personal, construido para mi propia red y publicado como software libre (AGPL-3.0). Es y será siempre libre y comunitario. Trabajo en él en mi tiempo libre: muchas ideas, poco tiempo, y evoluciona siguiendo primero mis propias necesidades.',
       p2: 'Si el proyecto te gusta, la mejor forma de ayudarlo a crecer es una estrella en GitHub y compartirlo.',
       p3: 'Nota honesta de alcance: de momento solo se ha probado con mi propio hardware, un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi AX6 con OpenWrt, además de WireGuard y AdGuard Home. Otros dispositivos OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.',
-      p4: 'El agente se instala como paquete .ipk nativo en OpenWrt (opkg install netpulse-agent). Incluye init procd, config UCI, un watchdog y escucha de eventos iw para que los cambios WiFi aparezcan en <3 segundos. Corre en el propio router, ~12 MB RSS, estrictamente solo lectura.',
+      p4: 'El agente se instala como paquete .ipk nativo en OpenWrt (opkg install netpulse-agent). Incluye init procd, config UCI, un watchdog y escucha de eventos iw para que los cambios WiFi aparezcan en <3 segundos. Corre en el propio router, ~12 MB RSS.',
     },
     footer: {
-      tagline: 'Monitorización de solo lectura para redes domésticas, autoalojada y libre para siempre.',
+      tagline: 'Monitorización en vivo para redes domésticas, autoalojada y libre para siempre.',
       project: 'Proyecto', releases: 'Releases', roadmap: 'Roadmap', license: 'Licencia',
       community: 'Comunidad', issues: 'Issues', discussions: 'Discusiones', contribute: 'Contribuir',
       support: 'Apóyalo', star: 'Dale una estrella en GitHub', rights: 'AGPL-3.0 · Hecho en casa, para redes de casa.',
@@ -278,7 +278,7 @@ const I18N = {
   zh: {
     nav: { features: '功能', install: '安装', github: 'GitHub' },
     hero: {
-      eyebrow: '家庭网络的只读监控',
+      eyebrow: 'OpenWrt 家庭网络的实时监控',
       t1: '你网络的脉搏。',
       t2: '实时呈现，无云端。',
       sub: 'NetPulse 监视你的 OpenWrt 路由器，绘制拓扑，评估网络健康并提醒你--全部来自一个自托管的二进制文件。数据绝不离开你的局域网。',
@@ -328,7 +328,7 @@ const I18N = {
     alerts: { title: '提醒信息流', a1: 'AP-Estudio：温度 78 °C', a2: '新设备：tv-salon（有线）', a3: 'GW-Flint2 有可用固件', a4: 'WireGuard：peer "phone" 握手', ago: '前' },
     features: {
       title: '家庭 NOC 所需的一切',
-      lead: '设计上只读：NetPulse 能看到你的网络，但永远无法改变它。',
+      lead: '轮询是只读的:它观察你的网络,不做改动。任何写入操作(保留、封禁、编排、固件)都是显式的,并带回滚保护。',
       f1t: '实时拓扑', f1p: '从网桥 FDB + LLDP 推断。有线与无线客户端、托管与推断的交换机、带嵌套容器的虚拟化主机。',
       f2t: '设备', f2p: '每个客户端按主机名模式 + OUI 分类，附频段、信号、首次出现时间和所连路由器。',
       f3t: 'WireGuard', f3p: 'Peers、最近握手和按 peer 的传输量，隧道绘制在地图上。',
@@ -355,7 +355,7 @@ const I18N = {
       p3: '诚实的范围说明：目前只在作者自己的硬件上测试过--一台 GL.iNet Flint 2 网关和三台运行 OpenWrt 的小米 AX6 接入点--外加 WireGuard 和 AdGuard Home。其他 OpenWrt 设备应该能用，但你的会是第一个告诉我结果的。',
     },
     footer: {
-      tagline: '面向家庭网络的只读监控，自托管，永远自由。',
+      tagline: '面向家庭网络的实时监控,自托管,永远自由。',
       project: '项目', releases: '发行版', roadmap: '路线图', license: '许可证',
       community: '社区', issues: '议题', discussions: '讨论', contribute: '贡献',
       support: '支持', star: '在 GitHub 上加星', rights: 'AGPL-3.0 · 在家中打造，为家庭网络而生。',
@@ -368,7 +368,7 @@ const I18N = {
   ar: {
     nav: { features: 'المزايا', install: 'التثبيت', github: 'GitHub' },
     hero: {
-      eyebrow: 'مراقبة للشبكات المنزلية، قراءة فقط',
+      eyebrow: 'مراقبة مباشرة لشبكة منزلك على OpenWrt',
       t1: 'نبض شبكتك.',
       t2: 'في الوقت الحقيقي. بلا سحابة.',
       sub: 'يراقب NetPulse راوترات OpenWrt، ويرسم الخريطة الطبوغرافية، ويقيّم صحة شبكتك وينبّهك - كل ذلك من ملف ثنائي واحد تستضيفه بنفسك. لا شيء يغادر شبكتك المحلية.',
@@ -418,7 +418,7 @@ const I18N = {
     alerts: { title: 'سجل التنبيهات', a1: 'AP-Estudio: حرارة 78 °C', a2: 'جهاز جديد: tv-salon (سلكي)', a3: 'تحديث متاح على GW-Flint2', a4: 'WireGuard: مصافحة النظير "phone"', ago: 'منذ' },
     features: {
       title: 'كل ما يحتاجه مركز عمليات منزلي',
-      lead: 'قراءة فقط بالتصميم: NetPulse يرى شبكتك، لكنه لا يغيّرها أبدًا.',
+      lead: 'الاستعلام للقراءة فقط: يراقب شبكتك ولا يغيرها. كل ما يكتب (الحجوزات، الحظر، التنسيق، البرنامج الثابت) صريح دائمًا ومحمي بالتراجع.',
       f1t: 'طبوغرافية حية', f1p: 'مستنتجة من FDB الجسر + LLDP. عملاء سلكيون ولاسلكيون، مفاتيح مُدارة ومستنتجة، وخوادم افتراضية بحاويات متداخلة.',
       f2t: 'الأجهزة', f2p: 'كل عميل مصنف بأنماط اسم المضيف + OUI، مع النطاق والإشارة وأول ظهور والراوتر المرتبط به.',
       f3t: 'WireGuard', f3p: 'النظراء وآخر المصافحات وحجم النقل لكل نظير، مع أنفاق مرسومة على الخريطة.',
@@ -445,7 +445,7 @@ const I18N = {
       p3: 'ملاحظة صريحة عن النطاق: حتى الآن لم يُختبر إلا على عتادي - بوابة GL.iNet Flint 2 وثلاث نقاط وصول Xiaomi AX6 تعمل بـ OpenWrt - إضافة إلى WireGuard وAdGuard Home. أجهزة OpenWrt الأخرى ينبغي أن تعمل، لكن جهازك سيكون أول من يخبرني.',
     },
     footer: {
-      tagline: 'مراقبة قراءة فقط للشبكات المنزلية، استضافة ذاتية وحرة إلى الأبد.',
+      tagline: 'مراقبة مباشرة للشبكات المنزلية، مستضافة ذاتيًا وحرة إلى الأبد.',
       project: 'المشروع', releases: 'الإصدارات', roadmap: 'خارطة الطريق', license: 'الرخصة',
       community: 'المجتمع', issues: 'البلاغات', discussions: 'النقاشات', contribute: 'ساهم',
       support: 'ادعم', star: 'أضف نجمة على GitHub', rights: 'AGPL-3.0 · صُنع في البيت، لشبكات البيوت.',
@@ -458,7 +458,7 @@ const I18N = {
   hi: {
     nav: { features: 'फ़ीचर', install: 'इंस्टॉल', github: 'GitHub' },
     hero: {
-      eyebrow: 'घरेलू नेटवर्क की केवल-पढ़ने योग्य निगरानी',
+      eyebrow: 'आपके OpenWrt होम नेटवर्क के लिए लाइव मॉनिटरिंग',
       t1: 'आपके नेटवर्क की धड़कन।',
       t2: 'रियल टाइम। बिना क्लाउड।',
       sub: 'NetPulse आपके OpenWrt राउटरों पर नज़र रखता है, टोपोलॉजी बनाता है, नेटवर्क स्वास्थ्य का स्कोर देता है और आपको सूचित करता है - सब कुछ एक सेल्फ-होस्टेड बाइनरी से। कुछ भी आपके LAN से बाहर नहीं जाता।',
@@ -508,7 +508,7 @@ const I18N = {
     alerts: { title: 'अलर्ट फ़ीड', a1: 'AP-Estudio: तापमान 78 °C', a2: 'नया डिवाइस: tv-salon (वायर्ड)', a3: 'GW-Flint2 पर फ़र्मवेयर उपलब्ध', a4: 'WireGuard: peer "phone" हैंडशेक', ago: 'पहले' },
     features: {
       title: 'घरेलू NOC की हर ज़रूरत',
-      lead: 'डिज़ाइन से केवल-पढ़ने योग्य: NetPulse आपका नेटवर्क देख सकता है, बदल कभी नहीं।',
+      lead: 'पोलिंग केवल-पढ़ने के लिए है: यह आपके नेटवर्क को देखता है, बदलता नहीं। जो कुछ लिखता है (आरक्षण, ब्लॉकिंग, ऑर्केस्ट्रेशन, फ़र्मवेयर) हमेशा स्पष्ट है और रोलबैक से सुरक्षित है।',
       f1t: 'लाइव टोपोलॉजी', f1p: 'ब्रिज FDB + LLDP से अनुमानित। वायर्ड/वायरलेस क्लाइंट, मैनेज्ड और अनुमानित स्विच, नेस्टेड कंटेनर वाले हाइपरवाइज़र।',
       f2t: 'डिवाइस', f2p: 'हर क्लाइंट होस्टनेम पैटर्न + OUI से वर्गीकृत, बैंड, सिग्नल, पहली बार दिखने का समय और जुड़े राउटर के साथ।',
       f3t: 'WireGuard', f3p: 'Peers, आख़िरी हैंडशेक और प्रति-peer ट्रांसफ़र, नक्शे पर टनल के साथ।',
@@ -535,7 +535,7 @@ const I18N = {
       p3: 'ईमानदार गुंजाइश नोट: अब तक इसे सिर्फ़ मेरे हार्डवेयर पर परखा गया है - एक GL.iNet Flint 2 गेटवे और तीन OpenWrt वाले Xiaomi AX6 एक्सेस पॉइंट - साथ में WireGuard और AdGuard Home। दूसरे OpenWrt डिवाइस चलने चाहिए, पर आपका पहला होगा जो मुझे बताएगा।',
     },
     footer: {
-      tagline: 'घरेलू नेटवर्क के लिए केवल-पढ़ने योग्य निगरानी, सेल्फ-होस्टेड और हमेशा के लिए स्वतंत्र।',
+      tagline: 'होम नेटवर्क के लिए लाइव मॉनिटरिंग, सेल्फ-होस्टेड और हमेशा मुफ़्त।',
       project: 'प्रोजेक्ट', releases: 'रिलीज़', roadmap: 'रोडमैप', license: 'लाइसेंस',
       community: 'समुदाय', issues: 'इश्यू', discussions: 'चर्चाएँ', contribute: 'योगदान',
       support: 'समर्थन करें', star: 'GitHub पर स्टार दें', rights: 'AGPL-3.0 · घर पर बना, घर के नेटवर्क के लिए।',
@@ -548,7 +548,7 @@ const I18N = {
   pt: {
     nav: { features: 'Recursos', install: 'Instalar', github: 'GitHub' },
     hero: {
-      eyebrow: 'Monitoramento somente leitura para redes domésticas',
+      eyebrow: 'Monitorização em direto da tua rede doméstica OpenWrt',
       t1: 'O pulso da sua rede.',
       t2: 'Em tempo real. Sem nuvem.',
       sub: 'O NetPulse vigia seus roteadores OpenWrt, desenha a topologia, avalia a saúde da rede e avisa você - tudo a partir de um único binário auto-hospedado. Nada sai da sua LAN.',
@@ -598,7 +598,7 @@ const I18N = {
     alerts: { title: 'Feed de alertas', a1: 'AP-Estudio: temperatura 78 °C', a2: 'Novo dispositivo: tv-salon (cabo)', a3: 'Firmware disponível no GW-Flint2', a4: 'WireGuard: handshake do peer “phone”', ago: 'atrás' },
     features: {
       title: 'Tudo o que um NOC doméstico precisa',
-      lead: 'Somente leitura por design: o NetPulse vê sua rede, mas nunca a altera.',
+      lead: 'O inquérito é somente leitura: observa a tua rede sem a tocar. O que escreve (reservas, bloqueios, orquestração, firmware) é sempre explícito e coberto por reversão.',
       f1t: 'Topologia ao vivo', f1p: 'Inferida do FDB da bridge + LLDP. Clientes cabeados e sem fio, switches gerenciados e inferidos, hypervisors com containers aninhados.',
       f2t: 'Dispositivos', f2p: 'Cada cliente classificado por padrões de hostname + OUI, com banda, sinal, primeira aparição e o roteador ao qual fala.',
       f3t: 'WireGuard', f3p: 'Peers, últimos handshakes e transferência por peer, com túneis desenhados no mapa.',
@@ -625,7 +625,7 @@ const I18N = {
       p3: 'Nota honesta de escopo: até agora só foi testado no meu próprio hardware - um gateway GL.iNet Flint 2 e três pontos de acesso Xiaomi AX6 com OpenWrt - além de WireGuard e AdGuard Home. Outros dispositivos OpenWrt devem funcionar, mas o seu seria o primeiro a contar.',
     },
     footer: {
-      tagline: 'Monitoramento somente leitura para redes domésticas, auto-hospedado e livre para sempre.',
+      tagline: 'Monitorização em direto para redes domésticas, auto-hospedada e livre para sempre.',
       project: 'Projeto', releases: 'Releases', roadmap: 'Roadmap', license: 'Licença',
       community: 'Comunidade', issues: 'Issues', discussions: 'Discussões', contribute: 'Contribuir',
       support: 'Apoie', star: 'Dê uma estrela no GitHub', rights: 'AGPL-3.0 · Feito em casa, para redes de casa.',
@@ -638,7 +638,7 @@ const I18N = {
   fr: {
     nav: { features: 'Fonctions', install: 'Installer', github: 'GitHub' },
     hero: {
-      eyebrow: 'Supervision en lecture seule de votre réseau domestique',
+      eyebrow: 'Supervision en direct de votre réseau domestique OpenWrt',
       t1: 'Le pouls de votre réseau.',
       t2: 'En temps réel. Sans cloud.',
       sub: 'NetPulse surveille vos routeurs OpenWrt, dessine la topologie, note la santé du réseau et vous alerte - le tout depuis un seul binaire auto-hébergé. Rien ne quitte votre LAN.',
@@ -688,7 +688,7 @@ const I18N = {
     alerts: { title: 'Fil d’alertes', a1: 'AP-Estudio : température 78 °C', a2: 'Nouvel appareil : tv-salon (filaire)', a3: 'Firmware disponible sur GW-Flint2', a4: 'WireGuard : handshake du peer « phone »', ago: 'il y a' },
     features: {
       title: 'Tout ce qu’il faut à un NOC domestique',
-      lead: 'Lecture seule par conception : NetPulse voit votre réseau, sans jamais le modifier.',
+      lead: 'Le sondage est en lecture seule : il observe votre réseau sans y toucher. Ce qui écrit (réservations, blocages, orchestration, firmware) est toujours explicite et couvert par un retour arrière.',
       f1t: 'Topologie en direct', f1p: 'Inférée de la FDB du bridge + LLDP. Clients filaires et sans fil, switches gérés et inférés, hyperviseurs avec conteneurs imbriqués.',
       f2t: 'Appareils', f2p: 'Chaque client classé par motifs de hostname + OUI, avec bande, signal, première apparition et routeur associé.',
       f3t: 'WireGuard', f3p: 'Peers, derniers handshakes et transfert par peer, avec tunnels dessinés sur la carte.',
@@ -715,7 +715,7 @@ const I18N = {
       p3: 'Note honnête de périmètre : pour l’instant testé uniquement sur mon propre matériel - une gateway GL.iNet Flint 2 et trois points d’accès Xiaomi AX6 sous OpenWrt - plus WireGuard et AdGuard Home. D’autres appareils OpenWrt devraient fonctionner, mais le vôtre serait le premier à le dire.',
     },
     footer: {
-      tagline: 'Supervision en lecture seule des réseaux domestiques, auto-hébergée et libre pour toujours.',
+      tagline: 'Supervision en direct des réseaux domestiques, auto-hébergée et libre pour toujours.',
       project: 'Projet', releases: 'Releases', roadmap: 'Roadmap', license: 'Licence',
       community: 'Communauté', issues: 'Issues', discussions: 'Discussions', contribute: 'Contribuer',
       support: 'Soutenir', star: 'Mettez une étoile sur GitHub', rights: 'AGPL-3.0 · Fait maison, pour les réseaux maison.',
@@ -728,7 +728,7 @@ const I18N = {
   ja: {
     nav: { features: '機能', install: 'インストール', github: 'GitHub' },
     hero: {
-      eyebrow: '家庭内ネットワークの読み取り専用モニタリング',
+      eyebrow: 'OpenWrtホームネットワークのライブ監視',
       t1: 'あなたのネットワークの鼓動。',
       t2: 'リアルタイム。クラウドなし。',
       sub: 'NetPulse は OpenWrt ルーターを見守り、トポロジーを描き、ネットワークの健全性をスコア化して通知します - すべて単一のセルフホスト バイナリから。データはあなたの LAN から出ません。',
@@ -778,7 +778,7 @@ const I18N = {
     alerts: { title: 'アラートフィード', a1: 'AP-Estudio：温度 78 °C', a2: '新規デバイス：tv-salon（有線）', a3: 'GW-Flint2 にファームウェアあり', a4: 'WireGuard：peer「phone」ハンドシェイク', ago: '前' },
     features: {
       title: 'ホーム NOC に必要なすべて',
-      lead: '設計上読み取り専用：NetPulse はあなたのネットワークを見られますが、変更は決してしません。',
+      lead: 'ポーリングは読み取り専用です:ネットワークを見守り、変更しません。書き込みを伴う操作(予約、ブロック、オーケストレーション、ファームウェア)は常に明示的で、ロールバックで保護されます。',
       f1t: 'ライブトポロジー', f1p: 'ブリッジ FDB + LLDP から推論。有線・無線クライアント、管理・推論スイッチ、コンテナをネストしたハイパーバイザー。',
       f2t: 'デバイス', f2p: '各クライアントをホスト名パターン + OUI で分類。バンド、信号、初検出時刻、接続先ルーター付き。',
       f3t: 'WireGuard', f3p: 'peer、最終ハンドシェイク、peer ごとの転送量。トンネルはマップ上に描画。',
@@ -805,7 +805,7 @@ const I18N = {
       p3: '正直な範囲の注記：現時点でテスト済みなのは作者のハードウェアのみ - GL.iNet Flint 2 ゲートウェイ 1 台と OpenWrt の Xiaomi AX6 アクセスポイント 3 台 - に加え WireGuard と AdGuard Home。他の OpenWrt デバイスも動くはずですが、あなたのものが最初の報告になるでしょう。',
     },
     footer: {
-      tagline: '家庭内ネットワークの読み取り専用モニタリング。セルフホスト、ずっとフリー。',
+      tagline: 'ホームネットワークのライブ監視、セルフホストで永遠に無料。',
       project: 'プロジェクト', releases: 'リリース', roadmap: 'ロードマップ', license: 'ライセンス',
       community: 'コミュニティ', issues: 'Issues', discussions: '議論', contribute: '貢献',
       support: '応援する', star: 'GitHubでスターを付ける', rights: 'AGPL-3.0 · 家庭のネットワークのために、家庭で作られました。',
@@ -818,7 +818,7 @@ const I18N = {
   ru: {
     nav: { features: 'Возможности', install: 'Установка', github: 'GitHub' },
     hero: {
-      eyebrow: 'Мониторинг домашней сети в режиме только чтение',
+      eyebrow: 'Мониторинг вашей домашней сети OpenWrt в реальном времени',
       t1: 'Пульс вашей сети.',
       t2: 'В реальном времени. Без облака.',
       sub: 'NetPulse следит за роутерами OpenWrt, рисует топологию, оценивает здоровье сети и предупреждает вас - всё из одного self-hosted бинарника. Ничего не покидает вашу LAN.',
@@ -868,7 +868,7 @@ const I18N = {
     alerts: { title: 'Лента оповещений', a1: 'AP-Estudio: температура 78 °C', a2: 'Новое устройство: tv-salon (провод)', a3: 'Доступна прошивка на GW-Flint2', a4: 'WireGuard: рукопожатие peer «phone»', ago: 'назад' },
     features: {
       title: 'Всё, что нужно домашнему NOC',
-      lead: 'Только чтение по замыслу: NetPulse видит вашу сеть, но никогда её не меняет.',
+      lead: 'Опрос работает только на чтение: он наблюдает за сетью и ничего не меняет. Всё, что пишет (резервы, блокировки, оркестрация, прошивка), всегда явно и защищено откатом.',
       f1t: 'Живая топология', f1p: 'Выводится из FDB бриджа + LLDP. Проводные и беспроводные клиенты, управляемые и выведенные свитчи, гипервизоры с вложенными контейнерами.',
       f2t: 'Устройства', f2p: 'Каждый клиент классифицируется по паттернам hostname + OUI, с диапазоном, сигналом, первым появлением и роутером.',
       f3t: 'WireGuard', f3p: 'Пиры, последние рукопожатия и передача по пирам, с туннелями на карте.',
@@ -895,7 +895,7 @@ const I18N = {
       p3: 'Честная оговорка о границах: пока тестировалось только на моём железе - шлюз GL.iNet Flint 2 и три точки доступа Xiaomi AX6 на OpenWrt - плюс WireGuard и AdGuard Home. Другие устройства OpenWrt должны работать, но ваше станет первым, которое расскажет.',
     },
     footer: {
-      tagline: 'Мониторинг домашней сети в режиме только чтение: self-hosted и свободный навсегда.',
+      tagline: 'Мониторинг домашних сетей в реальном времени, самохостинг и навсегда бесплатно.',
       project: 'Проект', releases: 'Релизы', roadmap: 'Дорожная карта', license: 'Лицензия',
       community: 'Сообщество', issues: 'Issues', discussions: 'Обсуждения', contribute: 'Внести вклад',
       support: 'Поддержать', star: 'Поставьте звезду на GitHub', rights: 'AGPL-3.0 · Сделано дома, для домашних сетей.',
@@ -908,7 +908,7 @@ const I18N = {
   de: {
     nav: { features: 'Funktionen', install: 'Installieren', github: 'GitHub' },
     hero: {
-      eyebrow: 'Read-only-Monitoring für dein Heimnetz',
+      eyebrow: 'Live-Monitoring für dein OpenWrt-Heimnetz',
       t1: 'Der Puls deines Netzwerks.',
       t2: 'In Echtzeit. Ohne Cloud.',
       sub: 'NetPulse überwacht deine OpenWrt-Router, zeichnet die Topologie, bewertet die Netzwerkgesundheit und warnt dich - alles aus einer einzigen selbst gehosteten Binärdatei. Nichts verlässt dein LAN.',
@@ -958,7 +958,7 @@ const I18N = {
     alerts: { title: 'Alarm-Feed', a1: 'AP-Estudio: Temperatur 78 °C', a2: 'Neues Gerät: tv-salon (Kabel)', a3: 'Firmware verfügbar auf GW-Flint2', a4: 'WireGuard: Handshake von Peer „phone“', ago: 'vor' },
     features: {
       title: 'Alles, was ein Heim-NOC braucht',
-      lead: 'Read-only by Design: NetPulse sieht dein Netz, verändert es aber nie.',
+      lead: 'Das Polling ist read-only: Es beobachtet dein Netz und greift nicht ein. Alles Schreibende (Reservierungen, Sperren, Orchestrierung, Firmware) ist explizit und durch Rollback abgesichert.',
       f1t: 'Live-Topologie', f1p: 'Erschlossen aus Bridge-FDB + LLDP. Kabel- und WLAN-Clients, verwaltete und erschlossene Switches, Hypervisoren mit verschachtelten Containern.',
       f2t: 'Geräte', f2p: 'Jeder Client klassifiziert per Hostname-Muster + OUI, mit Band, Signal, Erstauftauchen und zugehörigem Router.',
       f3t: 'WireGuard', f3p: 'Peers, letzte Handshakes und Transfer pro Peer, mit Tunneln auf der Karte.',
@@ -985,7 +985,7 @@ const I18N = {
       p3: 'Ehrliche Anmerkung zum Umfang: Bisher nur auf meiner eigenen Hardware getestet - ein GL.iNet Flint 2 Gateway und drei Xiaomi AX6 Access Points mit OpenWrt - plus WireGuard und AdGuard Home. Andere OpenWrt-Geräte sollten funktionieren, aber deines wäre das erste, das es mir erzählt.',
     },
     footer: {
-      tagline: 'Read-only-Monitoring für Heimnetze, selbst gehostet und für immer frei.',
+      tagline: 'Live-Monitoring für Heimnetze, selbst gehostet und für immer frei.',
       project: 'Projekt', releases: 'Releases', roadmap: 'Roadmap', license: 'Lizenz',
       community: 'Community', issues: 'Issues', discussions: 'Diskussionen', contribute: 'Mitwirken',
       support: 'Unterstützen', star: 'Gib einen Stern auf GitHub', rights: 'AGPL-3.0 · Zuhause gebaut, für Heimnetze.',
@@ -1055,7 +1055,7 @@ const I18N_EXTRA = {
       q1: 'Is NetPulse paid?', a1: 'No. It is free software (AGPL-3.0), with no premium tier and no plans. If you want to support it, a star on GitHub helps.',
       q2: 'Which routers are supported?', a2: 'OpenWrt and GL.iNet. Developed and tested with a GL.iNet Flint 2 and three second-hand Xiaomi AX6.',
       q3: 'Does my data leave my network?', a3: 'No. It runs on a box inside your LAN, with no telemetry. The only outbound connection is optional: checking for updates.',
-      q4: 'Can NetPulse change anything on my routers?', a4: 'No. Polling is read-only by design: it reads, it never writes.',
+      q4: 'Can NetPulse change anything on my routers?', a4: 'Polling only reads. Actions that write (reserve an IP, block a device, orchestrate services, flash firmware) are explicit, admin-triggered, and covered by a snapshot with automatic rollback.',
       q5: 'How do I install it?', a5: 'One line (curl | sh) installs the binary as a systemd service. The agent is an .ipk package (opkg). Updates arrive via the built-in auto-updater or by re-running the installer.',
       q6: 'Can I try it without routers?', a6: 'Yes: the public demo is live, and DEMO_MODE=1 spins up a 67-device sample network on your own machine.',
     },
@@ -1077,7 +1077,7 @@ const I18N_EXTRA = {
       sub: 'A complete list of what the app monitors, and the reasoning behind the technical choices.',
       inventoryEyebrow: 'Feature inventory',
       inventoryTitle: 'From the network to the interface',
-      inventoryLead: 'NetPulse reads data from your routers and displays it in one screen. Everything is read-only: look, do not touch.',
+      inventoryLead: 'NetPulse reads data from your routers and shows it on one screen. Polling is read-only; anything that writes is explicit and covered by rollback.',
       statusAvailable: 'Available',
       statusPartial: 'Partial / in development',
       dashboardTitle: 'Health panel',
@@ -1165,8 +1165,8 @@ const I18N_EXTRA = {
       decOpenwrtP: 'NetPulse was born from a home network with four routers: a GL.iNet Flint 2 as gateway and three second-hand Xiaomi AX6. OpenWrt lets you flash, inspect and control the hardware. Without that there would be no way to read the FDB, iwinfo or iw events that feed the app.',
       decGoTitle: 'Why Go + embedded SQLite?',
       decGoP: 'A single static binary with CGO disabled. No C toolchain needed on the target, updates with an atomic swap, and users, sessions and time series stored in a local SQLite with WAL. modernc.org/sqlite makes it fully static.',
-      decReadonlyTitle: 'Why read-only?',
-      decReadonlyP: 'The server generates its own ed25519 key pair and you authorize the public key on each router. From there it only reads: ubus, /proc, iwinfo, bridge fdb, wg show. It cannot change your network, even accidentally. The only exception are voluntary orchestration actions, applied as explicit plans.',
+      decReadonlyTitle: 'Why is polling read-only?',
+      decReadonlyP: 'The server generates its own ed25519 key pair and you authorize the public key on each router. From there polling only reads: ubus, /proc, iwinfo, bridge fdb, wg show. Writing actions (reserve an IP, block a device, orchestrate services, flash firmware) are always explicit, admin-triggered, and applied with a snapshot and automatic rollback.',
       decSystemdTitle: 'Why systemd and not Docker?',
       decSystemdP: 'NetPulse monitors a network; it does not need a container to do it. A sandboxed systemd unit with simple service file, journald logs and automatic restart is lighter and easier to operate on a small LXC or VM.',
       decPwaTitle: 'Why PWA + SSE?',
@@ -1220,7 +1220,7 @@ const I18N_EXTRA = {
       q1: '¿NetPulse es de pago?', a1: 'No. Es software libre (AGPL-3.0), sin versión premium ni planes. Si quieres apoyarlo, una estrella en GitHub ayuda.',
       q2: '¿Qué routers soporta?', a2: 'OpenWrt y GL.iNet. Desarrollado y probado con un GL.iNet Flint 2 y tres Xiaomi AX6 de segunda mano.',
       q3: '¿Mis datos salen de mi red?', a3: 'No. Corre en una caja dentro de tu LAN, sin telemetría. La única conexión saliente es opcional: comprobar actualizaciones.',
-      q4: '¿Puede cambiar algo en mis routers?', a4: 'No. El sondeo es de solo lectura por diseño: lee, nunca escribe.',
+      q4: '¿Puede cambiar algo en mis routers?', a4: 'El sondeo solo lee. Las acciones que escriben (reservar una IP, bloquear un dispositivo, orquestar servicios, actualizar firmware) son explícitas, las lanzas tú y van con snapshot y rollback.',
       q5: '¿Cómo se instala?', a5: 'Una línea (curl | sh) instala el binario como servicio systemd. El agente es un paquete .ipk (opkg). Las actualizaciones llegan con el auto-updater integrado o re-ejecutando el instalador.',
       q6: '¿Puedo probarlo sin routers?', a6: 'Sí: la demo pública está en vivo, y DEMO_MODE=1 levanta una red de muestra de 67 dispositivos en tu propia máquina.',
     },
@@ -1242,7 +1242,7 @@ const I18N_EXTRA = {
       sub: 'Un listado completo de lo que la app monitoriza, y por qué se tomaron las decisiones técnicas que la hacen posible.',
       inventoryEyebrow: 'Inventario de funciones',
       inventoryTitle: 'De la red a la interfaz',
-      inventoryLead: 'NetPulse lee datos de tus routers y los muestra en una sola pantalla. Todo es solo lectura: ver, no tocar.',
+      inventoryLead: 'NetPulse lee datos de tus routers y los muestra en una sola pantalla. El sondeo es de solo lectura; lo que escribe es siempre explícito y con rollback.',
       statusAvailable: 'Disponible',
       statusPartial: 'Parcial / en desarrollo',
       dashboardTitle: 'Panel de salud',
@@ -1330,8 +1330,8 @@ const I18N_EXTRA = {
       decOpenwrtP: 'NetPulse nace de una red doméstica con cuatro routers: un GL.iNet Flint 2 como gateway y tres Xiaomi AX6 de segunda mano. OpenWrt permite flashear, inspeccionar y controlar el hardware. Sin eso no habría forma de leer el FDB, iwinfo o los eventos iw que alimentan la app.',
       decGoTitle: '¿Por qué Go + SQLite embebida?',
       decGoP: 'Un único binario estático con CGO desactivado. No necesita toolchain C en el destino, se actualiza con un swap atómico y guarda usuarios, sesiones y series temporales en un SQLite local con WAL. modernc.org/sqlite hace que sea totalmente estático.',
-      decReadonlyTitle: '¿Por qué solo lectura?',
-      decReadonlyP: 'El servidor genera su propio par ed25519 y tú autorizas la clave pública en cada router. Desde ahí solo lee: ubus, /proc, iwinfo, bridge fdb, wg show. No puede cambiar tu red, ni siquiera accidentalmente. La única excepción son las acciones voluntarias de orquestación, que se aplican como planes explícitos.',
+      decReadonlyTitle: '¿Por qué el sondeo es de solo lectura?',
+      decReadonlyP: 'El servidor genera su propio par ed25519 y tú autorizas la clave pública en cada router. Desde ahí el sondeo solo lee: ubus, /proc, iwinfo, bridge fdb, wg show. Las acciones que escriben (reservar una IP, bloquear un dispositivo, orquestar servicios, actualizar firmware) son siempre explícitas, las lanza un admin y se aplican con snapshot y rollback automático.',
       decSystemdTitle: '¿Por qué systemd y no Docker?',
       decSystemdP: 'NetPulse monitoriza una red; no necesita un contenedor para hacerlo. Un servicio systemd enjaulado con una unidad simple, logs en journald y reinicio automático es más ligero y más fácil de operar en un LXC o VM pequeña.',
       decPwaTitle: '¿Por qué PWA + SSE?',
@@ -1385,7 +1385,7 @@ const I18N_EXTRA = {
       q1: 'NetPulse 收费吗?', a1: '不。它是自由软件(AGPL-3.0),没有高级版,也没有付费计划。想支持的话,在 GitHub 上加星就是帮助。',
       q2: '支持哪些路由器?', a2: 'OpenWrt 和 GL.iNet。使用一台 GL.iNet Flint 2 和三台二手小米 AX6 开发测试。',
       q3: '我的数据会离开我的网络吗?', a3: '不会。它运行在你局域网内的一台设备上,没有遥测。唯一的外连是可选的更新检查。',
-      q4: 'NetPulse 能修改我的路由器吗?', a4: '不能。设计上就是只读轮询:只读,从不写。',
+      q4: 'NetPulse 能修改我的路由器吗?', a4: '轮询只读取。写入类操作(保留 IP、封禁设备、编排服务、刷写固件)都是显式的、由管理员触发,并带有快照和自动回滚。',
       q5: '如何安装?', a5: '一行命令(curl | sh)即可将二进制安装为 systemd 服务。代理是 .ipk 包(opkg)。更新通过内置自动更新器或重新运行安装脚本完成。',
       q6: '没有路由器能试用吗?', a6: '可以:公开演示在线运行,也可以用 DEMO_MODE=1 在自己机器上启动一个 67 台设备的示例网络。',
     },
@@ -1436,7 +1436,7 @@ const I18N_EXTRA = {
       q1: 'هل NetPulse مدفوع؟', a1: 'لا. إنه برمجيات حرة (AGPL-3.0)، بدون نسخة مدفوعة ولا خطط. إن أردت دعمه، فنجمة على GitHub تساعد.',
       q2: 'ما أجهزة الراوتر المدعومة؟', a2: 'OpenWrt وGL.iNet. طُوّر واختُبر مع GL.iNet Flint 2 وثلاثة Xiaomi AX6 مستعملة.',
       q3: 'هل تغادر بياناتي شبكتي؟', a3: 'لا. يعمل على جهاز داخل شبكتك المحلية، بلا قياس عن بُعد. الاتصال الصادر الوحيد اختياري: فحص التحديثات.',
-      q4: 'هل يمكن لـ NetPulse تغيير شيء في أجهزتي؟', a4: 'لا. الاستطلاع للقراءة فقط بالتصميم: يقرأ ولا يكتب أبدًا.',
+      q4: 'هل يمكن لـ NetPulse تغيير شيء في أجهزتي؟', a4: 'الاستعلام يقرأ فقط. الإجراءات الكتابية (حجز IP، حظر جهاز، تنسيق الخدمات، تحديث البرنامج الثابت) صريحة، يشعلها المشرف، ومغطاة بلقطة مع تراجع تلقائي.',
       q5: 'كيف أثبّته؟', a5: 'سطر واحد (curl | sh) يثبّت الثنائي كخدمة systemd. الوكيل حزمة .ipk ‏(opkg). وتصل التحديثات عبر المحدّث التلقائي المدمج أو بإعادة تشغيل المثبّت.',
       q6: 'هل أجرّبه بدون أجهزة راوتر؟', a6: 'نعم: العرض العام متاح مباشرة، وDEMO_MODE=1 يشغّل شبكة تجريبية من 67 جهازًا على جهازك.',
     },
@@ -1487,7 +1487,7 @@ const I18N_EXTRA = {
       q1: 'क्या NetPulse पेड है?', a1: 'नहीं। यह फ्री सॉफ्टवेयर है (AGPL-3.0), कोई प्रीमियम या प्लान नहीं। सहयोग देना चाहें तो GitHub पर स्टार देना मदद करता है।',
       q2: 'कौन से राउटर सपोर्टेड हैं?', a2: 'OpenWrt और GL.iNet। एक GL.iNet Flint 2 और तीन सेकंड-हैंड Xiaomi AX6 पर विकसित और परीक्षित।',
       q3: 'क्या मेरा डेटा मेरे नेटवर्क से बाहर जाता है?', a3: 'नहीं। यह आपके LAN के अंदर के डिवाइस पर चलता है, बिना telemetry। एकमात्र आउटबाउंड कनेक्शन वैकल्पिक है: अपडेट जांच।',
-      q4: 'क्या NetPulse मेरे राउटर में कुछ बदल सकता है?', a4: 'नहीं। पोलिंग डिज़ाइन से रीड-ओनली है: पढ़ता है, कभी लिखता नहीं।',
+      q4: 'क्या NetPulse मेरे राउटर में कुछ बदल सकता है?', a4: 'पोलिंग केवल पढ़ता है। लिखने वाली क्रियाएँ (IP आरक्षित करना, डिवाइस ब्लॉक करना, सेवाओं का ऑर्केस्ट्रेशन, फ़र्मवेयर फ़्लैश करना) स्पष्ट हैं, एडमिन द्वारा ट्रिगर की जाती हैं, और स्नैपशॉट के साथ स्वतः रोलबैक से ढकी हैं।',
       q5: 'इंस्टॉल कैसे करें?', a5: 'एक लाइन (curl | sh) बाइनरी को systemd सेवा के रूप में इंस्टॉल करती है। एजेंट .ipk पैकेज (opkg) है। अपडेट बिल्ट-इन ऑटो-अपडेटर से या इंस्टॉलर दोबारा चलाकर मिलते हैं।',
       q6: 'बिना राउटर के आज़मा सकता हूँ?', a6: 'हाँ: सार्वजनिक डेमो लाइव है, और DEMO_MODE=1 आपकी मशीन पर 67 डिवाइस का सैंपल नेटवर्क चलाता है।',
     },
@@ -1538,7 +1538,7 @@ const I18N_EXTRA = {
       q1: 'O NetPulse é pago?', a1: 'Não. É software livre (AGPL-3.0), sem versão premium nem planos. Se quer apoiá-lo, uma estrela no GitHub ajuda.',
       q2: 'Que routers são suportados?', a2: 'OpenWrt e GL.iNet. Desenvolvido e testado com um GL.iNet Flint 2 e três Xiaomi AX6 em segunda mão.',
       q3: 'Os meus dados saem da minha rede?', a3: 'Não. Corre numa máquina dentro da sua LAN, sem telemetria. A única ligação de saída é opcional: verificar atualizações.',
-      q4: 'O NetPulse pode alterar algo nos meus routers?', a4: 'Não. A sondagem é read-only por design: lê, nunca escreve.',
+      q4: 'O NetPulse pode alterar algo nos meus routers?', a4: 'O inquérito apenas lê. Ações que escrevem (reservar um IP, bloquear um dispositivo, orquestrar serviços, atualizar firmware) são explícitas, disparadas pelo admin e cobertas por snapshot com reversão automática.',
       q5: 'Como se instala?', a5: 'Uma linha (curl | sh) instala o binário como serviço systemd. O agente é um pacote .ipk (opkg). As atualizações chegam via auto-updater integrado ou reexecutando o instalador.',
       q6: 'Posso experimentar sem routers?', a6: 'Sim: a demo pública está no ar, e DEMO_MODE=1 levanta uma rede de exemplo com 67 dispositivos na sua máquina.',
     },
@@ -1589,7 +1589,7 @@ const I18N_EXTRA = {
       q1: 'NetPulse est-il payant ?', a1: 'Non. C’est un logiciel libre (AGPL-3.0), sans version premium ni abonnements. Pour le soutenir, une étoile sur GitHub aide.',
       q2: 'Quels routeurs sont supportés ?', a2: 'OpenWrt et GL.iNet. Développé et testé avec un GL.iNet Flint 2 et trois Xiaomi AX6 d’occasion.',
       q3: 'Mes données quittent-elles mon réseau ?', a3: 'Non. Il tourne sur une machine dans votre LAN, sans télémétrie. La seule connexion sortante est optionnelle : la vérification des mises à jour.',
-      q4: 'NetPulse peut-il modifier mes routeurs ?', a4: 'Non. Le sondage est en lecture seule par conception : il lit, il n’écrit jamais.',
+      q4: 'NetPulse peut-il modifier mes routeurs ?', a4: 'Le sondage ne fait que lire. Les actions qui écrivent (réserver une IP, bloquer un appareil, orchestrer des services, flasher un firmware) sont explicites, déclenchées par l’admin et couvertes par un instantané avec retour arrière automatique.',
       q5: 'Comment l’installer ?', a5: 'Une ligne (curl | sh) installe le binaire en service systemd. L’agent est un paquet .ipk (opkg). Les mises à jour arrivent via l’auto-updater intégré ou en relançant l’installateur.',
       q6: 'Puis-je l’essayer sans routeurs ?', a6: 'Oui : la démo publique est en ligne, et DEMO_MODE=1 lance un réseau d’exemple de 67 appareils sur votre machine.',
     },
@@ -1640,7 +1640,7 @@ const I18N_EXTRA = {
       q1: 'NetPulseは有料ですか?', a1: 'いいえ。自由ソフトウェア(AGPL-3.0)で、プレミアム版も有料プランもありません。応援したい場合はGitHubでのスターが助けになります。',
       q2: '対応ルーターは?', a2: 'OpenWrtとGL.iNet。GL.iNet Flint 2と中古のXiaomi AX6 3台で開発・テストされています。',
       q3: 'データはネットワークの外に出ますか?', a3: '出ません。LAN内のマシンで動作し、テレメトリーはありません。唯一の外向き通信はオプションの更新確認です。',
-      q4: 'ルーターの設定を変更できますか?', a4: 'できません。ポーリングは設計上読み取り専用です。読むだけで、書き込みはしません。',
+      q4: 'ルーターの設定を変更できますか?', a4: 'ポーリングは読み取り専用です。書き込みを伴う操作(IPの予約、機器のブロック、サービスのオーケストレーション、ファームウェアの書き込み)は明示的で、管理者がトリガーし、スナップショットと自動ロールバックで保護されます。',
       q5: 'インストール方法は?', a5: '1行(curl | sh)でバイナリがsystemdサービスとしてインストールされます。エージェントは.ipkパッケージ(opkg)。更新は内蔵の自動アップデーターかインストーラー再実行で。',
       q6: 'ルーターなしで試せますか?', a6: 'はい。公開デモが稼働中です。DEMO_MODE=1で67台のサンプルネットワークを自分のマシンで起動できます。',
     },
@@ -1691,7 +1691,7 @@ const I18N_EXTRA = {
       q1: 'NetPulse платный?', a1: 'Нет. Это свободное ПО (AGPL-3.0), без премиум-версии и платных планов. Хотите поддержать - звезда на GitHub поможет.',
       q2: 'Какие роутеры поддерживаются?', a2: 'OpenWrt и GL.iNet. Разработано и протестировано на GL.iNet Flint 2 и трёх б/у Xiaomi AX6.',
       q3: 'Мои данные покидают сеть?', a3: 'Нет. Всё работает на устройстве внутри вашей LAN, без телеметрии. Единственное исходящее соединение опционально: проверка обновлений.',
-      q4: 'Может ли NetPulse что-то менять на роутерах?', a4: 'Нет. Опрос строго read-only по дизайну: читает, но никогда не пишет.',
+      q4: 'Может ли NetPulse что-то менять на роутерах?', a4: 'Опрос только читает. Действия с записью (резерв IP, блокировка устройства, оркестрация сервисов, прошивка) явные, запускаются администратором и покрыты снапшотом с автоматическим откатом.',
       q5: 'Как установить?', a5: 'Одна строка (curl | sh) ставит бинарник как systemd-сервис. Агент - пакет .ipk (opkg). Обновления приходят через встроенный авто-апдейтер или повторный запуск установщика.',
       q6: 'Можно попробовать без роутеров?', a6: 'Да: публичное демо работает онлайн, а DEMO_MODE=1 поднимает пример сети из 67 устройств на вашей машине.',
     },
@@ -1742,7 +1742,7 @@ const I18N_EXTRA = {
       q1: 'Ist NetPulse kostenpflichtig?', a1: 'Nein. Es ist freie Software (AGPL-3.0), ohne Premium-Version und ohne Pläne. Wenn du es unterstützen willst, hilft ein Stern auf GitHub.',
       q2: 'Welche Router werden unterstützt?', a2: 'OpenWrt und GL.iNet. Entwickelt und getestet mit einem GL.iNet Flint 2 und drei gebrauchten Xiaomi AX6.',
       q3: 'Verlassen meine Daten mein Netz?', a3: 'Nein. Es läuft auf einer Maschine in deinem LAN, ohne Telemetrie. Die einzige ausgehende Verbindung ist optional: die Update-Prüfung.',
-      q4: 'Kann NetPulse etwas an meinen Routern ändern?', a4: 'Nein. Die Abfrage ist by design read-only: Sie liest, sie schreibt nie.',
+      q4: 'Kann NetPulse etwas an meinen Routern ändern?', a4: 'Das Polling liest nur. Schreibende Aktionen (IP reservieren, Gerät sperren, Dienste orchestrieren, Firmware flashen) sind explizit, vom Admin ausgelöst und durch Snapshot mit automatischem Rollback abgesichert.',
       q5: 'Wie installiere ich es?', a5: 'Eine Zeile (curl | sh) installiert die Binärdatei als systemd-Dienst. Der Agent ist ein .ipk-Paket (opkg). Updates kommen über den eingebauten Auto-Updater oder durch erneutes Ausführen des Installers.',
       q6: 'Kann ich es ohne Router testen?', a6: 'Ja: Die öffentliche Demo läuft live, und DEMO_MODE=1 startet ein 67-Geräte-Beispielnetz auf deiner Maschine.',
     },

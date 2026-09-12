@@ -9,6 +9,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- **Fuera las afirmaciones de "solo lectura" aplicadas al producto entero (#751)**: ya no son ciertas (reservas DHCP, bloqueo de dispositivos, orquestación, actualizaciones de firmware escriben en los routers). README, web (metas, JSON-LD, hero, FAQ, tour de funciones, footer, 10 idiomas) y manuales pasan a decir la verdad con el matiz correcto: el sondeo es de solo lectura; lo que escribe es siempre explícito, lo lanza un admin y va con snapshot y rollback. La alerta "firmware disponible" también mentía ("NetPulse es de solo lectura: usa LuCI") y ahora señala a Actualizaciones de firmware.
+- **Terminología de firmware unificada en inglés (#752)**: el menú lateral y el toggle de Laboratorio decían "Updates" mientras la página decía "Firmware upgrades"; todo el UI en inglés usa ahora "Firmware upgrades".
+
+### Fixed
+
 - **"Comprobar actualizaciones" ya no dice que estás en la última versión cuando no pudo comprobar (#743)**: si el fetch a GitHub fallaba (límite de la API anónima, red, timeout), el botón devolvía el estado del último check exitoso -posiblemente de hace 24 h- sin ninguna señal, y la UI lo pintaba como "estás en la última versión". El reportero lo clavó: una release publicada dos horas antes no aparecía. Ahora el estado lleva `checkFailed` con el motivo (límite de GitHub sin token, sin conexión) y la UI muestra "No se pudo comprobar ahora (motivo); inténtalo de nuevo en unos minutos" en lugar de un falso todo-ok.
 
 ### Fixed

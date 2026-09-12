@@ -58,9 +58,12 @@ about the whole thing, so I built it and use it every morning.
 
 Three rules shape everything it does:
 
-- **Read-only by design.** The server generates its own SSH key; you authorize
-  the public key on each router and NetPulse only ever *reads* (ubus, `/proc`,
-  iwinfo, `bridge fdb`, `wg show`). It cannot change your network.
+- **Monitoring never writes.** The server generates its own SSH key; you
+  authorize the public key on each router and NetPulse only ever *reads*
+  (ubus, `/proc`, iwinfo, `bridge fdb`, `wg show`). Anything that writes
+  (reserving an IP, blocking a device, orchestrating services, flashing
+  firmware) is an explicit, admin-triggered action, applied with a config
+  snapshot and automatic rollback.
 - **No cloud, no accounts, no telemetry.** One static Go binary with the web
   app embedded, running on a small box inside your LAN. SQLite for the time
   series, WAL mode, no external services.

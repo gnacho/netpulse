@@ -1,6 +1,6 @@
 # NetPulse user manual
 
-NetPulse is a read-only PWA (progressive web app) for monitoring a home network built on OpenWrt/GL.iNet routers: fleet status, per-router health, connected clients, a live topology map, WiFi roaming status, alerts and, in experimental mode, a few write actions (change a WiFi channel, flash firmware, orchestrate services). It runs as a single self-contained Go binary with the frontend embedded, served from a small Linux box.
+NetPulse is a PWA (progressive web app) for monitoring a home network built on OpenWrt/GL.iNet routers: fleet status, per-router health, connected clients, a live topology map, WiFi roaming status and alerts. Polling is read-only; actions that write (reserve an IP, block a device, change a WiFi channel, flash firmware, orchestrate services) are explicit, admin-triggered, and covered by a snapshot with rollback. It runs as a single self-contained Go binary with the frontend embedded, served from a small Linux box.
 
 This manual walks through every area of the application: what each screen shows, where its data comes from (read-only SSH polling, agents, usteer, NetGrip, etc.), how to read each number or color, the design decisions worth understanding and step-by-step procedures for the common tasks. At the end there is a section clarifying what lives in NetPulse and what still lives in the router's own panel (LuCI or NetGrip).
 
@@ -95,7 +95,7 @@ The Overview aggregates everything the server has already collected: health is c
 
 ### What data it needs
 
-Routers are onboarded under **Settings > Devices** (see the onboarding procedure below). The server polls them over read-only SSH (ubus, `/proc`, iwinfo) every 5 seconds; routers with an agent also push data every 15 seconds. A router with no agent and no accessible SSH does not report CPU/RAM/temperature.
+Routers are onboarded under **Settings > Devices** (see the onboarding procedure below). The server polls them over read-only SSH (ubus, `/proc`, iwinfo) every 30 seconds (configurable); routers with an agent also push data every 15 seconds. A router with no agent and no accessible SSH does not report CPU/RAM/temperature.
 
 ### How to read it
 
@@ -106,7 +106,7 @@ Routers are onboarded under **Settings > Devices** (see the onboarding procedure
 
 ### Design decisions
 
-- **Polling is read-only.** The server generates its own ed25519 keypair; you authorize its public key on each router and it only ever reads. It cannot change your network.
+- **Polling is read-only.** The server generates its own ed25519 keypair; you authorize its public key on each router and it only ever reads. Polling cannot change your network; writes (reservations, blocks, orchestration, firmware) are explicit actions with a snapshot and rollback.
 - **Installing the agent is optional but recommended.** Without an agent on the gateway, the client list stays empty until you install it, because client discovery (DHCP, bridge FDB, mDNS) is done by the agent of the router that sees those clients.
 - **The gateway is auto-detected** on first boot via LAN discovery (TCP :22 sweep and ubus/GL-UI fingerprint); the rest are added manually.
 - Some routers have an agent that lives inside the **NetGrip panel** (runs on the router's port 8080): in that case "Update" upgrades the panel itself, not a binary.
@@ -196,7 +196,7 @@ Clients are discovered from three sources running on the monitored routers: (1) 
 ### Design decisions
 
 - The default view orders online clients first (by traffic) and leaves the offline ones at the end.
-- NetPulse is read-only by design, with opt-in exceptions for admins: a client's edit sheet lets you **reserve its IP** (static DHCP lease on the gateway) and **block/unblock its access** (firewall rule on the router it is attached to). Those are the only device writes; everything else about the router is configured in its own panel.
+- NetPulse polls read-only and writes are opt-in for the administrator: a client's edit sheet lets you **reserve its IP** (static DHCP lease on the gateway) and **block/unblock its access** (firewall rule on the router it is attached to). Those are the only device writes; everything else about the router is configured in its own panel.
 - It also lets you **mark a MAC as trusted** in Settings (so it stops alerting as "unknown") and **rename / change the icon** of a client.
 
 ### Procedure: rename or change a client's icon
@@ -553,7 +553,7 @@ This is the largest screen. Main sections:
 
 ## What lives in NetPulse vs the router panel
 
-NetPulse was born as a **read-only viewer**: its server generates its own ed25519 keypair, you authorize its public key on each router and it only ever reads (ubus, `/proc`, iwinfo, `bridge fdb`, `wg show`). That means there are areas that are **not NetPulse pages** and are configured in the router's own panel:
+NetPulse polling is **read-only**: its server generates its own ed25519 keypair, you authorize its public key on each router and it only ever reads (ubus, `/proc`, iwinfo, `bridge fdb`, `wg show`). Actions that write are explicit and covered by rollback. Even so, there are areas that are **not NetPulse pages** and are configured in the router's own panel:
 
 - **WireGuard**: NetPulse reads peers, handshakes and transfer (in the gateway detail and in Topology), but **creating or editing tunnels is done in the router's panel** (LuCI on OpenWrt, or the NetGrip/GL.iNet panel on port 8080).
 - **AdGuard Home**: NetPulse shows query stats and blocked domains, but **AdGuard configuration** (lists, rules, upstream DNS) is done in the router's AdGuard Home panel.

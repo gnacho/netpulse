@@ -1,6 +1,6 @@
 # Manual de uso de NetPulse
 
-NetPulse es una PWA (aplicación web progresiva) de solo lectura para monitorizar una red doméstica montada sobre routers OpenWrt/GL.iNet: estado de la flota, salud por router, clientes conectados, un mapa de topología en vivo, estado de itinerancia WiFi, alertas y, en modo experimental, algunas acciones de escritura (cambiar canal WiFi, actualizar firmware y orquestar servicios). Corre como un único binario Go autocontenido, con el frontend embebido, y se sirve desde una máquina Linux pequeña.
+NetPulse es una PWA (aplicación web progresiva) para monitorizar una red doméstica montada sobre routers OpenWrt/GL.iNet: estado de la flota, salud por router, clientes conectados, un mapa de topología en vivo, estado de itinerancia WiFi y alertas. El sondeo es de solo lectura; las acciones que escriben (reservar una IP, bloquear un dispositivo, cambiar de canal WiFi, actualizar firmware y orquestar servicios) son explícitas, las lanza un admin y van con snapshot y rollback. Corre como un único binario Go autocontenido, con el frontend embebido, y se sirve desde una máquina Linux pequeña.
 
 Este manual recorre todas las áreas de la aplicación: qué muestra cada pantalla, de dónde salen los datos (sondeo SSH de solo lectura, agentes, usteer, NetGrip, etc.), cómo leer cada número o color, las decisiones de diseño que conviene entender y los procedimientos paso a paso de las tareas habituales. Al final hay una sección que aclara qué vive en NetPulse y qué sigue viviendo en el panel del router (LuCI o NetGrip).
 
@@ -95,7 +95,7 @@ El Resumen es un agregado de todo lo que el servidor ya ha recogido: la salud se
 
 ### Qué datos necesita
 
-Los routers se dan de alta en **Ajustes > Dispositivos** (ver el procedimiento de alta más abajo). El servidor los sondea por SSH en solo lectura (ubus, `/proc`, iwinfo) cada 5 segundos; los routers con agente empujan además datos cada 15 segundos. Un router sin agente y sin SSH accesible no aporta métricas de CPU/RAM/temperatura.
+Los routers se dan de alta en **Ajustes > Dispositivos** (ver el procedimiento de alta más abajo). El servidor los sondea por SSH en solo lectura (ubus, `/proc`, iwinfo) cada 30 segundos (configurable); los routers con agente empujan además datos cada 15 segundos. Un router sin agente y sin SSH accesible no aporta métricas de CPU/RAM/temperatura.
 
 ### Cómo leerlo
 
@@ -106,7 +106,7 @@ Los routers se dan de alta en **Ajustes > Dispositivos** (ver el procedimiento d
 
 ### Decisiones de diseño
 
-- **El sondeo es de solo lectura.** El servidor genera su propia clave ed25519; tú autorizas su clave pública en cada router y este solo lee. No puede cambiar tu red.
+- **El sondeo es de solo lectura.** El servidor genera su propia clave ed25519; tú autorizas su clave pública en cada router y este solo lee. El sondeo no puede cambiar tu red; las escrituras (reservas, bloqueos, orquestación, firmware) son acciones explícitas con snapshot y rollback.
 - **Instalar el agente es opcional pero recomendado.** Sin agente en el gateway, la lista de clientes estará vacía hasta que lo instales, porque el descubrimiento de clientes (DHCP, bridge FDB, mDNS) lo hace el agente del router que "ve" a esos clientes.
 - **El gateway se auto-detecta** en el primer arranque por descubrimiento de red (barrido TCP :22 y huella ubus/GL-UI); el resto se añaden a mano.
 - Hay routers cuyo agente vive dentro del **panel NetGrip** (corre en el puerto 8080 del router): en ese caso "Actualizar" actualiza el propio panel, no un binario.
@@ -196,7 +196,7 @@ Los clientes se descubren desde tres fuentes que corren en los routers monitoriz
 ### Decisiones de diseño
 
 - La vista por defecto ordena online primero (por tráfico) y deja los offline al final.
-- NetPulse es de solo lectura por diseño, con excepciones opt-in para administradores: la ficha de un cliente permite **reservar su IP** (lease estático en el DHCP del gateway) y **bloquear/desbloquear su acceso** (regla de firewall en el router al que está conectado). Son las únicas escrituras sobre el dispositivo; el resto de la configuración del router se hace en su panel.
+- El sondeo de NetPulse es de solo lectura y las escrituras son opt-in del administrador: la ficha de un cliente permite **reservar su IP** (lease estático en el DHCP del gateway) y **bloquear/desbloquear su acceso** (regla de firewall en el router al que está conectado). Son las únicas escrituras sobre el dispositivo; el resto de la configuración del router se hace en su panel.
 - También permite **marcar un MAC como de confianza** en Ajustes para que deje de avisar como "desconocido" y **renombrar/recambiar el icono** de un cliente.
 
 ### Procedimiento: renombrar o cambiar el icono de un cliente
@@ -553,7 +553,7 @@ Es la pantalla más grande. Secciones principales:
 
 ## Qué vive en NetPulse y qué vive en el panel del router
 
-NetPulse nace como **visor de solo lectura**: su servidor genera su propia clave ed25519, autorizas su clave pública en cada router y este solo lee (ubus, `/proc`, iwinfo, `bridge fdb`, `wg show`). Eso significa que hay áreas que **no son páginas de NetPulse** y se configuran en el panel propio del router:
+El sondeo de NetPulse es **de solo lectura**: su servidor genera su propia clave ed25519, autorizas su clave pública en cada router y este solo lee (ubus, `/proc`, iwinfo, `bridge fdb`, `wg show`). Las acciones que escriben son explícitas y con rollback. Aun así, hay áreas que **no son páginas de NetPulse** y se configuran en el panel propio del router:
 
 - **WireGuard**: NetPulse lee los peers, handshakes y transferencias (en el detalle del gateway y en Topología), pero **crear o editar túneles se hace en el panel del router** (LuCI en OpenWrt, o el panel NetGrip/GL.iNet en el puerto 8080).
 - **AdGuard Home**: NetPulse muestra estadísticas de consultas y dominios bloqueados, pero **la configuración de AdGuard** (listas, reglas, DNS upstream) se hace en el panel de AdGuard Home del router.

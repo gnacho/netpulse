@@ -59,9 +59,12 @@ verdad sobre el conjunto, así que la construí y la uso cada mañana.
 
 Tres reglas dan forma a todo lo que hace:
 
-- **Solo lectura por diseño.** El servidor genera su propio par de claves
+- **El sondeo nunca escribe.** El servidor genera su propio par de claves
   SSH; autorizas la pública en cada router y NetPulse solo *lee* (ubus,
-  `/proc`, iwinfo, `bridge fdb`, `wg show`). No puede cambiar tu red.
+  `/proc`, iwinfo, `bridge fdb`, `wg show`). Todo lo que escribe (reservar
+  una IP, bloquear un dispositivo, orquestar servicios, actualizar
+  firmware) es una acción explícita que lanzas tú, con snapshot de
+  configuración y rollback automático.
 - **Sin nube, sin cuentas, sin telemetría.** Un único binario Go estático con
   la web embebida, corriendo en una caja pequeña dentro de tu LAN. SQLite
   para las series temporales, modo WAL, sin servicios externos.
