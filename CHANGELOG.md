@@ -5,6 +5,13 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+
+- **Flujo completo de actualizaciones de firmware con owut/ASU (#761)**: la pantalla de actualizaciones se rediseña en torno al attended sysupgrade. Modelo y versión actuales pasan a solo lectura con lo detectado del board info; la versión objetivo es un desplegable con las versiones estables que ASU puede construir para el router (aviso inline en saltos de rama mayor); URL y checksum quedan como vía avanzada. owut se puede instalar desde la UI, "Comprobar" pasa a la fila de acciones junto a Guardar / Actualizar ahora / Programar, y Actualizar ahora lanza el upgrade desatendido (conserva los paquetes instalados) con confirmación clara: el estado sigue la secuencia construcción → descarga → reinicio, con vista de proceso (fase, barra de progreso y consola) y vista de éxito al terminar. Programación con recurrencia una vez / semanal (empezando en lunes) / mensual, idempotente (un router al día no hace nada) y con aviso del resultado por alerta (feed, push, webhook, Telegram). Los routers con firmware de fabricante (GL.iNet, detectado por sus repositorios) quedan fuera del flujo con un panel informativo: sus actualizaciones las gestiona el fabricante. Los paquetes del propio stack (netgrip, agente) sobreviven al flasheo: NetPulse asegura sus ficheros en /etc/sysupgrade.conf antes de actualizar, y los paquetes locales sin feed se detectan en el check y se ofrecen para excluir con sus nombres.
+- **Auto-actualización programada del servidor (#759)**: nueva programación en Ajustes → Administración con modo desactivado (por defecto) / diaria / semanal / mensual y hora. El disparo comprueba novedades y aplica solo el binario cuando el readiness lo permite (nunca en modo demo ni con el check fallido), con la verificación de salud y el rollback automático del helper root; el reloj deriva del último disparo persistido, así que reinicios y la propia actualización no re disparan la ventana. Cada intento (aplicada, sin novedades, comprobación fallida, no aplicable) queda en Ajustes y avisa por alerta.
+
 ## [2.28.24] - 2026-09-12
 
 ### Added

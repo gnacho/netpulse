@@ -100,3 +100,40 @@ func (s *server) registerUpdateRoutes(mux *http.ServeMux, u *updater.Updater) {
 		w.WriteHeader(http.StatusNoContent)
 	})))
 }
+
+// registerAutoUpdateSettings (#759): ajustes del auto-update programado.
+// Funcionan aunque el updater no esté montado (el loop simplemente no corre).
+func (s *server) registerAutoUpdateSettings(mux *http.ServeMux) {
+	mux.Handle("GET /api/settings/autoupdate", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		st := updater.LoadAutoUpdateSettings(s.db.DB)
+		lastRun, lastResult := updater.AutoRunState(s.db.DB)
+		out := map[string]any{
+			"settings":   st,
+			"lastRunMs":  lastRun,
+			"lastResult": lastResult,
+		}
+		if st.Enabled {
+			next := updater.NextAutoUpdateAt(st, lastRun, time.Now())
+			if !next.IsZero() {
+				out["nextRunMs"] = next.UnixMilli()
+			}
+		}
+		writeJSON(w, http.StatusOK, out)
+	})))
+
+	mux.Handle("PUT /api/settings/autoupdate", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body updater.AutoUpdateSettings
+		if st := readJSONBody(w, r, &body); st != 0 {
+			return
+		}
+		if body.Kind == "" {
+			writeError(w, http.StatusBadRequest, "invalid_body", "kind es requerido")
+			return
+		}
+		if err := updater.SaveAutoUpdateSettings(s.db.DB, body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})))
+}

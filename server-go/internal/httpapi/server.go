@@ -466,6 +466,10 @@ func NewHandler(d Deps) http.Handler {
 	if d.Updater != nil {
 		s.registerUpdateRoutes(mux, d.Updater)
 	}
+	// Auto-update programado (#759): ajustes siempre disponibles en live.
+	if s.db != nil {
+		s.registerAutoUpdateSettings(mux)
+	}
 
 	// --- Orquestación (Fase 10; solo admin) ---
 	s.registerOrchestrRoutes(mux, d.Orchestr)
