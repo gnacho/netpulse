@@ -3,9 +3,16 @@
 package ntfy
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
+	"syscall"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -135,6 +142,153 @@ func TestFormatMessage(t *testing.T) {
 	if msg == "" || !contains(msg, "Firmware actualizado") || !contains(msg, "gateway") {
 		t.Fatalf("formato: %q", msg)
 	}
+}
+
+// B1: el topic (secreto del canal) nunca se registra en claro.
+func TestMaskTopic(t *testing.T) {
+	got := MaskTopic("top-secreto-123")
+	if contains(got, "top-secreto-123") || !contains(got, "***") {
+		t.Fatalf("el topic debe quedar enmascarado: %q", got)
+	}
+	if got := MaskTopic(""); got != "" {
+		t.Fatalf("topic vacío: %q", got)
+	}
+}
+
+// B2: el error de red no debe filtrar el topic (URL saneada).
+func TestPublishErrorRedactsTopic(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	base := srv.URL
+	srv.Close()
+	n := &Notifier{client: &http.Client{Timeout: 2 * time.Second}, done: make(chan struct{})}
+	err := n.publish(Config{Server: base, Topic: "top-secreto-abc"}, "t", "b", "default")
+	if err == nil {
+		t.Fatalf("esperaba error con el server cerrado")
+	}
+	if contains(err.Error(), "top-secreto-abc") {
+		t.Fatalf("el topic no debe aparecer en el error: %q", err.Error())
+	}
+	if !contains(err.Error(), "***") {
+		t.Fatalf("esperaba el topic enmascarado: %q", err.Error())
+	}
+}
+
+// B3: solo se reintenta 5xx, 429 y errores de red transitorios.
+func TestIsRetryable(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"status 500", errors.New("status 500: boom"), true},
+		{"status 503", errors.New("status 503: boom"), true},
+		{"status 429", errors.New("status 429: slow down"), true},
+		{"status 400", errors.New("status 400: bad"), false},
+		{"status 401", errors.New("status 401: bad"), false},
+		{"status 403", errors.New("status 403: bad"), false},
+		{"status 404", errors.New("status 404: bad"), false},
+		{"url inválida", &url.Error{Op: "parse", URL: "http://x/y", Err: errors.New("invalid")}, false},
+		{"contexto cancelado", &url.Error{Op: "Post", URL: "http://x/y", Err: context.Canceled}, false},
+		{"timeout", &url.Error{Op: "Post", URL: "http://x/y", Err: context.DeadlineExceeded}, true},
+		{"conexión rechazada", &url.Error{Op: "Post", URL: "http://x/y", Err: syscall.ECONNREFUSED}, true},
+	}
+	for _, tc := range cases {
+		if got := isRetryable(tc.err); got != tc.want {
+			t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// B4: el truncado no debe partir runas multibyte.
+func TestFormatMessageTruncatesOnRuneBoundary(t *testing.T) {
+	desc := strings.Repeat("é", 600) // 1200 bytes, >500
+	msg := formatMessage(alerts.AlertEvent{Title: "t", Description: desc, Ts: 1700000000})
+	if !utf8.ValidString(msg) {
+		t.Fatalf("mensaje con UTF-8 inválido")
+	}
+	if !contains(msg, "...") {
+		t.Fatalf("esperaba recorte de la descripción: %q", msg)
+	}
+
+	big := strings.Repeat("日", 3000) // 9000 bytes, supera maxMsgLen
+	msg = formatMessage(alerts.AlertEvent{Title: big, Ts: 1700000000})
+	if !utf8.ValidString(msg) {
+		t.Fatalf("mensaje largo con UTF-8 inválido")
+	}
+	if len(msg) > maxMsgLen {
+		t.Fatalf("mensaje por encima del límite: %d bytes", len(msg))
+	}
+}
+
+// B7: el test no publica si el canal está desactivado.
+func TestSendTestRequiresEnabled(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	kv := &fakeKV{m: map[string]string{
+		"ntfy.server":  srv.URL,
+		"ntfy.topic":   "x",
+		"ntfy.enabled": "false",
+	}}
+	if err := SendTest(kv); err == nil {
+		t.Fatalf("test debe fallar con el canal desactivado")
+	}
+	if calls != 0 {
+		t.Fatalf("no debe publicar desactivado: %d", calls)
+	}
+	kv.m["ntfy.enabled"] = "true"
+	if err := SendTest(kv); err != nil {
+		t.Fatalf("test con canal activo: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("debe publicar una vez activo: %d", calls)
+	}
+}
+
+// B8: Close cancela la petición en curso.
+func TestCloseCancelsInFlightPublish(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	defer close(release)
+	kv := &fakeKV{m: map[string]string{
+		"ntfy.server":  srv.URL,
+		"ntfy.topic":   "x",
+		"ntfy.enabled": "true",
+	}}
+	n := NewNotifier(kv)
+	n.Notify(alerts.AlertEvent{Title: "t", Urgent: true})
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatalf("la petición no llegó al server")
+	}
+	done := make(chan struct{})
+	go func() {
+		n.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatalf("Close no canceló la petición en curso")
+	}
+}
+
+// B9: Close es idempotente.
+func TestCloseIsIdempotent(t *testing.T) {
+	n := NewNotifier(&fakeKV{})
+	n.Close()
+	n.Close() // no debe paniquear
 }
 
 func contains(s, sub string) bool {

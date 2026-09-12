@@ -10,13 +10,17 @@ package ntfy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -123,24 +127,36 @@ func validTopic(t string) bool {
 
 // Notifier satisface alerts.Notifier.
 type Notifier struct {
-	kv     kvStore
-	queue  chan alerts.AlertEvent
-	done   chan struct{}
-	wg     sync.WaitGroup
-	client *http.Client
+	kv        kvStore
+	queue     chan alerts.AlertEvent
+	done      chan struct{}
+	wg        sync.WaitGroup
+	client    *http.Client
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 // NewNotifier arranca el worker de la cola.
 func NewNotifier(kv kvStore) *Notifier {
-	n := &Notifier{
+	n := newNotifier(kv)
+	n.wg.Add(1)
+	go n.worker()
+	return n
+}
+
+// newNotifier construye un notifier sin arrancar el worker: base común de
+// NewNotifier y SendTest.
+func newNotifier(kv kvStore) *Notifier {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Notifier{
 		kv:     kv,
 		queue:  make(chan alerts.AlertEvent, queueCap),
 		done:   make(chan struct{}),
 		client: &http.Client{Timeout: sendTimeout},
+		ctx:    ctx,
+		cancel: cancel,
 	}
-	n.wg.Add(1)
-	go n.worker()
-	return n
 }
 
 func (n *Notifier) Notify(ev alerts.AlertEvent) {
@@ -151,9 +167,15 @@ func (n *Notifier) Notify(ev alerts.AlertEvent) {
 	}
 }
 
-// Close detiene el worker.
+// Close detiene el worker y cancela cualquier publicación en curso. Es
+// idempotente: una segunda llamada no paniquea.
 func (n *Notifier) Close() {
-	close(n.done)
+	n.closeOnce.Do(func() {
+		if n.cancel != nil {
+			n.cancel()
+		}
+		close(n.done)
+	})
 	n.wg.Wait()
 }
 
@@ -208,11 +230,15 @@ func priorityOf(ev alerts.AlertEvent) string {
 // publish envía un mensaje a <server>/<topic> con Title/Priority en cabeceras.
 func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 	url := cfg.Server + "/" + cfg.Topic
-	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+	base := n.ctx
+	if base == nil {
+		base = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(base, sendTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("new request: %w", err)
+		return redactErr("new request", err, cfg)
 	}
 	req.Header.Set("Title", title)
 	req.Header.Set("Priority", priority)
@@ -221,7 +247,7 @@ func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 	}
 	resp, err := n.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("http do: %w", err)
+		return redactErr("http do", err, cfg)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
@@ -231,18 +257,74 @@ func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 	return fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 }
 
-// isRetryable: 4xx del ntfy (topic denegado, bad request) no reintenta.
+// redactedError conserva la cadena de errores (Unwrap) para isRetryable pero
+// expone un mensaje sin el topic, que es el secreto del canal.
+type redactedError struct {
+	err error
+	msg string
+}
+
+func (e *redactedError) Error() string { return e.msg }
+func (e *redactedError) Unwrap() error { return e.err }
+
+// redactErr sustituye el topic por *** en cualquier error que pueda incluir la
+// URL (<server>/<topic>).
+func redactErr(prefix string, err error, cfg Config) error {
+	msg := err.Error()
+	if cfg.Topic != "" {
+		full := cfg.Server + "/" + cfg.Topic
+		msg = strings.ReplaceAll(msg, full, cfg.Server+"/***")
+	}
+	return &redactedError{err: err, msg: prefix + ": " + msg}
+}
+
+// isRetryable decide si un fallo de publish merece reintento: solo 5xx, 429 y
+// errores de red transitorios (timeout, conexión rechazada/reseteada). Los
+// permanentes (4xx, URL inválida, DNS, TLS, contexto) no se reintentan.
 func isRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	for _, code := range []string{"status 400", "status 401", "status 403", "status 404"} {
-		if strings.Contains(msg, code) {
-			return false
+	if code, ok := statusCode(err.Error()); ok {
+		return code >= 500 || code == 429
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	for _, target := range []error{
+		syscall.ECONNREFUSED,
+		syscall.ECONNRESET,
+		syscall.ECONNABORTED,
+		syscall.EPIPE,
+		io.ErrUnexpectedEOF,
+	} {
+		if errors.Is(err, target) {
+			return true
 		}
 	}
-	return true
+	return false
+}
+
+// statusCode extrae el código de un error con formato "status NNN: ...".
+func statusCode(msg string) (int, bool) {
+	const prefix = "status "
+	i := strings.Index(msg, prefix)
+	if i < 0 {
+		return 0, false
+	}
+	code, digits := 0, 0
+	for _, r := range msg[i+len(prefix):] {
+		if r < '0' || r > '9' {
+			break
+		}
+		code = code*10 + int(r-'0')
+		digits++
+	}
+	if digits == 0 {
+		return 0, false
+	}
+	return code, true
 }
 
 // formatMessage renderiza la alerta a texto plano (ntfy no parsea HTML).
@@ -257,7 +339,7 @@ func formatMessage(ev alerts.AlertEvent) string {
 	if ev.Description != "" {
 		desc := ev.Description
 		if len(desc) > 500 {
-			desc = desc[:500] + "..."
+			desc = truncateUTF8(desc, 500) + "..."
 		}
 		b.WriteString(desc)
 		b.WriteString("\n")
@@ -268,22 +350,52 @@ func formatMessage(ev alerts.AlertEvent) string {
 	fmt.Fprintf(&b, "🕐 %s", ts)
 	out := b.String()
 	if len(out) > maxMsgLen {
-		out = out[:maxMsgLen-3] + "..."
+		out = truncateUTF8(out, maxMsgLen-3) + "..."
 	}
 	return out
 }
 
+// truncateUTF8 recorta s a lo sumo maxBytes bytes sin partir una runa
+// multibyte (el corte por bytes crudo podía dejar UTF-8 inválido).
+func truncateUTF8(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return s
+	}
+	s = s[:maxBytes]
+	for len(s) > 0 {
+		r, size := utf8.DecodeLastRuneInString(s)
+		if r != utf8.RuneError || size > 1 {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+// MaskTopic redacta el topic (secreto del canal) para logs y diagnósticos:
+// nunca expone su valor, solo su longitud.
+func MaskTopic(topic string) string {
+	if topic == "" {
+		return ""
+	}
+	return fmt.Sprintf("*** (%d chars)", len(topic))
+}
+
 // SendTest publica un mensaje de prueba contra la config guardada (botón de
-// la UI): es a la vez la validación del canal (ntfy no tiene getMe).
+// la UI): es a la vez la validación del canal (ntfy no tiene getMe). Exige el
+// canal activado, igual que el worker antes de enviar.
 func SendTest(kv kvStore) error {
 	cfg := LoadConfig(kv)
+	if !cfg.Enabled {
+		return fmt.Errorf("el canal ntfy está desactivado")
+	}
 	if cfg.Topic == "" {
 		return fmt.Errorf("topic es requerido")
 	}
-	n := &Notifier{
-		client: &http.Client{Timeout: sendTimeout},
-		done:   make(chan struct{}),
-	}
-	defer close(n.done)
+	n := newNotifier(kv)
+	defer n.Close()
 	return n.publish(cfg, "NetPulse", "✅ Notificaciones ntfy configuradas correctamente.", "default")
 }
