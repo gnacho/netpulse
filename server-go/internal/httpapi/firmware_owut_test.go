@@ -157,6 +157,7 @@ func waitForUpgradeStatus(t *testing.T, ts *testServer, rid, want, cookie string
 
 func TestOwutUpgradeEndpointNoChanges(t *testing.T) {
 	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
 		{contains: "owut upgrade", out: "There are no changes to upgrade (see '--force')\n__owut_exit__=0\n"},
 	}}
 	ts, rid := makeOwutTestServer(t, ssh)
@@ -181,6 +182,7 @@ func TestOwutUpgradeEndpointNoChanges(t *testing.T) {
 
 func TestOwutUpgradeEndpointFailure(t *testing.T) {
 	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
 		{contains: "owut upgrade", out: "Update checks reveal errors, can't proceed\n__owut_exit__=1\n"},
 	}}
 	ts, rid := makeOwutTestServer(t, ssh)

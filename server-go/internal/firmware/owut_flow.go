@@ -223,8 +223,11 @@ type Platform struct {
 // platformDetectCmd: una sola ida SSH resuelve ambas señales. La marca de
 // vendor son los repositorios propios (fw.gl-inet.com en apk u opkg): el
 // /etc/openwrt_release de los GL op25 es idéntico al vanilla y NO sirve.
+// OJO: busybox grep sale con 2 si algún fichero listado no existe (aunque
+// haya matches), así que el match se decide por salida (grep -q .), no por
+// exit code del primer grep.
 const platformDetectCmd = `command -v owut >/dev/null 2>&1 && printf '__owut__\n'; ` +
-	`grep -s fw.gl-inet.com /etc/apk/repositories /etc/apk/repositories.d/* /etc/opkg/distfeeds.conf >/dev/null 2>&1 && printf '__gl__\n'; true`
+	`grep -hs fw.gl-inet.com /etc/apk/repositories /etc/apk/repositories.d/* /etc/opkg/distfeeds.conf 2>/dev/null | grep -q . && printf '__gl__\n'; true`
 
 // DetectPlatform sondea owut y vendor del router (tolerante: runner/host
 // vacíos → Platform vacía).

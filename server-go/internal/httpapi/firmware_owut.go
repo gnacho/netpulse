@@ -27,6 +27,13 @@ func owutUpgradeActive(status string) bool {
 	return status != "" && status != "done" && status != "failed"
 }
 
+// Cinturones de plataforma (#761): firmware de fabricante fuera, y sin owut
+// instalado no se lanza nada.
+var (
+	errVendorFirmware   = errors.New("firmware de fabricante (GL.iNet) sin soporte")
+	ErrOwutNotInstalled = errors.New("owut no está instalado en el router")
+)
+
 // alertEmitter lo cumple *alerts.Engine (mismo patrón que speedtest).
 type alertEmitter interface {
 	Emit(ev alerts.AlertEvent) bool
@@ -148,6 +155,12 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 		switch {
 		case errors.Is(err, firmware.ErrUpgradeInProgress):
 			writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
+		case errors.Is(err, errVendorFirmware):
+			writeError(w, http.StatusUnprocessableEntity, "vendor_firmware",
+				"El router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones, usa su propio panel.")
+		case errors.Is(err, ErrOwutNotInstalled):
+			writeError(w, http.StatusPreconditionFailed, "owut_not_installed",
+				"owut no está instalado en el router: instálalo primero con el botón Instalar owut.")
 		case errors.Is(err, errRouterNotFound):
 			writeError(w, http.StatusNotFound, "not_found")
 		case err != nil:
@@ -203,6 +216,13 @@ func (s *server) startOwutUpgrade(routerID, targetVersion, origin string, remove
 	}
 	if s.pool == nil {
 		return 0, errors.New("sin pool SSH")
+	}
+	// Cinturones de platform (#761): firmware de fabricante fuera, y sin
+	// owut instalado no se lanza nada (el comando moriría en 127).
+	if plat := s.platform(routerID, host); plat.Vendor != "" {
+		return 0, errVendorFirmware
+	} else if !plat.Owut {
+		return 0, ErrOwutNotInstalled
 	}
 	if up, _ := s.firmware.LatestUpgrade(routerID); up != nil && owutUpgradeActive(up.Status) {
 		return 0, firmware.ErrUpgradeInProgress
