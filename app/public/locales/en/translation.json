@@ -1591,6 +1591,20 @@
       "resultUpToDate": "up to date",
       "resultCheckFailed": "check failed",
       "resultCannotApply": "could not apply (readiness or layout)"
+    },
+    "ntfy": {
+      "title": "ntfy",
+      "description": "Push notifications via ntfy (ntfy.sh or your own server). Reaches mobile and desktop apps without third parties.",
+      "enabled": "Enabled",
+      "server": "Server",
+      "topic": "Topic",
+      "token": "Access token",
+      "tokenOptional": "Optional (reserved topics)",
+      "tokenKeep": "Set (type only to change it)",
+      "tokenSet": "set",
+      "incomplete": "Topic is required",
+      "sendTest": "Test",
+      "hint": "The topic acts as a password: anyone who knows it receives the notifications. Use a long random one."
     }
   },
   "statcard": {

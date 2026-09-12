@@ -1591,6 +1591,20 @@
       "resultUpToDate": "sin novedades",
       "resultCheckFailed": "comprobación fallida",
       "resultCannotApply": "no se pudo aplicar (readiness o layout)"
+    },
+    "ntfy": {
+      "title": "ntfy",
+      "description": "Notificaciones push vía ntfy (ntfy.sh o tu servidor). Llega a las apps de móvil y escritorio sin depender de terceros.",
+      "enabled": "Activado",
+      "server": "Servidor",
+      "topic": "Topic",
+      "token": "Token de acceso",
+      "tokenOptional": "Opcional (topics reservados)",
+      "tokenKeep": "Configurado (escríbelo solo para cambiarlo)",
+      "tokenSet": "configurado",
+      "incomplete": "El topic es obligatorio",
+      "sendTest": "Probar",
+      "hint": "El topic funciona como contraseña: quien lo conozca recibirá las notificaciones. Usa uno largo y aleatorio."
     }
   },
   "statcard": {
