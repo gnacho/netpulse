@@ -528,6 +528,17 @@ func run() error {
 		go stScheduler.Start()
 	}
 
+	// Auto-update programado (#759): opt-in del admin, nunca en demo. El
+	// disparo deriva del last_run persistido (reboot-safe: el propio update
+	// reinicia el proceso y no debe re-disparar el mismo slot).
+	if !cfg.DemoMode {
+		autoSched := updater.NewScheduler(dbHandle.DB, upd)
+		if adapter != nil {
+			autoSched.SetAlertEmitter(adapter.AlertsEngine())
+		}
+		go autoSched.Start()
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
 		DB:              dbHandle,

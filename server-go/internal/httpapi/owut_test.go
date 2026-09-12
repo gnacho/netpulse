@@ -148,3 +148,43 @@ func TestOwutCheckNoSSHPool(t *testing.T) {
 		t.Fatalf("error: %v", body["error"])
 	}
 }
+
+// TestAutoUpdateSettingsContract (#759): GET/PUT de la programación.
+func TestAutoUpdateSettingsContract(t *testing.T) {
+	ts, _ := makeOwutTestServer(t, nil)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	// GET inicial: desactivado.
+	res := getJSONPath(t, ts.URL, "/api/settings/autoupdate", cookie)
+	body := readJSON(t, res)
+	if res.StatusCode != 200 {
+		t.Fatalf("GET: %d %v", res.StatusCode, body)
+	}
+	if st, _ := body["settings"].(map[string]any); st["enabled"] != false {
+		t.Fatalf("default debe ser off: %v", body)
+	}
+
+	// PUT válido weekly.
+	res = putJSONPath(t, ts.URL, "/api/settings/autoupdate",
+		`{"enabled":true,"kind":"weekly","time":"04:00","dayOfWeek":1}`, cookie)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT weekly: %d %v", res.StatusCode, readJSON(t, res))
+	}
+
+	// GET: settings + nextRunMs presentes.
+	res = getJSONPath(t, ts.URL, "/api/settings/autoupdate", cookie)
+	body = readJSON(t, res)
+	if st, _ := body["settings"].(map[string]any); st["kind"] != "weekly" || st["enabled"] != true {
+		t.Fatalf("tras PUT: %v", body)
+	}
+	if _, ok := body["nextRunMs"]; !ok {
+		t.Fatalf("GET debe traer nextRunMs habilitado: %v", body)
+	}
+
+	// PUT inválido (weekly sin dayOfWeek): 400.
+	res = putJSONPath(t, ts.URL, "/api/settings/autoupdate",
+		`{"enabled":true,"kind":"weekly","time":"04:00"}`, cookie)
+	if res.StatusCode != 400 {
+		t.Fatalf("PUT inválido: %d, esperaba 400", res.StatusCode)
+	}
+}

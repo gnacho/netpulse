@@ -45,6 +45,7 @@ import {
    Wifi,
    X,
    ChevronUp,
+  CalendarClock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { HealthRing } from '@/components/HealthRing'
@@ -3271,6 +3272,172 @@ function checkErrText(err: string | undefined, t: (k: string) => string): string
   }
 }
 
+// AutoUpdatePanel (#759): programación del auto-update del propio server.
+function AutoUpdatePanel() {
+  const { t, i18n } = useTranslation()
+  const [enabled, setEnabled] = useState(false)
+  const [kind, setKind] = useState<'daily' | 'weekly' | 'monthly'>('daily')
+  const [time, setTime] = useState('04:00')
+  const [dow, setDow] = useState(1)
+  const [dom, setDom] = useState(1)
+  const [info, setInfo] = useState<{ lastRunMs?: number; lastResult?: string; nextRunMs?: number }>({})
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const load = async () => {
+    try {
+      const res = await fetch('/api/settings/autoupdate')
+      if (!res.ok) return
+      const body = (await res.json()) as {
+        settings: { enabled: boolean; kind: string; time: string; dayOfWeek?: number; dayOfMonth?: number }
+        lastRunMs?: number
+        lastResult?: string
+        nextRunMs?: number
+      }
+      setEnabled(body.settings.enabled)
+      if (body.settings.kind === 'weekly' || body.settings.kind === 'monthly') setKind(body.settings.kind)
+      if (body.settings.time) setTime(body.settings.time)
+      if (typeof body.settings.dayOfWeek === 'number') setDow(body.settings.dayOfWeek)
+      if (typeof body.settings.dayOfMonth === 'number') setDom(body.settings.dayOfMonth)
+      setInfo({ lastRunMs: body.lastRunMs, lastResult: body.lastResult, nextRunMs: body.nextRunMs })
+    } catch {
+      // fail-silent
+    }
+  }
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const save = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      const res = await fetch('/api/settings/autoupdate', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled,
+          kind,
+          time,
+          dayOfWeek: kind === 'weekly' ? dow : undefined,
+          dayOfMonth: kind === 'monthly' ? dom : undefined,
+        }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } }
+      if (!res.ok) throw new Error(body?.error?.message ?? `HTTP ${res.status}`)
+      await load()
+    } catch (e) {
+      setErr(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const dowLabel = (d: number) => new Date(2026, 8, 13 + d).toLocaleDateString(i18n.language, { weekday: 'long' })
+  const resultText = (r?: string) =>
+    r === 'applied'
+      ? t('settings.autoupdate.resultApplied')
+      : r === 'up-to-date'
+        ? t('settings.autoupdate.resultUpToDate')
+        : r === 'check-failed'
+          ? t('settings.autoupdate.resultCheckFailed')
+          : r === 'cannot-apply'
+            ? t('settings.autoupdate.resultCannotApply')
+            : ''
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-caption text-text-muted">{t('settings.autoupdate.mode')}</span>
+          <select
+            value={enabled ? kind : 'off'}
+            onChange={(ev) => {
+              const v = ev.target.value
+              setEnabled(v !== 'off')
+              if (v === 'daily' || v === 'weekly' || v === 'monthly') setKind(v)
+            }}
+            className="h-9 rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary"
+          >
+            <option value="off">{t('settings.autoupdate.off')}</option>
+            <option value="daily">{t('settings.autoupdate.daily')}</option>
+            <option value="weekly">{t('settings.autoupdate.weekly')}</option>
+            <option value="monthly">{t('settings.autoupdate.monthly')}</option>
+          </select>
+        </label>
+        {enabled && kind === 'weekly' && (
+          <label className="flex flex-col gap-1">
+            <span className="text-caption text-text-muted">{t('settings.autoupdate.dayOfWeek')}</span>
+            <select
+              value={dow}
+              onChange={(ev) => setDow(Number(ev.target.value))}
+              className="h-9 rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary"
+            >
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <option key={d} value={d}>
+                  {dowLabel(d)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {enabled && kind === 'monthly' && (
+          <label className="flex flex-col gap-1">
+            <span className="text-caption text-text-muted">{t('settings.autoupdate.dayOfMonth')}</span>
+            <select
+              value={dom}
+              onChange={(ev) => setDom(Number(ev.target.value))}
+              className="h-9 rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary"
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {enabled && (
+          <label className="flex flex-col gap-1">
+            <span className="text-caption text-text-muted">{t('settings.autoupdate.time')}</span>
+            <input
+              type="time"
+              value={time}
+              onChange={(ev) => setTime(ev.target.value)}
+              className="h-9 rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary"
+            />
+          </label>
+        )}
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={busy}
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-canvas transition-colors hover:bg-accent/90 disabled:opacity-50"
+        >
+          {busy ? t('common.loading') : t('common.save')}
+        </button>
+      </div>
+
+      {err && <p className="text-sm text-danger">{err}</p>}
+
+      <p className="text-xs text-text-muted">{t('settings.autoupdate.hint')}</p>
+
+      {enabled && info.nextRunMs != null && (
+        <p className="text-sm text-text-secondary">
+          {t('settings.autoupdate.next')}: {new Date(info.nextRunMs).toLocaleString()}
+        </p>
+      )}
+      {info.lastResult && (
+        <p className="text-sm text-text-secondary">
+          {t('settings.autoupdate.last')}: {resultText(info.lastResult)}
+          {info.lastRunMs ? ` (${new Date(info.lastRunMs).toLocaleString()})` : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function UpdateCheckInline() {
   const { t } = useTranslation()
   const [status, setStatus] = useState<NetPulseUpdateStatus | null>(null)
@@ -3704,7 +3871,7 @@ export default function Settings() {
   const auth = useAuth()
   // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
   const [services] = useServicesVisibility()
-  const [adminPanel, setAdminPanel] = useState<'users' | 'backups' | null>(null)
+  const [adminPanel, setAdminPanel] = useState<'users' | 'backups' | 'autoupdate' | null>(null)
 
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
   const [orchOn, setOrchOn] = useState(false)
@@ -4526,6 +4693,26 @@ export default function Settings() {
                 {/* 1. Comprobar actualizaciones (widget inline) */}
                 <UpdateCheckInline />
 
+                {/* 1b. Auto-actualización programada (desplegable, #759) */}
+                <button
+                  type="button"
+                  aria-expanded={adminPanel === 'autoupdate'}
+                  onClick={() => setAdminPanel(adminPanel === 'autoupdate' ? null : 'autoupdate')}
+                  className={[
+                    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition-colors',
+                    adminPanel === 'autoupdate'
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
+                  ].join(' ')}
+                >
+                  <CalendarClock className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span className="hidden sm:inline">{t('settings.autoupdate.button')}</span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${adminPanel === 'autoupdate' ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+
                 {/* 2. Respaldos (desplegable) */}
                 <button
                   type="button"
@@ -4572,6 +4759,11 @@ export default function Settings() {
                 </div>
               </div>
 
+              {adminPanel === 'autoupdate' && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <AutoUpdatePanel />
+                </div>
+              )}
               {adminPanel === 'backups' && (
                 <div className="mt-4 border-t border-border pt-4">
                   <BackupsPanel />

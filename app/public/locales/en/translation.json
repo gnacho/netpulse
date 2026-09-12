@@ -234,6 +234,10 @@
       "firmware-upgrade-failed": {
         "title": "Firmware upgrade failed",
         "description": "{{router}}: target {{to}} (owut, {{origin}}): {{detail}}"
+      },
+      "autoupdate": {
+        "title": "Scheduled auto-update",
+        "description": "{{detail}}"
       }
     }
   },
@@ -1565,7 +1569,25 @@
       "about": "About",
       "label": "Settings sections"
     },
-    "theme": "Theme"
+    "theme": "Theme",
+    "autoupdate": {
+      "button": "Auto-update",
+      "mode": "Mode",
+      "off": "Off",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "dayOfWeek": "Day of the week",
+      "dayOfMonth": "Day of the month",
+      "time": "Time",
+      "hint": "Applies the NetPulse binary only when a new release is out, with health verification and automatic rollback if the service does not come back. Never in demo mode or when readiness fails. Every attempt reports through an alert.",
+      "next": "Next run",
+      "last": "Last attempt",
+      "resultApplied": "update applied",
+      "resultUpToDate": "up to date",
+      "resultCheckFailed": "check failed",
+      "resultCannotApply": "could not apply (readiness or layout)"
+    }
   },
   "statcard": {
     "vsPrevious": "vs previous"

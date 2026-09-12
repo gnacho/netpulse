@@ -234,6 +234,10 @@
       "firmware-upgrade-failed": {
         "title": "Actualización de firmware fallida",
         "description": "{{router}}: objetivo {{to}} (owut, {{origin}}): {{detail}}"
+      },
+      "autoupdate": {
+        "title": "Auto-actualización programada",
+        "description": "{{detail}}"
       }
     }
   },
@@ -1565,7 +1569,25 @@
       "about": "Acerca de",
       "label": "Secciones de Ajustes"
     },
-    "theme": "Tema"
+    "theme": "Tema",
+    "autoupdate": {
+      "button": "Auto-actualización",
+      "mode": "Modo",
+      "off": "Desactivada",
+      "daily": "Diaria",
+      "weekly": "Semanal",
+      "monthly": "Mensual",
+      "dayOfWeek": "Día de la semana",
+      "dayOfMonth": "Día del mes",
+      "time": "Hora",
+      "hint": "Aplica solo el binario de NetPulse cuando hay una versión nueva, con verificación de salud y rollback automático si el servicio no vuelve. Nunca en modo demo ni si el readiness falla. Cada intento avisa por alerta.",
+      "next": "Próximo disparo",
+      "last": "Último intento",
+      "resultApplied": "actualización aplicada",
+      "resultUpToDate": "sin novedades",
+      "resultCheckFailed": "comprobación fallida",
+      "resultCannotApply": "no se pudo aplicar (readiness o layout)"
+    }
   },
   "statcard": {
     "vsPrevious": "vs anterior"
