@@ -171,7 +171,7 @@ type server struct {
 	// single-flight de los disparos recurrentes.
 	alertEmitter alertEmitter
 	owutMu       sync.Mutex
-	owutCache    map[string]owutDetectCacheEntry
+	owutCache    map[string]platformCacheEntry
 	recMu        sync.Mutex
 	recInFlight  map[string]bool
 	// boardVersionFn: versión instalada según board info (hook de test).

@@ -69,6 +69,7 @@ interface OwutVersion {
 interface OwutVersionsResp {
   current: string
   owutAvailable: boolean
+  vendorFirmware?: string
   versions: OwutVersion[]
   error?: string
 }
@@ -512,7 +513,8 @@ export default function FirmwareUpgrades() {
           const scheduled = scheduledPending(item)
           const owut = owutResult[item.routerId]
           const versions = owutVersions[item.routerId]
-          const owutAvail = owut?.owutAvailable ?? versions?.owutAvailable ?? false
+          const vendorFw = versions?.vendorFirmware
+          const owutAvail = !vendorFw && (owut?.owutAvailable ?? versions?.owutAvailable ?? false)
           const detectedCurrent = item.detectedVersion || e.currentVersion || ''
           const detectedModel = item.detectedBoard || item.detectedModel || ''
           const rec = recurrence[item.routerId]
@@ -579,6 +581,7 @@ export default function FirmwareUpgrades() {
                     placeholder={item.detectedVersion ? '' : '23.05.3'}
                   />
                 </label>
+                {!vendorFw && (
                 <label className="flex flex-col gap-1">
                   <span className="text-caption text-text-muted">{t('firmwareUpgrades.targetVersion')} *</span>
                   <select
@@ -605,15 +608,24 @@ export default function FirmwareUpgrades() {
                     })}
                   </select>
                 </label>
+                )}
               </div>
 
-              {majorWarn && (
+              {vendorFw && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span>{t('firmwareUpgrades.vendorNote')}</span>
+                </div>
+              )}
+
+              {!vendorFw && majorWarn && (
                 <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
                   <span>{t('firmwareUpgrades.majorWarn', { from: detectedCurrent, to: targetSel })}</span>
                 </div>
               )}
 
+              {!vendorFw && (
               <details className="mt-3 rounded-lg border border-border bg-canvas px-3 py-2">
                 <summary className="cursor-pointer text-sm font-medium text-text-secondary">
                   {t('firmwareUpgrades.advanced')}
@@ -656,6 +668,7 @@ export default function FirmwareUpgrades() {
                   )}
                 </div>
               </details>
+              )}
 
               {owut && (
                 <div className="mt-3 space-y-2">
@@ -719,7 +732,7 @@ export default function FirmwareUpgrades() {
                 </div>
               )}
 
-              {isAdmin && (
+              {isAdmin && !vendorFw && (
                 <div className="mt-4 space-y-3 border-t border-border pt-3">
                   <div className="flex flex-wrap items-center gap-3">
                     {!owutAvail && versions !== undefined && (

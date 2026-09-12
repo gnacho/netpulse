@@ -168,3 +168,25 @@ func TestInstallOwutFails(t *testing.T) {
 		t.Fatalf("exit 1 del gestor debe ser error")
 	}
 }
+
+func TestParsePlatform(t *testing.T) {
+	cases := []struct {
+		name       string
+		out        string
+		wantOwut   bool
+		wantVendor string
+	}{
+		{"vanilla con owut", "__owut__\n", true, ""},
+		{"vanilla sin owut", "", false, ""},
+		{"GL sin owut", "__gl__\n", false, "gl-inet"},
+		{"GL con owut instalado", "__owut__\n__gl__\n", true, "gl-inet"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := ParsePlatform(c.out)
+			if got.Owut != c.wantOwut || got.Vendor != c.wantVendor {
+				t.Fatalf("ParsePlatform(%q) = %+v", c.out, got)
+			}
+		})
+	}
+}

@@ -1759,7 +1759,8 @@
     "recIdempotentHint": "Cada intento avisa del resultado (alerta, push y Telegram si está configurado). Si el router ya está en la versión objetivo, no hace nada.",
     "excludePkgs": "Paquetes a excluir de la imagen ASU",
     "excludePkgsHint": "Solo necesarios si el check objeta paquetes instalados fuera de los repos oficiales (se pierden al actualizar; reinstálalos después).",
-    "owutNotBuildableHint": "Suele ser un paquete instalado que no está en los repos oficiales: revisa la salida y exclúyelo al actualizar."
+    "owutNotBuildableHint": "Suele ser un paquete instalado que no está en los repos oficiales: revisa la salida y exclúyelo al actualizar.",
+    "vendorNote": "Este router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones. Usa el panel de GL.iNet (Upgrade Firmware), que ya ofrece la última versión oficial del modelo."
   },
   "orchestration": {
     "title": "Orquestación",

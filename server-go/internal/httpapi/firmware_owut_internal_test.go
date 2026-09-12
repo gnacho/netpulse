@@ -29,7 +29,7 @@ func (f *recFakeSSH) Run(host, cmd string, _ time.Duration) (string, error) {
 	defer f.mu.Unlock()
 	f.cmds = append(f.cmds, cmd)
 	if strings.Contains(cmd, "command -v owut") {
-		return "/usr/bin/owut\n", nil
+		return "__owut__\n", nil
 	}
 	if strings.Contains(cmd, "owut upgrade") {
 		return "There are no changes to upgrade\n__owut_exit__=0\n", nil

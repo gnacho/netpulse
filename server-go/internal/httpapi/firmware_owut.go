@@ -32,11 +32,11 @@ type alertEmitter interface {
 	Emit(ev alerts.AlertEvent) bool
 }
 
-// owutDetectCacheEntry cachea la detección de owut por router (1 h): el loop
-// de recurrencia la consulta en cada disparo y sondear el PATH cada vez
-// sería ruido SSH innecesario.
-type owutDetectCacheEntry struct {
-	ok bool
+// platformCacheEntry cachea la plataforma (owut + vendor) por router (1 h):
+// el loop de recurrencia y los endpoints la consultan y sondear por SSH en
+// cada operación sería ruido innecesario.
+type platformCacheEntry struct {
+	p  firmware.Platform
 	at time.Time
 }
 
@@ -69,12 +69,21 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			return
 		}
 		resp := struct {
-			Current       string                 `json:"current"`
-			OwutAvailable bool                   `json:"owutAvailable"`
-			Versions      []firmware.OwutVersion `json:"versions"`
-			Error         string                 `json:"error,omitempty"`
+			Current        string                 `json:"current"`
+			OwutAvailable  bool                   `json:"owutAvailable"`
+			VendorFirmware string                 `json:"vendorFirmware,omitempty"`
+			Versions       []firmware.OwutVersion `json:"versions"`
+			Error          string                 `json:"error,omitempty"`
 		}{Current: s.detectedFirmwareVersion(id)}
-		if !s.owutInstalled(id, host) {
+		plat := s.platform(id, host)
+		if plat.Vendor != "" {
+			// Firmware de fabricante: sus updates los gestiona el vendor.
+			resp.VendorFirmware = plat.Vendor
+			resp.Versions = []firmware.OwutVersion{}
+			writeJSON(w, http.StatusOK, resp)
+			return
+		}
+		if !plat.Owut {
 			resp.Versions = []firmware.OwutVersion{}
 			writeJSON(w, http.StatusOK, resp)
 			return
@@ -102,12 +111,17 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusServiceUnavailable, "no_ssh_pool")
 			return
 		}
+		if s.platform(id, host).Vendor != "" {
+			writeError(w, http.StatusUnprocessableEntity, "vendor_firmware",
+				"El router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones, usa su propio panel.")
+			return
+		}
 		output, err := firmware.InstallOwut(s.pool, host)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "owut_install_failed", err.Error())
 			return
 		}
-		s.invalidateOwutCache(id)
+		s.invalidatePlatformCache(id)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": output})
 	})))
 
@@ -123,6 +137,11 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 		}
 		if body.TargetVersion == "" {
 			writeError(w, http.StatusBadRequest, "invalid_body", "targetVersion es requerido")
+			return
+		}
+		if host := s.hostOfRouter(id); host != "" && s.platform(id, host).Vendor != "" {
+			writeError(w, http.StatusUnprocessableEntity, "vendor_firmware",
+				"El router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones, usa su propio panel.")
 			return
 		}
 		upgradeID, err := s.startOwutUpgrade(id, body.TargetVersion, "manual", body.RemovePkgs)
@@ -351,21 +370,21 @@ func (s *server) routerName(routerID string) string {
 
 // --- Detección owut cacheada ---
 
-func (s *server) owutInstalled(routerID, host string) bool {
+func (s *server) platform(routerID, host string) firmware.Platform {
 	s.owutMu.Lock()
 	defer s.owutMu.Unlock()
 	if s.owutCache == nil {
-		s.owutCache = map[string]owutDetectCacheEntry{}
+		s.owutCache = map[string]platformCacheEntry{}
 	}
 	if e, ok := s.owutCache[routerID]; ok && time.Since(e.at) < owutDetectCacheTTL {
-		return e.ok
+		return e.p
 	}
-	ok := firmware.OwutInstalled(s.pool, host)
-	s.owutCache[routerID] = owutDetectCacheEntry{ok: ok, at: time.Now()}
-	return ok
+	p := firmware.DetectPlatform(s.pool, host)
+	s.owutCache[routerID] = platformCacheEntry{p: p, at: time.Now()}
+	return p
 }
 
-func (s *server) invalidateOwutCache(routerID string) {
+func (s *server) invalidatePlatformCache(routerID string) {
 	s.owutMu.Lock()
 	defer s.owutMu.Unlock()
 	delete(s.owutCache, routerID)
@@ -443,7 +462,14 @@ func (s *server) runRecurrenceShot(routerID string) {
 	}
 	firmware.SetRecurrenceLastRun(s.db.DB, routerID, time.Now().UnixMilli())
 	host := s.hostOfRouter(routerID)
-	if host != "" && s.pool != nil && s.owutInstalled(routerID, host) {
+	if host != "" && s.pool != nil {
+		if plat := s.platform(routerID, host); plat.Vendor != "" {
+			firmware.DisableRecurrence(s.db.DB, routerID)
+			s.emitFirmwareConfigAlert(routerID, "router con firmware del fabricante (GL.iNet): sus actualizaciones las gestiona su propio panel")
+			return
+		}
+	}
+	if host != "" && s.pool != nil && s.platform(routerID, host).Owut {
 		if _, err := s.startOwutUpgrade(routerID, target.TargetVersion, "scheduled", nil); err != nil {
 			s.emitFirmwareResult(routerID, current, target.TargetVersion, "scheduled", false, err.Error())
 		}

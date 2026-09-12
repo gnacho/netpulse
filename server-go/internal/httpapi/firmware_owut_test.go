@@ -57,7 +57,7 @@ func deleteJSONPath(t *testing.T, base, path, cookie string) *http.Response {
 
 func TestOwutVersionsEndpoint(t *testing.T) {
 	ssh := &scriptedSSH{rules: []sshRule{
-		{contains: "command -v owut", out: "/usr/bin/owut\n"},
+		{contains: "command -v owut", out: "__owut__\n"},
 		{contains: "owut versions", out: owutVersionsSample},
 	}}
 	ts, rid := makeOwutTestServer(t, ssh)
@@ -255,5 +255,35 @@ func TestRecurrencePutGetDelete(t *testing.T) {
 	rc, _ = body["recurrence"].(map[string]any)
 	if rc["enabled"] != false {
 		t.Fatalf("tras DELETE debe quedar disabled: %v", body)
+	}
+}
+
+func TestOwutEndpointsBlockedForVendorFirmware(t *testing.T) {
+	// GL.iNet: la plataforma devuelve __gl__ -> install y upgrade 422, y el
+	// listado de versiones llega con vendorFirmware y sin sondear ASU.
+	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "fw.gl-inet.com", out: "__gl__\n"},
+	}}
+	ts, rid := makeOwutTestServer(t, ssh)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-install", "{}", cookie)
+	if res.StatusCode != 422 {
+		t.Fatalf("install status %d, esperaba 422 vendor_firmware", res.StatusCode)
+	}
+	res = postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-upgrade", `{"targetVersion":"25.12.7"}`, cookie)
+	if res.StatusCode != 422 {
+		t.Fatalf("upgrade status %d, esperaba 422 vendor_firmware", res.StatusCode)
+	}
+	res = getJSONPath(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-versions", cookie)
+	body := readJSON(t, res)
+	if body["vendorFirmware"] != "gl-inet" {
+		t.Fatalf("vendorFirmware: %v", body["vendorFirmware"])
+	}
+	if versions, _ := body["versions"].([]any); len(versions) != 0 {
+		t.Fatalf("vendor no debe listar versiones: %v", versions)
+	}
+	if ssh.saw("owut versions") {
+		t.Fatalf("vendor no debe sondear versiones ASU: %v", ssh.cmdsSnapshot())
 	}
 }

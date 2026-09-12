@@ -131,15 +131,14 @@ func MajorJump(current, target string) bool {
 	return cs[0] != ts[0]
 }
 
-// owutInstallCmd detecta el gestor de paquetes del router e instala owut.
-// El reintento con el repo oficial de OpenWrt cubre los firmware de vendor
-// (p. ej. GL.iNet op25) cuyos mirrors propios no empaquetan owut: se usa la
-// versión del propio router (/etc/openwrt_release) y el arch de apk. En
-// releases sin paquete owut (23.05 y anteriores) el comando falla con el
-// error del gestor.
+// owutInstallCmd detecta el gestor de paquetes del router e instala owut con
+// los repositorios PROPIOS del router (los firmware vanilla lo empaquetan).
+// En releases sin paquete owut (23.05-) el comando falla con el error del
+// gestor; en firmware de fabricante (GL.iNet) el flujo va bloqueado antes
+// (cada vendor gestiona sus actualizaciones en su propio panel).
 const owutInstallCmd = `if command -v apk >/dev/null 2>&1; then ` +
 	`apk update >/dev/null 2>&1; ` +
-	`apk add owut || apk add --repository "https://downloads.openwrt.org/releases/$(. /etc/openwrt_release 2>/dev/null; echo ${DISTRIB_RELEASE%%-*})/packages/$(apk --print-arch)/packages/packages.adb" owut; ` +
+	`apk add owut; ` +
 	`elif command -v opkg >/dev/null 2>&1; then opkg update && opkg install owut; ` +
 	`else printf '__no_pm__\n'; fi 2>&1; printf '\n__owut_exit__=%d\n' $?`
 
@@ -212,10 +211,41 @@ func RunOwutUpgrade(runner Runner, host, cmd string) (int, string, error) {
 	return exit, raw, err
 }
 
-// OwutInstalled informa de si el router tiene owut en su PATH (detección
-// local y barata; la usa el loop de recurrencia y el endpoint de versiones).
-func OwutInstalled(runner Runner, host string) bool {
-	return detectOwut(runner, host)
+// Platform es la foto de plataforma de un router: si tiene owut y si lleva
+// firmware de fabricante. Vendor != "" significa firmware compilado por el
+// vendor con su propia gestión de actualizaciones (GL.iNet): NetPulse NO
+// ofrece upgrades ASU ahí, el vendor ya resuelve los suyos en su panel.
+type Platform struct {
+	Owut   bool
+	Vendor string // "" | "gl-inet"
+}
+
+// platformDetectCmd: una sola ida SSH resuelve ambas señales. La marca de
+// vendor son los repositorios propios (fw.gl-inet.com en apk u opkg): el
+// /etc/openwrt_release de los GL op25 es idéntico al vanilla y NO sirve.
+const platformDetectCmd = `command -v owut >/dev/null 2>&1 && printf '__owut__\n'; ` +
+	`grep -s fw.gl-inet.com /etc/apk/repositories /etc/apk/repositories.d/* /etc/opkg/distfeeds.conf >/dev/null 2>&1 && printf '__gl__\n'; true`
+
+// DetectPlatform sondea owut y vendor del router (tolerante: runner/host
+// vacíos → Platform vacía).
+func DetectPlatform(runner Runner, host string) Platform {
+	if runner == nil || host == "" {
+		return Platform{}
+	}
+	out, _ := runner.Run(host, platformDetectCmd, owutDetectTimeout)
+	return ParsePlatform(out)
+}
+
+// ParsePlatform interpreta las marcas de platformDetectCmd (función pura).
+func ParsePlatform(out string) Platform {
+	p := Platform{}
+	if strings.Contains(out, "__owut__") {
+		p.Owut = true
+	}
+	if strings.Contains(out, "__gl__") {
+		p.Vendor = "gl-inet"
+	}
+	return p
 }
 
 // shQuote entrecomilla un valor para shell POSIX (single-quote escaping).
