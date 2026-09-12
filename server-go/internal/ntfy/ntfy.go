@@ -212,7 +212,7 @@ func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("new request: %w", err)
+		return redactErr("new request", err, cfg)
 	}
 	req.Header.Set("Title", title)
 	req.Header.Set("Priority", priority)
@@ -221,7 +221,7 @@ func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 	}
 	resp, err := n.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("http do: %w", err)
+		return redactErr("http do", err, cfg)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
@@ -229,6 +229,27 @@ func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 		return nil
 	}
 	return fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+}
+
+// redactedError conserva la cadena de errores (Unwrap) para isRetryable pero
+// expone un mensaje sin el topic, que es el secreto del canal.
+type redactedError struct {
+	err error
+	msg string
+}
+
+func (e *redactedError) Error() string { return e.msg }
+func (e *redactedError) Unwrap() error { return e.err }
+
+// redactErr sustituye el topic por *** en cualquier error que pueda incluir la
+// URL (<server>/<topic>).
+func redactErr(prefix string, err error, cfg Config) error {
+	msg := err.Error()
+	if cfg.Topic != "" {
+		full := cfg.Server + "/" + cfg.Topic
+		msg = strings.ReplaceAll(msg, full, cfg.Server+"/***")
+	}
+	return &redactedError{err: err, msg: prefix + ": " + msg}
 }
 
 // isRetryable: 4xx del ntfy (topic denegado, bad request) no reintenta.

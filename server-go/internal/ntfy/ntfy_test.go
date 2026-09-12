@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -145,6 +146,24 @@ func TestMaskTopic(t *testing.T) {
 	}
 	if got := MaskTopic(""); got != "" {
 		t.Fatalf("topic vacío: %q", got)
+	}
+}
+
+// B2: el error de red no debe filtrar el topic (URL saneada).
+func TestPublishErrorRedactsTopic(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	base := srv.URL
+	srv.Close()
+	n := &Notifier{client: &http.Client{Timeout: 2 * time.Second}, done: make(chan struct{})}
+	err := n.publish(Config{Server: base, Topic: "top-secreto-abc"}, "t", "b", "default")
+	if err == nil {
+		t.Fatalf("esperaba error con el server cerrado")
+	}
+	if contains(err.Error(), "top-secreto-abc") {
+		t.Fatalf("el topic no debe aparecer en el error: %q", err.Error())
+	}
+	if !contains(err.Error(), "***") {
+		t.Fatalf("esperaba el topic enmascarado: %q", err.Error())
 	}
 }
 
