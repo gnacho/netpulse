@@ -7,6 +7,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- **Previsualización de los comandos antes de escribir en el router (#754)**: reservar una IP o bloquear un dispositivo ya no aplica directo. Al confirmar la acción, NetPulse pide primero el plan al servidor (`?dry_run=1`: construye los mismos comandos uci sin ejecutarlos) y lo muestra en la ficha del dispositivo -comandos que se ejecutarán y, plegables, los de rollback-, con el router identificado. Nada se aplica hasta pulsar "Ejecutar y aplicar"; desbloquear y eliminar reserva siguen siendo directos. Estilo LuCI "Unsaved Changes", pedido por la comunidad.
+
+
 ### Fixed
 
 - **Fuera las afirmaciones de "solo lectura" aplicadas al producto entero (#751)**: ya no son ciertas (reservas DHCP, bloqueo de dispositivos, orquestación, actualizaciones de firmware escriben en los routers). README, web (metas, JSON-LD, hero, FAQ, tour de funciones, footer, 10 idiomas) y manuales pasan a decir la verdad con el matiz correcto: el sondeo es de solo lectura; lo que escribe es siempre explícito, lo lanza un admin y va con snapshot y rollback. La alerta "firmware disponible" también mentía ("NetPulse es de solo lectura: usa LuCI") y ahora señala a Actualizaciones de firmware.

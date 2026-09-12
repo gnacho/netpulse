@@ -39,6 +39,30 @@ export function DeviceEditSheet({
   const [reservation, setReservation] = useState<{ reserved: boolean; ip: string; loading: boolean }>({ reserved: false, ip: '', loading: false })
   const [reserveDraft, setReserveDraft] = useState(device?.ip ?? '')
   const [block, setBlock] = useState<{ blocked: boolean; loading: boolean }>({ blocked: false, loading: false })
+  // #754: dry-run de comandos. Antes de escribir en el router (reservar o
+  // bloquear) se pide el plan al server y se muestra; nada se aplica hasta
+  // la confirmación explícita sobre esos comandos.
+  const [plan, setPlan] = useState<{ host: string; apply: string[]; rollback: string[] } | null>(null)
+  const [planRun, setPlanRun] = useState<null | (() => Promise<void>)>(null)
+  const [planBusy, setPlanBusy] = useState(false)
+
+  const closePlan = () => {
+    setPlan(null)
+    setPlanRun(null)
+  }
+
+  const openPlan = async (path: string, body: unknown, run: () => Promise<void>) => {
+    const sep = path.includes('?') ? '&' : '?'
+    const res = await fetchJson<{ host?: string; apply?: string[]; rollback?: string[] }>(path + sep + 'dry_run=1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok || !res.data) return false
+    setPlan({ host: res.data.host ?? '', apply: res.data.apply ?? [], rollback: res.data.rollback ?? [] })
+    setPlanRun(() => run)
+    return true
+  }
 
   useEffect(() => {
     setIcon(device?.iconOverride ?? '')
@@ -199,13 +223,24 @@ export function DeviceEditSheet({
                   onClick={async () => {
                     if (!device) return
                     setReservation((p) => ({ ...p, loading: true }))
-                    const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/reservation`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ip: reserveDraft, hostname: asDhcpHostname(device.name) }),
-                    })
-                    if (res.ok) {
-                      setReservation({ reserved: true, ip: reserveDraft, loading: false })
+                    const path = `/api/devices/${encodeURIComponent(device.mac)}/reservation`
+                    const body = { ip: reserveDraft, hostname: asDhcpHostname(device.name) }
+                    const applyReserve = async () => {
+                      const res = await fetchJson(path, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                      })
+                      if (res.ok) {
+                        setReservation({ reserved: true, ip: reserveDraft, loading: false })
+                      } else {
+                        setReservation((p) => ({ ...p, loading: false }))
+                      }
+                    }
+                    // #754: primero el plan de comandos; se aplica al confirmar.
+                    const planned = await openPlan(path, body, applyReserve)
+                    if (!planned) {
+                      await applyReserve()
                     } else {
                       setReservation((p) => ({ ...p, loading: false }))
                     }
@@ -233,15 +268,40 @@ export function DeviceEditSheet({
                   disabled={block.loading}
                   onClick={async () => {
                     if (!device) return
-                    setBlock((p) => ({ ...p, loading: true }))
                     const url = `/api/devices/${encodeURIComponent(device.mac)}/block`
-                    const res = await fetchJson(url, {
-                      method: block.blocked ? 'DELETE' : 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ router: device.routerId }),
-                    })
-                    if (res.ok) {
-                      setBlock({ blocked: !block.blocked, loading: false })
+                    const body = { router: device.routerId }
+                    if (block.blocked) {
+                      // Desbloquear (DELETE): quitar la regla no necesita plan.
+                      setBlock((p) => ({ ...p, loading: true }))
+                      const res = await fetchJson(url, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                      })
+                      if (res.ok) {
+                        setBlock({ blocked: false, loading: false })
+                      } else {
+                        setBlock((p) => ({ ...p, loading: false }))
+                      }
+                      return
+                    }
+                    // Bloquear (#754): plan de comandos primero, aplicar al confirmar.
+                    setBlock((p) => ({ ...p, loading: true }))
+                    const applyBlock = async () => {
+                      const res = await fetchJson(url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                      })
+                      if (res.ok) {
+                        setBlock({ blocked: true, loading: false })
+                      } else {
+                        setBlock((p) => ({ ...p, loading: false }))
+                      }
+                    }
+                    const planned = await openPlan(url, body, applyBlock)
+                    if (!planned) {
+                      await applyBlock()
                     } else {
                       setBlock((p) => ({ ...p, loading: false }))
                     }
@@ -251,6 +311,46 @@ export function DeviceEditSheet({
                 </Button>
               </div>
             </div>
+
+            {/* Plan de comandos (#754): nada se aplica hasta confirmar aquí */}
+            {plan && (
+              <div className="space-y-2 rounded-xl border border-warn/40 bg-warn/5 p-3" role="dialog" aria-label={t('devices.edit.planTitle', { host: plan.host })}>
+                <div className="text-label uppercase tracking-wide text-warn">
+                  {t('devices.edit.planTitle', { host: plan.host || device?.routerId || '' })}
+                </div>
+                <pre className="overflow-x-auto rounded-lg border border-border bg-canvas p-2 font-mono text-caption leading-relaxed text-text-primary">
+                  {plan.apply.length ? plan.apply.join('\n') : t('devices.edit.planNone')}
+                </pre>
+                {plan.rollback.length > 0 && (
+                  <details className="text-caption text-text-muted">
+                    <summary className="cursor-pointer select-none">{t('devices.edit.planRollback')}</summary>
+                    <pre className="mt-1 overflow-x-auto rounded-lg border border-border bg-canvas p-2 font-mono text-caption leading-relaxed">
+                      {plan.rollback.join('\n')}
+                    </pre>
+                  </details>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={planBusy}
+                    onClick={async () => {
+                      setPlanBusy(true)
+                      try {
+                        await planRun?.()
+                      } finally {
+                        setPlanBusy(false)
+                        closePlan()
+                      }
+                    }}
+                  >
+                    {planBusy ? t('common.loading') : t('devices.edit.planRun')}
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={planBusy} onClick={closePlan}>
+                    {t('common.cancel')}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {isDemo && (
               <p className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-caption text-warn">

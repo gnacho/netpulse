@@ -380,7 +380,11 @@
       "blocked": "Blocked",
       "allowed": "Allowed",
       "block": "Block",
-      "unblock": "Unblock"
+      "unblock": "Unblock",
+      "planTitle": "These commands will run on {{host}}:",
+      "planRollback": "Rollback commands (if anything fails)",
+      "planRun": "Run and apply",
+      "planNone": "Nothing to apply"
     },
     "new": "New",
     "onlyOnline": "Only online",
