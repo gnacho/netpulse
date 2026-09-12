@@ -470,6 +470,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "temp_threshold", "ALTER TABLE routers ADD COLUMN temp_threshold INTEGER")
 	// issue #494: upgrades desatendidos programados (epoch ms UTC; NULL = manual).
 	migrate(sqldb, "firmware_upgrades", "scheduled_for", "ALTER TABLE firmware_upgrades ADD COLUMN scheduled_for INTEGER")
+	// issue #761: motor del upgrade ("" = clásico URL+checksum, "owut" = ASU).
+	migrate(sqldb, "firmware_upgrades", "engine", "ALTER TABLE firmware_upgrades ADD COLUMN engine TEXT NOT NULL DEFAULT ''")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria

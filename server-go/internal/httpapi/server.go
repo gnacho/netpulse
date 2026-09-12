@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/baselines"
@@ -116,6 +117,11 @@ type Deps struct {
 	FirmwareImage *firmware.ImageResolver
 	// Speedtest: scheduler del test periódico WAN (#511). nil → 503.
 	Speedtest *speedtest.Scheduler
+	// AlertEmitter: motor de alertas para los resultados de firmware owut
+	// (#761). nil → sin alertas de resultado (p. ej. en tests).
+	AlertEmitter interface {
+		Emit(ev alerts.AlertEvent) bool
+	}
 }
 
 type server struct {
@@ -159,6 +165,17 @@ type server struct {
 	// Backups automáticos (#741): mutex single-flight entre el run manual
 	// (POST /api/backup/run) y el scheduler periódico.
 	backupMu sync.Mutex
+
+	// Firmware owut (#761): emisor de alertas de resultado (lo inyecta main
+	// tras construir el adapter), cache de detección de owut por router y
+	// single-flight de los disparos recurrentes.
+	alertEmitter alertEmitter
+	owutMu       sync.Mutex
+	owutCache    map[string]owutDetectCacheEntry
+	recMu        sync.Mutex
+	recInFlight  map[string]bool
+	// boardVersionFn: versión instalada según board info (hook de test).
+	boardVersionFn func(routerID string) string
 
 	// Avisos externos (announcements.json del repo): caché del último
 	// fetch; nil si el refresco no está activo.
@@ -232,9 +249,13 @@ func NewHandler(d Deps) http.Handler {
 		firmwareEngine:  firmware.NewEngine(d.Firmware, d.AgentHub),
 		imageResolver:   d.FirmwareImage,
 		speedtest:       d.Speedtest,
+		alertEmitter:    d.AlertEmitter,
 	}
 	if s.imageResolver == nil {
 		s.imageResolver = firmware.NewImageResolver()
+	}
+	if s.boardVersionFn == nil {
+		s.boardVersionFn = s.detectedFirmwareVersion
 	}
 	// Rearmer compartido entre el endpoint manual y el supervisor de
 	// auto-rearme (cmd/netpulse lo construye y lo pasa para que ambos
@@ -465,6 +486,9 @@ func NewHandler(d Deps) http.Handler {
 	// auto-updates no resetean el reloj. Solo en live (en demo no hay datos).
 	if s.cfg == nil || !s.cfg.DemoMode {
 		go s.backupLoop(context.Background(), backupTickEvery)
+		// Recurrencia de firmware (#761): mismo contrato reboot-safe; el
+		// disparo es idempotente (al día = no-op) y notifica el resultado.
+		go s.firmwareRecurrenceLoop(context.Background(), recTickEvery)
 	}
 
 	// --- Overrides manuales de topología (issue #142; solo admin) ---

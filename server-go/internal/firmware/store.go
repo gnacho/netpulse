@@ -33,6 +33,9 @@ type Upgrade struct {
 	// upgrade es del flujo manual/inmediato. Nota: StartedAt/FinishedAt siguen
 	// en unix SEGUNDOS (convención previa), ScheduledFor en ms.
 	ScheduledFor *int64 `json:"scheduledFor,omitempty"`
+	// Engine (#761): "owut" (attended sysupgrade vía ASU) o "" (motor
+	// clásico con imagen URL+checksum).
+	Engine string `json:"engine,omitempty"`
 }
 
 // Store persiste targets y upgrades.
@@ -136,9 +139,10 @@ func scanUpgrade(sc rowScanner) (*Upgrade, error) {
 	var u Upgrade
 	var finished, scheduled sql.NullInt64
 	var errStr, backup sql.NullString
+	var engine sql.NullString
 	if err := sc.Scan(
 		&u.ID, &u.RouterID, &u.TargetVersion, &u.TargetURL, &u.Checksum,
-		&u.Status, &errStr, &backup, &u.StartedAt, &finished, &scheduled,
+		&u.Status, &errStr, &backup, &u.StartedAt, &finished, &scheduled, &engine,
 	); err != nil {
 		return nil, err
 	}
@@ -154,13 +158,22 @@ func scanUpgrade(sc rowScanner) (*Upgrade, error) {
 	if backup.Valid {
 		u.BackupPath = backup.String
 	}
+	if engine.Valid {
+		u.Engine = engine.String
+	}
 	return &u, nil
+}
+
+// SetEngine marca el motor que ejecuta el upgrade (#761: owut vs clásico).
+func (s *Store) SetEngine(id int64, engine string) error {
+	_, err := s.db.Exec(`UPDATE firmware_upgrades SET engine = ? WHERE id = ?`, engine, id)
+	return err
 }
 
 // LatestUpgrade devuelve el upgrade más reciente de un router.
 func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 	u, err := scanUpgrade(s.db.QueryRow(`
-		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for
+		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for, engine
 		FROM firmware_upgrades
 		WHERE router_id = ?
 		ORDER BY started_at DESC
@@ -178,7 +191,7 @@ func (s *Store) LatestUpgrade(routerID string) (*Upgrade, error) {
 // GetUpgradeByID busca un upgrade por ID (para validar propiedad del agente).
 func (s *Store) GetUpgradeByID(id int64) (*Upgrade, error) {
 	u, err := scanUpgrade(s.db.QueryRow(`
-		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for
+		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for, engine
 		FROM firmware_upgrades WHERE id = ?
 	`, id))
 	if err == sql.ErrNoRows {
@@ -249,7 +262,7 @@ func (s *Store) CancelScheduled(routerID string) error {
 // scheduled_for <= nowMs), ordenadas por hora para lanzarlas en orden.
 func (s *Store) DueScheduled(nowMs int64) ([]Upgrade, error) {
 	rows, err := s.db.Query(`
-		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for
+		SELECT id, router_id, target_version, target_url, checksum, status, error, backup_path, started_at, finished_at, scheduled_for, engine
 		FROM firmware_upgrades
 		WHERE status = 'scheduled' AND scheduled_for <= ?
 		ORDER BY scheduled_for ASC

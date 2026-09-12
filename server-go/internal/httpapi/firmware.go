@@ -47,6 +47,9 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		return
 	}
 
+	// Ciclo owut completo + recurrencia (#761).
+	s.registerFirmwareOwutRoutes(mux)
+
 	mux.Handle("GET /api/firmware-upgrades", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.db == nil {
 			writeError(w, http.StatusServiceUnavailable, "no_db")
