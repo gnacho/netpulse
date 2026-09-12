@@ -86,8 +86,8 @@ export function AnnouncementBanner() {
         >
           <Megaphone className={`h-4 w-4 shrink-0 ${warn ? 'text-warn' : 'text-accent'}`} strokeWidth={1.75} />
           <div className="min-w-0 flex-1">
-            {title && <p className="truncate text-sm font-medium text-text-primary">{title}</p>}
-            {body && <p className="text-xs text-text-muted">{body}</p>}
+            {title && <p className="text-[22px] font-bold leading-tight text-text-primary">{title}</p>}
+            {body && <p className="text-lg leading-snug text-text-secondary">{body}</p>}
           </div>
           {a.url && (
             <a
