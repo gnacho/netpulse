@@ -1556,7 +1556,11 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "disable": "Desactivar",
-      "errorGeneric": "No se pudo guardar la configuración de Proxmox."
+      "errorGeneric": "No se pudo guardar la configuración de Proxmox.",
+      "add": "Añadir instancia",
+      "delete": "Quitar",
+      "instanceName": "Nombre (p. ej. Casa)",
+      "instanceId": "Identificador (slug, no editable luego)"
     },
     "sections": {
       "personalization": "Configuración",

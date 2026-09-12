@@ -31,11 +31,12 @@ import (
 // Config: datos de conexión al cluster (persistidos en kv por el server).
 type Config struct {
 	// URL base, p. ej. "https://192.168.1.100:8006" (sin barra final).
-	URL string
+	URL string `json:"url"`
 	// TokenID: "USER@REALM!TOKENID" (p. ej. "root@pam!netpulse").
-	TokenID string
+	TokenID string `json:"tokenId"`
 	// Secret: la parte UUID del token (se muestra una sola vez al crearlo).
-	Secret string
+	// NUNCA viaja en respuestas de la API (la config se expone sanitizada).
+	Secret string `json:"secret,omitempty"`
 }
 
 // Enabled: true si hay config completa.

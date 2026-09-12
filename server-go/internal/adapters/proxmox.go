@@ -41,54 +41,69 @@ const pveInventoryTTL = 5 * time.Minute
 type pveInventory struct {
 	// ctByMAC: MAC (upper ':') → datos del CT/VM que la usa.
 	ctByMAC map[string]pveVM
-	// nodeNames: nodos del cluster (p. ej. "citadel-01").
-	nodeNames map[string]bool
-	// nodeIPs: nodo → IP del bridge vmbr0 (p. ej. citadel-02 → 192.168.1.101).
-	// Permite casar el device HOST por IP cuando NetPulse no conoce su nombre
-	// (el host aparece solo por MAC/IP).
+	// nodes: nodos de todas las instancias (#764 multi-endpoint). La clave
+	// interna de los mapas es "instancia|nodo" para que dos clusters con
+	// nodos homónimos no se pisen.
+	nodes map[string]pveNode
+	// nodeIPs: "instancia|nodo" → IP del bridge vmbr0. Permite casar el
+	// device HOST por IP cuando NetPulse no conoce su nombre.
 	nodeIPs map[string]string
 }
 
 type pveVM struct {
-	Name string // hostname del CT/VM (webs, pbs…)
-	Node string // nodo que lo ejecuta (citadel-01)
-	Type string // "lxc" | "qemu"
+	Name     string // hostname del CT/VM (webs, pbs…)
+	Node     string // nodo que lo ejecuta (citadel-01)
+	Type     string // "lxc" | "qemu"
+	Instance string // instancia Proxmox a la que pertenece (#764)
 }
 
-// pveConfigFromKV: lee la config de la integración desde el kv.
-func (l *Live) pveConfigFromKV() pve.Config {
-	var cfg pve.Config
+// pveNode: un nodo PVE con su instancia de origen.
+type pveNode struct {
+	Instance string
+	Node     string
+}
+
+// nodeKey: clave compuesta de los mapas del inventario.
+func nodeKey(instance, node string) string { return instance + "|" + node }
+
+// pveInstClient: cliente PVE asociado a una instancia configurada.
+type pveInstClient struct {
+	inst pve.Instance
+	c    *pve.Client
+}
+
+// pveClientsCached: clientes de TODAS las instancias configuradas (#764),
+// recreados si la lista cambió (patrón AdGuard). Sin instancias → nil.
+func (l *Live) pveClientsCached() []pveInstClient {
 	if l.db == nil {
-		return cfg
+		return nil
 	}
-	_ = l.db.QueryRow("SELECT value FROM kv WHERE key='proxmox_url'").Scan(&cfg.URL)
-	_ = l.db.QueryRow("SELECT value FROM kv WHERE key='proxmox_token_id'").Scan(&cfg.TokenID)
-	_ = l.db.QueryRow("SELECT value FROM kv WHERE key='proxmox_token_secret'").Scan(&cfg.Secret)
-	return cfg
-}
-
-// pveClientCached: devuelve el cliente PVE para la config actual, recreándolo
-// si cambió (patrón AdGuard). Sin config → nil.
-func (l *Live) pveClientCached() *pve.Client {
-	cfg := l.pveConfigFromKV()
-	if !cfg.Enabled() {
-		l.pveClient = nil
+	instances := pve.LoadInstances(l.db.DB)
+	key := ""
+	for _, in := range instances {
+		key += in.ID + "|" + in.URL + "|" + in.TokenID + "|" + in.Secret + "\n"
+	}
+	if key == "" {
+		l.pveClients = nil
 		l.pveKey = ""
 		return nil
 	}
-	key := cfg.URL + "|" + cfg.TokenID + "|" + cfg.Secret
-	if l.pveClient == nil || l.pveKey != key {
-		l.pveClient = pve.NewClient(cfg)
+	if l.pveKey != key {
+		clients := make([]pveInstClient, 0, len(instances))
+		for _, in := range instances {
+			clients = append(clients, pveInstClient{inst: in, c: pve.NewClient(in.Config)})
+		}
+		l.pveClients = clients
 		l.pveKey = key
 	}
-	return l.pveClient
+	return l.pveClients
 }
 
 // pveInventoryCached: inventario PVE (VM→MAC→node) con TTL. Devuelve nil si
 // no configurado o si la consulta falla (no-op, no rompe el overview).
 func (l *Live) pveInventoryCached() *pveInventory {
-	client := l.pveClientCached()
-	if client == nil {
+	clients := l.pveClientsCached()
+	if len(clients) == 0 {
 		return nil
 	}
 	l.mu.Lock()
@@ -96,7 +111,7 @@ func (l *Live) pveInventoryCached() *pveInventory {
 	if l.pveInv != nil && time.Since(l.pveInvAt) < pveInventoryTTL {
 		return l.pveInv
 	}
-	inv := l.fetchPveInventory(client)
+	inv := l.fetchPveInventory(clients)
 	if inv == nil {
 		return l.pveInv // conserva el último bueno si la consulta falla
 	}
@@ -106,56 +121,59 @@ func (l *Live) pveInventoryCached() *pveInventory {
 }
 
 // fetchPveInventory: consulta cluster/resources + config de cada VM/CT
-// running para construir mac→VM y la lista de nodos. Best-effort: una VM que
-// no se pueda leer no invalida el resto.
-func (l *Live) fetchPveInventory(client *pve.Client) *pveInventory {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+// running de TODAS las instancias (#764) y fusiona el inventario. Best-effort
+// por instancia: una instancia caída no invalida las demás.
+func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	resources, err := client.ClusterResources(ctx)
-	if err != nil {
-		log.Printf("[netpulse:pve] cluster/resources: %v", err)
-		return nil
-	}
 	inv := &pveInventory{
-		ctByMAC:   map[string]pveVM{},
-		nodeNames: map[string]bool{},
-		nodeIPs:   map[string]string{},
+		ctByMAC: map[string]pveVM{},
+		nodes:   map[string]pveNode{},
+		nodeIPs: map[string]string{},
 	}
-	for _, r := range resources {
-		if r.Type == "node" {
-			// El nombre del nodo viene en `node`, no en `name` (que los
-			// nodos dejan vacío en cluster/resources).
-			if r.Node != "" {
-				inv.nodeNames[r.Node] = true
-				// IP del host (vmbr0) para casar el device HOST por IP.
-				if ip, err := client.NodeIP(ctx, r.Node); err == nil && ip != "" {
-					inv.nodeIPs[r.Node] = ip
-				} else if err != nil {
-					log.Printf("[netpulse:pve] nodeip %s: %v", r.Node, err)
-				}
-			}
-			continue
-		}
-		if r.Type != "lxc" && r.Type != "qemu" {
-			continue
-		}
-		if r.Node == "" || r.VMID == 0 {
-			continue
-		}
-		if r.Status == "stopped" {
-			continue // sin tráfico → no está en la red; no aporta MAC
-		}
-		cfg, err := client.VMConfig(ctx, r.Node, r.Type, r.VMID)
+	for _, ic := range clients {
+		resources, err := ic.c.ClusterResources(ctx)
 		if err != nil {
-			log.Printf("[netpulse:pve] config %s/%d: %v", r.Type, r.VMID, err)
+			log.Printf("[netpulse:pve] %s cluster/resources: %v", ic.inst.ID, err)
 			continue
 		}
-		for _, mac := range pve.MACsOfConfig(cfg) {
-			inv.ctByMAC[mac] = pveVM{Name: r.Name, Node: r.Node, Type: r.Type}
+		for _, r := range resources {
+			if r.Type == "node" {
+				// El nombre del nodo viene en `node`, no en `name` (que los
+				// nodos dejan vacío en cluster/resources).
+				if r.Node != "" {
+					key := nodeKey(ic.inst.ID, r.Node)
+					inv.nodes[key] = pveNode{Instance: ic.inst.ID, Node: r.Node}
+					// IP del host (vmbr0) para casar el device HOST por IP.
+					if ip, err := ic.c.NodeIP(ctx, r.Node); err == nil && ip != "" {
+						inv.nodeIPs[key] = ip
+					} else if err != nil {
+						log.Printf("[netpulse:pve] %s nodeip %s: %v", ic.inst.ID, r.Node, err)
+					}
+				}
+				continue
+			}
+			if r.Type != "lxc" && r.Type != "qemu" {
+				continue
+			}
+			if r.Node == "" || r.VMID == 0 {
+				continue
+			}
+			if r.Status == "stopped" {
+				continue // sin tráfico → no está en la red; no aporta MAC
+			}
+			cfg, err := ic.c.VMConfig(ctx, r.Node, r.Type, r.VMID)
+			if err != nil {
+				log.Printf("[netpulse:pve] %s config %s/%d: %v", ic.inst.ID, r.Type, r.VMID, err)
+				continue
+			}
+			for _, mac := range pve.MACsOfConfig(cfg) {
+				inv.ctByMAC[mac] = pveVM{Name: r.Name, Node: r.Node, Type: r.Type, Instance: ic.inst.ID}
+			}
 		}
 	}
-	if len(inv.ctByMAC) == 0 && len(inv.nodeNames) == 0 {
-		return nil // cluster sin VMs corriendo ni nodos legibles
+	if len(inv.ctByMAC) == 0 && len(inv.nodes) == 0 {
+		return nil // sin VMs corriendo ni nodos legibles en ninguna instancia
 	}
 	return inv
 }
@@ -193,30 +211,41 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 	// host físico con dos NICs aparece como dos devices (p. ej. citadel-01
 	// con .100 vmbr0 y .243 de gestión): el device con la IP del nodo es el
 	// host correcto (online); el otro (nombre coincidente pero IP distinta)
-	// NO debe ganar.
-	hostIDByNode := map[string]string{} // node → id del device host
+	// NO debe ganar. Con multi-instancia (#764) las claves son compuestas
+	// "instancia|nodo": dos clusters pueden tener nodos homónimos.
+	hostIDByNode := map[string]string{} // "inst|node" → id del device host
 	hostIdxByID := map[string]int{}
-	nodeNameByID := map[string]string{} // id del device host → nombre del nodo
+	nodeByKey := map[string]pveNode{} // "inst|node" → nodo (para renombrar)
 	for i := range devices {
 		hostIdxByID[devices[i].ID] = i
 		if devices[i].IP != "" {
-			for node, ip := range inv.nodeIPs {
+			for key, ip := range inv.nodeIPs {
 				if devices[i].IP == ip {
-					hostIDByNode[node] = devices[i].ID
-					nodeNameByID[devices[i].ID] = node
+					hostIDByNode[key] = devices[i].ID
+					nodeByKey[key] = inv.nodes[key]
 				}
 			}
 		}
 	}
-	// Pasada 2: por nombre, solo si el nodo aún no tiene host por IP.
+	// Pasada 2: por nombre, solo si ese nodo aún no tiene host por IP.
 	for i := range devices {
-		if _, ok := hostIDByNode[devices[i].Name]; ok {
-			continue // el nodo ya tiene host (por IP)
+		matched := ""
+		for key, n := range inv.nodes {
+			if n.Node == devices[i].Name {
+				matched = key
+				if _, ok := hostIDByNode[key]; !ok {
+					break // este nodo en concreto aún no tiene host
+				}
+			}
 		}
-		if inv.nodeNames[devices[i].Name] {
-			hostIDByNode[devices[i].Name] = devices[i].ID
-			nodeNameByID[devices[i].ID] = devices[i].Name
+		if matched == "" {
+			continue
 		}
+		if _, ok := hostIDByNode[matched]; ok {
+			continue // ya tiene host por IP
+		}
+		hostIDByNode[matched] = devices[i].ID
+		nodeByKey[matched] = inv.nodes[matched]
 	}
 	// Casar cada CT por MAC.
 	for mac, vm := range inv.ctByMAC {
@@ -224,7 +253,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		if !ok {
 			continue // el CT no es un device conocido (apagado o sin tráfico)
 		}
-		hostID := hostIDByNode[vm.Node]
+		hostID := hostIDByNode[nodeKey(vm.Instance, vm.Node)]
 		devices[idx].Infra = "ct"
 		// El sello PVE es ground truth: si el CT tiene host conocido, cuelga
 		// de él (sobreescribe el attachTo inferido por L2, que en puertos
@@ -235,15 +264,14 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 	}
 	// Sellar los hosts y renombrarlos con el nombre del nodo cuando el device
 	// solo se conoce por MAC (p. ej. "FE:C9:95:97:15:30" → "citadel-01").
-	for node, id := range hostIDByNode {
+	for key, id := range hostIDByNode {
 		idx, ok := hostIdxByID[id]
 		if !ok {
 			continue
 		}
 		devices[idx].Infra = "hypervisor"
-		if name, ok := nodeNameByID[id]; ok && looksLikeMACName(devices[idx].Name) {
-			devices[idx].Name = name
-			_ = node
+		if n, ok := nodeByKey[key]; ok && looksLikeMACName(devices[idx].Name) {
+			devices[idx].Name = n.Node
 		}
 	}
 	// CTs por host (para el macCount informativo del distnode).
@@ -264,7 +292,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			existingHost[dn.HostDeviceID] = true
 		}
 	}
-	for node, id := range hostIDByNode {
+	for key, id := range hostIDByNode {
 		if existingHost[id] {
 			continue
 		}
@@ -272,11 +300,12 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		if !ok {
 			continue
 		}
+		n := inv.nodes[key]
 		dists = append(dists, DistributionNode{
-			ID: "dist-pve-" + node, Kind: "hypervisor",
+			ID: "dist-pve-" + n.Instance + "-" + n.Node, Kind: "hypervisor",
 			RouterID: devices[idx].RouterID, Port: devices[idx].Port, PortLabel: devices[idx].PortLabel,
-			HostDeviceID: id, Name: node, MacCount: ctCountByHost[id],
-			Source: "proxmox",
+			HostDeviceID: id, Name: n.Node, MacCount: ctCountByHost[id],
+			Source: "proxmox", Instance: n.Instance,
 		})
 	}
 	return dists

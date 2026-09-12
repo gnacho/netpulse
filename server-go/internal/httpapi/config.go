@@ -15,6 +15,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/discover"
+	"github.com/gnacho/netpulse/server-go/internal/pve"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 )
@@ -40,6 +41,7 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("PUT /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handlePutAdguardConfig)))
 	mux.Handle("GET /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handleGetProxmoxConfig)))
 	mux.Handle("PUT /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handlePutProxmoxConfig)))
+	mux.Handle("DELETE /api/config/proxmox/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteProxmoxConfig)))
 }
 
 // syncRouters replica sync() de config.js: adapter.setRouters(listRouters(db)).
@@ -493,14 +495,31 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/config/proxmox — {url, tokenId, tokenSet} (el secret nunca se
-// devuelve). Config de la integración PVE del #561.
+// GET /api/config/proxmox - instancias configuradas (#764 multi-endpoint).
+// El secret nunca sale: tokenSet por instancia. Los campos planos legacy
+// (url/tokenId/tokenSet de la PRIMERA instancia) se mantienen una version
+// para no romper frontends cacheados.
 func (s *server) handleGetProxmoxConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"url":      kvGet(s.db.DB, "proxmox_url"),
-		"tokenId":  kvGet(s.db.DB, "proxmox_token_id"),
-		"tokenSet": kvGet(s.db.DB, "proxmox_token_secret") != "",
-	})
+	instances := pve.LoadInstances(s.db.DB)
+	// Vista sanitizada: el secret JAMAS sale del server (#764).
+	view := make([]map[string]string, 0, len(instances))
+	for _, in := range instances {
+		view = append(view, map[string]string{
+			"id": in.ID, "name": in.Name, "url": in.URL, "tokenId": in.TokenID,
+		})
+	}
+	out := map[string]any{
+		"instances": view,
+		"url":       "",
+		"tokenId":   "",
+		"tokenSet":  false,
+	}
+	if len(instances) > 0 {
+		out["url"] = instances[0].URL
+		out["tokenId"] = instances[0].TokenID
+		out["tokenSet"] = instances[0].Secret != ""
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 type proxmoxInput struct {
@@ -509,55 +528,103 @@ type proxmoxInput struct {
 	Secret  string  `json:"secret"` // solo si viene (se conserva el anterior)
 }
 
-// PUT /api/config/proxmox — upsert en kv (secret solo si viene). 204.
-// url: base del cluster pve (p. ej. "https://192.168.1.100:8006").
-// tokenId: "USER@REALM!TOKENID"; secret: la parte UUID del token.
+type proxmoxInstanceInput struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	TokenID string `json:"tokenId"`
+	Secret  string `json:"secret"` // vacío en edición = conservar el actual
+}
+
+// PUT /api/config/proxmox - upsert de UNA instancia multi (#764): body
+// {id, name, url, tokenId, secret?}. Compat: si el body NO lleva id, se
+// aplica al estilo legacy single (url/tokenId/secret sobre la instancia
+// migrada "default", creándola si hace falta; url "" desactiva todo).
 func (s *server) handlePutProxmoxConfig(w http.ResponseWriter, r *http.Request) {
-	var in proxmoxInput
+	var in proxmoxInstanceInput
 	if st := readJSONBody(w, r, &in); st != 0 {
 		writeBodyError(w, st, "invalid_json", "")
 		return
 	}
+	// Parcial (#764): sobre una instancia EXISTENTE, los campos vacíos se
+	// conservan (url/tokenId/secret opcionales); para una NUEVA se exigen
+	// url + tokenId + secret. Borrar es DELETE (ya no "url vacía").
 	tokenID := strings.TrimSpace(in.TokenID)
 	if len(tokenID) > 128 || len(in.Secret) > 256 {
 		writeError(w, http.StatusBadRequest, "invalid_input", "token too long")
 		return
 	}
-	upsert := "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-	if in.URL != nil {
-		url := strings.TrimRight(strings.TrimSpace(*in.URL), "/")
-		if url == "" {
-			// url vacío = desactivar la integración: limpia todo.
-			for _, k := range []string{"proxmox_url", "proxmox_token_id", "proxmox_token_secret"} {
-				if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", k); err != nil {
-					writeError(w, http.StatusInternalServerError, "internal_error")
-					return
-				}
-			}
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		id = "default" // legacy sin id
+	}
+	url := strings.TrimRight(strings.TrimSpace(in.URL), "/")
+	if url != "" {
 		u, err := urlpkg.Parse(url)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			writeError(w, http.StatusBadRequest, "invalid_input", "url must be a valid http(s) URL")
 			return
 		}
-		if _, err := s.db.Exec(upsert, "proxmox_url", url); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error")
-			return
+	}
+	list := pve.LoadInstances(s.db.DB)
+	var current *pve.Instance
+	for i := range list {
+		if list[i].ID == id {
+			current = &list[i]
+			break
 		}
 	}
-	if tokenID != "" {
-		if _, err := s.db.Exec(upsert, "proxmox_token_id", tokenID); err != nil {
+	if current != nil {
+		if url == "" && tokenID == "" && strings.TrimSpace(in.Name) == "" && in.Secret == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "nada que actualizar")
+			return
+		}
+		if url != "" {
+			current.URL = url
+		}
+		if tokenID != "" {
+			current.TokenID = tokenID
+		}
+		if in.Secret != "" {
+			current.Secret = in.Secret
+		}
+		if n := strings.TrimSpace(in.Name); n != "" {
+			current.Name = n
+		}
+		if err := pve.SaveInstances(s.db.DB, list); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
+		w.WriteHeader(http.StatusNoContent)
+		return
 	}
-	if in.Secret != "" {
-		if _, err := s.db.Exec(upsert, "proxmox_token_secret", in.Secret); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error")
-			return
-		}
+	// Instancia nueva: completa.
+	if url == "" || tokenID == "" || in.Secret == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "url, tokenId y secret son requeridos para una instancia nueva")
+		return
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		name = id
+	}
+	inst := pve.Instance{ID: id, Name: name, Config: pve.Config{URL: url, TokenID: tokenID, Secret: in.Secret}}
+	if err := pve.UpsertInstance(s.db.DB, inst); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/config/proxmox/{id} - elimina una instancia (#764).
+func (s *server) handleDeleteProxmoxConfig(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !pve.ValidInstanceID(id) {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id inválido")
+		return
+	}
+	if err := pve.DeleteInstance(s.db.DB, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

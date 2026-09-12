@@ -1649,84 +1649,80 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   )
 }
 
-// Proxmox VE (#561): inventario read-only del cluster para sellar
-// hypervisor/ct en Dispositivos. Config en kv del servidor (url + API token).
+// Proxmox VE (#561/#764): inventario read-only para sellar hypervisor/ct en
+// Dispositivos. Multi-instancia: varios clusters o nodos sueltos, cada uno
+// con su URL + token de solo lectura (el secret nunca vuelve del servidor).
+interface PveInstanceCfg {
+  id: string
+  name: string
+  url: string
+  tokenId: string
+  secret?: string
+}
+
 function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
   const { t } = useTranslation()
-  const [url, setURL] = useState('')
-  const [tokenId, setTokenId] = useState('')
-  const [secret, setSecret] = useState('')
-  const [tokenSet, setTokenSet] = useState(false)
-  const [editing, setEditing] = useState(false)
+  const [instances, setInstances] = useState<PveInstanceCfg[]>([])
+  const [editing, setEditing] = useState<PveInstanceCfg | null>(null)
+  const [isNew, setIsNew] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let disposed = false
-    void (async () => {
-      try {
-        const res = await fetch('/api/config/proxmox')
-        if (!res.ok) return
-        const json = (await res.json()) as { url: string; tokenId: string; tokenSet: boolean }
-        if (disposed) return
-        setURL(json.url || '')
-        setTokenId(json.tokenId || '')
-        setTokenSet(json.tokenSet)
-      } catch {
-        // sin servidor → no-op
-      }
-    })()
-    return () => {
-      disposed = true
+  const load = async () => {
+    try {
+      const res = await fetch('/api/config/proxmox')
+      if (!res.ok) return
+      const json = (await res.json()) as { instances?: PveInstanceCfg[] }
+      setInstances(json.instances ?? [])
+    } catch {
+      // sin servidor → no-op
     }
+  }
+
+  useEffect(() => {
+    void load()
   }, [])
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (saving) return
+    if (!editing || saving) return
     setSaving(true)
     setError(null)
     try {
-      const payload: Record<string, unknown> = {}
-      // url siempre se manda ("" = desactivar; si hay url previa y no se tocó,
-      // se conserva igualmente porque el input está precargado).
-      payload.url = url.trim()
-      if (tokenId.trim()) payload.tokenId = tokenId.trim()
-      if (secret) payload.secret = secret
-      const res = await fetch('/api/config/proxmox', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
-      if (secret) {
-        setTokenSet(true)
-        setSecret('')
+      const body: Record<string, unknown> = {
+        id: editing.id.trim(),
+        name: editing.name.trim(),
+        url: editing.url.trim(),
+        tokenId: editing.tokenId.trim(),
       }
-      setEditing(false)
+      if (editing.secret) body.secret = editing.secret
+      const res = await fetch('/api/config/proxmox', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok && res.status !== 204) {
+        const b = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(b.message ?? `HTTP ${res.status}`)
+      }
+      setEditing(null)
+      await load()
       onSaved()
-    } catch {
-      setError(t('settings.proxmox.errorGeneric'))
+    } catch (err) {
+      setError(String(err).replace(/^Error:\s*/, '') || t('settings.proxmox.errorGeneric'))
     } finally {
       setSaving(false)
     }
   }
 
-  const disable = async () => {
+  const remove = async (id: string) => {
     if (saving) return
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/config/proxmox', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: '' }),
-      })
+      const res = await fetch(`/api/config/proxmox/${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
-      setURL('')
-      setTokenId('')
-      setTokenSet(false)
-      setEditing(false)
+      await load()
       onSaved()
     } catch {
       setError(t('settings.proxmox.errorGeneric'))
@@ -1735,100 +1731,137 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }
 
-  if (tokenSet && !editing) {
-    return (
-      <Card title={t('settings.proxmox.title')} caption={t('settings.proxmox.caption')} index={5} reduce={reduce}>
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
-          <Server className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
-          <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-text-primary">{url}</span>
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-            {t('settings.proxmox.configured')}
-          </span>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label={t('settings.proxmox.edit')}
-            title={t('settings.proxmox.edit')}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-          >
-            <Pencil className="h-4 w-4" strokeWidth={1.75} />
-          </button>
-        </div>
-        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.proxmox.hint')}</p>
-      </Card>
-    )
-  }
+  const empty = { id: '', name: '', url: '', tokenId: '', secret: '' }
 
   return (
     <Card title={t('settings.proxmox.title')} caption={t('settings.proxmox.caption')} index={5} reduce={reduce}>
-      <form onSubmit={(e) => void save(e)}>
-        <div className="grid grid-cols-1 gap-2.5">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setURL(e.target.value)}
-            placeholder="https://192.168.1.100:8006"
-            aria-label={t('settings.proxmox.url')}
-            className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <input
-              type="text"
-              value={tokenId}
-              onChange={(e) => setTokenId(e.target.value)}
-              placeholder="root@pam!netpulse"
-              aria-label={t('settings.proxmox.tokenId')}
-              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-            />
-            <input
-              type="password"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder={tokenSet ? t('settings.proxmox.secretKeep') : t('settings.proxmox.secret')}
-              aria-label={t('settings.proxmox.secret')}
-              autoComplete="new-password"
-              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-            />
-          </div>
-        </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-3">
-          <span className={cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider', tokenSet ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn')}>
-            {tokenSet ? t('settings.proxmox.configured') : t('settings.proxmox.notConfigured')}
-          </span>
-          <button
-            type="submit"
-            disabled={saving || (!url.trim() && !tokenSet)}
-            className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
-          >
-            {saving ? t('settings.proxmox.saving') : t('settings.proxmox.save')}
-          </button>
-          {tokenSet && editing && (
+      <div className="space-y-2.5">
+        {instances.map((inst) => (
+          <div key={inst.id} className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
+            <Server className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-text-primary">
+                {inst.name || inst.id}
+                <span className="ml-1.5 font-mono text-xs text-text-muted">({inst.id})</span>
+              </p>
+              <p className="truncate font-mono text-xs text-text-secondary">{inst.url}</p>
+            </div>
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+              {t('settings.proxmox.configured')}
+            </span>
             <button
               type="button"
               onClick={() => {
-                setEditing(false)
-                setSecret('')
+                setIsNew(false)
+                setEditing({ ...inst, secret: '' })
                 setError(null)
               }}
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+              aria-label={t('settings.proxmox.edit')}
+              title={t('settings.proxmox.edit')}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
             >
-              {t('settings.users.cancel')}
+              <Pencil className="h-4 w-4" strokeWidth={1.75} />
             </button>
-          )}
-          {tokenSet && (
             <button
               type="button"
-              onClick={() => void disable()}
+              onClick={() => void remove(inst.id)}
+              aria-label={t('settings.proxmox.delete')}
+              title={t('settings.proxmox.delete')}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors duration-150 hover:border-danger/60 disabled:opacity-40"
               disabled={saving}
-              className="rounded-lg border border-danger/30 px-3 py-2 text-sm font-medium text-danger transition-colors duration-150 hover:border-danger/60 disabled:opacity-40"
             >
-              {t('settings.proxmox.disable')}
+              <Trash2 className="h-4 w-4" strokeWidth={1.75} />
             </button>
-          )}
-        </div>
-        {error && <p className="mt-2 text-caption text-danger">{error}</p>}
-        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.proxmox.hint')}</p>
-      </form>
+          </div>
+        ))}
+
+        {editing ? (
+          <form onSubmit={(e) => void save(e)} className="space-y-2.5 rounded-xl border border-border bg-canvas p-3">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <input
+                type="text"
+                value={editing.name}
+                onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                placeholder={t('settings.proxmox.instanceName')}
+                aria-label={t('settings.proxmox.instanceName')}
+                className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              />
+              <input
+                type="text"
+                value={isNew ? editing.id : editing.id}
+                disabled={!isNew}
+                onChange={(e) => setEditing({ ...editing, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                placeholder="casa"
+                aria-label={t('settings.proxmox.instanceId')}
+                className="rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none disabled:opacity-60"
+              />
+            </div>
+            <input
+              type="text"
+              value={editing.url}
+              onChange={(e) => setEditing({ ...editing, url: e.target.value })}
+              placeholder="https://192.168.1.100:8006"
+              aria-label={t('settings.proxmox.url')}
+              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <input
+                type="text"
+                value={editing.tokenId}
+                onChange={(e) => setEditing({ ...editing, tokenId: e.target.value })}
+                placeholder="root@pam!netpulse"
+                aria-label={t('settings.proxmox.tokenId')}
+                className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              />
+              <input
+                type="password"
+                value={editing.secret ?? ''}
+                onChange={(e) => setEditing({ ...editing, secret: e.target.value })}
+                placeholder={!isNew ? t('settings.proxmox.secretKeep') : t('settings.proxmox.secret')}
+                aria-label={t('settings.proxmox.secret')}
+                autoComplete="new-password"
+                className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={saving || !editing.url.trim() || !editing.tokenId.trim() || (isNew && !editing.id.trim())}
+                className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
+              >
+                {saving ? t('settings.proxmox.saving') : t('settings.proxmox.save')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null)
+                  setError(null)
+                }}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
+              >
+                {t('settings.users.cancel')}
+              </button>
+            </div>
+            {error && <p className="text-caption text-danger">{error}</p>}
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setIsNew(true)
+              setEditing({ ...empty })
+              setError(null)
+            }}
+            disabled={saving}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.proxmox.add')}
+          </button>
+        )}
+      </div>
+      {error && !editing && <p className="mt-2 text-caption text-danger">{error}</p>}
+      <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.proxmox.hint')}</p>
     </Card>
   )
 }
