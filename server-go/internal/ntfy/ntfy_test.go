@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -195,6 +197,27 @@ func TestIsRetryable(t *testing.T) {
 		if got := isRetryable(tc.err); got != tc.want {
 			t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// B4: el truncado no debe partir runas multibyte.
+func TestFormatMessageTruncatesOnRuneBoundary(t *testing.T) {
+	desc := strings.Repeat("é", 600) // 1200 bytes, >500
+	msg := formatMessage(alerts.AlertEvent{Title: "t", Description: desc, Ts: 1700000000})
+	if !utf8.ValidString(msg) {
+		t.Fatalf("mensaje con UTF-8 inválido")
+	}
+	if !contains(msg, "...") {
+		t.Fatalf("esperaba recorte de la descripción: %q", msg)
+	}
+
+	big := strings.Repeat("日", 3000) // 9000 bytes, supera maxMsgLen
+	msg = formatMessage(alerts.AlertEvent{Title: big, Ts: 1700000000})
+	if !utf8.ValidString(msg) {
+		t.Fatalf("mensaje largo con UTF-8 inválido")
+	}
+	if len(msg) > maxMsgLen {
+		t.Fatalf("mensaje por encima del límite: %d bytes", len(msg))
 	}
 }
 

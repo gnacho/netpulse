@@ -20,6 +20,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -316,7 +317,7 @@ func formatMessage(ev alerts.AlertEvent) string {
 	if ev.Description != "" {
 		desc := ev.Description
 		if len(desc) > 500 {
-			desc = desc[:500] + "..."
+			desc = truncateUTF8(desc, 500) + "..."
 		}
 		b.WriteString(desc)
 		b.WriteString("\n")
@@ -327,9 +328,29 @@ func formatMessage(ev alerts.AlertEvent) string {
 	fmt.Fprintf(&b, "🕐 %s", ts)
 	out := b.String()
 	if len(out) > maxMsgLen {
-		out = out[:maxMsgLen-3] + "..."
+		out = truncateUTF8(out, maxMsgLen-3) + "..."
 	}
 	return out
+}
+
+// truncateUTF8 recorta s a lo sumo maxBytes bytes sin partir una runa
+// multibyte (el corte por bytes crudo podía dejar UTF-8 inválido).
+func truncateUTF8(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return s
+	}
+	s = s[:maxBytes]
+	for len(s) > 0 {
+		r, size := utf8.DecodeLastRuneInString(s)
+		if r != utf8.RuneError || size > 1 {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 // MaskTopic redacta el topic (secreto del canal) para logs y diagnósticos:
