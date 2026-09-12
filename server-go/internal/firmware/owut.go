@@ -29,12 +29,15 @@ const (
 // owutDetectCmd comprueba si el binario owut está en el PATH del router.
 const owutDetectCmd = "command -v owut"
 
-// owutCheckCmd envuelve `owut check` fusionando stderr en stdout y añadiendo
-// una línea final con el exit code. SSHPool.Run descarta el stdout cuando el
-// comando sale con código distinto de cero (session.Output), así que sin este
-// wrapper un check fallido perdería su salida. La línea `__owut_exit__=N` se
-// parsea y se retira del rawOutput antes de exponerlo.
-const owutCheckCmd = "owut check 2>&1; printf '\\n__owut_exit__=%d\\n' $?"
+// owutCheckCmd envuelve `owut check -v` fusionando stderr en stdout y
+// añadiendo una línea final con el exit code. El verbose es necesario para
+// que la salida LISTE los paquetes "missing to-version" (sus nombres), que
+// el resumen sin -v solo cuenta; de ahí salen los MissingPkgs para sugerir
+// la exclusión. SSHPool.Run descarta el stdout cuando el comando sale con
+// código distinto de cero (session.Output), así que sin este wrapper un
+// check fallido perdería su salida. La línea `__owut_exit__=N` se parsea y
+// se retira del rawOutput antes de exponerlo.
+const owutCheckCmd = "owut check -v 2>&1; printf '\\n__owut_exit__=%d\\n' $?"
 
 // owutExitRe extrae el exit code embebido por el wrapper de owutCheckCmd.
 var owutExitRe = regexp.MustCompile(`__owut_exit__=(\d+)`)
