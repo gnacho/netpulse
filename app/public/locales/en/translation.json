@@ -1556,7 +1556,11 @@
       "save": "Save",
       "saving": "Saving…",
       "disable": "Disable",
-      "errorGeneric": "Could not save the Proxmox configuration."
+      "errorGeneric": "Could not save the Proxmox configuration.",
+      "add": "Add instance",
+      "delete": "Remove",
+      "instanceName": "Name (e.g. Home)",
+      "instanceId": "Identifier (slug, not editable later)"
     },
     "sections": {
       "personalization": "Configuration",

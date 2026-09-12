@@ -317,6 +317,9 @@ type DistributionNode struct {
 	// Source: origen del nodo de hipervisor. "" = inferido por L2 (OUI);
 	// "proxmox" = sellado con el inventario read-only de la API PVE (#561).
 	Source string `json:"source,omitempty"`
+	// Instance: instancia Proxmox (multi-endpoint #764) a la que pertenece
+	// el host ("casa", "ofi"…); vacío en los inferidos y en single.
+	Instance string `json:"instance,omitempty"`
 	// Mac: chassis-MAC del vecino cuando kind='managed' (SPEC-CANON D1). La
 	// app la usa para excluir del mapa el chip del Device del switch (que
 	// existe como Device Y como nodo managed, sin duplicar el render).

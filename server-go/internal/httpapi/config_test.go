@@ -540,15 +540,18 @@ func TestProxmoxConfig(t *testing.T) {
 		t.Fatalf("url inválida: esperado 400, got %d", res.StatusCode)
 	}
 
-	// Desactivar: url vacía limpia todo.
-	res = doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie, `{"url":""}`)
+	// Eliminar (#764): DELETE de la instancia; el listado queda vacío.
+	res = doReq(t, "DELETE", srv.URL+"/api/config/proxmox/default", cookie, "")
 	if res.StatusCode != 204 {
 		body := readJSON(t, res)
-		t.Fatalf("PUT proxmox desactivar: %d %v", res.StatusCode, body)
+		t.Fatalf("DELETE proxmox: %d %v", res.StatusCode, body)
 	}
 	res = doReq(t, "GET", srv.URL+"/api/config/proxmox", cookie, "")
 	body = readJSON(t, res)
 	if body["url"] != "" || body["tokenId"] != "" || body["tokenSet"] != false {
-		t.Fatalf("GET tras desactivar: %v", body)
+		t.Fatalf("GET tras eliminar: %v", body)
+	}
+	if ins, _ := body["instances"].([]any); len(ins) != 0 {
+		t.Fatalf("instances tras eliminar: %v", ins)
 	}
 }

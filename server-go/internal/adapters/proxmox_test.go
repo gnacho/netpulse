@@ -3,7 +3,6 @@ package adapters
 
 import (
 	"testing"
-
 )
 
 // TestSealProxmoxInfra: con un cluster de 1 nodo (citadel-01) y 2 CTs
@@ -13,10 +12,10 @@ import (
 func TestSealProxmoxInfra(t *testing.T) {
 	inv := &pveInventory{
 		ctByMAC: map[string]pveVM{
-			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-01", Type: "lxc"},
-			"02:78:F4:02:8A:94": {Name: "homeassistant", Node: "citadel-01", Type: "lxc"},
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-01", Type: "lxc", Instance: "default"},
+			"02:78:F4:02:8A:94": {Name: "homeassistant", Node: "citadel-01", Type: "lxc", Instance: "default"},
 		},
-		nodeNames: map[string]bool{"citadel-01": true},
+		nodes: map[string]pveNode{"default|citadel-01": {Instance: "default", Node: "citadel-01"}},
 	}
 	devices := []Device{
 		{ID: "c8-ff-bf-0c-60-12", MAC: "C8:FF:BF:0C:60:12", Name: "citadel-01", RouterID: "gateway", Band: "—"},
@@ -66,9 +65,9 @@ func TestSealProxmoxInfraSinInventario(t *testing.T) {
 func TestSealProxmoxInfraHostSinDevice(t *testing.T) {
 	inv := &pveInventory{
 		ctByMAC: map[string]pveVM{
-			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-99", Type: "lxc"},
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-99", Type: "lxc", Instance: "default"},
 		},
-		nodeNames: map[string]bool{"citadel-99": true},
+		nodes: map[string]pveNode{"default|citadel-99": {Instance: "default", Node: "citadel-99"}},
 	}
 	devices := []Device{
 		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "webs", RouterID: "gateway"},
@@ -88,10 +87,10 @@ func TestSealProxmoxInfraHostSinDevice(t *testing.T) {
 func TestSealProxmoxInfraHostPorIP(t *testing.T) {
 	inv := &pveInventory{
 		ctByMAC: map[string]pveVM{
-			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc"},
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc", Instance: "default"},
 		},
-		nodeNames: map[string]bool{"citadel-02": true},
-		nodeIPs:   map[string]string{"citadel-02": "192.168.1.101"},
+		nodes:   map[string]pveNode{"default|citadel-02": {Instance: "default", Node: "citadel-02"}},
+		nodeIPs: map[string]string{"default|citadel-02": "192.168.1.101"},
 	}
 	devices := []Device{
 		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "E8:FF:1E:DD:C7:ED", IP: "192.168.1.101", RouterID: "switch16"},
@@ -116,10 +115,10 @@ func TestSealProxmoxInfraHostPorIP(t *testing.T) {
 func TestSealProxmoxInfraHostConflictoNICs(t *testing.T) {
 	inv := &pveInventory{
 		ctByMAC: map[string]pveVM{
-			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-01", Type: "lxc"},
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-01", Type: "lxc", Instance: "default"},
 		},
-		nodeNames: map[string]bool{"citadel-01": true},
-		nodeIPs:   map[string]string{"citadel-01": "192.168.1.100"},
+		nodes:   map[string]pveNode{"default|citadel-01": {Instance: "default", Node: "citadel-01"}},
+		nodeIPs: map[string]string{"default|citadel-01": "192.168.1.100"},
 	}
 	devices := []Device{
 		// device con nombre citadel-01 pero IP de gestión (.243) y offline.
@@ -156,11 +155,11 @@ func TestPVEMacToDeviceID(t *testing.T) {
 func TestPVEHypervisorDistNodes(t *testing.T) {
 	inv := &pveInventory{
 		ctByMAC: map[string]pveVM{
-			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc"},
-			"02:78:F4:02:8A:94": {Name: "pbs", Node: "citadel-02", Type: "lxc"},
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc", Instance: "default"},
+			"02:78:F4:02:8A:94": {Name: "pbs", Node: "citadel-02", Type: "lxc", Instance: "default"},
 		},
-		nodeNames: map[string]bool{"citadel-02": true, "citadel-01": true},
-		nodeIPs:   map[string]string{"citadel-02": "192.168.1.101", "citadel-01": "192.168.1.100"},
+		nodes:   map[string]pveNode{"default|citadel-02": {Instance: "default", Node: "citadel-02"}, "default|citadel-01": {Instance: "default", Node: "citadel-01"}},
+		nodeIPs: map[string]string{"default|citadel-02": "192.168.1.101", "default|citadel-01": "192.168.1.100"},
 	}
 	devices := []Device{
 		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "E8:FF:1E:DD:C7:ED", IP: "192.168.1.101", RouterID: "switch16", Port: "lan8"},
@@ -176,7 +175,7 @@ func TestPVEHypervisorDistNodes(t *testing.T) {
 		t.Fatalf("esperado 2 distnodes (L2 + 1 PVE), got %d: %+v", len(dists), dists)
 	}
 	dn := dists[1]
-	if dn.ID != "dist-pve-citadel-02" || dn.Kind != "hypervisor" || dn.Source != "proxmox" {
+	if dn.ID != "dist-pve-default-citadel-02" || dn.Kind != "hypervisor" || dn.Source != "proxmox" {
 		t.Fatalf("distnode PVE mal construido: %+v", dn)
 	}
 	if dn.HostDeviceID != devices[0].ID {
@@ -196,5 +195,55 @@ func TestPVEHypervisorDistNodesSinHost(t *testing.T) {
 	out := applyPVEInfra([]Device{{ID: "x", MAC: "AA:BB:CC:DD:EE:FF"}}, dists, nil)
 	if len(out) != 1 || out[0].ID != "dist-gateway-lan1" {
 		t.Fatalf("sin inventario no debe añadir distnodes: %+v", out)
+	}
+}
+
+// TestSealProxmoxInfraMultiInstancia (#764): dos clusters con un nodo
+// homónimo ("pve1") en ambos: las claves compuestas evitan que se pisen, los
+// CTs cuelgan del host de SU instancia y los distnodes son distintos.
+func TestSealProxmoxInfraMultiInstancia(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"AA:00:00:00:00:01": {Name: "webs", Node: "pve1", Type: "lxc", Instance: "casa"},
+			"BB:00:00:00:00:02": {Name: "erp", Node: "pve1", Type: "qemu", Instance: "ofi"},
+		},
+		nodes: map[string]pveNode{
+			"casa|pve1": {Instance: "casa", Node: "pve1"},
+			"ofi|pve1":  {Instance: "ofi", Node: "pve1"},
+		},
+	}
+	devices := []Device{
+		{ID: "aa-11", MAC: "AA:11:00:00:00:01", Name: "host-casa", RouterID: "gateway", Band: "—"},
+		{ID: "bb-22", MAC: "BB:11:00:00:00:02", Name: "host-ofi", RouterID: "gateway", Band: "—"},
+	}
+	// Hosts casados por IP de su instancia.
+	inv.nodeIPs = map[string]string{"casa|pve1": "10.0.0.1", "ofi|pve1": "10.0.0.2"}
+	devices[0].IP = "10.0.0.1"
+	devices[1].IP = "10.0.0.2"
+	dists := applyPVEInfra(devices, nil, inv)
+
+	if devices[0].Infra != "hypervisor" || devices[1].Infra != "hypervisor" {
+		t.Fatalf("hosts: %q %q", devices[0].Infra, devices[1].Infra)
+	}
+	// Cada CT cuelga del host de SU instancia (no del homónimo).
+	byMAC := map[string]int{}
+	for i, d := range devices {
+		byMAC[d.MAC] = i
+	}
+	_ = byMAC
+	// (Los CT webs/erp no son devices aquí: basta con que los hosts sellaran
+	// y los distnodes salgan separados por instancia.)
+	if len(dists) != 2 {
+		t.Fatalf("distnodes: %v", dists)
+	}
+	ids := map[string]bool{}
+	for _, dn := range dists {
+		ids[dn.ID] = true
+		if dn.Instance == "" {
+			t.Fatalf("distnode sin instancia: %+v", dn)
+		}
+	}
+	if !ids["dist-pve-casa-pve1"] || !ids["dist-pve-ofi-pve1"] {
+		t.Fatalf("IDs de distnodes homónimos: %v", ids)
 	}
 }

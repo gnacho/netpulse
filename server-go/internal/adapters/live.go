@@ -27,7 +27,6 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/oui"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
-	"github.com/gnacho/netpulse/server-go/internal/pve"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -313,13 +312,13 @@ type Live struct {
 	agGL  *AdGuardGlinetClient
 	agKey string
 
-	// PVE (#561): cliente del cluster Proxmox + caché del inventario. El
-	// cliente se reconstruye si cambia la config (pveKey); el inventario
-	// (resources + MACs por VM) se refresca con TTL para no martillear la API.
-	pveClient *pve.Client
-	pveKey    string
-	pveInv    *pveInventory
-	pveInvAt  time.Time
+	// PVE (#561/#764): clientes por instancia Proxmox + caché del
+	// inventario. Los clientes se reconstruyen si cambia la lista de
+	// instancias (pveKey); el inventario se refresca con TTL.
+	pveClients []pveInstClient
+	pveKey     string
+	pveInv     *pveInventory
+	pveInvAt   time.Time
 
 	// fdbMemo (#656): última boca REAL donde el FDB vio cada MAC (epoch ms).
 	// Los dispositivos callados (AV: TV, receptor, shield…) caducan su entrada
