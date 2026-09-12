@@ -226,6 +226,14 @@
       "wireguard-handshake": {
         "title": "WireGuard handshake",
         "description": "{{peer}} connected"
+      },
+      "firmware-upgrade-done": {
+        "title": "Firmware upgraded",
+        "description": "{{router}}: {{from}} → {{to}} (owut, {{origin}})"
+      },
+      "firmware-upgrade-failed": {
+        "title": "Firmware upgrade failed",
+        "description": "{{router}}: target {{to}} (owut, {{origin}}): {{detail}}"
       }
     }
   },
@@ -1708,7 +1716,9 @@
       "flashing": "Flashing",
       "done": "Done",
       "failed": "Failed",
-      "scheduled": "Scheduled"
+      "scheduled": "Scheduled",
+      "running": "running",
+      "rebooting": "rebooting"
     },
     "schedule": "Schedule",
     "scheduleAt": "Schedule for",
@@ -1722,7 +1732,53 @@
     "owutUpToDate": "No pending changes; no upgrade needed.",
     "owutNotBuildable": "The ASU server cannot build the image for this router right now.",
     "owutCheckFailed": "The check could not run (router unreachable or not responding).",
-    "owutOutput": "owut output"
+    "owutOutput": "owut output",
+    "check": "Check",
+    "installOwut": "Install owut",
+    "installingOwut": "Installing owut...",
+    "notDetected": "Not detected",
+    "installedTag": "installed",
+    "latestTag": "latest",
+    "majorWarn": "Major version jump ({{from}} → {{to}}): review the release notes before upgrading",
+    "advanced": "Advanced (URL and checksum)",
+    "owutConfirmTitle": "Upgrade with owut (ASU)",
+    "owutConfirmBody": "The ASU server will build a stock OpenWrt image and the router will install it. The session drops when it reboots.",
+    "owutConfirmPackages": "The ASU image keeps the packages you installed on the router",
+    "scheduleTitle": "Schedule upgrade",
+    "scheduleBody": "Date/time and recurrence. It only flashes when the installed version differs from the target.",
+    "rec_once": "Once",
+    "rec_weekly": "Weekly",
+    "rec_monthly": "Monthly",
+    "recDate": "Date and time",
+    "recDay": "Day of the week",
+    "recDayOfMonth": "Day of the month",
+    "recTime": "Time",
+    "recNeedDate": "Pick a date and time for the one-shot schedule",
+    "recScheduled": "Scheduled ({{kind}}): {{when}}",
+    "recRemove": "Remove schedule",
+    "recIdempotentHint": "Every attempt reports its result (alert, push and Telegram when configured). If the router is already on the target version, nothing happens.",
+    "excludePkgs": "Packages to exclude from the ASU image",
+    "excludePkgsHint": "Only needed when the check complains about packages outside the official repos (they are lost on upgrade; reinstall them afterwards).",
+    "owutNotBuildableHint": "Usually a package installed outside the official repos: check the output and exclude it when upgrading.",
+    "vendorNote": "This router runs vendor firmware (GL.iNet): NetPulse does not manage its upgrades. Use the GL.iNet panel (Upgrade Firmware), which already offers the latest official release for the model.",
+    "missingPkgsBanner": "These packages are not in the official feeds: {{pkgs}}. They will be excluded from the image if you keep them while upgrading (they are lost; reinstall afterwards).",
+    "upgradeRunningOwut": "owut upgrade in progress {{step}} · {{elapsed}}. It can take several minutes and the router reboots at the end.",
+    "stepWorking": "(building the image on ASU and downloading)",
+    "stepRebooting": "(waiting for the router to come back from reboot)",
+    "emptyFailure": "no details: check the Comprobar output or retry",
+    "missingPkgsBannerStack": "These packages are not in the official feeds: {{pkgs}}. Own-stack ones (netgrip / agent) will be excluded from the image but their files survive the update; anything else is lost (reinstall it afterwards).",
+    "phaseBuild": "Building the image on ASU (usually takes 1-3 min)",
+    "phaseDownload": "Downloading and verifying the image",
+    "phaseFlash": "About to flash: the router reboots shortly",
+    "consoleContact": "contacting sysupgrade.openwrt.org...",
+    "consoleBuild": "requesting image build from ASU...",
+    "consoleDownload": "downloading image...",
+    "consoleVerify": "verifying sha256...",
+    "consoleWrite": "writing firmware...",
+    "consoleReboot": "router is rebooting; waiting for it to come back (up to 15 min)",
+    "successTitle": "Upgrade completed!",
+    "successBody": "The router is now on {{to}} in {{dur}} s: it rebooted and came back on its own, packages up to date. If you excluded a stack package, check its service is still running.",
+    "successDismiss": "Got it"
   },
   "orchestration": {
     "title": "Orchestration",

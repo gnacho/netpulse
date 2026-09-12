@@ -226,6 +226,14 @@
       "wireguard-handshake": {
         "title": "Handshake WireGuard",
         "description": "{{peer}} conectado"
+      },
+      "firmware-upgrade-done": {
+        "title": "Firmware actualizado",
+        "description": "{{router}}: {{from}} → {{to}} (owut, {{origin}})"
+      },
+      "firmware-upgrade-failed": {
+        "title": "Actualización de firmware fallida",
+        "description": "{{router}}: objetivo {{to}} (owut, {{origin}}): {{detail}}"
       }
     }
   },
@@ -1708,7 +1716,9 @@
       "flashing": "Flasheando",
       "done": "Completada",
       "failed": "Fallida",
-      "scheduled": "Programada"
+      "scheduled": "Programada",
+      "running": "ejecutando",
+      "rebooting": "reiniciando"
     },
     "schedule": "Programar",
     "scheduleAt": "Programar para",
@@ -1722,7 +1732,53 @@
     "owutUpToDate": "Sin cambios pendientes; no es necesario actualizar.",
     "owutNotBuildable": "El servidor ASU no puede construir la imagen para este router en este momento.",
     "owutCheckFailed": "No se pudo ejecutar el check (router inalcanzable o sin respuesta).",
-    "owutOutput": "Salida de owut"
+    "owutOutput": "Salida de owut",
+    "check": "Comprobar",
+    "installOwut": "Instalar owut",
+    "installingOwut": "Instalando owut...",
+    "notDetected": "Sin detectar",
+    "installedTag": "instalada",
+    "latestTag": "última",
+    "majorWarn": "Salto de versión mayor ({{from}} → {{to}}): revisa los cambios de la rama antes de actualizar",
+    "advanced": "Avanzado (URL y checksum)",
+    "owutConfirmTitle": "Actualizar con owut (ASU)",
+    "owutConfirmBody": "El servidor ASU construirá una imagen OpenWrt estándar y el router la instalará. La sesión se cortará al reiniciar.",
+    "owutConfirmPackages": "La imagen ASU conserva los paquetes que instalaste en el router",
+    "scheduleTitle": "Programar actualización",
+    "scheduleBody": "Fecha/hora y recurrencia. Solo flashea si la versión instalada difiere del objetivo.",
+    "rec_once": "Una vez",
+    "rec_weekly": "Semanal",
+    "rec_monthly": "Mensual",
+    "recDate": "Fecha y hora",
+    "recDay": "Día de la semana",
+    "recDayOfMonth": "Día del mes",
+    "recTime": "Hora",
+    "recNeedDate": "Elige fecha y hora para la programación única",
+    "recScheduled": "Programado ({{kind}}): {{when}}",
+    "recRemove": "Quitar programación",
+    "recIdempotentHint": "Cada intento avisa del resultado (alerta, push y Telegram si está configurado). Si el router ya está en la versión objetivo, no hace nada.",
+    "excludePkgs": "Paquetes a excluir de la imagen ASU",
+    "excludePkgsHint": "Solo necesarios si el check objeta paquetes instalados fuera de los repos oficiales (se pierden al actualizar; reinstálalos después).",
+    "owutNotBuildableHint": "Suele ser un paquete instalado que no está en los repos oficiales: revisa la salida y exclúyelo al actualizar.",
+    "vendorNote": "Este router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones. Usa el panel de GL.iNet (Upgrade Firmware), que ya ofrece la última versión oficial del modelo.",
+    "missingPkgsBanner": "Estos paquetes no están en los feeds oficiales: {{pkgs}}. Se excluirán de la imagen si los añades al actualizar (se pierden; reinstálalos después).",
+    "upgradeRunningOwut": "Actualización owut en curso {{step}} · {{elapsed}}. Puede tardar varios minutos y el router se reiniciará al final.",
+    "stepWorking": "(construyendo la imagen en ASU y descargando)",
+    "stepRebooting": "(esperando a que el router vuelva del reinicio)",
+    "emptyFailure": "sin detalles: consulta la salida de Comprobar o reintenta",
+    "missingPkgsBannerStack": "Estos paquetes no están en los feeds oficiales: {{pkgs}}. Los del propio stack (netgrip / agente) se excluirán de la imagen pero sus ficheros se conservan tras el update; cualquier otro se pierde (reinstálalo después).",
+    "phaseBuild": "Construyendo la imagen en ASU (suele tardar 1-3 min)",
+    "phaseDownload": "Descargando y verificando la imagen",
+    "phaseFlash": "A punto de flashear: el router se reiniciará en breve",
+    "consoleContact": "contactando con sysupgrade.openwrt.org...",
+    "consoleBuild": "solicitando build de la imagen a ASU...",
+    "consoleDownload": "descargando imagen...",
+    "consoleVerify": "verificando sha256...",
+    "consoleWrite": "escribiendo firmware...",
+    "consoleReboot": "el router se está reiniciando; esperando a que vuelva (hasta 15 min)",
+    "successTitle": "¡Actualización completada!",
+    "successBody": "El router quedó en {{to}} en {{dur}} s: reinició y volvió solo, con los paquetes al día. Si excluiste algún paquete del stack, comprueba que su servicio sigue activo.",
+    "successDismiss": "Entendido"
   },
   "orchestration": {
     "title": "Orquestación",

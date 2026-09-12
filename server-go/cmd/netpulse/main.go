@@ -549,6 +549,7 @@ func run() error {
 		ConfigBackup:    cfgBackup,
 		Firmware:        fwStore,
 		Speedtest:       stScheduler,
+		AlertEmitter:    adapter.AlertsEngine(),
 		ChannelPlan:     chPlan,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()

@@ -47,6 +47,9 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		return
 	}
 
+	// Ciclo owut completo + recurrencia (#761).
+	s.registerFirmwareOwutRoutes(mux)
+
 	mux.Handle("GET /api/firmware-upgrades", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.db == nil {
 			writeError(w, http.StatusServiceUnavailable, "no_db")
@@ -202,8 +205,11 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		if st := readJSONBody(w, r, &body); st != 0 {
 			return
 		}
-		if body.Model == "" || body.TargetVersion == "" || body.TargetURL == "" {
-			writeError(w, http.StatusBadRequest, "invalid_body", "model, targetVersion y targetUrl son requeridos")
+		// #761: la URL de la imagen ya no es obligatoria al guardar el target;
+		// el flujo owut la construye ASU. El motor clásico (URL+checksum) la
+		// sigue exigiendo al disparar (ErrNoTarget en StartUpgrade).
+		if body.Model == "" || body.TargetVersion == "" {
+			writeError(w, http.StatusBadRequest, "invalid_body", "model y targetVersion son requeridos")
 			return
 		}
 		if err := s.firmware.SetTarget(firmware.Target{

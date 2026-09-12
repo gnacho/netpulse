@@ -80,7 +80,7 @@ func makeOwutTestServer(t *testing.T, ssh *scriptedSSH) (*testServer, string) {
 
 func TestOwutCheckUpgradeAvailable(t *testing.T) {
 	ssh := &scriptedSSH{rules: []sshRule{
-		{contains: "command -v owut", out: "/usr/bin/owut\n"},
+		{contains: "command -v owut", out: "__owut__\n"},
 		{contains: "owut check", out: owutCheckOKOut},
 	}}
 	ts, rid := makeOwutTestServer(t, ssh)
