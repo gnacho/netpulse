@@ -10,12 +10,15 @@ package ntfy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
@@ -252,18 +255,53 @@ func redactErr(prefix string, err error, cfg Config) error {
 	return &redactedError{err: err, msg: prefix + ": " + msg}
 }
 
-// isRetryable: 4xx del ntfy (topic denegado, bad request) no reintenta.
+// isRetryable decide si un fallo de publish merece reintento: solo 5xx, 429 y
+// errores de red transitorios (timeout, conexión rechazada/reseteada). Los
+// permanentes (4xx, URL inválida, DNS, TLS, contexto) no se reintentan.
 func isRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	for _, code := range []string{"status 400", "status 401", "status 403", "status 404"} {
-		if strings.Contains(msg, code) {
-			return false
+	if code, ok := statusCode(err.Error()); ok {
+		return code >= 500 || code == 429
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	for _, target := range []error{
+		syscall.ECONNREFUSED,
+		syscall.ECONNRESET,
+		syscall.ECONNABORTED,
+		syscall.EPIPE,
+		io.ErrUnexpectedEOF,
+	} {
+		if errors.Is(err, target) {
+			return true
 		}
 	}
-	return true
+	return false
+}
+
+// statusCode extrae el código de un error con formato "status NNN: ...".
+func statusCode(msg string) (int, bool) {
+	const prefix = "status "
+	i := strings.Index(msg, prefix)
+	if i < 0 {
+		return 0, false
+	}
+	code, digits := 0, 0
+	for _, r := range msg[i+len(prefix):] {
+		if r < '0' || r > '9' {
+			break
+		}
+		code = code*10 + int(r-'0')
+		digits++
+	}
+	if digits == 0 {
+		return 0, false
+	}
+	return code, true
 }
 
 // formatMessage renderiza la alerta a texto plano (ntfy no parsea HTML).

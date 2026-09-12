@@ -3,8 +3,12 @@
 package ntfy
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"syscall"
 	"testing"
 	"time"
 
@@ -164,6 +168,33 @@ func TestPublishErrorRedactsTopic(t *testing.T) {
 	}
 	if !contains(err.Error(), "***") {
 		t.Fatalf("esperaba el topic enmascarado: %q", err.Error())
+	}
+}
+
+// B3: solo se reintenta 5xx, 429 y errores de red transitorios.
+func TestIsRetryable(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"status 500", errors.New("status 500: boom"), true},
+		{"status 503", errors.New("status 503: boom"), true},
+		{"status 429", errors.New("status 429: slow down"), true},
+		{"status 400", errors.New("status 400: bad"), false},
+		{"status 401", errors.New("status 401: bad"), false},
+		{"status 403", errors.New("status 403: bad"), false},
+		{"status 404", errors.New("status 404: bad"), false},
+		{"url inválida", &url.Error{Op: "parse", URL: "http://x/y", Err: errors.New("invalid")}, false},
+		{"contexto cancelado", &url.Error{Op: "Post", URL: "http://x/y", Err: context.Canceled}, false},
+		{"timeout", &url.Error{Op: "Post", URL: "http://x/y", Err: context.DeadlineExceeded}, true},
+		{"conexión rechazada", &url.Error{Op: "Post", URL: "http://x/y", Err: syscall.ECONNREFUSED}, true},
+	}
+	for _, tc := range cases {
+		if got := isRetryable(tc.err); got != tc.want {
+			t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
+		}
 	}
 }
 
