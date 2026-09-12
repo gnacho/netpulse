@@ -99,6 +99,10 @@ const STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
 }
 
+/** Paquetes del propio stack: sus ficheros sobreviven al update
+ * (NetPulse los añade a /etc/sysupgrade.conf antes de flashear). */
+const STACK_PKGS = new Set(['netgrip', 'netpulse-agent', 'owpanel'])
+
 /** versionRe: misma regla que el backend para aceptar un targetVersion. */
 const versionRe = /^\d+\.\d+(\.\d+)?(-[a-zA-Z0-9.]+)?$/
 
@@ -721,7 +725,9 @@ export default function FirmwareUpgrades() {
                       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
                       <span>
                         {owut.missingPkgs?.length
-                          ? t('firmwareUpgrades.missingPkgsBanner', { pkgs: owut.missingPkgs.join(', ') })
+                          ? (owut.missingPkgs as string[]).some((pkg) => STACK_PKGS.has(pkg))
+                            ? t('firmwareUpgrades.missingPkgsBannerStack', { pkgs: owut.missingPkgs.join(', ') })
+                            : t('firmwareUpgrades.missingPkgsBanner', { pkgs: owut.missingPkgs.join(', ') })
                           : `${t('firmwareUpgrades.owutNotBuildable')} ${t('firmwareUpgrades.owutNotBuildableHint')}`}
                       </span>
                     </div>

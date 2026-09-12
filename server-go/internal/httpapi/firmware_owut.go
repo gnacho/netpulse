@@ -252,6 +252,11 @@ func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string,
 	}
 	cmd := firmware.OwutUpgradeCmd(target, from, removePkgs)
 	_ = s.firmware.SetStatus(id, "running", "", "")
+	// #761: antes de flashear, asegurar que el stack presente (netgrip /
+	// agente) sobrevive al update (ASU no puede empaquetarlos: sin feed).
+	if err := firmware.EnsureStackPreserved(s.pool, host); err != nil {
+		log.Printf("[firmware] preserve-stack %s falló (continuo): %v", routerID, err)
+	}
 	start := time.Now()
 	exit, out, err := firmware.RunOwutUpgrade(s.pool, host, cmd)
 	dur := time.Since(start)

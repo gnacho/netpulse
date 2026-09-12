@@ -1765,7 +1765,8 @@
     "upgradeRunningOwut": "Actualización owut en curso {{step}} · {{elapsed}}. Puede tardar varios minutos y el router se reiniciará al final.",
     "stepWorking": "(construyendo la imagen en ASU y descargando)",
     "stepRebooting": "(esperando a que el router vuelva del reinicio)",
-    "emptyFailure": "sin detalles: consulta la salida de Comprobar o reintenta"
+    "emptyFailure": "sin detalles: consulta la salida de Comprobar o reintenta",
+    "missingPkgsBannerStack": "Estos paquetes no están en los feeds oficiales: {{pkgs}}. Los del propio stack (netgrip / agente) se excluirán de la imagen pero sus ficheros se conservan tras el update; cualquier otro se pierde (reinstálalo después)."
   },
   "orchestration": {
     "title": "Orquestación",

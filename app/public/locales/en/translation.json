@@ -1765,7 +1765,8 @@
     "upgradeRunningOwut": "owut upgrade in progress {{step}} · {{elapsed}}. It can take several minutes and the router reboots at the end.",
     "stepWorking": "(building the image on ASU and downloading)",
     "stepRebooting": "(waiting for the router to come back from reboot)",
-    "emptyFailure": "no details: check the Comprobar output or retry"
+    "emptyFailure": "no details: check the Comprobar output or retry",
+    "missingPkgsBannerStack": "These packages are not in the official feeds: {{pkgs}}. Own-stack ones (netgrip / agent) will be excluded from the image but their files survive the update; anything else is lost (reinstall it afterwards)."
   },
   "orchestration": {
     "title": "Orchestration",

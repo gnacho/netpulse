@@ -178,6 +178,10 @@ func TestOwutUpgradeEndpointNoChanges(t *testing.T) {
 	if !ssh.saw("owut upgrade -q") {
 		t.Fatalf("comando lanzado: %v", ssh.cmdsSnapshot())
 	}
+	// #761: antes de flashear se preserva el stack en /etc/sysupgrade.conf.
+	if !ssh.saw("/etc/sysupgrade.conf") {
+		t.Fatalf("preserve-stack no se ejecutó: %v", ssh.cmdsSnapshot())
+	}
 }
 
 func TestOwutUpgradeEndpointFailure(t *testing.T) {

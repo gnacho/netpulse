@@ -251,6 +251,30 @@ func ParsePlatform(out string) Platform {
 	return p
 }
 
+// stackPreserveCmd garantiza de forma idempotente que los ficheros del
+// stack propio presente en el router (netgrip y/o agente NetPulse) estén en
+// /etc/sysupgrade.conf: ASU no puede incluir paquetes sin feed en la imagen,
+// pero los ficheros listados SOBREVIVEN al flash (el servicio arranca en el
+// primer boot; el registro apk se recupera con una reinstalación posterior).
+const stackPreserveCmd = `P=/etc/sysupgrade.conf; touch $P; ensure() { grep -qxF "$1" $P || echo "$1" >> $P; }; ` +
+	`if [ -f /usr/sbin/netgrip ]; then ensure /usr/sbin/netgrip; ensure /etc/init.d/netgrip; ` +
+	`ensure /usr/libexec/netgrip-restore-rules; ensure /etc/netgrip/; ` +
+	`for f in /etc/rc.d/*netgrip*; do [ -e "$f" ] && ensure "$f"; done; fi; ` +
+	`if [ -f /usr/sbin/netpulse-agent ]; then ensure /usr/sbin/netpulse-agent; ensure /etc/netpulse-agent.env; ` +
+	`ensure /usr/sbin/netpulse-watchdog; ensure /etc/init.d/netpulse-agent; ` +
+	`for f in /etc/rc.d/*netpulse-agent*; do [ -e "$f" ] && ensure "$f"; done; fi; true`
+
+// EnsureStackPreserved ejecuta la preservación en el router (tolerante: un
+// runner nil es no-op; devuelve el error de transporte si falla y el caller
+// decide si continúa).
+func EnsureStackPreserved(runner Runner, host string) error {
+	if runner == nil || host == "" {
+		return nil
+	}
+	_, err := runner.Run(host, stackPreserveCmd, owutDetectTimeout)
+	return err
+}
+
 // OpenWrtVersionRe: versión destino válida para -V ("25.12.5", "24.10.2").
 // Evita que textos libres guardados como target disparen upgrades sin sentido.
 var OpenWrtVersionRe = regexp.MustCompile(`^\d+\.\d+(\.\d+)?(-[a-zA-Z0-9.]+)?$`)
