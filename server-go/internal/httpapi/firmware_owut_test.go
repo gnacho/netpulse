@@ -289,3 +289,21 @@ func TestOwutEndpointsBlockedForVendorFirmware(t *testing.T) {
 		t.Fatalf("vendor no debe sondear versiones ASU: %v", ssh.cmdsSnapshot())
 	}
 }
+
+func TestTargetSaveWithoutURL(t *testing.T) {
+	// #761: con owut la imagen la construye ASU; el target se guarda sin URL.
+	ts, rid := makeOwutTestServer(t, nil)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/target",
+		`{"model":"redmi_ax6","currentVersion":"25.12.5","targetVersion":"25.12.5"}`, cookie)
+	if res.StatusCode != 200 {
+		t.Fatalf("guardar sin targetUrl: %d %v", res.StatusCode, readJSON(t, res))
+	}
+	res = getJSONPath(t, ts.URL, "/api/firmware-upgrades", cookie)
+	for _, it := range readJSONArray(t, res) {
+		m, _ := it.(map[string]any)
+		if m["routerId"] == rid && m["targetVersion"] != "25.12.5" {
+			t.Fatalf("target no persistió: %v", m)
+		}
+	}
+}
