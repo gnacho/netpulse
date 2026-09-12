@@ -249,6 +249,41 @@ func TestSendTestRequiresEnabled(t *testing.T) {
 	}
 }
 
+// B8: Close cancela la petición en curso.
+func TestCloseCancelsInFlightPublish(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	defer close(release)
+	kv := &fakeKV{m: map[string]string{
+		"ntfy.server":  srv.URL,
+		"ntfy.topic":   "x",
+		"ntfy.enabled": "true",
+	}}
+	n := NewNotifier(kv)
+	n.Notify(alerts.AlertEvent{Title: "t", Urgent: true})
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatalf("la petición no llegó al server")
+	}
+	done := make(chan struct{})
+	go func() {
+		n.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatalf("Close no canceló la petición en curso")
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

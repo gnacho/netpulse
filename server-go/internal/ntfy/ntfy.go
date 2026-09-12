@@ -132,19 +132,30 @@ type Notifier struct {
 	done   chan struct{}
 	wg     sync.WaitGroup
 	client *http.Client
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewNotifier arranca el worker de la cola.
 func NewNotifier(kv kvStore) *Notifier {
-	n := &Notifier{
+	n := newNotifier(kv)
+	n.wg.Add(1)
+	go n.worker()
+	return n
+}
+
+// newNotifier construye un notifier sin arrancar el worker: base común de
+// NewNotifier y SendTest.
+func newNotifier(kv kvStore) *Notifier {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Notifier{
 		kv:     kv,
 		queue:  make(chan alerts.AlertEvent, queueCap),
 		done:   make(chan struct{}),
 		client: &http.Client{Timeout: sendTimeout},
+		ctx:    ctx,
+		cancel: cancel,
 	}
-	n.wg.Add(1)
-	go n.worker()
-	return n
 }
 
 func (n *Notifier) Notify(ev alerts.AlertEvent) {
@@ -155,8 +166,11 @@ func (n *Notifier) Notify(ev alerts.AlertEvent) {
 	}
 }
 
-// Close detiene el worker.
+// Close detiene el worker y cancela cualquier publicación en curso.
 func (n *Notifier) Close() {
+	if n.cancel != nil {
+		n.cancel()
+	}
 	close(n.done)
 	n.wg.Wait()
 }
@@ -212,7 +226,11 @@ func priorityOf(ev alerts.AlertEvent) string {
 // publish envía un mensaje a <server>/<topic> con Title/Priority en cabeceras.
 func (n *Notifier) publish(cfg Config, title, body, priority string) error {
 	url := cfg.Server + "/" + cfg.Topic
-	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+	base := n.ctx
+	if base == nil {
+		base = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(base, sendTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
 	if err != nil {
@@ -373,10 +391,7 @@ func SendTest(kv kvStore) error {
 	if cfg.Topic == "" {
 		return fmt.Errorf("topic es requerido")
 	}
-	n := &Notifier{
-		client: &http.Client{Timeout: sendTimeout},
-		done:   make(chan struct{}),
-	}
-	defer close(n.done)
+	n := newNotifier(kv)
+	defer n.Close()
 	return n.publish(cfg, "NetPulse", "✅ Notificaciones ntfy configuradas correctamente.", "default")
 }
