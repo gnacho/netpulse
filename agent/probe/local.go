@@ -72,6 +72,9 @@ type Prober struct {
 	// para derivar la sección NetIf (contadores por iface, #305) sin un
 	// segundo cat.
 	lastNetRaw string
+	// lastWan: uplink del último Build, para que probeFDB marque la boca por
+	// la que sale internet sin repetir la llamada a ubus.
+	lastWan *WanInfo
 	// netIfUpdated indica si el último ciclo de probeSystem consiguió
 	// refrescar /proc/net/dev. Build solo incluye NetIf cuando es true,
 	// evitando enviar contadores repetidos si CmdNetDev falla o tarda.
@@ -166,6 +169,8 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 		Ts:      time.Now().Unix(),
 		Version: version,
 	}
+	// Wan antes que FDB: probeFDB usa la boca del uplink para marcarla.
+	pl.Data.Wan = p.probeWan(ctx)
 	pl.Data.System = p.probeSystem(ctx)
 	pl.Data.Wireless = p.probeWireless(ctx, true)
 	pl.Data.DHCP = p.probeDHCP(ctx)
@@ -423,6 +428,24 @@ func (p *Prober) probeDHCP(ctx context.Context) *DHCPData {
 	return dd
 }
 
+// probeWan: estado del uplink (proto, IP pública, gateway, DNS y la boca por
+// la que sale), eligiendo la interfaz por su ruta por defecto y no por
+// llamarse "wan". nil cuando no hay nada utilizable: un AP sin uplink, o un
+// equipo sin ubus. Guarda el resultado para probeFDB.
+func (p *Prober) probeWan(ctx context.Context) *WanInfo {
+	p.lastWan = nil
+	out := p.runBest(ctx, CmdNetworkDump, 0)
+	if out == "" {
+		return nil
+	}
+	info := ParseWanStatus([]byte(out))
+	if info.Proto == "" && info.IP == "" && info.Gateway == "" && info.Port == "" {
+		return nil
+	}
+	p.lastWan = &info
+	return &info
+}
+
 // probeFDB: MACs aprendidas (brctl) + puertos ethernet (layout + /sys).
 func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 	fd := &FDBData{}
@@ -461,8 +484,8 @@ func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 		// Boca del uplink: la marca como WAN cuando el layout no trae
 		// ninguna (PPPoE sobre una boca "lan" y demás).
 		uplink := ""
-		if out := p.runBest(ctx, CmdNetworkDump, 0); out != "" {
-			uplink = ParseWanStatus([]byte(out)).Port
+		if p.lastWan != nil {
+			uplink = p.lastWan.Port
 		}
 		fd.Ports = BuildEthPorts(layout, states, members, ifaces, uplink)
 		any = true

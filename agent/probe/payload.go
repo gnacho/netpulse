@@ -68,6 +68,11 @@ type PayloadData struct {
 	// propias entidades y comandos); nil = no aplica (agente standalone) u
 	// omitido por el embedder; Enabled=false = informado pero apagado.
 	MQTT *MQTTData `json:"mqtt,omitempty"`
+	// Wan: estado del uplink (proto, IP pública, gateway, DNS y la boca por
+	// la que sale). El servidor lo sondeaba por SSH solo en el gateway, vía
+	// que no existe en un router agent_only: sin esto su panel de conexión
+	// se queda vacío. nil = sonda fallida o router sin uplink (AP).
+	Wan *WanInfo `json:"wan,omitempty"`
 }
 
 // MQTTData: exposición propia del equipo a Home Assistant por MQTT (#832).

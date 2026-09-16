@@ -898,13 +898,15 @@ func (l *Live) wanDayStats(gwID string) wanDayStatsResult {
 // y NO se toca SSH; si el agente expiró, se degrada a Tier 0 (SSH) con aviso.
 func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
 	if fresh, p := l.pollRouterAgent(cfg); fresh {
-		// El agente no trae el estado WAN en el payload: si este router es el
-		// gateway, lo sondeamos por SSH (issue #276, cache de 60 s).
+		// Estado WAN del gateway (issue #276). Los agentes nuevos lo traen en
+		// el payload; para los viejos queda la sonda SSH (cache de 60 s), que
+		// no existe si el router es agent_only.
 		l.mu.Lock()
 		gw := l.gatewayCfg
 		client := l.clients[cfg.ID]
 		l.mu.Unlock()
-		if gw != nil && cfg.ID == gw.ID && client != nil {
+		hasWan := p.wanInfo.Proto != "" || p.wanInfo.IP != "" || p.wanInfo.Gateway != ""
+		if gw != nil && cfg.ID == gw.ID && client != nil && !hasWan {
 			p.wanInfo = l.probeWanInfo(cfg.ID, client)
 		}
 		return p, nil
