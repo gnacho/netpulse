@@ -2926,7 +2926,11 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			routerByMac[polled.brMac] = name
 		}
 	}
-	// Boca → MACs aprendidas (vecino inmediato)
+	// Boca → MACs aprendidas (vecino inmediato). Indexado por INTERFAZ: el
+	// FDB y los vecinos LLDP vienen con el nombre de la interfaz, y el id de
+	// la boca no siempre lo es (una boca WAN se llama "wan" aunque su
+	// interfaz sea "eth1", o "lan1" cuando el uplink es un PPPoE sobre esa
+	// boca). Sin esto, esa boca sale sin el dispositivo que tiene enfrente.
 	portMacs := map[string][]string{}
 	if p != nil {
 		for mac, portName := range p.fdb {
@@ -2943,7 +2947,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			enriched = append(enriched, port)
 			continue
 		}
-		all := portMacs[port.ID]
+		netdev := portNetdev(port)
+		all := portMacs[netdev]
 		// 1) ¿Otro router al otro lado? (uplink router↔router)
 		neighbor := ""
 		for _, mac := range all {
@@ -2957,7 +2962,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			port.Detail = "enlace entre routers"
 			// El vecino además se anuncia por LLDP → el frontend puede
 			// mostrar el sufijo "· LLDP" en la etiqueta del uplink (C2).
-			if nb := lldpNeighborOnPort(p.lldp, port.ID); nb != nil {
+			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil {
 				port.Detail = "enlace entre routers · LLDP"
 			}
 			enriched = append(enriched, port)
@@ -3047,7 +3052,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			}
 			// Si se anuncia por LLDP, esa identificación (chassis + mgmt-ip)
 			// es mejor pista que el hostname DHCP.
-			if nb := lldpNeighborOnPort(p.lldp, port.ID); nb != nil && nb.displayName() != "" {
+			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil && nb.displayName() != "" {
 				port.ConnectedTo = nb.displayName()
 				if nb.Mgmt != "" {
 					port.Detail = nb.Mgmt + " · LLDP"

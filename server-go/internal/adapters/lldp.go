@@ -125,3 +125,14 @@ func lldpNeighborOnPort(neighbors []LldpNeighbor, port string) *LldpNeighbor {
 	}
 	return nil
 }
+
+// portNetdev: la interfaz de una boca. El id no siempre lo es -- una boca
+// WAN se llama "wan" aunque su interfaz sea "eth1" o "lan1" -- y tanto el
+// FDB como los vecinos LLDP vienen indexados por interfaz. Sin iface (boca
+// sin contadores) queda el id, que es lo que había antes.
+func portNetdev(p EthPort) string {
+	if p.Iface != "" {
+		return p.Iface
+	}
+	return p.ID
+}
