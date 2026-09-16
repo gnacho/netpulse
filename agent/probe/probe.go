@@ -87,12 +87,24 @@ const (
 	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
 	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
 	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`
-	// CmdPortStates: "<name> <operstate> <speed> <dsa?>" por interfaz. El
-	// 4º campo marca "dsa" cuando la interfaz es un conduit DSA (tiene el
-	// directorio /sys/class/net/<i>/dsa): es el puerto CPU interno del
-	// switch, no una boca usable, y se excluye del panel (#847).
+	// CmdPortStates: "<name> <operstate> <speed> <dsa> <type> <conduit>" por
+	// interfaz.
+	//   - dsa: "dsa" cuando la interfaz es un conduit DSA (tiene el directorio
+	//     /sys/class/net/<i>/dsa): el puerto CPU interno del switch, no una
+	//     boca usable (#847); "-" si no.
+	//   - type: el ARPHRD del kernel (1 = ethernet). FORK: para no tomar por
+	//     boca un uplink que no lo es (wwan0 de un módem celular).
+	//   - conduit: FORK. La interfaz inferior (lower_*) cuando la hay: en un
+	//     switch DSA las bocas cuelgan de la interfaz de CPU (lan1/lan2 →
+	//     lower_eth0). "-" cuando no hay ninguna.
+	// Los campos a partir del tercero son opcionales para ParsePortStates.
 	CmdPortStates = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
-		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1) $([ -d $d/dsa ] && echo dsa || echo -)"; done`
+		`o=$(cat "$d/operstate" 2>/dev/null || echo unknown); ` +
+		`s=$(cat "$d/speed" 2>/dev/null || echo -1); ` +
+		`x=$([ -d "$d/dsa" ] && echo dsa || echo -); ` +
+		`t=$(cat "$d/type" 2>/dev/null || echo -1); ` +
+		`c=-; for l in "$d"/lower_*; do [ -e "$l" ] || continue; c=${l##*/lower_}; break; done; ` +
+		`echo "$i $o $s $x $t $c"; done`
 	// CmdProcArp (#377): tabla ARP del kernel, "IP dev mac ..." por línea.
 	CmdProcArp     = "cat /proc/net/arp 2>/dev/null"
 	CmdBoardJSON   = "cat /etc/board.json 2>/dev/null"
@@ -209,6 +221,13 @@ type PortState struct {
 	// /sys/class/net/<i>/dsa presente). No es una boca usable: se excluye
 	// de los puertos del panel (#847).
 	DSA bool `json:"dsa,omitempty"`
+	// Type es el ARPHRD de /sys/class/net/<i>/type: 1 = ethernet. 0 o
+	// negativo = desconocido (salida antigua), y entonces no se descarta
+	// nada por el tipo. FORK.
+	Type int `json:"type,omitempty"`
+	// Conduit es la interfaz inferior (lower_*), vacío si no hay. En un
+	// switch DSA es el puerto de CPU del que cuelga la boca. FORK.
+	Conduit string `json:"conduit,omitempty"`
 }
 
 // fmtSpeedMbps (#847) formatea la velocidad de enlace: Gbps con decimales
@@ -223,6 +242,9 @@ func fmtSpeedMbps(mbps int) string {
 	}
 	return strconv.Itoa(mbps) + " Mbps"
 }
+
+// ARPHRDEther es el /sys/class/net/<i>/type de una interfaz ethernet.
+const ARPHRDEther = 1
 
 // PortLayout es una boca del layout canónico (/etc/board.json).
 type PortLayout struct {
@@ -667,7 +689,9 @@ func ParseWirelessUplink(raw []byte) (bool, error) {
 // Puertos
 // ---------------------------------------------------------------------------
 
-// ParsePortStates parsea líneas "<name> <operstate> <speed> [dsa]".
+// ParsePortStates parsea líneas "<name> <operstate> <speed> [dsa] [type]
+// [conduit]". Los campos opcionales que falten dejan su valor por defecto:
+// sin type no se descarta ninguna boca por él.
 func ParsePortStates(out string) []PortState {
 	ports := []PortState{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -686,6 +710,12 @@ func ParsePortStates(out string) []PortState {
 		st := PortState{Name: p[0], Up: p[1] == "up", Speed: speed}
 		if len(p) > 3 && p[3] == "dsa" {
 			st.DSA = true
+		}
+		if len(p) > 4 {
+			st.Type, _ = strconv.Atoi(p[4])
+		}
+		if len(p) > 5 && p[5] != "-" {
+			st.Conduit = p[5]
 		}
 		ports = append(ports, st)
 	}
@@ -718,11 +748,51 @@ func ParsePortLayout(out string) ([]PortLayout, error) {
 	return ports, nil
 }
 
+// phyRe/skipRe: nombres que pueden ser una boca física y nombres que nunca lo
+// son (bridges, VLANs, túneles, wireless, módems).
+var (
+	phyRe  = regexp.MustCompile(`^(eth|sfp|en|swp)[0-9a-zA-Z_\-]*$|^(lan|wan)[0-9]+$`)
+	skipRe = regexp.MustCompile(`^(lo|br[-_]?|br-lan|br0|docker|veth|wg|tun|tap|ifb|pppoe|wlan|wpan|phy|gre|gretap|erspan|ip6tnl|sit|teql|bond|dummy|nat64|rmnet|usb|wwan)`)
+)
+
+// switchConduits: puertos de CPU de un switch, deducidos de las propias
+// bocas. En DSA cada boca cuelga de la interfaz de CPU (lan1 y lan2 tienen
+// lower_eth0), que no es una boca física por mucho que se llame eth0.
+//
+// Solo se mira el lower_* de interfaces que parecen bocas: el de un bridge
+// son sus miembros (br-lan → lower_lan2) y el de una VLAN su interfaz padre,
+// relaciones que no señalan ningún puerto de CPU.
+func switchConduits(states []PortState) map[string]bool {
+	conduits := map[string]bool{}
+	for _, st := range states {
+		if st.Conduit == "" || skipRe.MatchString(st.Name) || !phyRe.MatchString(st.Name) {
+			continue
+		}
+		conduits[st.Conduit] = true
+	}
+	return conduits
+}
+
+// isEthNetdev: el layout nombra una interfaz de red ethernet de verdad.
+// board.json declara como WAN lo que el router use de uplink, y no siempre es
+// una boca: en un router celular es "/dev/cdc-wdm0",
+// que ni siquiera aparece en /sys/class/net. Un tipo desconocido (salida
+// antigua, sin el campo) cuenta como ethernet: mejor enseñar una boca de más
+// que esconder una real.
+func isEthNetdev(st PortState, ok bool) bool {
+	return ok && (st.Type <= 0 || st.Type == ARPHRDEther)
+}
+
 // BuildEthPorts: layout + estado /sys → []EthPort listo para el detalle.
 // brMembers = miembros del bridge br-lan (AP en bridge re-etiqueta wan→LAN
 // N+1); sin layout, fallback heurístico. ifaces = contadores/rates por iface
 // física (issue #305; nil = sin datos, las bocas salen sin stats). Literal de
 // openwrt.go GetEthPorts.
+//
+// Descarta dos bocas que no existen: el uplink del layout cuando no es una
+// interfaz ethernet (módem celular) y el puerto de CPU del switch. Sin ellos
+// un router así pasa de enseñar cuatro bocas -- WAN (nunca conectada), LAN 1,
+// LAN 2 y ETH 0 -- a las dos que tiene.
 func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string]bool, ifaces map[string]IfRate) []EthPort {
 	applyStats := func(ep *EthPort, iface string) {
 		st, ok := ifaces[iface]
@@ -738,6 +808,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 	for _, p := range states {
 		byName[p.Name] = p
 	}
+	conduits := switchConduits(states)
 
 	used := map[string]bool{}
 	ports := make([]EthPort, 0, len(states))
@@ -751,6 +822,9 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		}
 		for _, p := range layout {
 			st, ok := byName[p.Name]
+			if p.Role == "wan" && !isEthNetdev(st, ok) {
+				continue
+			}
 			up := ok && st.Up
 			label := p.Label
 			if p.Role == "wan" && brMembers[p.Name] {
@@ -806,8 +880,6 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 
 	// Mejora #413/#416: añadir interfaces físicas que no estén ya cubiertas
 	// por el layout/fallback (p. ej. eth0, sfp+ en BPI-R4/UniFi).
-	phyRe := regexp.MustCompile(`^(eth|sfp|en|swp)[0-9a-zA-Z_\-]*$|^(lan|wan)[0-9]+$`)
-	skipRe := regexp.MustCompile(`^(lo|br[-_]?|br-lan|br0|docker|veth|wg|tun|tap|ifb|pppoe|wlan|wpan|phy|gre|gretap|erspan|ip6tnl|sit|teql|bond|dummy|nat64|rmnet|usb|wwan)`)
 	extras := make([]EthPort, 0)
 	for _, st := range states {
 		if used[st.Name] {
@@ -824,6 +896,9 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		}
 		if !phyRe.MatchString(st.Name) {
 			continue
+		}
+		if conduits[st.Name] {
+			continue // puerto de CPU del switch, no una boca
 		}
 		label := st.Name
 		if strings.HasPrefix(st.Name, "eth") {

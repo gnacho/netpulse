@@ -287,8 +287,11 @@ func TestParseWireless(t *testing.T) {
 }
 
 func TestParsePortsYLayout(t *testing.T) {
-	states := ParsePortStates("eth0 up 2500\nlan1 up 1000\nlan2 down -1\nwlan0 up 0\n")
-	if len(states) != 4 || states[0].Speed != "2.5 Gbps" || states[2].Up || states[2].Speed != "—" {
+	// La boca WAN aparece en /sys aunque esté esclavizada al bridge: sin ella
+	// en los estados sería un device que no existe y BuildEthPorts la
+	// descartaría (ver TestBuildEthPortsUplinkNoEthernet).
+	states := ParsePortStates("eth0 up 2500\nlan1 up 1000\nlan2 down -1\nwlan0 up 0\nwan up 1000\n")
+	if len(states) != 5 || states[0].Speed != "2.5 Gbps" || states[2].Up || states[2].Speed != "—" {
 		t.Fatalf("states: %+v", states)
 	}
 	board := `{"network":{"lan":{"ports":["lan1","lan2","lan3","lan4"],"device":"br-lan"},"wan":{"device":"wan","protocol":"dhcp"}}}`
@@ -1071,5 +1074,103 @@ func TestParseRadioSectionsEmpty(t *testing.T) {
 	}
 	if got := ParseRadioSections("network.lan=interface\n"); len(got) != 0 {
 		t.Errorf("want empty map for unrelated config, got %v", got)
+	}
+}
+
+// portStatesDSASwitch es la salida de CmdPortStates en una placa con switch DSA
+// (ipq4019, switch DSA): dos bocas de verdad (lan1, lan2) colgando del puerto
+// de CPU eth0, el bridge con sus VLANs, y un módem celular en wwan0.
+const portStatesDSASwitch = `br-lan up 1000 - 1 lan2
+br-lan.10 up 1000 - 1 br-lan
+br-lan.16 up 1000 - 1 br-lan
+eth0 up 1000 dsa 1 -
+lan1 up 1000 - 1 eth0
+lan2 up 1000 - 1 eth0
+lo unknown -1 - 772 -
+phy2-ap0 up -1 - 1 -
+pppoe-isp unknown -1 - 512 -
+wg0 unknown -1 - 65534 -
+wwan0 unknown -1 - 65534 -`
+
+// boardWanIsAModem: board.json del mismo router. El WAN no es una boca, es el
+// device del módem QMI.
+const boardWanIsAModem = `{"network":{"lan":{"ports":["lan1","lan2"],"protocol":"static"},` +
+	`"wan":{"device":"/dev/cdc-wdm0","protocol":"qmi"}}}`
+
+func TestParsePortStatesTipoYConduit(t *testing.T) {
+	states := ParsePortStates(portStatesDSASwitch)
+	byName := map[string]PortState{}
+	for _, s := range states {
+		byName[s.Name] = s
+	}
+	if got := byName["lan1"]; got.Conduit != "eth0" || got.Type != ARPHRDEther {
+		t.Fatalf("lan1: %+v", got)
+	}
+	if got := byName["eth0"]; got.Conduit != "" {
+		t.Fatalf("eth0 no cuelga de nadie: %+v", got)
+	}
+	if got := byName["wwan0"]; got.Type == ARPHRDEther {
+		t.Fatalf("wwan0 no es ethernet: %+v", got)
+	}
+	// Forma antigua de tres campos: sin tipo ni conduit, y nada se descarta.
+	old := ParsePortStates("lan1 up 1000\neth0 up 2500\n")
+	if len(old) != 2 || old[0].Type != 0 || old[0].Conduit != "" {
+		t.Fatalf("tres campos: %+v", old)
+	}
+	if ports := BuildEthPorts(nil, old, nil, nil); len(ports) != 2 {
+		t.Fatalf("tres campos no debe esconder bocas: %+v", ports)
+	}
+}
+
+func TestBuildEthPortsSoloLasBocasReales(t *testing.T) {
+	layout, err := ParsePortLayout(boardWanIsAModem)
+	if err != nil {
+		t.Fatalf("layout: %v", err)
+	}
+	ports := BuildEthPorts(layout, ParsePortStates(portStatesDSASwitch), nil, nil)
+	ids := []string{}
+	for _, p := range ports {
+		ids = append(ids, p.ID)
+	}
+	// Antes salían cuatro: WAN (el módem, nunca conectada), LAN 1, LAN 2 y
+	// ETH 0 (el puerto de CPU del switch).
+	if len(ids) != 2 || ids[0] != "lan1" || ids[1] != "lan2" {
+		t.Fatalf("bocas: %v", ids)
+	}
+}
+
+func TestBuildEthPortsUplinkNoEthernet(t *testing.T) {
+	// board.json puede nombrar como WAN una interfaz que existe pero no es
+	// ethernet (el netdev del módem); tampoco es una boca.
+	layout := []PortLayout{
+		{ID: "wan", Name: "wwan0", Label: "WAN", Role: "wan"},
+		{ID: "lan1", Name: "lan1", Label: "LAN 1", Role: "lan"},
+	}
+	ports := BuildEthPorts(layout, ParsePortStates(portStatesDSASwitch), nil, nil)
+	ids := map[string]bool{}
+	for _, p := range ports {
+		ids[p.ID] = true
+	}
+	if ids["wan"] || ids["wwan0"] {
+		t.Fatalf("el módem no es una boca: %+v", ports)
+	}
+	// lan2 no está en el layout pero sí en /sys: entra como extra.
+	if len(ids) != 2 || !ids["lan1"] || !ids["lan2"] {
+		t.Fatalf("bocas: %+v", ports)
+	}
+}
+
+func TestBuildEthPortsMantieneEthSinSwitch(t *testing.T) {
+	// Caja sin switch DSA (x86, BPI-R4): nadie declara eth0 como puerto de
+	// CPU, así que sigue siendo una boca. Sin layout, el fallback toma eth1
+	// como WAN (comportamiento previo, aquí solo interesa que eth0 siga).
+	states := ParsePortStates("eth0 up 1000 - 1 -\neth1 up 2500 - 1 -\nlo unknown -1 - 772 -\n")
+	ports := BuildEthPorts(nil, states, nil, nil)
+	ids := map[string]bool{}
+	for _, p := range ports {
+		ids[p.ID] = true
+	}
+	if len(ids) != 2 || !ids["eth0"] {
+		t.Fatalf("eth0 sin switch debe seguir siendo boca: %+v", ports)
 	}
 }
