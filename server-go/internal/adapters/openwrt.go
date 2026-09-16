@@ -371,10 +371,18 @@ func (c *OpenWrtClient) GetDhcpLeases() []DhcpLease {
 	return parseDhcpLeasesFile(out)
 }
 
-// GetWanInfo: estado de la interfaz WAN (solo gateway, issue #276).
-// Via ubus network.interface.wan status; si el router no lo tiene (AP),
-// devuelve WanInfo vacío.
+// GetWanInfo: estado del uplink (issue #276). Via ubus network.interface
+// dump, que trae todas las interfaces y deja elegir la que lleva internet
+// por su ruta por defecto en vez de por llamarse "wan" (un PPPoE puede
+// llamarse de cualquier forma, y el nombre "wan" puede ser un módem ocioso).
+// Cae al status de la interfaz "wan" con los ubus antiguos; si el router no
+// tiene ninguna (AP), devuelve WanInfo vacío.
 func (c *OpenWrtClient) GetWanInfo() probe.WanInfo {
+	if raw, err := c.UbusCall("network.interface", "dump", nil); err == nil {
+		if info := probe.ParseWanStatus(raw); info.Proto != "" || info.IP != "" || info.Gateway != "" {
+			return info
+		}
+	}
 	raw, err := c.UbusCall("network.interface.wan", "status", nil)
 	if err == nil {
 		return probe.ParseWanStatus(raw)
@@ -545,7 +553,7 @@ func parsePortLayout(out string) ([]PortLayout, error) {
 // GetEthPorts: layout + estado /sys; AP en bridge re-etiqueta wan→LAN N+1;
 // fallback heurístico sin config. rates = contadores por iface (#305, de
 // GetNetDev; nil = sin stats). Devuelve []EthPort listo para el detalle.
-func (c *OpenWrtClient) GetEthPorts(layout []PortLayout, rates map[string]probe.IfRate) []EthPort {
+func (c *OpenWrtClient) GetEthPorts(layout []PortLayout, rates map[string]probe.IfRate, uplink string) []EthPort {
 	states := c.GetPortStates()
 	members := map[string]bool{}
 	if len(layout) > 0 {
@@ -557,7 +565,7 @@ func (c *OpenWrtClient) GetEthPorts(layout []PortLayout, rates map[string]probe.
 			}
 		}
 	}
-	return ethPortsToAdapter(probe.BuildEthPorts(layout, states, members, rates))
+	return ethPortsToAdapter(probe.BuildEthPorts(layout, states, members, rates, uplink))
 }
 
 // ethPortsToAdapter convierte el shape compartido al EthPort del contrato.

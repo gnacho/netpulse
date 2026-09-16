@@ -133,8 +133,12 @@ const (
 	CmdLuCILabels = "cat /etc/config/luci 2>/dev/null"
 	// CmdWanStatus: estado de la interfaz WAN (solo gateway) vía ubus.
 	// Da proto ("pppoe"), IP, gateway (ptpaddress/nexthop) y DNS (issue #276).
-	CmdWanStatus  = "ubus call network.interface.wan status 2>/dev/null || true"
-	CmdBridgeVlan = "bridge vlan show 2>/dev/null || true"
+	CmdWanStatus = "ubus call network.interface.wan status 2>/dev/null || true"
+	// CmdNetworkDump: estado de TODAS las interfaces, para elegir el uplink
+	// por la ruta por defecto en vez de por el nombre "wan" (ver pickUplink)
+	// y saber por qué boca sale internet.
+	CmdNetworkDump = "ubus call network.interface dump 2>/dev/null || true"
+	CmdBridgeVlan  = "bridge vlan show 2>/dev/null || true"
 
 	// CmdMdnsBrowse (#338): mDNS service discovery via umdns (OpenWrt's
 	// lightweight mDNS daemon). Returns JSON with hostname -> services.
@@ -182,10 +186,14 @@ type BoardInfo struct {
 // los campos vacíos significan "sin datos WAN" (APs/desconocido).
 type WanInfo struct {
 	Proto   string   `json:"proto,omitempty"`   // "pppoe"|"dhcp"|"static"...
-	Device  string   `json:"device,omitempty"`  // interfaz física (p.ej. "eth1.20")
+	Device  string   `json:"device,omitempty"`  // interfaz L3 (p.ej. "pppoe-wan")
 	IP      string   `json:"ip,omitempty"`      // dirección IPv4 pública
 	Gateway string   `json:"gateway,omitempty"` // puerta de enlace (nexthop/ptpaddress)
 	DNS     []string `json:"dns,omitempty"`     // servidores DNS
+	// Port es la interfaz por debajo del protocolo: la boca por la que sale
+	// internet ("lan1" para un PPPoE sobre esa boca, "eth1.20" con VLAN).
+	// Vacía cuando el uplink no pasa por ninguna (módem celular).
+	Port string `json:"port,omitempty"`
 }
 
 // DhcpLease es {mac, ip, hostname} (mac en mayúsculas) + señales de huella
@@ -516,46 +524,93 @@ func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 	return out, nil
 }
 
-// ParseWanStatus parsea `ubus call network.interface.wan status` (issue #276).
-// Extrae proto, interfaz física, IP pública, gateway (nexthop de la ruta por
-// defecto, con fallback al ptpaddress) y DNS. Devuelve un WanInfo con los
-// campos vacíos si el JSON no tiene datos utilizables.
-func ParseWanStatus(raw []byte) WanInfo {
-	var data struct {
-		Proto  string `json:"proto"`
-		Device string `json:"l3_device"`
-		IPV4   []struct {
-			Address    string `json:"address"`
-			PtpAddress string `json:"ptpaddress"`
-		} `json:"ipv4-address"`
-		Route []struct {
-			Target  string `json:"target"`
-			Mask    int    `json:"mask"`
-			Nexthop string `json:"nexthop"`
-		} `json:"route"`
-		DNS []string `json:"dns-server"`
+// ifaceStatus es una interfaz de `ubus call network.interface[.<x>] status`,
+// y cada entrada de `... dump`.
+type ifaceStatus struct {
+	Interface string `json:"interface"`
+	Up        bool   `json:"up"`
+	Proto     string `json:"proto"`
+	L3Device  string `json:"l3_device"`
+	// Device es la interfaz de debajo: para un PPPoE, la boca física.
+	Device string `json:"device"`
+	IPV4   []struct {
+		Address    string `json:"address"`
+		PtpAddress string `json:"ptpaddress"`
+	} `json:"ipv4-address"`
+	Route []struct {
+		Target  string `json:"target"`
+		Mask    int    `json:"mask"`
+		Nexthop string `json:"nexthop"`
+	} `json:"route"`
+	DNS []string `json:"dns-server"`
+}
+
+func (s ifaceStatus) defaultNexthop() string {
+	for _, r := range s.Route {
+		if r.Target == "0.0.0.0" && r.Mask == 0 && r.Nexthop != "" {
+			return r.Nexthop
+		}
 	}
-	info := WanInfo{}
-	if json.Unmarshal(raw, &data) != nil {
-		return info
+	return ""
+}
+
+// pickUplink elige la interfaz que lleva internet. No vale fiarse del nombre
+// "wan": en un router multi-WAN el uplink vivo puede llamarse de cualquier
+// forma (un PPPoE llamado "isp" junto a un módem celular que sí se llama
+// "wan" y que además reporta up=true estando ocioso), así que manda la ruta
+// por defecto. Sin ninguna con ruta, cae a la llamada "wan" para que un
+// router normal con el enlace caído siga saliendo como WAN caída y no como
+// router sin WAN.
+func pickUplink(ifaces []ifaceStatus) (ifaceStatus, bool) {
+	for _, i := range ifaces {
+		if i.Up && i.defaultNexthop() != "" {
+			return i, true
+		}
 	}
-	info.Proto = data.Proto
-	info.Device = data.Device
-	if len(data.IPV4) > 0 {
-		info.IP = data.IPV4[0].Address
-		if data.IPV4[0].PtpAddress != "" {
-			info.Gateway = data.IPV4[0].PtpAddress
+	for _, i := range ifaces {
+		if i.Interface == "wan" {
+			return i, true
+		}
+	}
+	return ifaceStatus{}, false
+}
+
+func wanInfoFrom(s ifaceStatus) WanInfo {
+	info := WanInfo{Proto: s.Proto, Device: s.L3Device, Port: s.Device, DNS: s.DNS}
+	if len(s.IPV4) > 0 {
+		info.IP = s.IPV4[0].Address
+		if s.IPV4[0].PtpAddress != "" {
+			info.Gateway = s.IPV4[0].PtpAddress
 		}
 	}
 	// El gateway real es el nexthop de la ruta por defecto (0.0.0.0/0).
-	for _, r := range data.Route {
-		if r.Target == "0.0.0.0" && r.Nexthop != "" {
-			info.Gateway = r.Nexthop
-			break
-		}
+	if nh := s.defaultNexthop(); nh != "" {
+		info.Gateway = nh
 	}
-	info.DNS = data.DNS
 	return info
+}
+
+// ParseWanStatus parsea el estado de la WAN (issue #276). Acepta las dos
+// formas: `ubus call network.interface dump` (y entonces elige el uplink
+// activo, ver pickUplink) y el status de una sola interfaz. Extrae proto,
+// interfaz L3, boca física, IP pública, gateway y DNS; campos vacíos si el
+// JSON no trae datos utilizables.
+func ParseWanStatus(raw []byte) WanInfo {
+	var dump struct {
+		Interface []ifaceStatus `json:"interface"`
+	}
+	if err := json.Unmarshal(raw, &dump); err == nil && len(dump.Interface) > 0 {
+		s, ok := pickUplink(dump.Interface)
+		if !ok {
+			return WanInfo{}
+		}
+		return wanInfoFrom(s)
+	}
+	var one ifaceStatus
+	if json.Unmarshal(raw, &one) != nil {
+		return WanInfo{}
+	}
+	return wanInfoFrom(one)
 }
 
 // ParseDhcpLeasesFile parsea /tmp/dhcp.leases:
@@ -793,7 +848,11 @@ func isEthNetdev(st PortState, ok bool) bool {
 // interfaz ethernet (módem celular) y el puerto de CPU del switch. Sin ellos
 // un router así pasa de enseñar cuatro bocas -- WAN (nunca conectada), LAN 1,
 // LAN 2 y ETH 0 -- a las dos que tiene.
-func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string]bool, ifaces map[string]IfRate) []EthPort {
+//
+// uplink es la boca por la que sale internet (WanInfo.Port); cuando ninguna
+// boca ha salido como WAN se promueve esa, ver promoteUplink. "" = sin dato,
+// y entonces no se promueve nada.
+func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string]bool, ifaces map[string]IfRate, uplink string) []EthPort {
 	applyStats := func(ep *EthPort, iface string) {
 		st, ok := ifaces[iface]
 		if !ok {
@@ -812,6 +871,10 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 
 	used := map[string]bool{}
 	ports := make([]EthPort, 0, len(states))
+	// netdev de cada boca por id, para saber luego cuál lleva el uplink: el
+	// id no siempre es el nombre de la interfaz (en swconfig, "1" vs
+	// "eth0.1").
+	netdev := map[string]string{}
 
 	if len(layout) > 0 {
 		lanCount := 0
@@ -836,6 +899,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			}
 			applyStats(&ep, p.Name)
 			ports = append(ports, ep)
+			netdev[ep.ID] = p.Name
 			used[p.Name] = true
 		}
 	} else {
@@ -855,6 +919,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			}
 			applyStats(&ep, p.Name)
 			ports = append(ports, ep)
+			netdev[ep.ID] = p.Name
 			used[p.Name] = true
 		}
 		wanName := ""
@@ -874,6 +939,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			}
 			applyStats(&ep, wanName)
 			ports = append([]EthPort{ep}, ports...)
+			netdev[ep.ID] = wanName
 			used[wanName] = true
 		}
 	}
@@ -912,6 +978,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		}
 		applyStats(&ep, st.Name)
 		extras = append(extras, ep)
+		netdev[ep.ID] = st.Name
 		used[st.Name] = true
 	}
 	if len(extras) > 0 {
@@ -920,6 +987,38 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		ports = append(ports, extras...)
 	}
 
+	return promoteUplink(ports, netdev, uplink)
+}
+
+// promoteUplink marca como WAN la boca por la que sale internet cuando
+// ninguna ha salido ya como tal. Hay routers cuyo uplink no entra por una
+// boca WAN dedicada: el PPPoE puede ir sobre una boca llamada "lan1" y el
+// board.json solo declara un módem como WAN, así que sin esto ninguna boca
+// sale con id "wan" -- y la UI marca el uplink y cuelga los datos de la
+// conexión (proto, IP pública, gateway, DNS) justo de esa.
+//
+// La boca conserva su sitio y su iface: las estadísticas y la MAC siguen
+// siendo las suyas, solo cambia cómo se presenta.
+func promoteUplink(ports []EthPort, netdev map[string]string, uplink string) []EthPort {
+	if uplink == "" {
+		return ports
+	}
+	for _, p := range ports {
+		if p.ID == "wan" {
+			return ports // el layout ya trae una boca WAN
+		}
+	}
+	// El uplink puede llegar etiquetado ("lan1.7"): la boca es la de debajo.
+	base := uplink
+	if i := strings.LastIndexByte(base, '.'); i > 0 {
+		base = base[:i]
+	}
+	for i := range ports {
+		if n := netdev[ports[i].ID]; n == uplink || n == base {
+			ports[i].ID, ports[i].Label = "wan", "WAN"
+			break
+		}
+	}
 	return ports
 }
 

@@ -457,7 +457,13 @@ func (p *Prober) probeFDB(ctx context.Context) *FDBData {
 				ifaces[name] = IfRate{IfCounters: c}
 			}
 		}
-		fd.Ports = BuildEthPorts(layout, states, members, ifaces)
+		// Boca del uplink: la marca como WAN cuando el layout no trae
+		// ninguna (PPPoE sobre una boca "lan" y demás).
+		uplink := ""
+		if out := p.runBest(ctx, CmdNetworkDump, 0); out != "" {
+			uplink = ParseWanStatus([]byte(out)).Port
+		}
+		fd.Ports = BuildEthPorts(layout, states, members, ifaces, uplink)
 		any = true
 	}
 	if !any {

@@ -951,7 +951,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	// — coste: una llamada ubus local por poll.
 	glClients := client.GetGlClients()
 	wireless := client.GetWirelessClients()
-	ports := client.GetEthPorts(layout, ifRates)
+	ports := client.GetEthPorts(layout, ifRates, l.probeWanInfo(cfg.ID, client).Port)
 	radios := client.GetRadios()
 	fdb := client.GetBridgeFdb()
 	brMac := client.GetBridgeMac()
