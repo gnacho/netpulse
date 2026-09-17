@@ -177,6 +177,12 @@ const (
 	// lightweight mDNS daemon). Returns JSON with hostname -> services.
 	// Falls back to empty if umdns is not installed.
 	CmdMdnsBrowse = "ubus call umdns browse 2>/dev/null || echo '{}'"
+	// CmdMdnsHosts (#338): the plain host records umdns has learned, as
+	// "<name>.local" -> {ipv4, ipv6}. browse only lists hosts that advertise
+	// a SERVICE; a device that just announces its name (most laptops and
+	// phones) appears here and nowhere else, and this is the map that names
+	// a client with no DHCP hostname.
+	CmdMdnsHosts  = "ubus call umdns hosts 2>/dev/null || echo '{}'"
 	CmdEthtoolSFP = "ethtool -m %s 2>/dev/null || true"
 )
 
@@ -1844,6 +1850,26 @@ func max0(v float64) float64 {
 		return 0
 	}
 	return v
+}
+
+// ParseMdnsHosts (#338): parses `ubus call umdns hosts` into IP -> hostname.
+// The trailing ".local" is dropped: it is the mDNS suffix, not part of the
+// name anyone recognises. Entries without an IPv4 are skipped.
+func ParseMdnsHosts(raw []byte) map[string]string {
+	var hosts map[string]struct {
+		IPv4 string `json:"ipv4"`
+	}
+	out := map[string]string{}
+	if json.Unmarshal(raw, &hosts) != nil {
+		return out
+	}
+	for name, h := range hosts {
+		if h.IPv4 == "" {
+			continue
+		}
+		out[h.IPv4] = strings.TrimSuffix(name, ".local")
+	}
+	return out
 }
 
 // ParseMdnsBrowse (#338): parsea la salida de `ubus call umdns browse`.

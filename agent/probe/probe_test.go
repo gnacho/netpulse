@@ -1592,3 +1592,31 @@ func TestParseDhcpReservations(t *testing.T) {
 		t.Fatalf("empty output: %+v", got)
 	}
 }
+
+func TestParseMdnsHosts(t *testing.T) {
+	// Shape of `ubus call umdns hosts`: the ".local" name keys an object
+	// with the addresses it resolved to.
+	raw := `{"laptop-01.local":{"ipv4":"192.0.2.51","ipv6":"fe80::1"},
+	         "printer.local":{"ipv4":"192.0.2.10"},
+	         "no-address.local":{"ipv6":"fe80::2"}}`
+	hosts := ParseMdnsHosts([]byte(raw))
+	if len(hosts) != 2 {
+		t.Fatalf("hosts: %+v", hosts)
+	}
+	// Keyed by IP, and the mDNS suffix is dropped.
+	if hosts["192.0.2.51"] != "laptop-01" || hosts["192.0.2.10"] != "printer" {
+		t.Fatalf("hosts: %+v", hosts)
+	}
+	// An entry with no IPv4 cannot name anything.
+	for _, name := range hosts {
+		if name == "no-address" {
+			t.Fatalf("entry without ipv4 should be skipped: %+v", hosts)
+		}
+	}
+	if got := ParseMdnsHosts([]byte("{}")); len(got) != 0 {
+		t.Fatalf("empty: %+v", got)
+	}
+	if got := ParseMdnsHosts([]byte("not json")); len(got) != 0 {
+		t.Fatalf("broken json must not panic: %+v", got)
+	}
+}

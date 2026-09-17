@@ -867,6 +867,19 @@ func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *Di
 	if dd == nil {
 		dd = &DiscoveryData{}
 	}
+	// Host records: a device that announces only its name (no service) shows
+	// up here and nowhere else. These win over a service instance name,
+	// which is the service's label rather than the device's own.
+	if out := p.runBest(ctx, CmdMdnsHosts, 5*time.Second); strings.TrimSpace(out) != "" {
+		if hosts := ParseMdnsHosts([]byte(out)); len(hosts) > 0 {
+			if dd.HostByIP == nil {
+				dd.HostByIP = map[string]string{}
+			}
+			for ip, name := range hosts {
+				dd.HostByIP[ip] = name
+			}
+		}
+	}
 
 	// Detect randomized MACs from wireless clients.
 	if wireless != nil {
