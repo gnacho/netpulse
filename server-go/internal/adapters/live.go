@@ -2429,6 +2429,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 				leaseRouter[le.MAC] = rID
 			}
 		}
+		// Static reservations: the name and address pinned in
+		// /etc/config/dhcp, and the only ones a client with a fixed address
+		// of its own ever gets, since it never takes a lease.
+		for _, r := range p.reservations {
+			if r.MAC != "" {
+				resByMac[r.MAC] = r
+			}
+		}
 		// gl-clients: fallback de IP para MACs sin lease (dnsmasq sin ese
 		// cliente). No crea dispositivos: solo enriquece los ya resueltos
 		// por wireless/FDB (issue #5 bug 1).
