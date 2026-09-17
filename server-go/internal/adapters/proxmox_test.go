@@ -524,12 +524,47 @@ func TestSealProxmoxReclassifiesWhatItRenames(t *testing.T) {
 	if devices[1].Type != "servidor" {
 		t.Errorf("adguard: type=%q (want servidor)", devices[1].Type)
 	}
-	// A name matching no rule stays honestly unknown.
-	if devices[2].Type != "desconocido" {
-		t.Errorf("appbox: type=%q (want desconocido)", devices[2].Type)
+	// A name no rule covers is still a machine running a service: being a
+	// guest of a hypervisor is the evidence, and no word list will ever
+	// hold every application anyone runs in a container.
+	if devices[2].Type != "servidor" {
+		t.Errorf("appbox: type=%q (want servidor)", devices[2].Type)
 	}
 	// A type that was already decided is not overwritten by the new name.
 	if devices[3].Type != "servidor" {
 		t.Errorf("pre-typed device: %q", devices[3].Type)
+	}
+}
+
+// Every guest ends up typed, whether it was renamed here or already had a
+// name of its own, and a rule that matches something more specific than
+// "a server" still wins.
+func TestSealProxmoxTypesEveryGuest(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:00:00:01": {Name: "metrics", Node: "pve1", Type: "lxc", Instance: "default"},
+			"BC:24:11:00:00:02": {Name: "unifi", Node: "pve1", Type: "lxc", Instance: "default"},
+			"BC:24:11:00:00:03": {Name: "frigate", Node: "pve1", Type: "qemu", Instance: "default"},
+		},
+		nodes:   map[string]pveNode{"default|pve1": {Instance: "default", Node: "pve1"}},
+		nodeIPs: map[string][]string{"default|pve1": {"192.0.2.2"}},
+	}
+	devices := []Device{
+		// The host itself, named by nothing in particular.
+		{ID: "aa-bb-cc-00-00-01", MAC: "AA:BB:CC:00:00:01", Name: "maquina-del-armario", IP: "192.0.2.2", Type: "desconocido"},
+		// Renamed by the seal.
+		{ID: "bc-24-11-00-00-01", MAC: "BC:24:11:00:00:01", Name: "BC:24:11:00:00:01", Type: "desconocido"},
+		// Already had a lease name, so the seal does not rename it -- and it
+		// was still left untyped before this.
+		{ID: "bc-24-11-00-00-02", MAC: "BC:24:11:00:00:02", Name: "unifi", Type: "desconocido"},
+		// A name a rule covers: the camera wins over the generic default.
+		{ID: "bc-24-11-00-00-03", MAC: "BC:24:11:00:00:03", Name: "camera-nvr", Type: "desconocido"},
+	}
+	applyPVEInfra(devices, nil, inv)
+
+	for i, want := range []string{"servidor", "servidor", "servidor", "camara"} {
+		if devices[i].Type != want {
+			t.Errorf("device[%d] %s: type=%q (want %q)", i, devices[i].Name, devices[i].Type, want)
+		}
 	}
 }

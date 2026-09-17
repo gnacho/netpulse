@@ -329,8 +329,10 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		// unas líneas más abajo: un lease o un alias del usuario mandan.
 		if vm.Name != "" && looksLikeMACName(devices[idx].Name) {
 			devices[idx].Name = vm.Name
-			reclassify(&devices[idx])
 		}
+		// Y con el nombre puesto, el tipo. Fuera del if: un invitado que ya
+		// traía nombre de su lease tampoco se había clasificado bien.
+		reclassify(&devices[idx], "servidor")
 		// El sello PVE es ground truth: si el CT tiene host conocido, cuelga
 		// de él (sobreescribe el attachTo inferido por L2, que en puertos
 		// mezclados apunta a un nodo "inferred" genérico).
@@ -348,8 +350,8 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		devices[idx].Infra = "hypervisor"
 		if n, ok := nodeByKey[key]; ok && looksLikeMACName(devices[idx].Name) {
 			devices[idx].Name = n.Node
-			reclassify(&devices[idx])
 		}
+		reclassify(&devices[idx], "servidor")
 	}
 	// CTs por host (para el macCount informativo del distnode).
 	ctCountByHost := map[string]int{}
@@ -421,20 +423,28 @@ func singleNodeOf(resources []pve.Resource) bool {
 	return n == 1
 }
 
-// reclassify vuelve a estimar el tipo de un device al que ACABAMOS de darle
-// nombre. La clasificación corre dentro de buildDevices y este sello llega
-// después, así que un invitado bautizado aquí se había clasificado cuando su
-// nombre era todavía su MAC: "adguard" salía sin tipo aunque esa palabra es
-// una regla de "servidor" desde siempre.
+// reclassify vuelve a estimar el tipo de un device del inventario PVE. La
+// clasificación corre dentro de buildDevices y este sello llega después, así
+// que un invitado bautizado aquí se había clasificado cuando su nombre era
+// todavía su MAC: "adguard" salía sin tipo aunque esa palabra es una regla
+// de "servidor" desde siempre.
 //
-// Solo sobre los que siguen sin tipo, y sin las huellas DHCP/LLDP: si alguna
-// de ellas hubiera dicho algo, el device no estaría en "desconocido". Lo
-// único que ha cambiado es el nombre, que es justo la primera regla.
-func reclassify(d *Device) {
+// fallback es el tipo cuando las reglas siguen sin decir nada. Para un
+// invitado o un host de hipervisor ese "servidor" no es una suposición: un
+// CT es una máquina que corre un servicio, y lo que sobra son nombres de aplicación que
+// ninguna lista de palabras va a cubrir nunca. Ser invitado de Proxmox es la evidencia; mantener un
+// diccionario de aplicaciones no es una estrategia.
+//
+// Se llama sin las huellas DHCP/LLDP: si alguna hubiera dicho algo el device
+// no estaría en "desconocido". Lo único nuevo es el nombre, que es justo la
+// primera regla que mira el clasificador.
+func reclassify(d *Device, fallback string) {
 	if d.Type != "" && d.Type != "desconocido" {
 		return
 	}
 	if t := GuessDeviceType(d.Name, d.Manufacturer, "", "", ""); t != "desconocido" {
 		d.Type = t
+		return
 	}
+	d.Type = fallback
 }
