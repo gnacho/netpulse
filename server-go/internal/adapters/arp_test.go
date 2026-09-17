@@ -97,3 +97,79 @@ func TestPolledFromAgentArp(t *testing.T) {
 		t.Fatalf("arp no propagada: %+v", p.arp)
 	}
 }
+
+// A MAC whose only evidence is a neighbour entry the kernel has NOT
+// confirmed is not a device: the entry outlives the host by minutes, and
+// with no port either the map hung it off the gateway bubble.
+func TestBuildDevicesIgnoresStaleArpOnlyHosts(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	polled := map[string]*routerPolled{
+		"patio": {
+			cfg: RouterConfig{ID: "patio", Name: "Patio", Host: "192.0.2.2"},
+			arp: map[string]string{
+				"02:00:00:00:00:10": "192.0.2.60", // confirmed
+				"02:00:00:00:00:11": "192.0.2.61", // only remembered
+			},
+			arpStale: map[string]bool{"02:00:00:00:00:11": true},
+		},
+	}
+	devs := l.buildDevices(polled)
+	if len(devs) != 1 || devs[0].MAC != "02:00:00:00:00:10" {
+		t.Fatalf("only the confirmed host is a device: %+v", devs)
+	}
+}
+
+// Stale is about presence, never about other evidence: a host with a lease
+// stays, and its address still comes from the stale entry.
+func TestBuildDevicesStaleArpStillResolvesIPs(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	polled := map[string]*routerPolled{
+		"patio": {
+			cfg:      RouterConfig{ID: "patio", Name: "Patio", Host: "192.0.2.2"},
+			wireless: map[string]WirelessClient{"02:00:00:00:00:11": {SignalDbm: -55, Band: "5 GHz"}},
+			arp:      map[string]string{"02:00:00:00:00:11": "192.0.2.61"},
+			arpStale: map[string]bool{"02:00:00:00:00:11": true},
+		},
+	}
+	devs := l.buildDevices(polled)
+	if len(devs) != 1 || devs[0].IP != "192.0.2.61" {
+		t.Fatalf("an associated client keeps its address: %+v", devs)
+	}
+}
+
+// Two routers see the same host: confirmed anywhere is confirmed.
+func TestBuildDevicesStaleOnOneRouterOnly(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	polled := map[string]*routerPolled{
+		"patio": {
+			cfg:      RouterConfig{ID: "patio", Name: "Patio", Host: "192.0.2.2"},
+			arp:      map[string]string{"02:00:00:00:00:10": "192.0.2.60"},
+			arpStale: map[string]bool{"02:00:00:00:00:10": true},
+		},
+		"salon": {
+			cfg: RouterConfig{ID: "salon", Name: "Salon", Host: "192.0.2.3"},
+			arp: map[string]string{"02:00:00:00:00:10": "192.0.2.60"},
+		},
+	}
+	if devs := l.buildDevices(polled); len(devs) != 1 {
+		t.Fatalf("confirmed by one router is enough: %+v", devs)
+	}
+}
+
+// A source that cannot report states (an older agent, or the /proc/net/arp
+// fallback) marks nothing stale, and the whole table counts as presence.
+func TestPolledFromAgentArpStale(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	pl := &probe.Payload{Router: "patio", Version: "0.1.0"}
+	pl.Data.System = &probe.SystemData{SysInfo: &probe.SysInfo{Uptime: 100}}
+	pl.Data.Arp = map[string]string{"02:00:00:00:00:10": "192.0.2.60"}
+	if p := l.polledFromAgent(RouterConfig{ID: "patio"}, pl); len(p.arpStale) != 0 {
+		t.Fatalf("an agent without arpStale marks nothing stale: %+v", p.arpStale)
+	}
+
+	pl.Data.ArpStale = []string{"02:00:00:00:00:10"}
+	p := l.polledFromAgent(RouterConfig{ID: "patio"}, pl)
+	if !p.arpStale["02:00:00:00:00:10"] {
+		t.Fatalf("arpStale not propagated: %+v", p.arpStale)
+	}
+}

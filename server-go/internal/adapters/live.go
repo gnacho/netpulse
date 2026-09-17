@@ -107,7 +107,12 @@ type routerPolled struct {
 	glClients []DhcpLease
 	// arp: MAC→IP de /proc/net/arp (#377). Último recurso de resolución de
 	// IP cuando ni el lease ni gl-clients la tienen (DHCP en otro equipo).
-	arp       map[string]string
+	arp map[string]string
+	// arpStale: the subset of `arp` the kernel remembers without having
+	// confirmed (STALE/FAILED/INCOMPLETE). Good enough to resolve an IP,
+	// never enough to claim the host is connected -- an entry outlives the
+	// device by minutes. Empty when the source could not report states.
+	arpStale  map[string]bool
 	wireless  map[string]WirelessClient
 	ports     []EthPort
 	radios    []Radio
@@ -945,7 +950,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		net = &NetDevBps{}
 	}
 	leases := client.GetDhcpLeases()
-	arp := client.GetArp()
+	arp, arpStale := client.GetArp()
 	// gl-clients (GL.iNet): complementa la resolución de IP donde dnsmasq no
 	// tiene lease (issue #5 bug 1). En routers sin el objeto ubus sale vacío
 	// — coste: una llamada ubus local por poll.
@@ -1047,7 +1052,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
-		uptimeSec: sysInfo.Uptime, net: net, leases: leases, arp: arp, glClients: glClients,
+		uptimeSec: sysInfo.Uptime, net: net, leases: leases, arp: arp, arpStale: arpStale, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
@@ -2134,13 +2139,31 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	}
 	// (4) ARP (#507): hosts cableados con IP estática visibles SOLO en la
 	// tabla ARP del router (ni wireless, ni FDB, ni lease, ni device_attrib).
-	// Presencia en la tabla = activo recientemente → online este tick. No se
-	// persiste: cuando la entrada envejece, el host desaparece del snapshot.
 	// Se itera en orden de router ID para atribuir deterministamente el
 	// RouterID correcto cuando varios routers ven la misma MAC (misma LAN).
 	// La exclusión de MACs de router/bridge se aplica en el bucle de
 	// dispositivos (routerMacs), igual que para leases/known: aquí no se
 	// duplica ese filtro.
+	//
+	// Presence needs a CONFIRMED neighbour, not merely an entry in the
+	// table: the kernel keeps a stale neighbour for minutes after the host
+	// has gone, and this branch is the last resort -- the host has no lease,
+	// no FDB entry and no wireless association, so nothing else would
+	// contradict it. The map then drew a device that is not there, and, with
+	// no port either, hung it off the gateway bubble. A host that really is
+	// connected answers, so the kernel reconfirms it and it stays; a host
+	// that is only remembered drops out on the next tick instead of waiting
+	// for the entry to age out. A source that cannot report states (old
+	// agent, /proc/net/arp fallback) marks nothing stale and keeps the old
+	// behaviour.
+	arpConfirmed := map[string]bool{}
+	for _, p := range polled {
+		for mac := range p.arp {
+			if !p.arpStale[mac] {
+				arpConfirmed[mac] = true
+			}
+		}
+	}
 	arpRouterIDs := make([]string, 0, len(polled))
 	for routerID := range polled {
 		arpRouterIDs = append(arpRouterIDs, routerID)
@@ -2155,6 +2178,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 				continue
 			}
 			if _, ok := known[mac]; ok {
+				continue
+			}
+			if !arpConfirmed[mac] {
 				continue
 			}
 			seen[mac] = seenInfo{routerID, "cable", nil}
