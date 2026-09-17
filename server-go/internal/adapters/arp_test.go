@@ -2,6 +2,7 @@
 package adapters
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gnacho/netpulse/agent/probe"
@@ -216,5 +217,75 @@ func TestBuildDevicesReattributesDeletedRouters(t *testing.T) {
 		if dev.RouterID != "gateway" {
 			t.Fatalf("%s should fall back to the gateway, got %q", mac, dev.RouterID)
 		}
+	}
+}
+
+// countClientsPerRouter: online devices attributed to each router, and
+// nothing else -- offline devices and devices attributed to a router that is
+// not in the list do not count anywhere.
+func TestCountClientsPerRouter(t *testing.T) {
+	routers := []Router{{ID: "gateway"}, {ID: "patio"}}
+	devices := []Device{
+		{MAC: "02:00:00:00:00:01", RouterID: "gateway", Band: "cable", Online: true},
+		{MAC: "02:00:00:00:00:02", RouterID: "gateway", Band: "5 GHz", Online: true},
+		{MAC: "02:00:00:00:00:03", RouterID: "gateway", Band: "2.4 GHz", Online: false},
+		{MAC: "02:00:00:00:00:04", RouterID: "patio", Band: "2.4 GHz", Online: true},
+		{MAC: "02:00:00:00:00:05", RouterID: "ghost", Band: "cable", Online: true},
+	}
+	countClientsPerRouter(routers, devices)
+
+	if routers[0].Clients != 2 || routers[1].Clients != 1 {
+		t.Fatalf("counts: %d %d", routers[0].Clients, routers[1].Clients)
+	}
+	if routers[0].BandSplit == nil || routers[0].BandSplit.Cable != 1 || routers[0].BandSplit.Band5 != 1 {
+		t.Fatalf("band split: %+v", routers[0].BandSplit)
+	}
+	// The offline 2.4 GHz device is not in the split either.
+	if routers[0].BandSplit.Band24 != 0 {
+		t.Fatalf("an offline device was counted: %+v", routers[0].BandSplit)
+	}
+}
+
+// GET /api/routers used to report the DHCP lease count while the overview
+// reported the real attribution, so the routers page and the map disagreed
+// about the same router.
+func TestGetRoutersCountsClientsNotLeases(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := NewLive(nil, d, nil, nil)
+	cfg := RouterConfig{ID: "gateway", Name: "Gateway", Host: "192.0.2.1", IsGateway: true, AgentOnly: true}
+	l.SetRouters([]RouterConfig{cfg})
+
+	// Three leases, but only two of those hosts are associated right now.
+	l.mu.Lock()
+	l.lastPolled = map[string]*routerPolled{"gateway": {
+		cfg: cfg,
+		leases: []DhcpLease{
+			{MAC: "02:00:00:00:00:01", IP: "192.0.2.51", Hostname: "one"},
+			{MAC: "02:00:00:00:00:02", IP: "192.0.2.52", Hostname: "two"},
+			{MAC: "02:00:00:00:00:03", IP: "192.0.2.53", Hostname: "gone"},
+		},
+		wireless: map[string]WirelessClient{
+			"02:00:00:00:00:01": {SignalDbm: -50, Band: "5 GHz"},
+			"02:00:00:00:00:02": {SignalDbm: -60, Band: "2.4 GHz"},
+		},
+	}}
+	l.mu.Unlock()
+
+	routers := l.GetRouters(context.Background())
+	if len(routers) != 1 {
+		t.Fatalf("routers: %+v", routers)
+	}
+	if routers[0].Clients != 2 {
+		t.Fatalf("clients: got %d, want 2 (the associated ones, not the 3 leases)", routers[0].Clients)
+	}
+	// And the same number the overview would report.
+	online := 0
+	for _, dev := range l.attributedDevices() {
+		if dev.Online && dev.RouterID == "gateway" {
+			online++
+		}
+	}
+	if online != routers[0].Clients {
+		t.Fatalf("routers endpoint says %d, attribution says %d", routers[0].Clients, online)
 	}
 }

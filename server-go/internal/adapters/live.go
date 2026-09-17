@@ -2705,18 +2705,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	l.trackUnknownDevices(devices)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// Clientes reales por router (atribución wireless/FDB, no leases)
-	for i := range routerList {
-		n := 0
-		var split demoBandSplit
-		for _, d := range devices {
-			if d.RouterID == routerList[i].ID && d.Online {
-				n++
-				countBand(&split, d.Band)
-			}
-		}
-		routerList[i].Clients = n
-		routerList[i].BandSplit = &split
-	}
+	countClientsPerRouter(routerList, devices)
 	// Sparkline de la tarjeta para fuentes sin throughput bps (switch beacon/
 	// SNMP sin métricas agregadas): su línea de tráfico 24h sale de los fps de
 	// sus puertos (port_series), no de la tabla metrics (siempre 0 ahí).
@@ -2882,7 +2871,39 @@ func (l *Live) GetRouters(context.Context) []Router {
 		}
 		out = append(out, l.buildRouter(p, l.metricsHistory(cfg.ID, "24h")))
 	}
+	// buildRouter leaves Clients as the DHCP lease count, which is not the
+	// number the card means: it counts devices that are offline and misses
+	// every device without a lease. The overview has always corrected it;
+	// this endpoint did not, so the routers page and the map disagreed --
+	// 34 against 45 on the same router.
+	countClientsPerRouter(out, l.attributedDevices())
 	return out
+}
+
+// countClientsPerRouter sets each router's client count and band split to
+// the online devices attributed to it. Attribution is per router, not per
+// subtree: in a mesh each node counts its own stations, and clients of gear
+// that is not a NetPulse router (a UniFi AP, say) belong to the router that
+// serves them.
+func countClientsPerRouter(routers []Router, devices []Device) {
+	counts := make(map[string]int, len(routers))
+	splits := make(map[string]*demoBandSplit, len(routers))
+	for i := range routers {
+		splits[routers[i].ID] = &demoBandSplit{}
+	}
+	for _, d := range devices {
+		if !d.Online {
+			continue
+		}
+		if split, ok := splits[d.RouterID]; ok {
+			counts[d.RouterID]++
+			countBand(split, d.Band)
+		}
+	}
+	for i := range routers {
+		routers[i].Clients = counts[routers[i].ID]
+		routers[i].BandSplit = splits[routers[i].ID]
+	}
 }
 
 // liveExtras es el objeto extras del detalle live (index.js:677-700).
@@ -3250,6 +3271,15 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 // GetDevices: buildDevices sobre el último sondeo (+ inferencia FDB de
 // topología: Port/AttachTo, como en buildOverview).
 func (l *Live) GetDevices(context.Context) []Device {
+	return l.attributedDevices()
+}
+
+// attributedDevices builds the device list with everything that decides who
+// a device belongs to and whether it is online: inference over the sticky
+// FDB overlay, then the Proxmox and UniFi seals. The seals are not optional
+// for a count -- the UniFi one is what marks a station on a controller AP as
+// online, and without it a router's clients come out short.
+func (l *Live) attributedDevices() []Device {
 	l.mu.Lock()
 	polled := l.lastPolled
 	l.mu.Unlock()
