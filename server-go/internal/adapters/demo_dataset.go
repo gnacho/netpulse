@@ -438,7 +438,7 @@ func additionalDevices() []Device {
 			IP: "192.168.8.33", MAC: "58:BD:A3:4C:E2:09", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-53), TrafficMbps: 0.1, Online: true}, 25, 0.3),
 			"switch-oled", "renueva en 5 h 47 min", "hace 240 días", "8,6 GB", "310 MB", true, "tv", ""),
-		withDetails(devExtra(Device{ID: "portatil-invitado", Name: "Portátil invitado", Type: "portatil", Manufacturer: "Desconocido",
+		withDetails(devExtra(Device{ID: "portatil-invitado", Name: "Portátil invitado", Type: "portatil", Manufacturer: "",
 			IP: "192.168.8.29", MAC: "A2:7E:9C:41:0B:6D", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0.7, Online: true, IsNew: true}, 26, 0),
 			"unknown-7f2a", "renueva en 2 h 9 min", "hoy", "480 MB", "62 MB", false, "ordenadores", ""),

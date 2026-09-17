@@ -2278,10 +2278,10 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		}
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
+		// Fabricante desconocido = campo VACÍO, no un literal. El server no
+		// tiene idioma: "Desconocido" viajaba tal cual hasta la UI y salía en
+		// español en una interfaz en inglés. Quien pinta, traduce.
 		manufacturer := oui.Lookup(mac)
-		if manufacturer == "" {
-			manufacturer = "Desconocido"
-		}
 		d := Device{
 			ID:  strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
 			MAC: mac, Manufacturer: manufacturer,

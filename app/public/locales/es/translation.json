@@ -1139,6 +1139,11 @@
     "ring": {
       "overflowAria": "{{count}} clientes más en {{router}}",
       "overflowTitle": "{{count}} clientes más en {{router}}"
+    },
+    "vm": {
+      "pill": "VM",
+      "note": "Máquina virtual en el hipervisor · su tráfico viaja por el cable del host",
+      "noteIn": "Máquina virtual en {{host}} · bridge virtual ({{port}}) · tráfico por el cable del host"
     }
   },
   "settings": {

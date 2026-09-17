@@ -24,6 +24,17 @@ import { COLOR, VB_H, VB_W, bandColor, linkColor, statusColor } from './model'
 
 /** Nombre preferente de un puerto: la etiqueta LuCI si existe, si no el id
  * físico (issue #258). */
+/**
+ * Qué clase de invitado es un chip anidado bajo un hipervisor. isCt es
+ * posicional (cuelga del host, se dibuja en la rejilla), no dice QUÉ es: una
+ * VM salía rotulada "CT" porque compartían etiqueta. Solo el sello del
+ * hipervisor distingue las dos, así que sin ese dato se dice "contenedor",
+ * que es lo que la inferencia L2 puede afirmar.
+ */
+function guestKind(d: Device): 'ct' | 'vm' {
+  return d.infra === 'vm' ? 'vm' : 'ct'
+}
+
 export function portName(port: string | undefined, label: string | undefined): string {
   return label || port || '—'
 }
@@ -343,7 +354,7 @@ function ChipTooltip({
         <span className="font-display text-sm font-semibold text-text-primary">{d.name}</span>
         <StatusPill
           tone={chip.isCt ? 'muted' : chip.wired ? 'ok' : chip.weak ? 'warn' : 'ok'}
-          label={chip.isCt ? t('topology.ct.pill') : chip.wired ? t('common.cable') : d.band}
+          label={chip.isCt ? t(`topology.${guestKind(d)}.pill`) : chip.wired ? t('common.cable') : d.band}
         />
       </div>
       <div className="mt-0.5 font-mono text-caption text-text-muted">
@@ -382,8 +393,8 @@ function ChipTooltip({
       {chip.isCt && (
         <div className="mt-2 text-caption leading-snug text-text-secondary">
           {ctHost
-            ? t('topology.ct.noteIn', { host: ctHost.name, port: portName(ctHost.port ?? undefined, ctHost.portLabel) })
-            : t('topology.ct.note')}
+            ? t(`topology.${guestKind(d)}.noteIn`, { host: ctHost.name, port: portName(ctHost.port ?? undefined, ctHost.portLabel) })
+            : t(`topology.${guestKind(d)}.note`)}
         </div>
       )}
       {!chip.isCt && hostCtCount > 0 && (

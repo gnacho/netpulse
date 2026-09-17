@@ -1213,7 +1213,7 @@
       "id": "portatil-invitado",
       "name": "Portátil invitado",
       "type": "portatil",
-      "manufacturer": "Desconocido",
+      "manufacturer": "",
       "ip": "192.168.8.29",
       "mac": "A2:7E:9C:41:0B:6D",
       "routerId": "living",

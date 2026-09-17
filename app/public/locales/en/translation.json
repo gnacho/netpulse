@@ -1139,6 +1139,11 @@
     "ring": {
       "overflowAria": "{{count}} more clients on {{router}}",
       "overflowTitle": "{{count}} more clients on {{router}}"
+    },
+    "vm": {
+      "pill": "VM",
+      "note": "Virtual machine on the hypervisor · its traffic rides the host's cable",
+      "noteIn": "Virtual machine on {{host}} · virtual bridge ({{port}}) · traffic rides the host's cable"
     }
   },
   "settings": {
