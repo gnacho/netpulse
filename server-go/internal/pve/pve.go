@@ -296,3 +296,40 @@ func (c *Client) Test(ctx context.Context) (*TestResult, error) {
 	}
 	return out, nil
 }
+
+// ClusterNode is one entry of /cluster/status: the address corosync knows a
+// node by, which is the node's real address on the network.
+type ClusterNode struct {
+	Type string `json:"type"` // "node" | "cluster"
+	Name string `json:"name"`
+	IP   string `json:"ip"`
+}
+
+// ClusterStatus: GET /api2/json/cluster/status → node name and IP.
+//
+// This is where a node's address actually lives. /nodes/{node}/network only
+// reports what /etc/network/interfaces declares, so a host whose management
+// address is configured outside it -- DHCP on the NIC, systemd-networkd, a
+// setup with no bridge in that file -- lists its interfaces with no address
+// at all and offers nothing to match the host device by.
+//
+// Needs Sys.Audit on "/"; a token without it gets a 403 and the caller
+// falls back to the interface listing.
+func (c *Client) ClusterStatus(ctx context.Context) ([]ClusterNode, error) {
+	var out []ClusterNode
+	if err := c.get(ctx, "/api2/json/cluster/status", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HostOfURL: the host part of the configured endpoint, with no port. For a
+// single-node instance that is the node's address, and it is the last
+// resort when the API will not say what its own address is.
+func (c *Client) HostOfURL() string {
+	u, err := url.Parse(c.cfg.URL)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}

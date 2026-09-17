@@ -2,7 +2,12 @@
 package adapters
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/gnacho/netpulse/server-go/internal/pve"
 )
 
 // TestSealProxmoxInfra: con un cluster de 1 nodo (citadel-01) y 2 CTs
@@ -297,5 +302,102 @@ func TestSealProxmoxKeepsMACWhenTheGuestHasNoName(t *testing.T) {
 	applyPVEInfra(devices, nil, inv)
 	if devices[0].Name != "BC:24:11:A4:9E:BB" {
 		t.Fatalf("name: %q", devices[0].Name)
+	}
+}
+
+// pveFakeAPI: a Proxmox endpoint with one node and one running CT. The two
+// switches decide where a node's address can be read from.
+func pveFakeAPI(t *testing.T, clusterStatusOK bool, ifaceAddress string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api2/json/cluster/resources":
+			w.Write([]byte(`{"data":[
+				{"id":"node/pve1","node":"pve1","type":"node","status":"online"},
+				{"id":"lxc/100","vmid":100,"node":"pve1","type":"lxc","status":"running","name":"storage"}
+			]}`))
+		case r.URL.Path == "/api2/json/cluster/status":
+			if !clusterStatusOK {
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(`{"message":"Permission check failed (/, Sys.Audit)\n","data":null}`))
+				return
+			}
+			w.Write([]byte(`{"data":[{"type":"node","name":"pve1","ip":"192.0.2.2","online":1}]}`))
+		case strings.HasSuffix(r.URL.Path, "/network"):
+			if ifaceAddress == "" {
+				// A host configured outside /etc/network/interfaces: NICs
+				// with no address at all, which is what hid the hypervisor.
+				w.Write([]byte(`{"data":[{"iface":"enp2s0","type":"eth","method":"manual"}]}`))
+				return
+			}
+			w.Write([]byte(`{"data":[{"iface":"vmbr0","type":"bridge","address":"` + ifaceAddress + `"}]}`))
+		case strings.HasSuffix(r.URL.Path, "/config"):
+			w.Write([]byte(`{"data":{"net0":"bridge=vmbr0,hwaddr=BC:24:11:A4:9E:BB,name=eth0,type=veth"}}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+}
+
+func pveInventoryFrom(t *testing.T, srv *httptest.Server) *pveInventory {
+	t.Helper()
+	cfg := pve.Config{URL: srv.URL, TokenID: "netpulse@pam!t", Secret: "s"}
+	inv := NewLive(nil, nil, nil, nil).fetchPveInventory([]pveInstClient{
+		{inst: pve.Instance{ID: "acasa", Name: "casa", Config: cfg}, c: pve.NewClient(cfg)},
+	})
+	if inv == nil {
+		t.Fatal("inventario nil")
+	}
+	return inv
+}
+
+// The address comes from cluster/status, the only source that knows it when
+// the node's interfaces declare none.
+func TestPVENodeIPFromClusterStatus(t *testing.T) {
+	srv := pveFakeAPI(t, true, "")
+	defer srv.Close()
+	if got := pveInventoryFrom(t, srv).nodeIPs["acasa|pve1"]; got != "192.0.2.2" {
+		t.Fatalf("nodeIP: %q", got)
+	}
+}
+
+// Without Sys.Audit there is no cluster/status, and the declared bridge is
+// still a good answer.
+func TestPVENodeIPFallsBackToTheInterfaces(t *testing.T) {
+	srv := pveFakeAPI(t, false, "192.0.2.7")
+	defer srv.Close()
+	if got := pveInventoryFrom(t, srv).nodeIPs["acasa|pve1"]; got != "192.0.2.7" {
+		t.Fatalf("nodeIP: %q", got)
+	}
+}
+
+// Neither source says anything: for a single node the configured endpoint
+// IS that node, so the host can still be matched.
+func TestPVENodeIPFallsBackToTheEndpoint(t *testing.T) {
+	srv := pveFakeAPI(t, false, "")
+	defer srv.Close()
+	inv := pveInventoryFrom(t, srv)
+	want := strings.TrimPrefix(srv.URL, "http://")
+	want = want[:strings.LastIndex(want, ":")]
+	if got := inv.nodeIPs["acasa|pve1"]; got != want {
+		t.Fatalf("nodeIP: %q (want %q)", got, want)
+	}
+	// And with that address the seal finally produces the hypervisor node
+	// and hangs the container off it -- the whole point of the fallback.
+	devices := []Device{
+		{ID: "02-00-00-00-00-40", MAC: "02:00:00:00:00:40", Name: "proxmox", IP: want, RouterID: "gateway", Port: "lan2"},
+		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "BC:24:11:A4:9E:BB"},
+	}
+	dists := applyPVEInfra(devices, nil, inv)
+	if devices[0].Infra != "hypervisor" {
+		t.Fatalf("host: %+v", devices[0])
+	}
+	if len(dists) != 1 || dists[0].Kind != "hypervisor" || dists[0].HostDeviceID != devices[0].ID {
+		t.Fatalf("distnode: %+v", dists)
+	}
+	if devices[1].AttachTo != devices[0].ID || devices[1].Name != "storage" {
+		t.Fatalf("ct: %+v", devices[1])
 	}
 }

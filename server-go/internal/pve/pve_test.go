@@ -230,3 +230,58 @@ func TestTestReportsUnreachableAndUnconfigured(t *testing.T) {
 		t.Fatal("expected an error for an incomplete config")
 	}
 }
+
+// cluster/status is where a node's address really is: /nodes/{n}/network
+// only knows what /etc/network/interfaces declares, and a host configured
+// outside it lists its NICs with no address at all.
+func TestClusterStatusAndHostOfURL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[
+			{"type":"cluster","name":"home","id":"cluster"},
+			{"type":"node","name":"pve1","ip":"192.0.2.2","online":1,"id":"node/pve1"},
+			{"type":"node","name":"pve2","ip":"192.0.2.3","online":1,"id":"node/pve2"}
+		]}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{URL: srv.URL + "/", TokenID: "netpulse@pam!t", Secret: "s"})
+	nodes, err := c.ClusterStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 3 {
+		t.Fatalf("nodes: %+v", nodes)
+	}
+	got := map[string]string{}
+	for _, n := range nodes {
+		if n.Type == "node" {
+			got[n.Name] = n.IP
+		}
+	}
+	if got["pve1"] != "192.0.2.2" || got["pve2"] != "192.0.2.3" {
+		t.Fatalf("addresses: %v", got)
+	}
+	// The endpoint's own host, with the port stripped.
+	if h := (&Client{cfg: Config{URL: "https://192.0.2.9:8006"}}).HostOfURL(); h != "192.0.2.9" {
+		t.Fatalf("HostOfURL: %q", h)
+	}
+}
+
+// A node whose interfaces declare no address at all: NodeIP has nothing to
+// return, and saying so is what makes the caller fall back.
+func TestNodeIPWithoutAnyAddress(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[
+			{"iface":"enp2s0","type":"eth","method":"manual"},
+			{"iface":"enp3s0","type":"eth","method":"manual"}
+		]}`))
+	}))
+	defer srv.Close()
+	ip, err := NewClient(Config{URL: srv.URL, TokenID: "a!b", Secret: "s"}).
+		NodeIP(context.Background(), "pve1")
+	if err != nil || ip != "" {
+		t.Fatalf("ip=%q err=%v", ip, err)
+	}
+}

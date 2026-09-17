@@ -45,8 +45,11 @@ type pveInventory struct {
 	// interna de los mapas es "instancia|nodo" para que dos clusters con
 	// nodos homónimos no se pisen.
 	nodes map[string]pveNode
-	// nodeIPs: "instancia|nodo" → IP del bridge vmbr0. Permite casar el
-	// device HOST por IP cuando NetPulse no conoce su nombre.
+	// nodeIPs: "instancia|nodo" → dirección del nodo (cluster/status, y si
+	// no el bridge de las interfaces o el host del endpoint). Permite casar
+	// el device HOST por IP cuando NetPulse no lo conoce por su nombre —
+	// que es lo normal: el nodo lleva su nombre de cluster y la LAN lo conoce como
+	// "proxmox", el nombre de su lease.
 	nodeIPs map[string]string
 }
 
@@ -137,6 +140,23 @@ func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
 			log.Printf("[netpulse:pve] %s cluster/resources: %v", ic.inst.ID, err)
 			continue
 		}
+		// Direcciones de los nodos, de la fuente que de verdad las tiene:
+		// cluster/status es lo que corosync conoce de cada nodo. Se lee ANTES
+		// que las interfaces porque un host cuya IP de gestión no vive en
+		// /etc/network/interfaces (DHCP en la NIC, systemd-networkd, sin
+		// bridge declarado) lista sus ifaces sin address y no deja nada con
+		// lo que casar el device del host, que es justo lo que impedía que
+		// el hipervisor apareciera como nodo del mapa.
+		statusIP := map[string]string{}
+		if nodes, err := ic.c.ClusterStatus(ctx); err == nil {
+			for _, n := range nodes {
+				if n.Type == "node" && n.Name != "" && n.IP != "" {
+					statusIP[n.Name] = n.IP
+				}
+			}
+		} else {
+			log.Printf("[netpulse:pve] %s cluster/status: %v", ic.inst.ID, err)
+		}
 		for _, r := range resources {
 			if r.Type == "node" {
 				// El nombre del nodo viene en `node`, no en `name` (que los
@@ -144,11 +164,25 @@ func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
 				if r.Node != "" {
 					key := nodeKey(ic.inst.ID, r.Node)
 					inv.nodes[key] = pveNode{Instance: ic.inst.ID, Node: r.Node}
-					// IP del host (vmbr0) para casar el device HOST por IP.
-					if ip, err := ic.c.NodeIP(ctx, r.Node); err == nil && ip != "" {
+					// IP del host para casar el device HOST por IP, por orden
+					// de fiabilidad: la del cluster, la del bridge declarado
+					// en las interfaces, y por último el host del endpoint
+					// configurado — que en una instancia de un solo nodo ES
+					// la del nodo, y es lo único que queda cuando la API no
+					// sabe decir su propia dirección.
+					ip := statusIP[r.Node]
+					if ip == "" {
+						var err error
+						if ip, err = ic.c.NodeIP(ctx, r.Node); err != nil {
+							log.Printf("[netpulse:pve] %s nodeip %s: %v", ic.inst.ID, r.Node, err)
+							ip = ""
+						}
+					}
+					if ip == "" && len(statusIP) == 0 && singleNodeOf(resources) {
+						ip = ic.c.HostOfURL()
+					}
+					if ip != "" {
 						inv.nodeIPs[key] = ip
-					} else if err != nil {
-						log.Printf("[netpulse:pve] %s nodeip %s: %v", ic.inst.ID, r.Node, err)
 					}
 				}
 				continue
@@ -337,4 +371,18 @@ func looksLikeMACName(name string) bool {
 // macToDeviceID: el ID de device es la MAC en minúsculas con guiones.
 func macToDeviceID(mac string) string {
 	return strings.ToLower(strings.ReplaceAll(mac, ":", "-"))
+}
+
+// singleNodeOf: true si el inventario tiene exactamente un nodo. Solo
+// entonces se puede afirmar que el host del endpoint configurado es la
+// dirección de ESE nodo; en un cluster el endpoint apunta a uno cualquiera
+// y atribuirle su IP a los demás sería inventarse la topología.
+func singleNodeOf(resources []pve.Resource) bool {
+	n := 0
+	for _, r := range resources {
+		if r.Type == "node" {
+			n++
+		}
+	}
+	return n == 1
 }
