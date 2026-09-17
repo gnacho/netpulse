@@ -517,6 +517,11 @@ func (p *Prober) probeDHCP(ctx context.Context) *DHCPData {
 			dd.GlClients = gl
 		}
 	}
+	// Names pinned in /etc/config/dhcp: the only ones a client with a fixed
+	// address of its own ever gets.
+	if out := p.runBest(ctx, CmdDhcpReservations, 0); out != "" {
+		dd.Reservations = ParseDhcpReservations(out)
+	}
 	return dd
 }
 

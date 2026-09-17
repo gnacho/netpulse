@@ -44,10 +44,10 @@ func TestSNMPMetricsRowsDedup(t *testing.T) {
 	rx := 1e6
 	tx := 2e6
 	l.lastPolled["sw1"] = &routerPolled{
-		cfg:       cfg,
-		cpu:       1, ram: 2,
-		polledAt:  1000,
-		net:       &NetDevBps{RxBps: &rx, TxBps: &tx},
+		cfg: cfg,
+		cpu: 1, ram: 2,
+		polledAt: 1000,
+		net:      &NetDevBps{RxBps: &rx, TxBps: &tx},
 	}
 
 	rows1 := l.GetMetricsRows(context.Background())

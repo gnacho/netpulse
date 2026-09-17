@@ -1552,3 +1552,43 @@ func TestParseIPNeighOnGarbage(t *testing.T) {
 		t.Fatalf("garbage: %+v %+v", arp, stale)
 	}
 }
+
+// uciDhcpHosts: the shape `uci show dhcp` prints for host entries, with an
+// anonymous section, a named one, a list of MACs (GL firmware) and an entry
+// with no name. The grep in CmdDhcpReservations also lets through options of
+// other sections, so one is included to prove they are ignored.
+const uciDhcpHosts = `dhcp.@dnsmasq[0].domain='lan'
+dhcp.@host[0]=host
+dhcp.@host[0].name='printer'
+dhcp.@host[0].mac='02:00:00:00:00:01'
+dhcp.@host[0].ip='192.0.2.10'
+dhcp.cfg0abc12=host
+dhcp.cfg0abc12.name='nas'
+dhcp.cfg0abc12.mac='02:00:00:00:00:02' '02:00:00:00:00:03'
+dhcp.cfg0abc12.ip='192.0.2.20'
+dhcp.@host[2]=host
+dhcp.@host[2].mac='02:00:00:00:00:04'
+dhcp.lan=dhcp
+dhcp.lan.interface='lan'`
+
+func TestParseDhcpReservations(t *testing.T) {
+	res := ParseDhcpReservations(uciDhcpHosts)
+	if len(res) != 4 {
+		t.Fatalf("reservations: %+v", res)
+	}
+	// Sorted by MAC, uppercase like the leases.
+	if res[0].MAC != "02:00:00:00:00:01" || res[0].Name != "printer" || res[0].IP != "192.0.2.10" {
+		t.Fatalf("first: %+v", res[0])
+	}
+	// Both MACs of the list entry share its name and address.
+	if res[1].Name != "nas" || res[2].Name != "nas" || res[1].IP != "192.0.2.20" {
+		t.Fatalf("mac list: %+v %+v", res[1], res[2])
+	}
+	// An entry without a name is still a reservation (it pins an address).
+	if res[3].MAC != "02:00:00:00:00:04" || res[3].Name != "" {
+		t.Fatalf("nameless: %+v", res[3])
+	}
+	if got := ParseDhcpReservations(""); len(got) != 0 {
+		t.Fatalf("empty output: %+v", got)
+	}
+}

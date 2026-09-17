@@ -111,6 +111,10 @@ type routerPolled struct {
 	uptimeSec         float64
 	net               *NetDevBps
 	leases            []DhcpLease
+	// reservations: the `config host` entries of /etc/config/dhcp. They name
+	// clients that never take a lease because their address is fixed on the
+	// device itself.
+	reservations []DhcpReservation
 	// glClients (GL.iNet): base de clientes del firmware, superset de las
 	// leases. Se usa SOLO para resolver IPs de dispositivos ya conocidos que
 	// salen sin IP (dnsmasq sin lease), nunca para crear dispositivos nuevos.
@@ -1097,6 +1101,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		net = &NetDevBps{}
 	}
 	leases := client.GetDhcpLeases()
+	reservations := client.GetDhcpReservations()
 	arp, arpStale := client.GetArp()
 	// gl-clients (GL.iNet): complementa la resolución de IP donde dnsmasq no
 	// tiene lease (issue #5 bug 1). En routers sin el objeto ubus sale vacío
@@ -1199,7 +1204,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
-		uptimeSec: sysInfo.Uptime, net: net, leases: leases, arp: arp, arpStale: arpStale, glClients: glClients,
+		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
@@ -2413,6 +2418,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	leaseRouter := map[string]string{}
 	arpByMac := map[string]string{}
 	glByMac := map[string]DhcpLease{}
+	resByMac := map[string]DhcpReservation{}
 	for rID, p := range polled {
 		for mac, ip := range p.arp {
 			arpByMac[mac] = ip
@@ -2764,10 +2770,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			RouterID: defaultRouterID, Band: "—",
 			Online: isSeen,
 		}
+		res, hasRes := resByMac[mac]
 		if hasLease {
-			if lease.Hostname != "" {
+			switch {
+			case lease.Hostname != "":
 				d.Name = lease.Hostname
-			} else {
+			case hasRes && res.Name != "":
+				d.Name = res.Name
+			default:
 				d.Name = mac
 			}
 			d.IP = lease.IP
@@ -2780,6 +2790,15 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			}
 		} else {
 			d.Name = mac
+			// The name pinned in /etc/config/dhcp: a client with a fixed
+			// address of its own never takes a lease, so this is the only
+			// name the router has for it.
+			if hasRes {
+				if res.Name != "" {
+					d.Name = res.Name
+				}
+				d.IP = res.IP
+			}
 			// Fallback gl-clients (GL.iNet): el cliente no tiene lease pero el
 			// firmware sí conoce su IP (y a veces nombre). (issue #5 bug 1)
 			if gl, ok := glByMac[mac]; ok {

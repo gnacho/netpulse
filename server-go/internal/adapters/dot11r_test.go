@@ -118,9 +118,9 @@ wireless.wifi5g.ieee80211w='1'
 // panicar y siempre devuelve un slice (vacío si no hay ifaces).
 func TestParseUciWirelessVacio(t *testing.T) {
 	cases := map[string]string{
-		"empty":         "",
-		"no-wireless":   "unrelated line\nanother\n",
-		"only-devices":  "wireless.radio0=wifi-device\nwireless.radio0.band='2g'\n",
+		"empty":          "",
+		"no-wireless":    "unrelated line\nanother\n",
+		"only-devices":   "wireless.radio0=wifi-device\nwireless.radio0.band='2g'\n",
 		"iface-sin-ssid": "wireless.guest=wifi-iface\nwireless.guest.device='radio0'\n",
 	}
 	for name, in := range cases {
@@ -206,12 +206,12 @@ wireless.iot.network='iot'
 // TestUnquoteUci cubre los casos de comilla simple y escape \'.
 func TestUnquoteUci(t *testing.T) {
 	cases := map[string]string{
-		`'temiscira'`:    "temiscira",
-		`'it\'s here'`:   "it's here",
-		"plain":          "plain",
-		"":               "",
-		`'2025'`:         "2025",
-		`'multi word'`:   "multi word",
+		`'temiscira'`:  "temiscira",
+		`'it\'s here'`: "it's here",
+		"plain":        "plain",
+		"":             "",
+		`'2025'`:       "2025",
+		`'multi word'`: "multi word",
 	}
 	for in, want := range cases {
 		got := unquoteUci(in)

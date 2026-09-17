@@ -190,7 +190,9 @@ func (d *Demo) DismissUnknownDevice(string) {}
 func (d *Demo) GetUsteer(context.Context) (*Usteer, error) { return nil, nil }
 
 // KickUsteerClient no-op en demo.
-func (d *Demo) KickUsteerClient(context.Context, string) error { return errors.New("not available in demo") }
+func (d *Demo) KickUsteerClient(context.Context, string) error {
+	return errors.New("not available in demo")
+}
 
 // GetReanchorRecommendations no-op en demo.
 func (d *Demo) GetReanchorRecommendations(context.Context, ReanchorConfig) ([]ReanchorRecommendation, RoamingDaemon, error) {

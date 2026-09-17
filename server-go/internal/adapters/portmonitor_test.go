@@ -418,4 +418,3 @@ func TestPortMonitorGhostNoAlertAfterServerRestart(t *testing.T) {
 		t.Fatalf("ghost alert after real warm-up = %d, want 1", n)
 	}
 }
-

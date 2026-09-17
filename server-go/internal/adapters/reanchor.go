@@ -386,14 +386,14 @@ func dawnAPsFromNetwork(data map[string]map[string]json.RawMessage) []DawnAP {
 
 // dawnAPData es la forma interna de un AP en `get_network`.
 type dawnAPData struct {
-	Hostname       string                     `json:"hostname"`
-	Freq           int                        `json:"freq"`
-	Channel        int                        `json:"channel"`
-	UtilizationPct float64                    `json:"utilization"`
-	ClientCount    int                        `json:"num_sta"`
-	Clients        map[string]dawnClientData  `json:"clients"`
-	Local          bool                       `json:"local"`
-	Iface          string                     `json:"iface"`
+	Hostname       string                    `json:"hostname"`
+	Freq           int                       `json:"freq"`
+	Channel        int                       `json:"channel"`
+	UtilizationPct float64                   `json:"utilization"`
+	ClientCount    int                       `json:"num_sta"`
+	Clients        map[string]dawnClientData `json:"clients"`
+	Local          bool                      `json:"local"`
+	Iface          string                    `json:"iface"`
 }
 
 type dawnClientData struct {
