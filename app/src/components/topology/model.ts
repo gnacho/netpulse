@@ -1434,10 +1434,25 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   ).length
 
   // Tabla de backhauls (topology.md §④)
+  /**
+   * Nombre del equipo del que cuelga un dispositivo, resuelto por el mismo
+   * hubOf que usa el mapa: un nodo de distribución (switch, AP, hipervisor),
+   * otro dispositivo que hace de hub, o el router. Nada de asumir el router:
+   * el host Proxmox cuelga del switch y la tabla lo anunciaba colgando del
+   * OpenWrt, que es el enlace de más arriba, no el suyo.
+   */
+  const hubNameOf = (d: Device): string => {
+    const id = hubOf(d)
+    const dn = distById.get(id)
+    if (dn) return dn.name ?? dn.ip ?? id
+    const rn = routerById.get(id)
+    if (rn) return rn.router.name
+    return deviceById.get(id)?.name ?? id
+  }
   const backhauls: BackhaulRow[] = []
   if (gatewayNode) {
     backhauls.push({
-      id: 'wan', a: 'Gateway', b: 'Internet', kind: 'wan',
+      id: 'wan', a: gatewayNode.router.name, b: 'Internet', kind: 'wan',
       type: 'topology.links.fiberWan', speed: wan.plan, signal: `${wan.latencyMs} ms`,
       tone: 'ok', statusLabel: 'common.status.online',
       spark: gatewayNode.router.sparkline, sparkColor: COLOR.accent,
@@ -1446,7 +1461,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   for (const node of apNodes) {
     const isWifi = node.router.backhaul === 'wifi'
     backhauls.push({
-      id: `uplink-${node.id}`, a: 'Gateway', b: node.router.name, kind: 'uplink',
+      id: `uplink-${node.id}`, a: gatewayNode?.router.name ?? '', b: node.router.name, kind: 'uplink',
       type: isWifi ? 'topology.links.wifiUplink' : 'common.cable',
       speed: isWifi ? '866 Mbps PHY' : '1 Gbps',
       signal: isWifi ? '−58 dBm · 1 ms' : '<1 ms',
@@ -1488,11 +1503,14 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // D7: cable del hipervisor (host con sus CTs/VMs anidados).
   for (const dn of distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId)) {
     const host = deviceById.get(dn.hostDeviceId!)
-    const rn = routerById.get(dn.routerId)
-    if (!host || !rn) continue
+    if (!host) continue
+    // La boca la manda el DEVICE, no el nodo: el nodo se crea con lo que el
+    // host tenía al sellar Proxmox y los sellos posteriores (UniFi) afinan
+    // la del device — nombre de boca incluido.
+    const port = host.portLabel ?? host.port ?? dn.portLabel ?? dn.port
     backhauls.push({
-      id: `wired-${host.id}`, a: rn.router.name,
-      b: `${host.name} · ${dn.portLabel ?? dn.port} · ${ctCountByHost.get(host.id) ?? 0} CT`,
+      id: `wired-${host.id}`, a: hubNameOf(host),
+      b: [host.name, port, `${ctCountByHost.get(host.id) ?? 0} CT`].filter(Boolean).join(' · '),
       kind: 'wired', type: 'topology.links.hypervisorCable',
       speed: '—', signal: '—',
       tone: 'ok', statusLabel: 'common.status.online',
