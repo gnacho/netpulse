@@ -329,6 +329,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		// unas líneas más abajo: un lease o un alias del usuario mandan.
 		if vm.Name != "" && looksLikeMACName(devices[idx].Name) {
 			devices[idx].Name = vm.Name
+			reclassify(&devices[idx])
 		}
 		// El sello PVE es ground truth: si el CT tiene host conocido, cuelga
 		// de él (sobreescribe el attachTo inferido por L2, que en puertos
@@ -347,6 +348,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		devices[idx].Infra = "hypervisor"
 		if n, ok := nodeByKey[key]; ok && looksLikeMACName(devices[idx].Name) {
 			devices[idx].Name = n.Node
+			reclassify(&devices[idx])
 		}
 	}
 	// CTs por host (para el macCount informativo del distnode).
@@ -417,4 +419,22 @@ func singleNodeOf(resources []pve.Resource) bool {
 		}
 	}
 	return n == 1
+}
+
+// reclassify vuelve a estimar el tipo de un device al que ACABAMOS de darle
+// nombre. La clasificación corre dentro de buildDevices y este sello llega
+// después, así que un invitado bautizado aquí se había clasificado cuando su
+// nombre era todavía su MAC: "adguard" salía sin tipo aunque esa palabra es
+// una regla de "servidor" desde siempre.
+//
+// Solo sobre los que siguen sin tipo, y sin las huellas DHCP/LLDP: si alguna
+// de ellas hubiera dicho algo, el device no estaría en "desconocido". Lo
+// único que ha cambiado es el nombre, que es justo la primera regla.
+func reclassify(d *Device) {
+	if d.Type != "" && d.Type != "desconocido" {
+		return
+	}
+	if t := GuessDeviceType(d.Name, d.Manufacturer, "", "", ""); t != "desconocido" {
+		d.Type = t
+	}
 }

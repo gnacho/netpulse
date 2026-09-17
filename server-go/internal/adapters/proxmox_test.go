@@ -497,3 +497,39 @@ func TestSealProxmoxTellsVMsFromContainers(t *testing.T) {
 		t.Errorf("name: %q", devices[2].Name)
 	}
 }
+
+// Classification runs inside buildDevices and this seal renames afterwards,
+// so a guest named here had been classified while its name was still its
+// MAC: "adguard" came out untyped although that word has always been a
+// "servidor" rule.
+func TestSealProxmoxReclassifiesWhatItRenames(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:00:00:01": {Name: "adguard", Node: "pve1", Type: "lxc", Instance: "default"},
+			"BC:24:11:00:00:02": {Name: "appbox", Node: "pve1", Type: "lxc", Instance: "default"},
+			"BC:24:11:00:00:03": {Name: "pixel-of-someone", Node: "pve1", Type: "lxc", Instance: "default"},
+		},
+		nodes:   map[string]pveNode{"default|pve1": {Instance: "default", Node: "pve1"}},
+		nodeIPs: map[string][]string{"default|pve1": {"192.0.2.2"}},
+	}
+	devices := []Device{
+		{ID: "aa-bb-cc-00-00-01", MAC: "AA:BB:CC:00:00:01", Name: "pve-host", IP: "192.0.2.2", Type: "desconocido"},
+		{ID: "bc-24-11-00-00-01", MAC: "BC:24:11:00:00:01", Name: "BC:24:11:00:00:01", Type: "desconocido"},
+		{ID: "bc-24-11-00-00-02", MAC: "BC:24:11:00:00:02", Name: "BC:24:11:00:00:02", Type: "desconocido"},
+		// Already typed from its own evidence: the rename must not re-open it.
+		{ID: "bc-24-11-00-00-03", MAC: "BC:24:11:00:00:03", Name: "BC:24:11:00:00:03", Type: "servidor"},
+	}
+	applyPVEInfra(devices, nil, inv)
+
+	if devices[1].Type != "servidor" {
+		t.Errorf("adguard: type=%q (want servidor)", devices[1].Type)
+	}
+	// A name matching no rule stays honestly unknown.
+	if devices[2].Type != "desconocido" {
+		t.Errorf("appbox: type=%q (want desconocido)", devices[2].Type)
+	}
+	// A type that was already decided is not overwritten by the new name.
+	if devices[3].Type != "servidor" {
+		t.Errorf("pre-typed device: %q", devices[3].Type)
+	}
+}
