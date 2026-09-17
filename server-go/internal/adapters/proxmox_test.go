@@ -247,3 +247,55 @@ func TestSealProxmoxInfraMultiInstancia(t *testing.T) {
 		t.Fatalf("IDs de distnodes homónimos: %v", ids)
 	}
 }
+
+// A container rarely asks for DHCP with a hostname, so the name the admin
+// gave it in Proxmox is usually the only one there is: without it the list
+// is a column of MACs wearing a CT badge.
+func TestSealProxmoxNamesContainersKnownOnlyByMAC(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:A4:9E:BB": {Name: "storage", Node: "pve1", Type: "lxc", Instance: "default"},
+			"02:00:00:00:00:32": {Name: "proxyapp", Node: "pve1", Type: "lxc", Instance: "default"},
+			"02:00:00:00:00:31": {Name: "jellyfin", Node: "pve1", Type: "lxc", Instance: "default"},
+		},
+		nodes: map[string]pveNode{"default|pve1": {Instance: "default", Node: "pve1"}},
+	}
+	devices := []Device{
+		// Known only by its MAC: the guest name is all we have.
+		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "BC:24:11:A4:9E:BB"},
+		// Same, spelled with dashes as the device id is.
+		{ID: "02-00-00-00-00-32", MAC: "02:00:00:00:00:32", Name: "02-00-00-00-00-32"},
+		// This one has a real name from its DHCP lease: Proxmox must not
+		// overwrite what the network already knows it as.
+		{ID: "02-00-00-00-00-31", MAC: "02:00:00:00:00:31", Name: "media-server"},
+	}
+	applyPVEInfra(devices, nil, inv)
+
+	if devices[0].Name != "storage" {
+		t.Errorf("name: %q (want storage)", devices[0].Name)
+	}
+	if devices[1].Name != "proxyapp" {
+		t.Errorf("name: %q (want proxyapp)", devices[1].Name)
+	}
+	if devices[2].Name != "media-server" {
+		t.Errorf("a real name was overwritten: %q", devices[2].Name)
+	}
+	for i := range devices {
+		if devices[i].Infra != "ct" {
+			t.Errorf("device[%d]: infra=%q", i, devices[i].Infra)
+		}
+	}
+}
+
+// A guest the controller reports without a name leaves the device alone.
+func TestSealProxmoxKeepsMACWhenTheGuestHasNoName(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{"BC:24:11:A4:9E:BB": {Node: "pve1", Type: "qemu", Instance: "default"}},
+		nodes:   map[string]pveNode{"default|pve1": {Instance: "default", Node: "pve1"}},
+	}
+	devices := []Device{{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "BC:24:11:A4:9E:BB"}}
+	applyPVEInfra(devices, nil, inv)
+	if devices[0].Name != "BC:24:11:A4:9E:BB" {
+		t.Fatalf("name: %q", devices[0].Name)
+	}
+}

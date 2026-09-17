@@ -255,6 +255,15 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		}
 		hostID := hostIDByNode[nodeKey(vm.Instance, vm.Node)]
 		devices[idx].Infra = "ct"
+		// El nombre del invitado es el que le puso el administrador en
+		// Proxmox, y para un CT suele ser el ÚNICO que hay: no pide DHCP
+		// con hostname, así que sin esto se queda con su MAC por nombre —
+		// una lista de "BC:24:11:..." con etiqueta CT y nada más. Solo
+		// cuando no tiene nombre real, igual que el renombrado del host de
+		// unas líneas más abajo: un lease o un alias del usuario mandan.
+		if vm.Name != "" && looksLikeMACName(devices[idx].Name) {
+			devices[idx].Name = vm.Name
+		}
 		// El sello PVE es ground truth: si el CT tiene host conocido, cuelga
 		// de él (sobreescribe el attachTo inferido por L2, que en puertos
 		// mezclados apunta a un nodo "inferred" genérico).
