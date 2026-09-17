@@ -52,6 +52,7 @@ import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
 import { PresenceSection } from '@/components/PresenceTimeline'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
+import { useParentName } from '@/lib/parent'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
 import type { DeviceType } from '@/data/mock'
@@ -739,6 +740,7 @@ function DeviceDetail({
           )}
         </div>
       </div>
+      <ConnectedToItem device={device} />
       {infra && (
         <DetailItem label={t('devices.detail.infra')}>
           <InfraBadge info={infra} />
@@ -831,6 +833,31 @@ function NewPill() {
 }
 
 /** Chip de router con dot de identidad; navega a /routers/:id */
+/** "via <AP or switch>", under the router chip; nothing when unknown. */
+function ParentLine({ device, className }: { device: ClientDevice; className?: string }) {
+  const { t } = useTranslation()
+  const parent = useParentName(device.attachTo)
+  if (!parent) return null
+  return (
+    <div className={cn('truncate text-caption text-text-muted', className)} title={parent}>
+      {t('devices.via', { name: parent })}
+    </div>
+  )
+}
+
+/** Detail row: the parent box and, for a wired client, the port on it. */
+function ConnectedToItem({ device }: { device: ClientDevice }) {
+  const { t } = useTranslation()
+  const parent = useParentName(device.attachTo)
+  if (!parent) return null
+  const port = device.portLabel ?? device.port ?? ''
+  return (
+    <DetailItem label={t('devices.detail.connectedTo')}>
+      {port ? `${parent} · ${port}` : parent}
+    </DetailItem>
+  )
+}
+
 function RouterChipLink({ routerId, onNavigate }: { routerId: string; onNavigate: (id: string) => void }) {
   const { t } = useTranslation()
   const { routers } = useNetPulse()
@@ -982,9 +1009,10 @@ function ListRow({
         <div className="hidden lg:block">
           <LeaseCell device={device} />
         </div>
-        {/* Router */}
+        {/* Router, and the box the client actually hangs off */}
         <div className="min-w-0">
           <RouterChipLink routerId={device.routerId} onNavigate={onNavigateRouter} />
+          <ParentLine device={device} className="mt-0.5 pl-1" />
         </div>
         {/* Banda */}
         <div>
@@ -1121,6 +1149,7 @@ function GridCard({
           <RouterChipLink routerId={device.routerId} onNavigate={onNavigateRouter} />
           <BandChip band={device.band} />
         </div>
+        <ParentLine device={device} className="mt-1 pl-1" />
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
           <SignalBars device={device} />
           <span className="font-mono text-mono-sm text-accent">

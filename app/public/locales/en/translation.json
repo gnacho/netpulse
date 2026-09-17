@@ -369,7 +369,8 @@
       "trafficCurrent": "Current traffic",
       "traffic": "Client traffic",
       "trafficNoSource": "No per-client traffic: wired clients need nlbwmon on the router (WiFi uses hostapd counters).",
-      "unfiltered": "Unfiltered"
+      "unfiltered": "Unfiltered",
+      "connectedTo": "Connected to"
     },
     "deviceType": "Device type",
     "emptyDesc": "No device matches these filters.",
@@ -474,6 +475,7 @@
     },
     "wiredConnection": "Wired connection",
     "weakChip": "{{count}} with weak signal",
+    "via": "via {{name}}",
     "unknownManufacturer": "Unknown",
     "onboarding": {
       "title": "Identify device",

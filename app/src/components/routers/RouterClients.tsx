@@ -12,6 +12,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { buildClientDevices } from '@/pages/devices-data'
 import type { ClientDevice } from '@/pages/devices-data'
 import { cn, fetchJson } from '@/lib/utils'
+import { useParentName } from '@/lib/parent'
 
 const VISIBLE_COUNT = 6
 
@@ -174,6 +175,7 @@ export function RouterClients({ router }: { router: Router }) {
                       <div>
                         <div className="font-medium text-text-primary" translate="no">{d.name}</div>
                         <div className="text-caption text-text-muted">{manufacturerLabel(d.manufacturer)}</div>
+                        <ClientParent attachTo={d.attachTo} />
                       </div>
                     </div>
                   </td>
@@ -248,5 +250,17 @@ export function RouterClients({ router }: { router: Router }) {
         </div>
       )}
     </section>
+  )
+}
+
+/** "via <AP or switch>": which box this client hangs off, when we know it. */
+function ClientParent({ attachTo }: { attachTo?: string }) {
+  const { t } = useTranslation()
+  const parent = useParentName(attachTo)
+  if (!parent) return null
+  return (
+    <div className="truncate text-caption text-text-muted" title={parent}>
+      {t('devices.via', { name: parent })}
+    </div>
   )
 }
