@@ -337,7 +337,10 @@
       "hypervisor": "Hypervisor",
       "hypervisorTip": "Host with CTs/VMs nested behind its virtual bridge",
       "managedSwitch": "Managed switch",
-      "managedSwitchTip": "Switch identified via LLDP"
+      "managedSwitchTip": "Switch identified via LLDP",
+      "apTip": "Managed access point reported by its controller",
+      "vm": "VM",
+      "vmTip": "Virtual machine on {{host}}"
     },
     "bandAll": "All",
     "changeView": "Change view",

@@ -462,3 +462,38 @@ func TestPVEKeepsBothTheManagementAndTheClusterAddress(t *testing.T) {
 		t.Fatalf("ct: %+v", devices[1])
 	}
 }
+
+// A qemu guest is a virtual machine, not a container. The inventory says
+// which it is and the seal used to ignore it, so a VM wore a CT badge.
+func TestSealProxmoxTellsVMsFromContainers(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:A4:9E:BB": {Name: "appbox", Node: "pve1", Type: "lxc", Instance: "default"},
+			"02:00:00:00:00:50": {Name: "vm-appliance", Node: "pve1", Type: "qemu", Instance: "default"},
+		},
+		nodes:   map[string]pveNode{"default|pve1": {Instance: "default", Node: "pve1"}},
+		nodeIPs: map[string][]string{"default|pve1": {"192.0.2.2"}},
+	}
+	devices := []Device{
+		{ID: "aa-bb-cc-00-00-01", MAC: "AA:BB:CC:00:00:01", Name: "pve-host", IP: "192.0.2.2"},
+		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "BC:24:11:A4:9E:BB"},
+		{ID: "02-00-00-00-00-50", MAC: "02:00:00:00:00:50", Name: "02:00:00:00:00:50"},
+	}
+	applyPVEInfra(devices, nil, inv)
+
+	if devices[1].Infra != "ct" {
+		t.Errorf("lxc: infra=%q (want ct)", devices[1].Infra)
+	}
+	if devices[2].Infra != "vm" {
+		t.Errorf("qemu: infra=%q (want vm)", devices[2].Infra)
+	}
+	// Both are still guests of the host: the badge changes, not the nesting.
+	for _, i := range []int{1, 2} {
+		if devices[i].AttachTo != devices[0].ID {
+			t.Errorf("device[%d] attachTo=%q", i, devices[i].AttachTo)
+		}
+	}
+	if devices[2].Name != "vm-appliance" {
+		t.Errorf("name: %q", devices[2].Name)
+	}
+}

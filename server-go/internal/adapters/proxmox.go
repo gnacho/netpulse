@@ -312,7 +312,15 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			continue // el CT no es un device conocido (apagado o sin tráfico)
 		}
 		hostID := hostIDByNode[nodeKey(vm.Instance, vm.Node)]
-		devices[idx].Infra = "ct"
+		// Contenedor o máquina virtual: el inventario lo dice ("lxc"/"qemu")
+		// y hasta ahora se ignoraba, así que una VM salía etiquetada CT.
+		// Solo aquí se distingue: ni la inferencia L2 ni un anclaje manual
+		// pueden saber cuál de las dos cosas es, y siguen diciendo "ct".
+		if vm.Type == "qemu" {
+			devices[idx].Infra = "vm"
+		} else {
+			devices[idx].Infra = "ct"
+		}
 		// El nombre del invitado es el que le puso el administrador en
 		// Proxmox, y para un CT suele ser el ÚNICO que hay: no pide DHCP
 		// con hostname, así que sin esto se queda con su MAC por nombre —

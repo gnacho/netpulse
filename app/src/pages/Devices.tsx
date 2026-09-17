@@ -182,8 +182,7 @@ function signalTextClass(dbm: number | null): string {
 // de attachTo/lldp + los distributionNodes del provider.
 // ---------------------------------------------------------------------------
 
-type InfraKind = 'hypervisor' | 'ct' | 'managedSwitch'
-
+type InfraKind = 'hypervisor' | 'ct' | 'vm' | 'managedSwitch'
 interface InfraInfo {
   kind: InfraKind
   /** nombre del host (solo CT) */
@@ -193,13 +192,14 @@ interface InfraInfo {
 const INFRA_BADGE_CLASS: Record<InfraKind, string> = {
   hypervisor: 'border-tunnel/40 bg-tunnel/10 text-tunnel',
   ct: 'border-border bg-elevated text-text-muted',
+  vm: 'border-border bg-elevated text-text-muted',
   managedSwitch: 'border-accent/30 bg-accent-soft text-accent',
 }
 
 /** Badge de infraestructura con tooltip explicativo (D6). */
 function InfraBadge({ info }: { info: InfraInfo }) {
   const { t } = useTranslation()
-  const tip = info.kind === 'ct' ? t('devices.badges.ctTip', { host: info.host }) : t(`devices.badges.${info.kind}Tip`)
+  const tip = t(`devices.badges.${info.kind}Tip`, { host: info.host })
   return (
     <span
       title={tip}
@@ -742,8 +742,10 @@ function DeviceDetail({
       {infra && (
         <DetailItem label={t('devices.detail.infra')}>
           <InfraBadge info={infra} />
-          {infra.kind === 'ct' && infra.host && (
-            <span className="ml-1.5 text-caption text-text-muted">{t('devices.badges.ctTip', { host: infra.host })}</span>
+          {(infra.kind === 'ct' || infra.kind === 'vm') && infra.host && (
+            <span className="ml-1.5 text-caption text-text-muted">
+              {t(`devices.badges.${infra.kind}Tip`, { host: infra.host })}
+            </span>
           )}
         </DetailItem>
       )}
@@ -1182,6 +1184,8 @@ export default function Devices() {
       const sealed = d.infra
       if (sealed === 'hypervisor' || (!sealed && hosts.has(d.id))) {
         infra.set(d.id, { kind: 'hypervisor' })
+      } else if (sealed === 'vm') {
+        infra.set(d.id, { kind: 'vm', host: byId.get(d.attachTo ?? '')?.name ?? d.attachTo })
       } else if (sealed === 'ct' || (!sealed && d.attachTo && hosts.has(d.attachTo))) {
         infra.set(d.id, { kind: 'ct', host: byId.get(d.attachTo ?? '')?.name ?? d.attachTo })
       } else if (sealed === 'managed-switch' || (!sealed && d.lldp)) {

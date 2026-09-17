@@ -259,9 +259,13 @@ type Device struct {
 	AttachTo string `json:"attachTo,omitempty"`
 	// Infra: rol de infraestructura sellado server-side (Fase 4). La app NO
 	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
-	// "ct" (CT/VM anidado bajo hipervisor), "managed-switch" (switch con gestión
-	// identificado por LLDP — hoy switch-netgear).
-	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"managed-switch"
+ 
+	// "ct" (contenedor anidado bajo hipervisor), "vm" (máquina virtual, que
+	// solo el inventario del hipervisor distingue de un contenedor),
+	// "managed-switch" (switch con gestión identificado por LLDP — hoy
+	// switch-netgear), "ap" (punto de acceso gestionado, p. ej. reportado
+	// por el controlador UniFi).
+	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"vm"|"managed-switch"|"ap"
 	// --- mDNS/SSDP fingerprinting (#338) ---
 	// MdnsServices: mDNS service types advertised by this device (from umdns).
 	// e.g. ["_airplay._tcp", "_raop._tcp"] for an Apple TV.

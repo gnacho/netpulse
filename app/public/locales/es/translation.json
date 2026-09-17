@@ -337,7 +337,10 @@
       "hypervisor": "Hipervisor",
       "hypervisorTip": "Host con CTs/VMs anidados tras su bridge virtual",
       "managedSwitch": "Switch gestionado",
-      "managedSwitchTip": "Switch identificado vía LLDP"
+      "managedSwitchTip": "Switch identificado vía LLDP",
+      "apTip": "Punto de acceso gestionado, reportado por su controlador",
+      "vm": "VM",
+      "vmTip": "Máquina virtual en {{host}}"
     },
     "bandAll": "Todas",
     "changeView": "Cambiar vista",

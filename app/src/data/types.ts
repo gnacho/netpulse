@@ -149,9 +149,12 @@ export type PeerType = 'movil' | 'portatil' | 'tablet' | 'sitio' | 'desconocido'
 /**
  * Rol de infraestructura sellado server-side (SPEC-65 D65-2):
  * "hypervisor" (host Proxmox/VMware/…), "ct" (CT/VM anidado bajo un
- * hipervisor), "managed-switch" (switch con gestión identificado por LLDP).
+ * hipervisor), "vm" (máquina virtual: solo el inventario del hipervisor
+ * distingue una VM de un contenedor), "managed-switch" (switch con gestión
+ * identificado por LLDP),
+ * "ap" (punto de acceso gestionado, reportado por su controlador).
  */
-export type DeviceInfra = 'hypervisor' | 'ct' | 'managed-switch'
+export type DeviceInfra = 'hypervisor' | 'ct' | 'vm' | 'managed-switch' | 'ap'
 
 export interface WGPeer {
   id: string
