@@ -1776,6 +1776,8 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [isNew, setIsNew] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** resultado del último test: mensaje + si el token está ciego */
+  const [tested, setTested] = useState<{ msg: string; limited: boolean } | null>(null)
 
   const load = async () => {
     try {
@@ -1817,6 +1819,45 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setEditing(null)
       await load()
       onSaved()
+    } catch (err) {
+      setError(String(err).replace(/^Error:\s*/, '') || t('settings.proxmox.errorGeneric'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /**
+   * Probar la conexión. Guardar no daba señal alguna: un token sin permisos
+   * autentica igual y Proxmox devuelve listas vacías con 200, así que la
+   * integración se quedaba muda sin decir por qué.
+   */
+  const test = async (inst: PveInstanceCfg) => {
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    setTested(null)
+    try {
+      const body: Record<string, unknown> = {
+        id: inst.id.trim(), url: inst.url.trim(), tokenId: inst.tokenId.trim(),
+      }
+      if (inst.secret) body.secret = inst.secret
+      const res = await fetch('/api/config/proxmox/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean; version?: string; nodes?: number; vms?: number; cts?: number
+        limited?: boolean; error?: string; message?: string
+      }
+      if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`)
+      if (!j.ok) throw new Error(j.error ?? t('settings.proxmox.errorGeneric'))
+      setTested({
+        msg: t('settings.proxmox.testOk', {
+          version: j.version ?? '—', nodes: j.nodes ?? 0, vms: j.vms ?? 0, cts: j.cts ?? 0,
+        }),
+        limited: j.limited === true,
+      })
     } catch (err) {
       setError(String(err).replace(/^Error:\s*/, '') || t('settings.proxmox.errorGeneric'))
     } finally {
@@ -1942,9 +1983,18 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               </button>
               <button
                 type="button"
+                onClick={() => void test(editing)}
+                disabled={saving || !editing.url.trim() || !editing.tokenId.trim()}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary disabled:opacity-40"
+              >
+                {t('settings.proxmox.test')}
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setEditing(null)
                   setError(null)
+                  setTested(null)
                 }}
                 className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
               >
@@ -1952,6 +2002,15 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               </button>
             </div>
             {error && <p className="text-caption text-danger">{error}</p>}
+            {tested && (
+              <div className="space-y-1">
+                <p className="text-caption text-ok">{tested.msg}</p>
+                {/* El caso que motiva el test: conecta, pero no ve nada. */}
+                {tested.limited && (
+                  <p className="text-caption leading-relaxed text-warn">{t('settings.proxmox.testLimited')}</p>
+                )}
+              </div>
+            )}
           </form>
         ) : (
           <button

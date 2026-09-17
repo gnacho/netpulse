@@ -43,6 +43,7 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handleGetProxmoxConfig)))
 	mux.Handle("PUT /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handlePutProxmoxConfig)))
 	mux.Handle("DELETE /api/config/proxmox/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteProxmoxConfig)))
+	mux.Handle("POST /api/config/proxmox/test", auth.RequireAdmin(http.HandlerFunc(s.handleTestProxmoxConfig)))
 }
 
 // syncRouters replica sync() de config.js: adapter.setRouters(listRouters(db)).
@@ -648,4 +649,54 @@ func (s *server) handleDeleteProxmoxConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/config/proxmox/test - prueba una instancia y cuenta lo que ve.
+//
+// Sin esto, guardar la config no daba señal alguna: un token sin permisos
+// autentica igual, la API responde 200 con listas vacías (PVE filtra, no
+// rechaza) y la integración se queda muda — indistinguible de un cluster
+// sin invitados. El resultado dice también QUÉ falta cuando es eso.
+//
+// Body opcional: {id} prueba la instancia guardada; {url, tokenId, secret}
+// prueba lo que el usuario acaba de teclear sin guardarlo. Un secret vacío
+// reutiliza el almacenado, igual que el PUT.
+func (s *server) handleTestProxmoxConfig(w http.ResponseWriter, r *http.Request) {
+	var in proxmoxInstanceInput
+	_ = readJSONBody(w, r, &in) // cuerpo opcional
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		id = "default"
+	}
+	var cfg pve.Config
+	for _, inst := range pve.LoadInstances(s.db.DB) {
+		if inst.ID == id {
+			cfg = inst.Config
+			break
+		}
+	}
+	if u := strings.TrimRight(strings.TrimSpace(in.URL), "/"); u != "" {
+		cfg.URL = u
+	}
+	if t := strings.TrimSpace(in.TokenID); t != "" {
+		cfg.TokenID = t
+	}
+	if in.Secret != "" {
+		cfg.Secret = in.Secret
+	}
+	if !cfg.Enabled() {
+		writeError(w, http.StatusBadRequest, "invalid_input", "faltan url, tokenId o secret")
+		return
+	}
+	// Un fallo es un RESULTADO, no un error HTTP: el formulario tiene que
+	// poder enseñar lo que contestó Proxmox.
+	res, err := pve.NewClient(cfg).Test(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "version": res.Version, "nodes": res.Nodes,
+		"vms": res.VMs, "cts": res.CTs, "limited": res.Limited,
+	})
 }

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -137,5 +138,95 @@ func TestNodeIP(t *testing.T) {
 	}
 	if ip != "192.168.1.101" {
 		t.Fatalf("ip: %q", ip)
+	}
+}
+
+// pveTestServer: an endpoint that answers /version and /cluster/resources
+// with what it is given, and /nodes/{n}/status with the audit verdict.
+func pveTestServer(t *testing.T, resources string, nodeStatus int) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api2/json/version":
+			w.Write([]byte(`{"data":{"release":"8.4","version":"8.4.21"}}`))
+		case r.URL.Path == "/api2/json/cluster/resources":
+			w.Write([]byte(`{"data":[` + resources + `]}`))
+		case strings.HasSuffix(r.URL.Path, "/status"):
+			w.WriteHeader(nodeStatus)
+			if nodeStatus == 403 {
+				w.Write([]byte(`{"message":"Permission check failed (/nodes/pve1, Sys.Audit)\n","data":null}`))
+				return
+			}
+			w.Write([]byte(`{"data":{"uptime":1}}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+}
+
+func TestTestCountsWhatItSees(t *testing.T) {
+	srv := pveTestServer(t, `
+		{"id":"node/pve1","node":"pve1","type":"node","status":"online"},
+		{"id":"lxc/100","vmid":100,"node":"pve1","type":"lxc","status":"running"},
+		{"id":"qemu/200","vmid":200,"node":"pve1","type":"qemu","status":"running"},
+		{"id":"qemu/201","vmid":201,"node":"pve1","type":"qemu","status":"stopped"},
+		{"id":"storage/local","node":"pve1","type":"storage"}`, 200)
+	defer srv.Close()
+
+	res, err := NewClient(Config{URL: srv.URL, TokenID: "netpulse@pam!t", Secret: "s"}).Test(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Version != "8.4.21" || res.Nodes != 1 || res.VMs != 2 || res.CTs != 1 {
+		t.Fatalf("result: %+v", res)
+	}
+	// With guests in sight there is nothing to warn about.
+	if res.Limited {
+		t.Fatalf("limited should be false: %+v", res)
+	}
+}
+
+// The failure the endpoint exists for: the token authenticates, PVE answers
+// 200 with empty lists because it filters what the token may not see, and
+// the integration goes quiet with nothing to show for it.
+func TestTestDetectsATokenWithoutAuditRights(t *testing.T) {
+	srv := pveTestServer(t, `{"id":"node/pve1","node":"pve1","type":"node","status":"online"}`, 403)
+	defer srv.Close()
+
+	res, err := NewClient(Config{URL: srv.URL, TokenID: "netpulse@pam!t", Secret: "s"}).Test(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Limited {
+		t.Fatalf("a 403 on the node status means the token is blind: %+v", res)
+	}
+	if res.Nodes != 1 || res.VMs != 0 || res.CTs != 0 {
+		t.Fatalf("result: %+v", res)
+	}
+}
+
+// A cluster that really is empty is not reported as a permissions problem.
+func TestTestDoesNotCryWolfOnAnEmptyCluster(t *testing.T) {
+	srv := pveTestServer(t, `{"id":"node/pve1","node":"pve1","type":"node","status":"online"}`, 200)
+	defer srv.Close()
+
+	res, err := NewClient(Config{URL: srv.URL, TokenID: "netpulse@pam!t", Secret: "s"}).Test(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Limited {
+		t.Fatalf("no guests but full rights: %+v", res)
+	}
+}
+
+func TestTestReportsUnreachableAndUnconfigured(t *testing.T) {
+	if _, err := NewClient(Config{URL: "http://127.0.0.1:1", TokenID: "a!b", Secret: "s"}).
+		Test(context.Background()); err == nil {
+		t.Fatal("expected a connection error")
+	}
+	if _, err := NewClient(Config{URL: "http://x"}).Test(context.Background()); err == nil {
+		t.Fatal("expected an error for an incomplete config")
 	}
 }

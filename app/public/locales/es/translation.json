@@ -1633,7 +1633,10 @@
       "add": "Añadir instancia",
       "delete": "Quitar",
       "instanceName": "Nombre (p. ej. Casa)",
-      "instanceId": "Identificador (slug, no editable luego)"
+      "instanceId": "Identificador (slug, no editable luego)",
+      "test": "Probar",
+      "testOk": "Conectado: Proxmox {{version}} · {{nodes}} nodo(s), {{vms}} VM(s), {{cts}} CT(s)",
+      "testLimited": "El token autentica pero no ve ningún invitado: Proxmox devuelve las listas vacías cuando al token le faltan permisos de auditoría. Dale PVEAuditor en \"/\" — en el host Proxmox: pveum acl modify / --tokens 'USUARIO@REALM!TOKEN' --roles PVEAuditor. Un token con separación de privilegios necesita el permiso él mismo, no basta con el de su usuario."
     },
     "sections": {
       "personalization": "Configuración",

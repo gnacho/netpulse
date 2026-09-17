@@ -608,3 +608,36 @@ func TestProxmoxConfig(t *testing.T) {
 		t.Fatalf("instances tras eliminar: %v", ins)
 	}
 }
+
+// The Proxmox test endpoint: a failure is a result the form can show, not an
+// HTTP error, and it needs a session like the rest of the config API.
+func TestProxmoxTestEndpoint(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	// Nothing configured and nothing submitted: a plain 400, not a "result".
+	res := doReq(t, "POST", srv.URL+"/api/config/proxmox/test", cookie, `{}`)
+	res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("sin config: %d", res.StatusCode)
+	}
+
+	// An endpoint that is not there reports ok:false with what happened.
+	res = doReq(t, "POST", srv.URL+"/api/config/proxmox/test", cookie,
+		`{"url":"http://127.0.0.1:1","tokenId":"netpulse@pam!t","secret":"s"}`)
+	if res.StatusCode != http.StatusOK {
+		res.Body.Close()
+		t.Fatalf("inalcanzable: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["ok"] != false || body["error"] == "" {
+		t.Fatalf("resultado: %v", body)
+	}
+
+	// And it is admin-only.
+	res = doReq(t, "POST", srv.URL+"/api/config/proxmox/test", "", `{}`)
+	res.Body.Close()
+	if res.StatusCode == http.StatusOK {
+		t.Fatalf("sin sesión devolvió %d", res.StatusCode)
+	}
+}

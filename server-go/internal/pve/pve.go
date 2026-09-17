@@ -231,3 +231,68 @@ func normMAC(s string) string {
 	}
 	return out.String()
 }
+
+// TestResult is what a connection test can tell the user about an endpoint.
+type TestResult struct {
+	// Version: the PVE release string ("8.4.21").
+	Version string `json:"version"`
+	Nodes   int    `json:"nodes"`
+	VMs     int    `json:"vms"`
+	CTs     int    `json:"cts"`
+	// Limited: the token authenticates but Proxmox is filtering the listings
+	// because the token has no audit rights. This is the failure the test
+	// exists for: PVE does not reject a list a token may not see, it returns
+	// it empty with HTTP 200, so an under-privileged token looks exactly
+	// like a cluster with no guests and the integration goes quiet.
+	Limited bool `json:"limited"`
+}
+
+// Test checks an endpoint the way a user needs it checked: can we reach it,
+// does the token authenticate, and can it actually see anything.
+func (c *Client) Test(ctx context.Context) (*TestResult, error) {
+	if !c.cfg.Enabled() {
+		return nil, fmt.Errorf("faltan url, tokenId o secret")
+	}
+	var version struct {
+		Version string `json:"version"`
+		Release string `json:"release"`
+	}
+	// /version needs no privileges: it separates "unreachable or bad token"
+	// from "authenticated but blind", which are different problems.
+	if err := c.get(ctx, "/api2/json/version", &version); err != nil {
+		return nil, err
+	}
+	out := &TestResult{Version: version.Version}
+	if out.Version == "" {
+		out.Version = version.Release
+	}
+	resources, err := c.ClusterResources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var firstNode string
+	for _, r := range resources {
+		switch r.Type {
+		case "node":
+			out.Nodes++
+			if firstNode == "" {
+				firstNode = r.Node
+			}
+		case "qemu":
+			out.VMs++
+		case "lxc":
+			out.CTs++
+		}
+	}
+	// Nothing to seal: is the cluster empty, or is the token blind? Ask for
+	// something that needs Sys.Audit and read the answer. A 403 proves the
+	// token lacks the rights, and the user gets told which ones.
+	if out.VMs == 0 && out.CTs == 0 && firstNode != "" {
+		var status map[string]any
+		if err := c.get(ctx, "/api2/json/nodes/"+url.PathEscape(firstNode)+"/status", &status); err != nil &&
+			strings.Contains(err.Error(), "HTTP 403") {
+			out.Limited = true
+		}
+	}
+	return out, nil
+}

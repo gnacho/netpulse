@@ -1633,7 +1633,10 @@
       "add": "Add instance",
       "delete": "Remove",
       "instanceName": "Name (e.g. Home)",
-      "instanceId": "Identifier (slug, not editable later)"
+      "instanceId": "Identifier (slug, not editable later)",
+      "test": "Test",
+      "testOk": "Connected: Proxmox {{version}} · {{nodes}} node(s), {{vms}} VM(s), {{cts}} CT(s)",
+      "testLimited": "The token authenticates but cannot see any guest: Proxmox returns the lists empty when the token lacks audit rights. Grant it PVEAuditor on \"/\" — on the Proxmox host: pveum acl modify / --tokens 'USER@REALM!TOKEN' --roles PVEAuditor. A token with privilege separation needs the permission itself, not just its user."
     },
     "sections": {
       "personalization": "Configuration",
