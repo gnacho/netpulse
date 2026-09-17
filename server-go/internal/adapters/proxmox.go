@@ -45,12 +45,17 @@ type pveInventory struct {
 	// interna de los mapas es "instancia|nodo" para que dos clusters con
 	// nodos homónimos no se pisen.
 	nodes map[string]pveNode
-	// nodeIPs: "instancia|nodo" → dirección del nodo (cluster/status, y si
-	// no el bridge de las interfaces o el host del endpoint). Permite casar
-	// el device HOST por IP cuando NetPulse no lo conoce por su nombre —
-	// que es lo normal: el nodo lleva su nombre de cluster y la LAN lo conoce como
-	// "proxmox", el nombre de su lease.
-	nodeIPs map[string]string
+	// nodeIPs: "instancia|nodo" → TODAS las direcciones conocidas del nodo.
+	// Permite casar el device HOST por IP cuando NetPulse no lo conoce por
+	// su nombre — que es lo normal: el nodo lleva su nombre de cluster y la LAN lo
+	// conoce como "proxmox", el nombre de su lease.
+	//
+	// Son varias a propósito. Un nodo tiene la dirección de gestión (el
+	// bridge declarado en sus interfaces) y la que anuncia al cluster, y en
+	// un cluster serio NO son la misma: corosync va por una red dedicada.
+	// Quedarse con una sola significaría elegir mal en la mitad de las
+	// instalaciones, así que se guardan todas y casa la que coincida.
+	nodeIPs map[string][]string
 }
 
 type pveVM struct {
@@ -132,7 +137,7 @@ func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
 	inv := &pveInventory{
 		ctByMAC: map[string]pveVM{},
 		nodes:   map[string]pveNode{},
-		nodeIPs: map[string]string{},
+		nodeIPs: map[string][]string{},
 	}
 	for _, ic := range clients {
 		resources, err := ic.c.ClusterResources(ctx)
@@ -140,13 +145,12 @@ func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
 			log.Printf("[netpulse:pve] %s cluster/resources: %v", ic.inst.ID, err)
 			continue
 		}
-		// Direcciones de los nodos, de la fuente que de verdad las tiene:
-		// cluster/status es lo que corosync conoce de cada nodo. Se lee ANTES
-		// que las interfaces porque un host cuya IP de gestión no vive en
+		// Direcciones que el cluster conoce de cada nodo. Es la única fuente
+		// que queda cuando la IP de gestión del host no vive en
 		// /etc/network/interfaces (DHCP en la NIC, systemd-networkd, sin
-		// bridge declarado) lista sus ifaces sin address y no deja nada con
-		// lo que casar el device del host, que es justo lo que impedía que
-		// el hipervisor apareciera como nodo del mapa.
+		// bridge declarado): ahí las interfaces salen sin address y no dejan
+		// nada con lo que casar el device del host, que es lo que impedía
+		// que el hipervisor apareciera como nodo del mapa.
 		statusIP := map[string]string{}
 		if nodes, err := ic.c.ClusterStatus(ctx); err == nil {
 			for _, n := range nodes {
@@ -164,25 +168,42 @@ func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
 				if r.Node != "" {
 					key := nodeKey(ic.inst.ID, r.Node)
 					inv.nodes[key] = pveNode{Instance: ic.inst.ID, Node: r.Node}
-					// IP del host para casar el device HOST por IP, por orden
-					// de fiabilidad: la del cluster, la del bridge declarado
-					// en las interfaces, y por último el host del endpoint
-					// configurado — que en una instancia de un solo nodo ES
-					// la del nodo, y es lo único que queda cuando la API no
-					// sabe decir su propia dirección.
-					ip := statusIP[r.Node]
-					if ip == "" {
-						var err error
-						if ip, err = ic.c.NodeIP(ctx, r.Node); err != nil {
-							log.Printf("[netpulse:pve] %s nodeip %s: %v", ic.inst.ID, r.Node, err)
-							ip = ""
+					// Direcciones del host con las que casar su device. Se
+					// recogen TODAS, no la "mejor": el bridge declarado en
+					// las interfaces y la que el nodo anuncia al cluster son
+					// distintas en cuanto corosync tiene su propia red, y
+					// cualquiera de las dos puede ser la que NetPulse ve.
+					var ips []string
+					add := func(ip string) {
+						if ip == "" {
+							return
 						}
+						for _, x := range ips {
+							if x == ip {
+								return
+							}
+						}
+						ips = append(ips, ip)
 					}
-					if ip == "" && len(statusIP) == 0 && singleNodeOf(resources) {
-						ip = ic.c.HostOfURL()
+					// El bridge de las interfaces primero: es la dirección de
+					// gestión, la que la LAN suele conocer.
+					if ip, err := ic.c.NodeIP(ctx, r.Node); err != nil {
+						log.Printf("[netpulse:pve] %s nodeip %s: %v", ic.inst.ID, r.Node, err)
+					} else {
+						add(ip)
 					}
-					if ip != "" {
-						inv.nodeIPs[key] = ip
+					add(statusIP[r.Node])
+					// Y si la API no sabe decir NINGUNA (un host con la IP
+					// configurada fuera de /etc/network/interfaces), el host
+					// del endpoint: en una instancia de un solo nodo ES la
+					// suya. En un cluster el endpoint es un nodo cualquiera
+					// y prestarle su IP a los demás sería inventarse la
+					// topología.
+					if len(ips) == 0 && singleNodeOf(resources) {
+						add(ic.c.HostOfURL())
+					}
+					if len(ips) > 0 {
+						inv.nodeIPs[key] = ips
 					}
 				}
 				continue
@@ -253,10 +274,13 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 	for i := range devices {
 		hostIdxByID[devices[i].ID] = i
 		if devices[i].IP != "" {
-			for key, ip := range inv.nodeIPs {
-				if devices[i].IP == ip {
-					hostIDByNode[key] = devices[i].ID
-					nodeByKey[key] = inv.nodes[key]
+			for key, ips := range inv.nodeIPs {
+				for _, ip := range ips {
+					if devices[i].IP == ip {
+						hostIDByNode[key] = devices[i].ID
+						nodeByKey[key] = inv.nodes[key]
+						break
+					}
 				}
 			}
 		}

@@ -95,7 +95,7 @@ func TestSealProxmoxInfraHostPorIP(t *testing.T) {
 			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc", Instance: "default"},
 		},
 		nodes:   map[string]pveNode{"default|citadel-02": {Instance: "default", Node: "citadel-02"}},
-		nodeIPs: map[string]string{"default|citadel-02": "192.168.1.101"},
+		nodeIPs: map[string][]string{"default|citadel-02": {"192.168.1.101"}},
 	}
 	devices := []Device{
 		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "E8:FF:1E:DD:C7:ED", IP: "192.168.1.101", RouterID: "switch16"},
@@ -123,7 +123,7 @@ func TestSealProxmoxInfraHostConflictoNICs(t *testing.T) {
 			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-01", Type: "lxc", Instance: "default"},
 		},
 		nodes:   map[string]pveNode{"default|citadel-01": {Instance: "default", Node: "citadel-01"}},
-		nodeIPs: map[string]string{"default|citadel-01": "192.168.1.100"},
+		nodeIPs: map[string][]string{"default|citadel-01": {"192.168.1.100"}},
 	}
 	devices := []Device{
 		// device con nombre citadel-01 pero IP de gestión (.243) y offline.
@@ -164,7 +164,7 @@ func TestPVEHypervisorDistNodes(t *testing.T) {
 			"02:78:F4:02:8A:94": {Name: "pbs", Node: "citadel-02", Type: "lxc", Instance: "default"},
 		},
 		nodes:   map[string]pveNode{"default|citadel-02": {Instance: "default", Node: "citadel-02"}, "default|citadel-01": {Instance: "default", Node: "citadel-01"}},
-		nodeIPs: map[string]string{"default|citadel-02": "192.168.1.101", "default|citadel-01": "192.168.1.100"},
+		nodeIPs: map[string][]string{"default|citadel-02": {"192.168.1.101"}, "default|citadel-01": {"192.168.1.100"}},
 	}
 	devices := []Device{
 		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "E8:FF:1E:DD:C7:ED", IP: "192.168.1.101", RouterID: "switch16", Port: "lan8"},
@@ -222,7 +222,7 @@ func TestSealProxmoxInfraMultiInstancia(t *testing.T) {
 		{ID: "bb-22", MAC: "BB:11:00:00:00:02", Name: "host-ofi", RouterID: "gateway", Band: "—"},
 	}
 	// Hosts casados por IP de su instancia.
-	inv.nodeIPs = map[string]string{"casa|pve1": "10.0.0.1", "ofi|pve1": "10.0.0.2"}
+	inv.nodeIPs = map[string][]string{"casa|pve1": {"10.0.0.1"}, "ofi|pve1": {"10.0.0.2"}}
 	devices[0].IP = "10.0.0.1"
 	devices[1].IP = "10.0.0.2"
 	dists := applyPVEInfra(devices, nil, inv)
@@ -358,8 +358,8 @@ func pveInventoryFrom(t *testing.T, srv *httptest.Server) *pveInventory {
 func TestPVENodeIPFromClusterStatus(t *testing.T) {
 	srv := pveFakeAPI(t, true, "")
 	defer srv.Close()
-	if got := pveInventoryFrom(t, srv).nodeIPs["acasa|pve1"]; got != "192.0.2.2" {
-		t.Fatalf("nodeIP: %q", got)
+	if got := pveInventoryFrom(t, srv).nodeIPs["acasa|pve1"]; !hasIP(got, "192.0.2.2") {
+		t.Fatalf("nodeIPs: %q", got)
 	}
 }
 
@@ -368,8 +368,8 @@ func TestPVENodeIPFromClusterStatus(t *testing.T) {
 func TestPVENodeIPFallsBackToTheInterfaces(t *testing.T) {
 	srv := pveFakeAPI(t, false, "192.0.2.7")
 	defer srv.Close()
-	if got := pveInventoryFrom(t, srv).nodeIPs["acasa|pve1"]; got != "192.0.2.7" {
-		t.Fatalf("nodeIP: %q", got)
+	if got := pveInventoryFrom(t, srv).nodeIPs["acasa|pve1"]; !hasIP(got, "192.0.2.7") {
+		t.Fatalf("nodeIPs: %q", got)
 	}
 }
 
@@ -381,8 +381,8 @@ func TestPVENodeIPFallsBackToTheEndpoint(t *testing.T) {
 	inv := pveInventoryFrom(t, srv)
 	want := strings.TrimPrefix(srv.URL, "http://")
 	want = want[:strings.LastIndex(want, ":")]
-	if got := inv.nodeIPs["acasa|pve1"]; got != want {
-		t.Fatalf("nodeIP: %q (want %q)", got, want)
+	if got := inv.nodeIPs["acasa|pve1"]; !hasIP(got, want) {
+		t.Fatalf("nodeIPs: %q (want %q)", got, want)
 	}
 	// And with that address the seal finally produces the hypervisor node
 	// and hangs the container off it -- the whole point of the fallback.
@@ -398,6 +398,67 @@ func TestPVENodeIPFallsBackToTheEndpoint(t *testing.T) {
 		t.Fatalf("distnode: %+v", dists)
 	}
 	if devices[1].AttachTo != devices[0].ID || devices[1].Name != "storage" {
+		t.Fatalf("ct: %+v", devices[1])
+	}
+}
+
+func hasIP(ips []string, want string) bool {
+	for _, ip := range ips {
+		if ip == want {
+			return true
+		}
+	}
+	return false
+}
+
+// A cluster where corosync has its own network: the address the node
+// announces to the cluster is NOT the management one the LAN knows it by.
+// Keeping only one of the two would lose the host on half the installs --
+// exactly the setups where matching by the declared bridge already worked.
+func TestPVEKeepsBothTheManagementAndTheClusterAddress(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api2/json/cluster/resources":
+			w.Write([]byte(`{"data":[
+				{"id":"node/pve1","node":"pve1","type":"node","status":"online"},
+				{"id":"node/pve2","node":"pve2","type":"node","status":"online"},
+				{"id":"lxc/100","vmid":100,"node":"pve1","type":"lxc","status":"running","name":"storage"}
+			]}`))
+		case r.URL.Path == "/api2/json/cluster/status":
+			// corosync ring on a dedicated network.
+			w.Write([]byte(`{"data":[
+				{"type":"node","name":"pve1","ip":"10.10.10.1","online":1},
+				{"type":"node","name":"pve2","ip":"10.10.10.2","online":1}
+			]}`))
+		case strings.HasSuffix(r.URL.Path, "/network"):
+			// management address, the one the LAN resolves.
+			w.Write([]byte(`{"data":[{"iface":"vmbr0","type":"bridge","address":"192.0.2.50"}]}`))
+		case strings.HasSuffix(r.URL.Path, "/config"):
+			w.Write([]byte(`{"data":{"net0":"bridge=vmbr0,hwaddr=BC:24:11:A4:9E:BB,name=eth0,type=veth"}}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+
+	inv := pveInventoryFrom(t, srv)
+	got := inv.nodeIPs["acasa|pve1"]
+	if !hasIP(got, "192.0.2.50") || !hasIP(got, "10.10.10.1") {
+		t.Fatalf("both addresses must survive: %q", got)
+	}
+	// And the host still matches on the management address, as it did
+	// before cluster/status existed here.
+	devices := []Device{
+		{ID: "aa-bb-cc-00-00-01", MAC: "AA:BB:CC:00:00:01", Name: "pve-host", IP: "192.0.2.50"},
+		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "BC:24:11:A4:9E:BB"},
+	}
+	applyPVEInfra(devices, nil, inv)
+	if devices[0].Infra != "hypervisor" {
+		t.Fatalf("host: %+v", devices[0])
+	}
+	if devices[1].AttachTo != devices[0].ID {
 		t.Fatalf("ct: %+v", devices[1])
 	}
 }
