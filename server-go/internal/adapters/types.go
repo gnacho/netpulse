@@ -257,6 +257,9 @@ type Device struct {
 	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
 	// DistributionNode inferido o de otro Device — hipervisor/switch).
 	AttachTo string `json:"attachTo,omitempty"`
+	// SpeedMbps: velocidad negociada de la boca donde está enchufado, si la
+	// conocemos (boca del switch vía controlador). 0 = desconocida.
+	SpeedMbps int `json:"speedMbps,omitempty"`
 	// Infra: rol de infraestructura sellado server-side (Fase 4). La app NO
 	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
  
@@ -339,6 +342,11 @@ type DistributionNode struct {
 	// existe como Device Y como nodo managed, sin duplicar el render).
 	Mac  string    `json:"mac,omitempty"`
 	Lldp *LldpInfo `json:"lldp,omitempty"`
+	// SpeedMbps: velocidad negociada del enlace por el que cuelga, cuando
+	// alguien la sabe de verdad (hoy: la boca del switch que reporta el
+	// controlador UniFi). 0 = no se conoce, y la UI escribe "—" en vez de
+	// inventarse un "1 Gbps" que nadie ha medido.
+	SpeedMbps int `json:"speedMbps,omitempty"`
 	// Role: what the managed box actually is, "switch" or "ap". Kind stays
 	// "managed" for both because it drives the layout (a box known by MAC
 	// and IP, drawn as a node instead of a client chip), but an access point

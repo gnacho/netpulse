@@ -1794,6 +1794,7 @@
         12.3
       ],
       "port": "lan5",
+      "speedMbps": 2500,
       "infra": "hypervisor",
       "hostname": "pve",
       "dhcpLease": "IP fija (reserva)",
@@ -2387,7 +2388,8 @@
       "kind": "inferred",
       "routerId": "flint2",
       "port": "lan3",
-      "macCount": 8
+      "macCount": 8,
+      "speedMbps": 1000
     },
     {
       "id": "dist-pve",
@@ -2412,7 +2414,8 @@
         "mgmt": "192.168.8.13",
         "caps": "Bridge",
         "portDesc": "ge5"
-      }
+      },
+      "speedMbps": 1000
     }
   ],
   "adguard": {

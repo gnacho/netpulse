@@ -564,7 +564,7 @@ func topologyDevices() []Device {
 		// se anidan (OUI BC:24:11)
 		withDetails(Device{ID: "pve", Name: "Proxmox pve", Type: "servidor", Manufacturer: "Supermicro",
 			IP: "192.168.8.5", MAC: "3C:52:82:10:20:30", RouterID: "flint2", Band: "cable",
-			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan5", Infra: "hypervisor",
+			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan5", Infra: "hypervisor", SpeedMbps: 2500,
 			Sparkline: []float64{8, 9, 10, 11, 12, 13, 12, 12, 12, 12, 12, 12.3}},
 			"pve", "IP fija (reserva)", "hace 400 días", "1,2 TB", "96 GB", true, "red", ""),
 	}
@@ -646,9 +646,9 @@ func topologyDevices() []Device {
 // (chassis-MAC) para que la app excluya el chip del Device del switch.
 func canonDistributionNodes() []DistributionNode {
 	return []DistributionNode{
-		{ID: "dist-flint2-lan3", Kind: "inferred", RouterID: "flint2", Port: "lan3", MacCount: 8},
+		{ID: "dist-flint2-lan3", Kind: "inferred", RouterID: "flint2", Port: "lan3", MacCount: 8, SpeedMbps: 1000},
 		{ID: "dist-pve", Kind: "hypervisor", RouterID: "flint2", Port: "lan5", MacCount: 11, HostDeviceID: "pve", Name: "Proxmox pve"},
-		{ID: "dist-living-lan3", Kind: "managed", RouterID: "living", Port: "lan3", MacCount: 4,
+		{ID: "dist-living-lan3", Kind: "managed", RouterID: "living", Port: "lan3", MacCount: 4, SpeedMbps: 1000,
 			Name: "GS308E", Ip: "192.168.8.13", Mac: "28:C6:8E:1D:90:44",
 			Lldp: &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}},
 	}

@@ -437,3 +437,39 @@ func TestInferTopologyPortLabelLuCI(t *testing.T) {
 		t.Fatalf("sin etiquetas PortLabel vacío: %+v", devices[0])
 	}
 }
+
+// El primer salto lo mide el propio router: un nodo colgado de una boca
+// suya hereda la velocidad negociada en ella, en vez del "1 Gbps" que la
+// tabla de enlaces escribía por defecto.
+func TestFillNodeSpeedsFromTheRouterPort(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gateway": {
+			cfg: RouterConfig{ID: "gateway"},
+			ports: []EthPort{
+				{ID: "lan2", Up: true, Speed: "1 Gbps"},
+				{ID: "lan3", Up: true, Speed: "2.5 Gbps"},
+				{ID: "lan4", Up: false, Speed: ""},
+			},
+		},
+	}
+	dists := []DistributionNode{
+		{ID: "a", RouterID: "gateway", Port: "lan2"},
+		{ID: "b", RouterID: "gateway", Port: "lan3"},
+		// Boca caída: nadie ha medido nada, y "—" es la respuesta honesta.
+		{ID: "c", RouterID: "gateway", Port: "lan4"},
+		// Cuelga de otro nodo, no del router: su velocidad la pone quien
+		// conozca esa boca (el sello del controlador), no el router.
+		{ID: "d", RouterID: "gateway", Port: "lan5", Parent: "a"},
+		// Una velocidad ya puesta no se toca.
+		{ID: "e", RouterID: "gateway", Port: "lan2", SpeedMbps: 100},
+		// Router desconocido.
+		{ID: "f", RouterID: "fantasma", Port: "lan2"},
+	}
+	fillNodeSpeeds(polled, dists)
+
+	for i, want := range []int{1000, 2500, 0, 0, 100, 0} {
+		if dists[i].SpeedMbps != want {
+			t.Errorf("dists[%d] %s: speed=%d (want %d)", i, dists[i].ID, dists[i].SpeedMbps, want)
+		}
+	}
+}

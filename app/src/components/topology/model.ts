@@ -1449,6 +1449,17 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (rn) return rn.router.name
     return deviceById.get(id)?.name ?? id
   }
+  /**
+   * Velocidad de un enlace, o "—" si nadie la ha medido. La tabla escribía
+   * "1 Gbps" en toda fila de distribución y "866 Mbps PHY · −58 dBm" en un
+   * uplink wifi sin tener el dato de ninguno de los dos: números inventados
+   * con aspecto de medida. Hoy solo el controlador reporta velocidad real
+   * (la negociada en su boca) y solo eso se pinta.
+   */
+  const linkSpeed = (mbps?: number): string => {
+    if (!mbps || mbps <= 0) return '—'
+    return mbps >= 1000 ? `${(mbps / 1000).toFixed(mbps % 1000 === 0 ? 0 : 1)} Gbps` : `${mbps} Mbps`
+  }
   const backhauls: BackhaulRow[] = []
   if (gatewayNode) {
     backhauls.push({
@@ -1463,11 +1474,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     backhauls.push({
       id: `uplink-${node.id}`, a: gatewayNode?.router.name ?? '', b: node.router.name, kind: 'uplink',
       type: isWifi ? 'topology.links.wifiUplink' : 'common.cable',
-      speed: isWifi ? '866 Mbps PHY' : '1 Gbps',
-      signal: isWifi ? '−58 dBm · 1 ms' : '<1 ms',
+      // El contrato no trae ni tasa PHY ni señal del backhaul de un AP, así
+      // que no se afirma ninguna. El tono sí es información real: un enlace
+      // por wifi merece mirarse más que uno por cable.
+      speed: '—',
+      signal: '—',
       tone: isWifi ? 'warn' : 'ok',
       statusLabel: isWifi ? 'common.status.warn' : 'common.status.online',
-      note: isWifi ? 'topology.links.congestedChannel' : undefined,
       spark: node.router.sparkline,
       sparkColor: isWifi ? COLOR.warn : COLOR.accent,
     })
@@ -1488,7 +1501,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         id: `dist-${dv.id}`, a,
         b: [dv.node.name, dv.node.ip, via, dv.node.portLabel ?? dv.node.port].filter(Boolean).join(' · '),
         kind: 'dist', type: dv.node.role === 'ap' ? 'topology.links.managedAp' : 'topology.links.managedSwitch',
-        speed: '1 Gbps', signal: '<1 ms',
+        speed: linkSpeed(dv.node.speedMbps), signal: '—',
         tone: 'ok', statusLabel: 'common.status.online',
         spark, sparkColor: COLOR.accent,
       })
@@ -1497,7 +1510,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         id: `dist-${dv.id}`, a,
         b: '', bKey: 'topology.links.inferredSwitch', bVars: { port: dv.node.portLabel ?? dv.node.port },
         kind: 'dist', type: 'common.cable',
-        speed: '1 Gbps', signal: '<1 ms',
+        speed: linkSpeed(dv.node.speedMbps), signal: '—',
         tone: 'ok', statusLabel: 'common.status.online',
         spark, sparkColor: COLOR.ok,
       })
@@ -1515,7 +1528,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       id: `wired-${host.id}`, a: hubNameOf(host),
       b: [host.name, port, `${ctCountByHost.get(host.id) ?? 0} CT`].filter(Boolean).join(' · '),
       kind: 'wired', type: 'topology.links.hypervisorCable',
-      speed: '—', signal: '—',
+      speed: linkSpeed(host.speedMbps), signal: '—',
       tone: 'ok', statusLabel: 'common.status.online',
       spark: host.sparkline, sparkColor: COLOR.ok,
     })
@@ -1525,7 +1538,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const device = devices.find((d) => d.id === node.peer.id)
     backhauls.push({
       id: `wg-${node.peer.id}`, a: 'Internet', b: node.peer.name, kind: 'wg',
-      type: 'WireGuard', speed: '—', signal: '42 ms',
+      type: 'WireGuard', speed: '—', signal: '—',
       tone: 'tunnel', statusLabel: 'common.active',
       spark: device?.sparkline ?? [0, 0], sparkColor: COLOR.tunnel,
     })
