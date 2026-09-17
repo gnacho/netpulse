@@ -1131,7 +1131,7 @@
       "inferred": "inferido",
       "managed": "switch gestionado",
       "noIp": "sin IP · no consultable directamente",
-      "port": "Puerto de {{router}}",
+      "port": "Puerto de {{owner}}",
       "macs": "MACs aprendidas",
       "fdbNote": "FDB: {{count}} MACs heterogéneas en un solo puerto físico. Probablemente un switch; no podemos afirmarlo sin LLDP."
     },
