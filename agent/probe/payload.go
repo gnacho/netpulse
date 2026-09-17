@@ -33,7 +33,14 @@ type PayloadData struct {
 	// Resuelve IPs donde el DHCP no está en el equipo sondeado (APs tontos
 	// con el dnsmasq en otro router): cualquier router de la flota que
 	// enrute la LAN conoce el mapa completo.
-	Arp    map[string]string `json:"arp,omitempty"`
+	Arp map[string]string `json:"arp,omitempty"`
+	// ArpStale: the MACs of Arp whose neighbour entries are all unconfirmed
+	// (STALE/FAILED/INCOMPLETE). Their address is still the best one known
+	// for the host, but their presence in the table proves nothing: the
+	// kernel keeps a stale neighbour long after the device has gone. An
+	// older agent omits this, and the server then trusts the whole table as
+	// it always did.
+	ArpStale []string `json:"arpStale,omitempty"`
 	Dawn   *DawnData         `json:"dawn,omitempty"`   // Fase 14: DAWN roaming (solo si instalado; compat rollback)
 	Usteer *UsteerData       `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
 	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están

@@ -1262,3 +1262,70 @@ func TestBuildEthPortsUplinkEtiquetado(t *testing.T) {
 		t.Fatalf("bocas: %+v", ports)
 	}
 }
+
+// A neighbour table with every state that matters: what the kernel has
+// confirmed, and what it merely remembers.
+func TestParseIPNeighSeparatesConfirmedFromRemembered(t *testing.T) {
+	out := strings.Join([]string{
+		"192.0.2.10 dev br-lan lladdr 02:00:00:00:00:10 REACHABLE",
+		"192.0.2.11 dev br-lan lladdr 02:00:00:00:00:11 STALE",
+		"192.0.2.12 dev br-lan lladdr 02:00:00:00:00:12 DELAY",
+		"192.0.2.13 dev br-lan lladdr 02:00:00:00:00:13 PERMANENT",
+		"192.0.2.14 dev br-lan  FAILED",
+		"192.0.2.15 dev br-lan lladdr 02:00:00:00:00:15 FAILED",
+		"192.0.2.16 dev br-lan lladdr 00:00:00:00:00:00 REACHABLE",
+		"not-an-ip dev br-lan lladdr 02:00:00:00:00:17 REACHABLE",
+	}, "\n")
+	arp, stale := ParseIPNeigh(out)
+
+	if len(arp) != 5 {
+		t.Fatalf("arp: %+v", arp)
+	}
+	if arp["02:00:00:00:00:10"] != "192.0.2.10" || arp["02:00:00:00:00:11"] != "192.0.2.11" {
+		t.Fatalf("addresses: %+v", arp)
+	}
+	// A stale entry still resolves an IP; it just proves nothing.
+	for _, mac := range []string{"02:00:00:00:00:11", "02:00:00:00:00:15"} {
+		if !stale[mac] {
+			t.Fatalf("%s should be stale: %+v", mac, stale)
+		}
+	}
+	for _, mac := range []string{"02:00:00:00:00:10", "02:00:00:00:00:12", "02:00:00:00:00:13"} {
+		if stale[mac] {
+			t.Fatalf("%s is confirmed: %+v", mac, stale)
+		}
+	}
+	// An entry with no lladdr, a null MAC or a broken address is not a host.
+	if _, ok := arp["00:00:00:00:00:00"]; ok {
+		t.Fatalf("null MAC: %+v", arp)
+	}
+	if _, ok := arp["02:00:00:00:00:17"]; ok {
+		t.Fatalf("invalid IP: %+v", arp)
+	}
+}
+
+// One confirmed address is enough for a host with several of them, whatever
+// order the table lists them in.
+func TestParseIPNeighConfirmedWinsOverStale(t *testing.T) {
+	for _, out := range []string{
+		"192.0.2.20 dev br-lan lladdr 02:00:00:00:00:20 STALE\n" +
+			"192.0.2.21 dev br-lan lladdr 02:00:00:00:00:20 REACHABLE",
+		"192.0.2.21 dev br-lan lladdr 02:00:00:00:00:20 REACHABLE\n" +
+			"192.0.2.20 dev br-lan lladdr 02:00:00:00:00:20 STALE",
+	} {
+		arp, stale := ParseIPNeigh(out)
+		if stale["02:00:00:00:00:20"] {
+			t.Fatalf("a confirmed address must settle the host: %+v", stale)
+		}
+		if arp["02:00:00:00:00:20"] != "192.0.2.21" {
+			t.Fatalf("the confirmed address should be the one kept: %+v", arp)
+		}
+	}
+}
+
+func TestParseIPNeighOnGarbage(t *testing.T) {
+	arp, stale := ParseIPNeigh("ip: command not found\n\n")
+	if len(arp) != 0 || len(stale) != 0 {
+		t.Fatalf("garbage: %+v %+v", arp, stale)
+	}
+}

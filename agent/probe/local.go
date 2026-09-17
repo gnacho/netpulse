@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -169,7 +170,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	pl.Data.Wireless = p.probeWireless(ctx, true)
 	pl.Data.DHCP = p.probeDHCP(ctx)
 	pl.Data.FDB = p.probeFDB(ctx)
-	pl.Data.Arp = p.probeArp(ctx)
+	pl.Data.Arp, pl.Data.ArpStale = p.probeArp(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.Usteer = p.probeUsteer(ctx)
 	pl.Data.LuCI = p.probeLuCI(ctx)
@@ -202,7 +203,7 @@ func (p *Prober) BuildWireless(ctx context.Context, router, version string) *Pay
 	}
 	pl.Data.Wireless = p.probeWireless(ctx, false)
 	pl.Data.DHCP = p.probeDHCP(ctx)
-	pl.Data.Arp = p.probeArp(ctx)
+	pl.Data.Arp, pl.Data.ArpStale = p.probeArp(ctx)
 	return pl
 }
 
@@ -763,14 +764,29 @@ func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *Di
 
 // probeArp: tabla ARP del kernel (#377). nil si no hay fichero (equipo sin
 // ARP, p. ej. contenedor); mapa vacío es resultado real.
-func (p *Prober) probeArp(ctx context.Context) map[string]string {
+//
+// Reads `ip neigh` first, which carries the state of each entry, and only
+// falls back to /proc/net/arp where `ip` is missing -- there the states are
+// unknowable and the returned stale set is empty, the behaviour agents had
+// before. stale lists the MACs the kernel remembers without confirming.
+func (p *Prober) probeArp(ctx context.Context) (arp map[string]string, stale []string) {
+	if out := p.runBest(ctx, CmdIpNeigh, 3*time.Second); out != "" {
+		m, st := ParseIPNeigh(out)
+		if len(m) > 0 {
+			for mac := range st {
+				stale = append(stale, mac)
+			}
+			sort.Strings(stale) // stable payloads, so a diff means a change
+			return m, stale
+		}
+	}
 	out := p.runBest(ctx, CmdProcArp, 3*time.Second)
 	if out == "" {
-		return nil
+		return nil, nil
 	}
 	m := ParseArp(out)
 	if m == nil {
 		m = map[string]string{}
 	}
-	return m
+	return m, nil
 }

@@ -106,7 +106,14 @@ const (
 		`c=-; for l in "$d"/lower_*; do [ -e "$l" ] || continue; c=${l##*/lower_}; break; done; ` +
 		`echo "$i $o $s $x $t $c"; done`
 	// CmdProcArp (#377): tabla ARP del kernel, "IP dev mac ..." por línea.
-	CmdProcArp     = "cat /proc/net/arp 2>/dev/null"
+	CmdProcArp = "cat /proc/net/arp 2>/dev/null"
+	// CmdIpNeigh: the same neighbour table, but with the state of each entry,
+	// which /proc/net/arp cannot express -- its flags say ATF_COM for
+	// REACHABLE and for STALE alike. A STALE neighbour is one the kernel has
+	// not confirmed since the device last spoke, and it survives long after
+	// the device is gone, so treating it as presence draws hosts that are no
+	// longer there. Falls back to /proc/net/arp when `ip` is missing.
+	CmdIpNeigh     = "ip -4 neigh show 2>/dev/null"
 	CmdBoardJSON   = "cat /etc/board.json 2>/dev/null"
 	CmdBrifMembers = "BR=br-lan; [ -d /sys/class/net/$BR ] || BR=br0; ls /sys/class/net/$BR/brif/ 2>/dev/null"
 	// CmdBridgeFDB: "==PORTS==" (port_no ifname) + "==MACS==" (port mac).
@@ -1670,6 +1677,64 @@ func ParseArp(out string) map[string]string {
 		m[mac] = f[0]
 	}
 	return m
+}
+
+// neighConfirmed: the states in which the kernel vouches for the neighbour
+// being there right now. REACHABLE was confirmed within the reachable time;
+// DELAY and PROBE are on their way to being reconfirmed; PERMANENT and NOARP
+// were put there by hand or by a link that needs no resolution.
+//
+// Everything else -- STALE, FAILED, INCOMPLETE, NONE -- is an address the
+// kernel remembers without being able to say the host is still connected.
+var neighConfirmed = map[string]bool{
+	"REACHABLE": true, "DELAY": true, "PROBE": true,
+	"PERMANENT": true, "NOARP": true,
+}
+
+// ParseIPNeigh parses `ip neigh show`, whose lines read
+// "IP dev IFACE lladdr MAC STATE" (an entry being resolved has no lladdr).
+// It returns the same MAC→IP map as ParseArp plus the set of MACs whose
+// every entry is unconfirmed: remembered addresses, not present hosts.
+//
+// A MAC with several addresses counts as confirmed when any one of them is,
+// since one confirmed neighbour is enough to prove the host is there.
+func ParseIPNeigh(out string) (arp map[string]string, stale map[string]bool) {
+	arp, stale = map[string]string{}, map[string]bool{}
+	confirmed := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		// "IP dev IFACE lladdr MAC STATE" is the shortest useful line.
+		if len(f) < 6 || net.ParseIP(f[0]) == nil {
+			continue
+		}
+		var mac string
+		for i := 1; i+1 < len(f); i++ {
+			if f[i] == "lladdr" {
+				mac = strings.ToUpper(f[i+1])
+				break
+			}
+		}
+		if mac == "" || mac == "00:00:00:00:00:00" {
+			continue
+		}
+		// The state is the last word of the line; an entry without one is
+		// not something to claim presence from.
+		if neighConfirmed[f[len(f)-1]] {
+			// Confirmed wins for good: a later unconfirmed address for the
+			// same host must not undo it.
+			arp[mac] = f[0]
+			confirmed[mac] = true
+			delete(stale, mac)
+			continue
+		}
+		if !confirmed[mac] {
+			if _, ok := arp[mac]; !ok {
+				arp[mac] = f[0]
+			}
+			stale[mac] = true
+		}
+	}
+	return arp, stale
 }
 
 // sumProcRSS returns the total VmRSS (bytes) of every user-space process
