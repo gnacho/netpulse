@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gnacho/netpulse/agent/probe"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
 func TestBuildDevicesArpFallback(t *testing.T) {
@@ -171,5 +172,49 @@ func TestPolledFromAgentArpStale(t *testing.T) {
 	p := l.polledFromAgent(RouterConfig{ID: "patio"}, pl)
 	if !p.arpStale["02:00:00:00:00:10"] {
 		t.Fatalf("arpStale not propagated: %+v", p.arpStale)
+	}
+}
+
+// A device_attrib row outlives the router it names: deleting a router, or an
+// integration that registered one per AP, used to leave its clients
+// attributed to an id nothing resolves, so no router counted them.
+func TestBuildDevicesReattributesDeletedRouters(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := NewLive(nil, d, nil, nil)
+	l.SetRouters([]RouterConfig{
+		{ID: "gateway", Name: "Gateway", Host: "192.0.2.1", IsGateway: true, AgentOnly: true},
+	})
+	// One client remembered on a router that still exists, one on a router
+	// that was deleted.
+	for _, r := range [][2]string{
+		{"02:00:00:00:00:01", "gateway"},
+		{"02:00:00:00:00:02", "ap-that-was-deleted"},
+	} {
+		if _, err := d.Exec(
+			`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?,?,?,?,?)`,
+			r[0], r[1], "5 GHz", -50, db.NowMS()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	polled := map[string]*routerPolled{
+		"gateway": {
+			cfg: RouterConfig{ID: "gateway", Name: "Gateway", Host: "192.0.2.1", IsGateway: true},
+			leases: []DhcpLease{
+				{MAC: "02:00:00:00:00:01", IP: "192.0.2.51", Hostname: "one"},
+				{MAC: "02:00:00:00:00:02", IP: "192.0.2.52", Hostname: "two"},
+			},
+		},
+	}
+	byMAC := map[string]Device{}
+	for _, dev := range l.buildDevices(polled) {
+		byMAC[dev.MAC] = dev
+	}
+	if len(byMAC) != 2 {
+		t.Fatalf("devices: %+v", byMAC)
+	}
+	for mac, dev := range byMAC {
+		if dev.RouterID != "gateway" {
+			t.Fatalf("%s should fall back to the gateway, got %q", mac, dev.RouterID)
+		}
 	}
 }

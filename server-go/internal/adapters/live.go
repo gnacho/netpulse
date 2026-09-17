@@ -2079,10 +2079,29 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	}
 	l.mu.Lock()
 	gw := l.gatewayCfg
+	registered := make(map[string]bool, len(l.routers))
+	for _, rc := range l.routers {
+		registered[rc.ID] = true
+	}
 	l.mu.Unlock()
 	gwID := ""
 	if gw != nil {
 		gwID = gw.ID
+	}
+	// A stored attribution outlives the router it names. Deleting a router --
+	// or an integration that registered some, as the UniFi scraper did for
+	// each AP -- leaves its clients in device_attrib pointing at an id that
+	// no longer exists, and every per-router count then attributes them to
+	// nothing: the gateway's card showed 18 of the 45 clients it serves.
+	// Hand them to the gateway, which is the router actually serving them
+	// once the one they remember is gone.
+	if gwID != "" {
+		for mac, k := range known {
+			if k.routerID != "" && !registered[k.routerID] {
+				k.routerID = gwID
+				known[mac] = k
+			}
+		}
 	}
 	// (2) FDB de satélites: pista solo de ESTE tick (no se guarda).
 	// REGLA DE RECONCILIACIÓN (issue #656): una MAC aprendida por un satélite
