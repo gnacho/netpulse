@@ -59,3 +59,43 @@ func TestIsIoTVendor(t *testing.T) {
 		}
 	}
 }
+
+// A short vendor token must not swallow a longer unrelated name: a wrong
+// vendor match hands the device a confident, wrong icon.
+func TestVendorMatchingDoesNotOverreach(t *testing.T) {
+	for _, tc := range []struct {
+		manufacturer string
+		iot          bool
+	}{
+		{"Gree Electric Appliances,Inc. of Zhuhai", true},
+		{"WiZ", true},
+		{"BSH Hausgeräte GmbH", true},
+		{"Tuya Smart Inc.", true},
+		{"Espressif Inc.", true},
+		// Real vendors that merely contain a short token.
+		{"Greenwave Systems", false},
+		{"Greenliant Systems", false},
+		{"WIZnet Co., Ltd.", false},
+		{"Illuminati Instrument Corp", false}, // contains "lumi"
+		{"Intel Corporate", false},
+		{"", false},
+	} {
+		if got := IsIoTVendor(tc.manufacturer); got != tc.iot {
+			t.Errorf("IsIoTVendor(%q) = %v, want %v", tc.manufacturer, got, tc.iot)
+		}
+	}
+}
+
+// Surveillance vendors get the camera type, which is more than "iot".
+func TestCameraVendors(t *testing.T) {
+	for _, m := range []string{"Reolink Innovation Limited", "Hangzhou Hikvision", "Dahua Technology", "EZVIZ Inc"} {
+		if !IsCameraVendor(m) {
+			t.Errorf("IsCameraVendor(%q) = false", m)
+		}
+	}
+	for _, m := range []string{"Espressif Inc.", "Intel Corporate", ""} {
+		if IsCameraVendor(m) {
+			t.Errorf("IsCameraVendor(%q) = true", m)
+		}
+	}
+}

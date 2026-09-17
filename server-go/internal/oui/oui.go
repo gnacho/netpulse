@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 // The embedded table uses the compact format "aabbcc\tVendor Name" (one OUI
@@ -87,16 +88,67 @@ var iotVendors = []string{
 	"qingping",
 	"shenzhen",
 	"tasmota",
+	// Electrodomésticos y clima conectados: no son "el IoT de siempre" (un
+	// enchufe, una bombilla), pero para la topología son lo mismo — un
+	// cacharro de la casa que habla por wifi.
+	"wiz",     // bombillas WiZ (Signify, OUI propio)
+	"gree",    // aire acondicionado
+	"hausger", // BSH Hausgeräte: horno/lavavajillas Bosch y Siemens
+}
+
+// cameraVendors: fabricantes cuyo catálogo es videovigilancia. Un OUI suyo
+// es una cámara o un grabador, no un cacharro genérico: hay un tipo propio
+// (con su icono) y decir "iot" sería perder información que sí tenemos.
+var cameraVendors = []string{
+	"reolink",
+	"hikvision",
+	"dahua",
+	"ezviz",
+	"amcrest",
+	"foscam",
+	"annke",
+}
+
+// IsCameraVendor reports whether a manufacturer only makes surveillance gear.
+func IsCameraVendor(manufacturer string) bool {
+	return vendorMatches(manufacturer, cameraVendors)
+}
+
+// vendorMatches: substring search, except for tokens under 6 characters,
+// which have to appear as a whole word. A short token is a liability as a
+// substring -- "gree" would swallow Greenwave and Greenliant, "wiz" would
+// swallow WIZnet -- and a wrong vendor match hands the device a confident,
+// wrong icon. Longer tokens stay substrings so "Dreame Technology" and
+// "Shelly Europe Ltd" match whatever suffix the OUI registry carries.
+func vendorMatches(manufacturer string, list []string) bool {
+	m := strings.ToLower(strings.TrimSpace(manufacturer))
+	if m == "" {
+		return false
+	}
+	var words []string
+	for _, s := range list {
+		if len(s) >= 6 {
+			if strings.Contains(m, s) {
+				return true
+			}
+			continue
+		}
+		if words == nil {
+			words = strings.FieldsFunc(m, func(r rune) bool {
+				return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+			})
+		}
+		for _, w := range words {
+			if w == s {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // IsIoTVendor reports whether a manufacturer name (as returned by Lookup)
 // matches a known IoT vendor.
 func IsIoTVendor(manufacturer string) bool {
-	m := strings.ToLower(strings.TrimSpace(manufacturer))
-	for _, s := range iotVendors {
-		if m != "" && strings.Contains(m, s) {
-			return true
-		}
-	}
-	return false
+	return vendorMatches(manufacturer, iotVendors)
 }
