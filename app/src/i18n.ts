@@ -3,28 +3,35 @@ import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import HttpBackend from 'i18next-http-backend'
 
-// 'auto' (o sin elección previa) => seguir al navegador: no debe quedar
-// idioma cacheado en localStorage por el detector
+// 'auto' means "follow the browser", and it is an explicit choice in
+// Settings: the detector must not keep a cached language for it.
 const savedLang = localStorage.getItem('netpulse-lang')
 if (!savedLang || savedLang === 'auto') {
   localStorage.removeItem('i18nextLng')
 }
 
-// Builds con idioma forzado (demo pública, VITE_FORCE_LANG=en): si el
-// visitante nunca eligió idioma, arrancar en el forzado en vez de seguir al
-// navegador. Una elección explícita en Ajustes (es/en/auto) siempre gana.
+// Builds with a forced language (public demo, VITE_FORCE_LANG=en).
 const forcedLang = import.meta.env.VITE_FORCE_LANG as 'es' | 'en' | undefined
-const initialLng = !savedLang && forcedLang ? forcedLang : (localStorage.getItem('i18nextLng') ?? undefined)
+// DEFAULT_LNG: English is the language this deployment shows unless somebody
+// asks for another. Following the browser as the default meant a Spanish or
+// Romanian locale opened the panel in Spanish, which is not what the people
+// running it read. A choice made in Settings still wins, and choosing 'auto'
+// there goes back to following the browser.
+const DEFAULT_LNG = 'en'
+const initialLng = savedLang
+  ? savedLang === 'auto'
+    ? undefined // explicit "follow the browser"
+    : savedLang
+  : (forcedLang ?? DEFAULT_LNG)
 
 i18n
   .use(HttpBackend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    // Sin elección previa NO se fija idioma: el LanguageDetector resuelve
-    // desde el navegador (orden localStorage → navigator). 'en' queda solo
-    // como fallback para locales no soportados. (issue #3)
-    // Excepción: builds con VITE_FORCE_LANG (demo pública, issue #237).
+    // With no previous choice the panel starts in English. Only an explicit
+    // 'auto' in Settings leaves this undefined so the LanguageDetector reads
+    // the browser (localStorage → navigator). (issue #3, #237)
     lng: initialLng,
     fallbackLng: 'en',
     supportedLngs: ['es', 'en'],
@@ -43,13 +50,12 @@ i18n
     returnNull: false,
   })
 
-// #666: el lang del documento debe seguir al idioma activo. index.html declara
-// lang="es"; si un usuario con la UI en inglés no lo actualizamos, el navegador
-// cree que la página es española y ofrece traducirla — y el traductor destroza
-// los datos (hostnames "crowed" → "crowded"). Con el lang correcto, la UI
-// traducida no dispara la oferta de traducción.
+// #666: the document's lang must follow the active language. Without it the
+// browser believes the page is in another language and offers to translate
+// it -- and the translator mangles the data (hostnames "crowed" →
+// "crowded"). With the right lang, a translated UI raises no such offer.
 const applyDocLang = (lng?: string) => {
-  const l = (lng ?? i18n.language ?? 'es').slice(0, 2).toLowerCase()
+  const l = (lng ?? i18n.language ?? DEFAULT_LNG).slice(0, 2).toLowerCase()
   document.documentElement.lang = l === 'en' ? 'en' : 'es'
 }
 applyDocLang()
@@ -69,6 +75,9 @@ const REL_RE_EN = /^(\d+)\s*(s|sec|min|h|hr|d|days?)\s+ago$/
 export function relTime(s: string): string {
   const t = s.trim()
   if (t === 'hoy' || t.toLowerCase() === 'today') return i18n.t('common.today')
+  // A peer that has never handshaked: the server sends the canonical
+  // Spanish and it was reaching the screen untranslated.
+  if (t === 'nunca' || t.toLowerCase() === 'never') return i18n.t('common.never')
   const m = REL_RE.exec(t) ?? REL_RE_EN.exec(t)
   if (!m) return s
   const n = Number(m[1])
@@ -159,4 +168,25 @@ const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 /** Abreviatura de día de la semana: dayAbbr(0) = Lun/Mon … dayAbbr(6) = Dom/Sun */
 export function dayAbbr(index: number): string {
   return i18n.t(`common.days.${DAY_KEYS[((index % 7) + 7) % 7]}`)
+}
+
+const HEALTH_BREAKDOWN_RE = {
+  offline: /^(.+) offline$/,
+  temp: /^temp\. (.+)$/,
+}
+
+/**
+ * Canonical health-breakdown label from the server ("AdGuard inactivo",
+ * "temp. Patio", "Salon offline") → active language. These are built by
+ * concatenation server-side, so they are matched by shape, and anything
+ * unrecognised is passed through rather than mangled.
+ */
+export function healthBreakdownLabel(label: string): string {
+  const t = label.trim()
+  if (t === 'AdGuard inactivo') return i18n.t('common.health.adguardInactive')
+  const off = HEALTH_BREAKDOWN_RE.offline.exec(t)
+  if (off) return i18n.t('common.health.routerOffline', { name: off[1] })
+  const temp = HEALTH_BREAKDOWN_RE.temp.exec(t)
+  if (temp) return i18n.t('common.health.routerTemp', { name: temp[1] })
+  return label
 }

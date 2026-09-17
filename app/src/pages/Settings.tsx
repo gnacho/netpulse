@@ -4304,10 +4304,14 @@ export default function Settings() {
     }
   }, [refreshOverview])
 
-  // ——— Idioma ('auto' por defecto sigue al navegador; elección explícita persistida) ———
+  // ——— Language ———
+  // With no explicit choice the panel runs in English (see i18n.ts), so the
+  // selector shows English rather than "Auto": it has to say what is
+  // actually happening. Picking "Auto" here still goes back to following
+  // the browser, and every choice is persisted.
   const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
     const raw = localStorage.getItem('netpulse-lang')
-    return raw === 'es' || raw === 'en' || raw === 'auto' ? raw : 'auto'
+    return raw === 'es' || raw === 'en' || raw === 'auto' ? raw : 'en'
   })
   const setLanguage = useCallback((v: 'auto' | 'es' | 'en') => {
     setLang(v)

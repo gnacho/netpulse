@@ -285,6 +285,9 @@
       "excellent": "Excellent",
       "good": "Good",
       "warning": "Warning",
+      "adguardInactive": "AdGuard inactive",
+      "routerOffline": "{{name}} offline",
+      "routerTemp": "{{name}} temperature",
       "subscores": {
         "wan": "WAN",
         "wifi": "Wi-Fi",
@@ -328,7 +331,10 @@
     "back": "Back",
     "cancel": "Cancel",
     "loading": "Loading...",
-    "save": "Save"
+    "save": "Save",
+    "never": "never",
+    "notFound": "Page not found",
+    "tunnelIp": "Tunnel IP"
   },
   "devices": {
     "badges": {

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Route, Routes } from 'react-router'
 import { Navigate } from 'react-router'
 import { AuthGate } from '@/components/AuthGate'
@@ -53,8 +54,15 @@ export default function App() {
         <Route path="orchestration" element={<Orchestration />} />
         <Route path="help" element={<Help />} />
         <Route path="settings" element={<Settings />} />
-        <Route path="*" element={<Placeholder title="Página no encontrada" />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   )
+}
+
+/** 404: its own component so the title goes through i18n like every other
+ *  piece of text, instead of a hardcoded string in the route table. */
+function NotFound() {
+  const { t } = useTranslation()
+  return <Placeholder title={t('common.notFound')} />
 }

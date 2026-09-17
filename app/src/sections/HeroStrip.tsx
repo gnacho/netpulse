@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { healthLabel, subscoreLabel } from '@/i18n'
+import { healthBreakdownLabel, healthLabel, subscoreLabel } from '@/i18n'
 import { CountUp } from '@/components/CountUp'
 import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
@@ -191,7 +191,7 @@ export function HeroStrip() {
                   transition={{ duration: 0.3, delay: 0.4 + i * 0.08 }}
                   className="flex items-center gap-2"
                 >
-                  <span className="w-28 shrink-0 truncate text-right text-[11px] text-text-muted">{b.label}</span>
+                  <span className="w-28 shrink-0 truncate text-right text-[11px] text-text-muted">{healthBreakdownLabel(b.label)}</span>
                   <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-border/50">
                     <motion.div
                       className={cn('absolute left-0 top-0 h-full rounded-full', color)}

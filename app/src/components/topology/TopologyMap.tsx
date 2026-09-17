@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router'
 import { animate, motion, useReducedMotion } from 'framer-motion'
 import { Cloud, Laptop, Router as RouterIcon, Server, Smartphone, Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { manufacturerLabel, relTime } from '@/i18n'
+import { manufacturerLabel, relTime, roleLabel } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
@@ -1454,7 +1454,7 @@ export function TopologyMap({
             <LabelText x={model.gatewayNode.label.x} y={model.gatewayNode.label.y} anchor={model.gatewayNode.label.anchor}
               delay={2.05 * T} reduce={reduce ?? false}
               title={model.gatewayNode.router.name}
-              sub={`${model.gatewayNode.router.modelShort} · ${model.gatewayNode.router.roleBadge} · ${t('common.clientsCount', { count: model.gatewayNode.router.clients })}`} />
+              sub={`${model.gatewayNode.router.modelShort} · ${roleLabel(model.gatewayNode.router.roleBadge)} · ${t('common.clientsCount', { count: model.gatewayNode.router.clients })}`} />
           )}
           {/* APs */}
           {model.apNodes.map((node, i) => (

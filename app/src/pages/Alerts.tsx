@@ -204,7 +204,7 @@ function ContextPanel({ ev, animateIn }: { ev: FeedEvent; animateIn: boolean }) 
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
             <Fact label="Endpoint" value={c.wg.endpoint} />
-            <Fact label="IP túnel" value={c.wg.tunnelIp} />
+            <Fact label={t('common.tunnelIp')} value={c.wg.tunnelIp} />
             <Fact label="Handshake" value={relTime(c.wg.handshake)} />
           </div>
         </div>

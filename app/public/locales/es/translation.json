@@ -285,6 +285,9 @@
       "excellent": "Excelente",
       "good": "Bueno",
       "warning": "Atención",
+      "adguardInactive": "AdGuard inactivo",
+      "routerOffline": "{{name}} offline",
+      "routerTemp": "temp. {{name}}",
       "subscores": {
         "wan": "WAN",
         "wifi": "Wi-Fi",
@@ -328,7 +331,10 @@
     "back": "Atrás",
     "cancel": "Cancelar",
     "loading": "Cargando...",
-    "save": "Guardar"
+    "save": "Guardar",
+    "never": "nunca",
+    "notFound": "Página no encontrada",
+    "tunnelIp": "IP túnel"
   },
   "devices": {
     "badges": {
