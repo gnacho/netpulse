@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router'
 import { animate, motion, useReducedMotion } from 'framer-motion'
 import { Cloud, Laptop, Router as RouterIcon, Server, Smartphone, Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { relTime } from '@/i18n'
+import { manufacturerLabel, relTime } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
@@ -324,7 +324,7 @@ function ChipTooltip({
         />
       </div>
       <div className="mt-0.5 font-mono text-caption text-text-muted">
-        {d.manufacturer} · {d.mac}
+        {manufacturerLabel(d.manufacturer)} · {d.mac}
       </div>
       <div className="mt-2 space-y-1.5">
         {/* Conexión + IP en una horizontal; la IP no se trunca (issue #149) */}

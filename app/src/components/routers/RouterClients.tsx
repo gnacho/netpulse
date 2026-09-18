@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { manufacturerLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
@@ -107,7 +108,7 @@ export function RouterClients({ router }: { router: Router }) {
                       </span>
                       <div>
                         <div className="font-medium text-text-primary" translate="no">{d.name}</div>
-                        <div className="text-caption text-text-muted">{d.manufacturer}</div>
+                        <div className="text-caption text-text-muted">{manufacturerLabel(d.manufacturer)}</div>
                       </div>
                     </div>
                   </td>

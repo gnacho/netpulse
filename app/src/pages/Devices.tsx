@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { dhcpLease, numLocale } from '@/i18n'
+import { dhcpLease, manufacturerLabel, numLocale } from '@/i18n'
 import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
@@ -583,7 +583,7 @@ function DeviceDetail({
       </DetailItem>
       <DetailItem label={t('devices.detail.dhcpLease')}>{dhcpLease(device.dhcpLease)}</DetailItem>
       <DetailItem label={t('devices.detail.firstSeen')}>{device.firstSeen}</DetailItem>
-      <DetailItem label={t('devices.detail.manufacturer')}>{device.manufacturer}</DetailItem>
+      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
       <DetailItem label="Hostname" mono>
         {device.hostname}
       </DetailItem>
@@ -835,7 +835,7 @@ function ListRow({
               <TypeBadge type={device.type} className="lg:hidden" />
               {!device.online && <StatusPill tone="muted" label={t('common.status.offline')} />}
             </div>
-            <div className="truncate text-caption text-text-muted">{device.manufacturer}</div>
+            <div className="truncate text-caption text-text-muted">{manufacturerLabel(device.manufacturer)}</div>
           </div>
         </div>
         {/* Tipo */}
@@ -983,7 +983,7 @@ function GridCard({
           <TypeBadge type={device.type} />
         </div>
         <div className="truncate text-caption text-text-muted">
-          {device.manufacturer} · <span className="font-mono">{device.ip}</span>
+          {manufacturerLabel(device.manufacturer)} · <span className="font-mono">{device.ip}</span>
         </div>
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           <RouterChipLink routerId={device.routerId} onNavigate={onNavigateRouter} />

@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Gauge, MonitorSmartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { healthLabel } from '@/i18n'
+import { healthLabel, subscoreLabel } from '@/i18n'
 import { CountUp } from '@/components/CountUp'
 import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
@@ -156,8 +156,8 @@ export function HeroStrip() {
             <div className="mt-2 grid w-full max-w-xs grid-cols-2 gap-x-4 gap-y-1.5">
               {healthScore.subscores.map((s) => (
                 <div key={s.key} className="flex items-center gap-2">
-                  <span className="w-12 text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
-                    {s.label}
+                  <span className="w-14 shrink-0 truncate text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                    {subscoreLabel(s.key, s.label)}
                   </span>
                   <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-border">
                     <div

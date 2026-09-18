@@ -272,7 +272,13 @@
       "critical": "Crítico",
       "excellent": "Excelente",
       "good": "Bueno",
-      "warning": "Atención"
+      "warning": "Atención",
+      "subscores": {
+        "wan": "WAN",
+        "wifi": "Wi-Fi",
+        "infra": "Infra",
+        "services": "Servicios"
+      }
     },
     "active": "Activo",
     "unknown": "Desconocido",
@@ -433,7 +439,8 @@
       "tv": "TV"
     },
     "wiredConnection": "Conexión por cable",
-    "weakChip": "{{count}} con señal débil"
+    "weakChip": "{{count}} con señal débil",
+    "unknownManufacturer": "Desconocido"
   },
   "home": {
     "devices": "Clientes",

@@ -135,6 +135,18 @@ export function healthLabel(label: string): string {
   return k ? i18n.t(`common.health.${k}`) : label
 }
 
+/** Subscore de salud por clave ("wan" | "wifi" | "infra" | "services") → idioma activo */
+export function subscoreLabel(key: string, label: string): string {
+  const known = ['wan', 'wifi', 'infra', 'services']
+  return known.includes(key) ? i18n.t(`common.health.subscores.${key}`) : label
+}
+
+/** Fabricante OUI canónico del dataset ("Desconocido" = sin match) → idioma activo */
+export function manufacturerLabel(manufacturer: string): string {
+  if (manufacturer === 'Desconocido') return i18n.t('devices.unknownManufacturer')
+  return manufacturer
+}
+
 /** Rol canónico del dataset ("Principal" | "AP") → idioma activo */
 export function roleLabel(role: string): string {
   if (role === 'Principal') return i18n.t('common.rolePrimary')
