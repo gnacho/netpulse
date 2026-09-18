@@ -625,7 +625,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// traffic. Only a router whose own panel manages them reports it; an
 	// event-driven push carries no section, so the last good one is kept
 	// or the panel would blink out between full pushes.
-	out.multiWan = p.Data.MultiWan
+	out.multiWan = normalizeMultiWan(p.Data.MultiWan)
 	if out.multiWan == nil && cached != nil {
 		out.multiWan = cached.multiWan
 	}

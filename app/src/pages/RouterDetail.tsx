@@ -195,7 +195,7 @@ export default function RouterDetail() {
 
       {/* Las varias conexiones a internet, si el router reporta más de una.
           Va junto a la tarjeta de conexión porque explica la IP que muestra. */}
-      {detail?.multiWan && detail.multiWan.uplinks.length >= 2 && (
+      {(detail?.multiWan?.uplinks?.length ?? 0) >= 2 && detail?.multiWan && (
         <MultiWanPanel info={detail.multiWan} />
       )}
 

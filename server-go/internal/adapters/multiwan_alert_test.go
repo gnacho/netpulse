@@ -3,6 +3,8 @@
 package adapters
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,5 +177,56 @@ func TestUplinkNoDataChangesNothing(t *testing.T) {
 	}
 	if w := l.uplinkWatch[cfg.ID]; w == nil || w.active != "fiber" {
 		t.Fatalf("watch = %+v, want the known state kept", w)
+	}
+}
+
+// A router can push whatever it likes, so the two shapes that could reach
+// the page as something other than data are pinned here.
+func TestMultiWanFromAnUnknownAgentIsSafeToServe(t *testing.T) {
+	// An older agent sends no section at all: the field is absent from the
+	// response entirely, and the page renders without the panel.
+	var old probe.Payload
+	if err := json.Unmarshal([]byte(`{"router":"gw","ts":1,"data":{"system":{}}}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Data.MultiWan != nil {
+		t.Fatalf("expected no section, got %+v", old.Data.MultiWan)
+	}
+	body, err := json.Marshal(RouterDetail{MultiWan: normalizeMultiWan(old.Data.MultiWan)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "multiWan") {
+		t.Fatalf("an absent section must not appear in the response: %s", body)
+	}
+
+	// A section without its list would otherwise go out as a null, and the
+	// page reads a length from it.
+	var partial probe.Payload
+	if err := json.Unmarshal([]byte(`{"router":"gw","ts":1,"data":{"multiWan":{"mode":"off"}}}`), &partial); err != nil {
+		t.Fatal(err)
+	}
+	body, err = json.Marshal(RouterDetail{MultiWan: normalizeMultiWan(partial.Data.MultiWan)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), `"uplinks":null`) {
+		t.Fatalf("the list must never be served as null: %s", body)
+	}
+	if !strings.Contains(string(body), `"uplinks":[]`) {
+		t.Fatalf("the list must be an empty array: %s", body)
+	}
+}
+
+// And the tracker must not act on any of it.
+func TestUplinkTrackerIgnoresAMalformedSection(t *testing.T) {
+	l := uplinkLive(t)
+	cfg := l.routers[0]
+	now := time.Now()
+	l.trackUplinkChange(cfg, polledWith("fiber", "fiber"), now)
+	l.trackUplinkChange(cfg, &routerPolled{multiWan: &probe.MultiWanInfo{Mode: "off"}}, now.Add(time.Minute))
+	l.trackUplinkChange(cfg, &routerPolled{multiWan: &probe.MultiWanInfo{Active: "ghost"}}, now.Add(2*time.Minute))
+	if got := alertTypes(l); len(got) != 0 {
+		t.Fatalf("alerts = %v, want none from a section with no connections", got)
 	}
 }

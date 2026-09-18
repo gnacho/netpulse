@@ -1644,6 +1644,22 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 	}
 }
 
+// normalizeMultiWan makes a reported section safe to serve.
+//
+// Anything holding an agent token can push whatever it likes, and a section
+// without its list of connections would go out as a null the page then
+// reads a length from. A nil slice becomes an empty one, which already
+// means "nothing to show" everywhere downstream.
+func normalizeMultiWan(m *MultiWanInfo) *MultiWanInfo {
+	if m == nil {
+		return nil
+	}
+	if m.Uplinks == nil {
+		m.Uplinks = []WanUplink{}
+	}
+	return m
+}
+
 // uplinkWatch is one router's multi-WAN history, as much of it as an alert
 // needs.
 type uplinkWatch struct {

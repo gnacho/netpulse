@@ -91,7 +91,9 @@ function UplinkRow({ u, balancing }: { u: MultiWanUplink; balancing: boolean }) 
  */
 export function MultiWanPanel({ info }: { info: MultiWanInfo }) {
   const { t } = useTranslation()
-  if (!info || info.uplinks.length < 2) return null
+  // Defensive: the section comes from a router, and a router can report
+  // whatever it likes. Anything short of two connections renders nothing.
+  if (!info || (info.uplinks?.length ?? 0) < 2) return null
   const balancing = info.mode === 'balance'
 
   return (
