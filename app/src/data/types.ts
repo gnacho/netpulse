@@ -515,6 +515,9 @@ export interface AgentInfo {
   kind?: 'native' | 'external' | 'netgrip'
   /** Cadencia de push declarada en segundos (solo externos, #288) */
   interval?: number
+  /** Puerto en el que responde el panel del propio router, tal y como lo
+   *  reporta su agente. Ausente = no lo reporta (agente antiguo). */
+  panelPort?: number
   fresh: boolean
   /**
    * true si el agente reporta una versión distinta de la del binario embebido

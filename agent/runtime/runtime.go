@@ -56,6 +56,11 @@ type Options struct {
 	// binario standalone sobre un NetGrip.
 	Kind string
 
+	// PanelPort is the port the embedder's own web panel listens on. It
+	// travels with every push so the monitoring side can link to it
+	// instead of assuming a default that is wrong as often as not.
+	PanelPort int
+
 	// MultiWan lets an embedder (the NetGrip panel) report the uplink policy
 	// it manages: which connections exist, which one carries traffic, how
 	// the load is split. nil = nothing to report, and the payload then
@@ -185,6 +190,7 @@ func Run(ctx context.Context, opts Options) error {
 				log.Info("[netpulse-agent] iw evento", "action", action, "mac", ev.MAC, "iface", ev.Iface)
 				payload := prober.BuildWireless(ctx, opts.Slug, opts.Version)
 				withMeta(payload, opts)
+				payload.PanelPort = opts.PanelPort
 				a.pushOnce(ctx, payload)
 			}); err != nil {
 				log.Warn("[netpulse-agent] iw event terminó", "err", err)
@@ -241,6 +247,7 @@ func Run(ctx context.Context, opts Options) error {
 
 		payload := prober.Build(ctx, opts.Slug, opts.Version)
 		withMeta(payload, opts)
+		payload.PanelPort = opts.PanelPort
 		payload.Data.MultiWan = mw
 		a.pushOnce(ctx, payload)
 		select {

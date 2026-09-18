@@ -17,8 +17,12 @@ type Payload struct {
 	// Interval declara la cadencia de push en SEGUNDOS (#288). 0 = default
 	// del agente nativo (~30 s). Un pusher externo que empuja cada 5 min
 	// declara 300 y el server amplía su TTL a 3x ese intervalo.
-	Interval int         `json:"interval,omitempty"`
-	Data     PayloadData `json:"data"`
+	Interval int `json:"interval,omitempty"`
+	// PanelPort: the port the embedder's own web panel listens on, so
+	// anything linking to it does not have to guess. 0 = no panel, or an
+	// agent that does not report one.
+	PanelPort int         `json:"panelPort,omitempty"`
+	Data      PayloadData `json:"data"`
 }
 
 // PayloadData agrupa las secciones del tier rápido. Punteros/mapas nil =

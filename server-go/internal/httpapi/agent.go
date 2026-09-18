@@ -505,6 +505,10 @@ type agentListItem struct {
 	Kind string `json:"kind"`
 	// Interval: cadencia de push declarada en segundos (solo externos, #288).
 	Interval int `json:"interval,omitempty"`
+	// PanelPort: the port the router's own panel answers on, as the agent
+	// reports it. The UI links there, and a guessed default is wrong on
+	// any router that does not use it. 0 = not reported.
+	PanelPort int `json:"panelPort,omitempty"`
 }
 
 // agentUpgradeStep es un paso de la historia (timeline de la UI, #284).
@@ -595,6 +599,9 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 						item.Interval = interval
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
+				}
+				if payload != nil {
+					item.PanelPort = payload.PanelPort
 				}
 				item.RouterID = resolveAgentRouter(slug, payload, routerByID)
 				if payload != nil && payload.Data.System != nil && payload.Data.System.Board != nil {

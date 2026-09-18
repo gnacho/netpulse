@@ -26,8 +26,12 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   const { t } = useTranslation()
   const { isDemo } = useNetPulse()
   // #442: routers con el panel NetGrip (agente embebido) tienen una segunda
-  // web UI en el puerto 8080.
-  const hasNetgrip = useAgentFor(router.id)?.kind === 'netgrip'
+  // web UI. El puerto lo reporta el propio agente: darlo por supuesto lo
+  // acierta solo en los routers que usan el de por defecto, y en las placas
+  // GL.iNet el 8080 es la web de fábrica, así que el panel vive en otro.
+  const netgripAgent = useAgentFor(router.id)
+  const hasNetgrip = netgripAgent?.kind === 'netgrip'
+  const netgripPort = netgripAgent?.panelPort || 8090
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
   const reduce = useReducedMotion()
   const [toast, setToast] = useState(false)
@@ -114,7 +118,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
         </a>
         {hasNetgrip && (
           <a
-            href={`http://${router.ip}:8080`}
+            href={`http://${router.ip}:${netgripPort}`}
             target="_blank"
             rel="noreferrer"
             title={t('routerDetail.info.netgripTip')}
