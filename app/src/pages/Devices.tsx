@@ -55,6 +55,40 @@ import type { DeviceType } from '@/data/mock'
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
 type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type'
 
+// Persistencia de preferencias de visualización (issue #778): el modo
+// lista/rejilla y el orden activo se guardan en el navegador y se restauran
+// al volver a abrir la sección de clientes.
+const DEVICES_PREFS_KEY = 'netpulse.devices.prefs'
+type SortState = { key: SortKey; dir: 1 | -1 } | null
+type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState }
+
+const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type']
+
+function loadDevicesPrefs(): DevicesPrefs {
+  const fallback: DevicesPrefs = { view: 'list', sort: null }
+  try {
+    const raw = localStorage.getItem(DEVICES_PREFS_KEY)
+    if (!raw) return fallback
+    const v = JSON.parse(raw) as Partial<DevicesPrefs>
+    const view = v.view === 'grid' ? 'grid' : 'list'
+    let sort: SortState = null
+    if (v.sort && SORT_KEYS.includes(v.sort.key) && (v.sort.dir === 1 || v.sort.dir === -1)) {
+      sort = { key: v.sort.key, dir: v.sort.dir }
+    }
+    return { view, sort }
+  } catch {
+    return fallback
+  }
+}
+
+function saveDevicesPrefs(p: DevicesPrefs) {
+  try {
+    localStorage.setItem(DEVICES_PREFS_KEY, JSON.stringify(p))
+  } catch {
+    /* localStorage no disponible */
+  }
+}
+
 /** Orden canónico de los tipos de dispositivo para los chips de filtro. */
 const TYPE_ORDER = [
   'ordenador',
@@ -1078,7 +1112,7 @@ export default function Devices() {
     () => allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length,
     [allDevices],
   )
-  const [view, setView] = useState<'list' | 'grid'>('list')
+  const [view, setView] = useState<'list' | 'grid'>(() => loadDevicesPrefs().view)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastMsg | null>(null)
   // Búsqueda con debounce 150ms (devices.md §Interacciones)
@@ -1108,10 +1142,16 @@ export default function Devices() {
     return counts
   }, [allDevices])
 
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null)
+  const [sort, setSort] = useState<SortState>(() => loadDevicesPrefs().sort)
   const toggleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
   }, [])
+
+  // Persiste vista + orden en cada cambio (issue #778). El write inicial
+  // reescribe el mismo valor cargado; es inofensivo.
+  useEffect(() => {
+    saveDevicesPrefs({ view, sort })
+  }, [view, sort])
 
   const filtered = useMemo(() => {
     const out = allDevices.filter((d) => {
