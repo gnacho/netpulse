@@ -92,6 +92,7 @@
       "high-temperature": "Mejora la ventilación y aleja el router de fuentes de calor.",
       "port-flapping": "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
       "unknown-device": "Si no lo reconoces, bloquéalo o márcalo como de confianza en Ajustes.",
+      "uplink-switched": "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
       "wan-down": "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
       "wan-slow": "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
       "wifi-weak": "Acerca el dispositivo a un punto de acceso o reubica el AP."
@@ -215,6 +216,15 @@
         "title": "Dispositivo desconocido",
         "description": "{{mac}} se ha conectado a {{router}}",
         "descriptionWhere": "{{mac}} · {{ip}} se ha conectado a {{where}}"
+      },
+      "uplink-restored": {
+        "title": "Internet vuelve por {{to}}",
+        "description": "{{router}} ha devuelto el tráfico a {{to}}"
+      },
+      "uplink-switched": {
+        "title": "Internet sale ahora por {{to}}",
+        "description": "{{router}} ha pasado el tráfico de {{from}} a {{to}}",
+        "descriptionMetered": "{{router}} ha pasado el tráfico de {{from}} a {{to}}, que es de pago por uso"
       },
       "wan-down": {
         "title": "Internet caído",

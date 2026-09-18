@@ -97,6 +97,7 @@ const (
 	HintDegradedLink  = "degraded-link"
 	HintAgentOutdated = "agent-outdated"
 	HintWanSlow       = "wan-slow"
+	HintUplinkSwitch  = "uplink-switched"
 )
 
 // Additional stable alert-type slugs (issue #712): recovery/info/beacon/rearmer
@@ -122,6 +123,7 @@ const (
 	TypeAgentRearmed       = "agent-rearmed"
 	TypeAgentReinstalled   = "agent-reinstalled"
 	TypeAutoRearmFailed    = "auto-rearm-failed"
+	TypeUplinkRestored     = "uplink-restored"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
@@ -140,6 +142,7 @@ var Hints = map[string]string{
 	HintGhostPort:     "Revisa el cable y el dispositivo conectado: un puerto activo que enmudece suele indicar un cable suelto o un equipo apagado.",
 	HintDegradedLink:  "Revisa el cable y los conectores: un enlace degradado suele ser síntoma de cable dañado o conector flojo.",
 	HintAgentOutdated: "Actualiza el agente desde Ajustes, Agentes (botón Actualizar); si es un panel NetGrip, actualiza desde su propio panel.",
+	HintUplinkSwitch:  "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
 	HintWanSlow:       "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
 }
 

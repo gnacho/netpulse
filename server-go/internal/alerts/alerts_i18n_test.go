@@ -19,7 +19,7 @@ var newTypeSlugs = []string{
 	TypeSwitchLoop, TypePortDisabled, TypePortRecovered,
 	TypeLinkDown, TypeLinkUp, TypeSfpRxLow, TypeSfpTempHigh,
 	TypeSwitchRebooted, TypeAgentRearmed, TypeAgentReinstalled,
-	TypeAutoRearmFailed,
+	TypeAutoRearmFailed, TypeUplinkRestored,
 }
 
 // hintSlugs: slugs ya existentes en #310/#671 (con hint) para detectar colisiones.
@@ -27,7 +27,7 @@ var hintSlugs = []string{
 	HintAgentDown, HintAgentDownSSH, HintGatewayUnrch, HintHighTemp,
 	HintPortFlapping, HintDeviceOffline, HintUnknownDevice, HintFirmware,
 	HintWanDown, HintWifiWeak, HintGhostPort, HintDegradedLink,
-	HintAgentOutdated, HintWanSlow,
+	HintAgentOutdated, HintWanSlow, HintUplinkSwitch,
 }
 
 var kebabRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -48,8 +48,8 @@ func TestNewTypeSlugsAreKebabCaseAndUnique(t *testing.T) {
 		}
 		seen[slug] = true
 	}
-	if len(newTypeSlugs) != 20 {
-		t.Errorf("se esperan 20 slugs nuevos, hay %d", len(newTypeSlugs))
+	if len(newTypeSlugs) != 21 {
+		t.Errorf("se esperan 21 slugs nuevos, hay %d", len(newTypeSlugs))
 	}
 }
 
