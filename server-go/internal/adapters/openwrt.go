@@ -94,6 +94,8 @@ type (
 	PortState      = probe.PortState
 	PortLayout     = probe.PortLayout
 	VlanPort       = probe.VlanPort
+	MultiWanInfo   = probe.MultiWanInfo
+	WanUplink      = probe.WanUplink
 	VlanEntry      = probe.VlanEntry
 )
 

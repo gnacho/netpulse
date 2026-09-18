@@ -598,6 +598,11 @@ type RouterDetail struct {
 	// Vlans: VLANs del bridge (issue #315). nil = sin datos (demo/routers
 	// sin bridge vlan filtering); slice vacio = sondeo sin VLANs.
 	Vlans []VlanPort `json:"vlans,omitempty"`
+	// MultiWan: the router's internet connections and which one carries
+	// traffic — a read-only mirror of what its own panel manages. nil =
+	// the router never reported any; an empty uplink list = it reported
+	// and there is nothing to show, which is what removes the panel.
+	MultiWan *MultiWanInfo `json:"multiWan,omitempty"`
 	// --- solo gateway (demo: solo flint2; live: solo el gateway) ---
 	Adguard          *AdGuardStats   `json:"adguard,omitempty"`
 	Wireguard        *WireGuardStats `json:"wireguard,omitempty"`

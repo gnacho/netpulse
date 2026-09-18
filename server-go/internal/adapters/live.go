@@ -140,6 +140,11 @@ type routerPolled struct {
 	// vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sin
 	// datos (router sin bridge vlan filtering o sonda fallida).
 	vlans []VlanPort
+	// multiWan: the router's several internet connections and which one is
+	// carrying traffic, as its own panel manages them. nil = never
+	// reported (no such panel, or an older agent); an empty uplink list =
+	// reported, and there is nothing to show.
+	multiWan *MultiWanInfo
 	// discovery: mDNS services + randomized MACs (#338). nil = sin datos
 	// (umdns no instalado o sonda fallida).
 	discovery *probe.DiscoveryData
@@ -167,6 +172,11 @@ type extrasSnapshot struct {
 	fdb      map[string]string
 	luci     *probe.LuCILabels
 	vlans    []VlanPort
+	// multiWan: last good multi-WAN section. The event-driven pushes carry
+	// no such section, and without keeping it the panel would blink out of
+	// the page every time a device associates. Unlike wanInfo, which is a
+	// live address and must never be recycled, this is structural.
+	multiWan *MultiWanInfo
 	// system (#441): última sección system BUENA del payload del agente.
 	// Los pushes event-driven (wireless-only) van sin ella; sin este cache
 	// las vitales del router parpadeaban a 0 entre pushes completos.
@@ -3301,10 +3311,14 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	if p != nil && len(p.vlans) > 0 {
 		vlans = p.vlans
 	}
+	var multiWan *MultiWanInfo
+	if p != nil {
+		multiWan = p.multiWan
+	}
 	detail := &RouterDetail{
 		Router: router, Ports: enriched, Radios: radios, Backhaul: nil,
 		Series:  PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
-		Clients: clients, Extras: extras, Vlans: vlans,
+		Clients: clients, Extras: extras, Vlans: vlans, MultiWan: multiWan,
 	}
 	if gw != nil && id == gw.ID {
 		detail.Adguard = l.pollAdGuard(ctx)
