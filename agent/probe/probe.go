@@ -540,7 +540,12 @@ type ifaceStatus struct {
 	L3Device  string `json:"l3_device"`
 	// Device es la interfaz de debajo: para un PPPoE, la boca física.
 	Device string `json:"device"`
-	IPV4   []struct {
+	// Dynamic marks an interface netifd created itself — the DHCP child of
+	// a modem uplink, the DHCPv6 side of a PPPoE one. It holds the address
+	// and the route its parent has none of, and cannot be configured or
+	// named in a policy, so it is only ever read through its parent.
+	Dynamic bool `json:"dynamic"`
+	IPV4    []struct {
 		Address    string `json:"address"`
 		PtpAddress string `json:"ptpaddress"`
 	} `json:"ipv4-address"`
@@ -569,6 +574,27 @@ func (s ifaceStatus) defaultNexthop() string {
 // router normal con el enlace caído siga saliendo como WAN caída y no como
 // router sin WAN.
 func pickUplink(ifaces []ifaceStatus) (ifaceStatus, bool) {
+	return pickUplinkPreferring(ifaces, "")
+}
+
+// pickUplinkPreferring is pickUplink with the answer supplied from outside.
+//
+// A policy manager (mwan3) steers with packet marks and leaves the routes
+// alone, so the default route still points at the standby link while every
+// packet leaves by another one. When something knows which uplink is really
+// carrying traffic, that wins; everything else falls through to the route.
+func pickUplinkPreferring(ifaces []ifaceStatus, preferred string) (ifaceStatus, bool) {
+	if preferred != "" {
+		for _, i := range ifaces {
+			if i.Interface != preferred {
+				continue
+			}
+			i = withChildFacts(i, ifaces)
+			if len(i.IPV4) > 0 || i.defaultNexthop() != "" {
+				return i, true
+			}
+		}
+	}
 	for _, i := range ifaces {
 		if i.Up && i.defaultNexthop() != "" {
 			return i, true
@@ -580,6 +606,31 @@ func pickUplink(ifaces []ifaceStatus) (ifaceStatus, bool) {
 		}
 	}
 	return ifaceStatus{}, false
+}
+
+// withChildFacts gives an interface whatever netifd spawned underneath it.
+// A modem uplink keeps neither address nor route of its own: the child
+// sharing its layer-3 device holds both, and reporting the parent without
+// them would describe a connection with nothing on it.
+func withChildFacts(parent ifaceStatus, ifaces []ifaceStatus) ifaceStatus {
+	if parent.Dynamic || parent.L3Device == "" {
+		return parent
+	}
+	for _, c := range ifaces {
+		if !c.Dynamic || c.Interface == parent.Interface || c.L3Device != parent.L3Device {
+			continue
+		}
+		if len(parent.IPV4) == 0 {
+			parent.IPV4 = c.IPV4
+		}
+		if len(parent.Route) == 0 {
+			parent.Route = c.Route
+		}
+		if len(parent.DNS) == 0 {
+			parent.DNS = c.DNS
+		}
+	}
+	return parent
 }
 
 func wanInfoFrom(s ifaceStatus) WanInfo {
@@ -603,11 +654,18 @@ func wanInfoFrom(s ifaceStatus) WanInfo {
 // interfaz L3, boca física, IP pública, gateway y DNS; campos vacíos si el
 // JSON no trae datos utilizables.
 func ParseWanStatus(raw []byte) WanInfo {
+	return ParseWanStatusPreferring(raw, "")
+}
+
+// ParseWanStatusPreferring is ParseWanStatus told which uplink is carrying
+// traffic (see pickUplinkPreferring). An empty name behaves exactly as
+// before.
+func ParseWanStatusPreferring(raw []byte, preferred string) WanInfo {
 	var dump struct {
 		Interface []ifaceStatus `json:"interface"`
 	}
 	if err := json.Unmarshal(raw, &dump); err == nil && len(dump.Interface) > 0 {
-		s, ok := pickUplink(dump.Interface)
+		s, ok := pickUplinkPreferring(dump.Interface, preferred)
 		if !ok {
 			return WanInfo{}
 		}

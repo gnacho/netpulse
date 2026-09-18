@@ -54,6 +54,10 @@ type Options struct {
 	// DefaultScanInterval; negativo (ScanDisabled) = sin scans periódicos,
 	// solo on-demand vía ForceScan (env NETPULSE_SCAN_INTERVAL).
 	ScanInterval time.Duration
+	// ActiveUplink names the uplink a policy manager is steering traffic
+	// through, when the embedder knows. nil or "" = decide from the routes,
+	// as before.
+	ActiveUplink func() string
 }
 
 // Prober sondea el equipo local y construye payloads. Mantiene el estado de
@@ -119,6 +123,16 @@ func NewProber(run Runner, opts Options) *Prober {
 		si = DefaultScanInterval
 	}
 	return &Prober{run: run, opts: opts, scanInterval: si}
+}
+
+// activeUplink asks the embedder which uplink is carrying traffic. Never
+// panics on a callback that does: the WAN section is not worth an agent.
+func (p *Prober) activeUplink() string {
+	if p.opts.ActiveUplink == nil {
+		return ""
+	}
+	defer func() { _ = recover() }()
+	return p.opts.ActiveUplink()
 }
 
 // ForceScan pide un scan en el próximo Build (lo usa el runtime cuando el
@@ -438,7 +452,7 @@ func (p *Prober) probeWan(ctx context.Context) *WanInfo {
 	if out == "" {
 		return nil
 	}
-	info := ParseWanStatus([]byte(out))
+	info := ParseWanStatusPreferring([]byte(out), p.activeUplink())
 	if info.Proto == "" && info.IP == "" && info.Gateway == "" && info.Port == "" {
 		return nil
 	}

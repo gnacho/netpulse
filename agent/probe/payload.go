@@ -40,9 +40,9 @@ type PayloadData struct {
 	// kernel keeps a stale neighbour long after the device has gone. An
 	// older agent omits this, and the server then trusts the whole table as
 	// it always did.
-	ArpStale []string `json:"arpStale,omitempty"`
-	Dawn   *DawnData         `json:"dawn,omitempty"`   // Fase 14: DAWN roaming (solo si instalado; compat rollback)
-	Usteer *UsteerData       `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
+	ArpStale []string    `json:"arpStale,omitempty"`
+	Dawn     *DawnData   `json:"dawn,omitempty"`   // Fase 14: DAWN roaming (solo si instalado; compat rollback)
+	Usteer   *UsteerData `json:"usteer,omitempty"` // usteer roaming (solo si instalado)
 	// LuCI: etiquetas de puertos/VLANs del router (issue #258), si están
 	// definidas en /etc/config/luci.
 	LuCI *LuCILabels `json:"luci,omitempty"`
@@ -73,6 +73,11 @@ type PayloadData struct {
 	// que no existe en un router agent_only: sin esto su panel de conexión
 	// se queda vacío. nil = sonda fallida o router sin uplink (AP).
 	Wan *WanInfo `json:"wan,omitempty"`
+	// MultiWan: the uplink policy the router's own panel manages — which
+	// connections exist, which one carries traffic, how the load is split.
+	// Read-only here. nil = this router reports no multi-WAN, which is also
+	// what an older agent sends.
+	MultiWan *MultiWanInfo `json:"multiWan,omitempty"`
 }
 
 // MQTTData: exposición propia del equipo a Home Assistant por MQTT (#832).
