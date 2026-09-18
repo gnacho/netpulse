@@ -1981,11 +1981,18 @@ function SystemInfoBlock({ bare = false }: { bare?: boolean }) {
 // loop horario en el servidor.
 function PresenceRetentionRow() {
   const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
   const [days, setDays] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [savedTick, setSavedTick] = useState(false)
 
   useEffect(() => {
+    if (isDemo) {
+      // En demo no hay sesión API: la preferencia vive en localStorage.
+      const raw = localStorage.getItem('netpulse.presence.retention')
+      setDays(raw ? Number(raw) || 30 : 30)
+      return
+    }
     let cancelled = false
     fetch('/api/settings/presence')
       .then((r) => (r.ok ? r.json() : null))
@@ -1996,13 +2003,19 @@ function PresenceRetentionRow() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isDemo])
 
   if (days === null) return null
 
   const save = async () => {
     setBusy(true)
     try {
+      if (isDemo) {
+        localStorage.setItem('netpulse.presence.retention', String(days))
+        setSavedTick(true)
+        setTimeout(() => setSavedTick(false), 2500)
+        return
+      }
       const res = await fetch('/api/settings/presence', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

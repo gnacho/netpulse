@@ -265,9 +265,15 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
   const weakSignalCount = allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length
   const adguardProtected = allDevices.filter((d) => d.adguard).length
   // Salud de roaming (#771): MACs con más conexiones AP-STA en 24 h (los
-  // primeros puestos son los que más rebotan).
+  // primeros puestos son los que más rebotan). En demo, muestra local (el
+  // modo demo no tiene sesión API).
+  const { isDemo } = useNetPulse()
   const [roaming, setRoaming] = useState<{ mac: string; name: string; connects: number }[]>([])
   useEffect(() => {
+    if (isDemo) {
+      setRoaming([{ mac: 'demo', name: 'Robot aspirador', connects: 6 }])
+      return
+    }
     let cancelled = false
     fetchJson<{ items: { mac: string; name: string; connects: number }[] }>('/api/presence/roaming')
       .then((res) => {
@@ -277,7 +283,7 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, isDemo])
   const roamingTop = roaming[0]
   const cards = [
     {
