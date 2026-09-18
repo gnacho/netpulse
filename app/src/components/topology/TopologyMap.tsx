@@ -68,6 +68,29 @@ function clampView(v: View): View {
   }
 }
 
+// Persistencia de la vista (issue #777): el zoom/pan se guardan en el
+// navegador y se restauran al volver a abrir la topología, de modo que el
+// escala elegida (en el modo edición o con los botones/rueda) sobrevive a la
+// sesión. "Restablecer vista" vuelve a INITIAL_VIEW y eso es lo que se
+// persiste, así que el borrado no hace falta.
+const VIEW_KEY = 'netpulse.topology.view'
+
+/** Carga la vista guardada validando tipos y aplicando clampView. null si no
+ *  hay nada guardado o el valor está corrupto. */
+function loadSavedView(): View | null {
+  try {
+    const raw = localStorage.getItem(VIEW_KEY)
+    if (!raw) return null
+    const v = JSON.parse(raw) as Partial<View>
+    if (typeof v.x !== 'number' || typeof v.y !== 'number' || typeof v.w !== 'number' || typeof v.h !== 'number') {
+      return null
+    }
+    return clampView({ x: v.x, y: v.y, w: v.w, h: v.h })
+  } catch {
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tooltip
 // ---------------------------------------------------------------------------
@@ -483,7 +506,12 @@ export function TopologyMap({
   const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, hypervisorSourceByHost, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const viewRef = useRef<View>({ ...INITIAL_VIEW })
+  const [initialView] = useState<View | null>(() => loadSavedView())
+  const viewRef = useRef<View>(initialView ?? { ...INITIAL_VIEW })
+  /** Guarda contra escrituras redundantes de localStorage (p. ej. los frames
+   *  de la animación de "Restablecer vista"). Se inicializa con la vista
+   *  cargada para no re-escribir el mismo valor al montar. */
+  const lastSavedView = useRef<View | null>(initialView)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const drag = useRef<{ px: number; py: number } | null>(null)
   const pinch = useRef<{ view0: View; mid0: { x: number; y: number }; dist0: number } | null>(null)
@@ -511,11 +539,29 @@ export function TopologyMap({
   )
 
   // -- aplicar vista (imperativo, sin re-render) -----------------------------
+  const persistView = useCallback((v: View) => {
+    const l = lastSavedView.current
+    if (l && l.x === v.x && l.y === v.y && l.w === v.w && l.h === v.h) return
+    lastSavedView.current = v
+    try {
+      localStorage.setItem(VIEW_KEY, JSON.stringify(v))
+    } catch {
+      /* localStorage no disponible: solo vista en memoria */
+    }
+  }, [])
+
   const applyView = useCallback((v: View) => {
     const cv = clampView(v)
     viewRef.current = cv
     svgRef.current?.setAttribute('viewBox', `${cv.x} ${cv.y} ${cv.w} ${cv.h}`)
-  }, [])
+    persistView(cv)
+  }, [persistView])
+
+  // El SVG declara INITIAL_VIEW en el JSX; al montar se aplica la vista
+  // guardada (issue #777) en cuanto existe el ref.
+  useEffect(() => {
+    applyView(viewRef.current)
+  }, [applyView])
 
   const zoomAt = useCallback(
     (clientX: number, clientY: number, factor: number) => {
