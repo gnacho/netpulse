@@ -166,6 +166,29 @@ func (p *Prober) scanDue() bool {
 	return false
 }
 
+// probeVlans reports the bridge VLANs, preferring what the kernel says over
+// what the config declares.
+//
+// The section has existed in the payload since VLANs were added, but
+// nothing ever filled it: only the server's own SSH probe did, and a router
+// reached through its agent never takes that path, so its VLAN panel has
+// always been empty. The fallback matters just as much — `bridge` lives in
+// an optional package, and a router without it has VLANs that only the
+// configuration knows about.
+func (p *Prober) probeVlans(ctx context.Context) []VlanPort {
+	if out := p.runBest(ctx, CmdBridgeVlan, 0); out != "" {
+		if ports := ParseBridgeVlan(out); len(ports) > 0 {
+			return ports
+		}
+	}
+	if out := p.runBest(ctx, CmdUciBridgeVlan, 0); out != "" {
+		if ports := ParseUciBridgeVlans(out); len(ports) > 0 {
+			return ports
+		}
+	}
+	return nil
+}
+
 // runBest es best-effort: error → "" (la sección queda ausente).
 func (p *Prober) runBest(ctx context.Context, cmd string, timeout time.Duration) string {
 	out, err := p.run.Run(ctx, cmd, timeout)
@@ -185,6 +208,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	}
 	// Wan antes que FDB: probeFDB usa la boca del uplink para marcarla.
 	pl.Data.Wan = p.probeWan(ctx)
+	pl.Data.Vlans = p.probeVlans(ctx)
 	pl.Data.System = p.probeSystem(ctx)
 	pl.Data.Wireless = p.probeWireless(ctx, true)
 	pl.Data.DHCP = p.probeDHCP(ctx)

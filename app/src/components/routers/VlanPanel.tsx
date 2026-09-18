@@ -85,6 +85,10 @@ export function VlanPanel({ vlans }: { vlans: VlanPort[] }) {
                           vi > 0 && 'bg-elevated/20',
                         )}
                       >
+                        {/* The port repeats on every row, muted after the
+                            first: a socket with seven VLANs left six rows
+                            with an empty first column, which reads as
+                            missing data rather than as grouping. */}
                         <td className="py-2 pr-4">
                           {vi === 0 ? (
                             <span className="flex items-center gap-1.5 font-mono text-mono-sm font-semibold text-text-primary">
@@ -92,7 +96,7 @@ export function VlanPanel({ vlans }: { vlans: VlanPort[] }) {
                               {vp.port}
                             </span>
                           ) : (
-                            <span className="pl-[22px] text-text-muted" aria-hidden="true" />
+                            <span className="pl-[22px] font-mono text-mono-sm text-text-muted">{vp.port}</span>
                           )}
                         </td>
                         <td className="py-2 pr-4 font-mono text-mono-sm text-text-primary">{v.id}</td>
