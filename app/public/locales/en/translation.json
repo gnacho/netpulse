@@ -213,7 +213,8 @@
       },
       "unknown-device": {
         "title": "Unknown device",
-        "description": "{{mac}} connected to {{router}}"
+        "description": "{{mac}} connected to {{router}}",
+        "descriptionWhere": "{{mac}} · {{ip}} connected to {{where}}"
       },
       "wan-down": {
         "title": "Internet down",

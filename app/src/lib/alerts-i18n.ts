@@ -41,6 +41,13 @@ export function alertDescription(t: TFunction, ev: AlertEvent): string {
     })
     if (translated !== '') return translated
   }
+  // An unknown device is found by where it is, not by its MAC: when the
+  // server sends the IP and what it is plugged into, use the variant that
+  // says so. The original key stays for alerts already stored without those
+  // vars, which would otherwise render the placeholders unsubstituted.
+  if (ev.type === 'unknown-device' && ev.vars?.ip && ev.vars?.where) {
+    return t(`alerts.types.${ev.type}.descriptionWhere`, { defaultValue: ev.description, ...ev.vars })
+  }
   return t(`alerts.types.${ev.type}.description`, { defaultValue: ev.description, ...(ev.vars ?? {}) })
 }
 

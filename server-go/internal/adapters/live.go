@@ -1634,7 +1634,7 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 // NO alerta (evita la avalancha de arranque: todo lo ya conectado sería
 // "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca alertan,
 // haya alias o no. Toma l.mu internamente.
-func (l *Live) trackUnknownDevices(devices []Device) {
+func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	// issue #196: MACs de la allowlist (confiables) → nunca "desconocido".
@@ -1677,7 +1677,7 @@ func (l *Live) trackUnknownDevices(devices []Device) {
 		if l.seenOnlineMacs && (counting || !l.onlineMacs[d.MAC]) {
 			l.unknownGrace[d.MAC]++
 			if l.unknownGrace[d.MAC] >= l.unknownGraceNum {
-				l.emitUnknownDevice(d)
+				l.emitUnknownDevice(d, devices, dists)
 				l.unknownAlerted[d.MAC] = true
 				l.persistUnknownAlerted(d.MAC)
 				delete(l.unknownGrace, d.MAC)
@@ -1721,15 +1721,36 @@ func (l *Live) routerDisplayName(id string) string {
 // clients, warn, NO urgente — issue #196). "Desconocido" = sin nombre/alias:
 // device_attrib no guarda alias, así que la señal práctica es un cliente sin
 // hostname DHCP (Name == MAC). Debe llamarse con l.mu tomado.
-func (l *Live) emitUnknownDevice(d Device) {
-	vars := map[string]string{"mac": d.MAC, "router": l.routerDisplayName(d.RouterID)}
-	if d.Band != "" {
+//
+// The alert has to be actionable: a MAC on its own tells nobody which box to
+// walk up to, so it also carries the IP, what the client hangs off and the
+// port there, when those are known. They are: this runs after the topology
+// pass and the Proxmox/UniFi seals, so AttachTo is already resolved.
+func (l *Live) emitUnknownDevice(d Device, devices []Device, dists []DistributionNode) {
+	where, port := l.deviceLocation(d, devices, dists)
+	vars := map[string]string{
+		"mac":    d.MAC,
+		"router": l.routerDisplayName(d.RouterID),
+		"where":  where,
+	}
+	// Only the facts we actually have: the app renders one row per var and an
+	// empty one would read as "we know this and it is blank".
+	if d.IP != "" {
+		vars["ip"] = d.IP
+	}
+	if port != "" {
+		vars["port"] = port
+	}
+	if d.Band != "" && d.Band != "—" {
 		vars["band"] = d.Band
 	}
 	if d.SignalDbm != nil {
 		vars["signal"] = fmt.Sprintf("%d", *d.SignalDbm)
 	}
-	desc := fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID)
+	desc := fmt.Sprintf("%s se ha conectado a %s", d.MAC, where)
+	if d.IP != "" {
+		desc = fmt.Sprintf("%s · %s se ha conectado a %s", d.MAC, d.IP, where)
+	}
 	if d.Band != "" && d.Band != "cable" {
 		desc += " · " + d.Band
 	}
@@ -1762,6 +1783,56 @@ func (l *Live) DismissUnknownDevice(mac string) {
 	l.unknownAlerted[mac] = true
 	l.persistUnknownAlerted(mac)
 	delete(l.unknownGrace, mac)
+}
+
+// deviceLocation: where a client is plugged in, as the two strings the alert
+// interpolates. `where` is the box it hangs off — the AP, switch or
+// hypervisor named by AttachTo, which may be a distribution node or another
+// device acting as a hub — falling back to its router, which is always known.
+// `port` is the physical port when the bridge FDB or the controller reports
+// one (empty for wireless clients). Must be called with l.mu held.
+func (l *Live) deviceLocation(d Device, devices []Device, dists []DistributionNode) (where, port string) {
+	port = d.PortLabel
+	if port == "" {
+		port = d.Port
+	}
+	if d.AttachTo != "" {
+		for _, n := range dists {
+			if n.ID != d.AttachTo {
+				continue
+			}
+			where = firstNonEmpty(n.Name, n.Ip)
+			// A client behind a switch is learnt on the router port that the
+			// switch itself hangs off, so that port describes the uplink, not
+			// the client: naming it next to the switch would send someone to
+			// the wrong socket.
+			if n.Port == d.Port {
+				port = ""
+			}
+			break
+		}
+		if where == "" {
+			for _, o := range devices {
+				if o.ID == d.AttachTo {
+					where = firstNonEmpty(o.Name, o.IP)
+					break
+				}
+			}
+		}
+	}
+	if where == "" {
+		where = l.routerDisplayName(d.RouterID)
+	}
+	return where, port
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // trackDevicePresence emite device_offline/device_online cuando una MAC
@@ -2702,7 +2773,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 			l.mu.Unlock()
 		}
 	}
-	l.trackUnknownDevices(devices)
+	l.trackUnknownDevices(devices, distNodes)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	countClientsPerRouter(routerList, devices)

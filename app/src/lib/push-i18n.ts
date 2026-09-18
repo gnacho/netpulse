@@ -13,7 +13,7 @@
 /** Subconjunto del catálogo de traducciones que necesita el push. */
 export interface PushCatalog {
   alerts?: {
-    types?: Record<string, { title?: string; description?: string; results?: Record<string, string> }>
+      types?: Record<string, { title?: string; description?: string; results?: Record<string, string>; descriptionWhere?: string }>
     hints?: Record<string, string>
   }
 }
@@ -41,6 +41,11 @@ export function interpolate(tpl: string, vars: Record<string, string> | undefine
   return tpl.replace(/\{\{(\w+)\}\}/g, (match, key: string) => (key in vars ? vars[key]! : match))
 }
 
+/** True when every `{{var}}` of the template has a value in `vars`. */
+function resolvable(tpl: string, vars: Record<string, string> | undefined): boolean {
+  return [...tpl.matchAll(/\{\{(\w+)\}\}/g)].every((m) => !!vars?.[m[1]!])
+}
+
 /**
  * Traduce title/description/hint de un evento tipado. Si no hay `type`, falta
  * la clave o el catálogo no cargó, cae a los literales del server (fallback).
@@ -55,13 +60,18 @@ export function localizePush(
 ): LocalizedPush {
   const entry = type ? catalog?.alerts?.types?.[type] : undefined
   const title = entry?.title ? interpolate(entry.title, vars) : fallback.title || 'NetPulse'
-  const resultKey = vars?.result
-  const resultTpl = resultKey ? entry?.results?.[resultKey] : undefined
-  const body = resultTpl
-    ? interpolate(resultTpl, vars)
-    : entry?.description
-      ? interpolate(entry.description, vars)
-      : (fallback.body ?? '')
+    // Upstream's per-result template wins when the event carries a result
+    // code; otherwise a richer variant (`descriptionWhere`, which names the IP
+    // and what the client is plugged into) when every value it needs is
+    // present; otherwise the plain description, which always resolves.
+    const resultKey = vars?.result
+    const resultTpl = resultKey ? entry?.results?.[resultKey] : undefined
+    const tpl =
+      resultTpl ??
+      (entry?.descriptionWhere && resolvable(entry.descriptionWhere, vars)
+        ? entry.descriptionWhere
+        : entry?.description)
+    const body = tpl ? interpolate(tpl, vars) : fallback.body ?? ''
   // El hint solo se muestra si el evento traía uno; se prefiere la clave i18n.
   const hint = fallback.hint ? (type ? catalog?.alerts?.hints?.[type] ?? fallback.hint : fallback.hint) : undefined
   return { title, body, hint }

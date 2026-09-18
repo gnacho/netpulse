@@ -213,7 +213,8 @@
       },
       "unknown-device": {
         "title": "Dispositivo desconocido",
-        "description": "{{mac}} se ha conectado a {{router}}"
+        "description": "{{mac}} se ha conectado a {{router}}",
+        "descriptionWhere": "{{mac}} · {{ip}} se ha conectado a {{where}}"
       },
       "wan-down": {
         "title": "Internet caído",

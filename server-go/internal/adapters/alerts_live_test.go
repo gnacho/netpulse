@@ -350,7 +350,7 @@ func TestLiveWanDownTaxonomyAndDebounce(t *testing.T) {
 func TestLiveUnknownDeviceTaxonomy(t *testing.T) {
 	l := liveTestLive()
 	l.mu.Lock()
-	l.emitUnknownDevice(Device{MAC: "AA:BB:CC:DD:EE:FF", Name: "AA:BB:CC:DD:EE:FF", RouterID: "living", Online: true})
+	l.emitUnknownDevice(Device{MAC: "AA:BB:CC:DD:EE:FF", Name: "AA:BB:CC:DD:EE:FF", RouterID: "living", Online: true}, nil, nil)
 	l.mu.Unlock()
 	list := l.engine.List()
 	if len(list) != 1 {
@@ -374,28 +374,28 @@ func TestLiveTrackUnknownDevices(t *testing.T) {
 	named := Device{MAC: "77:88:99:AA:BB:CC", Name: "Galaxy Tab", RouterID: "living", Online: true}
 
 	// Primer ciclo: siembra de base, NUNCA alerta (anti-avalancha de arranque)
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("primer ciclo no debía alertar")
 	}
 	// Sigue online: no re-alerta
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("reconexión sin caída no debía alertar")
 	}
 	// Se desconecta y vuelve: la gracia de N ticks (issue #234) evita alertar
 	// mientras el lease aún no se resuelve tras reconectar.
-	l.trackUnknownDevices([]Device{named})
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{named}, nil)
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("1 tick nameless no debía alertar (gracia)")
 	}
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("2 ticks nameless no debían alertar (gracia)")
 	}
 	// Al tercer tick consecutivo online+sin nombre, el desconocido real alerta
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	list := l.engine.List()
 	if len(list) != 1 {
 		t.Fatalf("desconocido tras gracia: %d alertas", len(list))
@@ -404,16 +404,16 @@ func TestLiveTrackUnknownDevices(t *testing.T) {
 		t.Fatalf("taxonomía: %+v", list[0])
 	}
 	// Issue #248: la reconexión posterior de la MISMA MAC ya no alerta
-	l.trackUnknownDevices([]Device{named})
-	l.trackUnknownDevices([]Device{unknown, named})
-	l.trackUnknownDevices([]Device{unknown, named})
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{named}, nil)
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	if len(l.engine.List()) != 1 {
 		t.Fatal("memoria per-MAC (#248): no debía re-alertar")
 	}
 	// El dispositivo CON nombre nunca alerta aunque se reconecte
-	l.trackUnknownDevices([]Device{unknown})
-	l.trackUnknownDevices([]Device{unknown, named})
+	l.trackUnknownDevices([]Device{unknown}, nil)
+	l.trackUnknownDevices([]Device{unknown, named}, nil)
 	if len(l.engine.List()) != 1 {
 		t.Fatal("dispositivo conocido no debía alertar")
 	}
@@ -425,31 +425,31 @@ func TestLiveTrackUnknownDevicesGraciaConocido(t *testing.T) {
 	l := liveTestLive()
 	d := Device{MAC: "77:88:99:AA:BB:CC", Name: "77:88:99:AA:BB:CC", RouterID: "living", Online: true}
 	// Siembra; desconexión; reconexión SIN lease resuelto durante 2 ticks…
-	l.trackUnknownDevices([]Device{d})
-	l.trackUnknownDevices([]Device{})
-	l.trackUnknownDevices([]Device{d}) // tick 1 sin nombre
-	l.trackUnknownDevices([]Device{d}) // tick 2 sin nombre
+	l.trackUnknownDevices([]Device{d}, nil)
+	l.trackUnknownDevices([]Device{}, nil)
+	l.trackUnknownDevices([]Device{d}, nil) // tick 1 sin nombre
+	l.trackUnknownDevices([]Device{d}, nil) // tick 2 sin nombre
 	if len(l.engine.List()) != 0 {
 		t.Fatal("no debía alertar antes de resolver el lease")
 	}
 	// …y al tercer tick el lease ya está (Name != MAC) → nunca llega al umbral
 	d.Name = "Galaxy Tab"
-	l.trackUnknownDevices([]Device{d})
+	l.trackUnknownDevices([]Device{d}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("con hostname resuelto no debía alertar")
 	}
 	// La gracia se reseteó al ver el nombre: una reconexión futura sin nombre
 	// parte de cero y vuelve a necesitar los N ticks completos (no 1).
-	l.trackUnknownDevices([]Device{})
-	l.trackUnknownDevices([]Device{{Name: d.MAC, MAC: d.MAC, RouterID: "living", Online: true}})
+	l.trackUnknownDevices([]Device{}, nil)
+	l.trackUnknownDevices([]Device{{Name: d.MAC, MAC: d.MAC, RouterID: "living", Online: true}}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("tras reset, tick 1 no debía alertar")
 	}
-	l.trackUnknownDevices([]Device{{Name: d.MAC, MAC: d.MAC, RouterID: "living", Online: true}})
+	l.trackUnknownDevices([]Device{{Name: d.MAC, MAC: d.MAC, RouterID: "living", Online: true}}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatal("tras reset, tick 2 no debía alertar")
 	}
-	l.trackUnknownDevices([]Device{{Name: d.MAC, MAC: d.MAC, RouterID: "living", Online: true}})
+	l.trackUnknownDevices([]Device{{Name: d.MAC, MAC: d.MAC, RouterID: "living", Online: true}}, nil)
 	if len(l.engine.List()) != 1 {
 		t.Fatalf("tras reset y gracia completa: %d alertas", len(l.engine.List()))
 	}
@@ -463,11 +463,11 @@ func TestLiveUnknownDeviceMemoryPersisted(t *testing.T) {
 	mac := "AA:BB:CC:DD:EE:0F"
 	unknown := Device{MAC: mac, Name: mac, RouterID: "living", Online: true}
 	// Reconexión simulada: siembra, caída, vuelve → tras la gracia alerta.
-	l.trackUnknownDevices([]Device{unknown})
-	l.trackUnknownDevices([]Device{})
-	l.trackUnknownDevices([]Device{unknown})
-	l.trackUnknownDevices([]Device{unknown})
-	l.trackUnknownDevices([]Device{unknown})
+	l.trackUnknownDevices([]Device{unknown}, nil)
+	l.trackUnknownDevices([]Device{}, nil)
+	l.trackUnknownDevices([]Device{unknown}, nil)
+	l.trackUnknownDevices([]Device{unknown}, nil)
+	l.trackUnknownDevices([]Device{unknown}, nil)
 	if len(l.engine.List()) != 1 {
 		t.Fatalf("primera alerta: %d", len(l.engine.List()))
 	}
@@ -476,11 +476,11 @@ func TestLiveUnknownDeviceMemoryPersisted(t *testing.T) {
 	if !l2.unknownAlerted[mac] {
 		t.Fatal("la memoria per-MAC no se cargó desde kv")
 	}
-	l2.trackUnknownDevices([]Device{unknown})
-	l2.trackUnknownDevices([]Device{})
-	l2.trackUnknownDevices([]Device{unknown})
-	l2.trackUnknownDevices([]Device{unknown})
-	l2.trackUnknownDevices([]Device{unknown})
+	l2.trackUnknownDevices([]Device{unknown}, nil)
+	l2.trackUnknownDevices([]Device{}, nil)
+	l2.trackUnknownDevices([]Device{unknown}, nil)
+	l2.trackUnknownDevices([]Device{unknown}, nil)
+	l2.trackUnknownDevices([]Device{unknown}, nil)
 	// #798: el log de alertas sobrevive al reinicio, así que la alerta
 	// histórica sigue visible; lo que no debe pasar es que se EMITA una nueva.
 	if len(l2.engine.List()) != 1 {
@@ -497,9 +497,9 @@ func TestLiveTrackUnknownDevicesTrustedAllowlist(t *testing.T) {
 	}
 	// Primer ciclo siembra; desconexión; reconexión: la MAC de la allowlist
 	// NUNCA alerta, aunque siga sin nombre/lease (issue #196).
-	l.trackUnknownDevices([]Device{trusted})
-	l.trackUnknownDevices([]Device{})
-	l.trackUnknownDevices([]Device{trusted})
+	l.trackUnknownDevices([]Device{trusted}, nil)
+	l.trackUnknownDevices([]Device{}, nil)
+	l.trackUnknownDevices([]Device{trusted}, nil)
 	if len(l.engine.List()) != 0 {
 		t.Fatalf("MAC confiable alertó: %d", len(l.engine.List()))
 	}
@@ -512,7 +512,7 @@ func TestLiveDismissUnknownDevice(t *testing.T) {
 	unknown := Device{MAC: "11:22:33:44:55:66", Name: "11:22:33:44:55:66", RouterID: "living", Online: true}
 	l.DismissUnknownDevice("11:22:33:44:55:66")
 	for i := 0; i < 5; i++ {
-		l.trackUnknownDevices([]Device{unknown})
+		l.trackUnknownDevices([]Device{unknown}, nil)
 	}
 	if len(l.engine.List()) != 0 {
 		t.Fatal("dismiss (#772): la MAC no debía alertar")
