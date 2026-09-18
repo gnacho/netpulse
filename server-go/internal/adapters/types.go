@@ -900,6 +900,10 @@ type Snapshotter interface {
 	// GetDevices lista todos los dispositivos (sin paginar; la paginación y
 	// filtros los aplica el handler de /api/devices).
 	GetDevices(ctx context.Context) []Device
+	// DismissUnknownDevice silencia la alerta de "dispositivo desconocido"
+	// para una MAC (#772 "dejar como anónimo"): la marca como ya avisada en
+	// memoria y en kv (sobrevive a reinicios). En demo es no-op.
+	DismissUnknownDevice(mac string)
 	// GetAlerts lista las alertas (más recientes primero, máx 100).
 	GetAlerts(ctx context.Context) []AlertEvent
 	// AlertsEngine expone el motor de alertas (SPEC-ALERTAS §3): config,

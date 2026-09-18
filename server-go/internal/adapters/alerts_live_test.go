@@ -194,9 +194,14 @@ func TestLiveUnknownDeviceTaxonomy(t *testing.T) {
 		t.Fatalf("desconocido: %d alertas", len(list))
 	}
 	a := list[0]
-	// issue #196: la alerta de desconocido NO es urgente (warn informativa).
-	if a.Category != alerts.CatClients || a.Urgent || a.Severity != "warn" {
-		t.Fatalf("desconocido: (%s,%v,%s), esperaba (clients,false,warn)", a.Category, a.Urgent, a.Severity)
+	// #772: la alerta de desconocido ES urgente para cruzar al Notifier
+	// (push/ntfy/telegram); el nivel por categoría en Ajustes sigue
+	// pudiendo silenciarla (clients=none). Antes de #772 era warn no urgente.
+	if a.Category != alerts.CatClients || !a.Urgent || a.Severity != "warn" {
+		t.Fatalf("desconocido: (%s,%v,%s), esperaba (clients,true,warn)", a.Category, a.Urgent, a.Severity)
+	}
+	if a.Vars["mac"] != "AA:BB:CC:DD:EE:FF" || a.Vars["router"] != "living" {
+		t.Fatalf("vars incompletas: %+v", a.Vars)
 	}
 }
 
@@ -232,7 +237,7 @@ func TestLiveTrackUnknownDevices(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("desconocido tras gracia: %d alertas", len(list))
 	}
-	if list[0].Category != alerts.CatClients || list[0].Urgent {
+	if list[0].Category != alerts.CatClients || !list[0].Urgent {
 		t.Fatalf("taxonomía: %+v", list[0])
 	}
 	// Issue #248: la reconexión posterior de la MISMA MAC ya no alerta
@@ -333,4 +338,20 @@ func TestLiveTrackUnknownDevicesTrustedAllowlist(t *testing.T) {
 	if len(l.engine.List()) != 0 {
 		t.Fatalf("MAC confiable alertó: %d", len(l.engine.List()))
 	}
+}
+
+// #772: dismiss ("dejar como anónimo") silencia la alerta de desconocido para
+// la MAC: aunque complete la gracia de ticks, nunca alerta.
+func TestLiveDismissUnknownDevice(t *testing.T) {
+	l := liveTestLive()
+	unknown := Device{MAC: "11:22:33:44:55:66", Name: "11:22:33:44:55:66", RouterID: "living", Online: true}
+	l.DismissUnknownDevice("11:22:33:44:55:66")
+	for i := 0; i < 5; i++ {
+		l.trackUnknownDevices([]Device{unknown})
+	}
+	if len(l.engine.List()) != 0 {
+		t.Fatal("dismiss (#772): la MAC no debía alertar")
+	}
+	// MAC inválida: no-op sin pánico.
+	l.DismissUnknownDevice("no-es-una-mac")
 }

@@ -440,7 +440,27 @@
     },
     "wiredConnection": "Conexión por cable",
     "weakChip": "{{count}} con señal débil",
-    "unknownManufacturer": "Desconocido"
+    "unknownManufacturer": "Desconocido",
+    "onboarding": {
+      "title": "Identificar dispositivo",
+      "subtitle": "Ponle nombre para dejar de ver la MAC suelta y silenciar el aviso de nuevo dispositivo.",
+      "unknownName": "Dispositivo sin identificar",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "p. ej. Bombilla salón",
+      "iconLabel": "Icono",
+      "reserve": "Reservar IP (DHCP estático)",
+      "reserveHint": "Se aplica en el router tras mostrar el plan de comandos.",
+      "reserveError": "No se pudo aplicar la reserva; el nombre y el icono sí se guardaron.",
+      "save": "Guardar y confiar",
+      "dismiss": "Dejar como anónimo",
+      "dismissHint": "Silencia el aviso de nuevo dispositivo para esta MAC sin darle nombre.",
+      "saved": "Dispositivo identificado",
+      "saveError": "No se pudo guardar",
+      "errorName": "Pon un nombre para identificarlo (o deja el dispositivo como anónimo).",
+      "banner_one": "{{count}} dispositivo conectado sin identificar",
+      "banner_other": "{{count}} dispositivos conectados sin identificar",
+      "bannerAction": "Identificar"
+    }
   },
   "home": {
     "devices": "Clientes",

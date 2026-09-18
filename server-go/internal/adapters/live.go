@@ -1607,17 +1607,46 @@ func (l *Live) routerDisplayName(id string) string {
 // device_attrib no guarda alias, así que la señal práctica es un cliente sin
 // hostname DHCP (Name == MAC). Debe llamarse con l.mu tomado.
 func (l *Live) emitUnknownDevice(d Device) {
+	vars := map[string]string{"mac": d.MAC, "router": l.routerDisplayName(d.RouterID)}
+	if d.Band != "" {
+		vars["band"] = d.Band
+	}
+	if d.SignalDbm != nil {
+		vars["signal"] = fmt.Sprintf("%d", *d.SignalDbm)
+	}
+	desc := fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID)
+	if d.Band != "" && d.Band != "cable" {
+		desc += " · " + d.Band
+	}
+	if d.SignalDbm != nil {
+		desc += fmt.Sprintf(" · %d dBm", *d.SignalDbm)
+	}
 	l.engine.Emit(AlertEvent{
 		ID:       fmt.Sprintf("alert-unknown-%s-%d", d.MAC, time.Now().UnixMilli()),
-		Category: alerts.CatClients, Urgent: false,
+		Category: alerts.CatClients, Urgent: true,
 		Severity:    "warn",
 		Title:       "Dispositivo desconocido",
-		Description: fmt.Sprintf("%s se ha conectado a %s", d.MAC, d.RouterID),
+		Description: desc,
 		Hint:        alerts.HintFor(alerts.HintUnknownDevice),
 		Type:        alerts.HintUnknownDevice,
-		Vars:        map[string]string{"mac": d.MAC, "router": l.routerDisplayName(d.RouterID)},
+		Vars:        vars,
 		Time:        "ahora mismo", RouterID: d.RouterID,
 	})
+}
+
+// DismissUnknownDevice implementa Snapshotter (#772): marca la MAC como ya
+// avisada para que trackUnknownDevices no vuelva a alertar ("dejar como
+// anónimo"). Persiste en kv (issue #248) para sobrevivir a reinicios.
+func (l *Live) DismissUnknownDevice(mac string) {
+	mac = strings.ToUpper(strings.TrimSpace(mac))
+	if len(mac) != 17 {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.unknownAlerted[mac] = true
+	l.persistUnknownAlerted(mac)
+	delete(l.unknownGrace, mac)
 }
 
 // trackDevicePresence emite device_offline/device_online cuando una MAC

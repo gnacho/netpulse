@@ -440,7 +440,27 @@
     },
     "wiredConnection": "Wired connection",
     "weakChip": "{{count}} with weak signal",
-    "unknownManufacturer": "Unknown"
+    "unknownManufacturer": "Unknown",
+    "onboarding": {
+      "title": "Identify device",
+      "subtitle": "Name it to stop seeing the bare MAC and to silence the new-device alert.",
+      "unknownName": "Unidentified device",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Living room bulb",
+      "iconLabel": "Icon",
+      "reserve": "Reserve IP (static DHCP)",
+      "reserveHint": "Applied on the router after showing the command plan.",
+      "reserveError": "The reservation could not be applied; name and icon were saved.",
+      "save": "Save and trust",
+      "dismiss": "Leave anonymous",
+      "dismissHint": "Silences the new-device alert for this MAC without naming it.",
+      "saved": "Device identified",
+      "saveError": "Could not save",
+      "errorName": "Enter a name to identify it (or leave the device anonymous).",
+      "banner_one": "{{count}} connected device not identified",
+      "banner_other": "{{count}} connected devices not identified",
+      "bannerAction": "Identify"
+    }
   },
   "home": {
     "devices": "Clients",

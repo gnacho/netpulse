@@ -42,6 +42,7 @@ import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
+import { OnboardingIntake } from '@/components/OnboardingIntake'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
@@ -1047,7 +1048,7 @@ export default function Devices() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const reduce = useReducedMotion()
-  const { devices, deviceTotals, isDemo, routers, distributionNodes } = useNetPulse()
+  const { devices, deviceTotals, isDemo, routers, distributionNodes, refresh } = useNetPulse()
   const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string | null }>>(() => {
     try {
       const raw = localStorage.getItem('netpulse-device-overrides')
@@ -1102,6 +1103,15 @@ export default function Devices() {
       setQ(incoming.trim().toLowerCase())
     }
   }, [searchParams])
+
+  // Deep-link de onboarding (#772): /devices?intake=<mac> abre la tarjeta de
+  // alta para ese dispositivo (la alerta "desconocido" lo enlaza).
+  useEffect(() => {
+    const mac = searchParams.get('intake')
+    if (!mac) return
+    const hit = allDevices.find((d) => d.mac.toUpperCase() === mac.toUpperCase())
+    if (hit) setIntakeId(hit.id)
+  }, [searchParams, allDevices])
   const [router, setRouter] = useState('all')
   const [band, setBand] = useState<BandFilter>('all')
   const [typeFilter, setTypeFilter] = useState<DeviceType | 'all'>('all')
@@ -1112,8 +1122,19 @@ export default function Devices() {
     () => allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length,
     [allDevices],
   )
+  // #772: conectados ahora sin identificar (sin nombre ni hostname DHCP):
+  // candidatos a la tarjeta de alta. Un dispositivo conocido que reconecta
+  // resuelve su lease en 1-2 ticks y desaparece de aquí solo.
+  const namelessDevices = useMemo(
+    () => allDevices.filter((d) => d.name === d.mac && d.online),
+    [allDevices],
+  )
   const [view, setView] = useState<'list' | 'grid'>(() => loadDevicesPrefs().view)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Alta guiada de desconocidos (#772): se abre con ?intake=<mac> (deep-link
+  // desde la alerta "dispositivo desconocido") o desde el banner de sin
+  // identificar.
+  const [intakeId, setIntakeId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastMsg | null>(null)
   // Búsqueda con debounce 150ms (devices.md §Interacciones)
   useEffect(() => {
@@ -1365,6 +1386,23 @@ export default function Devices() {
         </div>
       </header>
 
+      {/* Onboarding (#772): dispositivos conectados sin identificar */}
+      {namelessDevices.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-info/30 bg-info/5 px-4 py-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-info" />
+          <span className="flex-1 text-sm text-text-secondary">
+            {t('devices.onboarding.banner', { count: namelessDevices.length })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setIntakeId(namelessDevices[0]!.id)}
+            className="rounded-lg bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent-soft/70"
+          >
+            {t('devices.onboarding.bannerAction')}
+          </button>
+        </div>
+      )}
+
       {/* Búsqueda móvil sticky bajo el header */}
       <div className="sticky top-14 z-20 -mx-4 bg-canvas/90 px-4 py-2 backdrop-blur-md md:hidden">
         {searchBox()}
@@ -1493,6 +1531,17 @@ export default function Devices() {
         saving={savingOverride}
         onClose={() => setEditingId(null)}
         onSave={handleEditSave}
+      />
+
+      <OnboardingIntake
+        open={intakeId !== null}
+        device={allDevices.find((d) => d.id === intakeId) ?? null}
+        isDemo={isDemo}
+        onClose={() => setIntakeId(null)}
+        onSaved={() => {
+          refresh()
+          showToast(t('devices.onboarding.saved'))
+        }}
       />
 
       <Toast toast={toast} />

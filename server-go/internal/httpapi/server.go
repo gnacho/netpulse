@@ -322,6 +322,10 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("PUT /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverridePut)))
 	mux.Handle("GET /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverrideGet)))
 	mux.Handle("PUT /api/devices/{mac}/ban", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBanPut)))
+	// Onboarding de desconocidos (#772): "dejar como anónimo" silencia la
+	// alerta first-seen de la MAC sin darle nombre (el alta reutiliza
+	// known-macs + override + reservation).
+	mux.Handle("POST /api/onboarding/dismiss", auth.RequireAdmin(http.HandlerFunc(s.handleOnboardingDismiss)))
 	// Reserva DHCP y bloqueo de dispositivo (issue #439).
 	mux.Handle("GET /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationGet)))
 	mux.Handle("PUT /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationPut)))

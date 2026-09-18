@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, Info, OctagonX } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import { alertRelTime } from '@/i18n'
 import type { AlertSeverity, AlertEvent } from '@/data/mock'
 import { alertDescription, alertHint, alertTitle } from '@/lib/alerts-i18n'
@@ -22,13 +23,19 @@ interface AlertItemProps {
 /** Ítem de alerta (design.md §10.6): tile de severidad, título, descripción, tiempo, dot no-leído. */
 export function AlertItem({ alert, onClick, className }: AlertItemProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const s = SEVERITY[alert.severity]
   const Icon = s.icon
   const hint = alertHint(t, alert)
+  // #772: la alerta de desconocido enlaza a la tarjeta de alta (intake).
+  const intakeMac = alert.type === 'unknown-device' ? alert.vars?.mac : undefined
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        if (intakeMac) navigate(`/devices?intake=${encodeURIComponent(intakeMac)}`)
+        onClick?.()
+      }}
       className={cn(
         'group flex w-full items-start gap-3 rounded-xl border-l-[3px] px-3 py-3 text-left transition-colors duration-150 hover:bg-hover',
         s.stripe,
@@ -44,7 +51,10 @@ export function AlertItem({ alert, onClick, className }: AlertItemProps) {
           <span className="truncate text-sm font-medium text-text-primary">{alertTitle(t, alert)}</span>
           <span className="shrink-0 text-caption text-text-muted">{alertRelTime(alert)}</span>
         </div>
-        <p className="mt-0.5 truncate text-caption text-text-secondary">{alertDescription(t, alert)}</p>
+        <p className="mt-0.5 truncate text-caption text-text-secondary">
+          {alertDescription(t, alert)}
+          {intakeMac && <span className="ml-1.5 text-accent">{t('devices.onboarding.bannerAction')} →</span>}
+        </p>
         {hint && (
           <p className="mt-0.5 truncate text-caption italic text-text-muted">{hint}</p>
         )}
