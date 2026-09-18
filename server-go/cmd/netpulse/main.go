@@ -496,7 +496,15 @@ func run() error {
 		var err2 error
 		var fp string
 		if userCerts {
-			extraTLSConf, _, err2 = tlscert.Load(certPath, keyPath)
+			// #769: con certs del usuario (Let's Encrypt, renovados por
+			// acme.sh/certbot) el listener recarga el par en caliente cuando
+			// cambia en disco; con el autofirmado on-box NO (el agente fija
+			// el SPKI en el pairing y una recarga rompería el pin).
+			var reloader *tlscert.Reloader
+			reloader, err2 = tlscert.NewReloader(certPath, keyPath)
+			if err2 == nil {
+				extraTLSConf = reloader.Config()
+			}
 		} else {
 			extraTLSConf, fp, err2 = tlscert.Ensure(certPath, keyPath)
 		}
@@ -505,7 +513,7 @@ func run() error {
 		}
 		origen := "autofirmado"
 		if userCerts {
-			origen = "usuario"
+			origen = "usuario (recarga en caliente al renovar)"
 		} else {
 			log.Printf("[netpulse] TLS autofirmado: %s", certPath)
 			log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", fp)
