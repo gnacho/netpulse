@@ -9,6 +9,7 @@ import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
 import { AgentUpgradeButton, activeUpgrade, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
+import { agentMatchesRouter, findRouterFor } from '@/lib/agentMatch'
 import { cn, copyToClipboard } from '@/lib/utils'
 
 /**
@@ -518,10 +519,9 @@ export function AgentsSection() {
 
   // Filas: agentes registrados (por slug) + routers agent-only sin agente.
   const rows = useMemo(() => {
-    const routerBySlug = new Map(routers.map((r) => [r.id, r]))
     const out: { agent?: AgentInfo; router?: Router }[] = agents.map((a) => ({
       agent: a,
-      router: routerBySlug.get(a.slug),
+      router: findRouterFor(routers, a),
     }))
     // #483: también fila para TODO router nativo OpenWrt sin agente (no solo
     // agent-only): el botón Instalar registra el agente y lo despliega por
@@ -530,12 +530,7 @@ export function AgentsSection() {
     // de overview difiere del id de tabla.
     for (const r of routers) {
       if (!isOpenWrtType(r.type)) continue
-      const covered = agents.some(
-        (a) =>
-          a.routerId === r.id ||
-          a.slug === r.id ||
-          (a.hostname !== undefined && a.hostname.toLowerCase() === r.id.toLowerCase()),
-      )
+      const covered = agents.some((a) => agentMatchesRouter(a, r.id))
       if (!covered) out.push({ router: r })
     }
     return out

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { ChevronRight, CheckCircle2, AlertCircle, ArrowUpRight, Loader2, Wand2, ShieldAlert, Plus, X, Sparkles } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import { agentMatchesRouter } from '@/lib/agentMatch'
 
 type Module = 'adguard' | 'guestwifi' | 'ddns' | 'sqm' | 'wireguard' | 'usteer'
 
@@ -112,10 +113,19 @@ export default function Orchestration() {
   // useMemo: identidad estable para no re-disparar el efecto de auto-select en
   // cada render (#225).
   const visibleRouters = useMemo(
-    () => (allowNonGateway ? agents : agents.filter((a) => a.slug === gatewayId)),
+    () => (allowNonGateway ? agents : agents.filter((a) => gatewayId !== undefined && agentMatchesRouter(a, gatewayId))),
     [agents, allowNonGateway, gatewayId],
   )
-  const nonGatewaySelected = allowNonGateway && routerId !== gatewayId
+  // The selector holds an agent slug and `gatewayId` is a router id; the two
+  // only look equal when the board happens to be named after the router, so
+  // the comparison goes through the matcher or the gateway itself raises the
+  // "this is not the gateway" warning.
+  const selected = agents.find((a) => a.slug === routerId)
+  const nonGatewaySelected =
+    allowNonGateway &&
+    routerId !== '' &&
+    gatewayId !== undefined &&
+    !(selected !== undefined && agentMatchesRouter(selected, gatewayId))
 
   // Poll de applyPlan: el id vive en un ref para limpiarlo en unmount y al
   // generar un plan nuevo / cambiar de módulo (#220).

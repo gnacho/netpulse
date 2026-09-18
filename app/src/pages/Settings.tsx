@@ -49,6 +49,7 @@ import {
   CalendarClock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { findAgentFor, type AgentKeys } from '@/lib/agentMatch'
 import { HealthRing } from '@/components/HealthRing'
 import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -389,9 +390,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [regenerating, setRegenerating] = useState<string | null>(null)
   // Aviso tras regenerar el token: "hot" (aplicado en caliente) o "manual".
   const [regenerateNotice, setRegenerateNotice] = useState<'hot' | 'netgrip' | 'ssh_failed' | 'no_agent' | null>(null)
-  // Slugs con agente nativo (GET /api/agents): marcan qué routers tienen
-  // acceso root para poder regenerar su token (Labs).
-  const [agentSlugs, setAgentSlugs] = useState<Set<string>>(new Set())
+  // Routers con agente nativo (GET /api/agents): marcan cuáles tienen
+  // acceso root para poder regenerar su token (Labs). Se guardan las claves
+  // del agente, no solo el slug: el slug no es el id del router.
+  const [agentKeys, setAgentKeys] = useState<AgentKeys[]>([])
   const [editing, setEditing] = useState<ConfigRouter | null>(null)
   const [editHost, setEditHost] = useState('')
   const [editName, setEditName] = useState('')
@@ -428,8 +430,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       const json = (await rRes.json()) as { routers: ConfigRouter[] }
       setList(json.routers)
       if (aRes.ok) {
-        const { agents } = (await aRes.json()) as { agents: Array<{ slug: string }> }
-        setAgentSlugs(new Set(agents.map((a) => a.slug)))
+        const { agents } = (await aRes.json()) as { agents: AgentKeys[] }
+        setAgentKeys(agents)
       }
       setError(null)
     } catch {
@@ -759,7 +761,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   </td>
                   <td className="px-3.5 py-2.5">
                     <span className="flex items-center justify-end gap-1.5">
-                      {agentSlugs.has(r.id) && r.type !== 'managed-switch' && r.type !== 'external' && (
+                      {findAgentFor(agentKeys, r.id) !== undefined && r.type !== 'managed-switch' && r.type !== 'external' && (
                         <button
                           type="button"
                           onClick={() => setConfirmRotateFor(r.id)}

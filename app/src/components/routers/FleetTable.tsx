@@ -7,10 +7,10 @@ import { fmtUptime, numLocale } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
-import type { AgentInfo } from '@/data/types'
 import { MetricBar } from '@/components/MetricBar'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
+import { findAgentFor } from '@/lib/agentMatch'
 import { getRouterExtras, uptimeHours } from '@/components/routers/routerExtras'
 import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
@@ -102,19 +102,12 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [asc, setAsc] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
-  // Índice por slug Y por routerId, con el mismo criterio que useAgentFor
-  // (#282): el servidor resuelve la asociación agente↔router (p. ej. por MAC
-  // de bridge) y el routerId puede NO coincidir con el slug. Indexar solo
-  // por slug dejaba "Agente no instalado" a agentes instalados cuyo slug
-  // difiere del id del router (#848). Primero en ganar, como find().
-  const agentBySlug = useMemo(() => {
-    const m = new Map<string, AgentInfo>()
-    for (const a of agents) {
-      if (!m.has(a.slug)) m.set(a.slug, a)
-      if (a.routerId && !m.has(a.routerId)) m.set(a.routerId, a)
-    }
-    return m
-  }, [agents])
+  // An agent's slug is not its router's id, so the lookup goes through the
+  // three-key matcher; keyed by router id, which is what the rows have.
+  const agentByRouter = useMemo(
+    () => new Map(routers.map((r) => [r.id, findAgentFor(agents, r.id)])),
+    [agents, routers],
+  )
 
   const sorted = useMemo(() => {
     const arr = [...routers]
@@ -199,7 +192,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                       <span>
                         <span className="flex items-center gap-2">
                           <span className="font-medium text-text-primary">{r.name}</span>
-                          <AgentBadge agent={agentBySlug.get(r.id)} agentOnly={r.agentOnly} deviceType={r.type} />
+                          <AgentBadge agent={agentByRouter.get(r.id)} agentOnly={r.agentOnly} deviceType={r.type} />
                         </span>
                         <span className="block text-caption text-text-muted">{r.modelShort}</span>
                       </span>
@@ -255,7 +248,7 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-text-primary">{r.name}</span>
-                    <AgentBadge agent={agentBySlug.get(r.id)} agentOnly={r.agentOnly} deviceType={r.type} className="mt-1" />
+                    <AgentBadge agent={agentByRouter.get(r.id)} agentOnly={r.agentOnly} deviceType={r.type} className="mt-1" />
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
