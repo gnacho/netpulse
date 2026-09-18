@@ -420,7 +420,9 @@
       "newToday": "+{{count}} hoy",
       "onlineNow": "Online ahora",
       "pctClients": "{{pct}} % de los clientes",
-      "seenThisWeek": "Vistos esta semana"
+      "seenThisWeek": "Vistos esta semana",
+      "roaming": "Roaming (24 h)",
+      "roamingHealthy": "Sin saltos de AP"
     },
     "summary": "{{total}} conocidos · {{online}} online ahora",
     "viewRouter": "Ver router {{name}}",
@@ -460,6 +462,13 @@
       "banner_one": "{{count}} dispositivo conectado sin identificar",
       "banner_other": "{{count}} dispositivos conectados sin identificar",
       "bannerAction": "Identificar"
+    },
+    "presence": {
+      "title": "Presencia (7 días)",
+      "empty": "Sin datos de presencia en los últimos 7 días.",
+      "online": "Conectado a {{router}}",
+      "offline": "Desconectado",
+      "flappy": "{{count}} conexiones a AP en las últimas 24 h"
     }
   },
   "home": {
@@ -1215,7 +1224,10 @@
       "title": "Datos y umbrales",
       "units": "Unidades de tráfico",
       "unitsTitle": "Unidades de medida",
-      "tempUnit": "Unidad de temperatura"
+      "tempUnit": "Unidad de temperatura",
+      "presenceRetention": "Retención del historial de presencia",
+      "presenceRetentionDays": "días (0 = conservar siempre)",
+      "presenceRetentionNote": "Los eventos de conexión/desconexión y roaming más antiguos se podan cada hora. El timeline de 7 días de cada cliente solo necesita una semana."
     },
     "demo": {
       "caption": "Explora NetPulse con una red de ejemplo sin tocar tus routers",

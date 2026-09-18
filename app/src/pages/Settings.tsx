@@ -1976,6 +1976,78 @@ function SystemInfoBlock({ bare = false }: { bare?: boolean }) {
   )
 }
 
+// Retención de eventos de presencia/roaming (#771): días de conservación de
+// device_events y roam_events (0 = conservar siempre). La poda la aplica un
+// loop horario en el servidor.
+function PresenceRetentionRow() {
+  const { t } = useTranslation()
+  const [days, setDays] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [savedTick, setSavedTick] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/settings/presence')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j && typeof j.retention_days === 'number') setDays(j.retention_days)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (days === null) return null
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/settings/presence', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retention_days: days }),
+      })
+      if (res.ok) {
+        setSavedTick(true)
+        setTimeout(() => setSavedTick(false), 2500)
+      }
+    } catch {
+      /* sin conexión: se reintenta al volver a abrir Ajustes */
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="text-sm font-medium text-text-primary">{t('settings.data.presenceRetention')}</div>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          max={365}
+          value={days}
+          disabled={busy}
+          onChange={(e) => setDays(Math.max(0, Math.min(365, Number(e.target.value) || 0)))}
+          aria-label={t('settings.data.presenceRetention')}
+          className="h-8 w-24 rounded-lg border border-border bg-elevated px-2 font-mono text-sm text-text-primary focus-visible:border-accent/50"
+        />
+        <span className="text-caption text-text-muted">{t('settings.data.presenceRetentionDays')}</span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void save()}
+          className="inline-flex h-8 items-center rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:opacity-60"
+        >
+          {savedTick ? '✓' : t('common.save')}
+        </button>
+      </div>
+      <p className="mt-2 text-caption text-text-muted">{t('settings.data.presenceRetentionNote')}</p>
+    </div>
+  )
+}
+
 function BackupsPanel() {
   const { t, i18n } = useTranslation()
   const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string; time: string } | null>(null)
@@ -4402,6 +4474,8 @@ export default function Settings() {
                   </div>
                   <p className="mt-2 text-caption text-text-muted">{t('settings.data.refreshNote')}</p>
                 </div>
+                {/* Retención de eventos de presencia/roaming (#771) */}
+                <PresenceRetentionRow />
               </div>
 
               {/* Sliders de umbrales */}

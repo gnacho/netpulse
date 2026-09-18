@@ -41,6 +41,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/ntfy"
@@ -558,6 +559,38 @@ func run() error {
 		go autoSched.Start()
 	}
 
+	// Retención de eventos de presencia/roaming (#771): poda horaria de
+	// device_events y roam_events según presence.retention_days (kv; 0 =
+	// conservar siempre). Sin esto ambas tablas crecen sin límite.
+	presenceStop := make(chan struct{})
+	if !cfg.DemoMode {
+		go func() {
+			tick := time.NewTicker(time.Hour)
+			defer tick.Stop()
+			prune := func() {
+				retention := httpapi.PresenceRetentionDays(dbHandle.DB)
+				if retention <= 0 {
+					return
+				}
+				cutoff := time.Now().Add(-time.Duration(retention) * 24 * time.Hour).UnixMilli()
+				if n, err := deviceevents.Prune(dbHandle.DB, cutoff); err != nil {
+					log.Printf("[netpulse] poda de presencia falló: %v", err)
+				} else if n > 0 {
+					log.Printf("[netpulse] poda de presencia: %d eventos (> %d días)", n, retention)
+				}
+			}
+			prune() // primera pasada al arrancar
+			for {
+				select {
+				case <-tick.C:
+					prune()
+				case <-presenceStop:
+					return
+				}
+			}
+		}()
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
 		DB:              dbHandle,
@@ -664,6 +697,7 @@ func run() error {
 		if eventsCollector != nil {
 			eventsCollector.Stop()
 		}
+		close(presenceStop)
 		hub.NotifyShutdown()
 		_ = adapter.Close()
 		// Tras parar poller y adapter ya nadie emite alertas: se puede

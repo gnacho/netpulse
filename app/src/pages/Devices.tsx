@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowDown,
+  ArrowLeftRight,
   ArrowUp,
   ArrowUpDown,
   Check,
@@ -43,6 +44,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
+import { PresenceSection } from '@/components/PresenceTimeline'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
@@ -262,6 +264,21 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
   const newThisWeekDevices = allDevices.filter((d) => d.isNew)
   const weakSignalCount = allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length
   const adguardProtected = allDevices.filter((d) => d.adguard).length
+  // Salud de roaming (#771): MACs con más conexiones AP-STA en 24 h (los
+  // primeros puestos son los que más rebotan).
+  const [roaming, setRoaming] = useState<{ mac: string; name: string; connects: number }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchJson<{ items: { mac: string; name: string; connects: number }[] }>('/api/presence/roaming')
+      .then((res) => {
+        if (!cancelled && res.ok && res.data) setRoaming(res.data.items)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey])
+  const roamingTop = roaming[0]
   const cards = [
     {
       key: 'online',
@@ -342,9 +359,25 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
         )
       },
     },
+    {
+      key: 'roaming',
+      label: t('devices.stats.roaming'),
+      icon: ArrowLeftRight,
+      iconClass: roamingTop && roamingTop.connects > 3 ? 'text-warn' : 'text-ok',
+      render: () => (
+        <>
+          <div className="font-mono text-stat text-text-primary">
+            <CountUp value={roamingTop?.connects ?? 0} nonce={refreshKey} />
+          </div>
+          <div className="mt-1 truncate text-caption text-text-muted" translate="no">
+            {roamingTop ? roamingTop.name || roamingTop.mac : t('devices.stats.roamingHealthy')}
+          </div>
+        </>
+      ),
+    },
   ]
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
       {cards.map((c, i) => (
         <motion.div
           key={c.key}
@@ -662,6 +695,8 @@ function DeviceDetail({
           )}
         </DetailItem>
       )}
+      {/* Timeline de presencia (#771): tramos de los últimos 7 días por AP. */}
+      <PresenceSection mac={device.mac} />
       <div className="col-span-2 flex items-center justify-between rounded-xl border border-border bg-elevated/40 px-4 py-3">
         <div>
           <div className="text-label uppercase text-text-muted">{t('devices.detail.rename')}</div>

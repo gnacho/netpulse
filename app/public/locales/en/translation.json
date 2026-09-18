@@ -420,7 +420,9 @@
       "newToday": "+{{count}} today",
       "onlineNow": "Online now",
       "pctClients": "{{pct}}% of clients",
-      "seenThisWeek": "Seen this week"
+      "seenThisWeek": "Seen this week",
+      "roaming": "Roaming (24 h)",
+      "roamingHealthy": "No AP switching"
     },
     "summary": "{{total}} known · {{online}} online now",
     "viewRouter": "View router {{name}}",
@@ -460,6 +462,13 @@
       "banner_one": "{{count}} connected device not identified",
       "banner_other": "{{count}} connected devices not identified",
       "bannerAction": "Identify"
+    },
+    "presence": {
+      "title": "Presence (7 days)",
+      "empty": "No presence data for the last 7 days.",
+      "online": "Connected to {{router}}",
+      "offline": "Disconnected",
+      "flappy": "{{count}} AP connections in the last 24 h"
     }
   },
   "home": {
@@ -1215,7 +1224,10 @@
       "title": "Data & thresholds",
       "units": "Traffic units",
       "unitsTitle": "Measurement units",
-      "tempUnit": "Temperature unit"
+      "tempUnit": "Temperature unit",
+      "presenceRetention": "Presence history retention",
+      "presenceRetentionDays": "days (0 = keep forever)",
+      "presenceRetentionNote": "Connect/disconnect and AP-roaming events older than this are pruned hourly. The 7-day client timeline only needs a week."
     },
     "demo": {
       "caption": "Explore NetPulse with a sample network without touching your routers",
