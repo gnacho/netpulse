@@ -17,6 +17,7 @@ import { RouterClients } from '@/components/routers/RouterClients'
 import { RouterDetailHeader } from '@/components/routers/RouterDetailHeader'
 import { RouterInfo } from '@/components/routers/RouterInfo'
 import { RouterPerformance } from '@/components/routers/RouterPerformance'
+import { MultiWanPanel } from '@/components/routers/MultiWanPanel'
 import { WanLatency } from '@/components/routers/WanLatency'
 import { VlanPanel } from '@/components/routers/VlanPanel'
 import { WireGuardPanel } from '@/components/routers/WireGuardPanel'
@@ -191,6 +192,12 @@ export default function RouterDetail() {
 
       {/* ④ WAN & Latencia (gateway) / Backhaul (APs) */}
       {isGateway ? <WanLatency /> : <BackhaulPanel router={router} extras={detail?.extras} />}
+
+      {/* Las varias conexiones a internet, si el router reporta más de una.
+          Va junto a la tarjeta de conexión porque explica la IP que muestra. */}
+      {detail?.multiWan && detail.multiWan.uplinks.length >= 2 && (
+        <MultiWanPanel info={detail.multiWan} />
+      )}
 
       {/* ⑤⑥ Servicios + Puertos (gateway) / Radios + Puertos (APs) */}
       {isGateway ? (

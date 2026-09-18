@@ -34,6 +34,7 @@ import type {
   TopoSemantics,
   TrafficPoint,
   VlanPort,
+  MultiWanInfo,
   WanInfo,
   WireGuardStats,
 } from '@/data/types'
@@ -97,6 +98,9 @@ export interface RouterDetailData {
   wireguard?: WireGuardStats
   /** VLANs del bridge (issue #315). Ausente si el router no tiene bridge vlan filtering. */
   vlans?: VlanPort[]
+  /** Las varias conexiones a internet del router, si reporta más de una.
+   *  Solo lectura: las gestiona el panel del propio router. */
+  multiWan?: MultiWanInfo
 }
 
 export interface NetPulseData {
@@ -1155,6 +1159,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         adguard?: AdGuardStats
         wireguard?: WireGuardStats
         vlans?: VlanPort[]
+        multiWan?: MultiWanInfo
       }
       // Live: extras SOLO del backend (datos reales); nunca el mock local
       const extras: RouterExtras = {
@@ -1171,6 +1176,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         adguard: json.adguard,
         wireguard: json.wireguard,
         vlans: json.vlans,
+        multiWan: json.multiWan,
       }
     }
     // Demo: resolución local desde mock + routerExtras (misma firma async)

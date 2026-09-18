@@ -888,6 +888,30 @@
       "planPct": "{{pct}} % del plan",
       "speedtestServer": "servidor {{name}}"
     },
+    "multiWan": {
+      "title": "Conexiones a Internet",
+      "modeOff": "Sin gestionar",
+      "modeFailover": "Conmutación por error",
+      "modeBalance": "Equilibrado",
+      "modeCustom": "Configurado por otro medio",
+      "hint": {
+        "off": "Nada reparte entre estas conexiones: la que elija el router es la que lleva el tráfico.",
+        "failover": "Una conexión lo lleva todo. Si deja de llegar a Internet, la siguiente toma el relevo sola y se lo devuelve cuando se recupera.",
+        "balance": "El tráfico se reparte entre las conexiones, según los porcentajes puestos en el router.",
+        "custom": "La multi-WAN está configurada fuera del panel del router; aquí se muestra tal cual."
+      },
+      "active": "Lleva el tráfico",
+      "activeShare": "Lleva el {{pct}} %",
+      "standby": "En espera",
+      "offline": "Desconectada",
+      "failed": "No llega a Internet",
+      "primary": "Principal",
+      "metered": "De pago por uso",
+      "viaPort": "puerto {{port}}",
+      "noAddress": "Sin dirección",
+      "stickyNote": "Cada equipo se queda en una sola conexión cada vez, así que desde un mismo ordenador verás una dirección, no una mezcla.",
+      "source": "Se configura en el panel del propio router. NetPulse solo lo muestra."
+    },
     "wireguard": {
       "lastIp": "Última IP",
       "peersConnected": "Peers conectados",

@@ -362,6 +362,41 @@ export interface VlanEntry {
   pvid: boolean
 }
 
+/** One internet connection of a router that has several. Read-only: the
+ *  router's own panel manages them, this only shows them. */
+export interface MultiWanUplink {
+  name: string
+  proto?: string
+  /** Physical socket, when the connection has one (a modem does not). */
+  port?: string
+  ip?: string
+  gateway?: string
+  up: boolean
+  /** Carrying traffic right now. While balancing, more than one is. */
+  active?: boolean
+  /** The preferred connection, in failover mode. */
+  primary?: boolean
+  /** Portion of traffic it carries while balancing. */
+  sharePct?: number
+  /** Mobile broadband: traffic over it costs money. */
+  metered?: boolean
+  /** The policy manager's own verdict: online | offline | unknown. */
+  online?: string
+}
+
+export interface MultiWanInfo {
+  /** off | failover | balance | custom ("custom" = set up outside the panel). */
+  mode: string
+  /** The panel wrote this configuration itself. */
+  managed?: boolean
+  active?: string
+  primary?: string
+  /** While balancing, each device stays on one connection at a time. */
+  sticky?: boolean
+  /** Empty = the router reported and has nothing to show. */
+  uplinks: MultiWanUplink[]
+}
+
 export interface VlanPort {
   port: string
   vlans: VlanEntry[]
