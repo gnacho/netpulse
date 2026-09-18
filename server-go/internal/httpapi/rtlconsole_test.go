@@ -164,3 +164,34 @@ func TestRtlConsoleFetchLoginFalloNoAdjunta(t *testing.T) {
 		t.Fatal("fetch debería fallar con login 401")
 	}
 }
+
+// #785: el parser de uptime debe aceptar el formato nuevo (Tick/Sec counter)
+// además del hex plano legado.
+func TestParseTimeUptimeFormats(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want uint64
+	}{
+		{"legado hex con 0x", "0x00028e9d\n", 0x28e9d},
+		{"legado hex sin prefijo", "00028e9d", 0x28e9d},
+		{"nuevo dos líneas (KP-9000 v0.1.0-ad9e2ee)", "  Tick counter: 0x0244599a   Sec Counter: 0x0002e6d0\n", 0x2e6d0},
+		{"nuevo con saltos de línea", "Tick counter: 0x0244599a\nSec Counter: 0x0002e6d0\n", 0x2e6d0},
+		{"nuevo sec counter sin 0x", "Tick counter: 0x99   Sec Counter: 2e6d0", 0x2e6d0},
+	}
+	for _, tc := range cases {
+		got, err := parseTimeUptime(tc.body)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if got != tc.want {
+			t.Fatalf("%s: uptime = %#x, want %#x", tc.name, got, tc.want)
+		}
+	}
+
+	for _, bad := range []string{"", "garbage", "Tick counter: 0x1", "Sec Counter: zz"} {
+		if _, err := parseTimeUptime(bad); err == nil {
+			t.Fatalf("entrada inválida %q no devolvió error", bad)
+		}
+	}
+}

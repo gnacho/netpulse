@@ -213,12 +213,9 @@ func (c *rtlConsoleCache) fetch(host string) (*rtlConsoleEntry, error) {
 	if cmdResp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("/cmd time HTTP %d", cmdResp.StatusCode)
 	}
-	upHex := strings.TrimSpace(string(cmdBody))
-	upHex = strings.TrimPrefix(upHex, "0x")
-	upHex = strings.TrimPrefix(upHex, "0X")
-	upSec, err := strconv.ParseUint(upHex, 16, 32)
+	upSec, err := parseTimeUptime(string(cmdBody))
 	if err != nil {
-		return nil, fmt.Errorf("/cmd time no es un contador hex (%q): %w", strings.TrimSpace(string(cmdBody)), err)
+		return nil, err
 	}
 
 	now := time.Now()
@@ -226,6 +223,35 @@ func (c *rtlConsoleCache) fetch(host string) (*rtlConsoleEntry, error) {
 		Firmware: info.SwVer, Model: info.HwVer, MAC: info.Mac,
 		BootUnix: now.Add(-time.Duration(upSec) * time.Second),
 	}, nil
+}
+
+// parseTimeUptime extrae el uptime en segundos del cuerpo de POST /cmd time.
+// Acepta los dos formatos del firmware RTLPlayground (#785):
+//
+//   - legado: un contador hex único ("0x00028e9d").
+//   - nuevo (firmwares desde 2026-09-16): dos contadores en líneas o una
+//     sola línea, "Tick counter: 0x…   Sec Counter: 0x…" — el uptime es el
+//     Sec Counter (el Tick counter es un reloj distinto, no segundos).
+func parseTimeUptime(body string) (uint64, error) {
+	s := strings.TrimSpace(body)
+	// Formato nuevo: localizar "Sec Counter:" y parsear el hex que sigue.
+	if i := strings.Index(s, "Sec Counter:"); i >= 0 {
+		rest := strings.TrimSpace(s[i+len("Sec Counter:"):])
+		if nl := strings.IndexAny(rest, "\r\n"); nl >= 0 {
+			rest = rest[:nl]
+		}
+		rest = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "0x"), "0X"))
+		if sec, err := strconv.ParseUint(rest, 16, 32); err == nil {
+			return sec, nil
+		}
+		return 0, fmt.Errorf("/cmd time: Sec Counter no es hex (%q)", strings.TrimSpace(body))
+	}
+	upHex := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X"))
+	upSec, err := strconv.ParseUint(upHex, 16, 32)
+	if err != nil {
+		return 0, fmt.Errorf("/cmd time no es un contador hex (%q): %w", s, err)
+	}
+	return upSec, nil
 }
 
 // attachSystem adjunta la sección System (board + uptime + MAC) al payload de
@@ -247,9 +273,9 @@ func (s *server) attachRTLConsole(slug, host string, pl *probe.Payload) {
 	b.Model = e.Model
 	b.Release.Description = "RTLPlayground " + e.Firmware
 	sd := &probe.SystemData{
-		Board:      b,
-		SysInfo:    &probe.SysInfo{Uptime: time.Since(e.BootUnix).Seconds()},
-		BridgeMAC:  strings.ToUpper(e.MAC),
+		Board:     b,
+		SysInfo:   &probe.SysInfo{Uptime: time.Since(e.BootUnix).Seconds()},
+		BridgeMAC: strings.ToUpper(e.MAC),
 	}
 	pl.Data.System = sd
 }
