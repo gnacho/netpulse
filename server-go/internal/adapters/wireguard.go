@@ -26,9 +26,21 @@ func wgStatsCommand(iface string) string {
 	return fmt.Sprintf("wg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; exit $rc", iface, wgUciMarker)
 }
 
+// awgStatsCommand es la variante AmneziaWG de wgStatsCommand: mismo contrato
+// (dump + marker + UCI, exit del dump) pero con la herramienta `awg`, la
+// única que puede leer interfaces de la familia amneziawg (issue #776).
+func awgStatsCommand(iface string) string {
+	return fmt.Sprintf("awg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; exit $rc", iface, wgUciMarker)
+}
+
 // wgListCommand lista las interfaces WireGuard presentes en el router
 // (`wg show interfaces`): nombres separados por espacios en una sola línea.
 const wgListCommand = "wg show interfaces"
+
+// awgListCommand lista las interfaces AmneziaWG (`awg show interfaces`).
+// AmneziaWG (luci-proto-amneziawg) usa su propia familia netlink y su
+// herramienta `awg`: `wg` NO ve sus interfaces (issue #776).
+const awgListCommand = "awg show interfaces"
 
 // parseWGInterfaces parsea la salida de `wg show interfaces` en una lista de
 // nombres. Salida vacía → lista vacía (sin interfaces).
@@ -37,11 +49,13 @@ func parseWGInterfaces(out string) []string {
 }
 
 // wgInterfaces resuelve qué interfaces sondear. iface vacío o "auto" →
-// descubre todas con `wg show interfaces`; un valor explícito (una interfaz o
-// una lista separada por comas) actúa como filtro/override sin tocar el
-// router para listarlas (#713). Si el listado falla en modo auto (p. ej. un
-// `wg` sin el subcomando `interfaces`), cae al default histórico `wg0` para
-// no dejar el panel sin datos (#714).
+// descubre todas con `wg show interfaces` y `awg show interfaces` (AmneziaWG,
+// #776); un valor explícito (una interfaz o una lista separada por comas)
+// actúa como filtro/override sin tocar el router para listarlas (#713). Si
+// AMBOS listados fallan en modo auto (p. ej. un `wg` sin el subcomando
+// `interfaces`), cae al default histórico `wg0` para no dejar el panel sin
+// datos (#714). Un listado que falle individualmente (p. ej. `awg` no
+// instalado) se trata como "sin interfaces de ese tipo".
 func wgInterfaces(pool sshRunner, host, iface string) []string {
 	v := strings.TrimSpace(iface)
 	if v != "" && v != "auto" {
@@ -54,10 +68,19 @@ func wgInterfaces(pool sshRunner, host, iface string) []string {
 		return out
 	}
 	raw, err := pool.Run(host, wgListCommand, 0)
-	if err != nil {
+	awgRaw, awgErr := pool.Run(host, awgListCommand, 0)
+	if err != nil && awgErr != nil {
 		return []string{"wg0"}
 	}
-	return parseWGInterfaces(raw)
+	seen := map[string]bool{}
+	out := []string{}
+	for _, name := range append(parseWGInterfaces(raw), parseWGInterfaces(awgRaw)...) {
+		if !seen[name] {
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // splitWGUci separa la salida combinada en la parte del dump y la parte UCI.
@@ -264,8 +287,13 @@ func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map
 	for _, ifc := range ifaces {
 		out, err := pool.Run(host, wgStatsCommand(ifc), 0)
 		if err != nil {
-			// Una interfaz caída no tumba el resto: se salta (#714).
-			continue
+			// La interfaz puede ser AmneziaWG (`wg` no la ve; #776): se
+			// reintenta con `awg` antes de saltarla.
+			out, err = pool.Run(host, awgStatsCommand(ifc), 0)
+			if err != nil {
+				// Una interfaz caída no tumba el resto: se salta (#714).
+				continue
+			}
 		}
 		ok++
 		dump, uci := splitWGUci(out)

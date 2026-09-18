@@ -172,7 +172,7 @@ func TestWGInterfacesFilter(t *testing.T) {
 		t.Errorf("filtro explícito no debe sondear el router, llamadas: %v", f.calls)
 	}
 
-	// auto / vacío: descubre con `wg show interfaces`.
+	// auto / vacío: descubre con `wg show interfaces` + `awg show interfaces`.
 	for _, iface := range []string{"auto", ""} {
 		f := &fakeWGRunner{run: func(cmd string) (string, error) {
 			return "wg0 wg1\n", nil
@@ -181,9 +181,63 @@ func TestWGInterfacesFilter(t *testing.T) {
 		if len(got) != 2 || got[0] != "wg0" || got[1] != "wg1" {
 			t.Errorf("wgInterfaces(%q) = %v, want [wg0 wg1]", iface, got)
 		}
-		if len(f.calls) != 1 || f.calls[0] != wgListCommand {
-			t.Errorf("wgInterfaces(%q) llamadas = %v, want [%s]", iface, f.calls, wgListCommand)
+		if len(f.calls) != 2 || f.calls[0] != wgListCommand || f.calls[1] != awgListCommand {
+			t.Errorf("wgInterfaces(%q) llamadas = %v, want [%s %s]", iface, f.calls, wgListCommand, awgListCommand)
 		}
+	}
+}
+
+func TestWGInterfacesAmneziaWG(t *testing.T) {
+	// #776: AmneziaWG vive en su propia familia netlink; `wg` no lista nada
+	// (o ni siquiera existe awg), `awg` lista wg_srv.
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		switch cmd {
+		case wgListCommand:
+			return "\n", nil // sin interfaces wireguard estándar
+		case awgListCommand:
+			return "wg_srv\n", nil
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	got := wgInterfaces(f, "host", "auto")
+	if len(got) != 1 || got[0] != "wg_srv" {
+		t.Errorf("wgInterfaces(auto) = %v, want [wg_srv]", got)
+	}
+
+	// Mixto: una interfaz estándar + una AmneziaWG, sin duplicados.
+	f = &fakeWGRunner{run: func(cmd string) (string, error) {
+		switch cmd {
+		case wgListCommand:
+			return "wg0\n", nil
+		case awgListCommand:
+			return "wg0 wg_srv\n", nil
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	got = wgInterfaces(f, "host", "auto")
+	if len(got) != 2 || got[0] != "wg0" || got[1] != "wg_srv" {
+		t.Errorf("wgInterfaces(auto) mixto = %v, want [wg0 wg_srv]", got)
+	}
+
+	// `awg` no instalado (fork puro): el error se trata como "sin interfaces".
+	f = &fakeWGRunner{run: func(cmd string) (string, error) {
+		if cmd == awgListCommand {
+			return "", fmt.Errorf("ash: awg: not found")
+		}
+		return "wg0\n", nil
+	}}
+	got = wgInterfaces(f, "host", "auto")
+	if len(got) != 1 || got[0] != "wg0" {
+		t.Errorf("wgInterfaces(auto) sin awg = %v, want [wg0]", got)
+	}
+
+	// AMBOS listados fallan: fallback histórico wg0 (#714).
+	f = &fakeWGRunner{run: func(cmd string) (string, error) {
+		return "", fmt.Errorf("not found")
+	}}
+	got = wgInterfaces(f, "host", "auto")
+	if len(got) != 1 || got[0] != "wg0" {
+		t.Errorf("wgInterfaces(auto) ambos fallan = %v, want [wg0]", got)
 	}
 }
 
@@ -325,8 +379,8 @@ func TestWGInterfacesFallsBackOnListError(t *testing.T) {
 	if len(got) != 1 || got[0] != "wg0" {
 		t.Errorf("wgInterfaces(auto) = %v, want [wg0]", got)
 	}
-	if len(f.calls) != 1 || f.calls[0] != wgListCommand {
-		t.Errorf("llamadas = %v, want [%s]", f.calls, wgListCommand)
+	if len(f.calls) != 2 || f.calls[0] != wgListCommand || f.calls[1] != awgListCommand {
+		t.Errorf("llamadas = %v, want [%s %s]", f.calls, wgListCommand, awgListCommand)
 	}
 }
 
@@ -374,5 +428,52 @@ func TestGetWireGuardStatsAllFail(t *testing.T) {
 	}
 	if len(stats.Peers) != 0 {
 		t.Errorf("len(Peers) = %d, want 0", len(stats.Peers))
+	}
+}
+
+func TestGetWireGuardStatsAmneziaWG(t *testing.T) {
+	// #776: interfaz AmneziaWG (wg_srv) invisible para `wg`: el listado viene
+	// de `awg show interfaces` y el dump de `awg show wg_srv dump` tras el
+	// fallo de `wg show wg_srv dump`.
+	dump := wgPeerDump("wg_srv", wgPeerLine("DDD=", "10.9.0.2/32", "0"))
+	uci := "network.peersrv=wireguard_wg_srv\nnetwork.peersrv.public_key='DDD='\nnetwork.peersrv.allowed_ips='10.9.0.2/32'\nnetwork.peersrv.description='Laptop'\n"
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		switch {
+		case cmd == wgListCommand:
+			return "\n", nil
+		case cmd == awgListCommand:
+			return "wg_srv\n", nil
+		case cmd == wgStatsCommand("wg_srv"):
+			return "", fmt.Errorf("Unable to access interface: No such device")
+		case cmd == awgStatsCommand("wg_srv"):
+			return wgStatsOutput(dump, uci), nil
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	stats, err := GetWireGuardStats(f, "host", "auto", "", nil)
+	if err != nil {
+		t.Fatalf("GetWireGuardStats: %v", err)
+	}
+	if stats.Interface != "wg_srv" {
+		t.Errorf("Interface = %q, want wg_srv", stats.Interface)
+	}
+	if stats.Status != "active" {
+		t.Errorf("Status = %q, want active", stats.Status)
+	}
+	if len(stats.Peers) != 1 {
+		t.Fatalf("len(Peers) = %d, want 1", len(stats.Peers))
+	}
+	if stats.Peers[0].Name != "Laptop" {
+		t.Errorf("Name = %q, want Laptop (description UCI)", stats.Peers[0].Name)
+	}
+	// El dump debe haberse leído con awg, no con wg.
+	var sawAwgDump bool
+	for _, c := range f.calls {
+		if strings.Contains(c, "awg show wg_srv dump") {
+			sawAwgDump = true
+		}
+	}
+	if !sawAwgDump {
+		t.Errorf("llamadas = %v, falta awg show wg_srv dump", f.calls)
 	}
 }
