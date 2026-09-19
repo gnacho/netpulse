@@ -65,12 +65,14 @@ builds:
     # softfloat para ambos endianness.
     gomips: [softfloat]
     flags: [-trimpath]
-    # -X main.Version: sin esto el agente reporta "0.1.0" para siempre
-    # (main.go declara var Version con fallback para builds locales).
+    # -X main.Version: la versión del agente va desacoplada del tag (#790);
+    # viene de agent/VERSION (workflow release.yml la pasa en AGENT_VERSION).
+    # Sin esto el agente reporta "0.1.0" para siempre (main.go declara var
+    # Version con fallback para builds locales).
     ldflags:
       - -s
       - -w
-      - "-X main.Version={{.Version}}"
+      - "-X main.Version={{ .Env.AGENT_VERSION }}"
 
 archives:
   - id: netpulse

@@ -33,13 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # publicar assets en la prerelease go-latest
-    env:
-      # Versión del agente embebido en el servidor. Se inyecta igual en el
-      # binario del agente (main.Version) y en el servidor
-      # (agentbin.EmbeddedAgentVersion): el campo updateAvailable de
-      # GET /api/agents compara la versión reportada del agente contra esa
-      # versión. Bumpear aquí y en agentbin.md el valor único de verdad.
-      AGENT_VERSION: "2.26.12"
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -47,6 +40,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # tags necesarias para git describe (httpapi.Version)
+
+      # Versión del agente embebido: fuente única de verdad en agent/VERSION
+      # (#790), leída en cada build. Se inyecta igual en el binario del agente
+      # (main.Version) y en el servidor (agentbin.EmbeddedAgentVersion): el
+      # campo updateAvailable de GET /api/agents compara la versión reportada
+      # del agente contra esa versión. Solo sube cuando cambia agent/ de verdad.
+      - name: Resuelve AGENT_VERSION desde agent/VERSION
+        run: |
+          set -e
+          AGENT_VERSION=$(tr -d '[:space:]' < agent/VERSION)
+          if [ -z "$AGENT_VERSION" ]; then
+            echo "::error::agent/VERSION está vacío"
+            exit 1
+          fi
+          echo "AGENT_VERSION=$AGENT_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:

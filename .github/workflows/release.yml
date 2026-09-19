@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags e historia: el gate de agent/VERSION difiere contra el tag anterior
 
       - uses: actions/setup-node@v4
         with:
@@ -33,18 +35,32 @@ jobs:
             server-go/go.sum
             collector/go.sum
 
-      # Versión del agente embebido en el servidor. Deriva del tag (v2.11.1 →
-      # 2.11.1) y se inyecta igual en el binario del agente (main.Version) y en
-      # el servidor (agentbin.EmbeddedAgentVersion vía .goreleaser.yaml):
-      # alimenta el campo updateAvailable de GET /api/agents. Con
-      # workflow_dispatch (sin tag) cae a 0.0.0 para snapshots de prueba.
-      - name: Resuelve AGENT_VERSION desde el tag
+      # Versión del agente: fuente única de verdad en agent/VERSION (#790),
+      # desacoplada del tag del server. Se inyecta igual en el binario del
+      # agente (main.Version) y en el servidor (agentbin.EmbeddedAgentVersion
+      # vía .goreleaser.yaml): alimenta el campo updateAvailable de
+      # GET /api/agents, así que solo debe subir cuando el código de agent/
+      # cambia de verdad. Gate de consistencia: si agent/ cambió desde el tag
+      # anterior y agent/VERSION no subió, la release falla (obliga al bump).
+      - name: Resuelve AGENT_VERSION desde agent/VERSION
         id: version
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "agent=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "agent=0.0.0" >> "$GITHUB_OUTPUT"
+          set -e
+          AGENT_VERSION=$(tr -d '[:space:]' < agent/VERSION)
+          if [ -z "$AGENT_VERSION" ]; then
+            echo "::error::agent/VERSION está vacío"
+            exit 1
+          fi
+          echo "agent=$AGENT_VERSION" >> "$GITHUB_OUTPUT"
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$PREV_TAG" ]; then
+            if ! git diff --quiet "$PREV_TAG"..HEAD -- agent/; then
+              PREV_AGENT=$(git show "$PREV_TAG:agent/VERSION" 2>/dev/null | tr -d '[:space:]' || true)
+              if [ -n "$PREV_AGENT" ] && [ "$PREV_AGENT" = "$AGENT_VERSION" ]; then
+                echo "::error::agent/ cambió desde $PREV_TAG pero agent/VERSION sigue en $AGENT_VERSION. Sube la versión del agente antes de taguear."
+                exit 1
+              fi
+            fi
           fi
 
       - name: Build frontend + copia dist al embed (necesario para go:embed y tests)
