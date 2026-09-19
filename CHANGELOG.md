@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Fixed
+
+- **El botón «Rearmar» ya no se ofrece en agentes externos (#792)**: la cabecera del detalle de un router mostraba el rearme para cualquier agente caído, incluidos los externos sin SSH (p. ej. un switch gestionado por beacon) y cualquier scraper no nativo: el backend ya los rechaza, pero el botón no debería aparecer. Ahora el componente lo oculta para `kind` externo en todos los sitios donde se use.
+
 ### Changed
 
 - **Versionado del agente desacoplado del server (#790)**: hasta ahora cada release del server rebuildaba el agente con el número del tag, así que todos los agentes se marcaban como desactualizados en cada release aunque el código del agente no hubiera cambiado. El agente pasa a tener versión propia en `agent/VERSION` (arranca en 3.0.0, por encima de las versiones heredadas del tag, de modo que la flota existente se actualiza una vez a la nueva línea y desde entonces solo pide actualización cuando el agente cambia de verdad). El CI la inyecta igual en el binario del agente y en el servidor, y la release falla si `agent/` cambió desde el tag anterior sin bump de `agent/VERSION`. Nombres de los assets del agente sin cambios (siguen ligados al tag del release).

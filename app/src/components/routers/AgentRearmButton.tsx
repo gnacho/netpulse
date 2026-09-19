@@ -41,6 +41,13 @@ const REARM_ERROR_KEYS: Record<string, string> = {
  * #569: para un agente NetGrip stale el botón dice «Reiniciar NetGrip» (el
  * backend reinicia el SERVICIO netgrip, que recarga el env del agente
  * embebido); para un agente nativo dice «Rearmar» (reinicia netpulse-agent).
+ *
+ * #792: los agentes EXTERNOS (kind "external": pushers sin SSH, p. ej. un
+ * switch gestionado por beacon, o cualquier scraper futuro tipo SNMP) no
+ * se rearmeran: el backend ya los rechaza con not_openwrt, así que el botón
+ * directamente no se ofrece. Guard a nivel de componente: cubre todos los
+ * call sites presentes y futuros (AgentsSection ya filtraba; el header del
+ * detalle no).
  */
 export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
   const { t } = useTranslation()
@@ -50,6 +57,7 @@ export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
   const [failCode, setFailCode] = useState<string | null>(null)
 
   if (!agent || agent.fresh) return null
+  if (agent.kind === 'external') return null
   if (auth?.role !== 'admin') return null
 
   const netgrip = agent.kind === 'netgrip'
