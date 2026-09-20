@@ -181,12 +181,29 @@ type Engine struct {
 	silenceMap map[string]int64 // dedup key → expiry (unix seconds); 0 = forever
 
 	// suppression: grafo de dependencias topológicas (issue #332).
-	// nil = sin supresión (tests o sin topología).
+	// nil = sin supresión (tests o arranque sin topología).
 	suppression *SuppressionGraph
+
+	// persistLog: volcar el log a alert_log y restaurarlo al arranque
+	// (issue #798). false solo en el dataset demo, que es sintético y se
+	// regenera en cada arranque (cargar/re-guardar duplicaría las semillas).
+	persistLog bool
 }
 
-// New crea el motor cargando config y read-state de kv (si db != nil).
-func New(d *db.DB, n Notifier) *Engine {
+// PersistMaxEvents es la cota de filas del log persistido (issue #798): la
+// lista en memoria se queda en MaxEvents, pero en disco se conservan más
+// para restaurarlas tras un reinicio (p. ej. el del self-update).
+const PersistMaxEvents = 500
+
+// New crea el motor cargando config, read-state y el log persistido (si db).
+func New(d *db.DB, n Notifier) *Engine { return newEngine(d, n, true) }
+
+// NewVolatile crea el motor SIN persistencia del log de alertas. El dataset
+// demo es sintético y se regenera en cada arranque: cargar el log traería
+// entradas ajenas al canon y re-guardarlo duplicaría las semillas.
+func NewVolatile(d *db.DB, n Notifier) *Engine { return newEngine(d, n, false) }
+
+func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 	e := &Engine{
 		db:         d,
 		notifier:   n,
@@ -195,6 +212,7 @@ func New(d *db.DB, n Notifier) *Engine {
 		dedup:      map[string]int64{},
 		readSet:    map[string]bool{},
 		silenceMap: map[string]int64{},
+		persistLog: persistLog,
 	}
 	if d != nil {
 		var raw string
@@ -222,8 +240,69 @@ func New(d *db.DB, n Notifier) *Engine {
 		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", silenceKey).Scan(&raw); err == nil {
 			_ = json.Unmarshal([]byte(raw), &e.silenceMap)
 		}
+		e.loadPersistedLocked()
 	}
 	return e
+}
+
+// loadPersistedLocked restaura el log desde alert_log (issue #798): los
+// últimos MaxEvents eventos (más recientes primero), reconstruyendo el mapa
+// de dedup (para no re-notificar dentro de la ventana tras un reinicio) y
+// sembrando el read-set desde la columna read espejada.
+func (e *Engine) loadPersistedLocked() {
+	if !e.persistLog {
+		return
+	}
+	rows, err := e.db.Query(
+		`SELECT id, ts, category, type, severity, urgent, title, description, hint,
+		        router_id, suppressed_by, vars, read_flag
+		 FROM alert_log ORDER BY ts DESC LIMIT ?`, MaxEvents)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	type row struct {
+		ev   AlertEvent
+		read bool
+	}
+	loaded := []row{}
+	for rows.Next() {
+		var ev AlertEvent
+		var typ, sev, hint, routerID, suppressedBy, varsRaw string
+		var urgent, read int
+		if err := rows.Scan(&ev.ID, &ev.Ts, &ev.Category, &typ, &sev, &urgent,
+			&ev.Title, &ev.Description, &hint, &routerID, &suppressedBy, &varsRaw, &read); err != nil {
+			return
+		}
+		ev.Type = typ
+		ev.Severity = sev
+		ev.Urgent = urgent != 0
+		ev.Hint = hint
+		ev.RouterID = routerID
+		ev.SuppressedBy = suppressedBy
+		if varsRaw != "" {
+			vars := map[string]string{}
+			if json.Unmarshal([]byte(varsRaw), &vars) == nil {
+				ev.Vars = vars
+			}
+		}
+		loaded = append(loaded, row{ev: ev, read: read != 0})
+	}
+	// rows.Next() consumió las filas de más reciente a más antigua; la lista
+	// interna ya va en ese orden (append al frente en insertaLocked).
+	for _, r := range loaded {
+		e.list = append(e.list, r.ev)
+		key := r.ev.Category + "|" + r.ev.Title + "|" + r.ev.RouterID
+		// Las filas vienen de más reciente a más antigua: solo la primera por
+		// clave es el timestamp de dedup válido (no pisar con la más vieja).
+		if _, ok := e.dedup[key]; !ok {
+			e.dedup[key] = r.ev.Ts * 1000
+		}
+		if r.read && r.ev.ID != "" && !e.readSet[r.ev.ID] {
+			e.readSet[r.ev.ID] = true
+			e.readOrd = append(e.readOrd, r.ev.ID)
+		}
+	}
 }
 
 // SetNotifier sustituye el hook Notifier (wiring de Bloque C desde main;
@@ -327,7 +406,40 @@ func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
 	if len(e.list) > MaxEvents {
 		e.list = e.list[:MaxEvents]
 	}
+	e.persistLocked(ev)
 	return true
+}
+
+// persistLocked escribe (o actualiza) el evento en alert_log y poda la tabla
+// a PersistMaxEvents filas (issue #798). El read NO se toca aquí: la fuente
+// de verdad del leído es el read-set de kv y se espeja aparte en MarkRead.
+// Best-effort: un fallo de BD nunca debe romper el camino de alertado.
+func (e *Engine) persistLocked(ev AlertEvent) {
+	if e.db == nil || !e.persistLog || ev.ID == "" {
+		return
+	}
+	varsRaw := ""
+	if len(ev.Vars) > 0 {
+		if raw, err := json.Marshal(ev.Vars); err == nil {
+			varsRaw = string(raw)
+		}
+	}
+	urgent := 0
+	if ev.Urgent {
+		urgent = 1
+	}
+	_, _ = e.db.Exec(
+		`INSERT INTO alert_log (id, ts, category, type, severity, urgent, title, description, hint, router_id, suppressed_by, vars)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(id) DO UPDATE SET ts=excluded.ts, category=excluded.category,
+		   type=excluded.type, severity=excluded.severity, urgent=excluded.urgent,
+		   title=excluded.title, description=excluded.description, hint=excluded.hint,
+		   router_id=excluded.router_id, suppressed_by=excluded.suppressed_by, vars=excluded.vars`,
+		ev.ID, ev.Ts, ev.Category, ev.Type, ev.Severity, urgent,
+		ev.Title, ev.Description, ev.Hint, ev.RouterID, ev.SuppressedBy, varsRaw)
+	_, _ = e.db.Exec(
+		`DELETE FROM alert_log WHERE id NOT IN
+		   (SELECT id FROM alert_log ORDER BY ts DESC LIMIT ?)`, PersistMaxEvents)
 }
 
 // Emit aplica la semántica none/urgent/all EN CREACIÓN, el dedup de 5 min y
@@ -381,6 +493,7 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 			}
 			e.list = append(e.list[:i], e.list[i+1:]...)
 			e.list = append([]AlertEvent{ev}, e.list...)
+			e.persistLocked(ev)
 			n := e.notifier
 			e.mu.Unlock()
 			if n != nil && ev.Urgent {
@@ -472,6 +585,10 @@ func (e *Engine) MarkRead(ids ...string) {
 		}
 		e.readSet[id] = true
 		e.readOrd = append(e.readOrd, id)
+		// Espejo en alert_log para restaurar el leído tras un reinicio (#798).
+		if e.db != nil {
+			_, _ = e.db.Exec("UPDATE alert_log SET read_flag = 1 WHERE id = ?", id)
+		}
 	}
 	for len(e.readOrd) > MaxReadIDs {
 		delete(e.readSet, e.readOrd[0])

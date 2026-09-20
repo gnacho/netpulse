@@ -269,6 +269,11 @@ type Device struct {
 	LeaseRemaining *int `json:"leaseRemaining,omitempty"`
 	// IconOverride: icono manual elegido por el usuario (issue #437).
 	IconOverride string `json:"iconOverride,omitempty"`
+	// NameOverride/TypeOverride: overrides manuales de nombre visible y tipo
+	// (#797). Los valores EFECTIVOS viajan en Name/Type; estos campos llevan
+	// el override crudo para que la UI de edición pueda mostrarlo y limpiarlo.
+	NameOverride string `json:"nameOverride,omitempty"`
+	TypeOverride string `json:"typeOverride,omitempty"`
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname     string `json:"hostname,omitempty"`
 	DHCPLease    string `json:"dhcpLease,omitempty"`

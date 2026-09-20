@@ -30,6 +30,17 @@ export function alertDescription(t: TFunction, ev: AlertEvent): string {
     const vars = formatAlertTempVars(ev.type, ev.vars, readTempUnit())
     return t(`alerts.types.${ev.type}.descriptionUnit`, { defaultValue: ev.description, ...(vars ?? {}) })
   }
+  // #796: los tipos con descripciones por resultado (vars.result, p. ej. la
+  // alerta de auto-update) traducen con alerts.types.<slug>.results.<result>;
+  // el literal del server en español queda solo como fallback.
+  const resultKey = ev.vars?.result
+  if (resultKey) {
+    const translated = t(`alerts.types.${ev.type}.results.${resultKey}`, {
+      defaultValue: '',
+      ...(ev.vars ?? {}),
+    })
+    if (translated !== '') return translated
+  }
   return t(`alerts.types.${ev.type}.description`, { defaultValue: ev.description, ...(ev.vars ?? {}) })
 }
 

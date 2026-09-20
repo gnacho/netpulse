@@ -237,6 +237,10 @@ export interface Device {
   leaseRemaining?: number | null
   /** Nombre del icono manual elegido por el usuario (issue #437). */
   iconOverride?: string
+  /** Override manual del nombre visible (#797). El efectivo viaja en `name`. */
+  nameOverride?: string
+  /** Override manual del tipo (#797). El efectivo viaja en `type`. */
+  typeOverride?: string
 }
 
 /**

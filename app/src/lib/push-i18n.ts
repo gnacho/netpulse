@@ -13,7 +13,7 @@
 /** Subconjunto del catálogo de traducciones que necesita el push. */
 export interface PushCatalog {
   alerts?: {
-    types?: Record<string, { title?: string; description?: string }>
+    types?: Record<string, { title?: string; description?: string; results?: Record<string, string> }>
     hints?: Record<string, string>
   }
 }
@@ -44,6 +44,8 @@ export function interpolate(tpl: string, vars: Record<string, string> | undefine
 /**
  * Traduce title/description/hint de un evento tipado. Si no hay `type`, falta
  * la clave o el catálogo no cargó, cae a los literales del server (fallback).
+ * Los tipos con descripciones por resultado (vars.result, #796) usan
+ * `results.<result>` antes que la descripción genérica.
  */
 export function localizePush(
   catalog: PushCatalog | null,
@@ -53,7 +55,13 @@ export function localizePush(
 ): LocalizedPush {
   const entry = type ? catalog?.alerts?.types?.[type] : undefined
   const title = entry?.title ? interpolate(entry.title, vars) : fallback.title || 'NetPulse'
-  const body = entry?.description ? interpolate(entry.description, vars) : fallback.body ?? ''
+  const resultKey = vars?.result
+  const resultTpl = resultKey ? entry?.results?.[resultKey] : undefined
+  const body = resultTpl
+    ? interpolate(resultTpl, vars)
+    : entry?.description
+      ? interpolate(entry.description, vars)
+      : (fallback.body ?? '')
   // El hint solo se muestra si el evento traía uno; se prefiere la clave i18n.
   const hint = fallback.hint ? (type ? catalog?.alerts?.hints?.[type] ?? fallback.hint : fallback.hint) : undefined
   return { title, body, hint }

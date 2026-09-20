@@ -237,7 +237,13 @@
       },
       "autoupdate": {
         "title": "Auto-actualización programada",
-        "description": "{{detail}}"
+        "description": "{{detail}}",
+        "results": {
+          "applied": "Actualización programada iniciada: {{version}} (solo binario, con verificación y rollback automático)",
+          "check-failed": "No se pudo comprobar la actualización (razón: {{reason}}); se reintentará en el próximo disparo",
+          "cannot-apply": "Hay una actualización disponible pero esta instalación no puede aplicarla ahora (revisa readiness en Ajustes)",
+          "apply-busy": "La actualización programada no pudo arrancar (¿otra actualización en curso?)"
+        }
       }
     }
   },
@@ -379,6 +385,8 @@
       "description": "Cambia el nombre y el icono de este dispositivo.",
       "action": "Editar",
       "name": "Nombre",
+      "nameHint": "Vacío = nombre automático (hostname DHCP)",
+      "type": "Tipo",
       "icon": "Icono",
       "auto": "Auto",
       "save": "Guardar",
@@ -413,6 +421,8 @@
     "showing": "Mostrando",
     "showingOf": "de {{total}}",
     "signalDbm": "Señal {{dbm}} dBm",
+    "sortBy": "Ordenar por",
+    "sortDefault": "Predeterminado (tráfico)",
     "stats": {
       "adguardProtected": "Protegidos por AdGuard",
       "new7d": "Nuevos (7 días)",

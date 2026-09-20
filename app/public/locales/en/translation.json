@@ -237,7 +237,13 @@
       },
       "autoupdate": {
         "title": "Scheduled auto-update",
-        "description": "{{detail}}"
+        "description": "{{detail}}",
+        "results": {
+          "applied": "Scheduled update started: {{version}} (binary only, with health verification and automatic rollback)",
+          "check-failed": "Update check failed (reason: {{reason}}); it will retry on the next scheduled run",
+          "cannot-apply": "An update is available but this install cannot apply it now (check readiness in Settings)",
+          "apply-busy": "The scheduled update could not start (another update in progress?)"
+        }
       }
     }
   },
@@ -379,6 +385,8 @@
       "description": "Change this device's name and icon.",
       "action": "Edit",
       "name": "Name",
+      "nameHint": "Empty = automatic name (DHCP hostname)",
+      "type": "Type",
       "icon": "Icon",
       "auto": "Auto",
       "save": "Save",
@@ -413,6 +421,8 @@
     "showing": "Showing",
     "showingOf": "of {{total}}",
     "signalDbm": "Signal {{dbm}} dBm",
+    "sortBy": "Sort by",
+    "sortDefault": "Default (traffic)",
     "stats": {
       "adguardProtected": "Protected by AdGuard",
       "new7d": "New (7 days)",

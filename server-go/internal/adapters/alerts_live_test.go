@@ -318,8 +318,10 @@ func TestLiveUnknownDeviceMemoryPersisted(t *testing.T) {
 	l2.trackUnknownDevices([]Device{unknown})
 	l2.trackUnknownDevices([]Device{unknown})
 	l2.trackUnknownDevices([]Device{unknown})
-	if len(l2.engine.List()) != 0 {
-		t.Fatal("tras reinicio no debía re-alertar (memoria persistida)")
+	// #798: el log de alertas sobrevive al reinicio, así que la alerta
+	// histórica sigue visible; lo que no debe pasar es que se EMITA una nueva.
+	if len(l2.engine.List()) != 1 {
+		t.Fatalf("tras reinicio no debía re-alertar (memoria persistida); historial=%d", len(l2.engine.List()))
 	}
 }
 

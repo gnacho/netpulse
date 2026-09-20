@@ -2121,18 +2121,25 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			rows.Close()
 		}
 	}
-	// issue #437: overrides manuales de dispositivo (icono, bandas baneadas).
+	// issue #437/#797: overrides manuales de dispositivo (icono, nombre
+	// visible y tipo) sobre el dispositivo auto-descubierto.
 	type overrideInfo struct {
 		Icon        string
+		Name        string
+		DeviceType  string
 		BannedBands string
 	}
 	deviceOverrides := map[string]overrideInfo{}
 	if l.db != nil {
-		if rows, err := l.db.Query("SELECT mac, icon, banned_bands FROM device_overrides"); err == nil {
+		if rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands FROM device_overrides"); err == nil {
 			for rows.Next() {
-				var mac, icon, bannedBands string
-				if rows.Scan(&mac, &icon, &bannedBands) == nil {
-					deviceOverrides[mac] = overrideInfo{Icon: icon, BannedBands: bannedBands}
+				var mac, name, deviceType, bannedBands string
+				var icon sql.NullString
+				if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands); err == nil {
+					// Clave en minúsculas: las MACs de los sondeos pueden
+					// llegar en cualquier caso y el lookup debe ser robusto
+					// (#797: icon overrides que "desaparecían" por caso).
+					deviceOverrides[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands}
 				}
 			}
 			rows.Close()
@@ -2201,10 +2208,16 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
 		}
-		// issue #437: overrides manuales (icono) se aplican sobre el dispositivo auto-descubierto.
-		if ov, ok := deviceOverrides[mac]; ok {
+		// issue #437/#797: overrides manuales (icono, nombre) se aplican sobre
+		// el dispositivo auto-descubierto; el nombre manual manda incluso
+		// sobre el alias de la allowlist.
+		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok {
 			if ov.Icon != "" {
 				d.IconOverride = ov.Icon
+			}
+			if ov.Name != "" {
+				d.Name = ov.Name
+				d.NameOverride = ov.Name
 			}
 		}
 		vendorClass := ""
@@ -2235,6 +2248,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		// yielded "desconocido" but mDNS services are available, try to classify.
 		if d.Type == "desconocido" && len(d.MdnsServices) > 0 {
 			d.Type = guessFromMdns(d.MdnsServices)
+		}
+		// issue #797: el tipo manual manda sobre la clasificación (reglas,
+		// huella DHCP y refinación mDNS).
+		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok && ov.DeviceType != "" {
+			d.Type = ov.DeviceType
+			d.TypeOverride = ov.DeviceType
 		}
 		if isSeen {
 			d.RouterID = s.routerID

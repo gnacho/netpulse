@@ -123,26 +123,29 @@ func (s *Scheduler) shot(st AutoUpdateSettings, prev autoRunState) {
 	switch {
 	case status.CheckFailed:
 		saveAutoResult(s.db, "check-failed")
-		s.alert(false, fmt.Sprintf("No se pudo comprobar (razón: %s); se reintentará en el próximo disparo", status.CheckErr), status.CheckErr)
+		s.alert(false, "check-failed", fmt.Sprintf("No se pudo comprobar (razón: %s); se reintentará en el próximo disparo", status.CheckErr), map[string]string{"reason": status.CheckErr})
 	case !status.UpdateAvailable:
 		saveAutoResult(s.db, "up-to-date")
 	case !status.CanApply:
 		// Readiness o layout sin apply: se avisa (hay novedad esperando y no
 		// se podrá aplicar hasta que el admin lo resuelva).
 		saveAutoResult(s.db, "cannot-apply")
-		s.alert(false, "Hay una actualización disponible pero este layout no puede aplicarla ahora (revisa readiness en Ajustes)", "cannot-apply")
+		s.alert(false, "cannot-apply", "Hay una actualización disponible pero este layout no puede aplicarla ahora (revisa readiness en Ajustes)", nil)
 	default:
 		saveAutoResult(s.db, "applied")
 		if s.ua.ApplyBy("scheduled") {
-			s.alert(true, fmt.Sprintf("Actualización programada iniciada: %s (solo binario, con verificación y rollback automático)", statusLatestDeref(status)), "")
+			s.alert(true, "applied", fmt.Sprintf("Actualización programada iniciada: %s (solo binario, con verificación y rollback automático)", statusLatestDeref(status)), map[string]string{"version": statusLatestDeref(status)})
 		} else {
-			s.alert(false, "La actualización programada no pudo arrancar (¿otra actualización en curso?)", "apply-busy")
+			s.alert(false, "apply-busy", "La actualización programada no pudo arrancar (¿otra actualización en curso?)", nil)
 		}
 	}
 }
 
 // alert emite la notificación del disparo (info en éxito, warn en aviso).
-func (s *Scheduler) alert(ok bool, desc, code string) {
+// result es el código estable que el frontend usa para elegir la traducción
+// (alerts.types.autoupdate.results.<result>); desc es el literal en español
+// que sirve de fallback para servidores viejos (#796).
+func (s *Scheduler) alert(ok bool, result, desc string, extra map[string]string) {
 	s.logf("%s", desc)
 	if s.emit == nil {
 		return
@@ -150,6 +153,10 @@ func (s *Scheduler) alert(ok bool, desc, code string) {
 	sev := "warn"
 	if ok {
 		sev = "info"
+	}
+	vars := map[string]string{"result": result, "detail": desc}
+	for k, v := range extra {
+		vars[k] = v
 	}
 	s.emit.Emit(alerts.AlertEvent{
 		ID:          fmt.Sprintf("alert-autoupdate-%d", s.now().UnixMilli()),
@@ -161,7 +168,7 @@ func (s *Scheduler) alert(ok bool, desc, code string) {
 		Time:        "ahora mismo",
 		Ts:          s.now().Unix(),
 		Type:        "autoupdate",
-		Vars:        map[string]string{"result": code, "detail": desc},
+		Vars:        vars,
 	})
 }
 
