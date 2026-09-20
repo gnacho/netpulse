@@ -240,9 +240,12 @@ CREATE INDEX IF NOT EXISTS idx_update_history_ts ON update_history(ts DESC);
 
 -- Overrides manuales de dispositivo (issue #437): alias, icono y estado de
 -- bloqueo por banda. La clave es la MAC normalizada (minúsculas, ':').
+-- #797: name (nombre visible) y device_type (override del tipo clasificado).
 CREATE TABLE IF NOT EXISTS device_overrides (
   mac         TEXT PRIMARY KEY,
   icon        TEXT,
+  name        TEXT NOT NULL DEFAULT '',
+  device_type TEXT NOT NULL DEFAULT '',
   banned_bands TEXT NOT NULL DEFAULT '', -- lista separada por comas: '2.4,5,6'
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
@@ -472,6 +475,9 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "firmware_upgrades", "scheduled_for", "ALTER TABLE firmware_upgrades ADD COLUMN scheduled_for INTEGER")
 	// issue #761: motor del upgrade ("" = clásico URL+checksum, "owut" = ASU).
 	migrate(sqldb, "firmware_upgrades", "engine", "ALTER TABLE firmware_upgrades ADD COLUMN engine TEXT NOT NULL DEFAULT ''")
+	// issue #797: nombre visible y tipo de dispositivo sobreescritos a mano.
+	migrate(sqldb, "device_overrides", "name", "ALTER TABLE device_overrides ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+	migrate(sqldb, "device_overrides", "device_type", "ALTER TABLE device_overrides ADD COLUMN device_type TEXT NOT NULL DEFAULT ''")
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria

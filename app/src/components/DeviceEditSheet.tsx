@@ -5,6 +5,13 @@ import { ALLOWED_ICONS, ICON_OVERRIDES } from '@/components/DeviceRow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet'
@@ -23,8 +30,16 @@ export interface DeviceEditSheetProps {
   isDemo: boolean
   saving?: boolean
   onClose: () => void
-  onSave: (device: ClientDevice, icon: string | null) => void
+  /** Patch absoluto: '' en un campo = volver al valor automático (#797). */
+  onSave: (device: ClientDevice, patch: { icon: string; name: string; type: string }) => void
 }
+
+// #797: tipos válidos del clasificador (paridad con adapters.ValidDeviceTypes
+// y las claves devices.types.* de los locales).
+const DEVICE_TYPES = [
+  'movil', 'portatil', 'ordenador', 'tablet', 'tv', 'consola',
+  'camara', 'altavoz', 'servidor', 'iot', 'switch', 'desconocido',
+] as const
 
 export function DeviceEditSheet({
   open,
@@ -36,6 +51,8 @@ export function DeviceEditSheet({
 }: DeviceEditSheetProps) {
   const { t } = useTranslation()
   const [icon, setIcon] = useState(device?.iconOverride ?? '')
+  const [name, setName] = useState(device?.nameOverride ?? '')
+  const [devType, setDevType] = useState(device?.typeOverride ?? '')
   const [reservation, setReservation] = useState<{ reserved: boolean; ip: string; loading: boolean }>({ reserved: false, ip: '', loading: false })
   const [reserveDraft, setReserveDraft] = useState(device?.ip ?? '')
   const [block, setBlock] = useState<{ blocked: boolean; loading: boolean }>({ blocked: false, loading: false })
@@ -66,8 +83,10 @@ export function DeviceEditSheet({
 
   useEffect(() => {
     setIcon(device?.iconOverride ?? '')
+    setName(device?.nameOverride ?? '')
+    setDevType(device?.typeOverride ?? '')
     setReserveDraft(device?.ip ?? '')
-  }, [device?.id, device?.iconOverride, device?.ip])
+  }, [device?.id, device?.iconOverride, device?.nameOverride, device?.typeOverride, device?.ip])
 
   useEffect(() => {
     if (!device || isDemo) return
@@ -98,7 +117,7 @@ export function DeviceEditSheet({
 
   const handleSave = () => {
     if (!device) return
-    onSave(device, icon || null)
+    onSave(device, { icon, name: name.trim(), type: devType })
   }
 
   const selectedIconName = icon || null
@@ -116,9 +135,39 @@ export function DeviceEditSheet({
                 <PreviewIcon className="h-6 w-6" strokeWidth={1.75} />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-text-primary">{device.name}</div>
+                <div className="truncate text-sm font-medium text-text-primary">{name.trim() || device.name}</div>
                 <div className="truncate text-caption text-text-muted">{device.mac}</div>
               </div>
+            </div>
+
+            {/* Nombre visible (#797) */}
+            <div className="space-y-2">
+              <label className="text-label uppercase text-text-muted">{t('devices.edit.name')}</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={device.name}
+                disabled={saving}
+                maxLength={64}
+                className="h-9 rounded-lg border-border bg-elevated text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent/50"
+              />
+              <p className="text-caption text-text-muted">{t('devices.edit.nameHint')}</p>
+            </div>
+
+            {/* Tipo (#797) */}
+            <div className="space-y-2">
+              <label className="text-label uppercase text-text-muted">{t('devices.edit.type')}</label>
+              <Select value={devType || 'auto'} onValueChange={(v) => setDevType(v === 'auto' ? '' : v)} disabled={saving}>
+                <SelectTrigger className="h-9 rounded-lg border-border bg-elevated text-sm text-text-primary">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{t('devices.edit.auto')}</SelectItem>
+                  {DEVICE_TYPES.map((ty) => (
+                    <SelectItem key={ty} value={ty}>{t(`devices.types.${ty}`)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Icono */}

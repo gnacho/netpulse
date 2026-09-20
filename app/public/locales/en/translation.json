@@ -379,6 +379,8 @@
       "description": "Change this device's name and icon.",
       "action": "Edit",
       "name": "Name",
+      "nameHint": "Empty = automatic name (DHCP hostname)",
+      "type": "Type",
       "icon": "Icon",
       "auto": "Auto",
       "save": "Save",

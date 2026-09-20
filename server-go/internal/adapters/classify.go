@@ -87,6 +87,15 @@ func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldp
 	return "desconocido"
 }
 
+// ValidDeviceTypes es el conjunto cerrado de tipos que GuessDeviceType puede
+// devolver (y las claves devices.types.* del frontend). El override manual de
+// tipo (#797) valida contra esta lista.
+var ValidDeviceTypes = map[string]bool{
+	"consola": true, "tv": true, "camara": true, "altavoz": true,
+	"tablet": true, "movil": true, "portatil": true, "servidor": true,
+	"ordenador": true, "switch": true, "iot": true, "desconocido": true,
+}
+
 // guessFromMdns (#338): classify a device from its mDNS service types when
 // hostname/DHCP/LLDP classification yielded "desconocido". The mapping is
 // intentionally conservative: only well-known service types that strongly
