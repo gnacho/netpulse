@@ -5,11 +5,19 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [2.28.30] - 2026-09-20
 
 ### Added
 
-- **Aplicar el nombre del dispositivo como reserva DHCP (#800)**: renombrar un cliente en NetPulse solo cambiaba el nombre visible dentro de la app; el router seguía mostrando el hostname original (p. ej. en LuCI). La tarjeta de reserva DHCP del editor de dispositivos ofrece ahora "Aplicar nombre en el router": si la MAC ya tiene reserva se actualiza solo su hostname (la IP no se toca); si no, se crea la reserva con la IP actual. El hostname debe ser DNS válido (la acción se deshabilita con una pista si el nombre visible no lo es) y, como toda escritura en el router, se muestra primero el plan de comandos y solo se ejecuta tras la confirmación explícita.
+- **El historial de alertas sobrevive a reinicios y actualizaciones (#798)**: el registro de alertas era solo memoria (tope 100, sin tabla), así que un self-update lo borraba por completo. Las alertas se guardan ahora en una tabla SQLite (esquema idempotente, poda a 500 filas) y se recargan al arrancar, reconstruyendo la ventana de deduplicación y el estado de leídas. El modo demo sigue siendo solo memoria, para no re-sementar el dataset sintético.
+- **El nombre del dispositivo se puede aplicar como reserva DHCP (#800)**: renombrar un cliente solo cambiaba el nombre visible dentro de NetPulse, y el router seguía mostrando el hostname original (p. ej. en LuCI). La tarjeta de reserva DHCP del editor ofrece ahora "Aplicar nombre en el router": si la MAC ya tiene reserva se actualiza solo su hostname (la IP no se toca); si no, se crea la reserva con la IP actual. El hostname debe ser DNS válido (la acción se deshabilita con una pista si el nombre visible no lo es), los conflictos de IP con otras MAC se rechazan y, como toda escritura en el router, se muestra primero el plan de comandos y solo se ejecuta tras la confirmación explícita.
+- **Nombre y tipo editables en la ficha del cliente (#797)**: el editor de dispositivos pasaba a solo dejar cambiar el icono. Ahora `device_overrides` guarda también nombre y tipo, con un campo de nombre y un selector de tipo (los 12 conocidos o de vuelta a Auto): el nombre propio manda sobre el alias DHCP y el tipo sobre el clasificador, y los tipos inválidos se rechazan. De paso se corrigen las búsquedas de overrides con MAC en mayúsculas (causa probable de los iconos que "desaparecían") y la imposibilidad de volver a Auto.
+- **Orden estable y columna de tráfico en la lista de clientes (#799)**: el orden por defecto ya no "baila" entre refrescos (tráfico cuantizado en buckets de 0.1 Mbps con desempate por nombre), la lista de escritorio tiene columna de Tráfico ordenable y el móvil gana un selector de orden, así que ambas vistas muestran lo mismo.
+
+### Fixed
+
+- **El botón de comprobar actualizaciones hace un check real (#795)**: el botón de Ajustes solo leía el último estado cacheado (arranque o tick de 24 h), así que podía seguir mostrando un "latest" caducado. Ahora dispara primero el check real (`POST /api/update/check`) y solo recurre al estado cacheado como respaldo.
+- **La alerta de auto-actualización respeta el idioma de la interfaz (#796)**: la descripción de la alerta interpolaba una frase en español fija del backend aunque la UI estuviera en inglés. El programador emite ahora códigos de resultado estables (applied / check-failed / cannot-apply / apply-busy, con versión y motivo) y los locales EN/ES resuelven una plantilla propia por resultado antes que la descripción genérica.
 
 ## [2.28.28] - 2026-09-19
 
