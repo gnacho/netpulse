@@ -3568,7 +3568,11 @@ function UpdateCheckInline() {
     setBusy(true)
     setError(false)
     try {
-      const res = await fetch('/api/update/status')
+      // #795: el botón debe FORZAR un chequeo fresco contra GitHub. Leer solo
+      // /api/update/status devuelve el resultado del último check (arranque o
+      // tick de 24 h) y puede decir "up to date" con una release ya publicada.
+      let res = await fetch('/api/update/check', { method: 'POST' })
+      if (!res.ok) res = await fetch('/api/update/status')
       if (!res.ok) throw new Error('status')
       const data = (await res.json()) as NetPulseUpdateStatus
       setStatus(data)
