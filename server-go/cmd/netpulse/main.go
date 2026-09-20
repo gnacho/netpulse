@@ -272,7 +272,9 @@ func run() error {
 	var sshPool *adapters.SSHPool
 	var eventsCollector *roamevents.Collector
 	if cfg.DemoMode {
-		adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
+		// Volatile: el dataset demo es sintético; no se persiste ni restaura
+		// el log de alertas (issue #798).
+		adapter = adapters.NewDemo(alerts.NewVolatile(dbHandle, nil))
 	} else {
 		// Fase 8.2 (R8): restaurar el último push persistido de cada agente
 		// (kv agent.state.<slug>) para que lastSeen/versión sobrevivan a un
@@ -282,7 +284,7 @@ func run() error {
 		pool, err := adapters.NewSSHPool(cfg.SSHKeyPath)
 		if err != nil {
 			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
-			adapter = adapters.NewDemo(alerts.New(dbHandle, nil))
+			adapter = adapters.NewDemo(alerts.NewVolatile(dbHandle, nil))
 		} else {
 			sshPool = pool
 			live := adapters.NewLive(cfg, dbHandle, routers, pool)

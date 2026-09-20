@@ -352,6 +352,29 @@ CREATE TABLE IF NOT EXISTS firmware_upgrades (
 );
 CREATE INDEX IF NOT EXISTS idx_firmware_upgrades_router_started ON firmware_upgrades(router_id, started_at DESC);
 
+-- Log de alertas persistido (issue #798): el historial sobrevive a reinicios
+-- (el self-update del updater reinicia el proceso y antes se perdía entero).
+-- La lista en memoria sigue acotada a los 100 más recientes; aquí se guardan
+-- hasta 500 para poder restaurarlos. read_flag va aparte en kv (readSet), pero
+-- se espeja en la columna para restaurarlo al cargar. (OJO: "read" crudo es
+-- problemático como nombre de columna; por eso read_flag.)
+CREATE TABLE IF NOT EXISTS alert_log (
+  id            TEXT PRIMARY KEY,
+  ts            INTEGER NOT NULL,
+  category      TEXT NOT NULL,
+  type          TEXT NOT NULL DEFAULT '',
+  severity      TEXT NOT NULL DEFAULT '',
+  urgent        INTEGER NOT NULL DEFAULT 0,
+  title         TEXT NOT NULL,
+  description   TEXT NOT NULL DEFAULT '',
+  hint          TEXT NOT NULL DEFAULT '',
+  router_id     TEXT NOT NULL DEFAULT '',
+  suppressed_by TEXT NOT NULL DEFAULT '',
+  vars          TEXT NOT NULL DEFAULT '',
+  read_flag     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_alert_log_ts ON alert_log(ts DESC);
+
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
