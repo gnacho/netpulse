@@ -37,6 +37,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { dhcpLease, manufacturerLabel, numLocale } from '@/i18n'
 import { fmtEs, signalLevel } from '@/data/mock'
@@ -56,7 +63,7 @@ import type { DeviceType } from '@/data/mock'
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
-type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type'
+type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type' | 'traffic'
 
 // Persistencia de preferencias de visualización (issue #778): el modo
 // lista/rejilla y el orden activo se guardan en el navegador y se restauran
@@ -65,7 +72,7 @@ const DEVICES_PREFS_KEY = 'netpulse.devices.prefs'
 type SortState = { key: SortKey; dir: 1 | -1 } | null
 type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState }
 
-const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type']
+const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type', 'traffic']
 
 function loadDevicesPrefs(): DevicesPrefs {
   const fallback: DevicesPrefs = { view: 'list', sort: null }
@@ -426,6 +433,8 @@ interface FilterBarProps {
   setView: (v: 'list' | 'grid') => void
   shown: number
   groupCounts: Record<FilterGroup, number>
+  sort: SortState
+  setSortKey: (key: SortKey | null) => void
 }
 
 function FilterBar(p: FilterBarProps) {
@@ -508,6 +517,33 @@ function FilterBar(p: FilterBarProps) {
             {t('devices.weakChip', { count: p.weakCount })}
           </button>
         )}
+        {/* Orden (#799): visible solo en móvil; en desktop la cabecera sticky
+            de la lista lleva los SortHeader */}
+        <div className="md:hidden">
+          <Select
+            value={p.sort?.key ?? 'default'}
+            onValueChange={(v) => p.setSortKey(v === 'default' ? null : (v as SortKey))}
+          >
+            <SelectTrigger
+              aria-label={t('devices.sortBy')}
+              className="h-8 w-auto gap-1.5 rounded-lg border-border bg-elevated px-2.5 text-xs font-medium text-text-secondary"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">{t('devices.sortDefault')}</SelectItem>
+              <SelectItem value="name">{t('devices.colDevice')}</SelectItem>
+              <SelectItem value="traffic">{t('devices.colTraffic')}</SelectItem>
+              <SelectItem value="ip">IP / MAC</SelectItem>
+              <SelectItem value="router">Router</SelectItem>
+              <SelectItem value="band">{t('devices.colBand')}</SelectItem>
+              <SelectItem value="signal">{t('devices.colSignal')}</SelectItem>
+              <SelectItem value="lease">{t('devices.colLease')}</SelectItem>
+              <SelectItem value="type">{t('devices.colType')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {/* Derecha: vista + caption */}
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden text-caption text-text-muted sm:inline">
@@ -839,7 +875,7 @@ function LeaseCell({ device }: { device: ClientDevice }) {
 }
 
 const ROW_GRID =
-  'md:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_1.5rem] lg:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_1.5rem]'
+  'md:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_1.5rem] lg:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_1.5rem]'
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
@@ -945,6 +981,14 @@ function ListRow({
         {/* Señal */}
         <div>
           <SignalCell device={device} />
+        </div>
+        {/* Tráfico en vivo (#799): la columna que ordena el default */}
+        <div>
+          <span className="font-mono text-mono-sm text-accent">
+            {device.online
+              ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
+              : '—'}
+          </span>
         </div>
         <ChevronDown
           className={cn('h-4 w-4 justify-self-end text-text-muted transition-transform duration-200', expanded && 'rotate-180')}
@@ -1215,6 +1259,12 @@ export default function Devices() {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
   }, [])
 
+  // Selector compacto de orden (móvil, #799): fija la clave en ascendente o
+  // vuelve al orden por defecto (tráfico) con null.
+  const setSortKey = useCallback((key: SortKey | null) => {
+    setSort(key === null ? null : { key, dir: 1 })
+  }, [])
+
   // Persiste vista + orden en cada cambio (issue #778). El write inicial
   // reescribe el mismo valor cargado; es inofensivo.
   useEffect(() => {
@@ -1262,6 +1312,9 @@ export default function Devices() {
           case 'type':
             c = a.type.localeCompare(b.type)
             break
+          case 'traffic':
+            c = a.trafficMbps - b.trafficMbps
+            break
         }
         if (c !== 0) return dir * c
         // Desempate: online primero, luego nombre
@@ -1270,9 +1323,17 @@ export default function Devices() {
       })
     }
     // Online primero (por tráfico desc), conocidos offline al final (devices.md §④)
+    // #799: orden por defecto ESTABLE: el tráfico se cuantiza en buckets de
+    // 0.1 Mbps para que las micro-fluctuaciones de equipos inactivos no
+    // reordenen la lista en cada refresco; desempate por nombre.
+    const trafficBucket = (mbps: number) => Math.round(mbps * 10) / 10
     return out.sort((a, b) => {
       if (a.online !== b.online) return a.online ? -1 : 1
-      return a.online ? b.trafficMbps - a.trafficMbps : a.name.localeCompare(b.name, numLocale())
+      if (a.online) {
+        const c = trafficBucket(b.trafficMbps) - trafficBucket(a.trafficMbps)
+        if (c !== 0) return c
+      }
+      return a.name.localeCompare(b.name, numLocale())
     })
   }, [allDevices, onlyOnline, onlyWeak, router, band, typeFilter, groups, q, sort, routers])
 
@@ -1483,6 +1544,8 @@ export default function Devices() {
         setView={setView}
         shown={filtered.length}
         groupCounts={groupCounts}
+        sort={sort}
+        setSortKey={setSortKey}
       />
 
       {/* Pills de filtros activos */}
@@ -1537,6 +1600,7 @@ export default function Devices() {
             <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />
+            <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />
             <span />
           </div>
           <div className="divide-y divide-border p-1.5 md:p-2">

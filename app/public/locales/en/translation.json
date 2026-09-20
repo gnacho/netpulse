@@ -415,6 +415,8 @@
     "showing": "Showing",
     "showingOf": "of {{total}}",
     "signalDbm": "Signal {{dbm}} dBm",
+    "sortBy": "Sort by",
+    "sortDefault": "Default (traffic)",
     "stats": {
       "adguardProtected": "Protected by AdGuard",
       "new7d": "New (7 days)",
