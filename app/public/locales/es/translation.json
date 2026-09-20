@@ -237,7 +237,13 @@
       },
       "autoupdate": {
         "title": "Auto-actualización programada",
-        "description": "{{detail}}"
+        "description": "{{detail}}",
+        "results": {
+          "applied": "Actualización programada iniciada: {{version}} (solo binario, con verificación y rollback automático)",
+          "check-failed": "No se pudo comprobar la actualización (razón: {{reason}}); se reintentará en el próximo disparo",
+          "cannot-apply": "Hay una actualización disponible pero esta instalación no puede aplicarla ahora (revisa readiness en Ajustes)",
+          "apply-busy": "La actualización programada no pudo arrancar (¿otra actualización en curso?)"
+        }
       }
     }
   },

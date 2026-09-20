@@ -237,7 +237,13 @@
       },
       "autoupdate": {
         "title": "Scheduled auto-update",
-        "description": "{{detail}}"
+        "description": "{{detail}}",
+        "results": {
+          "applied": "Scheduled update started: {{version}} (binary only, with health verification and automatic rollback)",
+          "check-failed": "Update check failed (reason: {{reason}}); it will retry on the next scheduled run",
+          "cannot-apply": "An update is available but this install cannot apply it now (check readiness in Settings)",
+          "apply-busy": "The scheduled update could not start (another update in progress?)"
+        }
       }
     }
   },
