@@ -359,6 +359,113 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mac": mac, "ip": body.IP})
 }
 
+// handleDeviceReservationHostnamePut aplica el nombre visible de NetPulse como
+// hostname de la reserva DHCP del dispositivo (#800): si la MAC ya tiene
+// reserva se actualiza solo el `name` (la IP no se toca); si no, se crea la
+// reserva con la IP actual del dispositivo. El hostname debe ser DNS válido y
+// NO vacío (#693): es el objetivo de la acción, no un opcional. La UI deriva
+// el hostname del nombre visible y deshabilita la acción si no es aplicable.
+func (s *server) handleDeviceReservationHostnamePut(w http.ResponseWriter, r *http.Request) {
+	mac := normalizeMAC(r.PathValue("mac"))
+	if len(mac) != 17 {
+		writeError(w, http.StatusBadRequest, "invalid_mac")
+		return
+	}
+	var body struct {
+		IP       string `json:"ip"`
+		Hostname string `json:"hostname"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	// A diferencia del PUT de reserva, aquí el hostname ES el objetivo de la
+	// acción: vacío no significa "no tocar", significa petición sin sentido.
+	if body.Hostname == "" || !validDHCPHostname(body.Hostname) {
+		writeError(w, http.StatusBadRequest, "invalid_hostname",
+			"el hostname debe ser un nombre DNS válido (letras, dígitos, guiones y puntos)")
+		return
+	}
+	if net.ParseIP(body.IP) == nil {
+		writeError(w, http.StatusBadRequest, "invalid_ip")
+		return
+	}
+	host := s.reservationTargetHost(mac)
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "no_gateway")
+		return
+	}
+	lines, err := s.uciShow(host, "dhcp")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "ssh_error", err.Error())
+		return
+	}
+	hosts := parseDhcpHosts(lines)
+
+	// Conflicto: otra MAC (distinta de ésta) ya tiene esa IP reservada.
+	for _, h := range hosts {
+		if h.IP != body.IP {
+			continue
+		}
+		if findDhcpHost([]*dhcpHost{h}, mac) != nil {
+			continue // es la sección de esta misma MAC
+		}
+		writeError(w, http.StatusConflict, "ip_conflict",
+			fmt.Sprintf("la IP %s ya está reservada para %s", body.IP, h.MAC))
+		return
+	}
+
+	existing := findDhcpHost(hosts, mac)
+	var apply, rollback []string
+	created := false
+	if existing != nil {
+		if existing.Name == body.Hostname {
+			// No-op idempotente: el router ya tiene exactamente ese hostname.
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok": true, "mac": mac, "ip": existing.IP, "noop": true,
+			})
+			return
+		}
+		apply = append(apply, uciSetCmd("dhcp", existing.Section, "name", body.Hostname))
+		if existing.Name != "" {
+			rollback = append(rollback, uciSetCmd("dhcp", existing.Section, "name", existing.Name))
+		} else {
+			rollback = append(rollback, fmt.Sprintf("uci delete dhcp.%s.name", existing.Section))
+		}
+	} else {
+		created = true
+		section := dhcpHostSection(mac)
+		apply = append(apply,
+			fmt.Sprintf("uci set dhcp.%s=host", section),
+			uciSetCmd("dhcp", section, "name", body.Hostname),
+			uciSetCmd("dhcp", section, "mac", mac),
+			uciSetCmd("dhcp", section, "ip", body.IP),
+		)
+		rollback = append(rollback, fmt.Sprintf("uci delete dhcp.%s", section))
+	}
+
+	// Dry-run (#754): devolver el plan sin ejecutar nada en el router.
+	if r.URL.Query().Get("dry_run") == "1" {
+		writeDevicePlan(w, mac, host, apply, rollback)
+		return
+	}
+
+	if err := s.runUCICommands(host, "dhcp", apply); err != nil {
+		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
+		return
+	}
+	if err := s.reloadService(host, "dnsmasq"); err != nil {
+		if rbErr := s.runUCICommands(host, "dhcp", rollback); rbErr != nil {
+			log.Printf("[netpulse] rollback hostname reserva %s falló: %v", mac, rbErr)
+		}
+		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "mac": mac, "ip": body.IP, "created": created,
+	})
+}
+
 // writeDevicePlan responde un dry-run (#754): comandos que SE EJECUTARÍAN
 // (apply) y su plan de vuelta (rollback), sin tocar el router.
 func writeDevicePlan(w http.ResponseWriter, mac, host string, apply, rollback []string) {

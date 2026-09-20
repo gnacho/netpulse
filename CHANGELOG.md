@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+
+- **Aplicar el nombre del dispositivo como reserva DHCP (#800)**: renombrar un cliente en NetPulse solo cambiaba el nombre visible dentro de la app; el router seguía mostrando el hostname original (p. ej. en LuCI). La tarjeta de reserva DHCP del editor de dispositivos ofrece ahora "Aplicar nombre en el router": si la MAC ya tiene reserva se actualiza solo su hostname (la IP no se toca); si no, se crea la reserva con la IP actual. El hostname debe ser DNS válido (la acción se deshabilita con una pista si el nombre visible no lo es) y, como toda escritura en el router, se muestra primero el plan de comandos y solo se ejecuta tras la confirmación explícita.
+
 ## [2.28.28] - 2026-09-19
 
 ### Fixed

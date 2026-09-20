@@ -120,6 +120,10 @@ export function DeviceEditSheet({
     onSave(device, { icon, name: name.trim(), type: devType })
   }
 
+  // #800: hostname DNS derivado del nombre visible (input del sheet o nombre
+  // actual). Vacío = el nombre visible no es aplicable como hostname DNS.
+  const appliedHostname = device ? asDhcpHostname(name.trim() || device.name) : ''
+
   const selectedIconName = icon || null
 
   const PreviewIcon = (selectedIconName ? (ICON_OVERRIDES[selectedIconName] ?? ICON_OVERRIDES['help-circle']) : ICON_OVERRIDES['help-circle']) as LucideIcon
@@ -297,6 +301,45 @@ export function DeviceEditSheet({
                 >
                   {t('devices.edit.saveReserve')}
                 </Button>
+              </div>
+              {/* #800: aplicar el nombre visible como hostname de la reserva */}
+              <div className="space-y-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={reservation.loading || !appliedHostname}
+                  onClick={async () => {
+                    if (!device || !appliedHostname) return
+                    setReservation((p) => ({ ...p, loading: true }))
+                    const path = `/api/devices/${encodeURIComponent(device.mac)}/reservation-hostname`
+                    const body = { hostname: appliedHostname, ip: reserveDraft || device.ip }
+                    const applyName = async () => {
+                      const res = await fetchJson<{ ip?: string }>(path, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                      })
+                      if (res.ok) {
+                        setReservation({ reserved: true, ip: res.data?.ip ?? body.ip, loading: false })
+                      } else {
+                        setReservation((p) => ({ ...p, loading: false }))
+                      }
+                    }
+                    // #754: primero el plan de comandos; se aplica al confirmar.
+                    const planned = await openPlan(path, body, applyName)
+                    if (!planned) {
+                      await applyName()
+                    } else {
+                      setReservation((p) => ({ ...p, loading: false }))
+                    }
+                  }}
+                >
+                  {t('devices.edit.applyName')}
+                </Button>
+                <p className="text-caption text-text-muted">
+                  {appliedHostname ? t('devices.edit.applyNameHint') : t('devices.edit.applyNameInvalid')}
+                </p>
               </div>
             </div>
 

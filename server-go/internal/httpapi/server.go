@@ -336,6 +336,7 @@ func NewHandler(d Deps) http.Handler {
 	// Reserva DHCP y bloqueo de dispositivo (issue #439).
 	mux.Handle("GET /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationGet)))
 	mux.Handle("PUT /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationPut)))
+	mux.Handle("PUT /api/devices/{mac}/reservation-hostname", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationHostnamePut)))
 	mux.Handle("DELETE /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationDelete)))
 	mux.Handle("GET /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockGet)))
 	mux.Handle("PUT /api/devices/{mac}/block", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBlockPut)))
