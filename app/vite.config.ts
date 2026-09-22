@@ -45,7 +45,6 @@ export default defineConfig({
         description: 'Panel de control de tu red doméstica',
         lang: 'es',
         display: 'standalone',
-        orientation: 'any',
         theme_color: '#070B12',
         background_color: '#070B12',
         categories: ['utilities'],
