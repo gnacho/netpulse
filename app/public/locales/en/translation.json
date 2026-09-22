@@ -1450,14 +1450,14 @@
     "saved": "Preferences saved",
     "services": {
       "title": "Services",
-      "caption": "Which services are shown on the dashboard",
+      "caption": "Which services are shown and monitored",
       "adguardCaption": "Filtered DNS on the gateway",
       "wireguardCaption": "WireGuard VPN tunnels",
       "openvpnCaption": "OpenVPN tunnels (coming soon)",
       "labs": "Labs (experimental features)",
       "labsCaption": "Enable features in development: orchestration, scrapers, and more",
       "orchestrationHint": "Manage routers from the UI (AdGuard, guest Wi-Fi, DDNS…)",
-      "note": "Only checked cards are shown. More services coming soon."
+      "note": "Only checked services are shown and monitored. More services coming soon."
     },
     "session": {
       "active": "Active session on this device",

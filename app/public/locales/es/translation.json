@@ -1450,14 +1450,14 @@
     "saved": "Preferencias guardadas",
     "services": {
       "title": "Servicios",
-      "caption": "Qué servicios se muestran en el panel",
+      "caption": "Qué servicios se muestran y monitorizan",
       "adguardCaption": "DNS filtrado en la puerta de enlace",
       "wireguardCaption": "Túneles VPN WireGuard",
       "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
       "labs": "Labs (aplicaciones experimentales)",
       "labsCaption": "Activa funcionalidades en desarrollo: orquestación, scrapers y más",
       "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
-      "note": "Solo se muestran las tarjetas marcadas. Más servicios próximamente."
+      "note": "Solo se muestran y se monitorizan los servicios marcados. Más servicios próximamente."
     },
     "session": {
       "active": "Sesión activa en este dispositivo",

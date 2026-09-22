@@ -3017,6 +3017,34 @@ function ServicesCard({
     { key: 'wireguard', label: 'WireGuard', caption: t('settings.services.wireguardCaption') },
     { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
   ]
+
+  // AdGuard (#813): el toggle de Servicios también controla el sondeo y la
+  // penalización EN EL SERVIDOR. Se lee al montar (coherencia entre
+  // navegadores) y se escribe al cambiar.
+  useEffect(() => {
+    let alive = true
+    void fetch('/api/settings/services')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && typeof d.adguard === 'boolean') setService('adguard', d.adguard)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [setService])
+
+  const onServiceToggle = (key: keyof ServicesVisibility, v: boolean) => {
+    setService(key, v)
+    if (key === 'adguard') {
+      void fetch('/api/settings/services', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adguard: v }),
+      }).catch(() => undefined)
+    }
+  }
+
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
       <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
@@ -3027,7 +3055,7 @@ function ServicesCard({
             checked={services[rows[0]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService(rows[0]!.key, v)
+              onServiceToggle(rows[0]!.key, v)
               onSaved()
             }}
           />
@@ -3037,7 +3065,7 @@ function ServicesCard({
             checked={services[rows[1]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService(rows[1]!.key, v)
+              onServiceToggle(rows[1]!.key, v)
               onSaved()
             }}
           />
@@ -3049,7 +3077,7 @@ function ServicesCard({
             checked={services[rows[2]!.key]}
             disabled={disabled}
             onCheckedChange={(v) => {
-              setService(rows[2]!.key, v)
+              onServiceToggle(rows[2]!.key, v)
               onSaved()
             }}
           />

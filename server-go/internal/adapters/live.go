@@ -1774,6 +1774,14 @@ func (l *Live) recordPortSamples(routerID string, ports []EthPort) {
 
 // pollAdGuard: stats del cliente configurado; fallback inactivo si falla.
 func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
+	// Servicio desactivado en Ajustes > Servicios (#813): ni sondeo ni
+	// penalización. Clave ausente = activo (compat).
+	if l.db != nil {
+		var v string
+		if err := l.db.QueryRow("SELECT value FROM kv WHERE key = 'settings.services.adguard'").Scan(&v); err == nil && (v == "0" || v == "false") {
+			return nil
+		}
+	}
 	std, gl := l.getAdguardClient()
 	if std == nil && gl == nil {
 		return nil

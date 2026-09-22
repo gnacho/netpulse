@@ -18,6 +18,10 @@ import (
 // orchestrationKey es la clave kv que activa el menú de orquestación (#121).
 const orchestrationKey = "settings.orchestration_enabled"
 
+// adguardServiceKey: si el usuario monitoriza AdGuard (#813). Ausente = SÍ
+// (compat: instalaciones previas no tenían este flag). Ajustes > Servicios.
+const adguardServiceKey = "settings.services.adguard"
+
 // Claves kv de la velocidad WAN contratada (#151).
 const (
 	wanSpeedDownKey = "settings.wan.speed_down"
@@ -43,6 +47,14 @@ func kvSetBool(db *sql.DB, key string, val bool) error {
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, v)
 	return err
+}
+
+// kvGetDefaultOn lee un flag "1"/"0" con default TRUE cuando la clave está
+// ausente o vacía (a diferencia de kvGetBool, cuyo default es false). Se usa
+// para servicios que se monitorizan salvo que el usuario los desactive (#813).
+func kvGetDefaultOn(db *sql.DB, key string) bool {
+	raw := kvGet(db, key)
+	return raw != "0" && raw != "false"
 }
 
 // kvGetFloat lee un número del kv. Devuelve (valor, false) si la clave está
@@ -105,6 +117,34 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"enabled": body.Enabled})
+	})))
+
+	// GET /api/settings/services — servicios monitorizados (#813). Ausente = activo.
+	mux.Handle("GET /api/settings/services", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]bool{"adguard": kvGetDefaultOn(s.db.DB, adguardServiceKey)})
+	})))
+	// PUT /api/settings/services — activa/desactiva AdGuard. Desactivado: el
+	// poller deja de sondearlo y la salud no aplica la penalización (#813).
+	mux.Handle("PUT /api/settings/services", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Adguard *bool `json:"adguard"`
+		}
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
+			return
+		}
+		if body.Adguard == nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "adguard is required")
+			return
+		}
+		if err := kvSetBool(s.db.DB, adguardServiceKey, *body.Adguard); err != nil {
+			writeError(w, http.StatusInternalServerError, "kv_error")
+			return
+		}
+		if s.pollNow != nil {
+			s.pollNow()
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"adguard": *body.Adguard})
 	})))
 
 	// GET /api/settings/wanspeed — velocidad contratada declarada (#151).
