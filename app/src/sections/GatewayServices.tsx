@@ -95,6 +95,10 @@ export function AdGuardCard({ index = 0 }: { index?: number }) {
   const { adguard } = useNetPulse()
   const maxBlocked = Math.max(...adguard.topBlocked.map((d) => d.count))
 
+  // Sin config (host vacío) la tarjeta no aplica: al desactivar AdGuard (#813)
+  // desaparece en vez de quedarse en "inactivo".
+  if (!adguard.host) return null
+
   return (
       <ServicePanel
         icon={ShieldCheck}

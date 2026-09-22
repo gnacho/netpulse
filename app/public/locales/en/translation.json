@@ -1207,6 +1207,7 @@
       "pass": "Password",
       "passKeep": "Saved (type to change)",
       "edit": "Edit",
+      "disable": "Disable",
       "configured": "Configured",
       "notConfigured": "Not configured",
       "save": "Save",

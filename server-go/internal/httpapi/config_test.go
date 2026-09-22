@@ -448,6 +448,50 @@ func TestAdGuardConfigPort(t *testing.T) {
 	}
 }
 
+// TestAdGuardConfigDisable cubre DELETE /api/config/adguard (#813): borra la
+// config para que AdGuard deje de sondearse y de penalizar la salud.
+func TestAdGuardConfigDisable(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	// Configurar AdGuard (modo glinet, como en producción).
+	res := doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"glinet","host":"192.168.1.1","port":0,"user":"root","password":"secret"}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT adguard: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body := readJSON(t, res)
+	if body["host"] != "192.168.1.1" || body["passSet"] != true {
+		t.Fatalf("config previa al DELETE: %+v", body)
+	}
+
+	// DELETE limpia la config (host y password fuera).
+	res = doReq(t, "DELETE", srv.URL+"/api/config/adguard", cookie, "")
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("DELETE adguard: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body = readJSON(t, res)
+	if body["host"] != "" || body["passSet"] != false {
+		t.Fatalf("config tras DELETE: %+v", body)
+	}
+
+	// Idempotente: un segundo DELETE sigue devolviendo 204.
+	res = doReq(t, "DELETE", srv.URL+"/api/config/adguard", cookie, "")
+	if res.StatusCode != 204 {
+		t.Fatalf("DELETE idempotente: got %d", res.StatusCode)
+	}
+
+	// Solo admin: sin sesión no puede desactivar.
+	res = doReq(t, "DELETE", srv.URL+"/api/config/adguard", "", "")
+	if res.StatusCode < 400 {
+		t.Fatalf("DELETE sin sesión debería fallar, got %d", res.StatusCode)
+	}
+}
+
 func TestConfigRoutersSNMP(t *testing.T) {
 	srv := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")

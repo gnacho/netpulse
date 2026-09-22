@@ -39,6 +39,7 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/config/routers/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteConfigRouter)))
 	mux.Handle("GET /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleGetAdguardConfig)))
 	mux.Handle("PUT /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handlePutAdguardConfig)))
+	mux.Handle("DELETE /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteAdguardConfig)))
 	mux.Handle("GET /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handleGetProxmoxConfig)))
 	mux.Handle("PUT /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handlePutProxmoxConfig)))
 	mux.Handle("DELETE /api/config/proxmox/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteProxmoxConfig)))
@@ -491,6 +492,23 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/config/adguard - desactiva AdGuard Home (#813): borra la config
+// (mode/host/user/pass/port) para que deje de sondearse y de penalizar la
+// salud (el poller devuelve nil y computeHealth ya no resta "AdGuard inactivo").
+// Idempotente: 204 aunque no hubiera nada configurado.
+func (s *server) handleDeleteAdguardConfig(w http.ResponseWriter, r *http.Request) {
+	for _, k := range []string{"adguard_mode", "adguard_host", "adguard_user", "adguard_pass", "adguard_port"} {
+		if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", k); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+	}
+	if s.pollNow != nil {
+		s.pollNow()
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

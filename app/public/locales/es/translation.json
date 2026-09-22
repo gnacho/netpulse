@@ -1207,6 +1207,7 @@
       "pass": "Contraseña",
       "passKeep": "Guardada (escribe para cambiar)",
       "edit": "Editar",
+      "disable": "Desactivar",
       "configured": "Configurado",
       "notConfigured": "Sin configurar",
       "save": "Guardar",
