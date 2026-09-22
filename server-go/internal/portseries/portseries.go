@@ -70,8 +70,9 @@ CREATE TABLE IF NOT EXISTS port_series_raw (
   speed_mbps INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (router_id, port_id, ts)
 );
+-- #817: idx_port_series_raw_router_port_ts era idéntico al PK (router_id,
+-- port_id, ts); no se crea (db.go lo elimina en las DBs existentes).
 CREATE INDEX IF NOT EXISTS idx_port_series_raw_ts ON port_series_raw(ts);
-CREATE INDEX IF NOT EXISTS idx_port_series_raw_router_port_ts ON port_series_raw(router_id, port_id, ts);
 
 CREATE TABLE IF NOT EXISTS port_series_5m (
   router_id TEXT NOT NULL,

@@ -267,8 +267,10 @@ CREATE TABLE IF NOT EXISTS port_series_raw (
   speed_mbps INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (router_id, port_id, ts)
 );
+-- #817: solo el índice por ts (retención). El PK (router_id, port_id, ts) ya
+-- cubre las consultas por router/puerto; idx_port_series_raw_rpt era idéntico
+-- al PK y se elimina (DROP INDEX en Open para las DBs existentes).
 CREATE INDEX IF NOT EXISTS idx_port_series_raw_ts ON port_series_raw(ts);
-CREATE INDEX IF NOT EXISTS idx_port_series_raw_rpt ON port_series_raw(router_id, port_id, ts);
 
 CREATE TABLE IF NOT EXISTS port_series_5m (
   router_id TEXT NOT NULL,
@@ -501,6 +503,16 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// issue #797: nombre visible y tipo de dispositivo sobreescritos a mano.
 	migrate(sqldb, "device_overrides", "name", "ALTER TABLE device_overrides ADD COLUMN name TEXT NOT NULL DEFAULT ''")
 	migrate(sqldb, "device_overrides", "device_type", "ALTER TABLE device_overrides ADD COLUMN device_type TEXT NOT NULL DEFAULT ''")
+
+	// #817: port_series_raw tenía dos índices idénticos a su PK, creados por
+	// error en db.go y portseries.go. Se eliminan de forma idempotente (no se
+	// vuelven a crear); el VACUUM nocturno recupera el espacio en las DBs ya
+	// existentes (~33 MB en una instancia de 266 MB).
+	for _, idx := range []string{"idx_port_series_raw_rpt", "idx_port_series_raw_router_port_ts"} {
+		if _, err := sqldb.Exec("DROP INDEX IF EXISTS " + idx); err != nil {
+			log.Printf("[netpulse] aviso: no se pudo eliminar el índice %s: %v", idx, err)
+		}
+	}
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria
