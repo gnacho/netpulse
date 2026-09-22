@@ -7,13 +7,16 @@
 package httpapi
 
 import (
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -109,8 +112,11 @@ func (s *server) runBackup() (string, error) {
 	}
 
 	ts := time.Now().UTC().Format("20060102-150405")
-	dst := filepath.Join(backupDir, "netpulse-"+ts+".db")
-	if err := copyFile(s.db.Path, dst); err != nil {
+	// #818: los backups automáticos se guardan comprimidos (~4x menos en
+	// disco). El nombre .db.gz deja claro que hay que descomprimir para
+	// restaurar; purgeOldBackups reconoce ambos formatos.
+	dst := filepath.Join(backupDir, "netpulse-"+ts+".db.gz")
+	if err := gzipFile(s.db.Path, dst); err != nil {
 		return "", err
 	}
 
@@ -285,6 +291,35 @@ func copyFile(src, dst string) error {
 	return err
 }
 
+// gzipFile comprime src en dst con gzip (#818). Se usa para los backups
+// automáticos: mismo contenido que copyFile pero ~4x menos en disco. Limpia
+// el fichero destino parcial si falla.
+func gzipFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	zw := gzip.NewWriter(out)
+	if _, err := io.Copy(zw, in); err != nil {
+		zw.Close()
+		os.Remove(dst)
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		os.Remove(dst)
+		return err
+	}
+	return nil
+}
+
 func purgeOldBackups(dir string, retentionDays int) {
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
 	entries, err := os.ReadDir(dir)
@@ -292,7 +327,12 @@ func purgeOldBackups(dir string, retentionDays int) {
 		return
 	}
 	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".db" {
+		if e.IsDir() {
+			continue
+		}
+		// #818: reconoce backups comprimidos (.db.gz) y los antiguos sin
+		// comprimir (.db); cualquier otro fichero se ignora.
+		if !strings.HasSuffix(e.Name(), ".db") && !strings.HasSuffix(e.Name(), ".db.gz") {
 			continue
 		}
 		info, err := e.Info()
