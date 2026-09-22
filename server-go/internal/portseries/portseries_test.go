@@ -302,3 +302,29 @@ func TestHourlyFpsTotal(t *testing.T) {
 		}
 	}
 }
+
+// #812: una muestra de hace 60h (dentro de la retención raw, fuera de la
+// antigua ventana de 48h) debe agregarse en el job nocturno.
+func TestNightlyJobBackfillsGapBeyond48h(t *testing.T) {
+	s := openTestDB(t)
+	old := time.Now().Add(-60 * time.Hour)
+	if err := s.RecordSample(PortSample{
+		RouterID: "rt1", PortID: "lan1", TS: old,
+		RxBytes: 1000, TxBytes: 2000, RxBps: 500, TxBps: 1000, SpeedMbps: 1000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	s.NightlyJob()
+
+	bucket := (old.UnixMilli() / BucketMS) * BucketMS
+	var n int
+	if err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM port_series_5m WHERE router_id=? AND port_id=? AND bucket_ts=?",
+		"rt1", "lan1", bucket).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("el tramo >48h no se agregó (bug #812): bucket %d, n=%d", bucket, n)
+	}
+}

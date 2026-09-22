@@ -164,3 +164,29 @@ func TestNilDB(t *testing.T) {
 		t.Fatalf("query nil: %v, %d", err, len(points))
 	}
 }
+
+// #812: una muestra de hace 60h (dentro de la retención raw, fuera de la
+// antigua ventana de 48h) debe agregarse en el job nocturno.
+func TestNightlyJobBackfillsGapBeyond48h(t *testing.T) {
+	s := openTestStore(t)
+	old := time.Now().Add(-60 * time.Hour)
+	if err := s.Insert(Sample{
+		MAC: "aa:bb:cc:dd:ee:ff", RouterID: "gw", TS: old,
+		RxBytes: 1000, TxBytes: 500, RxBps: 8000, TxBps: 4000,
+	}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	s.NightlyJob()
+
+	bucket := (old.UnixMilli() / BucketMS) * BucketMS
+	var n int
+	if err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM client_bw_5m WHERE mac=? AND router_id=? AND bucket_ts=?",
+		"aa:bb:cc:dd:ee:ff", "gw", bucket).Scan(&n); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("el tramo >48h no se agregó (bug #812): bucket %d, n=%d", bucket, n)
+	}
+}

@@ -32,6 +32,13 @@ const (
 	AttribRetentionMS = 90 * 24 * 60 * 60 * 1000
 )
 
+// rollupRawWindow (#812): el rollup raw→5m cubre TODA la retención raw (7d) en
+// lugar de una ventana fija de 48h. Con 48h, una caída de más de dos días
+// dejaba sin agregar los samples de 48h..7d, que al purgarse a los 7d
+// producían un hueco permanente en 5m/daily. El orden rollup→purga del job
+// nocturno garantiza que la ventana siempre encuentre el raw disponible.
+const rollupRawWindow = time.Duration(RetentionMS) * time.Millisecond
+
 // schemaSQL es el SQL literal de src/db.js:20-85.
 const schemaSQL = `
 -- Sesiones (cookie id.hmac)
@@ -602,15 +609,18 @@ func (d *DB) Maintenance() {
 }
 
 // NightlyJob ejecuta el rollup de la escalera de retención (skill
-// sqlite-timeseries-daemon): samples→buckets (solape 48 h) → buckets→daily
-// (solape 35 días) → checkpoint → optimize. Orden obligatorio: agregar antes
-// de purgar; idempotente (INSERT OR REPLACE) por si el daemon estuvo caído.
+// sqlite-timeseries-daemon): samples→buckets (ventana = retención raw, 7d) →
+// buckets→daily (solape 35 días) → checkpoint → optimize. Orden obligatorio:
+// agregar antes de purgar; idempotente (INSERT OR REPLACE) por si el daemon
+// estuvo caído.
 func (d *DB) NightlyJob() {
 	start := time.Now()
 	log.Printf("[netpulse] rollup nocturno: inicio")
 
-	// 1) samples → buckets 5 min (ventana: últimos 48 h con solape de seguridad)
-	if err := d.rollupSamplesToBuckets(48 * time.Hour); err != nil {
+	// 1) samples → buckets 5 min. Ventana = retención raw (#812): recubre
+	// caídas de hasta 7 días; con la antigua ventana fija de 48h el tramo
+	// 48h..7d quedaba sin agregar y se perdía al purgar el raw.
+	if err := d.rollupSamplesToBuckets(rollupRawWindow); err != nil {
 		log.Printf("[netpulse] error rollup samples→buckets: %v", err)
 	} else {
 		log.Printf("[netpulse] rollup samples→buckets OK (%s)", time.Since(start).Round(time.Millisecond))

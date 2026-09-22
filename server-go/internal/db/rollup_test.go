@@ -118,3 +118,34 @@ func TestShouldRunNightly(t *testing.T) {
 		t.Fatal("10:00 no debería disparar el rollup")
 	}
 }
+
+// #812: una muestra de hace 60h (dentro de la retención raw de 7d, fuera de la
+// antigua ventana fija de 48h) debe agregarse al ejecutar el job nocturno.
+func TestRollupBackfillsGapBeyond48h(t *testing.T) {
+	d := openTestDB(t)
+
+	old := time.Now().Add(-60 * time.Hour)
+	bucket := (old.UnixMilli() / db.BucketMS) * db.BucketMS
+	if _, err := d.Exec(
+		"INSERT INTO metrics (router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps) VALUES (?,?,?,?,?,?,?,?)",
+		"r1", old.UnixMilli(), 20.0, 50.0, 40.0, 2.0, 5e6, 1e6); err != nil {
+		t.Fatalf("insert sample: %v", err)
+	}
+
+	d.NightlyJob()
+
+	var n int
+	if err := d.QueryRow("SELECT COUNT(*) FROM metrics_buckets WHERE router_id='r1' AND bucket_ts = ?", bucket).Scan(&n); err != nil {
+		t.Fatalf("query bucket: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("el tramo >48h no se agregó (bug #812): no hay bucket en %d", bucket)
+	}
+	var dn int
+	if err := d.QueryRow("SELECT COALESCE(SUM(n),0) FROM metrics_daily WHERE router_id='r1'").Scan(&dn); err != nil {
+		t.Fatalf("query daily: %v", err)
+	}
+	if dn == 0 {
+		t.Fatal("daily sin datos tras rellenar el hueco >48h (#812)")
+	}
+}

@@ -15,6 +15,11 @@ const (
 	BucketMS          = 5 * 60 * 1000
 )
 
+// rollupRawWindow (#812): el rollup raw→5m cubre TODA la retención raw (7d),
+// no una ventana fija de 48h. Si no, una caída mayor de dos días dejaba sin
+// agregar el tramo 48h..7d, que al purgarse producía un hueco permanente.
+const rollupRawWindow = time.Duration(RawRetentionMS) * time.Millisecond
+
 // PortSample is a single data point for a port.
 type PortSample struct {
 	RouterID  string
@@ -412,12 +417,13 @@ func (s *Store) Purge5m() (int64, error) {
 	return res.RowsAffected()
 }
 
-// NightlyJob runs the full rollup + purge cycle.
+// NightlyJob runs the full rollup + purge cycle. Raw→5m window = raw
+// retention (#812) so a long outage is backfilled before the raw is purged.
 func (s *Store) NightlyJob() {
 	start := time.Now()
 	log.Printf("[netpulse:portseries] nightly rollup: start")
 
-	if err := s.RollupRawTo5m(48 * time.Hour); err != nil {
+	if err := s.RollupRawTo5m(rollupRawWindow); err != nil {
 		log.Printf("[netpulse:portseries] rollup raw->5m error: %v", err)
 	}
 	if err := s.Rollup5mToDaily(35 * 24 * time.Hour); err != nil {

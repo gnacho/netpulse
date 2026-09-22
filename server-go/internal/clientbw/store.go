@@ -12,6 +12,11 @@ const (
 	BucketMS          = 5 * 60 * 1000
 )
 
+// rollupRawWindow (#812): el rollup raw→5m cubre TODA la retención raw (7d),
+// no una ventana fija de 48h. Si no, una caída mayor de dos días dejaba sin
+// agregar el tramo 48h..7d, que al purgarse producía un hueco permanente.
+const rollupRawWindow = time.Duration(RawRetentionMS) * time.Millisecond
+
 // client_bw_raw guarda una muestra por (mac, router_id, ts): los bytes del
 // INTERVALO (delta entre contadores absolutos de dos sondeos) y el rate medio
 // de ese intervalo (rx_bps = delta*8/dt). El server calcula ambos en la
@@ -350,11 +355,12 @@ func (s *Store) Purge() error {
 }
 
 // NightlyJob: escalera de rollup + purga (patrón portseries). La agrega
-// DB.NightlyJob tras los rollups de métricas.
+// DB.NightlyJob tras los rollups de métricas. Ventana raw→5m = retención raw
+// (#812) para rellenar huecos de caídas largas antes de purgar.
 func (s *Store) NightlyJob() {
 	start := time.Now()
 	log.Printf("[netpulse:clientbw] nightly rollup: start")
-	if err := s.RollupRawTo5m(48 * time.Hour); err != nil {
+	if err := s.RollupRawTo5m(rollupRawWindow); err != nil {
 		log.Printf("[netpulse:clientbw] rollup raw->5m error: %v", err)
 	}
 	if err := s.Rollup5mToDaily(35 * 24 * time.Hour); err != nil {
