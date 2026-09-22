@@ -200,6 +200,14 @@ if [ -f "$SERVER_BIN" ]; then
 
   # Todo OK: ya podemos descartar el binario anterior.
   rm -f "$PREV_BIN"
+
+  # Purga de snapshots del updater (issue #809). Solo en el camino de éxito:
+  # durante un rollback el snapshot en curso es la red de seguridad. Ruta
+  # absoluta porque este script se ejecuta copiado en /tmp (no hay dirname).
+  if [ -f "$REPO_ROOT/deploy/prune-update-backups.sh" ]; then
+    DATA_DIR="$DATA_DIR" KEEP="${NETPULSE_UPDATE_BACKUPS_KEEP:-3}" \
+      bash "$REPO_ROOT/deploy/prune-update-backups.sh" || true
+  fi
 fi
 
 echo "STEP:done"
