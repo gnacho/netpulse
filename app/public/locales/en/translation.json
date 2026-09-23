@@ -245,7 +245,8 @@
           "apply-busy": "The scheduled update could not start (another update in progress?)"
         }
       }
-    }
+    },
+    "viewDevice": "View device"
   },
   "auth": {
     "checking": "Checking session",
@@ -744,7 +745,8 @@
       "showAll": "Show all {{count}}",
       "showLess": "Show less",
       "title": "Connected clients · {{count}}",
-      "viewAllDevices": "View all devices"
+      "viewAllClients": "View all clients",
+      "colClient": "Client"
     },
     "highTempAdvice": "Improve the device's ventilation.",
     "highTempBanner": "High temperature: {{temp}} (threshold {{threshold}}).",

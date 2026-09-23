@@ -245,7 +245,8 @@
           "apply-busy": "La actualización programada no pudo arrancar (¿otra actualización en curso?)"
         }
       }
-    }
+    },
+    "viewDevice": "Ver dispositivo"
   },
   "auth": {
     "checking": "Comprobando sesión",
@@ -744,7 +745,8 @@
       "showAll": "Mostrar los {{count}}",
       "showLess": "Mostrar menos",
       "title": "Clientes conectados · {{count}}",
-      "viewAllDevices": "Ver todos los dispositivos"
+      "viewAllClients": "Ver todos los clientes",
+      "colClient": "Cliente"
     },
     "highTempAdvice": "Mejora la ventilación del equipo.",
     "highTempBanner": "Temperatura alta: {{temp}} (umbral {{threshold}}).",

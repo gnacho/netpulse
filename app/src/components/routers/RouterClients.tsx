@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, SquarePen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { manufacturerLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { DEVICE_ICONS, DeviceRow, SignalIcon } from '@/components/DeviceRow'
+import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { SectionHeader } from '@/components/SectionHeader'
-import { cn } from '@/lib/utils'
+import { buildClientDevices } from '@/pages/devices-data'
+import type { ClientDevice } from '@/pages/devices-data'
+import { cn, fetchJson } from '@/lib/utils'
 
 const VISIBLE_COUNT = 6
 
@@ -18,18 +21,53 @@ function ipNum(ip: string): number {
   return ip.split('.').reduce((acc, o) => acc * 256 + (parseInt(o, 10) || 0), 0)
 }
 
+interface LocalOverride {
+  icon?: string
+  name?: string
+  type?: string
+}
+
 /** ⑦ Clientes de este router (router-detail.md §⑦). */
 export function RouterClients({ router }: { router: Router }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 })
   const reduce = useReducedMotion()
-  const { devices } = useNetPulse()
+  const { devices, isDemo, refresh } = useNetPulse()
+  // #827: edición inline desde la lista. En demo el override es local (el
+  // sheet lo indica); en live se persiste en el server y se refresca.
+  const [overrides, setOverrides] = useState<Record<string, LocalOverride>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const id = window.setTimeout(() => setToast(null), 2200)
+    return () => window.clearTimeout(id)
+  }, [toast])
 
   const clients = useMemo(() => {
-    const list = devices.filter((d) => d.routerId === router.id && d.online)
+    const list = buildClientDevices(devices, isDemo)
+      .filter((d) => d.routerId === router.id && d.online)
+      .map((d) => {
+        const ov = overrides[d.id]
+        if (!ov) return d
+        return {
+          ...d,
+          iconOverride: ov.icon || d.iconOverride,
+          name: ov.name || d.name,
+          type: (ov.type || d.type) as ClientDevice['type'],
+          nameOverride: ov.name || d.nameOverride,
+          typeOverride: ov.type || d.typeOverride,
+        }
+      })
+    // #827: los sin identificar (nombre = MAC) son los accionables: se
+    // muestran SIEMPRE, fijos en los primeros puestos de la sección.
+    const unknown = list.filter((d) => d.name === d.mac)
+    const known = list.filter((d) => d.name !== d.mac)
     const dir = sort.dir
-    return [...list].sort((a, b) => {
+    known.sort((a, b) => {
       switch (sort.key) {
         case 'name':
           return dir * a.name.localeCompare(b.name)
@@ -45,12 +83,36 @@ export function RouterClients({ router }: { router: Router }) {
           return dir * (a.trafficMbps - b.trafficMbps)
       }
     })
-  }, [devices, router.id, sort])
+    return [...unknown, ...known]
+  }, [devices, router.id, sort, isDemo, overrides])
   const visible = expanded ? clients : clients.slice(0, VISIBLE_COUNT)
   const hiddenCount = clients.length - VISIBLE_COUNT
 
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
+
+  const handleEditSave = async (device: ClientDevice, patch: { icon: string; name: string; type: string }) => {
+    if (isDemo) {
+      setOverrides((prev) => ({ ...prev, [device.id]: { icon: patch.icon, name: patch.name, type: patch.type } }))
+      setEditingId(null)
+      setToast(t('devices.edit.saved'))
+      return
+    }
+    setSaving(true)
+    const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/override`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ icon: patch.icon, name: patch.name, type: patch.type }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      setToast(t('devices.edit.saveError'))
+      return
+    }
+    setEditingId(null)
+    setToast(t('devices.edit.saved'))
+    refresh()
+  }
 
   const Th = ({ label, k, right }: { label: string; k: SortKey; right?: boolean }) => {
     const active = sort.key === k
@@ -74,7 +136,7 @@ export function RouterClients({ router }: { router: Router }) {
       <SectionHeader
         title={t('routerDetail.clients.title', { count: router.clients })}
         linkTo="/devices"
-        linkLabel={t('routerDetail.clients.viewAllDevices')}
+        linkLabel={t('routerDetail.clients.viewAllClients')}
       />
 
       {/* Desktop: tabla compacta */}
@@ -82,12 +144,14 @@ export function RouterClients({ router }: { router: Router }) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border">
-              <Th label={t('devices.colDevice')} k="name" />
+              <Th label={t('routerDetail.clients.colClient')} k="name" />
               <Th label="IP" k="ip" />
               <Th label={t('devices.colType')} k="type" />
               <Th label={t('devices.colBand')} k="band" />
               <Th label={t('devices.colSignal')} k="signal" />
               <Th label={t('devices.colTraffic')} k="traffic" right />
+              {/* #827: columna de acción (editar inline) */}
+              <th className="w-8 pb-2.5" aria-label={t('devices.edit.action')} />
             </tr>
           </thead>
           <tbody>
@@ -128,6 +192,17 @@ export function RouterClients({ router }: { router: Router }) {
                   <td className="py-3 text-right font-mono text-mono-sm text-accent">
                     {d.trafficMbps >= 1 ? fmtEs(d.trafficMbps, 1) : fmtEs(d.trafficMbps, 2)} Mbps
                   </td>
+                  <td className="py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(d.id)}
+                      aria-label={t('devices.edit.action')}
+                      title={t('devices.edit.action')}
+                      className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-hover hover:text-accent"
+                    >
+                      <SquarePen className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  </td>
                 </motion.tr>
               )
             })}
@@ -155,6 +230,21 @@ export function RouterClients({ router }: { router: Router }) {
         >
           {expanded ? t('routerDetail.clients.showLess') : t('routerDetail.clients.showAll', { count: router.clients })}
         </button>
+      )}
+
+      <DeviceEditSheet
+        open={editingId !== null}
+        device={clients.find((d) => d.id === editingId) ?? null}
+        isDemo={isDemo}
+        saving={saving}
+        onClose={() => setEditingId(null)}
+        onSave={handleEditSave}
+      />
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border-strong bg-elevated px-4 py-2 text-sm font-medium text-text-primary shadow-lg" role="status">
+          {toast}
+        </div>
       )}
     </section>
   )

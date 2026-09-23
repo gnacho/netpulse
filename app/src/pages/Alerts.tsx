@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
@@ -63,6 +63,10 @@ const SEVERITY: Record<AlertSeverity, { icon: LucideIcon; tile: string; dot: str
 }
 
 const PEER_ICONS = { movil: Smartphone, portatil: Laptop, tablet: Tablet } as const
+
+// #827: la alerta de desconocido "atiende" directamente: el clic navega al
+// alta del dispositivo en vez de solo desplegar el panel de contexto.
+const intakeMacOf = (ev: FeedEvent) => (ev.type === 'unknown-device' ? ev.vars?.mac : undefined)
 
 // ---------------------------------------------------------------------------
 // Categorías (SPEC-ALERTAS §1): chips de filtro + configuración por nivel
@@ -220,6 +224,20 @@ function ContextPanel({ ev, animateIn }: { ev: FeedEvent; animateIn: boolean }) 
       )}
 
       {c?.note && <p className="text-caption leading-relaxed text-text-muted">{c.note}</p>}
+
+      {ev.vars?.mac && (
+        <Link
+          to={
+            intakeMacOf(ev)
+              ? `/devices?intake=${encodeURIComponent(ev.vars.mac)}`
+              : `/devices?q=${encodeURIComponent(ev.vars.mac)}`
+          }
+          className="group inline-flex items-center gap-1 text-caption font-semibold text-accent transition-colors hover:text-accent/80"
+        >
+          {t('alerts.viewDevice')}
+          <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
+        </Link>
+      )}
 
       {ev.routerId && (
         <Link
@@ -401,6 +419,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
 
 export default function Alerts() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const reduce = useReducedMotion() ?? false
   const {
     alerts,
@@ -447,6 +466,14 @@ export default function Alerts() {
 
   const toggleEvent = (ev: FeedEvent) => {
     if (!ev.read) markAlertsRead([ev.id])
+    // #827: la alerta de desconocido lleva directa al alta del dispositivo;
+    // el resto sigue desplegando el panel de contexto.
+    const mac = intakeMacOf(ev)
+    if (mac) {
+      setExpandedId(null)
+      navigate(`/devices?intake=${encodeURIComponent(mac)}`)
+      return
+    }
     setExpandedId((cur) => (cur === ev.id ? null : ev.id))
   }
 
