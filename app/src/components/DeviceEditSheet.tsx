@@ -14,6 +14,8 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
 } from '@/components/ui/sheet'
 import { cn, fetchJson } from '@/lib/utils'
 import type { ClientDevice } from '@/pages/devices-data'
@@ -131,6 +133,14 @@ export function DeviceEditSheet({
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-md">
+        {/* #828: cabecera con título para que el X de cierre quede sobre ella
+            (patrón estándar de los sheets) y no montado encima de la tarjeta
+            de vista previa con la MAC. */}
+        <SheetHeader className="px-4 pb-0 pt-4">
+          <SheetTitle className="pr-8 font-display text-h2 text-text-primary">
+            {t('devices.edit.title')}
+          </SheetTitle>
+        </SheetHeader>
         {device && (
           <div className="flex flex-col gap-5 overflow-y-auto px-4 py-2">
             {/* Vista previa */}
