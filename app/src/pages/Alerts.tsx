@@ -10,6 +10,9 @@ import {
   CheckCheck,
   CheckCircle2,
   ChevronRight,
+  CircleArrowUp,
+  Eraser,
+  Fingerprint,
   Globe,
   Info,
   Laptop,
@@ -264,9 +267,11 @@ interface FeedRowProps {
   onToggle: () => void
   reduce: boolean
   onSilence?: (id: string, duration: '1h' | '24h' | 'forever') => void
+  onDismiss?: (id: string) => void
+  action?: { icon: LucideIcon; title: string; onClick: () => void }
 }
 
-function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: FeedRowProps) {
+function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDismiss, action }: FeedRowProps) {
   const { t } = useTranslation()
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
@@ -348,6 +353,28 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence }: Fee
                   title={t('alerts.silence')}
                 >
                   <BellOff className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+              {/* #833: acción propia de la alerta (solo cuando aplica) y
+                  limpiar alerta, siempre; iconos con tooltip (title). */}
+              {action && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); action.onClick() }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-accent"
+                  title={action.title}
+                >
+                  <action.icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+              {onDismiss && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onDismiss(ev.id) }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary"
+                  title={t('alerts.actions.dismiss')}
+                >
+                  <Eraser className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </button>
               )}
               <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>
@@ -432,6 +459,7 @@ export default function Alerts() {
     markAlertsRead,
     markAllAlertsRead,
     silenceAlert,
+    dismissAlert,
   } = useNetPulse()
   // Feed: demo = diseño enriquecido del mockup; live = SOLO alertas reales
   const alertFeed = useMemo(
@@ -467,7 +495,8 @@ export default function Alerts() {
   const toggleEvent = (ev: FeedEvent) => {
     if (!ev.read) markAlertsRead([ev.id])
     // #827: la alerta de desconocido lleva directa al alta del dispositivo;
-    // el resto sigue desplegando el panel de contexto.
+    // el resto sigue desplegando el panel de contexto. La misma acción
+    // existe como icono en la fila (#833), junto a "limpiar alerta".
     const mac = intakeMacOf(ev)
     if (mac) {
       setExpandedId(null)
@@ -475,6 +504,26 @@ export default function Alerts() {
       return
     }
     setExpandedId((cur) => (cur === ev.id ? null : ev.id))
+  }
+
+  // #833: acción contextual por tipo de alerta (icono + tooltip). Solo los
+  // tipos con una acción real la muestran; TODAS tienen "limpiar alerta".
+  const actionOf = (ev: FeedEvent): { icon: LucideIcon; title: string; onClick: () => void } | undefined => {
+    if (ev.type === 'unknown-device' && ev.vars?.mac) {
+      return {
+        icon: Fingerprint,
+        title: t('alerts.actions.identify'),
+        onClick: () => navigate(`/devices?intake=${encodeURIComponent(ev.vars?.mac ?? '')}`),
+      }
+    }
+    if (ev.type === 'agent-outdated') {
+      return {
+        icon: CircleArrowUp,
+        title: t('alerts.actions.updateAgent'),
+        onClick: () => navigate('/orchestration'),
+      }
+    }
+    return undefined
   }
 
   const toggleCat = (cat: AlertCategory) => {
@@ -878,6 +927,8 @@ export default function Alerts() {
                     onToggle={() => toggleEvent(ev)}
                     reduce={reduce}
                     onSilence={silenceAlert}
+                    onDismiss={dismissAlert}
+                    action={actionOf(ev)}
                   />
                 ))}
               </ul>

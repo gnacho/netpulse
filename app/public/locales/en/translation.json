@@ -246,7 +246,12 @@
         }
       }
     },
-    "viewDevice": "View device"
+    "viewDevice": "View device",
+    "actions": {
+      "identify": "Identify device",
+      "updateAgent": "Update agent",
+      "dismiss": "Clear alert"
+    }
   },
   "auth": {
     "checking": "Checking session",

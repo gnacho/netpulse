@@ -246,7 +246,12 @@
         }
       }
     },
-    "viewDevice": "Ver dispositivo"
+    "viewDevice": "Ver dispositivo",
+    "actions": {
+      "identify": "Identificar dispositivo",
+      "updateAgent": "Actualizar agente",
+      "dismiss": "Limpiar alerta"
+    }
   },
   "auth": {
     "checking": "Comprobando sesión",

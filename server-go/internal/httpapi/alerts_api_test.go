@@ -184,9 +184,44 @@ func TestAlertsReadEndpoints(t *testing.T) {
 	}
 }
 
-// writeJSON sin '\n' final (paridad D5, SPEC-ALERTAS §4).
-func TestAlertsNoTrailingNewline(t *testing.T) {
+// POST /api/alerts/dismiss (issue #833): limpia alertas del feed.
+func TestAlertsDismissEndpoint(t *testing.T) {
 	ts := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	// ids vacío → 400
+	res := doJSON(t, "POST", ts.URL, "/api/alerts/dismiss", cookie, `{"ids":[]}`)
+	if res.StatusCode != 400 {
+		t.Fatalf("dismiss ids vacío: %d, esperaba 400", res.StatusCode)
+	}
+	res.Body.Close()
+
+	res = doJSON(t, "POST", ts.URL, "/api/alerts/dismiss", cookie, `{"ids":["alert-temp-patio"]}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("dismiss: %d", res.StatusCode)
+	}
+	res.Body.Close()
+
+	items := alertItems(t, get(t, ts.URL, "/api/alerts", cookie))
+	for _, a := range items {
+		if a["id"] == "alert-temp-patio" {
+			t.Fatal("alert-temp-patio debía haber desaparecido del feed")
+		}
+	}
+	// unread baja: la alerta limpiada cuenta como leída y se elimina.
+	unread := 0
+	for _, a := range items {
+		if a["read"] != true {
+			unread++
+		}
+	}
+	if unread != 1 {
+		t.Fatalf("unread tras dismiss: %d, esperaba 1", unread)
+	}
+}
+
+// writeJSON sin '\n' final (paridad D5, SPEC-ALERTAS §4).
+func TestAlertsNoTrailingNewline(t *testing.T) {	ts := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	res := get(t, ts.URL, "/api/alerts/config", cookie)
 	defer res.Body.Close()

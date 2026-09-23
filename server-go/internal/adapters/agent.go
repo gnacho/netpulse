@@ -755,19 +755,25 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 			Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel, "latest": ref},
 			Time:        "ahora mismo", RouterID: cfg.ID,
 		})
-	} else if alerted {
+	} else if alerted || l.engine.Has(fmt.Sprintf("alert-agent-outdated-%s", cfg.ID)) {
 		l.mu.Lock()
 		delete(l.agentOutdatedAlerted, cfg.ID)
 		l.mu.Unlock()
-		l.engine.Emit(AlertEvent{
-			ID:       fmt.Sprintf("alert-agent-outdated-%s-ok-%d", cfg.ID, time.Now().UnixMilli()),
-			Category: alerts.CatSystem, Urgent: false,
-			Severity:    "ok",
-			Title:       "Agente actualizado en " + name,
-			Description: fmt.Sprintf("%s ya empuja la versión %s de %s", name, p.Version, kindLabel),
-			Type:        alerts.TypeAgentUpdated,
-			Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel},
-			Time:        "ahora mismo", RouterID: cfg.ID,
-		})
+		// #833: la alerta de desactualizado DESAPARECE del feed al
+		// actualizarse el agente (además del aviso ok de recuperación, que
+		// solo se emite cuando el flag en memoria estaba activo).
+		l.engine.Resolve(fmt.Sprintf("alert-agent-outdated-%s", cfg.ID))
+		if alerted {
+			l.engine.Emit(AlertEvent{
+				ID:       fmt.Sprintf("alert-agent-outdated-%s-ok-%d", cfg.ID, time.Now().UnixMilli()),
+				Category: alerts.CatSystem, Urgent: false,
+				Severity:    "ok",
+				Title:       "Agente actualizado en " + name,
+				Description: fmt.Sprintf("%s ya empuja la versión %s de %s", name, p.Version, kindLabel),
+				Type:        alerts.TypeAgentUpdated,
+				Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel},
+				Time:        "ahora mismo", RouterID: cfg.ID,
+			})
+		}
 	}
 }

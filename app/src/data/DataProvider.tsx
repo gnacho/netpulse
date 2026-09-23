@@ -172,6 +172,8 @@ export interface NetPulseApi extends NetPulseData {
   markAllAlertsRead: () => void
   /** POST /api/alerts/silence (live): silencia alertas con la misma dedup key. */
   silenceAlert: (id: string, duration: '1h' | '24h' | 'forever') => void
+  /** POST /api/alerts/dismiss (live): limpia una alerta del feed (#833). Demo: estado local. Optimista. */
+  dismissAlert: (id: string) => void
   /**
    * Fase 5 (Plan B): POST /api/agents/{slug}/rearm — reinicia el servicio
    * procd del agente en el router (vía SSH del servidor) y espera a que
@@ -925,6 +927,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
+  /** Limpia una alerta del feed (issue #833): oculta la fila al instante y,
+   * en live, la persiste como dismiss en el backend (no reaparece tras un
+   * reinicio; si la condición se re-dispara, vuelve sola). */
+  const dismissAlert = useCallback((id: string) => {
+    setBundle((prev) => {
+      const alerts = prev.alerts.filter((a) => a.id !== id)
+      const unreadAlerts =
+        modeRef.current === 'live'
+          ? prev.unreadAlerts
+          : countUnreadAlerts(alerts, configRef.current)
+      return { ...prev, alerts, unreadAlerts }
+    })
+    if (modeRef.current !== 'live') return
+    void (async () => {
+      try {
+        const res = await fetch('/api/alerts/dismiss', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [id] }),
+        })
+        if (res.status === 401) redirectLogin()
+      } catch {
+        /* resync por snapshot */
+      }
+    })()
+  }, [])
+
   /**
    * Fase 5 (Plan B): rearme del servicio del agente en el router. El
    * backend ejecuta `init.d restart` por SSH y espera hasta 30 s el push de
@@ -1158,6 +1187,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAlertsRead,
       markAllAlertsRead,
       silenceAlert,
+      dismissAlert,
       rearmAgent,
       upgradeAgent,
       upgradeAllAgents,
@@ -1165,7 +1195,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       uninstallAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, silenceAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

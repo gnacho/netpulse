@@ -327,6 +327,25 @@ func (s *server) handleAlertsReadAll(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// handleAlertsDismiss (POST): body {"ids":["a","b"]} → limpia alertas del
+// feed (issue #833). Las elimina del log y no reaparecen tras un reinicio;
+// si la condición se re-dispara, la alerta vuelve con el mismo ID.
+func (s *server) handleAlertsDismiss(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	if len(body.IDs) == 0 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "ids is required")
+		return
+	}
+	s.adapter.AlertsEngine().Dismiss(body.IDs...)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 // handleAlertsSilence (POST): body {"id":"...","duration":"1h|24h|forever"} →
 // silencia alertas con la misma dedup key (category|title|routerId).
 func (s *server) handleAlertsSilence(w http.ResponseWriter, r *http.Request) {

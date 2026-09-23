@@ -47,6 +47,7 @@ const (
 	configKey   = "alerts.config.v1"
 	readKey     = "alerts.read.v1"
 	silenceKey  = "alerts.silence.v1"
+	dismissKey  = "alerts.dismissed.v1"
 	MaxEvents   = 100
 	MaxReadIDs  = 200
 	DedupWindow = 5 * time.Minute
@@ -179,6 +180,10 @@ type Engine struct {
 	readSet map[string]bool
 	readOrd []string // FIFO de IDs (cap 200) para podar readSet
 	silenceMap map[string]int64 // dedup key → expiry (unix seconds); 0 = forever
+	// dismissed: IDs de alertas limpiadas por el usuario (issue #833). Se
+	// filtran del feed y del unread; si el mismo ID se vuelve a emitir (la
+	// condición se re-dispara), sale del conjunto y reaparece.
+	dismissed map[string]bool
 
 	// suppression: grafo de dependencias topológicas (issue #332).
 	// nil = sin supresión (tests o arranque sin topología).
@@ -212,6 +217,7 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 		dedup:      map[string]int64{},
 		readSet:    map[string]bool{},
 		silenceMap: map[string]int64{},
+		dismissed:  map[string]bool{},
 		persistLog: persistLog,
 	}
 	if d != nil {
@@ -239,6 +245,16 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 		}
 		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", silenceKey).Scan(&raw); err == nil {
 			_ = json.Unmarshal([]byte(raw), &e.silenceMap)
+		}
+		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", dismissKey).Scan(&raw); err == nil {
+			ids := []string{}
+			if json.Unmarshal([]byte(raw), &ids) == nil {
+				for _, id := range ids {
+					if id != "" {
+						e.dismissed[id] = true
+					}
+				}
+			}
 		}
 		e.loadPersistedLocked()
 	}
@@ -273,6 +289,10 @@ func (e *Engine) loadPersistedLocked() {
 		if err := rows.Scan(&ev.ID, &ev.Ts, &ev.Category, &typ, &sev, &urgent,
 			&ev.Title, &ev.Description, &hint, &routerID, &suppressedBy, &varsRaw, &read); err != nil {
 			return
+		}
+		// #833: una alerta limpiada no vuelve a aparecer tras un reinicio.
+		if e.dismissed[ev.ID] {
+			continue
 		}
 		ev.Type = typ
 		ev.Severity = sev
@@ -395,6 +415,12 @@ func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
 		return false
 	}
 	e.dedup[key] = now.UnixMilli()
+	// #833: si el ID estaba limpiado y la condición se re-dispara, la alerta
+	// vuelve al feed (dismissed solo oculta el histórico, no el presente).
+	if _, was := e.dismissed[ev.ID]; was {
+		delete(e.dismissed, ev.ID)
+		e.saveDismissedLocked()
+	}
 	if ev.Ts == 0 {
 		ev.Ts = now.Unix()
 	}
@@ -547,6 +573,9 @@ func (e *Engine) List() []AlertEvent {
 	e.pruneSilenceLocked()
 	out := make([]AlertEvent, 0, len(e.list))
 	for _, ev := range e.list {
+		if e.dismissed[ev.ID] {
+			continue
+		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 		if e.isSilencedLocked(key) {
 			continue
@@ -564,6 +593,9 @@ func (e *Engine) UnreadCount() int {
 	defer e.mu.Unlock()
 	n := 0
 	for _, ev := range e.list {
+		if e.dismissed[ev.ID] {
+			continue
+		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 		if e.isSilencedLocked(key) {
 			continue
@@ -606,6 +638,91 @@ func (e *Engine) MarkAllRead() {
 	}
 	e.mu.Unlock()
 	e.MarkRead(ids...)
+}
+
+// Dismiss limpia alertas del feed (issue #833, botón "limpiar alerta"): las
+// quita de la lista y del log persistido, las marca leídas y guarda el ID en
+// el conjunto dismissed (kv) para que no reaparezcan tras un reinicio. Si la
+// condición se re-dispara, el mismo ID se vuelve a emitir y sale del
+// conjunto (ver insertaLocked). IDs desconocidos se ignoran.
+func (e *Engine) Dismiss(ids ...string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	changed := false
+	drop := map[string]bool{}
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if !e.dismissed[id] {
+			e.dismissed[id] = true
+			changed = true
+		}
+		drop[id] = true
+		if !e.readSet[id] {
+			e.readSet[id] = true
+			e.readOrd = append(e.readOrd, id)
+		}
+		if e.db != nil {
+			_, _ = e.db.Exec("UPDATE alert_log SET read_flag = 1 WHERE id = ?", id)
+			_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
+		}
+	}
+	for len(e.readOrd) > MaxReadIDs {
+		delete(e.readSet, e.readOrd[0])
+		e.readOrd = e.readOrd[1:]
+	}
+	if changed {
+		e.saveDismissedLocked()
+		e.saveReadLocked()
+	}
+	kept := e.list[:0]
+	for _, ev := range e.list {
+		if !drop[ev.ID] {
+			kept = append(kept, ev)
+		}
+	}
+	e.list = kept
+}
+
+// Has informa si un ID de alerta está actualmente en la lista (persistida
+// incluida). Lo usa el agent-outdated check tras un reinicio, cuando el flag
+// en memoria (agentOutdatedAlerted) no sobrevive pero la alerta sí (#833).
+func (e *Engine) Has(id string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, ev := range e.list {
+		if ev.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Resolve elimina una alerta cuya condición dejó de cumplirse (issue #833:
+// agent-outdated desaparece del feed cuando el agente se actualiza). A
+// diferencia de Dismiss NO guarda el ID en dismissed: si la condición vuelve,
+// la alerta se re-emite con normalidad. El dedup se conserva para no
+// re-notificar dentro de la ventana de 5 min.
+func (e *Engine) Resolve(id string) {
+	if id == "" {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i, ev := range e.list {
+		if ev.ID == id {
+			e.list = append(e.list[:i], e.list[i+1:]...)
+			// La condición se resolvió: una reincidencia es un incidente
+			// nuevo y debe poder alertar de inmediato (sin esperar al
+			// expirar la ventana de dedup de 5 min).
+			delete(e.dedup, ev.Category+"|"+ev.Title+"|"+ev.RouterID)
+			break
+		}
+	}
+	if e.db != nil {
+		_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
+	}
 }
 
 // Silence silences alerts matching the dedup key of the given alert ID for the
@@ -714,6 +831,24 @@ func (e *Engine) saveSilenceLocked() {
 	_, _ = e.db.Exec(
 		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
 		silenceKey, string(raw))
+}
+
+func (e *Engine) saveDismissedLocked() {
+	if e.db == nil {
+		return
+	}
+	ids := make([]string, 0, len(e.dismissed))
+	for id := range e.dismissed {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	raw, err := json.Marshal(ids)
+	if err != nil {
+		return
+	}
+	_, _ = e.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		dismissKey, string(raw))
 }
 
 func contains(list []string, v string) bool {
