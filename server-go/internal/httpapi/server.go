@@ -397,6 +397,7 @@ func NewHandler(d Deps) http.Handler {
 	// --- Agentes nativos (Fase 3) ---
 	// Ingesta: SIN sesión (auth Bearer propia; exenta en RequireAuth).
 	mux.HandleFunc("POST /api/ingest/agent", s.handleIngestAgent)
+	mux.HandleFunc("POST /api/agents/executor-token", s.handleAgentExecutorToken)
 	// Gestión de tokens: tras sesión como el resto del API; las mutaciones
 	// (crear/revocar/rearmar) exigen rol admin — ejecutan acciones sobre los
 	// routers o exponen credenciales (auditoría v2.4.0 §2, issue #7). La
