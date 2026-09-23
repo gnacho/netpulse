@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+
+- **Home Assistant por MQTT (#825)**: NetPulse puede publicar el estado de la flota en un broker MQTT y Home Assistant lo descubre solo (MQTT Discovery). Crea un dispositivo con la salud de la instalación (puntuación, clientes online y totales, routers y alertas sin leer), un dispositivo por router (estado, salud, CPU, memoria, temperatura y clientes) y publica un evento por cada alerta cuando se dispara. Es opcional y viene desactivado; se configura con las variables `NETPULSE_MQTT_*` (o las opciones UCI `mqtt_*` en modo on-box). Publica, no escucha: desde Home Assistant se lee la red. La conexión al broker no usa TLS, así que está pensada para un broker de tu red local. Con NetGrip activado en los routers, además se controlan desde Home Assistant el WiFi de invitados, banIP, IPv6, SQM y el reinicio. El detalle (topics, entidades y límites) está en el [manual](docs/manual.es.md#home-assistant-mqtt) y en la página [NetPulse y Home Assistant](https://netpulse.cloudless.club/home-assistant).
+
 ## [2.28.32] - 2026-09-22
 
 ### Fixed

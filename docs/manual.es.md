@@ -551,6 +551,85 @@ Es la pantalla más grande. Secciones principales:
 
 ---
 
+## Home Assistant (MQTT)
+
+NetPulse puede publicar el estado de la flota en un broker MQTT para que **Home Assistant** lo descubra solo: Home Assistant entiende el protocolo de descubrimiento (MQTT Discovery) y crea los dispositivos y las entidades sin que los definas a mano. Es **opcional y viene desactivado**.
+
+**Ajuste:** variables de entorno `NETPULSE_MQTT_*` (o las opciones UCI `mqtt_*` si usas la instalación on-box). No hay pantalla en la app para configurarlo; se activa al arrancar el servicio.
+
+### Qué ofrece
+
+Una foto periódica del estado de la instalación, pensada para paneles y automatizaciones de Home Assistant:
+
+- **La instalación** como un dispositivo: salud (puntuación y etiqueta), clientes online y totales, routers online y totales, y alertas sin leer.
+- **Cada router** como un dispositivo: si está en línea, su salud, CPU, memoria, temperatura y número de clientes.
+- **Las alertas** cuando se disparan, publicadas como evento para que automatices el aviso que quieras.
+
+NetPulse es **solo publicador**: escribe en el broker, no escucha órdenes. Desde Home Assistant puedes leer y automatizar; para actuar sobre un router (WiFi invitado, firewall, reinicio...) se usa NetGrip (el panel del router), que también habla MQTT.
+
+### Qué necesita
+
+- Un **broker MQTT** accesible desde donde corre NetPulse. Lo más común es el add-on **Mosquitto** de Home Assistant; vale cualquier broker.
+- **Descubrimiento MQTT** habilitado en Home Assistant (es lo habitual con Mosquitto: la integración MQTT suele venir ya configurada).
+- Un **nombre de instancia** (`casa`, `oficina`...). Sirve cuando hay más de una instalación de NetPulse: es el prefijo de los topics y aparece en el nombre de los dispositivos, de modo que no se mezclan en Home Assistant.
+
+### Qué publica (topics)
+
+Todo cuelga de `netpulse/<instancia>/`:
+
+| Topic | Retenido | Contenido |
+|---|---|---|
+| `netpulse/<instancia>/availability` | sí (LWT) | `online` mientras el publisher está conectado; `offline` si cae |
+| `netpulse/<instancia>/status` | sí | Estado de la instalación: versión, salud, clientes, routers y alertas |
+| `netpulse/<instancia>/router/<router>/state` | sí | Estado de un router: estado, salud, CPU, RAM, temperatura y clientes |
+| `netpulse/<instancia>/event/alert` | no | Una alerta al dispararse: id, severidad, título y descripción |
+
+`<router>` es un identificador estable del router (su id o su nombre, saneado).
+
+### Qué entidades crea en Home Assistant
+
+Un dispositivo **NetPulse \<instancia\>** y un dispositivo por router, colgando del primero:
+
+| Dispositivo | Entidad | Tipo | Unidad |
+|---|---|---|---|
+| NetPulse `<instancia>` | Health score | sensor | |
+| | Clients online | sensor | |
+| | Routers online | sensor | |
+| | Unread alerts | sensor | |
+| | NetPulse version | sensor (diagnóstico) | |
+| cada router | Online | binario (conectividad) | |
+| | Health | sensor | |
+| | CPU usage | sensor | % |
+| | Memory usage | sensor | % |
+| | Temperature | sensor | °C |
+| | Clients | sensor (diagnóstico) | |
+
+Los umbrales de temperatura, señal y latencia que definen la salud y las alertas se ajustan dentro de NetPulse (Ajustes); Home Assistant recibe el resultado, no lo recalcula.
+
+### Procedimiento: activarlo
+
+1. Comprueba que el broker está en marcha y anota host, puerto (1883 por defecto) y credenciales.
+2. Define las variables en el arranque del servicio de NetPulse:
+   - `NETPULSE_MQTT_ENABLED=1`
+   - `NETPULSE_MQTT_HOST=<host del broker>`
+   - `NETPULSE_MQTT_USER` y `NETPULSE_MQTT_PASS`
+   - `NETPULSE_MQTT_INSTANCE=<nombre>` (opcional; por defecto `default`)
+   - `NETPULSE_MQTT_PORT` (opcional; 1883) y `NETPULSE_MQTT_INTERVAL` (opcional; 30 segundos)
+3. Reinicia NetPulse. En el registro aparece `[mqtt] connected ... as instance "<nombre>"`.
+4. En Home Assistant, entra en **Ajustes > Dispositivos y servicios > MQTT**: el dispositivo nuevo ya está con sus entidades. El primer estado puede tardar un ciclo (hasta el intervalo configurado).
+
+Con instalación on-box, estos mismos valores se ponen en las opciones UCI `mqtt_*`.
+
+### Límites y privacidad
+
+- **Solo lectura**: NetPulse publica; nunca ejecuta lo que llegue por MQTT.
+- **Sin TLS**: la conexión al broker va en claro (puerto 1883). Úsala con un broker de tu red local; no expongas el broker a Internet.
+- **Desactivado en modo demo**: la instancia de demostración no publica nada.
+- **Sin nube**: los datos van de NetPulse a tu broker; no pasan por ningún servidor ajeno.
+- Si el broker cae, el publisher **no interrumpe** NetPulse: falla en silencio y reintenta.
+
+---
+
 ## Qué vive en NetPulse y qué vive en el panel del router
 
 El sondeo de NetPulse es **de solo lectura**: su servidor genera su propia clave ed25519, autorizas su clave pública en cada router y este solo lee (ubus, `/proc`, iwinfo, `bridge fdb`, `wg show`). Las acciones que escriben son explícitas y con rollback. Aun así, hay áreas que **no son páginas de NetPulse** y se configuran en el panel propio del router:

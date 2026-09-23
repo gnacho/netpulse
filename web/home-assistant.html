@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="haPage.metaTitle">NetPulse y Home Assistant</title>
+  <meta name="description" content="NetPulse publica el estado de tu red en un broker MQTT y Home Assistant descubre solo los routers y sus entidades. Todo local, sin nube." data-i18n-attr="content" data-i18n="haPage.metaDescription" />
+  <meta name="theme-color" content="#070B12" />
+  <link rel="canonical" href="https://netpulse.cloudless.club/home-assistant" />
+  <link rel="alternate" hreflang="es" href="https://netpulse.cloudless.club/home-assistant?hl=es" />
+  <link rel="alternate" hreflang="en" href="https://netpulse.cloudless.club/home-assistant" />
+  <link rel="alternate" hreflang="x-default" href="https://netpulse.cloudless.club/home-assistant" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="NetPulse" />
+  <meta property="og:title" content="NetPulse y Home Assistant" data-i18n-attr="content" data-i18n="haPage.metaTitle" />
+  <meta property="og:description" content="El estado de tu red en Home Assistant: descubrimiento automático por MQTT, sin nube." data-i18n-attr="content" data-i18n="haPage.metaDescription" />
+  <meta property="og:url" content="https://netpulse.cloudless.club/home-assistant" />
+  <meta property="og:image" content="https://netpulse.cloudless.club/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="NetPulse y Home Assistant" data-i18n-attr="content" data-i18n="haPage.metaTitle" />
+  <meta name="twitter:description" content="El estado de tu red en Home Assistant: descubrimiento automático por MQTT, sin nube." data-i18n-attr="content" data-i18n="haPage.metaDescription" />
+  <meta name="twitter:image" content="https://netpulse.cloudless.club/og.png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' y1='78' x2='90' y2='20' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='73' cy='60' r='6' fill='url(%23g)'/%3E%3Cpath d='M62.4 49.4 A15 15 0 0 1 83.6 49.4' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M55.3 39.7 A25 25 0 0 1 90.7 39.7' stroke='url(%23g)' stroke-width='5' stroke-linecap='round' opacity='0.6'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20260912a" />
+<script data-goatcounter="https://stats.netpulse.cloudless.club/count" async src="//stats.netpulse.cloudless.club/count.js"></script>
+</head>
+<body>
+  <canvas id="bgCanvas" aria-hidden="true"></canvas>
+
+  <!-- ============ NAV ============ -->
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/" aria-label="NetPulse">
+        <svg viewBox="0 0 96 96" fill="none" aria-hidden="true">
+          <defs><linearGradient id="np-g" x1="10" y1="78" x2="90" y2="20" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs>
+          <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+          <path d="M62.4 49.4 A15 15 0 0 1 83.6 49.4" stroke="url(#np-g)" stroke-width="5" stroke-linecap="round"/>
+          <path d="M55.3 39.7 A25 25 0 0 1 90.7 39.7" stroke="url(#np-g)" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+        </svg>
+        NetPulse
+      </a>
+      <div class="nav-links">
+        <a href="/features" data-i18n="featuresPage.navActive">Funciones</a>
+        <a href="/home-assistant" class="active" data-i18n="haPage.navActive">Home Assistant</a>
+        <a href="/" data-i18n="nav.how">Cómo funciona</a>
+        <a href="/#free" data-i18n="nav.free">Gratis</a>
+        <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
+      </div>
+      <a class="nav-star" id="navStar" href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n-aria="nav.starAria" aria-label="Star NetPulse on GitHub">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span class="label" data-i18n="nav.star">Star</span><span class="n" data-n hidden></span>
+      </a>
+      <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
+      <a class="nav-cta" href="/#install" data-i18n="haPage.ctaInstall">Instalar en tu red</a>
+    </div>
+  </nav>
+
+  <!-- ============ HERO ============ -->
+  <header class="hero mesh-bg" style="min-height:70vh;padding:7rem 0 4rem;">
+    <div class="hero-halo" aria-hidden="true"></div>
+    <div class="container">
+      <span class="eyebrow" data-i18n="haPage.eyebrow">Integración</span>
+      <h1 class="font-display text-balance" data-i18n="haPage.title">Tu red, dentro de Home Assistant</h1>
+      <p class="hero-sub" data-i18n="haPage.sub">NetPulse publica el estado de la flota en un broker MQTT y Home Assistant lo descubre solo: crea los dispositivos y sus entidades sin que definas nada a mano. Todo ocurre en tu red local.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="/#install">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span data-i18n="haPage.ctaInstall">Instalar en tu red</span>
+        </a>
+        <a class="btn-ghost" href="https://github.com/gnacho/netpulse/blob/main/docs/manual.es.md#home-assistant-mqtt" target="_blank" rel="noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span data-i18n="haPage.ctaManual">Leer el manual</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ WHY ============ -->
+  <section class="block" id="why" style="padding-top:2rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="haPage.whyEyebrow">Qué te llevas</span>
+        <h2 class="font-display text-balance" data-i18n="haPage.whyTitle">La red, como una entidad más de tu casa</h2>
+        <p class="lead" data-i18n="haPage.whyLead">NetPulse escribe el estado de tu red en el broker MQTT que ya tienes para Home Assistant. A partir de ahí, los routers y sus métricas están disponibles para paneles, automatizaciones y avisos, igual que una luz o un sensor de temperatura.</p>
+      </div>
+
+      <div class="features features-detail">
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+          <h3 data-i18n="haPage.whyInstallTitle">La instalación entera</h3>
+          <p data-i18n="haPage.whyInstallP">Un dispositivo con la salud global (puntuación y etiqueta), los clientes online y totales, los routers online y totales, y las alertas sin leer.</p>
+        </div>
+
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="18" x2="6.01" y2="18"/><line x1="10" y1="18" x2="10.01" y2="18"/><path d="M6 14V8a6 6 0 0 1 12 0v6"/></svg>
+          <h3 data-i18n="haPage.whyRouterTitle">Cada router, por separado</h3>
+          <p data-i18n="haPage.whyRouterP">Un dispositivo por router con si está en línea, su salud, CPU, memoria, temperatura y número de clientes. Vinculado a la instalación, para agruparlo en el panel.</p>
+        </div>
+
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <h3 data-i18n="haPage.whyAlertsTitle">Las alertas cuando pasan</h3>
+          <p data-i18n="haPage.whyAlertsP">Cada alerta se publica como evento en el momento en que se dispara (temperatura, WAN caída, dispositivo nuevo...), para que la conviertas en la automatización que quieras.</p>
+        </div>
+      </div>
+
+      <div class="card honest reveal" style="padding:1.5rem 1.75rem;margin-top:1.5rem;">
+        <p style="margin:0;" data-i18n="haPage.whyNote">NetPulse escribe, no escucha: es un publicador. Desde Home Assistant lees la red; para actuar sobre un router se usa NetGrip, su panel, que habla MQTT igual y sí acepta órdenes.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW ============ -->
+  <section class="block" id="how" style="padding-top:1rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="haPage.howEyebrow">Puesta en marcha</span>
+        <h2 class="font-display text-balance" data-i18n="haPage.howTitle">Cuatro pasos, una vez</h2>
+        <p class="lead" data-i18n="haPage.howLead">Viene desactivado: hasta que lo enciendas, NetPulse no publica nada. Se configura por variables de entorno (o opciones UCI en el modo on-box).</p>
+      </div>
+
+      <div class="install-grid" style="margin-top:2rem;">
+        <div>
+          <ul class="req-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="haPage.req1">Un broker MQTT (el add-on Mosquitto de Home Assistant es lo más común)</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="haPage.req2">Descubrimiento MQTT activo en Home Assistant (lo normal con Mosquitto)</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="haPage.req3">Un nombre de instancia si tienes más de una instalación (casa, oficina...)</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="haPage.req4">Nada más: no hay que abrir puertos ni tocar el router</span></li>
+          </ul>
+        </div>
+        <div class="codecard">
+          <h3 data-i18n="haPage.codeTitle">Variables de entorno</h3>
+          <div class="codebox">
+            <code style="white-space:pre-wrap">NETPULSE_MQTT_ENABLED=1
+NETPULSE_MQTT_HOST=10.0.0.10
+NETPULSE_MQTT_USER=netpulse
+NETPULSE_MQTT_PASS=...
+NETPULSE_MQTT_INSTANCE=casa</code>
+          </div>
+          <p class="caption text-muted" style="margin-top:0.9rem;" data-i18n="haPage.codeNote">Tras reiniciar, el registro muestra «[mqtt] connected ... as instance "casa"». El primer estado tarda como mucho un intervalo.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ENTITIES ============ -->
+  <section class="block" id="entities" style="padding-top:1rem;">
+    <div class="container" style="max-width:62rem;">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="haPage.entEyebrow">Entidades</span>
+        <h2 class="font-display text-balance" data-i18n="haPage.entTitle">Lo que aparece en Home Assistant</h2>
+        <p class="lead" data-i18n="haPage.entLead">Un dispositivo para la instalación y uno por router, colgando del primero. Estas son las entidades que se crean solas:</p>
+      </div>
+
+      <div class="compare-wrap card reveal" style="margin-top:1.5rem;">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th data-i18n="haPage.thDevice">Dispositivo</th>
+              <th data-i18n="haPage.thEntity">Entidad</th>
+              <th data-i18n="haPage.thType">Tipo</th>
+              <th data-i18n="haPage.thUnit">Unidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td rowspan="5">NetPulse &lt;instancia&gt;</td><td>Health score</td><td data-i18n="haPage.typeSensor">sensor</td><td></td></tr>
+            <tr><td>Clients online</td><td data-i18n="haPage.typeSensor">sensor</td><td></td></tr>
+            <tr><td>Routers online</td><td data-i18n="haPage.typeSensor">sensor</td><td></td></tr>
+            <tr><td>Unread alerts</td><td data-i18n="haPage.typeSensor">sensor</td><td></td></tr>
+            <tr><td>NetPulse version</td><td data-i18n="haPage.typeSensorDiag">sensor (diagnóstico)</td><td></td></tr>
+            <tr><td rowspan="6" data-i18n="haPage.devRouter">cada router</td><td>Online</td><td data-i18n="haPage.typeBinary">binario (conectividad)</td><td></td></tr>
+            <tr><td>Health</td><td data-i18n="haPage.typeSensor">sensor</td><td></td></tr>
+            <tr><td>CPU usage</td><td data-i18n="haPage.typeSensor">sensor</td><td>%</td></tr>
+            <tr><td>Memory usage</td><td data-i18n="haPage.typeSensor">sensor</td><td>%</td></tr>
+            <tr><td>Temperature</td><td data-i18n="haPage.typeSensor">sensor</td><td>°C</td></tr>
+            <tr><td>Clients</td><td data-i18n="haPage.typeSensorDiag">sensor (diagnóstico)</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="browser-frame reveal" style="margin-top:2rem;">
+        <img data-hashot="device" src="assets/ha-device-es-dark.webp" alt="" width="1440" height="900" data-i18n-aria="haPage.shotDeviceAlt" />
+      </div>
+      <p class="shot-caption" data-i18n="haPage.shotDeviceCaption">El dispositivo de un router en Home Assistant, con sus entidades creadas por descubrimiento.</p>
+    </div>
+  </section>
+
+  <!-- ============ CONTROL ============ -->
+  <section class="block" id="control" style="padding-top:1rem;">
+    <div class="container" style="max-width:62rem;">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="haPage.ctrlEyebrow">Y algo más: NetGrip</span>
+        <h2 class="font-display text-balance" data-i18n="haPage.ctrlTitle">Controlar el router desde Home Assistant</h2>
+        <p class="lead" data-i18n="haPage.ctrlLead">NetPulse solo publica, pero los routers que llevan NetGrip (su panel) también aceptan órdenes por MQTT. Con NetGrip activado, Home Assistant no solo ve el router: lo maneja.</p>
+      </div>
+
+      <div class="compare-wrap card reveal" style="margin-top:1.5rem;">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th data-i18n="haPage.thAction">Acción</th>
+              <th data-i18n="haPage.thCmdTopic">Topic de orden</th>
+              <th data-i18n="haPage.thPayload">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td data-i18n="haPage.actGuest">WiFi de invitados</td><td><code>netgrip/&lt;router&gt;/command/guest_wifi</code></td><td>ON / OFF</td></tr>
+            <tr><td>banIP</td><td><code>netgrip/&lt;router&gt;/command/banip</code></td><td>ON / OFF / RELOAD</td></tr>
+            <tr><td>IPv6</td><td><code>netgrip/&lt;router&gt;/command/ipv6</code></td><td>ON / OFF</td></tr>
+            <tr><td>SQM</td><td><code>netgrip/&lt;router&gt;/command/sqm</code></td><td>ON / OFF</td></tr>
+            <tr><td data-i18n="haPage.actReboot">Reiniciar</td><td><code>netgrip/&lt;router&gt;/command/reboot</code></td><td>PRESS</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="shot-caption" style="text-align:left;margin-top:0.9rem;" data-i18n="haPage.ctrlNote">Cada router responde con el resultado en <code>netgrip/&lt;router&gt;/result</code>. Y además publica 17 sensores propios: clientes por banda, señal WiFi mínima y media, y tráfico de la red local.</p>
+
+      <div class="browser-frame reveal" style="margin-top:2rem;">
+        <img data-hashot="dashboard" src="assets/ha-dashboard-es-dark.webp" alt="" width="1440" height="900" data-i18n-aria="haPage.shotDashAlt" />
+      </div>
+      <p class="shot-caption" data-i18n="haPage.shotDashCaption">Un panel de Home Assistant con el tráfico de la red local y la salud de la instalación.</p>
+    </div>
+  </section>
+
+  <!-- ============ LIMITS ============ -->
+  <section class="block" id="limits" style="padding-top:1rem;">
+    <div class="container" style="max-width:56rem;">
+      <div class="card honest reveal" style="padding:2rem 2.25rem;">
+        <h3 class="font-display" style="margin:0;font-size:1.25rem;color:rgb(var(--accent));" data-i18n="haPage.limitsTitle">Lo que hay que saber</h3>
+        <ul class="honest-list">
+          <li data-i18n="haPage.lim1">La conexión al broker no lleva TLS (puerto 1883): pensada para un broker de tu red local, no para exponerlo a Internet.</li>
+          <li data-i18n="haPage.lim2">Está desactivado hasta que lo enciendas, y en modo demo no publica nada.</li>
+          <li data-i18n="haPage.lim3">No hay nube de por medio: los datos van de NetPulse a tu broker y de ahí a tu Home Assistant, sin pasar por terceros.</li>
+          <li data-i18n="haPage.lim4">Si el broker cae, NetPulse no se entera: la publicación falla en silencio y reintenta. La monitorización sigue igual.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="block" style="padding-top:0.5rem;">
+    <div class="container" style="max-width:56rem;">
+      <div class="card free-card reveal" style="text-align:center;">
+        <h3 class="font-display" data-i18n="haPage.ctaTitle">Pruébalo en tu red</h3>
+        <p data-i18n="haPage.ctaText">Instala NetPulse, apunta su instancia al broker y en un minuto tendrás tu red dentro de Home Assistant.</p>
+        <div class="hero-actions" style="justify-content:center;">
+          <a class="btn-primary" href="/#install"><span data-i18n="haPage.ctaInstall">Instalar en tu red</span></a>
+          <a class="btn-ghost" href="/features"><span data-i18n="featuresPage.navActive">Funciones</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col" style="max-width:22rem;">
+          <a class="nav-logo" href="/" style="margin-bottom:0.75rem;">
+            <svg viewBox="0 0 96 96" fill="none" width="22" height="22" aria-hidden="true">
+              <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+            </svg>
+            NetPulse
+          </a>
+          <p class="caption text-muted" data-i18n="footer.tagline">Monitorización en vivo para redes domésticas, autoalojada y libre para siempre.</p>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.project">Proyecto</h4>
+          <a href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" data-i18n="footer.releases">Releases</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/docs/ROADMAP.md" target="_blank" rel="noopener" data-i18n="footer.roadmap">Roadmap</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">Licencia</a>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.community">Comunidad</h4>
+          <a href="https://github.com/gnacho/netpulse/issues" target="_blank" rel="noopener" data-i18n="footer.issues">Issues</a>
+          <a href="https://github.com/gnacho/netpulse/discussions" target="_blank" rel="noopener" data-i18n="footer.discussions">Discusiones</a>
+          <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="footer.contribute">Contribuir</a>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.support">Apóyalo</h4>
+          <a class="support-link" href="https://github.com/gnacho/netpulse/stargazers" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span data-i18n="footer.star">Dale una estrella en GitHub</span>
+          </a>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span data-i18n="footer.rights">AGPL-3.0 · Hecho en casa, para redes de casa.</span>
+        <a href="/features" class="font-mono" data-i18n="featuresPage.backToTop">Funciones</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ WIDGET APARIENCIA ============ -->
+  <button class="appearance-fab" id="appFab" aria-label="Appearance" data-i18n-aria="appearance.title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+  </button>
+  <div class="appearance-panel" id="appPanel">
+    <h5 data-i18n="appearance.title">Apariencia</h5>
+    <div class="label text-muted" style="margin-bottom:0.4rem;" data-i18n="appearance.theme">Tema</div>
+    <div class="seg" id="themeSeg">
+      <button data-mode="dark" data-i18n="appearance.dark">Oscuro</button>
+      <button data-mode="light" data-i18n="appearance.light">Claro</button>
+      <button data-mode="system" data-i18n="appearance.system">Auto</button>
+    </div>
+  </div>
+
+  <script src="i18n.js?v=20260912a"></script>
+  <script src="app.js?v=20260912a"></script>
+<script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9"></script>
+</body>
+</html>

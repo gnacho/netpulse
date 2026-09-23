@@ -1276,6 +1276,7 @@ function applyTheme() {
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = light ? '#F3F5F9' : '#070B12'
   if (typeof renderShot === 'function') renderShot()
+  if (typeof renderHashots === 'function') renderHashots()
 }
 function updateAppearancePanel() {
   document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === themeMode))
@@ -1350,6 +1351,17 @@ function shotUrl(view) {
   const lang = (raw === 'es' || raw === 'en') ? raw : 'en' // solo existen capturas es/en
   const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
   return `assets/shot-${view}-${lang}-${theme}.webp`
+}
+
+// Capturas propias de una página estática: <img data-hashot="device"> se sirve
+// en el idioma y el tema activos, igual que el carrusel de la portada.
+function renderHashots() {
+  const raw = (document.documentElement.lang || 'en').slice(0, 2)
+  const lang = (raw === 'es' || raw === 'en') ? raw : 'en'
+  const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
+  document.querySelectorAll('img[data-hashot]').forEach(img => {
+    img.src = `assets/ha-${img.dataset.hashot}-${lang}-${theme}.webp`
+  })
 }
 
 function renderShot(i) {

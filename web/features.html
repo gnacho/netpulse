@@ -77,6 +77,7 @@
       </a>
       <div class="nav-links">
         <a href="/features" data-i18n="featuresPage.navActive" class="active">Funciones</a>
+        <a href="/home-assistant" data-i18n="haPage.navActive">Home Assistant</a>
         <a href="/" data-i18n="nav.how">Cómo funciona</a>
         <a href="/#free" data-i18n="nav.free">Gratis</a>
         <a href="/#faq" data-i18n="nav.faq">FAQ</a>
@@ -317,6 +318,20 @@
             <li data-i18n="featuresPage.onboxL4">HTTPS opcional para la UI: tus certificados o autofirmado</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Home Assistant -->
+        <div class="card feature reveal" id="home-assistant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+          <h3 data-i18n="haPage.metaTitle">NetPulse y Home Assistant</h3>
+          <p data-i18n="haPage.sub">NetPulse publica el estado de la flota en un broker MQTT y Home Assistant lo descubre solo: crea los dispositivos y sus entidades sin que definas nada a mano. Todo ocurre en tu red local.</p>
+          <ul class="feature-list">
+            <li data-i18n="haPage.whyInstallTitle">La instalación entera</li>
+            <li data-i18n="haPage.whyRouterTitle">Cada router, por separado</li>
+            <li data-i18n="haPage.ctrlTitle">Controlar el router desde Home Assistant</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+          <a class="chip-link" href="/home-assistant" data-i18n="haPage.navActive">Home Assistant</a>
         </div>
       </div>
     </div>

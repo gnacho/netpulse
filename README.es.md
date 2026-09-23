@@ -143,9 +143,10 @@ por SNMP también son ciudadanos de primera.
   con swap atómico.
 - **MQTT + Home Assistant (opcional)**: publica el estado de la flota (salud,
   clientes, vitales por router y alertas) en un broker MQTT; Home Assistant
-  descubre las entidades solo. Desactivado por defecto, se configura con las
-  variables de entorno `NETPULSE_MQTT_*` (o las opciones UCI `mqtt_*` en
-  on-box).
+  descubre las entidades solo. Desactivado por defecto y sin nube: se configura
+  con las variables de entorno `NETPULSE_MQTT_*` (o las opciones UCI `mqtt_*` en
+  on-box). Topics, entidades y limitaciones en el
+  [manual](docs/manual.es.md#home-assistant-mqtt).
 
 Esto sigue siendo una selección: **[todas las funcionalidades están en la
 web](https://netpulse.cloudless.club/features)**, una a una, y todo lo
