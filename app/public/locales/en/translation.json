@@ -1161,9 +1161,9 @@
     "about": {
       "changelog": "Changelog",
       "visitWeb": "Visit website",
-      "code": "Source code",
+      "starGithub": "Star us on GitHub",
+      "reportIssue": "Report a problem",
       "desc": "Network control panel for OpenWRT devices. Monitors routers and APs, and applies explicit admin actions (reservations, blocks, orchestration, firmware) with snapshot and rollback.",
-      "madeAtHome": "Support the project on Ko-fi",
       "privacy": "100% private · 0% cloud",
       "title": "About",
       "versionNote": "v1.0.0",
@@ -1878,6 +1878,20 @@
   "orchestration": {
     "title": "Orchestration",
     "subtitle": "Configure network services declaratively. Every change goes through a reviewable plan before applying.",
+    "experimental": {
+      "title": "Experimental section",
+      "body": "This section writes to your routers and is experimental. If your router runs OpenWrt, we recommend NetGrip: it also acts as a NetPulse agent, but offers much more functionality.",
+      "features": {
+        "panel": "Friendly panel on the router itself",
+        "wifi": "Guest and IoT WiFi with QR",
+        "vpn": "Guided WireGuard, SQM and DDNS",
+        "firewall": "Visual firewall and VLANs",
+        "snapshots": "Snapshots with undo",
+        "mqtt": "MQTT / Home Assistant integration"
+      },
+      "more": "See the full breakdown on the NetGrip website",
+      "dismiss": "Hide notice"
+    },
     "router": "Router",
     "gateway": "Gateway",
     "generatePlan": "Generate plan",

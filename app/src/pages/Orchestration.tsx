@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
-import { ChevronRight, CheckCircle2, AlertCircle, Loader2, Wand2, ShieldAlert, Plus, X } from 'lucide-react'
+import { ChevronRight, CheckCircle2, AlertCircle, ArrowUpRight, Loader2, Wand2, ShieldAlert, Plus, X } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
@@ -90,6 +90,16 @@ export default function Orchestration() {
   const [usteerBssTransition, setUsteerBssTransition] = useState(true)
   const [usteerFtOverDs, setUsteerFtOverDs] = useState(false)
   const [usteerFtPskGenerateLocal, setUsteerFtPskGenerateLocal] = useState(true)
+
+  // #836: aviso "sección experimental + recomendación NetGrip". Ocultable;
+  // la preferencia se recuerda en localStorage.
+  const [showExpNotice, setShowExpNotice] = useState(
+    () => localStorage.getItem('np.orchestration.experimental.v1') !== '0'
+  )
+  const dismissExpNotice = () => {
+    localStorage.setItem('np.orchestration.experimental.v1', '0')
+    setShowExpNotice(false)
+  }
 
   // issue #120: todos los módulos son gateway-only por defecto. El toggle
   // "advanced" permite un router no-gateway (con warning + checks).
@@ -273,6 +283,58 @@ export default function Orchestration() {
         <h1 className="font-display text-h1 text-text-primary">{t('orchestration.title')}</h1>
         <p className="mt-0.5 text-sm text-text-secondary">{t('orchestration.subtitle')}</p>
       </header>
+
+      {/* #836: esta sección ESCRIBE en los routers (fase experimental) y
+          NetGrip es la alternativa recomendada en OpenWrt. */}
+      {showExpNotice && (
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="relative rounded-2xl border border-warn/30 bg-warn/5 p-4 md:p-5"
+          aria-label={t('orchestration.experimental.title')}
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warn/10 text-warn">
+              <ShieldAlert className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold text-text-primary">{t('orchestration.experimental.title')}</h2>
+              <p className="mt-1 text-caption leading-relaxed text-text-secondary">
+                {t('orchestration.experimental.body')}
+              </p>
+              <ul className="mt-2.5 grid gap-1.5 sm:grid-cols-2">
+                {(['panel', 'wifi', 'vpn', 'firewall', 'snapshots', 'mqtt'] as const).map((f) => (
+                  <li key={f} className="flex items-start gap-1.5 text-caption text-text-secondary">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" strokeWidth={1.75} />
+                    {t(`orchestration.experimental.features.${f}`)}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="https://netgrip.cloudless.club"
+                target="_blank"
+                rel="noreferrer"
+                className="group mt-3 inline-flex items-center gap-1 text-caption font-semibold text-accent transition-colors hover:text-accent/80"
+              >
+                {t('orchestration.experimental.more')}
+                <ArrowUpRight
+                  className="h-3.5 w-3.5 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                  strokeWidth={1.75}
+                />
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={dismissExpNotice}
+              aria-label={t('orchestration.experimental.dismiss')}
+              className="shrink-0 rounded-lg p-1 text-text-muted transition-colors hover:bg-hover hover:text-text-primary"
+            >
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
+        </motion.section>
+      )}
 
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
