@@ -55,6 +55,13 @@ var uciEnvMap = []struct{ uci, env string }{
 	{"agent_max_ts_drift_s", "AGENT_MAX_TS_DRIFT_S"},
 	{"auto_rearm", "NETPULSE_AUTO_REARM"},
 	{"agent_ttl_s", "NETPULSE_AGENT_TTL_S"},
+	{"mqtt_enabled", "NETPULSE_MQTT_ENABLED"},
+	{"mqtt_host", "NETPULSE_MQTT_HOST"},
+	{"mqtt_port", "NETPULSE_MQTT_PORT"},
+	{"mqtt_user", "NETPULSE_MQTT_USER"},
+	{"mqtt_pass", "NETPULSE_MQTT_PASS"},
+	{"mqtt_instance", "NETPULSE_MQTT_INSTANCE"},
+	{"mqtt_interval", "NETPULSE_MQTT_INTERVAL"},
 }
 
 // LoadUCIEnv lee `uci -q show netpulse` y aplica la sección server al

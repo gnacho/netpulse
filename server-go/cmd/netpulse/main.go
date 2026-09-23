@@ -44,6 +44,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
+	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/ntfy"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -661,6 +662,7 @@ func run() error {
 		// Aviso anónimo diario de instancia activa (#822). Fail-silent.
 		telemetry.New(dbHandle, httpapi.Version, cfg.DemoMode).Start(context.Background())
 		p.Start()
+		mqttpub.New(mqttpub.ConfigFromProcessEnv(), httpapi.Version, p.LastOverview, cfg.DemoMode).Start(context.Background())
 		upd.Start()
 		go fwScheduler.Start()
 		if eventsCollector != nil {

@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/gnacho/netpulse/agent v0.0.0
+	github.com/gonzalop/mq v0.9.10
 	github.com/gosnmp/gosnmp v1.44.0
 	github.com/showwin/speedtest-go v1.8.3
 	golang.org/x/crypto v0.54.0
