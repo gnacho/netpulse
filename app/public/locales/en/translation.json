@@ -1660,6 +1660,27 @@
       "incomplete": "Topic is required",
       "sendTest": "Test",
       "hint": "The topic acts as a password: anyone who knows it receives the notifications. Use a long random one."
+    },
+    "mqtt": {
+      "title": "MQTT / Home Assistant",
+      "description": "Publishes the fleet state to an MQTT broker for Home Assistant (automatic discovery) and pushes the configuration to NetGrip routers.",
+      "enabled": "Enabled",
+      "host": "Broker",
+      "port": "Port",
+      "user": "Username",
+      "pass": "Password",
+      "passOptional": "Optional",
+      "passKeep": "Set (type it only to change it)",
+      "passSet": "set",
+      "instance": "Instance",
+      "interval": "Publish interval (s)",
+      "incomplete": "The broker is required to enable MQTT",
+      "hint": "The broker connection has no TLS: use it with a broker on your local network. If a router exposes itself with NetGrip, NetPulse does not duplicate it.",
+      "test": "Test connection",
+      "propagate": "Propagate to NetGrip",
+      "propagateEmpty": "There are no NetGrip routers in the fleet to propagate to.",
+      "running": "publishing",
+      "notRunning": "stopped"
     }
   },
   "statcard": {

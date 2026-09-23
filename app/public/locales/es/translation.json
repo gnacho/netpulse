@@ -1660,6 +1660,27 @@
       "incomplete": "El topic es obligatorio",
       "sendTest": "Probar",
       "hint": "El topic funciona como contraseña: quien lo conozca recibirá las notificaciones. Usa uno largo y aleatorio."
+    },
+    "mqtt": {
+      "title": "MQTT / Home Assistant",
+      "description": "Publica el estado de la flota en un broker MQTT para Home Assistant (descubrimiento automático) y propaga la configuración a los routers NetGrip.",
+      "enabled": "Activado",
+      "host": "Broker",
+      "port": "Puerto",
+      "user": "Usuario",
+      "pass": "Contraseña",
+      "passOptional": "Opcional",
+      "passKeep": "Configurada (escríbela solo para cambiarla)",
+      "passSet": "configurada",
+      "instance": "Instancia",
+      "interval": "Intervalo de publicación (s)",
+      "incomplete": "El broker es obligatorio para activar MQTT",
+      "hint": "La conexión al broker no lleva TLS: úsala con un broker de tu red local. Si un router se expone solo con NetGrip, NetPulse no lo duplica.",
+      "test": "Probar conexión",
+      "propagate": "Propagar a NetGrip",
+      "propagateEmpty": "No hay routers NetGrip en la flota a los que propagar.",
+      "running": "publicando",
+      "notRunning": "detenido"
     }
   },
   "statcard": {
