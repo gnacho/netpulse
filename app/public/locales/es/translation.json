@@ -1884,8 +1884,8 @@
     "title": "Orquestación",
     "subtitle": "Configura servicios de red de forma declarativa. Cada cambio pasa por un plan revisable antes de aplicarse.",
     "experimental": {
+      "badge": "Experimental",
       "title": "Sección experimental",
-      "body": "Esta sección escribe en los routers y está en fase experimental. Si tu router es OpenWrt, te recomendamos NetGrip: también actúa como agente de NetPulse, pero ofrece mucha más funcionalidad.",
       "features": {
         "panel": "Panel amable en el propio router",
         "wifi": "WiFi de invitados e IoT con QR",
@@ -1894,8 +1894,10 @@
         "snapshots": "Snapshots con deshacer",
         "mqtt": "Integración MQTT / Home Assistant"
       },
-      "more": "Ver el desglose completo en la web de NetGrip",
-      "dismiss": "Ocultar aviso"
+      "body": "Esta sección escribe en los routers por SSH a través de un plan revisable antes de aplicar, con snapshot automático y rollback si algo sale mal. Es una funcionalidad en fase experimental: revisa siempre el plan generado y trabaja con un snapshot previo.",
+      "body2": "Si tu router es OpenWrt, te recomendamos NetGrip: corre en el propio router (unos 10 MB de disco y 15 MB de RAM, medidos en un router ARM64), también actúa como agente de NetPulse y ofrece mucha más funcionalidad.",
+      "hook": "Tu router ya sabe hacerlo todo: NetGrip solo lo pone fácil.",
+      "cta": "Descubre NetGrip"
     },
     "router": "Router",
     "gateway": "Puerta de enlace",

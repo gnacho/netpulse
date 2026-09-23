@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
-import { ChevronRight, CheckCircle2, AlertCircle, ArrowUpRight, Loader2, Wand2, ShieldAlert, Plus, X } from 'lucide-react'
+import { ChevronRight, CheckCircle2, AlertCircle, ArrowUpRight, Loader2, Wand2, ShieldAlert, Plus, X, Sparkles } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
@@ -91,15 +91,8 @@ export default function Orchestration() {
   const [usteerFtOverDs, setUsteerFtOverDs] = useState(false)
   const [usteerFtPskGenerateLocal, setUsteerFtPskGenerateLocal] = useState(true)
 
-  // #836: aviso "sección experimental + recomendación NetGrip". Ocultable;
-  // la preferencia se recuerda en localStorage.
-  const [showExpNotice, setShowExpNotice] = useState(
-    () => localStorage.getItem('np.orchestration.experimental.v1') !== '0'
-  )
-  const dismissExpNotice = () => {
-    localStorage.setItem('np.orchestration.experimental.v1', '0')
-    setShowExpNotice(false)
-  }
+  // #836: aviso "sección experimental + recomendación NetGrip". Siempre
+  // visible cada vez que se entra al menú (sin dismiss ni localStorage).
 
   // issue #120: todos los módulos son gateway-only por defecto. El toggle
   // "advanced" permite un router no-gateway (con warning + checks).
@@ -285,56 +278,54 @@ export default function Orchestration() {
       </header>
 
       {/* #836: esta sección ESCRIBE en los routers (fase experimental) y
-          NetGrip es la alternativa recomendada en OpenWrt. */}
-      {showExpNotice && (
-        <motion.section
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="relative rounded-2xl border border-warn/30 bg-warn/5 p-4 md:p-5"
-          aria-label={t('orchestration.experimental.title')}
-        >
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warn/10 text-warn">
-              <ShieldAlert className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold text-text-primary">{t('orchestration.experimental.title')}</h2>
-              <p className="mt-1 text-caption leading-relaxed text-text-secondary">
-                {t('orchestration.experimental.body')}
-              </p>
-              <ul className="mt-2.5 grid gap-1.5 sm:grid-cols-2">
-                {(['panel', 'wifi', 'vpn', 'firewall', 'snapshots', 'mqtt'] as const).map((f) => (
-                  <li key={f} className="flex items-start gap-1.5 text-caption text-text-secondary">
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" strokeWidth={1.75} />
-                    {t(`orchestration.experimental.features.${f}`)}
-                  </li>
-                ))}
-              </ul>
-              <a
-                href="https://netgrip.cloudless.club"
-                target="_blank"
-                rel="noreferrer"
-                className="group mt-3 inline-flex items-center gap-1 text-caption font-semibold text-accent transition-colors hover:text-accent/80"
-              >
-                {t('orchestration.experimental.more')}
-                <ArrowUpRight
-                  className="h-3.5 w-3.5 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                  strokeWidth={1.75}
-                />
-              </a>
+          NetGrip es la alternativa recomendada en OpenWrt. Siempre visible. */}
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="rounded-2xl border border-border bg-surface p-5 md:p-6"
+        aria-label={t('orchestration.experimental.title')}
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
+            <Sparkles className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-text-primary">{t('orchestration.experimental.title')}</h2>
+              <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warn">
+                {t('orchestration.experimental.badge')}
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={dismissExpNotice}
-              aria-label={t('orchestration.experimental.dismiss')}
-              className="shrink-0 rounded-lg p-1 text-text-muted transition-colors hover:bg-hover hover:text-text-primary"
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(['panel', 'wifi', 'vpn', 'firewall', 'snapshots', 'mqtt'] as const).map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-text-secondary">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" strokeWidth={1.75} />
+                  {t(`orchestration.experimental.features.${f}`)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm leading-relaxed text-text-secondary">
+              {t('orchestration.experimental.body')}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+              {t('orchestration.experimental.body2')}
+            </p>
+            <p className="mt-4 text-sm font-medium text-text-primary">
+              {t('orchestration.experimental.hook')}
+            </p>
+            <a
+              href="https://netgrip.cloudless.club"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-canvas shadow-sm transition-colors hover:bg-accent/90"
             >
-              <X className="h-4 w-4" strokeWidth={1.75} />
-            </button>
+              {t('orchestration.experimental.cta')}
+              <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+            </a>
           </div>
-        </motion.section>
-      )}
+        </div>
+      </motion.section>
 
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
