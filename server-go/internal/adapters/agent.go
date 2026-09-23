@@ -97,6 +97,19 @@ func (r *AgentRegistry) Info(slug string) (lastSeen time.Time, version, kind str
 	return st.LastSeen, st.Version, st.Kind, st.Interval, true
 }
 
+// SelfExpose informa de si el router se expone él mismo a Home Assistant por
+// MQTT (#832), leyéndolo de la última muestra del agente. ok=false = el
+// agente no lo informa (standalone o embedder que no lo reporta).
+func (r *AgentRegistry) SelfExpose(slug string) (enabled bool, node string, ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, found := r.states[slug]
+	if !found || st.Payload == nil || st.Payload.Data.MQTT == nil {
+		return false, "", false
+	}
+	return st.Payload.Data.MQTT.Enabled, st.Payload.Data.MQTT.Node, true
+}
+
 // ExternalDownConfirm escala la ventana de confirmación de caída para un
 // pusher externo: max(confirm base, 3x su cadencia declarada) (#288). Con
 // la base a secas, un scraper de 5 min dispararía "agente caído" tras un
@@ -482,6 +495,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// #441: conservar el kind del agente: los pushers externos (beacon/
 	// scraper) no llevan sección system y el router queda sin vitals.
 	out.agentKind = p.Kind
+	// #832: el equipo se expone él mismo a Home Assistant por MQTT (NetGrip
+	// con su MQTT activado); el publisher de flota cede el paso.
+	out.selfExpose = p.Data.MQTT != nil && p.Data.MQTT.Enabled
 	sysInfo := &SysInfo{}
 	ramPct := 0
 

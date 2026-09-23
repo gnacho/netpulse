@@ -121,11 +121,16 @@ func buildRouterState(r adapters.Router) routerState {
 }
 
 // routerSetKey is a stable key of the current router set, used to detect when
-// discovery must be republished.
+// discovery must be republished. Incluye la marca de autoexposición (#832)
+// para que un cambio en ella también republicque el discovery.
 func routerSetKey(ov *adapters.Overview) string {
 	slugs := make([]string, 0, len(ov.Routers))
 	for _, r := range ov.Routers {
-		slugs = append(slugs, routerSlug(r))
+		s := routerSlug(r)
+		if selfExposes(r) {
+			s += "+self"
+		}
+		slugs = append(slugs, s)
 	}
 	sort.Strings(slugs)
 	return strings.Join(slugs, ",")
@@ -142,12 +147,18 @@ func (p *Publisher) publishStatus(client *mq.Client, ov *adapters.Overview) {
 
 func (p *Publisher) publishRouters(client *mq.Client, ov *adapters.Overview) {
 	for _, r := range ov.Routers {
+		topic := routerStateTopic(p.cfg.Instance, routerSlug(r))
+		// #832: el router se expone solo → se limpia su estado retenido.
+		if selfExposes(r) {
+			publish(client, topic, []byte{}, true)
+			continue
+		}
 		payload, err := json.Marshal(buildRouterState(r))
 		if err != nil {
 			log.Printf("[mqtt] marshal router %s: %v", r.ID, err)
 			continue
 		}
-		publish(client, routerStateTopic(p.cfg.Instance, routerSlug(r)), payload, true)
+		publish(client, topic, payload, true)
 	}
 }
 
@@ -157,6 +168,14 @@ type haEntity struct {
 	nodeID    string
 	objectID  string
 	config    map[string]any
+	// remove: la entidad se publica vacía para que Home Assistant la borre
+	// (#832, el router se expone solo).
+	remove bool
+}
+
+// selfExposes: el router se expone él mismo a Home Assistant por MQTT (#832).
+func selfExposes(r adapters.Router) bool {
+	return r.SelfExpose != nil && *r.SelfExpose
 }
 
 // publishDiscovery publishes the retained discovery configs for the instance
@@ -167,10 +186,17 @@ func (p *Publisher) publishDiscovery(client *mq.Client) {
 		return
 	}
 	for _, e := range haEntities(p.cfg.Instance, p.version, ov) {
-		payload, err := json.Marshal(e.config)
-		if err != nil {
-			log.Printf("[mqtt] marshal discovery %s: %v", e.objectID, err)
-			continue
+		var payload []byte
+		if e.remove {
+			// Vacío retenido: Home Assistant borra la entidad (#832).
+			payload = []byte{}
+		} else {
+			var err error
+			payload, err = json.Marshal(e.config)
+			if err != nil {
+				log.Printf("[mqtt] marshal discovery %s: %v", e.objectID, err)
+				continue
+			}
 		}
 		topic := "homeassistant/" + e.component + "/" + e.nodeID + "/" + e.objectID + "/config"
 		publish(client, topic, payload, true)
@@ -256,6 +282,7 @@ func haEntities(instance, version string, ov *adapters.Overview) []haEntity {
 		}
 		state := routerStateTopic(instance, slug)
 
+		start := len(entities)
 		entities = append(entities,
 			base(node, dev, "binary_sensor", "online", map[string]any{
 				"name": "Online", "state_topic": state,
@@ -292,6 +319,13 @@ func haEntities(instance, version string, ov *adapters.Overview) []haEntity {
 				"icon": "mdi:account-network", "entity_category": "diagnostic",
 			}),
 		)
+		// #832: el router se expone solo → esas entidades se publican vacías
+		// para que Home Assistant las borre en lugar de duplicarlas.
+		if selfExposes(r) {
+			for i := start; i < len(entities); i++ {
+				entities[i].remove = true
+			}
+		}
 	}
 	return entities
 }

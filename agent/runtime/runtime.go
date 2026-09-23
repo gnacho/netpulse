@@ -67,6 +67,13 @@ type Options struct {
 	// (NetGrip via HTTP local). nil o (ok=false) ejecuta el executor local.
 	ApplyDelegate func(ops []executor.Op) (executor.ApplyResult, bool)
 
+	// SelfMQTT informa de que el equipo se expone ÉL MISMO a Home Assistant
+	// por MQTT (#832): devuelve (true, node) cuando el panel del equipo (p.
+	// ej. NetGrip) tiene su MQTT activado. nil = no informa (agente
+	// standalone). Lo lee el embedder en caliente en cada push, así que un
+	// cambio en el toggle se refleja sin reiniciar el agente.
+	SelfMQTT func() (enabled bool, node string)
+
 	// OnUpgrade sustituye el self-upgrade integrado (evento SSE "upgrade").
 	// nil usa el comportamiento estándar: descargar binario + swap + restart.
 	OnUpgrade func(data string)
@@ -80,6 +87,16 @@ type Status struct {
 	LastError string
 	Slug      string
 	Server    string
+}
+
+// withMeta añade al payload los metadatos que el embedder puede informar: el
+// sabor del pusher (Kind) y, si lo expone, su MQTT propio (#832).
+func withMeta(payload *probe.Payload, opts Options) {
+	payload.Kind = opts.Kind
+	if opts.SelfMQTT != nil {
+		enabled, node := opts.SelfMQTT()
+		payload.Data.MQTT = &probe.MQTTData{Enabled: enabled, Node: node}
+	}
 }
 
 // Run ejecuta el bucle del agente hasta que ctx se cancele. Si
@@ -144,7 +161,7 @@ func Run(ctx context.Context, opts Options) error {
 				}
 				log.Info("[netpulse-agent] iw evento", "action", action, "mac", ev.MAC, "iface", ev.Iface)
 				payload := prober.BuildWireless(ctx, opts.Slug, opts.Version)
-				payload.Kind = opts.Kind
+				withMeta(payload, opts)
 				a.pushOnce(ctx, payload)
 			}); err != nil {
 				log.Warn("[netpulse-agent] iw event terminó", "err", err)
@@ -190,7 +207,7 @@ func Run(ctx context.Context, opts Options) error {
 	// lo pide (refresh).
 	for {
 		payload := prober.Build(ctx, opts.Slug, opts.Version)
-		payload.Kind = opts.Kind
+		withMeta(payload, opts)
 		a.pushOnce(ctx, payload)
 		select {
 		case <-ctx.Done():

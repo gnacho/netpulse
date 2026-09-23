@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+
+- **NetPulse cede el paso a los routers que se exponen solos (#832)**: cuando un router lleva NetGrip con su MQTT activado (se expone a Home Assistant con sus propias entidades y comandos), el publisher de flota deja de publicar su dispositivo por router y publica la configuración de descubrimiento vacía para que Home Assistant la borre, en lugar de duplicarla. Los routers que no se exponen (sin NetGrip, o con el MQTT de NetGrip apagado) siguen publicando las seis entidades de siempre, así que la cobertura no depende de NetGrip. El dato lo informa el propio agente del router en su payload.
+
 ## [2.28.33] - 2026-09-23
 
 ### Added
