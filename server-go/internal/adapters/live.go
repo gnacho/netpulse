@@ -148,6 +148,10 @@ type routerPolled struct {
 	// ("" = sondeo SSH/SNMP directo). "external" = pusher beacon/scraper sin
 	// sección system → sin vitals.
 	agentKind string
+	// selfExpose (#832): el equipo se expone él mismo a Home Assistant por
+	// MQTT (NetGrip con su MQTT activado) → el publisher de flota no publica
+	// sus entidades por router.
+	selfExpose bool
 }
 
 // extrasSnapshot es la caché anti-parpadeo por router.
@@ -1138,6 +1142,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.CPU, r.RAM, r.Temp = nil, nil, nil
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
+	if p.selfExpose {
+		r.SelfExpose = bptr(true)
+	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
 	} else if p.cfg.AgentOnly {

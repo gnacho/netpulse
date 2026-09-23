@@ -161,6 +161,11 @@ type Router struct {
 	// (sin SSH). El frontend lo usa para marcar "agente no instalado" cuando
 	// no hay agente registrado (certeza: el router no es sondeable por SSH).
 	AgentOnly bool `json:"agentOnly,omitempty"`
+	// SelfExpose (#832): el equipo se expone ÉL MISMO a Home Assistant por
+	// MQTT (NetGrip con su MQTT activado). El publisher de flota NO crea
+	// dispositivo ni entidades por router en ese caso. Ausente = no se
+	// expone (lo hace NetPulse).
+	SelfExpose *bool `json:"selfExpose,omitempty"`
 	// Type: "glinet"|"openwrt"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).

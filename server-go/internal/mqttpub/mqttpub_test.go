@@ -159,3 +159,33 @@ func TestStartIsNoopWhenDisabled(t *testing.T) {
 	}
 	p.Start(context.Background()) // must not panic nor block
 }
+
+func TestHAEntitiesSelfExposeMarkedForRemoval(t *testing.T) {
+	ov := sampleOverview()
+	self := true
+	ov.Routers[1].SelfExpose = &self // ap-1 se expone solo
+
+	ents := haEntities("home", "v1.2.3", ov)
+	var removed, kept int
+	for _, e := range ents {
+		if e.nodeID == "netpulse_home_ap-1" {
+			if !e.remove {
+				t.Fatalf("ap-1 %s must be marked for removal", e.objectID)
+			}
+			removed++
+			continue
+		}
+		if e.remove {
+			t.Fatalf("%s/%s must not be marked for removal", e.nodeID, e.objectID)
+		}
+		kept++
+	}
+	if removed != 6 || kept != 11 {
+		t.Fatalf("removed=%d kept=%d, want 6/11", removed, kept)
+	}
+
+	// La marca forma parte de la clave de conjunto: un cambio republica discovery.
+	if routerSetKey(ov) == routerSetKey(sampleOverview()) {
+		t.Fatal("routerSetKey must change when a router starts self-exposing")
+	}
+}

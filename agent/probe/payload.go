@@ -56,6 +56,19 @@ type PayloadData struct {
 	ClientBw *ClientBwData `json:"clientBw,omitempty"`
 	// Discovery: mDNS services and randomized MAC detection (#338).
 	Discovery *DiscoveryData `json:"discovery,omitempty"`
+	// MQTT (#832): el equipo se expone ÉL MISMO a Home Assistant por MQTT.
+	// Lo rellena el embedder (p. ej. NetGrip, que ya habla MQTT con sus
+	// propias entidades y comandos); nil = no aplica (agente standalone) u
+	// omitido por el embedder; Enabled=false = informado pero apagado.
+	MQTT *MQTTData `json:"mqtt,omitempty"`
+}
+
+// MQTTData: exposición propia del equipo a Home Assistant por MQTT (#832).
+// El servidor la usa para no duplicar el dispositivo por router: quien se
+// expone solo es el propio equipo.
+type MQTTData struct {
+	Enabled bool   `json:"enabled"`
+	Node    string `json:"node,omitempty"` // id de nodo de sus topics (p. ej. el hostname)
 }
 
 // SystemData: salud del equipo + tráfico + latencias.
