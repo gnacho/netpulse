@@ -159,9 +159,6 @@ export default function MqttCard({ onSaved, bare = true }: { onSaved: () => void
       <div className="mb-3 flex items-center gap-2">
         <Radio className="h-4 w-4 text-accent" strokeWidth={2} />
         <h3 className="text-sm font-semibold text-text-primary">{t('settings.mqtt.title')}</h3>
-        <span className={`ml-auto text-[11px] ${running ? 'text-ok' : 'text-text-muted'}`}>
-          {running ? t('settings.mqtt.running') : t('settings.mqtt.notRunning')}
-        </span>
       </div>
       <p className="mb-3 text-xs text-text-secondary">{t('settings.mqtt.description')}</p>
     </>
@@ -174,11 +171,16 @@ export default function MqttCard({ onSaved, bare = true }: { onSaved: () => void
     <>
       <div className="flex items-center justify-between gap-4 py-1">
         <span className="text-sm font-medium text-text-primary">{t('settings.mqtt.enabled')}</span>
-        <Switch
+        <div className="flex items-center gap-2">
+          <span className={`text-[11px] ${running ? 'text-ok' : 'text-text-muted'}`}>
+            {running ? t('settings.mqtt.running') : t('settings.mqtt.notRunning')}
+          </span>
+          <Switch
           checked={cfg.enabled}
           onCheckedChange={(v) => setCfg((c) => ({ ...c, enabled: v }))}
           aria-label={t('settings.mqtt.enabled')}
-        />
+          />
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
