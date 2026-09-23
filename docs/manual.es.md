@@ -567,6 +567,8 @@ Una foto periódica del estado de la instalación, pensada para paneles y automa
 
 NetPulse es **solo publicador**: escribe en el broker, no escucha órdenes. Desde Home Assistant puedes leer y automatizar; para actuar sobre un router (WiFi invitado, firewall, reinicio...) se usa NetGrip (el panel del router), que también habla MQTT.
 
+**Quién expone cada router.** Si un router lleva NetGrip con su MQTT activado, es el propio NetGrip quien lo expone a Home Assistant (con más entidades y con comandos): NetPulse lo detecta y no publica ese router, para no duplicarlo. Los routers que no se exponen solos siguen publicando las seis entidades de siempre.
+
 ### Qué necesita
 
 - Un **broker MQTT** accesible desde donde corre NetPulse. Lo más común es el add-on **Mosquitto** de Home Assistant; vale cualquier broker.

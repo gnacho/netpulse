@@ -567,6 +567,8 @@ A periodic snapshot of the install, meant for Home Assistant dashboards and auto
 
 NetPulse is **publish-only**: it writes to the broker, it does not listen for commands. From Home Assistant you read and automate; to act on a router (guest WiFi, firewall, reboot...) you use NetGrip (the router panel), which speaks MQTT too.
 
+**Who exposes each router.** If a router runs NetGrip with its MQTT on, NetGrip itself is the one exposing it to Home Assistant (with more entities and commands): NetPulse detects it and does not publish that router, so it is not duplicated. Routers that do not expose themselves keep publishing the same six entities.
+
 ### What it needs
 
 - An **MQTT broker** reachable from wherever NetPulse runs. The usual choice is Home Assistant's **Mosquitto** add-on; any broker works.
