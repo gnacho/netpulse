@@ -277,56 +277,6 @@ export default function Orchestration() {
         <p className="mt-0.5 text-sm text-text-secondary">{t('orchestration.subtitle')}</p>
       </header>
 
-      {/* #836: esta sección ESCRIBE en los routers (fase experimental) y
-          NetGrip es la alternativa recomendada en OpenWrt. Siempre visible. */}
-      <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="rounded-2xl border border-border bg-surface p-5 md:p-6"
-        aria-label={t('orchestration.experimental.title')}
-      >
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
-            <Sparkles className="h-5 w-5" strokeWidth={1.75} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold text-text-primary">{t('orchestration.experimental.title')}</h2>
-              <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warn">
-                {t('orchestration.experimental.badge')}
-              </span>
-            </div>
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {(['panel', 'wifi', 'vpn', 'firewall', 'snapshots', 'mqtt'] as const).map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-text-secondary">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" strokeWidth={1.75} />
-                  {t(`orchestration.experimental.features.${f}`)}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-4 text-sm leading-relaxed text-text-secondary">
-              {t('orchestration.experimental.body')}
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-              {t('orchestration.experimental.body2')}
-            </p>
-            <p className="mt-4 text-sm font-medium text-text-primary">
-              {t('orchestration.experimental.hook')}
-            </p>
-            <a
-              href="https://netgrip.cloudless.club"
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-canvas shadow-sm transition-colors hover:bg-accent/90"
-            >
-              {t('orchestration.experimental.cta')}
-              <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
-            </a>
-          </div>
-        </div>
-      </motion.section>
-
       {/* Selector de módulo */}
       <div className="flex flex-wrap gap-2">
         {(['adguard', 'guestwifi', 'ddns', 'sqm', 'wireguard', 'usteer'] as Module[]).map((m) => (
@@ -890,6 +840,57 @@ export default function Orchestration() {
           )}
         </motion.div>
       )}
+
+      {/* #836: esta sección ESCRIBE en los routers (fase experimental) y
+          NetGrip es la alternativa recomendada en OpenWrt. Siempre visible.
+          La tarjeta va al final de la página, debajo de toda la orquestación. */}
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="rounded-2xl border border-border bg-surface p-5 md:p-6"
+        aria-label={t('orchestration.experimental.title')}
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
+            <Sparkles className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-text-primary">{t('orchestration.experimental.title')}</h2>
+              <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warn">
+                {t('orchestration.experimental.badge')}
+              </span>
+            </div>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(['panel', 'wifi', 'vpn', 'firewall', 'snapshots', 'mqtt'] as const).map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-text-secondary">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" strokeWidth={1.75} />
+                  {t(`orchestration.experimental.features.${f}`)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm leading-relaxed text-text-secondary">
+              {t('orchestration.experimental.body')}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+              {t('orchestration.experimental.body2')}
+            </p>
+            <p className="mt-4 text-sm font-medium text-text-primary">
+              {t('orchestration.experimental.hook')}
+            </p>
+            <a
+              href="https://netgrip.cloudless.club"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-canvas shadow-sm transition-colors hover:bg-accent/90"
+            >
+              {t('orchestration.experimental.cta')}
+              <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+            </a>
+          </div>
+        </div>
+      </motion.section>
     </div>
   )
 }
