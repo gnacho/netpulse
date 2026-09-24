@@ -596,6 +596,37 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 // Devuelve (true, nil) si NetGrip aceptó y ejecutó las ops; (false, nil) si
 // no hay NetGrip configurado o no responde (fallback a SSE); (false, error)
 // si NetGrip devolvió error explícito.
+// netgripExecutorToken devuelve el token del executor de un router NetGrip:
+// primero de la kv (lo deja la subida del backup de configuración) y, si
+// falta, lo lee por SSH y lo guarda (#838).
+func (s *server) netgripExecutorToken(routerID string) string {
+	token := ""
+	if s.db != nil {
+		_ = s.db.QueryRow(
+			"SELECT value FROM kv WHERE key = ?", "netgrip.executor_token."+routerID,
+		).Scan(&token)
+	}
+	if token != "" || s.pool == nil {
+		return token
+	}
+	host := s.hostOfRouter(routerID)
+	if host == "" {
+		return ""
+	}
+	out, err := s.pool.Run(host, "cat /etc/netgrip/executor-token", 10*time.Second)
+	if err != nil {
+		return ""
+	}
+	token = strings.TrimSpace(out)
+	if token != "" && s.db != nil {
+		_, _ = s.db.Exec(
+			`INSERT INTO kv (key, value) VALUES (?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+			"netgrip.executor_token."+routerID, token)
+	}
+	return token
+}
+
 func (s *server) applyViaNetGrip(routerID string, planID string, ops []executor.Op) (bool, error) {
 	sshHost := s.hostOfRouter(routerID)
 	if sshHost == "" {
@@ -608,12 +639,7 @@ func (s *server) applyViaNetGrip(routerID string, planID string, ops []executor.
 	if h, _, err := net.SplitHostPort(sshHost); err == nil {
 		host = h
 	}
-	execToken := ""
-	if s.db != nil {
-		_ = s.db.QueryRow(
-			"SELECT value FROM kv WHERE key = ?", "netgrip.executor_token."+routerID,
-		).Scan(&execToken)
-	}
+	execToken := s.netgripExecutorToken(routerID)
 	if execToken == "" {
 		return false, nil
 	}

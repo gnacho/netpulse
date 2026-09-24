@@ -595,6 +595,8 @@ func run() error {
 		}()
 	}
 
+	mqttMgr := mqttpub.NewManager(mqttpub.LoadConfig(mqttpub.SQLKV{DB: dbHandle.DB}), httpapi.Version, p.LastOverview, cfg.DemoMode)
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
 		DB:              dbHandle,
@@ -609,6 +611,7 @@ func run() error {
 		AgentHub:        agentHub,
 		ServerFP:        serverFP,
 		Orchestr:        orchMgr,
+		MQTT:            mqttMgr,
 		TokenStore:      tokenStore,
 		CollectorReader: collReader,
 		WiFiSLE:         wifiSLE,
@@ -662,7 +665,7 @@ func run() error {
 		// Aviso anónimo diario de instancia activa (#822). Fail-silent.
 		telemetry.New(dbHandle, httpapi.Version, cfg.DemoMode).Start(context.Background())
 		p.Start()
-		mqttpub.New(mqttpub.ConfigFromProcessEnv(), httpapi.Version, p.LastOverview, cfg.DemoMode).Start(context.Background())
+		mqttMgr.Start()
 		upd.Start()
 		go fwScheduler.Start()
 		if eventsCollector != nil {

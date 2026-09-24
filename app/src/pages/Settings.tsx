@@ -73,6 +73,7 @@ import { notifyBanner } from '@/lib/update-check'
 import { PALETTES, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
 import NtfyCard from '@/components/NtfyCard'
+import MqttCard from '@/components/MqttCard'
 import pkg from '../../package.json'
 
 // ---------------------------------------------------------------------------
@@ -4869,6 +4870,15 @@ export default function Settings() {
           <div className="order-71">
             <Card title={t('settings.ntfy.title')} caption={t('settings.ntfy.description')} index={4} reduce={reduce}>
               <NtfyCard onSaved={notify} />
+            </Card>
+          </div>
+        )}
+
+        {/* MQTT (#838): publisher de flota para Home Assistant y propagación a NetGrip */}
+        {!isDemo && (
+          <div className="order-72">
+            <Card title={t('settings.mqtt.title')} caption={t('settings.mqtt.description')} index={4} reduce={reduce}>
+              <MqttCard onSaved={notify} />
             </Card>
           </div>
         )}

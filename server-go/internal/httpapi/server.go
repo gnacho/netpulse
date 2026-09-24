@@ -39,6 +39,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
+	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
 	"github.com/gnacho/netpulse/server-go/internal/presence"
@@ -92,6 +93,9 @@ type Deps struct {
 	ServerFP string
 	// Orchestr: motor de plan/apply (Fase 10). nil → sin rutas /api/plans.
 	Orchestr *orchestr.Manager
+	// MQTT: publisher de flota MQTT (#838). nil → las rutas de ajustes MQTT
+	// responden 503.
+	MQTT *mqttpub.Manager
 	// TokenStore: bearer tokens de API con scopes (#330). nil → sin tokens.
 	TokenStore *apitoken.Store
 	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
@@ -394,6 +398,7 @@ func NewHandler(d Deps) http.Handler {
 	// --- Agentes nativos (Fase 3) ---
 	// Ingesta: SIN sesión (auth Bearer propia; exenta en RequireAuth).
 	mux.HandleFunc("POST /api/ingest/agent", s.handleIngestAgent)
+	mux.HandleFunc("POST /api/agents/executor-token", s.handleAgentExecutorToken)
 	// Gestión de tokens: tras sesión como el resto del API; las mutaciones
 	// (crear/revocar/rearmar) exigen rol admin — ejecutan acciones sobre los
 	// routers o exponen credenciales (auditoría v2.4.0 §2, issue #7). La
@@ -486,6 +491,9 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Orquestación (Fase 10; solo admin) ---
 	s.registerOrchestrRoutes(mux, d.Orchestr)
+
+	// --- Ajustes MQTT (#838; solo admin) ---
+	s.registerMQTTRoutes(mux, d.MQTT)
 
 	// --- Ajustes globales en kv (issue #121: orchestration opt-in) ---
 	s.registerSettingsRoutes(mux)

@@ -1006,3 +1006,31 @@ func netgripLatest() string {
 // cmpSemver compara dos versiones x.y.z (-rN se ignora): -1, 0, 1. Malparse
 // → 0 (sin señal de novedad). Implementación compartida en internal/vercmp.
 func cmpSemver(a, b string) int { return vercmp.Cmp(a, b) }
+
+// handleAgentExecutorToken registra el token del executor de NetGrip (#838).
+// Lo llama el propio NetGrip al arrancar: NetPulse lo necesita para delegarle
+// ops (p. ej. la propagación de MQTT) sin depender de que haya subido un
+// backup de configuración antes.
+func (s *server) handleAgentExecutorToken(w http.ResponseWriter, r *http.Request) {
+	slug := r.Header.Get("X-Router-ID")
+	token := bearerToken(r)
+	if slug == "" || !s.checkAgentToken(slug, token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Token == "" {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if _, err := s.db.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+		"netgrip.executor_token."+slug, body.Token); err != nil {
+		writeError(w, http.StatusInternalServerError, "store executor token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
