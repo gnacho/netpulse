@@ -608,6 +608,44 @@ func (e *Engine) MarkAllRead() {
 	e.MarkRead(ids...)
 }
 
+// Remove elimina eventos por ID: los retira de la lista en memoria, de su
+// espejo en alert_log y del read-set (issue #846). Sirve para retirar alertas
+// "en curso" cuya condición ya no existe, p.ej. la caída de un router que
+// vuelve online: el feed no acumula incidentes cerrados.
+func (e *Engine) Remove(ids ...string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	drop := map[string]bool{}
+	for _, id := range ids {
+		if id != "" {
+			drop[id] = true
+		}
+	}
+	if len(drop) == 0 {
+		return
+	}
+	out := make([]AlertEvent, 0, len(e.list))
+	for _, ev := range e.list {
+		if !drop[ev.ID] {
+			out = append(out, ev)
+		}
+	}
+	e.list = out
+	for id := range drop {
+		delete(e.readSet, id)
+		for i, rid := range e.readOrd {
+			if rid == id {
+				e.readOrd = append(e.readOrd[:i], e.readOrd[i+1:]...)
+				break
+			}
+		}
+		if e.db != nil {
+			_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
+		}
+	}
+	e.saveReadLocked()
+}
+
 // Silence silences alerts matching the dedup key of the given alert ID for the
 // specified duration. Duration 0 means forever. Returns the dedup key that was
 // silenced, or empty string if the alert ID was not found.

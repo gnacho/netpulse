@@ -70,6 +70,35 @@ func TestPersistReadMirrored(t *testing.T) {
 	}
 }
 
+// Remove (#846): el evento desaparece de la lista, del read-set y de su
+// espejo en alert_log (un reinicio no lo resucita). Los demás eventos y
+// reads no se tocan.
+func TestRemoveDeletesEverywhere(t *testing.T) {
+	dir := t.TempDir()
+	e1 := newPersistTestEngine(t, dir, false)
+	now := time.Now().Unix()
+	e1.Emit(AlertEvent{ID: "keep", Category: CatSystem, Title: "t", Ts: now})
+	e1.Emit(AlertEvent{ID: "drop", Category: CatSystem, Title: "t2", Ts: now})
+	e1.MarkRead("drop")
+	e1.Remove("drop", "")
+
+	if list := e1.List(); len(list) != 1 || list[0].ID != "keep" {
+		t.Fatalf("lista tras Remove: %+v", list)
+	}
+	if e1.UnreadCount() != 1 {
+		t.Fatalf("unread tras Remove: %d", e1.UnreadCount())
+	}
+	if e1.readSet["drop"] {
+		t.Fatal("el read-set debía olvidar el ID eliminado")
+	}
+
+	e2 := newPersistTestEngine(t, dir, false)
+	list := e2.List()
+	if len(list) != 1 || list[0].ID != "keep" {
+		t.Fatalf("alert_log no se limpió: %+v", list)
+	}
+}
+
 func TestEmitOrUpdatePersistsMoveToFront(t *testing.T) {
 	dir := t.TempDir()
 	e1 := newPersistTestEngine(t, dir, false)
