@@ -7,6 +7,7 @@ import { fmtUptime, numLocale } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
+import type { AgentInfo } from '@/data/types'
 import { MetricBar } from '@/components/MetricBar'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
@@ -101,7 +102,19 @@ export function FleetTable({ refreshKey = 0 }: { refreshKey?: number }) {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [asc, setAsc] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
-  const agentBySlug = useMemo(() => new Map(agents.map((a) => [a.slug, a])), [agents])
+  // Índice por slug Y por routerId, con el mismo criterio que useAgentFor
+  // (#282): el servidor resuelve la asociación agente↔router (p. ej. por MAC
+  // de bridge) y el routerId puede NO coincidir con el slug. Indexar solo
+  // por slug dejaba "Agente no instalado" a agentes instalados cuyo slug
+  // difiere del id del router (#848). Primero en ganar, como find().
+  const agentBySlug = useMemo(() => {
+    const m = new Map<string, AgentInfo>()
+    for (const a of agents) {
+      if (!m.has(a.slug)) m.set(a.slug, a)
+      if (a.routerId && !m.has(a.routerId)) m.set(a.routerId, a)
+    }
+    return m
+  }, [agents])
 
   const sorted = useMemo(() => {
     const arr = [...routers]
