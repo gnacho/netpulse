@@ -1225,7 +1225,7 @@ export default function Devices() {
     return { allDevices: list.map((d) => (infra.has(d.id) ? { ...d, group: 'infra' as const } : d)), infraById: infra }
   }, [devices, isDemo, distributionNodes, deviceOverrides])
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
   const [q, setQ] = useState(() => (searchParams.get('q') ?? '').trim().toLowerCase())
 
@@ -1705,7 +1705,18 @@ export default function Devices() {
         open={intakeId !== null}
         device={allDevices.find((d) => d.id === intakeId) ?? null}
         isDemo={isDemo}
-        onClose={() => setIntakeId(null)}
+        onClose={() => {
+          setIntakeId(null)
+          // Drop ?intake= from the URL once the dialog is closed. The effect
+          // that opens it re-runs every time the device list refreshes, so
+          // leaving the parameter in place reopened the dialog after every
+          // dismissal, indefinitely.
+          if (searchParams.has('intake')) {
+            const next = new URLSearchParams(searchParams)
+            next.delete('intake')
+            setSearchParams(next, { replace: true })
+          }
+        }}
         onSaved={(outcome) => {
           refresh()
           showToast(t(outcome === 'dismissed' ? 'devices.onboarding.dismissed' : 'devices.onboarding.saved'))
