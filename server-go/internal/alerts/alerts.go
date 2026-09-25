@@ -385,16 +385,21 @@ func (e *Engine) pasaLocked(ev AlertEvent) bool {
 }
 
 // insertaLocked inserta un evento nuevo al frente con dedup y cap.
-// Requiere e.mu ya tomado. Devuelve true si se guardó.
-func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
+// Requiere e.mu ya tomado. Devuelve true si se guardó. skipDedup omite la
+// ventana de dedup de 5 min (issue #846: los incidentes con estado propio,
+// p.ej. offline de router, se trackean fuera del engine y su alerta debe
+// entrar aunque la ventana cubra la emisión de un incidente ya cerrado).
+func (e *Engine) insertaLocked(ev AlertEvent, now time.Time, skipDedup bool) bool {
 	key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 	if e.isSilencedLocked(key) {
 		return false
 	}
-	if last, ok := e.dedup[key]; ok && now.UnixMilli()-last < DedupWindow.Milliseconds() {
-		return false
+	if !skipDedup {
+		if last, ok := e.dedup[key]; ok && now.UnixMilli()-last < DedupWindow.Milliseconds() {
+			return false
+		}
+		e.dedup[key] = now.UnixMilli()
 	}
-	e.dedup[key] = now.UnixMilli()
 	if ev.Ts == 0 {
 		ev.Ts = now.Unix()
 	}
@@ -459,7 +464,35 @@ func (e *Engine) Emit(ev AlertEvent) bool {
 		}
 	}
 	now := e.now()
-	ok := e.insertaLocked(ev, now)
+	ok := e.insertaLocked(ev, now, false)
+	n := e.notifier
+	e.mu.Unlock()
+	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
+		n.Notify(ev)
+	}
+	return ok
+}
+
+// EmitNoDedup es Emit sin la ventana de dedup de 5 min (silencio, config y
+// cap SÍ aplican, y la supresión topológica marca SuppressedBy igual). Uso:
+// alertas cuya condición se trackea por estado fuera del engine (issue #846,
+// offline de router): al ABRIR incidente la alerta debe entrar siempre,
+// porque el cierre del incidente anterior ya retiró la suya del feed y el
+// dedup la bloquearía — el "una alerta por outage" lo garantiza el tracking
+// de incidente (offlineOpen), no la ventana.
+func (e *Engine) EmitNoDedup(ev AlertEvent) bool {
+	e.mu.Lock()
+	if !e.pasaLocked(ev) {
+		e.mu.Unlock()
+		return false
+	}
+	if e.suppression != nil && ev.RouterID != "" {
+		if parent := e.suppression.SuppressedBy(ev.RouterID); parent != "" {
+			ev.SuppressedBy = parent
+		}
+	}
+	now := e.now()
+	ok := e.insertaLocked(ev, now, true)
 	n := e.notifier
 	e.mu.Unlock()
 	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
@@ -502,7 +535,7 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 			return true
 		}
 	}
-	ok := e.insertaLocked(ev, now)
+	ok := e.insertaLocked(ev, now, false)
 	n := e.notifier
 	e.mu.Unlock()
 	if ok && n != nil && ev.Urgent {

@@ -1414,8 +1414,28 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 			l.lastStatus[res.cfg.ID] = "offline"
 		}
 	}
+	// Reconciliación de huérfanas (issue #846): cada ciclo, los routers que
+	// responden SIN incidente abierto se limpian de alertas de offline de
+	// procesos anteriores (offlineOpen vive en memoria y no sobrevive a un
+	// reinicio; si el router responde, el que estuvo caído fue el servidor).
+	// Corre en cada ciclo (no solo en el arranque) para ser auto-sanante
+	// aunque el router falle justo en el primer ciclo tras arrancar. Los
+	// routers caídos conservan la suya hasta que trackRouterOffline la
+	// sustituye por la del incidente nuevo.
+	l.reconcileOfflineOrphans(polled)
 	l.lastPolled = polled
 	return polled
+}
+
+// reconcileOfflineOrphans retira las alertas de offline huérfanas de los
+// routers que responden sin incidente abierto (issue #846). Debe llamarse
+// con l.mu tomado.
+func (l *Live) reconcileOfflineOrphans(polled map[string]*routerPolled) {
+	for id := range polled {
+		if !l.offlineOpen[id] {
+			l.resolveOfflineAlerts(id)
+		}
+	}
 }
 
 // emitRouterRecovered: evento "router recuperado" (offline→online;
@@ -1466,7 +1486,7 @@ func (l *Live) trackRouterOffline(cfg *RouterConfig, err error, fails int) {
 	if l.suppression != nil {
 		l.suppression.MarkDown(cfg.ID)
 	}
-	l.engine.Emit(AlertEvent{
+	ev := AlertEvent{
 		ID:       fmt.Sprintf("alert-offline-%s-%d", cfg.ID, time.Now().UnixMilli()),
 		Category: alerts.CatRouter, Urgent: true,
 		Severity:    "critical",
@@ -1476,9 +1496,32 @@ func (l *Live) trackRouterOffline(cfg *RouterConfig, err error, fails int) {
 		Type:        alerts.HintDeviceOffline,
 		Vars:        map[string]string{"router": name, "host": cfg.Host, "error": fmt.Sprint(err)},
 		Time:        "ahora mismo", RouterID: cfg.ID,
-	})
+	}
+	// Sin dedup de 5 min: al cerrarse, el incidente anterior retiró su alerta
+	// del feed (resolveOfflineAlerts) y la ventana bloquearía ésta — el "una
+	// alerta por outage" lo garantiza offlineOpen, no el dedup.
+	l.engine.EmitNoDedup(ev)
+	// Huérfanas de un proceso anterior (reinicio del servidor durante una
+	// caída): la alerta del incidente nuevo las sustituye, nunca se acumulan.
+	l.removeStaleOfflineAlerts(cfg.ID, ev.ID)
 	l.offlineOpen[cfg.ID] = true
 	l.recoverStreak[cfg.ID] = 0
+}
+
+// removeStaleOfflineAlerts elimina las alertas de offline del router salvo
+// keepID (issue #846): al abrir un incidente sustituye las huérfanas que un
+// proceso anterior dejó en alert_log (offlineOpen vive en memoria y no
+// sobrevive a un reinicio). Debe llamarse con l.mu tomado.
+func (l *Live) removeStaleOfflineAlerts(routerID, keepID string) {
+	ids := []string{}
+	for _, ev := range l.engine.List() {
+		if ev.RouterID == routerID && strings.HasPrefix(ev.ID, "alert-offline-") && ev.ID != keepID {
+			ids = append(ids, ev.ID)
+		}
+	}
+	if len(ids) > 0 {
+		l.engine.Remove(ids...)
+	}
 }
 
 // trackRouterRecovered (issue #846): cierra el incidente de offline cuando la
