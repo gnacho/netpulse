@@ -74,6 +74,7 @@ import { PALETTES, type PaletteId, type ThemeMode } from '@/lib/theme-boot'
 import TelegramCard from '@/components/TelegramCard'
 import NtfyCard from '@/components/NtfyCard'
 import MqttCard from '@/components/MqttCard'
+import HttpsCard from '@/components/HttpsCard'
 import pkg from '../../package.json'
 
 // ---------------------------------------------------------------------------
@@ -5306,6 +5307,16 @@ export default function Settings() {
         {!isDemo && auth?.role === 'admin' && (
           <div className="order-120">
             <AdoptionCard />
+          </div>
+        )}
+
+        {/* FORK: HTTPS with the server's private CA, and what plain HTTP may
+            still do (HttpsCard). Admin only, live mode. */}
+        {!isDemo && auth?.role === 'admin' && (
+          <div className="order-121" id="https">
+            <Card title={t('settings.https.title')} caption={t('settings.https.caption')} index={5} reduce={reduce}>
+              <HttpsCard onSaved={notify} />
+            </Card>
           </div>
         )}
 

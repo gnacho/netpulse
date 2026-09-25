@@ -1730,6 +1730,51 @@
       "title": "Idioma de las notificaciones",
       "description": "Idioma en que se envían los avisos de ntfy, Telegram y webhook (las alertas se componen en español y se traducen al publicar).",
       "label": "Idioma de los avisos"
+    },
+    "https": {
+      "title": "HTTPS",
+      "caption": "Sirve NetPulse por HTTPS con su propia autoridad de certificación y retira el HTTP plano paso a paso.",
+      "loadError": "No se pudieron cargar los ajustes de HTTPS.",
+      "unavailable": "HTTPS se gestiona fuera de esta página: {{reason}}.",
+      "enabled": "HTTPS en el puerto {{port}}",
+      "enabledHint": "Solo añade el puerto HTTPS. El HTTP plano sigue funcionando hasta que elijas un modo más estricto abajo.",
+      "locked": "Fijado en el archivo de entorno del servidor; cámbialo allí.",
+      "rootTitle": "Certificado raíz",
+      "rootHint": "Instálalo una vez en cada móvil y ordenador desde el que uses NetPulse. Antes de confiar en él, comprueba que la huella que muestra tu dispositivo coincide con esta y con la del log del servidor.",
+      "names": "El certificado cubre {{names}} y se renueva solo (el actual vale hasta {{until}}).",
+      "agentPin": "Pin para agentes (NETPULSE_SERVER_FP)",
+      "agentPinHint": "Los agentes y NetGrip fijan esta clave al conectar con el servidor en https://…:{{port}}. No cambia cuando el certificado se renueva.",
+      "copy": "Copiar",
+      "modeTitle": "Qué puede seguir haciendo el HTTP plano",
+      "current": "actual",
+      "modes": {
+        "full": {
+          "title": "Todo (como antes)",
+          "hint": "El HTTP plano lo sirve todo. Seguro mientras instalas el certificado raíz y mueves los agentes."
+        },
+        "migrate": {
+          "title": "Solo agentes",
+          "hint": "Los navegadores van a HTTPS; los inicios de sesión y las llamadas a la API por HTTP plano se rechazan. Los agentes siguen reportando por HTTP plano hasta que cada uno se mueva."
+        },
+        "redirect": {
+          "title": "Nada",
+          "hint": "El HTTP plano solo redirige a HTTPS y entrega el certificado raíz. Los agentes que sigan en HTTP plano dejan de reportar."
+        }
+      },
+      "agentsOnHttp": "Siguen reportando por HTTP plano",
+      "pending": "{{mode}} espera confirmación hasta las {{until}}. Solo se aplica al confirmarlo desde una página cargada por HTTPS; si no, no cambia nada.",
+      "confirmLink": "Abrir por HTTPS y confirmar",
+      "confirmHint": "Si el navegador avisa del certificado, instala antes el certificado raíz.",
+      "confirmFailed": "No se pudo confirmar el cambio; puede haber caducado. Vuelve a elegir el modo.",
+      "password": "Tu contraseña, para confirmar",
+      "badPassword": "La contraseña no es correcta.",
+      "applyFailed": "No se pudo aplicar el cambio.",
+      "blocked": "Estos agentes siguen reportando por HTTP plano y dejarían de reportar: {{agents}}.",
+      "switchAnyway": "Cambiar de todos modos",
+      "apply": "Aplicar",
+      "blockedOff": "Estos agentes ya reportan por HTTPS y dejarían de reportar: {{agents}}. Devuélvelos antes a HTTP, o cambia de todos modos.",
+      "rateLimited": "Demasiadas contraseñas erróneas. Vuelve a intentarlo en {{seconds}} s.",
+      "notFull": "Elige antes \"Todo\" y déjalo un tiempo: los navegadores a los que se dijo que usaran siempre HTTPS necesitan que responda para dejar de hacerlo."
     }
   },
   "statcard": {

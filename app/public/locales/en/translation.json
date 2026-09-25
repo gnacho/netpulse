@@ -1730,6 +1730,51 @@
       "title": "Notification language",
       "description": "Language used for ntfy, Telegram and webhook alerts (alerts are composed in Spanish and translated when published).",
       "label": "Alert language"
+    },
+    "https": {
+      "title": "HTTPS",
+      "caption": "Serve NetPulse over HTTPS with its own certificate authority, and retire plain HTTP step by step.",
+      "loadError": "Could not load the HTTPS settings.",
+      "unavailable": "HTTPS is managed outside this page: {{reason}}.",
+      "enabled": "HTTPS on port {{port}}",
+      "enabledHint": "Only adds the HTTPS port. Plain HTTP keeps working until you choose a stricter mode below.",
+      "locked": "Fixed in the server's environment file; change it there.",
+      "rootTitle": "Root certificate",
+      "rootHint": "Install it once on each phone and computer you use NetPulse from. Before trusting it, check that the fingerprint your device shows matches this one, and the one in the server's log.",
+      "names": "The certificate covers {{names}} and renews itself (current one valid until {{until}}).",
+      "agentPin": "Agent pin (NETPULSE_SERVER_FP)",
+      "agentPinHint": "Agents and NetGrip pin this key when they reach the server at https://…:{{port}}. It stays the same when the certificate renews.",
+      "copy": "Copy",
+      "modeTitle": "What plain HTTP may still do",
+      "current": "current",
+      "modes": {
+        "full": {
+          "title": "Everything (as before)",
+          "hint": "Plain HTTP serves everything. Safe while you install the root certificate and move agents."
+        },
+        "migrate": {
+          "title": "Agents only",
+          "hint": "Browsers are sent to HTTPS; sign-ins and API calls over plain HTTP are refused. Agents keep reporting over plain HTTP until each one has moved."
+        },
+        "redirect": {
+          "title": "Nothing",
+          "hint": "Plain HTTP only redirects to HTTPS and hands out the root certificate. Agents still on plain HTTP stop reporting."
+        }
+      },
+      "agentsOnHttp": "Still reporting over plain HTTP",
+      "pending": "{{mode}} is waiting for confirmation until {{until}}. It only takes effect once confirmed from a page loaded over HTTPS; otherwise nothing changes.",
+      "confirmLink": "Open over HTTPS and confirm",
+      "confirmHint": "If the browser warns about the certificate, install the root certificate first.",
+      "confirmFailed": "The change could not be confirmed; it may have expired. Choose the mode again.",
+      "password": "Your password, to confirm",
+      "badPassword": "The password is not correct.",
+      "applyFailed": "The change could not be applied.",
+      "blocked": "These agents still report over plain HTTP and would stop reporting: {{agents}}.",
+      "switchAnyway": "Switch anyway",
+      "apply": "Apply",
+      "blockedOff": "These agents already report over HTTPS and would stop reporting: {{agents}}. Move them back first, or switch anyway.",
+      "rateLimited": "Too many wrong passwords. Try again in {{seconds}} s.",
+      "notFull": "Choose \"Everything\" first, and leave it on for a while: browsers told to always use HTTPS need it answering to be told to stop."
     }
   },
   "statcard": {
