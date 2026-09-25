@@ -134,3 +134,38 @@ func copyFile(t *testing.T, src, dst string) {
 		t.Fatalf("escribir %s: %v", dst, err)
 	}
 }
+
+// FORK: the fingerprint follows a renewal that changes the key, since agents
+// are handed it at pairing.
+func TestReloaderFingerprintFollowsARenewal(t *testing.T) {
+	dir := t.TempDir()
+	certPath, keyPath := filepath.Join(dir, "c.pem"), filepath.Join(dir, "k.pem")
+	_, first, err := Ensure(certPath, keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewReloader(certPath, keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Fingerprint(); got != first {
+		t.Fatalf("fingerprint = %q, want the served key %q", got, first)
+	}
+
+	other := t.TempDir()
+	_, second, err := Ensure(filepath.Join(other, "c.pem"), filepath.Join(other, "k.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyFile(t, filepath.Join(other, "c.pem"), certPath)
+	copyFile(t, filepath.Join(other, "k.pem"), keyPath)
+	future := time.Now().Add(time.Minute)
+	for _, p := range []string{certPath, keyPath} {
+		if err := os.Chtimes(p, future, future); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := r.Fingerprint(); got != second || got == first {
+		t.Fatalf("after renewal fingerprint = %q, want the new key %q", got, second)
+	}
+}

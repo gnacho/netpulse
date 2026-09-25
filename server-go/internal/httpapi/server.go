@@ -91,6 +91,10 @@ type Deps struct {
 	// ServerFP: fingerprint SPKI del servidor (hex). Vacío si no es on-box.
 	// Se devuelve en /api/agents/pair para que el agentepine el TLS.
 	ServerFP string
+	// FORK: ServerFPFunc, when set, is read on every request and wins over
+	// ServerFP: a user-supplied certificate can change key on renewal, and a
+	// fingerprint captured at start-up would hand agents a stale pin.
+	ServerFPFunc func() string
 	// Orchestr: motor de plan/apply (Fase 10). nil → sin rutas /api/plans.
 	Orchestr *orchestr.Manager
 	// MQTT: publisher de flota MQTT (#838). nil → las rutas de ajustes MQTT
@@ -146,6 +150,8 @@ type server struct {
 
 	// Fingerprint SPKI del servidor (vacío si no es on-box).
 	serverFP string
+	// FORK: see Deps.ServerFPFunc.
+	serverFPFunc func() string
 
 	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
 	refreshMu   sync.Mutex
@@ -238,6 +244,7 @@ func NewHandler(d Deps) http.Handler {
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 		agentHub:        d.AgentHub,
 		serverFP:        d.ServerFP,
+		serverFPFunc:    d.ServerFPFunc,
 		ingestLimit:     newIPRateLimit(ingestRateLimit, ingestRateWindow),
 		upgrades:        newUpgradeTracker(),
 		tokenStore:      d.TokenStore,
@@ -749,4 +756,13 @@ func (s *server) handleConfigBackupDelete(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// fingerprint is the SPKI fingerprint agents should pin, or "" when this
+// server serves no TLS.
+func (s *server) fingerprint() string {
+	if s.serverFPFunc != nil {
+		return s.serverFPFunc()
+	}
+	return s.serverFP
 }

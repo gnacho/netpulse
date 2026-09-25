@@ -2,6 +2,7 @@ package tlscert
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"os"
 	"sync"
 	"time"
@@ -63,6 +64,26 @@ func (r *Reloader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error
 		}
 	}
 	return r.cert, nil
+}
+
+// Fingerprint is the SPKI fingerprint of the certificate being served now,
+// after picking up a renewal as a handshake would. It is read live because
+// renewals often change the key (certbot issues a new one unless told
+// --reuse-key), and a value captured at start-up would hand agents a pin
+// the server no longer matches. Empty if the served pair cannot be parsed.
+func (r *Reloader) Fingerprint() string {
+	cert, _ := r.GetCertificate(nil)
+	if cert == nil || len(cert.Certificate) == 0 {
+		return ""
+	}
+	leaf := cert.Leaf
+	if leaf == nil {
+		var err error
+		if leaf, err = x509.ParseCertificate(cert.Certificate[0]); err != nil {
+			return ""
+		}
+	}
+	return Fingerprint(leaf)
 }
 
 // reload repuebla la caché desde disco. Debe llamarse con r.mu tomado.

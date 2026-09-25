@@ -509,6 +509,11 @@ func run() error {
 	// certs del usuario (NETPULSE_TLS_CERT/NETPULSE_TLS_KEY) se cargan; si no,
 	// se genera un autofirmado en DATA_DIR.
 	var extraTLSConf *tls.Config
+	// FORK: the fingerprint of a user-supplied certificate, read live (it can
+	// change key on renewal). Set only when the extra listener is the one
+	// agents reach over TLS, i.e. not on-box, where PORT's own certificate is
+	// the one they pin.
+	var serverFPFunc func() string
 	if cfg.TLSEnabled {
 		certPath := cfg.TLSCert
 		keyPath := cfg.TLSKey
@@ -528,6 +533,10 @@ func run() error {
 			reloader, err2 = tlscert.NewReloader(certPath, keyPath)
 			if err2 == nil {
 				extraTLSConf = reloader.Config()
+				fp = reloader.Fingerprint()
+				if !cfg.Onbox {
+					serverFPFunc = reloader.Fingerprint
+				}
 			}
 		} else {
 			extraTLSConf, fp, err2 = tlscert.Ensure(certPath, keyPath)
@@ -540,7 +549,12 @@ func run() error {
 			origen = "usuario (recarga en caliente al renovar)"
 		} else {
 			log.Printf("[netpulse] TLS autofirmado: %s", certPath)
-			log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", fp)
+		}
+		log.Printf("[netpulse] FINGERPRINT SPKI (sha256): %s", fp)
+		// FORK: agents pin this, so pairing must hand it out. It was only
+		// logged, and pairing returned an empty server_fp in this mode.
+		if !cfg.Onbox && !userCerts {
+			serverFP = fp
 		}
 		log.Printf("[netpulse] HTTPS adicional en :%d (cert %s: %s)", cfg.TLSPort, origen, certPath)
 	}
@@ -632,6 +646,7 @@ func run() error {
 		Rearmer:         arm,
 		AgentHub:        agentHub,
 		ServerFP:        serverFP,
+		ServerFPFunc:    serverFPFunc,
 		Orchestr:        orchMgr,
 		MQTT:            mqttMgr,
 		TokenStore:      tokenStore,
@@ -651,12 +666,16 @@ func run() error {
 	})
 
 	// Envolver el handler con GET /fingerprint (sin auth) si on-box.
-	if cfg.Onbox {
-		fp := serverFP
+	// FORK: and whenever the extra TLS listener is up, which serves TLS too.
+	if cfg.Onbox || extraTLSConf != nil {
+		fp := func() string { return serverFP }
+		if serverFPFunc != nil {
+			fp = serverFPFunc
+		}
 		fpMux := http.NewServeMux()
 		fpMux.HandleFunc("GET /fingerprint", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `{"spki_sha256":%q}`, fp)
+			fmt.Fprintf(w, `{"spki_sha256":%q}`, fp())
 		})
 		fpMux.Handle("/", handler)
 		handler = fpMux

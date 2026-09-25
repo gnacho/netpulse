@@ -65,7 +65,7 @@ func (s *server) handlePairingToken(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusInternalServerError, "pairing_error")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"token": tok, "server_fp": s.serverFP})
+	writeJSON(w, http.StatusOK, map[string]string{"token": tok, "server_fp": s.fingerprint()})
 }
 
 // handlePairingRotate (POST /api/pairing/rotate): genera un pairing token
@@ -166,7 +166,7 @@ func (s *server) handleAgentPair(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, pairResponse{
 		Slug:     body.Slug,
 		Token:    token,
-		ServerFP: s.serverFP,
+		ServerFP: s.fingerprint(),
 	})
 }
 
