@@ -537,7 +537,7 @@ func NewHandler(d Deps) http.Handler {
 	if s.tokenStore != nil {
 		tv = s.tokenStore
 	}
-	return requestID(security.Middleware(auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))))
+	return requestID(security.Middleware(auth.IsSecureRequest, auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en

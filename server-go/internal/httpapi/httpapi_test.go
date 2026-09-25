@@ -888,13 +888,35 @@ func TestSecurityHeaders(t *testing.T) {
 		"X-Frame-Options":           "DENY",
 		"Referrer-Policy":           "strict-origin-when-cross-origin",
 		"Permissions-Policy":        "geolocation=(), microphone=(), camera=()",
-		"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 		"Content-Security-Policy":   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
 	}
 	for k, v := range want {
 		if got := res.Header.Get(k); got != v {
 			t.Errorf("header %s:\n got %q\nwant %q", k, got, v)
 		}
+	}
+	// FORK: HSTS only on secure responses; plain HTTP never carries it.
+	if got := res.Header.Get("Strict-Transport-Security"); got != "" {
+		t.Errorf("plain HTTP response carried HSTS %q", got)
+	}
+}
+
+// FORK: behind a TLS-terminating proxy the server trusts (the test server
+// sets TRUST_PROXY), a request forwarded as https gets HSTS.
+func TestSecurityHeadersHSTSOnSecureRequests(t *testing.T) {
+	srv := makeTestServer(t)
+	req, err := http.NewRequest("GET", srv.URL+"/api/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Forwarded-Proto", "https")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if got := res.Header.Get("Strict-Transport-Security"); got != "max-age=31536000" {
+		t.Errorf("HSTS on a secure request = %q, want max-age=31536000", got)
 	}
 }
 
