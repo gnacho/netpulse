@@ -9,6 +9,7 @@ package sse
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -21,6 +22,13 @@ import (
 // Heartbeat = 30 s (HEARTBEAT_MS de sse.js:16).
 const Heartbeat = 30 * time.Second
 
+// idleDeadline is the write deadline left on a stream between writes. FORK:
+// under HTTP/2 a write deadline that passes resets the stream even when no
+// write is pending, so the 10 s deadline a write needs cannot be left in
+// place: every stream served over HTTPS died 10 s after its last event. Two
+// missed heartbeats and a margin still end a stream nobody reads.
+const idleDeadline = 3 * Heartbeat
+
 type client struct {
 	id        int
 	sessionID string
@@ -29,11 +37,29 @@ type client struct {
 	wmu       sync.Mutex
 	done      chan struct{}
 	once      sync.Once
+	// FORK: finished is set, under wmu, before HandleStream returns. After
+	// that the ResponseWriter is dead - writing to it panics inside
+	// net/http and takes the whole server down - yet a Broadcast that
+	// listed this client just before it left can still reach write.
+	finished bool
+}
+
+// errFinished is returned for a write to a client whose request is over.
+var errFinished = errors.New("sse: client gone")
+
+// finish marks the client's request as over; see client.finished.
+func (c *client) finish() {
+	c.wmu.Lock()
+	c.finished = true
+	c.wmu.Unlock()
 }
 
 func (c *client) write(payload string) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
+	if c.finished {
+		return errFinished
+	}
 	rc := http.NewResponseController(c.w)
 	_ = rc.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if _, err := fmt.Fprint(c.w, payload); err != nil {
@@ -42,6 +68,7 @@ func (c *client) write(payload string) error {
 	if err := rc.Flush(); err != nil {
 		return err
 	}
+	_ = rc.SetWriteDeadline(time.Now().Add(idleDeadline))
 	return nil
 }
 
@@ -154,6 +181,7 @@ func (h *Hub) HandleStream(w http.ResponseWriter, r *http.Request) {
 	h.clients[c.id] = c
 	h.mu.Unlock()
 	defer h.remove(c)
+	defer c.finish() // FORK: runs first, before the handler returns
 
 	// Primer snapshot inmediato al conectar
 	if h.getOverview != nil {

@@ -32,6 +32,10 @@ type agentConn struct {
 	wmu     sync.Mutex
 	done    chan struct{}
 	once    sync.Once
+	// FORK: set under wmu before the stream's handler returns; see
+	// client.finished in hub.go - a Send racing the disconnect otherwise
+	// writes to a dead ResponseWriter and panics the server.
+	finished bool
 }
 
 // NewAgentHub crea el hub de agentes. checkToken valida el Bearer del agente.
@@ -111,6 +115,9 @@ func (h *AgentHub) remove(slug string) {
 func (c *agentConn) write(payload string) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
+	if c.finished {
+		return errFinished
+	}
 	rc := http.NewResponseController(c.w)
 	_ = rc.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if _, err := fmt.Fprint(c.w, payload); err != nil {
@@ -119,6 +126,7 @@ func (c *agentConn) write(payload string) error {
 	if err := rc.Flush(); err != nil {
 		return err
 	}
+	_ = rc.SetWriteDeadline(time.Now().Add(idleDeadline)) // FORK: see idleDeadline
 	return nil
 }
 
@@ -168,6 +176,11 @@ func (h *AgentHub) HandleStream(w http.ResponseWriter, r *http.Request) {
 	h.conns[slug] = c
 	h.mu.Unlock()
 	defer h.removeConn(c)
+	defer func() { // FORK: runs first, before the handler returns
+		c.wmu.Lock()
+		c.finished = true
+		c.wmu.Unlock()
+	}()
 
 	// Enviar evento "connected" al agente (confirmación)
 	_ = c.write("event: connected\ndata: {}\n\n")
