@@ -450,13 +450,19 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 			if !l.agentDown[cfg.ID] {
 				l.agentDown[cfg.ID] = true
 				name := agentName(cfg)
+				// #850: para routers agent-only el agente ES la única vía
+				// de datos (el poll sirve el payload cacheado y el router
+				// nunca marca offline): su caída es un evento de router
+				// urgente, comparable al offline, para que pase los filtros
+				// de notificación "solo urgentes del topic router". Con SSH
+				// disponible se degrada con gracia y sigue siendo system.
 				if cfg.AgentOnly {
 					l.engine.Emit(AlertEvent{
 						ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
-						Category: alerts.CatSystem, Urgent: false,
-						Severity:    "warn",
+						Category: alerts.CatRouter, Urgent: true,
+						Severity:    "critical",
 						Title:       fmt.Sprintf("Agente caído en %s", name),
-						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — usando datos cacheados", name, confirm),
+						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — la tarjeta sigue mostrando datos cacheados", name, confirm),
 						Hint:        alerts.HintFor(alerts.HintAgentDown),
 						Type:        alerts.HintAgentDown,
 						Vars:        map[string]string{"router": name, "confirm": confirm.String()},
@@ -469,7 +475,7 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						Severity:    "warn",
 						Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
 						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
-						Hint:        alerts.HintFor(alerts.HintAgentDown),
+						Hint:        alerts.HintFor(alerts.HintAgentDownSSH),
 						Type:        alerts.HintAgentDownSSH,
 						Vars:        map[string]string{"router": name, "confirm": confirm.String()},
 						Time:        "ahora mismo", RouterID: cfg.ID,

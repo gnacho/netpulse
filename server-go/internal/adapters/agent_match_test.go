@@ -187,3 +187,48 @@ func TestAgentRegistryRestoreBackfillsIdentity(t *testing.T) {
 		t.Fatalf("match tras Restore sin Host explícito: slug=%q fresh=%v p=%v", slug, fresh, p)
 	}
 }
+
+// TestLiveAgentDownAgentOnlyIsUrgentRouter (#850): en routers agent-only la
+// caída del agente es el único aviso de una fuente de datos muerta (el poll
+// sirve el payload cacheado y el router nunca llega a marcar offline): la
+// alerta debe ser category router + urgent para pasar los filtros de
+// notificación "solo urgentes del topic router".
+func TestLiveAgentDownAgentOnlyIsUrgentRouter(t *testing.T) {
+	reg := NewAgentRegistry(50 * time.Millisecond)
+	l := newLiveAgentTest(t, reg)
+	cfg := RouterConfig{ID: "patio", Name: "Patio", Host: "127.0.0.1", AgentOnly: true}
+	reg.Ingest(testPayload())
+
+	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
+		t.Fatalf("agente fresco: %v", err)
+	}
+	time.Sleep(60 * time.Millisecond)
+	// Agente expirado pero con payload cacheado: el poll NO falla (sirve lo
+	// cacheado) — la tarjeta sigue "viva" con datos congelados.
+	p, err := l.pollRouter(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("agent-only con payload cacheado no debe fallar el poll: %v", err)
+	}
+	if p == nil {
+		t.Fatal("esperaba datos cacheados del agente")
+	}
+	down := findAlert(l.engine.List(), "Agente caído en Patio")
+	if down == nil {
+		t.Fatalf("alerta de caída esperada: %+v", l.engine.List())
+	}
+	if down.Category != alerts.CatRouter || !down.Urgent || down.Severity != "critical" {
+		t.Fatalf("agent-down agent-only debe ser router/urgent/critical: %+v", down)
+	}
+	if strings.Contains(down.Title, "SSH") {
+		t.Fatalf("agent-only no debe mencionar SSH: %+v", down)
+	}
+	// Recuperación: alerta ok visible en el feed (system:all), sin urgencia.
+	reg.Ingest(testPayload())
+	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
+		t.Fatalf("agente recuperado: %v", err)
+	}
+	ok := findAlert(l.engine.List(), "Agente recuperado en Patio")
+	if ok == nil || ok.Category != alerts.CatSystem || ok.Urgent || ok.Severity != "ok" {
+		t.Fatalf("alerta recuperación agent-only: %+v", ok)
+	}
+}
