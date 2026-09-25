@@ -174,11 +174,11 @@ type Engine struct {
 	notifier Notifier
 	now      func() time.Time
 
-	cfg     map[string]string
-	list    []AlertEvent
-	dedup   map[string]int64 // key (cat|title|routerId) → último emit (unix ms)
-	readSet map[string]bool
-	readOrd []string // FIFO de IDs (cap 200) para podar readSet
+	cfg        map[string]string
+	list       []AlertEvent
+	dedup      map[string]int64 // key (cat|title|routerId) → último emit (unix ms)
+	readSet    map[string]bool
+	readOrd    []string         // FIFO de IDs (cap 200) para podar readSet
 	silenceMap map[string]int64 // dedup key → expiry (unix seconds); 0 = forever
 	// dismissed: IDs de alertas limpiadas por el usuario (issue #833). Se
 	// filtran del feed y del unread; si el mismo ID se vuelve a emitir (la
@@ -405,16 +405,21 @@ func (e *Engine) pasaLocked(ev AlertEvent) bool {
 }
 
 // insertaLocked inserta un evento nuevo al frente con dedup y cap.
-// Requiere e.mu ya tomado. Devuelve true si se guardó.
-func (e *Engine) insertaLocked(ev AlertEvent, now time.Time) bool {
+// Requiere e.mu ya tomado. Devuelve true si se guardó. skipDedup omite la
+// ventana de dedup de 5 min (issue #846: los incidentes con estado propio,
+// p.ej. offline de router, se trackean fuera del engine y su alerta debe
+// entrar aunque la ventana cubra la emisión de un incidente ya cerrado).
+func (e *Engine) insertaLocked(ev AlertEvent, now time.Time, skipDedup bool) bool {
 	key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 	if e.isSilencedLocked(key) {
 		return false
 	}
-	if last, ok := e.dedup[key]; ok && now.UnixMilli()-last < DedupWindow.Milliseconds() {
-		return false
+	if !skipDedup {
+		if last, ok := e.dedup[key]; ok && now.UnixMilli()-last < DedupWindow.Milliseconds() {
+			return false
+		}
+		e.dedup[key] = now.UnixMilli()
 	}
-	e.dedup[key] = now.UnixMilli()
 	// #833: si el ID estaba limpiado y la condición se re-dispara, la alerta
 	// vuelve al feed (dismissed solo oculta el histórico, no el presente).
 	if _, was := e.dismissed[ev.ID]; was {
@@ -485,7 +490,35 @@ func (e *Engine) Emit(ev AlertEvent) bool {
 		}
 	}
 	now := e.now()
-	ok := e.insertaLocked(ev, now)
+	ok := e.insertaLocked(ev, now, false)
+	n := e.notifier
+	e.mu.Unlock()
+	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
+		n.Notify(ev)
+	}
+	return ok
+}
+
+// EmitNoDedup es Emit sin la ventana de dedup de 5 min (silencio, config y
+// cap SÍ aplican, y la supresión topológica marca SuppressedBy igual). Uso:
+// alertas cuya condición se trackea por estado fuera del engine (issue #846,
+// offline de router): al ABRIR incidente la alerta debe entrar siempre,
+// porque el cierre del incidente anterior ya retiró la suya del feed y el
+// dedup la bloquearía — el "una alerta por outage" lo garantiza el tracking
+// de incidente (offlineOpen), no la ventana.
+func (e *Engine) EmitNoDedup(ev AlertEvent) bool {
+	e.mu.Lock()
+	if !e.pasaLocked(ev) {
+		e.mu.Unlock()
+		return false
+	}
+	if e.suppression != nil && ev.RouterID != "" {
+		if parent := e.suppression.SuppressedBy(ev.RouterID); parent != "" {
+			ev.SuppressedBy = parent
+		}
+	}
+	now := e.now()
+	ok := e.insertaLocked(ev, now, true)
 	n := e.notifier
 	e.mu.Unlock()
 	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
@@ -528,7 +561,7 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 			return true
 		}
 	}
-	ok := e.insertaLocked(ev, now)
+	ok := e.insertaLocked(ev, now, false)
 	n := e.notifier
 	e.mu.Unlock()
 	if ok && n != nil && ev.Urgent {
@@ -723,6 +756,44 @@ func (e *Engine) Resolve(id string) {
 	if e.db != nil {
 		_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
 	}
+}
+
+// Remove elimina eventos por ID: los retira de la lista en memoria, de su
+// espejo en alert_log y del read-set (issue #846). Sirve para retirar alertas
+// "en curso" cuya condición ya no existe, p.ej. la caída de un router que
+// vuelve online: el feed no acumula incidentes cerrados.
+func (e *Engine) Remove(ids ...string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	drop := map[string]bool{}
+	for _, id := range ids {
+		if id != "" {
+			drop[id] = true
+		}
+	}
+	if len(drop) == 0 {
+		return
+	}
+	out := make([]AlertEvent, 0, len(e.list))
+	for _, ev := range e.list {
+		if !drop[ev.ID] {
+			out = append(out, ev)
+		}
+	}
+	e.list = out
+	for id := range drop {
+		delete(e.readSet, id)
+		for i, rid := range e.readOrd {
+			if rid == id {
+				e.readOrd = append(e.readOrd[:i], e.readOrd[i+1:]...)
+				break
+			}
+		}
+		if e.db != nil {
+			_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
+		}
+	}
+	e.saveReadLocked()
 }
 
 // Silence silences alerts matching the dedup key of the given alert ID for the

@@ -4,6 +4,8 @@
 package adapters
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
@@ -109,9 +111,9 @@ func TestLiveRouterRecoveredTaxonomy(t *testing.T) {
 	}
 }
 
-// Issue #256: la alerta crítica de offline de un router se RESUELVE (marca
-// leída) cuando el router vuelve a responder; con APs que flapean no quedan
-// caídas fantasma "no leídas para siempre".
+// Issue #846: la alerta crítica de offline de un router se ELIMINA cuando el
+// router vuelve a responder de forma estable; con APs que flapean no quedan
+// caídas fantasma en el feed (antes, #256, solo se marcaba leída).
 func TestLiveRouterOfflineAlertResolvedOnRecovery(t *testing.T) {
 	l := liveTestLive()
 	offlineID := "alert-offline-patio-1"
@@ -122,13 +124,12 @@ func TestLiveRouterOfflineAlertResolvedOnRecovery(t *testing.T) {
 	if len(l.engine.List()) != 1 {
 		t.Fatalf("alerta de caída: %d", len(l.engine.List()))
 	}
-	// El router vuelve online → las caídas pendientes se resuelven.
+	// El router vuelve online → las caídas pendientes se eliminan del feed.
 	l.mu.Lock()
 	l.resolveOfflineAlerts("patio")
 	l.mu.Unlock()
-	list := l.engine.List()
-	if len(list) != 1 || !list[0].Read {
-		t.Fatalf("la caída debería quedar leída tras la recuperación: %+v", list)
+	if list := l.engine.List(); len(list) != 0 {
+		t.Fatalf("la caída debería eliminarse tras la recuperación: %+v", list)
 	}
 	// Las caídas de OTROS routers no se tocan.
 	l.engine.Emit(AlertEvent{
@@ -138,10 +139,172 @@ func TestLiveRouterOfflineAlertResolvedOnRecovery(t *testing.T) {
 	l.mu.Lock()
 	l.resolveOfflineAlerts("patio")
 	l.mu.Unlock()
-	for _, ev := range l.engine.List() {
-		if ev.ID == "alert-offline-living-1" && ev.Read {
-			t.Fatal("la caída de living no debía resolverse")
+	if list := l.engine.List(); len(list) != 1 || list[0].ID != "alert-offline-living-1" {
+		t.Fatalf("la caída de living no debía tocarse: %+v", list)
+	}
+}
+
+// Issue #846: mientras el incidente de offline está abierto no se re-emite
+// la alerta aunque el estado flapee (offline → online → offline), y la
+// recuperación hay que estabilizarla (offlineRecoverTicks éxitos seguidos)
+// antes de cerrar el incidente (borrar la caída + emitir "recuperado").
+func TestLiveRouterOfflineFlappingDoesNotRearm(t *testing.T) {
+	l := liveTestLive()
+	if err := l.engine.SetConfig(map[string]string{"router": "all"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &RouterConfig{ID: "patio", Name: "Patio", Host: "10.0.0.1"}
+	errDown := fmt.Errorf("timeout")
+
+	l.mu.Lock()
+	l.trackRouterOffline(cfg, errDown, 2) // caída: primera alerta
+	l.trackRouterOffline(cfg, errDown, 3) // sigue caído: NO re-emite
+	l.mu.Unlock()
+	if list := l.engine.List(); len(list) != 1 || !strings.HasPrefix(list[0].ID, "alert-offline-patio-") {
+		t.Fatalf("un incidente = una alerta: %+v", list)
+	}
+
+	// Flap: éxitos aislados no cierran el incidente ni rearman.
+	l.mu.Lock()
+	l.trackRouterRecovered(cfg) // streak 1
+	l.trackRouterRecovered(cfg) // streak 2
+	l.trackRouterOffline(cfg, errDown, 2) // vuelve a caer: sin alerta nueva
+	l.mu.Unlock()
+	if list := l.engine.List(); len(list) != 1 || !strings.HasPrefix(list[0].ID, "alert-offline-patio-") {
+		t.Fatalf("el flap no debía rearmar ni cerrar: %+v", list)
+	}
+
+	// Recuperación estable: offlineRecoverTicks éxitos seguidos cierran el
+	// incidente: la caída se elimina y el "recuperado" queda como relevo.
+	l.mu.Lock()
+	l.trackRouterRecovered(cfg) // streak 3 → cierra
+	l.mu.Unlock()
+	list := l.engine.List()
+	if len(list) != 1 || list[0].Type != alerts.TypeRouterRecovered {
+		t.Fatalf("tras recuperación estable: %+v", list)
+	}
+	for _, ev := range list {
+		if strings.HasPrefix(ev.ID, "alert-offline-") {
+			t.Fatalf("la caída debía eliminarse: %+v", ev)
 		}
+	}
+}
+
+// Issue #846: cerrar un incidente y reabrirlo DENTRO de la ventana de dedup
+// (5 min, misma key cat|título|routerId) debe emitir la alerta nueva igual
+// (EmitNoDedup): al cerrar, la alerta anterior se retiró del feed y el dedup
+// dejaría el incidente nuevo invisible.
+func TestLiveRouterOfflineReopenWithinDedupWindow(t *testing.T) {
+	l := liveTestLive()
+	if err := l.engine.SetConfig(map[string]string{"router": "all"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &RouterConfig{ID: "patio", Name: "Patio", Host: "10.0.0.1"}
+	errDown := fmt.Errorf("timeout")
+
+	l.mu.Lock()
+	l.trackRouterOffline(cfg, errDown, 2) // incidente A
+	l.trackRouterRecovered(cfg)           // streak 1
+	l.trackRouterRecovered(cfg)           // streak 2
+	l.trackRouterRecovered(cfg)           // streak 3 → cierra A
+	l.mu.Unlock()
+	if list := l.engine.List(); len(list) != 1 || list[0].Type != alerts.TypeRouterRecovered {
+		t.Fatalf("tras el cierre solo queda el recuperado: %+v", list)
+	}
+
+	l.mu.Lock()
+	l.trackRouterOffline(cfg, errDown, 2) // incidente B, misma dedup-key <5 min
+	l.mu.Unlock()
+	list := l.engine.List()
+	offline := 0
+	for _, ev := range list {
+		if strings.HasPrefix(ev.ID, "alert-offline-") {
+			offline++
+		}
+	}
+	if offline != 1 {
+		t.Fatalf("el incidente B debe tener exactamente 1 alerta offline, hay %d: %+v", offline, list)
+	}
+}
+
+// Issue #846: tras un reinicio del servidor las alertas de offline de un
+// proceso anterior quedan huérfanas (el incidente vivía en memoria). Los
+// routers que responden SIN incidente abierto se reconcilian cada ciclo: la
+// huérfana se retira SIN evento "recuperado" (no se observó recuperación:
+// el servidor estaba caído, no el router). Los routers caídos conservan la
+// suya; los de incidente abierto también.
+func TestLiveRouterReconcileRemovesOrphan(t *testing.T) {
+	l := liveTestLive()
+	if err := l.engine.SetConfig(map[string]string{"router": "all"}); err != nil {
+		t.Fatal(err)
+	}
+	// Huérfana "del proceso anterior" (misma shape que emite trackRouterOffline)
+	// y una de OTRO router que no responde en este ciclo.
+	l.engine.Emit(alerts.AlertEvent{
+		ID: "alert-offline-patio-111", Category: alerts.CatRouter, Urgent: true,
+		Severity: "critical", Title: "Patio offline", Type: alerts.HintDeviceOffline,
+		RouterID: "patio",
+	})
+	l.engine.Emit(alerts.AlertEvent{
+		ID: "alert-offline-living-222", Category: alerts.CatRouter, Urgent: true,
+		Severity: "critical", Title: "Living offline", Type: alerts.HintDeviceOffline,
+		RouterID: "living",
+	})
+	if n := len(l.engine.List()); n != 2 {
+		t.Fatalf("previo: %d alertas", n)
+	}
+	l.mu.Lock()
+	// Patio responde y SIN incidente abierto → su huérfana se retira.
+	l.reconcileOfflineOrphans(map[string]*routerPolled{"patio": {}})
+	l.mu.Unlock()
+	list := l.engine.List()
+	if len(list) != 1 || list[0].RouterID != "living" {
+		t.Fatalf("solo la huérfana de living debe sobrevivir: %+v", list)
+	}
+	// Con incidente abierto NO se toca aunque responda: la alerta es la del
+	// incidente vivo, no una huérfana.
+	l.mu.Lock()
+	if l.offlineOpen == nil {
+		l.offlineOpen = map[string]bool{}
+	}
+	l.offlineOpen["living"] = true
+	l.reconcileOfflineOrphans(map[string]*routerPolled{"living": {}})
+	l.mu.Unlock()
+	if list := l.engine.List(); len(list) != 1 || list[0].RouterID != "living" {
+		t.Fatalf("con incidente abierto no se debe tocar: %+v", list)
+	}
+}
+
+// Issue #846: al abrir un incidente con huérfanas previas (reinicio durante
+// la caída), la alerta nueva las sustituye: nunca dos alertas offline del
+// mismo router.
+func TestLiveRouterOfflineOpenReplacesOrphans(t *testing.T) {
+	l := liveTestLive()
+	if err := l.engine.SetConfig(map[string]string{"router": "all"}); err != nil {
+		t.Fatal(err)
+	}
+	l.engine.Emit(alerts.AlertEvent{
+		ID: "alert-offline-patio-111", Category: alerts.CatRouter, Urgent: true,
+		Severity: "critical", Title: "Patio offline", Type: alerts.HintDeviceOffline,
+		RouterID: "patio",
+	})
+	// Segunda huérfana con la misma key de dedup: solo entra sin dedup (es el
+	// shape real tras reinicios seguidos durante una caída larga).
+	l.engine.EmitNoDedup(alerts.AlertEvent{
+		ID: "alert-offline-patio-222", Category: alerts.CatRouter, Urgent: true,
+		Severity: "critical", Title: "Patio offline", Type: alerts.HintDeviceOffline,
+		RouterID: "patio",
+	})
+	cfg := &RouterConfig{ID: "patio", Name: "Patio", Host: "10.0.0.1"}
+	l.mu.Lock()
+	l.trackRouterOffline(cfg, fmt.Errorf("timeout"), 2)
+	l.mu.Unlock()
+	list := l.engine.List()
+	if len(list) != 1 {
+		t.Fatalf("una sola alerta tras abrir el incidente: %+v", list)
+	}
+	if list[0].ID == "alert-offline-patio-111" || list[0].ID == "alert-offline-patio-222" {
+		t.Fatalf("la alerta debe ser la del incidente nuevo, no una huérfana: %+v", list[0])
 	}
 }
 

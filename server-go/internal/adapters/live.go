@@ -247,6 +247,14 @@ type Live struct {
 	lastPolled          map[string]*routerPolled
 	failCount           map[string]int
 	lastErr             map[string]error // último error del sondeo (issue #257: distinguir sin-acceso de caído)
+	// offlineOpen (issue #846): routers con un incidente de offline ABIERTO
+	// (alerta emitida y aún no recuperados). Mientras esté abierto no se
+	// re-emite la alerta aunque el estado flapee: un incidente = una alerta.
+	// recoverStreak: éxitos seguidos del router con el incidente abierto; la
+	// recuperación hay que estabilizarla (offlineRecoverTicks) para que un
+	// flap breve no cierre el incidente.
+	offlineOpen   map[string]bool
+	recoverStreak map[string]int
 	engine              *alerts.Engine
 	wgActive            map[string]bool
 	weakAlerted         map[string]int64
@@ -370,6 +378,8 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
 		lastErr:              map[string]error{},
+		offlineOpen:          map[string]bool{},
+		recoverStreak:        map[string]int{},
 		engine:               alerts.New(d, nil),
 		wgActive:             map[string]bool{},
 		weakAlerted:          map[string]int64{},
@@ -1388,17 +1398,11 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 			if l.db != nil && res.p.brMac != "" {
 				_, _ = l.db.Exec("UPDATE routers SET mac = ? WHERE id = ?", res.p.brMac, res.cfg.ID)
 			}
-			// Router recuperado (offline→online, SPEC-ALERTAS §1)
-			if l.lastStatus[res.cfg.ID] == "offline" {
-				name := res.cfg.Name
-				if name == "" {
-					name = res.cfg.Host
-				}
-				// issue #256: la alerta crítica de offline pendiente se resuelve
-				// (marca leída) al volver online; sin esto queda "no leída" para
-				// siempre y con APs que flapean se acumulan caídas fantasma.
-				l.resolveOfflineAlerts(res.cfg.ID)
-				l.emitRouterRecovered(res.cfg.ID, name)
+			// Router recuperado (offline→online, SPEC-ALERTAS §1). issue #846:
+			// con incidente abierto la recuperación debe estabilizarse antes
+			// de cerrarlo (un flap breve no rearma ni cierra la alerta).
+			if l.offlineOpen[res.cfg.ID] || l.lastStatus[res.cfg.ID] == "offline" {
+				l.trackRouterRecovered(&res.cfg)
 			}
 			l.lastStatus[res.cfg.ID] = "online"
 			// WAN/Internet caído: gateway OK pero ping a internet con 100 %
@@ -1412,38 +1416,33 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		l.failCount[res.cfg.ID] = fails
 		l.lastErr[res.cfg.ID] = res.err
 		log.Printf("[netpulse] router %s inalcanzable (%d): %v", res.cfg.ID, fails, res.err)
-		// Alerta solo tras 2 fallos seguidos (un fallo suelto no es una caída).
-		// issue #257: un fallo de ACCESO (SSH responde pero la clave no está
-		// autorizada) no es una caída — el router está vivo; la UI lo marca
-		// como "sin acceso" y no merece una alerta crítica de offline. Igual
-		// para una host key cambiada (#603): requiere re-onboard, no es offline.
-		quietErr := isAccessError(res.err) || isHostKeyError(res.err)
-		if fails >= 2 && l.lastStatus[res.cfg.ID] != "offline" && !quietErr {
-			name := res.cfg.Name
-			if name == "" {
-				name = res.cfg.Host
-			}
-			if l.suppression != nil {
-				l.suppression.MarkDown(res.cfg.ID)
-			}
-			l.engine.Emit(AlertEvent{
-				ID:       fmt.Sprintf("alert-offline-%s-%d", res.cfg.ID, time.Now().UnixMilli()),
-				Category: alerts.CatRouter, Urgent: true,
-				Severity:    "critical",
-				Title:       name + " offline",
-				Description: fmt.Sprintf("Sin respuesta de %s: %v", res.cfg.Host, res.err),
-				Hint:        alerts.HintFor(alerts.HintDeviceOffline),
-				Type:        alerts.HintDeviceOffline,
-				Vars:        map[string]string{"router": name, "host": res.cfg.Host, "error": fmt.Sprint(res.err)},
-				Time:        "ahora mismo", RouterID: res.cfg.ID,
-			})
-		}
+		l.trackRouterOffline(&res.cfg, res.err, fails)
 		if fails >= 2 {
 			l.lastStatus[res.cfg.ID] = "offline"
 		}
 	}
+	// Reconciliación de huérfanas (issue #846): cada ciclo, los routers que
+	// responden SIN incidente abierto se limpian de alertas de offline de
+	// procesos anteriores (offlineOpen vive en memoria y no sobrevive a un
+	// reinicio; si el router responde, el que estuvo caído fue el servidor).
+	// Corre en cada ciclo (no solo en el arranque) para ser auto-sanante
+	// aunque el router falle justo en el primer ciclo tras arrancar. Los
+	// routers caídos conservan la suya hasta que trackRouterOffline la
+	// sustituye por la del incidente nuevo.
+	l.reconcileOfflineOrphans(polled)
 	l.lastPolled = polled
 	return polled
+}
+
+// reconcileOfflineOrphans retira las alertas de offline huérfanas de los
+// routers que responden sin incidente abierto (issue #846). Debe llamarse
+// con l.mu tomado.
+func (l *Live) reconcileOfflineOrphans(polled map[string]*routerPolled) {
+	for id := range polled {
+		if !l.offlineOpen[id] {
+			l.resolveOfflineAlerts(id)
+		}
+	}
 }
 
 // emitRouterRecovered: evento "router recuperado" (offline→online;
@@ -1465,11 +1464,105 @@ func (l *Live) emitRouterRecovered(routerID, name string) {
 	})
 }
 
-// resolveOfflineAlerts resuelve las alertas de offline pendientes del router
-// (issue #256): al volver online se marcan como leídas, de modo que la caída
-// crítica no queda "no leída para siempre" y un AP que flapea no acumula
-// caídas fantasma. El evento "recuperado" (emitRouterRecovered) es el relevo
-// positivo que sustituye la caída en el feed. Debe llamarse con l.mu tomado.
+// offlineRecoverTicks: sondeos seguidos con éxito necesarios para cerrar un
+// incidente de offline (issue #846). Un flap breve (online transitorio entre
+// fallos) no cierra el incidente: la alerta de caída sigue abierta y no se
+// emite "recuperado" hasta que el router responde de forma estable.
+const offlineRecoverTicks = 3
+
+// trackRouterOffline (issue #846): alerta crítica de offline tras 2 fallos
+// seguidos. Un fallo de ACCESO (SSH responde pero la clave no está
+// autorizada, #257) o una host key cambiada (#603) no es una caída — el
+// router está vivo; la UI lo marca "sin acceso" y no merece alerta crítica.
+// Mientras el incidente esté abierto NO se re-emite (aunque el estado flapee
+// entre offline y online): un incidente = una alerta = una notificación.
+// Debe llamarse con l.mu tomado.
+func (l *Live) trackRouterOffline(cfg *RouterConfig, err error, fails int) {
+	quietErr := isAccessError(err) || isHostKeyError(err)
+	if fails < 2 || quietErr || l.offlineOpen[cfg.ID] {
+		return
+	}
+	if l.offlineOpen == nil {
+		l.offlineOpen = map[string]bool{}
+		l.recoverStreak = map[string]int{}
+	}
+	name := cfg.Name
+	if name == "" {
+		name = cfg.Host
+	}
+	if l.suppression != nil {
+		l.suppression.MarkDown(cfg.ID)
+	}
+	ev := AlertEvent{
+		ID:       fmt.Sprintf("alert-offline-%s-%d", cfg.ID, time.Now().UnixMilli()),
+		Category: alerts.CatRouter, Urgent: true,
+		Severity:    "critical",
+		Title:       name + " offline",
+		Description: fmt.Sprintf("Sin respuesta de %s: %v", cfg.Host, err),
+		Hint:        alerts.HintFor(alerts.HintDeviceOffline),
+		Type:        alerts.HintDeviceOffline,
+		Vars:        map[string]string{"router": name, "host": cfg.Host, "error": fmt.Sprint(err)},
+		Time:        "ahora mismo", RouterID: cfg.ID,
+	}
+	// Sin dedup de 5 min: al cerrarse, el incidente anterior retiró su alerta
+	// del feed (resolveOfflineAlerts) y la ventana bloquearía ésta — el "una
+	// alerta por outage" lo garantiza offlineOpen, no el dedup.
+	l.engine.EmitNoDedup(ev)
+	// Huérfanas de un proceso anterior (reinicio del servidor durante una
+	// caída): la alerta del incidente nuevo las sustituye, nunca se acumulan.
+	l.removeStaleOfflineAlerts(cfg.ID, ev.ID)
+	l.offlineOpen[cfg.ID] = true
+	l.recoverStreak[cfg.ID] = 0
+}
+
+// removeStaleOfflineAlerts elimina las alertas de offline del router salvo
+// keepID (issue #846): al abrir un incidente sustituye las huérfanas que un
+// proceso anterior dejó en alert_log (offlineOpen vive en memoria y no
+// sobrevive a un reinicio). Debe llamarse con l.mu tomado.
+func (l *Live) removeStaleOfflineAlerts(routerID, keepID string) {
+	ids := []string{}
+	for _, ev := range l.engine.List() {
+		if ev.RouterID == routerID && strings.HasPrefix(ev.ID, "alert-offline-") && ev.ID != keepID {
+			ids = append(ids, ev.ID)
+		}
+	}
+	if len(ids) > 0 {
+		l.engine.Remove(ids...)
+	}
+}
+
+// trackRouterRecovered (issue #846): cierra el incidente de offline cuando la
+// recuperación es estable (offlineRecoverTicks éxitos seguidos): elimina las
+// alertas de caída del router y emite el evento "recuperado" como relevo
+// positivo en el feed. Con incidente abierto, un éxito aislado NO cierra nada
+// (la caída sigue viva y no se insiste). Sin incidente abierto —caída sin
+// alerta por error de acceso (#257/#603)— se resuelve en el primer éxito,
+// como antes. Debe llamarse con l.mu tomado.
+func (l *Live) trackRouterRecovered(cfg *RouterConfig) {
+	if l.offlineOpen[cfg.ID] {
+		if l.recoverStreak == nil {
+			l.recoverStreak = map[string]int{}
+		}
+		l.recoverStreak[cfg.ID]++
+		if l.recoverStreak[cfg.ID] < offlineRecoverTicks {
+			return
+		}
+		delete(l.offlineOpen, cfg.ID)
+		delete(l.recoverStreak, cfg.ID)
+	}
+	name := cfg.Name
+	if name == "" {
+		name = cfg.Host
+	}
+	l.resolveOfflineAlerts(cfg.ID)
+	l.emitRouterRecovered(cfg.ID, name)
+}
+
+// resolveOfflineAlerts elimina las alertas de offline pendientes del router
+// (issue #846; antes #256 las marcaba leídas): al volver online la caída se
+// retira del feed en vez de quedar ahí para siempre. El evento "recuperado"
+// (emitRouterRecovered) es el relevo positivo que sustituye la caída. Debe
+// llamarse con l.mu tomado.
 func (l *Live) resolveOfflineAlerts(routerID string) {
 	ids := []string{}
 	for _, ev := range l.engine.List() {
@@ -1478,7 +1571,7 @@ func (l *Live) resolveOfflineAlerts(routerID string) {
 		}
 	}
 	if len(ids) > 0 {
-		l.engine.MarkRead(ids...)
+		l.engine.Remove(ids...)
 	}
 }
 
