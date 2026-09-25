@@ -22,10 +22,14 @@ import (
 const agentStateKeyPrefix = "agent.state."
 
 // persistedAgentState es el formato en kv: el payload + cuándo llegó.
+// Host/BridgeMAC (#852) conservan la identidad de match entre reinicios
+// aunque el último push persisted sea wireless-only.
 type persistedAgentState struct {
-	Payload  *probe.Payload `json:"payload"`
-	LastSeen int64          `json:"lastSeen"` // unix segundos
-	Version  string         `json:"version"`
+	Payload   *probe.Payload `json:"payload"`
+	LastSeen  int64          `json:"lastSeen"` // unix segundos
+	Version   string         `json:"version"`
+	Host      string         `json:"host,omitempty"`
+	BridgeMAC string         `json:"bridgeMAC,omitempty"`
 }
 
 func agentStateKey(slug string) string { return agentStateKeyPrefix + slug }
@@ -37,9 +41,11 @@ func (s *server) persistAgentState(slug string, st *adapters.AgentState) {
 		return
 	}
 	raw, err := json.Marshal(persistedAgentState{
-		Payload:  st.Payload,
-		LastSeen: st.LastSeen.Unix(),
-		Version:  st.Version,
+		Payload:   st.Payload,
+		LastSeen:  st.LastSeen.Unix(),
+		Version:   st.Version,
+		Host:      st.Host,
+		BridgeMAC: st.BridgeMAC,
 	})
 	if err != nil {
 		log.Printf("[netpulse] aviso: no se pudo serializar el estado del agente %s: %v", slug, err)
@@ -79,9 +85,11 @@ func NewStateRestorer(d *db.DB) func(*adapters.AgentRegistry) {
 				continue
 			}
 			reg.Restore(slug, &adapters.AgentState{
-				Payload:  ps.Payload,
-				LastSeen: time.Unix(ps.LastSeen, 0),
-				Version:  ps.Version,
+				Payload:   ps.Payload,
+				LastSeen:  time.Unix(ps.LastSeen, 0),
+				Version:   ps.Version,
+				Host:      ps.Host,
+				BridgeMAC: ps.BridgeMAC,
 			})
 		}
 	}

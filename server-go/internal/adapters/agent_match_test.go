@@ -136,3 +136,54 @@ func countAlerts(list []AlertEvent, titlePart string) int {
 	}
 	return n
 }
+
+// TestAgentRegistryMatchRouterRetainedIdentity (#852): un push wireless-only
+// (sin sección system, p. ej. un evento nl80211 de roam) NO debe romper el
+// match por hostname/MAC: es la causa de los "router sin cliente" transitorios
+// en routers agent-only emparejados sin slug exacto.
+func TestAgentRegistryMatchRouterRetainedIdentity(t *testing.T) {
+	reg := NewAgentRegistry(90 * time.Second)
+	now := time.Now()
+	reg.SetClock(func() time.Time { return now })
+
+	pl := testPayload()
+	pl.Router = "flint2"
+	pl.Data.System.Board.Hostname = "flint2"
+	pl.Data.System.BridgeMAC = "94:83:C4:00:00:09"
+	reg.Ingest(pl)
+
+	// Evento nl80211: push rápido wireless-only, sin sección system.
+	ev := testPayload()
+	ev.Router = "flint2"
+	ev.Data.System = nil
+	reg.Ingest(ev)
+
+	cfg := RouterConfig{ID: "gl-inet-gl-mt6000", Name: "flint2", Host: "192.168.10.1"}
+	slug, p, fresh := reg.MatchRouter(cfg, nil)
+	if slug != "flint2" || p == nil || !fresh {
+		t.Fatalf("match por hostname retenido tras push wireless-only: slug=%q fresh=%v p=%v", slug, fresh, p)
+	}
+
+	cfgMac := RouterConfig{ID: "tp-link-eap225-09", Name: "Otro", Host: "192.168.1.9"}
+	macs := map[string]string{cfgMac.ID: "94:83:C4:00:00:09"}
+	slug, p, fresh = reg.MatchRouter(cfgMac, macs)
+	if slug != "flint2" || p == nil || !fresh {
+		t.Fatalf("match por MAC retenida tras push wireless-only: slug=%q fresh=%v p=%v", slug, fresh, p)
+	}
+}
+
+// TestAgentRegistryRestoreBackfillsIdentity (#852): los estados persistidos
+// antes del fix no traen Host/BridgeMAC; Restore los recupera del payload.
+func TestAgentRegistryRestoreBackfillsIdentity(t *testing.T) {
+	reg := NewAgentRegistry(90 * time.Second)
+	pl := testPayload()
+	pl.Router = "flint2"
+	pl.Data.System.Board.Hostname = "flint2"
+	reg.Restore("flint2", &AgentState{Payload: pl, LastSeen: time.Now()})
+
+	cfg := RouterConfig{ID: "gl-inet-gl-mt6000", Name: "flint2", Host: "192.168.10.1"}
+	slug, p, fresh := reg.MatchRouter(cfg, nil)
+	if slug != "flint2" || p == nil || !fresh {
+		t.Fatalf("match tras Restore sin Host explícito: slug=%q fresh=%v p=%v", slug, fresh, p)
+	}
+}

@@ -37,6 +37,13 @@ type AgentState struct {
 	Version  string
 	Kind     string // "" | "native" | "external" (#288)
 	Interval int    // cadencia declarada en segundos; 0 = default nativo
+	// Host/BridgeMAC: última identidad conocida del agente (#852). Un push
+	// wireless-only (evento nl80211, BuildWireless) no lleva sección system;
+	// sin este recuerdo, MatchRouter perdería al agente hasta el próximo
+	// push completo y cada roam de un cliente provocaría un "sin cliente"
+	// transitorio en routers agent-only emparejados por hostname/MAC.
+	Host      string
+	BridgeMAC string
 }
 
 // effectiveTTL devuelve la ventana de frescura del estado: el TTL base, o
@@ -79,10 +86,27 @@ func (r *AgentRegistry) SetClock(f func() time.Time) {
 func (r *AgentRegistry) Ingest(p *probe.Payload) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.states[p.Router] = &AgentState{
+	st := &AgentState{
 		Payload: p, LastSeen: r.now(), Version: p.Version,
 		Kind: p.Kind, Interval: p.Interval,
 	}
+	if sd := p.Data.System; sd != nil {
+		if sd.Board != nil {
+			st.Host = sd.Board.Hostname
+		}
+		st.BridgeMAC = sd.BridgeMAC
+	}
+	// #852: un push wireless-only no trae identidad; hereda la última
+	// conocida para que MatchRouter siga emparejando al agente.
+	if prev := r.states[p.Router]; prev != nil {
+		if st.Host == "" {
+			st.Host = prev.Host
+		}
+		if st.BridgeMAC == "" {
+			st.BridgeMAC = prev.BridgeMAC
+		}
+	}
+	r.states[p.Router] = st
 }
 
 // Info devuelve last_seen + versión + kind/interval para GET /api/agents
@@ -191,12 +215,23 @@ func (r *AgentRegistry) ActiveCount() int {
 // (arranque del servidor). No revalida TTL: la expiración la decide el
 // reloj comparando contra el LastSeen restaurado. Sobrescribe cualquier
 // estado previo del slug. Los estados persistidos antes de #288 no traen
-// Kind/Interval: se recuperan del payload si están ahí.
+// Kind/Interval y los de antes de #852 no traen Host/BridgeMAC: se
+// recuperan del payload si están ahí.
 func (r *AgentRegistry) Restore(slug string, st *AgentState) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if st != nil && st.Interval == 0 && st.Payload != nil {
-		st.Kind, st.Interval = st.Payload.Kind, st.Payload.Interval
+	if st != nil && st.Payload != nil {
+		if st.Interval == 0 {
+			st.Kind, st.Interval = st.Payload.Kind, st.Payload.Interval
+		}
+		if sd := st.Payload.Data.System; sd != nil {
+			if st.Host == "" && sd.Board != nil {
+				st.Host = sd.Board.Hostname
+			}
+			if st.BridgeMAC == "" {
+				st.BridgeMAC = sd.BridgeMAC
+			}
+		}
 	}
 	r.states[slug] = st
 }
@@ -215,10 +250,12 @@ func (r *AgentRegistry) Snapshot(slug string) *AgentState {
 }
 
 // MatchRouter busca el agente asociado a un router: primero por slug exacto,
-// luego por hostname de board y finalmente por bridge MAC (#282). Devuelve
-// el slug real del agente, su payload y si está fresco. Permite que un agente
-// emparejado con un slug elegido por el usuario alimente un router cuyo id
-// autogenerado no coincide con ese slug.
+// luego por hostname de board y finalmente por bridge MAC (#282). El match
+// por hostname/MAC usa la identidad retenida en el estado (#852), válida
+// aunque el último push sea wireless-only. Devuelve el slug real del
+// agente, su payload y si está fresco. Permite que un agente emparejado con
+// un slug elegido por el usuario alimente un router cuyo id autogenerado no
+// coincide con ese slug.
 func (r *AgentRegistry) MatchRouter(cfg RouterConfig, macs map[string]string) (string, *probe.Payload, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -245,11 +282,14 @@ func (r *AgentRegistry) MatchRouter(cfg RouterConfig, macs map[string]string) (s
 			matchSlug = slug
 			break
 		}
-		if st.Payload == nil || st.Payload.Data.System == nil || st.Payload.Data.System.Board == nil {
+		// #852: el match usa la identidad RETENIDA (Host/BridgeMAC), no la
+		// del payload actual: el último push puede ser wireless-only (evento
+		// nl80211, sin sección system) y aun así debe emparejar. Sin esto,
+		// cada roam borraba la identidad hasta el próximo push completo.
+		if st.Payload == nil {
 			continue
 		}
-		h := norm(st.Payload.Data.System.Board.Hostname)
-		if h != "" {
+		if h := norm(st.Host); h != "" {
 			for _, candidate := range hostNames {
 				if h == candidate {
 					match = st
@@ -261,9 +301,8 @@ func (r *AgentRegistry) MatchRouter(cfg RouterConfig, macs map[string]string) (s
 		if match != nil {
 			break
 		}
-		mac := st.Payload.Data.System.BridgeMAC
-		if mac != "" && macs != nil {
-			if routerMac, ok := macs[cfg.ID]; ok && strings.EqualFold(mac, routerMac) {
+		if st.BridgeMAC != "" && macs != nil {
+			if routerMac, ok := macs[cfg.ID]; ok && strings.EqualFold(st.BridgeMAC, routerMac) {
 				match = st
 				matchSlug = slug
 				break
