@@ -19,6 +19,16 @@ import (
 // server_fp para validar TLS (el admin lo proporciona junto con el
 // pairing token).
 func pairWithServer(opts Options) error {
+	// FORK: over https with no pin, prove the server's key with the pairing
+	// token first, then pair over a connection pinned to it.
+	learnedFP := ""
+	if strings.HasPrefix(opts.Server, "https://") && opts.ServerFP == "" {
+		fp, err := ProveServerKey(opts.Server, opts.PairingToken)
+		if err != nil {
+			return err
+		}
+		opts.ServerFP, learnedFP = fp, fp
+	}
 	transport, err := buildTransport(opts)
 	if err != nil {
 		return err
@@ -58,7 +68,7 @@ func pairWithServer(opts Options) error {
 	}
 
 	// Escribir el token real al env file (reemplaza PAIRING_TOKEN por TOKEN).
-	if err := writePairedToken(opts.EnvFile, pr.Token); err != nil {
+	if err := writePairedToken(opts.EnvFile, pr.Token, learnedFP); err != nil {
 		return fmt.Errorf("escribir token al env file: %w", err)
 	}
 
@@ -70,11 +80,18 @@ func pairWithServer(opts Options) error {
 
 // writePairedToken reescribe el env file: quita NETPULSE_PAIRING_TOKEN y
 // añade/actualiza NETPULSE_TOKEN. Conserva el resto de líneas.
-func writePairedToken(path, token string) error {
+//
+// FORK: fp, when not empty, is a pin proven during pairing and is written as
+// NETPULSE_SERVER_FP, so the agent keeps pinning it after the restart.
+func writePairedToken(path, token, fp string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// Si no existe, crear uno nuevo con el token.
-		return os.WriteFile(path, []byte("NETPULSE_TOKEN="+token+"\n"), 0o600)
+		out := "NETPULSE_TOKEN=" + token + "\n"
+		if fp != "" {
+			out += "NETPULSE_SERVER_FP=" + fp + "\n"
+		}
+		return os.WriteFile(path, []byte(out), 0o600)
 	}
 	var out []string
 	haveToken := false
@@ -98,10 +115,16 @@ func writePairedToken(path, token string) error {
 			haveToken = true
 			continue
 		}
+		if key == "NETPULSE_SERVER_FP" && fp != "" {
+			continue // replaced by the proven pin below
+		}
 		out = append(out, line)
 	}
 	if !haveToken {
 		out = append(out, "NETPULSE_TOKEN="+token)
+	}
+	if fp != "" {
+		out = append(out, "NETPULSE_SERVER_FP="+fp)
 	}
 	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0o600)
 }

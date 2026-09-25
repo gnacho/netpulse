@@ -70,6 +70,7 @@ func isAgentReportPath(path string) bool {
 func isAnonymousPath(path string) bool {
 	if path == "/api/health" || path == "/api/auth/login" ||
 		path == "/api/ingest/agent" || path == "/api/agents/pair" ||
+		path == "/api/agents/pair/hello" || // FORK: proves the served key; no secret in or out
 		path == "/api/agents/executor-token" ||
 		isAgentReportPath(path) {
 		return true

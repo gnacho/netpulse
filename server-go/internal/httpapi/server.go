@@ -451,6 +451,8 @@ func NewHandler(d Deps) http.Handler {
 	// --- Fase 9 R3: Pairing / adopción de agentes ---
 	// POST /api/agents/pair: sin sesión (el pairing token ES la auth), rate limited.
 	mux.HandleFunc("POST /api/agents/pair", s.handleAgentPair)
+	// FORK: POST /api/agents/pair/hello: proves the served key, no session.
+	mux.HandleFunc("POST /api/agents/pair/hello", s.handleAgentPairHello)
 	// Gestión del pairing token (admin).
 	mux.Handle("GET /api/pairing/token", auth.RequireAdmin(http.HandlerFunc(s.handlePairingToken)))
 	mux.Handle("POST /api/pairing/rotate", auth.RequireAdmin(http.HandlerFunc(s.handlePairingRotate)))

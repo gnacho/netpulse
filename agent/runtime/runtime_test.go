@@ -233,7 +233,7 @@ func TestWritePairedToken(t *testing.T) {
 	env := filepath.Join(dir, "agent.env")
 	writeFile(t, env, "NETPULSE_SERVER=http://s\nNETPULSE_PAIRING_TOKEN=pt\nNETPULSE_SLUG=s\n")
 
-	if err := writePairedToken(env, "real-token"); err != nil {
+	if err := writePairedToken(env, "real-token", ""); err != nil {
 		t.Fatalf("writePairedToken: %v", err)
 	}
 	data, err := os.ReadFile(env)
@@ -257,7 +257,7 @@ func TestWritePairedToken(t *testing.T) {
 
 	// Env file inexistente: se crea solo con el token.
 	env2 := filepath.Join(dir, "nuevo.env")
-	if err := writePairedToken(env2, "tk"); err != nil {
+	if err := writePairedToken(env2, "tk", ""); err != nil {
 		t.Fatalf("writePairedToken nuevo: %v", err)
 	}
 	data2, _ := os.ReadFile(env2)
