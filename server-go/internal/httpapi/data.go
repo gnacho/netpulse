@@ -142,6 +142,13 @@ func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Ov
 	if v, ok := kvGetFloat(handle, wanSpeedUpKey); ok {
 		out.WAN.ContractUpMbps = &v
 	}
+	// #849: la topología pinta el plan en el enlace WAN ("Fibra <plan>"), pero
+	// en live el poller lo deja en "—" (solo el dataset demo lo rellena). Si
+	// hay velocidad contratada configurada, es la mejor fuente del plan.
+	if (out.WAN.Plan == "" || out.WAN.Plan == "—") &&
+		out.WAN.ContractDownMbps != nil && out.WAN.ContractUpMbps != nil {
+		out.WAN.Plan = fmtContractPlan(*out.WAN.ContractDownMbps, *out.WAN.ContractUpMbps)
+	}
 	// Última medición real del speedtest (#511): el scheduler escribe la
 	// serie; aquí solo se expone la última para la tarjeta WAN. nil (demo o
 	// sin ningún test) → campos ausentes y la UI muestra su estado vacío.
@@ -155,6 +162,18 @@ func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Ov
 			out.WAN.SpeedtestServer = last.ServerName
 		}
 	}
+}
+
+// fmtContractPlan formatea el par contratado para el campo plan del overview:
+// enteros sin decimales ("600/100 Mbps"), decimales con un decimal.
+func fmtContractPlan(down, up float64) string {
+	trim := func(v float64) string {
+		if v == float64(int64(v)) {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'f', 1, 64)
+	}
+	return trim(down) + "/" + trim(up) + " Mbps"
 }
 
 // handleRouters: {routers: [Router…]}.
