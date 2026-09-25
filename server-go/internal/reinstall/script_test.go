@@ -269,3 +269,51 @@ func TestTokenPushPreservesServerFP(t *testing.T) {
 		}
 	}
 }
+
+// FORK: with a Trust the script moves the agent to the HTTPS address, writes
+// the root to the router, verifies its downloads - including the self-heal's
+// - against it, and pins the server. Without one nothing of that appears.
+func TestScriptWithTrust(t *testing.T) {
+	root := "-----BEGIN CERTIFICATE-----\nMIIBtestroot\n-----END CERTIFICATE-----\n"
+	fp := strings.Repeat("ab", 32)
+	// A pin derived for the old address is replaced by the trust's.
+	s := reinstall.Script("test-router", strings.Repeat("a1", 32), "http://192.0.2.10:3000", strings.Repeat("99", 32),
+		map[string]string{}, reinstall.Trust{ServerURL: "https://192.0.2.10:3443", ServerFP: fp, CAPEM: []byte(root)})
+	for _, want := range []string{
+		`SERVER="https://192.0.2.10:3443"`,
+		"cat > /etc/netpulse-ca.pem <<'CAEOF'\n" + strings.TrimSpace(root) + "\nCAEOF",
+		`curl -fsSL $CURL_TLS`,
+		`wget -q $WGET_TLS`,
+		`SERVER_FP="` + fp + `"`,
+		`ctls="--cacert /etc/netpulse-ca.pem"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script lacks %q", want)
+		}
+	}
+	if out, err := exec.Command("sh", "-n", "-c", s).CombinedOutput(); err != nil {
+		t.Fatalf("not valid sh: %v\n%s", err, out)
+	}
+
+	plain := reinstall.Script("test-router", strings.Repeat("a1", 32), "http://192.0.2.10:3000", "", map[string]string{})
+	if !strings.Contains(plain, "rm -f /etc/netpulse-ca.pem") {
+		t.Error("a script without a root leaves a stale one on the router")
+	}
+	if strings.Contains(s, "rm -f /etc/netpulse-ca.pem") {
+		t.Error("a script with a root removes it")
+	}
+	if strings.Contains(s, strings.Repeat("99", 32)) {
+		t.Error("the pin passed in survived the trust's")
+	}
+	if !strings.Contains(plain, `SERVER_FP=""`) {
+		t.Error("a script without a pin sets one")
+	}
+	for _, notWant := range []string{"CAEOF", "https://"} {
+		if strings.Contains(plain, notWant) {
+			t.Errorf("a script without Trust contains %q", notWant)
+		}
+	}
+	if out, err := exec.Command("sh", "-n", "-c", plain).CombinedOutput(); err != nil {
+		t.Fatalf("not valid sh: %v\n%s", err, out)
+	}
+}

@@ -15,6 +15,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -390,5 +392,36 @@ func TestHTTPSAndHTTPSignInsKeepTheirOwnCookies(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("the session outlived logout: %d", res.StatusCode)
+	}
+}
+
+// The install line carries the root and the pin once HTTPS is on, and the
+// printf that writes the root reproduces it exactly.
+func TestTheInstallLineCarriesTheRoot(t *testing.T) {
+	ts, mgr := makeHTTPSTestServer(t)
+	_, _, before := createAgentToken(t, ts, "test-router")
+	if strings.Contains(before, "NPCA") || strings.Contains(before, "--server-fp") {
+		t.Fatalf("with HTTPS off the line changed: %s", before)
+	}
+	if err := mgr.SetEnabled(true, "test"); err != nil {
+		t.Fatal(err)
+	}
+	_, _, line := createAgentToken(t, ts, "test-router-2")
+	wantServer := fmt.Sprintf("--server=https://192.168.50.2:%d", mgr.Status().Port)
+	for _, want := range []string{`--cacert "$NPCA"`, "NPCA=$(mktemp)", "--server-fp=" + mgr.Fingerprint(), wantServer} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("install line lacks %q:\n%s", want, line)
+		}
+	}
+	dir := t.TempDir()
+	// Up to the download: create the file, write the root, show where.
+	upTo := line[:strings.Index(line, " && curl")]
+	upTo = strings.Replace(upTo, "$(mktemp)", dir+"/ca.pem", 1)
+	if out, err := exec.Command("sh", "-c", upTo).CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	got, _ := os.ReadFile(dir + "/ca.pem")
+	if string(got) != string(mgr.CA().RootPEM()) {
+		t.Fatalf("the line writes:\n%s\nwant:\n%s", got, mgr.CA().RootPEM())
 	}
 }

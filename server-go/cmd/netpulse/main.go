@@ -52,6 +52,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/poller"
 	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
+	"github.com/gnacho/netpulse/server-go/internal/reinstall"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
@@ -599,6 +600,13 @@ func run() error {
 	if serverFPFunc == nil && serverFP == "" && tlsMgr.Available() {
 		serverFPFunc = tlsMgr.Fingerprint
 	}
+	legacyFP := func() string {
+		if serverFPFunc != nil {
+			return serverFPFunc()
+		}
+		return serverFP
+	}
+	arm.SetTrust(func(base string) reinstall.Trust { return tlsmode.AgentTrust(tlsMgr, legacyFP, base) })
 
 	// Speedtest WAN periódico (#511): store + runner + scheduler. Las
 	// alertas de "velocidad por debajo del plan" se emiten por el MISMO

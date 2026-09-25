@@ -6,6 +6,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/tlscert"
+	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 )
 
 // newDiscoveryTestServer: server mínimo con cfg configurable (autoenroll y
@@ -180,5 +183,49 @@ func TestAutoenrollTokenStableAndRotatable(t *testing.T) {
 	s.cfg.AgentAutoenroll = false
 	if s.checkAutoenrollToken(t3) {
 		t.Fatal("checkAutoenrollToken debe rechazar con el flag apagado")
+	}
+}
+
+// FORK: with HTTPS on, the reply also says where HTTPS is and which key to
+// pin - as hints, since nothing in a UDP reply is authenticated - and never
+// sends a router to a loopback address.
+func TestDiscoveryAnswerCarriesHTTPSHints(t *testing.T) {
+	s := newDiscoveryTestServer(t, false)
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	m := tlsmode.New(tlsmode.Options{
+		DB: s.db, DataDir: t.TempDir(), Port: port,
+		NewServer: func(addr string, h http.Handler) *http.Server { return &http.Server{Addr: addr, Handler: h} },
+		CAOptions: func(o tlscert.CAOptions) tlscert.CAOptions {
+			o.Addrs = func() ([]net.IP, error) { return []net.IP{net.ParseIP("192.168.50.2")}, nil }
+			o.Hostname = func() (string, error) { return "monitor-box", nil }
+			o.SearchDomains = func() []string { return nil }
+			return o
+		},
+	})
+	if err := m.Start(http.NotFoundHandler()); err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	s.tlsMgr = m
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	if resp := probeAndWait(t, addr); resp.URLHTTPS != "" || resp.ServerFP != "" {
+		t.Fatalf("HTTPS off, yet hints were sent: %+v", resp)
+	}
+	if err := m.SetEnabled(true, "test"); err != nil {
+		t.Fatal(err)
+	}
+	resp := probeAndWait(t, addr)
+	if resp.URLHTTPS != "https://192.168.50.2:"+strconv.Itoa(port) || resp.ServerFP != m.Fingerprint() {
+		t.Fatalf("hints: %+v", resp)
+	}
+	if resp.URL != "http://127.0.0.1:3457" {
+		t.Fatalf("the plain URL changed: %q", resp.URL)
 	}
 }

@@ -527,3 +527,37 @@ func TestFirstReachableAvoidsLoopbackAndBridges(t *testing.T) {
 		t.Fatalf("with only a bridge, it is still better than nothing: got %s", got)
 	}
 }
+
+func TestAgentTrust(t *testing.T) {
+	r := newRig(t, nil)
+	legacy := func() string { return "legacy-pin" }
+	if tr := AgentTrust(r.m, legacy, "http://192.168.50.2:3000"); tr.ServerURL != "" || tr.ServerFP != "" || tr.CAPEM != nil {
+		t.Fatalf("HTTPS off, plain base: %+v", tr)
+	}
+	if tr := AgentTrust(r.m, legacy, "https://192.168.50.2:3443"); tr.ServerFP != "legacy-pin" || tr.ServerURL != "" {
+		t.Fatalf("HTTPS off, https base keeps its legacy pin: %+v", tr)
+	}
+	if tr := AgentTrust(nil, legacy, "http://192.168.50.2:3000"); tr.ServerURL != "" {
+		t.Fatalf("no manager: %+v", tr)
+	}
+	_ = r.m.SetEnabled(true, "test")
+	want := fmt.Sprintf("https://192.168.50.2:%d", r.port)
+	for _, base := range []string{
+		"http://192.168.50.2:3000",
+		"http://monitor-box.example.lan:3000", // a name the leaf carries...
+		"http://127.0.0.1:3000",               // ...and loopback, which it must not hand out
+		"http://198.51.100.1:3000",            // an address it does not name
+	} {
+		tr := AgentTrust(r.m, legacy, base)
+		if base == "http://monitor-box.example.lan:3000" {
+			if tr.ServerURL != fmt.Sprintf("https://monitor-box.example.lan:%d", r.port) {
+				t.Errorf("%s -> %s", base, tr.ServerURL)
+			}
+		} else if tr.ServerURL != want {
+			t.Errorf("%s -> %s, want %s", base, tr.ServerURL, want)
+		}
+		if tr.ServerFP != r.m.Fingerprint() || len(tr.CAPEM) == 0 {
+			t.Errorf("%s: pin or root missing: %+v", base, tr)
+		}
+	}
+}

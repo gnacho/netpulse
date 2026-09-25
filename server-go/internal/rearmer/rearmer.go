@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
@@ -176,7 +177,14 @@ type Rearmer struct {
 
 	mu        sync.Mutex
 	lastRearm map[string]time.Time
+
+	// FORK: how a reinstalled agent should reach the server (HTTPS). Set
+	// once at start-up, possibly after the supervisor is already running.
+	trust atomic.Pointer[func(base string) reinstall.Trust]
 }
+
+// SetTrust sets how reinstalled agents reach the server. FORK.
+func (r *Rearmer) SetTrust(f func(base string) reinstall.Trust) { r.trust.Store(&f) }
 
 // New construye un Rearmer. engine puede ser nil (sin alertas; tests).
 // pollWait <= 0 → PollWait.
@@ -380,7 +388,11 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 		}
 	}
 	if err := r.rotateTokenAtomic(slug, func(t string) error {
-		_, err := r.pool.Run(host, reinstall.Script(slug, t, publicURL, reinstall.ServerFP(publicURL), reinstall.Digests()), ReinstallSSHWait)
+		var trust []reinstall.Trust
+		if f := r.trust.Load(); f != nil {
+			trust = append(trust, (*f)(publicURL))
+		}
+		_, err := r.pool.Run(host, reinstall.Script(slug, t, publicURL, reinstall.ServerFP(publicURL), reinstall.Digests(), trust...), ReinstallSSHWait)
 		return err
 	}); err != nil {
 		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)

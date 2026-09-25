@@ -33,6 +33,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 )
 
 // discoveryProbeV es la única versión de probe aceptada.
@@ -61,6 +63,11 @@ type discoveryResponse struct {
 	URL          string `json:"url"`
 	Autoenroll   bool   `json:"autoenroll"`
 	PairingToken string `json:"pairing_token,omitempty"`
+	// FORK: with HTTPS on, where to reach it and the key to pin. These are
+	// hints: nothing in a UDP reply is authenticated, so a receiver that
+	// pins ServerFP from here is trusting whoever answered first.
+	URLHTTPS string `json:"url_https,omitempty"`
+	ServerFP string `json:"server_fp,omitempty"`
 }
 
 // autoenrollTokenTTL: el token de red rota cuando su ts de generación
@@ -161,6 +168,9 @@ func (s *server) answerDiscovery(pc net.PacketConn, src net.Addr) {
 		Type:       "netpulse-server",
 		URL:        fmt.Sprintf("http://%s:%d", local.IP.String(), port),
 		Autoenroll: s.autoenrollEnabled(),
+	}
+	if tr := tlsmode.AgentTrust(s.tlsMgr, nil, resp.URL); tr.ServerURL != "" {
+		resp.URLHTTPS, resp.ServerFP = tr.ServerURL, tr.ServerFP
 	}
 	if resp.Autoenroll {
 		tok, err := s.getAutoenrollToken()

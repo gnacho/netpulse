@@ -5,7 +5,27 @@
 // importa rearmer y ninguno de los dos puede importar al otro.
 package reinstall
 
-import "github.com/gnacho/netpulse/server-go/internal/agentbin"
+import (
+	"strings"
+
+	"github.com/gnacho/netpulse/server-go/internal/agentbin"
+)
+
+// Trust is how an agent reaches the server over HTTPS. FORK.
+//
+// The zero value leaves the script behaving as before. With a CA, the script
+// writes the root to the router - over the SSH session it runs in, whose host
+// key the server has verified - and downloads verify the server against it,
+// so the agent token in the request header is not handed to whoever answers.
+// The binary's sha256 was always checked; this protects the token.
+type Trust struct {
+	ServerURL string // replaces the URL given to Script, e.g. https://host:3443
+	ServerFP  string // written as NETPULSE_SERVER_FP: what the agent pins
+	CAPEM     []byte // the root to verify downloads with
+}
+
+// caPath is where the router keeps the root.
+const caPath = "/etc/netpulse-ca.pem"
 
 // Script construye el POSIX sh que se ejecuta en el router: instala el
 // agente completo (binario verificado por sha256, config .env, init procd
@@ -20,7 +40,34 @@ import "github.com/gnacho/netpulse/server-go/internal/agentbin"
 // server lo pudo derivar (ServerFP), va en el .env para que el agente no
 // entre en bucle fatal de "HTTPS requiere NETPULSE_SERVER_FP"; vacío = el
 // comportamiento previo (env sin FP).
-func Script(slug, token, serverURL, serverFP string, digests map[string]string) string {
+//
+// FORK: trust, when given, is how the agent should reach the server now -
+// the HTTPS address with the private CA - and wins over serverURL and
+// serverFP; its root is written to the router to verify downloads with.
+func Script(slug, token, serverURL, serverFP string, digests map[string]string, trust ...Trust) string {
+	var tr Trust
+	if len(trust) > 0 {
+		tr = trust[0]
+	}
+	if tr.ServerURL != "" {
+		serverURL = tr.ServerURL
+	}
+	if tr.ServerFP != "" {
+		serverFP = tr.ServerFP
+	}
+	// Without a root, one left from an earlier install (a CA since replaced)
+	// would make every https download fail against it.
+	caSetup := "\nrm -f " + caPath + "\n"
+	if len(tr.CAPEM) > 0 {
+		caSetup = `
+# FORK: the server's root, to verify downloads with (written over this SSH
+# session, so it is the server's own)
+cat > ` + caPath + ` <<'CAEOF'
+` + strings.TrimSpace(string(tr.CAPEM)) + `
+CAEOF
+chmod 644 ` + caPath + `
+`
+	}
 	return `#!/bin/sh
 set -e
 INIT=/etc/init.d/netpulse-agent
@@ -30,6 +77,10 @@ SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
 SERVER_FP="` + serverFP + `"
+` + caSetup + `
+# FORK: verify https downloads against the server's root when there is one
+CURL_TLS=""; WGET_TLS=""
+if [ -f ` + caPath + ` ]; then CURL_TLS="--cacert ` + caPath + `"; WGET_TLS="--ca-certificate=` + caPath + `"; fi
 
 # Detectar arquitectura del router y el digest esperado del binario embebido
 ARCH=$(uname -m)
@@ -53,9 +104,9 @@ esac
 
 # Descargar el binario del propio server (auth por token)
 if command -v curl >/dev/null 2>&1; then
-	curl -fsSL --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new
+	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new
 else
-	wget -q -T 60 -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"
+	wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"
 fi
 
 # Verificación sha256 contra el digest embebido (#463); vacío = sin verificar
@@ -130,10 +181,12 @@ selfheal_binary() {
 	url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"
 	logger -t netpulse-agent "self-heal: binario ausente, descargando de $NETPULSE_SERVER"
 	tmp=/tmp/netpulse-agent.$$
+	local ctls="" wtls=""
+	if [ -f /etc/netpulse-ca.pem ]; then ctls="--cacert /etc/netpulse-ca.pem"; wtls="--ca-certificate=/etc/netpulse-ca.pem"; fi
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL -m 120 -H "Authorization: Bearer $NETPULSE_TOKEN" -o "$tmp" "$url" || return 1
+		curl -fsSL $ctls -m 120 -H "Authorization: Bearer $NETPULSE_TOKEN" -o "$tmp" "$url" || return 1
 	else
-		wget -q -T 60 -O "$tmp" --header="Authorization: Bearer $NETPULSE_TOKEN" "$url" || return 1
+		wget -q $wtls -T 60 -O "$tmp" --header="Authorization: Bearer $NETPULSE_TOKEN" "$url" || return 1
 	fi
 	chmod 0755 "$tmp" && mv "$tmp" /usr/sbin/netpulse-agent || { rm -f "$tmp"; return 1; }
 	logger -t netpulse-agent "self-heal: binario restaurado"

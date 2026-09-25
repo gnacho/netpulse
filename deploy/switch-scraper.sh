@@ -31,6 +31,11 @@ fi
 : "${AGENT_SLUG:?AGENT_SLUG no definido en $ENV_FILE}"
 : "${NETPULSE_URL:=http://127.0.0.1:3000}"
 : "${INTERVAL:=300}"
+# FORK: with NETPULSE_URL on https, the server's root to verify it against
+# (DATA_DIR/tls/ca.pem on the server itself). Never skip verification: the
+# push carries the agent token.
+CA_ARG=""
+[ -n "${NETPULSE_CA:-}" ] && CA_ARG="--cacert ${NETPULSE_CA}"
 TOKEN_FILE="${TOKEN_FILE:-/opt/netpulse/${AGENT_SLUG}.token}"
 
 TOKEN="$(cat "$TOKEN_FILE")"
@@ -104,7 +109,7 @@ PAYLOAD="{\"router\":\"${AGENT_SLUG}\",\"ts\":${TS},\"version\":\"scraper-2.0\",
 
 SIG=$(printf '%s' "$PAYLOAD" | openssl dgst -sha256 -hmac "$TOKEN" 2>/dev/null | awk '{print $NF}')
 
-HTTP_CODE=$(curl -s -o /tmp/${AGENT_SLUG}-response -w '%{http_code}' -m 10 -X POST "${NETPULSE_URL}/api/ingest/agent" \
+HTTP_CODE=$(curl -s $CA_ARG -o /tmp/${AGENT_SLUG}-response -w '%{http_code}' -m 10 -X POST "${NETPULSE_URL}/api/ingest/agent" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "X-Agent-Signature: ${SIG}" \

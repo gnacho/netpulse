@@ -35,6 +35,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/reinstall"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 	"github.com/gnacho/netpulse/server-go/internal/uninstall"
 	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
@@ -456,15 +457,25 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	if s.cfg != nil && s.cfg.SSHKeyPath != "" {
 		sshKeyArg = " --ssh-key=" + s.cfg.SSHKeyPath
 	}
-	// #851: HTTPS exige pinning SPKI. On-box el server conoce su propio FP;
-	// detrás de un proxy TLS, install-agent.sh lo deriva del certificado.
-	fpArg := ""
-	if scheme == "https" && s.serverFP != "" {
-		fpArg = " --server-fp=" + s.serverFP
+	// FORK: with HTTPS on, the line points the agent at it and pins the
+	// root; the root travels inside the line - copied from the admin's own
+	// session - so the binary download, token included, is verified too.
+	caArg, fpArg := "", ""
+	if tr := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, server); tr.ServerURL != "" {
+		server = tr.ServerURL
+		pemEsc := strings.ReplaceAll(strings.TrimSpace(string(tr.CAPEM)), "\n", `\n`)
+		caArg = fmt.Sprintf("NPCA=$(mktemp) && printf '%%b' '%s\\n' > \"$NPCA\" && ", pemEsc)
+		fpArg = " --server-fp=" + tr.ServerFP
+	} else if tr.ServerFP != "" {
+		fpArg = " --server-fp=" + tr.ServerFP
+	}
+	curlCA := ""
+	if caArg != "" {
+		curlCA = ` --cacert "$NPCA"`
 	}
 	return fmt.Sprintf(
-		"curl -fsSL -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary=/tmp/netpulse-agent --host=%s --server=%s --slug=%s --token=%s%s%s",
-		token, server, slug, host, server, slug, token, sshKeyArg, fpArg)
+		"%scurl -fsSL%s -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary=/tmp/netpulse-agent --host=%s --server=%s --slug=%s --token=%s%s%s",
+		caArg, curlCA, token, server, slug, host, server, slug, token, fpArg, sshKeyArg)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.
@@ -822,7 +833,9 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	// y, si el SSH falla, se restaura el hash previo en kv — así el agente no
 	// se queda empujando un token que el servidor ya no acepta (401 eterno).
 	token, err := s.rotateAgentTokenAtomic(slug, func(t string) error {
-		_, runErr := s.pool.Run(host, reinstall.Script(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests()), 300*time.Second)
+		// FORK: with HTTPS on, the agent moves to it and pins the root.
+		trust := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, serverURL)
+		_, runErr := s.pool.Run(host, reinstall.Script(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), trust), 300*time.Second)
 		return runErr
 	})
 	if err != nil {
