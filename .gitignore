@@ -42,3 +42,4 @@ server-go/internal/agentbin/agents/netpulse-agent-*
 
 # Rutas prerenderizadas por idioma (generadas, ver web/build-langs.mjs)
 web/langs/
+web/node_modules/
