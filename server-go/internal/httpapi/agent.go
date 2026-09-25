@@ -454,9 +454,15 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	if s.cfg != nil && s.cfg.SSHKeyPath != "" {
 		sshKeyArg = " --ssh-key=" + s.cfg.SSHKeyPath
 	}
+	// #851: HTTPS exige pinning SPKI. On-box el server conoce su propio FP;
+	// detrás de un proxy TLS, install-agent.sh lo deriva del certificado.
+	fpArg := ""
+	if scheme == "https" && s.serverFP != "" {
+		fpArg = " --server-fp=" + s.serverFP
+	}
 	return fmt.Sprintf(
-		"curl -fsSL -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary=/tmp/netpulse-agent --host=%s --server=%s --slug=%s --token=%s%s",
-		token, server, slug, host, server, slug, token, sshKeyArg)
+		"curl -fsSL -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary=/tmp/netpulse-agent --host=%s --server=%s --slug=%s --token=%s%s%s",
+		token, server, slug, host, server, slug, token, sshKeyArg, fpArg)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.

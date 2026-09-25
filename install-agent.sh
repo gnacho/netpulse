@@ -20,7 +20,8 @@
 #   --token X       token del equipo (obligatorio salvo --uninstall y --pairing-token)
 #   --pairing-token X  token de pairing (bootstrap: el agente contacta al servidor
 #                   y obtiene el token real automáticamente; Fase 9 R3)
-#   --server-fp X   SHA-256 SPKI del servidor en hex (obligatorio si --server es https://)
+#   --server-fp X   SHA-256 SPKI del servidor en hex (https). Opcional: si no
+#                   se pasa, el script lo deriva del propio certificado (#851)
 #   --ssh-user X    usuario SSH del router (default: root)
 #   --ssh-key X     ruta a la identidad privada SSH (opción -i). OBLIGATORIA en
 #                   el server para routers que solo autorizan la llave del
@@ -127,6 +128,33 @@ if [ -z "$TOKEN" ] && [ -z "$PAIRING_TOKEN" ]; then
     fatal 11 "falta --token (o --pairing-token para bootstrap)"
 fi
 SERVER="${SERVER%/}"
+
+# ------------------------------------------------------- TLS fingerprint ---
+# HTTPS exige pinning SPKI: el agente falla en bucle fatal sin
+# NETPULSE_SERVER_FP (#851). Si no se pasó --server-fp, lo derivamos del
+# propio certificado del servidor: quien instala ya confía en ese servidor
+# (le entrega el token) y este paso es puramente mecánico.
+case "$SERVER" in
+    https://*)
+        SERVER_FP=$(printf '%s' "$SERVER_FP" | sed -e 's|^sha256/||' -e 's|[^0-9a-fA-F]||g' | tr 'A-F' 'a-f')
+        if [ -z "$SERVER_FP" ]; then
+            HOSTPORT=${SERVER#https://}
+            HOSTPORT=${HOSTPORT%%/*}
+            SNI=${HOSTPORT%%:*}
+            case "$HOSTPORT" in *:*) : ;; *) HOSTPORT="$HOSTPORT:443" ;; esac
+            info "derivando NETPULSE_SERVER_FP del certificado de $SERVER"
+            if command -v openssl >/dev/null 2>&1; then
+                SERVER_FP=$(echo | openssl s_client -connect "$HOSTPORT" -servername "$SNI" 2>/dev/null \
+                    | openssl x509 -pubkey -noout 2>/dev/null \
+                    | openssl pkey -pubin -outform DER 2>/dev/null \
+                    | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } \
+                    | cut -d' ' -f1)
+            fi
+            [ -n "$SERVER_FP" ] || fatal 14 "servidor HTTPS sin --server-fp y no pude derivarlo (¿openssl disponible? ¿SNI correcto?). Obtén el SPKI sha256 del cert y repite con --server-fp X"
+            ok "NETPULSE_SERVER_FP=$SERVER_FP"
+        fi
+        ;;
+esac
 
 ssh -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true \
     || fatal 13 "no hay SSH a $SSH (¿dropbear + clave autorizada?)"

@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -34,7 +35,11 @@ func BuildTransport(serverURL, fp string) (*http.Transport, error) {
 	}
 	fp = Normalize(fp)
 	if fp == "" {
-		return nil, fmt.Errorf("HTTPS requiere NETPULSE_SERVER_FP (pinning SPKI, sin InsecureSkipVerify)")
+		host := serverURL
+		if u, err := url.Parse(serverURL); err == nil && u.Host != "" {
+			host = u.Host
+		}
+		return nil, fmt.Errorf("HTTPS requiere NETPULSE_SERVER_FP (pinning SPKI, sin InsecureSkipVerify); consíguelo con install-agent.sh (lo deriva del certificado automáticamente) o con: openssl s_client -connect %s </dev/null 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum", host)
 	}
 	want := fp
 	t.TLSClientConfig = &tls.Config{
