@@ -1350,7 +1350,7 @@ function shotUrl(view) {
   const raw = (document.documentElement.lang || 'en').slice(0, 2)
   const lang = (raw === 'es' || raw === 'en') ? raw : 'en' // solo existen capturas es/en
   const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
-  return `assets/shot-${view}-${lang}-${theme}.webp`
+  return `/assets/shot-${view}-${lang}-${theme}.webp`
 }
 
 // Capturas propias de una página estática: <img data-hashot="device"> se sirve
@@ -1360,7 +1360,7 @@ function renderHashots() {
   const lang = (raw === 'es' || raw === 'en') ? raw : 'en'
   const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
   document.querySelectorAll('img[data-hashot]').forEach(img => {
-    img.src = `assets/ha-${img.dataset.hashot}-${lang}-${theme}.webp`
+    img.src = `/assets/ha-${img.dataset.hashot}-${lang}-${theme}.webp`
   })
 }
 
