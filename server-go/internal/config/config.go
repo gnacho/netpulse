@@ -77,6 +77,13 @@ type Config struct {
 	TLSPort    int
 	TLSCert    string // NETPULSE_TLS_CERT: path del cert del usuario (opcional; junto a TLSKey)
 	TLSKey     string // NETPULSE_TLS_KEY: path de la clave del usuario (opcional; junto a TLSCert)
+	// FORK: HTTPS with the server's own private CA (internal/tlsmode).
+	// NETPULSE_TLS_ENABLED=1 with NETPULSE_TLS_CA=1 turns it on and locks
+	// the switch in Settings > HTTPS; NETPULSE_HTTP_MODE locks the mode.
+	// Anything else leaves both to the admin there.
+	TLSCA    bool     // NETPULSE_TLS_CA=1: the extra listener serves a leaf of the private CA
+	TLSNames []string // NETPULSE_TLS_NAMES: extra names/addresses for the certificate
+	HTTPMode string   // NETPULSE_HTTP_MODE: full | migrate | redirect ("" = from the UI)
 	// RTLConsolePass (NETPULSE_RTL_PASS): contraseña web de la consola de
 	// switches RTLPlayground (KP-9000, #639) para el sondeo HTTP de firmware
 	// y uptime. Default "1234" (la que trae el firmware tras flasheo).
@@ -508,6 +515,40 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		errs.issues = append(errs.issues, issue{"NETPULSE_TLS_CERT/NETPULSE_TLS_KEY", "both must be set together"})
 	}
 
+	// FORK: the private CA and what plain HTTP may do (internal/tlsmode).
+	tlsCA := false
+	switch v := strings.TrimSpace(env["NETPULSE_TLS_CA"]); v {
+	case "", "0":
+	case "1":
+		tlsCA = true
+		switch {
+		case !tlsEnabled:
+			errs.issues = append(errs.issues, issue{"NETPULSE_TLS_CA", "needs NETPULSE_TLS_ENABLED=1 (or leave both unset and turn HTTPS on in Settings)"})
+		case tlsCert != "":
+			errs.issues = append(errs.issues, issue{"NETPULSE_TLS_CA", "cannot be used with NETPULSE_TLS_CERT/NETPULSE_TLS_KEY: the certificate comes from one or the other"})
+		}
+	default:
+		errs.issues = append(errs.issues, issue{"NETPULSE_TLS_CA", "Invalid enum value. Expected '0' | '1'"})
+	}
+	var tlsNames []string
+	for _, n := range strings.Split(env["NETPULSE_TLS_NAMES"], ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			tlsNames = append(tlsNames, n)
+		}
+	}
+	httpMode := strings.TrimSpace(env["NETPULSE_HTTP_MODE"])
+	switch httpMode {
+	case "", "full":
+	case "migrate", "redirect":
+		// Only the private-CA HTTPS knows how to restrict plain HTTP; with
+		// HTTPS configured otherwise the setting would be silently ignored.
+		if onbox || (tlsEnabled && !tlsCA) {
+			errs.issues = append(errs.issues, issue{"NETPULSE_HTTP_MODE", "only applies to HTTPS with the private CA (NETPULSE_TLS_CA=1, or HTTPS turned on in Settings)"})
+		}
+	default:
+		errs.issues = append(errs.issues, issue{"NETPULSE_HTTP_MODE", "Invalid enum value. Expected 'full' | 'migrate' | 'redirect'"})
+	}
+
 	if len(errs.issues) > 0 {
 		return nil, &errs
 	}
@@ -585,6 +626,9 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		TLSPort:           tlsPort,
 		TLSCert:           tlsCert,
 		TLSKey:            tlsKey,
+		TLSCA:             tlsCA,
+		TLSNames:          tlsNames,
+		HTTPMode:          httpMode,
 	}, nil
 }
 

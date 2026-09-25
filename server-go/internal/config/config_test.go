@@ -203,3 +203,40 @@ func TestLoadPollIntervalInvalido(t *testing.T) {
 		}
 	}
 }
+
+// FORK: the private CA and plain-HTTP mode settings.
+func TestPrivateCASettings(t *testing.T) {
+	base := func(kv ...string) map[string]string {
+		env := map[string]string{"AUTH_PASS": "segura-y-larga"}
+		for i := 0; i+1 < len(kv); i += 2 {
+			env[kv[i]] = kv[i+1]
+		}
+		return env
+	}
+	cfg, err := Load(base(), t.TempDir())
+	if err != nil || cfg.TLSCA || cfg.HTTPMode != "" {
+		t.Fatalf("defaults: %+v %v", cfg, err)
+	}
+	cfg, err = Load(base("NETPULSE_TLS_ENABLED", "1", "NETPULSE_TLS_CA", "1",
+		"NETPULSE_TLS_NAMES", " monitor-box.example.lan , 192.168.50.2 ,", "NETPULSE_HTTP_MODE", "migrate"), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TLSCA || cfg.HTTPMode != "migrate" ||
+		strings.Join(cfg.TLSNames, "|") != "monitor-box.example.lan|192.168.50.2" {
+		t.Fatalf("parsed %+v", cfg)
+	}
+	for name, env := range map[string]map[string]string{
+		"CA without TLS":          base("NETPULSE_TLS_CA", "1"),
+		"CA with a user cert":     base("NETPULSE_TLS_ENABLED", "1", "NETPULSE_TLS_CA", "1", "NETPULSE_TLS_CERT", "/c", "NETPULSE_TLS_KEY", "/k"),
+		"CA not 0 or 1":           base("NETPULSE_TLS_CA", "yes"),
+		"an unknown mode":         base("NETPULSE_HTTP_MODE", "strict"),
+		"a mode with a user cert": base("NETPULSE_TLS_ENABLED", "1", "NETPULSE_TLS_CERT", "/c", "NETPULSE_TLS_KEY", "/k", "NETPULSE_HTTP_MODE", "redirect"),
+		"a mode with self-signed": base("NETPULSE_TLS_ENABLED", "1", "NETPULSE_HTTP_MODE", "migrate"),
+		"a mode on-box":           base("NETPULSE_ONBOX", "1", "NETPULSE_HTTP_MODE", "migrate"),
+	} {
+		if _, err := Load(env, t.TempDir()); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

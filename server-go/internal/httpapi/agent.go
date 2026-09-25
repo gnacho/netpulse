@@ -259,6 +259,8 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.agents.Ingest(&p)
+	// FORK: which agents still report over plain HTTP (Settings > HTTPS).
+	s.noteAgentTransport(p.Router, auth.IsSecureRequest(r))
 	// Fase 18 (#452): persistir scans pasivos de vecinos si el payload trae
 	// datos wireless. Se guardan incluso si el payload no es "fresco" para no
 	// perder la muestra recién recibida.

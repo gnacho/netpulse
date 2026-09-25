@@ -25,6 +25,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 )
 
 const pairingTokenKey = "pairing.token"
@@ -138,6 +139,15 @@ func (s *server) handleAgentPair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	adminToken := stored != "" && subtle.ConstantTimeCompare([]byte(body.PairingToken), []byte(stored)) == 1
+	// FORK: once plain HTTP is being retired, the admin pairing token - which
+	// can create or rotate any agent - is not taken over it: pair over https,
+	// where the agent proves the server's key first (pair/hello). Refusing
+	// cannot un-send it, but keeps anything from relying on it.
+	if adminToken && s.tlsMgr != nil && s.tlsMgr.Enabled() && s.tlsMgr.Mode() != tlsmode.Full && !auth.IsSecureRequest(r) {
+		writeError(w, http.StatusForbidden, "use_https",
+			"pair over https: this server no longer takes its pairing token over plain HTTP")
+		return
+	}
 	if !adminToken {
 		if !s.checkAutoenrollToken(body.PairingToken) {
 			writeError(w, http.StatusUnauthorized, "invalid_pairing_token")

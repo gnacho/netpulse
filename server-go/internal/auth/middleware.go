@@ -66,6 +66,18 @@ func isAgentReportPath(path string) bool {
 			strings.HasSuffix(path, "/firmware-result"))
 }
 
+// IsAgentRequest reports whether r is a route agents and embedders call with
+// their own token - pushes, reports, pairing, config backups - rather than a
+// person with a session or an API token. FORK: while HTTPS is being rolled
+// out these keep working over plain HTTP until each agent has moved, when
+// everything else is already refused there.
+func IsAgentRequest(r *http.Request) bool {
+	p := r.URL.Path
+	return p == "/api/ingest/agent" || p == "/api/agents/pair" || p == "/api/agents/pair/hello" ||
+		p == "/api/agents/executor-token" || isAgentReportPath(p) ||
+		(p == "/api/config-backup" && r.Method == http.MethodPost)
+}
+
 // isAnonymousPath indica si la ruta no requiere sesión (auth propia en el handler).
 func isAnonymousPath(path string) bool {
 	if path == "/api/health" || path == "/api/auth/login" ||

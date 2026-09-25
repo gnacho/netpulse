@@ -48,6 +48,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
+	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 	"github.com/gnacho/netpulse/server-go/internal/updater"
 	"github.com/gnacho/netpulse/server-go/internal/wifisle"
 )
@@ -91,6 +92,10 @@ type Deps struct {
 	// ServerFP: fingerprint SPKI del servidor (hex). Vacío si no es on-box.
 	// Se devuelve en /api/agents/pair para que el agentepine el TLS.
 	ServerFP string
+	// FORK: TLS is the HTTPS manager (private CA, plain-HTTP mode) behind
+	// Settings > HTTPS. nil: no such settings, and HSTS follows the legacy
+	// rule below.
+	TLS *tlsmode.Manager
 	// FORK: ServerFPFunc, when set, is read on every request and wins over
 	// ServerFP: a user-supplied certificate can change key on renewal, and a
 	// fingerprint captured at start-up would hand agents a stale pin.
@@ -152,6 +157,9 @@ type server struct {
 	serverFP string
 	// FORK: see Deps.ServerFPFunc.
 	serverFPFunc func() string
+	// FORK: see Deps.TLS; agentTransport is each agent's last transport.
+	tlsMgr         *tlsmode.Manager
+	agentTransport sync.Map // slug -> agentTransport
 
 	// Anti-martilleo de POST /api/refresh (global, min 5 s entre sondeos).
 	refreshMu   sync.Mutex
@@ -245,6 +253,7 @@ func NewHandler(d Deps) http.Handler {
 		agentHub:        d.AgentHub,
 		serverFP:        d.ServerFP,
 		serverFPFunc:    d.ServerFPFunc,
+		tlsMgr:          d.TLS,
 		ingestLimit:     newIPRateLimit(ingestRateLimit, ingestRateWindow),
 		upgrades:        newUpgradeTracker(),
 		tokenStore:      d.TokenStore,
@@ -546,7 +555,8 @@ func NewHandler(d Deps) http.Handler {
 	if s.tokenStore != nil {
 		tv = s.tokenStore
 	}
-	return requestID(security.Middleware(auth.IsSecureRequest, auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))))
+	s.registerHTTPS(mux)
+	return requestID(security.Middleware(s.hsts, auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en
