@@ -16,7 +16,7 @@ import { manufacturerLabel, relTime } from '@/i18n'
 import type { Device, DistributionNode, Router, WanInfo, WGPeer } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { StatusPill } from '@/components/StatusPill'
-import { DEVICE_ICONS } from '@/components/DeviceRow'
+import { DEVICE_ICONS, deviceIcon } from '@/components/DeviceRow'
 import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
 import type { ChipNode, DistNodeView, RouterNode, TopologyModel } from './model'
@@ -249,7 +249,7 @@ function TooltipCard({
           <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
             {tip.devices.length === 0 && <div className="text-caption text-text-muted">—</div>}
             {tip.devices.map((d) => {
-              const Icon = DEVICE_ICONS[d.type] ?? Laptop
+              const Icon = deviceIcon(d)
               return (
                 <div key={d.id} className="flex items-center gap-2 text-caption">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.75} />
@@ -1710,7 +1710,8 @@ const ChipGroup = memo(function ChipGroup({
   const d = chip.device
   const S = chip.size
   const half = S / 2
-  const Icon = DEVICE_ICONS[d.type] ?? DEVICE_ICONS.desconocido
+  // #845: el icono elegido por el usuario manda sobre el tipo deducido.
+  const Icon = deviceIcon(d)
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
   // Host hipervisor (Proxmox…): mini NODO redondo con sus CTs detrás, no un
   // chip cuadrado más (#656 feedback). Acento cuando viene de la API PVE.
