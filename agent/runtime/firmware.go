@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,7 +62,7 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 	}
 
 	log.Info("[netpulse-agent] firmware_upgrade iniciado", "upgrade_id", cmd.UpgradeID, "url", cmd.TargetURL)
-	hc := &http.Client{Transport: transport, Timeout: 5 * time.Minute}
+	hc := &http.Client{Transport: firmwareTransport(opts.Server, cmd.TargetURL, transport), Timeout: 5 * time.Minute}
 
 	dest := filepath.Join(firmwareTmpDir, fmt.Sprintf("firmware-%d.bin", cmd.UpgradeID))
 
@@ -265,4 +266,33 @@ func readPendingFirmware() (*pendingFirmware, error) {
 
 func clearPendingFirmware() error {
 	return os.Remove(firmwarePendingFile)
+}
+
+// firmwareTransport is the transport to download a firmware image with.
+//
+// The image URL is whatever the admin configured, usually a vendor mirror on
+// the public internet. The transport pinned to this agent's server only
+// accepts the server's own key, so once the server is reached over HTTPS it
+// refused every such mirror. Only a URL on the server itself keeps the pinned
+// transport; anything else is checked against the system's CAs. The image's
+// checksum is verified after download either way.
+func firmwareTransport(server, target string, serverTransport http.RoundTripper) http.RoundTripper {
+	su, err1 := url.Parse(server)
+	tu, err2 := url.Parse(target)
+	if err1 == nil && err2 == nil && su.Scheme == tu.Scheme &&
+		strings.EqualFold(su.Hostname(), tu.Hostname()) && effectivePort(su) == effectivePort(tu) {
+		return serverTransport
+	}
+	return http.DefaultTransport.(*http.Transport).Clone()
+}
+
+// effectivePort is u's port, or the scheme's default when it has none.
+func effectivePort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	return "80"
 }
