@@ -561,3 +561,23 @@ func TestAgentTrust(t *testing.T) {
 		}
 	}
 }
+
+// In the stricter modes a plain-HTTP answer to a person deletes the plain
+// session cookie; an agent's is left alone.
+func TestStricterModesDropThePlainSessionCookie(t *testing.T) {
+	r := newRig(t, nil)
+	setMode(t, r, Migrate)
+	h := r.m.PlainHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	for path, want := range map[string]bool{"/devices": true, "/api/overview": true, "/api/ingest/agent": false} {
+		method := "GET"
+		if path == "/api/ingest/agent" {
+			method = "POST"
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(method, "http://192.168.50.2:3000"+path, nil))
+		got := strings.Contains(strings.Join(rec.Header().Values("Set-Cookie"), ";"), "session=; Path=/")
+		if got != want {
+			t.Errorf("%s: cookie deleted = %v, want %v", path, got, want)
+		}
+	}
+}

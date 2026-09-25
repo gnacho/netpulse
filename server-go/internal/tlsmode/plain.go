@@ -32,6 +32,7 @@ func (m *Manager) PlainHandler(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			dropPlainSession(w)
 			if m.redirectBrowser(w, r) {
 				return
 			}
@@ -45,6 +46,7 @@ func (m *Manager) PlainHandler(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			dropPlainSession(w)
 			if m.redirectBrowser(w, r) {
 				return
 			}
@@ -56,6 +58,14 @@ func (m *Manager) PlainHandler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		}
 	})
+}
+
+// dropPlainSession deletes the session cookie of a sign-in made over plain
+// HTTP. A browser sends it with every http:// request - an old bookmark,
+// access by address, which HSTS never covers - in clear, until it expires;
+// once plain HTTP is no longer for people, it is only a liability.
+func dropPlainSession(w http.ResponseWriter) {
+	w.Header().Add("Set-Cookie", auth.ClearSessionCookie)
 }
 
 // redirectBrowser sends a page load to the HTTPS address. API calls are not
