@@ -342,3 +342,53 @@ func TestThePasswordCheckIsRateLimited(t *testing.T) {
 		t.Fatalf("after six wrong passwords: %d, want 429", last)
 	}
 }
+
+// A sign-in over HTTPS gets its own Secure cookie, so it does not replace -
+// and cannot lock out - a sign-in over plain HTTP on the same host.
+func TestHTTPSAndHTTPSignInsKeepTheirOwnCookies(t *testing.T) {
+	ts, _ := makeHTTPSTestServer(t)
+	_, _, plainSet := loginCookie(t, ts.URL, "admin", "test123456")
+	if !strings.HasPrefix(plainSet, "session=") || strings.Contains(plainSet, "Secure") {
+		t.Fatalf("plain sign-in: %q", plainSet)
+	}
+	_, _, secureSet := loginCookie(t, ts.URL, "admin", "test123456", "X-Forwarded-Proto", "https")
+	if !strings.HasPrefix(secureSet, "__Host-session=") || !strings.Contains(secureSet, "; Secure") {
+		t.Fatalf("secure sign-in: %q", secureSet)
+	}
+	secureVal := strings.SplitN(strings.TrimPrefix(secureSet, "__Host-session="), ";", 2)[0]
+
+	// Both cookies at once, as a browser sends them over HTTPS.
+	req, _ := http.NewRequest("GET", ts.URL+"/api/auth/me", nil)
+	req.Header.Set("Cookie", "session=stale.value; __Host-session="+secureVal)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("the Secure session was not accepted: %d", res.StatusCode)
+	}
+
+	// Signing out over HTTPS clears both, and ends the session.
+	req, _ = http.NewRequest("POST", ts.URL+"/api/auth/logout", nil)
+	req.Header.Set("Cookie", "__Host-session="+secureVal)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	cleared := strings.Join(res.Header.Values("Set-Cookie"), " | ")
+	if !strings.Contains(cleared, "session=; Path=/") || !strings.Contains(cleared, "__Host-session=; Path=/; HttpOnly; Secure") {
+		t.Fatalf("logout cleared: %s", cleared)
+	}
+	req, _ = http.NewRequest("GET", ts.URL+"/api/auth/me", nil)
+	req.Header.Set("Cookie", "__Host-session="+secureVal)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	res, _ = http.DefaultClient.Do(req)
+	res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("the session outlived logout: %d", res.StatusCode)
+	}
+}

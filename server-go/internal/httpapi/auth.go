@@ -48,6 +48,10 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	auth.HandleLogout(s.db, s.secret, r)
 	w.Header().Set("Set-Cookie", auth.ClearSessionCookie)
+	// FORK: and the Secure one, which can only be deleted over HTTPS.
+	if auth.IsSecureRequest(r) {
+		w.Header().Add("Set-Cookie", auth.ClearSecureSessionCookie)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

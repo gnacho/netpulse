@@ -31,6 +31,14 @@ import (
 const (
 	// SessionCookie es el nombre de la cookie de sesión.
 	SessionCookie = "session"
+	// SecureSessionCookie is the session cookie's name when it is Secure.
+	// FORK: cookies are shared by every port and scheme of a host, so a
+	// Secure "session" set over HTTPS could not be replaced by a login over
+	// plain HTTP, and was not sent there - signing in over plain HTTP looped
+	// while both were in use. Under its own name each keeps its own cookie.
+	// The __Host- prefix makes browsers insist it is Secure, host-only and
+	// for Path=/.
+	SecureSessionCookie = "__Host-session"
 	// SessionTTLMS = 30 días en ms (Max-Age=2592000).
 	SessionTTLMS = 30 * 24 * 60 * 60 * 1000
 	// LockMS = 5 minutos en ms.
@@ -200,6 +208,33 @@ func sessionCookieValue(r *http.Request) string {
 	return m[1]
 }
 
+// FORK: secureCookieRe finds the Secure session cookie (SecureSessionCookie).
+var secureCookieRe = regexp.MustCompile(`(?:^|;\s*)__Host-session=([^;]+)`)
+
+// sessionCookieValues is every session cookie the request carries, the
+// Secure one first. Browsers only send that one over HTTPS.
+func sessionCookieValues(r *http.Request) []string {
+	var out []string
+	if m := secureCookieRe.FindStringSubmatch(r.Header.Get("Cookie")); m != nil {
+		out = append(out, m[1])
+	}
+	if v := sessionCookieValue(r); v != "" {
+		out = append(out, v)
+	}
+	return out
+}
+
+// validSessionID is the first of the request's session cookies that verifies
+// and names a live session, or "".
+func validSessionID(d *db.DB, secret string, r *http.Request) string {
+	for _, v := range sessionCookieValues(r) {
+		if id := VerifySessionCookie(secret, v); id != "" && GetSession(d, id) != nil {
+			return id
+		}
+	}
+	return ""
+}
+
 // IsSecureRequest: URL https, o primer X-Forwarded-Proto == "https" SOLO si
 // TRUST_PROXY (despliegue detrás de proxy con TLS terminado fuera). Sin
 // TRUST_PROXY, un cliente de la LAN no puede forzar la cookie Secure
@@ -233,8 +268,12 @@ func CookieSecureFlag(cfg *config.Config, r *http.Request) bool {
 
 // BuildSessionCookie compone el header Set-Cookie (literal de auth.js:119-129).
 func BuildSessionCookie(cfg *config.Config, r *http.Request, signedID string, maxAgeSec int64) string {
+	name := SessionCookie
+	if CookieSecureFlag(cfg, r) {
+		name = SecureSessionCookie
+	}
 	parts := []string{
-		fmt.Sprintf("%s=%s", SessionCookie, signedID),
+		fmt.Sprintf("%s=%s", name, signedID),
 		"Path=/",
 		"HttpOnly",
 		"SameSite=Lax",
@@ -248,6 +287,10 @@ func BuildSessionCookie(cfg *config.Config, r *http.Request, signedID string, ma
 
 // ClearSessionCookie borra la cookie (literal, SIN Secure aunque sea HTTPS).
 const ClearSessionCookie = "session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+
+// ClearSecureSessionCookie deletes the Secure session cookie. FORK: it can
+// only be deleted over HTTPS, and must carry Secure to be accepted.
+const ClearSecureSessionCookie = "__Host-session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
 
 // ---------------------------------------------------------------------------
 // Sesiones en SQLite
@@ -324,7 +367,7 @@ type SessionUser struct {
 // SessionUserFromRequest: cookie válida + sesión en DB con user_id NO nulo +
 // usuario existente (una sesión legacy sin user_id NO autentica).
 func SessionUserFromRequest(d *db.DB, secret string, r *http.Request) *SessionUser {
-	id := VerifySessionCookie(secret, sessionCookieValue(r))
+	id := validSessionID(d, secret, r)
 	sess := GetSession(d, id)
 	if sess == nil || !sess.UserID.Valid {
 		return nil
@@ -338,11 +381,7 @@ func SessionUserFromRequest(d *db.DB, secret string, r *http.Request) *SessionUs
 
 // SessionIDFromRequest devuelve el id de sesión válida (sin exigir user_id).
 func SessionIDFromRequest(d *db.DB, secret string, r *http.Request) string {
-	id := VerifySessionCookie(secret, sessionCookieValue(r))
-	if GetSession(d, id) == nil {
-		return ""
-	}
-	return id
+	return validSessionID(d, secret, r)
 }
 
 // ---------------------------------------------------------------------------
@@ -463,7 +502,11 @@ func HandleLogin(d *db.DB, secret string, r *http.Request, username, password st
 
 // HandleLogout destruye la sesión de la cookie (si existe y es válida).
 func HandleLogout(d *db.DB, secret string, r *http.Request) {
-	if id := SessionIDFromRequest(d, secret, r); id != "" {
-		DestroySession(d, id)
+	// FORK: every session cookie the request carries - over HTTPS that can
+	// be both the Secure one and a plain one from a sign-in over HTTP.
+	for _, v := range sessionCookieValues(r) {
+		if id := VerifySessionCookie(secret, v); id != "" {
+			DestroySession(d, id)
+		}
 	}
 }
