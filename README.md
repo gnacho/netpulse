@@ -64,9 +64,13 @@ Three rules shape everything it does:
   (reserving an IP, blocking a device, orchestrating services, flashing
   firmware) is an explicit, admin-triggered action, applied with a config
   snapshot and automatic rollback.
-- **No cloud, no accounts, no telemetry.** One static Go binary with the web
-  app embedded, running on a small box inside your LAN. SQLite for the time
-  series, WAL mode, no external services.
+- **No cloud, no accounts.** One static Go binary with the web app embedded,
+  running on a small box inside your LAN. SQLite for the time series, WAL
+  mode, no external services. The only call home is a daily anonymous
+  instance count: a random id, the version and the OS/architecture, nothing
+  else (no IPs are stored, no network data ever leaves your LAN). It exists
+  only to know how many instances run and stay updated; turn it off any time
+  with `NETPULSE_TELEMETRY=0`.
 - **Free as in forever.** AGPL-3.0, no premium tier waiting behind a paywall.
   If it's useful to you, a star on GitHub is the way to say thanks.
 

@@ -65,9 +65,13 @@ Tres reglas dan forma a todo lo que hace:
   una IP, bloquear un dispositivo, orquestar servicios, actualizar
   firmware) es una acción explícita que lanzas tú, con snapshot de
   configuración y rollback automático.
-- **Sin nube, sin cuentas, sin telemetría.** Un único binario Go estático con
-  la web embebida, corriendo en una caja pequeña dentro de tu LAN. SQLite
-  para las series temporales, modo WAL, sin servicios externos.
+- **Sin nube, sin cuentas.** Un único binario Go estático con la web
+  embebida, corriendo en una caja pequeña dentro de tu LAN. SQLite para las
+  series temporales, modo WAL, sin servicios externos. La única llamada a
+  casa es un contador diario anónimo de instancias: un id aleatorio, la
+  versión y el OS/arquitectura, nada más (no se guardan IPs ni sale ningún
+  dato de tu red). Existe solo para saber cuántas instancias corren y se
+  actualizan; desactívalo cuando quieras con `NETPULSE_TELEMETRY=0`.
 - **Libre de verdad, para siempre.** AGPL-3.0, sin versión premium esperando
   detrás de un pago. Si te sirve, una estrella en GitHub es la forma de dar
   las gracias.
