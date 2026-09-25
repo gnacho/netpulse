@@ -425,3 +425,21 @@ func TestTheInstallLineCarriesTheRoot(t *testing.T) {
 		t.Fatalf("the line writes:\n%s\nwant:\n%s", got, mgr.CA().RootPEM())
 	}
 }
+
+// With no agent reporting, the list is empty, never null: the page reads its
+// length, and a null took the whole Settings page down.
+func TestTheAgentListIsNeverNull(t *testing.T) {
+	ts, mgr := makeHTTPSTestServer(t)
+	_ = mgr.SetEnabled(true, "test")
+	req, _ := http.NewRequest("GET", ts.URL+"/api/settings/https", nil)
+	req.Header.Set("Cookie", "session="+ts.cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if !strings.Contains(string(body), `"agentsOnHttp":[]`) {
+		t.Fatalf("status: %s", body)
+	}
+}

@@ -28,7 +28,7 @@ interface HttpsStatus {
   pending?: Mode
   pendingUntil?: string
   error?: string
-  agentsOnHttp: { slug: string; lastSeen: string }[]
+  agentsOnHttp?: { slug: string; lastSeen: string }[] | null
 }
 
 type Change = { enabled?: boolean; mode?: Mode; force?: boolean }
@@ -56,7 +56,8 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
         setLoadError(r.status === 404 ? '' : t('settings.https.loadError'))
         return
       }
-      setSt((await r.json()) as HttpsStatus)
+      const d = (await r.json()) as HttpsStatus
+      setSt({ ...d, agentsOnHttp: d.agentsOnHttp ?? [], names: d.names ?? [] })
     } catch {
       setLoadError(t('settings.https.loadError'))
     }
@@ -262,13 +263,13 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
           </div>
 
           {/* Agents that would stop reporting */}
-          {st.agentsOnHttp.length > 0 && (
+          {(st.agentsOnHttp ?? []).length > 0 && (
             <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-[11px] text-warn">
               <div className="mb-1 flex items-center gap-1.5 font-semibold">
                 <TriangleAlert className="h-3.5 w-3.5" /> {t('settings.https.agentsOnHttp')}
               </div>
               <ul className="space-y-0.5">
-                {st.agentsOnHttp.map((a) => (
+                {(st.agentsOnHttp ?? []).map((a) => (
                   <li key={a.slug}>
                     {a.slug} · {new Date(a.lastSeen).toLocaleString()}
                   </li>

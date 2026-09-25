@@ -97,7 +97,9 @@ func (s *server) agentsByTransport(tls bool) []agentOnHTTP {
 		last[k.(string)] = v.(agentTransport)
 		return true
 	})
-	var out []agentOnHTTP
+	// Never nil: the page reads the list's length, and a JSON null there
+	// took the whole Settings page down.
+	out := []agentOnHTTP{}
 	for slug, t := range last {
 		if t.TLS != tls || time.Since(t.At) > agentTransportWindow || !s.agentExists(slug) {
 			continue
