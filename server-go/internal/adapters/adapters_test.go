@@ -310,7 +310,7 @@ func TestParsePortStates(t *testing.T) {
 	if len(ports) != 4 {
 		t.Fatalf("ports: %d", len(ports))
 	}
-	if ports[0].Speed != "2 Gbps" || !ports[0].Up {
+	if ports[0].Speed != "2.5 Gbps" || !ports[0].Up {
 		t.Fatalf("p0: %+v", ports[0])
 	}
 	if ports[1].Speed != "1 Gbps" {

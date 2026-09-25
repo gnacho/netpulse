@@ -87,9 +87,12 @@ const (
 	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
 	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
 	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`
-	// CmdPortStates: "<name> <operstate> <speed>" por interfaz.
+	// CmdPortStates: "<name> <operstate> <speed> <dsa?>" por interfaz. El
+	// 4º campo marca "dsa" cuando la interfaz es un conduit DSA (tiene el
+	// directorio /sys/class/net/<i>/dsa): es el puerto CPU interno del
+	// switch, no una boca usable, y se excluye del panel (#847).
 	CmdPortStates = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
-		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1)"; done`
+		`echo "$i $(cat $d/operstate 2>/dev/null) $(cat $d/speed 2>/dev/null || echo -1) $([ -d $d/dsa ] && echo dsa || echo -)"; done`
 	// CmdProcArp (#377): tabla ARP del kernel, "IP dev mac ..." por línea.
 	CmdProcArp     = "cat /proc/net/arp 2>/dev/null"
 	CmdBoardJSON   = "cat /etc/board.json 2>/dev/null"
@@ -201,7 +204,24 @@ type WirelessClient struct {
 type PortState struct {
 	Name  string `json:"name"`
 	Up    bool   `json:"up"`
-	Speed string `json:"speed"` // "1 Gbps" | "100 Mbps" | "—"
+	Speed string `json:"speed"` // "1 Gbps" | "2.5 Gbps" | "100 Mbps" | "—"
+	// DSA: la interfaz es un conduit DSA (puerto CPU interno del switch,
+	// /sys/class/net/<i>/dsa presente). No es una boca usable: se excluye
+	// de los puertos del panel (#847).
+	DSA bool `json:"dsa,omitempty"`
+}
+
+// fmtSpeedMbps (#847) formatea la velocidad de enlace: Gbps con decimales
+// cuando no es múltiplo de 1000 (2500 → "2.5 Gbps"; antes truncaba a
+// entero y mentía "2 Gbps") y Mbps en otro caso.
+func fmtSpeedMbps(mbps int) string {
+	if mbps >= 1000 {
+		if mbps%1000 == 0 {
+			return strconv.Itoa(mbps/1000) + " Gbps"
+		}
+		return strconv.FormatFloat(float64(mbps)/1000, 'f', 1, 64) + " Gbps"
+	}
+	return strconv.Itoa(mbps) + " Mbps"
 }
 
 // PortLayout es una boca del layout canónico (/etc/board.json).
@@ -647,7 +667,7 @@ func ParseWirelessUplink(raw []byte) (bool, error) {
 // Puertos
 // ---------------------------------------------------------------------------
 
-// ParsePortStates parsea líneas "<name> <operstate> <speed>".
+// ParsePortStates parsea líneas "<name> <operstate> <speed> [dsa]".
 func ParsePortStates(out string) []PortState {
 	ports := []PortState{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -661,13 +681,13 @@ func ParsePortStates(out string) []PortState {
 		mbps, _ := strconv.Atoi(p[2])
 		speed := "—"
 		if mbps > 0 {
-			if mbps >= 1000 {
-				speed = strconv.Itoa(mbps/1000) + " Gbps"
-			} else {
-				speed = strconv.Itoa(mbps) + " Mbps"
-			}
+			speed = fmtSpeedMbps(mbps)
 		}
-		ports = append(ports, PortState{Name: p[0], Up: p[1] == "up", Speed: speed})
+		st := PortState{Name: p[0], Up: p[1] == "up", Speed: speed}
+		if len(p) > 3 && p[3] == "dsa" {
+			st.DSA = true
+		}
+		ports = append(ports, st)
 	}
 	return ports
 }
@@ -768,7 +788,8 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			wanName = "wan"
 		} else if _, ok := byName["pppoe-wan"]; ok {
 			wanName = "eth1"
-		} else if _, ok := byName["eth1"]; ok {
+		} else if st, ok := byName["eth1"]; ok && !st.DSA {
+			// #847: un conduit DSA no es la WAN física aunque se llame eth1.
 			wanName = "eth1"
 		}
 		if wanName != "" {
@@ -790,6 +811,12 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 	extras := make([]EthPort, 0)
 	for _, st := range states {
 		if used[st.Name] {
+			continue
+		}
+		// #847: el conduit DSA (puerto CPU interno del switch, /sys .../dsa)
+		// no es una boca usable: su velocidad es interna y sin sentido para
+		// el usuario (p. ej. 150 Mbps en BPI-R4). Se excluye del panel.
+		if st.DSA {
 			continue
 		}
 		if skipRe.MatchString(st.Name) {

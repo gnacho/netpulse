@@ -138,6 +138,53 @@ func TestBuildEthPortsConIfaces(t *testing.T) {
 	}
 }
 
+// TestFmtSpeedMbps (#847): 2500 debe ser "2.5 Gbps", no truncar a "2 Gbps".
+func TestFmtSpeedMbps(t *testing.T) {
+	cases := map[int]string{
+		10:    "10 Mbps",
+		100:   "100 Mbps",
+		1000:  "1 Gbps",
+		2500:  "2.5 Gbps",
+		5000:  "5 Gbps",
+		10000: "10 Gbps",
+	}
+	for mbps, want := range cases {
+		if got := fmtSpeedMbps(mbps); got != want {
+			t.Errorf("fmtSpeedMbps(%d) = %q, want %q", mbps, got, want)
+		}
+	}
+}
+
+// TestParsePortStatesDSA (#847): el 4º campo marca el conduit DSA.
+func TestParsePortStatesDSA(t *testing.T) {
+	states := ParsePortStates("eth1 up 2500 dsa\nlan1 up 1000 -\nsfp-wan up 2500\n")
+	if len(states) != 3 {
+		t.Fatalf("states: %+v", states)
+	}
+	if !states[0].DSA || states[0].Speed != "2.5 Gbps" {
+		t.Fatalf("conduit eth1: %+v", states[0])
+	}
+	if states[1].DSA {
+		t.Fatalf("lan1 no es conduit: %+v", states[1])
+	}
+	if states[2].DSA {
+		t.Fatalf("línea sin 4º campo no es conduit: %+v", states[2])
+	}
+}
+
+// TestBuildEthPortsSkipsDsaConduit (#847): los conduits DSA se excluyen del
+// panel aunque figuren en /sys (su velocidad interna no es una boca usable).
+func TestBuildEthPortsSkipsDsaConduit(t *testing.T) {
+	states := []PortState{
+		{Name: "lan1", Up: true, Speed: "1 Gbps"},
+		{Name: "eth1", Up: true, Speed: "150 Mbps", DSA: true},
+	}
+	ports := BuildEthPorts(nil, states, nil, nil)
+	if len(ports) != 1 || ports[0].ID != "lan1" {
+		t.Fatalf("el conduit DSA debe excluirse: %+v", ports)
+	}
+}
+
 func TestParsePingSummary(t *testing.T) {
 	out := "3 packets transmitted, 3 received, 0% packet loss, time 2003ms\nrtt min/avg/max/mdev = 8.123/9.456/10.999/0.5 ms"
 	lat, loss := ParsePingSummary(out)
@@ -241,7 +288,7 @@ func TestParseWireless(t *testing.T) {
 
 func TestParsePortsYLayout(t *testing.T) {
 	states := ParsePortStates("eth0 up 2500\nlan1 up 1000\nlan2 down -1\nwlan0 up 0\n")
-	if len(states) != 4 || states[0].Speed != "2 Gbps" || states[2].Up || states[2].Speed != "—" {
+	if len(states) != 4 || states[0].Speed != "2.5 Gbps" || states[2].Up || states[2].Speed != "—" {
 		t.Fatalf("states: %+v", states)
 	}
 	board := `{"network":{"lan":{"ports":["lan1","lan2","lan3","lan4"],"device":"br-lan"},"wan":{"device":"wan","protocol":"dhcp"}}}`
