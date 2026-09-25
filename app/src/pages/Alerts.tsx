@@ -68,8 +68,9 @@ const SEVERITY: Record<AlertSeverity, { icon: LucideIcon; tile: string; dot: str
 
 const PEER_ICONS = { movil: Smartphone, portatil: Laptop, tablet: Tablet } as const
 
-// #827: la alerta de desconocido "atiende" directamente: el clic navega al
-// alta del dispositivo en vez de solo desplegar el panel de contexto.
+// FORK: the MAC an unknown-device alert can be identified by. Upstream (#827)
+// sent the click straight to the identify dialog; here the click expands the
+// alert, and this feeds its identify action and the row icon instead.
 const intakeMacOf = (ev: FeedEvent) => (ev.type === 'unknown-device' ? ev.vars?.mac : undefined)
 
 // ---------------------------------------------------------------------------
@@ -238,7 +239,7 @@ function ContextPanel({ ev, animateIn }: { ev: FeedEvent; animateIn: boolean }) 
           }
           className="group inline-flex items-center gap-1 text-caption font-semibold text-accent transition-colors hover:text-accent/80"
         >
-          {t('alerts.viewDevice')}
+          {t('alerts.findDevice')}
           <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
         </Link>
       )}

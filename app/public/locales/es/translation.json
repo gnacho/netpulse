@@ -41,6 +41,10 @@
     "unreadCount_one": "aviso sin leer",
     "unreadCount_other": "avisos sin leer",
     "viewRouter": "Ver router",
+    "findDevice": "Localizar este dispositivo",
+    "identifyDevice": "Identificar este dispositivo",
+    "connectedTo": "Conectado a",
+    "port": "Puerto",
     "wgPeerCaption": "Peer WireGuard · wg0",
     "reason": {
       "temp": "temperatura",
