@@ -47,6 +47,8 @@ func TestIsSSEStreamPath(t *testing.T) {
 		"/api/stream":                true,
 		"/api/agents/gw/stream":      true,
 		"/api/agents/gateway/stream": true,
+		"/api/update/stream":         true, // FORK
+		"/api/update/status":         false,
 		"/api/agents/gw/binary":      false,
 		"/api/agents/gw/refresh":     false,
 		"/api/agents/gw/stream/x":    false,

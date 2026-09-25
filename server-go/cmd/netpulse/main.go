@@ -80,7 +80,10 @@ const (
 
 // isSSEStreamPath devuelve true para los endpoints SSE de larga duración.
 func isSSEStreamPath(p string) bool {
-	if p == "/api/stream" {
+	// FORK: /api/update/stream is an SSE stream too; with the normal write
+	// timeout it was cut every time and the update dialog fell back to
+	// polling.
+	if p == "/api/stream" || p == "/api/update/stream" {
 		return true
 	}
 	return strings.HasPrefix(p, "/api/agents/") && strings.HasSuffix(p, "/stream")
