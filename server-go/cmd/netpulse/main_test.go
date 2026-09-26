@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
 // nilNotifier implementa alerts.Notifier; un puntero nil a este tipo,
@@ -115,3 +116,34 @@ func TestWebhookHostForLog(t *testing.T) {
 		t.Fatalf("el host no debe contener credenciales: %q", s)
 	}
 }
+
+// #874: urgencyGate — default (sin kv) = solo urgentes; con
+// "<canal>.urgent_only"="false" = pasa también lo no urgente.
+func TestUrgencyGateDefaultUrgentOnly(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spy := &spyN{}
+	g := urgencyGate{n: spy, kv: &mainKVAdapter{db: d.DB}, key: "ntfy.urgent_only"}
+
+	g.Notify(alerts.AlertEvent{ID: "u1", Urgent: true})
+	g.Notify(alerts.AlertEvent{ID: "n1", Urgent: false})
+	if len(spy.got) != 1 || spy.got[0].ID != "u1" {
+		t.Fatalf("default: %+v", spy.got)
+	}
+
+	if _, err := d.DB.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+		"ntfy.urgent_only", "false"); err != nil {
+		t.Fatal(err)
+	}
+	g.Notify(alerts.AlertEvent{ID: "n2", Urgent: false})
+	if len(spy.got) != 2 || spy.got[1].ID != "n2" {
+		t.Fatalf("con urgent_only=false: %+v", spy.got)
+	}
+}
+
+type spyN struct{ got []alerts.AlertEvent }
+
+func (s *spyN) Notify(ev alerts.AlertEvent) { s.got = append(s.got, ev) }

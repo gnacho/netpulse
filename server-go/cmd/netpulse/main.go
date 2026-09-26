@@ -371,18 +371,22 @@ func run() error {
 	// interfaz NO es nil y `if n != nil` de notifierChain no lo filtra →
 	// panic al Notify. Filtrar ANTES de empaquetar.
 	if pushNotifier != nil || webhookNotifier != nil || telegramNotifier != nil || ntfyNotifier != nil {
+		// #874: el filtro de urgencia vive en cada canal (default: solo
+		// urgentes, comportamiento de siempre). El engine dispara todo lo que
+		// pasa config; cada gate recorta según su kv <canal>.urgent_only.
+		kv := &mainKVAdapter{db: dbHandle.DB}
 		chain := notifierChain{}
 		if pushNotifier != nil {
-			chain = append(chain, pushNotifier)
+			chain = append(chain, urgencyGate{n: pushNotifier, kv: kv, key: "push.urgent_only"})
 		}
 		if webhookNotifier != nil {
-			chain = append(chain, webhookNotifier)
+			chain = append(chain, urgencyGate{n: webhookNotifier, kv: kv, key: "webhook.urgent_only"})
 		}
 		if telegramNotifier != nil {
-			chain = append(chain, telegramNotifier)
+			chain = append(chain, urgencyGate{n: telegramNotifier, kv: kv, key: "telegram.urgent_only"})
 		}
 		if ntfyNotifier != nil {
-			chain = append(chain, ntfyNotifier)
+			chain = append(chain, urgencyGate{n: ntfyNotifier, kv: kv, key: "ntfy.urgent_only"})
 		}
 		adapter.AlertsEngine().SetNotifier(chain)
 	}
@@ -754,6 +758,27 @@ func checkAgentToken(d *db.DB, slug, token string) bool {
 	sum := sha256.Sum256([]byte(token))
 	got := hex.EncodeToString(sum[:])
 	return subtle.ConstantTimeCompare([]byte(got), []byte(stored)) == 1
+}
+
+// urgencyGate implementa alerts.Notifier filtrando por urgencia según un
+// flag por canal en kv (#874). Default (sin flag o "true") = solo urgentes,
+// el comportamiento histórico; con "false" el canal recibe todo lo que pasa
+// el filtro de config del engine. La lectura es por evento: los cambios en
+// la UI aplican sin reiniciar.
+type urgencyGate struct {
+	n   alerts.Notifier
+	kv  *mainKVAdapter
+	key string
+}
+
+func (g urgencyGate) Notify(ev alerts.AlertEvent) {
+	if !ev.Urgent {
+		if v, ok := g.kv.Get(g.key); ok && v == "false" {
+			g.n.Notify(ev)
+		}
+		return
+	}
+	g.n.Notify(ev)
 }
 
 // notifierChain implementa alerts.Notifier encadenando varios notifiers

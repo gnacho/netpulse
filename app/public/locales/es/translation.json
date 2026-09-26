@@ -1664,7 +1664,9 @@
       "tokenSet": "configurado",
       "incomplete": "El topic es obligatorio",
       "sendTest": "Probar",
-      "hint": "El topic funciona como contraseña: quien lo conozca recibirá las notificaciones. Usa uno largo y aleatorio."
+      "hint": "El topic funciona como contraseña: quien lo conozca recibirá las notificaciones. Usa uno largo y aleatorio.",
+      "urgentOnly": "Solo alertas urgentes",
+      "urgentOnlyHint": "Activado: el canal recibe solo las alertas urgentes (recomendado, el comportamiento habitual). Desactívalo para que llegue todo lo que aparece en el feed según el nivel elegido en Alertas."
     },
     "mqtt": {
       "title": "MQTT / Home Assistant",

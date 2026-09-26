@@ -1664,7 +1664,9 @@
       "tokenSet": "set",
       "incomplete": "Topic is required",
       "sendTest": "Test",
-      "hint": "The topic acts as a password: anyone who knows it receives the notifications. Use a long random one."
+      "hint": "The topic acts as a password: anyone who knows it receives the notifications. Use a long random one.",
+      "urgentOnly": "Urgent alerts only",
+      "urgentOnlyHint": "On: the channel receives only urgent alerts (recommended, the usual behavior). Turn it off to receive everything that shows in the feed according to the level chosen in Alerts."
     },
     "mqtt": {
       "title": "MQTT / Home Assistant",

@@ -10,10 +10,11 @@ import (
 )
 
 type ntfyConfigResponse struct {
-	Server   string `json:"server"`
-	Topic    string `json:"topic"`
-	TokenSet bool   `json:"tokenSet"`
-	Enabled  bool   `json:"enabled"`
+	Server     string `json:"server"`
+	Topic      string `json:"topic"`
+	TokenSet   bool   `json:"tokenSet"`
+	Enabled    bool   `json:"enabled"`
+	UrgentOnly bool   `json:"urgentOnly"`
 }
 
 func (s *server) registerNtfyRoutes(mux *http.ServeMux) {
@@ -22,10 +23,11 @@ func (s *server) registerNtfyRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/settings/ntfy", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg := ntfy.LoadConfig(adapter)
 		writeJSON(w, http.StatusOK, ntfyConfigResponse{
-			Server:   cfg.Server,
-			Topic:    cfg.Topic,
-			TokenSet: cfg.Token != "",
-			Enabled:  cfg.Enabled,
+			Server:     cfg.Server,
+			Topic:      cfg.Topic,
+			TokenSet:   cfg.Token != "",
+			Enabled:    cfg.Enabled,
+			UrgentOnly: cfg.UrgentOnly,
 		})
 	})))
 
@@ -35,6 +37,9 @@ func (s *server) registerNtfyRoutes(mux *http.ServeMux) {
 			Topic   string `json:"topic"`
 			Token   string `json:"token"`
 			Enabled bool   `json:"enabled"`
+			// UrgentOnly (#874): nil = no tocar (los bool planos no distinguen
+			// "no mandado" de false).
+			UrgentOnly *bool `json:"urgentOnly"`
 			// Clear: desactivar y limpiar el canal entero (como el disable de
 			// telegram): el PUT normal con enabled=false solo apaga.
 			Clear bool `json:"clear"`
@@ -44,7 +49,7 @@ func (s *server) registerNtfyRoutes(mux *http.ServeMux) {
 		}
 		cfg := ntfy.LoadConfig(adapter)
 		if body.Clear {
-			cfg = ntfy.Config{Server: ntfy.DefaultServer}
+			cfg = ntfy.Config{Server: ntfy.DefaultServer, UrgentOnly: true}
 		} else {
 			if body.Server != "" {
 				cfg.Server = body.Server
@@ -56,6 +61,9 @@ func (s *server) registerNtfyRoutes(mux *http.ServeMux) {
 				cfg.Token = body.Token
 			}
 			cfg.Enabled = body.Enabled
+			if body.UrgentOnly != nil {
+				cfg.UrgentOnly = *body.UrgentOnly
+			}
 		}
 		if err := ntfy.SaveConfig(adapter, cfg); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_input", err.Error())

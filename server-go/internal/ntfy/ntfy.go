@@ -26,10 +26,11 @@ import (
 )
 
 const (
-	kvKeyServer  = "ntfy.server"
-	kvKeyTopic   = "ntfy.topic"
-	kvKeyToken   = "ntfy.token"
-	kvKeyEnabled = "ntfy.enabled"
+	kvKeyServer     = "ntfy.server"
+	kvKeyTopic      = "ntfy.topic"
+	kvKeyToken      = "ntfy.token"
+	kvKeyEnabled    = "ntfy.enabled"
+	kvKeyUrgentOnly = "ntfy.urgent_only"
 
 	// DefaultServer: ntfy.sh público; un self-hosted se configura igual.
 	DefaultServer = "https://ntfy.sh"
@@ -53,6 +54,11 @@ type Config struct {
 	Topic   string `json:"topic"`
 	Token   string `json:"token,omitempty"` // write-only: nunca vuelve por la API
 	Enabled bool   `json:"enabled"`
+	// UrgentOnly (#874): true (default) = el canal recibe solo alertas
+	// urgentes (comportamiento histórico); false = todo lo que pasa el
+	// filtro de config del feed. La UI lo edita; el gate del engine lee la
+	// MISMA clave kv.
+	UrgentOnly bool `json:"urgentOnly"`
 }
 
 // LoadConfig lee la config con defaults sanos (server vacío = ntfy.sh).
@@ -72,6 +78,10 @@ func LoadConfig(kv kvStore) Config {
 	}
 	if v, ok := kv.Get(kvKeyEnabled); ok {
 		cfg.Enabled = v == "true"
+	}
+	cfg.UrgentOnly = true
+	if v, ok := kv.Get(kvKeyUrgentOnly); ok {
+		cfg.UrgentOnly = v != "false"
 	}
 	return cfg
 }
@@ -107,6 +117,13 @@ func SaveConfig(kv kvStore, cfg Config) error {
 	}
 	if err := kv.Set(kvKeyEnabled, enabled); err != nil {
 		return fmt.Errorf("save enabled: %w", err)
+	}
+	urgentOnly := "true"
+	if !cfg.UrgentOnly {
+		urgentOnly = "false"
+	}
+	if err := kv.Set(kvKeyUrgentOnly, urgentOnly); err != nil {
+		return fmt.Errorf("save urgent_only: %w", err)
 	}
 	return nil
 }

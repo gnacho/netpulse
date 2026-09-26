@@ -233,13 +233,34 @@ type spyNotifier struct{ got []AlertEvent }
 
 func (s *spyNotifier) Notify(ev AlertEvent) { s.got = append(s.got, ev) }
 
-func TestNotifierOnlyUrgentThatPass(t *testing.T) {
+// #874: el engine dispara el Notifier con TODO lo que pasa el filtro de
+// config (salvo suprimidos); el filtro de URGENCIA vive en cada canal
+// (urgencyGate en main), no aquí.
+func TestNotifierAllPassingNotSuppressed(t *testing.T) {
 	spy := &spyNotifier{}
 	e := New(nil, spy)
-	e.Emit(ev("n1", CatSystem, false)) // pasa, no urgente → sin notify
+	e.Emit(ev("n1", CatSystem, false)) // pasa, no urgente → notify (lo recorta el canal)
 	e.Emit(ev("n2", CatSystem, true))  // pasa, urgente → notify
 	e.Emit(ev("n3", CatSignal, true))  // signal:none → descartado, sin notify
-	if len(spy.got) != 1 || spy.got[0].ID != "n2" {
+	if len(spy.got) != 2 || spy.got[0].ID != "n1" || spy.got[1].ID != "n2" {
+		t.Fatalf("notifier: %+v", spy.got)
+	}
+}
+
+// Suprimidas (SuppressedBy != "") nunca disparan Notifier, urgente o no.
+func TestNotifierSuppressedNeverNotifies(t *testing.T) {
+	spy := &spyNotifier{}
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := New(d, spy)
+	// Sin grafo de supresión no hay SuppressedBy: se inyecta directo.
+	evSup := ev("s1", CatRouter, true)
+	evSup.SuppressedBy = "gateway"
+	e.Emit(evSup)
+	e.EmitOrUpdate(ev("s2", CatRouter, true))
+	if len(spy.got) != 1 || spy.got[0].ID != "s2" {
 		t.Fatalf("notifier: %+v", spy.got)
 	}
 }

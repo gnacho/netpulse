@@ -10,6 +10,7 @@ interface NtfyConfig {
   topic: string
   token: string
   enabled: boolean
+  urgentOnly: boolean
 }
 
 // NtfyCard (#766): canal ntfy (ntfy.sh o self-hosted). El topic actúa como
@@ -18,7 +19,7 @@ interface NtfyConfig {
 export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void; bare?: boolean }) {
   const { t } = useTranslation()
   const [state, setState] = useState<NtfyState>('loading')
-  const [cfg, setCfg] = useState<NtfyConfig>({ server: 'https://ntfy.sh', topic: '', token: '', enabled: false })
+  const [cfg, setCfg] = useState<NtfyConfig>({ server: 'https://ntfy.sh', topic: '', token: '', enabled: false, urgentOnly: true })
   const [tokenSet, setTokenSet] = useState(false)
   const [showToken, setShowToken] = useState(false)
   const [error, setError] = useState('')
@@ -29,7 +30,7 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive || !d) return
-        setCfg({ server: d.server || 'https://ntfy.sh', topic: d.topic || '', token: '', enabled: !!d.enabled })
+        setCfg({ server: d.server || 'https://ntfy.sh', topic: d.topic || '', token: '', enabled: !!d.enabled, urgentOnly: d.urgentOnly !== false })
         setTokenSet(!!d.tokenSet)
         setState('idle')
       })
@@ -54,6 +55,7 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
         server: cfg.server.trim() || 'https://ntfy.sh',
         topic: cfg.topic.trim(),
         enabled: cfg.enabled,
+        urgentOnly: cfg.urgentOnly,
       }
       if (cfg.token.trim()) body.token = cfg.token.trim()
       const res = await fetch('/api/settings/ntfy', {
@@ -123,6 +125,16 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
           aria-label={t('settings.ntfy.enabled')}
         />
       </div>
+
+      <div className="flex items-center justify-between gap-4 py-1">
+        <span className="text-sm font-medium text-text-primary">{t('settings.ntfy.urgentOnly')}</span>
+        <Switch
+          checked={cfg.urgentOnly}
+          onCheckedChange={(v) => setCfg((c) => ({ ...c, urgentOnly: v }))}
+          aria-label={t('settings.ntfy.urgentOnly')}
+        />
+      </div>
+      <p className="-mt-1 mb-1 text-[11px] leading-relaxed text-text-muted">{t('settings.ntfy.urgentOnlyHint')}</p>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>

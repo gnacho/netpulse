@@ -146,7 +146,9 @@ var Hints = map[string]string{
 // HintFor returns the suggestion for a slug, or "" when it does not exist.
 func HintFor(slug string) string { return Hints[slug] }
 
-// Notifier es el hook de push (Bloque C lo implementa; ahora nil/no-op).
+// Notifier es el hook de notificación externa (push/webhook/telegram/ntfy).
+// El engine dispara TODOS los eventos que pasan config (salvo suprimidos);
+// la decisión de urgencia es por canal (#874).
 // Se llama SOLO para eventos que pasan config Y son Urgent=true.
 type Notifier interface {
 	Notify(ev AlertEvent)
@@ -474,8 +476,10 @@ func (e *Engine) persistLocked(ev AlertEvent) {
 }
 
 // Emit aplica la semántica none/urgent/all EN CREACIÓN, el dedup de 5 min y
-// el cap de 100; devuelve true si el evento pasó (se guardó). Los urgentes
-// que pasan disparan el Notifier (hook de Bloque C).
+// el cap de 100; devuelve true si el evento pasó (se guardó). Los eventos
+// que pasan disparan el Notifier (hook de Bloque C) con SU suppressión; el
+// filtro por URGENCIA vive en cada canal (#874): cada transporte decide si
+// lleva solo urgentes (default) o todo.
 // Supresión topológica (#332): si el router tiene un padre offline en el
 // grafo, la alerta se guarda con SuppressedBy y NO dispara el Notifier.
 func (e *Engine) Emit(ev AlertEvent) bool {
@@ -493,7 +497,7 @@ func (e *Engine) Emit(ev AlertEvent) bool {
 	ok := e.insertaLocked(ev, now, false)
 	n := e.notifier
 	e.mu.Unlock()
-	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
+	if ok && n != nil && ev.SuppressedBy == "" {
 		n.Notify(ev)
 	}
 	return ok
@@ -521,7 +525,7 @@ func (e *Engine) EmitNoDedup(ev AlertEvent) bool {
 	ok := e.insertaLocked(ev, now, true)
 	n := e.notifier
 	e.mu.Unlock()
-	if ok && n != nil && ev.Urgent && ev.SuppressedBy == "" {
+	if ok && n != nil && ev.SuppressedBy == "" {
 		n.Notify(ev)
 	}
 	return ok
@@ -555,7 +559,7 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 			e.persistLocked(ev)
 			n := e.notifier
 			e.mu.Unlock()
-			if n != nil && ev.Urgent {
+			if n != nil {
 				n.Notify(ev)
 			}
 			return true
@@ -564,7 +568,7 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 	ok := e.insertaLocked(ev, now, false)
 	n := e.notifier
 	e.mu.Unlock()
-	if ok && n != nil && ev.Urgent {
+	if ok && n != nil {
 		n.Notify(ev)
 	}
 	return ok
