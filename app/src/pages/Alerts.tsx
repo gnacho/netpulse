@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -34,6 +34,7 @@ import type { AlertCategory, AlertConfigLevel, AlertSeverity } from '@/data/type
 import { ALERT_CATEGORIES } from '@/data/alertConfig'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
+import { RowAction } from '@/components/RowAction'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import {
   Select,
@@ -271,41 +272,7 @@ interface FeedRowProps {
   action?: { icon: LucideIcon; title: string; onClick: () => void }
 }
 
-// #862: acción de fila con icono grande y etiqueta de texto que aparece con
-// el hover de la FILA (no solo del icono). La etiqueta reserva su espacio con
-// una transición max-width, así no empuja el resto del contenido de la fila.
-// En pantallas estrechas (<sm) queda solo el icono (el hover de fila apenas
-// existe en táctil; ver issue aparte de coarse pointers).
-function RowAction({
-  icon: Icon,
-  label,
-  onClick,
-  className,
-  title,
-}: {
-  icon: LucideIcon
-  label: string
-  onClick: (e: ReactMouseEvent) => void
-  className?: string
-  title: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-1 rounded-md px-1.5 py-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100',
-        className,
-      )}
-      title={title}
-    >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-      <span className="hidden max-w-0 overflow-hidden whitespace-nowrap text-caption opacity-0 transition-all duration-200 group-hover:opacity-100 sm:inline-block sm:group-hover:max-w-40">
-        {label}
-      </span>
-    </button>
-  )
-}
+// #862: RowAction vive en components/RowAction.tsx (compartido con AlertItem).
 
 function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDismiss, action }: FeedRowProps) {
   const { t } = useTranslation()
