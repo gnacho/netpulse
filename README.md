@@ -129,12 +129,15 @@ client splits. SNMP-polled managed switches are first-class citizens too.
 - **Wi-Fi and roaming**: signal matrix per AP, 802.11r status, channel
   utilization, persistent roaming events.
 - **Alerts that find you**: temperature, new device, firmware available, WAN
-  down, agent issues; bell feed plus native Web Push to your phone.
+  down, agent issues; bell feed plus notification channels (native Web Push,
+  ntfy, Telegram and outgoing webhook). Notification channels only carry
+  alerts marked as urgent; the feed level (none / urgent / all) is configured
+  separately in Alerts.
 - **Multi-user**: bcrypt passwords, admin and viewer roles, per-user language
   (ES/EN).
 - **Installable PWA**: phone or desktop, live over SSE, light/dark themes.
 - **A good OpenWrt citizen**: native `netpulse-agent` packages (`.ipk`/`.apk`),
-  a `luci-app-netpulse` page, UCI config, procd init, watchdog. Or run the
+  a `luci-app-netpulse` page, UCI config, procd init with self-heal. Or run the
   whole server on-box.
 - **Self-updating**: the built-in updater checks for releases and applies them
   with an atomic swap.

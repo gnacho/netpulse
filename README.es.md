@@ -135,14 +135,16 @@ por SNMP también son ciudadanos de primera.
 - **Wi-Fi y roaming**: matriz de señal por AP, estado 802.11r, utilización
   por canal, eventos de roaming persistentes.
 - **Alertas que te encuentran**: temperatura, dispositivo nuevo, firmware
-  disponible, WAN caída, problemas de agente; feed en la campana más Web Push
-  nativo en el móvil.
+  disponible, WAN caída, problemas de agente; feed en la campana más canales
+  de aviso (Web Push nativo, ntfy, Telegram y webhook saliente). Los canales
+  de aviso solo llevan las alertas marcadas como urgentes; el nivel del feed
+  (ninguna / urgentes / todas) se configura aparte en Alertas.
 - **Multiusuario**: contraseñas bcrypt, roles admin y viewer, idioma por
   usuario (ES/EN).
 - **PWA instalable**: móvil o escritorio, en vivo por SSE, temas claro/oscuro.
 - **Ciudadano OpenWrt de primera**: paquetes nativos `netpulse-agent`
-  (`.ipk`/`.apk`), página `luci-app-netpulse`, config UCI, init procd y
-  watchdog. O el servidor entero en modo on-box.
+  (`.ipk`/`.apk`), página `luci-app-netpulse`, config UCI, init procd
+  con self-heal. O el servidor entero en modo on-box.
 - **Se actualiza solo**: el updater integrado comprueba releases y las aplica
   con swap atómico.
 - **MQTT + Home Assistant (opcional)**: publica el estado de la flota (salud,

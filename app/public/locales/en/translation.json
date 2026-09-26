@@ -1300,7 +1300,7 @@
     },
     "telegram": {
       "title": "Telegram notifications",
-      "description": "Receive alerts directly in Telegram. Create a bot with @BotFather and add it to a chat.",
+      "description": "Receive alerts directly in Telegram. Create a bot with @BotFather and add it to a chat. Only urgent alerts are sent.",
       "enabled": "Enable Telegram notifications",
       "botToken": "Bot token",
       "chatId": "Chat ID",
@@ -1654,7 +1654,7 @@
     },
     "ntfy": {
       "title": "ntfy",
-      "description": "Push notifications via ntfy (ntfy.sh or your own server). Reaches mobile and desktop apps without third parties.",
+      "description": "Push notifications via ntfy (ntfy.sh or your own server). Reaches mobile and desktop apps without third parties. Only urgent alerts are sent.",
       "enabled": "Enabled",
       "server": "Server",
       "topic": "Topic",
