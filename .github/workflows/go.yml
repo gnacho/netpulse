@@ -114,7 +114,9 @@ jobs:
         # -X httpapi.Version: la versión semver del último tag (rolling por
         # commit no tiene versión propia; reporta la del release más reciente).
         run: |
-          VER=$(git describe --tags --abbrev=0 || echo "0.0.0")
+          # --match 'v[0-9]*': sin filtro, git describe pilla el tag del AGENTE
+          # (agent/vX.Y.Z) y lo inyecta como versión del server (#869).
+          VER=$(git describe --tags --abbrev=0 --match 'v[0-9]*' || echo "0.0.0")
           go build -trimpath -ldflags "-s -w -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${GITHUB_SHA::7} -X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion=${AGENT_VERSION} -X github.com/gnacho/netpulse/server-go/internal/httpapi.Version=${VER}" -o netpulse ./cmd/netpulse
 
       - name: Empaqueta binario + despliegue
