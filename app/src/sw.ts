@@ -32,8 +32,15 @@ cleanupOutdatedCaches()
 // App-shell offline para navegaciones (equivale a `navigateFallback:
 // 'index.html'` de generateSW). En dev NO se registra: el SW de desarrollo
 // no precachea index.html y esta ruta serviría un HTML congelado.
+// FORK: except where a navigation is meant to reach the server itself - the
+// root certificate, the fingerprint, and API downloads (CSV exports, the
+// backup). Served from here they turned into the app's "page not found".
 if (!import.meta.env.DEV) {
-  registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')))
+  registerRoute(
+    new NavigationRoute(createHandlerBoundToURL('/index.html'), {
+      denylist: [/^\/api\//, /^\/netpulse-ca\./, /^\/fingerprint$/, /^\/health$/],
+    }),
+  )
 }
 
 // ---------------------------------------------------------------------------

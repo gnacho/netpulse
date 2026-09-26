@@ -184,12 +184,14 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
             <div className="flex flex-wrap gap-2">
               <a
                 href="/netpulse-ca.crt"
+                download
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover"
               >
                 <Download className="h-3.5 w-3.5" /> netpulse-ca.crt
               </a>
               <a
                 href="/netpulse-ca.pem"
+                download
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover"
               >
                 <Download className="h-3.5 w-3.5" /> netpulse-ca.pem
