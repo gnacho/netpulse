@@ -9,7 +9,11 @@ import "github.com/gnacho/netpulse/server-go/internal/agentbin"
 
 // Script construye el POSIX sh que se ejecuta en el router: instala el
 // agente completo (binario verificado por sha256, config .env, init procd
-// con self-heal y watchdog con su cron) de forma idempotente.
+// con self-heal) de forma idempotente. Ya NO instala el watchdog con cron
+// (#851): si el agente crashea en bucle, un reinicio a ciegas no lo arregla
+// y ensucia el log; la detección efectiva es el dead-man del servidor. La
+// caída puntual la cubre el respawn de procd; el binario tras sysupgrade lo
+// restaura el self-heal del init.
 // digests mapa arch→sha256 del binario embebido; un arch sin digest queda
 // sin verificación (build dev) en lugar de bloquear.
 // serverFP es el SPKI pin del server (#851): si serverURL es https y el
@@ -22,7 +26,6 @@ set -e
 INIT=/etc/init.d/netpulse-agent
 BIN=/usr/sbin/netpulse-agent
 ENV_FILE=/etc/netpulse-agent.env
-WATCHDOG=/usr/sbin/netpulse-watchdog
 SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
@@ -63,17 +66,32 @@ fi
 chmod 0755 /tmp/netpulse-agent.new
 mv -f /tmp/netpulse-agent.new "$BIN"
 
-# Config (chmod 600)
+# Config (chmod 600). El rewrite toca SOLO las vars gestionadas (SERVER,
+# SLUG, TOKEN, SERVER_FP): las NETPULSE_* del usuario (p. ej.
+# NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
+USER_VARS=""
+if [ -f "$ENV_FILE" ]; then
+	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)=') || true
+fi
 cat > "$ENV_FILE" <<EOF
 # netpulse-agent — config (generado por reinstall)
 NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
 NETPULSE_TOKEN=$TOKEN
+# NETPULSE_SERVER_FP=<sha256>    # pin SPKI del server (https); lo rellena el instalador
+# NETPULSE_INTERVAL=30           # segundos entre pushes
+# NETPULSE_SCAN_INTERVAL=30m     # min entre scans de vecinos; "0" = sin scans periódicos
+# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway
+# NETPULSE_GW_TARGET=192.168.8.1 # ping al gateway (APs)
+# NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat
 EOF
 # #851: con server https el agente exige el SPKI pin; vacío = http plano o
 # el server no pudo derivarlo (se comporta como antes).
 if [ -n "$SERVER_FP" ]; then
 	echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"
+fi
+if [ -n "$USER_VARS" ]; then
+	printf '%s\n' "$USER_VARS" >> "$ENV_FILE"
 fi
 chmod 600 "$ENV_FILE"
 
@@ -136,35 +154,13 @@ start_service() {
 INITEOF
 chmod 0755 "$INIT"
 
-# Watchdog + cron (mismo criterio que el paquete; detección por pidof,
-# compatible con BusyBox)
-cat > "$WATCHDOG" <<'WGEOF'
-#!/bin/sh
-# netpulse-watchdog — relanza el agente si el proceso murió o el heartbeat
-# lleva >300s sin latir. Cron cada 2 min.
-INIT=/etc/init.d/netpulse-agent
-HB=/tmp/netpulse-agent.heartbeat
-[ -x "$INIT" ] || exit 0
-if ! pidof netpulse-agent >/dev/null 2>&1; then
-	logger -t netpulse-watchdog "agente no está en marcha, reiniciando servicio"
-	"$INIT" restart >/dev/null 2>&1
-	exit 0
+# #851: el watchdog cron YA NO se instala (un reinicio a ciegas de un crash
+# loop no arregla nada y ensucia el log; la detección es el dead-man del
+# servidor). Si el router viene de una instalación que sí lo tenía, limpiarlo.
+rm -f /usr/sbin/netpulse-watchdog
+if [ -f /etc/crontabs/root ]; then
+	sed -i '/netpulse-watchdog/d' /etc/crontabs/root
 fi
-if [ -f "$HB" ]; then
-	now=$(date +%s)
-	hb=$(cat "$HB" 2>/dev/null)
-	case "$hb" in ''|*[!0-9]*) exit 0 ;; esac
-	age=$((now - hb))
-	if [ "$age" -gt 300 ]; then
-		logger -t netpulse-watchdog "proceso vivo pero sin latido en ${age}s, reiniciando servicio"
-		"$INIT" restart >/dev/null 2>&1
-	fi
-fi
-exit 0
-WGEOF
-chmod 0755 "$WATCHDOG"
-( crontab -l 2>/dev/null | grep -v netpulse-watchdog ; echo '*/2 * * * * /usr/sbin/netpulse-watchdog' ) | crontab -
-/etc/init.d/cron restart >/dev/null 2>&1 || true
 
 "$INIT" enable
 "$INIT" restart
@@ -172,10 +168,11 @@ chmod 0755 "$WATCHDOG"
 }
 
 // TokenPushScript construye el POSIX sh que rota el token en CALIENTE: solo
-// reescribe el token en /etc/netpulse-agent.env (conservando server y slug,
-// escritura atómica) y reinicia el servicio. No descarga binario, no toca
-// init/watchdog/cron: es la versión ligera de reinstall para cuando el token
-// cambia pero el binario y la config ya están bien (rotate "en caliente").
+// reescribe el token en /etc/netpulse-agent.env (conservando server, slug,
+// FP del pin SPKI y las NETPULSE_* del usuario) y reinicia el servicio. No
+// descarga binario ni toca el init: es la versión ligera de reinstall para
+// cuando el token cambia pero el binario y la config ya están bien (rotate
+// "en caliente").
 func TokenPushScript(slug, token string) string {
 	return `#!/bin/sh
 set -e
@@ -186,9 +183,13 @@ INIT=/etc/init.d/netpulse-agent
 # Conservar el server y el slug del env existente para no romper la config.
 SERVER=$(sed -n 's/^NETPULSE_SERVER=//p' "$ENV_FILE" | head -n1)
 SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
-# #851: el FP del pin SPKI también hay que conservarlo; si se pierde aquí el
-# agente cae en el bucle fatal "HTTPS requiere NETPULSE_SERVER_FP" al arrancar.
+# #851: conservar también el FP del pin SPKI y las NETPULSE_* no gestionadas
+# (p. ej. NETPULSE_SCAN_INTERVAL=0); si se pierden, el agente cae en bucle
+# fatal (https sin FP) o pierde la config del usuario. TOKEN y PAIRING_TOKEN
+# se descartan a propósito: el token rota y un pairing token residual ya no
+# aplica una vez emparejado.
 FP=$(sed -n 's/^NETPULSE_SERVER_FP=//p' "$ENV_FILE" | head -n1)
+USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)=') || true
 [ -n "$SLUG" ] || { echo "netpulse-agent.env sin NETPULSE_SLUG"; exit 31; }
 umask 077
 cat > "$ENV_FILE.tmp" <<EOF
@@ -198,6 +199,9 @@ NETPULSE_TOKEN=` + token + `
 EOF
 if [ -n "$FP" ]; then
 	echo "NETPULSE_SERVER_FP=$FP" >> "$ENV_FILE.tmp"
+fi
+if [ -n "$USER_VARS" ]; then
+	printf '%s\n' "$USER_VARS" >> "$ENV_FILE.tmp"
 fi
 chmod 600 "$ENV_FILE.tmp"
 # Swap atómico: el proceso vivo sigue leyendo el archivo íntegro.

@@ -1,7 +1,7 @@
 #!/bin/sh
 # uci-defaults: ejecutado UNA vez tras instalar el .ipk.
 # Migra una instalación manual previa (si existe /etc/netpulse-agent.env)
-# al formato UCI, y programa el watchdog cron.
+# al formato UCI, y retira el watchdog cron de versiones anteriores (#851).
 
 AGENT_ENV=/etc/netpulse-agent.env
 AGENT_UCI=netpulse-agent
@@ -44,34 +44,13 @@ if [ -f "$AGENT_ENV" ]; then
 	uci commit "$AGENT_UCI"
 fi
 
-# Watchdog cron: cada 2 min, reiniciar si el agente no late
-WATCHDOG=/usr/sbin/netpulse-watchdog
-HEARTBEAT=/tmp/netpulse-agent.heartbeat
-
-cat > "$WATCHDOG" << 'WDOG'
-#!/bin/sh
-# netpulse-watchdog: si el agente no ha escrito el heartbeat en 300s, reiniciar
-HB=/tmp/netpulse-agent.heartbeat
-if ! pidof netpulse-agent > /dev/null; then
-	/etc/init.d/netpulse-agent restart
-	exit 0
-fi
-if [ -f "$HB" ]; then
-	now=$(date +%s)
-	last=$(cat "$HB" 2>/dev/null)
-	if [ -n "$last" ] && [ $((now - last)) -gt 300 ]; then
-		logger -t netpulse-agent "watchdog: heartbeat stalled ($((now - last))s), restarting"
-		/etc/init.d/netpulse-agent restart
-	fi
-fi
-WDOG
-
-chmod 755 "$WATCHDOG"
-
-# Instalar cron solo si no existe ya
-if ! crontab -l 2>/dev/null | grep -q netpulse-watchdog; then
-	(crontab -l 2>/dev/null; echo "*/2 * * * * $WATCHDOG") | crontab -
-fi
+# Watchdog cron (#851): YA NO se programa. Si venimos de una versión que lo
+# instalaba, limpiarlo aquí: el reinicio a ciegas de un agente en bucle de
+# crash no lo arregla (solo ensucia el log); la detección efectiva es el
+# dead-man del servidor (alerta) y el crash puntual lo cubre el respawn de
+# procd. El binario tras sysupgrade lo restaura el self-heal del init.
+rm -f /usr/sbin/netpulse-watchdog
+crontab -l 2>/dev/null | grep -v netpulse-watchdog | crontab - 2>/dev/null || true
 
 # Habilitar y arrancar el servicio
 /etc/init.d/netpulse-agent enable

@@ -324,22 +324,31 @@ FP_LINE=""
 if [ -n "$SERVER_FP" ]; then
     FP_LINE="NETPULSE_SERVER_FP=$SERVER_FP"
 fi
+# #851: conservar las NETPULSE_* del usuario que este script no gestiona
+# (p. ej. NETPULSE_SCAN_INTERVAL=0): el rewrite toca solo las gestionadas
+# (SERVER/SLUG/TOKEN/SERVER_FP/PAIRING_TOKEN).
+USER_VARS=$(ssh $SSH_IDENT_ARGS "$SSH" "grep -E '^NETPULSE_[A-Z0-9_]+=' $ENV_FILE 2>/dev/null | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)='") || USER_VARS=""
 ssh $SSH_IDENT_ARGS "$SSH" "cat > $ENV_FILE && chmod 600 $ENV_FILE" <<EOF
 # netpulse-agent — config (generado por install-agent.sh)
 NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
 $TOKEN_LINE
 $FP_LINE
-# NETPULSE_INTERVAL=15
-# NETPULSE_SCAN_INTERVAL=0          # min entre scans de vecinos; "0" = sin scans
-#                                   # periódicos (APs con clientes Intel: cada
-#                                   # off-channel gap puede costar un deauth)
-# NETPULSE_WAN_TARGET=1.1.1.1      # solo si este equipo es el gateway
-# NETPULSE_GW_TARGET=192.168.8.1   # ping al gateway (APs)
+# defaults (líneas comentadas; descomenta para cambiar):
+# NETPULSE_INTERVAL=30              # segundos entre pushes
+# NETPULSE_SCAN_INTERVAL=30m        # min entre scans de vecinos; "0" = sin
+#                                   # scans periódicos (APs con clientes Intel:
+#                                   # cada off-channel gap puede costar un deauth)
+# NETPULSE_WAN_TARGET=1.1.1.1       # solo si este equipo es el gateway
+# NETPULSE_GW_TARGET=192.168.8.1    # ping al gateway (APs)
+# NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat
 EOF
+if [ -n "$USER_VARS" ]; then
+    printf '%s\n' "$USER_VARS" | ssh $SSH_IDENT_ARGS "$SSH" "cat >> $ENV_FILE"
+fi
 ok "config escrita"
 
-# Servicio procd (respawn)
+# Servicio procd (respawn + self-heal del binario tras sysupgrade)
 info "instalando servicio procd"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -f "$SCRIPT_DIR/agent/deploy/$INIT_NAME.init" ]; then
@@ -354,10 +363,47 @@ START=99
 STOP=10
 USE_PROCD=1
 
+ENV_FILE=/etc/netpulse-agent.env
 BIN=/usr/sbin/netpulse-agent
 [ -x "$BIN" ] || BIN=/tmp/netpulse-agent
 
+# Self-heal: un sysupgrade solo conserva /etc, así que si el binario falta
+# al arrancar se descarga del server con el env (mismo criterio que el
+# reinstall del server; #851 retiró el watchdog cron, esto cubre el boot).
+selfheal_binary() {
+    [ -x "$BIN" ] && return 0
+    [ -f "$ENV_FILE" ] || return 1
+    . "$ENV_FILE" 2>/dev/null
+    [ -n "${NETPULSE_SERVER:-}" ] && [ -n "${NETPULSE_TOKEN:-}" ] && [ -n "${NETPULSE_SLUG:-}" ] || return 1
+    case "$(uname -m)" in
+        aarch64|arm64) local ARCH=arm64 ;;
+        armv7l|armv7|armhf|arm) local ARCH=arm ;;
+        x86_64|amd64) local ARCH=amd64 ;;
+        mips)
+            case "$(head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12')" in
+                1) local ARCH=mipsle ;;
+                2) local ARCH=mips ;;
+                *) return 1 ;;
+            esac ;;
+        *) return 1 ;;
+    esac
+    local url tmp
+    url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"
+    logger -t netpulse-agent "self-heal: binario ausente, descargando de $NETPULSE_SERVER"
+    tmp=/tmp/netpulse-agent.$$
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -m 120 -H "Authorization: Bearer $NETPULSE_TOKEN" -o "$tmp" "$url" || return 1
+    else
+        wget -q -T 60 -O "$tmp" --header="Authorization: Bearer $NETPULSE_TOKEN" "$url" || return 1
+    fi
+    chmod 0755 "$tmp" && mv "$tmp" /usr/sbin/netpulse-agent || { rm -f "$tmp"; return 1; }
+    logger -t netpulse-agent "self-heal: binario restaurado"
+    BIN=/usr/sbin/netpulse-agent
+    return 0
+}
+
 start_service() {
+    selfheal_binary || logger -t netpulse-agent "self-heal: no se pudo restaurar el binario"
     procd_open_instance netpulse-agent
     procd_set_param command "$BIN"
     procd_set_param respawn "${respawn_threshold:-3600}" "${respawn_timeout:-5}" "${respawn_retry:-5}"
@@ -371,59 +417,18 @@ fi
 ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
 ok "servicio $INIT_NAME habilitado y arrancado"
 
-# ------------------------------------------------------------ watchdog cron --
-# Fase 5 (Plan A): cron cada 2 min relanza el agente si procd se rindió o
-# si está "vivo pero roto" (heartbeat viejo). Idempotente: reemplaza la
-# línea previa del crontab.
-info "instalando watchdog (cron, cada 2 min)"
-WATCHDOG_DST="/usr/sbin/netpulse-watchdog"
-if [ -f "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" ]; then
-    scp -Oq $SSH_IDENT_ARGS "$SCRIPT_DIR/agent/deploy/netpulse-watchdog.sh" "$SSH:$WATCHDOG_DST"
-else
-    ssh $SSH_IDENT_ARGS "$SSH" "cat > $WATCHDOG_DST" <<'WATCHDOGEOF'
-#!/bin/sh
-INIT=/etc/init.d/netpulse-agent
-HB=/tmp/netpulse-agent.heartbeat
-MAX_AGE=300
-[ -f /etc/netpulse-agent.env ] && . /etc/netpulse-agent.env 2>/dev/null
-[ -n "${NETPULSE_HEARTBEAT_FILE:-}" ] && HB="$NETPULSE_HEARTBEAT_FILE"
-log() { logger -t netpulse-watchdog "$*"; }
-if [ ! -x /usr/sbin/netpulse-agent ] && [ ! -x /tmp/netpulse-agent ]; then
-    exit 0
-fi
-# Nota: BusyBox pgrep -x compara contra la línea de comando completa,
-# no solo el nombre base; /usr/sbin/netpulse-agent no coincide con
-# netpulse-agent. Usamos pidof, que busca por comm/pidof y funciona
-# tanto en BusyBox como en procps-ng.
-if ! pidof netpulse-agent >/dev/null 2>&1; then
-    log "agente no está en marcha — reiniciando servicio"
-    $INIT restart >/dev/null 2>&1
-    exit 0
-fi
-if [ -f "$HB" ]; then
-    now=$(date +%s)
-    hb=$(cat "$HB" 2>/dev/null)
-    case "$hb" in
-        '' | *[!0-9]*) exit 0 ;;
-    esac
-    age=$((now - hb))
-    if [ "$age" -gt "$MAX_AGE" ]; then
-        log "proceso vivo pero sin latido en ${age}s — reiniciando servicio"
-        $INIT restart >/dev/null 2>&1
-    fi
-fi
-exit 0
-WATCHDOGEOF
-fi
+# Watchdog cron: NO se instala (#851). Si el agente crashea en bucle, un
+# reinicio a ciegas cada 2 min no lo arregla y ensucia el log; la detección
+# efectiva es el dead-man del servidor (alerta) y el crash puntual lo cubre
+# el respawn de procd. Además se limpia la entrada si venimos de una
+# instalación previa que sí lo programaba.
 ssh $SSH_IDENT_ARGS "$SSH" "
-    chmod 0755 $WATCHDOG_DST
-    mkdir -p /etc/crontabs
-    sed -i '/netpulse-watchdog/d' /etc/crontabs/root 2>/dev/null
-    echo '*/2 * * * * $WATCHDOG_DST' >> /etc/crontabs/root
-    /etc/init.d/cron enable
-    /etc/init.d/cron restart
+    rm -f /usr/sbin/netpulse-watchdog
+    if [ -f /etc/crontabs/root ]; then
+        sed -i '/netpulse-watchdog/d' /etc/crontabs/root
+    fi
 "
-ok "watchdog en cron (*/2 * * * *)"
+ok "watchdog cron no instalado (legacy limpiado)"
 
 sleep 2
 if ssh $SSH_IDENT_ARGS "$SSH" "logread -e $INIT_NAME" 2>/dev/null | tail -2 | grep -q .; then

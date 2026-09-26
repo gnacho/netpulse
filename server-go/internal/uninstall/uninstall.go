@@ -1,8 +1,9 @@
 // Package uninstall: construcción del script que desinstala el agente
 // netpulse-agent de un router OpenWrt (#624). Es la operación inversa al
 // paquete reinstall: en lugar de instalar binario + env + init procd
-// (con self-heal y watchdog), se detiene y deshabilita el servicio, y se
-// eliminan todos los artefactos que reinstall deja en el router.
+// (con self-heal), desinstala el agente standalone: detiene y deshabilita el
+// servicio, y borra binario/env/init. El watchdog cron se sigue limpiando
+// porque las instalaciones previas a #851 lo dejaron en el router.
 //
 // Vive en su propio paquete (como reinstall) porque httpapi importa
 // rearmer/reinstall y ninguno de esos paquetes puede importar a httpapi.

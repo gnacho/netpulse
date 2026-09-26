@@ -41,6 +41,38 @@ func TestScriptConfig(t *testing.T) {
 	}
 }
 
+// #851: el env generado documenta las opciones disponibles como líneas
+// comentadas con sus defaults.
+func TestScriptEnvDocumentsDefaults(t *testing.T) {
+	s := scriptForTest()
+	for _, want := range []string{
+		"# NETPULSE_INTERVAL=30",
+		"# NETPULSE_SCAN_INTERVAL=30m",
+		"# NETPULSE_WAN_TARGET=1.1.1.1",
+		"# NETPULSE_GW_TARGET=192.168.8.1",
+		"# NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("env generado sin %q", want)
+		}
+	}
+}
+
+// #851: el rewrite del env conserva las NETPULSE_* del usuario (p. ej.
+// NETPULSE_SCAN_INTERVAL=0) en vez de pisarlas.
+func TestScriptPreservesUserVars(t *testing.T) {
+	s := scriptForTest()
+	for _, want := range []string{
+		`USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE"`,
+		`grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)='`,
+		`printf '%s\n' "$USER_VARS" >> "$ENV_FILE"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script sin preservación de vars de usuario: falta %q", want)
+		}
+	}
+}
+
 func TestScriptArchAndDigests(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
@@ -97,22 +129,27 @@ func TestScriptSelfHealInit(t *testing.T) {
 	}
 }
 
-func TestScriptWatchdogAndCron(t *testing.T) {
+// #851: el watchdog cron YA NO se instala; el script limpia los restos de
+// instalaciones previas que sí lo tenían.
+func TestScriptNoWatchdogCron(t *testing.T) {
 	s := scriptForTest()
-	for _, want := range []string{
-		"pidof netpulse-agent",
-		`echo '*/2 * * * * /usr/sbin/netpulse-watchdog'`,
+	for _, notWant := range []string{
+		"*/2 * * * *",
+		"proceso vivo pero sin latido",
+		`echo '*/2`,
 		"/etc/init.d/cron restart",
 	} {
-		if !strings.Contains(s, want) {
-			t.Errorf("watchdog/cron incompleto: falta %q", want)
+		if strings.Contains(s, notWant) {
+			t.Errorf("script con watchdog/cron (%q) pese a #851", notWant)
 		}
 	}
-	if strings.Contains(s, "pgrep -x") {
-		t.Error("el watchdog no debe usar pgrep -x (bug BusyBox)")
-	}
-	if !strings.Contains(s, "grep -v netpulse-watchdog") {
-		t.Error("el cron no es idempotente")
+	for _, want := range []string{
+		`rm -f /usr/sbin/netpulse-watchdog`,
+		`sed -i '/netpulse-watchdog/d' /etc/crontabs/root`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script sin limpieza legacy del watchdog: falta %q", want)
+		}
 	}
 }
 
@@ -130,6 +167,9 @@ func TestTokenPushScriptConfig(t *testing.T) {
 		"NETPULSE_TOKEN=" + strings.Repeat("c3", 32),
 		"sed -n 's/^NETPULSE_SERVER=//p' \"$ENV_FILE\"",
 		"sed -n 's/^NETPULSE_SLUG=//p' \"$ENV_FILE\"",
+		// #851: preservar FP y NETPULSE_* del usuario (p. ej. SCAN_INTERVAL).
+		"sed -n 's/^NETPULSE_SERVER_FP=//p' \"$ENV_FILE\"",
+		`printf '%s\n' "$USER_VARS" >> "$ENV_FILE.tmp"`,
 		"chmod 600 \"$ENV_FILE.tmp\"",
 		"mv -f \"$ENV_FILE.tmp\" \"$ENV_FILE\"",
 		"\"$INIT\" restart",
@@ -140,11 +180,11 @@ func TestTokenPushScriptConfig(t *testing.T) {
 			t.Errorf("TokenPushScript sin %q", want)
 		}
 	}
-	// No debe descargar binario ni tocar init/watchdog/cron (rotate ligero).
+	// No debe descargar binario ni tocar el init (rotate ligero).
 	if strings.Contains(s, "/binary?arch=") {
 		t.Error("TokenPushScript no debe descargar el binario")
 	}
-	for _, notWant := range []string{"watchdog", "crontab", "/etc/init.d/netpulse-agent >", "GOT=$(sha256sum"} {
+	for _, notWant := range []string{"*/2 * * * *", "GOT=$(sha256sum"} {
 		if strings.Contains(s, notWant) {
 			t.Errorf("TokenPushScript no debe contener %q (rotate ligero)", notWant)
 		}

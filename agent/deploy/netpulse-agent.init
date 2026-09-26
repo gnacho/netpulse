@@ -15,10 +15,47 @@ START=99
 STOP=10
 USE_PROCD=1
 
+ENV_FILE=/etc/netpulse-agent.env
 BIN=/usr/sbin/netpulse-agent
 [ -x "$BIN" ] || BIN=/tmp/netpulse-agent
 
+# Self-heal: un sysupgrade solo conserva /etc, así que si el binario falta
+# al arrancar se descarga del server con el env (mismo criterio que el
+# reinstall del server; #851 retiró el watchdog cron, esto cubre el boot).
+selfheal_binary() {
+    [ -x "$BIN" ] && return 0
+    [ -f "$ENV_FILE" ] || return 1
+    . "$ENV_FILE" 2>/dev/null
+    [ -n "${NETPULSE_SERVER:-}" ] && [ -n "${NETPULSE_TOKEN:-}" ] && [ -n "${NETPULSE_SLUG:-}" ] || return 1
+    case "$(uname -m)" in
+        aarch64|arm64) local ARCH=arm64 ;;
+        armv7l|armv7|armhf|arm) local ARCH=arm ;;
+        x86_64|amd64) local ARCH=amd64 ;;
+        mips)
+            case "$(head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12')" in
+                1) local ARCH=mipsle ;;
+                2) local ARCH=mips ;;
+                *) return 1 ;;
+            esac ;;
+        *) return 1 ;;
+    esac
+    local url tmp
+    url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"
+    logger -t netpulse-agent "self-heal: binario ausente, descargando de $NETPULSE_SERVER"
+    tmp=/tmp/netpulse-agent.$$
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -m 120 -H "Authorization: Bearer $NETPULSE_TOKEN" -o "$tmp" "$url" || return 1
+    else
+        wget -q -T 60 -O "$tmp" --header="Authorization: Bearer $NETPULSE_TOKEN" "$url" || return 1
+    fi
+    chmod 0755 "$tmp" && mv "$tmp" /usr/sbin/netpulse-agent || { rm -f "$tmp"; return 1; }
+    logger -t netpulse-agent "self-heal: binario restaurado"
+    BIN=/usr/sbin/netpulse-agent
+    return 0
+}
+
 start_service() {
+    selfheal_binary || logger -t netpulse-agent "self-heal: no se pudo restaurar el binario"
     procd_open_instance netpulse-agent
     procd_set_param command "$BIN"
     # respawn: si muere, procd lo levanta (5 s entre intentos, 5 intentos/hora)

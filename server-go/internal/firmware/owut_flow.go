@@ -261,7 +261,7 @@ const stackPreserveCmd = `P=/etc/sysupgrade.conf; touch $P; ensure() { grep -qxF
 	`ensure /usr/libexec/netgrip-restore-rules; ensure /etc/netgrip/; ` +
 	`for f in /etc/rc.d/*netgrip*; do [ -e "$f" ] && ensure "$f"; done; fi; ` +
 	`if [ -f /usr/sbin/netpulse-agent ]; then ensure /usr/sbin/netpulse-agent; ensure /etc/netpulse-agent.env; ` +
-	`ensure /usr/sbin/netpulse-watchdog; ensure /etc/init.d/netpulse-agent; ` +
+	`ensure /etc/init.d/netpulse-agent; ` +
 	`for f in /etc/rc.d/*netpulse-agent*; do [ -e "$f" ] && ensure "$f"; done; fi; true`
 
 // EnsureStackPreserved ejecuta la preservación en el router (tolerante: un
