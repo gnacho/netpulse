@@ -327,7 +327,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
         )}
       >
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 pointer-coarse:flex-wrap">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-medium text-text-primary">{alertTitle(t, ev)}</span>
               {ev.urgent && (
@@ -336,7 +336,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
                 </span>
               )}
             </span>
-            <span className="flex shrink-0 items-center gap-2">
+            <span className="flex shrink-0 items-center gap-2 pointer-coarse:basis-full">
               <AnimatePresence initial={false}>
                 {!read && (
                   <motion.span
@@ -352,7 +352,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowSilence((v) => !v) }}
-                  className="rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary"
+                  className="rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary pointer-coarse:opacity-100 pointer-coarse:p-2"
                   title={t('alerts.silence')}
                 >
                   <BellOff className="h-4 w-4" strokeWidth={1.75} />

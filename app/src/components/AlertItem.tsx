@@ -74,9 +74,9 @@ export function AlertItem({ alert, onClick, onDismiss, className }: AlertItemPro
         <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 pointer-coarse:flex-wrap">
           <span className="truncate text-sm font-medium text-text-primary">{alertTitle(t, alert)}</span>
-          <span className="flex shrink-0 items-center gap-1">
+          <span className="flex shrink-0 items-center gap-1 pointer-coarse:basis-full">
             {action && (
               <RowAction
                 icon={action.icon}
