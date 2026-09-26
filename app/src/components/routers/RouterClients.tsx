@@ -6,7 +6,7 @@ import { manufacturerLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
-import { DEVICE_ICONS, DeviceRow, SignalIcon } from '@/components/DeviceRow'
+import { DeviceRow, SignalIcon, deviceIcon } from '@/components/DeviceRow'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { SectionHeader } from '@/components/SectionHeader'
 import { buildClientDevices } from '@/pages/devices-data'
@@ -156,7 +156,8 @@ export function RouterClients({ router }: { router: Router }) {
           </thead>
           <tbody>
             {visible.map((d, i) => {
-              const Icon = DEVICE_ICONS[d.type]
+              // #864: el icono personalizado manda sobre el tipo deducido.
+              const Icon = deviceIcon(d)
               return (
                 <motion.tr
                   key={d.id}
