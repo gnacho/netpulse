@@ -263,6 +263,14 @@ func (s *server) attachRTLConsole(slug, host string, pl *probe.Payload) {
 	if s.rtlConsole == nil || pl == nil {
 		return
 	}
+	// #863: toggle por router. La consola del firmware tiene UNA sola sesión
+	// global: cada login del sondeo regenera session_id y tumba la sesión
+	// humana. Con el sondeo desactivado este camino no toca la red (los datos
+	// de sistema llegan por el beacon v1.3+, #865, cuando el firmware lo
+	// soporta).
+	if !s.consolePollingEnabled(slug) {
+		return
+	}
 	e := s.rtlConsole.snapshot(slug, host)
 	if e == nil {
 		return
@@ -278,4 +286,17 @@ func (s *server) attachRTLConsole(slug, host string, pl *probe.Payload) {
 		BridgeMAC: strings.ToUpper(e.MAC),
 	}
 	pl.Data.System = sd
+}
+
+// consolePollingEnabled lee el toggle del router (default ON: cualquier error
+// o router desconocido mantiene el comportamiento previo).
+func (s *server) consolePollingEnabled(slug string) bool {
+	if s.db == nil {
+		return true
+	}
+	var v int
+	if err := s.db.DB.QueryRow("SELECT console_polling FROM routers WHERE id = ?", slug).Scan(&v); err != nil {
+		return true
+	}
+	return v == 1
 }

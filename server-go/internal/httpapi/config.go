@@ -101,6 +101,8 @@ type routerInput struct {
 	FirmwareTarget *string `json:"firmware_target"`
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
 	SnmpEnabled      *bool   `json:"snmp_enabled"`
+	// ConsolePolling (issue #863): sondeo HTTP de la consola del switch.
+	ConsolePolling *bool `json:"console_polling"`
 	SnmpCommunity    *string `json:"snmp_community"`
 	SnmpPort         *int    `json:"snmp_port"`
 	SnmpPollInterval *int    `json:"snmp_poll_interval"` // issue #414; segundos
@@ -358,8 +360,9 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		IsGateway: &gw, AgentOnly: &ao,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
-		SSHPort:       sshPort,
-		TempThreshold: tempThreshold,
+		SSHPort:        sshPort,
+		TempThreshold:  tempThreshold,
+		ConsolePolling: in.ConsolePolling,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

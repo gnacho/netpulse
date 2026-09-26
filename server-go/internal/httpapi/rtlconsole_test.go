@@ -9,17 +9,29 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gnacho/netpulse/agent/probe"
+	"github.com/gnacho/netpulse/server-go/internal/config"
+	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
+
+// srvRequests cuenta las peticiones que recibe el servidor fake de consola
+// (issue #863: con el toggle OFF no debe recibir NINGUNA).
+var srvRequests int32
 
 // newRTLConsoleServer: emula la consola RTLPlayground. uptimeSec es el valor
 // que devuelve /cmd time (en segundos); el servidor lo convierte a "0x…".
 func newRTLConsoleServer(t *testing.T, uptimeSec uint64) *httptest.Server {
 	t.Helper()
+	atomic.StoreInt32(&srvRequests, 0)
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&srvRequests, 1)
+	})
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil || r.Form.Get("pwd") != "1234" {
 			http.Error(w, "bad", http.StatusUnauthorized)
@@ -193,5 +205,76 @@ func TestParseTimeUptimeFormats(t *testing.T) {
 		if _, err := parseTimeUptime(bad); err == nil {
 			t.Fatalf("entrada inválida %q no devolvió error", bad)
 		}
+	}
+}
+
+// #863: con el toggle de sondeo por consola DESACTIVADO para el router, el
+// attach no consulta la consola (cero requests al firmware: cada login tumba
+// la sesión humana) y no inyecta System. Con el toggle activo (default) el
+// comportamiento es el de siempre.
+func TestRtlConsoleTogglePorRouter(t *testing.T) {
+	srv := newRTLConsoleServer(t, 3600)
+	defer srv.Close()
+	host := strings.TrimPrefix(srv.URL, "http://")
+
+	cfg := &config.Config{DataDir: t.TempDir(), AuthUser: "admin", AuthPass: "test12345678"}
+	d, err := db.Open(cfg.DataDir)
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	off := false
+	on := true
+	if _, err := routerstore.AddRouter(d.DB, routerstore.AddInput{
+		Name: "switch-off", Host: host, Type: "managed-switch", ConsolePolling: &off,
+	}); err != nil {
+		t.Fatalf("add switch-off: %v", err)
+	}
+	if _, err := routerstore.AddRouter(d.DB, routerstore.AddInput{
+		Name: "switch-on", Host: host, Type: "managed-switch", ConsolePolling: &on,
+	}); err != nil {
+		t.Fatalf("add switch-on: %v", err)
+	}
+	// Un tercer router heredado: columna a DEFAULT 1 (alta sin el campo).
+	if _, err := routerstore.AddRouter(d.DB, routerstore.AddInput{
+		Name: "switch-legacy", Host: host, Type: "managed-switch",
+	}); err != nil {
+		t.Fatalf("add switch-legacy: %v", err)
+	}
+
+	c := newRtlConsoleCache("1234", 300)
+	s := &server{rtlConsole: c, db: d}
+
+	// OFF: el attach no toca la consola ni inyecta System.
+	plOff := &probe.Payload{Data: probe.PayloadData{}}
+	s.attachRTLConsole("switch-off", host, plOff)
+	if plOff.Data.System != nil {
+		t.Fatalf("toggle OFF inyectó System: %+v", plOff.Data.System)
+	}
+	if got := atomic.LoadInt32(&srvRequests); got != 0 {
+		t.Fatalf("toggle OFF hizo %d requests a la consola, esperaba 0", got)
+	}
+
+	// ON explícito: inyecta System como siempre.
+	plOn := &probe.Payload{Data: probe.PayloadData{}}
+	s.attachRTLConsole("switch-on", host, plOn)
+	deadline := time.Now().Add(3 * time.Second)
+	for plOn.Data.System == nil && time.Now().Before(deadline) {
+		s.attachRTLConsole("switch-on", host, plOn)
+		time.Sleep(50 * time.Millisecond)
+	}
+	if plOn.Data.System == nil {
+		t.Fatal("toggle ON no inyectó System")
+	}
+
+	// Legacy (DEFAULT 1): también inyecta.
+	plLegacy := &probe.Payload{Data: probe.PayloadData{}}
+	s.attachRTLConsole("switch-legacy", host, plLegacy)
+	deadline = time.Now().Add(3 * time.Second)
+	for plLegacy.Data.System == nil && time.Now().Before(deadline) {
+		s.attachRTLConsole("switch-legacy", host, plLegacy)
+		time.Sleep(50 * time.Millisecond)
+	}
+	if plLegacy.Data.System == nil {
+		t.Fatal("router legacy (default ON) no inyectó System")
 	}
 }

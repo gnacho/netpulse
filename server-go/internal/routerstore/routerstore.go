@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold, console_polling FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -35,12 +35,16 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort int
+		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort, consolePoll int
 		var name, ft, snmpComm sql.NullString
 		var tt sql.NullInt64
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt, &consolePoll); err != nil {
 			continue
 		}
+		// DEFAULT 1 de la migración, pero una fila insertada antes de la
+		// columna con valor 0 explícito cuenta como desactivada; el NULL no
+		// aplica (NOT NULL DEFAULT 1).
+		r.ConsolePolling = consolePoll == 1
 		r.Name = name.String
 		r.FirmwareTarget = ft.String
 		r.IsGateway = gw == 1
@@ -140,6 +144,9 @@ type AddInput struct {
 	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
 	// estándar). 0/ausente → 22.
 	SSHPort int
+	// ConsolePolling (issue #863): sondeo HTTP de la consola del switch.
+	// nil = default ON (el sondeo no se desactiva por omisión).
+	ConsolePolling *bool
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -188,9 +195,13 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if sshPort <= 0 {
 		sshPort = 22
 	}
+	consolePoll := 1
+	if in.ConsolePolling != nil && !*in.ConsolePolling {
+		consolePoll = 0
+	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, console_polling) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort, consolePoll,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -235,6 +246,9 @@ type UpdateInput struct {
 	// TempThreshold (issue #716): umbral de alerta por temperatura alta (°C).
 	// nil = no tocar; <= 0 = reset a NULL (default 65); > 0 = fijar.
 	TempThreshold *int
+	// ConsolePolling (issue #863): sondeo HTTP de la consola del switch.
+	// nil = no tocar. DEFAULT ON (la columna migra a 1).
+	ConsolePolling *bool
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -322,6 +336,14 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 			v = 22
 		}
 		sets = append(sets, "ssh_port = ?")
+		args = append(args, v)
+	}
+	if in.ConsolePolling != nil {
+		v := 0
+		if *in.ConsolePolling {
+			v = 1
+		}
+		sets = append(sets, "console_polling = ?")
 		args = append(args, v)
 	}
 	if in.TempThreshold != nil {

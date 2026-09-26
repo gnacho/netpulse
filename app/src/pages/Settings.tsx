@@ -298,6 +298,7 @@ interface ConfigRouter {
   snmp_poll_interval: number
   ssh_port?: number
   temp_threshold?: number | null
+  console_polling?: boolean
 }
 
 interface DiscoverCandidate {
@@ -338,6 +339,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editAgentOnly, setEditAgentOnly] = useState(false)
   const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
+  const [editConsolePolling, setEditConsolePolling] = useState(true)
   const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
   const [editSnmpPort, setEditSnmpPort] = useState(161)
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
@@ -522,6 +524,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditAgentOnly(r.agent_only)
     setEditFirmwareTarget(r.firmware_target ?? '')
     setEditSnmpEnabled(r.snmp_enabled ?? false)
+    setEditConsolePolling(r.console_polling ?? true)
     setEditSnmpCommunity(r.snmp_community ?? '')
     setEditSnmpPort(r.snmp_port ?? 161)
     setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
@@ -552,6 +555,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           snmp_poll_interval: editSnmpPollInterval,
           ssh_port: editSshPort,
           temp_threshold: editTempThreshold.trim() === '' ? 0 : Number(editTempThreshold),
+          console_polling: editConsolePolling,
         }),
       })
       if (res.status === 409) {
@@ -993,6 +997,15 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
                   {t('settings.routers.agentOnly')}
                 </label>
+                {editType === 'managed-switch' && (
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-text-secondary">
+                    <Switch checked={editConsolePolling} onCheckedChange={setEditConsolePolling} className="mt-0.5" />
+                    <span>
+                      {t('settings.routers.consolePolling')}
+                      <span className="mt-0.5 block text-caption leading-relaxed text-text-muted">{t('settings.routers.consolePollingHint')}</span>
+                    </span>
+                  </label>
+                )}
               </div>
               <div>
                 <label htmlFor="firmware-target" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">

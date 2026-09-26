@@ -495,6 +495,10 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
 	// issue #309: SNMP polling for managed switches.
 	migrate(sqldb, "routers", "snmp_enabled", "ALTER TABLE routers ADD COLUMN snmp_enabled INTEGER NOT NULL DEFAULT 0")
+	// issue #863: sondeo HTTP de la consola de switches RTLPlayground. DEFAULT 1
+	// = comportamiento previo; se desactiva por router (la consola del firmware
+	// tiene una sola sesión global y cada login tumba la sesión humana).
+	migrate(sqldb, "routers", "console_polling", "ALTER TABLE routers ADD COLUMN console_polling INTEGER NOT NULL DEFAULT 1")
 	migrate(sqldb, "routers", "snmp_community", "ALTER TABLE routers ADD COLUMN snmp_community TEXT")
 	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
 	// issue #414: intervalo de polling SNMP configurable (segundos; default 60).

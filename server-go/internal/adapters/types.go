@@ -842,6 +842,11 @@ type RouterConfig struct {
 	SnmpCommunity    string `json:"snmp_community,omitempty"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	// ConsolePolling (issue #863): sondeo HTTP de la consola RTLPlayground del
+	// switch. true (default) = el server logra en la consola para fw/uptime/MAC;
+	// false = nunca (el firmware tiene una sola sesión global y cada login
+	// tumba la sesión humana; #863).
+	ConsolePolling bool `json:"console_polling"`
 	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
 	// estándar). 0/ausente → 22. Se usa en el pool, discovery e install.
 	SSHPort int `json:"ssh_port,omitempty"`
