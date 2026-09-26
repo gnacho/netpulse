@@ -65,6 +65,11 @@ type beaconPacket struct {
 	Dev   string       `json:"dev,omitempty"`
 	Fw    string       `json:"fw,omitempty"`
 	Ev    string       `json:"ev,omitempty"`
+	// Spec 2026-09 (gnacho/netpulse#865): el datagrama de estado puede
+	// traer firmware/uptime/MAC al final ("up": segundos desde el boot,
+	// "mac": MAC de gestión sin separadores). Opcionales; un beacon sin
+	// ellos sigue alimentándose del sondeo de consola (#639).
+	Up uint32 `json:"up,omitempty"`
 	Port  int          `json:"port,omitempty"`
 	Mac   string       `json:"mac,omitempty"`
 	Ports []beaconPort `json:"ports"`
@@ -186,9 +191,14 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 			Kind: "external", Interval: beaconIntervalSec,
 			Data: probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 		}
-		// #639: conservar el System (firmware/uptime) también en el datagrama
-		// FDB dedicado, para no perderlo entre FDB y beacon periódico.
+	// #865: conservar el System del último payload (del propio beacon, con
+	// fw/up/mac, o del sondeo de consola #639): el ingest FDB reemplaza el
+	// payload entero y sin esto los datos de sistema parpadean cada 5 min.
+	if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.System != nil {
+		fdbPayload.Data.System = prev.Data.System
+	} else {
 		s.attachRTLConsole(p.Slug, src, fdbPayload)
+	}
 		s.agents.Ingest(fdbPayload)
 		s.persistAgentState(p.Slug, s.agents.Snapshot(p.Slug))
 		s.beaconSeqNote(p.Slug, p.Seq)
@@ -251,10 +261,23 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		Interval: beaconIntervalSec,
 		Data:     probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 	}
-	// #639: el beacon no lleva firmware/uptime; el server los obtiene de la
-	// consola HTTP del switch (poll cacheado) y los adjunta como System para
-	// que polledFromAgent los convierta en board/uptimeSec.
-	s.attachRTLConsole(p.Slug, src, pl)
+	// #865: si el beacon trae fw/up/mac (spec 2026-09), son más frescos que
+	// el sondeo de consola y no necesitan login web, que con la sesión única
+	// del firmware le roba la sesión a quien esté usando la UI (#863).
+	if p.Up > 0 || p.Fw != "" {
+		b := &probe.BoardInfo{}
+		b.Release.Description = "RTLPlayground " + p.Fw
+		pl.Data.System = &probe.SystemData{
+			Board:     b,
+			SysInfo:   &probe.SysInfo{Uptime: float64(p.Up)},
+			BridgeMAC: strings.ToUpper(normalizeBeaconMAC(p.Mac)),
+		}
+	} else {
+		// #639: el beacon no lleva firmware/uptime; el server los obtiene de
+		// la consola HTTP del switch (poll cacheado) y los adjunta como
+		// System para que polledFromAgent los convierta en board/uptimeSec.
+		s.attachRTLConsole(p.Slug, src, pl)
+	}
 	// Fallback de cambios de link por delta entre beacons (#291): si el
 	// firmware no manda eventos, el cambio se detecta comparando el payload
 	// anterior. Con eventos, el título idéntico hace que el dedup del engine

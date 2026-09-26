@@ -137,6 +137,58 @@ func TestBeaconValidIngestOverUDP(t *testing.T) {
 	}
 }
 
+// Spec 2026-09 (#865): el datagrama de estado puede traer fw/up/mac; el
+// server los convierte en System sin tocar el sondeo de consola (#639).
+func TestBeaconSystemFieldsFromStatusDatagram(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":1,"rx":2}],`+
+			`"up":12345,"mac":"78D800323149","fw":"v0.1.0-aac5ea2"}`,
+		token))
+
+	p := waitFresh(t, s, "switch16")
+	if p.Data.System == nil {
+		t.Fatal("System no adjuntado desde los campos del beacon")
+	}
+	if p.Data.System.SysInfo == nil || p.Data.System.SysInfo.Uptime != 12345 {
+		t.Fatalf("uptime: %+v", p.Data.System.SysInfo)
+	}
+	if p.Data.System.BridgeMAC != "78:D8:00:32:31:49" {
+		t.Fatalf("bridge MAC: %q", p.Data.System.BridgeMAC)
+	}
+	if p.Data.System.Board == nil ||
+		p.Data.System.Board.Release.Description != "RTLPlayground v0.1.0-aac5ea2" {
+		t.Fatalf("board: %+v", p.Data.System.Board)
+	}
+
+	// Datagrama FDB 5 min después: el System del beacon NO se pierde con el
+	// reemplazo del payload (#865).
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":2,"slug":"switch16","token":"%s","fdb":{}}`, token))
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		latest, _ := s.agents.Fresh("switch16")
+		if latest != nil && latest.Data.FDB != nil && latest.Data.FDB.MACs != nil &&
+			len(latest.Data.FDB.MACs) == 0 {
+			if latest.Data.System == nil || latest.Data.System.SysInfo == nil ||
+				latest.Data.System.SysInfo.Uptime != 12345 {
+				t.Fatalf("System perdido tras ingest FDB: %+v", latest.Data.System)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("ingest FDB no aplicado a tiempo")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 // Token inválido, esquema distinto de 1 y JSON roto: sin efecto en el
 // registry (el agente NO queda fresh).
 func TestBeaconRejectsBadPackets(t *testing.T) {
