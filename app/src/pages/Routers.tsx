@@ -137,6 +137,16 @@ export default function Routers() {
   const online = routers.filter((r) => r.status === 'online').length
   const warned = routers.filter((r) => r.status === 'warn').length
 
+  // Deep-link #agentes: el botón "Actualizar agente" de las alertas navega a
+  // /routers#agentes; al montar, bajamos hasta la sección de la flota.
+  useEffect(() => {
+    if (window.location.hash !== '#agentes') return
+    const t = window.setTimeout(() => {
+      document.getElementById('agentes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 150)
+    return () => window.clearTimeout(t)
+  }, [])
+
   return (
     <div className="space-y-4 md:space-y-5">
       {/* ① Page header */}
@@ -281,8 +291,11 @@ export default function Routers() {
       {/* ③ Tabla comparativa */}
       <FleetTable refreshKey={refreshKey} />
 
-      {/* ④ Flota de agentes nativos (#245, reubicada aquí por #284) */}
-      <AgentsSection />
+      {/* ④ Flota de agentes nativos (#245, reubicada aquí por #284).
+          Ancla #agentes: destino del botón "Actualizar agente" de las alertas. */}
+      <div id="agentes" className="scroll-mt-20">
+        <AgentsSection />
+      </div>
 
       {/* Confirmación in-app del upgrade de flota */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

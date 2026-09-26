@@ -521,7 +521,7 @@ export default function Alerts() {
       return {
         icon: CircleArrowUp,
         title: t('alerts.actions.updateAgent'),
-        onClick: () => navigate('/orchestration'),
+        onClick: () => navigate('/routers#agentes'),
       }
     }
     return undefined

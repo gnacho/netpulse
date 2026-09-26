@@ -45,7 +45,7 @@ export function AlertItem({ alert, onClick, onDismiss, className }: AlertItemPro
       ? {
           icon: CircleArrowUp,
           title: t('alerts.actions.updateAgent'),
-          onClick: () => navigate('/orchestration'),
+          onClick: () => navigate('/routers#agentes'),
         }
       : undefined
   const handleRowClick = () => {
