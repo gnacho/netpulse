@@ -12,7 +12,11 @@ import "github.com/gnacho/netpulse/server-go/internal/agentbin"
 // con self-heal y watchdog con su cron) de forma idempotente.
 // digests mapa arch→sha256 del binario embebido; un arch sin digest queda
 // sin verificación (build dev) en lugar de bloquear.
-func Script(slug, token, serverURL string, digests map[string]string) string {
+// serverFP es el SPKI pin del server (#851): si serverURL es https y el
+// server lo pudo derivar (ServerFP), va en el .env para que el agente no
+// entre en bucle fatal de "HTTPS requiere NETPULSE_SERVER_FP"; vacío = el
+// comportamiento previo (env sin FP).
+func Script(slug, token, serverURL, serverFP string, digests map[string]string) string {
 	return `#!/bin/sh
 set -e
 INIT=/etc/init.d/netpulse-agent
@@ -22,6 +26,7 @@ WATCHDOG=/usr/sbin/netpulse-watchdog
 SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
+SERVER_FP="` + serverFP + `"
 
 # Detectar arquitectura del router y el digest esperado del binario embebido
 ARCH=$(uname -m)
@@ -65,6 +70,11 @@ NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
 NETPULSE_TOKEN=$TOKEN
 EOF
+# #851: con server https el agente exige el SPKI pin; vacío = http plano o
+# el server no pudo derivarlo (se comporta como antes).
+if [ -n "$SERVER_FP" ]; then
+	echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"
+fi
 chmod 600 "$ENV_FILE"
 
 # Init procd con self-heal (#457): un sysupgrade solo conserva /etc, así que
@@ -176,6 +186,9 @@ INIT=/etc/init.d/netpulse-agent
 # Conservar el server y el slug del env existente para no romper la config.
 SERVER=$(sed -n 's/^NETPULSE_SERVER=//p' "$ENV_FILE" | head -n1)
 SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
+# #851: el FP del pin SPKI también hay que conservarlo; si se pierde aquí el
+# agente cae en el bucle fatal "HTTPS requiere NETPULSE_SERVER_FP" al arrancar.
+FP=$(sed -n 's/^NETPULSE_SERVER_FP=//p' "$ENV_FILE" | head -n1)
 [ -n "$SLUG" ] || { echo "netpulse-agent.env sin NETPULSE_SLUG"; exit 31; }
 umask 077
 cat > "$ENV_FILE.tmp" <<EOF
@@ -183,6 +196,9 @@ NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
 NETPULSE_TOKEN=` + token + `
 EOF
+if [ -n "$FP" ]; then
+	echo "NETPULSE_SERVER_FP=$FP" >> "$ENV_FILE.tmp"
+fi
 chmod 600 "$ENV_FILE.tmp"
 # Swap atómico: el proceso vivo sigue leyendo el archivo íntegro.
 mv -f "$ENV_FILE.tmp" "$ENV_FILE"

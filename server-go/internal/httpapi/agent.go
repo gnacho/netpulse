@@ -820,7 +820,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	// y, si el SSH falla, se restaura el hash previo en kv — así el agente no
 	// se queda empujando un token que el servidor ya no acepta (401 eterno).
 	token, err := s.rotateAgentTokenAtomic(slug, func(t string) error {
-		_, runErr := s.pool.Run(host, reinstall.Script(slug, t, serverURL, reinstall.Digests()), 300*time.Second)
+		_, runErr := s.pool.Run(host, reinstall.Script(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests()), 300*time.Second)
 		return runErr
 	})
 	if err != nil {

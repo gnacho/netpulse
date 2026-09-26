@@ -14,6 +14,7 @@ func scriptForTest() string {
 		"test-router",
 		strings.Repeat("a1", 32), // 64 hex como un token real
 		"http://192.168.1.226:3000",
+		"",
 		map[string]string{
 			"arm64":  "cafebabe",
 			"arm":    "deadbeef",
@@ -152,7 +153,7 @@ func TestTokenPushScriptConfig(t *testing.T) {
 
 func TestScriptEmptyDigestSkipsVerify(t *testing.T) {
 	s := reinstall.Script(
-		"r", strings.Repeat("b2", 32), "http://s:3000",
+		"r", strings.Repeat("b2", 32), "http://s:3000", "",
 		map[string]string{"arm64": "", "arm": "", "amd64": ""},
 	)
 	if !strings.Contains(s, `GOARCH=arm64; SHA256=""`) {
@@ -160,5 +161,54 @@ func TestScriptEmptyDigestSkipsVerify(t *testing.T) {
 	}
 	if !strings.Contains(s, `if [ -n "$SHA256" ]; then`) {
 		t.Error("la verificación debe estar protegida contra digest vacío")
+	}
+}
+
+// #851: con server https y FP derivado, el .env generado debe llevar
+// NETPULSE_SERVER_FP o el agente entra en bucle fatal al arrancar.
+func TestScriptIncludesServerFP(t *testing.T) {
+	fp := strings.Repeat("c1", 32)
+	s := reinstall.Script(
+		"r", strings.Repeat("b2", 32), "https://np.example.org:3443", fp,
+		map[string]string{"arm64": "x"},
+	)
+	for _, want := range []string{
+		`SERVER="https://np.example.org:3443"`,
+		`SERVER_FP="` + fp + `"`,
+		`echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script con FP sin %q", want)
+		}
+	}
+}
+
+// #851: http plano o FP no derivable → script sin FP (comportamiento previo).
+func TestScriptEmptyFPSkipsFPLine(t *testing.T) {
+	for _, u := range []string{"http://192.168.1.226:3000", "https://np.example.org"} {
+		s := reinstall.Script("r", "tok", u, "", map[string]string{"arm64": "x"})
+		if !strings.Contains(s, `SERVER_FP=""`) {
+			t.Errorf("script sin %q para %q", `SERVER_FP=""`, u)
+		}
+		if !strings.Contains(s, `if [ -n "$SERVER_FP" ]; then`) {
+			t.Errorf("script sin guard de FP para %q", u)
+		}
+		if strings.Contains(s, "NETPULSE_SERVER_FP=c1") {
+			t.Errorf("script con FP concreto pese a FP vacío (%q)", u)
+		}
+	}
+}
+
+// #851: el rotate del token debe conservar el FP del env existente; si se
+// pierde, el agente cae en el bucle fatal de "HTTPS requiere NETPULSE_SERVER_FP".
+func TestTokenPushPreservesServerFP(t *testing.T) {
+	s := reinstall.TokenPushScript("test-router", strings.Repeat("c3", 32))
+	for _, want := range []string{
+		`sed -n 's/^NETPULSE_SERVER_FP=//p' "$ENV_FILE"`,
+		`echo "NETPULSE_SERVER_FP=$FP" >> "$ENV_FILE.tmp"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("TokenPushScript sin %q", want)
+		}
 	}
 }

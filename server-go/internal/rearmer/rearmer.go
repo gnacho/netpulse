@@ -371,7 +371,7 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 		}
 	}
 	if err := r.rotateTokenAtomic(slug, func(t string) error {
-		_, err := r.pool.Run(host, reinstall.Script(slug, t, publicURL, reinstall.Digests()), ReinstallSSHWait)
+		_, err := r.pool.Run(host, reinstall.Script(slug, t, publicURL, reinstall.ServerFP(publicURL), reinstall.Digests()), ReinstallSSHWait)
 		return err
 	}); err != nil {
 		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)
