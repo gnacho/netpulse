@@ -153,6 +153,7 @@ func (s *server) registerHTTPS(mux *http.ServeMux) {
 	mux.Handle("GET /api/settings/https", auth.RequireAdmin(http.HandlerFunc(s.handleHTTPSStatus)))
 	mux.Handle("POST /api/settings/https", auth.RequireAdmin(http.HandlerFunc(s.handleHTTPSChange)))
 	mux.Handle("POST /api/settings/https/confirm", auth.RequireAdmin(http.HandlerFunc(s.handleHTTPSConfirm)))
+	mux.Handle("POST /api/settings/https/renew", auth.RequireAdmin(http.HandlerFunc(s.handleHTTPSRenew)))
 	mux.HandleFunc("GET /netpulse-ca.crt", s.handleCARoot(false))
 	mux.HandleFunc("GET /netpulse-ca.pem", s.handleCARoot(true))
 }
@@ -273,6 +274,22 @@ func (s *server) handleHTTPSConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": s.tlsMgr.Status()})
+}
+
+// handleHTTPSRenew re-checks the certificate against the host's current
+// addresses and names. No password: it changes nothing an admin could not
+// already get by waiting for the periodic check - same root, same pins.
+func (s *server) handleHTTPSRenew(w http.ResponseWriter, r *http.Request) {
+	by := "unknown"
+	if me := auth.UserFromContext(r.Context()); me != nil {
+		by = me.Username + " from " + auth.ClientIP(r)
+	}
+	issued, err := s.tlsMgr.Renew(by)
+	if err != nil {
+		writeHTTPSError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"issued": issued, "status": s.tlsMgr.Status()})
 }
 
 func writeHTTPSError(w http.ResponseWriter, err error) {

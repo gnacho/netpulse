@@ -1731,7 +1731,7 @@
       "description": "Idioma en que se envían los avisos de ntfy, Telegram y webhook (las alertas se componen en español y se traducen al publicar).",
       "label": "Idioma de los avisos"
     },
-    "https": {
+        "https": {
       "title": "HTTPS",
       "caption": "Sirve NetPulse por HTTPS con su propia autoridad de certificación y retira el HTTP plano paso a paso.",
       "loadError": "No se pudieron cargar los ajustes de HTTPS.",
@@ -1774,7 +1774,12 @@
       "apply": "Aplicar",
       "blockedOff": "Estos agentes ya reportan por HTTPS y dejarían de reportar: {{agents}}. Devuélvelos antes a HTTP, o cambia de todos modos.",
       "rateLimited": "Demasiadas contraseñas erróneas. Vuelve a intentarlo en {{seconds}} s.",
-      "notFull": "Elige antes \"Todo\" y déjalo un tiempo: los navegadores a los que se dijo que usaran siempre HTTPS necesitan que responda para dejar de hacerlo."
+      "notFull": "Elige antes \"Todo\" y déjalo un tiempo: los navegadores a los que se dijo que usaran siempre HTTPS necesitan que responda para dejar de hacerlo.",
+      "renew": "Renovar ahora",
+      "renewHint": "Se comprueba solo cada 10 minutos: si cambia la dirección o el nombre del servidor, el certificado se renueva. Misma raíz: no hay que reinstalar nada.",
+      "renewed": "Se emitió un certificado nuevo para las direcciones y nombres actuales del servidor.",
+      "renewUnchanged": "Sin cambios: el certificado ya cubre las direcciones y nombres del servidor.",
+      "uncovered": "Sin cubrir: {{names}}. Esta raíz solo puede avalar direcciones privadas y los nombres locales con los que se creó; para llegar al servidor con estos hace falta una raíz nueva, instalada de nuevo en cada dispositivo (docs/https.md, \"Starting over\")."
     }
   },
   "statcard": {

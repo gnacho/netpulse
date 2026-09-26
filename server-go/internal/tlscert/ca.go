@@ -97,6 +97,7 @@ type CA struct {
 
 	mu          sync.Mutex // serializes Refresh
 	lastDropped string
+	uncovered   []string // names and addresses the root cannot vouch for
 	cur         atomic.Pointer[tls.Certificate]
 }
 
@@ -401,7 +402,9 @@ func (ca *CA) desiredNames() ([]string, []net.IP) {
 
 	// Said once per change, not on every check.
 	slices.Sort(dropped)
-	if d := strings.Join(slices.Compact(dropped), ", "); d != ca.lastDropped {
+	dropped = slices.Compact(dropped)
+	ca.uncovered = dropped
+	if d := strings.Join(dropped, ", "); d != ca.lastDropped {
 		ca.lastDropped = d
 		if d != "" {
 			ca.opts.Logf("[netpulse] TLS: the certificate cannot name %s: the CA only vouches for private "+
@@ -485,6 +488,14 @@ func (ca *CA) RootSHA256() string {
 func (ca *CA) RootDER() []byte { return slices.Clone(ca.root.Raw) }
 func (ca *CA) RootPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.root.Raw})
+}
+
+// Uncovered lists the host's names and addresses the certificate leaves out
+// because the root may not vouch for them, as of the last check.
+func (ca *CA) Uncovered() []string {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+	return slices.Clone(ca.uncovered)
 }
 
 // Leaf is the certificate being served now.

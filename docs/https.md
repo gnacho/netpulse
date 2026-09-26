@@ -88,6 +88,11 @@ name the host has. It lasts 90 days, is renewed automatically 30 days before
 it expires, and is re-issued within minutes when the server's addresses
 change.
 
+**Renew now** on the HTTPS card does that check at once, instead of at the
+next one within ten minutes: useful right after the server's address or name
+changes. It keeps the same root, so nothing is reinstalled anywhere. The card
+also lists any of the server's names or addresses the root cannot cover.
+
 To reach the server under a name outside those constraints, the CA has to
 be created again with that name in `NETPULSE_TLS_NAMES`. See "Starting over"
 below.

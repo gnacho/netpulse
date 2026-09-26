@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -579,5 +580,43 @@ func TestStricterModesDropThePlainSessionCookie(t *testing.T) {
 		if got != want {
 			t.Errorf("%s: cookie deleted = %v, want %v", path, got, want)
 		}
+	}
+}
+
+// Renew picks up a changed address at once, keeps the root, and says which
+// addresses the root cannot vouch for.
+func TestRenewFollowsAChangedAddress(t *testing.T) {
+	addrs := []net.IP{net.ParseIP("192.168.50.2")}
+	r := newRig(t, func(o *Options) {
+		inner := o.CAOptions
+		o.CAOptions = func(c tlscert.CAOptions) tlscert.CAOptions {
+			c = inner(c)
+			c.Addrs = func() ([]net.IP, error) { return addrs, nil }
+			return c
+		}
+	})
+	if _, err := r.m.Renew("test"); err == nil {
+		t.Fatal("renewed with HTTPS off")
+	}
+	_ = r.m.SetEnabled(true, "test")
+	pin := r.m.Fingerprint()
+
+	addrs = []net.IP{net.ParseIP("10.20.30.40"), net.ParseIP("203.0.113.7")}
+	issued, err := r.m.Renew("test")
+	if err != nil || !issued {
+		t.Fatalf("Renew after an address change: issued=%v err=%v", issued, err)
+	}
+	st := r.m.Status()
+	if !slices.Contains(st.Names, "10.20.30.40") || slices.Contains(st.Names, "192.168.50.2") {
+		t.Fatalf("names after renew: %v", st.Names)
+	}
+	if !slices.Equal(st.Uncovered, []string{"203.0.113.7"}) {
+		t.Fatalf("uncovered: %v", st.Uncovered)
+	}
+	if r.m.Fingerprint() != pin {
+		t.Fatal("renewing changed the root agents pin")
+	}
+	if issued, _ := r.m.Renew("test"); issued {
+		t.Fatal("renewing with nothing changed issued a certificate")
 	}
 }

@@ -1731,7 +1731,7 @@
       "description": "Language used for ntfy, Telegram and webhook alerts (alerts are composed in Spanish and translated when published).",
       "label": "Alert language"
     },
-    "https": {
+        "https": {
       "title": "HTTPS",
       "caption": "Serve NetPulse over HTTPS with its own certificate authority, and retire plain HTTP step by step.",
       "loadError": "Could not load the HTTPS settings.",
@@ -1774,7 +1774,12 @@
       "apply": "Apply",
       "blockedOff": "These agents already report over HTTPS and would stop reporting: {{agents}}. Move them back first, or switch anyway.",
       "rateLimited": "Too many wrong passwords. Try again in {{seconds}} s.",
-      "notFull": "Choose \"Everything\" first, and leave it on for a while: browsers told to always use HTTPS need it answering to be told to stop."
+      "notFull": "Choose \"Everything\" first, and leave it on for a while: browsers told to always use HTTPS need it answering to be told to stop.",
+      "renew": "Renew now",
+      "renewHint": "Checked by itself every 10 minutes: after the server's address or name changes, a new certificate follows. Same root - nothing to reinstall.",
+      "renewed": "A new certificate was issued for the server's current addresses and names.",
+      "renewUnchanged": "Nothing changed: the certificate already covers the server's addresses and names.",
+      "uncovered": "Not covered: {{names}}. This root may only vouch for private addresses and the local names it was created with, so reaching the server under these needs a new root, installed again on every device (docs/https.md, \"Starting over\")."
     }
   },
   "statcard": {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
-import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink } from 'lucide-react'
+import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink, RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 
 // FORK: Settings > HTTPS (server: internal/httpapi/https_settings.go).
@@ -24,6 +24,7 @@ interface HttpsStatus {
   rootSha256?: string
   fingerprint?: string
   names?: string[]
+  uncovered?: string[]
   validUntil?: string
   pending?: Mode
   pendingUntil?: string
@@ -47,6 +48,8 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
   const [blocked, setBlocked] = useState<{ kind: 'http' | 'https'; agents: { slug: string }[] } | null>(null)
   const [confirmUrl, setConfirmUrl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [renewing, setRenewing] = useState(false)
+  const [renewNote, setRenewNote] = useState('')
   const confirming = useRef(false)
 
   const load = useCallback(async () => {
@@ -137,6 +140,27 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
     }
   }, [change, password, load, onSaved, t])
 
+  // Re-checks the certificate against the server's addresses and names now,
+  // rather than at the next periodic check. Same root: nothing to reinstall.
+  const renew = async () => {
+    setRenewing(true)
+    setRenewNote('')
+    try {
+      const r = await fetch('/api/settings/https/renew', { method: 'POST' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setRenewNote(d.message || t('settings.https.applyFailed'))
+        return
+      }
+      setRenewNote(t(d.issued ? 'settings.https.renewed' : 'settings.https.renewUnchanged'))
+      await load()
+    } catch {
+      setRenewNote(t('settings.https.applyFailed'))
+    } finally {
+      setRenewing(false)
+    }
+  }
+
   if (loadError) return <p className="text-caption text-danger">{loadError}</p>
   if (!st) return <p className="text-caption text-text-muted">{t('common.loading')}</p>
 
@@ -205,6 +229,23 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
                 })}
               </p>
             )}
+            {st.uncovered && st.uncovered.length > 0 && (
+              <p className="mt-2 text-[11px] leading-relaxed text-warn">
+                {t('settings.https.uncovered', { names: st.uncovered.join(', ') })}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void renew()}
+                disabled={renewing}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+              >
+                {renewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {t('settings.https.renew')}
+              </button>
+              <span className="text-[11px] text-text-muted">{renewNote || t('settings.https.renewHint')}</span>
+            </div>
           </div>
 
           {/* The pin for agents */}

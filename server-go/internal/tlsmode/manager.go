@@ -415,6 +415,7 @@ type Status struct {
 	RootSHA256    string    `json:"rootSha256,omitempty"`
 	Fingerprint   string    `json:"fingerprint,omitempty"`
 	Names         []string  `json:"names,omitempty"`
+	Uncovered     []string  `json:"uncovered,omitempty"`
 	ValidUntil    time.Time `json:"validUntil,omitzero"`
 	Pending       Mode      `json:"pending,omitempty"`
 	PendingUntil  time.Time `json:"pendingUntil,omitzero"`
@@ -441,12 +442,30 @@ func (m *Manager) Status() Status {
 	if m.ca != nil && m.enabled {
 		st.RootSHA256 = m.ca.RootSHA256()
 		st.Fingerprint = m.ca.Fingerprint()
+		st.Uncovered = m.ca.Uncovered()
 		if leaf := m.ca.Leaf(); leaf != nil {
 			st.Names = append(slices.Clone(leaf.DNSNames), ipStrings(leaf.IPAddresses)...)
 			st.ValidUntil = leaf.NotAfter
 		}
 	}
 	return st
+}
+
+// Renew re-reads the host's addresses and names now, instead of at the next
+// periodic check, and issues a new certificate if they changed. It reports
+// whether it issued one. The root, and so every pin, stays the same.
+func (m *Manager) Renew(by string) (bool, error) {
+	m.mu.Lock()
+	ca, on := m.ca, m.enabled
+	m.mu.Unlock()
+	if ca == nil || !on {
+		return false, errors.New("turn HTTPS on first")
+	}
+	issued, err := ca.Refresh()
+	if err == nil {
+		m.opts.Logf("[netpulse] TLS: certificate checked by %s (new one issued: %v)", by, issued)
+	}
+	return issued, err
 }
 
 // HSTS is the Strict-Transport-Security value for a response, "" for none.
