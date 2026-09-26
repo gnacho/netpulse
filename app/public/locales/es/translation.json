@@ -1324,7 +1324,7 @@
       "stateOffCaption": "Recibe las alertas urgentes en este dispositivo aunque no tengas la app abierta.",
       "denied": "Permiso denegado en el navegador. Para reactivarlo: pulsa el candado (o el icono de ajustes) de la barra de direcciones → Permisos → Notificaciones → Permitir, y recarga la página.",
       "unsupported": "Este navegador no admite notificaciones push (hacen falta Service Worker, Push API y la API de notificaciones).",
-      "insecure": "Las notificaciones push exigen un contexto seguro (HTTPS). En la red local solo funcionan accediendo por localhost; desde http://<ip-de-la-lan> el navegador las bloquea.",
+      "insecure": "Las notificaciones push necesitan HTTPS, y esta página está abierta por HTTP. Abre NetPulse en su dirección HTTPS para activarlas en este dispositivo; un administrador activa HTTPS en Ajustes > HTTPS (puerto 3443 por defecto).",
       "demoNote": "No disponible en la demo local: las notificaciones push necesitan el backend de NetPulse (sin servidor, una suscripción nunca recibiría nada).",
       "errorServer": "No se pudo contactar con el servidor push. Inténtalo de nuevo.",
       "errorGeneric": "No se pudieron activar las notificaciones push en este dispositivo.",

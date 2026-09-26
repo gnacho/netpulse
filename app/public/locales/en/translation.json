@@ -1324,7 +1324,7 @@
       "stateOffCaption": "Get urgent alerts on this device even when the app is not open.",
       "denied": "Permission denied in the browser. To re-enable it: click the lock (or tune) icon in the address bar → Permissions → Notifications → Allow, then reload the page.",
       "unsupported": "This browser does not support push notifications (it needs Service Worker, the Push API and the Notifications API).",
-      "insecure": "Push notifications require a secure context (HTTPS). On the local network they only work via localhost; over http://<lan-ip> the browser blocks them.",
+      "insecure": "Push notifications need HTTPS, and this page is open over plain HTTP. Open NetPulse at its HTTPS address to enable them on this device - an admin turns HTTPS on in Settings > HTTPS (port 3443 by default).",
       "demoNote": "Not available in the local demo: push notifications need the NetPulse backend (without a server, a subscription would never receive anything).",
       "errorServer": "Could not reach the push server. Please try again.",
       "errorGeneric": "Push notifications could not be enabled on this device.",
