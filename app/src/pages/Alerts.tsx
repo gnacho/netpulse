@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -271,6 +271,42 @@ interface FeedRowProps {
   action?: { icon: LucideIcon; title: string; onClick: () => void }
 }
 
+// #862: acción de fila con icono grande y etiqueta de texto que aparece con
+// el hover de la FILA (no solo del icono). La etiqueta reserva su espacio con
+// una transición max-width, así no empuja el resto del contenido de la fila.
+// En pantallas estrechas (<sm) queda solo el icono (el hover de fila apenas
+// existe en táctil; ver issue aparte de coarse pointers).
+function RowAction({
+  icon: Icon,
+  label,
+  onClick,
+  className,
+  title,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick: (e: ReactMouseEvent) => void
+  className?: string
+  title: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1 rounded-md px-1.5 py-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100',
+        className,
+      )}
+      title={title}
+    >
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+      <span className="hidden max-w-0 overflow-hidden whitespace-nowrap text-caption opacity-0 transition-all duration-200 group-hover:opacity-100 sm:inline-block sm:group-hover:max-w-40">
+        {label}
+      </span>
+    </button>
+  )
+}
+
 function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDismiss, action }: FeedRowProps) {
   const { t } = useTranslation()
   const sev = SEVERITY[ev.severity]
@@ -349,33 +385,31 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowSilence((v) => !v) }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary"
+                  className="rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary"
                   title={t('alerts.silence')}
                 >
-                  <BellOff className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  <BellOff className="h-4 w-4" strokeWidth={1.75} />
                 </button>
               )}
               {/* #833: acción propia de la alerta (solo cuando aplica) y
-                  limpiar alerta, siempre; iconos con tooltip (title). */}
+                  limpiar alerta, siempre; icono + etiqueta con tooltip. */}
               {action && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); action.onClick() }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-accent"
+                <RowAction
+                  icon={action.icon}
+                  label={action.title}
                   title={action.title}
-                >
-                  <action.icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </button>
+                  onClick={(e) => { e.stopPropagation(); action.onClick() }}
+                  className="text-text-muted hover:text-accent"
+                />
               )}
               {onDismiss && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onDismiss(ev.id) }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary"
+                <RowAction
+                  icon={Eraser}
+                  label={t('alerts.actions.dismiss')}
                   title={t('alerts.actions.dismiss')}
-                >
-                  <Eraser className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </button>
+                  onClick={(e) => { e.stopPropagation(); onDismiss(ev.id) }}
+                  className="text-text-muted hover:text-text-primary"
+                />
               )}
               <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>
             </span>
