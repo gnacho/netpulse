@@ -318,6 +318,10 @@ del proyecto, que el hardware de tu red sea realmente tuyo y no dependa del
 firmware cerrado de un fabricante, solo es posible porque OpenWrt existe. Si
 NetPulse te sirve, el mérito real es de la comunidad de OpenWrt.
 
+## Historial de estrellas
+
+[![Star History Chart](https://api.star-history.com/svg?repos=gnacho/netpulse&type=date)](https://www.star-history.com/#gnacho/netpulse&date)
+
 ## Licencia
 
 [AGPL-3.0](LICENSE)

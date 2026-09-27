@@ -309,6 +309,10 @@ instead of depending on a vendor's closed firmware, only works because
 OpenWrt exists. If NetPulse is useful to you, the real credit goes to the
 OpenWrt community.
 
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=gnacho/netpulse&type=date)](https://www.star-history.com/#gnacho/netpulse&date)
+
 ## License
 
 [AGPL-3.0](LICENSE)
