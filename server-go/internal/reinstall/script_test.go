@@ -129,6 +129,23 @@ func TestScriptSelfHealInit(t *testing.T) {
 	}
 }
 
+// #879: el init entregado por el reinstall self-heala la entrada de cron del
+// antiguo watchdog (tras sysupgrade /etc sobrevive pero el binario no, y cron
+// loguearía un comando inexistente cada 2 min).
+func TestScriptInitSelfHealsStaleWatchdogCron(t *testing.T) {
+	s := scriptForTest()
+	for _, want := range []string{
+		"cleanup_stale_watchdog_cron()",
+		"[ -f /usr/sbin/netpulse-watchdog ] && return 0",
+		"crontab -l 2>/dev/null | grep -q netpulse-watchdog || return 0",
+		"cleanup_stale_watchdog_cron",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("init sin self-heal #879: falta %q", want)
+		}
+	}
+}
+
 // #851: el watchdog cron YA NO se instala; el script limpia los restos de
 // instalaciones previas que sí lo tenían.
 func TestScriptNoWatchdogCron(t *testing.T) {
