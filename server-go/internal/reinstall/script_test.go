@@ -129,7 +129,7 @@ func TestScriptSelfHealInit(t *testing.T) {
 	}
 }
 
-// #879: el init entregado por el reinstall self-heala la entrada de cron del
+// #879: el init entregado por el reinstall auto-repara la entrada de cron del
 // antiguo watchdog (tras sysupgrade /etc sobrevive pero el binario no, y cron
 // loguearía un comando inexistente cada 2 min).
 func TestScriptInitSelfHealsStaleWatchdogCron(t *testing.T) {
