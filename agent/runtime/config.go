@@ -100,7 +100,11 @@ func (o Options) Validate() error {
 	return nil
 }
 
-// loadEnvFile lee KEY=VALUE de un fichero env (líneas # = comentario).
+// loadEnvFile lee KEY=VALUE de un fichero env. Soporta líneas de comentario
+// completas (# al inicio) y comentarios inline (" #" tras el valor); estos
+// últimos se recortan antes de quitar comillas y espacios. Los valores que
+// genera el server (URL, token, FP SPKI) nunca contienen " #", así que
+// recortar en el primero es seguro.
 func loadEnvFile(path string) map[string]string {
 	out := map[string]string{}
 	data, err := os.ReadFile(path)
@@ -115,6 +119,9 @@ func loadEnvFile(path string) map[string]string {
 		k, v, ok := strings.Cut(line, "=")
 		if !ok {
 			continue
+		}
+		if before, _, found := strings.Cut(v, " #"); found {
+			v = before
 		}
 		out[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
 	}

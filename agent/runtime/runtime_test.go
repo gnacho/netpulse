@@ -62,6 +62,35 @@ NETPULSE_HEARTBEAT_FILE=/tmp/hb
 	}
 }
 
+// #883: los comentarios inline (" #" tras el valor) no deben formar parte
+// del valor; en concreto NETPULSE_SCAN_INTERVAL=0 con comentario debe
+// aplicar "sin scans periódicos", no caer en el default.
+func TestLoadConfigInlineComments(t *testing.T) {
+	dir := t.TempDir()
+	base := "NETPULSE_SERVER=http://s\nNETPULSE_TOKEN=t\nNETPULSE_SLUG=s\n"
+
+	env := filepath.Join(dir, "inline.env")
+	writeFile(t, env, base+"NETPULSE_SCAN_INTERVAL=0     # min entre scans de vecinos; \"0\" = sin scans periódicos\n")
+	opts, err := LoadConfigFromEnv(env)
+	if err != nil || opts.ScanInterval != probe.ScanDisabled {
+		t.Fatalf("SCAN_INTERVAL=0 con comentario inline: %v %v (quiero ScanDisabled)", opts.ScanInterval, err)
+	}
+
+	// Comentario inline tras una duración y tras un valor entrecomillado.
+	env = filepath.Join(dir, "inline2.env")
+	writeFile(t, env, base+"NETPULSE_INTERVAL=15s  # segundos entre beats\nNETPULSE_WAN_TARGET=\"1.1.1.1\"   # objetivo WAN\n")
+	opts, err = LoadConfigFromEnv(env)
+	if err != nil {
+		t.Fatalf("LoadConfigFromEnv: %v", err)
+	}
+	if opts.Interval != 15*time.Second {
+		t.Fatalf("Interval con comentario inline: %v", opts.Interval)
+	}
+	if opts.WanTarget != "1.1.1.1" {
+		t.Fatalf("WanTarget entrecomillado con comentario inline: %q", opts.WanTarget)
+	}
+}
+
 func TestLoadConfigIntervalFormats(t *testing.T) {
 	dir := t.TempDir()
 	base := "NETPULSE_SERVER=http://s\nNETPULSE_TOKEN=t\nNETPULSE_SLUG=s\n"
