@@ -334,7 +334,10 @@ fi
 
 # Initial config ONLY on fresh install (upgrades never touch .env or data)
 if [ ! -f "$STATE_DIR/.env" ]; then
-    ADMIN_PASS=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
+    # #895: alfabeto sin caracteres ambiguos (sin 0/O ni 1/l/I) para que la
+    # password inicial no se confunda en fuentes de terminal. 57 símbolos ×
+    # 16 caracteres ≈ 94 bits de entropía.
+    ADMIN_PASS=$(LC_ALL=C tr -dc 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789' < /dev/urandom | head -c 16)
     if [ "$DRY_RUN" -eq 1 ]; then info "[dry-run] would generate $STATE_DIR/.env (0600, random admin password, PORT=$PORT, DEMO_MODE=$DEMO)"; else
         $SUDO tee "$STATE_DIR/.env" >/dev/null <<EOF
 PORT=$PORT
