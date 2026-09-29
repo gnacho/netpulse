@@ -170,6 +170,23 @@ export default function Roaming() {
   const [tab, setTab] = useState<Tab>('matrix')
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
+  // #906: el filtro "Weak signal only" usa el umbral server-wide del ajuste
+  // Weak signal (#904, /api/settings/thresholds); -70 es el fallback (demo o
+  // servidor antiguo).
+  const [weakDbm, setWeakDbm] = useState(-70)
+  useEffect(() => {
+    if (isDemo) return
+    let cancelled = false
+    fetch('/api/settings/thresholds')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j && typeof j.weakSignalDbm === 'number') setWeakDbm(j.weakSignalDbm)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
   const [usteer, setUsteer] = useState<Usteer | null>(null)
   const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
   const [dot11rLoading, setDot11rLoading] = useState(false)
@@ -411,7 +428,7 @@ export default function Roaming() {
     }
     let arr = [...byMac.values()]
     if (weakOnly) {
-      arr = arr.filter((r) => [...r.signals.values()].every((s) => s < -70))
+      arr = arr.filter((r) => [...r.signals.values()].every((s) => s < weakDbm))
     }
     // Orden: mejor señal vista ascendente (los clientes peor vistos arriba).
     arr.sort((a, b) => {
@@ -421,7 +438,7 @@ export default function Roaming() {
       return (nameByMac.get(a.mac) ?? a.mac).localeCompare(nameByMac.get(b.mac) ?? b.mac)
     })
     return arr
-  }, [aps, weakOnly, nameByMac])
+  }, [aps, weakOnly, weakDbm, nameByMac])
 
   // #600: agrupar las columnas de la matriz por dispositivo (AP) y dentro por
   // banda. La cabecera pasa a dos niveles: nombre del AP (colSpan) + banda.
@@ -701,7 +718,7 @@ export default function Roaming() {
                       onChange={(e) => setWeakOnly(e.target.checked)}
                       className="h-3.5 w-3.5 accent-[rgb(var(--accent))]"
                     />
-                    {t('roaming.matrix.filterWeak')}
+                    {t('roaming.matrix.filterWeak', { dbm: weakDbm })}
                   </label>
                 </div>
               </div>

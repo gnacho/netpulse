@@ -604,7 +604,7 @@
       "colAp": "Punto de acceso",
       "filterBand": "Banda",
       "allBands": "Todas",
-      "filterWeak": "Solo señal débil (< -70 dBm)",
+      "filterWeak": "Solo señal débil (peor que {{dbm}} dBm)",
       "noClients": "Sin clientes asociados a estos APs.",
       "clients": "{{count}} clientes",
       "aps": "{{count}} APs",
