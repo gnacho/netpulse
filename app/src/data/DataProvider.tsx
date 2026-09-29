@@ -618,11 +618,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       es.addEventListener('alert', (ev) => {
         try {
           const alert = JSON.parse((ev as MessageEvent).data as string) as AlertEvent
-          setBundle((prev) => ({
-            ...prev,
-            alerts: [alert, ...prev.alerts],
-            unreadAlerts: prev.unreadAlerts + (alert.read ? 0 : 1),
-          }))
+          setBundle((prev) => {
+            // #891: dedupe por ID — un alert con ID ya presente NO se vuelve
+            // a anteponer (duplicaba filas y sumaba al badge). Se reemplaza
+            // en sitio: es la versión más reciente del mismo evento, y su
+            // flag read viene de la verdad del servidor (engine.List).
+            const idx = prev.alerts.findIndex((a) => a.id === alert.id)
+            const existing = idx >= 0 ? prev.alerts[idx] : undefined
+            if (existing) {
+              const alerts = [...prev.alerts]
+              alerts[idx] = alert
+              const hadUnread = existing.read ? 0 : 1
+              const hasUnread = alert.read ? 0 : 1
+              return { ...prev, alerts, unreadAlerts: Math.max(0, prev.unreadAlerts - hadUnread + hasUnread) }
+            }
+            return {
+              ...prev,
+              alerts: [alert, ...prev.alerts],
+              unreadAlerts: prev.unreadAlerts + (alert.read ? 0 : 1),
+            }
+          })
         } catch {
           /* payload inválido: se ignora */
         }
@@ -872,6 +887,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ ids }),
         })
         if (res.status === 401) redirectLogin()
+        // #891: igual que en read-all — re-aplica el leído si un snapshot
+        // pre-POST pisó el estado optimista mientras el POST estaba en vuelo.
+        if (res.ok) {
+          setBundle((prev) => ({
+            ...prev,
+            alerts: prev.alerts.map((a) => (idSet.has(a.id) ? { ...a, read: true } : a)),
+          }))
+        }
       } catch {
         /* el próximo snapshot/SSE resincroniza el read state */
       }
@@ -889,6 +912,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch('/api/alerts/read-all', { method: 'POST' })
         if (res.status === 401) redirectLogin()
+        // #891: un snapshot tomado ANTES de que el POST llegara al servidor
+        // puede haber pisado el estado optimista con read=false. Al resolver
+        // el POST, la verdad del servidor YA incluye el read-all, así que se
+        // re-aplica el estado leído por si llegó ese snapshot enrarecido.
+        if (res.ok) {
+          setBundle((prev) => ({
+            ...prev,
+            alerts: prev.alerts.map((a) => ({ ...a, read: true })),
+            unreadAlerts: 0,
+          }))
+        }
       } catch {
         /* idem: resync por snapshot */
       }
