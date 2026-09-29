@@ -493,6 +493,16 @@ func (e *Engine) Emit(ev AlertEvent) bool {
 			ev.SuppressedBy = parent
 		}
 	}
+	// #914: default de Ts/Time ANTES de insertar y notificar. Hasta ahora el
+	// default vivía solo en insertaLocked, cuya copia local no propagaba a
+	// esta `ev`: el notifier (ntfy/Telegram/webhook) recibía Ts=0 y pintaba
+	// la hora estática 16:00:00 (epoch en zona UTC-8).
+	if ev.Ts == 0 {
+		ev.Ts = e.now().Unix()
+	}
+	if ev.Time == "" {
+		ev.Time = "ahora mismo"
+	}
 	now := e.now()
 	ok := e.insertaLocked(ev, now, false)
 	n := e.notifier
@@ -520,6 +530,13 @@ func (e *Engine) EmitNoDedup(ev AlertEvent) bool {
 		if parent := e.suppression.SuppressedBy(ev.RouterID); parent != "" {
 			ev.SuppressedBy = parent
 		}
+	}
+	// #914: mismo default de Ts/Time que en Emit antes de notificar.
+	if ev.Ts == 0 {
+		ev.Ts = e.now().Unix()
+	}
+	if ev.Time == "" {
+		ev.Time = "ahora mismo"
 	}
 	now := e.now()
 	ok := e.insertaLocked(ev, now, true)

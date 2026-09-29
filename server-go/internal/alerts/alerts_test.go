@@ -498,3 +498,25 @@ func TestSilencedReturnsMap(t *testing.T) {
 		}
 	}
 }
+
+// #914: el Notifier debe recibir el evento con Ts/Time ya defaulted. Antes
+// el default vivía solo en insertaLocked (copia local) y el notifier recibía
+// Ts=0, que ntfy/Telegram pintaban como la hora estática 16:00:00.
+func TestNotifierReceivesDefaultedTs(t *testing.T) {
+	spy := &spyNotifier{}
+	e := New(nil, spy)
+	bare := AlertEvent{ID: "a1", Category: CatSystem, Severity: "warn", Title: "t"}
+	e.Emit(bare)
+	e.EmitNoDedup(bare)
+	if len(spy.got) != 2 {
+		t.Fatalf("notifier: %+v", spy.got)
+	}
+	for _, g := range spy.got {
+		if g.Ts == 0 {
+			t.Fatalf("notifier recibió Ts=0: %+v", g)
+		}
+		if g.Time == "" {
+			t.Fatalf("notifier recibió Time vacío: %+v", g)
+		}
+	}
+}
