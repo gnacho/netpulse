@@ -500,6 +500,8 @@
     "latency": "Latency",
     "recentAlerts": {
       "lastCheck": "Last check 30s ago",
+      "unreadOnly": "Unread only",
+      "allRead": "All caught up. No unread alerts.",
       "recheck": "Check again"
     },
     "routersRow": {

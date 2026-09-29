@@ -22,6 +22,28 @@ export function RecentAlerts() {
     if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
   }, [])
   const recent = alerts.slice(0, 4)
+  // #916: toggle "solo no leídas" para mantener la tarjeta limpia en
+  // operación normal. Persistente en localStorage (preferencia de vista,
+  // no de negocio).
+  const [unreadOnly, setUnreadOnly] = useState(() => {
+    try {
+      return localStorage.getItem('netpulse-recentalerts-unread-only') === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleUnreadOnly = () => {
+    setUnreadOnly((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('netpulse-recentalerts-unread-only', next ? '1' : '0')
+      } catch {
+        /* modo privado */
+      }
+      return next
+    })
+  }
+  const visible = (unreadOnly ? alerts.filter((a) => !a.read && !readIds.has(a.id)) : recent).slice(0, 4)
   // El badge muestra el total de no leídas (como la campana), no solo de las 4 visibles
   const unread = Math.max(0, unreadAlerts - readIds.size)
 
@@ -38,9 +60,25 @@ export function RecentAlerts() {
             {unread}
           </span>
         )}
+        <button
+          type="button"
+          onClick={toggleUnreadOnly}
+          aria-pressed={unreadOnly}
+          className={cn(
+            'rounded-lg border px-2 py-0.5 text-[11px] font-medium transition-colors',
+            unreadOnly
+              ? 'border-accent/40 bg-accent/15 text-accent'
+              : 'border-border text-text-muted hover:text-text-secondary',
+          )}
+        >
+          {t('home.recentAlerts.unreadOnly')}
+        </button>
       </SectionHeader>
       <div className="-mx-3 flex-1 space-y-1">
-        {recent.map((a, i) => (
+        {visible.length === 0 && (
+          <p className="px-3 py-6 text-center text-caption text-text-muted">{t('home.recentAlerts.allRead')}</p>
+        )}
+        {visible.map((a, i) => (
           <motion.div
             key={a.id}
             initial={{ opacity: 0, y: 12 }}

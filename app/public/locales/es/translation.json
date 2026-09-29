@@ -500,6 +500,8 @@
     "latency": "Latencia",
     "recentAlerts": {
       "lastCheck": "Última comprobación hace 30 s",
+      "unreadOnly": "Solo no leídas",
+      "allRead": "Todo en orden. No hay alertas sin leer.",
       "recheck": "Volver a comprobar"
     },
     "routersRow": {
