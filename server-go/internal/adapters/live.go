@@ -2619,9 +2619,16 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		l.suppression.SetTopology(parents)
 	}
 	l.mu.Unlock()
-	// Aviso de señal débil (< -70 dBm): una alerta por dispositivo y día
+	// Aviso de señal débil: una alerta por dispositivo y día. Umbral
+	// configurable (alerts.weak_signal_dbm, default -70; #904: antes era
+	// -70 hardcodeado y el ajuste de Ajustes no cableaba a nada).
+	var weakSignalDB *sql.DB
+	if l.db != nil {
+		weakSignalDB = l.db.DB
+	}
+	weakDbm := alerts.WeakSignalDbm(weakSignalDB)
 	for _, d := range devices {
-		if d.Online && d.SignalDbm != nil && *d.SignalDbm < -70 {
+		if d.Online && d.SignalDbm != nil && *d.SignalDbm < weakDbm {
 			l.mu.Lock()
 			last := l.weakAlerted[d.MAC]
 			if time.Now().UnixMilli()-last > 24*3600e3 {

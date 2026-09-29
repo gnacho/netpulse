@@ -4449,8 +4449,55 @@ export default function Settings() {
   const [tempUnit, setTempUnit] = useTempUnit()
   const [decimalEs, setDecimalEs] = useStoredState('netpulse-decimal-es', true)
   const [refresh, setRefresh] = useStoredState<'3' | '5' | '10' | '0'>('netpulse-refresh', '3')
-  const [signalT, setSignalT] = useStoredState('netpulse-th-signal', -70)
+  const [signalT, setSignalTState] = useState(-70)
   const [latencyT, setLatencyT] = useStoredState('netpulse-th-latency', 50)
+
+  // #904: el umbral de señal es server-wide (kv alerts.weak_signal_dbm):
+  // alimenta la alerta "Señal débil" y es el mismo para todos los clientes.
+  // En demo no hay API: se degrada a localStorage. Guardado con debounce
+  // mínimo (al soltar el slider) via PUT.
+  useEffect(() => {
+    if (isDemo) {
+      try {
+        const raw = localStorage.getItem('netpulse-th-signal')
+        const n = raw !== null ? (JSON.parse(raw) as number) : -70
+        if (Number.isFinite(n)) setSignalTState(n)
+      } catch {
+        /* valor por defecto */
+      }
+      return
+    }
+    let cancelled = false
+    fetch('/api/settings/thresholds')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j && typeof j.weakSignalDbm === 'number') setSignalTState(j.weakSignalDbm)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+
+  const setSignalT = useCallback(
+    (v: number) => {
+      setSignalTState(v)
+      if (isDemo) {
+        try {
+          localStorage.setItem('netpulse-th-signal', JSON.stringify(v))
+        } catch {
+          /* modo privado */
+        }
+        return
+      }
+      void fetch('/api/settings/thresholds', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weakSignalDbm: v }),
+      }).catch(() => {})
+    },
+    [isDemo],
+  )
 
   const weakCount = devices.filter((d) => d.signalDbm !== null && d.signalDbm < signalT).length
   const latencyHot = wan.latencyMs > latencyT

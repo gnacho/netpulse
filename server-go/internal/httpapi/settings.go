@@ -190,6 +190,7 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 	s.registerNtfyRoutes(mux)
 	s.registerAlertsLangRoutes(mux)
 	s.registerRoamingSettingsRoutes(mux)
+	s.registerThresholdsRoutes(mux)
 }
 
 // knownMacItem es la forma JSON de una entrada de la allowlist (#196).
