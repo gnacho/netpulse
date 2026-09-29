@@ -62,9 +62,24 @@ PYEOF
 fi
 
 echo "STEP:fetch"
-git fetch origin main
-git reset --hard origin/main
-SHA=$(git rev-parse HEAD)
+# Dos layouts soportados:
+#   - rolling (dev): REPO_ROOT es un clone git → fetch + reset al main.
+#   - estable (install.sh / CT): REPO_ROOT es solo el árbol de fuentes, sin
+#     .git (el fetch moría aquí y el update abortaba). El único dato que
+#     necesita el flujo Go es el SHA de main, que se resuelve vía ls-remote
+#     anónimo (repo público).
+if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  timeout 60 git -C "$REPO_ROOT" fetch origin main
+  git -C "$REPO_ROOT" reset --hard origin/main
+  SHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
+else
+  echo "aviso: $REPO_ROOT no es un clone git (layout estable); resolviendo HEAD de main vía ls-remote"
+  SHA=$(timeout 60 git ls-remote https://github.com/gnacho/netpulse.git refs/heads/main | awk '{print $1}')
+  if [ -z "$SHA" ]; then
+    echo "ERROR: no se pudo resolver el HEAD de main (red o git ausente)"
+    exit 1
+  fi
+fi
 
 # Si git reset --hard (o git clean) eliminó .ssh, lo restauramos desde el
 # backup. Esto es lo que pasó en issue #425.
