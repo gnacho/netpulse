@@ -81,6 +81,66 @@ import pkg from '../../package.json'
 // ---------------------------------------------------------------------------
 
 /** Estado persistido en localStorage (settings.md §Interactions) */
+// Idioma de las notificaciones push (#889): ajuste server-wide (kv
+// alerts.lang). Los pushes ntfy/telegram/webhook se traducen server-side con
+// los mismos catálogos de la app (#888).
+function AlertsLangControl({ onSaved }: { onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [lang, setLang] = useState('')
+  const [supported, setSupported] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/settings/alerts-lang')
+        if (!res.ok) return
+        const body = (await res.json()) as { lang: string; supported: string[] }
+        setLang(body.lang)
+        setSupported(body.supported)
+      } catch {
+        /* se queda el estado vacío; el select queda deshabilitado */
+      }
+    })()
+  }, [])
+
+  const change = async (next: string) => {
+    setLang(next)
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings/alerts-lang', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang: next }),
+      })
+      if (res.ok) onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <label className="text-sm text-text-secondary" htmlFor="alerts-lang">
+        {t('settings.alertsLang.label')}
+      </label>
+      <select
+        id="alerts-lang"
+        value={lang}
+        disabled={saving || supported.length === 0}
+        onChange={(e) => void change(e.target.value)}
+        className="rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-sm text-text-primary disabled:opacity-50"
+      >
+        {supported.map((l) => (
+          <option key={l} value={l}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 function useStoredState<T>(key: string, initial: T): [T, (v: T) => void] {
   const [state, setState] = useState<T>(() => {
     try {
@@ -4868,6 +4928,15 @@ export default function Settings() {
             </p>
           </Card>
         </div>
+
+        {/* Idioma de las notificaciones push (#889): server-wide */}
+        {!isDemo && (
+          <div className="order-69">
+            <Card title={t('settings.alertsLang.title')} caption={t('settings.alertsLang.description')} index={4} reduce={reduce}>
+              <AlertsLangControl onSaved={notify} />
+            </Card>
+          </div>
+        )}
 
         {/* Telegram (#326): notificaciones directas al bot — sección Notificaciones */}
         {!isDemo && (

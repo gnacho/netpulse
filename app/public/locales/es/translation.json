@@ -1690,6 +1690,11 @@
       "propagateEmpty": "No hay routers NetGrip en la flota a los que propagar.",
       "running": "publicando",
       "notRunning": "detenido"
+    },
+    "alertsLang": {
+      "title": "Idioma de las notificaciones",
+      "description": "Idioma en que se envían los avisos de ntfy, Telegram y webhook (las alertas se componen en español y se traducen al publicar).",
+      "label": "Idioma de los avisos"
     }
   },
   "statcard": {

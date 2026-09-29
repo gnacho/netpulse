@@ -1690,6 +1690,11 @@
       "propagateEmpty": "There are no NetGrip routers in the fleet to propagate to.",
       "running": "publishing",
       "notRunning": "stopped"
+    },
+    "alertsLang": {
+      "title": "Notification language",
+      "description": "Language used for ntfy, Telegram and webhook alerts (alerts are composed in Spanish and translated when published).",
+      "label": "Alert language"
     }
   },
   "statcard": {
