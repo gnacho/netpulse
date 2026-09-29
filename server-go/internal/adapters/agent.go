@@ -805,6 +805,20 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 			l.agentOutdatedAlerted[cfg.ID] = true
 			l.mu.Unlock()
 		}
+		// #910: EmitOrUpdate notifica en cada actualización en sitio; sin
+		// este guard, cada push del agente (30 s) reenviaba la notificación
+		// push y refrescaba el timestamp de la alerta. Solo se emite cuando
+		// la versión observada o la de referencia cambian.
+		key := p.Version + "|" + ref
+		l.mu.Lock()
+		unchanged := l.agentOutdatedKey[cfg.ID] == key
+		if !unchanged {
+			l.agentOutdatedKey[cfg.ID] = key
+		}
+		l.mu.Unlock()
+		if unchanged {
+			return
+		}
 		l.engine.EmitOrUpdate(AlertEvent{
 			ID:       fmt.Sprintf("alert-agent-outdated-%s", cfg.ID),
 			Category: alerts.CatSystem, Urgent: false,
@@ -824,6 +838,9 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 		// actualizarse el agente (además del aviso ok de recuperación, que
 		// solo se emite cuando el flag en memoria estaba activo).
 		l.engine.Resolve(fmt.Sprintf("alert-agent-outdated-%s", cfg.ID))
+		l.mu.Lock()
+		delete(l.agentOutdatedKey, cfg.ID)
+		l.mu.Unlock()
 		if alerted {
 			l.engine.Emit(AlertEvent{
 				ID:       fmt.Sprintf("alert-agent-outdated-%s-ok-%d", cfg.ID, time.Now().UnixMilli()),

@@ -298,6 +298,11 @@ type Live struct {
 	// re-emitir la recuperación ok más de una vez.
 	agentLatest          func(kind string) string
 	agentOutdatedAlerted map[string]bool
+	// #910: último "version|ref" reportado por router para la alerta de
+	// desactualizado. EmitOrUpdate notifica en CADA actualización en sitio,
+	// así que sin este guard cada push (30 s) reenviaba el push y refrescaba
+	// el timestamp: solo se emite cuando el dato realmente cambia.
+	agentOutdatedKey map[string]string
 
 	// routerMacs: id → bridge MAC persistida en DB. Permite emparejar un agente
 	// con su router aunque el slug elegido por el usuario no coincida con el id
@@ -398,6 +403,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		agentDown:            map[string]bool{},
 		agentDownConfirm:     3 * time.Minute, // Dead Man's Switch (P6): 3 min por defecto
 		agentOutdatedAlerted: map[string]bool{},
+		agentOutdatedKey:     map[string]string{},
 		routerMacs:           map[string]string{},
 		sshAuthFailAlerted:   map[string]bool{},
 		fdbMemo:              map[string]fdbPortMemo{},
