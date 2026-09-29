@@ -58,7 +58,7 @@ type WAN struct {
 	PeakTodayMbps float64 `json:"peakTodayMbps"`
 	PeakTodayTime string  `json:"peakTodayTime"`
 	AvgDownMbps   float64 `json:"avgDownMbps"`
-	Total24h      string  `json:"total24h"`
+	Total24h      float64 `json:"total24h"` // bytes; el cliente formatea con su locale (#899)
 	// Conexión WAN real (issue #276), solo live (el demo las omite):
 	// protocolo ("pppoe"), gateway y DNS. Proto vacío en el demo/datos viejos.
 	Proto   string   `json:"proto,omitempty"`

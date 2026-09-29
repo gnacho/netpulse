@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Activity, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { fmtEs } from '@/data/mock'
+import { fmtBytes, fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Sparkline } from '@/components/Sparkline'
@@ -46,7 +46,7 @@ export function WanLatency() {
   const WAN_METRICS = [
     { label: t('routerDetail.wan.publicIp'), value: wan.publicIp },
     { label: 'ISP', value: `${wan.isp} · ${t('routerDetail.wan.fiber', { plan: wan.plan.replace(' Mbps', '') })}` },
-    { label: t('routerDetail.wan.totalToday'), value: wan.total24h },
+    { label: t('routerDetail.wan.totalToday'), value: fmtBytes(wan.total24h) },
   ] as const
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:col-span-12 lg:grid-cols-12">

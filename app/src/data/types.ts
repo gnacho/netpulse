@@ -96,7 +96,7 @@ export interface WanInfo {
   peakTodayMbps: number
   peakTodayTime: string
   avgDownMbps: number
-  total24h: string
+  total24h: number // bytes; se formatea en cliente con el locale activo (#899)
   /** Conexión WAN real (issue #276), solo live: protocolo, gateway, DNS. */
   proto?: string
   gateway?: string

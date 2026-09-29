@@ -3,7 +3,7 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import type { TimeRange, TrafficPoint } from '@/data/mock'
-import { fmtEs } from '@/data/mock'
+import { fmtBytes, fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
@@ -61,7 +61,7 @@ export function WanTraffic() {
   const FOOTER_METRICS = [
     { label: t('home.traffic.peakToday'), value: `${wan.peakTodayMbps} Mbps ↓` },
     { label: t('home.traffic.average'), value: `${wan.avgDownMbps} Mbps ↓` },
-    { label: t('home.traffic.total24h'), value: wan.total24h },
+    { label: t('home.traffic.total24h'), value: fmtBytes(wan.total24h) },
     { label: t('home.traffic.loss'), value: `${wan.lossPct} %` },
   ] as const
   // Carga de datos por rango (crossfade vía key en el chart)

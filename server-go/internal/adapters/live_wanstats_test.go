@@ -65,9 +65,10 @@ func TestWanDayStats(t *testing.T) {
 		t.Fatalf("avgMbps=%v, esperaba 47.5", res.avgMbps)
 	}
 	// Total 24h: SUM(rx_bps)×dt/8 con dt = 86400/4 = 21600s.
-	// (20+30+90+50)e6 × 21600 / 8 = 190e6×21600/8 = 5.13e11 bytes = 513 GB.
-	if res.totalStr != "513 GB" {
-		t.Fatalf("totalStr=%q, esperaba 513 GB", res.totalStr)
+	// (20+30+90+50)e6 × 21600 / 8 = 190e6×21600/8 = 5.13e11 bytes (513 GB).
+	// #899: bytes crudos; el formateo con locale vive en el cliente.
+	if res.totalBytes != 5.13e11 {
+		t.Fatalf("totalBytes=%v, esperaba 5.13e11", res.totalBytes)
 	}
 }
 
@@ -80,7 +81,7 @@ func TestWanDayStatsSinDatos(t *testing.T) {
 	if res.peakMbps != 0 || res.avgMbps != 0 {
 		t.Fatalf("stats sin datos deberían ser 0: %+v", res)
 	}
-	if res.peakTime != "—" || res.totalStr != "—" {
+	if res.peakTime != "—" || res.totalBytes != 0 {
 		t.Fatalf("marcadores sin datos deberían ser '—': %+v", res)
 	}
 }
@@ -89,7 +90,7 @@ func TestWanDayStatsSinDatos(t *testing.T) {
 func TestWanDayStatsSinBD(t *testing.T) {
 	l := &Live{db: nil}
 	res := l.wanDayStats("gw")
-	if res.peakMbps != 0 || res.avgMbps != 0 || res.totalStr != "—" {
+	if res.peakMbps != 0 || res.avgMbps != 0 || res.totalBytes != 0 {
 		t.Fatalf("sin BD debería devolver zeros/'—': %+v", res)
 	}
 }

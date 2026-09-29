@@ -262,6 +262,21 @@ export function fmtInt(n: number): string {
   return n.toLocaleString(numLocale())
 }
 
+/**
+ * Formatea bytes con el locale activo (#899): el servidor manda el total en
+ * bytes crudos (no puede saber el locale de cada usuario) y la presentación
+ * (punto o coma decimal) se decide aquí, igual que las tasas.
+ * `fmtBytes(1.32e12)` -> "1.3 TB" (en-US) / "1,3 TB" (es-ES); 0 o no finito -> "—".
+ */
+export function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '—'
+  if (n >= 1e12) return `${fmtEs(n / 1e12, 1)} TB`
+  if (n >= 1e9) return `${fmtEs(n / 1e9, 1)} GB`
+  if (n >= 1e6) return `${fmtInt(Math.round(n / 1e6))} MB`
+  if (n >= 1e3) return `${fmtInt(Math.round(n / 1e3))} KB`
+  return `${fmtInt(Math.round(n))} B`
+}
+
 /** Icono de señal según dBm (umbrales domésticos) */
 export function signalLevel(dbm: number | null): 'high' | 'medium' | 'low' | 'zero' | 'cable' {
   if (dbm === null) return 'cable'

@@ -835,14 +835,14 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 // SUM(rx_bps) × Δt (Δt = 86400/N s entre muestras, luego /8 bits→bytes).
 // Sin BD, sin gateway o sin datos devuelve los valores cero/"—" de partida.
 type wanDayStatsResult struct {
-	peakMbps float64
-	peakTime string
-	avgMbps  float64
-	totalStr string
+	peakMbps   float64
+	peakTime   string
+	avgMbps    float64
+	totalBytes float64
 }
 
 func (l *Live) wanDayStats(gwID string) wanDayStatsResult {
-	out := wanDayStatsResult{peakTime: "—", totalStr: "—"}
+	out := wanDayStatsResult{peakTime: "—"}
 	if l.db == nil || gwID == "" {
 		return out
 	}
@@ -873,7 +873,7 @@ func (l *Live) wanDayStats(gwID string) wanDayStatsResult {
 	if err := row.Scan(&avg, &sum, &n); err == nil && avg.Valid && sum.Valid && n.Valid && n.Int64 > 0 {
 		out.avgMbps = math.Round(avg.Float64/1e6*10) / 10
 		dt := float64(86400) / float64(n.Int64) // s entre muestras
-		out.totalStr = fmtBytes(sum.Float64 * dt / 8)
+		out.totalBytes = sum.Float64 * dt / 8
 	}
 	return out
 }
@@ -2494,7 +2494,7 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 	}
 	l.mu.Unlock()
 	wan := WAN{
-		Plan: "—", PublicIP: "—", Isp: "—", PeakTodayTime: "—", Total24h: "—",
+		Plan: "—", PublicIP: "—", Isp: "—", PeakTodayTime: "—", Total24h: 0,
 	}
 	if p != nil {
 		if p.net != nil {
@@ -2524,7 +2524,7 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 		wan.PeakTodayMbps = ds.peakMbps
 		wan.PeakTodayTime = ds.peakTime
 		wan.AvgDownMbps = ds.avgMbps
-		wan.Total24h = ds.totalStr
+		wan.Total24h = ds.totalBytes
 	}
 	return wan
 }

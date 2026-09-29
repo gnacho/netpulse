@@ -826,14 +826,14 @@
       "trafficMbps": 0,
       "online": false,
       "sparkline": [],
+      "iconOverride": "BookOpen",
       "hostname": "kindle-paperwhite",
       "dhcpLease": "Expirado",
       "firstSeen": "hace 220 días",
       "traffic24hRx": "220 MB",
       "traffic24hTx": "8 MB",
       "adguard": true,
-      "group": "otros",
-      "iconOverride": "BookOpen"
+      "group": "otros"
     },
     {
       "id": "bombilla-1",
@@ -1653,14 +1653,14 @@
       },
       "attachTo": "living",
       "infra": "managed-switch",
+      "iconOverride": "Network",
       "hostname": "gs308e",
       "dhcpLease": "IP fija (reserva)",
       "firstSeen": "hace 300 días",
       "traffic24hRx": "64 MB",
       "traffic24hTx": "12 MB",
       "adguard": false,
-      "group": "red",
-      "iconOverride": "Network"
+      "group": "red"
     },
     {
       "id": "xbox-series-s",
@@ -2225,14 +2225,14 @@
         0.05
       ],
       "attachTo": "dist-flint2-lan3",
+      "iconOverride": "Printer",
       "hostname": "impresora-hp",
       "dhcpLease": "renueva en 5 h 22 min",
       "firstSeen": "hace 60 días",
       "traffic24hRx": "2,4 GB",
       "traffic24hTx": "120 MB",
       "adguard": true,
-      "group": "iot",
-      "iconOverride": "Printer"
+      "group": "iot"
     },
     {
       "id": "xbox-one",
@@ -2519,7 +2519,7 @@
     "peakTodayMbps": 412,
     "peakTodayTime": "21:14",
     "avgDownMbps": 61,
-    "total24h": "1,32 TB"
+    "total24h": 1320000000000
   },
   "health": {
     "score": 92,

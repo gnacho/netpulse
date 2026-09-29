@@ -305,7 +305,7 @@ function emptyBundle(): NetPulseData {
       peakTodayMbps: 0,
       peakTodayTime: '—',
       avgDownMbps: 0,
-      total24h: '—',
+      total24h: 0,
     },
     traffic: { '1h': [], '24h': [], '7d': [], '30d': [] },
     adguard: {

@@ -69,7 +69,7 @@ func canonWAN() WAN {
 	return WAN{
 		Plan: "600/600 Mbps", DownMbps: 84.2, UpMbps: 12.6, LatencyMs: 8, LossPct: 0,
 		PublicIP: "84.122.x.x", Isp: "Digi", PeakTodayMbps: 412, PeakTodayTime: "21:14",
-		AvgDownMbps: 61, Total24h: "1,32 TB",
+		AvgDownMbps: 61, Total24h: 1.32e12,
 	}
 }
 
