@@ -120,6 +120,7 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	engine := s.adapter.AlertsEngine()
 	out.Alerts = engine.List()
 	out.UnreadAlerts = engine.UnreadCount()
+	out.ServerUptimeSec = int64(time.Since(s.started).Seconds())
 	EnrichOverview(s.db.DB, s.speedtest, &out)
 	writeJSON(w, http.StatusOK, &out)
 }

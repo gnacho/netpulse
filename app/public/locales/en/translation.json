@@ -906,7 +906,8 @@
       "stepVerifying": "Verifying integrity",
       "timelineSummary": "· {{count}} steps · {{secs}} s",
       "netgripBadge": "NetGrip",
-      "netgripFreshTip": "NetGrip v{{version}} · embedded agent"
+      "netgripFreshTip": "NetGrip v{{version}} · embedded agent",
+      "warmingBanner": "Waiting for agents to reconnect…"
     },
     "colClients": "Clients",
     "colCpu": "CPU",

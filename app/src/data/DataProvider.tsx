@@ -130,6 +130,8 @@ export interface NetPulseData {
   dawnDeprecated?: boolean
   /** Menú de orquestación activado por el admin (#121); ausente = oculto. */
   orchestration?: boolean
+  /** Segundos desde el arranque del server (#887); ausente = sin gracia. */
+  serverUptimeSec?: number
 }
 
 export interface NetPulseApi extends NetPulseData {
@@ -538,6 +540,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       roamingDaemon: o.roamingDaemon,
       dawnDeprecated: o.dawnDeprecated,
       orchestration: o.orchestration,
+      serverUptimeSec: o.serverUptimeSec,
       ...(o.devices ? { devices: o.devices } : {}),
     }))
   }, [])
