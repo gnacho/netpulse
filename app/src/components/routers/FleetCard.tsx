@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { AlertTriangle, Cable, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users, Wifi } from 'lucide-react'
+import { AlertTriangle, Cable, Clock, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts'
@@ -81,9 +81,15 @@ function TrafficTooltip({
 /** FleetCard grande de /routers (routers.md §②) */
 export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps) {
   const { t } = useTranslation()
-  const { isDemo } = useNetPulse()
+  const { isDemo, serverUptimeSec } = useNetPulse()
   const [tempUnit] = useTempUnit()
   const agent = useAgentFor(router.id)
+  // #887: período de gracia post-arranque del server. Justo tras un reinicio
+  // los agentes aún no han vuelto a empujar (push cada 15 s + reconexión SSE)
+  // y no es honesto gritar "agente caído / reinstalar": se muestra un aviso
+  // suave de espera. Pasado el grace, el banner drástico de siempre.
+  const STARTUP_GRACE_SEC = 90
+  const inStartupGrace = (serverUptimeSec ?? Number.MAX_SAFE_INTEGER) < STARTUP_GRACE_SEC
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
   const isOpenWrt = router.type === undefined || router.type === '' || router.type === 'glinet' || router.type === 'openwrt'
@@ -136,8 +142,18 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
           </div>
         )}
 
-        {/* Banner de agente caído (el router tiene agente registrado pero no responde) */}
-        {agentDown && (
+        {/* Banner de agente caído (el router tiene agente registrado pero no
+            responde). Durante la gracia post-arranque (#887) se suaviza: es
+            normal que los agentes aún no hayan vuelto a empujar. */}
+        {agentDown && inStartupGrace && (
+          <div className="mb-4 -mx-6 -mt-6 flex items-center gap-2 border-b border-border bg-elevated px-6 py-2.5">
+            <Clock className="h-4 w-4 shrink-0 animate-pulse text-text-muted" strokeWidth={1.75} />
+            <span className="text-caption font-semibold text-text-muted">
+              {t('routers.agent.warmingBanner')}
+            </span>
+          </div>
+        )}
+        {agentDown && !inStartupGrace && (
           <div className="mb-4 -mx-6 -mt-6 flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-6 py-2.5">
             <AlertTriangle className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} />
             <span className="text-caption font-semibold text-warn">{t('routers.agent.downBanner')}</span>

@@ -130,6 +130,7 @@ func main() {
 }
 
 func run() error {
+	serverStarted := time.Now()
 	serverRoot, err := os.Getwd()
 	if err != nil {
 		return err
@@ -563,6 +564,9 @@ func run() error {
 		// primer evento pisaría los campos en la UI.
 		p.SetEnrich(func(ov *adapters.Overview) {
 			httpapi.EnrichOverview(dbHandle.DB, stScheduler, ov)
+			// #887: el snapshot SSE también lleva el uptime para la gracia
+			// post-arranque en el frontend.
+			ov.ServerUptimeSec = int64(time.Since(serverStarted).Seconds())
 		})
 		go stScheduler.Start()
 	}
@@ -640,7 +644,7 @@ func run() error {
 			return p.LastOverview()
 		},
 		PollNow: p.PollNow,
-		Started: time.Now(),
+		Started: serverStarted,
 	})
 
 	// Envolver el handler con GET /fingerprint (sin auth) si on-box.

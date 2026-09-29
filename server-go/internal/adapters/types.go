@@ -418,6 +418,11 @@ type Overview struct {
 	TopDevices   []Device       `json:"topDevices"` // 5 por trafficMbps desc
 	Alerts       []AlertEvent   `json:"alerts"`
 	UnreadAlerts int            `json:"unreadAlerts"`
+	// ServerUptimeSec: segundos desde el arranque del proceso server. Lo usa
+	// el frontend para el período de gracia post-arranque (#887): justo tras
+	// un reinicio los agentes aún no han vuelto a empujar y no debe saltar
+	// el banner drástico de "agente caído / reinstalar".
+	ServerUptimeSec int64 `json:"serverUptimeSec,omitempty"`
 	// DistributionNodes: switches/hipervisores inferidos del FDB (topología
 	// v5). Vacío/ausente si aún no hay datos FDB: el mapa cuelga los
 	// cableados del router (degradación amable).

@@ -906,7 +906,8 @@
       "stepVerifying": "Comprobando integridad",
       "timelineSummary": "· {{count}} pasos · {{secs}} s",
       "netgripBadge": "NetGrip",
-      "netgripFreshTip": "NetGrip v{{version}} · agente embebido"
+      "netgripFreshTip": "NetGrip v{{version}} · agente embebido",
+      "warmingBanner": "Esperando a que los agentes se reconecten…"
     },
     "colClients": "Clientes",
     "colCpu": "CPU",

@@ -414,6 +414,11 @@ export interface OverviewBundle {
    */
   distributionNodes?: DistributionNode[]
   /**
+   * Segundos desde el arranque del proceso server (#887). Ausente en
+   * servidores viejos → el frontend no aplica la gracia post-arranque.
+   */
+  serverUptimeSec?: number
+  /**
    * Versión del view-model (SPEC-65 D65-4). Siempre presente en servidores
    * nuevos; ausente en servidores viejos (se asume VM_SUPPORTED).
    */
