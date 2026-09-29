@@ -101,6 +101,25 @@ func TestParseHostapdConnected(t *testing.T) {
 			want:  TypeDisconnected,
 			iface: "wlan1",
 		},
+		{
+			// #908: variante más común en OpenWrt (iface una sola vez).
+			name:  "single-iface-connect",
+			line:  "Sat Aug  8 19:21:45 2026 daemon.notice hostapd: wlan0: AP-STA-CONNECTED 04:95:e6:76:55:a1",
+			want:  TypeConnected,
+			iface: "wlan0",
+		},
+		{
+			name:  "single-iface-connect-with-suffix",
+			line:  "Sat Aug  8 19:21:45 2026 daemon.notice hostapd: wlan0: AP-STA-CONNECTED 04:95:e6:76:55:a1 (wpa2_psk)",
+			want:  TypeConnected,
+			iface: "wlan0",
+		},
+		{
+			name:  "single-iface-disconnect-with-reason",
+			line:  "Sat Aug  8 19:21:45 2026 daemon.notice hostapd: wlan0: AP-STA-DISCONNECTED 04:95:e6:76:55:a1 reason=3",
+			want:  TypeDisconnected,
+			iface: "wlan0",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

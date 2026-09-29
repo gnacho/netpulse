@@ -207,9 +207,16 @@ var (
 	// Variante sin año: "Sat Aug  8 19:21:45 daemon.notice hostapd: <resto>".
 	syslogNoYearRe = regexp.MustCompile(`^(?:\w{3}\s+)?(\w{3})\s+(\d+)\s+(\d{2}):(\d{2}):(\d{2})\s+(?:daemon|user)\.\w+\s+(\w+):\s+(.+)$`)
 
-	// hostapd: "<iface>: AP-STA-CONNECTED <iface2> <mac>"
-	hostapdConnRe = regexp.MustCompile(`^(\S+):\s+AP-STA-(CONNECTED|DISCONNECTED)\s+\S+\s+([0-9a-fA-F:]{17})`)
-	// hostapd variants sin segundo iface: "AP-STA-CONNECTED <mac>"
+	// hostapd: variantes reales observadas en OpenWrt:
+	//   "wlan0: AP-STA-CONNECTED 04:95:e6:76:55:a1"            (iface una vez, la más común)
+	//   "wlan0: AP-STA-CONNECTED wlan0 04:95:e6:76:55:a1"      (iface repetida)
+	//   "wlan0: AP-STA-CONNECTED 04:95:e6:76:55:a1 (wpa2_psk)" (sufijo de motivo)
+	//   "wlan0: AP-STA-DISCONNECTED 04:95:e6:76:55:a1 reason=3" (sufijo reason)
+	// La iface interior es opcional y el sufijo lo ignora la MAC con \b (#908:
+	// la variante de iface única no casaba con ninguna regex y los CONNECTED
+	// desaparecían del feed de eventos).
+	hostapdRe = regexp.MustCompile(`^(\S+):\s+AP-STA-(CONNECTED|DISCONNECTED)\s+(?:(\S+)\s+)?([0-9a-fA-F:]{17})\b`)
+	// hostapd sin prefijo de iface: "AP-STA-CONNECTED <mac>"
 	hostapdConnShortRe = regexp.MustCompile(`^AP-STA-(CONNECTED|DISCONNECTED)\s+([0-9a-fA-F:]{17})`)
 
 	// dawn: "Client / BSSID = <mac> / <bssid>: <action>"
@@ -265,10 +272,10 @@ func ParseLogreadLine(line, routerID string) (Event, bool) {
 }
 
 func parseHostapd(rest, routerID string, ts int64) (Event, bool) {
-	// Caso largo: "wlan0: AP-STA-CONNECTED wlan0 04:95:..."
-	if m := hostapdConnRe.FindStringSubmatch(rest); m != nil {
+	// Caso general (iface opcional repetida + sufijos de motivo tolerados).
+	if m := hostapdRe.FindStringSubmatch(rest); m != nil {
 		iface := m[1]
-		mac := m[3]
+		mac := m[4]
 		typ := TypeConnected
 		if m[2] == "DISCONNECTED" {
 			typ = TypeDisconnected
