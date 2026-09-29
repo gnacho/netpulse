@@ -84,6 +84,33 @@ descarta lo más viejo (mismo patrón que el fix del buffer del satélite).
 - [ ] UI: "adoptar agente" (genera token + muestra el one-liner), badge
       "agente" en la tarjeta del router, aviso de fallback a SSH.
 
+## Recuperación automática desde el server (supervisor, #890)
+
+Cuando un agente registrado deja de empujar (su último push supera el
+TTL del registry), el server intenta recuperarlo solo, en este orden de
+escalado:
+
+1. **Rearme**: `/etc/init.d/netpulse-agent restart` vía SSH (timeout
+   10 s). Se espera un push nuevo hasta 30 s.
+2. **Rotación de token**: si el reinicio no devuelve pushes, el server
+   rota el token y reescribe el `.env` del agente en caliente (vía SSH,
+   timeout 10 s) y espera otro push nuevo hasta 30 s. Arregla el caso de
+   un 401 por token desincronizado.
+3. **Reinstalación** (opt-in, `NETPULSE_AUTO_REINSTALL=1` +
+   `NETPULSE_PUBLIC_URL`): script canónico completo (binario verificado
+   + config + init self-heal), timeout SSH 300 s.
+
+Anti-martilleo: el supervisor rearma como mucho 1 vez cada 10 min por
+slug (reinstala 1 vez cada cooldown propio). NetGrip embebido solo
+recibe el paso 1 (restart del servicio netgrip); los switches gestionados
+externos no se rearman nunca (su caída la reporta el Dead Man's Switch).
+
+Todo el proceso se registra en el journal del servicio con prefijo
+`supervisor:` / `rearmer:` (expiración del TTL, intento SSH, espera de
+push, escalado y resultado), para poder seguir la recuperación sin mirar
+código. Los agentes NetGrip embebidos y los rearmes manuales desde la UI
+siguen el mismo camino y también quedan registrados.
+
 ## Qué NO es el agente
 
 - No es obligatorio: NetPulse sigue funcionando 100% en Tier 0 (SSH) +

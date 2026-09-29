@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -277,10 +278,14 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 		}
 	}
 
+	log.Printf("[netpulse] rearmer: reiniciando el servicio del agente en %s (%s) vía SSH, timeout %v",
+		slug, host, SSHWait)
 	if _, err := r.pool.Run(host, cmd, SSHWait); err != nil {
+		log.Printf("[netpulse] rearmer: el SSH a %s (%s) falló: %v", slug, host, err)
 		return Result{}, fmt.Errorf("no pude reiniciar el servicio en %s: %w", host, err)
 	}
 
+	log.Printf("[netpulse] rearmer: servicio reiniciado en %s, esperando un push nuevo del agente (hasta %v)", slug, r.pollWait)
 	recovered := r.waitForPush(slug, prevSeen, before)
 
 	// #630: si reiniciar el proceso no recuperó el agente, puede ser un 401
@@ -290,6 +295,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	// que es la vía que arregla el desync sin reinstalar. Los NetGrip se
 	// recuperan con su propio CmdNetgrip (recarga env en memoria).
 	if !recovered && cmd == Cmd {
+		log.Printf("[netpulse] rearmer: %s no empujó tras el reinicio — rotando el token y reescribiendo el env vía SSH (timeout %v)", slug, SSHWait)
 		before2 := time.Now()
 		prevSeen2 := prevSeen
 		if err := r.rotateTokenAtomic(slug, func(t string) error {
@@ -298,7 +304,10 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 		}); err == nil {
 			if r.waitForPush(slug, prevSeen2, before2) {
 				recovered = true
+				log.Printf("[netpulse] rearmer: %s recuperado tras la rotación de token", slug)
 			}
+		} else {
+			log.Printf("[netpulse] rearmer: la rotación de token en %s falló: %v", slug, err)
 		}
 	}
 
@@ -543,6 +552,10 @@ func (s *Supervisor) CheckOnce() {
 		if !s.slotFree(slug) {
 			continue
 		}
+		// #890: visibilidad de la estrategia de recuperación — el usuario
+		// debe poder seguir qué pasa con un agente caído sin mirar código.
+		log.Printf("[netpulse] supervisor: agente %s sin pushes dentro del TTL — rearmando vía SSH (timeout %v, espera de push %v, cooldown %v)",
+			slug, SSHWait, PollWait, s.cooldown)
 		res, err := s.rearmer.Rearm(slug)
 		if err == ErrNetgripAgent {
 			// #363: NetGrip embebido: ni rearme ni alerta de rearme (la caída
@@ -553,28 +566,43 @@ func (s *Supervisor) CheckOnce() {
 		if err != nil {
 			// ErrCooldown (rearme manual reciente), SSH caído, etc.:
 			// no consume el slot; se reintenta en el próximo tick.
+			var cd ErrCooldown
+			if errors.As(err, &cd) {
+				log.Printf("[netpulse] supervisor: rearme de %s en cooldown (reintento en %v)", slug, cd.Wait)
+			} else {
+				log.Printf("[netpulse] supervisor: rearme de %s falló: %v (reintento en %v)", slug, err, s.cooldown)
+			}
 			continue
 		}
 		s.markSlot(slug)
 		if res.Recovered {
+			log.Printf("[netpulse] supervisor: agente %s recuperado con el rearme", slug)
 			// Rearme con éxito: incidente cerrado.
 			s.closeFailID(slug)
 			continue
 		}
+		log.Printf("[netpulse] supervisor: el rearme no recuperó a %s — escalando (rotación de token%s)",
+			slug, map[bool]string{true: ", luego reinstall si sigue caído", false: ""}[s.autoReinstall && s.publicURL != ""])
 		// #457: el rearme no recuperó el agente (proceso muerto o binario
 		// perdido). Si el escalado está activo, reinstalación completa con
 		// cooldown propio; solo para slugs con preconditions válidas.
 		if s.autoReinstall && s.publicURL != "" && s.reinstallSlotFree(slug) {
+			log.Printf("[netpulse] supervisor: reinstalando el agente en %s vía SSH (timeout %v)", slug, ReinstallSSHWait)
 			if r2, err := s.rearmer.Reinstall(slug, s.publicURL); err == nil {
 				s.markReinstallSlot(slug)
 				if r2.Recovered {
+					log.Printf("[netpulse] supervisor: agente %s recuperado con la reinstalación", slug)
 					s.closeFailID(slug)
 					continue
 				}
+				log.Printf("[netpulse] supervisor: la reinstalación no recuperó a %s; próximo reintento tras el cooldown", slug)
 			} else if !isPreconditionError(err) {
 				// El intento llegó al SSH y falló (router apagado, red
 				// caída): también consume el slot de reinstall.
+				log.Printf("[netpulse] supervisor: reinstall de %s falló vía SSH: %v (consume slot; cooldown)", slug, err)
 				s.markReinstallSlot(slug)
+			} else {
+				log.Printf("[netpulse] supervisor: reinstall de %s descartado (precondición): %v", slug, err)
 			}
 		}
 		if s.engine != nil {
