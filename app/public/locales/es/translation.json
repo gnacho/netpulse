@@ -608,9 +608,9 @@
       "noClients": "Sin clientes asociados a estos APs.",
       "clients": "{{count}} clientes",
       "aps": "{{count}} APs",
-      "legendGood": "≤ -65 dBm (óptimo)",
-      "legendFair": "-70 a -80 dBm (aceptable)",
-      "legendWeak": "≥ -85 dBm (límite)"
+      "legendGood": "-65 dBm o mejor (óptimo)",
+      "legendFair": "de -80 a -66 dBm (aceptable)",
+      "legendWeak": "-81 dBm o peor (límite)"
     },
     "kick": {
       "title": "Expulsar del AP para forzar reconexión",

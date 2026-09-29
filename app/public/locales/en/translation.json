@@ -608,9 +608,9 @@
       "noClients": "No clients associated with these APs.",
       "clients": "{{count}} clients",
       "aps": "{{count}} APs",
-      "legendGood": "≤ -65 dBm (optimal)",
-      "legendFair": "-70 to -80 dBm (fair)",
-      "legendWeak": "≥ -85 dBm (marginal)"
+      "legendGood": "-65 dBm or better (optimal)",
+      "legendFair": "-80 to -66 dBm (fair)",
+      "legendWeak": "-81 dBm or worse (marginal)"
     },
     "kick": {
       "title": "Kick from AP to force reconnection",
