@@ -609,7 +609,7 @@ export default function Roaming() {
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
-          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} />
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated} />
         </div>
       )}
 
@@ -1500,6 +1500,7 @@ function EventsPanel({
   typeFilter,
   setTypeFilter,
   nameByMac,
+  hasDawn,
 }: {
   events: RoamEvent[]
   loading: boolean
@@ -1508,15 +1509,21 @@ function EventsPanel({
   typeFilter: EventTypeFilter
   setTypeFilter: (t: EventTypeFilter) => void
   nameByMac: Map<string, string>
+  hasDawn: boolean
 }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const initial = reduce ? false : { opacity: 0, y: 12 }
 
+  // #909: la opción DAWN solo tiene sentido cuando la red tiene routers con
+  // DAWN (usteer no emite dawn_decision). Si el filtro activo quedó obsoleto
+  // (DAWN desapareció de la red), se trata como 'all'.
+  const effectiveFilter: EventTypeFilter = typeFilter === 'dawn_decision' && !hasDawn ? 'all' : typeFilter
+
   const filtered = useMemo(() => {
-    if (typeFilter === 'all') return events
-    return events.filter((e) => e.type === typeFilter)
-  }, [events, typeFilter])
+    if (effectiveFilter === 'all') return events
+    return events.filter((e) => e.type === effectiveFilter)
+  }, [events, effectiveFilter])
 
   if (loading && events.length === 0) {
     return (
@@ -1540,7 +1547,7 @@ function EventsPanel({
     )
   }
 
-  const typeOptions: EventTypeFilter[] = ['all', 'connected', 'disconnected', 'dawn_decision']
+  const typeOptions: EventTypeFilter[] = ['all', 'connected', 'disconnected', ...(hasDawn ? ['dawn_decision' as const] : [])]
 
   return (
     <motion.section
@@ -1565,7 +1572,7 @@ function EventsPanel({
                 onClick={() => setTypeFilter(tf)}
                 className={cn(
                   'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                  typeFilter === tf ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+                  effectiveFilter === tf ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
                 )}
               >
                 {t(`roaming.events.type_${tf}`)}
