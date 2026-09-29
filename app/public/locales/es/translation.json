@@ -675,6 +675,7 @@
     "events": {
       "title": "Eventos de itinerancia",
       "description": "Conexiones, desconexiones y decisiones de itinerancia por cliente. Histórico de 30 días, ingesta cada 60 s.",
+      "descriptionConfigured": "Conexiones, desconexiones y decisiones de itinerancia por cliente. Histórico de {{days}} días, ingesta cada {{secs}} s.",
       "empty": "Sin eventos todavía. Los routers empiezan a reportar en cuanto el poller los alcanza.",
       "filterType": "Filtrar por tipo",
       "type_all": "Todos",
@@ -1249,7 +1250,10 @@
       "tempUnit": "Unidad de temperatura",
       "presenceRetention": "Retención del historial de presencia",
       "presenceRetentionDays": "días (0 = conservar siempre)",
-      "presenceRetentionNote": "Los eventos de conexión/desconexión y roaming más antiguos se podan cada hora. El timeline de 7 días de cada cliente solo necesita una semana."
+      "presenceRetentionNote": "Los eventos de conexión/desconexión y roaming más antiguos se podan cada hora. El timeline de 7 días de cada cliente solo necesita una semana.",
+      "roamCollect": "Intervalo de ingesta de eventos de itinerancia",
+      "roamCollectSecs": "s",
+      "roamCollectNote": "Cada cuánto el servidor lee los logs de los routers (logread) para los eventos de itinerancia. Se aplica sin reiniciar."
     },
     "demo": {
       "caption": "Explora NetPulse con una red de ejemplo sin tocar tus routers",

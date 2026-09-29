@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/roamcfg"
 )
 
 // Tipo de evento roaming.
@@ -84,15 +86,23 @@ func (c *Collector) Stop() {
 
 func (c *Collector) loop() {
 	defer c.wg.Done()
-	// Primer ciclo casi inmediato para no esperar 60s en arranque.
+	// Primer ciclo casi inmediato para no esperar en arranque.
 	c.tick()
-	t := time.NewTicker(60 * time.Second)
+	var lastRun time.Time
+	// Ticker fino (15 s): la cadencia efectiva sale del kv
+	// roam.collect.interval_sec (#907), releído en cada vuelta para que el
+	// cambio de ajuste aplique sin reiniciar el servidor.
+	t := time.NewTicker(15 * time.Second)
 	defer t.Stop()
 	for {
 		select {
 		case <-c.stop:
 			return
-		case <-t.C:
+		case now := <-t.C:
+			if now.Sub(lastRun) < time.Duration(roamcfg.CollectIntervalSec(c.db))*time.Second {
+				continue
+			}
+			lastRun = now
 			c.tick()
 		}
 	}

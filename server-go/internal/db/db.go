@@ -657,7 +657,10 @@ func (d *DB) NightlyJob() {
 		}
 	}
 
-	// 6) roam_events: retención 30 días (Fase 14.5).
+	// 6) roam_events: retención fija de 30 días (Fase 14.5). OJO: la
+	// retención CONFIGURABLE del usuario es presence.retention_days y la
+	// aplica el loop de poda de main; este DELETE solo recoge lo que ese
+	// loop pueda dejar (defensa en profundidad, #907).
 	cutoff := NowMS() - 30*24*60*60*1000
 	if res, err := d.Exec("DELETE FROM roam_events WHERE ts_ms < ?", cutoff); err == nil {
 		if n, _ := res.RowsAffected(); n > 0 {

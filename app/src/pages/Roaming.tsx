@@ -185,6 +185,10 @@ export default function Roaming() {
   const [eventsError, setEventsError] = useState(false)
   const [eventsNoApi, setEventsNoApi] = useState(false)
   const [eventsTypeFilter, setEventsTypeFilter] = useState<'all' | 'connected' | 'disconnected' | 'dawn_decision'>('all')
+  // #907: retención y cadencia efectivas, devueltas como meta por la API, para
+  // que la cabecera de la tabla describa los valores reales en vez de texto
+  // hardcodeado. null = aún no cargada (o servidor antiguo).
+  const [eventsMeta, setEventsMeta] = useState<{ retentionDays: number; collectIntervalSec: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [noApi, setNoApi] = useState(false)
@@ -313,10 +317,13 @@ export default function Roaming() {
     setEventsLoading(true)
     setEventsError(false)
     setEventsNoApi(false)
-    const result = await fetchJson<{ events: RoamEvent[] }>('/api/roam-events?limit=100', { signal: ac.signal })
+    const result = await fetchJson<{ events: RoamEvent[]; retentionDays?: number; collectIntervalSec?: number }>('/api/roam-events?limit=100', { signal: ac.signal })
     if (ac.signal.aborted) return
     if (result.ok) {
       setEvents(result.data.events ?? [])
+      if (typeof result.data.retentionDays === 'number' && typeof result.data.collectIntervalSec === 'number') {
+        setEventsMeta({ retentionDays: result.data.retentionDays, collectIntervalSec: result.data.collectIntervalSec })
+      }
     } else if (result.kind === 'unauthorized') {
       redirectLogin()
     } else if (result.kind === 'no-api' && isDemo) {
@@ -609,7 +616,7 @@ export default function Roaming() {
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
-          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated} />
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated === true} meta={eventsMeta} />
         </div>
       )}
 
@@ -1501,6 +1508,7 @@ function EventsPanel({
   setTypeFilter,
   nameByMac,
   hasDawn,
+  meta,
 }: {
   events: RoamEvent[]
   loading: boolean
@@ -1510,6 +1518,7 @@ function EventsPanel({
   setTypeFilter: (t: EventTypeFilter) => void
   nameByMac: Map<string, string>
   hasDawn: boolean
+  meta: { retentionDays: number; collectIntervalSec: number } | null
 }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -1562,7 +1571,11 @@ function EventsPanel({
             <History className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
             <div>
               <h2 className="font-display text-h2 text-text-primary">{t('roaming.events.title')}</h2>
-              <p className="mt-0.5 max-w-2xl text-caption text-text-muted">{t('roaming.events.description')}</p>
+              <p className="mt-0.5 max-w-2xl text-caption text-text-muted">
+                {meta
+                  ? t('roaming.events.descriptionConfigured', { days: meta.retentionDays, secs: meta.collectIntervalSec })
+                  : t('roaming.events.description')}
+              </p>
             </div>
           </div>
           <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.events.filterType')}>

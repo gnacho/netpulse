@@ -15,6 +15,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
+	"github.com/gnacho/netpulse/server-go/internal/roamcfg"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 )
@@ -526,7 +527,14 @@ func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
 	if events == nil {
 		events = []roamevents.Event{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"events": events})
+	// #907: la cabecera de la tabla muestra la retención y la cadencia
+	// efectivas (retención: ajuste presence existente; cadencia:
+	// /api/settings/roaming) en vez de texto hardcodeado.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"events":             events,
+		"retentionDays":      PresenceRetentionDays(s.db.DB),
+		"collectIntervalSec": roamcfg.CollectIntervalSec(s.db.DB),
+	})
 }
 
 // handleDeviceEvents: eventos offline/online de dispositivos detectados por

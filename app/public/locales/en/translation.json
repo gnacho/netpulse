@@ -675,6 +675,7 @@
     "events": {
       "title": "Roaming events",
       "description": "Client connections, disconnections and roaming decisions. 30-day history, ingested every 60 s.",
+      "descriptionConfigured": "Client connections, disconnections and roaming decisions. {{days}}-day history, ingested every {{secs}} s.",
       "empty": "No events yet. Routers start reporting as soon as the poller reaches them.",
       "filterType": "Filter by type",
       "type_all": "All",
@@ -1249,7 +1250,10 @@
       "tempUnit": "Temperature unit",
       "presenceRetention": "Presence history retention",
       "presenceRetentionDays": "days (0 = keep forever)",
-      "presenceRetentionNote": "Connect/disconnect and AP-roaming events older than this are pruned hourly. The 7-day client timeline only needs a week."
+      "presenceRetentionNote": "Connect/disconnect and AP-roaming events older than this are pruned hourly. The 7-day client timeline only needs a week.",
+      "roamCollect": "Roaming events ingest interval",
+      "roamCollectSecs": "s",
+      "roamCollectNote": "How often the server reads the router logs (logread) for WiFi roaming events. Applied without restart."
     },
     "demo": {
       "caption": "Explore NetPulse with a sample network without touching your routers",

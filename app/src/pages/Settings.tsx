@@ -2169,6 +2169,83 @@ function PresenceRetentionRow() {
   )
 }
 
+// RoamCollectRow (#907): cadencia del collector de eventos hostapd/DAWN
+// (logread por router). La retención del histórico se ajusta en la fila de
+// arriba (presence.retention_days); esta fila es solo el intervalo de ingesta.
+function RoamCollectRow() {
+  const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
+  const [secs, setSecs] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [savedTick, setSavedTick] = useState(false)
+
+  useEffect(() => {
+    if (isDemo) {
+      setSecs(60)
+      return
+    }
+    let cancelled = false
+    fetch('/api/settings/roaming')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j && typeof j.collectIntervalSec === 'number') setSecs(j.collectIntervalSec)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+
+  if (secs === null || isDemo) return null
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/settings/roaming', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collectIntervalSec: secs }),
+      })
+      if (res.ok) {
+        setSavedTick(true)
+        setTimeout(() => setSavedTick(false), 2500)
+      }
+    } catch {
+      /* sin conexión: se reintenta al volver a abrir Ajustes */
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="text-sm font-medium text-text-primary">{t('settings.data.roamCollect')}</div>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="number"
+          min={15}
+          max={3600}
+          value={secs}
+          disabled={busy}
+          onChange={(e) => setSecs(Math.max(15, Math.min(3600, Number(e.target.value) || 60)))}
+          aria-label={t('settings.data.roamCollect')}
+          className="h-8 w-24 rounded-lg border border-border bg-elevated px-2 font-mono text-sm text-text-primary focus-visible:border-accent/50"
+        />
+        <span className="text-caption text-text-muted">{t('settings.data.roamCollectSecs')}</span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void save()}
+          className="inline-flex h-8 items-center rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:opacity-60"
+        >
+          {savedTick ? '✓' : t('common.save')}
+        </button>
+      </div>
+      <p className="mt-2 text-caption text-text-muted">{t('settings.data.roamCollectNote')}</p>
+    </div>
+  )
+}
+
 function BackupsPanel() {
   const { t, i18n } = useTranslation()
   const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string; time: string } | null>(null)
@@ -4629,6 +4706,8 @@ export default function Settings() {
                 </div>
                 {/* Retención de eventos de presencia/roaming (#771) */}
                 <PresenceRetentionRow />
+                {/* Cadencia de ingesta de eventos de roaming (#907) */}
+                <RoamCollectRow />
               </div>
 
               {/* Sliders de umbrales */}
