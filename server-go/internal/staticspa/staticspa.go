@@ -58,6 +58,17 @@ func New(staticDir string) *Handler {
 	return h
 }
 
+// LocalesFS expone el FS con los catálogos de idioma del dist
+// ("<lang>/translation.json"), embebidos en el binario. Lo usa el paquete
+// alertlang para traducir las notificaciones push server-side (#888/#889).
+func LocalesFS() fs.FS {
+	sub, err := fs.Sub(embeddedDist, "dist/locales")
+	if err != nil {
+		return embeddedDist
+	}
+	return sub
+}
+
 // serveFile sirve el fichero `name` si existe y no es directorio.
 func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, name string) bool {
 	if !fs.ValidPath(name) {
