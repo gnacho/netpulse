@@ -21,7 +21,9 @@ const CHANGE_EVENT = 'netpulse-temp-unit-change'
 export function readTempUnit(): TempUnit {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw === 'f' ? 'f' : 'c'
+    // 'f' plano, o el valor legacy '"f"' (issue #898) para no perder la
+    // preferencia de quien ya eligió Fahrenheit antes del fix.
+    return raw === 'f' || raw === '"f"' ? 'f' : 'c'
   } catch {
     return 'c'
   }
@@ -52,7 +54,9 @@ export function fmtTemp(celsius: number | null, unit: TempUnit, decimals = 0): s
 /** Escribe la unidad y notifica a los componentes suscritos. */
 export function setTempUnit(unit: TempUnit): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(unit))
+    // Sin JSON.stringify: readTempUnit compara el raw contra 'f'; guardar
+    // '"f'" hacía que 'f' nunca "stickara" al releer (#898).
+    localStorage.setItem(STORAGE_KEY, unit)
   } catch {
     /* modo privado */
   }
