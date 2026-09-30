@@ -370,7 +370,7 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
               <CountUp value={adguardProtected} nonce={refreshKey} />
               <span className="text-sm font-medium text-text-secondary">/{deviceTotals.total}</span>
             </div>
-            <MetricBar value={pct} className="mt-2 max-w-[140px]" />
+            <MetricBar value={pct} colorClass="bg-ok" className="mt-2 max-w-[140px]" />
             <div className="mt-1 text-caption text-text-muted">{t('devices.stats.pctClients', { pct })}</div>
           </>
         )
