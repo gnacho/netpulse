@@ -44,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { dhcpLease, manufacturerLabel, numLocale } from '@/i18n'
 import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
@@ -70,12 +69,15 @@ type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type' |
 // al volver a abrir la sección de clientes.
 const DEVICES_PREFS_KEY = 'netpulse.devices.prefs'
 type SortState = { key: SortKey; dir: 1 | -1 } | null
-type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState }
+// #923: filtro de estado online triestado, persistente junto al resto de
+// preferencias de la página.
+type OnlineFilter = 'all' | 'online' | 'offline'
+type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState; online: OnlineFilter }
 
 const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type', 'traffic']
 
 function loadDevicesPrefs(): DevicesPrefs {
-  const fallback: DevicesPrefs = { view: 'list', sort: null }
+  const fallback: DevicesPrefs = { view: 'list', sort: null, online: 'online' }
   try {
     const raw = localStorage.getItem(DEVICES_PREFS_KEY)
     if (!raw) return fallback
@@ -85,7 +87,8 @@ function loadDevicesPrefs(): DevicesPrefs {
     if (v.sort && SORT_KEYS.includes(v.sort.key) && (v.sort.dir === 1 || v.sort.dir === -1)) {
       sort = { key: v.sort.key, dir: v.sort.dir }
     }
-    return { view, sort }
+    const online: OnlineFilter = v.online === 'all' || v.online === 'offline' ? v.online : 'online'
+    return { view, sort, online }
   } catch {
     return fallback
   }
@@ -424,8 +427,8 @@ interface FilterBarProps {
   typeCounts: Record<string, number>
   groups: FilterGroup[]
   toggleGroup: (g: FilterGroup) => void
-  onlyOnline: boolean
-  setOnlyOnline: (v: boolean) => void
+  online: OnlineFilter
+  setOnline: (v: OnlineFilter) => void
   onlyWeak: boolean
   setOnlyWeak: (v: boolean) => void
   weakCount: number
@@ -497,11 +500,18 @@ function FilterBar(p: FilterBarProps) {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* Solo online */}
-        <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg px-1 text-xs font-medium text-text-secondary">
-          <Switch checked={p.onlyOnline} onCheckedChange={p.setOnlyOnline} aria-label={t('devices.onlyOnline')} />
-          {t('devices.onlyOnline')}
-        </label>
+        {/* Estado online: All / Online / Offline (#923) */}
+        <SegmentedControl<OnlineFilter>
+          options={[
+            { value: 'all', label: t('devices.onlineAll') },
+            { value: 'online', label: t('devices.onlineOnly') },
+            { value: 'offline', label: t('devices.onlineOffline') },
+          ]}
+          value={p.online}
+          onChange={p.setOnline}
+          size="sm"
+          ariaLabel={t('devices.filterByOnline')}
+        />
         {/* Señal débil */}
         {p.weakCount > 0 && (
           <button
@@ -1207,7 +1217,10 @@ export default function Devices() {
   const [band, setBand] = useState<BandFilter>('all')
   const [typeFilter, setTypeFilter] = useState<DeviceType | 'all'>('all')
   const [groups, setGroups] = useState<FilterGroup[]>([])
-  const [onlyOnline, setOnlyOnline] = useState(true)
+  const [online, setOnlineState] = useState<OnlineFilter>(() => loadDevicesPrefs().online)
+  const setOnline = useCallback((v: OnlineFilter) => {
+    setOnlineState(v)
+  }, [])
   const [onlyWeak, setOnlyWeak] = useState(false)
   const weakCount = useMemo(
     () => allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length,
@@ -1257,23 +1270,24 @@ export default function Devices() {
   const [sort, setSort] = useState<SortState>(() => loadDevicesPrefs().sort)
   const toggleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
-  }, [])
+  }, [setSort])
 
   // Selector compacto de orden (móvil, #799): fija la clave en ascendente o
   // vuelve al orden por defecto (tráfico) con null.
   const setSortKey = useCallback((key: SortKey | null) => {
     setSort(key === null ? null : { key, dir: 1 })
-  }, [])
+  }, [setSort])
 
   // Persiste vista + orden en cada cambio (issue #778). El write inicial
   // reescribe el mismo valor cargado; es inofensivo.
   useEffect(() => {
-    saveDevicesPrefs({ view, sort })
-  }, [view, sort])
+    saveDevicesPrefs({ view, sort, online })
+  }, [view, sort, online])
 
   const filtered = useMemo(() => {
     const out = allDevices.filter((d) => {
-      if (onlyOnline && !d.online) return false
+      if (online === 'online' && !d.online) return false
+      if (online === 'offline' && d.online) return false
       if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
       if (router !== 'all' && d.routerId !== router) return false
       if (band !== 'all' && d.band !== band) return false
@@ -1335,7 +1349,7 @@ export default function Devices() {
       }
       return a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, onlyOnline, onlyWeak, router, band, typeFilter, groups, q, sort, routers])
+  }, [allDevices, online, onlyWeak, router, band, typeFilter, groups, q, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1347,8 +1361,8 @@ export default function Devices() {
     setBand('all')
     setTypeFilter('all')
     setGroups([])
-    setOnlyOnline(true)
-  }, [])
+    setOnline('online')
+  }, [setOnline])
 
   const clearAll = useCallback(() => {
     clearFilters()
@@ -1440,11 +1454,11 @@ export default function Devices() {
     for (const g of groups) {
       list.push({ key: `group-${g}`, label: t(`devices.groups.${g}`), clear: () => toggleGroup(g) })
     }
-    if (onlyOnline) {
-      list.push({ key: 'online', label: t('devices.onlyOnline'), clear: () => setOnlyOnline(false) })
+    if (online !== 'all') {
+      list.push({ key: 'online', label: t(online === 'online' ? 'devices.onlineOnly' : 'devices.onlineOffline'), clear: () => setOnline('all') })
     }
     return list
-  }, [router, routers, band, typeFilter, groups, onlyOnline, toggleGroup, t])
+  }, [router, routers, band, typeFilter, groups, online, setOnline, toggleGroup, t])
 
   const searchBox = (className?: string, autoFocus = false) => (
     <div className={cn('relative', className)}>
@@ -1535,8 +1549,8 @@ export default function Devices() {
         typeCounts={typeCounts}
         groups={groups}
         toggleGroup={toggleGroup}
-        onlyOnline={onlyOnline}
-        setOnlyOnline={setOnlyOnline}
+        online={online}
+        setOnline={setOnline}
         onlyWeak={onlyWeak}
         setOnlyWeak={setOnlyWeak}
         weakCount={weakCount}
