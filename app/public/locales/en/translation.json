@@ -407,6 +407,7 @@
       "auto": "Auto",
       "save": "Save",
       "saved": "Device updated",
+      "dismissed": "Left anonymous: its new-device alert is silenced",
       "saveError": "Could not save — please try again",
       "banTitle": "Block bands",
       "banHint": "Coming soon: block this device from 2.4/5/6 GHz networks.",

@@ -1701,9 +1701,9 @@ export default function Devices() {
         device={allDevices.find((d) => d.id === intakeId) ?? null}
         isDemo={isDemo}
         onClose={() => setIntakeId(null)}
-        onSaved={() => {
+        onSaved={(outcome) => {
           refresh()
-          showToast(t('devices.onboarding.saved'))
+          showToast(t(outcome === 'dismissed' ? 'devices.onboarding.dismissed' : 'devices.onboarding.saved'))
         }}
       />
 
