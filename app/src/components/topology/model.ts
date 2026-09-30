@@ -1481,10 +1481,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const a = parent ? (parent.node.name ?? parent.node.ip ?? '') : (rn?.router.name ?? '')
     const spark = rn?.router.sparkline ?? []
     if (dv.node.kind === 'managed') {
+      // La procedencia es LLDP solo si el router vio el anuncio; una caja que
+      // solo conoce un integrador llevaba "LLDP" y el tipo "switch".
+      const via = dv.node.lldp ? 'LLDP' : (dv.node.source ? dv.node.source.toUpperCase() : '')
       backhauls.push({
         id: `dist-${dv.id}`, a,
-        b: [dv.node.name, dv.node.ip, 'LLDP', dv.node.portLabel ?? dv.node.port].filter(Boolean).join(' · '),
-        kind: 'dist', type: 'topology.links.managedSwitch',
+        b: [dv.node.name, dv.node.ip, via, dv.node.portLabel ?? dv.node.port].filter(Boolean).join(' · '),
+        kind: 'dist', type: dv.node.role === 'ap' ? 'topology.links.managedAp' : 'topology.links.managedSwitch',
         speed: '1 Gbps', signal: '<1 ms',
         tone: 'ok', statusLabel: 'common.status.online',
         spark, sparkColor: COLOR.accent,

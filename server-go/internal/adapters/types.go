@@ -339,6 +339,13 @@ type DistributionNode struct {
 	// existe como Device Y como nodo managed, sin duplicar el render).
 	Mac  string    `json:"mac,omitempty"`
 	Lldp *LldpInfo `json:"lldp,omitempty"`
+	// Role: what the managed box actually is, "switch" or "ap". Kind stays
+	// "managed" for both because it drives the layout (a box known by MAC
+	// and IP, drawn as a node instead of a client chip), but an access point
+	// is not a switch and must not be labelled or drawn as one. Empty on a
+	// node whose role is unknown, which reads as a switch, the only thing
+	// LLDP inference has ever found.
+	Role string `json:"role,omitempty"`
 }
 
 // AlertEvent vive en internal/alerts (SPEC-ALERTAS §1: Category/Urgent/Ts);

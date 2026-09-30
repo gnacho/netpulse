@@ -1568,6 +1568,16 @@ export function TopologyMap({
 // Etiqueta de nodo (título + subtítulo)
 // ---------------------------------------------------------------------------
 
+/**
+ * Procedencia de una caja gestionada: LLDP si el router la vio anunciarse, y
+ * si no el integrador que la reportó (p. ej. "proxmox"). Antes decía "LLDP"
+ * en todas. "" = sin procedencia conocida.
+ */
+function distBadge(n: DistributionNode): string {
+  if (n.lldp) return 'LLDP'
+  return n.source ? n.source.toUpperCase() : ''
+}
+
 function LabelText({
   x,
   y,

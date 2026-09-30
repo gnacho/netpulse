@@ -283,6 +283,14 @@ export interface DistributionNode {
    * los Devices cuya MAC coincide con esta — se representa SOLO como nodo.
    */
   mac?: string
+  /**
+   * Qué es realmente la caja gestionada: "switch" o "ap". `kind` sigue
+   * siendo "managed" en ambos porque decide el layout (caja con MAC e IP,
+   * dibujada como nodo y no como chip de cliente), pero un punto de acceso
+   * no es un switch. Ausente = switch (lo único que la inferencia LLDP ha
+   * encontrado nunca).
+   */
+  role?: 'switch' | 'ap'
 }
 
 export type AlertSeverity = 'warn' | 'critical' | 'info' | 'ok'

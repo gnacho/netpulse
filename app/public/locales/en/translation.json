@@ -1090,6 +1090,7 @@
       "hypervisorCable": "Hypervisor cable",
       "inferredSwitch": "Inferred switch · {{port}}",
       "managedSwitch": "Managed switch",
+      "managedAp": "Access point",
       "throughput": "Link throughput",
       "title": "Links between devices",
       "wifiUplink": "WiFi uplink"
@@ -1133,7 +1134,8 @@
       "noIp": "no IP · not directly queryable",
       "port": "Port on {{owner}}",
       "macs": "Learned MACs",
-      "fdbNote": "FDB: {{count}} heterogeneous MACs on a single physical port. Probably a switch; we cannot tell for sure without LLDP."
+      "fdbNote": "FDB: {{count}} heterogeneous MACs on a single physical port. Probably a switch; we cannot tell for sure without LLDP.",
+      "ap": "Access point"
     },
     "host": {
       "hypervisor": "hypervisor",
