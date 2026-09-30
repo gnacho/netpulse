@@ -44,16 +44,16 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 
 	sysInfo, sysErr := npsnmp.PollSystem(session)
 	if sysErr != nil {
-		log.Printf("[netpulse] SNMP system %s: %v", cfg.ID, sysErr)
+		log.Printf("[netpulse] SNMP system %s: %v", cfg.LogLabel(), sysErr)
 	}
 	ports, ifErr := npsnmp.PollIfTable(session)
 	if ifErr != nil {
-		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.ID, ifErr)
+		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.LogLabel(), ifErr)
 	}
 	fdbPoll, fdbErr := npsnmp.PollFdbTable(session)
 	fdb := fdbPoll.Entries
 	if fdbErr != nil {
-		log.Printf("[netpulse] SNMP FDB %s: %v", cfg.ID, fdbErr)
+		log.Printf("[netpulse] SNMP FDB %s: %v", cfg.LogLabel(), fdbErr)
 	} else {
 		// #928: visibilidad mínima del resultado del FDB. Se loguea cuando el
 		// conteo cambia respecto al ciclo anterior (o en el primer poll), no
@@ -65,7 +65,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		l.snmpFdbCount[cfg.ID] = len(fdb)
 		l.mu.Unlock()
 		if !seen || last != len(fdb) {
-			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s; pdus dot1d=%d dot1q=%d)", cfg.ID, len(fdb), fdbPoll.Source, fdbPoll.RawDot1d, fdbPoll.RawDot1q)
+			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s; pdus dot1d=%d dot1q=%d)", cfg.LogLabel(), len(fdb), fdbPoll.Source, fdbPoll.RawDot1d, fdbPoll.RawDot1q)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (l *Live) recordSnmpSuccess(cfg RouterConfig) {
 	l.mu.Unlock()
 
 	if wasOpen {
-		log.Printf("[netpulse] SNMP recuperado %s", cfg.ID)
+		log.Printf("[netpulse] SNMP recuperado %s", cfg.LogLabel())
 		l.engine.Resolve(fmt.Sprintf("alert-snmp-failing-%s", cfg.ID))
 		l.engine.Emit(AlertEvent{
 			ID:       fmt.Sprintf("alert-snmp-recovered-%s-%d", cfg.ID, now),
@@ -259,14 +259,14 @@ func (l *Live) recordSnmpFailure(cfg RouterConfig, err error) {
 
 	switch {
 	case consec == 1:
-		log.Printf("[netpulse] SNMP fallo %s: %v", cfg.ID, err)
+		log.Printf("[netpulse] SNMP fallo %s: %v", cfg.LogLabel(), err)
 	case consec == 3 && !open:
 		pingFn := l.ping
 		if pingFn == nil {
 			pingFn = pingHost
 		}
 		if !pingFn(cfg.Host) {
-			log.Printf("[netpulse] SNMP %s: 3 fallos seguidos y sin respuesta a ping (equipo caído); sin alerta SNMP", cfg.ID)
+			log.Printf("[netpulse] SNMP %s: 3 fallos seguidos y sin respuesta a ping (equipo caído); sin alerta SNMP", cfg.LogLabel())
 			return
 		}
 		// Marcar incidente abierto (re-check bajo lock para no duplicar en

@@ -901,6 +901,22 @@ func (c RouterConfig) TempThresholdValue() int {
 	return DefaultTempThreshold
 }
 
+// LogLabel identifica al router en las líneas de log (#951): el nombre que
+// se ve en la UI seguido del slug entre paréntesis cuando difieren. Los
+// slugs se autogeneran en el alta y no se muestran en la web (salvo el
+// título del diálogo de edición), así que una línea de log con solo el slug
+// no es atribuible a un dispositivo.
+func (c RouterConfig) LogLabel() string {
+	name := c.Name
+	if name == "" {
+		name = c.Host
+	}
+	if name == "" || name == c.ID {
+		return c.ID
+	}
+	return name + " (" + c.ID + ")"
+}
+
 // SSHAddr devuelve el destino `host:port` para conectar por SSH, usando
 // SSHPort (default 22). Es lo que recibe el pool (`pool.Run`) y los probes
 // que arman `ssh` con `-p`.

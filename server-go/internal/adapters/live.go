@@ -1465,7 +1465,7 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 		fails := l.failCount[res.cfg.ID] + 1
 		l.failCount[res.cfg.ID] = fails
 		l.lastErr[res.cfg.ID] = res.err
-		log.Printf("[netpulse] router %s inalcanzable (%d): %v", res.cfg.ID, fails, res.err)
+		log.Printf("[netpulse] router %s inalcanzable (%d): %v", res.cfg.LogLabel(), fails, res.err)
 		l.trackRouterOffline(&res.cfg, res.err, fails)
 		if fails >= 2 {
 			l.lastStatus[res.cfg.ID] = "offline"

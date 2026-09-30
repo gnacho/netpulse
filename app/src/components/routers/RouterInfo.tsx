@@ -50,6 +50,9 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   }
 
   const rows: { label: string; node: React.ReactNode }[] = [
+    // #951: el slug se autogenera en el alta y salía en logs/alertas sin
+    // aparecer en ningún sitio de la web; la fila ID lo hace visible.
+    { label: 'ID', node: router.id },
     { label: 'IP LAN', node: router.ip },
     { label: 'MAC', node: ex.mac },
     {
