@@ -288,8 +288,15 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
       </p>
 
       {/* Chasis: TODAS las bocas en una sola horizontal (sin wrap); si no
-          caben (móvil, chasis largos), scroll horizontal en vez de apilar. */}
-      <div className="mt-4 flex flex-nowrap items-start gap-x-4 overflow-x-auto rounded-xl border border-border/70 bg-elevated/40 px-4 py-4">
+          caben (móvil, chasis largos), scroll horizontal en vez de apilar.
+          #929: excepción para chasis muy largos (>16 bocas, p. ej. switches
+          de 24-48 puertos): ahí el scroll horizontal es peor que un wrap. */}
+      <div
+        className={cn(
+          'mt-4 items-start gap-x-4 rounded-xl border border-border/70 bg-elevated/40 px-4 py-4',
+          ports.length > 16 ? 'flex flex-wrap gap-y-3' : 'flex flex-nowrap overflow-x-auto',
+        )}
+      >
         {wanPorts.map((p, i) => (
           <Jack key={p.id} port={p} index={i} wan={wan} />
         ))}
