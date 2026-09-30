@@ -4,9 +4,14 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net"
+	"os"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	npsnmp "github.com/gnacho/netpulse/server-go/internal/snmp"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
 )
 
 func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
@@ -31,21 +36,23 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		Community: cfg.SnmpCommunity,
 	})
 	if err != nil {
+		// #930: error de sesión = fallo del poll SNMP (lastErr + consecFail).
+		l.recordSnmpFailure(cfg, err)
 		return nil, fmt.Errorf("snmp %s: %w", cfg.Host, err)
 	}
 	defer npsnmp.CloseSession(session)
 
-	sysInfo, err := npsnmp.PollSystem(session)
-	if err != nil {
-		log.Printf("[netpulse] SNMP system %s: %v", cfg.ID, err)
+	sysInfo, sysErr := npsnmp.PollSystem(session)
+	if sysErr != nil {
+		log.Printf("[netpulse] SNMP system %s: %v", cfg.ID, sysErr)
 	}
-	ports, err := npsnmp.PollIfTable(session)
-	if err != nil {
-		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.ID, err)
+	ports, ifErr := npsnmp.PollIfTable(session)
+	if ifErr != nil {
+		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.ID, ifErr)
 	}
-	fdb, fdbSource, err := npsnmp.PollFdbTable(session)
-	if err != nil {
-		log.Printf("[netpulse] SNMP FDB %s: %v", cfg.ID, err)
+	fdb, fdbSource, fdbErr := npsnmp.PollFdbTable(session)
+	if fdbErr != nil {
+		log.Printf("[netpulse] SNMP FDB %s: %v", cfg.ID, fdbErr)
 	} else {
 		// #928: visibilidad mínima del resultado del FDB. Se loguea cuando el
 		// conteo cambia respecto al ciclo anterior (o en el primer poll), no
@@ -58,6 +65,25 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		if !seen || last != len(fdb) {
 			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s)", cfg.ID, len(fdb), fdbSource)
 		}
+	}
+
+	// #930: salud del poll SNMP. Un poll se considera fallido cuando la
+	// sesión falla (arriba), el Get de sistema no responde o el walk ifTable
+	// no devuelve puertos. En fallo NO se devuelve error al caller (el router
+	// puede estar vivo: es la comunidad/el puerto lo que falla); el error se
+	// refleja en los contadores y, al 3.er fallo, en el ping de respaldo.
+	if len(ports) == 0 {
+		pollErr := ifErr
+		if pollErr == nil {
+			if sysErr != nil {
+				pollErr = sysErr
+			} else {
+				pollErr = fmt.Errorf("snmp ifTable %s: sin puertos", cfg.Host)
+			}
+		}
+		l.recordSnmpFailure(cfg, pollErr)
+	} else {
+		l.recordSnmpSuccess(cfg)
 	}
 
 	portIdxToName := map[int]string{}
@@ -144,6 +170,176 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	l.snmpLastPoll[cfg.ID] = now
 	l.mu.Unlock()
 	return p, nil
+}
+
+// snmpPollStat (issue #930): salud del sondeo SNMP por router. En memoria,
+// protegido por l.mu. failingOpen marca el incidente ABIERTO (alerta emitida
+// y aún no recuperada) para no repetir la alerta hasta la recuperación.
+type snmpPollStat struct {
+	Ok          int64
+	Fail        int64
+	ConsecFail  int64
+	LastOkMs    int64
+	LastFailMs  int64
+	LastErr     string
+	failingOpen bool
+}
+
+// snmpStat devuelve (creando si falta) el contador de salud SNMP del router.
+// Debe llamarse con l.mu tomado.
+func (l *Live) snmpStat(id string) *snmpPollStat {
+	if l.snmpPollStats == nil {
+		l.snmpPollStats = map[string]*snmpPollStat{}
+	}
+	s := l.snmpPollStats[id]
+	if s == nil {
+		s = &snmpPollStat{}
+		l.snmpPollStats[id] = s
+	}
+	return s
+}
+
+// recordSnmpSuccess registra un poll SNMP con datos (#930): ok++,
+// consecFail=0. Si había un incidente abierto, lo resuelve y emite la alerta
+// ok de recuperación (patrón agente outdated/updated).
+func (l *Live) recordSnmpSuccess(cfg RouterConfig) {
+	name := cfg.Name
+	if name == "" {
+		name = cfg.Host
+	}
+	now := time.Now().UnixMilli()
+	l.mu.Lock()
+	s := l.snmpStat(cfg.ID)
+	s.Ok++
+	s.ConsecFail = 0
+	s.LastOkMs = now
+	wasOpen := s.failingOpen
+	s.failingOpen = false
+	l.mu.Unlock()
+
+	if wasOpen {
+		log.Printf("[netpulse] SNMP recuperado %s", cfg.ID)
+		l.engine.Resolve(fmt.Sprintf("alert-snmp-failing-%s", cfg.ID))
+		l.engine.Emit(AlertEvent{
+			ID:       fmt.Sprintf("alert-snmp-recovered-%s-%d", cfg.ID, now),
+			Category: alerts.CatSystem, Urgent: false,
+			Severity:    "ok",
+			Title:       "Sondeo SNMP recuperado en " + name,
+			Description: fmt.Sprintf("%s vuelve a responder al sondeo SNMP", name),
+			Type:        alerts.TypeSnmpRecovered,
+			Vars:        map[string]string{"router": name},
+			Time:        "ahora mismo", RouterID: cfg.ID,
+		})
+	}
+}
+
+// recordSnmpFailure registra un poll SNMP fallido (#930): fail++,
+// consecFail++, lastErr. En la transición al 3.er fallo seguido hace un ping
+// de respaldo al host: si responde, emite una alerta warn "snmp-failing"
+// (una por incidente); si no responde, solo loguea (la caída del router ya
+// la cubre el alerteo de offline).
+func (l *Live) recordSnmpFailure(cfg RouterConfig, err error) {
+	name := cfg.Name
+	if name == "" {
+		name = cfg.Host
+	}
+	now := time.Now().UnixMilli()
+	l.mu.Lock()
+	s := l.snmpStat(cfg.ID)
+	s.Fail++
+	s.ConsecFail++
+	s.LastFailMs = now
+	s.LastErr = err.Error()
+	consec := s.ConsecFail
+	open := s.failingOpen
+	lastErr := s.LastErr
+	l.mu.Unlock()
+
+	switch {
+	case consec == 1:
+		log.Printf("[netpulse] SNMP fallo %s: %v", cfg.ID, err)
+	case consec == 3 && !open:
+		pingFn := l.ping
+		if pingFn == nil {
+			pingFn = pingHost
+		}
+		if !pingFn(cfg.Host) {
+			log.Printf("[netpulse] SNMP %s: 3 fallos seguidos y sin respuesta a ping (equipo caído); sin alerta SNMP", cfg.ID)
+			return
+		}
+		// Marcar incidente abierto (re-check bajo lock para no duplicar en
+		// carreras entre goroutines de distintos routers).
+		l.mu.Lock()
+		s2 := l.snmpStat(cfg.ID)
+		already := s2.failingOpen
+		s2.failingOpen = true
+		l.mu.Unlock()
+		if already {
+			return
+		}
+		l.engine.Emit(AlertEvent{
+			ID:       fmt.Sprintf("alert-snmp-failing-%s", cfg.ID),
+			Category: alerts.CatSystem, Urgent: false,
+			Severity:    "warn",
+			Title:       "Sondeo SNMP fallando en " + name,
+			Description: fmt.Sprintf("%s responde a ping pero el sondeo SNMP lleva 3 intentos fallidos (%s) - revisa community/puerto", name, lastErr),
+			Hint:        alerts.HintFor(alerts.HintSnmpFailing),
+			Type:        alerts.HintSnmpFailing,
+			Vars:        map[string]string{"router": name, "error": lastErr},
+			Time:        "ahora mismo", RouterID: cfg.ID,
+		})
+	}
+}
+
+// pingHost hace un ping ICMP (echo request) sin privilegios (#930): usa un
+// socket UDP no privilegiado (ListenPacket("udp4"), soportado por el
+// ping_group_range del kernel) en vez de un socket raw que requeriría root.
+// Devuelve true si el host responde al echo dentro de ~2 s.
+func pingHost(host string) bool {
+	ip, err := net.ResolveIPAddr("ip4", host)
+	if err != nil {
+		return false
+	}
+	c, err := icmp.ListenPacket("udp4", "0.0.0.0")
+	if err != nil {
+		return false
+	}
+	defer c.Close()
+	msg := icmp.Message{
+		Type: ipv4.ICMPTypeEcho,
+		Code: 0,
+		Body: &icmp.Echo{
+			ID:   os.Getpid() & 0xffff,
+			Seq:  1,
+			Data: []byte("netpulse"),
+		},
+	}
+	b, err := msg.Marshal(nil)
+	if err != nil {
+		return false
+	}
+	if _, err := c.WriteTo(b, &net.UDPAddr{IP: ip.IP}); err != nil {
+		return false
+	}
+	if err := c.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		return false
+	}
+	rb := make([]byte, 1500)
+	for {
+		n, _, err := c.ReadFrom(rb)
+		if err != nil {
+			return false
+		}
+		rm, err := icmp.ParseMessage(1, rb[:n])
+		if err != nil {
+			continue
+		}
+		if rm.Type == ipv4.ICMPTypeEchoReply {
+			if echo, ok := rm.Body.(*icmp.Echo); ok && echo.ID == os.Getpid()&0xffff {
+				return true
+			}
+		}
+	}
 }
 
 type snmpPortSample struct {

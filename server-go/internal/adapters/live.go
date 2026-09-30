@@ -258,6 +258,13 @@ type Live struct {
 	// snmpFdbCount (#928): último conteo de entradas FDB por router SNMP,
 	// para loguear solo cuando el resultado cambia.
 	snmpFdbCount map[string]int
+	// snmpPollStats (#930): contadores de éxito/fallo del poll SNMP por
+	// router (ok, fail, consecFail, timestamps, último error). Protegido
+	// por mu; en memoria (no persiste entre reinicios).
+	snmpPollStats map[string]*snmpPollStat
+	// ping (issue #930): probe ICMP inyectable para el ping de respaldo del
+	// sondeo SNMP. nil/nulo en tests sin mock; el default real es pingHost.
+	ping func(host string) bool
 	// snmpLastMetricsTick (issue #414): polledAt del último tick que se persistió
 	// en la tabla metrics, para evitar filas duplicadas cuando se reutiliza el
 	// snapshot cacheado de un router SNMP.
@@ -403,6 +410,8 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
 		snmpFdbCount:         map[string]int{},
+		snmpPollStats:        map[string]*snmpPollStat{},
+		ping:                 pingHost,
 		snmpLastMetricsTick:  map[string]int64{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},
@@ -559,6 +568,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.snmpLastMetricsTick {
 		if !ids[id] {
 			delete(l.snmpLastMetricsTick, id)
+		}
+	}
+	for id := range l.snmpPollStats {
+		if !ids[id] {
+			delete(l.snmpPollStats, id)
 		}
 	}
 	for id := range l.lastPolled {
@@ -3447,6 +3461,17 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		Router: router, Ports: enriched, Radios: radios, Backhaul: nil,
 		Series:  PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
 		Clients: clients, Extras: extras, Vlans: vlans, MultiWan: multiWan,
+	}
+	// #930: contadores de salud SNMP del router (solo si se sondea por SNMP).
+	if cfg.SnmpEnabled {
+		l.mu.Lock()
+		if st := l.snmpPollStats[id]; st != nil {
+			detail.SnmpOk = st.Ok
+			detail.SnmpFail = st.Fail
+			detail.SnmpConsecFail = st.ConsecFail
+			detail.LastSnmpErr = st.LastErr
+		}
+		l.mu.Unlock()
 	}
 	if gw != nil && id == gw.ID {
 		detail.Adguard = l.pollAdGuard(ctx)

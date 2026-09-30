@@ -8,8 +8,9 @@ require (
 	github.com/gonzalop/mq v0.9.10
 	github.com/gosnmp/gosnmp v1.44.0
 	github.com/showwin/speedtest-go v1.8.3
-	golang.org/x/crypto v0.54.0
-	golang.org/x/text v0.40.0
+	golang.org/x/crypto v0.55.0
+	golang.org/x/net v0.58.0
+	golang.org/x/text v0.41.0
 	modernc.org/sqlite v1.56.0
 )
 

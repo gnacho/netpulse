@@ -95,7 +95,8 @@
       "uplink-switched": "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
       "wan-down": "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
       "wan-slow": "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
-      "wifi-weak": "Acerca el dispositivo a un punto de acceso o reubica el AP."
+      "wifi-weak": "Acerca el dispositivo a un punto de acceso o reubica el AP.",
+      "snmp-failing": "Revisa la community SNMP y el puerto del switch: el equipo responde a ping pero no al sondeo."
     },
     "types": {
       "agent-down": {
@@ -259,6 +260,14 @@
           "cannot-apply": "Hay una actualización disponible pero esta instalación no puede aplicarla ahora (revisa readiness en Ajustes)",
           "apply-busy": "La actualización programada no pudo arrancar (¿otra actualización en curso?)"
         }
+      },
+      "snmp-failing": {
+        "title": "Sondeo SNMP fallando en {{router}}",
+        "description": "{{router}} responde a ping pero el sondeo SNMP lleva 3 intentos fallidos ({{error}}) - revisa community/puerto"
+      },
+      "snmp-recovered": {
+        "title": "Sondeo SNMP recuperado en {{router}}",
+        "description": "{{router}} vuelve a responder al sondeo SNMP"
       }
     },
     "viewDevice": "Ver dispositivo",
@@ -863,6 +872,9 @@
       "power": "Potencia",
       "title": "Radios WiFi",
       "width": "Ancho"
+    },
+    "snmp": {
+      "summary": "SNMP: {{ok}} polls OK / {{fail}} fallos"
     },
     "vlans": {
       "mode": "Modo",

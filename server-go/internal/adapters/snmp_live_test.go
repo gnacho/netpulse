@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -180,5 +181,73 @@ func TestBuildRouterExposeSnmpEnabled(t *testing.T) {
 	r := l.buildRouter(p, nil)
 	if !r.SnmpEnabled {
 		t.Error("expected SnmpEnabled=true in built Router")
+	}
+}
+
+// #930: 3 fallos seguidos con ping OK emiten UNA alerta warn "snmp-failing";
+// la recuperación la resuelve y emite la ok; los contadores son correctos.
+func TestSnmpPollHealthAlertAndRecovery(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	// Mock del ping: siempre alcanzable (switch vivo con SNMP roto).
+	l.ping = func(host string) bool { return true }
+	cfg := RouterConfig{ID: "sw1", Name: "Switch 1", Host: "192.168.1.10", SnmpEnabled: true}
+	boom := fmt.Errorf("snmp ifTable: timeout")
+
+	for i := 0; i < 3; i++ {
+		l.recordSnmpFailure(cfg, boom)
+	}
+	n, ev := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1")
+	if n != 1 {
+		t.Fatalf("snmp-failing alerts = %d, want 1", n)
+	}
+	if ev.Type != alerts.HintSnmpFailing || ev.Vars["router"] != "Switch 1" || ev.Vars["error"] == "" {
+		t.Fatalf("evento snmp-failing mal formado: %+v", ev)
+	}
+	// Un 4.º fallo no repite la alerta (una por incidente).
+	l.recordSnmpFailure(cfg, boom)
+	if n2, _ := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1"); n2 != 1 {
+		t.Fatalf("snmp-failing alerts tras 4.º fallo = %d, want 1", n2)
+	}
+
+	l.mu.Lock()
+	st := l.snmpPollStats["sw1"]
+	l.mu.Unlock()
+	if st == nil || st.Fail != 4 || st.ConsecFail != 4 || st.Ok != 0 {
+		t.Fatalf("contadores tras fallos = %+v, want fail=4 consec=4 ok=0", st)
+	}
+
+	// Recuperación: resolve de la warn + alerta ok.
+	l.recordSnmpSuccess(cfg)
+	if n3, _ := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1"); n3 != 0 {
+		t.Fatalf("snmp-failing tras recuperación = %d, want 0 (resuelta)", n3)
+	}
+	if n4, _ := findAlerts(l.engine, "Sondeo SNMP recuperado en Switch 1"); n4 != 1 {
+		t.Fatalf("snmp-recovered alerts = %d, want 1", n4)
+	}
+	l.mu.Lock()
+	st = l.snmpPollStats["sw1"]
+	l.mu.Unlock()
+	if st.Ok != 1 || st.ConsecFail != 0 || st.Fail != 4 {
+		t.Fatalf("contadores tras recuperación = %+v, want ok=1 consec=0 fail=4", st)
+	}
+}
+
+// #930: si el ping también falla, NO se emite la alerta SNMP (el equipo está
+// caído; lo cubre el alerteo de offline). Solo log y contadores.
+func TestSnmpPollHealthNoAlertWhenPingFails(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	l.ping = func(host string) bool { return false }
+	cfg := RouterConfig{ID: "sw1", Name: "Switch 1", Host: "192.168.1.10", SnmpEnabled: true}
+	for i := 0; i < 3; i++ {
+		l.recordSnmpFailure(cfg, fmt.Errorf("snmp connect: timeout"))
+	}
+	if n, _ := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1"); n != 0 {
+		t.Fatalf("snmp-failing alerts con ping caído = %d, want 0", n)
+	}
+	l.mu.Lock()
+	st := l.snmpPollStats["sw1"]
+	l.mu.Unlock()
+	if st == nil || st.ConsecFail != 3 || st.Fail != 3 {
+		t.Fatalf("contadores con ping caído = %+v, want consec=3 fail=3", st)
 	}
 }

@@ -98,6 +98,7 @@ const (
 	HintAgentOutdated = "agent-outdated"
 	HintWanSlow       = "wan-slow"
 	HintUplinkSwitch  = "uplink-switched"
+	HintSnmpFailing   = "snmp-failing"
 )
 
 // Additional stable alert-type slugs (issue #712): recovery/info/beacon/rearmer
@@ -124,6 +125,7 @@ const (
 	TypeAgentReinstalled   = "agent-reinstalled"
 	TypeAutoRearmFailed    = "auto-rearm-failed"
 	TypeUplinkRestored     = "uplink-restored"
+	TypeSnmpRecovered      = "snmp-recovered"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
@@ -144,6 +146,7 @@ var Hints = map[string]string{
 	HintAgentOutdated: "Actualiza el agente desde Ajustes, Agentes (botón Actualizar); si es un panel NetGrip, actualiza desde su propio panel.",
 	HintUplinkSwitch:  "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
 	HintWanSlow:       "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
+	HintSnmpFailing:   "Revisa la community SNMP y el puerto del switch: el equipo responde a ping pero no al sondeo.",
 }
 
 // HintFor returns the suggestion for a slug, or "" when it does not exist.

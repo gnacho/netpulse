@@ -603,6 +603,13 @@ type RouterDetail struct {
 	// the router never reported any; an empty uplink list = it reported
 	// and there is nothing to show, which is what removes the panel.
 	MultiWan *MultiWanInfo `json:"multiWan,omitempty"`
+	// --- salud del sondeo SNMP (#930): solo routers sondeados por SNMP ---
+	// Contadores de éxito/fallo del poll SNMP por router (omitempty: ausente
+	// en routers que no se sondean por SNMP).
+	SnmpOk         int64  `json:"snmpOk,omitempty"`
+	SnmpFail       int64  `json:"snmpFail,omitempty"`
+	SnmpConsecFail int64  `json:"snmpConsecFail,omitempty"`
+	LastSnmpErr    string `json:"lastSnmpErr,omitempty"`
 	// --- solo gateway (demo: solo flint2; live: solo el gateway) ---
 	Adguard          *AdGuardStats   `json:"adguard,omitempty"`
 	Wireguard        *WireGuardStats `json:"wireguard,omitempty"`

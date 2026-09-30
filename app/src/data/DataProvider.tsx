@@ -101,6 +101,12 @@ export interface RouterDetailData {
   /** Las varias conexiones a internet del router, si reporta más de una.
    *  Solo lectura: las gestiona el panel del propio router. */
   multiWan?: MultiWanInfo
+  /** Salud del sondeo SNMP (#930): contadores de éxito/fallo por router.
+   *  Ausente en routers que no se sondean por SNMP. */
+  snmpOk?: number
+  snmpFail?: number
+  snmpConsecFail?: number
+  lastSnmpErr?: string
 }
 
 export interface NetPulseData {
@@ -1160,6 +1166,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         wireguard?: WireGuardStats
         vlans?: VlanPort[]
         multiWan?: MultiWanInfo
+        snmpOk?: number
+        snmpFail?: number
+        snmpConsecFail?: number
+        lastSnmpErr?: string
       }
       // Live: extras SOLO del backend (datos reales); nunca el mock local
       const extras: RouterExtras = {
@@ -1177,6 +1187,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         wireguard: json.wireguard,
         vlans: json.vlans,
         multiWan: json.multiWan,
+        snmpOk: json.snmpOk,
+        snmpFail: json.snmpFail,
+        snmpConsecFail: json.snmpConsecFail,
+        lastSnmpErr: json.lastSnmpErr,
       }
     }
     // Demo: resolución local desde mock + routerExtras (misma firma async)

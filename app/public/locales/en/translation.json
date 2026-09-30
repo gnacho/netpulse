@@ -95,7 +95,8 @@
       "uplink-switched": "Check the line that dropped: the router goes back to it on its own once it recovers.",
       "wan-down": "Check the modem/ONT and contact your ISP if the outage persists.",
       "wan-slow": "Restart the router and the modem/ONT and run the test again; if it stays low, contact your ISP (line degradation or congestion in your area).",
-      "wifi-weak": "Move the device closer to an access point or relocate the AP."
+      "wifi-weak": "Move the device closer to an access point or relocate the AP.",
+      "snmp-failing": "Check the SNMP community string and switch port: the device answers ping but not polling."
     },
     "types": {
       "agent-down": {
@@ -259,6 +260,14 @@
           "cannot-apply": "An update is available but this install cannot apply it now (check readiness in Settings)",
           "apply-busy": "The scheduled update could not start (another update in progress?)"
         }
+      },
+      "snmp-failing": {
+        "title": "SNMP polling failing on {{router}}",
+        "description": "{{router}} responds to ping but SNMP polling has failed 3 times ({{error}}) - check community/port"
+      },
+      "snmp-recovered": {
+        "title": "SNMP polling recovered on {{router}}",
+        "description": "SNMP polling for {{router}} is responding again"
       }
     },
     "viewDevice": "View device",
@@ -863,6 +872,9 @@
       "power": "Power",
       "title": "WiFi radios",
       "width": "Width"
+    },
+    "snmp": {
+      "summary": "SNMP: {{ok}} polls OK / {{fail}} failures"
     },
     "vlans": {
       "mode": "Mode",

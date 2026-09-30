@@ -37,6 +37,10 @@ export default function RouterDetail() {
   const [detail, setDetail] = useState<RouterDetailData | null>(null)
   const [hkBusy, setHkBusy] = useState(false)
   const [hkDone, setHkDone] = useState(false)
+  // #930: resumen de salud SNMP del switch (solo routers sondeados por SNMP).
+  const snmpStats = detail?.snmpOk !== undefined
+    ? { ok: detail.snmpOk, fail: detail.snmpFail, lastErr: detail.lastSnmpErr }
+    : undefined
 
   // #603: confirmación explícita del re-onboard tras una host key cambiada.
   async function handleAcceptHostKey() {
@@ -204,10 +208,10 @@ export default function RouterDetail() {
         <>
           <AdGuardPanel />
           <WireGuardPanel />
-          <PortPanel router={router} extras={detail?.extras} className="lg:col-span-12" />
+          <PortPanel router={router} extras={detail?.extras} snmpStats={snmpStats} className="lg:col-span-12" />
         </>
       ) : (
-        <RadiosPorts router={router} extras={detail?.extras} />
+        <RadiosPorts router={router} extras={detail?.extras} snmpStats={snmpStats} />
       )}
 
       {/* Historial de tráfico por puerto: tarjeta propia a todo el ancho

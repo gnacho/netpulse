@@ -267,7 +267,12 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function PortPanel({ router, extras, className }: { router: Router; extras?: RouterExtras; className?: string }) {
+export function PortPanel({ router, extras, className, snmpStats }: {
+  router: Router
+  extras?: RouterExtras
+  className?: string
+  snmpStats?: { ok?: number; fail?: number; lastErr?: string }
+}) {
   const { t } = useTranslation()
   const { isDemo, wan } = useNetPulse()
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
@@ -286,6 +291,17 @@ export function PortPanel({ router, extras, className }: { router: Router; extra
         {t('routerDetail.ports.usedOf', { used, total: ports.length, count: ports.length })}
         {wirelessUplink && t('routerDetail.ports.wirelessUplink')}
       </p>
+
+      {/* #930: salud del sondeo SNMP del switch (último error en tooltip). */}
+      {snmpStats && snmpStats.ok !== undefined && (
+        <p
+          className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-elevated/60 px-2 py-0.5 font-mono text-caption text-text-secondary"
+          title={snmpStats.lastErr || undefined}
+        >
+          <Activity className="h-3 w-3 text-text-muted" aria-hidden="true" />
+          {t('routerDetail.snmp.summary', { ok: snmpStats.ok, fail: snmpStats.fail ?? 0 })}
+        </p>
+      )}
 
       {/* Chasis: TODAS las bocas en una sola horizontal (sin wrap); si no
           caben (móvil, chasis largos), scroll horizontal en vez de apilar.
