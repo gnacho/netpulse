@@ -50,20 +50,22 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if ifErr != nil {
 		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.ID, ifErr)
 	}
-	fdb, fdbSource, fdbErr := npsnmp.PollFdbTable(session)
+	fdbPoll, fdbErr := npsnmp.PollFdbTable(session)
+	fdb := fdbPoll.Entries
 	if fdbErr != nil {
 		log.Printf("[netpulse] SNMP FDB %s: %v", cfg.ID, fdbErr)
 	} else {
 		// #928: visibilidad mínima del resultado del FDB. Se loguea cuando el
 		// conteo cambia respecto al ciclo anterior (o en el primer poll), no
 		// cada 60 s: suficiente para diagnosticar "walk vacío/fallido" sin
-		// inundar el journal.
+		// inundar el journal. #948: la línea lleva además los PDUs crudos de
+		// cada walk para distinguir "tabla vacía" de "datos no utilizables".
 		l.mu.Lock()
 		last, seen := l.snmpFdbCount[cfg.ID]
 		l.snmpFdbCount[cfg.ID] = len(fdb)
 		l.mu.Unlock()
 		if !seen || last != len(fdb) {
-			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s)", cfg.ID, len(fdb), fdbSource)
+			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s; pdus dot1d=%d dot1q=%d)", cfg.ID, len(fdb), fdbPoll.Source, fdbPoll.RawDot1d, fdbPoll.RawDot1q)
 		}
 	}
 
