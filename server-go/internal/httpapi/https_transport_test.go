@@ -5,7 +5,23 @@ package httpapi
 import (
 	"testing"
 	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 )
+
+// panelTestServer is the minimum the HTTPS tests read: a database and the
+// agent registry. (From the fork's netgrip_panel_test.go helper, kept here so
+// the HTTPS tests do not drag in the whole NetGrip-panel integration.)
+func panelTestServer(t *testing.T) *server {
+	t.Helper()
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	return &server{db: d, agents: adapters.NewAgentRegistry(90 * time.Second)}
+}
 
 func TestAgentsOnHTTPSurviveARestartAndForgetTheDeleted(t *testing.T) {
 	s := panelTestServer(t)
