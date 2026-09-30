@@ -109,6 +109,13 @@ export function alertRelTime(ev: { ts?: number; time: string }): string {
   return relTimeFromTs(ev.ts) ?? relTime(ev.time)
 }
 
+/** Relativo ("hace 3 días") desde epoch MILISEGUNDOS (#954 first/last seen
+ *  de clientes). 0/indefinido = desconocido → "—". */
+export function fmtSeenAgo(ms: number | undefined, nowMs = Date.now()): string {
+  if (!ms || !Number.isFinite(ms) || ms <= 0) return '—'
+  return relTimeFromTs(Math.floor(ms / 1000), nowMs) ?? '—'
+}
+
 /** Uptime canónico tipo "12d 4h" → "12 días, 4 h" / "12 days, 4 h" */
 export function fmtUptime(uptime: string): string {
   const m = /^(\d+)d\s*(\d+)h$/.exec(uptime.trim())

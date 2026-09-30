@@ -287,7 +287,7 @@ func bulb(n int, name, ip, mac string, dbm int) Device {
 		ID: fmt.Sprintf("bombilla-%d", n), Name: name, Type: "iot", Manufacturer: "Ikea Trådfri",
 		IP: ip, MAC: mac, RouterID: "living", Band: "2.4 GHz", SignalDbm: iptr(dbm),
 		TrafficMbps: 0, Online: true, Sparkline: spark(40+n, 0.005, 0.02),
-		Hostname: fmt.Sprintf("tradfri-%d", n), DHCPLease: "renueva en 12 h 0 min", FirstSeen: "hace 280 días",
+		Hostname: fmt.Sprintf("tradfri-%d", n), DHCPLease: "renueva en 12 h 0 min", FirstSeenMs: seenDaysAgo(280), LastSeenMs: demoSeenBaseMs,
 		Traffic24hRx: "4 MB", Traffic24hTx: "1 MB", Adguard: boolp(true), Group: "iot",
 	}
 }
@@ -300,61 +300,61 @@ func canonDevices() []Device {
 			IP: "192.168.8.21", MAC: "A4:83:E7:21:0B:3C", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-48), TrafficMbps: 32.4, Online: true,
 			Sparkline: []float64{12, 15, 18, 22, 26, 30, 34, 32, 28, 30, 32, 31},
-			Hostname:  "imac-de-marc", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 320 días",
+			Hostname:  "imac-de-marc", DHCPLease: "IP fija (reserva)", FirstSeenMs: seenDaysAgo(320), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "38 GB", Traffic24hTx: "2,1 GB", Adguard: boolp(true), Group: "ordenadores"},
 		{ID: "tv-samsung", Name: "TV Samsung", Type: "tv", Manufacturer: "Samsung",
 			IP: "192.168.8.34", MAC: "8C:EA:48:5D:2F:91", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-52), TrafficMbps: 18.1, Online: true,
 			Sparkline: []float64{8, 10, 14, 16, 18, 20, 19, 18, 17, 18, 18, 18},
-			Hostname:  "samsung-tv-salon", DHCPLease: "renueva en 7 h 48 min", FirstSeen: "hace 290 días",
+			Hostname:  "samsung-tv-salon", DHCPLease: "renueva en 7 h 48 min", FirstSeenMs: seenDaysAgo(290), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "54 GB", Traffic24hTx: "1,2 GB", Adguard: boolp(true), Group: "tv"},
 		{ID: "pixel-8-pro", Name: "Pixel 8 Pro", Type: "movil", Manufacturer: "Google",
 			IP: "192.168.8.45", MAC: "F2:6D:19:A8:44:C2", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-41), TrafficMbps: 6.2, Online: true,
 			Sparkline: []float64{3, 4, 5, 7, 6, 8, 6, 5, 7, 6, 6, 6},
-			Hostname:  "pixel-8-pro", DHCPLease: "renueva en 9 h 12 min", FirstSeen: "hace 214 días",
+			Hostname:  "pixel-8-pro", DHCPLease: "renueva en 9 h 12 min", FirstSeenMs: seenDaysAgo(214), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "4,2 GB", Traffic24hTx: "310 MB", Adguard: boolp(true), Group: "moviles"},
 		{ID: "macbook-air", Name: "MacBook Air", Type: "portatil", Manufacturer: "Apple",
 			IP: "192.168.8.23", MAC: "3C:22:FB:71:9E:05", RouterID: "estudio", Band: "5 GHz",
 			SignalDbm: iptr(-45), TrafficMbps: 4.8, Online: true,
 			Sparkline: []float64{2, 3, 4, 5, 5, 6, 5, 4, 5, 5, 5, 5},
-			Hostname:  "macbook-air-de-ana", DHCPLease: "renueva en 5 h 31 min", FirstSeen: "hace 260 días",
+			Hostname:  "macbook-air-de-ana", DHCPLease: "renueva en 5 h 31 min", FirstSeenMs: seenDaysAgo(260), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "18 GB", Traffic24hTx: "2,2 GB", Adguard: boolp(true), Group: "ordenadores"},
 		{ID: "ps5", Name: "PS5", Type: "consola", Manufacturer: "Sony",
 			IP: "192.168.8.31", MAC: "78:C8:81:0A:6B:D4", RouterID: "living", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 12.7, Online: true, Port: "lan1",
 			Sparkline: []float64{4, 6, 8, 10, 12, 14, 13, 12, 13, 12, 13, 13},
-			Hostname:  "ps5-salon", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 300 días",
+			Hostname:  "ps5-salon", DHCPLease: "IP fija (reserva)", FirstSeenMs: seenDaysAgo(300), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "92 GB", Traffic24hTx: "4,8 GB", Adguard: boolp(true), Group: "tv"},
 		{ID: "robot-aspirador", Name: "Robot aspirador", Type: "iot", Manufacturer: "Roborock",
 			IP: "192.168.8.61", MAC: "B0:4A:39:2E:77:10", RouterID: "patio", Band: "2.4 GHz",
 			SignalDbm: iptr(-67), TrafficMbps: 0.02, Online: true,
 			Sparkline: []float64{0.01, 0.02, 0.02, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02},
-			Hostname:  "roborock-s8", DHCPLease: "renueva en 10 h 2 min", FirstSeen: "hace 180 días",
+			Hostname:  "roborock-s8", DHCPLease: "renueva en 10 h 2 min", FirstSeenMs: seenDaysAgo(180), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "340 MB", Traffic24hTx: "28 MB", Adguard: boolp(true), Group: "iot"},
 		{ID: "camara-porche", Name: "Cámara porche", Type: "camara", Manufacturer: "Reolink",
 			IP: "192.168.8.71", MAC: "EC:71:DB:44:12:8A", RouterID: "patio", Band: "2.4 GHz",
 			SignalDbm: iptr(-72), TrafficMbps: 1.1, Online: true,
 			Sparkline: []float64{1, 1.1, 1.1, 1.2, 1.1, 1, 1.1, 1.1, 1.2, 1.1, 1.1, 1.1},
-			Hostname:  "reolink-porche", DHCPLease: "renueva en 3 h 57 min", FirstSeen: "hace 150 días",
+			Hostname:  "reolink-porche", DHCPLease: "renueva en 3 h 57 min", FirstSeenMs: seenDaysAgo(150), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "11 GB", Traffic24hTx: "640 MB", Adguard: boolp(true), Group: "iot"},
 		{ID: "nest-mini", Name: "Nest Mini", Type: "altavoz", Manufacturer: "Google",
 			IP: "192.168.8.52", MAC: "1A:2B:3C:4D:5E:6F", RouterID: "estudio", Band: "2.4 GHz",
 			SignalDbm: iptr(-55), TrafficMbps: 0.4, Online: true,
 			Sparkline: []float64{0.3, 0.4, 0.4, 0.5, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4},
-			Hostname:  "nest-mini-estudio", DHCPLease: "renueva en 8 h 20 min", FirstSeen: "hace 240 días",
+			Hostname:  "nest-mini-estudio", DHCPLease: "renueva en 8 h 20 min", FirstSeenMs: seenDaysAgo(240), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "1,4 GB", Traffic24hTx: "88 MB", Adguard: boolp(true), Group: "iot"},
 		{ID: "nas-synology", Name: "NAS Synology", Type: "servidor", Manufacturer: "Synology",
 			IP: "192.168.8.10", MAC: "00:11:32:9C:51:B7", RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 2.3, Online: true, Port: "lan4",
 			Sparkline: []float64{1, 1.5, 2, 2.5, 3, 2.8, 2.4, 2.2, 2.3, 2.3, 2.3, 2.3},
-			Hostname:  "diskstation", DHCPLease: "IP fija (reserva)", FirstSeen: "hace 320 días",
+			Hostname:  "diskstation", DHCPLease: "IP fija (reserva)", FirstSeenMs: seenDaysAgo(320), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "96 GB", Traffic24hTx: "1,1 TB", Adguard: boolp(true), Group: "red"},
 		{ID: "galaxy-tab-s9", Name: "Galaxy Tab S9", Type: "tablet", Manufacturer: "Samsung",
 			IP: "192.168.8.48", MAC: "D6:91:2F:07:B3:55", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-50), TrafficMbps: 1.8, Online: true, IsNew: true,
 			Sparkline: []float64{0, 0, 0, 0, 0, 0, 0, 0, 0.5, 1.2, 1.6, 1.8},
-			Hostname:  "galaxy-tab-s9", DHCPLease: "renueva en 11 h 5 min", FirstSeen: "hoy",
+			Hostname:  "galaxy-tab-s9", DHCPLease: "renueva en 11 h 5 min", FirstSeenMs: seenDaysAgo(0), LastSeenMs: demoSeenBaseMs,
 			Traffic24hRx: "640 MB", Traffic24hTx: "48 MB", Adguard: boolp(true), Group: "moviles", NewThisWeek: true},
 	}
 }
@@ -366,19 +366,19 @@ func additionalDevices() []Device {
 		withDetails(devExtra(Device{ID: "iphone-ana", Name: "iPhone de Ana", Type: "movil", Manufacturer: "Apple",
 			IP: "192.168.8.44", MAC: "F4:D4:88:19:C2:71", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-46), TrafficMbps: 2.1, Online: true}, 11, 0),
-			"iphone-de-ana", "renueva en 6 h 40 min", "hace 190 días", "2,8 GB", "240 MB", true, "moviles", ""),
+			"iphone-de-ana", "renueva en 6 h 40 min", 190, "2,8 GB", "240 MB", true, "moviles", ""),
 		withDetails(devExtra(Device{ID: "macbook-pro", Name: "MacBook Pro de Marc", Type: "portatil", Manufacturer: "Apple",
 			IP: "192.168.8.26", MAC: "F0:18:98:5A:11:E9", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-44), TrafficMbps: 8.6, Online: true}, 12, 0),
-			"macbook-pro-marc", "renueva en 4 h 16 min", "hace 230 días", "12,4 GB", "1,9 GB", true, "ordenadores", ""),
+			"macbook-pro-marc", "renueva en 4 h 16 min", 230, "12,4 GB", "1,9 GB", true, "ordenadores", ""),
 		withDetails(devExtra(Device{ID: "pc-sobremesa", Name: "PC de sobremesa", Type: "ordenador", Manufacturer: "ASUSTeK",
 			IP: "192.168.8.11", MAC: "04:D4:C4:8B:30:A7", RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 21.3, Online: true, AttachTo: "dist-flint2-lan3"}, 13, 0),
-			"desktop-8f2k1", "IP fija (reserva)", "hace 310 días", "84 GB", "6,2 GB", true, "ordenadores", ""),
+			"desktop-8f2k1", "IP fija (reserva)", 310, "84 GB", "6,2 GB", true, "ordenadores", ""),
 		withDetails(devExtra(Device{ID: "raspberry-pi", Name: "Raspberry Pi 4", Type: "servidor", Manufacturer: "Raspberry Pi",
 			IP: "192.168.8.12", MAC: "DC:A6:32:4F:77:02", RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 0.8, Online: true, AttachTo: "dist-flint2-lan3"}, 14, 0),
-			"raspberrypi", "IP fija (reserva)", "hace 320 días", "3,4 GB", "890 MB", true, "red", ""),
+			"raspberrypi", "IP fija (reserva)", 320, "3,4 GB", "890 MB", true, "red", ""),
 		// NOTA (SPEC-CANON D1): el switch gestionado GS308E (Salón lan3)
 		// vuelve a ser Device — ver topologyDevices, junto a sus clientes —
 		// ADEMÁS de seguir siendo el DistributionNode "managed"
@@ -387,30 +387,30 @@ func additionalDevices() []Device {
 		withDetails(devExtra(Device{ID: "timbre-nest", Name: "Timbre Nest", Type: "camara", Manufacturer: "Google",
 			IP: "192.168.8.72", MAC: "F4:F5:D8:66:01:B8", RouterID: "flint2", Band: "2.4 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0.6, Online: true}, 16, 0),
-			"nest-doorbell", "renueva en 9 h 44 min", "hace 170 días", "1,2 GB", "140 MB", true, "iot", ""),
+			"nest-doorbell", "renueva en 9 h 44 min", 170, "1,2 GB", "140 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "enchufe-lavadora", Name: "Enchufe lavadora", Type: "iot", Manufacturer: "TP-Link",
 			IP: "192.168.8.81", MAC: "50:C7:BF:22:E1:9C", RouterID: "flint2", Band: "2.4 GHz",
 			SignalDbm: iptr(-62), TrafficMbps: 0.01, Online: true}, 17, 0.02),
-			"tapo-p110-lavadora", "renueva en 12 h 0 min", "hace 140 días", "8 MB", "2 MB", false, "iot", ""),
+			"tapo-p110-lavadora", "renueva en 12 h 0 min", 140, "8 MB", "2 MB", false, "iot", ""),
 		withDetails(devExtra(Device{ID: "pixel-7", Name: "Pixel 7", Type: "movil", Manufacturer: "Google",
 			IP: "192.168.8.46", MAC: "3C:5A:B4:08:D7:5E", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-49), TrafficMbps: 1.4, Online: true}, 18, 0),
-			"pixel-7", "renueva en 7 h 3 min", "hace 205 días", "1,9 GB", "180 MB", true, "moviles", ""),
+			"pixel-7", "renueva en 7 h 3 min", 205, "1,9 GB", "180 MB", true, "moviles", ""),
 		// SPEC-CANON D3: la identidad vieja wifi/offline de impresora-hp se
 		// elimina — la única es la cableada al switch inferido
 		// (topologyDevices, attachTo dist-flint2-lan3).
 		withDetails(devExtra(Device{ID: "ipad-air", Name: "iPad Air", Type: "tablet", Manufacturer: "Apple",
 			IP: "192.168.8.47", MAC: "8C:85:90:2F:B4:11", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-54), TrafficMbps: 0, Online: false}, 1, 0),
-			"ipad-air", "Expirado", "hace 260 días", "6,4 GB", "520 MB", true, "moviles", ""),
+			"ipad-air", "Expirado", 260, "6,4 GB", "520 MB", true, "moviles", ""),
 		withDetails(devExtra(Device{ID: "portatil-trabajo", Name: "Portátil trabajo", Type: "portatil", Manufacturer: "Lenovo",
 			IP: "192.168.8.27", MAC: "54:EE:75:9A:03:F1", RouterID: "flint2", Band: "5 GHz",
 			SignalDbm: iptr(-50), TrafficMbps: 0, Online: false}, 1, 0),
-			"thinkpad-t14", "Expirado", "hace 160 días", "812 MB", "121 MB", true, "ordenadores", ""),
+			"thinkpad-t14", "Expirado", 160, "812 MB", "121 MB", true, "ordenadores", ""),
 		withDetails(devExtra(Device{ID: "kindle", Name: "Kindle Paperwhite", Type: "desconocido", Manufacturer: "Amazon",
 			IP: "192.168.8.49", MAC: "44:65:0D:71:28:C3", RouterID: "flint2", Band: "2.4 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0, Online: false}, 1, 0),
-			"kindle-paperwhite", "Expirado", "hace 220 días", "220 MB", "8 MB", true, "otros", "BookOpen"),
+			"kindle-paperwhite", "Expirado", 220, "220 MB", "8 MB", true, "otros", "BookOpen"),
 		// —— Salón (living) ——
 		bulb(1, "Bombilla salón 1", "192.168.8.90", "CC:86:EC:10:04:21", -58),
 		bulb(2, "Bombilla salón 2", "192.168.8.91", "CC:86:EC:10:04:22", -59),
@@ -421,80 +421,80 @@ func additionalDevices() []Device {
 		withDetails(devExtra(Device{ID: "chromecast", Name: "Chromecast HD", Type: "tv", Manufacturer: "Google",
 			IP: "192.168.8.36", MAC: "54:60:09:E3:5B:0A", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-54), TrafficMbps: 3.9, Online: true}, 21, 0),
-			"chromecast-hd", "renueva en 6 h 12 min", "hace 200 días", "21 GB", "380 MB", true, "tv", ""),
+			"chromecast-hd", "renueva en 6 h 12 min", 200, "21 GB", "380 MB", true, "tv", ""),
 		withDetails(devExtra(Device{ID: "homepod-mini", Name: "HomePod mini", Type: "altavoz", Manufacturer: "Apple",
 			IP: "192.168.8.53", MAC: "F0:D1:A9:3E:77:5C", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-47), TrafficMbps: 0.3, Online: true}, 22, 0),
-			"homepod-mini", "renueva en 10 h 41 min", "hace 190 días", "2,2 GB", "96 MB", true, "iot", ""),
+			"homepod-mini", "renueva en 10 h 41 min", 190, "2,2 GB", "96 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "galaxy-s23", Name: "Galaxy S23", Type: "movil", Manufacturer: "Samsung",
 			IP: "192.168.8.42", MAC: "5C:0A:5B:88:1D:E4", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-51), TrafficMbps: 0.9, Online: true}, 23, 0),
-			"galaxy-s23", "renueva en 8 h 55 min", "hace 175 días", "3,2 GB", "290 MB", true, "moviles", ""),
+			"galaxy-s23", "renueva en 8 h 55 min", 175, "3,2 GB", "290 MB", true, "moviles", ""),
 		withDetails(devExtra(Device{ID: "echo-dot", Name: "Echo Dot", Type: "altavoz", Manufacturer: "Amazon",
 			IP: "192.168.8.54", MAC: "74:C2:46:19:F0:6B", RouterID: "living", Band: "2.4 GHz",
 			SignalDbm: iptr(-56), TrafficMbps: 0.2, Online: true}, 24, 0),
-			"echo-dot-cocina", "renueva en 11 h 18 min", "hace 210 días", "1,1 GB", "74 MB", true, "iot", ""),
+			"echo-dot-cocina", "renueva en 11 h 18 min", 210, "1,1 GB", "74 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "nintendo-switch", Name: "Nintendo Switch", Type: "consola", Manufacturer: "Nintendo",
 			IP: "192.168.8.33", MAC: "58:BD:A3:4C:E2:09", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-53), TrafficMbps: 0.1, Online: true}, 25, 0.3),
-			"switch-oled", "renueva en 5 h 47 min", "hace 240 días", "8,6 GB", "310 MB", true, "tv", ""),
+			"switch-oled", "renueva en 5 h 47 min", 240, "8,6 GB", "310 MB", true, "tv", ""),
 		withDetails(devExtra(Device{ID: "portatil-invitado", Name: "Portátil invitado", Type: "portatil", Manufacturer: "",
 			IP: "192.168.8.29", MAC: "A2:7E:9C:41:0B:6D", RouterID: "living", Band: "5 GHz",
 			SignalDbm: iptr(-58), TrafficMbps: 0.7, Online: true, IsNew: true}, 26, 0),
-			"unknown-7f2a", "renueva en 2 h 9 min", "hoy", "480 MB", "62 MB", false, "ordenadores", ""),
+			"unknown-7f2a", "renueva en 2 h 9 min", 0, "480 MB", "62 MB", false, "ordenadores", ""),
 		// SPEC-CANON D3: la identidad vieja wifi/offline de xbox-series-s se
 		// elimina — la única es la cableada al GS308E (topologyDevices,
 		// attachTo dist-living-lan3).
 		withDetails(devExtra(Device{ID: "portatil-antiguo", Name: "Portátil antiguo", Type: "portatil", Manufacturer: "HP",
 			IP: "192.168.8.28", MAC: "3C:52:82:5D:90:17", RouterID: "living", Band: "2.4 GHz",
 			SignalDbm: iptr(-62), TrafficMbps: 0, Online: false}, 1, 0),
-			"hp-pavilion-15", "Expirado", "hace 300 días", "0 MB", "0 MB", true, "ordenadores", ""),
+			"hp-pavilion-15", "Expirado", 300, "0 MB", "0 MB", true, "ordenadores", ""),
 		// —— Estudio ——
 		withDetails(devExtra(Device{ID: "mac-mini", Name: "Mac mini", Type: "ordenador", Manufacturer: "Apple",
 			IP: "192.168.8.22", MAC: "A4:83:E7:66:2C:98", RouterID: "estudio", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 1.9, Online: true}, 31, 0),
-			"mac-mini", "IP fija (reserva)", "hace 280 días", "44 GB", "5,6 GB", true, "ordenadores", ""),
+			"mac-mini", "IP fija (reserva)", 280, "44 GB", "5,6 GB", true, "ordenadores", ""),
 		withDetails(devExtra(Device{ID: "enchufe-ventilador", Name: "Enchufe ventilador", Type: "iot", Manufacturer: "TP-Link",
 			IP: "192.168.8.82", MAC: "9C:53:22:B1:4E:70", RouterID: "estudio", Band: "2.4 GHz",
 			SignalDbm: iptr(-59), TrafficMbps: 0.01, Online: true}, 32, 0.02),
-			"tapo-p110-ventilador", "renueva en 12 h 0 min", "hace 120 días", "7 MB", "2 MB", true, "iot", ""),
+			"tapo-p110-ventilador", "renueva en 12 h 0 min", 120, "7 MB", "2 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "ipad-pro", Name: "iPad Pro", Type: "tablet", Manufacturer: "Apple",
 			IP: "192.168.8.51", MAC: "F0:18:98:91:5A:2B", RouterID: "estudio", Band: "5 GHz",
 			SignalDbm: iptr(-49), TrafficMbps: 0.8, Online: true}, 33, 0),
-			"ipad-pro", "renueva en 9 h 26 min", "hace 160 días", "5,1 GB", "390 MB", true, "moviles", ""),
+			"ipad-pro", "renueva en 9 h 26 min", 160, "5,1 GB", "390 MB", true, "moviles", ""),
 		withDetails(devExtra(Device{ID: "hue-hub", Name: "Hub Philips Hue", Type: "iot", Manufacturer: "Signify",
 			IP: "192.168.8.15", MAC: "00:17:88:2A:91:CE", RouterID: "estudio", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 0.02, Online: true}, 34, 0.04),
-			"philips-hue-bridge", "IP fija (reserva)", "hace 280 días", "96 MB", "22 MB", false, "iot", ""),
+			"philips-hue-bridge", "IP fija (reserva)", 280, "96 MB", "22 MB", false, "iot", ""),
 		withDetails(devExtra(Device{ID: "sonos-one", Name: "Sonos One", Type: "altavoz", Manufacturer: "Sonos",
 			IP: "192.168.8.55", MAC: "48:A6:B8:14:72:E0", RouterID: "estudio", Band: "2.4 GHz",
 			SignalDbm: iptr(-57), TrafficMbps: 0.5, Online: true}, 35, 0),
-			"sonos-one-estudio", "renueva en 10 h 4 min", "hace 195 días", "3,8 GB", "110 MB", true, "iot", ""),
+			"sonos-one-estudio", "renueva en 10 h 4 min", 195, "3,8 GB", "110 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "iphone-trabajo", Name: "iPhone de trabajo", Type: "movil", Manufacturer: "Apple",
 			IP: "192.168.8.50", MAC: "8C:85:90:47:C1:93", RouterID: "estudio", Band: "5 GHz",
 			SignalDbm: iptr(-47), TrafficMbps: 0.3, Online: true, IsNew: true}, 36, 0),
-			"iphone-15-pro-work", "renueva en 3 h 38 min", "hoy", "320 MB", "41 MB", true, "moviles", ""),
+			"iphone-15-pro-work", "renueva en 3 h 38 min", 0, "320 MB", "41 MB", true, "moviles", ""),
 		withDetails(devExtra(Device{ID: "macbook-viejo", Name: "MacBook viejo", Type: "portatil", Manufacturer: "Apple",
 			IP: "192.168.8.25", MAC: "3C:22:FB:0E:66:A1", RouterID: "estudio", Band: "2.4 GHz",
 			SignalDbm: iptr(-60), TrafficMbps: 0, Online: false}, 1, 0),
-			"macbook-pro-2015", "Expirado", "hace 320 días", "0 MB", "0 MB", true, "ordenadores", ""),
+			"macbook-pro-2015", "Expirado", 320, "0 MB", "0 MB", true, "ordenadores", ""),
 		// —— Patio ——
 		withDetails(devExtra(Device{ID: "camara-jardin", Name: "Cámara jardín", Type: "camara", Manufacturer: "Reolink",
 			IP: "192.168.8.73", MAC: "EC:71:DB:44:12:9B", RouterID: "patio", Band: "2.4 GHz",
 			SignalDbm: iptr(-74), TrafficMbps: 1.4, Online: true}, 41, 0),
-			"reolink-jardin", "renueva en 8 h 49 min", "hace 4 días", "14 GB", "820 MB", true, "iot", ""),
+			"reolink-jardin", "renueva en 8 h 49 min", 4, "14 GB", "820 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "sensor-riego", Name: "Sensor de riego", Type: "iot", Manufacturer: "Tuya",
 			IP: "192.168.8.89", MAC: "D8:1F:12:5B:08:44", RouterID: "patio", Band: "2.4 GHz",
 			SignalDbm: iptr(-71), TrafficMbps: 0.01, Online: true}, 42, 0.02),
-			"tuya-riego-01", "renueva en 12 h 0 min", "hace 5 días", "2 MB", "1 MB", false, "iot", ""),
+			"tuya-riego-01", "renueva en 12 h 0 min", 5, "2 MB", "1 MB", false, "iot", ""),
 		withDetails(devExtra(Device{ID: "enchufe-calefactor", Name: "Enchufe calefactor", Type: "iot", Manufacturer: "TP-Link",
 			IP: "192.168.8.80", MAC: "50:C7:BF:31:7A:05", RouterID: "patio", Band: "2.4 GHz",
 			SignalDbm: iptr(-75), TrafficMbps: 0.02, Online: true}, 43, 0.03),
-			"tapo-p110-calefactor", "renueva en 12 h 0 min", "hace 96 días", "6 MB", "2 MB", true, "iot", ""),
+			"tapo-p110-calefactor", "renueva en 12 h 0 min", 96, "6 MB", "2 MB", true, "iot", ""),
 		withDetails(devExtra(Device{ID: "camara-garaje", Name: "Cámara garaje", Type: "camara", Manufacturer: "Reolink",
 			IP: "192.168.8.74", MAC: "EC:71:DB:44:13:02", RouterID: "patio", Band: "2.4 GHz",
 			SignalDbm: iptr(-78), TrafficMbps: 0, Online: false}, 1, 0),
-			"reolink-garaje", "Expirado", "hace 130 días", "0 MB", "0 MB", false, "iot", ""),
+			"reolink-garaje", "Expirado", 130, "0 MB", "0 MB", false, "iot", ""),
 	}
 	// newThisWeek (queda fuera de CANON_DETAILS en el JS)
 	for i := range out {
@@ -506,9 +506,21 @@ func additionalDevices() []Device {
 	return out
 }
 
+// demoSeenBaseMs: base fija para los first/last seen del dataset demo
+// (#954). El canon exige epochs deterministas; la app formatea el relativo
+// ("hace N días") en render con el locale del usuario, así que el texto
+// deriva despacio con el tiempo, que es lo esperado en una demo.
+const demoSeenBaseMs = int64(1788220800000) // 2026-09-01 00:00:00 UTC
+
+// seenDaysAgo devuelve el epoch ms de hace N días respecto a la base demo.
+func seenDaysAgo(days int) int64 { return demoSeenBaseMs - int64(days)*86400000 }
+
 // withDetails fusiona los literales de detalle (segundo objeto del spread JS).
-func withDetails(d Device, hostname, lease, firstSeen, rx, tx string, adguard bool, group, icon string) Device {
-	d.Hostname, d.DHCPLease, d.FirstSeen = hostname, lease, firstSeen
+// firstSeenDays son los días desde la base demo (#954); el last seen demo es
+// la propia base (todos los clientes del canon están online).
+func withDetails(d Device, hostname, lease string, firstSeenDays int, rx, tx string, adguard bool, group, icon string) Device {
+	d.Hostname, d.DHCPLease = hostname, lease
+	d.FirstSeenMs, d.LastSeenMs = seenDaysAgo(firstSeenDays), demoSeenBaseMs
 	d.Traffic24hRx, d.Traffic24hTx = rx, tx
 	d.Adguard, d.Group, d.IconOverride = &adguard, group, icon
 	return d
@@ -542,31 +554,31 @@ func topologyDevices() []Device {
 			SignalDbm: nil, TrafficMbps: 0.02, Online: true, AttachTo: "living", Port: "lan3",
 			Infra: "managed-switch",
 			Lldp:  &LldpInfo{Chassis: "GS308E", Mgmt: "192.168.8.13", Caps: "Bridge", PortDesc: "ge5"}}, 15, 0.04),
-			"gs308e", "IP fija (reserva)", "hace 300 días", "64 MB", "12 MB", false, "red", "Network"),
+			"gs308e", "IP fija (reserva)", 300, "64 MB", "12 MB", false, "red", "Network"),
 		// 3 clientes detrás del switch gestionado identificado por LLDP
 		// (nodo managed dist-living-lan3, Salón)
 		withDetails(Device{ID: "xbox-series-s", Name: "Xbox Series S", Type: "consola", Manufacturer: "Microsoft",
 			IP: "192.168.8.35", MAC: "7C:ED:8D:4A:11:22", RouterID: "living", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 9.8, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{3, 5, 7, 9, 11, 12, 10, 9, 10, 9, 10, 9.8}},
-			"xbox-series-s", "renueva en 4 h 12 min", "hace 140 días", "31 GB", "1,9 GB", true, "tv", ""),
+			"xbox-series-s", "renueva en 4 h 12 min", 140, "31 GB", "1,9 GB", true, "tv", ""),
 		withDetails(Device{ID: "apple-tv-4k", Name: "Apple TV 4K", Type: "tv", Manufacturer: "Apple",
 			IP: "192.168.8.36", MAC: "F0:18:98:2B:33:44", RouterID: "living", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 15.2, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{6, 8, 10, 12, 14, 16, 15, 14, 15, 15, 15, 15.2}},
-			"apple-tv-4k", "renueva en 6 h 3 min", "hace 210 días", "88 GB", "3,4 GB", true, "tv", ""),
+			"apple-tv-4k", "renueva en 6 h 3 min", 210, "88 GB", "3,4 GB", true, "tv", ""),
 		withDetails(Device{ID: "receptor-denon", Name: "Receptor Denon", Type: "altavoz", Manufacturer: "Denon",
 			IP: "192.168.8.37", MAC: "00:05:CD:55:66:77", RouterID: "living", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 0.6, Online: true, AttachTo: "dist-living-lan3",
 			Sparkline: []float64{0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6}},
-			"denon-avr", "IP fija (reserva)", "hace 320 días", "640 MB", "42 MB", true, "iot", ""),
+			"denon-avr", "IP fija (reserva)", 320, "640 MB", "42 MB", true, "iot", ""),
 		// Hipervisor Proxmox (gateway lan5, 2.5G — SPEC-CANON D4); sus 10 CTs
 		// se anidan (OUI BC:24:11)
 		withDetails(Device{ID: "pve", Name: "Proxmox pve", Type: "servidor", Manufacturer: "Supermicro",
 			IP: "192.168.8.5", MAC: "3C:52:82:10:20:30", RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: 12.3, Online: true, Port: "lan5", Infra: "hypervisor", SpeedMbps: 2500,
 			Sparkline: []float64{8, 9, 10, 11, 12, 13, 12, 12, 12, 12, 12, 12.3}},
-			"pve", "IP fija (reserva)", "hace 400 días", "1,2 TB", "96 GB", true, "red", ""),
+			"pve", "IP fija (reserva)", 400, "1,2 TB", "96 GB", true, "red", ""),
 	}
 	cts := []struct {
 		id, name, typ, ip string
@@ -593,7 +605,7 @@ func topologyDevices() []Device {
 			ID: c.id, Name: c.name, Type: c.typ, Manufacturer: "Proxmox VE (CT)",
 			IP: c.ip, MAC: fmt.Sprintf("BC:24:11:00:2%d:%02X", i, 0x10+i), RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "pve", Infra: "ct", Sparkline: sp},
-			c.id, "renueva en 3 h 10 min", "hace 90 días", "1,1 GB", "88 MB", true, "red", ""))
+			c.id, "renueva en 3 h 10 min", 90, "1,1 GB", "88 MB", true, "red", ""))
 	}
 	// Tras el switch/bridge inferido (gateway lan3, OUI heterogéneo, sin IP).
 	// pc-sobremesa y raspberry-pi ya existen (enriquecidos con AttachTo en
@@ -634,7 +646,7 @@ func topologyDevices() []Device {
 			ID: b.id, Name: b.name, Type: b.typ, Manufacturer: b.man,
 			IP: b.ip, MAC: b.mac, RouterID: "flint2", Band: "cable",
 			SignalDbm: nil, TrafficMbps: mbps, Online: true, AttachTo: "dist-flint2-lan3", Sparkline: sp},
-			b.id, "renueva en 5 h 22 min", "hace 60 días", "2,4 GB", "120 MB", true, grp, icon))
+			b.id, "renueva en 5 h 22 min", 60, "2,4 GB", "120 MB", true, grp, icon))
 	}
 	return out
 }

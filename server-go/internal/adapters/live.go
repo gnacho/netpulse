@@ -2929,6 +2929,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	}
 	l.trackUnknownDevices(devices, distNodes)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
+	// #954: first/last seen persistente de TODOS los clientes online.
+	l.noteDevicesSeen(devices, time.Now().UnixMilli())
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	countClientsPerRouter(routerList, devices)
 	// Sparkline de la tarjeta para fuentes sin throughput bps (switch beacon/
@@ -3404,6 +3406,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	}
 	clients := []Device{}
 	detDevices, _ := inferTopology(polledAll, l.buildDevices(polledAll))
+	// #954: first/last seen también en los clientes del detalle del router.
+	l.applyDeviceSeen(detDevices)
 	for _, d := range detDevices {
 		if d.RouterID == id {
 			clients = append(clients, d)
@@ -3535,6 +3539,8 @@ func (l *Live) attributedDevices() []Device {
 	// #561: sellado de infraestructura con el inventario PVE (si configurado).
 	// El detalle no consume distnodes, pero el sellado de devices sí corre.
 	l.sealProxmoxInfra(devices, nil)
+	// #954: first/last seen persistente (device_seen) en el payload final.
+	l.applyDeviceSeen(devices)
 	return devices
 }
 

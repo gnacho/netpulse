@@ -377,6 +377,8 @@
     "clearFilters": "Limpiar filtros",
     "colBand": "Banda",
     "colDevice": "Dispositivo",
+    "colFirstSeen": "Vista por primera vez",
+    "colLastSeen": "Última vez vista",
     "colSignal": "Señal",
     "colTraffic": "Tráfico",
     "colType": "Tipo",
@@ -384,6 +386,7 @@
     "detail": {
       "dhcpLease": "Concesión DHCP",
       "firstSeen": "Primera vez vista",
+      "lastSeen": "Última vez vista",
       "infra": "Infraestructura",
       "manufacturer": "Fabricante (OUI)",
       "protected": "Protegido",

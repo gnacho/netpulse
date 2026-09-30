@@ -26,8 +26,6 @@ export interface ClientDevice extends Device {
   hostname: string
   /** "renews in 9h 12min" · "Static IP (reservation)" · "Expired" */
   dhcpLease: string
-  /** "84 days ago" · "today" */
-  firstSeen: string
   /** Tráfico total 24h, ya formateado ES */
   traffic24hRx: string
   traffic24hTx: string
@@ -52,49 +50,49 @@ export const GROUP_ORDER: FilterGroup[] = ['infra', 'moviles', 'ordenadores', 't
 
 const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
   'imac-salon': {
-    hostname: 'imac-de-marc', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    hostname: 'imac-de-marc', dhcpLease: 'Static IP (reservation)',
     traffic24hRx: '38 GB', traffic24hTx: '2.1 GB', adguard: true, group: 'ordenadores',
   },
   'tv-samsung': {
-    hostname: 'samsung-tv-salon', dhcpLease: 'renews in 7h 48min', firstSeen: '290 days ago',
+    hostname: 'samsung-tv-salon', dhcpLease: 'renews in 7h 48min',
     traffic24hRx: '54 GB', traffic24hTx: '1.2 GB', adguard: true, group: 'tv',
   },
   'pixel-8-pro': {
-    hostname: 'pixel-8-pro', dhcpLease: 'renews in 9h 12min', firstSeen: '214 days ago',
+    hostname: 'pixel-8-pro', dhcpLease: 'renews in 9h 12min',
     traffic24hRx: '4.2 GB', traffic24hTx: '310 MB', adguard: true, group: 'moviles',
   },
   'macbook-air': {
-    hostname: 'macbook-air-de-ana', dhcpLease: 'renews in 5h 31min', firstSeen: '260 days ago',
+    hostname: 'macbook-air-de-ana', dhcpLease: 'renews in 5h 31min',
     traffic24hRx: '18 GB', traffic24hTx: '2.2 GB', adguard: true, group: 'ordenadores',
   },
   'ps5': {
-    hostname: 'ps5-salon', dhcpLease: 'Static IP (reservation)', firstSeen: '300 days ago',
+    hostname: 'ps5-salon', dhcpLease: 'Static IP (reservation)',
     traffic24hRx: '92 GB', traffic24hTx: '4.8 GB', adguard: true, group: 'tv',
   },
   'robot-aspirador': {
-    hostname: 'roborock-s8', dhcpLease: 'renews in 10h 2min', firstSeen: '180 days ago',
+    hostname: 'roborock-s8', dhcpLease: 'renews in 10h 2min',
     traffic24hRx: '340 MB', traffic24hTx: '28 MB', adguard: true, group: 'iot',
   },
   'camara-porche': {
-    hostname: 'reolink-porche', dhcpLease: 'renews in 3h 57min', firstSeen: '150 days ago',
+    hostname: 'reolink-porche', dhcpLease: 'renews in 3h 57min',
     traffic24hRx: '11 GB', traffic24hTx: '640 MB', adguard: true, group: 'iot',
   },
   'nest-mini': {
-    hostname: 'nest-mini-estudio', dhcpLease: 'renews in 8h 20min', firstSeen: '240 days ago',
+    hostname: 'nest-mini-estudio', dhcpLease: 'renews in 8h 20min',
     traffic24hRx: '1.4 GB', traffic24hTx: '88 MB', adguard: true, group: 'iot',
   },
   'nas-synology': {
-    hostname: 'diskstation', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    hostname: 'diskstation', dhcpLease: 'Static IP (reservation)',
     traffic24hRx: '96 GB', traffic24hTx: '1.1 TB', adguard: true, group: 'red',
   },
   'galaxy-tab-s9': {
-    hostname: 'galaxy-tab-s9', dhcpLease: 'renews in 11h 5min', firstSeen: 'today',
+    hostname: 'galaxy-tab-s9', dhcpLease: 'renews in 11h 5min',
     traffic24hRx: '640 MB', traffic24hTx: '48 MB', adguard: true, group: 'moviles', newThisWeek: true,
   },
   // D1: el GS308E vuelve a ser Device (además del distnode managed del canon).
   // Su grupo visible es 'infra' (lo reasigna Devices.tsx con device.infra/lldp).
   'switch-netgear': {
-    hostname: 'gs308e', dhcpLease: 'Static IP (reservation)', firstSeen: '320 days ago',
+    hostname: 'gs308e', dhcpLease: 'Static IP (reservation)',
     traffic24hRx: '96 MB', traffic24hTx: '42 MB', adguard: false, group: 'red',
   },
 }
@@ -153,7 +151,6 @@ function defaultDetails(d: Device): Omit<ClientDevice, keyof Device> {
   return {
     hostname: slug(d.name),
     dhcpLease: d.online ? leaseText : 'Expired',
-    firstSeen: '—',
     traffic24hRx: '—',
     traffic24hTx: '—',
     adguard: true,
@@ -161,11 +158,11 @@ function defaultDetails(d: Device): Omit<ClientDevice, keyof Device> {
   }
 }
 
-/** Metadatos de cliente que pueden venir inline (canon JSON / API demo). */
+/** Metadatos de cliente que pueden venir inline (canon JSON / API demo).
+ *  firstSeen/lastSeen NO van aquí: viajan en Device como epochs (#954). */
 interface InlineDetails {
   hostname?: string
   dhcpLease?: string
-  firstSeen?: string
   traffic24hRx?: string
   traffic24hTx?: string
   adguard?: boolean
@@ -180,7 +177,6 @@ function inlineDetails(d: Device): Omit<ClientDevice, keyof Device> | null {
   return {
     hostname: raw.hostname,
     dhcpLease: raw.dhcpLease ?? '—',
-    firstSeen: raw.firstSeen ?? '—',
     traffic24hRx: raw.traffic24hRx ?? '—',
     traffic24hTx: raw.traffic24hTx ?? '—',
     adguard: raw.adguard ?? true,

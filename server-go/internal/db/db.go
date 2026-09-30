@@ -121,6 +121,15 @@ CREATE TABLE IF NOT EXISTS device_attrib (
   signal_dbm INTEGER,
   last_seen INTEGER NOT NULL
 );
+-- Primera/última vez que el server vio online a cada cliente (#954).
+-- A diferencia de device_events (transiciones, con retención) y de
+-- device_attrib (solo wireless), aquí entra TODA MAC vista online en el
+-- ciclo del poller; first_seen no se toca nunca tras el alta.
+CREATE TABLE IF NOT EXISTS device_seen (
+  mac        TEXT PRIMARY KEY,
+  first_seen INTEGER NOT NULL,
+  last_seen  INTEGER NOT NULL
+);
 -- Routers configurados
 CREATE TABLE IF NOT EXISTS routers (
   id TEXT PRIMARY KEY,

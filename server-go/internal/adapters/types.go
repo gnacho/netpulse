@@ -287,9 +287,14 @@ type Device struct {
 	NameOverride string `json:"nameOverride,omitempty"`
 	TypeOverride string `json:"typeOverride,omitempty"`
 	// --- extras demo (omitempty = ausentes en live) ---
-	Hostname     string `json:"hostname,omitempty"`
-	DHCPLease    string `json:"dhcpLease,omitempty"`
-	FirstSeen    string `json:"firstSeen,omitempty"`
+	Hostname  string `json:"hostname,omitempty"`
+	DHCPLease string `json:"dhcpLease,omitempty"`
+	// FirstSeenMs/LastSeenMs: epoch ms de la primera/última vez que el server
+	// vio al cliente (#954; persistidos en la tabla device_seen). 0/ausente =
+	// desconocido. La app formatea en relativo con el locale del usuario; el
+	// server NO pre-formatea (lección #899).
+	FirstSeenMs  int64  `json:"firstSeenMs,omitempty"`
+	LastSeenMs   int64  `json:"lastSeenMs,omitempty"`
 	Traffic24hRx string `json:"traffic24hRx,omitempty"`
 	Traffic24hTx string `json:"traffic24hTx,omitempty"`
 	Adguard      *bool  `json:"adguard,omitempty"` // puntero: demo emite true/false explícito; live lo omite (paridad Node)

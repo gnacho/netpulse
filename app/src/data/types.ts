@@ -246,6 +246,13 @@ export interface Device {
   nameOverride?: string
   /** Override manual del tipo (#797). El efectivo viaja en `type`. */
   typeOverride?: string
+  /**
+   * Epoch ms de la primera/última vez que el server vio online al cliente
+   * (#954, tabla device_seen). Ausente/0 = desconocido; la app formatea el
+   * relativo con el locale activo (fmtSeenAgo).
+   */
+  firstSeenMs?: number
+  lastSeenMs?: number
 }
 
 /**

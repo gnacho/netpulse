@@ -44,7 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { dhcpLease, manufacturerLabel, numLocale } from '@/i18n'
+import { dhcpLease, fmtSeenAgo, manufacturerLabel, numLocale } from '@/i18n'
 import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
@@ -63,7 +63,7 @@ import type { DeviceType } from '@/data/mock'
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
-type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type' | 'traffic'
+type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type' | 'traffic' | 'firstSeen' | 'lastSeen'
 
 // Persistencia de preferencias de visualización (issue #778): el modo
 // lista/rejilla y el orden activo se guardan en el navegador y se restauran
@@ -75,7 +75,7 @@ type SortState = { key: SortKey; dir: 1 | -1 } | null
 type OnlineFilter = 'all' | 'online' | 'offline'
 type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState; online: OnlineFilter }
 
-const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type', 'traffic']
+const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type', 'traffic', 'firstSeen', 'lastSeen']
 
 function loadDevicesPrefs(): DevicesPrefs {
   const fallback: DevicesPrefs = { view: 'list', sort: null, online: 'online' }
@@ -334,7 +334,7 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
             {newThisWeekDevices.map((d) => (
               <div key={d.id} className="truncate py-0.5 text-xs text-text-secondary" translate="no">
                 {d.name}
-                <span className="text-text-muted"> · {d.firstSeen}</span>
+                <span className="text-text-muted"> · {fmtSeenAgo(d.firstSeenMs)}</span>
               </div>
             ))}
           </div>
@@ -552,6 +552,8 @@ function FilterBar(p: FilterBarProps) {
               <SelectItem value="signal">{t('devices.colSignal')}</SelectItem>
               <SelectItem value="lease">{t('devices.colLease')}</SelectItem>
               <SelectItem value="type">{t('devices.colType')}</SelectItem>
+              <SelectItem value="firstSeen">{t('devices.colFirstSeen')}</SelectItem>
+              <SelectItem value="lastSeen">{t('devices.colLastSeen')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -703,7 +705,8 @@ function DeviceDetail({
         {device.mac}
       </DetailItem>
       <DetailItem label={t('devices.detail.dhcpLease')}>{dhcpLease(device.dhcpLease)}</DetailItem>
-      <DetailItem label={t('devices.detail.firstSeen')}>{device.firstSeen}</DetailItem>
+      <DetailItem label={t('devices.detail.firstSeen')}>{fmtSeenAgo(device.firstSeenMs)}</DetailItem>
+      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
       <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
       <DetailItem label="Hostname" mono>
         {device.hostname}
@@ -914,7 +917,7 @@ function LeaseCell({ device }: { device: ClientDevice }) {
 }
 
 const ROW_GRID =
-  'md:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_1.5rem] lg:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_1.5rem]'
+  'md:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_1.5rem] lg:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_1.5rem] xl:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_1.5rem]'
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
@@ -1029,6 +1032,13 @@ function ListRow({
               ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
               : '—'}
           </span>
+        </div>
+        {/* First/Last seen (#954): solo en xl para no engordar la tabla */}
+        <div className="hidden xl:block">
+          <span className="text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
+        </div>
+        <div className="hidden xl:block">
+          <span className="text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
         </div>
         <ChevronDown
           className={cn('h-4 w-4 justify-self-end text-text-muted transition-transform duration-200', expanded && 'rotate-180')}
@@ -1367,6 +1377,12 @@ export default function Devices() {
           case 'traffic':
             c = a.trafficMbps - b.trafficMbps
             break
+          case 'firstSeen':
+            c = (a.firstSeenMs ?? 0) - (b.firstSeenMs ?? 0)
+            break
+          case 'lastSeen':
+            c = (a.lastSeenMs ?? 0) - (b.lastSeenMs ?? 0)
+            break
         }
         if (c !== 0) return dir * c
         // Desempate: online primero, luego nombre
@@ -1653,6 +1669,12 @@ export default function Devices() {
             <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />
             <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />
+            <span className="hidden xl:block">
+              <SortHeader label={t('devices.colFirstSeen')} k="firstSeen" sort={sort} onSort={toggleSort} />
+            </span>
+            <span className="hidden xl:block">
+              <SortHeader label={t('devices.colLastSeen')} k="lastSeen" sort={sort} onSort={toggleSort} />
+            </span>
             <span />
           </div>
           <div className="divide-y divide-border p-1.5 md:p-2">
