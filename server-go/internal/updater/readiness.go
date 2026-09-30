@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -110,6 +111,15 @@ func (u *Updater) checkDisk() CheckResult {
 func (u *Updater) checkGit() CheckResult {
 	if u.mode != "rolling" {
 		return CheckResult{OK: true, Detail: "no aplica (layout estable)"}
+	}
+	// Rolling sin clone (.git ausente, p.ej. el layout estable actualizado
+	// in place con deploy/update.sh copiado): update.sh resuelve el SHA de
+	// main vía ls-remote y NO hace git reset --hard (issue #897), así que no
+	// hay working tree que proteger. Sin este skip el check fallaba con "no
+	// se pudo leer el estado de git" y bloqueaba el apply para siempre
+	// (issue #955).
+	if !fileExists(filepath.Join(u.repoRoot, ".git")) {
+		return CheckResult{OK: true, Detail: "no aplica (sin clone git)"}
 	}
 	out, err := exec.Command("git", "-C", u.repoRoot, "status", "--porcelain", "--untracked-files=no").Output()
 	if err != nil {

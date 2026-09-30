@@ -67,6 +67,27 @@ func TestReadinessGitDirty(t *testing.T) {
 	}
 }
 
+func TestReadinessGitSinClone(t *testing.T) {
+	root := t.TempDir()
+	writeDeployScript(t, root)
+	// SIN writeGitHead: deploy/update.sh presente → modo rolling, pero el
+	// directorio no es un clone git (layout estable actualizado in place,
+	// issue #897). update.sh resuelve main vía ls-remote y no hace reset
+	// --hard: el check de git no aplica y no debe bloquear el apply (#955).
+	withAPI(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
+	r := u.Readiness()
+	if !r.Git.OK {
+		t.Errorf("git NO debería fallar sin clone (.git ausente): %+v", r.Git)
+	}
+	if r.Git.Detail == "" {
+		t.Error("el check git skipado debería explicarse en detail")
+	}
+	if !r.Ready {
+		t.Errorf("ready debería ser true sin clone git: %+v", r)
+	}
+}
+
 func TestReadinessGitTrackedModificado(t *testing.T) {
 	if !gitAvailable() {
 		t.Skip("git no disponible")
