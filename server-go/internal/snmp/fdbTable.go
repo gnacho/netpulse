@@ -133,6 +133,10 @@ func extractMacFromOid(name, prefix string) string {
 	return macFromParts(parts[len(parts)-6:])
 }
 
+// macFromParts construye la MAC en MAYÚSCULAS (#960): es la capitalización
+// canónica de todo el sistema (FDB del agente, wireless, leases,
+// device_attrib, device_seen). En minúscula, los mapas de merge indexados
+// por MAC duplicaban cada cliente SNMP (una entrada por capitalización).
 func macFromParts(parts []string) string {
 	out := make([]string, 6)
 	for i, p := range parts {
@@ -140,7 +144,7 @@ func macFromParts(parts []string) string {
 		if _, err := fmt.Sscanf(p, "%d", &n); err != nil || n < 0 || n > 255 {
 			return ""
 		}
-		out[i] = fmt.Sprintf("%02x", n)
+		out[i] = fmt.Sprintf("%02X", n)
 	}
 	return strings.Join(out, ":")
 }

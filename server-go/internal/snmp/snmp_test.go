@@ -34,10 +34,10 @@ func TestExtractMacFromOid(t *testing.T) {
 		want string
 	}{
 		{prefix + ".0.17.34.51.68.85", "00:11:22:33:44:55"},
-		{prefix + ".255.255.255.255.255.255", "ff:ff:ff:ff:ff:ff"},
+		{prefix + ".255.255.255.255.255.255", "FF:FF:FF:FF:FF:FF"},
 		// #950: índice con prefijo VLAN (TP-Link Omada indexa la dot1d por
 		// <vlan>.<mac>); la MAC son los últimos 6 octetos.
-		{prefix + ".1.0.4.75.233.178.29", "00:04:4b:e9:b2:1d"},
+		{prefix + ".1.0.4.75.233.178.29", "00:04:4B:E9:B2:1D"},
 		{prefix + ".1.2.3.4.5.6.7", "02:03:04:05:06:07"},
 		{prefix + ".1.2.3.4.5", ""},
 		{prefix + ".0.17.34.51.68.256", ""},
