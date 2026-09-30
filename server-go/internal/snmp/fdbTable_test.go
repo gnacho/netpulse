@@ -37,16 +37,22 @@ func TestFdbEntriesDot1d(t *testing.T) {
 		fdbPdu(OidDot1dTpFdbPort+".140.22.24.187.30.12", 3),
 		// bridgePort sin mapeo a ifIndex: cae al propio bridgePort (#661).
 		fdbPdu(OidDot1dTpFdbPort+".0.12.34.56.78.90", 7),
+		// #950: índice real de TP-Link Omada (SG3428X-M2, issue #928):
+		// <vlan=1>.<mac> en la tabla dot1d.
+		fdbPdu(OidDot1dTpFdbPort+".1.0.4.75.233.178.29", 49167),
 	}
 	got := fdbEntries(portMap, pdus, false)
-	if len(got) != 2 {
-		t.Fatalf("esperaba 2 entradas, obtuve %d: %+v", len(got), got)
+	if len(got) != 3 {
+		t.Fatalf("esperaba 3 entradas, obtuve %d: %+v", len(got), got)
 	}
 	if got[0].MAC != "8c:16:18:bb:1e:0c" || got[0].BridgePortIndex != 3 || got[0].IfIndex != 103 {
 		t.Errorf("entrada 0 inesperada: %+v", got[0])
 	}
 	if got[1].MAC != "00:0c:22:38:4e:5a" || got[1].BridgePortIndex != 7 || got[1].IfIndex != 7 {
 		t.Errorf("entrada 1 inesperada: %+v", got[1])
+	}
+	if got[2].MAC != "00:04:4b:e9:b2:1d" || got[2].BridgePortIndex != 49167 || got[2].IfIndex != 49167 {
+		t.Errorf("entrada 2 inesperada: %+v", got[2])
 	}
 }
 

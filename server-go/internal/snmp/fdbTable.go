@@ -91,7 +91,7 @@ func fdbEntries(portToIfIndex map[int]int, pdus []gosnmp.SnmpPDU, dot1q bool) []
 	for _, pdu := range pdus {
 		var mac string
 		if dot1q {
-			mac = extractMacFromOidLast6(pdu.Name, OidDot1qTpFdbPort)
+			mac = extractMacFromOid(pdu.Name, OidDot1qTpFdbPort)
 		} else {
 			mac = extractMacFromOid(pdu.Name, OidDot1dTpFdbPort)
 		}
@@ -115,21 +115,13 @@ func fdbEntries(portToIfIndex map[int]int, pdus []gosnmp.SnmpPDU, dot1q bool) []
 	return out
 }
 
+// extractMacFromOid extrae la MAC del índice de un OID de tabla FDB. El
+// índice estándar dot1d (RFC 1493) es la MAC desnuda (6 octetos), pero hay
+// firmwares (TP-Link Omada, verificado en #950) que lo indexan por
+// <vlan>.M.M.M.M.M.M como la tabla dot1q (RFC 4363). Regla común: la MAC son
+// los últimos 6 octetos; se aceptan 6 o más y se descarta cualquier índice
+// con menos.
 func extractMacFromOid(name, prefix string) string {
-	if !strings.HasPrefix(name, prefix+".") {
-		return ""
-	}
-	suffix := name[len(prefix)+1:]
-	parts := strings.Split(suffix, ".")
-	if len(parts) != 6 {
-		return ""
-	}
-	return macFromParts(parts)
-}
-
-// extractMacFromOidLast6: variante para el índice compuesto de la tabla
-// dot1q, que es <vlan>.M.M.M.M.M.M (la MAC son los últimos 6 octetos).
-func extractMacFromOidLast6(name, prefix string) string {
 	if !strings.HasPrefix(name, prefix+".") {
 		return ""
 	}

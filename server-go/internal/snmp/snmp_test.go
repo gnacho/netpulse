@@ -35,9 +35,13 @@ func TestExtractMacFromOid(t *testing.T) {
 	}{
 		{prefix + ".0.17.34.51.68.85", "00:11:22:33:44:55"},
 		{prefix + ".255.255.255.255.255.255", "ff:ff:ff:ff:ff:ff"},
+		// #950: índice con prefijo VLAN (TP-Link Omada indexa la dot1d por
+		// <vlan>.<mac>); la MAC son los últimos 6 octetos.
+		{prefix + ".1.0.4.75.233.178.29", "00:04:4b:e9:b2:1d"},
+		{prefix + ".1.2.3.4.5.6.7", "02:03:04:05:06:07"},
 		{prefix + ".1.2.3.4.5", ""},
-		{prefix + ".1.2.3.4.5.6.7", ""},
 		{prefix + ".0.17.34.51.68.256", ""},
+		{prefix + ".5.0.17.34.51.68.256", ""},
 		{"other.0.17.34.51.68.85", ""},
 	}
 	for _, tt := range tests {
@@ -49,8 +53,8 @@ func TestExtractMacFromOid(t *testing.T) {
 }
 
 // #661: el índice compuesto de la tabla dot1q es <vlan>.M.M.M.M.M.M; la MAC
-// son los últimos 6 octetos.
-func TestExtractMacFromOidLast6(t *testing.T) {
+// son los últimos 6 octetos (misma regla unificada de extractMacFromOid).
+func TestExtractMacFromOidDot1q(t *testing.T) {
 	prefix := OidDot1qTpFdbPort
 	tests := []struct {
 		name string
@@ -64,9 +68,9 @@ func TestExtractMacFromOidLast6(t *testing.T) {
 		{"other.5.0.17.34.51.68.85", ""},
 	}
 	for _, tt := range tests {
-		got := extractMacFromOidLast6(tt.name, prefix)
+		got := extractMacFromOid(tt.name, prefix)
 		if got != tt.want {
-			t.Errorf("extractMacFromOidLast6(%q) = %q; want %q", tt.name, got, tt.want)
+			t.Errorf("extractMacFromOid(%q) = %q; want %q", tt.name, got, tt.want)
 		}
 	}
 }
