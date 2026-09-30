@@ -5,12 +5,6 @@ interface MetricBarProps {
   /** 0–100 */
   value: number
   className?: string
-  /**
-   * Fill color override for metrics where high values are GOOD (coverage,
-   * protection…). The default metricColor() thresholds are load-oriented:
-   * >90 means danger, which inverts the semantics of coverage stats.
-   */
-  colorClass?: string
 }
 
 /** Color semántico por umbral (design.md §10.11) */
@@ -21,7 +15,7 @@ export function metricColor(value: number): string {
 }
 
 /** Barra de progreso fina h-1.5 para CPU/RAM. */
-export function MetricBar({ value, className, colorClass }: MetricBarProps) {
+export function MetricBar({ value, className }: MetricBarProps) {
   const reduce = useReducedMotion()
   const v = Math.min(100, Math.max(0, value))
   return (
@@ -33,7 +27,7 @@ export function MetricBar({ value, className, colorClass }: MetricBarProps) {
       aria-valuemax={100}
     >
       <motion.div
-        className={cn('h-full rounded-full', colorClass ?? metricColor(v))}
+        className={cn('h-full rounded-full', metricColor(v))}
         initial={reduce ? { width: `${v}%` } : { width: 0 }}
         animate={{ width: `${v}%` }}
         transition={{ duration: 0.8, ease: 'easeOut' }}
