@@ -3,6 +3,7 @@
 package reinstall_test
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
