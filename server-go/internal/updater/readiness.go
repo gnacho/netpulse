@@ -26,6 +26,15 @@ const (
 	readinessNetTimeout = 5 * time.Second
 )
 
+// probeURL es el endpoint del check de conectividad. Es github.com (HTML) y
+// NO api.github.com a propósito (issue #956): la API anónima tiene cuota de
+// 60 req/h por IP y el readiness se recomputa cada readinessTTL mientras la
+// UI de actualización está abierta, lo que agotaba la cuota y luego impedía
+// al apply descargar los metadatos de la release. La web pública no cuenta
+// contra esa cuota y un 4xx también prueba conectividad.
+// Var de paquete para apuntarlo al httptest de los tests.
+var probeURL = "https://github.com"
+
 // minDiskFreeBytes es el espacio libre mínimo exigido en repoRoot (descarga
 // del binario de CI ~40 MB + backup del binario actual + margen de build).
 // Var de paquete para poder bajarlo en tests.
@@ -132,11 +141,12 @@ func (u *Updater) checkGit() CheckResult {
 }
 
 // checkNetwork comprueba que GitHub es alcanzable (cualquier respuesta HTTP
-// cuenta: un 4xx también significa que hay conectividad).
+// cuenta: un 4xx también significa que hay conectividad). Usa probeURL (web
+// pública, sin cuota de API; #956).
 func (u *Updater) checkNetwork() CheckResult {
 	ctx, cancel := context.WithTimeout(context.Background(), readinessNetTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", APIBase, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", probeURL, nil)
 	if err != nil {
 		return CheckResult{OK: false, Detail: "URL de API inválida"}
 	}

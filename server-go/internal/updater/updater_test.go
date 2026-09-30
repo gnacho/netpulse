@@ -24,6 +24,11 @@ func withAPI(t *testing.T, h http.HandlerFunc) {
 	old := APIBase
 	APIBase = srv.URL
 	t.Cleanup(func() { APIBase = old })
+	// El check de conectividad del readiness usa probeURL (web pública de
+	// GitHub, #956): apuntarlo también al httptest para tests herméticos.
+	oldProbe := probeURL
+	probeURL = srv.URL
+	t.Cleanup(func() { probeURL = oldProbe })
 }
 
 func TestCheckUpdateAvailable(t *testing.T) {

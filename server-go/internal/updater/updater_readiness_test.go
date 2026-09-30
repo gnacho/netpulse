@@ -143,9 +143,9 @@ func TestReadinessDiskInsufficient(t *testing.T) {
 func TestReadinessNetworkDown(t *testing.T) {
 	root := t.TempDir()
 	writeDeployScript(t, root)
-	old := APIBase
-	APIBase = "http://127.0.0.1:1" // puerto cerrado → conexión rechazada
-	t.Cleanup(func() { APIBase = old })
+	old := probeURL
+	probeURL = "http://127.0.0.1:1" // puerto cerrado → conexión rechazada
+	t.Cleanup(func() { probeURL = old })
 	u := New(root, "owner/netpulse", "", "2.0.0", nil)
 	r := u.Readiness()
 	if r.Network.OK {
