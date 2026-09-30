@@ -604,6 +604,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       es = null
     }
 
+    // #925: el pill amarillo "Reconnecting" solo aparece si la caída del SSE
+    // se sostiene (> 5 s). Las reconexiones transientes (cambio de página,
+    // refresh, proxies TLS que cortan el SSE) no deben llamar la atención:
+    // el pill queda en "Live" y el SSE reconecta por debajo.
+    let reconnectTimer: number | undefined
+    const markReconnectingSoon = () => {
+      if (reconnectTimer !== undefined) return
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = undefined
+        setConnectionStatusTracked('reconnecting')
+      }, 5000)
+    }
+    const clearReconnectTimer = () => {
+      if (reconnectTimer === undefined) return
+      window.clearTimeout(reconnectTimer)
+      reconnectTimer = undefined
+    }
+
     const startSse = () => {
       stopSse()
       if (disposed) return
@@ -613,6 +631,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           applyOverview(JSON.parse((ev as MessageEvent).data as string) as OverviewBundle)
           backoffIdx = 0
           stopPolling()
+          clearReconnectTimer()
           setConnectionStatusTracked('connected')
         } catch {
           /* payload inválido: se ignora */
@@ -648,11 +667,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       es.onopen = () => {
         backoffIdx = 0
         stopPolling()
+        clearReconnectTimer()
         setConnectionStatusTracked('connected')
       }
       es.onerror = () => {
         if (disposed) return
-        setConnectionStatusTracked('reconnecting')
+        markReconnectingSoon()
         stopSse()
         // Polling de respaldo (cadencia del ajuste "Intervalo de refresco")
         // hasta que el SSE reconecte.
@@ -726,7 +746,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (disposed) return
       if (ok) setConnectionStatusTracked('connected')
       else {
-        setConnectionStatusTracked('reconnecting')
+        markReconnectingSoon()
         startFallbackPoll()
       }
       scheduleAgentsPoll(AGENTS_POLL_MS)
@@ -775,6 +795,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(reconnectId)
       window.clearInterval(tickId)
       window.clearTimeout(agentsPollId)
+      clearReconnectTimer()
     }
   }, [applyOverview, setConnectionStatusTracked])
 
