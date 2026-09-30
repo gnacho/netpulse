@@ -483,7 +483,9 @@
       "pctClients": "{{pct}} % de los clientes",
       "seenThisWeek": "Vistos esta semana",
       "roaming": "Roaming (24 h)",
-      "roamingHealthy": "Sin saltos de AP"
+      "roamingHealthy": "Sin saltos de AP",
+      "showUnprotected": "Mostrar solo los clientes sin proteger",
+      "unprotectedPill": "Sin proteger por AdGuard"
     },
     "summary": "{{total}} conocidos · {{online}} online ahora",
     "viewRouter": "Ver router {{name}}",

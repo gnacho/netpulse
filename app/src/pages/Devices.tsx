@@ -20,10 +20,10 @@ import {
   Wifi,
   X,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { DeviceRow, deviceIcon, SignalIcon } from '@/components/DeviceRow'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
-import { MetricBar } from '@/components/MetricBar'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Sparkline } from '@/components/Sparkline'
 import { DeviceTrafficDetail } from '@/components/DeviceTraffic'
@@ -267,7 +267,29 @@ function Toast({ toast }: { toast: ToastMsg | null }) {
 // Stats strip (devices.md §②)
 // ---------------------------------------------------------------------------
 
-function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
+interface StatCard {
+  key: string
+  label: string
+  icon: LucideIcon
+  iconClass: string
+  /** Resalta la tarjeta cuando su filtro asociado está activo. */
+  active?: boolean
+  /** Si existe, la tarjeta entera es clicable (toggle de filtro). */
+  onClick?: () => void
+  /** aria-label/title cuando la tarjeta es clicable. */
+  actionLabel?: string
+  render: () => React.ReactNode
+}
+
+function StatsStrip({
+  allDevices,
+  onlyUnprotected,
+  onToggleUnprotected,
+}: {
+  allDevices: ClientDevice[]
+  onlyUnprotected: boolean
+  onToggleUnprotected: () => void
+}) {
   const { t } = useTranslation()
   const { refreshKey } = useDashboard()
   const { deviceTotals } = useNetPulse()
@@ -296,7 +318,10 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
     }
   }, [refreshKey, isDemo])
   const roamingTop = roaming[0]
-  const cards = [
+  // Cobertura AdGuard completa: solo cuando TODOS los clientes están
+  // protegidos (no basta pct==100: el redondeo daría 100 con 199/200).
+  const allProtected = deviceTotals.total > 0 && adguardProtected >= deviceTotals.total
+  const cards: StatCard[] = [
     {
       key: 'online',
       label: t('devices.stats.onlineNow'),
@@ -360,9 +385,23 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
       label: t('devices.stats.adguardProtected'),
       icon: ShieldCheck,
       iconClass: 'text-ok',
+      // Con cobertura parcial la tarjeta es clicable: filtra la tabla para
+      // mostrar solo los clientes SIN proteger (#959). Con cobertura total
+      // no hay nada que filtrar: se muestra el estado de éxito.
+      active: !allProtected && onlyUnprotected,
+      onClick: allProtected ? undefined : onToggleUnprotected,
+      actionLabel: t('devices.stats.showUnprotected'),
       render: () => {
+        if (allProtected) {
+          return (
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-8 w-8 shrink-0 text-ok" strokeWidth={1.75} />
+              <div className="text-caption text-text-muted">{t('devices.stats.pctClients', { pct: 100 })}</div>
+            </div>
+          )
+        }
         // Guard NaN (#222): antes del primer snapshot live total es 0 y la
-        // división daría NaN en MetricBar y en el texto del porcentaje.
+        // división daría NaN en el texto del porcentaje.
         const pct = deviceTotals.total > 0 ? Math.round((adguardProtected / deviceTotals.total) * 100) : 0
         return (
           <>
@@ -370,7 +409,6 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
               <CountUp value={adguardProtected} nonce={refreshKey} />
               <span className="text-sm font-medium text-text-secondary">/{deviceTotals.total}</span>
             </div>
-            <MetricBar value={pct} className="mt-2 max-w-[140px]" />
             <div className="mt-1 text-caption text-text-muted">{t('devices.stats.pctClients', { pct })}</div>
           </>
         )
@@ -401,7 +439,27 @@ function StatsStrip({ allDevices }: { allDevices: ClientDevice[] }) {
           initial={reduce ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: 'easeOut', delay: 0.05 + i * 0.08 }}
-          className="flex min-h-[104px] flex-col justify-between rounded-2xl border border-border bg-surface p-4"
+          role={c.onClick ? 'button' : undefined}
+          tabIndex={c.onClick ? 0 : undefined}
+          aria-pressed={c.onClick ? c.active : undefined}
+          aria-label={c.onClick ? c.actionLabel : undefined}
+          title={c.onClick ? c.actionLabel : undefined}
+          onClick={c.onClick}
+          onKeyDown={
+            c.onClick
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    c.onClick!()
+                  }
+                }
+              : undefined
+          }
+          className={cn(
+            'flex min-h-[104px] flex-col justify-between rounded-2xl border bg-surface p-4',
+            c.active ? 'border-accent/50 bg-accent-soft/40' : 'border-border',
+            c.onClick && 'cursor-pointer transition-colors hover:border-accent/40 hover:bg-hover/50',
+          )}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-label uppercase text-text-muted">{c.label}</span>
@@ -1256,6 +1314,10 @@ export default function Devices() {
     setOnlineState(v)
   }, [])
   const [onlyWeak, setOnlyWeak] = useState(false)
+  // Filtro "sin proteger por AdGuard" (#959): se activa/desactiva desde la
+  // stat card de AdGuard; se muestra como pill de filtro activo.
+  const [onlyUnprotected, setOnlyUnprotected] = useState(false)
+  const toggleUnprotected = useCallback(() => setOnlyUnprotected((v) => !v), [])
 
   // Enlaces entrantes tipo /devices?q=<mac|ip|nombre> (p.ej. desde Puertos)
   useEffect(() => {
@@ -1337,6 +1399,7 @@ export default function Devices() {
       if (online === 'online' && !d.online) return false
       if (online === 'offline' && d.online) return false
       if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
+      if (onlyUnprotected && d.adguard) return false
       if (router !== 'all' && d.routerId !== router) return false
       if (band !== 'all' && d.band !== band) return false
       if (typeFilter !== 'all' && d.type !== typeFilter) return false
@@ -1403,7 +1466,7 @@ export default function Devices() {
       }
       return a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, online, onlyWeak, router, band, typeFilter, groups, q, sort, routers])
+  }, [allDevices, online, onlyWeak, onlyUnprotected, router, band, typeFilter, groups, q, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1416,6 +1479,7 @@ export default function Devices() {
     setTypeFilter('all')
     setGroups([])
     setOnline('online')
+    setOnlyUnprotected(false)
   }, [setOnline])
 
   const clearAll = useCallback(() => {
@@ -1508,11 +1572,14 @@ export default function Devices() {
     for (const g of groups) {
       list.push({ key: `group-${g}`, label: t(`devices.groups.${g}`), clear: () => toggleGroup(g) })
     }
+    if (onlyUnprotected) {
+      list.push({ key: 'unprotected', label: t('devices.stats.unprotectedPill'), clear: () => setOnlyUnprotected(false) })
+    }
     if (online !== 'all') {
       list.push({ key: 'online', label: t(online === 'online' ? 'devices.onlineOnly' : 'devices.onlineOffline'), clear: () => setOnline('all') })
     }
     return list
-  }, [router, routers, band, typeFilter, groups, online, setOnline, toggleGroup, t])
+  }, [router, routers, band, typeFilter, groups, online, onlyUnprotected, setOnline, toggleGroup, t])
 
   const searchBox = (className?: string, autoFocus = false) => (
     <div className={cn('relative', className)}>
@@ -1590,7 +1657,7 @@ export default function Devices() {
       </div>
 
       {/* ② Stats strip */}
-      <StatsStrip allDevices={allDevices} />
+      <StatsStrip allDevices={allDevices} onlyUnprotected={onlyUnprotected} onToggleUnprotected={toggleUnprotected} />
 
       {/* ③ Filter bar */}
       <FilterBar
