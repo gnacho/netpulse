@@ -240,6 +240,9 @@ type Live struct {
 	snmpPorts map[string]map[string]snmpPortSample
 	// snmpLastPoll (issue #414): timestamp del último poll SNMP real por router.
 	snmpLastPoll map[string]time.Time
+	// snmpFdbCount (#928): último conteo de entradas FDB por router SNMP,
+	// para loguear solo cuando el resultado cambia.
+	snmpFdbCount map[string]int
 	// snmpLastMetricsTick (issue #414): polledAt del último tick que se persistió
 	// en la tabla metrics, para evitar filas duplicadas cuando se reutiliza el
 	// snapshot cacheado de un router SNMP.
@@ -379,6 +382,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
+		snmpFdbCount:         map[string]int{},
 		snmpLastMetricsTick:  map[string]int64{},
 		lastPolled:           map[string]*routerPolled{},
 		failCount:            map[string]int{},

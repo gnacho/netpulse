@@ -13,7 +13,12 @@ type FdbEntry struct {
 	IfIndex        int
 }
 
-func PollFdbTable(s *gosnmp.GoSNMP) ([]FdbEntry, error) {
+// PollFdbTable devuelve las entradas del FDB, la fuente usada ("dot1d" o
+// "dot1q") y el error. #928: antes el error del fallback dot1q se tragaba y
+// un fallo de ambos walks devolvía (vacío, nil): el caller no podía
+// distinguir "switch sin clientes" de "walk fallido", y el usuario veía 0
+// clientes sin ningún rastro en el log.
+func PollFdbTable(s *gosnmp.GoSNMP) ([]FdbEntry, string, error) {
 	portToIfIndex := map[int]int{}
 	pdus, err := walkSafe(s, OidDot1dBasePortIfIndex)
 	if err == nil {
@@ -31,8 +36,11 @@ func PollFdbTable(s *gosnmp.GoSNMP) ([]FdbEntry, error) {
 	// cuando la dot1d no devuelve entradas (#661).
 	fdbPdus, errD1 := walkSafe(s, OidDot1dTpFdbPort)
 	useDot1q := len(fdbPdus) == 0
+	source := "dot1d"
+	var errQ error
 	if useDot1q {
-		fdbPdus, _ = walkSafe(s, OidDot1qTpFdbPort)
+		source = "dot1q"
+		fdbPdus, errQ = walkSafe(s, OidDot1qTpFdbPort)
 	}
 
 	var out []FdbEntry
@@ -60,10 +68,17 @@ func PollFdbTable(s *gosnmp.GoSNMP) ([]FdbEntry, error) {
 			IfIndex:         ifIdx,
 		})
 	}
-	if len(out) == 0 && errD1 != nil {
-		return nil, fmt.Errorf("snmp fdb walk: %w", errD1)
+	if len(out) == 0 {
+		// Distinguir "FDB genuinamente vacío" de "walk fallido": en el segundo
+		// caso devolvemos el error para que el caller lo registre (#928).
+		switch {
+		case useDot1q && errQ != nil:
+			return nil, source, fmt.Errorf("snmp fdb walk: dot1d: %v; dot1q: %w", errD1, errQ)
+		case !useDot1q && errD1 != nil:
+			return nil, source, fmt.Errorf("snmp fdb walk: %w", errD1)
+		}
 	}
-	return out, nil
+	return out, source, nil
 }
 
 func extractMacFromOid(name, prefix string) string {

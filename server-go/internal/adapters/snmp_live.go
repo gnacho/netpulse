@@ -43,9 +43,21 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if err != nil {
 		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.ID, err)
 	}
-	fdb, err := npsnmp.PollFdbTable(session)
+	fdb, fdbSource, err := npsnmp.PollFdbTable(session)
 	if err != nil {
 		log.Printf("[netpulse] SNMP FDB %s: %v", cfg.ID, err)
+	} else {
+		// #928: visibilidad mínima del resultado del FDB. Se loguea cuando el
+		// conteo cambia respecto al ciclo anterior (o en el primer poll), no
+		// cada 60 s: suficiente para diagnosticar "walk vacío/fallido" sin
+		// inundar el journal.
+		l.mu.Lock()
+		last, seen := l.snmpFdbCount[cfg.ID]
+		l.snmpFdbCount[cfg.ID] = len(fdb)
+		l.mu.Unlock()
+		if !seen || last != len(fdb) {
+			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s)", cfg.ID, len(fdb), fdbSource)
+		}
 	}
 
 	portIdxToName := map[int]string{}
