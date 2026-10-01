@@ -26,8 +26,6 @@ import { DeviceRow, deviceIcon, SignalIcon } from '@/components/DeviceRow'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/SegmentedControl'
-import { Sparkline } from '@/components/Sparkline'
-import { DeviceTrafficDetail } from '@/components/DeviceTraffic'
 import { StatusPill } from '@/components/StatusPill'
 import {
   DropdownMenu,
@@ -51,7 +49,6 @@ import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
-import { PresenceSection } from '@/components/PresenceTimeline'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
 import { useParentName } from '@/lib/parent'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
@@ -776,7 +773,6 @@ function DeviceDetail({
   onEdit: () => void
 }) {
   const { t } = useTranslation()
-  const { isDemo } = useNetPulse()
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
       <DetailItem label="MAC" mono>
@@ -789,28 +785,6 @@ function DeviceDetail({
       <DetailItem label="Hostname" mono>
         {device.hostname}
       </DetailItem>
-      {/* #551: en demo el tráfico viene en el canon; en live se pide al
-          endpoint /api/devices/{mac}/traffic bajo demanda (patrón portseries). */}
-      {isDemo ? (
-        <>
-          <DetailItem label={t('devices.detail.traffic24h')} mono>
-            ↓ {device.traffic24hRx} · ↑ {device.traffic24hTx}
-          </DetailItem>
-          <div className="min-w-0">
-            <div className="text-label uppercase text-text-muted">{t('devices.detail.trafficCurrent')}</div>
-            <div className="mt-1 inline-flex items-center gap-2">
-              <span className="font-mono text-mono-sm text-accent">
-                {device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps
-              </span>
-              <Sparkline data={device.sparkline} width={60} height={20} className="text-accent" />
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="col-span-2 md:col-span-1">
-          <DeviceTrafficDetail mac={device.mac} online={device.online} />
-        </div>
-      )}
       <div className="min-w-0">
         <div className="text-label uppercase text-text-muted">AdGuard</div>
         <div className="mt-1.5">
@@ -832,13 +806,8 @@ function DeviceDetail({
           )}
         </DetailItem>
       )}
-      {/* Timeline de presencia (#771): tramos de los últimos 7 días por AP. */}
-      <PresenceSection mac={device.mac} />
-      <div className="col-span-2 flex items-center justify-between rounded-xl border border-border bg-elevated/40 px-4 py-3">
-        <div>
-          <div className="text-label uppercase text-text-muted">{t('devices.detail.rename')}</div>
-          <p className="mt-0.5 text-caption text-text-muted">{t('devices.edit.description')}</p>
-        </div>
+      {/* Editar a la derecha, sin texto auxiliar (#985). */}
+      <div className="col-span-2 flex justify-end md:col-span-3">
         <button
           type="button"
           onClick={onEdit}

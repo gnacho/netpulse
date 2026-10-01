@@ -385,12 +385,6 @@
       "infra": "Infrastructure",
       "manufacturer": "Manufacturer (OUI)",
       "protected": "Protected",
-      "rename": "Rename device",
-      "renameLocal": "Only saved in this browser.",
-      "traffic24h": "Traffic 24 h",
-      "trafficCurrent": "Current traffic",
-      "traffic": "Client traffic",
-      "trafficNoSource": "No per-client traffic: wired clients need nlbwmon on the router (WiFi uses hostapd counters).",
       "unfiltered": "Unfiltered",
       "connectedTo": "Connected to"
     },
@@ -420,7 +414,6 @@
     "leaseUnlimited": "unlimited",
     "edit": {
       "title": "Edit device",
-      "description": "Change this device's name and icon.",
       "action": "Edit",
       "name": "Name",
       "nameHint": "Empty = automatic name (DHCP hostname)",
@@ -521,13 +514,6 @@
       "banner_one": "{{count}} connected device not identified",
       "banner_other": "{{count}} connected devices not identified",
       "bannerAction": "Identify"
-    },
-    "presence": {
-      "title": "Presence (7 days)",
-      "empty": "No presence data for the last 7 days.",
-      "online": "Connected to {{router}}",
-      "offline": "Disconnected",
-      "flappy": "{{count}} AP connections in the last 24 h"
     }
   },
   "home": {

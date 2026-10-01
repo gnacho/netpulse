@@ -385,12 +385,6 @@
       "infra": "Infraestructura",
       "manufacturer": "Fabricante (OUI)",
       "protected": "Protegido",
-      "rename": "Renombrar dispositivo",
-      "renameLocal": "Solo se guarda en este navegador.",
-      "traffic24h": "Tráfico 24 h",
-      "trafficCurrent": "Tráfico actual",
-      "traffic": "Tráfico por cliente",
-      "trafficNoSource": "Sin tráfico por cliente: los clientes por cable necesitan nlbwmon en el router (los WiFi usan los contadores de hostapd).",
       "unfiltered": "Sin filtrar",
       "connectedTo": "Conectado a"
     },
@@ -420,7 +414,6 @@
     "leaseUnlimited": "ilimitado",
     "edit": {
       "title": "Editar dispositivo",
-      "description": "Cambia el nombre y el icono de este dispositivo.",
       "action": "Editar",
       "name": "Nombre",
       "nameHint": "Vacío = nombre automático (hostname DHCP)",
@@ -521,13 +514,6 @@
       "banner_one": "{{count}} dispositivo conectado sin identificar",
       "banner_other": "{{count}} dispositivos conectados sin identificar",
       "bannerAction": "Identificar"
-    },
-    "presence": {
-      "title": "Presencia (7 días)",
-      "empty": "Sin datos de presencia en los últimos 7 días.",
-      "online": "Conectado a {{router}}",
-      "offline": "Desconectado",
-      "flappy": "{{count}} conexiones a AP en las últimas 24 h"
     }
   },
   "home": {
