@@ -1088,6 +1088,7 @@
     "tabDay": "Daily",
     "tabMonth": "Monthly",
     "tabWeek": "Weekly",
+    "tipToday": "Today, data up to {{time}} (in progress)",
     "totalDown": "Total time without data",
     "windowDay": "the last {{n}} days",
     "windowMonth": "the last {{n}} months",

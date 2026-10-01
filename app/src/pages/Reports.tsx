@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { Activity, AlertTriangle, CalendarDays, Clock, Download, RefreshCw } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse } from '@/data/DataProvider'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/reports/availability (server-go/internal/httpapi/reports.go)
@@ -118,9 +119,24 @@ interface RouterSummary {
   buckets: AvailabilityEntry[] // ordenados de más antiguo a más reciente
 }
 
+/** Lunes y domingo (UTC) de una semana ISO "2026-W31", para el tooltip de la barra (#993). */
+function isoWeekSpan(bucket: string): [Date, Date] | null {
+  const m = /^(\d{4})-W(\d{2})$/.exec(bucket)
+  if (!m) return null
+  const year = Number(m[1])
+  const week = Number(m[2])
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const dow = jan4.getUTCDay() || 7 // lunes = 1
+  const monday = new Date(jan4)
+  monday.setUTCDate(jan4.getUTCDate() - dow + 1 + (week - 1) * 7)
+  const sunday = new Date(monday)
+  sunday.setUTCDate(monday.getUTCDate() + 6)
+  return [monday, sunday]
+}
+
 /** Página `/reports` - Informe de disponibilidad (reports.md, rediseño #973). */
 export default function Reports() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const reduce = useReducedMotion()
   const { isDemo } = useNetPulse()
   const [range, setRange] = useState<Range>('week')
@@ -226,6 +242,29 @@ export default function Reports() {
   const totalDown = rated.reduce((a, r) => a + r.downMin, 0)
 
   const windowText = t(range === 'day' ? 'reports.windowDay' : range === 'week' ? 'reports.windowWeek' : 'reports.windowMonth', { n })
+
+  // -- Barra de disponibilidad estilo Uptime Kuma (#993) -------------------
+  // Un segmento por bucket (día/semana/mes según la pestaña, la granularidad
+  // real del endpoint). El tooltip muestra la fecha del segmento; el día en
+  // curso, único bucket con hora real, muestra además la hora de corte.
+  const dayFmt = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  const dayYearFmt = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  const monthFmt = new Intl.DateTimeFormat(i18n.language, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const nowTime = new Date().toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+
+  function bucketLabel(b: AvailabilityEntry): string {
+    if (range === 'day') {
+      if (b.bucket === todayKey) return t('reports.tipToday', { time: nowTime })
+      return dayYearFmt.format(new Date(`${b.bucket}T00:00:00Z`))
+    }
+    if (range === 'week') {
+      const span = isoWeekSpan(b.bucket)
+      if (!span) return b.bucket
+      return `${dayFmt.format(span[0])} - ${dayYearFmt.format(span[1])}`
+    }
+    return monthFmt.format(new Date(`${b.bucket}-01T00:00:00Z`))
+  }
 
   const initial = reduce ? false : { opacity: 0, y: 12 }
 
@@ -413,16 +452,37 @@ export default function Reports() {
                       <span className="text-caption text-text-muted">{t('reports.insufficient')}</span>
                     )}
                   </div>
-                  {/* Tira de puntos: un punto por período, de antiguo a reciente */}
-                  <div className="flex items-center gap-1" role="presentation">
+                  {/* Barra de disponibilidad (#993): segmentos rectangulares
+                      contiguos, uno por bucket, con tooltip de fecha y tiempo
+                      sin datos. Atenuada si la cobertura es insuficiente (#987) */}
+                  <div className={cn('flex min-w-24 flex-1 items-center gap-0.5', !r.sufficient && 'opacity-60')}>
                     {r.buckets.map((b) => {
                       const down = bucketDownMin(b)
+                      const st = statusOf(b.upPct)
+                      const label = bucketLabel(b)
+                      const pctText = b.upPct >= 99.9 ? '100%' : `${b.upPct.toFixed(1)}%`
+                      const downText = down >= 1 ? t('reports.downTime', { duration: fmtDuration(down) }) : t('reports.downNone')
                       return (
-                        <span
-                          key={b.bucket}
-                          title={`${b.bucket}: ${b.upPct >= 99.9 ? '100%' : `${b.upPct.toFixed(1)}%`} · ${down >= 1 ? fmtDuration(down) : t('reports.downNone')}`}
-                          className={cn('h-2.5 w-2.5 rounded-sm', STATUS_DOT[statusOf(b.upPct)])}
-                        />
+                        <Tooltip key={b.bucket}>
+                          <TooltipTrigger
+                            aria-label={`${label}: ${pctText}, ${downText}`}
+                            className={cn(
+                              'h-4 min-w-1 flex-1 rounded-[2px] transition-transform duration-150 hover:scale-y-125',
+                              STATUS_DOT[st],
+                            )}
+                          />
+                          <TooltipContent
+                            side="top"
+                            sideOffset={6}
+                            className="border border-border-strong bg-elevated text-text-primary shadow-xl"
+                          >
+                            <p className="font-medium">{label}</p>
+                            <p className={cn('text-caption', STATUS_TEXT[st])}>
+                              {pctText} · {t(`reports.status_${st}`)}
+                            </p>
+                            <p className="text-caption text-text-secondary">{downText}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )
                     })}
                   </div>
