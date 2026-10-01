@@ -7,6 +7,7 @@ import type { TimeRange, TrafficPoint } from '@/data/mock'
 import { fmtBytes, fmtEs } from '@/data/mock'
 import { relTimeFromTs } from '@/i18n'
 import { useNetPulse } from '@/data/DataProvider'
+import { InfoTip } from '@/components/InfoTip'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
 import { StatusPill } from '@/components/StatusPill'
@@ -156,6 +157,23 @@ export function WanTraffic() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeader title={t('home.traffic.title')}>
           <StatusPill tone="ok" label={t('topbar.live')} pulse />
+          {/* Utilización vs velocidad contratada (#151, #1021): va en un
+              InfoTip para ahorrar la línea de footer. Solo si el admin ha
+              declarado la velocidad en Ajustes. */}
+          {wan.contractDownMbps ? (
+            <InfoTip
+              text={
+                t('home.traffic.contracted', {
+                  down: fmtEs(wan.contractDownMbps, 0),
+                  up: fmtEs(wan.contractUpMbps ?? 0, 0),
+                }) +
+                ' · ' +
+                t('home.traffic.utilization', {
+                  pct: fmtEs(wan.peakTodayMbps > 0 ? (wan.peakTodayMbps / wan.contractDownMbps) * 100 : 0, 1),
+                })
+              }
+            />
+          ) : null}
         </SectionHeader>
         <div className="shrink-0">
           <SegmentedControl
@@ -267,21 +285,6 @@ export function WanTraffic() {
           </motion.div>
         ))}
       </div>
-
-      {/* Utilización vs velocidad contratada (issue #151). Solo se muestra
-          cuando el admin ha declarado la velocidad en Ajustes. */}
-      {wan.contractDownMbps ? (
-        <p className="mt-3 border-t border-border pt-3 text-caption text-text-muted">
-          {t('home.traffic.contracted', {
-            down: fmtEs(wan.contractDownMbps, 0),
-            up: fmtEs(wan.contractUpMbps ?? 0, 0),
-          })}
-          {' · '}
-          {t('home.traffic.utilization', {
-            pct: fmtEs(wan.peakTodayMbps > 0 ? (wan.peakTodayMbps / wan.contractDownMbps) * 100 : 0, 1),
-          })}
-        </p>
-      ) : null}
 
       {/* Velocidad medida (#982): gráfica del histórico de speedtests */}
       <SpeedtestHistoryBlock contractDown={wan.contractDownMbps} />
