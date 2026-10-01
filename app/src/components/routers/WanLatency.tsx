@@ -140,11 +140,82 @@ type SpeedtestItem = {
   serverName?: string
 }
 
+/** Punto de la serie del histórico de speedtests (etiqueta ya formateada). */
+type SpeedtestPoint = { t: string; down: number; up: number }
+
+function toPoints(items: SpeedtestItem[]): SpeedtestPoint[] {
+  const fmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: '2-digit' })
+  return items.map((it) => ({ t: fmt.format(new Date(it.ts)), down: it.downMbps, up: it.upMbps }))
+}
+
+/** Hook ligero del histórico de speedtests (overview #982): solo la serie,
+ *  sin estado de ejecución ni botón. Carga única al montar. */
+export function useSpeedtestHistory(hours = 168): SpeedtestPoint[] {
+  const [points, setPoints] = useState<SpeedtestPoint[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/speedtest/history?hours=${hours}`)
+        if (!res.ok || cancelled) return
+        const h = await res.json()
+        if (cancelled) return
+        setPoints(toPoints(h.items ?? []))
+      } catch {
+        // Sin red / sesión caducada: no se pinta nada.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [hours])
+  return points
+}
+
+/** Gráfica del histórico de velocidad medida: SOLO la serie, sin botón de
+ *  ejecutar test ni línea de valores. La reutilizan SpeedtestStrip (detalle
+ *  del gateway) y el overview dentro de WanTraffic (#982). Lleva sus propios
+ *  gradientes (antes dependía de los ids del chart WAN del detalle). */
+export function SpeedtestHistoryChart({ points, height = 64 }: { points: SpeedtestPoint[]; height?: number }) {
+  const { t } = useTranslation()
+  if (points.length <= 1) return null
+  return (
+    <div className="mt-2" style={{ height }} role="img" aria-label={t('routerDetail.wan.speedtestTitle')}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={points} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
+          <defs>
+            <linearGradient id="speedtest-hist-down" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="#22D3EE" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="speedtest-hist-up" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#A78BFA" stopOpacity={0.18} />
+              <stop offset="100%" stopColor="#A78BFA" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="rgb(var(--border) / 0.4)" strokeDasharray="3 6" />
+          <XAxis
+            dataKey="t"
+            tickLine={false}
+            axisLine={false}
+            interval="preserveStartEnd"
+            minTickGap={48}
+            tick={{ fill: 'rgb(var(--text-muted))', fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
+          />
+          <Tooltip content={<WanTooltip />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
+          <Area type="stepAfter" dataKey="down" stroke="#22D3EE" strokeWidth={1.5} fill="url(#speedtest-hist-down)" dot={false} />
+          <Area type="stepAfter" dataKey="up" stroke="#A78BFA" strokeWidth={1.5} fill="url(#speedtest-hist-up)" dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 function useSpeedtestState() {
   const [running, setRunning] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
   const [last, setLast] = useState<SpeedtestItem | null>(null)
-  const [points, setPoints] = useState<{ t: string; down: number; up: number }[]>([])
+  const [points, setPoints] = useState<SpeedtestPoint[]>([])
   const [starting, setStarting] = useState(false)
 
   const load = useCallback(async () => {
@@ -161,14 +232,7 @@ function useSpeedtestState() {
       }
       if (hRes.ok) {
         const h = await hRes.json()
-        const fmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: '2-digit' })
-        setPoints(
-          (h.items ?? []).map((it: SpeedtestItem) => ({
-            t: fmt.format(new Date(it.ts)),
-            down: it.downMbps,
-            up: it.upMbps,
-          })),
-        )
+        setPoints(toPoints(h.items ?? []))
       }
     } catch {
       // Sin red / sesión caducada: se conserva el último estado pintado.
@@ -272,26 +336,7 @@ export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
               <span className="text-text-muted">· {t('routerDetail.wan.speedtestServer', { name: last.serverName })}</span>
             )}
           </div>
-          {points.length > 1 && (
-            <div className="mt-2 h-[64px]" role="img" aria-label={t('routerDetail.wan.speedtestTitle')}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={points} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
-                  <CartesianGrid vertical={false} stroke="rgb(var(--border) / 0.4)" strokeDasharray="3 6" />
-                  <XAxis
-                    dataKey="t"
-                    tickLine={false}
-                    axisLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={48}
-                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-                  />
-                  <Tooltip content={<WanTooltip />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
-                  <Area type="stepAfter" dataKey="down" stroke="#22D3EE" strokeWidth={1.5} fill="url(#wan-detail-down)" dot={false} />
-                  <Area type="stepAfter" dataKey="up" stroke="#A78BFA" strokeWidth={1.5} fill="url(#wan-detail-up)" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          <SpeedtestHistoryChart points={points} />
         </>
       ) : (
         <p className="mt-2 text-caption text-text-muted">

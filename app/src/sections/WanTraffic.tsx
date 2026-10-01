@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { motion } from 'framer-motion'
+import { Activity } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TimeRange, TrafficPoint } from '@/data/mock'
 import { fmtBytes, fmtEs } from '@/data/mock'
@@ -8,6 +9,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
 import { StatusPill } from '@/components/StatusPill'
+import { SpeedtestHistoryChart, useSpeedtestHistory } from '@/components/routers/WanLatency'
 
 // ---------------------------------------------------------------------------
 // Tooltip custom (design.md §7): superficie elevated, valores mono con unidad
@@ -48,6 +50,26 @@ function makeLiveDot(dataLength: number, color: string) {
       </g>
     )
   }
+}
+
+/** Velocidad medida (#982): evolución del histórico de speedtests (7 días).
+ *  SOLO la gráfica: sin botón de ejecutar test (ese vive en Ajustes y en el
+ *  detalle del gateway) y sin la línea de valores del último test. Vive dentro
+ *  de Tráfico WAN porque mide la capacidad real de la misma WAN y así no se
+ *  añade otra fila al overview. Oculta si no hay histórico (demo, API caída). */
+function SpeedtestHistoryBlock() {
+  const { t } = useTranslation()
+  const points = useSpeedtestHistory(168)
+  if (points.length <= 1) return null
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="flex items-center gap-1.5">
+        <Activity className="h-3.5 w-3.5 text-accent" aria-hidden />
+        <span className="text-label uppercase text-text-muted">{t('routerDetail.wan.speedtestTitle')}</span>
+      </div>
+      <SpeedtestHistoryChart points={points} height={96} />
+    </div>
+  )
 }
 
 /** ② Tráfico WAN — área doble serie (home.md §②) */
@@ -225,6 +247,9 @@ export function WanTraffic() {
           })}
         </p>
       ) : null}
+
+      {/* Velocidad medida (#982): gráfica del histórico de speedtests */}
+      <SpeedtestHistoryBlock />
     </section>
   )
 }
