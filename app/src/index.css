@@ -168,6 +168,10 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    /* Reserva SIEMPRE la canal del scrollbar: al abrir un Dialog (Radix
+       bloquea el scroll del body) el ancho no cambia y el fondo no da el
+       pequeño salto lateral de antes. */
+    scrollbar-gutter: stable;
   }
   body {
     @apply bg-canvas text-text-primary font-sans antialiased;
