@@ -89,7 +89,7 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
     <div className={cn('grid w-full grid-cols-2 gap-x-4 gap-y-1.5', compact ? 'mt-1' : 'mt-2 max-w-xs')}>
       {healthScore.subscores.map((s) => (
         <div key={s.key} className="flex items-center gap-2">
-          <span className="w-14 shrink-0 truncate text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
+          <span className="w-20 shrink-0 text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
             {subscoreLabel(s.key, s.label)}
           </span>
           <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-border">
