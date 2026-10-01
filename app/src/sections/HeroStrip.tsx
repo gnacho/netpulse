@@ -49,11 +49,11 @@ function MiniStat({
 
 /** ① Hero strip — saludo + estado arriba, donut de salud grande y centrado,
  *  stats en fila debajo (home.md §①).
- *  compact (#965, layout #979): fila superior con saludo a 2/3 y donut de
- *  salud (128px) a 1/3; DEBAJO, a todo el ancho de la tarjeta, Latencia y
- *  Clientes. Conserva los subscores WAN/Wi-Fi/Infra/Servicios (#334, con
- *  mini-barra) bajo las stats; el desglose de penalizaciones se queda en la
- *  variante grande. */
+ *  compact (#965, layout #979): dos mitades; a la izquierda el saludo
+ *  centrado con Latencia y Clientes debajo, a la derecha el anillo de
+ *  salud (128px) centrado. Conserva los subscores WAN/Wi-Fi/Infra/Servicios
+ *  (#334, con mini-barra) bajo las dos mitades, a todo el ancho; el desglose
+ *  de penalizaciones se queda en la variante grande. */
 export function HeroStrip({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
@@ -121,11 +121,12 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
           />
         )}
         <div className="relative flex h-full flex-col gap-3">
-          {/* Fila superior (#979): saludo a 2/3 + donut de salud a 1/3 */}
-          <div className="flex items-center gap-4">
-            {/* Saludo + estado, 2/3 del ancho */}
-            <div className="min-w-0 basis-2/3">
-              <h1 className="font-display text-h1 text-text-primary" aria-label={greeting}>
+          {/* Dos mitades: izquierda saludo centrado con latencia+clientes debajo, derecha anillo centrado */}
+          <div className="flex flex-1 items-stretch gap-4">
+            {/* Mitad izquierda: saludo + estado centrados, stats debajo */}
+            <div className="flex min-w-0 basis-1/2 flex-col items-center justify-center gap-3 text-center">
+              <div>
+                <h1 className="font-display text-h1 text-text-primary" aria-label={greeting}>
                 {words.map((w, i) => (
                   <Fragment key={`${w}-${i}`}>
                     <motion.span
@@ -141,7 +142,7 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
                 ))}
               </h1>
               <motion.p
-                className="mt-1 flex items-center gap-1.5 text-sm font-medium text-text-secondary"
+                className="mt-1 flex items-center justify-center gap-1.5 text-sm font-medium text-text-secondary"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.25, duration: 0.4 }}
@@ -158,10 +159,21 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
                   </>
                 )}
               </motion.p>
+              </div>
+
+              {/* Latencia + Clientes: debajo del saludo, centrados en la mitad izquierda */}
+              <div className="flex items-center justify-center gap-8">
+                <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
+                  <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
+                </MiniStat>
+                <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
+                  <CountUp value={deviceTotals.total} nonce={refreshKey} />
+                </MiniStat>
+              </div>
             </div>
 
-            {/* Donut de salud compacto, 1/3 del ancho */}
-            <div className="flex basis-1/3 shrink-0 flex-col items-center gap-2">
+            {/* Mitad derecha: anillo de salud centrado */}
+            <div className="flex basis-1/2 shrink-0 flex-col items-center justify-center gap-2">
               <motion.div layoutId="health-ring">
                 <HealthRing
                   value={healthScore.score}
@@ -186,17 +198,7 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
 
-          {/* Latencia + Clientes (#979): debajo, ocupando TODO el ancho */}
-          <div className="flex items-center justify-around gap-8">
-            <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
-              <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
-            </MiniStat>
-            <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
-              <CountUp value={deviceTotals.total} nonce={refreshKey} />
-            </MiniStat>
-          </div>
-
-          {/* Subscores (#334) debajo de latencia/clientes, a todo el ancho */}
+          {/* Subscores (#334) debajo de las dos mitades, a todo el ancho */}
           {subscoresBlock}
         </div>
       </section>
