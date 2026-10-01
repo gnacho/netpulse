@@ -235,6 +235,24 @@ export function bandBadgeClass(band: string): string {
   }
 }
 
+/**
+ * Detección de banda 6 GHz en la red (issue #991). El frontend no recibe un
+ * flag de capacidad hardware por router, así que la fuente de verdad es:
+ *   - algún router reporta clientes online en 6 GHz (Router.bandSplit.band6 > 0,
+ *     issue #645; misma fuente que el contador `clients`), O
+ *   - algún cliente figura con banda '6 GHz' (Device.band).
+ * Limitación conocida: una red con radio 6G pero sin clientes asociados aún
+ * no se detecta (no hay señal de hardware en los tipos). Cuando la red no
+ * tiene 6 GHz, la UI no la menciona (filtro Conexión de Clientes, leyenda de
+ * topología); BAND_HEX conserva la entrada por si la banda aparece.
+ */
+export function networkHasBand6(
+  routers: ReadonlyArray<Pick<Router, 'bandSplit'>>,
+  devices: ReadonlyArray<Pick<Device, 'band'>>,
+): boolean {
+  return routers.some((r) => (r.bandSplit?.band6 ?? 0) > 0) || devices.some((d) => d.band === '6 GHz')
+}
+
 export function statusColor(status: Router['status']): string {
   if (status === 'warn') return COLOR.warn
   if (status === 'offline') return COLOR.danger

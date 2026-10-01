@@ -51,6 +51,7 @@ import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
 import { useParentName } from '@/lib/parent'
+import { networkHasBand6 } from '@/components/topology/model'
 import type { ClientDevice, FilterGroup } from '@/pages/devices-data'
 import { buildClientDevices, GROUP_ORDER } from '@/pages/devices-data'
 import type { DeviceType } from '@/data/mock'
@@ -197,15 +198,14 @@ function ColumnPicker({ hidden, onToggle }: { hidden: DeviceColumn[]; onToggle: 
 
 // #970: la banda se filtra con un desplegable (era un SegmentedControl); #989
 // lo convierte en multi-selección acumulativa con el patrón del filtro "Tipo".
-// La opción 6 GHz se ofrece SIEMPRE: el frontend no recibe un flag de soporte
-// hardware por router (solo bandSplit con clientes por banda, que sería 0 en
-// un router 6G recién instalado), así que condicionarla dejaría la opción
-// invisible justo cuando hace falta. Filtrar por 6 GHz sin clientes en esa
-// banda simplemente devuelve la lista vacía.
-const BAND_FILTERS: ReadonlyArray<{ value: BandValue; label?: string; labelKey?: string }> = [
+// #991: la opción 6 GHz solo se ofrece si la red TIENE 6 GHz
+// (networkHasBand6: algún router con bandSplit.band6 > 0 o algún cliente con
+// banda '6 GHz'; no hay flag de capacidad hardware en los tipos). Sin 6G la
+// opción desaparece del menú y cualquier selección residual se ignora.
+const BAND_FILTERS: ReadonlyArray<{ value: BandValue; label?: string; labelKey?: string; band6?: boolean }> = [
   { value: '2.4 GHz', label: '2.4 GHz' },
   { value: '5 GHz', label: '5 GHz' },
-  { value: '6 GHz', label: '6 GHz' },
+  { value: '6 GHz', label: '6 GHz', band6: true },
   { value: 'cable', labelKey: 'common.cable' },
 ]
 
@@ -547,6 +547,8 @@ interface FilterBarProps {
   bands: BandValue[]
   toggleBand: (b: BandValue) => void
   bandCounts: Partial<Record<BandValue, number>>
+  /** #991: la red tiene banda 6 GHz (si no, la opción no se ofrece) */
+  hasBand6: boolean
   groups: FilterGroup[]
   toggleGroup: (g: FilterGroup) => void
   online: OnlineFilter
@@ -591,7 +593,8 @@ function FilterBar(p: FilterBarProps) {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* Conexión (#989): multi-selección de banda/cable, incluye 6 GHz */}
+        {/* Conexión (#989): multi-selección de banda/cable; 6 GHz solo si la
+            red la tiene (#991) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <FilterMenuTrigger label={t('devices.connection')} active={p.bands.length} />
@@ -599,7 +602,7 @@ function FilterBar(p: FilterBarProps) {
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel>{t('devices.filterByBand')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {BAND_FILTERS.map((o) => (
+            {BAND_FILTERS.filter((o) => !o.band6 || p.hasBand6).map((o) => (
               <DropdownMenuCheckboxItem
                 key={o.value}
                 checked={p.bands.includes(o.value)}
@@ -1451,6 +1454,14 @@ export default function Devices() {
     return counts
   }, [allDevices])
 
+  // #991: 6 GHz solo existe en la UI si la red la tiene. bandsEffective
+  // descarta una selección 6 GHz residual si la banda desaparece del bundle.
+  const hasBand6 = useMemo(() => networkHasBand6(routers, devices), [routers, devices])
+  const bandsEffective = useMemo(
+    () => (hasBand6 ? bands : bands.filter((b) => b !== '6 GHz')),
+    [bands, hasBand6],
+  )
+
   const [sort, setSort] = useState<SortState>(() => loadDevicesPrefs().sort)
   const toggleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
@@ -1475,7 +1486,7 @@ export default function Devices() {
       if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
       if (onlyUnprotected && d.adguard) return false
       if (routerIds.length > 0 && !routerIds.includes(d.routerId)) return false
-      if (bands.length > 0 && !bands.includes(d.band as BandValue)) return false
+      if (bandsEffective.length > 0 && !bandsEffective.includes(d.band as BandValue)) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
       if (q) {
         const hay = `${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
@@ -1539,7 +1550,7 @@ export default function Devices() {
       }
       return a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, online, onlyWeak, onlyUnprotected, routerIds, bands, groups, q, sort, routers])
+  }, [allDevices, online, onlyWeak, onlyUnprotected, routerIds, bandsEffective, groups, q, sort, routers])
 
   const toggleRouterId = useCallback(
     (id: string) => setRouterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
@@ -1645,7 +1656,7 @@ export default function Devices() {
       const routerName = routers.find((r) => r.id === id)?.name ?? id
       list.push({ key: `router-${id}`, label: routerName, clear: () => toggleRouterId(id) })
     }
-    for (const b of bands) {
+    for (const b of bandsEffective) {
       list.push({ key: `band-${b}`, label: b === 'cable' ? t('common.cable') : b, clear: () => toggleBand(b) })
     }
     for (const g of groups) {
@@ -1658,7 +1669,7 @@ export default function Devices() {
       list.push({ key: 'online', label: t(online === 'online' ? 'devices.onlineOnly' : 'devices.onlineOffline'), clear: () => setOnline('all') })
     }
     return list
-  }, [routerIds, routers, bands, groups, online, onlyUnprotected, setOnline, toggleRouterId, toggleBand, toggleGroup, t])
+  }, [routerIds, routers, bandsEffective, groups, online, onlyUnprotected, setOnline, toggleRouterId, toggleBand, toggleGroup, t])
 
   const searchBox = (className?: string, autoFocus = false) => (
     <div className={cn('relative', className)}>
@@ -1743,9 +1754,10 @@ export default function Devices() {
         routerIds={routerIds}
         toggleRouterId={toggleRouterId}
         routerCounts={routerCounts}
-        bands={bands}
+        bands={bandsEffective}
         toggleBand={toggleBand}
         bandCounts={bandCounts}
+        hasBand6={hasBand6}
         groups={groups}
         toggleGroup={toggleGroup}
         online={online}

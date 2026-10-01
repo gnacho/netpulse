@@ -9,17 +9,18 @@ import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 import type { TopologyModel } from './model'
-import { BAND_HEX, COLOR } from './model'
+import { BAND_HEX, COLOR, networkHasBand6 } from './model'
 
 // ---------------------------------------------------------------------------
 // Contenido compartido
 // ---------------------------------------------------------------------------
 
 // Filas de banda: misma paleta centralizada BAND_HEX (issue #986), ascendente.
-const BAND_ROWS: { color: string; label?: string; labelKey?: string }[] = [
+// La fila 6 GHz solo se pinta si la red tiene 6 GHz (#991, networkHasBand6).
+const BAND_ROWS: { color: string; label?: string; labelKey?: string; band?: string }[] = [
   { color: BAND_HEX['2.4 GHz'], label: '2.4 GHz' },
   { color: BAND_HEX['5 GHz'], label: '5 GHz' },
-  { color: BAND_HEX['6 GHz'], label: '6 GHz' },
+  { color: BAND_HEX['6 GHz'], label: '6 GHz', band: '6 GHz' },
   { color: COLOR.ok, labelKey: 'topology.legend.wired' },
   { color: COLOR.warn, labelKey: 'topology.weakSignal' },
 ]
@@ -110,8 +111,11 @@ function WgSample() {
 export function LegendContent({ model, compact = false }: { model: TopologyModel; compact?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
-  const { deviceTotals } = useNetPulse()
+  const { deviceTotals, routers, devices } = useNetPulse()
   const { activeLinkCount, activePeerCount } = model
+  // #991: la fila 6 GHz desaparece si la red no tiene 6 GHz (networkHasBand6).
+  const hasBand6 = networkHasBand6(routers, devices)
+  const bandRows = hasBand6 ? BAND_ROWS : BAND_ROWS.filter((r) => r.band !== '6 GHz')
   const row = (i: number) =>
     reduce
       ? {}
@@ -126,7 +130,7 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
       <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.legend.bandConnection')}</div>
         <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
-          {BAND_ROWS.map((r) => (
+          {bandRows.map((r) => (
             <motion.li key={r.label ?? r.labelKey} className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: r.color }} />
               {r.label ?? t(r.labelKey!)}
