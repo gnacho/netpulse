@@ -1540,7 +1540,7 @@
       "wireguardCaption": "Túneles VPN WireGuard",
       "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
       "labs": "Labs (aplicaciones experimentales)",
-      "labsCaption": "Activa funcionalidades en desarrollo: orquestación, scrapers y más",
+      "labsCaption": "En desarrollo. Escriben en los routers",
       "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
       "networkGroup": "Servicios de red",
       "integrationsGroup": "Integraciones",
@@ -1687,7 +1687,8 @@
       "originAuto": "Auto",
       "originManual": "Manual",
       "colServer": "Servidor",
-      "noRecent": "Aún no hay tests registrados"
+      "noRecent": "Aún no hay tests registrados",
+      "recentHide": "Ocultar"
     },
     "proxmox": {
       "title": "Proxmox VE",
@@ -1787,9 +1788,9 @@
       "title": "HTTPS",
       "loadError": "No se pudieron cargar los ajustes de HTTPS.",
       "unavailable": "HTTPS se gestiona fuera de esta página: {{reason}}.",
-      "enabled": "HTTPS en el puerto {{port}}",
+      "enabled": "HTTPS",
       "enabledHint": "Solo añade el puerto HTTPS. El HTTP plano sigue funcionando hasta que elijas un modo más estricto abajo.",
-      "portTitle": "Puerto HTTPS",
+      "portTitle": "Puerto",
       "portHint": "Se aplica al momento, sin reiniciar. Los agentes y NetGrip que apuntan al puerto actual deben actualizar su URL.",
       "portApply": "Cambiar",
       "locked": "Fijado en el archivo de entorno del servidor; cámbialo allí.",

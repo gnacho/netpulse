@@ -101,7 +101,8 @@ function AlertsLangControl({ onSaved }: { onSaved: () => void }) {
         if (!res.ok) return
         const body = (await res.json()) as { lang: string; supported: string[] }
         setLang(body.lang)
-        setSupported(body.supported)
+        // EN primero: es el idioma por defecto del servidor (#889).
+        setSupported([...body.supported].sort((a, b) => (a === 'en' ? -1 : b === 'en' ? 1 : a.localeCompare(b))))
       } catch {
         /* se queda el estado vacío; el select queda deshabilitado */
       }
@@ -236,19 +237,21 @@ interface SwitchRowProps {
   onCheckedChange: (v: boolean) => void
   trailing?: React.ReactNode
   disabled?: boolean
+  /** Acento rojo: la función escribe en los routers (Labs). */
+  danger?: boolean
 }
 
-function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trailing, disabled = false }: SwitchRowProps) {
+function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trailing, disabled = false, danger = false }: SwitchRowProps) {
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <div className="flex min-w-0 items-center gap-3">
         {Icon && (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-elevated text-text-secondary">
+          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', danger ? 'bg-danger/10 text-danger' : 'bg-elevated text-text-secondary')}>
             <Icon className="h-4 w-4" strokeWidth={1.75} />
           </span>
         )}
         <div className="min-w-0">
-          <div className="text-sm font-medium text-text-primary">{label}</div>
+          <div className={cn('text-sm font-medium', danger ? 'text-danger' : 'text-text-primary')}>{label}</div>
           {caption && <div className="text-caption text-text-muted">{caption}</div>}
         </div>
       </div>
@@ -1552,6 +1555,9 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [detecting, setDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detectNote, setDetectNote] = useState<string | null>(null)
+  // Sin vista hasta que llega la config real: en diálogo, renderizar antes
+  // mostraba el form con valores por defecto como si fuera la config.
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let disposed = false
@@ -1574,6 +1580,8 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         setPassSet(json.passSet)
       } catch {
         if (!disposed && gwIp) setHost((h) => h || gwIp)
+      } finally {
+        if (!disposed) setLoaded(true)
       }
     })()
     return () => {
@@ -1679,6 +1687,13 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   // SPEC-65 D65-7c: configurado y sin editar → vista compacta (icono + host +
   // chip ok + Editar). Sin configurar → form directo como antes.
+  if (!loaded) {
+    return (
+      <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
+        <p className="py-3 text-caption text-text-muted">{t('common.loading')}</p>
+      </Card>
+    )
+  }
   if (passSet && !editing) {
     return (
       <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce} headerSlot={<InfoTip text={t('settings.adguard.hint')} />}>
@@ -3383,10 +3398,10 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label={t('common.close')}
-            className="text-caption text-text-muted hover:text-text-primary"
+            className="flex items-center gap-1 text-caption text-accent hover:underline"
           >
             <ChevronUp className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.speedtest.recentHide')}
           </button>
         </div>
       </div>
@@ -3455,7 +3470,7 @@ type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt'
 // Los diálogos de configuración van GRANDES (#968, #977): el manager
 // (formularios, tablas) necesita el ancho casi completo. Wrapper compartido
 // por Servicios, Notificaciones (#996) y el test periódico (#997).
-const integrationDialogCls = 'w-[calc(100vw-2rem)] max-w-[1440px] max-h-[88vh] overflow-y-auto sm:max-w-[1440px]'
+const integrationDialogCls = 'w-[calc(100vw-2rem)] max-w-[900px] max-h-[88vh] overflow-y-auto sm:max-w-[900px]'
 
 // ConfigGear: icono Settings2 que abre el Dialog de configuración (#968).
 // Compartido por Servicios, Notificaciones (#996) y el test periódico (#997).
@@ -3568,6 +3583,7 @@ function ServicesCard({
               caption={t('settings.services.labsCaption')}
               checked={services.labs}
               disabled={disabled}
+              danger
               onCheckedChange={(v) => {
                 setService('labs', v)
                 onSaved()
@@ -3608,6 +3624,7 @@ function ServicesCard({
               checked={orchOn}
               onCheckedChange={(v) => void toggleOrchestration(v)}
               disabled={orchBusy || disabled}
+              danger
             />
             {/* Canales */}
             <SwitchRow
@@ -3615,6 +3632,7 @@ function ServicesCard({
               caption={t('settings.labs.canalesCaption')}
               checked={services.canales}
               disabled={disabled}
+              danger
               onCheckedChange={(v) => {
                 setService('canales', v)
                 onSaved()
@@ -3628,6 +3646,7 @@ function ServicesCard({
               caption={t('settings.labs.actualizacionesCaption')}
               checked={services.actualizaciones}
               disabled={disabled}
+              danger
               onCheckedChange={(v) => {
                 setService('actualizaciones', v)
                 onSaved()
@@ -3859,12 +3878,20 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
           <span className="text-sm text-text-secondary">
             {state === 'enabled' ? t('settings.push.stateOn') : t('settings.push.stateOff')}
           </span>
-          <Switch
-            checked={state === 'enabled'}
-            disabled={busy || !toggleable}
-            onCheckedChange={(v) => void (v ? enable() : disable())}
-            aria-label={t('settings.push.title')}
-          />
+          {/* Al pasar por encima del check deshabilitado se ve el porqué
+              (sin HTTPS no hay Web Push); el wrapper recibe el hover aunque
+              el Switch esté disabled. */}
+          <span
+            className="inline-flex"
+            title={!toggleable ? t(`settings.push.${state === 'demo' ? 'demoNote' : state}`) : undefined}
+          >
+            <Switch
+              checked={state === 'enabled'}
+              disabled={busy || !toggleable}
+              onCheckedChange={(v) => void (v ? enable() : disable())}
+              aria-label={t('settings.push.title')}
+            />
+          </span>
         </div>
       )}
 
@@ -5612,14 +5639,6 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Historial de actualizaciones (issue #159) — solo admin y modo live;
-            el updater es un mecanismo de auto-aplicación que no existe en demo */}
-        {!isDemo && auth?.role === 'admin' && (
-          <div className="order-210">
-            <UpdateHistoryCard />
-          </div>
-        )}
-
         {/* Gestión de routers — solo admin y con backend (modo live); la API
             exige rol admin en las mutaciones (auditoría v2.4.0 §2, #7) */}
         {!isDemo && auth?.role === 'admin' && (
@@ -5962,9 +5981,14 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Derecha: Sistema */}
+              {/* Derecha: Sistema + historial de actualizaciones */}
               <div>
                 <SystemInfoBlock bare />
+                {!isDemo && auth?.role === 'admin' && (
+                  <div className="mt-4">
+                    <UpdateHistoryCard />
+                  </div>
+                )}
               </div>
             </div>
           </Card>
