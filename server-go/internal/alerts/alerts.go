@@ -79,6 +79,11 @@ type AlertEvent struct {
 	// SuppressedBy is the routerId of the parent router whose offline alert
 	// is suppressing this one (issue #332). Empty when not suppressed.
 	SuppressedBy string `json:"suppressedBy,omitempty"`
+	// Volatile (#966): la alerta vive SOLO en memoria (no se persiste en
+	// alert_log ni sobrevive a reinicios) y desaparece del feed cuando su
+	// condicion se resuelve (engine.Remove). Uso: caida de agente, cuya
+	// semantica es "viva por router", no un historico de incidentes.
+	Volatile bool `json:"-"`
 }
 
 // Stable alert-type slugs (issue #310): keys of the Hints map.
@@ -264,9 +269,24 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 				}
 			}
 		}
+		e.purgeVolatileHistoryLocked()
 		e.loadPersistedLocked()
 	}
 	return e
+}
+
+// purgeVolatileHistoryLocked: purga one-shot al arrancar (#966). Las alertas
+// de caida de agente AHORA son volatiles (no se persisten), pero las
+// instalaciones previas acumularon un historico de agent-down* en alert_log
+// que seguiria reapareciendo tras cada reinicio. Se borran ANTES de cargar
+// el log, para que ni siquiera el primer arranque tras actualizar lo muestre.
+func (e *Engine) purgeVolatileHistoryLocked() {
+	if e.db == nil || !e.persistLog {
+		return
+	}
+	_, _ = e.db.Exec(
+		`DELETE FROM alert_log WHERE id LIKE 'alert-agent-down-%'
+		   OR type IN ('agent-down', 'agent-down-ssh')`)
 }
 
 // loadPersistedLocked restaura el log desde alert_log (issue #798): los
@@ -454,7 +474,7 @@ func (e *Engine) insertaLocked(ev AlertEvent, now time.Time, skipDedup bool) boo
 // de verdad del leído es el read-set de kv y se espeja aparte en MarkRead.
 // Best-effort: un fallo de BD nunca debe romper el camino de alertado.
 func (e *Engine) persistLocked(ev AlertEvent) {
-	if e.db == nil || !e.persistLog || ev.ID == "" {
+	if e.db == nil || !e.persistLog || ev.ID == "" || ev.Volatile {
 		return
 	}
 	varsRaw := ""
@@ -597,6 +617,69 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 	return ok
 }
 
+// EmitVolatile (#966): emite una alerta VOLÁTIL (caída de agente): NUNCA se
+// persiste en alert_log y, si ya existe una alerta con el mismo ID, se
+// actualiza en sitio y se mueve al frente (semántica "viva por router": un
+// incidente abierto = una alerta con ID estable). Si quedara una copia
+// persistida antigua con ese ID, se borra. Config, silencio y supresión
+// topológica aplican igual que en Emit; el dedup de 5 min NO aplica (el
+// tracking del incidente vive en el emisor, patrón #846). Devuelve true si
+// el evento pasó la config.
+func (e *Engine) EmitVolatile(ev AlertEvent) bool {
+	ev.Volatile = true
+	e.mu.Lock()
+	if !e.pasaLocked(ev) {
+		e.mu.Unlock()
+		return false
+	}
+	if e.suppression != nil && ev.RouterID != "" {
+		if parent := e.suppression.SuppressedBy(ev.RouterID); parent != "" {
+			ev.SuppressedBy = parent
+		}
+	}
+	now := e.now()
+	if ev.Ts == 0 {
+		ev.Ts = now.Unix()
+	}
+	if ev.Time == "" {
+		ev.Time = "ahora mismo"
+	}
+	replaced := false
+	for i := range e.list {
+		if e.list[i].ID == ev.ID {
+			ev.Read = e.readSet[ev.ID]
+			e.list = append(e.list[:i], e.list[i+1:]...)
+			e.list = append([]AlertEvent{ev}, e.list...)
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		// #833: si el ID estaba limpiado y la condición se re-dispara, la
+		// alerta vuelve al feed (igual que en insertaLocked).
+		if _, was := e.dismissed[ev.ID]; was {
+			delete(e.dismissed, ev.ID)
+			e.saveDismissedLocked()
+		}
+		ev.Read = false
+		e.list = append([]AlertEvent{ev}, e.list...)
+		if len(e.list) > MaxEvents {
+			e.list = e.list[:MaxEvents]
+		}
+	}
+	// Defensa en profundidad: ninguna copia persistida de una volátil debe
+	// sobrevivir (la purga de arranque cubre el histórico, esto el presente).
+	if e.db != nil && ev.ID != "" {
+		_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", ev.ID)
+	}
+	n := e.notifier
+	e.mu.Unlock()
+	if n != nil && ev.SuppressedBy == "" {
+		n.Notify(ev)
+	}
+	return true
+}
+
 // Seed inserta un evento histórico (arranque del modo demo) SIN aplicar el
 // filtro de config — el SPEC §5 exige que las 5 canon sobrevivan con los
 // defaults aunque "vpn:none"/"clients:urgent" descartarían 2 en creación —.
@@ -667,7 +750,8 @@ func (e *Engine) UnreadCount() int {
 	return n
 }
 
-// MarkRead marca IDs como leídos (persiste; cap 200 FIFO).
+// MarkRead marca IDs como leídos (persiste; cap 200 FIFO sobre los IDs que
+// ya NO son visibles; una alerta visible leída nunca vuelve a no-leída).
 func (e *Engine) MarkRead(ids ...string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -682,11 +766,47 @@ func (e *Engine) MarkRead(ids ...string) {
 			_, _ = e.db.Exec("UPDATE alert_log SET read_flag = 1 WHERE id = ?", id)
 		}
 	}
-	for len(e.readOrd) > MaxReadIDs {
-		delete(e.readSet, e.readOrd[0])
-		e.readOrd = e.readOrd[1:]
-	}
+	e.pruneReadOrdLocked()
 	e.saveReadLocked()
+}
+
+// pruneReadOrdLocked poda el FIFO del read-set, PERO sin expulsar IDs que
+// siguen en la lista (#966): con la poda FIFO a ciegas, marcar muchas
+// alertas como leídas podía expulsar del read-set una alerta AÚN VISIBLE,
+// que reaparecía como no leída (el badge volvía a subir tras "marcar todo
+// como leído"). Lo visible leído se queda leído; el cap aplica al resto.
+func (e *Engine) pruneReadOrdLocked() {
+	visible := 0
+	for _, id := range e.readOrd {
+		if e.idInListLocked(id) {
+			visible++
+		}
+	}
+	budget := len(e.readOrd) - visible - MaxReadIDs
+	if budget <= 0 {
+		return
+	}
+	kept := e.readOrd[:0]
+	for _, id := range e.readOrd {
+		if budget > 0 && !e.idInListLocked(id) {
+			delete(e.readSet, id)
+			budget--
+			continue
+		}
+		kept = append(kept, id)
+	}
+	e.readOrd = kept
+}
+
+// idInListLocked: ¿el ID sigue en la lista (potencialmente visible)?
+// Requiere e.mu ya tomado.
+func (e *Engine) idInListLocked(id string) bool {
+	for _, ev := range e.list {
+		if ev.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // MarkAllRead marca leídas todas las alertas actuales.
@@ -728,10 +848,7 @@ func (e *Engine) Dismiss(ids ...string) {
 			_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
 		}
 	}
-	for len(e.readOrd) > MaxReadIDs {
-		delete(e.readSet, e.readOrd[0])
-		e.readOrd = e.readOrd[1:]
-	}
+	e.pruneReadOrdLocked()
 	if changed {
 		e.saveDismissedLocked()
 		e.saveReadLocked()

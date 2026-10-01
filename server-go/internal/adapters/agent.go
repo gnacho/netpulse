@@ -390,6 +390,10 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 		if l.agentDown[cfg.ID] {
 			l.agentDown[cfg.ID] = false
 			name := agentName(cfg)
+			// #966: la alerta de caída es VOLÁTIL con ID estable por router:
+			// al recuperarse el agente desaparece del feed (no acumula
+			// historial). "Agente recuperado" SÍ persiste (registro positivo).
+			l.engine.Remove("alert-agent-down-" + cfg.ID)
 			l.engine.Emit(AlertEvent{
 				ID:       fmt.Sprintf("alert-agent-ok-%s-%d", cfg.ID, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false,
@@ -456,9 +460,13 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 				// urgente, comparable al offline, para que pase los filtros
 				// de notificación "solo urgentes del topic router". Con SSH
 				// disponible se degrada con gracia y sigue siendo system.
+				// #966: la alerta de caída es VOLÁTIL y con ID estable por
+				// router (alert-agent-down-<id>): no se persiste en
+				// alert_log, no sobrevive reinicios y al recuperarse el
+				// agente desaparece del feed (engine.Remove arriba).
 				if cfg.AgentOnly {
-					l.engine.Emit(AlertEvent{
-						ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
+					l.engine.EmitVolatile(AlertEvent{
+						ID:       "alert-agent-down-" + cfg.ID,
 						Category: alerts.CatRouter, Urgent: true,
 						Severity:    "critical",
 						Title:       fmt.Sprintf("Agente caído en %s", name),
@@ -469,8 +477,8 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						Time:        "ahora mismo", RouterID: cfg.ID,
 					})
 				} else {
-					l.engine.Emit(AlertEvent{
-						ID:       fmt.Sprintf("alert-agent-down-%s-%d", cfg.ID, time.Now().UnixMilli()),
+					l.engine.EmitVolatile(AlertEvent{
+						ID:       "alert-agent-down-" + cfg.ID,
 						Category: alerts.CatSystem, Urgent: false,
 						Severity:    "warn",
 						Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
