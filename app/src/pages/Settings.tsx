@@ -3455,7 +3455,7 @@ type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt'
 // Los diálogos de configuración van GRANDES (#968, #977): el manager
 // (formularios, tablas) necesita el ancho casi completo. Wrapper compartido
 // por Servicios, Notificaciones (#996) y el test periódico (#997).
-const integrationDialogCls = 'w-[calc(100vw-2rem)] max-w-[90rem] max-h-[94vh] overflow-y-auto'
+const integrationDialogCls = 'w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-none overflow-y-auto sm:max-w-none'
 
 // ConfigGear: icono Settings2 que abre el Dialog de configuración (#968).
 // Compartido por Servicios, Notificaciones (#996) y el test periódico (#997).
