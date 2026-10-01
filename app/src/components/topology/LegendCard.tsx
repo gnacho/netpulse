@@ -9,15 +9,17 @@ import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 import type { TopologyModel } from './model'
-import { COLOR } from './model'
+import { BAND_HEX, COLOR } from './model'
 
 // ---------------------------------------------------------------------------
 // Contenido compartido
 // ---------------------------------------------------------------------------
 
+// Filas de banda: misma paleta centralizada BAND_HEX (issue #986), ascendente.
 const BAND_ROWS: { color: string; label?: string; labelKey?: string }[] = [
-  { color: COLOR.accent, label: '5 GHz' },
-  { color: COLOR.info, label: '2.4 GHz' },
+  { color: BAND_HEX['2.4 GHz'], label: '2.4 GHz' },
+  { color: BAND_HEX['5 GHz'], label: '5 GHz' },
+  { color: BAND_HEX['6 GHz'], label: '6 GHz' },
   { color: COLOR.ok, labelKey: 'topology.legend.wired' },
   { color: COLOR.warn, labelKey: 'topology.weakSignal' },
 ]

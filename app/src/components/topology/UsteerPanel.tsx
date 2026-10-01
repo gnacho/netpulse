@@ -8,6 +8,7 @@ import { Wifi } from 'lucide-react'
 import { SectionHeader } from '@/components/SectionHeader'
 import { redirectLogin } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
+import { bandBadgeClass } from './model'
 
 interface UsteerAp {
   ssid: string
@@ -86,7 +87,7 @@ export function UsteerPanel() {
           >
             <span className={cn(
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-              ap.band === '5 GHz' ? 'bg-accent-soft text-accent' : 'bg-info/10 text-info',
+              bandBadgeClass(ap.band),
             )}>
               <Wifi className="h-4 w-4" strokeWidth={1.75} />
             </span>

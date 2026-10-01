@@ -188,7 +188,7 @@ export type DeviceType =
   | 'switch'
   | 'desconocido'
 
-export type Band = '5 GHz' | '2.4 GHz' | 'cable' | '—'
+export type Band = '6 GHz' | '5 GHz' | '2.4 GHz' | '60 GHz' | 'cable' | '—'
 
 /** Identificación LLDP de un vecino (switch gestionado, AP, host…). */
 export interface LldpInfo {
