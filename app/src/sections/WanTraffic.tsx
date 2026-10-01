@@ -5,6 +5,7 @@ import { Activity } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TimeRange, TrafficPoint } from '@/data/mock'
 import { fmtBytes, fmtEs } from '@/data/mock'
+import { relTimeFromTs } from '@/i18n'
 import { useNetPulse } from '@/data/DataProvider'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, TIME_RANGE_OPTIONS } from '@/components/SegmentedControl'
@@ -52,20 +53,54 @@ function makeLiveDot(dataLength: number, color: string) {
   }
 }
 
-/** Velocidad medida (#982): evolución del histórico de speedtests (7 días).
- *  SOLO la gráfica: sin botón de ejecutar test (ese vive en Ajustes y en el
- *  detalle del gateway) y sin la línea de valores del último test. Vive dentro
- *  de Tráfico WAN porque mide la capacidad real de la misma WAN y así no se
- *  añade otra fila al overview. Oculta si no hay histórico (demo, API caída). */
-function SpeedtestHistoryBlock() {
+/** Velocidad medida (#982): último test real (% del plan, bajada/subida,
+ *  ping, antigüedad y servidor) + evolución del histórico (7 días). SIN
+ *  botón de ejecutar test (ese vive en Ajustes y en el detalle del gateway).
+ *  Vive dentro de Tráfico WAN porque mide la capacidad real de la misma WAN
+ *  y así no se añade otra fila al overview. Oculta si no hay histórico. */
+function SpeedtestHistoryBlock({ contractDown }: { contractDown?: number }) {
   const { t } = useTranslation()
-  const points = useSpeedtestHistory(168)
+  const { points, last } = useSpeedtestHistory(168)
   if (points.length <= 1) return null
+  // El API serializa ts como ISO 8601; relTimeFromTs espera unix SEGUNDOS.
+  const when = last ? (relTimeFromTs(Math.floor(new Date(last.ts).getTime() / 1000)) ?? '') : ''
+  const planPct =
+    contractDown && contractDown > 0 && last ? Math.round((last.downMbps / contractDown) * 100) : null
   return (
     <div className="mt-4 border-t border-border pt-4">
-      <div className="flex items-center gap-1.5">
-        <Activity className="h-3.5 w-3.5 text-accent" aria-hidden />
-        <span className="text-label uppercase text-text-muted">{t('routerDetail.wan.speedtestTitle')}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex items-center gap-1.5">
+          <Activity className="h-3.5 w-3.5 text-accent" aria-hidden />
+          <span className="text-label uppercase text-text-muted">{t('routerDetail.wan.speedtestTitle')}</span>
+          {planPct !== null && (
+            <span
+              className={`ml-1 rounded-full border px-2 py-0.5 font-mono text-[11px] ${
+                planPct >= 80
+                  ? 'border-ok/40 bg-ok/10 text-ok'
+                  : planPct >= 50
+                    ? 'border-warn/40 bg-warn/10 text-warn'
+                    : 'border-danger/40 bg-danger/10 text-danger'
+              }`}
+            >
+              {t('routerDetail.wan.planPct', { pct: planPct })}
+            </span>
+          )}
+        </div>
+        {last && (
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-mono-sm text-text-primary">
+            <span>
+              <span className="text-accent">↓</span> {fmtEs(last.downMbps, 0)} Mbps
+            </span>
+            <span>
+              <span className="text-tunnel">↑</span> {fmtEs(last.upMbps, 0)} Mbps
+            </span>
+            {last.pingMs !== undefined && <span className="text-text-muted">{fmtEs(last.pingMs, 0)} ms</span>}
+            {when && <span className="text-text-muted">· {when}</span>}
+            {last.serverName && (
+              <span className="text-text-muted">· {t('routerDetail.wan.speedtestServer', { name: last.serverName })}</span>
+            )}
+          </div>
+        )}
       </div>
       <SpeedtestHistoryChart points={points} height={96} />
     </div>
@@ -249,7 +284,7 @@ export function WanTraffic() {
       ) : null}
 
       {/* Velocidad medida (#982): gráfica del histórico de speedtests */}
-      <SpeedtestHistoryBlock />
+      <SpeedtestHistoryBlock contractDown={wan.contractDownMbps} />
     </section>
   )
 }

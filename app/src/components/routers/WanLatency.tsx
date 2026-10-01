@@ -148,10 +148,12 @@ function toPoints(items: SpeedtestItem[]): SpeedtestPoint[] {
   return items.map((it) => ({ t: fmt.format(new Date(it.ts)), down: it.downMbps, up: it.upMbps }))
 }
 
-/** Hook ligero del histórico de speedtests (overview #982): solo la serie,
- *  sin estado de ejecución ni botón. Carga única al montar. */
-export function useSpeedtestHistory(hours = 168): SpeedtestPoint[] {
+/** Hook ligero del histórico de speedtests (overview #982): la serie y el
+ *  último test real (para la línea de valores), sin estado de ejecución ni
+ *  botón. Carga única al montar. */
+export function useSpeedtestHistory(hours = 168): { points: SpeedtestPoint[]; last: SpeedtestItem | null } {
   const [points, setPoints] = useState<SpeedtestPoint[]>([])
+  const [last, setLast] = useState<SpeedtestItem | null>(null)
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -160,7 +162,9 @@ export function useSpeedtestHistory(hours = 168): SpeedtestPoint[] {
         if (!res.ok || cancelled) return
         const h = await res.json()
         if (cancelled) return
-        setPoints(toPoints(h.items ?? []))
+        const items: SpeedtestItem[] = h.items ?? []
+        setPoints(toPoints(items))
+        setLast(items.length ? items[items.length - 1]! : null)
       } catch {
         // Sin red / sesión caducada: no se pinta nada.
       }
@@ -169,7 +173,7 @@ export function useSpeedtestHistory(hours = 168): SpeedtestPoint[] {
       cancelled = true
     }
   }, [hours])
-  return points
+  return { points, last }
 }
 
 /** Gráfica del histórico de velocidad medida: SOLO la serie, sin botón de
