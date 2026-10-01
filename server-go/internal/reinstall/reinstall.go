@@ -19,7 +19,7 @@ import (
 // so the agent token in the request header is not handed to whoever answers.
 // The binary's sha256 was always checked; this protects the token.
 type Trust struct {
-	ServerURL string // replaces the URL given to Script, e.g. https://host:3443
+	ServerURL string // replaces the URL given to Script, e.g. https://host:443
 	ServerFP  string // written as NETPULSE_SERVER_FP: what the agent pins
 	CAPEM     []byte // the root to verify downloads with
 }

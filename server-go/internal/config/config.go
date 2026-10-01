@@ -70,7 +70,7 @@ type Config struct {
 	Onbox            bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
 	GhostPortEnabled bool   // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
 	// NETPULSE_TLS_ENABLED=1: listener HTTPS adicional (puerto NETPULSE_TLS_PORT,
-	// default 3443) junto al HTTP de PORT. Opt-in: sin la variable, arranque
+	// default 443) junto al HTTP de PORT. Opt-in: sin la variable, arranque
 	// idéntico al actual. El modo on-box ya sirve HTTPS en PORT (Fase 9) y no
 	// necesita esta variable (#696).
 	TLSEnabled bool
@@ -498,9 +498,9 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
-	// NETPULSE_TLS_PORT: int 1..65535, default 3443 (solo relevante si TLS
+	// NETPULSE_TLS_PORT: int 1..65535, default 443 (solo relevante si TLS
 	// está habilitado).
-	tlsPort := 3443
+	tlsPort := 443
 	tlsPortSet := false
 	if v, ok := env["NETPULSE_TLS_PORT"]; ok && v != "" {
 		n, err := strconv.Atoi(strings.TrimSpace(v))

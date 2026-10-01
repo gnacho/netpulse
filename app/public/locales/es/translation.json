@@ -1789,7 +1789,6 @@
     },
     "https": {
       "title": "HTTPS",
-      "caption": "Sirve NetPulse por HTTPS con su propia autoridad de certificación y retira el HTTP plano paso a paso.",
       "loadError": "No se pudieron cargar los ajustes de HTTPS.",
       "unavailable": "HTTPS se gestiona fuera de esta página: {{reason}}.",
       "enabled": "HTTPS en el puerto {{port}}",
@@ -1809,15 +1808,15 @@
       "modes": {
         "full": {
           "title": "Todo (como antes)",
-          "hint": "El HTTP plano lo sirve todo. Seguro mientras instalas el certificado raíz y mueves los agentes."
+          "hint": "El HTTP plano lo sirve todo, como hasta ahora."
         },
         "migrate": {
           "title": "Solo agentes",
-          "hint": "Los navegadores van a HTTPS; los inicios de sesión y las llamadas a la API por HTTP plano se rechazan. Los agentes siguen reportando por HTTP plano hasta que cada uno se mueva."
+          "hint": "Los navegadores van a HTTPS; los agentes siguen por HTTP hasta moverlos."
         },
         "redirect": {
           "title": "Nada",
-          "hint": "El HTTP plano solo redirige a HTTPS y entrega el certificado raíz. Los agentes que sigan en HTTP plano dejan de reportar."
+          "hint": "El HTTP plano solo redirige a HTTPS; los agentes que sigan en HTTP dejan de reportar."
         }
       },
       "agentsOnHttp": "Siguen reportando por HTTP plano",

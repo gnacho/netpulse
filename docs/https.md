@@ -15,7 +15,7 @@ Nothing changes until an admin turns it on.
 
 ## Turning it on
 
-In **Settings → HTTPS** (admins only), switch on **HTTPS on port 3443**.
+In **Settings → HTTPS** (admins only), switch on **HTTPS on port 443**.
 Every change on that card asks for your password again.
 
 Turning HTTPS on only **adds** the HTTPS port. Plain HTTP on the usual port
@@ -29,7 +29,7 @@ root's fingerprint:
 [netpulse] TLS: agents pin 1f2e…
 ```
 
-The port is `NETPULSE_TLS_PORT` (3443 by default).
+The port is `NETPULSE_TLS_PORT` (443 by default).
 
 ## Installing the root certificate
 
@@ -63,7 +63,7 @@ journalctl -u netpulse | grep 'root certificate SHA-256'
   Certificates → Authorities → Import, then tick "Trust this CA to identify
   websites".
 
-Then open `https://<server>:3443`.
+Then open `https://<server>:443`.
 
 ### What the root can and cannot vouch for
 
@@ -109,9 +109,9 @@ moves in one of these ways:
 - **The install command** shown when adding an agent. Once HTTPS is on, it
   carries the root and the pin.
 - **NetGrip:** in its NetPulse settings, set the server to
-  `https://<server>:3443` and the server fingerprint to the **agent pin**
+  `https://<server>:443` and the server fingerprint to the **agent pin**
   shown on the HTTPS card.
-- **Any other agent:** set `NETPULSE_SERVER=https://<server>:3443` and
+- **Any other agent:** set `NETPULSE_SERVER=https://<server>:443` and
   `NETPULSE_SERVER_FP=<agent pin>` in its env file.
 - **Pairing with the pairing token:** an agent given only an https server URL
   and the pairing token proves the server's key with that token before
@@ -119,7 +119,7 @@ moves in one of these ways:
 - **`deploy/switch-scraper.sh`:** fetch the root once into a file its user
   can read (`curl -fsS http://127.0.0.1:3000/netpulse-ca.pem -o …`; the
   server's own copy is private to it), then set
-  `NETPULSE_URL=https://127.0.0.1:3443` and `NETPULSE_CA` to that file.
+  `NETPULSE_URL=https://127.0.0.1:443` and `NETPULSE_CA` to that file.
 
 Zero-touch enrolment (`AGENT_AUTOENROLL`) hands its token to anyone who asks
 over UDP, so it cannot prove anything. An agent enrolled that way trusts

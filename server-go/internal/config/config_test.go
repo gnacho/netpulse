@@ -82,8 +82,8 @@ func TestLoadTLSDefaultOff(t *testing.T) {
 	if cfg.TLSEnabled {
 		t.Fatal("TLSEnabled debe ser false por defecto (arranque idéntico al actual)")
 	}
-	if cfg.TLSPort != 3443 {
-		t.Fatalf("TLSPort = %d, esperaba 3443 (default)", cfg.TLSPort)
+	if cfg.TLSPort != 443 {
+		t.Fatalf("TLSPort = %d, esperaba 443 (default)", cfg.TLSPort)
 	}
 	if cfg.TLSCert != "" || cfg.TLSKey != "" {
 		t.Fatalf("TLSCert/Key = %q/%q, esperaba vacíos por defecto", cfg.TLSCert, cfg.TLSKey)
@@ -98,8 +98,8 @@ func TestLoadTLSEnabledDefaultPort(t *testing.T) {
 	if !cfg.TLSEnabled {
 		t.Fatal("TLSEnabled debe ser true con NETPULSE_TLS_ENABLED=1")
 	}
-	if cfg.TLSPort != 3443 {
-		t.Fatalf("TLSPort = %d, esperaba 3443 (default)", cfg.TLSPort)
+	if cfg.TLSPort != 443 {
+		t.Fatalf("TLSPort = %d, esperaba 443 (default)", cfg.TLSPort)
 	}
 }
 

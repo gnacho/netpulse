@@ -4,7 +4,7 @@
 //
 // FORK: see docs/https.md. In short:
 //
-//   - Enabling HTTPS only adds a TLS listener (NETPULSE_TLS_PORT, 3443 by
+//   - Enabling HTTPS only adds a TLS listener (NETPULSE_TLS_PORT, 443 by
 //     default) served with a leaf of the private CA. Plain HTTP keeps working
 //     exactly as before (mode "full"), so enabling it cannot lock anyone out.
 //   - Mode "migrate" stops plain HTTP from carrying credentials - logins,

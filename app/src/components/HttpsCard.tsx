@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink, RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { InfoTip } from '@/components/InfoTip'
 
 // FORK: Settings > HTTPS (server: internal/httpapi/https_settings.go).
 //
@@ -185,30 +186,27 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* On / off */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-sm font-medium text-text-primary">{t('settings.https.enabled', { port: st.port })}</div>
-          <p className="text-[11px] text-text-muted">{t('settings.https.enabledHint')}</p>
+      {/* Activar HTTPS + puerto del listener (#978) en UNA fila (#995): el
+          cambio de puerto se aplica en caliente - el listener se reconecta
+          al puerto nuevo sin reiniciar el servidor. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
+            {t('settings.https.enabled', { port: st.port })}
+            <InfoTip text={t('settings.https.enabledHint')} />
+          </span>
+          <Switch
+            checked={change?.enabled ?? st.enabled}
+            disabled={st.enabledLocked || busy}
+            onCheckedChange={(v) => setChange(v === st.enabled ? null : { enabled: v })}
+            aria-label={t('settings.https.enabled', { port: st.port })}
+          />
         </div>
-        <Switch
-          checked={change?.enabled ?? st.enabled}
-          disabled={st.enabledLocked || busy}
-          onCheckedChange={(v) => setChange(v === st.enabled ? null : { enabled: v })}
-          aria-label={t('settings.https.enabled', { port: st.port })}
-        />
-      </div>
-      {st.enabledLocked && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
-      {st.error && <p className="text-xs text-danger">{st.error}</p>}
-
-      {/* Puerto del listener HTTPS (#978): se aplica en caliente - el
-          listener se reconecta al puerto nuevo sin reiniciar el servidor. */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-sm font-medium text-text-primary">{t('settings.https.portTitle')}</div>
-          <p className="text-[11px] text-text-muted">{t('settings.https.portHint')}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
+            {t('settings.https.portTitle')}
+            <InfoTip text={t('settings.https.portHint')} />
+          </span>
           <input
             type="number"
             min={1}
@@ -231,7 +229,8 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
           </button>
         </div>
       </div>
-      {st.portLocked && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
+      {(st.enabledLocked || st.portLocked) && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
+      {st.error && <p className="text-xs text-danger">{st.error}</p>}
 
       {st.enabled && (
         <>
@@ -240,8 +239,8 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
             <div className="mb-1 flex items-center gap-2 text-sm font-medium text-text-primary">
               <ShieldCheck className="h-4 w-4 text-accent" strokeWidth={2} />
               {t('settings.https.rootTitle')}
+              <InfoTip text={t('settings.https.rootHint')} />
             </div>
-            <p className="mb-2 text-[11px] leading-relaxed text-text-secondary">{t('settings.https.rootHint')}</p>
             <div className="mb-2 break-all font-mono text-[11px] text-text-primary">{st.rootSha256}</div>
             <div className="flex flex-wrap gap-2">
               <a
@@ -282,13 +281,17 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
                 {renewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 {t('settings.https.renew')}
               </button>
-              <span className="text-[11px] text-text-muted">{renewNote || t('settings.https.renewHint')}</span>
+              <InfoTip text={t('settings.https.renewHint')} />
+              {renewNote && <span className="text-[11px] text-text-muted">{renewNote}</span>}
             </div>
           </div>
 
           {/* The pin for agents */}
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{t('settings.https.agentPin')}</div>
+            <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+              {t('settings.https.agentPin')}
+              <InfoTip text={t('settings.https.agentPinHint', { port: st.port })} />
+            </div>
             <div className="mt-1 flex items-center gap-2">
               <code className="flex-1 break-all rounded-md border border-border bg-elevated px-2 py-1 font-mono text-[11px] text-text-primary">
                 {st.fingerprint}
@@ -306,7 +309,6 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
                 {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-text-muted">{t('settings.https.agentPinHint', { port: st.port })}</p>
           </div>
 
           {/* What plain HTTP may still do */}

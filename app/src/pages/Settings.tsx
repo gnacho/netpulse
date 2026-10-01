@@ -5660,7 +5660,7 @@ export default function Settings() {
             still do (HttpsCard). Admin only, live mode. */}
         {!isDemo && auth?.role === 'admin' && (
           <div className="order-121" id="https">
-            <Card title={t('settings.https.title')} caption={t('settings.https.caption')} index={5} reduce={reduce}>
+            <Card title={t('settings.https.title')} index={5} reduce={reduce}>
               <HttpsCard onSaved={notify} />
             </Card>
           </div>
