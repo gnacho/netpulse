@@ -60,6 +60,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { InfoTip } from '@/components/InfoTip'
 import { useNetPulse } from '@/data/DataProvider'
 import { fmtEs } from '@/data/mock'
@@ -251,13 +252,21 @@ function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trail
           </span>
         )}
         <div className="min-w-0">
-          <div className={cn('text-sm font-medium', danger ? 'text-danger' : 'text-text-primary')}>{label}</div>
+          <div className="text-sm font-medium text-text-primary">{label}</div>
           {caption && <div className="text-caption text-text-muted">{caption}</div>}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {trailing}
-        <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} aria-label={label} />
+        {/* danger: el acento rojo va en el CHECK (escribe en los routers),
+            no en el texto de la fila. */}
+        <Switch
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          disabled={disabled}
+          aria-label={label}
+          className={danger ? 'data-[state=checked]:bg-danger' : undefined}
+        />
       </div>
     </div>
   )
@@ -3558,59 +3567,53 @@ function ServicesCard({
 
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
-      <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
-        {/* Grupo "Servicios de red": toggles de visibilidad (AdGuard/WG/
-            OpenVPN) + Labs DIRECTAMENTE DEBAJO de OpenVPN. */}
-        <div>
-          <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
-          <div className="divide-y divide-border/60">
-            {networkRows.map((row) => (
-              <SwitchRow
-                key={row.key}
-                label={row.label}
-                caption={row.caption}
-                checked={services[row.key]}
-                disabled={disabled}
-                trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
-                onCheckedChange={(v) => {
-                  onServiceToggle(row.key, v)
-                  onSaved()
-                }}
-              />
-            ))}
+      {/* Lista única: primero todos los servicios de red, luego todas las
+          integraciones (sin columnas). */}
+      <div>
+        <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
+        <div className="divide-y divide-border/60">
+          {networkRows.map((row) => (
             <SwitchRow
-              label={t('settings.services.labs')}
-              caption={t('settings.services.labsCaption')}
-              checked={services.labs}
+              key={row.key}
+              label={row.label}
+              caption={row.caption}
+              checked={services[row.key]}
               disabled={disabled}
-              danger
+              trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
               onCheckedChange={(v) => {
-                setService('labs', v)
+                onServiceToggle(row.key, v)
                 onSaved()
               }}
             />
-          </div>
+          ))}
+          <SwitchRow
+            label={t('settings.services.labs')}
+            caption={t('settings.services.labsCaption')}
+            checked={services.labs}
+            disabled={disabled}
+            danger
+            onCheckedChange={(v) => {
+              setService('labs', v)
+              onSaved()
+            }}
+          />
         </div>
-        {/* Grupo "Integraciones": toggles SERVER-SIDE (Proxmox/MQTT) con
-            icono de configuración (#996: ntfy/Telegram van en Notificaciones). */}
-        <div>
-          <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
-          <div className="divide-y divide-border/60">
-            {integrationRows.map((row) => (
-              <SwitchRow
-                key={row.key}
-                label={row.label}
-                caption={row.caption}
-                checked={integrations[row.key]}
-                disabled={disabled}
-                trailing={gear(row.dialogKey, row.label)}
+        <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
+        <div className="divide-y divide-border/60">
+          {integrationRows.map((row) => (
+            <SwitchRow
+              key={row.key}
+              label={row.label}
+              caption={row.caption}
+              checked={integrations[row.key]}
+              disabled={disabled}
+              trailing={gear(row.dialogKey, row.label)}
                 onCheckedChange={(v) => {
                   setIntegration(row.key, v)
                   onSaved()
                 }}
               />
             ))}
-          </div>
         </div>
       </div>
 
@@ -3878,20 +3881,26 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
           <span className="text-sm text-text-secondary">
             {state === 'enabled' ? t('settings.push.stateOn') : t('settings.push.stateOff')}
           </span>
-          {/* Al pasar por encima del check deshabilitado se ve el porqué
-              (sin HTTPS no hay Web Push); el wrapper recibe el hover aunque
-              el Switch esté disabled. */}
-          <span
-            className="inline-flex"
-            title={!toggleable ? t(`settings.push.${state === 'demo' ? 'demoNote' : state}`) : undefined}
-          >
-            <Switch
-              checked={state === 'enabled'}
-              disabled={busy || !toggleable}
-              onCheckedChange={(v) => void (v ? enable() : disable())}
-              aria-label={t('settings.push.title')}
-            />
-          </span>
+          {/* El aviso aparece ENCIMA del check al intentar activarlo
+              (tooltip top sobre el wrapper; el Switch disabled no recibe
+              hover por sí solo). */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">
+                <Switch
+                  checked={state === 'enabled'}
+                  disabled={busy || !toggleable}
+                  onCheckedChange={(v) => void (v ? enable() : disable())}
+                  aria-label={t('settings.push.title')}
+                />
+              </span>
+            </TooltipTrigger>
+            {!toggleable && (
+              <TooltipContent side="top" className="max-w-xs border border-border-strong bg-elevated text-text-primary">
+                {t(`settings.push.${state === 'demo' ? 'demoNote' : state}`)}
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
       )}
 
@@ -3904,14 +3913,6 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
       {state === 'unsupported' && (
         <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
           {t('settings.push.unsupported')}
-        </p>
-      )}
-
-      {/* Sin HTTPS el check se ve pero no se puede activar (#998): la nota
-          explica cómo habilitarlo (Ajustes > HTTPS). */}
-      {state === 'insecure' && (
-        <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
-          {t('settings.push.insecure')}
         </p>
       )}
 
@@ -5633,7 +5634,7 @@ export default function Settings() {
             el historial de actualizaciones. */}
         {!isDemo && (
           <div className="order-205">
-            <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
+            <Card title={t('tokens.title')} index={6} reduce={reduce}>
               <TokensManager />
             </Card>
           </div>

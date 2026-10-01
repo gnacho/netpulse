@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { copyToClipboard } from '@/lib/utils'
+import { InfoTip } from '@/components/InfoTip'
 
 type TokenItem = {
   id: string
@@ -101,7 +102,7 @@ export function TokensManager() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">{t('tokens.desc')}</p>
+        <InfoTip text={t('tokens.desc')} />
         {!showForm && !created && (
           <button
             type="button"
@@ -208,10 +209,6 @@ export function TokensManager() {
       )}
 
       {loading && <p className="mt-4 text-sm text-text-muted">{t('common.loading')}</p>}
-
-      {!loading && tokens.length === 0 && !created && (
-        <p className="mt-4 text-sm text-text-muted">{t('tokens.empty')}</p>
-      )}
 
       {!loading && tokens.length > 0 && (
         <div className="mt-4 space-y-2">
