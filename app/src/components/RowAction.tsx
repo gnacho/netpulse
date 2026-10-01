@@ -9,19 +9,39 @@ import { cn } from '@/lib/utils'
 // coarse) no existe hover: acción e etiqueta se muestran SIEMPRE y con área
 // de clic mayor (#862 parte táctil). Compartida por el feed (Alerts.tsx) y el
 // resumen (AlertItem.tsx).
+// iconOnly (#965): la etiqueta NO se muestra nunca (queda en el title); el
+// botón es siempre visible con área de clic cómoda, sin depender del hover.
 export function RowAction({
   icon: Icon,
   label,
   onClick,
   className,
   title,
+  iconOnly = false,
 }: {
   icon: LucideIcon
   label: string
   onClick: (e: ReactMouseEvent) => void
   className?: string
   title: string
+  iconOnly?: boolean
 }) {
+  if (iconOnly) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'flex items-center justify-center rounded-md p-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 pointer-coarse:p-2.5 pointer-coarse:opacity-100',
+          className,
+        )}
+        title={title}
+        aria-label={title}
+      >
+        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+      </button>
+    )
+  }
   return (
     <button
       type="button"

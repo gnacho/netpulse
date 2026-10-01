@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleArrowUp,
-  Eraser,
   Fingerprint,
   Globe,
   Info,
@@ -387,23 +386,26 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
                 </button>
               )}
               {/* #833: acción propia de la alerta (solo cuando aplica) y
-                  limpiar alerta, siempre; icono + etiqueta con tooltip. */}
+                  limpiar alerta, siempre. #965: SOLO icono (sin etiqueta);
+                  el dismiss es un Check con hover verde. */}
               {action && (
                 <RowAction
                   icon={action.icon}
                   label={action.title}
                   title={action.title}
+                  iconOnly
                   onClick={(e) => { e.stopPropagation(); action.onClick() }}
                   className="text-text-muted hover:text-accent"
                 />
               )}
               {onDismiss && (
                 <RowAction
-                  icon={Eraser}
+                  icon={Check}
                   label={t('alerts.actions.dismiss')}
                   title={t('alerts.actions.dismiss')}
+                  iconOnly
                   onClick={(e) => { e.stopPropagation(); onDismiss(ev.id) }}
-                  className="text-text-muted hover:text-text-primary"
+                  className="text-text-muted hover:text-ok"
                 />
               )}
               <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>

@@ -551,7 +551,7 @@
     },
     "routersRow": {
       "summary": "{{online}} online · {{warnings}} with warnings",
-      "title": "Your routers"
+      "title": "Your fleet"
     },
     "services": {
       "activePeers": "Active · {{count}} peers",

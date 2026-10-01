@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleArrowUp, Eraser, Fingerprint, Info, OctagonX } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, CircleArrowUp, Fingerprint, Info, OctagonX } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -82,17 +82,19 @@ export function AlertItem({ alert, onClick, onDismiss, className }: AlertItemPro
                 icon={action.icon}
                 label={action.title}
                 title={action.title}
+                iconOnly
                 onClick={(e) => { e.stopPropagation(); action.onClick() }}
                 className="text-text-muted hover:text-accent"
               />
             )}
             {onDismiss && (
               <RowAction
-                icon={Eraser}
+                icon={Check}
                 label={t('alerts.actions.dismiss')}
                 title={t('alerts.actions.dismiss')}
+                iconOnly
                 onClick={(e) => { e.stopPropagation(); onDismiss(alert.id) }}
-                className="text-text-muted hover:text-text-primary"
+                className="text-text-muted hover:text-ok"
               />
             )}
             <span className="text-caption text-text-muted">{alertRelTime(alert)}</span>

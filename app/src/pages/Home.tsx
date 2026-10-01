@@ -10,39 +10,34 @@ import { WanTraffic } from '@/sections/WanTraffic'
 import { useNetPulse } from '@/data/DataProvider'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 
-/** Página Resumen `/` (home.md) */
+/** Página Resumen `/` (home.md). Layout #965: hero compacto + alertas 50/50,
+ *  tráfico WAN a todo lo ancho, flota, collector, SLEs y los servicios del
+ *  gateway (WireGuard/AdGuard) AL FINAL. */
 export default function Home() {
   const { isDemo } = useNetPulse()
   const [services] = useServicesVisibility()
   // Clave ESTABLE por tarjeta (#223): si AdGuard/WireGuard se deshabilitan en
-  // Ajustes la lista se reordena y, con key={i}, React remontaría RecentAlerts
-  // y perdería su readIds. Cada id identifica al hijo, no su posición.
-  const cards: { id: string; node: ReactNode }[] = []
-  if (services.adguard) cards.push({ id: 'adguard', node: <AdGuardCard /> })
-  if (services.wireguard) cards.push({ id: 'wireguard', node: <WireGuardCard /> })
-  cards.push({ id: 'alerts', node: <RecentAlerts /> })
-  const span = Math.max(4, Math.floor(12 / cards.length))
-  const spanCls = {
-    4: 'lg:col-span-4',
-    6: 'lg:col-span-6',
-    12: 'lg:col-span-12',
-  }[span]
+  // Ajustes la lista se reordena y, con key={i}, React remontaría los paneles.
+  // Cada id identifica al hijo, no su posición.
+  const serviceCards: { id: string; node: ReactNode }[] = []
+  if (services.wireguard) serviceCards.push({ id: 'wireguard', node: <WireGuardCard /> })
+  if (services.adguard) serviceCards.push({ id: 'adguard', node: <AdGuardCard /> })
+  const serviceSpan = serviceCards.length >= 2 ? 'lg:col-span-6' : 'lg:col-span-12'
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
-      {/* ① Hero 50% + Tráfico 50% */}
+      {/* ① Hero compacto 50% + Alertas 50% (el alto lo marca la tarjeta de
+          alertas; ambas secciones son h-full) */}
       <div className="lg:col-span-6">
-        <HeroStrip />
+        <HeroStrip compact />
       </div>
       <div className="lg:col-span-6">
+        <RecentAlerts />
+      </div>
+      {/* ② Tráfico WAN a todo lo ancho (la gráfica de velocidad vive aquí) */}
+      <div className="lg:col-span-12">
         <WanTraffic />
       </div>
-      {/* ② Servicios marcados en Ajustes + Alertas en una fila */}
-      {cards.map((c) => (
-        <div key={c.id} className={spanCls}>
-          {c.node}
-        </div>
-      ))}
-      {/* ③ Routers */}
+      {/* ③ Tu flota */}
       <div className="lg:col-span-12">
         <RoutersRow />
       </div>
@@ -58,6 +53,13 @@ export default function Home() {
           <WiFiSLECard />
         </div>
       )}
+      {/* ⑥ Servicios del gateway (WireGuard/AdGuard) AL FINAL, span 6/12
+          según cuántos sean visibles */}
+      {serviceCards.map((c) => (
+        <div key={c.id} className={serviceSpan}>
+          {c.node}
+        </div>
+      ))}
       {/* Top dispositivos: solo demo (en live no hay tráfico por dispositivo) */}
       {isDemo && (
         <div className="lg:col-span-12">

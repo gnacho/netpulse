@@ -48,8 +48,13 @@ function MiniStat({
 }
 
 /** ① Hero strip — saludo + estado arriba, donut de salud grande y centrado,
- *  stats en fila debajo (home.md §①) */
-export function HeroStrip() {
+ *  stats en fila debajo (home.md §①).
+ *  compact (#965): layout horizontal para la fila 50/50 con Alertas -
+ *  saludo+stats a la izquierda, donut 128px a la derecha. Conserva los
+ *  subscores WAN/Wi-Fi/Infra/Servicios (#334, con mini-barra, debajo de
+ *  latencia/dispositivos) y la latencia + clientes activos; el desglose de
+ *  penalizaciones se queda en la variante grande. */
+export function HeroStrip({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const { refreshKey } = useDashboard()
@@ -77,6 +82,125 @@ export function HeroStrip() {
 
   const alerts = healthScore.breakdown?.length ?? 0
   const statusLine = alerts > 0 ? t('home.importantAlerts', { count: alerts }) : t('home.noImportantAlerts')
+
+  // Fragmento compartido de subscores (#334): mini-barras WAN/Wi-Fi/Infra/
+  // Servicios. En compact van debajo de latencia/dispositivos (columna izq).
+  const subscoresBlock = healthScore.subscores && healthScore.subscores.length > 0 && (
+    <div className={cn('grid w-full grid-cols-2 gap-x-4 gap-y-1.5', compact ? 'mt-1 max-w-sm' : 'mt-2 max-w-xs')}>
+      {healthScore.subscores.map((s) => (
+        <div key={s.key} className="flex items-center gap-2">
+          <span className="w-14 shrink-0 truncate text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
+            {subscoreLabel(s.key, s.label)}
+          </span>
+          <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-border">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all duration-500',
+                s.score >= 90 ? 'bg-ok' : s.score >= 70 ? 'bg-warn' : 'bg-danger',
+              )}
+              style={{ width: `${s.score}%` }}
+            />
+          </div>
+          <span className="w-6 text-right font-mono text-[10px] text-text-secondary">
+            {s.score}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+
+  if (compact) {
+    return (
+      <section className="surface-featured mesh-bg relative h-full overflow-hidden rounded-2xl border bg-surface p-5">
+        {/* Halo radial cyan que respira */}
+        {!reduce && (
+          <motion.div
+            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-accent/[0.08] blur-3xl"
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+        <div className="relative flex h-full items-center gap-4">
+          {/* Columna izquierda: saludo + estado + stats + subscores */}
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <div>
+              <h1 className="font-display text-h1 text-text-primary" aria-label={greeting}>
+                {words.map((w, i) => (
+                  <Fragment key={`${w}-${i}`}>
+                    <motion.span
+                      className="inline-block"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, ease: 'easeOut', delay: i * 0.04 }}
+                    >
+                      {w}
+                    </motion.span>
+                    {i < words.length - 1 ? ' ' : ''}
+                  </Fragment>
+                ))}
+              </h1>
+              <motion.p
+                className="mt-1 flex items-center gap-1.5 text-sm font-medium text-text-secondary"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.25, duration: 0.4 }}
+              >
+                {alerts > 0 ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} />
+                    {statusLine}
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-ok" strokeWidth={1.75} />
+                    {statusLine}
+                  </>
+                )}
+              </motion.p>
+            </div>
+
+            {/* Stats: latencia + dispositivos, alineados a la izquierda */}
+            <div className="flex items-center gap-8">
+              <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
+                <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
+              </MiniStat>
+              <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
+                <CountUp value={deviceTotals.total} nonce={refreshKey} />
+              </MiniStat>
+            </div>
+
+            {/* Subscores (#334) debajo de latencia/dispositivos */}
+            {subscoresBlock}
+          </div>
+
+          {/* Donut de salud compacto, a la derecha */}
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            <motion.div layoutId="health-ring">
+              <HealthRing
+                value={healthScore.score}
+                size={128}
+                stroke={11}
+                ariaLabel={t('home.healthAria', {
+                  caption: t('common.healthCaption'),
+                  score: healthScore.score,
+                  label: healthLabel(healthScore.label),
+                })}
+                center={
+                  <div className="flex flex-col items-center">
+                    <span className="kpi-value text-2xl font-bold text-text-primary">
+                      <CountUp value={healthScore.score} duration={1.2} nonce={refreshKey} />
+                    </span>
+                    <span className="font-mono text-[10px] text-text-muted">/100</span>
+                  </div>
+                }
+              />
+            </motion.div>
+            <StatusPill tone="ok" label={healthLabel(healthScore.label)} />
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="surface-featured mesh-bg relative h-full overflow-hidden rounded-2xl border bg-surface p-5 md:p-6">
@@ -152,29 +276,7 @@ export function HeroStrip() {
           <span className="text-caption text-text-muted">{t('common.healthCaption')}</span>
 
           {/* Subscore bars (#334) */}
-          {healthScore.subscores && healthScore.subscores.length > 0 && (
-            <div className="mt-2 grid w-full max-w-xs grid-cols-2 gap-x-4 gap-y-1.5">
-              {healthScore.subscores.map((s) => (
-                <div key={s.key} className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 truncate text-right text-[10px] font-medium uppercase tracking-wider text-text-muted">
-                    {subscoreLabel(s.key, s.label)}
-                  </span>
-                  <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-border">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-500',
-                        s.score >= 90 ? 'bg-ok' : s.score >= 70 ? 'bg-warn' : 'bg-danger',
-                      )}
-                      style={{ width: `${s.score}%` }}
-                    />
-                  </div>
-                  <span className="w-6 text-right font-mono text-[10px] text-text-secondary">
-                    {s.score}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {subscoresBlock}
         </div>
 
         {/* Desglose del health score (#23): barras de penalizacion */}
