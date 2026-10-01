@@ -1366,11 +1366,8 @@
     "push": {
       "title": "Notificaciones push",
       "checking": "Comprobando soporte…",
-      "enable": "Activar",
-      "disable": "Desactivar",
-      "enabling": "Activando…",
-      "disabling": "Desactivando…",
       "stateOn": "Activadas",
+      "stateOff": "Desactivadas",
       "denied": "Permiso denegado en el navegador. Para reactivarlo: pulsa el candado (o el icono de ajustes) de la barra de direcciones → Permisos → Notificaciones → Permitir, y recarga la página.",
       "unsupported": "Este navegador no admite notificaciones push (hacen falta Service Worker, Push API y la API de notificaciones).",
       "insecure": "Las notificaciones push necesitan HTTPS, y esta página está abierta por HTTP. Abre NetPulse en su dirección HTTPS para activarlas en este dispositivo; un administrador activa HTTPS en Ajustes > HTTPS (puerto 3443 por defecto).",
@@ -1789,8 +1786,7 @@
     },
     "alertsLang": {
       "title": "Idioma de las notificaciones",
-      "description": "Idioma en que se envían los avisos de ntfy, Telegram y webhook (las alertas se componen en español y se traducen al publicar).",
-      "label": "Idioma de los avisos"
+      "description": "Idioma en que se envían los avisos de ntfy, Telegram y webhook (las alertas se componen en español y se traducen al publicar)."
     },
     "https": {
       "title": "HTTPS",

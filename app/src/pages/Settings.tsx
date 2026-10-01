@@ -4,8 +4,6 @@ import { Link } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   BadgeCheck,
-  BellOff,
-  BellRing,
   Check,
   ChevronDown,
   CircleAlert,
@@ -148,25 +146,23 @@ function AlertsLangControl({ onSaved }: { onSaved: () => void }) {
     }
   }
 
+  // #998: una sola etiqueta (el título de la subsección, con la explicación
+  // en el (i)); el select ya no repite un label que decía lo mismo.
   return (
-    <div className="flex items-center gap-3">
-      <label className="text-sm text-text-secondary" htmlFor="alerts-lang">
-        {t('settings.alertsLang.label')}
-      </label>
-      <select
-        id="alerts-lang"
-        value={lang}
-        disabled={saving || supported.length === 0}
-        onChange={(e) => void change(e.target.value)}
-        className="rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-sm text-text-primary disabled:opacity-50"
-      >
-        {supported.map((l) => (
-          <option key={l} value={l}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </div>
+    <select
+      id="alerts-lang"
+      aria-label={t('settings.alertsLang.title')}
+      value={lang}
+      disabled={saving || supported.length === 0}
+      onChange={(e) => void change(e.target.value)}
+      className="rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-sm text-text-primary disabled:opacity-50"
+    >
+      {supported.map((l) => (
+        <option key={l} value={l}>
+          {l}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -3852,32 +3848,28 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
     }
   }, [busy, t, onSaved])
 
-  const btnBase =
-    'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50'
+  // #998: la activación es un check como el resto de la sección, visible en
+  // todos los estados. Sin HTTPS la página no es un contexto seguro y el
+  // navegador no permite suscribirse a Web Push (pushContext() ->
+  // window.isSecureContext), así que el check queda deshabilitado y la nota
+  // de abajo explica el porqué.
+  const toggleable = state === 'enabled' || state === 'disabled'
 
   return (
-    <>
-      {state === 'loading' && <p className="text-caption text-text-muted">{t('settings.push.checking')}</p>}
-
-      {state === 'enabled' && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-            <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
-            {t('settings.push.stateOn')}
+    <div className="space-y-2">
+      {state === 'loading' ? (
+        <p className="text-caption text-text-muted">{t('settings.push.checking')}</p>
+      ) : (
+        <div className="flex items-center justify-between gap-4 py-1">
+          <span className="text-sm text-text-secondary">
+            {state === 'enabled' ? t('settings.push.stateOn') : t('settings.push.stateOff')}
           </span>
-          <button type="button" disabled={busy} onClick={() => void disable()} className={cn(btnBase, 'border border-border bg-elevated text-text-primary')}>
-            <BellOff className="h-3.5 w-3.5" strokeWidth={2} />
-            {busy ? t('settings.push.disabling') : t('settings.push.disable')}
-          </button>
-        </div>
-      )}
-
-      {state === 'disabled' && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <button type="button" disabled={busy} onClick={() => void enable()} className={cn(btnBase, 'bg-accent text-canvas')}>
-            <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
-            {busy ? t('settings.push.enabling') : t('settings.push.enable')}
-          </button>
+          <Switch
+            checked={state === 'enabled'}
+            disabled={busy || !toggleable}
+            onCheckedChange={(v) => void (v ? enable() : disable())}
+            aria-label={t('settings.push.title')}
+          />
         </div>
       )}
 
@@ -3893,8 +3885,8 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
         </p>
       )}
 
-      {/* FORK: said, not left blank - over plain HTTP the card used to show
-          nothing at all, and the option looked missing. */}
+      {/* Sin HTTPS el check se ve pero no se puede activar (#998): la nota
+          explica cómo habilitarlo (Ajustes > HTTPS). */}
       {state === 'insecure' && (
         <p className="rounded-xl bg-elevated px-3 py-2 text-caption leading-relaxed text-text-muted">
           {t('settings.push.insecure')}
@@ -3912,7 +3904,7 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
           {error}
         </p>
       )}
-    </>
+    </div>
   )
 }
 
@@ -5491,14 +5483,18 @@ export default function Settings() {
               <PushNotificationsCard onSaved={notify} />
             </div>
 
-            {/* Idioma de las notificaciones (#889): movido a esta card (#977) */}
+            {/* Idioma de las notificaciones (#889): movido a esta card
+                (#977). #998: una sola fila (título + (i) + select), sin el
+                label duplicado que decía lo mismo. */}
             {!isDemo && (
               <div className="mt-4 border-t border-border pt-4">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <span className="text-sm font-medium text-text-primary">{t('settings.alertsLang.title')}</span>
-                  <InfoTip text={t('settings.alertsLang.description')} />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-text-primary">{t('settings.alertsLang.title')}</span>
+                    <InfoTip text={t('settings.alertsLang.description')} />
+                  </div>
+                  <AlertsLangControl onSaved={notify} />
                 </div>
-                <AlertsLangControl onSaved={notify} />
               </div>
             )}
           </Card>
@@ -5968,11 +5964,6 @@ export default function Settings() {
 
               {/* Derecha: Sistema */}
               <div>
-                {pushContext() === 'insecure' && (
-                  <p className="mb-3 rounded-xl bg-warn/10 px-3 py-2 text-caption leading-relaxed text-warn">
-                    {t('settings.push.insecure')}
-                  </p>
-                )}
                 <SystemInfoBlock bare />
               </div>
             </div>
