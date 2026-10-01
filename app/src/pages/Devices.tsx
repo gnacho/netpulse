@@ -993,23 +993,45 @@ function LeaseCell({ device }: { device: ClientDevice }) {
 // inyectan como custom properties (--devices-cols-*) que la clase
 // `devices-cols` (index.css) aplica en cada breakpoint; Tailwind no puede
 // generar clases dinámicas para todas las combinaciones posibles.
-const COLUMN_SPECS: Record<DeviceColumn, { md?: string; lg: string; xl?: string; xlOnly?: boolean }> = {
-  type: { lg: 'minmax(0,0.55fr)' },
-  ip: { lg: 'minmax(0,0.95fr)' },
-  lease: { lg: 'minmax(0,0.7fr)' },
-  router: { md: 'minmax(0,1.1fr)', lg: 'minmax(0,0.85fr)' },
-  band: { md: 'minmax(0,0.85fr)', lg: 'minmax(0,0.6fr)' },
-  signal: { md: 'minmax(0,0.95fr)', lg: 'minmax(0,0.75fr)' },
-  traffic: { md: 'minmax(0,0.75fr)', lg: 'minmax(0,0.75fr)', xl: 'minmax(0,0.7fr)' },
-  firstSeen: { lg: 'minmax(0,0.7fr)', xlOnly: true },
-  lastSeen: { lg: 'minmax(0,0.7fr)', xlOnly: true },
+// Pesos fr NATURALES de cada columna (con todo visible, la plantilla es
+// idéntica al ROW_GRID original).
+const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number; xlOnly?: boolean }> = {
+  type: { lg: 0.55 },
+  ip: { lg: 0.95 },
+  lease: { lg: 0.7 },
+  router: { md: 1.1, lg: 0.85 },
+  band: { md: 0.85, lg: 0.6 },
+  signal: { md: 0.95, lg: 0.75 },
+  traffic: { md: 0.75, lg: 0.75, xl: 0.7 },
+  firstSeen: { lg: 0.7, xlOnly: true },
+  lastSeen: { lg: 0.7, xlOnly: true },
+}
+
+const DEVICE_COL_FR = { md: 3, lg: 3.4, xl: 3.4 } as const
+
+/** Reparto al ocultar columnas: el fr liberado se distribuye A PARTES IGUALES
+ *  entre las columnas visibles (dispositivo incluida). El reparto nativo de
+ *  CSS es proporcional al peso, así que la columna de dispositivo (3.4fr
+ *  frente a 0.55-1.1fr del resto) absorbía casi todo el hueco liberado. */
+function distributeColumns(all: { key: string; fr: number }[], vis: Set<DeviceColumn>): string {
+  const visibleCols = all.filter((c) => vis.has(c.key as DeviceColumn) || c.key === 'device')
+  const hiddenFr = all.filter((c) => !vis.has(c.key as DeviceColumn) && c.key !== 'device').reduce((a, c) => a + c.fr, 0)
+  const bonus = hiddenFr / visibleCols.length
+  return visibleCols.map((c) => `minmax(0,${(c.fr + bonus).toFixed(2)}fr)`).join(' ')
 }
 
 function columnTemplates(vis: Set<DeviceColumn>) {
-  const visible = DEVICE_COLUMNS.filter((c) => vis.has(c))
-  const md = ['minmax(0,3fr)', ...visible.filter((c) => COLUMN_SPECS[c].md).map((c) => COLUMN_SPECS[c].md!), '1.5rem'].join(' ')
-  const lg = ['minmax(0,3.4fr)', ...visible.filter((c) => !COLUMN_SPECS[c].xlOnly).map((c) => COLUMN_SPECS[c].lg), '1.5rem'].join(' ')
-  const xl = ['minmax(0,3.4fr)', ...visible.map((c) => COLUMN_SPECS[c].xl ?? COLUMN_SPECS[c].lg), '1.5rem'].join(' ')
+  const frOf = (c: DeviceColumn, bp: 'md' | 'lg' | 'xl'): number =>
+    bp === 'md' ? COLUMN_SPECS[c].md! : bp === 'lg' ? COLUMN_SPECS[c].lg : (COLUMN_SPECS[c].xl ?? COLUMN_SPECS[c].lg)
+  const colsFor = (bp: 'md' | 'lg' | 'xl'): { key: string; fr: number }[] => [
+    { key: 'device', fr: DEVICE_COL_FR[bp] },
+    ...DEVICE_COLUMNS.filter((c) =>
+      bp === 'md' ? !!COLUMN_SPECS[c].md : bp === 'lg' ? !COLUMN_SPECS[c].xlOnly : true,
+    ).map((c) => ({ key: c as string, fr: frOf(c, bp) })),
+  ]
+  const md = [distributeColumns(colsFor('md'), vis), '1.5rem'].join(' ')
+  const lg = [distributeColumns(colsFor('lg'), vis), '1.5rem'].join(' ')
+  const xl = [distributeColumns(colsFor('xl'), vis), '1.5rem'].join(' ')
   return { '--devices-cols-md': md, '--devices-cols-lg': lg, '--devices-cols-xl': xl } as React.CSSProperties
 }
 
