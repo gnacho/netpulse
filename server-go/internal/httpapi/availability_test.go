@@ -232,7 +232,7 @@ func TestAvailabilityAgenteOnlineNoInventaDowntime(t *testing.T) {
 // TestAvailabilityValidaParametros: range inválido y n fuera de rango → 400.
 func TestAvailabilityValidaParametros(t *testing.T) {
 	ts := makeTestServer(t)
-	for _, q := range []string{"?range=bogus", "?range=day&n=0", "?range=day&n=999", "?range=month&n=abc", "?range=week&n=-1"} {
+	for _, q := range []string{"?range=bogus", "?range=day&n=0", "?range=day&n=999", "?range=month&n=abc", "?range=week&n=-1", "?range=hour&n=0", "?range=hour&n=49"} {
 		status, _ := getAvailability(t, ts, q)
 		if status != http.StatusBadRequest {
 			t.Fatalf("query %q → status %d, esperaba 400", q, status)
@@ -242,5 +242,158 @@ func TestAvailabilityValidaParametros(t *testing.T) {
 	status, _ := getAvailability(t, ts, "?range=day")
 	if status != http.StatusOK {
 		t.Fatalf("range=day sin n → status %d, esperaba 200", status)
+	}
+	if status, _ := getAvailability(t, ts, "?range=hour"); status != http.StatusOK {
+		t.Fatalf("range=hour sin n → status %d, esperaba 200", status)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// range=hour (#1032): disponibilidad por hora desde el raw (metrics), con
+// relleno de horas sin datos dentro de la ventana.
+// ---------------------------------------------------------------------------
+
+// insertRawAt siembra una muestra raw del router r en el instante tsMs
+// (epoch ms). El rango hour se mide del raw: metrics_daily no tiene
+// granularidad horaria.
+func insertRawAt(t *testing.T, ts *testServer, routerID string, tsMs int64) {
+	t.Helper()
+	_, err := ts.db.Exec(
+		"INSERT INTO metrics (router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps) VALUES (?,?,?,?,?,?,?,?)",
+		routerID, tsMs, 20, 60, 40, 1.5, 1e6, 5e5)
+	if err != nil {
+		t.Fatalf("insert raw %s@%d: %v", routerID, tsMs, err)
+	}
+}
+
+// fillHour siembra nBuckets muestras (una al inicio de cada bucket de 5 min)
+// a partir del inicio de la hora hourStart. 12 = hora completa con datos.
+func fillHour(t *testing.T, ts *testServer, routerID string, hourStart time.Time, nBuckets int) {
+	t.Helper()
+	for i := 0; i < nBuckets; i++ {
+		insertRawAt(t, ts, routerID, hourStart.Add(time.Duration(i)*5*time.Minute).UnixMilli())
+	}
+}
+
+// skipNearHourFlip evita flakiness cuando el reloj está a punto de cambiar de
+// hora: los tests siembran relativo a now.Truncate(hour) y el handler
+// recalcula "ahora" al servir; un cambio de hora entre ambos movería las
+// etiquetas esperadas (mismo criterio que el skip de medianoche en
+// TestAvailabilityDayActualNoPenaliza).
+func skipNearHourFlip(t *testing.T) {
+	t.Helper()
+	if m := time.Now().UTC().Minute(); m == 0 || m >= 58 {
+		t.Skipf("minuto %d: demasiado cerca del cambio de hora para aserciones estables", m)
+	}
+}
+
+// TestAvailabilityHourAgrupaPorHoraYRellenaHuecos: una fila por router y
+// hora de la ventana (incluida la en curso); las horas sin muestras se
+// emiten con upMin/days/upPct 0 (#1032).
+func TestAvailabilityHourAgrupaPorHoraYRellenaHuecos(t *testing.T) {
+	ts := makeTestServer(t)
+	skipNearHourFlip(t)
+	hourStart := time.Now().UTC().Truncate(time.Hour)
+
+	// gw: hora completa hace 3 h (12 buckets = 60 min), media hora hace 1 h
+	// (6 buckets = 30 min). La hora de hace 2 h queda vacía → hueco rellenado.
+	full := hourStart.Add(-3 * time.Hour)
+	half := hourStart.Add(-1 * time.Hour)
+	fillHour(t, ts, "gw", full, 12)
+	fillHour(t, ts, "gw", half, 6)
+
+	status, items := getAvailability(t, ts, "?range=hour&n=6")
+	if status != http.StatusOK {
+		t.Fatalf("status %d, esperaba 200", status)
+	}
+	// 6 horas de ventana (hace 5 h .. hora en curso), todas emitidas.
+	if len(items) != 6 {
+		t.Fatalf("items = %d, esperaba 6 (ventana rellenada): %+v", len(items), items)
+	}
+	byBucket := map[string]availabilityEntry{}
+	for _, it := range items {
+		if it.RouterID != "gw" {
+			t.Fatalf("router inesperado %q: %+v", it.RouterID, it)
+		}
+		byBucket[it.Bucket] = it
+	}
+	fullKey := full.Format("2006-01-02T15")
+	halfKey := half.Format("2006-01-02T15")
+	gapKey := hourStart.Add(-2 * time.Hour).Format("2006-01-02T15")
+
+	f := byBucket[fullKey]
+	if f.Days != 1 || f.UpMin != 60 || f.UpPct < 99.9 {
+		t.Fatalf("hora completa: days=%d upMin=%d upPct=%v, esperaba 1/60/~100", f.Days, f.UpMin, f.UpPct)
+	}
+	h := byBucket[halfKey]
+	if h.Days != 1 || h.UpMin != 30 || h.UpPct < 49.9 || h.UpPct > 50.1 {
+		t.Fatalf("media hora: days=%d upMin=%d upPct=%v, esperaba 1/30/~50", h.Days, h.UpMin, h.UpPct)
+	}
+	g := byBucket[gapKey]
+	if g.Days != 0 || g.UpMin != 0 || g.UpPct != 0 {
+		t.Fatalf("hueco rellenado: days=%d upMin=%d upPct=%v, esperaba 0/0/0", g.Days, g.UpMin, g.UpPct)
+	}
+	// Orden: bucket DESC → la hora en curso primero.
+	if items[0].Bucket != hourStart.Format("2006-01-02T15") {
+		t.Fatalf("items[0].bucket = %q, esperaba la hora en curso %s", items[0].Bucket, hourStart.Format("2006-01-02T15"))
+	}
+}
+
+// TestAvailabilityHourActualNoPenaliza: la hora en curso se normaliza por
+// los minutos transcurridos, no por 60 (mismo criterio que el día en curso,
+// #987). Un router online desde el inicio de la hora da ~100%.
+func TestAvailabilityHourActualNoPenaliza(t *testing.T) {
+	ts := makeTestServer(t)
+	skipNearHourFlip(t)
+	now := time.Now().UTC()
+	hourStart := now.Truncate(time.Hour)
+	nowMin := now.Minute()
+
+	// Cobertura continua desde el inicio de la hora: una muestra al inicio
+	// de cada bucket de 5 min transcurrido.
+	fillHour(t, ts, "gw", hourStart, nowMin/5+1)
+
+	_, items := getAvailability(t, ts, "?range=hour&n=6")
+	var cur *availabilityEntry
+	for i := range items {
+		if items[i].Bucket == hourStart.Format("2006-01-02T15") {
+			cur = &items[i]
+		}
+	}
+	if cur == nil {
+		t.Fatalf("no se devolvió fila para la hora en curso: %+v", items)
+	}
+	// upMin se tope a los minutos transcurridos (el bucket actual parcial
+	// cuenta entero) y upPct = 100. Margen de ±1 min por si el reloj cruza
+	// un minuto entre test y handler.
+	if cur.UpMin < int64(nowMin)-1 || cur.UpMin > int64(nowMin)+1 {
+		t.Fatalf("hora en curso upMin=%d, esperaba ~%d (minutos transcurridos)", cur.UpMin, nowMin)
+	}
+	if cur.UpPct < 99.9 || cur.UpPct > 100.1 {
+		t.Fatalf("hora en curso upPct=%v, esperaba ~100 (router online)", cur.UpPct)
+	}
+}
+
+// TestAvailabilityHourRouterSinMuestrasNoAparece: un router sin ninguna
+// muestra en TODA la ventana no aparece (igual que en los demás rangos); el
+// relleno de huecos solo aplica a routers presentes en la ventana.
+func TestAvailabilityHourRouterSinMuestrasNoAparece(t *testing.T) {
+	ts := makeTestServer(t)
+	skipNearHourFlip(t)
+	hourStart := time.Now().UTC().Truncate(time.Hour)
+
+	// old: muestras de hace 3 días (dentro de la retención raw de 7 días,
+	// fuera de la ventana de 6 h). gw: activo ahora.
+	fillHour(t, ts, "old", hourStart.Add(-72*time.Hour), 12)
+	fillHour(t, ts, "gw", hourStart.Add(-1*time.Hour), 12)
+
+	_, items := getAvailability(t, ts, "?range=hour&n=6")
+	if len(items) != 6 {
+		t.Fatalf("items = %d, esperaba 6 (solo gw, ventana rellenada): %+v", len(items), items)
+	}
+	for _, it := range items {
+		if it.RouterID != "gw" {
+			t.Fatalf("router fuera de ventana %q no debería aparecer: %+v", it.RouterID, it)
+		}
 	}
 }

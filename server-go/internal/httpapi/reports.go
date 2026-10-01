@@ -218,17 +218,20 @@ func (s *server) handleWeeklyReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/reports/availability?range=day|week|month&n=N — Fase 15.1
+// GET /api/reports/availability?range=hour|day|week|month&n=N - Fase 15.1
 //
-// Disponibilidad por router agregada por día, semana ISO o mes, sobre los
-// últimos N buckets (day: 30, week: 8, month: 12 por defecto). Reutiliza la
-// semántica de buckets del weekly (ver cabecera del fichero, #987).
+// Disponibilidad por router agregada por hora, día, semana ISO o mes, sobre
+// los últimos N buckets (hour: 24, day: 30, week: 8, month: 12 por defecto).
+// Reutiliza la semántica de buckets del weekly (ver cabecera del fichero,
+// #987). El rango hour (#1032) no puede salir de metrics_daily (granularidad
+// día): se calcula del raw y tiene su propia semántica de huecos (ver
+// availabilityHour).
 // ---------------------------------------------------------------------------
 
 type availabilityEntry struct {
 	RouterID string   `json:"routerId"`
-	Bucket   string   `json:"bucket"` // day "2026-08-07" | week "2026-W31" | month "2026-07"
-	Days     int      `json:"days"`   // días con datos en el bucket
+	Bucket   string   `json:"bucket"` // hour "2026-10-02T14" | day "2026-08-07" | week "2026-W31" | month "2026-07"
+	Days     int      `json:"days"`   // unidades con datos en el bucket (en hour: 1 si la hora tiene datos, 0 si es hueco rellenado)
 	UpMin    int64    `json:"upMin"`  // minutos con datos en el bucket (buckets de 5 min * 5)
 	UpPct    float64  `json:"upPct"`  // % de cobertura sobre los minutos medibles
 	LatAvg   *float64 `json:"latAvg"`
@@ -250,6 +253,8 @@ func (s *server) handleAvailabilityReport(w http.ResponseWriter, r *http.Request
 	var groupExpr string
 	nDef, nMax := 8, 52
 	switch rangeParam {
+	case "hour":
+		nDef, nMax = 24, 48
 	case "day":
 		groupExpr = "strftime('%Y-%m-%d', date)"
 		nDef, nMax = 30, 90
@@ -260,7 +265,7 @@ func (s *server) handleAvailabilityReport(w http.ResponseWriter, r *http.Request
 		groupExpr = "strftime('%Y-%m', date)"
 		nDef, nMax = 12, 24
 	default:
-		writeError(w, http.StatusBadRequest, "invalid_query", "range must be day, week or month")
+		writeError(w, http.StatusBadRequest, "invalid_query", "range must be hour, day, week or month")
 		return
 	}
 
@@ -273,6 +278,17 @@ func (s *server) handleAvailabilityReport(w http.ResponseWriter, r *http.Request
 			return
 		}
 		n = v
+	}
+
+	// El rango hour (#1032) se calcula del raw, no del daily: camino propio.
+	if rangeParam == "hour" {
+		out, err := s.availabilityHour(n)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "db_error")
+			return
+		}
+		writeAvailability(w, q.Get("format") == "csv", rangeParam, n, out)
+		return
 	}
 
 	// Ventana hacia atrás desde hoy (UTC).
@@ -394,7 +410,13 @@ func (s *server) handleAvailabilityReport(w http.ResponseWriter, r *http.Request
 		return out[i].RouterID < out[j].RouterID
 	})
 
-	if q.Get("format") == "csv" {
+	writeAvailability(w, q.Get("format") == "csv", rangeParam, n, out)
+}
+
+// writeAvailability emite el informe de disponibilidad en JSON o CSV. El
+// formato de etiqueta del bucket depende del rango (ver availabilityEntry).
+func writeAvailability(w http.ResponseWriter, csvWanted bool, rangeParam string, n int, out []availabilityEntry) {
+	if csvWanted {
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=netpulse-availability-%s.csv", rangeParam))
 		cw := csv.NewWriter(w)
@@ -415,4 +437,129 @@ func (s *server) handleAvailabilityReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "range": rangeParam, "n": n})
+}
+
+// hourMS es el tamaño del bucket horario en ms (range=hour, #1032).
+const hourMS = 60 * 60 * 1000
+
+// availabilityHour calcula range=hour: disponibilidad por router y hora
+// sobre las últimas n horas, incluida la en curso. La fuente es el raw
+// (tabla metrics, retención 7 días, de sobra para el máximo de 48 h) porque
+// metrics_daily no tiene granularidad horaria. La etiqueta del bucket es la
+// hora UTC en formato ISO recortado: "2006-01-02T15" (p.ej. "2026-10-02T14").
+//
+// Diferencia de semántica con day/week/month (#1032): las horas SIN muestras
+// dentro de la ventana se EMITEN con upMin 0, days 0 y upPct 0 (bucket
+// rellenado), porque a escala horaria el hueco reciente es justo lo que
+// interesa ver; un día sin datos, en cambio, no se emite (puede ser un
+// router aún no monitorizado). Solo se rellenan horas de routers con al
+// menos una muestra en la ventana: un router sin ninguna muestra en toda la
+// ventana no aparece, igual que en los demás rangos.
+//
+// Divisor de upPct: 60 min por hora cerrada; la hora en curso solo cuenta
+// los minutos transcurridos (mismo criterio que el día en curso, #987), con
+// upMin tope al divisor y upPct clavado a 100. latAvg/cpuAvg/ramAvg son
+// medias de las muestras raw de la hora; rxTotal/txTotal se emiten a 0: el
+// raw guarda tasas (bps), no totales, y agregarlas inventaría un dato.
+func (s *server) availabilityHour(n int) ([]availabilityEntry, error) {
+	now := time.Now().UTC()
+	hourStart := now.Truncate(time.Hour)
+	sinceMS := hourStart.Add(-time.Duration(n-1) * time.Hour).UnixMilli()
+
+	rows, err := s.db.Query(`
+		SELECT
+			router_id,
+			ts / ?,
+			COUNT(DISTINCT ts / ?),
+			AVG(latency_ms),
+			AVG(cpu),
+			AVG(ram)
+		FROM metrics
+		WHERE ts >= ?
+		GROUP BY router_id, ts / ?`, hourMS, db.BucketMS, sinceMS, hourMS)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type hourData struct {
+		buckets int64
+		lat     *float64
+		cpu     float64
+		ram     float64
+	}
+	byRouter := map[string]map[int64]hourData{}
+	for rows.Next() {
+		var rid string
+		var hourEpoch, buckets int64
+		var lat, cpu, ram sql.NullFloat64
+		if err := rows.Scan(&rid, &hourEpoch, &buckets, &lat, &cpu, &ram); err != nil {
+			continue
+		}
+		m := byRouter[rid]
+		if m == nil {
+			m = map[int64]hourData{}
+			byRouter[rid] = m
+		}
+		d := hourData{buckets: buckets}
+		if lat.Valid {
+			d.lat = &lat.Float64
+		}
+		if cpu.Valid {
+			d.cpu = cpu.Float64
+		}
+		if ram.Valid {
+			d.ram = ram.Float64
+		}
+		m[hourEpoch] = d
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := []availabilityEntry{}
+	currentHourEpoch := hourStart.UnixMilli() / hourMS
+	for rid, hours := range byRouter {
+		for i := 0; i < n; i++ {
+			hStart := hourStart.Add(-time.Duration(i) * time.Hour)
+			epoch := hStart.UnixMilli() / hourMS
+			e := availabilityEntry{
+				RouterID: rid,
+				Bucket:   hStart.Format("2006-01-02T15"),
+			}
+			// Divisor: 60 min por hora cerrada; la hora en curso solo los
+			// minutos transcurridos (now.Minute(), reloj UTC).
+			divisor := float64(60)
+			if epoch == currentHourEpoch {
+				divisor = float64(now.Minute())
+			}
+			if d, ok := hours[epoch]; ok {
+				e.Days = 1
+				e.UpMin = d.buckets * minPerBucket
+				e.LatAvg = d.lat
+				e.CPUAvg = d.cpu
+				e.RAMAvg = d.ram
+			}
+			if divisor <= 0 {
+				// Hora en curso en el minuto 0: aún no hay nada medible.
+				e.UpMin = 0
+			} else {
+				if float64(e.UpMin) > divisor {
+					e.UpMin = int64(divisor)
+				}
+				e.UpPct = float64(e.UpMin) / divisor * 100
+				if e.UpPct > 100 {
+					e.UpPct = 100
+				}
+			}
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Bucket != out[j].Bucket {
+			return out[i].Bucket > out[j].Bucket
+		}
+		return out[i].RouterID < out[j].RouterID
+	})
+	return out, nil
 }
