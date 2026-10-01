@@ -36,20 +36,13 @@ import { EmptyState } from '@/components/EmptyState'
 import { RowAction } from '@/components/RowAction'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { buildAlertFeed, buildLiveFeed, DAY_ORDER, ALERT_KINDS } from '@/data/alertFeed'
-import type { AlertKind, FeedDay, FeedEvent, FeedSpark } from '@/data/alertFeed'
+import { buildAlertFeed, buildLiveFeed, DAY_ORDER } from '@/data/alertFeed'
+import type { FeedDay, FeedEvent, FeedSpark } from '@/data/alertFeed'
 import { useNetPulse } from '@/data/DataProvider'
 import { RulesManager } from '@/components/RulesManager'
 import { cn } from '@/lib/utils'
@@ -92,7 +85,6 @@ const LEVEL_ORDER: readonly AlertConfigLevel[] = ['urgent', 'all', 'none']
 // ---------------------------------------------------------------------------
 
 type SevFilter = 'todas' | 'avisos' | 'info' | 'resueltas'
-type KindFilter = 'todos' | AlertKind
 
 const SEV_OPTIONS = [
   { value: 'todas', labelKey: 'alerts.sevAll' },
@@ -487,7 +479,7 @@ export default function Alerts() {
     alertsConfig,
     setAlertConfig,
     markAlertsRead,
-    markAllAlertsRead,
+    clearAllAlerts,
     silenceAlert,
     dismissAlert,
   } = useNetPulse()
@@ -500,7 +492,6 @@ export default function Alerts() {
     [alerts, wireguard, routers, isDemo],
   )
   const [sev, setSev] = useState<SevFilter>('todas')
-  const [kind, setKind] = useState<KindFilter>('todos')
   const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -519,7 +510,9 @@ export default function Alerts() {
   const unread = unreadAlerts
 
   const markAllRead = () => {
-    markAllAlertsRead()
+    // #971: "Marcar todo como leído" VACÍA el feed (dismiss de las visibles
+    // en servidor), no solo marca. El botón conserva su texto original.
+    clearAllAlerts()
     setBurst((b) => b + 1)
   }
 
@@ -577,12 +570,11 @@ export default function Alerts() {
     () =>
       alertFeed.filter((ev) => {
         if (sev !== 'todas' && ev.severity !== SEV_MATCH[sev]) return false
-        if (kind !== 'todos' && ev.kind !== kind) return false
         if (cats.size > 0 && !cats.has(ev.category)) return false
         if (onlyUnread && isRead(ev)) return false
         return true
       }),
-    [alertFeed, sev, kind, cats, onlyUnread],
+    [alertFeed, sev, cats, onlyUnread],
   )
 
   const groups = useMemo(
@@ -610,7 +602,7 @@ export default function Alerts() {
     return () => io.disconnect()
   }, [loadState, filtered.length])
 
-  const filterKey = `${sev}|${kind}|${[...cats].sort().join(',')}|${onlyUnread}`
+  const filterKey = `${sev}|${[...cats].sort().join(',')}|${onlyUnread}`
 
   return (
     <div className="mx-auto w-full max-w-[1100px]">
@@ -665,7 +657,7 @@ export default function Alerts() {
           <button
             type="button"
             onClick={markAllRead}
-            disabled={unread === 0}
+            disabled={alertFeed.length === 0}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             <motion.span key={burst} animate={reduce ? undefined : { scale: [1, 1.2, 1] }} transition={{ duration: 0.35 }}>
@@ -694,7 +686,7 @@ export default function Alerts() {
                 {t('alerts.configButton')}
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={unread === 0}
+                disabled={alertFeed.length === 0}
                 onSelect={markAllRead}
                 className="gap-2 text-text-primary focus:bg-hover"
               >
@@ -850,23 +842,6 @@ export default function Alerts() {
       {/* ③ Filtros */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5 md:gap-3">
         <SegmentedControl options={SEV_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} value={sev} onChange={(v) => setSev(v)} ariaLabel={t('alerts.filterBySeverity')} />
-        <Select value={kind} onValueChange={(v) => setKind(v as KindFilter)}>
-          <SelectTrigger
-            size="sm"
-            aria-label={t('alerts.filterByKind')}
-            className="h-8 rounded-lg border-border bg-elevated text-xs font-medium text-text-secondary shadow-none"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="border-border bg-elevated">
-            <SelectItem value="todos" className="text-text-primary focus:bg-hover">{t('alerts.allKinds')}</SelectItem>
-            {ALERT_KINDS.map((k) => (
-              <SelectItem key={k} value={k} className="text-text-primary focus:bg-hover">
-                {t(`alerts.kinds.${k}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div role="group" aria-label={t('alerts.filterByCategory')} className="flex flex-wrap items-center gap-1.5">
           {ALERT_CATEGORIES.map((cat) => {
             const Icon = CATEGORY_META[cat].icon

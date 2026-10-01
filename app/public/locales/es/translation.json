@@ -1,6 +1,5 @@
 {
   "alerts": {
-    "allKinds": "Todos los tipos",
     "allRead": "Todo leído — la red está tranquila",
     "chipCritical": "críticos",
     "chipCriticalCaption": "Nunca ha habido uno crítico. Toca madera.",
@@ -16,15 +15,7 @@
     "emptyTitle": "Silencio total",
     "eventCount_one": "1 evento",
     "eventCount_other": "{{count}} alertas",
-    "filterByKind": "Filtrar por tipo",
     "filterBySeverity": "Filtrar por severidad",
-    "kinds": {
-      "adguard": "AdGuard",
-      "dispositivos": "Dispositivos",
-      "router": "Router",
-      "sistema": "Sistema",
-      "wireguard": "WireGuard"
-    },
     "loadingOld": "Cargando alertas antiguas…",
     "markAllRead": "Marcar todo como leído",
     "moreActions": "Más acciones",

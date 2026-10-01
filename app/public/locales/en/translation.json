@@ -1,6 +1,5 @@
 {
   "alerts": {
-    "allKinds": "All types",
     "allRead": "All read — the network is quiet",
     "chipCritical": "critical",
     "chipCriticalCaption": "There has never been a critical one. Touch wood.",
@@ -16,15 +15,7 @@
     "emptyTitle": "Total silence",
     "eventCount_one": "1 event",
     "eventCount_other": "{{count}} alerts",
-    "filterByKind": "Filter by type",
     "filterBySeverity": "Filter by severity",
-    "kinds": {
-      "adguard": "AdGuard",
-      "dispositivos": "Devices",
-      "router": "Router",
-      "sistema": "System",
-      "wireguard": "WireGuard"
-    },
     "loadingOld": "Loading older alerts…",
     "markAllRead": "Mark all as read",
     "moreActions": "More actions",

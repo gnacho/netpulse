@@ -30,8 +30,6 @@ export type FeedDay = 'hoy' | 'ayer' | '12nov'
 
 export const DAY_ORDER: FeedDay[] = ['hoy', 'ayer', '12nov']
 
-export const ALERT_KINDS: readonly AlertKind[] = ['router', 'dispositivos', 'wireguard', 'adguard', 'sistema']
-
 export interface FeedSpark {
   data: number[]
   color: string
