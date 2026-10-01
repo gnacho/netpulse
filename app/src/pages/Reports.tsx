@@ -15,8 +15,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 interface AvailabilityEntry {
   routerId: string
-  bucket: string // day "2026-08-07" | week "2026-W31" | month "2026-07"
-  days: number
+  bucket: string // hour "2026-10-02T14" | day "2026-08-07" (el server conserva week/month para API/CSV)
+  days: number // en hour: 1 si la hora tiene datos, 0 si es un hueco rellenado (#1032)
   upMin: number
   upPct: number
   latAvg: number | null
@@ -26,16 +26,17 @@ interface AvailabilityEntry {
   ramAvg: number
 }
 
-type Range = 'day' | 'week' | 'month'
+// #1032: la UI solo ofrece granularidad horaria y diaria (la semanal y la
+// mensual no aportaban); el endpoint conserva week/month para API y CSV.
+type Range = 'hour' | 'day'
 
 const N_OPTIONS: Record<Range, number[]> = {
+  hour: [6, 12, 24, 48],
   day: [7, 14, 30, 60],
-  week: [2, 4, 8, 12],
-  month: [3, 6, 12, 24],
 }
-const DEFAULT_N: Record<Range, number> = { day: 30, week: 8, month: 12 }
-const SUFFIX: Record<Range, string> = { day: 'd', week: 'w', month: 'm' }
-const RANGE_TABS: Range[] = ['day', 'week', 'month']
+const DEFAULT_N: Record<Range, number> = { hour: 24, day: 30 }
+const SUFFIX: Record<Range, string> = { hour: 'h', day: 'd' }
+const RANGE_TABS: Range[] = ['hour', 'day']
 
 // ---------------------------------------------------------------------------
 // Umbrales de color (issue #973): el rojo solo marca un problema accionable.
@@ -68,33 +69,43 @@ const STATUS_TEXT: Record<Status, string> = {
 }
 
 /**
- * Minutos medibles de un bucket según la semántica del server (#987): el
- * divisor de upPct son los minutos del bucket en los que se puede afirmar
- * algo (1440 por día con datos; el día en curso solo cuenta los minutos
- * transcurridos, medidos del raw). Como upPct = upMin/divisor, se recupera
- * el divisor sin rehacer aritmética de fechas en el cliente.
+ * Minutos medibles de un bucket según la semántica del server (#987, #1032):
+ * el divisor de upPct son los minutos del bucket en los que se puede afirmar
+ * algo (1440 por día con datos; 60 por hora; el período en curso solo cuenta
+ * los minutos transcurridos). Como upPct = upMin/divisor, se recupera el
+ * divisor sin rehacer aritmética de fechas en el cliente.
+ *
+ * Excepción: un bucket con upPct 0 no permite recuperar el divisor (0/0). En
+ * day no ocurre (solo se emiten días con datos), pero en hour el server
+ * RELLENA las horas sin muestras con upMin 0 (#1032), así que el divisor se
+ * deriva del reloj: 60 min por hora cerrada, los minutos transcurridos en la
+ * hora en curso.
  */
-function bucketMinutes(e: AvailabilityEntry): number {
+function bucketMinutes(e: AvailabilityEntry, range: Range): number {
   if (e.upPct > 0) return e.upMin / (e.upPct / 100)
+  if (range === 'hour') {
+    const start = Date.parse(`${e.bucket}:00:00Z`)
+    if (!Number.isFinite(start)) return 0
+    const elapsedMin = (Date.now() - start) / 60000
+    return Math.min(60, Math.max(0, elapsedMin))
+  }
   return e.days * 1440
 }
 
 /** Minutos sin datos de un bucket = duración medible - minutos con datos. */
-function bucketDownMin(e: AvailabilityEntry): number {
-  return Math.max(0, bucketMinutes(e) - e.upMin)
-}
-
-/** Días que cubre la ventana seleccionada (mes = media de 30,44 días). */
-function expectedDays(range: Range, n: number): number {
-  if (range === 'day') return n
-  if (range === 'week') return n * 7
-  return Math.round(n * 30.44)
+function bucketDownMin(e: AvailabilityEntry, range: Range): number {
+  return Math.max(0, bucketMinutes(e, range) - e.upMin)
 }
 
 /**
  * Cobertura mínima para resumir la ventana con un número (#987): con menos
- * de la mitad de los días con datos, un % o un tiempo sin datos no representa
- * la ventana y la UI dice "sin datos suficientes" en vez de inventar cifras.
+ * de la mitad de las unidades de la ventana (horas o días, según la pestaña)
+ * con datos, un % o un tiempo sin datos no representa la ventana y la UI
+ * dice "sin datos suficientes" en vez de inventar cifras. El suelo de 2
+ * unidades evita resumir una ventana con un único bucket aislado. En hour la
+ * unidad es la hora (no n/24 días): con n/24 el suelo de 2 dominaría y un
+ * router con 2 horas sueltas en una ventana de 48 h recibiría un % que no
+ * representa nada (#1032).
  */
 const MIN_COVERAGE = 0.5
 
@@ -115,24 +126,9 @@ interface RouterSummary {
   pct: number
   downMin: number
   status: Status
-  days: number // días con datos en la ventana
+  days: number // unidades (horas o días) con datos en la ventana
   sufficient: boolean // cobertura suficiente para resumir la ventana (#987)
   buckets: AvailabilityEntry[] // ordenados de más antiguo a más reciente
-}
-
-/** Lunes y domingo (UTC) de una semana ISO "2026-W31", para el tooltip de la barra (#993). */
-function isoWeekSpan(bucket: string): [Date, Date] | null {
-  const m = /^(\d{4})-W(\d{2})$/.exec(bucket)
-  if (!m) return null
-  const year = Number(m[1])
-  const week = Number(m[2])
-  const jan4 = new Date(Date.UTC(year, 0, 4))
-  const dow = jan4.getUTCDay() || 7 // lunes = 1
-  const monday = new Date(jan4)
-  monday.setUTCDate(jan4.getUTCDate() - dow + 1 + (week - 1) * 7)
-  const sunday = new Date(monday)
-  sunday.setUTCDate(monday.getUTCDate() + 6)
-  return [monday, sunday]
 }
 
 /** Página `/reports` - Informe de disponibilidad (reports.md, rediseño #973). */
@@ -146,13 +142,13 @@ export default function Reports() {
     const n = routerName(id)
     return n !== id ? `${n} (${id})` : id
   }
-  const [range, setRange] = useState<Range>('week')
-  const [n, setN] = useState<number>(DEFAULT_N.week)
+  const [range, setRange] = useState<Range>('day')
+  const [n, setN] = useState<number>(DEFAULT_N.day)
   const [items, setItems] = useState<AvailabilityEntry[]>([])
-  // #1029: rango de los items cargados. Al cambiar de pestaña (p.ej. week ->
-  // day) el render inmediato aún ve los items VIEJOS con el rango NUEVO, y
-  // bucketLabel formateaba buckets semanales ("2026-W40") como si fueran
-  // días o meses: Invalid Date -> RangeError -> pantalla en blanco.
+  // #1029: rango de los items cargados. Al cambiar de pestaña (p.ej. day ->
+  // hour) el render inmediato aún ve los items VIEJOS con el rango NUEVO, y
+  // bucketLabel formateaba buckets diarios ("2026-10-02") como si fueran
+  // horas: Invalid Date -> RangeError -> pantalla en blanco.
   const [itemsRange, setItemsRange] = useState<Range | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -237,7 +233,7 @@ export default function Reports() {
     .sort()
     .map((id) => {
       const rows = viewItems.filter((i) => i.routerId === id)
-      const totalMin = rows.reduce((a, r) => a + bucketMinutes(r), 0)
+      const totalMin = rows.reduce((a, r) => a + bucketMinutes(r, range), 0)
       const upMin = rows.reduce((a, r) => a + r.upMin, 0)
       const days = rows.reduce((a, r) => a + r.days, 0)
       const pct = totalMin > 0 ? Math.min(100, (upMin / totalMin) * 100) : 100
@@ -247,7 +243,7 @@ export default function Reports() {
         downMin: Math.max(0, totalMin - upMin),
         status: statusOf(pct),
         days,
-        sufficient: days >= Math.max(2, expectedDays(range, n) * MIN_COVERAGE),
+        sufficient: days >= Math.max(2, n * MIN_COVERAGE),
         buckets: [...rows].sort((a, b) => a.bucket.localeCompare(b.bucket)),
       }
     })
@@ -259,16 +255,18 @@ export default function Reports() {
   const worst = rated.length ? rated.reduce((a, r) => (r.pct < a.pct ? r : a)) : null
   const totalDown = rated.reduce((a, r) => a + r.downMin, 0)
 
-  const windowText = t(range === 'day' ? 'reports.windowDay' : range === 'week' ? 'reports.windowWeek' : 'reports.windowMonth', { n })
+  const windowText = t(range === 'hour' ? 'reports.windowHour' : 'reports.windowDay', { n })
 
   // -- Barra de disponibilidad estilo Uptime Kuma (#993) -------------------
-  // Un segmento por bucket (día/semana/mes según la pestaña, la granularidad
-  // real del endpoint). El tooltip muestra la fecha del segmento; el día en
-  // curso, único bucket con hora real, muestra además la hora de corte.
-  const dayFmt = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  // Un segmento por bucket (hora o día según la pestaña, la granularidad
+  // real del endpoint). El tooltip muestra la fecha del segmento; el período
+  // en curso, único bucket con hora real, muestra además la hora de corte.
+  // Todo en UTC (timeZone explícito) para que las etiquetas coincidan con
+  // los buckets del server, que son UTC.
   const dayYearFmt = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-  const monthFmt = new Intl.DateTimeFormat(i18n.language, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const hourFmt = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
   const todayKey = new Date().toISOString().slice(0, 10)
+  const currentHourKey = new Date().toISOString().slice(0, 13) // "2026-10-02T14"
   const nowTime = new Date().toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
 
   /** Formatea solo fechas finitas: un bucket inesperado cae al texto crudo
@@ -277,16 +275,12 @@ export default function Reports() {
     Number.isFinite(d.getTime()) ? fmt.format(d) : fallback
 
   function bucketLabel(b: AvailabilityEntry): string {
-    if (range === 'day') {
-      if (b.bucket === todayKey) return t('reports.tipToday', { time: nowTime })
-      return fmtDate(new Date(`${b.bucket}T00:00:00Z`), dayYearFmt, b.bucket)
+    if (range === 'hour') {
+      if (b.bucket === currentHourKey) return t('reports.tipCurrentHour', { time: nowTime })
+      return fmtDate(new Date(`${b.bucket}:00:00Z`), hourFmt, b.bucket)
     }
-    if (range === 'week') {
-      const span = isoWeekSpan(b.bucket)
-      if (!span) return b.bucket
-      return `${fmtDate(span[0], dayFmt, b.bucket)} - ${fmtDate(span[1], dayYearFmt, b.bucket)}`
-    }
-    return fmtDate(new Date(`${b.bucket}-01T00:00:00Z`), monthFmt, b.bucket)
+    if (b.bucket === todayKey) return t('reports.tipToday', { time: nowTime })
+    return fmtDate(new Date(`${b.bucket}T00:00:00Z`), dayYearFmt, b.bucket)
   }
 
   const initial = reduce ? false : { opacity: 0, y: 12 }
@@ -379,7 +373,7 @@ export default function Reports() {
               range === r ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
             )}
           >
-            {r === 'day' ? t('reports.tabDay') : r === 'week' ? t('reports.tabWeek') : t('reports.tabMonth')}
+            {r === 'hour' ? t('reports.tabHour') : t('reports.tabDay')}
           </button>
         ))}
       </div>
@@ -480,7 +474,7 @@ export default function Reports() {
                       sin datos. Atenuada si la cobertura es insuficiente (#987) */}
                   <div className={cn('flex min-w-24 flex-1 items-center gap-0.5', !r.sufficient && 'opacity-60')}>
                     {r.buckets.map((b) => {
-                      const down = bucketDownMin(b)
+                      const down = bucketDownMin(b, range)
                       const st = statusOf(b.upPct)
                       const label = bucketLabel(b)
                       const pctText = b.upPct >= 99.9 ? '100%' : `${b.upPct.toFixed(1)}%`
@@ -523,7 +517,7 @@ export default function Reports() {
                       </>
                     ) : (
                       <p className="text-caption text-text-muted">
-                        {t('reports.coverage', { days: r.days, total: expectedDays(range, n) })}
+                        {t(range === 'hour' ? 'reports.coverageHours' : 'reports.coverage', { days: r.days, total: n })}
                       </p>
                     )}
                   </div>

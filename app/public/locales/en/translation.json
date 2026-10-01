@@ -1070,6 +1070,7 @@
   "reports": {
     "availability": "Availability per router",
     "coverage": "{{days}}/{{total}} days with data",
+    "coverageHours": "{{days}}/{{total}} hours with data",
     "downNone": "No gaps",
     "downTime": "{{duration}} with no data",
     "downloadCsv": "Download as CSV",
@@ -1077,7 +1078,7 @@
     "error": "Could not load the report. Check the connection and try again.",
     "explain": "Minutes with data received from each router during {{window}} (5-minute resolution). 100% means no gaps.",
     "fleetAvg": "Fleet average",
-    "footnote": "Availability = minutes with data received (5-minute buckets) over the days with data in the window; the current period is shown as partial. A gap usually means the router was down, but it can also mean the monitor had no data. Green: at least 99%. Amber: at least 95%. Red: below 95%, needs attention.",
+    "footnote": "Availability = minutes with data received (5-minute buckets) over the measurable time in the window; the current period is shown as partial. A gap usually means the router was down, but it can also mean the monitor had no data. Green: at least 99%. Amber: at least 95%. Red: below 95%, needs attention.",
     "insufficient": "Not enough data",
     "loading": "Loading report…",
     "noApi": "Available only with a live backend.",
@@ -1086,13 +1087,12 @@
     "status_ok": "Stable",
     "status_warn": "Minor gaps",
     "tabDay": "Daily",
-    "tabMonth": "Monthly",
-    "tabWeek": "Weekly",
+    "tabHour": "Hourly",
+    "tipCurrentHour": "Current hour, data up to {{time}}",
     "tipToday": "Today, data up to {{time}} (in progress)",
     "totalDown": "Total time without data",
     "windowDay": "the last {{n}} days",
-    "windowMonth": "the last {{n}} months",
-    "windowWeek": "the last {{n}} weeks",
+    "windowHour": "the last {{n}} hours",
     "worstRouter": "Router with most gaps"
   },
   "topology": {

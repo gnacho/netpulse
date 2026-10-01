@@ -1070,6 +1070,7 @@
   "reports": {
     "availability": "Disponibilidad por router",
     "coverage": "{{days}}/{{total}} días con datos",
+    "coverageHours": "{{days}}/{{total}} horas con datos",
     "downNone": "Sin huecos",
     "downTime": "{{duration}} sin datos",
     "downloadCsv": "Descargar como CSV",
@@ -1077,7 +1078,7 @@
     "error": "No se pudo cargar el informe. Comprueba la conexión e inténtalo de nuevo.",
     "explain": "Minutos con datos recibidos de cada router durante {{window}} (resolución de 5 min). 100% significa sin huecos.",
     "fleetAvg": "Media de la red",
-    "footnote": "Disponibilidad = minutos con datos recibidos (buckets de 5 min) sobre los días con datos de la ventana; el período en curso se muestra parcial. Un hueco suele ser el router caído, pero también puede ser el monitor sin datos. Verde: al menos 99%. Ámbar: al menos 95%. Rojo: menos del 95%, requiere atención.",
+    "footnote": "Disponibilidad = minutos con datos recibidos (buckets de 5 min) sobre el tiempo medible de la ventana; el período en curso se muestra parcial. Un hueco suele ser el router caído, pero también puede ser el monitor sin datos. Verde: al menos 99%. Ámbar: al menos 95%. Rojo: menos del 95%, requiere atención.",
     "insufficient": "Sin datos suficientes",
     "loading": "Cargando informe…",
     "noApi": "Disponible solo con backend en vivo.",
@@ -1086,13 +1087,12 @@
     "status_ok": "Estable",
     "status_warn": "Huecos menores",
     "tabDay": "Diario",
-    "tabMonth": "Mensual",
-    "tabWeek": "Semanal",
+    "tabHour": "Horario",
+    "tipCurrentHour": "Hora en curso, datos hasta las {{time}}",
     "tipToday": "Hoy, datos hasta las {{time}} (en curso)",
     "totalDown": "Tiempo sin datos total",
     "windowDay": "los últimos {{n}} días",
-    "windowMonth": "los últimos {{n}} meses",
-    "windowWeek": "las últimas {{n}} semanas",
+    "windowHour": "las últimas {{n}} horas",
     "worstRouter": "Router con más huecos"
   },
   "topology": {
