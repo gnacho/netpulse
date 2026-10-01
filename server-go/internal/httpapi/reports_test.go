@@ -13,8 +13,10 @@ import (
 )
 
 // insertDaily siembra un daily del router r para una fecha dada. nSamples es
-// el nº de muestras recolectadas (poll 5 s; día completo ≈ 17280 → 1440 min).
-func insertDaily(t *testing.T, ts *testServer, routerID, date string, nSamples int, lat sqlNull, rx, tx, cpu, ram float64) {
+// el nº de muestras recolectadas (informativo tras #987: la disponibilidad ya
+// no se deriva de n) y upCount el nº de buckets de 5 min con datos (288 = día
+// completo), que es la base de upMin/upPct.
+func insertDaily(t *testing.T, ts *testServer, routerID, date string, nSamples, upCount int, lat sqlNull, rx, tx, cpu, ram float64) {
 	t.Helper()
 	var latV any
 	if lat.valid {
@@ -22,7 +24,7 @@ func insertDaily(t *testing.T, ts *testServer, routerID, date string, nSamples i
 	}
 	_, err := ts.db.Exec(
 		"INSERT OR REPLACE INTO metrics_daily (router_id, date, n, cpu_avg, ram_avg, temp_avg, lat_avg, rx_avg, tx_avg, rx_total, tx_total, up_min, up_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-		routerID, date, nSamples, cpu, ram, 40, latV, rx, tx, rx*float64(nSamples), tx*float64(nSamples), 0, nSamples)
+		routerID, date, nSamples, cpu, ram, 40, latV, rx, tx, rx*float64(nSamples), tx*float64(nSamples), 0, upCount)
 	if err != nil {
 		t.Fatalf("insert daily %s/%s: %v", routerID, date, err)
 	}
@@ -76,9 +78,11 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	// Semanas relativas a HOY: el handler filtra por date >= now-7*weeks,
 	// así que usar semanas ISO fijas haría el test dependiente de la fecha
 	// (fallaba al avanzar la semana actual, CI rojo sin relación con cambios).
-	// Semana A = la actual (lunes), Semana B = la anterior.
+	// Además, desde #987 el daily del día en curso se excluye (se mide del
+	// raw), así que TODAS las fechas sembradas deben ser pasadas: semana A =
+	// la anterior, semana B = hace dos.
 	now := time.Now().UTC()
-	mondayA := mondayOf(now)
+	mondayA := mondayOf(now).AddDate(0, 0, -7)
 	mondayB := mondayA.AddDate(0, 0, -7)
 	weekA := isoWeek(mondayA)
 	weekB := isoWeek(mondayB)
@@ -86,14 +90,14 @@ func TestWeeklyReportAgrupaPorRouterYSemana(t *testing.T) {
 	dateA2 := mondayA.AddDate(0, 0, 1).Format("2006-01-02")
 	dateB := mondayB.Format("2006-01-02")
 
-	// Dos routers en la misma semana A. Día completo = 17280 muestras =
-	// 1440 min. latAvg null en prod real.
-	insertDaily(t, ts, "gw", dateA, 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
-	insertDaily(t, ts, "gw", dateA2, 17280, sqlNull{true, 1.4}, 1e8, 5e7, 22, 61)
-	insertDaily(t, ts, "ap2", dateA, 8640, sqlNull{false, 0}, 1e7, 1e7, 10, 40) // medio día, sin latencia
+	// Dos routers en la misma semana A. Día completo = 288 buckets de 5 min
+	// (upMin 1440). latAvg null en prod real.
+	insertDaily(t, ts, "gw", dateA, 17280, 288, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
+	insertDaily(t, ts, "gw", dateA2, 17280, 288, sqlNull{true, 1.4}, 1e8, 5e7, 22, 61)
+	insertDaily(t, ts, "ap2", dateA, 8640, 144, sqlNull{false, 0}, 1e7, 1e7, 10, 40) // medio día, sin latencia
 
-	// Otra semana distinta (B, la anterior) para el mismo router.
-	insertDaily(t, ts, "gw", dateB, 17280, sqlNull{true, 1.0}, 9e7, 4e7, 19, 59)
+	// Otra semana distinta (B) para el mismo router.
+	insertDaily(t, ts, "gw", dateB, 17280, 288, sqlNull{true, 1.0}, 9e7, 4e7, 19, 59)
 
 	status, items := getWeekly(t, ts, "4")
 	if status != http.StatusOK {
@@ -174,12 +178,12 @@ func isoWeek(t time.Time) string {
 // clavaba y weekly no.
 func TestWeeklyReportUpPctClamp(t *testing.T) {
 	ts := makeTestServer(t)
-	// Fecha relativa a hoy (mismo patrón anti-dependencia de la fecha del
-	// test de agrupación): lunes de la semana actual.
-	dateA := mondayOf(time.Now().UTC()).Format("2006-01-02")
-	// Día completo = 17280 muestras = 1440 min. El doble (34560) da
+	// Fecha pasada (ayer): desde #987 el daily del día en curso se excluye y
+	// se mide del raw, así que el daily sembrado debe ser de un día cerrado.
+	dateA := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	// Día completo = 288 buckets de 5 min = 1440 min. El doble (576) da
 	// upMin = 2880 sobre 1440 min → 200% sin el clamp.
-	insertDaily(t, ts, "gw", dateA, 34560, sqlNull{false, 0}, 0, 0, 20, 60)
+	insertDaily(t, ts, "gw", dateA, 34560, 576, sqlNull{false, 0}, 0, 0, 20, 60)
 
 	status, items := getWeekly(t, ts, "4")
 	if status != http.StatusOK {

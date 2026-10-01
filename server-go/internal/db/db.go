@@ -92,10 +92,13 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
   cpu_avg REAL, ram_avg REAL, temp_avg REAL,
   lat_avg REAL, rx_avg REAL, tx_avg REAL,
   rx_total REAL, tx_total REAL,
-  -- up_min: minutos de recolección del día (SUM(n) * 5 / 60; n = muestras a
-  -- 5 s → día completo ≈ 17280 muestras ≈ 1440 min).
+  -- up_min: LEGACY (#987). Minutos de recolección asumiendo poll de 5 s
+  -- (SUM(n) * 5 / 60): con cualquier otro intervalo miente (con poll de 30 s
+  -- da 240 min/día). Los informes ya no lo leen; usan up_count.
   up_min INTEGER NOT NULL DEFAULT 0,
-  -- up_count: nº de buckets de 5 min con datos (288 = día completo).
+  -- up_count: nº de buckets de 5 min con datos (288 = día completo). Es la
+  -- base de la disponibilidad de los informes: agnóstica del intervalo de
+  -- poll mientras este sea < 5 min.
   up_count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (router_id, date)
 );

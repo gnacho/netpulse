@@ -53,8 +53,8 @@ func TestAvailabilityDayAgrupaPorDia(t *testing.T) {
 	// y hacían el test flaky según el calendario).
 	dayBefore := time.Now().UTC().AddDate(0, 0, -2).Format("2006-01-02")
 	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
-	insertDaily(t, ts, "gw", yesterday, 17280, sqlNull{true, 1.0}, 1e8, 5e7, 20, 60) // día completo
-	insertDaily(t, ts, "gw", dayBefore, 8640, sqlNull{true, 2.0}, 1e8, 5e7, 20, 60)  // medio día
+	insertDaily(t, ts, "gw", yesterday, 17280, 288, sqlNull{true, 1.0}, 1e8, 5e7, 20, 60) // día completo
+	insertDaily(t, ts, "gw", dayBefore, 8640, 144, sqlNull{true, 2.0}, 1e8, 5e7, 20, 60)  // medio día
 
 	status, items := getAvailability(t, ts, "?range=day&n=30")
 	if status != http.StatusOK {
@@ -74,7 +74,7 @@ func TestAvailabilityDayAgrupaPorDia(t *testing.T) {
 	if byDate[yesterday].UpPct < 99.9 {
 		t.Fatalf("día completo upPct=%v, esperaba ~100", byDate[yesterday].UpPct)
 	}
-	// El otro día es pasado completo → 8640 muestras = 720 min de 1440 → 50%.
+	// El otro día es pasado completo → 144 buckets = 720 min de 1440 → 50%.
 	if byDate[dayBefore].UpPct < 49.9 || byDate[dayBefore].UpPct > 50.1 {
 		t.Fatalf("medio día pasado upPct=%v, esperaba ~50", byDate[dayBefore].UpPct)
 	}
@@ -84,9 +84,9 @@ func TestAvailabilityDayAgrupaPorDia(t *testing.T) {
 func TestAvailabilityMonthAgrupaPorMes(t *testing.T) {
 	ts := makeTestServer(t)
 	// Tres días de 2026-07 para el mismo router → un bucket "2026-07".
-	insertDaily(t, ts, "gw", "2026-07-10", 17280, sqlNull{false, 0}, 0, 0, 20, 60)
-	insertDaily(t, ts, "gw", "2026-07-11", 17280, sqlNull{false, 0}, 0, 0, 20, 60)
-	insertDaily(t, ts, "gw", "2026-07-12", 17280, sqlNull{false, 0}, 0, 0, 20, 60)
+	insertDaily(t, ts, "gw", "2026-07-10", 17280, 288, sqlNull{false, 0}, 0, 0, 20, 60)
+	insertDaily(t, ts, "gw", "2026-07-11", 17280, 288, sqlNull{false, 0}, 0, 0, 20, 60)
+	insertDaily(t, ts, "gw", "2026-07-12", 17280, 288, sqlNull{false, 0}, 0, 0, 20, 60)
 
 	status, items := getAvailability(t, ts, "?range=month&n=12")
 	if status != http.StatusOK {
@@ -114,7 +114,7 @@ func TestAvailabilityWeekIgualQueWeekly(t *testing.T) {
 	// Usar una fecha dentro de las ultimas 4 semanas para que weekly?weeks=4
 	// la incluya independientemente de la fecha actual en CI.
 	date := time.Now().UTC().AddDate(0, 0, -7).Format("2006-01-02")
-	insertDaily(t, ts, "gw", date, 17280, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
+	insertDaily(t, ts, "gw", date, 17280, 288, sqlNull{true, 1.2}, 1e8, 5e7, 20, 60)
 
 	_, wItems := getWeekly(t, ts, "4")
 	_, aItems := getAvailability(t, ts, "?range=week&n=4")
@@ -127,15 +127,39 @@ func TestAvailabilityWeekIgualQueWeekly(t *testing.T) {
 	}
 }
 
-// TestAvailabilityDayActualNoPenaliza: el día de hoy con datos parciales se
-// normaliza por los minutos transcurridos, no por 1440.
+// insertRaw siembra muestras raw del router r: una al inicio de cada uno de
+// los primeros nBuckets buckets de 5 min del día UTC de hoy. El día en curso
+// se mide del raw (el daily llega con el rollup nocturno, #987).
+func insertRaw(t *testing.T, ts *testServer, routerID string, nBuckets int) {
+	t.Helper()
+	now := time.Now().UTC()
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	for i := 0; i < nBuckets; i++ {
+		tsMs := midnight.Add(time.Duration(i) * 5 * time.Minute).UnixMilli()
+		_, err := ts.db.Exec(
+			"INSERT INTO metrics (router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps) VALUES (?,?,?,?,?,?,?,?)",
+			routerID, tsMs, 20, 60, 40, 1.5, 1e6, 5e5)
+		if err != nil {
+			t.Fatalf("insert raw %s: %v", routerID, err)
+		}
+	}
+}
+
+// TestAvailabilityDayActualNoPenaliza: el día de hoy se mide del raw (el
+// daily llega con el rollup nocturno y marcaría el día como caído) y se
+// normaliza por los minutos transcurridos, no por 1440. Un router online
+// desde medianoche da ~100% hoy, sin downtime inventado (#987).
 func TestAvailabilityDayActualNoPenaliza(t *testing.T) {
 	ts := makeTestServer(t)
-	today := time.Now().UTC().Format("2006-01-02")
-	// 360 min de recolección hoy (medio día "de trabajo"). Si el divisor fuera
-	// 1440, daría 25% (parece caído). Con minutos transcurridos, refleja la
-	// cobertura real hasta ahora.
-	insertDaily(t, ts, "gw", today, 360*12, sqlNull{false, 0}, 0, 0, 20, 60) // 360 min = 4320 muestras
+	now := time.Now().UTC()
+	today := now.Format("2006-01-02")
+	nowMin := now.Hour()*60 + now.Minute()
+	if nowMin == 0 {
+		t.Skip("medianoche UTC: el día en curso aún no tiene minutos que medir")
+	}
+	// Cobertura continua desde medianoche hasta ahora: una muestra al inicio
+	// de cada bucket de 5 min transcurrido (un router online 24/7, #987).
+	insertRaw(t, ts, "gw", nowMin/5+1)
 
 	_, items := getAvailability(t, ts, "?range=day&n=5")
 	var today_ *availabilityEntry
@@ -147,22 +171,61 @@ func TestAvailabilityDayActualNoPenaliza(t *testing.T) {
 	if today_ == nil {
 		t.Fatalf("no se devolvió fila para hoy %q: %+v", today, items)
 	}
-	nowMin := time.Now().UTC().Hour()*60 + time.Now().UTC().Minute()
-	want := float64(today_.UpMin) / float64(nowMin) * 100
-	if nowMin == 0 {
-		want = 100 // evitar div/0 a medianoche
+	// Cobertura continua → upMin = minutos transcurridos (el bucket actual
+	// parcial se tope al divisor) y upPct = 100, no un día "caído". Margen de
+	// ±1 min por si el reloj cruza un minuto entre test y handler.
+	if today_.UpMin < int64(nowMin)-1 || today_.UpMin > int64(nowMin)+1 {
+		t.Fatalf("día actual upMin=%d, esperaba ~%d (minutos transcurridos)", today_.UpMin, nowMin)
 	}
-	// El endpoint clamp a 100 (mismo tope que el report semanal, #207): si
-	// nowMin < upMin el ratio bruto excede 100 y el clamp lo lleva a 100.
-	if want > 100 {
-		want = 100
+	if today_.UpPct < 99.9 || today_.UpPct > 100.1 {
+		t.Fatalf("día actual upPct=%v, esperaba ~100 (router online, #987)", today_.UpPct)
 	}
-	if today_.UpPct < want-0.5 || today_.UpPct > want+0.5 {
-		t.Fatalf("día actual upPct=%v, esperaba ~%.1f (upMin=%d / nowMin=%d)", today_.UpPct, want, today_.UpMin, nowMin)
+}
+
+// TestAvailabilityAgenteOnlineNoInventaDowntime (#987): un router sondeado
+// cada 30 s (poll real de prod) o que reporta por agente tiene una n diaria
+// muy inferior a las 17280 muestras del poll de 5 s. La fórmula vieja
+// (n * 5 s) lo marcaba como caído el 83% del tiempo (17 días fantasma en 4
+// semanas). Con la semántica de buckets (up_count) una semana completa con
+// datos da ~100% y cero downtime inventado.
+func TestAvailabilityAgenteOnlineNoInventaDowntime(t *testing.T) {
+	ts := makeTestServer(t)
+	// 7 días completos la semana pasada con poll de 30 s: n = 2880 muestras
+	// (la fórmula vieja daba upMin = 240 → upPct 16,7%), up_count = 288
+	// buckets (día completo con datos).
+	monday := mondayOf(time.Now().UTC()).AddDate(0, 0, -7)
+	for i := 0; i < 7; i++ {
+		date := monday.AddDate(0, 0, i).Format("2006-01-02")
+		insertDaily(t, ts, "agent1", date, 2880, 288, sqlNull{true, 2.0}, 1e8, 5e7, 20, 60)
 	}
-	// Y no debe verse como "caído": si ahora mismo hay cobertura, upPct cerca del 100%.
-	if today_.UpPct > 100.1 {
-		t.Fatalf("upPct > 100 sin tope: %v", today_.UpPct)
+
+	status, items := getAvailability(t, ts, "?range=week&n=4")
+	if status != http.StatusOK {
+		t.Fatalf("status %d, esperaba 200", status)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %d, esperaba 1 (una semana): %+v", len(items), items)
+	}
+	if items[0].UpMin != 7*1440 {
+		t.Fatalf("upMin = %d, esperaba %d (semana completa con datos)", items[0].UpMin, 7*1440)
+	}
+	if items[0].UpPct < 99.9 {
+		t.Fatalf("upPct = %v, esperaba ~100: un router online no puede salir caído (#987)", items[0].UpPct)
+	}
+
+	// El endpoint weekly (API/CSV) aplica la misma semántica.
+	_, wItems := getWeekly(t, ts, "4")
+	var w *weeklyReportEntry
+	for i := range wItems {
+		if wItems[i].RouterID == "agent1" {
+			w = &wItems[i]
+		}
+	}
+	if w == nil {
+		t.Fatalf("weekly sin fila para agent1: %+v", wItems)
+	}
+	if w.UpPct < 99.9 {
+		t.Fatalf("weekly upPct = %v, esperaba ~100 (#987)", w.UpPct)
 	}
 }
 
