@@ -12,16 +12,16 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 
 /** Página Resumen `/` (home.md). Layout #965: hero compacto + alertas 50/50,
  *  tráfico WAN a todo lo ancho, flota, collector, SLEs y los servicios del
- *  gateway (WireGuard/AdGuard) AL FINAL. */
+ *  gateway (AdGuard/WireGuard) AL FINAL. */
 export default function Home() {
   const { isDemo } = useNetPulse()
   const [services] = useServicesVisibility()
   // Clave ESTABLE por tarjeta (#223): si AdGuard/WireGuard se deshabilitan en
   // Ajustes la lista se reordena y, con key={i}, React remontaría los paneles.
-  // Cada id identifica al hijo, no su posición.
+  // Cada id identifica al hijo, no su posición. Orden #983: AdGuard primero.
   const serviceCards: { id: string; node: ReactNode }[] = []
-  if (services.wireguard) serviceCards.push({ id: 'wireguard', node: <WireGuardCard /> })
   if (services.adguard) serviceCards.push({ id: 'adguard', node: <AdGuardCard /> })
+  if (services.wireguard) serviceCards.push({ id: 'wireguard', node: <WireGuardCard /> })
   const serviceSpan = serviceCards.length >= 2 ? 'lg:col-span-6' : 'lg:col-span-12'
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
@@ -53,7 +53,7 @@ export default function Home() {
           <WiFiSLECard />
         </div>
       )}
-      {/* ⑥ Servicios del gateway (WireGuard/AdGuard) AL FINAL, span 6/12
+      {/* ⑥ Servicios del gateway (AdGuard/WireGuard) AL FINAL, span 6/12
           según cuántos sean visibles */}
       {serviceCards.map((c) => (
         <div key={c.id} className={serviceSpan}>
