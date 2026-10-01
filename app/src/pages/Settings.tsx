@@ -18,7 +18,6 @@ import {
   Gauge,
   HardDrive,
   History,
-  Info,
   KeyRound,
   Loader2,
   LogOut,
@@ -61,7 +60,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { InfoTip } from '@/components/InfoTip'
 import { useNetPulse } from '@/data/DataProvider'
 import { fmtEs } from '@/data/mock'
 import { useAuth } from '@/data/AuthContext'
@@ -84,28 +83,6 @@ import pkg from '../../package.json'
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-// InfoTip (#975): icono (i) con el texto largo en un tooltip al pasar el
-// ratón, para que la sección quede con lo justo. Reusa el Tooltip radix de
-// la app (mismo patrón que PortPanel).
-function InfoTip({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={text}
-          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent"
-        >
-          <Info className="h-3.5 w-3.5" strokeWidth={1.75} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs text-left leading-relaxed">
-        {text}
-      </TooltipContent>
-    </Tooltip>
-  )
-}
 
 /** Estado persistido en localStorage (settings.md §Interactions) */
 // Idioma de las notificaciones push (#889): ajuste server-wide (kv
@@ -715,6 +692,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       reduce={reduce}
       headerSlot={
         <div className="flex items-center gap-2">
+          <InfoTip text={t('settings.routers.hint')} />
           <button
             type="button"
             onClick={() => void discover()}
@@ -993,7 +971,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           </button>
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
-        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.routers.hint')}</p>
         </form>
         )}
       </div>
@@ -1047,8 +1024,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 />
               </div>
               <div>
-                <label htmlFor="temp-threshold" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                <label htmlFor="temp-threshold" className="mb-1 flex items-center gap-1 text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
                   {t('settings.routers.tempThreshold')}
+                  <InfoTip text={t('settings.routers.tempThresholdHint')} />
                 </label>
                 <input
                   id="temp-threshold"
@@ -1061,7 +1039,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   aria-label={t('settings.routers.tempThreshold')}
                   className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
-                <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.tempThresholdHint')}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <SegmentedControl
@@ -1086,9 +1063,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 {editType === 'managed-switch' && (
                   <label className="flex cursor-pointer items-start gap-2 text-sm text-text-secondary">
                     <Switch checked={editConsolePolling} onCheckedChange={setEditConsolePolling} className="mt-0.5" />
-                    <span>
+                    <span className="flex items-center gap-1">
                       {t('settings.routers.consolePolling')}
-                      <span className="mt-0.5 block text-caption leading-relaxed text-text-muted">{t('settings.routers.consolePollingHint')}</span>
+                      <InfoTip text={t('settings.routers.consolePollingHint')} />
                     </span>
                   </label>
                 )}
@@ -1205,8 +1182,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-text-muted" strokeWidth={1.75} />
           <span className="text-sm font-medium text-text-primary">{t('settings.routers.sshKeyTitle')}</span>
+          <InfoTip text={t('settings.routers.sshKeyCaption')} />
         </div>
-        <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.sshKeyCaption')}</p>
         {pubkey && (
           <div className="mt-2.5 flex items-start gap-2">
             <code className="min-w-0 flex-1 break-all rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-[11px] leading-relaxed text-text-secondary">
@@ -1704,7 +1681,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   // chip ok + Editar). Sin configurar → form directo como antes.
   if (passSet && !editing) {
     return (
-      <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
+      <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce} headerSlot={<InfoTip text={t('settings.adguard.hint')} />}>
         <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
           <ShieldCheck className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
           <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-text-primary">{displayHost}</span>
@@ -1732,13 +1709,12 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           </button>
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
-        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
       </Card>
     )
   }
 
   return (
-    <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce}>
+    <Card title={t('settings.adguard.title')} caption={t('settings.adguard.caption')} index={5} reduce={reduce} headerSlot={<InfoTip text={t('settings.adguard.hint')} />}>
       <form onSubmit={(e) => void save(e)}>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
           <select
@@ -1826,7 +1802,6 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
         {detectNote && <p className="mt-2 text-caption text-text-muted">{detectNote}</p>}
-        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
       </form>
     </Card>
   )
@@ -1958,7 +1933,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const empty = { id: '', name: '', url: '', tokenId: '', secret: '' }
 
   return (
-    <Card title={t('settings.proxmox.title')} caption={t('settings.proxmox.caption')} index={5} reduce={reduce}>
+    <Card title={t('settings.proxmox.title')} caption={t('settings.proxmox.caption')} index={5} reduce={reduce} headerSlot={<InfoTip text={t('settings.proxmox.hintShort')} />}>
       <div className="space-y-2.5">
         {instances.map((inst) => (
           <div key={inst.id} className="flex items-center gap-3 rounded-xl border border-border bg-elevated px-3.5 py-2.5">
@@ -2103,7 +2078,6 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         )}
       </div>
       {error && !editing && <p className="mt-2 text-caption text-danger">{error}</p>}
-      <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.proxmox.hint')}</p>
     </Card>
   )
 }
@@ -2772,7 +2746,10 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
   return (
     <div className="space-y-3">
       <div>
-        <div className="text-sm font-medium text-text-primary">{t('settings.wanSpeed.title')}</div>
+        <div className="flex items-center gap-1 text-sm font-medium text-text-primary">
+          {t('settings.wanSpeed.title')}
+          <InfoTip text={t('settings.wanSpeed.hint')} />
+        </div>
         <div className="text-caption text-text-muted">{t('settings.wanSpeed.caption')}</div>
       </div>
 
@@ -2827,8 +2804,6 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
           </div>
         )}
       </div>
-
-      <p className="text-caption text-text-muted">{t('settings.wanSpeed.hint')}</p>
 
       {/* Barra de fases cuando corre el test */}
       {!disabled && testing && (
@@ -3153,7 +3128,10 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.interval')}</span>
+          <span className="flex items-center gap-1 text-label uppercase text-text-muted">
+            {t('settings.speedtest.interval')}
+            <InfoTip text={t('settings.speedtest.hint')} />
+          </span>
           <select
             value={scheduleKind}
             onChange={(e) => setScheduleKind(e.target.value as 'interval' | 'weekly' | 'monthly')}
@@ -3299,7 +3277,6 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         </div>
       </div>
       )}
-      <p className="text-caption text-text-muted">{t('settings.speedtest.hint')}</p>
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -3659,10 +3636,6 @@ function ServicesCard({
           </div>
         </div>
       )}
-
-      <p className="mt-3 rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
-        {t('settings.services.note')}
-      </p>
 
       {/* Diálogos de configuración de integraciones (#968): los managers
           viven SOLO en diálogo (#977: las cards sueltas ya no están en el
@@ -4127,7 +4100,10 @@ function AutoUpdatePanel() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-caption text-text-muted">{t('settings.autoupdate.mode')}</span>
+          <span className="flex items-center gap-1 text-caption text-text-muted">
+            {t('settings.autoupdate.mode')}
+            <InfoTip text={t('settings.autoupdate.hint')} />
+          </span>
           <select
             value={enabled ? kind : 'off'}
             onChange={(ev) => {
@@ -4197,8 +4173,6 @@ function AutoUpdatePanel() {
       </div>
 
       {err && <p className="text-sm text-danger">{err}</p>}
-
-      <p className="text-xs text-text-muted">{t('settings.autoupdate.hint')}</p>
 
       {enabled && info.nextRunMs != null && (
         <p className="text-sm text-text-secondary">
@@ -4493,8 +4467,8 @@ function AdoptionCard() {
       <div className="mb-3 flex items-center gap-2">
         <Wifi className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
         <h3 className="text-sm font-semibold text-text-primary">{t('settings.adoption.title')}</h3>
+        <InfoTip text={t('settings.adoption.hint')} />
       </div>
-      <p className="mb-3 text-xs text-text-secondary">{t('settings.adoption.hint')}</p>
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -5653,6 +5627,7 @@ export default function Settings() {
               caption={t('settings.overrides.caption')}
               index={5}
               reduce={reduce}
+              headerSlot={<InfoTip text={t('settings.overrides.hint')} />}
             >
               <TopologyOverridesManager onSaved={notify} />
             </Card>

@@ -1223,8 +1223,7 @@
         "error": "Could not create backup",
         "done": "Backup created successfully"
       },
-      "orchestration": "Network orchestration",
-      "orchestrationDesc": "Shows the orchestration menu (apply and roll back changes on routers). It is a write surface, so it is off until you enable it."
+      "orchestration": "Network orchestration"
     },
     "adoption": {
       "title": "Agent adoption",
@@ -1338,7 +1337,6 @@
       "disable": "Back to live mode",
       "disableDesc": "The server will restart in live mode, polling your real routers.",
       "enable": "Load sample data",
-      "enableDesc": "The server will restart and show a sample network (60+ devices). Your routers are untouched.",
       "restarting": "The server is restarting with the sample network…",
       "title": "Demo mode"
     },
@@ -1385,7 +1383,8 @@
       "bot": "Bot",
       "chat": "Chat",
       "sendTest": "Send test",
-      "incomplete": "Fill in the bot token and chat ID or enable notifications"
+      "incomplete": "Fill in the bot token and chat ID or enable notifications",
+      "botTokenHint": "Create the bot with @BotFather on Telegram and paste its token here."
     },
     "pwa": {
       "caption": "Installable app · PWA",
@@ -1508,7 +1507,6 @@
     },
     "labs": {
       "title": "Labs",
-      "caption": "External devices that push data via API (scrapers, non-OpenWrt switches…). Not polled via SSH.",
       "empty": "No external devices yet. Add your first device.",
       "addDevice": "Add external device",
       "namePlaceholder": "Name (becomes the device slug)",
@@ -1544,7 +1542,6 @@
       "labs": "Labs (experimental features)",
       "labsCaption": "Enable features in development: orchestration, scrapers, and more",
       "orchestrationHint": "Manage routers from the UI (AdGuard, guest Wi-Fi, DDNS…)",
-      "note": "Only checked services are shown and monitored. More services coming soon.",
       "networkGroup": "Network services",
       "integrationsGroup": "Integrations",
       "proxmoxCaption": "Cluster inventory (hypervisors and CTs)",
@@ -1612,7 +1609,6 @@
       "invalid": "Enter speeds greater than 0 and at most 100000 Mbps",
       "saveError": "Could not save the speed",
       "runTest": "Run speed test",
-      "testCaption": "Measures the real speed from the server and fills the fields with the result. Then press Save.",
       "testApplied": "Measurement applied: {{down}} ↓ / {{up}} ↑ Mbps",
       "testFailed": "The speed test failed",
       "testHint": "The test saturates the link for a few seconds. You can leave this page; fields are filled when it finishes.",
@@ -1700,7 +1696,6 @@
     "proxmox": {
       "title": "Proxmox VE",
       "caption": "Cluster inventory to identify hosts and their containers",
-      "hint": "Connects to the Proxmox cluster read-only API (token with Sys.Audit and VM.Audit privileges). The inventory seals the host as hypervisor and its CTs/VMs as containers attached to it in Devices, with real names and IPs. Create the token in Datacenter > Permissions > API Tokens.",
       "configured": "Configured",
       "notConfigured": "Not configured",
       "edit": "Edit Proxmox configuration",
@@ -1718,7 +1713,8 @@
       "instanceId": "Identifier (slug, not editable later)",
       "test": "Test",
       "testOk": "Connected: Proxmox {{version}} · {{nodes}} node(s), {{vms}} VM(s), {{cts}} CT(s)",
-      "testLimited": "The token authenticates but cannot see any guest: Proxmox returns the lists empty when the token lacks audit rights. Grant it PVEAuditor on \"/\" — on the Proxmox host: pveum acl modify / --tokens 'USER@REALM!TOKEN' --roles PVEAuditor. A token with privilege separation needs the permission itself, not just its user."
+      "testLimited": "The token authenticates but cannot see any guest: Proxmox returns the lists empty when the token lacks audit rights. Grant it PVEAuditor on \"/\" — on the Proxmox host: pveum acl modify / --tokens 'USER@REALM!TOKEN' --roles PVEAuditor. A token with privilege separation needs the permission itself, not just its user.",
+      "hintShort": "Read-only API: the token needs the Sys.Audit and VM.Audit permissions. The steps to create it are on the Help page."
     },
     "sections": {
       "personalization": "Configuration",
@@ -2356,6 +2352,18 @@
           "Follow the progress on the same page; the final result lands when the router finishes booting."
         ],
         "tip": "After a flash only /etc survives: the agent's self-heal restores the binary at boot, and ⟦Reinstall⟧ puts everything fresh if needed."
+      },
+      "proxmoxToken": {
+        "title": "Connect a Proxmox cluster",
+        "subtitle": "Create the read-only API token the integration asks for",
+        "intro": "The Proxmox integration seals each host as a hypervisor and hangs its CTs and VMs under it in ⟦Devices⟧, with real names and IPs. It only needs read access: an API token with audit permissions.",
+        "steps": [
+          "In the Proxmox web UI go to ⟦Datacenter⟧ → ⟦Permissions⟧ → ⟦API Tokens⟧ and create a token for the user of your choice (e.g. root@pam!netpulse).",
+          "Grant audit permissions: under ⟦Permissions⟧ → ⟦Add⟧ assign the PVEAuditor role on path / to the token (if the token has privilege separation, the permission must belong to the token itself - the user's own is not enough).",
+          "In NetPulse open ⟦Settings⟧ → ⟦Services⟧ and click the configure icon of ⟦Proxmox VE⟧: add the cluster URL (https://host:8006), the Token ID (user@realm!name) and the Secret.",
+          "Click ⟦Test⟧: if the token authenticates but sees no guests, it is missing the permissions from step 2."
+        ],
+        "tip": "The secret is sent only once and never comes back from the server: to change it, edit the instance and type the new one."
       }
     }
   },

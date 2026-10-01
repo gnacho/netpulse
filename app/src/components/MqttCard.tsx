@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Loader2, Check, Eye, EyeOff, Radio, Share2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { InfoTip } from '@/components/InfoTip'
 
 type MqttState = 'loading' | 'idle' | 'saving' | 'testing' | 'propagating' | 'saved' | 'error'
 
@@ -185,8 +186,9 @@ export default function MqttCard({ onSaved, bare = true }: { onSaved: () => void
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+          <label className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
             {t('settings.mqtt.host')}
+            <InfoTip text={t('settings.mqtt.hint')} />
           </label>
           <input
             type="text"
@@ -271,8 +273,6 @@ export default function MqttCard({ onSaved, bare = true }: { onSaved: () => void
           />
         </div>
       </div>
-
-      <p className="mt-2 text-[11px] leading-relaxed text-text-muted">{t('settings.mqtt.hint')}</p>
 
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 

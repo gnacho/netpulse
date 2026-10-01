@@ -253,8 +253,6 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
 
   return (
     <div className="space-y-3">
-      <p className="text-caption leading-relaxed text-text-muted">{t('settings.overrides.hint')}</p>
-
       {error && <p className="text-caption text-danger">{error}</p>}
 
       {/* Lista */}

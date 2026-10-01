@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Loader2, Check, Eye, EyeOff, Bell } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { InfoTip } from '@/components/InfoTip'
 
 type TelegramState = 'loading' | 'idle' | 'saving' | 'testing' | 'saved' | 'error'
 
@@ -140,8 +141,9 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {/* Bot token */}
           <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+            <label className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
               {t('settings.telegram.botToken')}
+              <InfoTip text={t('settings.telegram.botTokenHint')} />
             </label>
             <div className="flex items-center gap-1">
               <input
@@ -236,8 +238,9 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
         {/* Bot token + Chat ID en la misma fila */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+            <label className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
               {t('settings.telegram.botToken')}
+              <InfoTip text={t('settings.telegram.botTokenHint')} />
             </label>
             <div className="flex items-center gap-1">
               <input

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Loader2, Check, Eye, EyeOff, Bell } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { InfoTip } from '@/components/InfoTip'
 
 type NtfyState = 'loading' | 'idle' | 'saving' | 'testing' | 'saved' | 'error'
 
@@ -127,14 +128,16 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
       </div>
 
       <div className="flex items-center justify-between gap-4 py-1">
-        <span className="text-sm font-medium text-text-primary">{t('settings.ntfy.urgentOnly')}</span>
+        <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
+          {t('settings.ntfy.urgentOnly')}
+          <InfoTip text={t('settings.ntfy.urgentOnlyHint')} />
+        </span>
         <Switch
           checked={cfg.urgentOnly}
           onCheckedChange={(v) => setCfg((c) => ({ ...c, urgentOnly: v }))}
           aria-label={t('settings.ntfy.urgentOnly')}
         />
       </div>
-      <p className="-mt-1 mb-1 text-[11px] leading-relaxed text-text-muted">{t('settings.ntfy.urgentOnlyHint')}</p>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
@@ -151,8 +154,9 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+          <label className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
             {t('settings.ntfy.topic')}
+            <InfoTip text={t('settings.ntfy.hint')} />
           </label>
           <input
             type="text"
@@ -188,8 +192,6 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
           </div>
         </div>
       </div>
-
-      <p className="mt-2 text-[11px] leading-relaxed text-text-muted">{t('settings.ntfy.hint')}</p>
 
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 

@@ -18,6 +18,7 @@ import {
   KeyRound,
   ListChecks,
   Router as RouterIcon,
+  Server,
   Wifi,
 } from 'lucide-react'
 import {
@@ -56,6 +57,7 @@ const FLOWS = [
   { key: 'installAgent', icon: CircleHelp },
   { key: 'channelPlan', icon: Wifi },
   { key: 'firmware', icon: Cpu },
+  { key: 'proxmoxToken', icon: Server },
 ] as const
 
 export default function Help() {
