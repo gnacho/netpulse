@@ -371,6 +371,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("PUT /api/alerts/config", s.handleAlertsConfigPut)
 	mux.HandleFunc("POST /api/alerts/read", s.handleAlertsRead)
 	mux.HandleFunc("POST /api/alerts/read-all", s.handleAlertsReadAll)
+	mux.HandleFunc("POST /api/alerts/clear", s.handleAlertsClear)
 	mux.HandleFunc("POST /api/alerts/dismiss", s.handleAlertsDismiss)
 	mux.HandleFunc("POST /api/alerts/silence", s.handleAlertsSilence)
 	mux.HandleFunc("POST /api/alerts/unsilence", s.handleAlertsUnsilence)

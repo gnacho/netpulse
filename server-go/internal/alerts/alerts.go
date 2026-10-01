@@ -862,6 +862,23 @@ func (e *Engine) Dismiss(ids ...string) {
 	e.list = kept
 }
 
+// DismissAll limpia TODAS las alertas del feed (issue #971, botón "Marcar
+// todo como leído"): equivale a Dismiss sobre cada ID presente en la lista.
+// Las persistentes se borran de alert_log y su ID queda en el conjunto
+// dismissed (kv), así que el feed vacío sobrevive a un reload; las volátiles
+// (agent-down) también salen, pero si su condición sigue viva el emisor las
+// re-emite con el mismo ID y vuelven (semántica "alerta viva": lo que no
+// vuelve es el histórico, no el presente).
+func (e *Engine) DismissAll() {
+	e.mu.Lock()
+	ids := make([]string, 0, len(e.list))
+	for _, ev := range e.list {
+		ids = append(ids, ev.ID)
+	}
+	e.mu.Unlock()
+	e.Dismiss(ids...)
+}
+
 // Has informa si un ID de alerta está actualmente en la lista (persistida
 // incluida). Lo usa el agent-outdated check tras un reinicio, cuando el flag
 // en memoria (agentOutdatedAlerted) no sobrevive pero la alerta sí (#833).

@@ -220,8 +220,31 @@ func TestAlertsDismissEndpoint(t *testing.T) {
 	}
 }
 
+// POST /api/alerts/clear (issue #971): "Marcar todo como leído" VACÍA el
+// feed - las alertas se descartan, no solo se marcan - y el badge queda a 0.
+func TestAlertsClearAllEndpoint(t *testing.T) {
+	ts := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := doJSON(t, "POST", ts.URL, "/api/alerts/clear", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("clear: %d", res.StatusCode)
+	}
+	res.Body.Close()
+
+	items := alertItems(t, get(t, ts.URL, "/api/alerts", cookie))
+	if len(items) != 0 {
+		t.Fatalf("feed tras clear: %d, esperaba 0", len(items))
+	}
+	body := readJSON(t, get(t, ts.URL, "/api/overview", cookie))
+	if got := body["unreadAlerts"].(float64); got != 0 {
+		t.Fatalf("unreadAlerts tras clear: %v, esperaba 0", got)
+	}
+}
+
 // writeJSON sin '\n' final (paridad D5, SPEC-ALERTAS §4).
-func TestAlertsNoTrailingNewline(t *testing.T) {	ts := makeTestServer(t)
+func TestAlertsNoTrailingNewline(t *testing.T) {
+	ts := makeTestServer(t)
 	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
 	res := get(t, ts.URL, "/api/alerts/config", cookie)
 	defer res.Body.Close()

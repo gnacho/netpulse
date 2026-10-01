@@ -57,6 +57,54 @@ func TestDismissPersistsAcrossRestart(t *testing.T) {
 	}
 }
 
+// TestDismissAllEmptiesFeedAndSurvivesReload (issue #971): "Marcar todo como
+// leído" VACÍA el feed - las alertas se descartan, no solo se marcan - y el
+// vaciado sobrevive a un reload (alert_log borrado + dismissed en kv). Las
+// volátiles también salen, pero vuelven si su condición sigue viva.
+func TestDismissAllEmptiesFeedAndSurvivesReload(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	e := New(d, nil)
+	e.Emit(ev("a1", CatSystem, false))
+	e.Emit(ev("a2", CatRouter, true))
+	e.DismissAll()
+	if got := len(e.List()); got != 0 {
+		t.Fatalf("lista tras DismissAll: %d, esperaba 0", got)
+	}
+	if got := e.UnreadCount(); got != 0 {
+		t.Fatalf("unread tras DismissAll: %d, esperaba 0", got)
+	}
+
+	// Motor nuevo sobre la misma DB (reload simulado): el feed NO se repuebla.
+	e2 := New(d, nil)
+	if got := len(e2.List()); got != 0 {
+		t.Fatalf("lista tras reload: %d, esperaba 0 (el histórico no vuelve)", got)
+	}
+
+	// Las volátiles (agent-down) también salen del feed con DismissAll...
+	e2.EmitVolatile(AlertEvent{
+		ID: "alert-agent-down-r1", Category: CatSystem, Severity: "warn",
+		Title: "Agente caído", Type: HintAgentDown, RouterID: "r1",
+	})
+	e2.DismissAll()
+	if got := len(e2.List()); got != 0 {
+		t.Fatalf("lista tras DismissAll con volátil: %d, esperaba 0", got)
+	}
+	// ...pero si la condición se re-evalúa viva, la alerta vuelve (semántica
+	// "alerta viva": lo que no vuelve es el histórico, no el presente).
+	e2.EmitVolatile(AlertEvent{
+		ID: "alert-agent-down-r1", Category: CatSystem, Severity: "warn",
+		Title: "Agente caído", Type: HintAgentDown, RouterID: "r1",
+	})
+	if got := len(e2.List()); got != 1 {
+		t.Fatalf("volátil viva tras re-emitir: %d, esperaba 1", got)
+	}
+}
+
 func TestResolveRemovesAndAllowsImmediateReEmit(t *testing.T) {
 	e := New(nil, nil)
 	e.Emit(ev("a1", CatSystem, false))

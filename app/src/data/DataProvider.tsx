@@ -180,8 +180,8 @@ export interface NetPulseApi extends NetPulseData {
   setAlertConfig: (category: AlertCategory, level: AlertConfigLevel) => Promise<boolean>
   /** Read state en SERVIDOR (live): POST /api/alerts/read. Demo: estado local. Optimista. */
   markAlertsRead: (ids: string[]) => void
-  /** POST /api/alerts/read-all (live). Demo: estado local. Optimista. */
-  markAllAlertsRead: () => void
+  /** #971: VACÍA el feed - POST /api/alerts/clear (live). Demo: estado local. Optimista. */
+  clearAllAlerts: () => void
   /** POST /api/alerts/silence (live): silencia alertas con la misma dedup key. */
   silenceAlert: (id: string, duration: '1h' | '24h' | 'forever') => void
   /** POST /api/alerts/dismiss (live): limpia una alerta del feed (#833). Demo: estado local. Optimista. */
@@ -935,27 +935,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
-  const markAllAlertsRead = useCallback(() => {
-    setBundle((prev) => ({
-      ...prev,
-      alerts: prev.alerts.map((a) => ({ ...a, read: true })),
-      unreadAlerts: 0,
-    }))
+  // #971: "Marcar todo como leído" VACÍA el feed - las alertas visibles se
+  // descartan (dismiss en servidor: borradas de alert_log + conjunto dismissed,
+  // no reaparecen tras F5) - no solo se marcan. Una alerta viva (volátil con
+  // la condición aún activa, p.ej. agent-down) puede volver al re-evaluarse.
+  const clearAllAlerts = useCallback(() => {
+    setBundle((prev) => ({ ...prev, alerts: [], unreadAlerts: 0 }))
     if (modeRef.current !== 'live') return
     void (async () => {
       try {
-        const res = await fetch('/api/alerts/read-all', { method: 'POST' })
+        const res = await fetch('/api/alerts/clear', { method: 'POST' })
         if (res.status === 401) redirectLogin()
         // #891: un snapshot tomado ANTES de que el POST llegara al servidor
-        // puede haber pisado el estado optimista con read=false. Al resolver
-        // el POST, la verdad del servidor YA incluye el read-all, así que se
-        // re-aplica el estado leído por si llegó ese snapshot enrarecido.
+        // puede haber pisado el estado optimista. Al resolver el POST, la
+        // verdad del servidor YA incluye el clear, así que se re-aplica el
+        // feed vacío por si llegó ese snapshot enrarecido.
         if (res.ok) {
-          setBundle((prev) => ({
-            ...prev,
-            alerts: prev.alerts.map((a) => ({ ...a, read: true })),
-            unreadAlerts: 0,
-          }))
+          setBundle((prev) => ({ ...prev, alerts: [], unreadAlerts: 0 }))
         }
       } catch {
         /* idem: resync por snapshot */
@@ -1263,7 +1259,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       alertsConfig,
       setAlertConfig,
       markAlertsRead,
-      markAllAlertsRead,
+      clearAllAlerts,
       silenceAlert,
       dismissAlert,
       rearmAgent,
@@ -1273,7 +1269,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       uninstallAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, clearAllAlerts, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

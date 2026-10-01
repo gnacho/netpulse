@@ -348,6 +348,17 @@ func (s *server) handleAlertsReadAll(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// handleAlertsClear (POST, issue #971): VACÍA el feed - limpia (dismiss)
+// todas las alertas actualmente visibles. Es lo que el botón "Marcar todo
+// como leído" hace desde #971: las alertas salen del feed (badge a 0) y no
+// reaparecen tras un reload (borradas de alert_log + conjunto dismissed en
+// kv). Una alerta viva (volátil, p.ej. agent-down con el agente aún caído)
+// puede volver al re-evaluarse su condición; el histórico NO vuelve.
+func (s *server) handleAlertsClear(w http.ResponseWriter, _ *http.Request) {
+	s.adapter.AlertsEngine().DismissAll()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 // handleAlertsDismiss (POST): body {"ids":["a","b"]} → limpia alertas del
 // feed (issue #833). Las elimina del log y no reaparecen tras un reinicio;
 // si la condición se re-dispara, la alerta vuelve con el mismo ID.
