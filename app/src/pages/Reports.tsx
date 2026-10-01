@@ -38,10 +38,12 @@ const RANGE_TABS: Range[] = ['day', 'week', 'month']
 // ---------------------------------------------------------------------------
 // Umbrales de color (issue #973): el rojo solo marca un problema accionable.
 //   >= 99%  ok      (verde)  menos de ~1 h 40 min de huecos a la semana: ruido normal.
-//   >= 95%  warn    (ámbar)  caídas menores, hasta ~8 h a la semana.
-//   <  95%  danger  (rojo)   más de ~8 h caído a la semana (~1,5 días al mes): requiere atención.
+//   >= 95%  warn    (ámbar)  huecos menores, hasta ~8 h a la semana.
+//   <  95%  danger  (rojo)   más de ~8 h sin datos a la semana (~1,5 días al mes): requiere atención.
 // Un 94% semanal son >8 h sin datos, así que sigue siendo rojo, pero ahora el
-// rojo aparece UNA vez por router con su tiempo caído, no como muro de barras.
+// rojo aparece UNA vez por router con su tiempo sin datos, no como muro de barras.
+// Lo que se mide son minutos con datos recibidos (buckets de 5 min, #987): un
+// hueco suele ser el router caído, pero también puede ser el monitor sin datos.
 // ---------------------------------------------------------------------------
 
 type Status = 'ok' | 'warn' | 'danger'
@@ -64,20 +66,35 @@ const STATUS_TEXT: Record<Status, string> = {
 }
 
 /**
- * Minutos de duración de un bucket según la semántica del server: el divisor
- * de upPct son los minutos del bucket (1440/día con datos; el día en curso
- * solo cuenta los minutos transcurridos). Como upPct = upMin/divisor, se
- * recupera el divisor sin rehacer aritmética de fechas en el cliente.
+ * Minutos medibles de un bucket según la semántica del server (#987): el
+ * divisor de upPct son los minutos del bucket en los que se puede afirmar
+ * algo (1440 por día con datos; el día en curso solo cuenta los minutos
+ * transcurridos, medidos del raw). Como upPct = upMin/divisor, se recupera
+ * el divisor sin rehacer aritmética de fechas en el cliente.
  */
 function bucketMinutes(e: AvailabilityEntry): number {
   if (e.upPct > 0) return e.upMin / (e.upPct / 100)
   return e.days * 1440
 }
 
-/** Minutos caídos de un bucket = duración del bucket - minutos con datos. */
+/** Minutos sin datos de un bucket = duración medible - minutos con datos. */
 function bucketDownMin(e: AvailabilityEntry): number {
   return Math.max(0, bucketMinutes(e) - e.upMin)
 }
+
+/** Días que cubre la ventana seleccionada (mes = media de 30,44 días). */
+function expectedDays(range: Range, n: number): number {
+  if (range === 'day') return n
+  if (range === 'week') return n * 7
+  return Math.round(n * 30.44)
+}
+
+/**
+ * Cobertura mínima para resumir la ventana con un número (#987): con menos
+ * de la mitad de los días con datos, un % o un tiempo sin datos no representa
+ * la ventana y la UI dice "sin datos suficientes" en vez de inventar cifras.
+ */
+const MIN_COVERAGE = 0.5
 
 /** Formatea minutos a unidades humanas: "45 min", "2 h 14 min", "1 d 3 h". */
 function fmtDuration(min: number): string {
@@ -96,6 +113,8 @@ interface RouterSummary {
   pct: number
   downMin: number
   status: Status
+  days: number // días con datos en la ventana
+  sufficient: boolean // cobertura suficiente para resumir la ventana (#987)
   buckets: AvailabilityEntry[] // ordenados de más antiguo a más reciente
 }
 
@@ -177,27 +196,34 @@ export default function Reports() {
   )
 
   // Agregado por router sobre TODA la ventana seleccionada (no por bucket):
-  // un solo % y un solo tiempo caído por router, ponderado por la duración
-  // real de cada bucket.
+  // un solo % y un solo tiempo sin datos por router, ponderado por la
+  // duración medible de cada bucket. Si el router tiene datos de menos de la
+  // mitad de la ventana, no se resume con un número (#987).
   const routers: RouterSummary[] = [...new Set(items.map((i) => i.routerId))]
     .sort()
     .map((id) => {
       const rows = items.filter((i) => i.routerId === id)
       const totalMin = rows.reduce((a, r) => a + bucketMinutes(r), 0)
       const upMin = rows.reduce((a, r) => a + r.upMin, 0)
+      const days = rows.reduce((a, r) => a + r.days, 0)
       const pct = totalMin > 0 ? Math.min(100, (upMin / totalMin) * 100) : 100
       return {
         id,
         pct,
         downMin: Math.max(0, totalMin - upMin),
         status: statusOf(pct),
+        days,
+        sufficient: days >= Math.max(2, expectedDays(range, n) * MIN_COVERAGE),
         buckets: [...rows].sort((a, b) => a.bucket.localeCompare(b.bucket)),
       }
     })
 
-  const fleetPct = routers.length ? routers.reduce((a, r) => a + r.pct, 0) / routers.length : 100
-  const worst = routers.length ? routers.reduce((a, r) => (r.pct < a.pct ? r : a)) : null
-  const totalDown = routers.reduce((a, r) => a + r.downMin, 0)
+  // Los agregados de flota solo cuentan routers con cobertura suficiente:
+  // un router nuevo o sin datos no arrastra la media ni infla los huecos.
+  const rated = routers.filter((r) => r.sufficient)
+  const fleetPct = rated.length ? rated.reduce((a, r) => a + r.pct, 0) / rated.length : null
+  const worst = rated.length ? rated.reduce((a, r) => (r.pct < a.pct ? r : a)) : null
+  const totalDown = rated.reduce((a, r) => a + r.downMin, 0)
 
   const windowText = t(range === 'day' ? 'reports.windowDay' : range === 'week' ? 'reports.windowWeek' : 'reports.windowMonth', { n })
 
@@ -321,15 +347,15 @@ export default function Reports() {
 
       {items.length > 0 && (
         <>
-          {/* ④ Resumen de la flota: media, peor router y tiempo caído total */}
+          {/* ④ Resumen de la flota: media, peor router y tiempo sin datos total */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="flex items-center gap-2 text-caption text-text-muted">
                 <Activity className="h-4 w-4 text-accent" strokeWidth={1.75} />
                 {t('reports.fleetAvg')}
               </div>
-              <p className={cn('mt-1 font-display text-h2', STATUS_TEXT[statusOf(fleetPct)])}>
-                {fleetPct >= 99.9 ? '100%' : `${fleetPct.toFixed(1)}%`}
+              <p className={cn('mt-1 font-display text-h2', fleetPct !== null ? STATUS_TEXT[statusOf(fleetPct)] : 'text-text-muted')}>
+                {fleetPct === null ? t('reports.insufficient') : fleetPct >= 99.9 ? '100%' : `${fleetPct.toFixed(1)}%`}
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface p-4">
@@ -337,13 +363,15 @@ export default function Reports() {
                 <AlertTriangle className={cn('h-4 w-4', worst && worst.status !== 'ok' ? STATUS_TEXT[worst.status] : 'text-text-muted')} strokeWidth={1.75} />
                 {t('reports.worstRouter')}
               </div>
-              {worst && (
+              {worst ? (
                 <p className="mt-1 font-display text-h2 text-text-primary">
                   {worst.id}
                   <span className={cn('ml-2 text-sm font-normal', STATUS_TEXT[worst.status])}>
                     {worst.pct >= 99.9 ? '100%' : `${worst.pct.toFixed(1)}%`}
                   </span>
                 </p>
+              ) : (
+                <p className="mt-1 font-display text-h2 text-text-muted">{t('reports.insufficient')}</p>
               )}
             </div>
             <div className="rounded-2xl border border-border bg-surface p-4">
@@ -351,13 +379,13 @@ export default function Reports() {
                 <Clock className="h-4 w-4 text-accent" strokeWidth={1.75} />
                 {t('reports.totalDown')}
               </div>
-              <p className={cn('mt-1 font-display text-h2', totalDown >= 1 ? STATUS_TEXT[statusOf(fleetPct)] : 'text-ok')}>
-                {totalDown >= 1 ? fmtDuration(totalDown) : t('reports.downNone')}
+              <p className={cn('mt-1 font-display text-h2', rated.length === 0 ? 'text-text-muted' : totalDown >= 1 ? STATUS_TEXT[statusOf(fleetPct ?? 100)] : 'text-ok')}>
+                {rated.length === 0 ? t('reports.insufficient') : totalDown >= 1 ? fmtDuration(totalDown) : t('reports.downNone')}
               </p>
             </div>
           </div>
 
-          {/* ⑤ Lista por router: un % y un tiempo caído por router */}
+          {/* ⑤ Lista por router: un % y un tiempo sin datos por router */}
           <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
             <div className="mb-4 flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-accent" strokeWidth={1.75} />
@@ -377,9 +405,13 @@ export default function Reports() {
                 <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   {/* Nombre + estado */}
                   <div className="flex min-w-40 items-center gap-2">
-                    <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_DOT[r.status])} aria-hidden="true" />
+                    <span className={cn('h-2 w-2 shrink-0 rounded-full', r.sufficient ? STATUS_DOT[r.status] : 'bg-border-strong')} aria-hidden="true" />
                     <span className="font-medium text-text-primary">{r.id}</span>
-                    <span className={cn('text-caption', STATUS_TEXT[r.status])}>{t(`reports.status_${r.status}`)}</span>
+                    {r.sufficient ? (
+                      <span className={cn('text-caption', STATUS_TEXT[r.status])}>{t(`reports.status_${r.status}`)}</span>
+                    ) : (
+                      <span className="text-caption text-text-muted">{t('reports.insufficient')}</span>
+                    )}
                   </div>
                   {/* Tira de puntos: un punto por período, de antiguo a reciente */}
                   <div className="flex items-center gap-1" role="presentation">
@@ -394,14 +426,23 @@ export default function Reports() {
                       )
                     })}
                   </div>
-                  {/* % agregado + tiempo caído en unidades humanas */}
+                  {/* % agregado + tiempo sin datos en unidades humanas; con
+                      cobertura insuficiente no se inventa un número (#987) */}
                   <div className="ml-auto text-right">
-                    <span className={cn('font-mono text-mono-sm font-semibold', STATUS_TEXT[r.status])}>
-                      {r.pct >= 99.9 ? '100%' : `${r.pct.toFixed(1)}%`}
-                    </span>
-                    <p className="text-caption text-text-muted">
-                      {r.downMin >= 1 ? t('reports.downTime', { duration: fmtDuration(r.downMin) }) : t('reports.downNone')}
-                    </p>
+                    {r.sufficient ? (
+                      <>
+                        <span className={cn('font-mono text-mono-sm font-semibold', STATUS_TEXT[r.status])}>
+                          {r.pct >= 99.9 ? '100%' : `${r.pct.toFixed(1)}%`}
+                        </span>
+                        <p className="text-caption text-text-muted">
+                          {r.downMin >= 1 ? t('reports.downTime', { duration: fmtDuration(r.downMin) }) : t('reports.downNone')}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-caption text-text-muted">
+                        {t('reports.coverage', { days: r.days, total: expectedDays(range, n) })}
+                      </p>
+                    )}
                   </div>
                 </li>
               ))}
