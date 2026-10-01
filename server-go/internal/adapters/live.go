@@ -3675,7 +3675,7 @@ func (l *Live) GetUsteer(context.Context) (*Usteer, error) {
 		if name == "" {
 			name = cfg.ID
 		}
-		if cfg.AgentOnly {
+		if cfg.AgentOnly || cfg.SnmpEnabled {
 			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
 			continue
 		}
@@ -4007,8 +4007,9 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 			name = cfg.ID
 		}
 		r := Dot11rRouter{RouterID: cfg.ID, Name: name, Ifaces: []Dot11rIface{}}
-		// Agent-only (switches sin SSH ni wifi) se listan como Available=false.
-		if cfg.AgentOnly {
+		// Agent-only (switches sin SSH ni wifi) y los sondeados por SNMP (sin
+		// SSH en absoluto, #1026) se listan como Available=false.
+		if cfg.AgentOnly || cfg.SnmpEnabled {
 			out.Routers = append(out.Routers, r)
 			continue
 		}
@@ -4306,7 +4307,8 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 			name = cfg.ID
 		}
 		r := SurveyRouter{RouterID: cfg.ID, Name: name, Radios: []SurveyRadio{}}
-		if cfg.AgentOnly {
+		// Agent-only y SNMP (#1026): unidades sin SSH; se listan sin radios.
+		if cfg.AgentOnly || cfg.SnmpEnabled {
 			out.Routers = append(out.Routers, r)
 			continue
 		}
