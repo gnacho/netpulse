@@ -9,6 +9,7 @@ import {
   ArrowUpDown,
   Check,
   ChevronDown,
+  Columns3,
   Filter,
   LayoutGrid,
   List,
@@ -62,7 +63,7 @@ import type { DeviceType } from '@/data/mock'
 // Constantes de la página
 // ---------------------------------------------------------------------------
 
-type BandFilter = 'all' | '5 GHz' | '2.4 GHz' | 'cable'
+type BandFilter = 'all' | '6 GHz' | '5 GHz' | '2.4 GHz' | 'cable'
 type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type' | 'traffic' | 'firstSeen' | 'lastSeen'
 
 // Persistencia de preferencias de visualización (issue #778): el modo
@@ -73,12 +74,16 @@ type SortState = { key: SortKey; dir: 1 | -1 } | null
 // #923: filtro de estado online triestado, persistente junto al resto de
 // preferencias de la página.
 type OnlineFilter = 'all' | 'online' | 'offline'
-type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState; online: OnlineFilter }
+// #958: columnas ocultables de la tabla (todas menos el nombre). Se guardan
+// las OCULTAS; por defecto ninguna (tabla completa, como siempre).
+type DeviceColumn = 'type' | 'ip' | 'lease' | 'router' | 'band' | 'signal' | 'traffic' | 'firstSeen' | 'lastSeen'
+const DEVICE_COLUMNS: DeviceColumn[] = ['type', 'ip', 'lease', 'router', 'band', 'signal', 'traffic', 'firstSeen', 'lastSeen']
+type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState; online: OnlineFilter; columns: DeviceColumn[] }
 
 const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type', 'traffic', 'firstSeen', 'lastSeen']
 
 function loadDevicesPrefs(): DevicesPrefs {
-  const fallback: DevicesPrefs = { view: 'list', sort: null, online: 'online' }
+  const fallback: DevicesPrefs = { view: 'list', sort: null, online: 'online', columns: [] }
   try {
     const raw = localStorage.getItem(DEVICES_PREFS_KEY)
     if (!raw) return fallback
@@ -89,7 +94,10 @@ function loadDevicesPrefs(): DevicesPrefs {
       sort = { key: v.sort.key, dir: v.sort.dir }
     }
     const online: OnlineFilter = v.online === 'all' || v.online === 'offline' ? v.online : 'online'
-    return { view, sort, online }
+    const columns = Array.isArray(v.columns)
+      ? v.columns.filter((c): c is DeviceColumn => DEVICE_COLUMNS.includes(c as DeviceColumn))
+      : []
+    return { view, sort, online, columns }
   } catch {
     return fallback
   }
@@ -102,22 +110,6 @@ function saveDevicesPrefs(p: DevicesPrefs) {
     /* localStorage no disponible */
   }
 }
-
-/** Orden canónico de los tipos de dispositivo para los chips de filtro. */
-const TYPE_ORDER = [
-  'ordenador',
-  'portatil',
-  'movil',
-  'tablet',
-  'tv',
-  'consola',
-  'camara',
-  'altavoz',
-  'iot',
-  'servidor',
-  'switch',
-  'desconocido',
-] as const
 
 /** IP a número para ordenar (ipv4 "a.b.c.d" → entero). */
 function ipNum(ip: string): number {
@@ -154,10 +146,66 @@ function SortHeader({
   )
 }
 
+/** Selector de columnas visibles (#958): checkbox por columna en la cabecera
+ * de la tabla. El nombre (Dispositivo) es fijo y no se puede ocultar. */
+function ColumnPicker({ hidden, onToggle }: { hidden: DeviceColumn[]; onToggle: (c: DeviceColumn) => void }) {
+  const { t } = useTranslation()
+  const labels: Record<DeviceColumn, string> = {
+    type: t('devices.colType'),
+    ip: 'IP / MAC',
+    lease: t('devices.colLease'),
+    router: 'Router',
+    band: t('devices.colBand'),
+    signal: t('devices.colSignal'),
+    traffic: t('devices.colTraffic'),
+    firstSeen: t('devices.colFirstSeen'),
+    lastSeen: t('devices.colLastSeen'),
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('devices.columns.action')}
+          title={t('devices.columns.action')}
+          onClick={(e) => e.stopPropagation()}
+          className="flex h-5 w-5 items-center justify-center justify-self-end rounded-md text-text-muted transition-colors hover:text-accent"
+        >
+          <Columns3 className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>{t('devices.columns.title')}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem checked disabled onSelect={(e) => e.preventDefault()}>
+          {t('devices.colDevice')}
+        </DropdownMenuCheckboxItem>
+        {DEVICE_COLUMNS.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c}
+            checked={!hidden.includes(c)}
+            onCheckedChange={() => onToggle(c)}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {labels[c]}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// #970: la banda se filtra con un desplegable (era un SegmentedControl). La
+// opción 6 GHz se ofrece SIEMPRE: el frontend no recibe un flag de soporte
+// hardware por router (solo bandSplit con clientes por banda, que sería 0 en
+// un router 6G recién instalado), así que condicionarla dejaría la opción
+// invisible justo cuando hace falta. Filtrar por 6 GHz sin clientes en esa
+// banda simplemente devuelve la lista vacía.
 const BAND_OPTIONS = [
   { value: 'all', labelKey: 'devices.bandAll' },
   { value: '2.4 GHz', label: '2.4 GHz' },
   { value: '5 GHz', label: '5 GHz' },
+  { value: '6 GHz', label: '6 GHz' },
   { value: 'cable', labelKey: 'common.cable' },
 ] as const
 
@@ -481,9 +529,6 @@ interface FilterBarProps {
   setRouter: (v: string) => void
   band: BandFilter
   setBand: (v: BandFilter) => void
-  typeFilter: DeviceType | 'all'
-  setTypeFilter: (v: DeviceType | 'all') => void
-  typeCounts: Record<string, number>
   groups: FilterGroup[]
   toggleGroup: (g: FilterGroup) => void
   online: OnlineFilter
@@ -505,31 +550,41 @@ function FilterBar(p: FilterBarProps) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-3 md:p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
-        {/* Router: chips con dot de estado */}
-        <div
-          role="tablist"
-          aria-label={t('devices.filterByRouter')}
-          className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 py-0.5"
-        >
-          <RouterChip active={p.router === 'all'} label={t('devices.routerAll')} onClick={() => p.setRouter('all')} />
-          {routers.map((r) => (
-            <RouterChip
-              key={r.id}
-              active={p.router === r.id}
-              label={r.name}
-              dotClass={ROUTER_DOT[r.id] ?? 'bg-text-muted'}
-              onClick={() => p.setRouter(r.id)}
-            />
-          ))}
-        </div>
-        {/* Banda */}
-        <SegmentedControl<BandFilter>
-          options={BAND_OPTIONS.map((o) => ({ value: o.value, label: 'label' in o ? o.label : t(o.labelKey!) }))}
-          value={p.band}
-          onChange={p.setBand}
-          size="sm"
-          ariaLabel={t('devices.filterByBand')}
-        />
+        {/* Flota (#970): desplegable único; una píldora por router no
+            escala cuando la flota crece (6 -> ~15 routers). */}
+        <Select value={p.router} onValueChange={p.setRouter}>
+          <SelectTrigger
+            aria-label={t('devices.filterByRouter')}
+            className="h-8 w-auto max-w-56 gap-1.5 rounded-lg border-border bg-elevated px-3 text-xs font-medium text-text-secondary"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t('devices.routerAll')}</SelectItem>
+            {routers.map((r) => (
+              <SelectItem key={r.id} value={r.id}>
+                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', ROUTER_DOT[r.id] ?? 'bg-text-muted')} />
+                {r.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Banda (#970): desplegable, incluye 6 GHz */}
+        <Select value={p.band} onValueChange={(v) => p.setBand(v as BandFilter)}>
+          <SelectTrigger
+            aria-label={t('devices.filterByBand')}
+            className="h-8 w-auto gap-1.5 rounded-lg border-border bg-elevated px-3 text-xs font-medium text-text-secondary"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {BAND_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {'label' in o ? o.label : t(o.labelKey!)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {/* Tipo (multi) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -630,42 +685,7 @@ function FilterBar(p: FilterBarProps) {
           </div>
         </div>
       </div>
-      {/* Tipo de dispositivo: chips de filtro */}
-      <div
-        role="tablist"
-        aria-label={t('devices.deviceType')}
-        className="-mx-1 mt-3 flex max-w-full items-center gap-1 overflow-x-auto border-t border-border px-1 pt-3"
-      >
-        <RouterChip active={p.typeFilter === 'all'} label={t('devices.routerAll')} onClick={() => p.setTypeFilter('all')} />
-        {TYPE_ORDER.filter((ty) => (p.typeCounts[ty] ?? 0) > 0).map((ty) => (
-          <RouterChip
-            key={ty}
-            active={p.typeFilter === ty}
-            label={`${t(`devices.types.${ty}`)} · ${p.typeCounts[ty]}`}
-            onClick={() => p.setTypeFilter(ty)}
-          />
-        ))}
-      </div>
     </div>
-  )
-}
-
-function RouterChip({ active, label, dotClass, onClick }: { active: boolean; label: string; dotClass?: string; onClick: () => void }) {
-  return (
-    <button
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors duration-150',
-        active
-          ? 'border-accent/40 bg-accent-soft text-accent'
-          : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
-      )}
-    >
-      {dotClass && <span className={cn('h-1.5 w-1.5 rounded-full', dotClass)} />}
-      {label}
-    </button>
   )
 }
 
@@ -974,8 +994,30 @@ function LeaseCell({ device }: { device: ClientDevice }) {
   return <span className="font-mono text-mono-sm text-warn">{t('devices.leaseMinutes', { minutes })}</span>
 }
 
-const ROW_GRID =
-  'md:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_1.5rem] lg:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_1.5rem] xl:grid-cols-[minmax(0,3.4fr)_minmax(0,0.55fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,0.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_1.5rem]'
+// #958: la tabla es un grid CSS cuyas columnas dependen de las columnas
+// visibles elegidas por el usuario. Las plantillas se generan aquí y se
+// inyectan como custom properties (--devices-cols-*) que la clase
+// `devices-cols` (index.css) aplica en cada breakpoint; Tailwind no puede
+// generar clases dinámicas para todas las combinaciones posibles.
+const COLUMN_SPECS: Record<DeviceColumn, { md?: string; lg: string; xl?: string; xlOnly?: boolean }> = {
+  type: { lg: 'minmax(0,0.55fr)' },
+  ip: { lg: 'minmax(0,0.95fr)' },
+  lease: { lg: 'minmax(0,0.7fr)' },
+  router: { md: 'minmax(0,1.1fr)', lg: 'minmax(0,0.85fr)' },
+  band: { md: 'minmax(0,0.85fr)', lg: 'minmax(0,0.6fr)' },
+  signal: { md: 'minmax(0,0.95fr)', lg: 'minmax(0,0.75fr)' },
+  traffic: { md: 'minmax(0,0.75fr)', lg: 'minmax(0,0.75fr)', xl: 'minmax(0,0.7fr)' },
+  firstSeen: { lg: 'minmax(0,0.7fr)', xlOnly: true },
+  lastSeen: { lg: 'minmax(0,0.7fr)', xlOnly: true },
+}
+
+function columnTemplates(vis: Set<DeviceColumn>) {
+  const visible = DEVICE_COLUMNS.filter((c) => vis.has(c))
+  const md = ['minmax(0,3fr)', ...visible.filter((c) => COLUMN_SPECS[c].md).map((c) => COLUMN_SPECS[c].md!), '1.5rem'].join(' ')
+  const lg = ['minmax(0,3.4fr)', ...visible.filter((c) => !COLUMN_SPECS[c].xlOnly).map((c) => COLUMN_SPECS[c].lg), '1.5rem'].join(' ')
+  const xl = ['minmax(0,3.4fr)', ...visible.map((c) => COLUMN_SPECS[c].xl ?? COLUMN_SPECS[c].lg), '1.5rem'].join(' ')
+  return { '--devices-cols-md': md, '--devices-cols-lg': lg, '--devices-cols-xl': xl } as React.CSSProperties
+}
 
 /** Fila de tabla desktop (md+) */
 function ListRow({
@@ -983,6 +1025,8 @@ function ListRow({
   infra,
   expanded,
   index,
+  vis,
+  colsStyle,
   onToggle,
   onCopyIp,
   onNavigateRouter,
@@ -992,6 +1036,8 @@ function ListRow({
   infra?: InfraInfo
   expanded: boolean
   index: number
+  vis: Set<DeviceColumn>
+  colsStyle: React.CSSProperties
   onToggle: () => void
   onCopyIp: (ip: string) => void
   onNavigateRouter: (id: string) => void
@@ -1018,9 +1064,9 @@ function ListRow({
             onToggle()
           }
         }}
+        style={colsStyle}
         className={cn(
-          'hidden cursor-pointer items-center gap-4 pr-6 pl-3 py-2 transition-colors duration-150 hover:bg-hover md:grid',
-          ROW_GRID,
+          'devices-cols hidden cursor-pointer items-center gap-4 pr-6 pl-3 py-2 transition-colors duration-150 hover:bg-hover md:grid',
           !device.online && 'opacity-55',
           expanded && 'bg-hover/60',
         )}
@@ -1051,53 +1097,71 @@ function ListRow({
           </div>
         </div>
         {/* Tipo */}
-        <div className="hidden lg:block">
-          <TypeBadge type={device.type} />
-        </div>
+        {vis.has('type') && (
+          <div className="hidden lg:block">
+            <TypeBadge type={device.type} />
+          </div>
+        )}
         {/* IP / MAC */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onCopyIp(device.ip)
-          }}
-          title={t('devices.copyIp')}
-          className="hidden w-fit min-w-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition-colors hover:bg-elevated lg:flex"
-        >
-          <span className="font-mono text-mono-sm text-text-primary">{device.ip}</span>
-          <span className="font-mono text-caption text-text-muted">{device.mac}</span>
-        </button>
+        {vis.has('ip') && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onCopyIp(device.ip)
+            }}
+            title={t('devices.copyIp')}
+            className="hidden w-fit min-w-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition-colors hover:bg-elevated lg:flex"
+          >
+            <span className="font-mono text-mono-sm text-text-primary">{device.ip}</span>
+            <span className="font-mono text-caption text-text-muted">{device.mac}</span>
+          </button>
+        )}
         {/* Tiempo restante del lease */}
-        <div className="hidden lg:block">
-          <LeaseCell device={device} />
-        </div>
+        {vis.has('lease') && (
+          <div className="hidden lg:block">
+            <LeaseCell device={device} />
+          </div>
+        )}
         {/* Router, and the box the client actually hangs off */}
-        <div className="min-w-0">
-          <RouterChipLink routerId={device.routerId} onNavigate={onNavigateRouter} />
-          <ParentLine device={device} className="mt-0.5 pl-1" />
-        </div>
+        {vis.has('router') && (
+          <div className="min-w-0">
+            <RouterChipLink routerId={device.routerId} onNavigate={onNavigateRouter} />
+            <ParentLine device={device} className="mt-0.5 pl-1" />
+          </div>
+        )}
         {/* Banda */}
-        <div>
-          <BandChip band={device.band} />
-        </div>
+        {vis.has('band') && (
+          <div>
+            <BandChip band={device.band} />
+          </div>
+        )}
         {/* Señal */}
-        <div>
-          <SignalCell device={device} />
-        </div>
+        {vis.has('signal') && (
+          <div>
+            <SignalCell device={device} />
+          </div>
+        )}
         {/* Tráfico en vivo (#799): la columna que ordena el default */}
-        <div>
-          <span className="font-mono text-mono-sm text-accent">
-            {device.online
-              ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
-              : '—'}
-          </span>
-        </div>
+        {vis.has('traffic') && (
+          <div>
+            <span className="font-mono text-mono-sm text-accent">
+              {device.online
+                ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
+                : '—'}
+            </span>
+          </div>
+        )}
         {/* First/Last seen (#954): solo en xl para no engordar la tabla */}
-        <div className="hidden xl:block">
-          <span className="text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
-        </div>
-        <div className="hidden xl:block">
-          <span className="text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
-        </div>
+        {vis.has('firstSeen') && (
+          <div className="hidden xl:block">
+            <span className="text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
+          </div>
+        )}
+        {vis.has('lastSeen') && (
+          <div className="hidden xl:block">
+            <span className="text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
+          </div>
+        )}
         <ChevronDown
           className={cn('h-4 w-4 justify-self-end text-text-muted transition-transform duration-200', expanded && 'rotate-180')}
           strokeWidth={1.75}
@@ -1307,7 +1371,6 @@ export default function Devices() {
   }, [searchParams, allDevices])
   const [router, setRouter] = useState('all')
   const [band, setBand] = useState<BandFilter>('all')
-  const [typeFilter, setTypeFilter] = useState<DeviceType | 'all'>('all')
   const [groups, setGroups] = useState<FilterGroup[]>([])
   const [online, setOnlineState] = useState<OnlineFilter>(() => loadDevicesPrefs().online)
   const setOnline = useCallback((v: OnlineFilter) => {
@@ -1344,6 +1407,13 @@ export default function Devices() {
     [allDevices],
   )
   const [view, setView] = useState<'list' | 'grid'>(() => loadDevicesPrefs().view)
+  // #958: columnas ocultas de la tabla (persistidas en DevicesPrefs).
+  const [hiddenColumns, setHiddenColumns] = useState<DeviceColumn[]>(() => loadDevicesPrefs().columns)
+  const toggleColumn = useCallback((c: DeviceColumn) => {
+    setHiddenColumns((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
+  }, [setHiddenColumns])
+  const visibleColumns = useMemo(() => new Set(DEVICE_COLUMNS.filter((c) => !hiddenColumns.includes(c))), [hiddenColumns])
+  const colsStyle = useMemo(() => columnTemplates(visibleColumns), [visibleColumns])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // Alta guiada de desconocidos (#772): se abre con ?intake=<mac> (deep-link
   // desde la alerta "dispositivo desconocido") o desde el banner de sin
@@ -1371,12 +1441,6 @@ export default function Devices() {
     return counts
   }, [allDevices])
 
-  const typeCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const d of allDevices) counts[d.type] = (counts[d.type] ?? 0) + 1
-    return counts
-  }, [allDevices])
-
   const [sort, setSort] = useState<SortState>(() => loadDevicesPrefs().sort)
   const toggleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
@@ -1388,11 +1452,11 @@ export default function Devices() {
     setSort(key === null ? null : { key, dir: 1 })
   }, [setSort])
 
-  // Persiste vista + orden en cada cambio (issue #778). El write inicial
-  // reescribe el mismo valor cargado; es inofensivo.
+  // Persiste vista + orden + columnas en cada cambio (issues #778, #958).
+  // El write inicial reescribe el mismo valor cargado; es inofensivo.
   useEffect(() => {
-    saveDevicesPrefs({ view, sort, online })
-  }, [view, sort, online])
+    saveDevicesPrefs({ view, sort, online, columns: hiddenColumns })
+  }, [view, sort, online, hiddenColumns])
 
   const filtered = useMemo(() => {
     const out = allDevices.filter((d) => {
@@ -1402,7 +1466,6 @@ export default function Devices() {
       if (onlyUnprotected && d.adguard) return false
       if (router !== 'all' && d.routerId !== router) return false
       if (band !== 'all' && d.band !== band) return false
-      if (typeFilter !== 'all' && d.type !== typeFilter) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
       if (q) {
         const hay = `${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
@@ -1466,7 +1529,7 @@ export default function Devices() {
       }
       return a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, online, onlyWeak, onlyUnprotected, router, band, typeFilter, groups, q, sort, routers])
+  }, [allDevices, online, onlyWeak, onlyUnprotected, router, band, groups, q, sort, routers])
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
@@ -1476,7 +1539,6 @@ export default function Devices() {
   const clearFilters = useCallback(() => {
     setRouter('all')
     setBand('all')
-    setTypeFilter('all')
     setGroups([])
     setOnline('online')
     setOnlyUnprotected(false)
@@ -1566,9 +1628,6 @@ export default function Devices() {
     if (band !== 'all') {
       list.push({ key: `band-${band}`, label: band === 'cable' ? t('common.cable') : band, clear: () => setBand('all') })
     }
-    if (typeFilter !== 'all') {
-      list.push({ key: `type-${typeFilter}`, label: t(`devices.types.${typeFilter}`), clear: () => setTypeFilter('all') })
-    }
     for (const g of groups) {
       list.push({ key: `group-${g}`, label: t(`devices.groups.${g}`), clear: () => toggleGroup(g) })
     }
@@ -1579,7 +1638,7 @@ export default function Devices() {
       list.push({ key: 'online', label: t(online === 'online' ? 'devices.onlineOnly' : 'devices.onlineOffline'), clear: () => setOnline('all') })
     }
     return list
-  }, [router, routers, band, typeFilter, groups, online, onlyUnprotected, setOnline, toggleGroup, t])
+  }, [router, routers, band, groups, online, onlyUnprotected, setOnline, toggleGroup, t])
 
   const searchBox = (className?: string, autoFocus = false) => (
     <div className={cn('relative', className)}>
@@ -1665,9 +1724,6 @@ export default function Devices() {
         setRouter={setRouter}
         band={band}
         setBand={setBand}
-        typeFilter={typeFilter}
-        setTypeFilter={setTypeFilter}
-        typeCounts={typeCounts}
         groups={groups}
         toggleGroup={toggleGroup}
         online={online}
@@ -1717,32 +1773,44 @@ export default function Devices() {
         <div className="rounded-2xl border border-border bg-surface">
           {/* Cabecera de tabla sticky (desktop) */}
           <div
+            style={colsStyle}
             className={cn(
-              'sticky top-14 z-10 hidden items-center gap-4 pr-6 pl-3 py-2 rounded-t-2xl border-b border-border bg-surface text-label uppercase text-text-muted md:grid',
-              ROW_GRID,
+              'devices-cols sticky top-14 z-10 hidden items-center gap-4 pr-6 pl-3 py-2 rounded-t-2xl border-b border-border bg-surface text-label uppercase text-text-muted md:grid',
             )}
           >
             <SortHeader label={t('devices.colDevice')} k="name" sort={sort} onSort={toggleSort} />
-            <span className="hidden lg:block">
-              <SortHeader label={t('devices.colType')} k="type" sort={sort} onSort={toggleSort} />
-            </span>
-            <span className="hidden lg:block">
-              <SortHeader label="IP / MAC" k="ip" sort={sort} onSort={toggleSort} />
-            </span>
-            <span className="hidden lg:block">
-              <SortHeader label={t('devices.colLease')} k="lease" sort={sort} onSort={toggleSort} />
-            </span>
-            <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />
-            <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />
-            <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />
-            <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />
-            <span className="hidden xl:block">
-              <SortHeader label={t('devices.colFirstSeen')} k="firstSeen" sort={sort} onSort={toggleSort} />
-            </span>
-            <span className="hidden xl:block">
-              <SortHeader label={t('devices.colLastSeen')} k="lastSeen" sort={sort} onSort={toggleSort} />
-            </span>
-            <span />
+            {visibleColumns.has('type') && (
+              <span className="hidden lg:block">
+                <SortHeader label={t('devices.colType')} k="type" sort={sort} onSort={toggleSort} />
+              </span>
+            )}
+            {visibleColumns.has('ip') && (
+              <span className="hidden lg:block">
+                <SortHeader label="IP / MAC" k="ip" sort={sort} onSort={toggleSort} />
+              </span>
+            )}
+            {visibleColumns.has('lease') && (
+              <span className="hidden lg:block">
+                <SortHeader label={t('devices.colLease')} k="lease" sort={sort} onSort={toggleSort} />
+              </span>
+            )}
+            {visibleColumns.has('router') && <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('band') && <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('signal') && <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('traffic') && <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('firstSeen') && (
+              <span className="hidden xl:block">
+                <SortHeader label={t('devices.colFirstSeen')} k="firstSeen" sort={sort} onSort={toggleSort} />
+              </span>
+            )}
+            {visibleColumns.has('lastSeen') && (
+              <span className="hidden xl:block">
+                <SortHeader label={t('devices.colLastSeen')} k="lastSeen" sort={sort} onSort={toggleSort} />
+              </span>
+            )}
+            {/* #958: selector de columnas visibles (la última celda, sobre el
+                chevron de expansión). El nombre no se puede ocultar. */}
+            <ColumnPicker hidden={hiddenColumns} onToggle={toggleColumn} />
           </div>
           <div className="divide-y divide-border p-1.5 md:p-2">
             <AnimatePresence initial={false}>
@@ -1753,6 +1821,8 @@ export default function Devices() {
                   infra={infraById.get(d.id)}
                   expanded={expandedId === d.id}
                   index={i}
+                  vis={visibleColumns}
+                  colsStyle={colsStyle}
                   onToggle={() => setExpandedId((prev) => (prev === d.id ? null : d.id))}
                   onCopyIp={copyIp}
                   onNavigateRouter={navigateRouter}

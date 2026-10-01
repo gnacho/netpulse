@@ -382,6 +382,10 @@
     "colSignal": "Signal",
     "colTraffic": "Traffic",
     "colType": "Type",
+    "columns": {
+      "action": "Show or hide columns",
+      "title": "Columns"
+    },
     "copyIp": "Copy IP",
     "detail": {
       "dhcpLease": "DHCP lease",

@@ -373,3 +373,23 @@
     animation: none !important;
   }
 }
+
+/* Tabla de clientes (#958): grid con columnas dinamicas. Devices.tsx genera
+ * las plantillas segun las columnas visibles y las inyecta como custom
+ * properties; Tailwind no puede cubrir todas las combinaciones posibles.
+ * Los breakpoints replican md/lg/xl (48/64/80rem). */
+@media (min-width: 48rem) {
+  .devices-cols {
+    grid-template-columns: var(--devices-cols-md);
+  }
+}
+@media (min-width: 64rem) {
+  .devices-cols {
+    grid-template-columns: var(--devices-cols-lg);
+  }
+}
+@media (min-width: 80rem) {
+  .devices-cols {
+    grid-template-columns: var(--devices-cols-xl);
+  }
+}
