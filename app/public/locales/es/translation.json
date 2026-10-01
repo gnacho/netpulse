@@ -61,7 +61,7 @@
     "categoryDescriptions": {
       "router": "Estado, temperatura y reinicios de los routers",
       "internet": "Cortes y recuperaciones de la conexión WAN",
-      "clients": "Dispositivos que se unen a la red (conocidos y desconocidos)",
+      "clients": "Clientes que se unen a la red (conocidos y desconocidos)",
       "signal": "Cobertura WiFi débil en clientes y nodos",
       "vpn": "Handshakes y sesiones de WireGuard",
       "system": "Firmware, copias de seguridad y servicios (AdGuard, NAS)"
@@ -86,7 +86,7 @@
       "uplink-switched": "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
       "wan-down": "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
       "wan-slow": "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
-      "wifi-weak": "Acerca el dispositivo a un punto de acceso o reubica el AP.",
+      "wifi-weak": "Acerca el cliente a un punto de acceso o reubica el AP.",
       "snmp-failing": "Revisa la community SNMP y el puerto del switch: el equipo responde a ping pero no al sondeo."
     },
     "types": {
@@ -275,8 +275,8 @@
   "command": {
     "empty": "Sin resultados.",
     "pages": "Páginas",
-    "placeholder": "Saltar a una página, router o dispositivo…",
-    "routers": "Dispositivos"
+    "placeholder": "Saltar a una página o equipo…",
+    "routers": "Flota"
   },
   "common": {
     "ago": {
@@ -554,7 +554,7 @@
     "statusPhrase": "Todo va bien, aunque el Patio está algo caliente (71 °C).",
     "topDevices": {
       "summary": "{{total}} en total · {{newToday}} nuevos hoy",
-      "title": "Dispositivos más activos"
+      "title": "Clientes más activos"
     },
     "traffic": {
       "average": "Media",
@@ -601,8 +601,8 @@
     "overview": "Resumen",
     "reports": "Informes",
     "roaming": "Itinerancia WiFi",
-    "routerDetail": "Detalle del dispositivo",
-    "routers": "Dispositivos",
+    "routerDetail": "Detalle del equipo",
+    "routers": "Flota",
     "settings": "Ajustes",
     "settingsDesc": "Tema, unidades e instalación",
     "theme": "Tema",
@@ -665,7 +665,7 @@
       "colFtMode": "Modo FT",
       "colAuth": "Autenticación",
       "colRouters": "Interfaces",
-      "colRouter": "Dispositivo",
+      "colRouter": "Equipo",
       "colIface": "Interfaz",
       "colSsidR": "SSID",
       "colBandCh": "Banda · canal",
@@ -737,7 +737,7 @@
       "error": "No se pudo calcular el re-anclaje. Comprueba que usteer o DAWN están activos y accesibles.",
       "noApi": "Disponible solo con backend en vivo.",
       "empty": "No hay clientes anclados en un AP claramente peor. La red está bien repartida.",
-      "hint": "Los dispositivos que ignoran 802.11v no obedecen las sugerencias del daemon. Aquí se sugiere un AP mejor y se fuerza la desconexión con del_client + ban_time; el cliente decide a dónde reasociarse.",
+      "hint": "Los clientes que ignoran 802.11v no obedecen las sugerencias del daemon. Aquí se sugiere un AP mejor y se fuerza la desconexión con del_client + ban_time; el cliente decide a dónde reasociarse.",
       "source": "Datos de {{daemon}}",
       "colClient": "Cliente",
       "colCurrent": "AP actual",
@@ -820,7 +820,7 @@
       "ramUsed": "{{used}} MB usados de {{total}} MB",
       "tableCaption": "Datos de rendimiento ({{range}})",
       "unavailableTitle": "Sin métricas de sistema",
-      "unavailableBody": "Este dispositivo se monitoriza por SNMP o beacon (switch gestionado): no reporta CPU, RAM ni temperatura, así que no hay gráficas que mostrar."
+      "unavailableBody": "Este equipo se monitoriza por SNMP o beacon (switch gestionado): no reporta CPU, RAM ni temperatura, así que no hay gráficas que mostrar."
     },
     "performance": "Rendimiento",
     "performanceRange": "Rango de rendimiento",
@@ -910,7 +910,7 @@
       "metered": "De pago por uso",
       "viaPort": "puerto {{port}}",
       "noAddress": "Sin dirección",
-      "stickyNote": "Cada equipo se queda en una sola conexión cada vez, así que desde un mismo ordenador verás una dirección, no una mezcla.",
+      "stickyNote": "Cada cliente se queda en una sola conexión cada vez, así que desde un mismo ordenador verás una dirección, no una mezcla.",
       "source": "Se configura en el panel del propio router. NetPulse solo lo muestra."
     },
     "wireguard": {
@@ -937,7 +937,7 @@
       "rearmFail": "No se pudo rearmar",
       "rearmFailNoAgent": "No hay agente registrado",
       "rearmFailNoRouter": "No hay router con ese slug en la tabla",
-      "rearmFailNotOpenwrt": "Este dispositivo no usa el agente OpenWrt",
+      "rearmFailNotOpenwrt": "Este equipo no usa el agente OpenWrt",
       "rearmFailNetgrip": "Gestionado por NetGrip: reinícialo desde el panel",
       "rearmFailNoSSH": "Sin acceso SSH al router",
       "rearmFailCooldown": "Recién rearmado; espera un momento",
@@ -1065,7 +1065,7 @@
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s",
     "noVitals": "Sin métricas de sistema",
-    "noVitalsTip": "Monitorizado por SNMP o beacon: este dispositivo no reporta CPU, RAM ni temperatura"
+    "noVitalsTip": "Monitorizado por SNMP o beacon: este equipo no reporta CPU, RAM ni temperatura"
   },
   "reports": {
     "availability": "Disponibilidad por router",
@@ -1104,8 +1104,8 @@
     "internetAria": "Internet, {{isp}}, fibra {{plan}}",
     "labels": "Etiquetas",
     "edit": "Editar",
-    "editHint": "Edita el layout: arrastra los routers y dispositivos para ajustar las distancias. Al guardar, las posiciones quedan fijas y no se reordenan.",
-    "editBanner": "Modo edición: arrastra los routers y dispositivos para ajustar el mapa",
+    "editHint": "Edita el layout: arrastra los routers y clientes para ajustar las distancias. Al guardar, las posiciones quedan fijas y no se reordenan.",
+    "editBanner": "Modo edición: arrastra los routers y clientes para ajustar el mapa",
     "editSave": "Guardar",
     "editReset": "Restablecer layout automático",
     "legend": {
@@ -1240,7 +1240,7 @@
       "visitWeb": "Visitar web",
       "starGithub": "Danos una estrella en GitHub",
       "reportIssue": "Informar de un problema",
-      "desc": "Panel de control de red para dispositivos OpenWRT. Monitoriza routers y APs y aplica acciones explícitas del admin (reservas, bloqueos, orquestación, firmware) con snapshot y rollback.",
+      "desc": "Panel de control de red para tu flota OpenWrt. Monitoriza routers y APs y aplica acciones explícitas del admin (reservas, bloqueos, orquestación, firmware) con snapshot y rollback.",
       "privacy": "100% privado · 0% nube",
       "title": "Acerca de",
       "versionNote": "v1.0.0",
@@ -1308,15 +1308,15 @@
       "latencyLabel": "Latencia WAN",
       "paused": "Pausado",
       "refresh": "Refresco de la interfaz",
-      "signalCaption_one": "1 dispositivo por debajo del umbral (dispara la alerta de señal débil)",
-      "signalCaption_other": "{{count}} dispositivos por debajo del umbral (dispara la alerta de señal débil)",
-      "signalCaptionNone": "Ningún dispositivo por debajo del umbral",
+      "signalCaption_one": "1 cliente por debajo del umbral (dispara la alerta de señal débil)",
+      "signalCaption_other": "{{count}} clientes por debajo del umbral (dispara la alerta de señal débil)",
+      "signalCaptionNone": "Ningún cliente por debajo del umbral",
       "simHealth": "Salud simulada",
       "simHealthAria": "Salud simulada con tus umbrales: {{score}} de 100",
       "tempCaptionHot": "{{name}} está a {{temp}} °C → aviso activo",
       "tempCaptionOk": "{{name}} está a {{temp}} °C → dentro del límite",
       "tempLabel": "Temperatura de aviso",
-      "tempNote": "El umbral de temperatura alta se configura por router en «Dispositivos» (65 °C por defecto).",
+      "tempNote": "El umbral de temperatura alta se configura por router en «Flota» (65 °C por defecto).",
       "title": "Datos y umbrales",
       "units": "Tráfico",
       "unitsTitle": "Unidades de medida",
@@ -1409,7 +1409,7 @@
     "reduceMotion": "Animaciones activadas",
     "reduceMotionCaption": "Desactiva pulsos, tweens y entradas escalonadas",
     "routers": {
-      "title": "Dispositivos",
+      "title": "Flota",
       "caption": "La puerta de enlace se autodetecta en el arranque; añade el resto a mano",
       "empty": "Sin routers configurados todavía. La puerta de enlace se autodetecta al arrancar el servidor; si no aparece, añádela aquí.",
       "host": "IP o hostname",
@@ -1417,9 +1417,9 @@
       "role": "Rol",
       "actions": "Acciones",
       "regenerateToken": "Regenerar token",
-      "rotateTokenTitle": "¿Regenerar el token del dispositivo?",
+      "rotateTokenTitle": "¿Regenerar el token del equipo?",
       "rotateTokenCaption": "Se generará un token nuevo para «{{name}}». El actual dejará de funcionar de inmediato; deberás reinstalar el agente con el nuevo token. No se puede deshacer.",
-      "rotateTokenHotApplied": "Token regenerado y aplicado al dispositivo sin reinstalar.",
+      "rotateTokenHotApplied": "Token regenerado y aplicado al equipo sin reinstalar.",
       "rotateTokenManualNeeded": "Token regenerado. El servidor no pudo aplicarlo en el agente; reinstala el agente para que use el token nuevo.",
       "rotateTokenSavedNoAgent": "Token regenerado y guardado. Se aplicará al agente cuando se instale o se recupere.",
       "rotateTokenNetgrip": "Token regenerado y guardado. NetGrip gestiona su agente desde el panel; el token se aplicará al reinstalarlo desde allí.",
@@ -1427,11 +1427,11 @@
       "gateway": "Es la puerta de enlace",
       "gatewayBadge": "Principal",
       "add": "Añadir",
-      "addDevice": "Añadir dispositivo",
+      "addDevice": "Añadir equipo",
       "adding": "Añadiendo…",
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar {name}? El histórico de métricas se conserva.",
-      "deleteTitle": "¿Eliminar dispositivo?",
+      "deleteTitle": "¿Eliminar equipo?",
       "deleteDesc": "Se quitará de la configuración. Las métricas históricas se conservan.",
       "errorDuplicate": "Ya existe un router con esa IP",
       "errorGeneric": "No se pudo guardar. Inténtalo de nuevo.",
@@ -1941,13 +1941,13 @@
   "channelPlan": {
     "title": "Plan de canales WiFi",
     "subtitle": "Recomendaciones de canal a partir de scans de vecinos.",
-    "router": "Dispositivo",
+    "router": "Equipo",
     "band": "Banda",
     "currentChannel": "Canal actual",
     "recommendedChannel": "Canal recomendado",
     "neighbors": "APs vecinos",
     "noScans": "Sin escaneos recientes para este router. Los routers que corren NetGrip (la puerta de enlace, los APs gestionados por su panel) no escanean vecinos; los que llevan el agente NetPulse sí. Selecciona otro router de la lista (p. ej. rt2 o rt4) para ver su plan.",
-    "noRadios": "Este dispositivo no reporta radios WiFi.",
+    "noRadios": "Este equipo no reporta radios WiFi.",
     "apply": "Aplicar canal",
     "gateway": " (Puerta de enlace)",
     "signal": "Señal",
@@ -1965,7 +1965,7 @@
   },
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",
-    "subtitle": "Programa actualizaciones de firmware OpenWrt y sigue el progreso por dispositivo.",
+    "subtitle": "Programa actualizaciones de firmware OpenWrt y sigue el progreso por equipo.",
     "currentVersion": "Versión actual",
     "targetVersion": "Versión objetivo",
     "model": "Modelo / target",
@@ -1973,7 +1973,7 @@
     "checksum": "Checksum SHA256",
     "upgrade": "Actualizar ahora",
     "inProgress": "En progreso",
-    "empty": "No hay dispositivos configurados para actualizar firmware.",
+    "empty": "No hay equipos configurados para actualizar firmware.",
     "confirmTitle": "Confirmar actualización de firmware",
     "confirmReboot": "Se guardará una copia de la configuración antes de flashear y el router se reiniciará al terminar.",
     "confirmRouter": "Router",
@@ -2315,9 +2315,9 @@
       "addRouter": {
         "title": "Dar de alta un router o switch",
         "subtitle": "Añadir un equipo a la flota",
-        "intro": "Los equipos se gestionan desde Ajustes, no desde la página de dispositivos: ahí viven el alta, la edición y el descubrimiento de la red.",
+        "intro": "Los equipos se gestionan desde Ajustes, no desde la página de la flota: ahí viven el alta, la edición y el descubrimiento de la red.",
         "steps": [
-          "Ve a ⟦Ajustes⟧ → sección ⟦Dispositivos⟧ y pulsa ⟦Añadir dispositivo⟧.",
+          "Ve a ⟦Ajustes⟧ → sección ⟦Flota⟧ y pulsa ⟦Añadir equipo⟧.",
           "Rellena IP o hostname, nombre y tipo. Marca ⟦Es la puerta de enlace⟧ si es la puerta de enlace; para switches gestionados elige el tipo correspondiente.",
           "Para que el server pueda sondear por SSH, autoriza su clave: cópiala desde ⟦Clave SSH del servidor⟧ e instálala en el router.",
           "También puedes pulsar ⟦Descubrir en la red⟧ para detectar candidatos automáticamente."
@@ -2329,7 +2329,7 @@
         "subtitle": "El camino recomendado para tener datos completos",
         "intro": "El agente sondea el router en local (WiFi, DHCP, FDB, LLDP) y empuja los datos al servidor; sin él, la lista de clientes sale vacía.",
         "steps": [
-          "Ve a ⟦Dispositivos⟧ y baja hasta la sección ⟦Agentes⟧: todo router OpenWrt tiene fila, tenga agente o no.",
+          "Ve a ⟦Flota⟧ y baja hasta la sección ⟦Agentes⟧: todo router OpenWrt tiene fila, tenga agente o no.",
           "Pulsa ⟦Instalar agente⟧ en la fila del router: se registra el token y se despliega por SSH (binario, config, servicio y watchdog), en un solo clic si la clave SSH ya está autorizada.",
           "En unos segundos el router pasa a estar en línea en esa misma tabla. ⟦Reinstalar⟧ repite el proceso completo y es lo que mantiene el agente vivo tras upgrades de firmware.",
           "¿Vía manual o versión sin botón? ⟦Ajustes⟧ → ⟦Adopción de agentes⟧ → ⟦Mostrar token⟧, y desde una máquina con SSH al router ejecuta install-agent.sh con --pairing-token."
@@ -2362,7 +2362,7 @@
       "proxmoxToken": {
         "title": "Conectar un cluster Proxmox",
         "subtitle": "Crear el token de API de solo lectura que pide la integración",
-        "intro": "La integración de Proxmox sella cada host como hipervisor y cuelga sus CTs y VMs de él en ⟦Dispositivos⟧, con nombres e IPs reales. Solo necesita lectura: un token de API con permisos de auditoría.",
+        "intro": "La integración de Proxmox sella cada host como hipervisor y cuelga sus CTs y VMs de él en ⟦Flota⟧, con nombres e IPs reales. Solo necesita lectura: un token de API con permisos de auditoría.",
         "steps": [
           "En la web de Proxmox ve a ⟦Datacenter⟧ → ⟦Permisos⟧ → ⟦API Tokens⟧ y crea un token para el usuario que prefieras (p. ej. root@pam!netpulse).",
           "Dale permisos de auditoría: en ⟦Permisos⟧ → ⟦Añadir⟧ asigna el rol PVEAuditor sobre la ruta / al token (si el token tiene separación de privilegios, el permiso tiene que ser del propio token, no basta con el de su usuario).",
