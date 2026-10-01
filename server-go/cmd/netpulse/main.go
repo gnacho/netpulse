@@ -392,10 +392,18 @@ func run() error {
 			chain = append(chain, urgencyGate{n: webhookNotifier, kv: kv, key: "webhook.urgent_only"})
 		}
 		if telegramNotifier != nil {
-			chain = append(chain, urgencyGate{n: telegramNotifier, kv: kv, key: "telegram.urgent_only"})
+			chain = append(chain, integrationGate{
+				n:   urgencyGate{n: telegramNotifier, kv: kv, key: "telegram.urgent_only"},
+				kv:  kv,
+				key: "settings.integrations.telegram",
+			})
 		}
 		if ntfyNotifier != nil {
-			chain = append(chain, urgencyGate{n: ntfyNotifier, kv: kv, key: "ntfy.urgent_only"})
+			chain = append(chain, integrationGate{
+				n:   urgencyGate{n: ntfyNotifier, kv: kv, key: "ntfy.urgent_only"},
+				kv:  kv,
+				key: "settings.integrations.ntfy",
+			})
 		}
 		notifyChain = chain
 	}
@@ -881,6 +889,23 @@ func (g urgencyGate) Notify(ev alerts.AlertEvent) {
 		if v, ok := g.kv.Get(g.key); ok && v == "false" {
 			g.n.Notify(ev)
 		}
+		return
+	}
+	g.n.Notify(ev)
+}
+
+// integrationGate implementa alerts.Notifier descartando TODOS los eventos
+// de un canal cuando su integración está desactivada en Ajustes (#968,
+// settings.integrations.<canal> = "false"). Ausente = activo. La lectura es
+// por evento (patrón urgencyGate): el toggle aplica sin reiniciar.
+type integrationGate struct {
+	n   alerts.Notifier
+	kv  *mainKVAdapter
+	key string
+}
+
+func (g integrationGate) Notify(ev alerts.AlertEvent) {
+	if v, ok := g.kv.Get(g.key); ok && v == "false" {
 		return
 	}
 	g.n.Notify(ev)

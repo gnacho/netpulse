@@ -13,10 +13,20 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/db"
+	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 )
 
 // orchestrationKey es la clave kv que activa el menú de orquestación (#121).
 const orchestrationKey = "settings.orchestration_enabled"
+
+// integrationKeys: claves kv de los toggles de integraciones server-side
+// (#968). Ausente = activo (compat: instalaciones previas no tenían el flag).
+// MQTT no tiene clave propia aquí: reutiliza mqtt.enabled (#838).
+const (
+	integrationNtfyKey     = "settings.integrations.ntfy"
+	integrationTelegramKey = "settings.integrations.telegram"
+	integrationProxmoxKey  = "settings.integrations.proxmox"
+)
 
 // adguardServiceKey: si el usuario monitoriza AdGuard (#813). Ausente = SÍ
 // (compat: instalaciones previas no tenían este flag). Ajustes > Servicios.
@@ -46,6 +56,14 @@ func kvSetBool(db *sql.DB, key string, val bool) error {
 	_, err := db.Exec(
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, v)
+	return err
+}
+
+// kvSetStr escribe una cadena en el kv (UPSERT).
+func kvSetStr(db *sql.DB, key, val string) error {
+	_, err := db.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key, val)
 	return err
 }
 
@@ -117,6 +135,57 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"enabled": body.Enabled})
+	})))
+
+	// GET /api/settings/integrations - toggles server-side de integraciones
+	// (#968): ntfy/telegram/proxmox (ausente = activo) y mqtt (lee la clave
+	// existente mqtt.enabled via el manager, que ya fusiona env + kv).
+	mux.Handle("GET /api/settings/integrations", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, s.integrationsView())
+	})))
+	// PUT /api/settings/integrations - parche parcial: SOLO se escriben las
+	// claves presentes en el body (un toggle no pisa el resto). Los gates
+	// leen la kv por evento, así que el cambio aplica sin reiniciar.
+	mux.Handle("PUT /api/settings/integrations", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Ntfy     *bool `json:"ntfy"`
+			Telegram *bool `json:"telegram"`
+			Proxmox  *bool `json:"proxmox"`
+			MQTT     *bool `json:"mqtt"`
+		}
+		if st := readJSONBody(w, r, &body); st != 0 {
+			writeBodyError(w, st, "invalid_body", "")
+			return
+		}
+		if body.Ntfy == nil && body.Telegram == nil && body.Proxmox == nil && body.MQTT == nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "at least one integration key is required")
+			return
+		}
+		for _, p := range []struct {
+			flag *bool
+			key  string
+		}{
+			{body.Ntfy, integrationNtfyKey},
+			{body.Telegram, integrationTelegramKey},
+			{body.Proxmox, integrationProxmoxKey},
+		} {
+			if p.flag == nil {
+				continue
+			}
+			// Formato "true"/"false" (como mqtt.enabled): los gates de
+			// main.go y del adapter leen "false" literal.
+			if err := kvSetStr(s.db.DB, p.key, strconv.FormatBool(*p.flag)); err != nil {
+				writeError(w, http.StatusInternalServerError, "kv_error")
+				return
+			}
+		}
+		if body.MQTT != nil {
+			if err := s.setMQTTEnabled(*body.MQTT); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, s.integrationsView())
 	})))
 
 	// GET /api/settings/services — servicios monitorizados (#813). Ausente = activo.
@@ -191,6 +260,38 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 	s.registerAlertsLangRoutes(mux)
 	s.registerRoamingSettingsRoutes(mux)
 	s.registerThresholdsRoutes(mux)
+}
+
+// integrationsView: estado efectivo de los toggles server-side (#968).
+// Ausente = activo para ntfy/telegram/proxmox; MQTT refleja la config
+// efectiva del manager (env + kv).
+func (s *server) integrationsView() map[string]bool {
+	mqtt := kvGet(s.db.DB, "mqtt.enabled") == "true"
+	if s.mqtt != nil {
+		mqtt = s.mqtt.Config().Enabled
+	}
+	return map[string]bool{
+		"ntfy":     kvGetDefaultOn(s.db.DB, integrationNtfyKey),
+		"telegram": kvGetDefaultOn(s.db.DB, integrationTelegramKey),
+		"proxmox":  kvGetDefaultOn(s.db.DB, integrationProxmoxKey),
+		"mqtt":     mqtt,
+	}
+}
+
+// setMQTTEnabled cambia SOLO el flag enabled del publisher MQTT (#968): carga
+// la config efectiva, conmuta y reaplica (sin tocar host/credenciales). Sin
+// manager (tests) cae a escribir la clave kv directamente.
+func (s *server) setMQTTEnabled(enabled bool) error {
+	if s.mqtt == nil {
+		return kvSetStr(s.db.DB, "mqtt.enabled", strconv.FormatBool(enabled))
+	}
+	cfg := s.mqtt.Config()
+	cfg.Enabled = enabled
+	if err := mqttpub.SaveConfig(&dbKVAdapter{db: s.db.DB}, cfg); err != nil {
+		return err
+	}
+	s.mqtt.Apply(cfg)
+	return nil
 }
 
 // knownMacItem es la forma JSON de una entrada de la allowlist (#196).

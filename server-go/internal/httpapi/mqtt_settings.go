@@ -46,7 +46,9 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager) {
 			return
 		}
 		var body struct {
-			Enabled     bool   `json:"enabled"`
+			// Enabled es puntero (#968): un PUT parcial que solo toca otro
+			// campo (p.ej. host) NO debe apagar el publisher por accidente.
+			Enabled     *bool  `json:"enabled"`
 			Host        string `json:"host"`
 			Port        int    `json:"port"`
 			User        string `json:"user"`
@@ -58,7 +60,9 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager) {
 			return
 		}
 		cfg := mgr.Config()
-		cfg.Enabled = body.Enabled
+		if body.Enabled != nil {
+			cfg.Enabled = *body.Enabled
+		}
 		if body.Host != "" {
 			cfg.Host = body.Host
 		}

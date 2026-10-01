@@ -107,9 +107,30 @@ func (l *Live) pveClientsCached() []pveInstClient {
 	return l.pveClients
 }
 
+// pveIntegrationKey: toggle server-side de la integración Proxmox (#968).
+// Ausente = activo; "false" = la integración está desactivada y NO se hace
+// ni un solo request al PVE.
+const pveIntegrationKey = "settings.integrations.proxmox"
+
+// pveIntegrationEnabled: lectura por llamada (patrón urgencyGate): el toggle
+// de Ajustes aplica sin reiniciar.
+func (l *Live) pveIntegrationEnabled() bool {
+	if l.db == nil {
+		return true
+	}
+	var v string
+	if err := l.db.QueryRow("SELECT value FROM kv WHERE key = ?", pveIntegrationKey).Scan(&v); err != nil {
+		return true
+	}
+	return v != "false"
+}
+
 // pveInventoryCached: inventario PVE (VM→MAC→node) con TTL. Devuelve nil si
 // no configurado o si la consulta falla (no-op, no rompe el overview).
 func (l *Live) pveInventoryCached() *pveInventory {
+	if !l.pveIntegrationEnabled() {
+		return nil
+	}
 	clients := l.pveClientsCached()
 	if len(clients) == 0 {
 		return nil

@@ -150,6 +150,10 @@ type server struct {
 	pollNow func()
 	started time.Time
 
+	// MQTT publisher (#838): lo usa también el endpoint de integraciones
+	// (#968) para el toggle enabled sin tocar el resto de la config.
+	mqtt *mqttpub.Manager
+
 	// SSE bidireccional para agentes (Fase 7.3).
 	agentHub *sse.AgentHub
 
@@ -270,6 +274,7 @@ func NewHandler(d Deps) http.Handler {
 		imageResolver:   d.FirmwareImage,
 		speedtest:       d.Speedtest,
 		alertEmitter:    d.AlertEmitter,
+		mqtt:            d.MQTT,
 	}
 	if s.imageResolver == nil {
 		s.imageResolver = firmware.NewImageResolver()
