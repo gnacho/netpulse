@@ -5601,6 +5601,17 @@ export default function Settings() {
           </div>
         )}
 
+        {/* API Tokens (#330): bearer tokens con scopes para integraciones.
+            Viven en la zona de Administración (#999), entre la AdminBar y
+            el historial de actualizaciones. */}
+        {!isDemo && (
+          <div className="order-205">
+            <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
+              <TokensManager />
+            </Card>
+          </div>
+        )}
+
         {/* Historial de actualizaciones (issue #159) — solo admin y modo live;
             el updater es un mecanismo de auto-aplicación que no existe en demo */}
         {!isDemo && auth?.role === 'admin' && (
@@ -5866,15 +5877,6 @@ export default function Settings() {
             )}
           </Card>
         </div>
-
-        {/* API Tokens (#330): bearer tokens con scopes para integraciones */}
-        {!isDemo && (
-          <div className="order-180">
-            <Card title={t('tokens.title')} caption={t('tokens.caption')} index={6} reduce={reduce}>
-              <TokensManager />
-            </Card>
-          </div>
-        )}
 
         {/* ⑥ Acerca de */}
         <div className="order-230">
