@@ -1082,23 +1082,29 @@
     "noVitalsTip": "Monitored through SNMP or a beacon: this device does not report CPU, RAM or temperature"
   },
   "reports": {
-    "availability": "Availability",
-    "colAvg": "Average",
-    "colRouter": "Router",
+    "availability": "Availability per router",
+    "downloadCsv": "Download as CSV",
+    "downNone": "No downtime",
+    "downTime": "{{duration}} down",
     "empty": "No data for this period yet. The nightly rollup populates the report each day.",
     "error": "Could not load the report. Check the connection and try again.",
-    "footnote": "Availability = minutes with data over the period total. The current period is shown as partial.",
-    "latency": "Average latency",
+    "explain": "How long each router has been up during {{window}}. 100% means no interruptions.",
+    "fleetAvg": "Fleet average",
+    "footnote": "Availability = minutes with data over the period total; the current period is shown as partial. Green: at least 99%. Amber: at least 95%. Red: below 95% (over ~8 h down per week), needs attention.",
     "loading": "Loading report…",
     "noApi": "Available only with a live backend.",
     "rangeLabel": "Range to show",
-    "subtitle": "Availability and performance per router.",
+    "status_danger": "Needs attention",
+    "status_ok": "Stable",
+    "status_warn": "Minor drops",
     "tabDay": "Daily",
-    "tabWeek": "Weekly",
     "tabMonth": "Monthly",
-    "traffic": "Total traffic (↓+↑)",
-    "upMin": "Minutes with data",
-    "downloadCsv": "Download as CSV"
+    "tabWeek": "Weekly",
+    "totalDown": "Total downtime",
+    "windowDay": "the last {{n}} days",
+    "windowMonth": "the last {{n}} months",
+    "windowWeek": "the last {{n}} weeks",
+    "worstRouter": "Router with most downtime"
   },
   "topology": {
     "animateFlow": "Animate packet flow",
@@ -1791,7 +1797,7 @@
       "description": "Language used for ntfy, Telegram and webhook alerts (alerts are composed in Spanish and translated when published).",
       "label": "Alert language"
     },
-        "https": {
+    "https": {
       "title": "HTTPS",
       "caption": "Serve NetPulse over HTTPS with its own certificate authority, and retire plain HTTP step by step.",
       "loadError": "Could not load the HTTPS settings.",

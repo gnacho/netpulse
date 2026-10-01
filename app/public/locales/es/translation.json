@@ -1082,23 +1082,29 @@
     "noVitalsTip": "Monitorizado por SNMP o beacon: este dispositivo no reporta CPU, RAM ni temperatura"
   },
   "reports": {
-    "availability": "Disponibilidad",
-    "colAvg": "Media",
-    "colRouter": "Router",
+    "availability": "Disponibilidad por router",
+    "downloadCsv": "Descargar como CSV",
+    "downNone": "Sin caídas",
+    "downTime": "{{duration}} caído",
     "empty": "Todavía no hay datos para este período. El rollup nocturno rellena el informe cada día.",
     "error": "No se pudo cargar el informe. Comprueba la conexión e inténtalo de nuevo.",
-    "footnote": "Disponibilidad = minutos con datos sobre el total del período. El período en curso se muestra parcial.",
-    "latency": "Latencia media",
+    "explain": "Tiempo activo de cada router durante {{window}}. 100% significa sin interrupciones.",
+    "fleetAvg": "Media de la red",
+    "footnote": "Disponibilidad = minutos con datos sobre el total del período; el período en curso se muestra parcial. Verde: al menos 99%. Ámbar: al menos 95%. Rojo: menos del 95% (más de unas 8 h caído a la semana), requiere atención.",
     "loading": "Cargando informe…",
     "noApi": "Disponible solo con backend en vivo.",
     "rangeLabel": "Rango a mostrar",
-    "subtitle": "Disponibilidad y rendimiento por router.",
+    "status_danger": "Necesita atención",
+    "status_ok": "Estable",
+    "status_warn": "Caídas menores",
     "tabDay": "Diario",
-    "tabWeek": "Semanal",
     "tabMonth": "Mensual",
-    "traffic": "Tráfico total (↓+↑)",
-    "upMin": "Minutos con datos",
-    "downloadCsv": "Descargar como CSV"
+    "tabWeek": "Semanal",
+    "totalDown": "Tiempo caído total",
+    "windowDay": "los últimos {{n}} días",
+    "windowMonth": "los últimos {{n}} meses",
+    "windowWeek": "las últimas {{n}} semanas",
+    "worstRouter": "Router con más caídas"
   },
   "topology": {
     "animateFlow": "Animar flujo de paquetes",
@@ -1791,7 +1797,7 @@
       "description": "Idioma en que se envían los avisos de ntfy, Telegram y webhook (las alertas se componen en español y se traducen al publicar).",
       "label": "Idioma de los avisos"
     },
-        "https": {
+    "https": {
       "title": "HTTPS",
       "caption": "Sirve NetPulse por HTTPS con su propia autoridad de certificación y retira el HTTP plano paso a paso.",
       "loadError": "No se pudieron cargar los ajustes de HTTPS.",
