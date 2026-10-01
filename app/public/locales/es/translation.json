@@ -525,10 +525,11 @@
     "healthAria": "{{caption}}: {{score}} de 100, {{label}}",
     "latency": "Latencia",
     "recentAlerts": {
-      "lastCheck": "Última comprobación hace 30 s",
-      "unreadOnly": "Solo no leídas",
       "allRead": "Todo en orden. No hay alertas sin leer.",
-      "recheck": "Volver a comprobar"
+      "emptyTitle": "Sin alertas",
+      "lastCheck": "Última comprobación hace 30 s",
+      "recheck": "Volver a comprobar",
+      "unreadOnly": "Solo no leídas"
     },
     "routersRow": {
       "summary": "{{online}} online · {{warnings}} con aviso",

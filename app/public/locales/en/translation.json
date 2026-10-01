@@ -525,10 +525,11 @@
     "healthAria": "{{caption}}: {{score}} of 100, {{label}}",
     "latency": "Latency",
     "recentAlerts": {
-      "lastCheck": "Last check 30s ago",
-      "unreadOnly": "Unread only",
       "allRead": "All caught up. No unread alerts.",
-      "recheck": "Check again"
+      "emptyTitle": "No alerts",
+      "lastCheck": "Last check 30s ago",
+      "recheck": "Check again",
+      "unreadOnly": "Unread only"
     },
     "routersRow": {
       "summary": "{{online}} online · {{warnings}} with warnings",

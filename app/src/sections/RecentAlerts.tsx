@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ShieldCheck } from 'lucide-react'
 import { AlertItem } from '@/components/AlertItem'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useNetPulse } from '@/data/DataProvider'
@@ -74,9 +74,14 @@ export function RecentAlerts() {
           {t('home.recentAlerts.unreadOnly')}
         </button>
       </SectionHeader>
-      <div className="-mx-3 flex-1 space-y-1">
+      <div className="-mx-3 flex flex-1 flex-col space-y-1">
         {visible.length === 0 && (
-          <p className="px-3 py-6 text-center text-caption text-text-muted">{t('home.recentAlerts.allRead')}</p>
+          // Estado vacío (#992): icono + microtexto, centrado en la tarjeta.
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-3 py-6 text-center">
+            <ShieldCheck className="h-8 w-8 text-ok" strokeWidth={1.5} aria-hidden="true" />
+            <p className="text-sm font-medium text-text-secondary">{t('home.recentAlerts.emptyTitle')}</p>
+            <p className="text-caption text-text-muted">{t('home.recentAlerts.allRead')}</p>
+          </div>
         )}
         {visible.map((a, i) => (
           <motion.div
