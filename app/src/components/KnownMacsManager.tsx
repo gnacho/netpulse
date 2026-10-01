@@ -1,11 +1,13 @@
 /**
- * NetPulse — Gestor de dispositivos de confianza (issue #196).
+ * NetPulse - Gestor de dispositivos de confianza (issue #196).
  * Allowlist de MACs que no avisan como «dispositivo desconocido» y cuyo
  * nombre se usa como alias. CRUD contra /api/settings/known-macs (admin).
+ * Versión mínima (#1000): botón Añadir + listado; el contexto vive en el
+ * InfoTip de la tarjeta.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,7 @@ export function KnownMacsManager({ onSaved }: Props) {
   const [list, setList] = useState<KnownMacItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [mac, setMac] = useState('')
   const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -68,6 +71,7 @@ export function KnownMacsManager({ onSaved }: Props) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setMac('')
       setName('')
+      setShowForm(false)
       await load()
       refresh()
       onSaved?.()
@@ -93,23 +97,81 @@ export function KnownMacsManager({ onSaved }: Props) {
   const macInvalid = mac.trim() !== '' && !MAC_RE.test(mac.trim())
 
   return (
-    <div className="mt-4 space-y-3 border-t border-border pt-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-medium text-text-primary">{t('settings.knownMacs.title')}</div>
-          <div className="text-caption text-text-muted">{t('settings.knownMacs.caption')}</div>
-          <p className="mt-1 text-caption text-text-muted">{t('settings.knownMacs.hint')}</p>
+    <div className="space-y-3">
+      {!showForm && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+            {t('settings.knownMacs.add')}
+          </button>
         </div>
-        <ShieldCheck className="h-5 w-5 shrink-0 text-ok" strokeWidth={1.75} aria-hidden="true" />
-      </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <label className="block">
+            <span className="text-label uppercase text-text-muted">{t('settings.knownMacs.mac')}</span>
+            <input
+              type="text"
+              inputMode="text"
+              value={mac}
+              onChange={(e) => setMac(e.target.value)}
+              placeholder={t('settings.knownMacs.macPlaceholder')}
+              aria-label={t('settings.knownMacs.mac')}
+              aria-invalid={macInvalid}
+              autoFocus
+              className={cn(
+                'mt-1 w-full rounded-lg border bg-canvas px-3 py-2 font-mono text-mono-sm text-text-primary placeholder:text-text-muted focus:outline-none',
+                macInvalid ? 'border-danger' : 'border-border focus:border-accent',
+              )}
+            />
+          </label>
+          <label className="block">
+            <span className="text-label uppercase text-text-muted">{t('settings.knownMacs.name')}</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('settings.knownMacs.namePlaceholder')}
+              aria-label={t('settings.knownMacs.name')}
+              className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+          </label>
+          <div className="flex items-end gap-2">
+            <button
+              type="submit"
+              disabled={submitting || macInvalid || mac.trim() === ''}
+              className="inline-flex h-[38px] shrink-0 items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              {submitting ? t('settings.knownMacs.adding') : t('settings.knownMacs.add')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false)
+                setMac('')
+                setName('')
+                setError(null)
+              }}
+              className="inline-flex h-[38px] shrink-0 items-center rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {macInvalid && <p className="text-xs text-danger">{t('settings.knownMacs.invalidMac')}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
 
       {loading ? (
-        <div className="py-4 text-caption text-text-muted">…</div>
-      ) : list.length === 0 ? (
-        <div className="rounded-lg border border-border bg-elevated px-3 py-4 text-center text-caption text-text-muted">
-          {t('settings.knownMacs.empty')}
-        </div>
-      ) : (
+        <div className="py-2 text-caption text-text-muted">…</div>
+      ) : list.length > 0 ? (
         <ul className="space-y-2">
           {list.map((item) => (
             <li
@@ -133,50 +195,7 @@ export function KnownMacsManager({ onSaved }: Props) {
             </li>
           ))}
         </ul>
-      )}
-
-      <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
-        <label className="block">
-          <span className="text-label uppercase text-text-muted">{t('settings.knownMacs.mac')}</span>
-          <input
-            type="text"
-            inputMode="text"
-            value={mac}
-            onChange={(e) => setMac(e.target.value)}
-            placeholder={t('settings.knownMacs.macPlaceholder')}
-            aria-label={t('settings.knownMacs.mac')}
-            aria-invalid={macInvalid}
-            className={cn(
-              'mt-1 w-full rounded-lg border bg-canvas px-3 py-2 font-mono text-mono-sm text-text-primary placeholder:text-text-muted focus:outline-none',
-              macInvalid ? 'border-danger' : 'border-border focus:border-accent',
-            )}
-          />
-        </label>
-        <label className="block">
-          <span className="text-label uppercase text-text-muted">{t('settings.knownMacs.name')}</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('settings.knownMacs.namePlaceholder')}
-            aria-label={t('settings.knownMacs.name')}
-            className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-        </label>
-        <div className="flex items-end">
-          <button
-            type="submit"
-            disabled={submitting || macInvalid || mac.trim() === ''}
-            className="inline-flex h-[38px] shrink-0 items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            {submitting ? t('settings.knownMacs.adding') : t('settings.knownMacs.add')}
-          </button>
-        </div>
-      </form>
-
-      {macInvalid && <p className="text-xs text-danger">{t('settings.knownMacs.invalidMac')}</p>}
-      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      ) : null}
     </div>
   )
 }

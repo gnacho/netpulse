@@ -5646,14 +5646,15 @@ export default function Settings() {
         )}
 
         {/* Dispositivos de confianza (issue #196): allowlist de MACs que no
-            avisan como «desconocido» y cuyo nombre se usa como alias. */}
+            avisan como «desconocido» y cuyo nombre se usa como alias.
+            Versión mínima (#1000): el contexto va en el InfoTip. */}
         {!isDemo && auth?.role === 'admin' && (
           <div className="order-110">
             <Card
               title={t('settings.knownMacs.title')}
-              caption={t('settings.knownMacs.caption')}
               index={5}
               reduce={reduce}
+              headerSlot={<InfoTip text={t('settings.knownMacs.info')} />}
             >
               <KnownMacsManager onSaved={notify} />
             </Card>
