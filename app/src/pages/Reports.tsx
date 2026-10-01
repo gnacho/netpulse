@@ -203,7 +203,7 @@ export default function Reports() {
   const onTablistKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLDivElement>) => {
       const idx = RANGE_TABS.indexOf(range)
-      let next = idx
+      let next: number
       if (e.key === 'ArrowRight') next = (idx + 1) % RANGE_TABS.length
       else if (e.key === 'ArrowLeft') next = (idx - 1 + RANGE_TABS.length) % RANGE_TABS.length
       else if (e.key === 'Home') next = 0

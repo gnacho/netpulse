@@ -463,7 +463,7 @@ export default function Roaming() {
   const onTablistKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLDivElement>) => {
       const idx = TAB_IDS.indexOf(tab)
-      let next = idx
+      let next: number
       if (e.key === 'ArrowRight') next = (idx + 1) % TAB_IDS.length
       else if (e.key === 'ArrowLeft') next = (idx - 1 + TAB_IDS.length) % TAB_IDS.length
       else if (e.key === 'Home') next = 0
