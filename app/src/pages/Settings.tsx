@@ -2927,6 +2927,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [cfgOpen, setCfgOpen] = useState(false)
   const loaded = useRef(false)
 
   useEffect(() => {
@@ -2980,6 +2981,31 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       ...(scheduleKind !== 'interval' ? { time: schedTime } : {}),
     }),
     [enabled, intervalHours, serverUrl, provider, alertPct, scheduleKind, dayOfWeek, dayOfMonth, schedTime],
+  )
+
+  // #997: el toggle de la fila es PLANO y persiste al momento (como los
+  // demás toggles server-side); las opciones solo se editan en el Dialog.
+  const toggleEnabled = useCallback(
+    async (v: boolean) => {
+      setEnabled(v)
+      setError(null)
+      try {
+        const res = await fetch('/api/settings/speedtest', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...bodyJson(), enabled: v }),
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => null)
+          setError(d?.detail || t('settings.speedtest.saveError'))
+          return
+        }
+        onSaved()
+      } catch {
+        setError(t('settings.speedtest.saveError'))
+      }
+    },
+    [bodyJson, onSaved, t],
   )
 
   const save = useCallback(async () => {
@@ -3065,16 +3091,33 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         <div className="text-sm font-medium text-text-primary">{t('settings.speedtest.title')}</div>
         <div className="text-caption text-text-muted">{t('settings.speedtest.caption')}</div>
       </div>
+      {/* #997: toggle plano (persiste al cambiar); las opciones se abren
+          SOLO desde el icono Settings2, en un Dialog con el mismo wrapper
+          que el resto de integraciones (nada de acordeón inline). */}
       <SwitchRow
         label={t('settings.speedtest.enabled')}
         checked={enabled}
-        onCheckedChange={(v) => setEnabled(v)}
+        onCheckedChange={(v) => void toggleEnabled(v)}
         disabled={disabled || loading}
+        trailing={
+          <ConfigGear
+            label={t('settings.services.configure', { name: t('settings.speedtest.title') })}
+            onClick={() => setCfgOpen(true)}
+            disabled={disabled || loading}
+          />
+        }
       />
-      {/* #976: las opciones se despliegan al activar el test periódico
-          (patrón acordeón, como Labs en Servicios). */}
-      {enabled && (
-      <>
+      {error && !cfgOpen && (
+        <p role="alert" className="text-caption text-danger">
+          {error}
+        </p>
+      )}
+      <Dialog open={cfgOpen} onOpenChange={setCfgOpen}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{t('settings.speedtest.title')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
       <label className="block">
         <span className="flex items-center gap-1 text-label uppercase text-text-muted">
           {t('settings.speedtest.provider')}
@@ -3259,8 +3302,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </span>
         )}
       </div>
-      </>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
       <SpeedtestRecent disabled={disabled} />
     </div>
   )
