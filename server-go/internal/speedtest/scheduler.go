@@ -50,6 +50,10 @@ type Settings struct {
 	IntervalHours int    `json:"intervalHours"`
 	ServerURL     string `json:"serverUrl"`
 	AlertPct      int    `json:"alertPct"`
+	// Provider (#976): metodo de medicion. ""/ookla = speedtest.net;
+	// cloudflare = speed.cloudflare.com por HTTP; librespeed = instancia
+	// LibreSpeed cuya URL base viaja en ServerURL.
+	Provider string `json:"provider,omitempty"`
 	// Programación (#744): "interval" (cada IntervalHours, comportamiento
 	// histórico) | "weekly" (DayOfWeek a la Time local) | "monthly"
 	// (DayOfMonth a la Time local; si el mes no tiene ese día, el último).
@@ -65,6 +69,7 @@ const (
 	kvInterval  = "settings.speedtest.interval_h"
 	kvServerURL = "settings.speedtest.server_url"
 	kvAlertPct  = "settings.speedtest.alert_pct"
+	kvProvider  = "settings.speedtest.provider"
 	kvContractD = "settings.wan.speed_down" // del issue #151 (lectura)
 
 	kvScheduleKind = "settings.speedtest.schedule_kind"
@@ -85,6 +90,10 @@ type Scheduler struct {
 	db     *sql.DB
 	runner Runner
 	emit   AlertEmitter
+
+	// httpRunner (#976) ejecuta los providers HTTP (cloudflare/librespeed);
+	// nil = se construye un HTTPRunner por ejecucion. Inyectable en tests.
+	httpRunner Runner
 
 	// contractDown lee el plan contratado declarado (#151). Inyectada para
 	// no duplicar la lógica kv del httpapi; nil = nunca alertar.
@@ -110,6 +119,20 @@ func NewScheduler(store *Store, db *sql.DB, runner Runner) *Scheduler {
 // SetAlertEmitter fija el motor de alertas (llamado tras construir el
 // adapter live en main).
 func (s *Scheduler) SetAlertEmitter(e AlertEmitter) { s.emit = e }
+
+// SetHTTPRunner inyecta el runner de los providers HTTP (#976), para tests.
+func (s *Scheduler) SetHTTPRunner(r Runner) { s.httpRunner = r }
+
+// runnerFor elige la implementacion segun el provider configurado.
+func (s *Scheduler) runnerFor(provider string) Runner {
+	if provider == "" || provider == ProviderOokla {
+		return s.runner
+	}
+	if s.httpRunner != nil {
+		return s.httpRunner
+	}
+	return HTTPRunner{Provider: provider}
+}
 
 // Store expone el store para las rutas de lectura (history/latest).
 func (s *Scheduler) Store() *Store { return s.store }
@@ -175,7 +198,7 @@ func (s *Scheduler) executeLocked(st Settings, origin string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
-	res, err := s.runner.Run(ctx, st.ServerURL)
+	res, err := s.runnerFor(st.Provider).Run(ctx, st.ServerURL)
 	if err != nil {
 		s.setLastError(err)
 		return err
@@ -293,6 +316,9 @@ func (s *Scheduler) LoadSettings() Settings {
 	if v := kvGet(s.db, kvServerURL); v != "" {
 		st.ServerURL = v
 	}
+	if v := kvGet(s.db, kvProvider); validProvider(v) {
+		st.Provider = v
+	}
 	if v, ok := kvInt(s.db, kvAlertPct); ok && v >= 0 && v <= 90 {
 		st.AlertPct = v
 	}
@@ -347,12 +373,25 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 		}
 		return errors.New("serverUrl debe ser una URL http(s) válida")
 	}
+	// Provider (#976): librespeed necesita la URL base de la instancia; los
+	// demás la ignoran (ookla: servidor concreto opcional; cloudflare:
+	// endpoints fijos).
+	if st.Provider == "" {
+		st.Provider = ProviderOokla
+	}
+	if !validProvider(st.Provider) {
+		return errors.New("provider debe ser ookla, cloudflare o librespeed")
+	}
+	if st.Provider == ProviderLibrespeed && strings.TrimSpace(st.ServerURL) == "" {
+		return errors.New("librespeed exige serverUrl con la URL base de la instancia")
+	}
 	if st.AlertPct < 0 || st.AlertPct > 90 {
 		return errors.New("alertPct debe estar entre 0 y 90 (0 = desactivada)")
 	}
 	kvSet(s.db, kvEnabled, boolStr(st.Enabled))
 	kvSet(s.db, kvInterval, fmt.Sprintf("%d", st.IntervalHours))
 	kvSet(s.db, kvServerURL, strings.TrimSpace(st.ServerURL))
+	kvSet(s.db, kvProvider, st.Provider)
 	kvSet(s.db, kvAlertPct, fmt.Sprintf("%d", st.AlertPct))
 	kvSet(s.db, kvScheduleKind, st.ScheduleKind)
 	kvSet(s.db, kvDayOfWeek, intPtrStr(st.DayOfWeek))

@@ -2918,6 +2918,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
   const [serverUrl, setServerUrl] = useState('')
+  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed'>('ookla')
   const [scheduleKind, setScheduleKind] = useState<'interval' | 'weekly' | 'monthly'>('interval')
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [dayOfMonth, setDayOfMonth] = useState(1)
@@ -2939,6 +2940,10 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
         if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
+        // Proveedor del test (#976): ookla/cloudflare/librespeed.
+        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed') {
+          setProvider(d.provider)
+        }
         // Migración visual de los "semanal/mensual" históricos (#744):
         // 168h/720h sin scheduleKind pasan a weekly/monthly con día y hora.
         const kind = typeof d.scheduleKind === 'string' ? d.scheduleKind : ''
@@ -2967,19 +2972,25 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       enabled,
       intervalHours: scheduleKind === 'interval' ? intervalHours : 12,
       serverUrl,
+      provider,
       alertPct,
       scheduleKind,
       ...(scheduleKind === 'weekly' ? { dayOfWeek } : {}),
       ...(scheduleKind === 'monthly' ? { dayOfMonth } : {}),
       ...(scheduleKind !== 'interval' ? { time: schedTime } : {}),
     }),
-    [enabled, intervalHours, serverUrl, alertPct, scheduleKind, dayOfWeek, dayOfMonth, schedTime],
+    [enabled, intervalHours, serverUrl, provider, alertPct, scheduleKind, dayOfWeek, dayOfMonth, schedTime],
   )
 
   const save = useCallback(async () => {
     const raw = serverUrl.trim()
     const urlOk = raw === '' || /^https?:\/\/.+\..+/.test(raw)
     if (raw === 'https://speedtest.net' || raw === 'https://www.speedtest.net' || !urlOk) {
+      setError(t('settings.speedtest.invalidServer'))
+      return
+    }
+    // LibreSpeed (#976) exige la URL base de la instancia.
+    if (provider === 'librespeed' && raw === '') {
       setError(t('settings.speedtest.invalidServer'))
       return
     }
@@ -3014,7 +3025,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [serverUrl, intervalHours, alertPct, scheduleKind, schedTime, bodyJson, onSaved, t])
+  }, [serverUrl, provider, intervalHours, alertPct, scheduleKind, schedTime, bodyJson, onSaved, t])
 
   // «Probar»: guarda la URL del servidor y lanza un test de velocidad
   // inmediato (usa esa URL en el backend).
@@ -3060,6 +3071,27 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         onCheckedChange={(v) => setEnabled(v)}
         disabled={disabled || loading}
       />
+      {/* #976: las opciones se despliegan al activar el test periódico
+          (patrón acordeón, como Labs en Servicios). */}
+      {enabled && (
+      <>
+      <label className="block">
+        <span className="flex items-center gap-1 text-label uppercase text-text-muted">
+          {t('settings.speedtest.provider')}
+          <InfoTip text={t('settings.speedtest.providerHint')} />
+        </span>
+        <select
+          value={provider}
+          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed')}
+          disabled={disabled || loading}
+          aria-label={t('settings.speedtest.provider')}
+          className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+        >
+          <option value="ookla">{t('settings.speedtest.providerOokla')}</option>
+          <option value="cloudflare">{t('settings.speedtest.providerCloudflare')}</option>
+          <option value="librespeed">{t('settings.speedtest.providerLibrespeed')}</option>
+        </select>
+      </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="text-label uppercase text-text-muted">{t('settings.speedtest.interval')}</span>
@@ -3163,8 +3195,13 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         </label>
       )}
       <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
+      {/* URL del servidor/instancia: no aplica a Cloudflare (endpoints
+          fijos); opcional en Ookla, obligatoria en LibreSpeed (#976). */}
+      {provider !== 'cloudflare' && (
       <div>
-        <span className="text-label uppercase text-text-muted">{t('settings.speedtest.serverId')}</span>
+        <span className="text-label uppercase text-text-muted">
+          {provider === 'librespeed' ? t('settings.speedtest.librespeedUrl') : t('settings.speedtest.serverId')}
+        </span>
         <div className="mt-1 flex items-center gap-2">
           <input
             type="text"
@@ -3172,10 +3209,11 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
             disabled={disabled || loading}
-            placeholder={t('settings.speedtest.serverPlaceholder')}
-            aria-label={t('settings.speedtest.serverId')}
+            placeholder={provider === 'librespeed' ? t('settings.speedtest.librespeedPlaceholder') : t('settings.speedtest.serverPlaceholder')}
+            aria-label={provider === 'librespeed' ? t('settings.speedtest.librespeedUrl') : t('settings.speedtest.serverId')}
             className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
+          {provider === 'ookla' && (
           <button
             type="button"
             onClick={() => setServerUrl('')}
@@ -3187,6 +3225,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
             <span className="hidden sm:inline">{t('settings.speedtest.serverAuto')}</span>
           </button>
+          )}
           <button
             type="button"
             onClick={() => void testUrl()}
@@ -3198,6 +3237,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </button>
         </div>
       </div>
+      )}
       <p className="text-caption text-text-muted">{t('settings.speedtest.hint')}</p>
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -3219,6 +3259,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </span>
         )}
       </div>
+      </>
+      )}
       <SpeedtestRecent disabled={disabled} />
     </div>
   )
