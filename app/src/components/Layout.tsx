@@ -65,8 +65,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
   { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true, badge: 'labs' },
-  { to: '/help', labelKey: 'nav.help', icon: CircleHelp },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
+  { to: '/help', labelKey: 'nav.help', icon: CircleHelp },
 ]
 
 /** Badge de alertas sin leer, desde el DataProvider */
@@ -238,10 +238,6 @@ function useVisibleNavItems(): NavItem[] {
 function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
   const { t } = useTranslation()
   const items = useVisibleNavItems()
-  const main = items.filter((i) => i.to !== '/settings')
-  // Settings siempre es el último ítem de NAV_ITEMS y los filtros de
-  // useVisibleNavItems nunca lo quitan → garantizado definido.
-  const settings = items[items.length - 1]!
 
   if (collapsed) {
     // Sidebar colapsado = raíl de iconos en lg (persiste en localStorage)
@@ -275,9 +271,11 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
               </span>
             </NavLink>
           ))}
+          <div className="mx-auto flex h-11 w-11 items-center justify-center">
+            <ThemeToggle />
+          </div>
         </nav>
-        <div className="flex flex-col items-center gap-2 border-t border-border py-3">
-          <ThemeToggle />
+        <div className="flex flex-col items-center border-t border-border py-3">
           <button
             type="button"
             onClick={onToggleCollapse}
@@ -297,7 +295,7 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
         <Logo />
       </div>
       <nav className="flex-1 space-y-1 px-3 py-2" aria-label={t('nav.mainNav')}>
-        {main.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -330,32 +328,22 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
             )}
           </NavLink>
         ))}
+        <div className="flex h-10 items-center gap-3 px-3 text-sm font-medium text-text-secondary">
+          <ThemeToggle />
+          {t('nav.theme')}
+        </div>
       </nav>
       <div className="space-y-3 border-t border-border p-3">
         <GatewayStatus />
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <NavLink
-            to={settings.to}
-            className={({ isActive }) =>
-              cn(
-                'flex h-9 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors duration-150',
-                isActive ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-hover hover:text-text-primary',
-              )
-            }
-          >
-            <settings.icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            {t('nav.settings')}
-          </NavLink>
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={t('nav.collapse')}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
-          >
-            <ChevronsLeft className="h-4 w-4" strokeWidth={1.75} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={t('nav.collapse')}
+          className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-elevated text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+        >
+          <ChevronsLeft className="h-4 w-4" strokeWidth={1.75} />
+          {t('nav.collapse')}
+        </button>
       </div>
     </aside>
   )
@@ -398,10 +386,10 @@ function Rail() {
             </span>
           </NavLink>
         ))}
+        <div className="mx-auto flex h-11 w-11 items-center justify-center">
+          <ThemeToggle />
+        </div>
       </nav>
-      <div className="border-t border-border py-3">
-        <ThemeToggle />
-      </div>
     </aside>
   )
 }
