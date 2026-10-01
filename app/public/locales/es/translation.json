@@ -1867,7 +1867,6 @@
   "topbar": {
     "alertsUnread": "Alertas, {{count}} sin leer",
     "demoMode": "Modo demo",
-    "gatewayStatus": "Estado de la puerta de enlace",
     "live": "En vivo",
     "networkHealth": "Salud de la red: {{score}}",
     "networkHealth100": "Salud de la red: {{score}} de 100",

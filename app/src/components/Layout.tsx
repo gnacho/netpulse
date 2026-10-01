@@ -171,39 +171,23 @@ function NavItemBadge({ to, variant }: { to: string; variant: 'sidebar' | 'rail'
   )
 }
 
-/** Tarjeta "Estado del gateway" al pie del sidebar (datos del provider) */
-function GatewayStatus() {
+/** Punto de estado live compacto (#981): variante icon-only del LivePill para
+ *  el sidebar colapsado y el rail de tablet, que no tienen sitio para la pill. */
+function LiveDot() {
   const { t } = useTranslation()
-  const { routers } = useNetPulse()
-  const gw = routers.find((r) => r.roleBadge === 'Principal') ?? routers[0]
-  if (!gw) {
-    return (
-      <div className="flex items-center gap-2.5 rounded-xl bg-elevated px-3 py-2.5">
-        <span className="relative flex h-2 w-2">
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-text-muted" />
-        </span>
-        <div className="min-w-0">
-          <div className="truncate text-caption font-semibold text-text-secondary">{t('topbar.gatewayStatus')}</div>
-          <div className="truncate font-mono text-caption text-text-muted">—</div>
-        </div>
-      </div>
-    )
-  }
-  const statusLabel = t(`common.status.${gw.status}`)
-  const dotClass = gw.status === 'online' ? 'bg-ok' : gw.status === 'warn' ? 'bg-warn' : 'bg-danger'
+  const { connectionStatus } = useNetPulse()
+  const reconnecting = connectionStatus === 'reconnecting'
+  const label = t(reconnecting ? 'topbar.reconnecting' : 'topbar.live')
   return (
-    <div className="flex items-center gap-2.5 rounded-xl bg-elevated px-3 py-2.5">
-      <span className="relative flex h-2 w-2">
-        <span className={cn('absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping-soft', dotClass)} />
-        <span className={cn('relative inline-flex h-2 w-2 rounded-full', dotClass)} />
-      </span>
-      <div className="min-w-0">
-        <div className="truncate text-caption font-semibold text-text-secondary">{t('topbar.gatewayStatus')}</div>
-        <div className="truncate font-mono text-caption text-text-muted">
-          {gw.modelShort.replace('GL.iNet ', '')} · {statusLabel} · {gw.uptime}
-        </div>
-      </div>
-    </div>
+    <span className="relative flex h-2 w-2" role="status" title={label} aria-label={label}>
+      <span
+        className={cn(
+          'absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping-soft',
+          reconnecting ? 'bg-warn' : 'bg-ok',
+        )}
+      />
+      <span className={cn('relative inline-flex h-2 w-2 rounded-full', reconnecting ? 'bg-warn' : 'bg-ok')} />
+    </span>
   )
 }
 
@@ -272,7 +256,8 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
             </NavLink>
           ))}
         </nav>
-        <div className="flex flex-col items-center border-t border-border py-3">
+        <div className="flex flex-col items-center gap-3 border-t border-border py-3">
+          <LiveDot />
           <button
             type="button"
             onClick={onToggleCollapse}
@@ -326,16 +311,18 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
           </NavLink>
         ))}
       </nav>
-      <div className="space-y-3 border-t border-border p-3">
-        <GatewayStatus />
+      {/* Pie del sidebar (#981): indicador "En vivo" + boton de plegar en la
+          misma fila (sustituye a la antigua tarjeta de estado del gateway). */}
+      <div className="flex items-center gap-2 border-t border-border p-3">
+        <LivePill />
         <button
           type="button"
           onClick={onToggleCollapse}
           aria-label={t('nav.collapse')}
-          className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-elevated text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-elevated text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
         >
-          <ChevronsLeft className="h-4 w-4" strokeWidth={1.75} />
-          {t('nav.collapse')}
+          <ChevronsLeft className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+          <span className="truncate">{t('nav.collapse')}</span>
         </button>
       </div>
     </aside>
@@ -380,6 +367,9 @@ function Rail() {
           </NavLink>
         ))}
       </nav>
+      <div className="flex items-center justify-center border-t border-border py-3">
+        <LiveDot />
+      </div>
     </aside>
   )
 }
@@ -413,7 +403,7 @@ function BellButton() {
 // Topbar (≥768px) — h-14
 // ---------------------------------------------------------------------------
 
-/** Pill de estado de conexión en el topbar (live: "En vivo"; reconectando: amber) */
+/** Pill de estado de conexión en el pie del sidebar (#981): verde "En vivo"; amber "Reconectando". */
 function LivePill() {
   const { t } = useTranslation()
   const { connectionStatus } = useNetPulse()
@@ -479,7 +469,6 @@ function Topbar() {
           />
         </button>
         <ThemeToggle />
-        <LivePill />
         <BellButton />
       </div>
     </header>

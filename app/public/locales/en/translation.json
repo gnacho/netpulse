@@ -1867,7 +1867,6 @@
   "topbar": {
     "alertsUnread": "Alerts, {{count}} unread",
     "demoMode": "Demo mode",
-    "gatewayStatus": "Gateway status",
     "live": "Live",
     "networkHealth": "Network health: {{score}}",
     "networkHealth100": "Network health: {{score}} of 100",
