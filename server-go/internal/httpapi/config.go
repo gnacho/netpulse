@@ -45,6 +45,7 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("PUT /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handlePutProxmoxConfig)))
 	mux.Handle("DELETE /api/config/proxmox/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteProxmoxConfig)))
 	mux.Handle("POST /api/config/proxmox/test", auth.RequireAdmin(http.HandlerFunc(s.handleTestProxmoxConfig)))
+	mux.Handle("POST /api/config/proxmox/detect", auth.RequireAdmin(http.HandlerFunc(s.handleDetectProxmox)))
 }
 
 // syncRouters replica sync() de config.js: adapter.setRouters(listRouters(db)).
