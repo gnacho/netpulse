@@ -149,6 +149,11 @@ export default function Reports() {
   const [range, setRange] = useState<Range>('week')
   const [n, setN] = useState<number>(DEFAULT_N.week)
   const [items, setItems] = useState<AvailabilityEntry[]>([])
+  // #1029: rango de los items cargados. Al cambiar de pestaña (p.ej. week ->
+  // day) el render inmediato aún ve los items VIEJOS con el rango NUEVO, y
+  // bucketLabel formateaba buckets semanales ("2026-W40") como si fueran
+  // días o meses: Invalid Date -> RangeError -> pantalla en blanco.
+  const [itemsRange, setItemsRange] = useState<Range | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [noApi, setNoApi] = useState(false)
@@ -172,12 +177,15 @@ export default function Reports() {
     if (ac.signal.aborted) return
     if (result.ok) {
       setItems(result.data.items)
+      setItemsRange(r)
     } else if (result.kind === 'no-api' && isDemo) {
       setNoApi(true)
       setItems([])
+      setItemsRange(r)
     } else {
       setError(true)
       setItems([])
+      setItemsRange(r)
     }
     setLoading(false)
   }
@@ -222,10 +230,13 @@ export default function Reports() {
   // un solo % y un solo tiempo sin datos por router, ponderado por la
   // duración medible de cada bucket. Si el router tiene datos de menos de la
   // mitad de la ventana, no se resume con un número (#987).
-  const routers: RouterSummary[] = [...new Set(items.map((i) => i.routerId))]
+  // Los agregados solo se calculan con items DEL rango activo (#1029): los
+  // items stale de la pestaña anterior no se renderizan ni se agregan.
+  const viewItems = itemsRange === range ? items : []
+  const routers: RouterSummary[] = [...new Set(viewItems.map((i) => i.routerId))]
     .sort()
     .map((id) => {
-      const rows = items.filter((i) => i.routerId === id)
+      const rows = viewItems.filter((i) => i.routerId === id)
       const totalMin = rows.reduce((a, r) => a + bucketMinutes(r), 0)
       const upMin = rows.reduce((a, r) => a + r.upMin, 0)
       const days = rows.reduce((a, r) => a + r.days, 0)
@@ -260,17 +271,22 @@ export default function Reports() {
   const todayKey = new Date().toISOString().slice(0, 10)
   const nowTime = new Date().toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
 
+  /** Formatea solo fechas finitas: un bucket inesperado cae al texto crudo
+   *  en vez de tumbar la página con un RangeError (#1029). */
+  const fmtDate = (d: Date, fmt: Intl.DateTimeFormat, fallback: string): string =>
+    Number.isFinite(d.getTime()) ? fmt.format(d) : fallback
+
   function bucketLabel(b: AvailabilityEntry): string {
     if (range === 'day') {
       if (b.bucket === todayKey) return t('reports.tipToday', { time: nowTime })
-      return dayYearFmt.format(new Date(`${b.bucket}T00:00:00Z`))
+      return fmtDate(new Date(`${b.bucket}T00:00:00Z`), dayYearFmt, b.bucket)
     }
     if (range === 'week') {
       const span = isoWeekSpan(b.bucket)
       if (!span) return b.bucket
-      return `${dayFmt.format(span[0])} - ${dayYearFmt.format(span[1])}`
+      return `${fmtDate(span[0], dayFmt, b.bucket)} - ${fmtDate(span[1], dayYearFmt, b.bucket)}`
     }
-    return monthFmt.format(new Date(`${b.bucket}-01T00:00:00Z`))
+    return fmtDate(new Date(`${b.bucket}-01T00:00:00Z`), monthFmt, b.bucket)
   }
 
   const initial = reduce ? false : { opacity: 0, y: 12 }
