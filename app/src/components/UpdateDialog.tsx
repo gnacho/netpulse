@@ -67,6 +67,36 @@ const STEP_ALIAS: Record<string, string> = {
 
 type Phase = 'confirm' | 'progress' | 'restarting' | 'error'
 
+// Secciones bilingües del body de un release (#1011): `## English` /
+// `## Español` (se tolera `## Spanish`) y los formatos históricos
+// `## What's Changed` / `## What's new` contra `## Novedades`.
+const EN_SECTION = /^(english|what's changed|what's new)$/i
+const ES_SECTION = /^(español|spanish|novedades)$/i
+
+/** releaseBodyForLang: si el body viene partido en secciones por idioma,
+ * devuelve solo el contenido de la que casa con `lang` (es* → español; resto
+ * → inglés). Si el body no sigue ese formato (release vieja, sección
+ * ambigua o desconocida), devuelve el body entero (fallback seguro). */
+function releaseBodyForLang(body: string, lang: string): { text: string; picked: boolean } {
+  const trimmed = body.trim()
+  if (!trimmed.startsWith('## ')) return { text: body, picked: false }
+  const wantEs = lang.toLowerCase().startsWith('es')
+  const picked: string[] = []
+  for (const chunk of trimmed.split(/^## /m).slice(1)) {
+    const nl = chunk.indexOf('\n')
+    const head = (nl === -1 ? chunk : chunk.slice(0, nl)).trim()
+    const content = nl === -1 ? '' : chunk.slice(nl + 1)
+    const isEn = EN_SECTION.test(head)
+    const isEs = ES_SECTION.test(head)
+    // Cabecera ambigua (casa con ambos) o de otro tipo: no hay secciones
+    // fiables que elegir → body entero.
+    if (isEn === isEs) return { text: body, picked: false }
+    if ((wantEs && isEs) || (!wantEs && isEn)) picked.push(content)
+  }
+  if (picked.length === 0) return { text: body, picked: false }
+  return { text: picked.join('\n').trim(), picked: true }
+}
+
 interface UpdateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -75,7 +105,7 @@ interface UpdateDialogProps {
 }
 
 export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [phase, setPhase] = useState<Phase>('confirm')
   const [status, setStatus] = useState<UpdateStatusInfo | null>(initialStatus ?? null)
   const [step, setStep] = useState<string>('start')
@@ -278,16 +308,25 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
   const activeIdx = STEP_ORDER.indexOf(visibleStep as (typeof STEP_ORDER)[number])
   const busy = phase === 'progress' || phase === 'restarting'
 
-  // Changelog visible: líneas del body sin trailers de git. Si no queda
-  // ninguna (p. ej. squash cuyo body son solo trailers), la sección
-  // "Novedades" no se renderiza.
+  // Changelog visible: líneas del body sin trailers de git. Si el body viene
+  // en secciones por idioma (#1011: `## English` / `## Español` y formatos
+  // históricos), solo se muestra la del idioma activo; si no, el body
+  // entero. Si no queda ninguna línea (p. ej. squash cuyo body son solo
+  // trailers), la sección "Novedades" no se renderiza.
+  const { text: changelogBody, picked: changelogPicked } = useMemo(
+    () => releaseBodyForLang(status?.latestBody ?? '', i18n.language),
+    [status?.latestBody, i18n.language],
+  )
   const changelogLines = useMemo(
     () =>
-      (status?.latestBody ?? '')
+      changelogBody
         .split('\n')
         .map((l) => l.trim())
-        .filter((l) => l && !/^(co-authored-by|signed-off-by|reviewed-by):/i.test(l)),
-    [status?.latestBody],
+        .filter((l) => l && !/^(co-authored-by|signed-off-by|reviewed-by):/i.test(l))
+        // Con sección elegida, los separadores --- y los subtítulos markdown
+        // sobran en una lista de bullets.
+        .filter((l) => !changelogPicked || (!/^-{3,}$/.test(l) && !/^#{1,6}\s/.test(l))),
+    [changelogBody, changelogPicked],
   )
 
   // Issue #404: enlace de fallback cuando no hay changelog cargado.
@@ -392,6 +431,19 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                       ))}
                   </ul>
                 </div>
+                {/* #1011: al mostrar solo la sección del idioma activo, el
+                    enlace a las notas completas (bilingües) se conserva. */}
+                {changelogPicked && (
+                  <a
+                    href={releaseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-caption text-accent hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" strokeWidth={1.75} aria-hidden="true" />
+                    {t('update.dialog.changelogLink')}
+                  </a>
+                )}
               </div>
             )}
             {/* Issue #404: fallback con enlace si no hay changelog
