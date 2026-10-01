@@ -2914,7 +2914,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
   const [serverUrl, setServerUrl] = useState('')
-  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed'>('ookla')
+  // Proveedor del test (#976): ookla/cloudflare/librespeed + custom (#1001,
+  // endpoint HTTP libre cuya URL completa escribe el usuario).
+  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed' | 'custom'>('ookla')
   const [scheduleKind, setScheduleKind] = useState<'interval' | 'weekly' | 'monthly'>('interval')
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [dayOfMonth, setDayOfMonth] = useState(1)
@@ -2937,8 +2939,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         if (typeof d.intervalHours === 'number') setIntervalHours(d.intervalHours)
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
         if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
-        // Proveedor del test (#976): ookla/cloudflare/librespeed.
-        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed') {
+        // Proveedor del test (#976): ookla/cloudflare/librespeed/custom.
+        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed' || d.provider === 'custom') {
           setProvider(d.provider)
         }
         // Migración visual de los "semanal/mensual" históricos (#744):
@@ -3011,8 +3013,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       setError(t('settings.speedtest.invalidServer'))
       return
     }
-    // LibreSpeed (#976) exige la URL base de la instancia.
-    if (provider === 'librespeed' && raw === '') {
+    // LibreSpeed (#976) exige la URL base de la instancia y custom (#1001)
+    // la URL completa del endpoint.
+    if ((provider === 'librespeed' || provider === 'custom') && raw === '') {
       setError(t('settings.speedtest.invalidServer'))
       return
     }
@@ -3081,6 +3084,22 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     }
   }, [serverUrl, bodyJson, onSaved, t])
 
+  // Etiqueta/placeholder del campo URL según proveedor (#976, #1001):
+  // LibreSpeed = base de instancia; custom = endpoint libre; Ookla =
+  // servidor opcional; Cloudflare no usa URL.
+  const urlLabel =
+    provider === 'librespeed'
+      ? t('settings.speedtest.librespeedUrl')
+      : provider === 'custom'
+        ? t('settings.speedtest.customUrl')
+        : t('settings.speedtest.serverId')
+  const urlPlaceholder =
+    provider === 'librespeed'
+      ? t('settings.speedtest.librespeedPlaceholder')
+      : provider === 'custom'
+        ? t('settings.speedtest.customPlaceholder')
+        : t('settings.speedtest.serverPlaceholder')
+
   return (
     <div className="space-y-3">
       <div>
@@ -3121,7 +3140,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         </span>
         <select
           value={provider}
-          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed')}
+          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed' | 'custom')}
           disabled={disabled || loading}
           aria-label={t('settings.speedtest.provider')}
           className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
@@ -3129,6 +3148,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           <option value="ookla">{t('settings.speedtest.providerOokla')}</option>
           <option value="cloudflare">{t('settings.speedtest.providerCloudflare')}</option>
           <option value="librespeed">{t('settings.speedtest.providerLibrespeed')}</option>
+          <option value="custom">{t('settings.speedtest.providerCustom')}</option>
         </select>
       </label>
       <div className="grid grid-cols-2 gap-3">
@@ -3234,12 +3254,14 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         </label>
       )}
       <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
-      {/* URL del servidor/instancia: no aplica a Cloudflare (endpoints
-          fijos); opcional en Ookla, obligatoria en LibreSpeed (#976). */}
+      {/* URL del servidor/instancia/endpoint: no aplica a Cloudflare
+          (endpoints fijos); opcional en Ookla, obligatoria en LibreSpeed
+          (#976) y en custom (#1001, donde es la URL completa del endpoint
+          y activa el campo al elegirlo). */}
       {provider !== 'cloudflare' && (
       <div>
         <span className="text-label uppercase text-text-muted">
-          {provider === 'librespeed' ? t('settings.speedtest.librespeedUrl') : t('settings.speedtest.serverId')}
+          {urlLabel}
         </span>
         <div className="mt-1 flex items-center gap-2">
           <input
@@ -3248,8 +3270,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
             disabled={disabled || loading}
-            placeholder={provider === 'librespeed' ? t('settings.speedtest.librespeedPlaceholder') : t('settings.speedtest.serverPlaceholder')}
-            aria-label={provider === 'librespeed' ? t('settings.speedtest.librespeedUrl') : t('settings.speedtest.serverId')}
+            placeholder={urlPlaceholder}
+            aria-label={urlLabel}
             className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           {provider === 'ookla' && (

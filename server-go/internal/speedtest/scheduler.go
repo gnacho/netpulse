@@ -52,7 +52,8 @@ type Settings struct {
 	AlertPct      int    `json:"alertPct"`
 	// Provider (#976): metodo de medicion. ""/ookla = speedtest.net;
 	// cloudflare = speed.cloudflare.com por HTTP; librespeed = instancia
-	// LibreSpeed cuya URL base viaja en ServerURL.
+	// LibreSpeed cuya URL base viaja en ServerURL; custom (#1001) =
+	// endpoint HTTP libre cuya URL completa viaja en ServerURL.
 	Provider string `json:"provider,omitempty"`
 	// Programación (#744): "interval" (cada IntervalHours, comportamiento
 	// histórico) | "weekly" (DayOfWeek a la Time local) | "monthly"
@@ -91,8 +92,9 @@ type Scheduler struct {
 	runner Runner
 	emit   AlertEmitter
 
-	// httpRunner (#976) ejecuta los providers HTTP (cloudflare/librespeed);
-	// nil = se construye un HTTPRunner por ejecucion. Inyectable en tests.
+	// httpRunner (#976) ejecuta los providers HTTP (cloudflare/librespeed/
+	// custom); nil = se construye un HTTPRunner por ejecucion. Inyectable
+	// en tests.
 	httpRunner Runner
 
 	// contractDown lee el plan contratado declarado (#151). Inyectada para
@@ -373,17 +375,20 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 		}
 		return errors.New("serverUrl debe ser una URL http(s) válida")
 	}
-	// Provider (#976): librespeed necesita la URL base de la instancia; los
-	// demás la ignoran (ookla: servidor concreto opcional; cloudflare:
-	// endpoints fijos).
+	// Provider (#976): librespeed necesita la URL base de la instancia y
+	// custom (#1001) la URL completa del endpoint; los demás la ignoran
+	// (ookla: servidor concreto opcional; cloudflare: endpoints fijos).
 	if st.Provider == "" {
 		st.Provider = ProviderOokla
 	}
 	if !validProvider(st.Provider) {
-		return errors.New("provider debe ser ookla, cloudflare o librespeed")
+		return errors.New("provider debe ser ookla, cloudflare, librespeed o custom")
 	}
 	if st.Provider == ProviderLibrespeed && strings.TrimSpace(st.ServerURL) == "" {
 		return errors.New("librespeed exige serverUrl con la URL base de la instancia")
+	}
+	if st.Provider == ProviderCustom && strings.TrimSpace(st.ServerURL) == "" {
+		return errors.New("custom exige serverUrl con la URL del endpoint de medición")
 	}
 	if st.AlertPct < 0 || st.AlertPct > 90 {
 		return errors.New("alertPct debe estar entre 0 y 90 (0 = desactivada)")

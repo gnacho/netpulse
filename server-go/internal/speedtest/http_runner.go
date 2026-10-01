@@ -7,6 +7,9 @@
 //   - librespeed: cualquier instancia LibreSpeed (autoalojada o publica);
 //     serverURL es la URL base de la instancia y se usan sus endpoints
 //     backend/garbage.php (bajada) y backend/empty.php (subida y ping).
+//   - custom (#1001): endpoint HTTP libre; serverURL es la URL completa y
+//     se usa tal cual para bajada (GET), subida (POST) y ping (GET).
+//     Cualquier respuesta 2xx vale.
 //
 // Ambos miden con bucles de chunks acotados por tiempo y por bytes para no
 // castigar lineas lentas ni subestimar las rapidas.
@@ -29,10 +32,11 @@ const (
 	ProviderOokla      = "ookla"      // speedtest.net via showwin/speedtest-go (default)
 	ProviderCloudflare = "cloudflare" // speed.cloudflare.com por HTTP directo
 	ProviderLibrespeed = "librespeed" // instancia LibreSpeed (serverURL = base)
+	ProviderCustom     = "custom"     // endpoint HTTP libre (#1001): serverURL es la URL completa
 )
 
 func validProvider(v string) bool {
-	return v == ProviderOokla || v == ProviderCloudflare || v == ProviderLibrespeed
+	return v == ProviderOokla || v == ProviderCloudflare || v == ProviderLibrespeed || v == ProviderCustom
 }
 
 // Limites de la medicion HTTP: al menos minDur midiendo (precision en
@@ -48,9 +52,19 @@ const (
 	httpPings        = 5
 )
 
+// statusOK valida la respuesta del endpoint: los proveedores conocidos
+// exigen 200 exacto; custom acepta cualquier 2xx (endpoint libre, #1001).
+func statusOK(provider string, code int) bool {
+	if provider == ProviderCustom {
+		return code >= 200 && code < 300
+	}
+	return code == http.StatusOK
+}
+
 // HTTPRunner ejecuta el test contra endpoints HTTP directos. Cumple la
 // interfaz Runner: para cloudflare el serverURL se ignora (endpoints
-// fijos); para librespeed es la URL base de la instancia.
+// fijos); para librespeed es la URL base de la instancia; para custom es
+// la URL completa del endpoint.
 type HTTPRunner struct {
 	Provider string
 
@@ -86,6 +100,21 @@ func (r HTTPRunner) endpoints(serverURL string) (down, up, ping string, err erro
 			return "", "", "", fmt.Errorf("URL de instancia librespeed invalida: %q", serverURL)
 		}
 		down, up, ping = base+"/backend/garbage.php", base+"/backend/empty.php", base+"/backend/empty.php"
+	case ProviderCustom:
+		// #1001: endpoint libre. La URL dada se usa TAL CUAL para bajada
+		// (GET), subida (POST) y ping (GET): el endpoint debe aceptar ambos
+		// metodos (estilo backend/empty.php de LibreSpeed o __down/__up de
+		// Cloudflare). Cualquier 2xx vale: no imponemos el contrato exacto
+		// de un proveedor concreto.
+		u := strings.TrimSpace(serverURL)
+		if u == "" {
+			return "", "", "", fmt.Errorf("custom exige la URL del endpoint de medicion")
+		}
+		parsed, perr := url.Parse(u)
+		if perr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return "", "", "", fmt.Errorf("URL de endpoint custom invalida: %q", serverURL)
+		}
+		down, up, ping = u, u, u
 	default:
 		return "", "", "", fmt.Errorf("proveedor HTTP desconocido %q", r.Provider)
 	}
@@ -121,7 +150,7 @@ func (r HTTPRunner) Run(ctx context.Context, serverURL string) (Result, error) {
 		}
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
+		if !statusOK(r.Provider, resp.StatusCode) {
 			return Result{}, fmt.Errorf("ping: HTTP %d", resp.StatusCode)
 		}
 		if d := time.Since(start); best == 0 || d < best {
@@ -160,22 +189,34 @@ func (r HTTPRunner) measureDown(ctx context.Context, c *http.Client, downURL str
 	start := time.Now()
 	for total < httpDownMaxBytes {
 		u := downURL
-		if r.Provider == ProviderLibrespeed {
+		switch r.Provider {
+		case ProviderLibrespeed:
 			u += "?ckSize=1024"
-		} else if !strings.Contains(u, "bytes=") {
-			u = u + "?bytes=" + fmt.Sprint(httpDownChunk)
+		case ProviderCustom:
+			// #1001: la URL se usa tal cual, sin inventar parametros.
+		default:
+			if !strings.Contains(u, "bytes=") {
+				u = u + "?bytes=" + fmt.Sprint(httpDownChunk)
+			}
 		}
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		resp, err := c.Do(req)
 		if err != nil {
 			return 0, err
 		}
-		n, err := io.Copy(io.Discard, resp.Body)
+		var n int64
+		if r.Provider == ProviderCustom {
+			// Techo por peticion: un endpoint con stream infinito no debe
+			// bloquear el bucle (el ctx del scheduler sigue mandando).
+			n, err = io.Copy(io.Discard, io.LimitReader(resp.Body, httpDownChunk))
+		} else {
+			n, err = io.Copy(io.Discard, resp.Body)
+		}
 		resp.Body.Close()
 		if err != nil {
 			return 0, err
 		}
-		if resp.StatusCode != http.StatusOK {
+		if !statusOK(r.Provider, resp.StatusCode) {
 			return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 		}
 		if n == 0 {
@@ -205,7 +246,7 @@ func (r HTTPRunner) measureUp(ctx context.Context, c *http.Client, upURL string)
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
+		if !statusOK(r.Provider, resp.StatusCode) {
 			return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 		}
 		total += int64(len(chunk))

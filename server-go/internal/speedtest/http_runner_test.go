@@ -91,6 +91,58 @@ func TestHTTPRunnerLibrespeedEndpoints(t *testing.T) {
 	}
 }
 
+func TestHTTPRunnerCustom(t *testing.T) {
+	srv := speedHTTPServer(t)
+	defer srv.Close()
+
+	// #1001: la URL dada se usa TAL CUAL (sin derivar paths ni anadir
+	// query) para bajada, subida y ping.
+	r := HTTPRunner{Provider: ProviderCustom}
+	down, up, ping, err := r.endpoints(srv.URL + "/endpoint")
+	if err != nil {
+		t.Fatalf("endpoints: %v", err)
+	}
+	if down != srv.URL+"/endpoint" || up != down || ping != down {
+		t.Fatalf("endpoints custom: %q %q %q", down, up, ping)
+	}
+
+	res, err := r.Run(context.Background(), srv.URL+"/endpoint")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.DownMbps <= 0 || res.UpMbps <= 0 {
+		t.Fatalf("mediciones no positivas: %+v", res)
+	}
+	if res.ServerID != ProviderCustom {
+		t.Fatalf("ServerID = %q, want %q", res.ServerID, ProviderCustom)
+	}
+}
+
+func TestHTTPRunnerCustomErrores(t *testing.T) {
+	// Sin URL de endpoint.
+	if _, err := (HTTPRunner{Provider: ProviderCustom}).Run(context.Background(), ""); err == nil {
+		t.Fatal("custom sin URL aceptado")
+	}
+	// URL que no es http(s).
+	if _, err := (HTTPRunner{Provider: ProviderCustom}).Run(context.Background(), "ftp://x"); err == nil {
+		t.Fatal("custom con esquema no-http aceptado")
+	}
+	// 2xx distinto de 200 vale en custom (endpoint libre).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(make([]byte, 1<<20))
+	}))
+	defer srv.Close()
+	if _, err := (HTTPRunner{Provider: ProviderCustom}).Run(context.Background(), srv.URL); err != nil {
+		t.Fatalf("custom con 2xx no-200 rechazado: %v", err)
+	}
+}
+
 func TestHTTPRunnerErrores(t *testing.T) {
 	// Provider desconocido.
 	if _, err := (HTTPRunner{Provider: "nope"}).Run(context.Background(), ""); err == nil {
@@ -151,6 +203,16 @@ func TestSpeedtestProviderSettings(t *testing.T) {
 	}
 	if got := sched.LoadSettings(); got.Provider != ProviderLibrespeed || got.ServerURL != "https://speed.example.net" {
 		t.Fatalf("roundtrip librespeed: %+v", got)
+	}
+	// Custom (#1001): exige la URL del endpoint y hace roundtrip.
+	if err := sched.SaveSettings(Settings{IntervalHours: 12, Provider: ProviderCustom}); err == nil {
+		t.Fatal("custom sin serverUrl aceptado")
+	}
+	if err := sched.SaveSettings(Settings{IntervalHours: 12, Provider: ProviderCustom, ServerURL: "https://speed.lan/endpoint"}); err != nil {
+		t.Fatalf("save custom: %v", err)
+	}
+	if got := sched.LoadSettings(); got.Provider != ProviderCustom || got.ServerURL != "https://speed.lan/endpoint" {
+		t.Fatalf("roundtrip custom: %+v", got)
 	}
 }
 
