@@ -9,6 +9,7 @@ app/node_modules
 
 # Backend: datos y secretos
 server/data/
+server-go/data/
 server/.env
 legacy/server-node/data/
 legacy/server-node/.env
@@ -43,3 +44,6 @@ server-go/internal/agentbin/agents/netpulse-agent-*
 # Rutas prerenderizadas por idioma (generadas, ver web/build-langs.mjs)
 web/langs/
 web/node_modules/
+
+plans
+docs/premortem

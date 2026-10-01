@@ -206,7 +206,8 @@ export default function RouterDetail() {
       {/* ⑤⑥ Servicios + Puertos (gateway) / Radios + Puertos (APs) */}
       {isGateway ? (
         <>
-          <AdGuardPanel />
+          {/* AdGuard Home es un paquete OpenWrt/GL.iNet; no aplica a RouterOS. */}
+          {router.type !== 'routeros' && <AdGuardPanel />}
           <WireGuardPanel />
           <PortPanel router={router} extras={detail?.extras} snmpStats={snmpStats} className="lg:col-span-12" />
         </>

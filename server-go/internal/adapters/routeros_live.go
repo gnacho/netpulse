@@ -116,26 +116,54 @@ func buildRouterOSPoll(cfg RouterConfig, res routerOSResource, id routerOSIdenti
 	}, nil
 }
 
-// pollRouterROS sondea un router RouterOS vía su REST API. Sin caché de
+// pollRouterROS sondea un router RouterOS. Prueba primero el API binario
+// nativo (routeros_api.go, puerto 8728) — funciona aunque www/www-ssl estén
+// cerrados, que es justo la postura de seguridad habitual en RouterOS (el
+// admin expone `api`/`winbox` para gestión, no un panel web). Si el API
+// falla (deshabilitado, IP no permitida en su ACL), cae a REST como segundo
+// intento. ponytail: reintenta ambos caminos en CADA tick sin cachear cuál
+// funcionó — ambos fallan rápido (dial rechazado, no timeout); cachear
+// por-router si esto llega a pesar en la práctica.
+func (l *Live) pollRouterROS(cfg RouterConfig) (*routerPolled, error) {
+	if p, err := l.pollRouterROSAPI(cfg); err == nil {
+		return p, nil
+	} else if pRest, errRest := l.pollRouterROSRest(cfg); errRest == nil {
+		return pRest, nil
+	} else {
+		return nil, fmt.Errorf("routeros api: %w; rest: %v", err, errRest)
+	}
+}
+
+// pollRouterROSRest sondea un router RouterOS vía su REST API. Sin caché de
 // intervalo (a diferencia de SNMP, #414): dos GET ligeros por tick, mismo
 // coste que el sondeo SSH de OpenWrt.
-func (l *Live) pollRouterROS(cfg RouterConfig) (*routerPolled, error) {
+//
+// Prueba https primero y cae a http si la conexión es rechazada: muchos
+// RouterOS domésticos solo tienen el servicio `www` (HTTP) activo, no
+// `www-ssl`.
+func (l *Live) pollRouterROSRest(cfg RouterConfig) (*routerPolled, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	if cfg.RouterOSInsecure {
 		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // opt-in, RouterOS de fábrica trae certs autofirmados
 	}
-	base := "https://" + cfg.Host
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var res routerOSResource
-	if err := routerOSFetch(ctx, client, base, cfg.RouterOSUser, cfg.RouterOSPassword, "/rest/system/resource", &res); err != nil {
-		return nil, err
-	}
 	var id routerOSIdentity
-	if err := routerOSFetch(ctx, client, base, cfg.RouterOSUser, cfg.RouterOSPassword, "/rest/system/identity", &id); err != nil {
-		return nil, err
+	var lastErr error
+	for _, scheme := range [...]string{"https", "http"} {
+		base := scheme + "://" + cfg.Host
+		if err := routerOSFetch(ctx, client, base, cfg.RouterOSUser, cfg.RouterOSPassword, "/rest/system/resource", &res); err != nil {
+			lastErr = err
+			continue
+		}
+		if err := routerOSFetch(ctx, client, base, cfg.RouterOSUser, cfg.RouterOSPassword, "/rest/system/identity", &id); err != nil {
+			lastErr = err
+			continue
+		}
+		return buildRouterOSPoll(cfg, res, id)
 	}
-	return buildRouterOSPoll(cfg, res, id)
+	return nil, lastErr
 }

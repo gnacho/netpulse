@@ -255,6 +255,10 @@ type Live struct {
 	snmpPorts map[string]map[string]snmpPortSample
 	// snmpLastPoll (issue #414): timestamp del último poll SNMP real por router.
 	snmpLastPoll map[string]time.Time
+	// roNetPrev: última muestra de contadores rx/tx del interfaz WAN de un
+	// router RouterOS, para calcular bps por delta entre polls (igual que
+	// GetNetDev de OpenWrt sobre /proc/net/dev, routeros_api.go).
+	roNetPrev map[string]netByteSample
 	// snmpFdbCount (#928): último conteo de entradas FDB por router SNMP,
 	// para loguear solo cuando el resultado cambia.
 	snmpFdbCount map[string]int
@@ -413,6 +417,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
+		roNetPrev:            map[string]netByteSample{},
 		snmpFdbCount:         map[string]int{},
 		snmpBrMac:            map[string]string{},
 		snmpPollStats:        map[string]*snmpPollStat{},
@@ -575,6 +580,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.snmpBrMac {
 		if !ids[id] {
 			delete(l.snmpBrMac, id)
+		}
+	}
+	for id := range l.roNetPrev {
+		if !ids[id] {
+			delete(l.roNetPrev, id)
 		}
 	}
 	for id := range l.snmpLastMetricsTick {
@@ -3507,7 +3517,11 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		l.mu.Unlock()
 	}
 	if gw != nil && id == gw.ID {
-		detail.Adguard = l.pollAdGuard(ctx)
+		// AdGuard Home es un paquete OpenWrt/GL.iNet; no aplica a RouterOS
+		// (issue: no debe aparecer un panel de AdGuard en un gateway RouterOS).
+		if cfg.Type != "routeros" {
+			detail.Adguard = l.pollAdGuard(ctx)
+		}
 		detail.Wireguard = l.pollWireGuard(clients)
 	} else {
 		// Backhaul real del AP: boca que enlaza con otro router + latencia
