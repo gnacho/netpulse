@@ -178,6 +178,72 @@ func TestTheEnvironmentWins(t *testing.T) {
 	}
 }
 
+// TestSetPortRebindsLive (#978): with HTTPS on, SetPort rebinds the listener
+// at once, persists the choice across a restart, and validates input.
+func TestSetPortRebindsLive(t *testing.T) {
+	r := newRig(t, nil)
+	if err := r.m.SetEnabled(true, "admin"); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if _, err := r.getTLS("/"); err != nil {
+		t.Fatalf("HTTPS on the original port: %v", err)
+	}
+
+	// Validation: range and the plain HTTP port.
+	if err := r.m.SetPort(0, "admin"); err == nil {
+		t.Fatal("port 0 accepted")
+	}
+	if err := r.m.SetPort(70000, "admin"); err == nil {
+		t.Fatal("port 70000 accepted")
+	}
+	// Same port: no-op, no error.
+	if err := r.m.SetPort(r.port, "admin"); err != nil {
+		t.Fatalf("same port should be a no-op: %v", err)
+	}
+
+	newPort := freePort(t)
+	if newPort == r.port {
+		newPort = freePort(t)
+	}
+	if err := r.m.SetPort(newPort, "admin"); err != nil {
+		t.Fatalf("SetPort: %v", err)
+	}
+	if got := r.m.Status().Port; got != newPort {
+		t.Fatalf("Status().Port = %d, want %d", got, newPort)
+	}
+	// The listener answers on the new port with the same root.
+	r.port = newPort
+	body, err := r.getTLS("/")
+	if err != nil || body != "tls=true" {
+		t.Fatalf("HTTPS did not rebind to the new port: %q %v", body, err)
+	}
+
+	// The choice survives a restart (kv), without the env fixing it.
+	r.m.Close()
+	again := New(r.m.opts)
+	if got := again.Status().Port; got != newPort {
+		t.Fatalf("after restart port = %d, want %d", got, newPort)
+	}
+	again.Close()
+}
+
+// TestSetPortLockedByEnv (#978): NETPULSE_TLS_PORT fixes the port, like the
+// rest of the environment.
+func TestSetPortLockedByEnv(t *testing.T) {
+	r := newRig(t, func(o *Options) { o.EnvPort = true; o.PlainPort = 8080 })
+	if err := r.m.SetPort(freePort(t), "admin"); !errors.Is(err, ErrLocked) {
+		t.Fatalf("changing a port fixed in the environment: %v, want ErrLocked", err)
+	}
+	if !r.m.Status().PortLocked {
+		t.Fatal("status does not show the port as locked")
+	}
+	// The plain HTTP port is rejected even without the env.
+	r2 := newRig(t, func(o *Options) { o.PlainPort = 8080 })
+	if err := r2.m.SetPort(8080, "admin"); err == nil {
+		t.Fatal("the plain HTTP port was accepted as HTTPS port")
+	}
+}
+
 func TestAStricterModeWaitsForConfirmationOverHTTPS(t *testing.T) {
 	r := newRig(t, nil)
 	if _, _, err := r.m.RequestMode(Migrate, "admin"); err == nil {

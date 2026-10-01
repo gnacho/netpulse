@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -66,6 +67,7 @@ func ParseMode(s string) (Mode, error) {
 const (
 	kvEnabled = "settings.https.enabled"
 	kvMode    = "settings.https.mode"
+	kvPort    = "settings.https.port" // #978: UI-chosen HTTPS port
 
 	// ConfirmWindow is how long a staged mode change waits for confirmation
 	// from an HTTPS page before it is dropped.
@@ -90,6 +92,11 @@ type Options struct {
 	// the private CA is on; EnvMode is non-empty when it fixes the mode.
 	EnvEnabled *bool
 	EnvMode    Mode
+	// EnvPort (#978) is true when NETPULSE_TLS_PORT fixes the port: the UI
+	// setting is locked, like the rest of the environment. PlainPort is the
+	// plain HTTP port, which the HTTPS listener cannot reuse.
+	EnvPort   bool
+	PlainPort int
 	// Unavailable, when not empty, says why this server's HTTPS is managed
 	// elsewhere (on-box, or a certificate of the admin's own), and the
 	// manager stays off.
@@ -112,6 +119,7 @@ type Manager struct {
 	mu       sync.Mutex
 	handler  http.Handler
 	enabled  bool
+	port     int // #978: mutable via SetPort (opts.Port is only the default)
 	ca       *tlscert.CA
 	srv      *http.Server
 	caStop   chan struct{}
@@ -155,6 +163,14 @@ func New(opts Options) *Manager {
 		mode = Full
 	}
 	m.mode.Store(mode)
+	// Puerto (#978): el entorno manda; si no, el kv guardado; si no, el
+	// default de Options.
+	m.port = opts.Port
+	if !opts.EnvPort {
+		if v := m.savedPort(); v != 0 {
+			m.port = v
+		}
+	}
 	return m
 }
 
@@ -222,7 +238,7 @@ func (m *Manager) startLocked() error {
 	if err := m.openCALocked(); err != nil {
 		return err
 	}
-	addr := fmt.Sprintf(":%d", m.opts.Port)
+	addr := fmt.Sprintf(":%d", m.port)
 	// Turning HTTPS off and on again quickly can find the previous listener
 	// still closing (stopLocked shuts it down in the background).
 	var ln net.Listener
@@ -245,7 +261,7 @@ func (m *Manager) startLocked() error {
 		}
 	}()
 	m.lastErr = ""
-	m.opts.Logf("[netpulse] HTTPS on :%d (private CA)", m.opts.Port)
+	m.opts.Logf("[netpulse] HTTPS on :%d (private CA)", m.port)
 	return nil
 }
 
@@ -318,6 +334,47 @@ func (m *Manager) SetEnabled(on bool, by string) error {
 	m.enabled = on
 	m.saveEnabled(on)
 	m.opts.Logf("[netpulse] HTTPS turned %s by %s", onOff(on), by)
+	return nil
+}
+
+// SetPort changes the HTTPS listener's port, live (#978): with HTTPS on the
+// listener rebinds at once (no restart); with HTTPS off the new port applies
+// the next time it is turned on. Agents that pinned the old port keep
+// trying it - the API warns about them before calling this.
+func (m *Manager) SetPort(port int, by string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.opts.Unavailable != "" || m.opts.EnvPort {
+		return ErrLocked
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("the port must be between 1 and 65535")
+	}
+	if m.opts.PlainPort != 0 && port == m.opts.PlainPort {
+		return fmt.Errorf("the HTTPS port cannot be the plain HTTP port (%d)", m.opts.PlainPort)
+	}
+	if port == m.port {
+		return nil
+	}
+	old := m.port
+	m.port = port
+	if m.enabled {
+		m.stopLocked()
+		if err := m.startLocked(); err != nil {
+			// Roll back: better the old port than no HTTPS at all.
+			m.port = old
+			if err2 := m.startLocked(); err2 != nil {
+				m.enabled = false
+				m.mode.Store(Full)
+				m.lastErr = err2.Error()
+				return fmt.Errorf("HTTPS port %d failed (%v) and restoring %d failed too: %v", port, err, old, err2)
+			}
+			m.lastErr = err.Error()
+			return fmt.Errorf("HTTPS port %d: %w", port, err)
+		}
+	}
+	m.savePort(port)
+	m.opts.Logf("[netpulse] HTTPS port %d -> %d by %s", old, port, by)
 	return nil
 }
 
@@ -412,6 +469,7 @@ type Status struct {
 	Mode          Mode      `json:"mode"`
 	ModeLocked    bool      `json:"modeLocked"`
 	Port          int       `json:"port"`
+	PortLocked    bool      `json:"portLocked"`
 	RootSHA256    string    `json:"rootSha256,omitempty"`
 	Fingerprint   string    `json:"fingerprint,omitempty"`
 	Names         []string  `json:"names,omitempty"`
@@ -433,7 +491,8 @@ func (m *Manager) Status() Status {
 		EnabledLocked: m.opts.Unavailable != "" || m.opts.EnvEnabled != nil,
 		Mode:          m.Mode(),
 		ModeLocked:    m.opts.Unavailable != "" || m.opts.EnvMode != "",
-		Port:          m.opts.Port,
+		Port:          m.port,
+		PortLocked:    m.opts.Unavailable != "" || m.opts.EnvPort,
 		Error:         m.lastErr,
 	}
 	if p := m.pending; p != nil && m.opts.Now().Before(p.expires) {
@@ -528,7 +587,7 @@ func (m *Manager) RedirectTarget(r *http.Request) (string, bool) {
 	}
 	u := url.URL{
 		Scheme:   "https",
-		Host:     net.JoinHostPort(host, fmt.Sprint(m.opts.Port)),
+		Host:     net.JoinHostPort(host, fmt.Sprint(m.port)),
 		Path:     r.URL.Path,
 		RawQuery: r.URL.RawQuery,
 	}
@@ -548,6 +607,19 @@ func (m *Manager) savedMode() Mode {
 	return Full
 }
 
+// savedPort (#978): the UI-chosen port, 0 when absent or invalid.
+func (m *Manager) savedPort() int {
+	v := m.kvGet(kvPort)
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 || n > 65535 {
+		return 0
+	}
+	return n
+}
+
 func (m *Manager) saveEnabled(on bool) {
 	v := "0"
 	if on {
@@ -559,6 +631,12 @@ func (m *Manager) saveEnabled(on bool) {
 func (m *Manager) saveMode(mode Mode) {
 	if m.opts.EnvMode == "" {
 		m.kvSet(kvMode, string(mode))
+	}
+}
+
+func (m *Manager) savePort(port int) {
+	if !m.opts.EnvPort {
+		m.kvSet(kvPort, strconv.Itoa(port))
 	}
 }
 

@@ -21,6 +21,7 @@ interface HttpsStatus {
   mode: Mode
   modeLocked: boolean
   port: number
+  portLocked?: boolean
   rootSha256?: string
   fingerprint?: string
   names?: string[]
@@ -32,7 +33,7 @@ interface HttpsStatus {
   agentsOnHttp?: { slug: string; lastSeen: string }[] | null
 }
 
-type Change = { enabled?: boolean; mode?: Mode; force?: boolean }
+type Change = { enabled?: boolean; mode?: Mode; port?: number; force?: boolean }
 
 const MODES: Mode[] = ['full', 'migrate', 'redirect']
 
@@ -50,7 +51,10 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
   const [copied, setCopied] = useState(false)
   const [renewing, setRenewing] = useState(false)
   const [renewNote, setRenewNote] = useState('')
+  const [portDraft, setPortDraft] = useState(0)
   const confirming = useRef(false)
+  const changeRef = useRef(change)
+  changeRef.current = change
 
   const load = useCallback(async () => {
     try {
@@ -61,6 +65,8 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       }
       const d = (await r.json()) as HttpsStatus
       setSt({ ...d, agentsOnHttp: d.agentsOnHttp ?? [], names: d.names ?? [] })
+      // No pisar el borrador si hay un cambio de puerto pendiente (#978).
+      if (!changeRef.current?.port) setPortDraft(d.port)
     } catch {
       setLoadError(t('settings.https.loadError'))
     }
@@ -194,6 +200,38 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       </div>
       {st.enabledLocked && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
       {st.error && <p className="text-xs text-danger">{st.error}</p>}
+
+      {/* Puerto del listener HTTPS (#978): se aplica en caliente - el
+          listener se reconecta al puerto nuevo sin reiniciar el servidor. */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm font-medium text-text-primary">{t('settings.https.portTitle')}</div>
+          <p className="text-[11px] text-text-muted">{t('settings.https.portHint')}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={portDraft || ''}
+            onChange={(e) => setPortDraft(Number(e.target.value))}
+            disabled={st.portLocked || busy}
+            aria-label={t('settings.https.portTitle')}
+            className={`${inputCls} w-24 text-right font-mono`}
+          />
+          <button
+            type="button"
+            disabled={st.portLocked || busy || !portDraft || portDraft === st.port}
+            onClick={() => {
+              if (portDraft >= 1 && portDraft <= 65535) setChange({ port: portDraft })
+            }}
+            className="inline-flex h-8 items-center rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+          >
+            {t('settings.https.portApply')}
+          </button>
+        </div>
+      </div>
+      {st.portLocked && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
 
       {st.enabled && (
         <>

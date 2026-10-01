@@ -595,6 +595,8 @@ func run() error {
 		DB:          dbHandle,
 		DataDir:     cfg.DataDir,
 		Port:        cfg.TLSPort,
+		EnvPort:     cfg.TLSPortSet,
+		PlainPort:   cfg.Port,
 		Names:       cfg.TLSNames,
 		PublicURL:   cfg.PublicURL,
 		EnvEnabled:  tlsEnvEnabled,

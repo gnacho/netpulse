@@ -176,11 +176,12 @@ func (s *server) handleHTTPSChange(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Enabled  *bool   `json:"enabled"`
 		Mode     *string `json:"mode"`
+		Port     *int    `json:"port"`
 		Force    bool    `json:"force"`
 		Password string  `json:"password"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
-		writeBodyError(w, st, "invalid_input", `expected { "enabled"?, "mode"?, "password" }`)
+		writeBodyError(w, st, "invalid_input", `expected { "enabled"?, "mode"?, "port"?, "password" }`)
 		return
 	}
 	// Counted as sign-in attempts: a stolen session must not be a way to
@@ -209,6 +210,26 @@ func (s *server) handleHTTPSChange(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Enabled != nil {
 		if err := s.tlsMgr.SetEnabled(*body.Enabled, by); err != nil {
+			writeHTTPSError(w, err)
+			return
+		}
+	}
+	// Puerto HTTPS (#978): cambiarlo reconecta el listener al momento. Los
+	// agentes que ya reportan por HTTPS apuntan al puerto viejo y no tienen
+	// vuelta solos: mismo aviso que al desactivar, salvo force.
+	if body.Port != nil && *body.Port != s.tlsMgr.Status().Port {
+		httpsPort := *body.Port
+		if !body.Force && s.tlsMgr.Enabled() {
+			if moved := s.agentsByTransport(true); len(moved) > 0 {
+				writeJSON(w, http.StatusConflict, map[string]any{
+					"error":   "agents_on_https",
+					"message": "these agents report over HTTPS on the current port and would stop reporting",
+					"agents":  moved,
+				})
+				return
+			}
+		}
+		if err := s.tlsMgr.SetPort(httpsPort, by); err != nil {
 			writeHTTPSError(w, err)
 			return
 		}

@@ -75,6 +75,9 @@ type Config struct {
 	// necesita esta variable (#696).
 	TLSEnabled bool
 	TLSPort    int
+	// TLSPortSet (#978): true cuando NETPULSE_TLS_PORT venía en el entorno -
+	// el puerto queda fijado por el env y Ajustes lo muestra bloqueado.
+	TLSPortSet bool
 	TLSCert    string // NETPULSE_TLS_CERT: path del cert del usuario (opcional; junto a TLSKey)
 	TLSKey     string // NETPULSE_TLS_KEY: path de la clave del usuario (opcional; junto a TLSCert)
 	// FORK: HTTPS with the server's own private CA (internal/tlsmode).
@@ -498,12 +501,14 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	// NETPULSE_TLS_PORT: int 1..65535, default 3443 (solo relevante si TLS
 	// está habilitado).
 	tlsPort := 3443
+	tlsPortSet := false
 	if v, ok := env["NETPULSE_TLS_PORT"]; ok && v != "" {
 		n, err := strconv.Atoi(strings.TrimSpace(v))
 		if err != nil || n < 1 || n > 65535 {
 			errs.issues = append(errs.issues, issue{"NETPULSE_TLS_PORT", "Expected int 1..65535"})
 		} else {
 			tlsPort = n
+			tlsPortSet = true
 		}
 	}
 
@@ -624,6 +629,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		PollIntervalSec:   pollIntervalSec,
 		TLSEnabled:        tlsEnabled,
 		TLSPort:           tlsPort,
+		TLSPortSet:        tlsPortSet,
 		TLSCert:           tlsCert,
 		TLSKey:            tlsKey,
 		TLSCA:             tlsCA,
