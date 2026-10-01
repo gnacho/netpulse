@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
+  CheckCircle2,
   Circle,
+  Clock,
   DownloadCloud,
   ExternalLink,
   Loader2,
@@ -299,7 +301,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DownloadCloud className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
@@ -310,11 +312,27 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
 
         {phase === 'confirm' && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
-              <span className="font-mono text-sm text-text-secondary">{status?.current ?? '—'}</span>
-              <ArrowRight className="h-4 w-4 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
-              <span className="font-mono text-sm font-semibold text-accent">
-                {status?.latest ?? '—'}
+            {/* Tarjeta de versión destacada (estilo Pulse) */}
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                {t('update.dialog.versionUpdate')}
+              </p>
+              <div className="flex items-center justify-center gap-4 rounded-xl border border-accent/40 bg-accent-soft px-4 py-3.5">
+                <span className="font-mono text-base text-text-secondary">{status?.current ?? '—'}</span>
+                <ArrowRight className="h-4 w-4 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
+                <span className="font-mono text-base font-semibold text-accent">
+                  {status?.latest ?? '—'}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5 text-caption">
+              <span className="flex items-center gap-2 text-text-secondary">
+                <Clock className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
+                {t('update.dialog.eta')}
+              </span>
+              <span className="flex items-center gap-2 text-ok">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                {t('update.dialog.backupNote')}
               </span>
             </div>
             {status?.latestMsg && (
@@ -391,17 +409,29 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                 </a>
               </p>
             )}
-            {status?.readiness && <ReadinessPanel readiness={status.readiness} compact />}
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl bg-warn/10 px-3.5 py-2.5 text-caption leading-snug text-warn">
+            {status?.readiness && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  {t('update.dialog.prerequisites')}
+                </p>
+                <ReadinessPanel readiness={status.readiness} compact />
+              </div>
+            )}
+            {/* Aviso downtime (caja ámbar) + confirmación por separado */}
+            <div className="flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} aria-hidden="true" />
+              <p className="text-caption leading-snug text-warn">{t('update.dialog.downNotice')}</p>
+            </div>
+            <label className="flex cursor-pointer items-start gap-2.5 px-1 text-caption leading-snug text-text-secondary">
               <Checkbox
                 checked={ackDowntime}
                 onCheckedChange={(v) => setAckDowntime(v === true)}
                 className="mt-0.5"
-                aria-label={t('update.dialog.downNotice')}
+                aria-label={t('update.dialog.ack')}
               />
-              <span>{t('update.dialog.downNotice')}</span>
+              <span>{t('update.dialog.ack')}</span>
             </label>
-            <DialogFooter>
+            <DialogFooter className="border-t border-border pt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t('update.dialog.cancel')}
               </Button>
@@ -422,6 +452,12 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
 
         {phase === 'progress' && (
           <div className="flex flex-col gap-4" role="status">
+            {/* Cabecera de progreso estilo Pulse: spinner grande + paso actual */}
+            <div className="flex flex-col items-center gap-1.5 py-2">
+              <Loader2 className="h-10 w-10 animate-spin text-accent" strokeWidth={1.5} aria-hidden="true" />
+              <p className="text-sm font-medium text-text-primary">{t(`update.step.${visibleStep}`)}…</p>
+              <p className="text-caption text-text-muted">{t('update.dialog.progressLabel')}</p>
+            </div>
             <ul className="flex flex-col gap-2.5">
               {STEP_ORDER.map((s, i) => {
                 const done = activeIdx > i || step === 'done'
@@ -453,7 +489,10 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                 <span className="font-mono">{pct}%</span>
               </div>
             </div>
-            <p className="text-center text-caption text-text-muted">{t('update.dialog.hideHint')}</p>
+            <div className="flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} aria-hidden="true" />
+              <p className="text-caption leading-snug text-warn">{t('update.dialog.hideHint')}</p>
+            </div>
           </div>
         )}
 

@@ -1913,7 +1913,12 @@
       "viewCompare": "Ver la comparación completa en GitHub",
       "changelogFallback": "No se ha podido cargar el changelog.",
       "changelogLink": "Ver notas del release en GitHub",
-      "downNotice": "El servicio estará caído mientras se reinicia"
+      "downNotice": "El servicio estará caído mientras se reinicia",
+      "versionUpdate": "Actualización de versión",
+      "eta": "Tiempo estimado: 2-5 minutos",
+      "backupNote": "Se creará una copia de seguridad automática antes de actualizar",
+      "prerequisites": "Prerrequisitos",
+      "ack": "Entiendo que el servicio quedará no disponible brevemente durante la actualización"
     },
     "errors": {
       "exitRestart": "El servidor se reinició para aplicar la actualización (el paso final normal). Si en unos minutos la versión no ha cambiado, vuelve a comprobar actualizaciones.",
