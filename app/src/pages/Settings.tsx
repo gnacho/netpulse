@@ -397,6 +397,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [gateway, setGateway] = useState(false)
   const [agentOnly, setAgentOnly] = useState(false)
   const [addSshPort, setAddSshPort] = useState(22)
+  const [addSnmpEnabled, setAddSnmpEnabled] = useState(false)
+  const [addSnmpCommunity, setAddSnmpCommunity] = useState('')
+  const [addSnmpPort, setAddSnmpPort] = useState(161)
+  const [addSnmpPollInterval, setAddSnmpPollInterval] = useState(60)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
   const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
@@ -567,6 +571,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           gateway,
           agent_only: agentOnly,
           ssh_port: addSshPort,
+          snmp_enabled: addSnmpEnabled,
+          snmp_community: addSnmpCommunity.trim() || undefined,
+          snmp_port: addSnmpPort,
+          snmp_poll_interval: addSnmpPollInterval,
         }),
       })
       if (res.status === 409) {
@@ -580,6 +588,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setGateway(false)
       setAgentOnly(false)
       setAddSshPort(22)
+      setAddSnmpEnabled(false)
+      setAddSnmpCommunity('')
+      setAddSnmpPort(161)
+      setAddSnmpPollInterval(60)
       setShowAddForm(false)
       await load()
       refresh()
@@ -983,6 +995,63 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             {submitting ? t('settings.routers.adding') : t('settings.routers.add')}
           </button>
         </div>
+        {(type === 'managed-switch' || type === 'external') && (
+          <div className="mt-2.5 space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+              <Switch checked={addSnmpEnabled} onCheckedChange={setAddSnmpEnabled} />
+              {t('settings.routers.snmpEnabled')}
+              <InfoTip text={t('settings.routers.snmpEnabledHint')} />
+            </label>
+            {addSnmpEnabled && (
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="add-snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.snmpCommunity')}
+                  </label>
+                  <input
+                    id="add-snmp-community"
+                    type="text"
+                    value={addSnmpCommunity}
+                    onChange={(e) => setAddSnmpCommunity(e.target.value)}
+                    placeholder="public"
+                    aria-label={t('settings.routers.snmpCommunity')}
+                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="add-snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.snmpPort')}
+                  </label>
+                  <input
+                    id="add-snmp-port"
+                    type="text"
+                    min={1}
+                    max={65535}
+                    value={addSnmpPort}
+                    onChange={(e) => setAddSnmpPort(Number(e.target.value))}
+                    aria-label={t('settings.routers.snmpPort')}
+                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="add-snmp-poll-interval" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.snmpPollInterval')}
+                  </label>
+                  <input
+                    id="add-snmp-poll-interval"
+                    type="text"
+                    min={10}
+                    max={3600}
+                    value={addSnmpPollInterval}
+                    onChange={(e) => setAddSnmpPollInterval(Number(e.target.value))}
+                    aria-label={t('settings.routers.snmpPollInterval')}
+                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
         </form>
         )}
@@ -1002,23 +1071,36 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             </DialogHeader>
             <form onSubmit={(e) => void saveEdit(e)} className="space-y-3">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <input
-                  type="text"
-                  required
-                  value={editHost}
-                  onChange={(e) => setEditHost(e.target.value)}
-                  placeholder={t('settings.routers.host')}
-                  aria-label={t('settings.routers.host')}
-                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                />
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder={t('settings.routers.name')}
-                  aria-label={t('settings.routers.name')}
-                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                />
+                <div>
+                  <label htmlFor="edit-host" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.host')}
+                  </label>
+                  <input
+                    id="edit-host"
+                    type="text"
+                    required
+                    value={editHost}
+                    onChange={(e) => setEditHost(e.target.value)}
+                    placeholder={t('settings.routers.host')}
+                    aria-label={t('settings.routers.host')}
+                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="edit-name" className="mb-1 flex items-center gap-1 text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.name')}
+                    <InfoTip text={t('settings.routers.nameOverrideHint')} />
+                  </label>
+                  <input
+                    id="edit-name"
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder={t('settings.routers.name')}
+                    aria-label={t('settings.routers.name')}
+                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
               </div>
               <div>
                 <label htmlFor="ssh-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
@@ -1072,6 +1154,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
                   <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
                   {t('settings.routers.agentOnly')}
+                  <InfoTip text={t('settings.routers.agentOnlyHint')} />
                 </label>
                 {editType === 'managed-switch' && (
                   <label className="flex cursor-pointer items-start gap-2 text-sm text-text-secondary">
@@ -1083,26 +1166,29 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   </label>
                 )}
               </div>
-              <div>
-                <label htmlFor="firmware-target" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                  {t('settings.routers.firmwareTarget')}
-                </label>
-                <input
-                  id="firmware-target"
-                  type="text"
-                  value={editFirmwareTarget}
-                  onChange={(e) => setEditFirmwareTarget(e.target.value)}
-                  placeholder={t('settings.routers.firmwareTargetPlaceholder')}
-                  aria-label={t('settings.routers.firmwareTarget')}
-                  className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                />
-                <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
-              </div>
+              {(editType === 'openwrt' || editType === 'glinet') && (
+                <div>
+                  <label htmlFor="firmware-target" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.firmwareTarget')}
+                  </label>
+                  <input
+                    id="firmware-target"
+                    type="text"
+                    value={editFirmwareTarget}
+                    onChange={(e) => setEditFirmwareTarget(e.target.value)}
+                    placeholder={t('settings.routers.firmwareTargetPlaceholder')}
+                    aria-label={t('settings.routers.firmwareTarget')}
+                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                  <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.firmwareTargetHint')}</p>
+                </div>
+              )}
               {(editType === 'managed-switch' || editType === 'external' || editSnmpEnabled) && (
                 <div className="space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
                   <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
                     <Switch checked={editSnmpEnabled} onCheckedChange={setEditSnmpEnabled} />
                     {t('settings.routers.snmpEnabled')}
+                    <InfoTip text={t('settings.routers.snmpEnabledHint')} />
                   </label>
                   {editSnmpEnabled && (
                     <div className="grid grid-cols-2 gap-2.5">
