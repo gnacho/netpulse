@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Loader2, Check, Eye, EyeOff, Bell } from 'lucide-react'
-import { Switch } from '@/components/ui/switch'
 import { InfoTip } from '@/components/InfoTip'
 
 type TelegramState = 'loading' | 'idle' | 'saving' | 'testing' | 'saved' | 'error'
@@ -59,7 +58,9 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
         body: JSON.stringify({
           botToken: cfg.botToken,
           chatId: cfg.chatId,
-          enabled: cfg.enabled,
+          // #1017: el enable se gobierna desde la fila exterior; al configurar
+          // aquí el canal queda listo y el gate decide por evento.
+          enabled: true,
         }),
       })
       const data = await res.json().catch(() => null)
@@ -132,12 +133,8 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
   if (bare) {
     return (
       <>
-        {/* Activar notificaciones como Switch (mismo patrón que las otras tarjetas) */}
-        <div className="flex items-center justify-between gap-4 py-1">
-          <span className="text-sm font-medium text-text-primary">{t('settings.telegram.enabled')}</span>
-          <Switch checked={cfg.enabled} onCheckedChange={(v) => setCfg((c) => ({ ...c, enabled: v }))} aria-label={t('settings.telegram.enabled')} />
-        </div>
-
+        {/* #1017: sin toggle de activar aquí - el enable vive SOLO en la
+            fila de Notificaciones (integrationGate + espejo telegram.enabled). */}
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {/* Bot token */}
           <div>
@@ -229,12 +226,8 @@ export default function TelegramCard({ onSaved, bare = false }: { onSaved: () =>
       {header}
 
       <div className="space-y-3">
-        {/* Enable toggle */}
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm font-medium text-text-primary">{t('settings.telegram.enabled')}</span>
-          <Switch checked={cfg.enabled} onCheckedChange={(v) => setCfg((c) => ({ ...c, enabled: v }))} aria-label={t('settings.telegram.enabled')} />
-        </div>
-
+        {/* #1017: sin toggle de activar aquí tampoco; el enable vive solo en
+            la fila de Notificaciones. */}
         {/* Bot token + Chat ID en la misma fila */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>

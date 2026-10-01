@@ -1359,7 +1359,8 @@
       "soundOn": "Activado — suena un beep suave",
       "telegramCaption": "Notificaciones al bot de Telegram",
       "testSound": "Probar beep de alerta",
-      "title": "Notificaciones"
+      "title": "Notificaciones",
+      "notConfigured": "Sin configurar"
     },
     "push": {
       "title": "Notificaciones push",
@@ -2230,7 +2231,8 @@
     "created": "Creado",
     "expires": "Caduca",
     "lastUsed": "Último uso",
-    "revoke": "Revocar"
+    "revoke": "Revocar",
+    "descShort": "Los tokens permiten acceder a la API sin sesión."
   },
   "collector": {
     "title": "Latencia TCP (collector)",

@@ -256,7 +256,8 @@ function SwitchRow({ icon: Icon, label, caption, checked, onCheckedChange, trail
           {caption && <div className="text-caption text-text-muted">{caption}</div>}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      {/* gap-2.5: 10px entre el icono de configurar (trailing) y el check (#1018) */}
+      <div className="flex shrink-0 items-center gap-2.5">
         {trailing}
         {/* danger: el acento rojo va en el CHECK (escribe en los routers),
             no en el texto de la fila. */}
@@ -3598,6 +3599,50 @@ function ServicesCard({
             }}
           />
         </div>
+
+        {/* Servicios de Labs (#1012): antes que las integraciones */}
+        {services.labs && (
+          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+            <div className="divide-y divide-border/60">
+              {/* Orquestación (opt-in del admin) */}
+              <SwitchRow
+                label={t('settings.admin.orchestration')}
+                caption={t('settings.services.orchestrationHint')}
+                checked={orchOn}
+                onCheckedChange={(v) => void toggleOrchestration(v)}
+                disabled={orchBusy || disabled}
+                danger
+              />
+              {/* Canales */}
+              <SwitchRow
+                label={t('settings.labs.canales')}
+                caption={t('settings.labs.canalesCaption')}
+                checked={services.canales}
+                disabled={disabled}
+                danger
+                onCheckedChange={(v) => {
+                  setService('canales', v)
+                  onSaved()
+                }}
+              />
+            </div>
+            <div className="divide-y divide-border/60">
+              {/* Actualizaciones */}
+              <SwitchRow
+                label={t('settings.labs.actualizaciones')}
+                caption={t('settings.labs.actualizacionesCaption')}
+                checked={services.actualizaciones}
+                disabled={disabled}
+                danger
+                onCheckedChange={(v) => {
+                  setService('actualizaciones', v)
+                  onSaved()
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
         <div className="divide-y divide-border/60">
           {integrationRows.map((row) => (
@@ -3616,48 +3661,6 @@ function ServicesCard({
             ))}
         </div>
       </div>
-
-      {services.labs && (
-        <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-0 border-t border-border pt-4 sm:grid-cols-2">
-          <div className="divide-y divide-border/60">
-            {/* Orquestación (opt-in del admin) */}
-            <SwitchRow
-              label={t('settings.admin.orchestration')}
-              caption={t('settings.services.orchestrationHint')}
-              checked={orchOn}
-              onCheckedChange={(v) => void toggleOrchestration(v)}
-              disabled={orchBusy || disabled}
-              danger
-            />
-            {/* Canales */}
-            <SwitchRow
-              label={t('settings.labs.canales')}
-              caption={t('settings.labs.canalesCaption')}
-              checked={services.canales}
-              disabled={disabled}
-              danger
-              onCheckedChange={(v) => {
-                setService('canales', v)
-                onSaved()
-              }}
-            />
-          </div>
-          <div className="divide-y divide-border/60">
-            {/* Actualizaciones */}
-            <SwitchRow
-              label={t('settings.labs.actualizaciones')}
-              caption={t('settings.labs.actualizacionesCaption')}
-              checked={services.actualizaciones}
-              disabled={disabled}
-              danger
-              onCheckedChange={(v) => {
-                setService('actualizaciones', v)
-                onSaved()
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Diálogos de configuración de integraciones (#968): los managers
           viven SOLO en diálogo (#977: las cards sueltas ya no están en el
@@ -3701,6 +3704,25 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
   const { t } = useTranslation()
   const { integrations, setIntegration } = useIntegrations(!disabled)
   const [dialog, setDialog] = useState<'ntfy' | 'telegram' | null>(null)
+  // #1017: estado de configuración por canal para el chip "activado pero sin
+  // configurar" (ntfy sin topic; Telegram sin token o chat).
+  const [configured, setConfigured] = useState<{ ntfy: boolean; telegram: boolean } | null>(null)
+  useEffect(() => {
+    let alive = true
+    void Promise.all([
+      fetch('/api/settings/ntfy').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/settings/telegram').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([n, g]) => {
+      if (!alive) return
+      setConfigured({
+        ntfy: !!(n && typeof n.topic === 'string' && n.topic.trim() !== ''),
+        telegram: !!(g && g.tokenSet && typeof g.chatId === 'string' && g.chatId.trim() !== ''),
+      })
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
   const rows: { key: 'ntfy' | 'telegram'; label: string; caption: string }[] = [
     { key: 'ntfy', label: 'ntfy', caption: t('settings.notif.ntfyCaption') },
     { key: 'telegram', label: 'Telegram', caption: t('settings.notif.telegramCaption') },
@@ -3715,7 +3737,20 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
             caption={row.caption}
             checked={integrations[row.key]}
             disabled={disabled}
-            trailing={<ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />}
+            trailing={
+              <span className="flex items-center gap-2.5">
+                {integrations[row.key] && configured && !configured[row.key] && (
+                  <button
+                    type="button"
+                    onClick={() => setDialog(row.key)}
+                    className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warn transition-colors hover:bg-warn/20"
+                  >
+                    {t('settings.notif.notConfigured')}
+                  </button>
+                )}
+                <ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />
+              </span>
+            }
             onCheckedChange={(v) => {
               setIntegration(row.key, v)
               onSaved()

@@ -1359,7 +1359,8 @@
       "soundOn": "On — plays a soft beep",
       "telegramCaption": "Notifications to the Telegram bot",
       "testSound": "Test alert beep",
-      "title": "Notifications"
+      "title": "Notifications",
+      "notConfigured": "Not configured"
     },
     "push": {
       "title": "Push notifications",
@@ -2230,7 +2231,8 @@
     "created": "Created",
     "expires": "Expires",
     "lastUsed": "Last used",
-    "revoke": "Revoke"
+    "revoke": "Revoke",
+    "descShort": "Tokens allow API access without a session."
   },
   "collector": {
     "title": "TCP Latency (collector)",

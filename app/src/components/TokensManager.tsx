@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { copyToClipboard } from '@/lib/utils'
-import { InfoTip } from '@/components/InfoTip'
 
 type TokenItem = {
   id: string
@@ -102,7 +101,8 @@ export function TokensManager() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <InfoTip text={t('tokens.desc')} />
+        {/* #1015: la descripción corta va directa en la tarjeta, sin (i). */}
+        <p className="text-sm text-text-secondary">{t('tokens.descShort')}</p>
         {!showForm && !created && (
           <button
             type="button"

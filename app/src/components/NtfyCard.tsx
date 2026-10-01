@@ -55,7 +55,9 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
       const body: Record<string, unknown> = {
         server: cfg.server.trim() || 'https://ntfy.sh',
         topic: cfg.topic.trim(),
-        enabled: cfg.enabled,
+        // #1016: el enable se gobierna desde la fila exterior; al configurar
+        // aquí el canal queda listo (enabled=true) y el gate decide por evento.
+        enabled: true,
         urgentOnly: cfg.urgentOnly,
       }
       if (cfg.token.trim()) body.token = cfg.token.trim()
@@ -118,15 +120,8 @@ export default function NtfyCard({ onSaved, bare = true }: { onSaved: () => void
 
   const form = (
     <>
-      <div className="flex items-center justify-between gap-4 py-1">
-        <span className="text-sm font-medium text-text-primary">{t('settings.ntfy.enabled')}</span>
-        <Switch
-          checked={cfg.enabled}
-          onCheckedChange={(v) => setCfg((c) => ({ ...c, enabled: v }))}
-          aria-label={t('settings.ntfy.enabled')}
-        />
-      </div>
-
+      {/* #1016: sin toggle de activar aquí - el enable vive SOLO en la fila
+          de Notificaciones (integrationGate + espejo ntfy.enabled). */}
       <div className="flex items-center justify-between gap-4 py-1">
         <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
           {t('settings.ntfy.urgentOnly')}
