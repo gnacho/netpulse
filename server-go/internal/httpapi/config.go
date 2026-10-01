@@ -40,6 +40,7 @@ func (s *server) registerConfigRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleGetAdguardConfig)))
 	mux.Handle("PUT /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handlePutAdguardConfig)))
 	mux.Handle("DELETE /api/config/adguard", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteAdguardConfig)))
+	mux.Handle("POST /api/config/adguard/detect", auth.RequireAdmin(http.HandlerFunc(s.handleDetectAdguard)))
 	mux.Handle("GET /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handleGetProxmoxConfig)))
 	mux.Handle("PUT /api/config/proxmox", auth.RequireAdmin(http.HandlerFunc(s.handlePutProxmoxConfig)))
 	mux.Handle("DELETE /api/config/proxmox/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleDeleteProxmoxConfig)))
