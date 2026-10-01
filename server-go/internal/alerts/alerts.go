@@ -135,23 +135,25 @@ const (
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
 // the value into AlertEvent.Hint; the feed and push render it as a helper line.
+// The canonical language is English (#1014): alertlang and the web feed swap
+// it for the catalog wording when the target language is Spanish.
 var Hints = map[string]string{
-	HintAgentDown:     "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
-	HintAgentDownSSH:  "Comprueba la alimentación y la conexión del router; si no se recupera, reinstala el agente desde LuCI.",
-	HintGatewayUnrch:  "Comprueba la conexión entre el gateway y el resto de la red.",
-	HintHighTemp:      "Mejora la ventilación y aleja el router de fuentes de calor.",
-	HintPortFlapping:  "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
-	HintDeviceOffline: "Verifica la alimentación y el cable de red del equipo.",
-	HintUnknownDevice: "Si no lo reconoces, bloquéalo o márcalo como de confianza en Ajustes.",
-	HintFirmware:      "NetPulse es de solo lectura: actualiza el firmware desde LuCI.",
-	HintWanDown:       "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
-	HintWifiWeak:      "Acerca el dispositivo a un punto de acceso o reubica el AP.",
-	HintGhostPort:     "Revisa el cable y el dispositivo conectado: un puerto activo que enmudece suele indicar un cable suelto o un equipo apagado.",
-	HintDegradedLink:  "Revisa el cable y los conectores: un enlace degradado suele ser síntoma de cable dañado o conector flojo.",
-	HintAgentOutdated: "Actualiza el agente desde Ajustes, Agentes (botón Actualizar); si es un panel NetGrip, actualiza desde su propio panel.",
-	HintUplinkSwitch:  "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
-	HintWanSlow:       "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
-	HintSnmpFailing:   "Revisa la community SNMP y el puerto del switch: el equipo responde a ping pero no al sondeo.",
+	HintAgentDown:     "Check the router power and connection; if it does not recover, reinstall the agent from LuCI.",
+	HintAgentDownSSH:  "Check the router's power and connection; if it doesn't recover, reinstall the agent from LuCI.",
+	HintGatewayUnrch:  "Check the connection between the gateway and the rest of the network.",
+	HintHighTemp:      "Improve ventilation and keep the router away from heat sources.",
+	HintPortFlapping:  "Check the cable or switch port: an unstable link is usually the culprit.",
+	HintDeviceOffline: "Verify the device power and network cable.",
+	HintUnknownDevice: "If you do not recognize it, block it or mark it as trusted in Settings.",
+	HintFirmware:      "Your router has newer firmware available; check Firmware upgrades (Labs) or LuCI.",
+	HintWanDown:       "Check the modem/ONT and contact your ISP if the outage persists.",
+	HintWifiWeak:      "Move the device closer to an access point or relocate the AP.",
+	HintGhostPort:     "Check the cable and the connected device: an active port that goes silent usually means a loose cable or a powered-off device.",
+	HintDegradedLink:  "Check the cable and connectors: a degraded link is often a sign of a damaged cable or a loose connector.",
+	HintAgentOutdated: "Update the agent from Settings, Agents (Update button); if it's a NetGrip panel, update it from its own panel.",
+	HintUplinkSwitch:  "Check the line that dropped: the router goes back to it on its own once it recovers.",
+	HintWanSlow:       "Restart the router and the modem/ONT and run the test again; if it stays low, contact your ISP (line degradation or congestion in your area).",
+	HintSnmpFailing:   "Check the SNMP community string and switch port: the device answers ping but not polling.",
 }
 
 // HintFor returns the suggestion for a slug, or "" when it does not exist.
@@ -458,7 +460,7 @@ func (e *Engine) insertaLocked(ev AlertEvent, now time.Time, skipDedup bool) boo
 		ev.Ts = now.Unix()
 	}
 	if ev.Time == "" {
-		ev.Time = "ahora mismo"
+		ev.Time = "just now"
 	}
 	ev.Read = false
 	e.list = append([]AlertEvent{ev}, e.list...)
@@ -527,7 +529,7 @@ func (e *Engine) Emit(ev AlertEvent) bool {
 		ev.Ts = e.now().Unix()
 	}
 	if ev.Time == "" {
-		ev.Time = "ahora mismo"
+		ev.Time = "just now"
 	}
 	now := e.now()
 	ok := e.insertaLocked(ev, now, false)
@@ -562,7 +564,7 @@ func (e *Engine) EmitNoDedup(ev AlertEvent) bool {
 		ev.Ts = e.now().Unix()
 	}
 	if ev.Time == "" {
-		ev.Time = "ahora mismo"
+		ev.Time = "just now"
 	}
 	now := e.now()
 	ok := e.insertaLocked(ev, now, true)
@@ -592,7 +594,7 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 		if e.list[i].ID == ev.ID {
 			old := e.list[i]
 			ev.Ts = now.Unix()
-			ev.Time = "ahora mismo"
+			ev.Time = "just now"
 			ev.Read = old.Read
 			if ev.RouterID == "" {
 				ev.RouterID = old.RouterID
@@ -642,7 +644,7 @@ func (e *Engine) EmitVolatile(ev AlertEvent) bool {
 		ev.Ts = now.Unix()
 	}
 	if ev.Time == "" {
-		ev.Time = "ahora mismo"
+		ev.Time = "just now"
 	}
 	replaced := false
 	for i := range e.list {
@@ -698,7 +700,7 @@ func (e *Engine) Seed(ev AlertEvent) bool {
 		ev.Ts = now.Unix()
 	}
 	if ev.Time == "" {
-		ev.Time = "ahora mismo"
+		ev.Time = "just now"
 	}
 	ev.Read = false
 	e.list = append([]AlertEvent{ev}, e.list...)

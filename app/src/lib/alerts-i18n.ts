@@ -32,7 +32,7 @@ export function alertDescription(t: TFunction, ev: AlertEvent): string {
   }
   // #796: los tipos con descripciones por resultado (vars.result, p. ej. la
   // alerta de auto-update) traducen con alerts.types.<slug>.results.<result>;
-  // el literal del server en español queda solo como fallback.
+  // el literal del server (inglés canónico, #1014) queda solo como fallback.
   const resultKey = ev.vars?.result
   if (resultKey) {
     const translated = t(`alerts.types.${ev.type}.results.${resultKey}`, {

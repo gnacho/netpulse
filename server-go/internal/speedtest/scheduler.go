@@ -283,14 +283,14 @@ func (s *Scheduler) maybeAlert(st Settings, res Result) {
 	s.emit.Emit(alerts.AlertEvent{
 		ID:       fmt.Sprintf("alert-wanslow-%d", res.TS.UnixMilli()),
 		Category: alerts.CatInternet, Urgent: false, Severity: "warn",
-		Title: "Velocidad WAN por debajo del plan",
+		Title: "WAN speed below plan",
 		Description: fmt.Sprintf(
-			"Medido %.0f Mbps de bajada contra %.0f Mbps contratados (menos del %d%% del plan)",
+			"Measured %.0f Mbps down against %.0f Mbps contracted (less than %d%% of the plan)",
 			res.DownMbps, contract, st.AlertPct),
 		Hint: alerts.HintFor(alerts.HintWanSlow),
 		Type: alerts.HintWanSlow,
 		Vars: map[string]string{"down": fmt.Sprintf("%.0f", res.DownMbps), "plan": fmt.Sprintf("%.0f", contract), "pct": strconv.Itoa(st.AlertPct)},
-		Time: "ahora mismo", Ts: res.TS.Unix(),
+		Time: "just now", Ts: res.TS.Unix(),
 	})
 }
 

@@ -72,7 +72,7 @@ func TestBuildRouterFirmwareTarget(t *testing.T) {
 	if ev.Category != "system" || ev.Urgent || ev.Severity != "warn" || ev.RouterID != "r1" {
 		t.Fatalf("alerta mal formada: %+v", ev)
 	}
-	if ev.Title != "Firmware desactualizado" {
+	if ev.Title != "Firmware outdated" {
 		t.Fatalf("Title=%q", ev.Title)
 	}
 	if !strings.Contains(ev.Description, "25.12.5") || !strings.Contains(ev.Description, "23.05.5") {

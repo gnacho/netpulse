@@ -196,7 +196,7 @@ func TestSnmpPollHealthAlertAndRecovery(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		l.recordSnmpFailure(cfg, boom)
 	}
-	n, ev := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1")
+	n, ev := findAlerts(l.engine, "SNMP polling failing on Switch 1")
 	if n != 1 {
 		t.Fatalf("snmp-failing alerts = %d, want 1", n)
 	}
@@ -205,7 +205,7 @@ func TestSnmpPollHealthAlertAndRecovery(t *testing.T) {
 	}
 	// Un 4.º fallo no repite la alerta (una por incidente).
 	l.recordSnmpFailure(cfg, boom)
-	if n2, _ := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1"); n2 != 1 {
+	if n2, _ := findAlerts(l.engine, "SNMP polling failing on Switch 1"); n2 != 1 {
 		t.Fatalf("snmp-failing alerts tras 4.º fallo = %d, want 1", n2)
 	}
 
@@ -218,10 +218,10 @@ func TestSnmpPollHealthAlertAndRecovery(t *testing.T) {
 
 	// Recuperación: resolve de la warn + alerta ok.
 	l.recordSnmpSuccess(cfg)
-	if n3, _ := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1"); n3 != 0 {
+	if n3, _ := findAlerts(l.engine, "SNMP polling failing on Switch 1"); n3 != 0 {
 		t.Fatalf("snmp-failing tras recuperación = %d, want 0 (resuelta)", n3)
 	}
-	if n4, _ := findAlerts(l.engine, "Sondeo SNMP recuperado en Switch 1"); n4 != 1 {
+	if n4, _ := findAlerts(l.engine, "SNMP polling recovered on Switch 1"); n4 != 1 {
 		t.Fatalf("snmp-recovered alerts = %d, want 1", n4)
 	}
 	l.mu.Lock()
@@ -241,7 +241,7 @@ func TestSnmpPollHealthNoAlertWhenPingFails(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		l.recordSnmpFailure(cfg, fmt.Errorf("snmp connect: timeout"))
 	}
-	if n, _ := findAlerts(l.engine, "Sondeo SNMP fallando en Switch 1"); n != 0 {
+	if n, _ := findAlerts(l.engine, "SNMP polling failing on Switch 1"); n != 0 {
 		t.Fatalf("snmp-failing alerts con ping caído = %d, want 0", n)
 	}
 	l.mu.Lock()

@@ -25,7 +25,7 @@ func TestVolatileAlertNotPersisted(t *testing.T) {
 	e := newPersistTestEngine(t, dir, false)
 	ok := e.EmitVolatile(AlertEvent{
 		ID: "alert-agent-down-rt2", Category: CatSystem, Severity: "warn",
-		Title: "Agente caído en rt2", Type: HintAgentDownSSH, RouterID: "rt2",
+		Title: "Agent down on rt2", Type: HintAgentDownSSH, RouterID: "rt2",
 	})
 	if !ok {
 		t.Fatal("EmitVolatile no guardó el evento")
@@ -45,8 +45,8 @@ func TestVolatileStartupPurge(t *testing.T) {
 	e1 := newPersistTestEngine(t, dir, false)
 	now := time.Now().Unix()
 	// Histórico al estilo viejo (IDs con timestamp) + una alerta normal.
-	e1.Emit(AlertEvent{ID: "alert-agent-down-rt2-1717000000000", Category: CatSystem, Severity: "warn", Title: "Agente caído", Type: HintAgentDownSSH, RouterID: "rt2", Ts: now})
-	e1.Emit(AlertEvent{ID: "alert-agent-down-rt3-1717000001000", Category: CatRouter, Urgent: true, Severity: "critical", Title: "Agente caído", Type: HintAgentDown, RouterID: "rt3", Ts: now})
+	e1.Emit(AlertEvent{ID: "alert-agent-down-rt2-1717000000000", Category: CatSystem, Severity: "warn", Title: "Agent down", Type: HintAgentDownSSH, RouterID: "rt2", Ts: now})
+	e1.Emit(AlertEvent{ID: "alert-agent-down-rt3-1717000001000", Category: CatRouter, Urgent: true, Severity: "critical", Title: "Agent down", Type: HintAgentDown, RouterID: "rt3", Ts: now})
 	e1.Emit(AlertEvent{ID: "keep-me", Category: CatSystem, Severity: "info", Title: "Otra alerta", Ts: now})
 	if n := alertLogCount(t, e1, "alert-agent-down-%"); n != 2 {
 		t.Fatalf("siembra: %d filas agent-down, esperado 2", n)
@@ -119,7 +119,7 @@ func TestVolatileAlertIsLiveOnly(t *testing.T) {
 	e1 := newPersistTestEngine(t, dir, false)
 	ev := AlertEvent{
 		ID: "alert-agent-down-rt2", Category: CatSystem, Severity: "warn",
-		Title: "Agente caído en rt2", Type: HintAgentDownSSH, RouterID: "rt2",
+		Title: "Agent down on rt2", Type: HintAgentDownSSH, RouterID: "rt2",
 	}
 	e1.EmitVolatile(ev)
 	e1.EmitVolatile(ev) // reemisión con el mismo ID estable

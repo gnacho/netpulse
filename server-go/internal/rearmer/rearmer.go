@@ -326,11 +326,11 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 			r.engine.Emit(alerts.AlertEvent{
 				ID:       fmt.Sprintf("alert-agent-rearm-%s-%d", slug, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false, Severity: "info",
-				Title:       fmt.Sprintf("Agente rearmado en %s", slug),
-				Description: "Reinicio del servicio del agente desde el servidor — el agente vuelve a empujar",
+				Title:       fmt.Sprintf("Agent rearmed on %s", slug),
+				Description: "Agent service restarted from the server - the agent is pushing again",
 				Type:        alerts.TypeAgentRearmed,
 				Vars:        map[string]string{"router": slug},
-				Time:        "ahora mismo", RouterID: slug,
+				Time:        "just now", RouterID: slug,
 			})
 		}
 	} else {
@@ -407,11 +407,11 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 			r.engine.Emit(alerts.AlertEvent{
 				ID:       fmt.Sprintf("alert-agent-reinstall-%s-%d", slug, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false, Severity: "info",
-				Title:       fmt.Sprintf("Agente reinstalado en %s", slug),
-				Description: "Reinstalación completa desde el servidor (binario, config, init y watchdog) — el agente vuelve a empujar",
+				Title:       fmt.Sprintf("Agent reinstalled on %s", slug),
+				Description: "Full reinstall from the server (binary, config, init and watchdog) - the agent is pushing again",
 				Type:        alerts.TypeAgentReinstalled,
 				Vars:        map[string]string{"router": slug},
-				Time:        "ahora mismo", RouterID: slug,
+				Time:        "just now", RouterID: slug,
 			})
 		}
 	} else {
@@ -647,11 +647,11 @@ func (s *Supervisor) emitFail(slug string) {
 	s.engine.EmitOrUpdate(alerts.AlertEvent{
 		ID:       id,
 		Category: alerts.CatSystem, Urgent: false, Severity: "warn",
-		Title:       fmt.Sprintf("Auto-rearme sin recuperación en %s", slug),
-		Description: fmt.Sprintf("El supervisor reinició netpulse-agent en %s pero el agente no ha vuelto a empujar; próximo intento en %d s", slug, int(s.cooldown.Seconds())),
+		Title:       fmt.Sprintf("Auto-rearm without recovery on %s", slug),
+		Description: fmt.Sprintf("The supervisor restarted netpulse-agent on %s but the agent has not pushed again; next attempt in %d s", slug, int(s.cooldown.Seconds())),
 		Type:        alerts.TypeAutoRearmFailed,
 		Vars:        map[string]string{"router": slug, "cooldown": fmt.Sprintf("%d", int(s.cooldown.Seconds()))},
-		Time:        "ahora mismo", RouterID: slug,
+		Time:        "just now", RouterID: slug,
 	})
 }
 

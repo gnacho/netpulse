@@ -126,7 +126,7 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 			Hint:        alerts.HintFor(alerts.HintPortFlapping),
 			Type:        alerts.HintPortFlapping,
 			Vars:        map[string]string{"port": p.Label, "router": key.routerID, "count": strconv.Itoa(len(st.transitions)), "window": flapWindow.String()},
-			Time:        "ahora mismo",
+			Time:        "just now",
 			RouterID:    key.routerID,
 		})
 	} else if st.flapActive {
@@ -140,7 +140,7 @@ func (pm *PortMonitor) checkFlapping(key portKey, st *portState, p EthPort, now 
 			Description: fmt.Sprintf("Flapping stopped, fewer than %d transitions in %s", flapThreshold, flapWindow),
 			Type:        alerts.TypePortStable,
 			Vars:        map[string]string{"port": p.Label, "router": key.routerID, "threshold": strconv.Itoa(flapThreshold), "window": flapWindow.String()},
-			Time:        "ahora mismo",
+			Time:        "just now",
 			RouterID:    key.routerID,
 		})
 	}
@@ -198,7 +198,7 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now tim
 			Hint:        alerts.HintFor(alerts.HintGhostPort),
 			Type:        alerts.HintGhostPort,
 			Vars:        map[string]string{"port": p.Label, "polls": strconv.Itoa(st.zeroStreak)},
-			Time:        "ahora mismo",
+			Time:        "just now",
 			RouterID:    key.routerID,
 		})
 	} else if st.ghostActive && st.zeroStreak == 0 {
@@ -212,7 +212,7 @@ func (pm *PortMonitor) checkGhost(key portKey, st *portState, p EthPort, now tim
 			Description: "Port is moving traffic again",
 			Type:        alerts.TypeGhostPortRecovered,
 			Vars:        map[string]string{"port": p.Label, "router": key.routerID},
-			Time:        "ahora mismo",
+			Time:        "just now",
 			RouterID:    key.routerID,
 		})
 	}
@@ -246,7 +246,7 @@ func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, now 
 			Hint:        alerts.HintFor(alerts.HintDegradedLink),
 			Type:        alerts.HintDegradedLink,
 			Vars:        map[string]string{"port": p.Label, "speed": strconv.Itoa(st.speedMbps), "prev": strconv.Itoa(prev), "polls": strconv.Itoa(degradedConsec)},
-			Time:        "ahora mismo",
+			Time:        "just now",
 			RouterID:    key.routerID,
 		})
 	} else if st.degradedActive {
@@ -260,7 +260,7 @@ func (pm *PortMonitor) checkDegraded(key portKey, st *portState, p EthPort, now 
 			Description: fmt.Sprintf("Port negotiated speed is back to %d Mbps", st.speedMbps),
 			Type:        alerts.TypeLinkRecovered,
 			Vars:        map[string]string{"port": p.Label, "router": key.routerID, "speed": strconv.Itoa(st.speedMbps)},
-			Time:        "ahora mismo",
+			Time:        "just now",
 			RouterID:    key.routerID,
 		})
 	}

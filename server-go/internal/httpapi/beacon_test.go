@@ -286,17 +286,17 @@ func TestBeaconLoopEventEmitsUrgentAlert(t *testing.T) {
 	sendUDP(t, addr, fmt.Sprintf(
 		`{"v":1,"ev":"loop","port":2,"mac":"AABBCCDDEEFF","seq":50,"slug":"switch16","token":"%s"}`, token))
 
-	a := waitForAlert(t, s, "Bucle detectado")
+	a := waitForAlert(t, s, "Loop detected")
 	if !a.Urgent || a.RouterID != "switch16" || a.Severity != "warn" {
 		t.Fatalf("alerta mal: %+v", a)
 	}
-	if !strings.Contains(a.Title, "boca 2") {
-		t.Fatalf("título sin la boca: %q", a.Title)
+	if !strings.Contains(a.Title, "port 2") {
+		t.Fatalf("title without the port: %q", a.Title)
 	}
 	if a.Type != alerts.TypeSwitchLoop {
 		t.Fatalf("Type=%q, want %q", a.Type, alerts.TypeSwitchLoop)
 	}
-	if a.Vars["mac"] != "AABBCCDDEEFF" || a.Vars["port"] != "boca 2" {
+	if a.Vars["mac"] != "AABBCCDDEEFF" || a.Vars["port"] != "port 2" {
 		t.Fatalf("Vars=%v", a.Vars)
 	}
 }
@@ -316,7 +316,7 @@ func TestBeaconDeltaFallbackEmitsLinkChange(t *testing.T) {
 	waitFresh(t, s, "switch16")
 	down := fmt.Sprintf(`{"v":1,"seq":2,"slug":"switch16","token":"%s","ports":[{"n":2,"l":0,"tx":1,"rx":1}]}`, token)
 	sendUDP(t, addr, down)
-	a := waitForAlert(t, s, "Link caído")
+	a := waitForAlert(t, s, "Link down")
 	if a.Type != alerts.TypeLinkDown {
 		t.Fatalf("Type=%q, want %q", a.Type, alerts.TypeLinkDown)
 	}
@@ -403,7 +403,7 @@ func TestBeaconSeqResetEmitsRebootAlert(t *testing.T) {
 	sendUDP(t, addr, fmt.Sprintf(`{"v":1,"seq":40,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":0,"rx":0}]}`, token))
 	waitFresh(t, s, "switch16")
 	sendUDP(t, addr, fmt.Sprintf(`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":1,"l":3,"tx":0,"rx":0}]}`, token))
-	a := waitForAlert(t, s, "Switch reiniciado")
+	a := waitForAlert(t, s, "Switch rebooted")
 	if a.Severity != "info" || a.RouterID != "switch16" {
 		t.Fatalf("alerta de reboot mal: %+v", a)
 	}
@@ -450,7 +450,7 @@ func TestBeaconSFPDataAndAlert(t *testing.T) {
 		t.Fatalf("txp=%.1f, esperaba -3.1", port.Sfp.TxPower)
 	}
 	// RX < -14 dBm → alerta.
-	a := waitForAlert(t, s, "SFP RX bajo")
+	a := waitForAlert(t, s, "SFP RX low")
 	if a.Severity != "warn" || a.Category != "system" {
 		t.Fatalf("alerta SFP RX mal: %+v", a)
 	}

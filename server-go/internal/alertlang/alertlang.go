@@ -1,14 +1,15 @@
 // Package alertlang traduce server-side las alertas para los canales de
-// notificación externa (#888 / #889).
+// notificación externa (#888 / #889 / #1014).
 //
-// El motor de alertas compone título/descripción con literales en español y
-// la web los traduce en render (#671). Los canales ntfy/telegram/webhook
-// usaban los literales crudos, así que un usuario con la UI en inglés veía
-// consola EN pero push ES. Web Push ya lo resolvía client-side (#689); este
-// paquete hace lo equivalente server-side reutilizando los MISMOS catálogos
-// de la app embebidos en el binario (dist/locales/<lang>/translation.json,
-// claves alerts.types.<slug>.title|.description|.results.* y alerts.hints.*),
-// sin duplicar textos.
+// El motor de alertas compone título/descripción/hint con literales en
+// INGLÉS (idioma canónico desde #1014) y la web los traduce en render
+// (#671). Los canales ntfy/telegram/webhook reciben el evento ya localizado
+// por este paquete: con alerts.lang=en (default) se compone contra el
+// catálogo EN; con alerts.lang=es se traduce al catálogo ES. En ambos casos
+// se reutilizan los MISMOS catálogos de la app embebidos en el binario
+// (dist/locales/<lang>/translation.json, claves alerts.types.<slug>.title|
+// .description|.results.* y alerts.hints.*), sin duplicar textos, y el
+// fallback cuando falta la clave es el literal EN del evento.
 //
 // El idioma es un ajuste GLOBAL del servidor (kv "alerts.lang", default "en"):
 // las alertas no llevan usuario emisor, son server-wide.
@@ -137,10 +138,10 @@ func pairs(vars map[string]string) []string {
 	return out
 }
 
-// Localize devuelve una copia del evento con title/description/hint
-// traducidos al idioma efectivo. Cae a los literales del server (español) si
-// el evento no tiene type, falta la clave o no hay catálogo: nunca peor que
-// antes.
+// Localize devuelve una copia del evento con title/description/hint en el
+// idioma efectivo, compuestos desde el catálogo de ese idioma. Cae a los
+// literales del server (inglés canónico, #1014) si el evento no tiene type,
+// falta la clave o no hay catálogo: nunca peor que el literal nativo.
 func Localize(ev alerts.AlertEvent, kv KV) alerts.AlertEvent {
 	if ev.Type == "" {
 		return ev

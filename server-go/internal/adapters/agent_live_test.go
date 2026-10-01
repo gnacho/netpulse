@@ -174,11 +174,11 @@ func TestLiveAgentFallbackAndRecovery(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err == nil {
 		t.Fatal("con agente expirado debería intentar SSH y fallar (127.0.0.1 sin sshd)")
 	}
-	down := findAlert(l.engine.List(), "Agente caído en Patio")
+	down := findAlert(l.engine.List(), "Agent down on Patio")
 	if down == nil {
 		t.Fatalf("alerta de caída esperada: %+v", l.engine.List())
 	}
-	if down.Category != alerts.CatSystem || down.Urgent || !strings.Contains(down.Title, "volviendo a SSH") {
+	if down.Category != alerts.CatSystem || down.Urgent || !strings.Contains(down.Title, "falling back to SSH") {
 		t.Fatalf("alerta caída: %+v", down)
 	}
 	// La alerta se emite UNA vez (no cada tick)
@@ -187,7 +187,7 @@ func TestLiveAgentFallbackAndRecovery(t *testing.T) {
 	}
 	if n := 0; true {
 		for _, a := range l.engine.List() {
-			if strings.Contains(a.Title, "Agente caído") {
+			if strings.Contains(a.Title, "Agent down") {
 				n++
 			}
 		}
@@ -200,7 +200,7 @@ func TestLiveAgentFallbackAndRecovery(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
 		t.Fatalf("agente recuperado: %v", err)
 	}
-	ok := findAlert(l.engine.List(), "Agente recuperado en Patio")
+	ok := findAlert(l.engine.List(), "Agent recovered on Patio")
 	if ok == nil || ok.Category != alerts.CatSystem || ok.Urgent || ok.Severity != "ok" {
 		t.Fatalf("alerta recuperación: %+v", ok)
 	}
@@ -251,7 +251,7 @@ func TestDeadMansSwitch(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err == nil {
 		t.Fatal("con agente expirado debería intentar SSH y fallar")
 	}
-	if a := findAlert(l.engine.List(), "Agente caído"); a != nil {
+	if a := findAlert(l.engine.List(), "Agent down"); a != nil {
 		t.Fatalf("NO debería haber alerta de caída tras blip breve: %+v", a)
 	}
 
@@ -260,7 +260,7 @@ func TestDeadMansSwitch(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err == nil {
 		t.Fatal("SSH sigue fallando")
 	}
-	down := findAlert(l.engine.List(), "Agente caído en Patio")
+	down := findAlert(l.engine.List(), "Agent down on Patio")
 	if down == nil {
 		t.Fatal("debería haber alerta de caída tras confirmación")
 	}
@@ -270,7 +270,7 @@ func TestDeadMansSwitch(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
 		t.Fatalf("agente recuperado: %v", err)
 	}
-	ok := findAlert(l.engine.List(), "Agente recuperado en Patio")
+	ok := findAlert(l.engine.List(), "Agent recovered on Patio")
 	if ok == nil {
 		t.Fatal("debería haber alerta de recuperación")
 	}
@@ -296,10 +296,10 @@ func TestDeadMansSwitchBlipNoAlert(t *testing.T) {
 	reg.Ingest(testPayload())
 	l.pollRouter(t.Context(), cfg)
 
-	if a := findAlert(l.engine.List(), "Agente caído"); a != nil {
+	if a := findAlert(l.engine.List(), "Agent down"); a != nil {
 		t.Fatalf("blip breve no debería generar alerta de caída: %+v", a)
 	}
-	if a := findAlert(l.engine.List(), "Agente recuperado"); a != nil {
+	if a := findAlert(l.engine.List(), "Agent recovered"); a != nil {
 		t.Fatalf("blip breve no debería generar alerta de recuperación: %+v", a)
 	}
 }

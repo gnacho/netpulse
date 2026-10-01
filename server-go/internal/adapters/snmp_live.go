@@ -226,11 +226,11 @@ func (l *Live) recordSnmpSuccess(cfg RouterConfig) {
 			ID:       fmt.Sprintf("alert-snmp-recovered-%s-%d", cfg.ID, now),
 			Category: alerts.CatSystem, Urgent: false,
 			Severity:    "ok",
-			Title:       "Sondeo SNMP recuperado en " + name,
-			Description: fmt.Sprintf("%s vuelve a responder al sondeo SNMP", name),
+			Title:       "SNMP polling recovered on " + name,
+			Description: fmt.Sprintf("SNMP polling for %s is responding again", name),
 			Type:        alerts.TypeSnmpRecovered,
 			Vars:        map[string]string{"router": name},
-			Time:        "ahora mismo", RouterID: cfg.ID,
+			Time:        "just now", RouterID: cfg.ID,
 		})
 	}
 }
@@ -283,12 +283,12 @@ func (l *Live) recordSnmpFailure(cfg RouterConfig, err error) {
 			ID:       fmt.Sprintf("alert-snmp-failing-%s", cfg.ID),
 			Category: alerts.CatSystem, Urgent: false,
 			Severity:    "warn",
-			Title:       "Sondeo SNMP fallando en " + name,
-			Description: fmt.Sprintf("%s responde a ping pero el sondeo SNMP lleva 3 intentos fallidos (%s) - revisa community/puerto", name, lastErr),
+			Title:       "SNMP polling failing on " + name,
+			Description: fmt.Sprintf("%s responds to ping but SNMP polling has failed 3 times (%s) - check community/port", name, lastErr),
 			Hint:        alerts.HintFor(alerts.HintSnmpFailing),
 			Type:        alerts.HintSnmpFailing,
 			Vars:        map[string]string{"router": name, "error": lastErr},
-			Time:        "ahora mismo", RouterID: cfg.ID,
+			Time:        "just now", RouterID: cfg.ID,
 		})
 	}
 }

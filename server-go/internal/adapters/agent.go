@@ -398,11 +398,11 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 				ID:       fmt.Sprintf("alert-agent-ok-%s-%d", cfg.ID, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false,
 				Severity:    "ok",
-				Title:       "Agente recuperado en " + name,
-				Description: fmt.Sprintf("El agente de %s vuelve a empujar datos — sondeo nativo reanudado", name),
+				Title:       "Agent recovered on " + name,
+				Description: fmt.Sprintf("The agent on %s is pushing data again - native polling resumed", name),
 				Type:        alerts.TypeAgentRecovered,
 				Vars:        map[string]string{"router": name},
-				Time:        "ahora mismo", RouterID: cfg.ID,
+				Time:        "just now", RouterID: cfg.ID,
 			})
 		}
 		// issue #281: SSH falla por clave no autorizada pero el agente sigue
@@ -415,11 +415,11 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 					ID:       fmt.Sprintf("alert-ssh-auth-%s-%d", cfg.ID, time.Now().UnixMilli()),
 					Category: alerts.CatSystem, Urgent: false,
 					Severity:    "warn",
-					Title:       "Acceso SSH perdido en " + name,
-					Description: fmt.Sprintf("%s no acepta la clave SSH, pero su agente sigue enviando datos. Revisa authorized_keys tras un firmware upgrade.", name),
+					Title:       "SSH access lost on " + name,
+					Description: fmt.Sprintf("%s does not accept the SSH key, but its agent keeps sending data. Check authorized_keys after a firmware upgrade.", name),
 					Type:        alerts.TypeSSHAccessLost,
 					Vars:        map[string]string{"router": name},
-					Time:        "ahora mismo", RouterID: cfg.ID,
+					Time:        "just now", RouterID: cfg.ID,
 				})
 			}
 		} else if l.sshAuthFailAlerted[cfg.ID] {
@@ -429,11 +429,11 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 				ID:       fmt.Sprintf("alert-ssh-auth-ok-%s-%d", cfg.ID, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false,
 				Severity:    "ok",
-				Title:       "Acceso SSH recuperado en " + name,
-				Description: fmt.Sprintf("El acceso SSH a %s funciona de nuevo", name),
+				Title:       "SSH access recovered on " + name,
+				Description: fmt.Sprintf("SSH access to %s is working again", name),
 				Type:        alerts.TypeSSHAccessRecovered,
 				Vars:        map[string]string{"router": name},
-				Time:        "ahora mismo", RouterID: cfg.ID,
+				Time:        "just now", RouterID: cfg.ID,
 			})
 		}
 		l.mu.Unlock()
@@ -469,24 +469,24 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 						ID:       "alert-agent-down-" + cfg.ID,
 						Category: alerts.CatRouter, Urgent: true,
 						Severity:    "critical",
-						Title:       fmt.Sprintf("Agente caído en %s", name),
-						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — la tarjeta sigue mostrando datos cacheados", name, confirm),
+						Title:       fmt.Sprintf("Agent down on %s", name),
+						Description: fmt.Sprintf("No data from the agent on %s for more than %s - using cached data", name, confirm),
 						Hint:        alerts.HintFor(alerts.HintAgentDown),
 						Type:        alerts.HintAgentDown,
 						Vars:        map[string]string{"router": name, "confirm": confirm.String()},
-						Time:        "ahora mismo", RouterID: cfg.ID,
+						Time:        "just now", RouterID: cfg.ID,
 					})
 				} else {
 					l.engine.EmitVolatile(AlertEvent{
 						ID:       "alert-agent-down-" + cfg.ID,
 						Category: alerts.CatSystem, Urgent: false,
 						Severity:    "warn",
-						Title:       fmt.Sprintf("Agente caído en %s — volviendo a SSH", name),
-						Description: fmt.Sprintf("Sin datos del agente de %s desde hace más de %s — sondeo SSH reanudado", name, confirm),
+						Title:       fmt.Sprintf("Agent down on %s - falling back to SSH", name),
+						Description: fmt.Sprintf("No data from the agent on %s for more than %s - SSH polling resumed", name, confirm),
 						Hint:        alerts.HintFor(alerts.HintAgentDownSSH),
 						Type:        alerts.HintAgentDownSSH,
 						Vars:        map[string]string{"router": name, "confirm": confirm.String()},
-						Time:        "ahora mismo", RouterID: cfg.ID,
+						Time:        "just now", RouterID: cfg.ID,
 					})
 				}
 			}
@@ -859,12 +859,12 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 			ID:       fmt.Sprintf("alert-agent-outdated-%s", cfg.ID),
 			Category: alerts.CatSystem, Urgent: false,
 			Severity:    "warn",
-			Title:       "Agente desactualizado en " + name,
-			Description: fmt.Sprintf("%s empuja la versión %s; la última disponible del agente %s es %s", name, p.Version, kindLabel, ref),
+			Title:       "Agent outdated on " + name,
+			Description: fmt.Sprintf("%s pushes version %s; the latest available for the %s agent is %s", name, p.Version, kindLabel, ref),
 			Hint:        alerts.HintFor(alerts.HintAgentOutdated),
 			Type:        alerts.HintAgentOutdated,
 			Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel, "latest": ref},
-			Time:        "ahora mismo", RouterID: cfg.ID,
+			Time:        "just now", RouterID: cfg.ID,
 		})
 	} else if alerted || l.engine.Has(fmt.Sprintf("alert-agent-outdated-%s", cfg.ID)) {
 		l.mu.Lock()
@@ -882,11 +882,11 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 				ID:       fmt.Sprintf("alert-agent-outdated-%s-ok-%d", cfg.ID, time.Now().UnixMilli()),
 				Category: alerts.CatSystem, Urgent: false,
 				Severity:    "ok",
-				Title:       "Agente actualizado en " + name,
-				Description: fmt.Sprintf("%s ya empuja la versión %s de %s", name, p.Version, kindLabel),
+				Title:       "Agent updated on " + name,
+				Description: fmt.Sprintf("%s now pushes version %s of %s", name, p.Version, kindLabel),
 				Type:        alerts.TypeAgentUpdated,
 				Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel},
-				Time:        "ahora mismo", RouterID: cfg.ID,
+				Time:        "just now", RouterID: cfg.ID,
 			})
 		}
 	}

@@ -287,7 +287,7 @@ func TestEmitOrUpdateConsolida(t *testing.T) {
 	e.SetClock(func() time.Time { return now })
 
 	base := AlertEvent{ID: "fail-patio-1", Category: CatSystem, Severity: "warn",
-		Title: "Auto-rearme sin recuperación en patio", Description: "intento 1",
+		Title: "Auto-rearm without recovery on patio", Description: "intento 1",
 		RouterID: "patio"}
 	if !e.EmitOrUpdate(base) {
 		t.Fatal("primer emit debía pasar")

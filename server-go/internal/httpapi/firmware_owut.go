@@ -348,7 +348,7 @@ func (s *server) emitFirmwareResult(routerID, from, to, origin string, ok bool, 
 		Category: alerts.CatSystem,
 		Urgent:   true,
 		RouterID: routerID,
-		Time:     "ahora mismo",
+		Time:     "just now",
 		Ts:       time.Now().Unix(),
 		Vars:     map[string]string{"router": name, "from": from, "to": to, "origin": originTxt},
 	}
@@ -383,9 +383,9 @@ func (s *server) emitFirmwareConfigAlert(routerID, reason string) {
 		Urgent:      true,
 		Severity:    "warn",
 		RouterID:    routerID,
-		Title:       "Programación de firmware desactivada",
+		Title:       "Firmware schedule disabled",
 		Description: fmt.Sprintf("%s: %s", name, reason),
-		Time:        "ahora mismo",
+		Time:        "just now",
 		Ts:          time.Now().Unix(),
 	})
 }
@@ -483,7 +483,7 @@ func (s *server) runRecurrenceShot(routerID string) {
 	target, err := s.firmware.GetTarget(routerID)
 	if err != nil || target == nil || target.TargetVersion == "" {
 		firmware.DisableRecurrence(s.db.DB, routerID)
-		s.emitFirmwareConfigAlert(routerID, "sin target de firmware guardado")
+		s.emitFirmwareConfigAlert(routerID, "no firmware target saved")
 		return
 	}
 	current := ""
@@ -500,7 +500,7 @@ func (s *server) runRecurrenceShot(routerID string) {
 	if host != "" && s.pool != nil {
 		if plat := s.platform(routerID, host); plat.Vendor != "" {
 			firmware.DisableRecurrence(s.db.DB, routerID)
-			s.emitFirmwareConfigAlert(routerID, "router con firmware del fabricante (GL.iNet): sus actualizaciones las gestiona su propio panel")
+			s.emitFirmwareConfigAlert(routerID, "router running vendor firmware (GL.iNet): its updates are managed by its own panel")
 			return
 		}
 	}
@@ -518,5 +518,5 @@ func (s *server) runRecurrenceShot(routerID string) {
 		return
 	}
 	firmware.DisableRecurrence(s.db.DB, routerID)
-	s.emitFirmwareConfigAlert(routerID, "router sin owut y sin URL de imagen para el motor clásico")
+	s.emitFirmwareConfigAlert(routerID, "router without owut and without an image URL for the classic engine")
 }

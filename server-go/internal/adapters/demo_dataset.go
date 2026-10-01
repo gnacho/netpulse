@@ -11,7 +11,8 @@
 // SPEC-65 D65-2: Device.Infra sellado en el canon (pve=hypervisor, sus
 // CTs/VMs=ct, switch-netgear=managed-switch).
 // ALERTAS BILINGÜES (issue #239): el canon de alertas guarda title/description
-// en es/en (canonAlertSpecs). El seed de NewDemo sirve ES (sin contexto de
+// en es/en (canonAlertSpecs). El seed de NewDemo sirve EN, el idioma canónico
+// (#1014; sin contexto de
 // petición); localizedCanonAlerts(lang) permite servir la lengua activa cuando
 // el handler la propague.
 //
@@ -229,12 +230,13 @@ func buildCanonAlerts(lang string) []AlertEvent {
 	return out
 }
 
-// canonAlerts: las 5 alertas canónicas (SPEC-ALERTAS §1 y §5) en español. El
-// seed corre en NewDemo sin contexto de petición, por eso el canon sirve ES;
-// la localización por lengua de la petición se puede conectar pasando la
-// lengua a localizedCanonAlerts desde el handler (issue #239).
+// canonAlerts: las 5 alertas canónicas (SPEC-ALERTAS §1 y §5) en inglés, el
+// idioma canónico de las alertas desde #1014. El seed corre en NewDemo sin
+// contexto de petición, por eso el canon sirve EN; la localización por lengua
+// de la petición se puede conectar pasando la lengua a localizedCanonAlerts
+// desde el handler (issue #239).
 func canonAlerts() []AlertEvent {
-	return buildCanonAlerts("es")
+	return buildCanonAlerts("en")
 }
 
 // localizedCanonAlerts: alertas canónicas en la lengua de la petición ("es" →

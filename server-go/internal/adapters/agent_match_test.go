@@ -104,7 +104,7 @@ func TestLiveAgentSSHAuthFailAlert(t *testing.T) {
 		t.Fatalf("agente fresco: %v", err)
 	}
 
-	a := findAlert(l.engine.List(), "Acceso SSH perdido")
+	a := findAlert(l.engine.List(), "SSH access lost")
 	if a == nil {
 		t.Fatalf("esperaba alerta #281; alerts=%+v", l.engine.List())
 	}
@@ -122,7 +122,7 @@ func TestLiveAgentSSHAuthFailAlert(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
 		t.Fatalf("segundo poll: %v", err)
 	}
-	if n := countAlerts(l.engine.List(), "Acceso SSH perdido"); n != 1 {
+	if n := countAlerts(l.engine.List(), "SSH access lost"); n != 1 {
 		t.Fatalf("alerta duplicada tras recuperación: %d", n)
 	}
 }
@@ -212,7 +212,7 @@ func TestLiveAgentDownAgentOnlyIsUrgentRouter(t *testing.T) {
 	if p == nil {
 		t.Fatal("esperaba datos cacheados del agente")
 	}
-	down := findAlert(l.engine.List(), "Agente caído en Patio")
+	down := findAlert(l.engine.List(), "Agent down on Patio")
 	if down == nil {
 		t.Fatalf("alerta de caída esperada: %+v", l.engine.List())
 	}
@@ -227,7 +227,7 @@ func TestLiveAgentDownAgentOnlyIsUrgentRouter(t *testing.T) {
 	if _, err := l.pollRouter(t.Context(), cfg); err != nil {
 		t.Fatalf("agente recuperado: %v", err)
 	}
-	ok := findAlert(l.engine.List(), "Agente recuperado en Patio")
+	ok := findAlert(l.engine.List(), "Agent recovered on Patio")
 	if ok == nil || ok.Category != alerts.CatSystem || ok.Urgent || ok.Severity != "ok" {
 		t.Fatalf("alerta recuperación agent-only: %+v", ok)
 	}

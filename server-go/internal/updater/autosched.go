@@ -123,28 +123,28 @@ func (s *Scheduler) shot(st AutoUpdateSettings, prev autoRunState) {
 	switch {
 	case status.CheckFailed:
 		saveAutoResult(s.db, "check-failed")
-		s.alert(false, "check-failed", fmt.Sprintf("No se pudo comprobar (razón: %s); se reintentará en el próximo disparo", status.CheckErr), map[string]string{"reason": status.CheckErr})
+		s.alert(false, "check-failed", fmt.Sprintf("Update check failed (reason: %s); it will retry on the next scheduled run", status.CheckErr), map[string]string{"reason": status.CheckErr})
 	case !status.UpdateAvailable:
 		saveAutoResult(s.db, "up-to-date")
 	case !status.CanApply:
 		// Readiness o layout sin apply: se avisa (hay novedad esperando y no
 		// se podrá aplicar hasta que el admin lo resuelva).
 		saveAutoResult(s.db, "cannot-apply")
-		s.alert(false, "cannot-apply", "Hay una actualización disponible pero este layout no puede aplicarla ahora (revisa readiness en Ajustes)", nil)
+		s.alert(false, "cannot-apply", "An update is available but this install cannot apply it now (check readiness in Settings)", nil)
 	default:
 		saveAutoResult(s.db, "applied")
 		if s.ua.ApplyBy("scheduled") {
-			s.alert(true, "applied", fmt.Sprintf("Actualización programada iniciada: %s (solo binario, con verificación y rollback automático)", statusLatestDeref(status)), map[string]string{"version": statusLatestDeref(status)})
+			s.alert(true, "applied", fmt.Sprintf("Scheduled update started: %s (binary only, with health verification and automatic rollback)", statusLatestDeref(status)), map[string]string{"version": statusLatestDeref(status)})
 		} else {
-			s.alert(false, "apply-busy", "La actualización programada no pudo arrancar (¿otra actualización en curso?)", nil)
+			s.alert(false, "apply-busy", "The scheduled update could not start (another update in progress?)", nil)
 		}
 	}
 }
 
 // alert emite la notificación del disparo (info en éxito, warn en aviso).
 // result es el código estable que el frontend usa para elegir la traducción
-// (alerts.types.autoupdate.results.<result>); desc es el literal en español
-// que sirve de fallback para servidores viejos (#796).
+// (alerts.types.autoupdate.results.<result>); desc is the English
+// literal, fallback when no catalog covers the type (#796, #1014).
 func (s *Scheduler) alert(ok bool, result, desc string, extra map[string]string) {
 	s.logf("%s", desc)
 	if s.emit == nil {
@@ -163,9 +163,9 @@ func (s *Scheduler) alert(ok bool, result, desc string, extra map[string]string)
 		Category:    alerts.CatSystem,
 		Urgent:      true,
 		Severity:    sev,
-		Title:       "Auto-actualización programada",
+		Title:       "Scheduled auto-update",
 		Description: desc,
-		Time:        "ahora mismo",
+		Time:        "just now",
 		Ts:          s.now().Unix(),
 		Type:        "autoupdate",
 		Vars:        vars,

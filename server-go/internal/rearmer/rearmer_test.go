@@ -243,14 +243,14 @@ func TestSupervisorConsolidaFallosRepetidos(t *testing.T) {
 	evs := env.engine.events()
 	fails := []alerts.AlertEvent{}
 	for _, ev := range evs {
-		if ev.Title == "Auto-rearme sin recuperación en patio" {
+		if ev.Title == "Auto-rearm without recovery on patio" {
 			fails = append(fails, ev)
 		}
 	}
 	if len(fails) != 1 {
 		t.Fatalf("3 fallos debían consolidarse en 1 alerta de fallo, hay %d", len(fails))
 	}
-	if len(evs) > 0 && evs[0].Title == "Auto-rearme sin recuperación en patio" && evs[0].ID != fails[0].ID {
+	if len(evs) > 0 && evs[0].Title == "Auto-rearm without recovery on patio" && evs[0].ID != fails[0].ID {
 		t.Fatalf("el ID de la alerta consolidada debe ser el del primer fallo: %s", fails[0].ID)
 	}
 }
@@ -270,7 +270,7 @@ func TestSupervisorRecuperadoCierraIncidente(t *testing.T) {
 	// Incidente 1: fallo → 1 alerta.
 	sup.CheckOnce()
 	first := env.engine.events()
-	if len(first) != 1 || first[0].Title != "Auto-rearme sin recuperación en patio" {
+	if len(first) != 1 || first[0].Title != "Auto-rearm without recovery on patio" {
 		t.Fatalf("incidente 1: quiero 1 alerta de fallo, hay %+v", first)
 	}
 
@@ -286,7 +286,7 @@ func TestSupervisorRecuperadoCierraIncidente(t *testing.T) {
 	evs := env.engine.events()
 	fails := []alerts.AlertEvent{}
 	for _, ev := range evs {
-		if ev.Title == "Auto-rearme sin recuperación en patio" {
+		if ev.Title == "Auto-rearm without recovery on patio" {
 			fails = append(fails, ev)
 		}
 	}

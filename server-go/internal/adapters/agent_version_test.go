@@ -26,14 +26,14 @@ func TestLiveAgentOutdatedAlert(t *testing.T) {
 	// Agente nativo 0.1.0 contra referencia 2.20.0 → warn consolidada.
 	p := testPayload() // Version 0.1.0, kind native
 	l.checkAgentVersion(cfg, p)
-	a := findAlert(l.engine.List(), "Agente desactualizado")
+	a := findAlert(l.engine.List(), "Agent outdated")
 	if a == nil || a.Severity != "warn" || a.RouterID != "patio" || a.Hint == "" {
 		t.Fatalf("alerta warn esperada con hint: %+v", a)
 	}
 
 	// Re-check con el mismo estado → sigue UNA sola entrada (consolidada).
 	l.checkAgentVersion(cfg, p)
-	if n := countAlerts(l.engine.List(), "Agente desactualizado"); n != 1 {
+	if n := countAlerts(l.engine.List(), "Agent outdated"); n != 1 {
 		t.Fatalf("consolidación: %d alertas, esperaba 1", n)
 	}
 
@@ -41,13 +41,13 @@ func TestLiveAgentOutdatedAlert(t *testing.T) {
 	p2 := testPayload()
 	p2.Version = "2.20.0"
 	l.checkAgentVersion(cfg, p2)
-	if n := countAlerts(l.engine.List(), "Agente actualizado"); n != 1 {
+	if n := countAlerts(l.engine.List(), "Agent updated"); n != 1 {
 		t.Fatalf("recuperación: %d alertas ok, esperaba 1", n)
 	}
 
 	// Seguimos al día → sin nuevas recuperaciones.
 	l.checkAgentVersion(cfg, p2)
-	if n := countAlerts(l.engine.List(), "Agente actualizado"); n != 1 {
+	if n := countAlerts(l.engine.List(), "Agent updated"); n != 1 {
 		t.Fatalf("recuperación repetida: %d, esperaba 1", n)
 	}
 
@@ -56,7 +56,7 @@ func TestLiveAgentOutdatedAlert(t *testing.T) {
 	p3.Kind = "netgrip"
 	p3.Version = "0.26.1"
 	l.checkAgentVersion(cfg, p3)
-	a = findAlert(l.engine.List(), "Agente desactualizado")
+	a = findAlert(l.engine.List(), "Agent outdated")
 	if a == nil || !strings.Contains(a.Description, "NetGrip") || !strings.Contains(a.Description, "0.27.0") {
 		t.Fatalf("alerta netgrip esperada contra 0.27.0: %+v", a)
 	}
@@ -65,7 +65,7 @@ func TestLiveAgentOutdatedAlert(t *testing.T) {
 	p4 := testPayload()
 	p4.Kind = "external"
 	l.checkAgentVersion(cfg, p4)
-	if n := countAlerts(l.engine.List(), "Agente desactualizado"); n != 1 {
+	if n := countAlerts(l.engine.List(), "Agent outdated"); n != 1 {
 		t.Fatalf("external no debe alertar: %d", n)
 	}
 }
@@ -77,12 +77,12 @@ func TestLiveAgentOutdatedNoSource(t *testing.T) {
 
 	// Sin fuente (check desactivado) y con referencia vacía: sin alertas.
 	l.checkAgentVersion(cfg, testPayload())
-	if n := countAlerts(l.engine.List(), "Agente desactualizado"); n != 0 {
+	if n := countAlerts(l.engine.List(), "Agent outdated"); n != 0 {
 		t.Fatalf("sin fuente no debe alertar: %d", n)
 	}
 	l.SetAgentLatestSource(func(kind string) string { return "" })
 	l.checkAgentVersion(cfg, testPayload())
-	if n := countAlerts(l.engine.List(), "Agente desactualizado"); n != 0 {
+	if n := countAlerts(l.engine.List(), "Agent outdated"); n != 0 {
 		t.Fatalf("referencia vacía no debe alertar: %d", n)
 	}
 }

@@ -29,7 +29,7 @@ func TestPersistReload(t *testing.T) {
 	e1 := newPersistTestEngine(t, dir, false)
 	ev := AlertEvent{
 		ID: "a1", Category: CatSystem, Urgent: true, Severity: "info",
-		Title: "Auto-actualización programada", Description: "desc",
+		Title: "Scheduled auto-update", Description: "desc",
 		Type: "autoupdate", Vars: map[string]string{"result": "applied"},
 		Ts: time.Now().Unix(),
 	}

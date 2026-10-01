@@ -1240,12 +1240,12 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 			ID:       fmt.Sprintf("alert-firmware-%s-%d", p.cfg.ID, time.Now().UnixMilli()),
 			Category: alerts.CatSystem, Urgent: false,
 			Severity:    "warn",
-			Title:       "Firmware desactualizado",
-			Description: fmt.Sprintf("%s: firmware %q no coincide con el target %q", name, r.Firmware, p.cfg.FirmwareTarget),
+			Title:       "Firmware outdated",
+			Description: fmt.Sprintf("%s: firmware %q does not match the target %q", name, r.Firmware, p.cfg.FirmwareTarget),
 			Hint:        alerts.HintFor(alerts.HintFirmware),
 			Type:        alerts.HintFirmware,
 			Vars:        map[string]string{"router": name, "firmware": r.Firmware, "target": p.cfg.FirmwareTarget},
-			Time:        "ahora mismo", RouterID: p.cfg.ID,
+			Time:        "just now", RouterID: p.cfg.ID,
 		})
 	}
 	if p.temp > thr {
@@ -1506,11 +1506,11 @@ func (l *Live) emitRouterRecovered(routerID, name string) {
 		ID:       fmt.Sprintf("alert-recovered-%s-%d", routerID, time.Now().UnixMilli()),
 		Category: alerts.CatRouter, Urgent: false,
 		Severity:    "ok",
-		Title:       name + " recuperado",
-		Description: fmt.Sprintf("%s vuelve a responder", name),
+		Title:       name + " recovered",
+		Description: fmt.Sprintf("%s is responding again", name),
 		Type:        alerts.TypeRouterRecovered,
 		Vars:        map[string]string{"router": name},
-		Time:        "ahora mismo", RouterID: routerID,
+		Time:        "just now", RouterID: routerID,
 	})
 }
 
@@ -1548,11 +1548,11 @@ func (l *Live) trackRouterOffline(cfg *RouterConfig, err error, fails int) {
 		Category: alerts.CatRouter, Urgent: true,
 		Severity:    "critical",
 		Title:       name + " offline",
-		Description: fmt.Sprintf("Sin respuesta de %s: %v", cfg.Host, err),
+		Description: fmt.Sprintf("No response from %s: %v", cfg.Host, err),
 		Hint:        alerts.HintFor(alerts.HintDeviceOffline),
 		Type:        alerts.HintDeviceOffline,
 		Vars:        map[string]string{"router": name, "host": cfg.Host, "error": fmt.Sprint(err)},
-		Time:        "ahora mismo", RouterID: cfg.ID,
+		Time:        "just now", RouterID: cfg.ID,
 	}
 	// Sin dedup de 5 min: al cerrarse, el incidente anterior retiró su alerta
 	// del feed (resolveOfflineAlerts) y la ventana bloquearía ésta — el "una
@@ -1648,12 +1648,12 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 			ID:       fmt.Sprintf("alert-wan-%s-%d", cfg.ID, time.Now().UnixMilli()),
 			Category: alerts.CatInternet, Urgent: true,
 			Severity:    "critical",
-			Title:       "Internet caído",
-			Description: fmt.Sprintf("%s responde pero no alcanza internet (100 %% de pérdida)", name),
+			Title:       "Internet down",
+			Description: fmt.Sprintf("%s responds but cannot reach the internet (100%% packet loss)", name),
 			Hint:        alerts.HintFor(alerts.HintWanDown),
 			Type:        alerts.HintWanDown,
 			Vars:        map[string]string{"router": name},
-			Time:        "ahora mismo", RouterID: cfg.ID,
+			Time:        "just now", RouterID: cfg.ID,
 		})
 	}
 }
@@ -1760,17 +1760,17 @@ func (l *Live) emitUplinkChange(cfg RouterConfig, mw *MultiWanInfo, from, to str
 		// The destination is part of the title on purpose: the engine
 		// deduplicates on category+title+router, and a failover and its
 		// recovery inside that window would otherwise collapse into one.
-		Title:       "Internet sale ahora por " + to,
-		Description: fmt.Sprintf("%s ha pasado el tráfico de %s a %s", name, from, to),
+		Title:       "Internet is going out through " + to,
+		Description: fmt.Sprintf("%s moved the traffic from %s to %s", name, from, to),
 		Hint:        alerts.HintFor(alerts.HintUplinkSwitch),
 		Type:        alerts.HintUplinkSwitch,
 		Vars:        vars,
-		Time:        "ahora mismo", RouterID: cfg.ID,
+		Time:        "just now", RouterID: cfg.ID,
 	}
 	if restored {
 		ev.Severity = "ok"
-		ev.Title = "Internet vuelve por " + to
-		ev.Description = fmt.Sprintf("%s ha devuelto el tráfico a %s", name, to)
+		ev.Title = "Internet is back on " + to
+		ev.Description = fmt.Sprintf("%s moved the traffic back to %s", name, to)
 		ev.Hint = ""
 		ev.Type = alerts.TypeUplinkRestored
 	}
@@ -1901,9 +1901,9 @@ func (l *Live) emitUnknownDevice(d Device, devices []Device, dists []Distributio
 	if d.SignalDbm != nil {
 		vars["signal"] = fmt.Sprintf("%d", *d.SignalDbm)
 	}
-	desc := fmt.Sprintf("%s se ha conectado a %s", d.MAC, where)
+	desc := fmt.Sprintf("%s connected to %s", d.MAC, where)
 	if d.IP != "" {
-		desc = fmt.Sprintf("%s · %s se ha conectado a %s", d.MAC, d.IP, where)
+		desc = fmt.Sprintf("%s · %s connected to %s", d.MAC, d.IP, where)
 	}
 	if d.Band != "" && d.Band != "cable" {
 		desc += " · " + d.Band
@@ -1915,12 +1915,12 @@ func (l *Live) emitUnknownDevice(d Device, devices []Device, dists []Distributio
 		ID:       fmt.Sprintf("alert-unknown-%s-%d", d.MAC, time.Now().UnixMilli()),
 		Category: alerts.CatClients, Urgent: true,
 		Severity:    "warn",
-		Title:       "Dispositivo desconocido",
+		Title:       "Unknown device",
 		Description: desc,
 		Hint:        alerts.HintFor(alerts.HintUnknownDevice),
 		Type:        alerts.HintUnknownDevice,
 		Vars:        vars,
-		Time:        "ahora mismo", RouterID: d.RouterID,
+		Time:        "just now", RouterID: d.RouterID,
 	})
 }
 
@@ -2201,11 +2201,11 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 			l.engine.Emit(AlertEvent{
 				ID:       fmt.Sprintf("alert-wg-%s-%d", id, time.Now().UnixMilli()),
 				Category: alerts.CatVPN, Urgent: false,
-				Severity: "info", Title: "Handshake WireGuard",
-				Description: name + " conectado",
+				Severity: "info", Title: "WireGuard handshake",
+				Description: name + " connected",
 				Type:        alerts.TypeWireguardHandshake,
 				Vars:        map[string]string{"peer": name},
-				Time:        "ahora mismo", RouterID: gw.ID,
+				Time:        "just now", RouterID: gw.ID,
 			})
 		}
 	}
@@ -2684,12 +2684,12 @@ func (l *Live) emitTempAlert(cfg RouterConfig, router Router) {
 		ID:       fmt.Sprintf("alert-temp-%s-%d", cfg.ID, time.Now().UnixMilli()),
 		Category: alerts.CatRouter, Urgent: true,
 		Severity:    "warn",
-		Title:       "Temperatura alta en " + router.Name,
-		Description: fmt.Sprintf("%d °C, por encima del umbral (%d °C)", *router.Temp, thr),
+		Title:       "High temperature on " + router.Name,
+		Description: fmt.Sprintf("%d °C, above the threshold (%d °C)", *router.Temp, thr),
 		Hint:        alerts.HintFor(alerts.HintHighTemp),
 		Type:        alerts.HintHighTemp,
 		Vars:        map[string]string{"router": router.Name, "temp": strconv.Itoa(*router.Temp), "threshold": strconv.Itoa(thr)},
-		Time:        "ahora mismo", RouterID: cfg.ID,
+		Time:        "just now", RouterID: cfg.ID,
 	})
 }
 
@@ -2916,12 +2916,12 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 				l.engine.Emit(AlertEvent{
 					ID:       fmt.Sprintf("alert-weak-%s-%d", d.MAC, time.Now().UnixMilli()),
 					Category: alerts.CatSignal, Urgent: false,
-					Severity: "warn", Title: "Señal débil en " + d.Name,
-					Description: fmt.Sprintf("%d dBm en %s — revisa cobertura o acerca un AP", *d.SignalDbm, d.RouterID),
+					Severity: "warn", Title: "Weak signal on " + d.Name,
+					Description: fmt.Sprintf("%d dBm on %s - check coverage or move closer to an AP", *d.SignalDbm, d.RouterID),
 					Hint:        alerts.HintFor(alerts.HintWifiWeak),
 					Type:        alerts.HintWifiWeak,
 					Vars:        map[string]string{"device": d.Name, "signal": strconv.Itoa(*d.SignalDbm), "router": d.RouterID},
-					Time:        "ahora mismo", RouterID: d.RouterID,
+					Time:        "just now", RouterID: d.RouterID,
 				})
 			}
 			l.mu.Unlock()

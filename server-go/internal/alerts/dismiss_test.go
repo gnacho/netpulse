@@ -88,7 +88,7 @@ func TestDismissAllEmptiesFeedAndSurvivesReload(t *testing.T) {
 	// Las volátiles (agent-down) también salen del feed con DismissAll...
 	e2.EmitVolatile(AlertEvent{
 		ID: "alert-agent-down-r1", Category: CatSystem, Severity: "warn",
-		Title: "Agente caído", Type: HintAgentDown, RouterID: "r1",
+		Title: "Agent down", Type: HintAgentDown, RouterID: "r1",
 	})
 	e2.DismissAll()
 	if got := len(e2.List()); got != 0 {
@@ -98,7 +98,7 @@ func TestDismissAllEmptiesFeedAndSurvivesReload(t *testing.T) {
 	// "alerta viva": lo que no vuelve es el histórico, no el presente).
 	e2.EmitVolatile(AlertEvent{
 		ID: "alert-agent-down-r1", Category: CatSystem, Severity: "warn",
-		Title: "Agente caído", Type: HintAgentDown, RouterID: "r1",
+		Title: "Agent down", Type: HintAgentDown, RouterID: "r1",
 	})
 	if got := len(e2.List()); got != 1 {
 		t.Fatalf("volátil viva tras re-emitir: %d, esperaba 1", got)
