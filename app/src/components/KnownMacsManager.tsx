@@ -98,19 +98,6 @@ export function KnownMacsManager({ onSaved }: Props) {
 
   return (
     <div className="space-y-3">
-      {!showForm && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105"
-          >
-            <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            {t('settings.knownMacs.add')}
-          </button>
-        </div>
-      )}
-
       {showForm && (
         <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <label className="block">
@@ -196,6 +183,20 @@ export function KnownMacsManager({ onSaved }: Props) {
           ))}
         </ul>
       ) : null}
+
+      {/* Añadir: debajo del listado, a la izquierda */}
+      {!showForm && (
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+            {t('settings.knownMacs.add')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
