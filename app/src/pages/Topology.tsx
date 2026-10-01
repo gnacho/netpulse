@@ -237,8 +237,17 @@ export default function Topology() {
               </button>
             </motion.div>
           )}
+          {/* Toggle de etiquetas junto a "Etiquetar dispositivos" (#990): los
+              dos controles de rotulación del mapa van pegados. */}
+          <motion.label
+            {...controlMotion(1)}
+            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
+          >
+            <Switch checked={showLabels} onCheckedChange={setShowLabels} aria-label={t('topology.showLabels')} />
+            {t('topology.labels')}
+          </motion.label>
           <motion.div
-            {...controlMotion(0)}
+            {...controlMotion(2)}
             className="flex items-center gap-0.5 rounded-xl border border-border bg-surface p-1"
           >
             <ControlButton
@@ -253,23 +262,16 @@ export default function Topology() {
             </ControlButton>
           </motion.div>
           <motion.div
-            {...controlMotion(1)}
+            {...controlMotion(3)}
             className="flex items-center gap-0.5 rounded-xl border border-border bg-surface p-1"
             role="group"
             aria-label={t('topology.zoomControls')}
           >
             {zoomControls}
           </motion.div>
-          <motion.label
-            {...controlMotion(2)}
-            className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary"
-          >
-            <Switch checked={showLabels} onCheckedChange={setShowLabels} aria-label={t('topology.showLabels')} />
-            {t('topology.labels')}
-          </motion.label>
           {canEdit && (
             <motion.div
-              {...controlMotion(3)}
+              {...controlMotion(4)}
               className="flex items-center gap-1.5 rounded-xl border border-border bg-surface p-1"
             >
               {editMode ? (
