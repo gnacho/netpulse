@@ -363,9 +363,9 @@
       "vm": "VM",
       "vmTip": "Máquina virtual en {{host}}"
     },
-    "bandAll": "Todas",
     "changeView": "Cambiar vista",
     "clearFilters": "Limpiar filtros",
+    "connection": "Conexión",
     "colBand": "Banda",
     "colDevice": "Dispositivo",
     "colFirstSeen": "Vista por primera vez",
@@ -393,6 +393,7 @@
     "emptyTitle": "Nada por aquí",
     "filterByBand": "Filtrar por banda",
     "filterByRouter": "Filtrar por router",
+    "fleet": "Flota",
     "gridView": "Vista de tarjetas",
     "groups": {
       "infra": "Infra",
@@ -454,7 +455,6 @@
     "onlineOffline": "Offline",
     "filterByOnline": "Filtrar por estado",
     "removeFilter": "Quitar filtro {{label}}",
-    "routerAll": "Todos",
     "searchAria": "Buscar dispositivos",
     "searchPlaceholder": "Buscar por nombre, IP o MAC…",
     "showing": "Mostrando",

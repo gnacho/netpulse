@@ -363,9 +363,9 @@
       "vm": "VM",
       "vmTip": "Virtual machine on {{host}}"
     },
-    "bandAll": "All",
     "changeView": "Change view",
     "clearFilters": "Clear filters",
+    "connection": "Connection",
     "colBand": "Band",
     "colDevice": "Device",
     "colFirstSeen": "First seen",
@@ -393,6 +393,7 @@
     "emptyTitle": "Nothing here",
     "filterByBand": "Filter by band",
     "filterByRouter": "Filter by router",
+    "fleet": "Fleet",
     "gridView": "Grid view",
     "groups": {
       "infra": "Infra",
@@ -454,7 +455,6 @@
     "onlineOffline": "Offline",
     "filterByOnline": "Filter by status",
     "removeFilter": "Remove filter {{label}}",
-    "routerAll": "All",
     "searchAria": "Search devices",
     "searchPlaceholder": "Search by name, IP or MAC…",
     "showing": "Showing",

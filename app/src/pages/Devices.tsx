@@ -61,6 +61,9 @@ import type { DeviceType } from '@/data/mock'
 // ---------------------------------------------------------------------------
 
 type BandFilter = 'all' | '6 GHz' | '5 GHz' | '2.4 GHz' | 'cable'
+// #989: valor de banda seleccionable en el filtro multi (sin 'all': la
+// selección vacía ya equivale a "todas").
+type BandValue = Exclude<BandFilter, 'all'>
 type SortKey = 'name' | 'ip' | 'router' | 'band' | 'lease' | 'signal' | 'type' | 'traffic' | 'firstSeen' | 'lastSeen'
 
 // Persistencia de preferencias de visualización (issue #778): el modo
@@ -192,19 +195,19 @@ function ColumnPicker({ hidden, onToggle }: { hidden: DeviceColumn[]; onToggle: 
   )
 }
 
-// #970: la banda se filtra con un desplegable (era un SegmentedControl). La
-// opción 6 GHz se ofrece SIEMPRE: el frontend no recibe un flag de soporte
+// #970: la banda se filtra con un desplegable (era un SegmentedControl); #989
+// lo convierte en multi-selección acumulativa con el patrón del filtro "Tipo".
+// La opción 6 GHz se ofrece SIEMPRE: el frontend no recibe un flag de soporte
 // hardware por router (solo bandSplit con clientes por banda, que sería 0 en
 // un router 6G recién instalado), así que condicionarla dejaría la opción
 // invisible justo cuando hace falta. Filtrar por 6 GHz sin clientes en esa
 // banda simplemente devuelve la lista vacía.
-const BAND_OPTIONS = [
-  { value: 'all', labelKey: 'devices.bandAll' },
+const BAND_FILTERS: ReadonlyArray<{ value: BandValue; label?: string; labelKey?: string }> = [
   { value: '2.4 GHz', label: '2.4 GHz' },
   { value: '5 GHz', label: '5 GHz' },
   { value: '6 GHz', label: '6 GHz' },
   { value: 'cable', labelKey: 'common.cable' },
-] as const
+]
 
 /** Color de identidad por router (devices.md §④) */
 const ROUTER_DOT: Record<string, string> = {
@@ -521,11 +524,29 @@ function StatsStrip({
 // Barra de filtros (devices.md §③)
 // ---------------------------------------------------------------------------
 
+// #989: trigger homogéneo de los filtros desplegables (Flota, Conexión y
+// Tipo): icono Filter + etiqueta + badge con el nº de valores activos.
+function FilterMenuTrigger({ label, active }: { label: string; active: number }) {
+  return (
+    <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary">
+      <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
+      {label}
+      {active > 0 && (
+        <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
+          {active}
+        </span>
+      )}
+    </button>
+  )
+}
+
 interface FilterBarProps {
-  router: string
-  setRouter: (v: string) => void
-  band: BandFilter
-  setBand: (v: BandFilter) => void
+  routerIds: string[]
+  toggleRouterId: (id: string) => void
+  routerCounts: Record<string, number>
+  bands: BandValue[]
+  toggleBand: (b: BandValue) => void
+  bandCounts: Partial<Record<BandValue, number>>
   groups: FilterGroup[]
   toggleGroup: (g: FilterGroup) => void
   online: OnlineFilter
@@ -547,53 +568,54 @@ function FilterBar(p: FilterBarProps) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-3 md:p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
-        {/* Flota (#970): desplegable único; una píldora por router no
-            escala cuando la flota crece (6 -> ~15 routers). */}
-        <Select value={p.router} onValueChange={p.setRouter}>
-          <SelectTrigger
-            aria-label={t('devices.filterByRouter')}
-            className="h-8 w-auto max-w-56 gap-1.5 rounded-lg border-border bg-elevated px-3 text-xs font-medium text-text-secondary"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('devices.routerAll')}</SelectItem>
+        {/* Flota (#989): multi-selección acumulativa de routers; una píldora
+            por router no escala cuando la flota crece (6 -> ~15 routers). */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <FilterMenuTrigger label={t('devices.fleet')} active={p.routerIds.length} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel>{t('devices.filterByRouter')}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {routers.map((r) => (
-              <SelectItem key={r.id} value={r.id}>
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', ROUTER_DOT[r.id] ?? 'bg-text-muted')} />
-                {r.name}
-              </SelectItem>
+              <DropdownMenuCheckboxItem
+                key={r.id}
+                checked={p.routerIds.includes(r.id)}
+                onCheckedChange={() => p.toggleRouterId(r.id)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                <span className={cn('mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full', ROUTER_DOT[r.id] ?? 'bg-text-muted')} />
+                <span className="flex-1">{r.name}</span>
+                <span className="ml-2 font-mono text-caption text-text-muted">{p.routerCounts[r.id] ?? 0}</span>
+              </DropdownMenuCheckboxItem>
             ))}
-          </SelectContent>
-        </Select>
-        {/* Banda (#970): desplegable, incluye 6 GHz */}
-        <Select value={p.band} onValueChange={(v) => p.setBand(v as BandFilter)}>
-          <SelectTrigger
-            aria-label={t('devices.filterByBand')}
-            className="h-8 w-auto gap-1.5 rounded-lg border-border bg-elevated px-3 text-xs font-medium text-text-secondary"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {BAND_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {'label' in o ? o.label : t(o.labelKey!)}
-              </SelectItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {/* Conexión (#989): multi-selección de banda/cable, incluye 6 GHz */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <FilterMenuTrigger label={t('devices.connection')} active={p.bands.length} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel>{t('devices.filterByBand')}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {BAND_FILTERS.map((o) => (
+              <DropdownMenuCheckboxItem
+                key={o.value}
+                checked={p.bands.includes(o.value)}
+                onCheckedChange={() => p.toggleBand(o.value)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                <span className="flex-1">{o.label ?? t(o.labelKey!)}</span>
+                <span className="ml-2 font-mono text-caption text-text-muted">{p.bandCounts[o.value] ?? 0}</span>
+              </DropdownMenuCheckboxItem>
             ))}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {/* Tipo (multi) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary">
-              <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
-              {t('devices.colType')}
-              {p.groups.length > 0 && (
-                <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
-                  {p.groups.length}
-                </span>
-              )}
-            </button>
+            <FilterMenuTrigger label={t('devices.colType')} active={p.groups.length} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel>{t('devices.deviceType')}</DropdownMenuLabel>
@@ -1338,8 +1360,11 @@ export default function Devices() {
     const hit = allDevices.find((d) => d.mac.toUpperCase() === mac.toUpperCase())
     if (hit) setIntakeId(hit.id)
   }, [searchParams, allDevices])
-  const [router, setRouter] = useState('all')
-  const [band, setBand] = useState<BandFilter>('all')
+  // #989: flota y conexión son multi-selección acumulativa (varios routers o
+  // bandas a la vez, OR dentro del filtro y AND entre filtros), con el mismo
+  // patrón de desplegable con checkboxes que el filtro "Tipo".
+  const [routerIds, setRouterIds] = useState<string[]>([])
+  const [bands, setBands] = useState<BandValue[]>([])
   const [groups, setGroups] = useState<FilterGroup[]>([])
   const [online, setOnlineState] = useState<OnlineFilter>(() => loadDevicesPrefs().online)
   const setOnline = useCallback((v: OnlineFilter) => {
@@ -1410,6 +1435,22 @@ export default function Devices() {
     return counts
   }, [allDevices])
 
+  // #989: contadores por router y por banda para los menús multi-selección.
+  const routerCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const d of allDevices) counts[d.routerId] = (counts[d.routerId] ?? 0) + 1
+    return counts
+  }, [allDevices])
+
+  const bandCounts = useMemo(() => {
+    const counts: Partial<Record<BandValue, number>> = {}
+    for (const d of allDevices) {
+      const b = d.band as BandValue
+      counts[b] = (counts[b] ?? 0) + 1
+    }
+    return counts
+  }, [allDevices])
+
   const [sort, setSort] = useState<SortState>(() => loadDevicesPrefs().sort)
   const toggleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
@@ -1433,8 +1474,8 @@ export default function Devices() {
       if (online === 'offline' && d.online) return false
       if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
       if (onlyUnprotected && d.adguard) return false
-      if (router !== 'all' && d.routerId !== router) return false
-      if (band !== 'all' && d.band !== band) return false
+      if (routerIds.length > 0 && !routerIds.includes(d.routerId)) return false
+      if (bands.length > 0 && !bands.includes(d.band as BandValue)) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
       if (q) {
         const hay = `${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
@@ -1498,20 +1539,30 @@ export default function Devices() {
       }
       return a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, online, onlyWeak, onlyUnprotected, router, band, groups, q, sort, routers])
+  }, [allDevices, online, onlyWeak, onlyUnprotected, routerIds, bands, groups, q, sort, routers])
+
+  const toggleRouterId = useCallback(
+    (id: string) => setRouterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
+    [setRouterIds],
+  )
+
+  const toggleBand = useCallback(
+    (b: BandValue) => setBands((prev) => (prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b])),
+    [setBands],
+  )
 
   const toggleGroup = useCallback(
     (g: FilterGroup) => setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])),
-    [],
+    [setGroups],
   )
 
   const clearFilters = useCallback(() => {
-    setRouter('all')
-    setBand('all')
+    setRouterIds([])
+    setBands([])
     setGroups([])
     setOnline('online')
     setOnlyUnprotected(false)
-  }, [setOnline])
+  }, [setRouterIds, setBands, setGroups, setOnline, setOnlyUnprotected])
 
   const clearAll = useCallback(() => {
     clearFilters()
@@ -1590,12 +1641,12 @@ export default function Devices() {
 
   const pills = useMemo<Pill[]>(() => {
     const list: Pill[] = []
-    if (router !== 'all') {
-      const routerName = routers.find((r) => r.id === router)?.name ?? router
-      list.push({ key: `router-${router}`, label: routerName, clear: () => setRouter('all') })
+    for (const id of routerIds) {
+      const routerName = routers.find((r) => r.id === id)?.name ?? id
+      list.push({ key: `router-${id}`, label: routerName, clear: () => toggleRouterId(id) })
     }
-    if (band !== 'all') {
-      list.push({ key: `band-${band}`, label: band === 'cable' ? t('common.cable') : band, clear: () => setBand('all') })
+    for (const b of bands) {
+      list.push({ key: `band-${b}`, label: b === 'cable' ? t('common.cable') : b, clear: () => toggleBand(b) })
     }
     for (const g of groups) {
       list.push({ key: `group-${g}`, label: t(`devices.groups.${g}`), clear: () => toggleGroup(g) })
@@ -1607,7 +1658,7 @@ export default function Devices() {
       list.push({ key: 'online', label: t(online === 'online' ? 'devices.onlineOnly' : 'devices.onlineOffline'), clear: () => setOnline('all') })
     }
     return list
-  }, [router, routers, band, groups, online, onlyUnprotected, setOnline, toggleGroup, t])
+  }, [routerIds, routers, bands, groups, online, onlyUnprotected, setOnline, toggleRouterId, toggleBand, toggleGroup, t])
 
   const searchBox = (className?: string, autoFocus = false) => (
     <div className={cn('relative', className)}>
@@ -1689,10 +1740,12 @@ export default function Devices() {
 
       {/* ③ Filter bar */}
       <FilterBar
-        router={router}
-        setRouter={setRouter}
-        band={band}
-        setBand={setBand}
+        routerIds={routerIds}
+        toggleRouterId={toggleRouterId}
+        routerCounts={routerCounts}
+        bands={bands}
+        toggleBand={toggleBand}
+        bandCounts={bandCounts}
         groups={groups}
         toggleGroup={toggleGroup}
         online={online}
