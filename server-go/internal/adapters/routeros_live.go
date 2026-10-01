@@ -119,8 +119,15 @@ func buildRouterOSPoll(cfg RouterConfig, res routerOSResource, id routerOSIdenti
 	board.Release.Target = res.Architecture
 	board.Release.Description = desc
 
+	sysInfo := &SysInfo{
+		Uptime: uptime,
+	}
+	sysInfo.Memory.Total = total
+	sysInfo.Memory.Free = free
+
 	return &routerPolled{
 		cfg:       cfg,
+		sysInfo:   sysInfo,
 		cpu:       cpuLoad,
 		ram:       ramPct,
 		uptimeSec: uptime,

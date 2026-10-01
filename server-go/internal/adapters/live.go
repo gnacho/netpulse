@@ -97,8 +97,10 @@ type routerPolled struct {
 	board     *BoardInfo
 	cpu       int
 	ram       int
-	temp      int
-	uptimeSec float64
+	temp              int
+	flash             string
+	firmwareAvailable string
+	uptimeSec         float64
 	net       *NetDevBps
 	leases    []DhcpLease
 	// glClients (GL.iNet): base de clientes del firmware, superset de las
@@ -1260,7 +1262,10 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.cfg.Type != "" {
 		r.Type = p.cfg.Type
 	}
-	if outdatedFw {
+	if p.firmwareAvailable != "" && r.FirmwareTarget == "" {
+		r.FirmwareTarget = p.firmwareAvailable
+	}
+	if outdatedFw || p.firmwareAvailable != "" {
 		r.FirmwareOutdated = true
 		// Alerta no urgente (category system); el engine aplica dedup 5 min.
 		l.engine.Emit(AlertEvent{
@@ -3187,6 +3192,7 @@ type liveExtras struct {
 	MAC                 string        `json:"mac"`
 	Firmware            string        `json:"firmware"`
 	FirmwareUpdated     bool          `json:"firmwareUpdated"`
+	FirmwareAvailable   string        `json:"firmwareAvailable,omitempty"`
 	LastReboot          string        `json:"lastReboot"`
 	Soc                 string        `json:"soc"`
 	Flash               string        `json:"flash"`
@@ -3500,6 +3506,13 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			if extras.Soc == "" {
 				extras.Soc = "—"
 			}
+		}
+		if p.firmwareAvailable != "" {
+			extras.FirmwareAvailable = p.firmwareAvailable
+			extras.FirmwareUpdated = false
+		}
+		if p.flash != "" {
+			extras.Flash = p.flash
 		}
 		if p.uptimeSec > 0 {
 			rb := time.Now().Add(-time.Duration(p.uptimeSec) * time.Second)

@@ -263,6 +263,31 @@ func (l *Live) pollRouterROSAPI(cfg RouterConfig) (*routerPolled, error) {
 	if rows, err := conn.query("/interface/bridge/host/print"); err == nil {
 		p.fdb = routerOSFDB(rows)
 	}
+	if rows, err := conn.query("/system/health/print"); err == nil {
+		p.temp = routerOSTemp(rows)
+	}
+	if cpuRows, err := conn.query("/system/resource/cpu/print"); err == nil && len(cpuRows) > 0 {
+		sum := 0
+		for _, row := range cpuRows {
+			l, _ := strconv.Atoi(row["load"])
+			sum += l
+		}
+		p.cpu = (sum + len(cpuRows)/2) / len(cpuRows)
+	}
+	if hdd, _ := strconv.ParseFloat(rr["total-hdd-space"], 64); hdd > 0 {
+		p.flash = fmt.Sprintf("%.0f MB", hdd/1e6)
+	}
+	if rows, err := conn.query("/system/package/update/print"); err == nil {
+		p.firmwareAvailable = routerOSPackageUpdate(rows)
+		if p.firmwareAvailable == "" {
+			_ = conn.writeSentence("/system/package/update/check-for-updates")
+			if _, err := conn.readSentence(); err == nil {
+				if rowsAfter, err := conn.query("/system/package/update/print"); err == nil {
+					p.firmwareAvailable = routerOSPackageUpdate(rowsAfter)
+				}
+			}
+		}
+	}
 	// Tráfico WAN (issue: "network traffic" en Overview daba 0 para
 	// RouterOS): identificar el interfaz de la ruta por defecto y calcular
 	// su bps por delta de contadores acumulados entre polls — mismo enfoque
@@ -454,5 +479,30 @@ func routerOSFDB(rows []map[string]string) map[string]string {
 		}
 	}
 	return fdb
+}
+
+// routerOSTemp extrae la temperatura del CPU o placa desde /system/health/print.
+func routerOSTemp(rows []map[string]string) int {
+	for _, row := range rows {
+		name := row["name"]
+		if name == "cpu-temperature" || name == "temperature" || name == "board-temperature" {
+			if v, err := strconv.Atoi(row["value"]); err == nil && v > 0 {
+				return v
+			}
+		}
+	}
+	return 0
+}
+
+// routerOSPackageUpdate devuelve la versión disponible si hay una actualización pendiente.
+func routerOSPackageUpdate(rows []map[string]string) string {
+	for _, row := range rows {
+		latest := strings.TrimSpace(row["latest-version"])
+		installed := strings.TrimSpace(row["installed-version"])
+		if latest != "" && latest != installed {
+			return latest
+		}
+	}
+	return ""
 }
 

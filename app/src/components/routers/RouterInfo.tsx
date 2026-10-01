@@ -64,14 +64,14 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           {router.firmwareTarget && (
             <span className="text-text-muted">{t('routerDetail.info.firmwareTarget', { target: router.firmwareTarget })}</span>
           )}
-          {router.firmwareOutdated ? (
+          {ex.firmwareAvailable ? (
+            <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
+              <StatusPill tone="warn" label={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })} />
+            </span>
+          ) : router.firmwareOutdated ? (
             <StatusPill tone="warn" label={t('routers.firmwareOutdated')} />
           ) : ex.firmwareUpdated ? (
             <StatusPill tone="ok" label={t('routerDetail.info.updated')} />
-          ) : ex.firmwareAvailable ? (
-            <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
-              <StatusPill tone="warn" label={ex.firmwareAvailable} />
-            </span>
           ) : null}
         </span>
       ),
