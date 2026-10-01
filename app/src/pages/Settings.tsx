@@ -1852,6 +1852,8 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [error, setError] = useState<string | null>(null)
   /** resultado del último test: mensaje + si el token está ciego */
   const [tested, setTested] = useState<{ msg: string; limited: boolean } | null>(null)
+  const [detecting, setDetecting] = useState(false)
+  const [detectNote, setDetectNote] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -1957,6 +1959,40 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   const empty = { id: '', name: '', url: '', tokenId: '', secret: '' }
 
+  // Detectar (#967): POST /api/config/proxmox/detect barre la /24 de los
+  // hosts de la flota en dos fases (TCP :8006 masivo + confirmación TLS en
+  // serie) y devuelve los PVE confirmados. Decisión multi-host: se pre-
+  // rellena el formulario de nueva instancia con el PRIMER host y la nota
+  // lista todos los encontrados, para cambiar la URL a mano si es otro.
+  // OJO: el nombre NO puede empezar por "use" (eslint rules-of-hooks).
+  const applyDetected = async () => {
+    if (detecting) return
+    setDetecting(true)
+    setError(null)
+    setDetectNote(null)
+    try {
+      const res = await fetch('/api/config/proxmox/detect', { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as { found: boolean; hosts?: string[] }
+      const hosts = json.hosts ?? []
+      if (!json.found || hosts.length === 0) {
+        setDetectNote(t('settings.proxmox.detectNotFound'))
+        return
+      }
+      setIsNew(true)
+      setEditing({ ...empty, url: `https://${hosts[0]}:8006` })
+      setDetectNote(
+        hosts.length > 1
+          ? t('settings.proxmox.detectFoundMany', { hosts: hosts.join(', ') })
+          : t('settings.proxmox.detectFound', { host: hosts[0] }),
+      )
+    } catch {
+      setError(t('settings.proxmox.errorGeneric'))
+    } finally {
+      setDetecting(false)
+    }
+  }
+
   return (
     <Card title={t('settings.proxmox.title')} caption={t('settings.proxmox.caption')} index={5} reduce={reduce} headerSlot={<InfoTip text={t('settings.proxmox.hintShort')} />}>
       <div className="space-y-2.5">
@@ -1979,6 +2015,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 setIsNew(false)
                 setEditing({ ...inst, secret: '' })
                 setError(null)
+                setDetectNote(null)
               }}
               aria-label={t('settings.proxmox.edit')}
               title={t('settings.proxmox.edit')}
@@ -2069,6 +2106,7 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   setEditing(null)
                   setError(null)
                   setTested(null)
+                  setDetectNote(null)
                 }}
                 className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text-primary"
               >
@@ -2087,22 +2125,35 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             )}
           </form>
         ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setIsNew(true)
-              setEditing({ ...empty })
-              setError(null)
-            }}
-            disabled={saving}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-40"
-          >
-            <Plus className="h-4 w-4" strokeWidth={1.75} />
-            {t('settings.proxmox.add')}
-          </button>
+          <div className="flex flex-col gap-2.5 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => {
+                setIsNew(true)
+                setEditing({ ...empty })
+                setError(null)
+                setDetectNote(null)
+              }}
+              disabled={saving || detecting}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
+              {t('settings.proxmox.add')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void applyDetected()}
+              disabled={detecting || saving}
+              className="flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+            >
+              {detecting ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} /> : <Radar className="h-4 w-4" strokeWidth={1.75} />}
+              {detecting ? t('settings.proxmox.detecting') : t('settings.proxmox.detect')}
+            </button>
+          </div>
         )}
       </div>
       {error && !editing && <p className="mt-2 text-caption text-danger">{error}</p>}
+      {detectNote && <p className="mt-2 text-caption text-text-muted">{detectNote}</p>}
     </Card>
   )
 }

@@ -1712,6 +1712,11 @@
       "test": "Test",
       "testOk": "Connected: Proxmox {{version}} · {{nodes}} node(s), {{vms}} VM(s), {{cts}} CT(s)",
       "testLimited": "The token authenticates but cannot see any guest: Proxmox returns the lists empty when the token lacks audit rights. Grant it PVEAuditor on \"/\" — on the Proxmox host: pveum acl modify / --tokens 'USER@REALM!TOKEN' --roles PVEAuditor. A token with privilege separation needs the permission itself, not just its user.",
+      "detect": "Detect",
+      "detecting": "Detecting…",
+      "detectFound": "Proxmox server detected at {{host}} - fill in the token and save",
+      "detectFoundMany": "Proxmox servers detected: {{hosts}} - the first one has been pre-filled",
+      "detectNotFound": "No Proxmox servers found on the fleet network",
       "hintShort": "Read-only API: the token needs the Sys.Audit and VM.Audit permissions. The steps to create it are on the Help page."
     },
     "sections": {

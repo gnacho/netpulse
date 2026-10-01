@@ -1712,6 +1712,11 @@
       "test": "Probar",
       "testOk": "Conectado: Proxmox {{version}} · {{nodes}} nodo(s), {{vms}} VM(s), {{cts}} CT(s)",
       "testLimited": "El token autentica pero no ve ningún invitado: Proxmox devuelve las listas vacías cuando al token le faltan permisos de auditoría. Dale PVEAuditor en \"/\" — en el host Proxmox: pveum acl modify / --tokens 'USUARIO@REALM!TOKEN' --roles PVEAuditor. Un token con separación de privilegios necesita el permiso él mismo, no basta con el de su usuario.",
+      "detect": "Detectar",
+      "detecting": "Detectando…",
+      "detectFound": "Servidor Proxmox detectado en {{host}} - completa el token y guarda",
+      "detectFoundMany": "Servidores Proxmox detectados: {{hosts}} - se ha pre-rellenado el primero",
+      "detectNotFound": "No se encontraron servidores Proxmox en la red de la flota",
       "hintShort": "API de solo lectura: el token necesita los permisos Sys.Audit y VM.Audit. Los pasos para crearlo están en la página de Ayuda."
     },
     "sections": {
