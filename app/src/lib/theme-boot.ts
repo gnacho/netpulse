@@ -152,6 +152,24 @@ function applyPalette(light: boolean) {
   root.setAttribute('data-palette', id)
 }
 
+/** Evento de ventana que avisa a los toggles de tema de que el modo cambio. */
+export const THEME_CHANGE_EVENT = 'netpulse-theme-change'
+
+/**
+ * Punto unico para cambiar el modo desde la UI (ThemeToggle, #980): persiste
+ * MODE_KEY, re-aplica clases + paleta inline (applyTheme) y notifica al resto
+ * de instancias para que sincronicen su icono.
+ */
+export function setMode(mode: ThemeMode) {
+  try {
+    localStorage.setItem(MODE_KEY, JSON.stringify(mode))
+  } catch {
+    /* noop */
+  }
+  applyTheme(mode)
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT))
+}
+
 function applyDensity() {
   const d = readJson<string>(DENSITY_KEY)
   document.documentElement.style.fontSize = d === 'compacta' ? '13.5px' : ''

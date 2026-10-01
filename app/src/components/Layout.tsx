@@ -271,9 +271,6 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
               </span>
             </NavLink>
           ))}
-          <div className="mx-auto flex h-11 w-11 items-center justify-center">
-            <ThemeToggle />
-          </div>
         </nav>
         <div className="flex flex-col items-center border-t border-border py-3">
           <button
@@ -328,10 +325,6 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
             )}
           </NavLink>
         ))}
-        <div className="flex h-10 items-center gap-3 px-3 text-sm font-medium text-text-secondary">
-          <ThemeToggle />
-          {t('nav.theme')}
-        </div>
       </nav>
       <div className="space-y-3 border-t border-border p-3">
         <GatewayStatus />
@@ -386,9 +379,6 @@ function Rail() {
             </span>
           </NavLink>
         ))}
-        <div className="mx-auto flex h-11 w-11 items-center justify-center">
-          <ThemeToggle />
-        </div>
       </nav>
     </aside>
   )
@@ -488,6 +478,7 @@ function Topbar() {
             strokeWidth={1.75}
           />
         </button>
+        <ThemeToggle />
         <LivePill />
         <BellButton />
       </div>

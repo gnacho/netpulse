@@ -619,6 +619,8 @@
     "settings": "Ajustes",
     "settingsDesc": "Tema, unidades e instalación",
     "theme": "Tema",
+    "themeToDark": "Cambiar a tema oscuro",
+    "themeToLight": "Cambiar a tema claro",
     "topology": "Topología",
     "topologyDesc": "Mapa visual de la red",
     "collapse": "Plegar menú",

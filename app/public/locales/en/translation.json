@@ -619,6 +619,8 @@
     "settings": "Settings",
     "settingsDesc": "Theme, units and installation",
     "theme": "Theme",
+    "themeToDark": "Switch to dark theme",
+    "themeToLight": "Switch to light theme",
     "topology": "Topology",
     "topologyDesc": "Visual network map",
     "collapse": "Collapse menu",

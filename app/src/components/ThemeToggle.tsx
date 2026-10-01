@@ -1,39 +1,39 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { readMode, resolveLight, setMode, THEME_CHANGE_EVENT } from '@/lib/theme-boot'
 
-const STORAGE_KEY = 'netpulse-theme'
-
-function applyTheme(light: boolean) {
-  const el = document.documentElement
-  el.classList.toggle('light', light)
-  el.classList.toggle('dark', !light)
-}
-
-/** Toggle de tema dark-first (default oscuro; .light para claro). Persiste en localStorage. */
+/**
+ * Toggle de tema claro/oscuro (#980). Delega en theme-boot.setMode, que
+ * persiste `netpulse-theme-mode`, conmuta las clases .light/.dark Y re-aplica
+ * la paleta como variables inline en <html> (sin esto ultimo las vars inline
+ * oscuras del boot ganaban a la regla `html.light` del stylesheet y el click
+ * no cambiaba ningun color). Se sincroniza entre instancias via
+ * THEME_CHANGE_EVENT.
+ */
 export function ThemeToggle({ className }: { className?: string }) {
-  const [light, setLight] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem(STORAGE_KEY) === 'light'
-  })
+  const { t } = useTranslation()
+  const [light, setLight] = useState<boolean>(() => resolveLight(readMode()))
 
   useEffect(() => {
-    applyTheme(light)
-  }, [light])
+    const sync = () => setLight(resolveLight(readMode()))
+    window.addEventListener(THEME_CHANGE_EVENT, sync)
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, sync)
+  }, [])
 
   const toggle = useCallback(() => {
-    setLight((prev) => {
-      const next = !prev
-      localStorage.setItem(STORAGE_KEY, next ? 'light' : 'dark')
-      return next
-    })
-  }, [])
+    const next = !light
+    setMode(next ? 'light' : 'dark')
+    setLight(next)
+  }, [light])
 
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-label={light ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
+      aria-label={light ? t('nav.themeToDark') : t('nav.themeToLight')}
+      title={light ? t('nav.themeToDark') : t('nav.themeToLight')}
       className={cn(
         'flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary',
         'transition-colors duration-150 hover:border-accent/40 hover:text-accent',
