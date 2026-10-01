@@ -97,14 +97,27 @@ func buildRouterOSPoll(cfg RouterConfig, res routerOSResource, id routerOSIdenti
 		ramPct = int((total - free) / total * 100)
 	}
 
+	model := res.BoardName
+	if model == "" {
+		model = "RouterOS"
+	}
+	desc := "RouterOS " + res.Version
+	if res.BoardName != "" {
+		desc = "RouterOS " + res.Version + " (" + res.BoardName + ")"
+	}
+	soc := res.Architecture
+	if soc == "" {
+		soc = "routeros"
+	}
 	board := &BoardInfo{
-		Model:     res.BoardName,
+		Model:     model,
 		Hostname:  id.Name,
-		System:    "routeros",
+		System:    soc,
 		BoardName: res.BoardName,
 	}
 	board.Release.Version = res.Version
 	board.Release.Target = res.Architecture
+	board.Release.Description = desc
 
 	return &routerPolled{
 		cfg:       cfg,

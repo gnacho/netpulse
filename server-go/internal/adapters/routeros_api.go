@@ -252,9 +252,16 @@ func (l *Live) pollRouterROSAPI(cfg RouterConfig) (*routerPolled, error) {
 	if rows, err := conn.query("/interface/print"); err == nil {
 		ifRows = rows
 		p.ports = routerOSPorts(rows)
+		p.brMac = routerOSBridgeMAC(rows)
 	}
 	if rows, err := conn.query("/ip/dhcp-server/lease/print"); err == nil {
 		p.leases = routerOSLeases(rows)
+	}
+	if rows, err := conn.query("/ip/arp/print"); err == nil {
+		p.arp, p.arpStale = routerOSArp(rows)
+	}
+	if rows, err := conn.query("/interface/bridge/host/print"); err == nil {
+		p.fdb = routerOSFDB(rows)
 	}
 	// Tráfico WAN (issue: "network traffic" en Overview daba 0 para
 	// RouterOS): identificar el interfaz de la ruta por defecto y calcular
@@ -365,11 +372,87 @@ func routerOSLeases(rows []map[string]string) []DhcpLease {
 		if mac == "" {
 			continue
 		}
+		var expAt *int64
+		if exp := row["expires-after"]; exp != "" {
+			if sec, err := parseRouterOSUptime(exp); err == nil && sec > 0 {
+				at := time.Now().Unix() + int64(sec)
+				expAt = &at
+			}
+		}
 		leases = append(leases, DhcpLease{
-			MAC:      mac,
-			IP:       row["address"],
-			Hostname: row["host-name"],
+			MAC:            mac,
+			IP:             row["address"],
+			Hostname:       row["host-name"],
+			LeaseExpiresAt: expAt,
 		})
 	}
 	return leases
 }
+
+// routerOSBridgeMAC extrae la MAC principal del equipo (bridge o primer interface físico ether).
+func routerOSBridgeMAC(rows []map[string]string) string {
+	// 1. Interfaz bridge
+	for _, row := range rows {
+		if row["type"] == "bridge" {
+			mac := strings.ToUpper(strings.TrimSpace(row["mac-address"]))
+			if mac != "" && mac != "00:00:00:00:00:00" {
+				return mac
+			}
+		}
+	}
+	// 2. Primera interfaz ethernet física
+	for _, row := range rows {
+		if row["type"] == "ether" {
+			mac := strings.ToUpper(strings.TrimSpace(row["mac-address"]))
+			if mac != "" && mac != "00:00:00:00:00:00" {
+				return mac
+			}
+		}
+	}
+	// 3. Fallback a cualquier interfaz con MAC válida
+	for _, row := range rows {
+		mac := strings.ToUpper(strings.TrimSpace(row["mac-address"]))
+		if mac != "" && mac != "00:00:00:00:00:00" {
+			return mac
+		}
+	}
+	return ""
+}
+
+// routerOSArp mapea /ip/arp/print a map[MAC]IP y un conjunto de stale MACs.
+func routerOSArp(rows []map[string]string) (map[string]string, map[string]bool) {
+	arp := make(map[string]string, len(rows))
+	stale := make(map[string]bool)
+	for _, row := range rows {
+		if row["disabled"] == "true" || row["invalid"] == "true" {
+			continue
+		}
+		mac := strings.ToUpper(strings.TrimSpace(row["mac-address"]))
+		ip := strings.TrimSpace(row["address"])
+		if mac != "" && ip != "" {
+			arp[mac] = ip
+			if row["status"] == "failed" || row["status"] == "stale" {
+				stale[mac] = true
+			}
+		}
+	}
+	return arp, stale
+}
+
+// routerOSFDB mapea /interface/bridge/host/print a map[MAC]port, excluyendo
+// las entradas locales del propio router (local=true).
+func routerOSFDB(rows []map[string]string) map[string]string {
+	fdb := make(map[string]string, len(rows))
+	for _, row := range rows {
+		if row["local"] == "true" {
+			continue
+		}
+		mac := strings.ToUpper(strings.TrimSpace(row["mac-address"]))
+		port := strings.TrimSpace(row["on-interface"])
+		if mac != "" && port != "" {
+			fdb[mac] = port
+		}
+	}
+	return fdb
+}
+

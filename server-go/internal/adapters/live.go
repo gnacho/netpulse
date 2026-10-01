@@ -1229,7 +1229,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
-	} else if p.cfg.AgentOnly {
+	} else if p.cfg.Type == "routeros" {
+		r.Role, r.RoleBadge = "Router", "Router"
+	} else if p.cfg.AgentOnly || p.cfg.Type == "managed-switch" {
 		r.Role, r.RoleBadge = "Switch", "SW"
 	} else {
 		r.Role, r.RoleBadge = "Punto de acceso", "AP"
@@ -1321,8 +1323,13 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		r = *prev
 	} else {
 		model := "OpenWrt"
-		if cfg.Type == "glinet" {
+		switch cfg.Type {
+		case "glinet":
 			model = "GL.iNet"
+		case "routeros":
+			model = "RouterOS"
+		case "managed-switch":
+			model = "Managed Switch"
 		}
 		name := cfg.Name
 		if name == "" {
@@ -1333,13 +1340,19 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 			IP: cfg.Host, Health: 0,
 			CPU: iptr(0), RAM: iptr(0), Temp: iptr(0),
 			Uptime: "—", Clients: 0, Sparkline: []float64{},
+			Type: cfg.Type,
 		}
 		if gw != nil && cfg.ID == gw.ID {
 			r.Role, r.RoleBadge = "Gateway principal", "Principal"
+		} else if cfg.Type == "routeros" {
+			r.Role, r.RoleBadge = "Router", "Router"
+		} else if cfg.Type == "managed-switch" {
+			r.Role, r.RoleBadge = "Switch", "SW"
 		} else {
 			r.Role, r.RoleBadge = "Punto de acceso", "AP"
 		}
 	}
+	r.Type = cfg.Type
 	r.Status = "offline"
 	if l.accessMissing(cfg.ID) {
 		r.Status = "unreachable"
@@ -2243,15 +2256,17 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 // FDB gateway si no hay memoria) + device_attrib (index.js:396-460).
 func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	leasesByMac := map[string]DhcpLease{}
+	leaseRouter := map[string]string{}
 	arpByMac := map[string]string{}
 	glByMac := map[string]DhcpLease{}
-	for _, p := range polled {
+	for rID, p := range polled {
 		for mac, ip := range p.arp {
 			arpByMac[mac] = ip
 		}
 		for _, le := range p.leases {
 			if le.MAC != "" {
 				leasesByMac[le.MAC] = le
+				leaseRouter[le.MAC] = rID
 			}
 		}
 		// gl-clients: fallback de IP para MACs sin lease (dnsmasq sin ese
@@ -2443,9 +2458,6 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			if _, ok := seen[mac]; ok {
 				continue
 			}
-			if _, ok := leasesByMac[mac]; ok {
-				continue
-			}
 			if _, ok := known[mac]; ok {
 				continue
 			}
@@ -2577,11 +2589,17 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		// tiene idioma: "Desconocido" viajaba tal cual hasta la UI y salía en
 		// español en una interfaz en inglés. Quien pinta, traduce.
 		manufacturer := oui.Lookup(mac)
+		defaultRouterID := gwID
+		if defaultRouterID == "" {
+			if rID, ok := leaseRouter[mac]; ok {
+				defaultRouterID = rID
+			}
+		}
 		d := Device{
 			ID:  strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
 			MAC: mac, Manufacturer: manufacturer,
 			TrafficMbps: 0, Sparkline: []float64{},
-			RouterID: gwID, Band: "—",
+			RouterID: defaultRouterID, Band: "—",
 			Online: isSeen,
 		}
 		if hasLease {
@@ -2676,6 +2694,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			d.RouterID = k.routerID
 			d.Band = k.band
 			d.SignalDbm = k.signal
+		} else if rID, ok := leaseRouter[mac]; ok && d.RouterID == "" {
+			d.RouterID = rID
 		}
 		// #551: TrafficMbps del cliente desde el rate en memoria (nlbwmon u
 		// hostapd) sin consultar la store en cada rebuild. Solo online; los
@@ -3517,12 +3537,11 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		l.mu.Unlock()
 	}
 	if gw != nil && id == gw.ID {
-		// AdGuard Home es un paquete OpenWrt/GL.iNet; no aplica a RouterOS
-		// (issue: no debe aparecer un panel de AdGuard en un gateway RouterOS).
+		// AdGuard Home y WireGuard (OpenWrt/GL.iNet ubus/SSH) no aplican a RouterOS.
 		if cfg.Type != "routeros" {
 			detail.Adguard = l.pollAdGuard(ctx)
+			detail.Wireguard = l.pollWireGuard(clients)
 		}
-		detail.Wireguard = l.pollWireGuard(clients)
 	} else {
 		// Backhaul real del AP: boca que enlaza con otro router + latencia
 		var uplink *EthPort

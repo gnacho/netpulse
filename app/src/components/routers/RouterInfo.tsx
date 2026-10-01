@@ -54,7 +54,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     // aparecer en ningún sitio de la web; la fila ID lo hace visible.
     { label: 'ID', node: router.id },
     { label: 'IP LAN', node: router.ip },
-    { label: 'MAC', node: ex.mac },
+    { label: 'MAC', node: ex.mac && ex.mac !== '—' ? ex.mac : (router.mac || '—') },
     {
       label: 'Firmware',
       node: (
@@ -81,7 +81,17 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     { label: t('routerDetail.info.timezone'), node: ex.timezone ?? '—' },
     {
       label: t('routerDetail.info.access'),
-      node: (
+      node: router.type === 'routeros' ? (
+        <span className="inline-flex items-center gap-1.5">
+          <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
+          RouterOS API
+          <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">8728</span>
+        </span>
+      ) : router.type === 'managed-switch' || router.type === 'external' ? (
+        <span className="inline-flex items-center gap-1.5">
+          SNMP / API
+        </span>
+      ) : (
         <span className="inline-flex items-center gap-1.5">
           <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
           SSH
@@ -131,13 +141,15 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
             {t('routerDetail.info.openNetgrip')}
           </a>
         )}
-        <button
-          onClick={copySsh}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
-        >
-          <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
-          {t('routerDetail.info.copySsh')}
-        </button>
+        {router.type !== 'routeros' && router.type !== 'managed-switch' && router.type !== 'external' && (
+          <button
+            onClick={copySsh}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {t('routerDetail.info.copySsh')}
+          </button>
+        )}
       </div>
 
       {/* Toast "Comando copiado" */}

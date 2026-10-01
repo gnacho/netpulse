@@ -27,7 +27,8 @@ import { cn, copyToClipboard } from '@/lib/utils'
  */
 
 function isOpenWrtType(t: string | undefined): boolean {
-  return t === undefined || t === '' || t === 'glinet' || t === 'openwrt'
+  if (!t) return true
+  return t === 'glinet' || t === 'openwrt'
 }
 
 // copyText: alias del helper compartido con fallback para orígenes no
