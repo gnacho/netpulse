@@ -1303,7 +1303,11 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "errorGeneric": "No se pudo guardar.",
-      "hint": "El modo GL.iNet inicia sesión en la interfaz del router por SSH y consulta el puerto 3000. El modo estándar conecta directamente a una instancia remota de AdGuard Home por HTTP; el puerto por defecto es 3000. La contraseña se guarda solo en el servidor."
+      "hint": "El modo GL.iNet inicia sesión en la interfaz del router por SSH y consulta el puerto 3000. El modo estándar conecta directamente a una instancia remota de AdGuard Home por HTTP; el puerto por defecto es 3000. La contraseña se guarda solo en el servidor.",
+      "detect": "Detectar",
+      "detecting": "Detectando…",
+      "detectFound": "AdGuard Home detectado en {{host}} - confirma la contraseña y guarda",
+      "detectNotFound": "No se encontró AdGuard Home ni en la puerta de enlace ni en la flota"
     },
     "appearance": "Apariencia",
     "appearanceCaption": "Se aplica al instante y se recuerda en este dispositivo",
@@ -1544,15 +1548,22 @@
     },
     "saved": "Preferencias guardadas",
     "services": {
-      "title": "Servicios",
-      "caption": "Qué servicios se muestran y monitorizan",
+      "title": "Integraciones",
+      "caption": "Servicios de red visibles e integraciones activas en el servidor",
       "adguardCaption": "DNS filtrado en la puerta de enlace",
       "wireguardCaption": "Túneles VPN WireGuard",
       "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
       "labs": "Labs (aplicaciones experimentales)",
       "labsCaption": "Activa funcionalidades en desarrollo: orquestación, scrapers y más",
       "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
-      "note": "Solo se muestran y se monitorizan los servicios marcados. Más servicios próximamente."
+      "note": "Solo se muestran y se monitorizan los servicios marcados. Más servicios próximamente.",
+      "networkGroup": "Servicios de red",
+      "integrationsGroup": "Integraciones",
+      "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
+      "ntfyCaption": "Notificaciones push por ntfy",
+      "telegramCaption": "Notificaciones al bot de Telegram",
+      "mqttCaption": "Publicación del estado en el broker MQTT",
+      "configure": "Configurar {{name}}"
     },
     "session": {
       "active": "Sesión activa en este dispositivo",

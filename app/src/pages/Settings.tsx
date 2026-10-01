@@ -35,6 +35,7 @@ import {
    RotateCw,
   Router as RouterIcon,
    Server,
+   Settings2,
     Shield,
     ShieldCheck,
    Star,
@@ -67,6 +68,8 @@ import { useAuth } from '@/data/AuthContext'
 import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
+import { useIntegrations } from '@/hooks/useIntegrations'
+import type { IntegrationsState } from '@/hooks/useIntegrations'
 import { relTimeFromTs } from '@/i18n'
 import { cn, copyToClipboard, exitDemo } from '@/lib/utils'
 import { useTempUnit } from '@/lib/temperature'
@@ -1549,7 +1552,9 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [disabling, setDisabling] = useState(false)
+  const [detecting, setDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [detectNote, setDetectNote] = useState<string | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -1580,6 +1585,42 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   }, [gwIp])
 
   const displayHost = mode === 'glinet' ? host : `${host}:${port}`
+
+  // Detectar (#964): POST /api/config/adguard/detect sondea la presencia de
+  // AdGuard Home (gateway primero, luego flota) y pre-rellena mode/host/port.
+  // La password la confirma el usuario después (el detect no toca credenciales).
+  // OJO: el nombre NO puede empezar por "use" (eslint rules-of-hooks lo
+  // tomaría por un hook).
+  const applyDetected = async () => {
+    if (detecting) return
+    setDetecting(true)
+    setError(null)
+    setDetectNote(null)
+    try {
+      const res = await fetch('/api/config/adguard/detect', { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as {
+        found: boolean
+        mode?: 'glinet' | 'standard'
+        host?: string
+        port?: number
+        source?: string
+      }
+      if (!json.found || !json.host) {
+        setDetectNote(t('settings.adguard.detectNotFound'))
+        return
+      }
+      setMode(json.mode === 'standard' ? 'standard' : 'glinet')
+      setHost(json.host)
+      setPort(String(json.port || 3000))
+      setEditing(true)
+      setDetectNote(t('settings.adguard.detectFound', { host: json.host }))
+    } catch {
+      setError(t('settings.adguard.errorGeneric'))
+    } finally {
+      setDetecting(false)
+    }
+  }
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1734,6 +1775,15 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             {passSet ? t('settings.adguard.configured') : t('settings.adguard.notConfigured')}
           </span>
           <button
+            type="button"
+            onClick={() => void applyDetected()}
+            disabled={detecting || saving}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+          >
+            {detecting ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} /> : <Radar className="h-4 w-4" strokeWidth={1.75} />}
+            {detecting ? t('settings.adguard.detecting') : t('settings.adguard.detect')}
+          </button>
+          <button
             type="submit"
             disabled={saving || !host.trim() || (mode === 'standard' && (!port || Number.isNaN(parseInt(port, 10)))) || (!passSet && !password)}
             className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
@@ -1755,6 +1805,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           )}
         </div>
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
+        {detectNote && <p className="mt-2 text-caption text-text-muted">{detectNote}</p>}
         <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.adguard.hint')}</p>
       </form>
     </Card>
@@ -3208,6 +3259,10 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
 // Página Ajustes `/settings` (settings.md)
 // ---------------------------------------------------------------------------
 
+// Clave de integración configurable desde la tarjeta (icono Settings2 que
+// abre el Dialog con su manager, #968).
+type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt'
+
 function ServicesCard({
   reduce,
   onSaved,
@@ -3225,10 +3280,20 @@ function ServicesCard({
 }) {
   const { t } = useTranslation()
   const [services, setService] = useServicesVisibility()
-  const rows: { key: keyof ServicesVisibility; label: string; caption: string }[] = [
-    { key: 'adguard', label: 'AdGuard Home', caption: t('settings.services.adguardCaption') },
+  // Toggles server-side de integraciones (#968): se leen del servidor al
+  // montar (coherencia entre navegadores) y se escriben al cambiar.
+  const { integrations, setIntegration } = useIntegrations(!disabled)
+  const [dialog, setDialog] = useState<IntegrationDialogKey | null>(null)
+  const networkRows: { key: keyof ServicesVisibility; label: string; caption: string; dialogKey?: IntegrationDialogKey }[] = [
+    { key: 'adguard', label: 'AdGuard Home', caption: t('settings.services.adguardCaption'), dialogKey: 'adguard' },
     { key: 'wireguard', label: 'WireGuard', caption: t('settings.services.wireguardCaption') },
     { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
+  ]
+  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey }[] = [
+    { key: 'proxmox', label: 'Proxmox VE', caption: t('settings.services.proxmoxCaption'), dialogKey: 'proxmox' },
+    { key: 'ntfy', label: 'ntfy', caption: t('settings.services.ntfyCaption'), dialogKey: 'ntfy' },
+    { key: 'telegram', label: 'Telegram', caption: t('settings.services.telegramCaption'), dialogKey: 'telegram' },
+    { key: 'mqtt', label: 'MQTT', caption: t('settings.services.mqttCaption'), dialogKey: 'mqtt' },
   ]
 
   // AdGuard (#813): el toggle de Servicios también controla el sondeo y la
@@ -3258,43 +3323,46 @@ function ServicesCard({
     }
   }
 
+  // Icono Settings2 como trailing del SwitchRow: abre el Dialog con el
+  // manager de la integración (#968).
+  const gear = (dialogKey: IntegrationDialogKey, name: string) => (
+    <button
+      type="button"
+      onClick={() => setDialog(dialogKey)}
+      aria-label={t('settings.services.configure', { name })}
+      title={t('settings.services.configure', { name })}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+    >
+      <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+    </button>
+  )
+
+  // Los diálogos de configuración de integraciones van GRANDES (#968): el
+  // manager (formularios, tablas) necesita el ancho casi completo.
+  const dialogCls = 'w-[calc(100vw-2rem)] max-w-7xl max-h-[94vh] overflow-y-auto'
+
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
       <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
-        <div className="divide-y divide-border/60">
-          <SwitchRow
-            label={rows[0]!.label}
-            caption={rows[0]!.caption}
-            checked={services[rows[0]!.key]}
-            disabled={disabled}
-            onCheckedChange={(v) => {
-              onServiceToggle(rows[0]!.key, v)
-              onSaved()
-            }}
-          />
-          <SwitchRow
-            label={rows[1]!.label}
-            caption={rows[1]!.caption}
-            checked={services[rows[1]!.key]}
-            disabled={disabled}
-            onCheckedChange={(v) => {
-              onServiceToggle(rows[1]!.key, v)
-              onSaved()
-            }}
-          />
-        </div>
-        <div className="divide-y divide-border/60">
-          <SwitchRow
-            label={rows[2]!.label}
-            caption={rows[2]!.caption}
-            checked={services[rows[2]!.key]}
-            disabled={disabled}
-            onCheckedChange={(v) => {
-              onServiceToggle(rows[2]!.key, v)
-              onSaved()
-            }}
-          />
-          <div className="py-3">
+        {/* Grupo "Servicios de red": toggles de visibilidad (AdGuard/WG/
+            OpenVPN) + Labs DIRECTAMENTE DEBAJO de OpenVPN. */}
+        <div>
+          <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
+          <div className="divide-y divide-border/60">
+            {networkRows.map((row) => (
+              <SwitchRow
+                key={row.key}
+                label={row.label}
+                caption={row.caption}
+                checked={services[row.key]}
+                disabled={disabled}
+                trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
+                onCheckedChange={(v) => {
+                  onServiceToggle(row.key, v)
+                  onSaved()
+                }}
+              />
+            ))}
             <SwitchRow
               label={t('settings.services.labs')}
               caption={t('settings.services.labsCaption')}
@@ -3305,6 +3373,27 @@ function ServicesCard({
                 onSaved()
               }}
             />
+          </div>
+        </div>
+        {/* Grupo "Integraciones": toggles SERVER-SIDE (Proxmox/ntfy/
+            Telegram/MQTT) con icono de configuración. */}
+        <div>
+          <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
+          <div className="divide-y divide-border/60">
+            {integrationRows.map((row) => (
+              <SwitchRow
+                key={row.key}
+                label={row.label}
+                caption={row.caption}
+                checked={integrations[row.key]}
+                disabled={disabled}
+                trailing={gear(row.dialogKey, row.label)}
+                onCheckedChange={(v) => {
+                  setIntegration(row.key, v)
+                  onSaved()
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -3351,6 +3440,51 @@ function ServicesCard({
       <p className="mt-3 rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
         {t('settings.services.note')}
       </p>
+
+      {/* Diálogos de configuración de integraciones (#968): los managers
+          viven SOLO aquí (AdGuard/Proxmox) o también en Notificaciones
+          (ntfy/Telegram/MQTT). Título sr-only: el Card del manager ya lo
+          muestra. */}
+      <Dialog open={dialog === 'adguard'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={dialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.adguard.title')}</DialogTitle>
+          </DialogHeader>
+          <AdGuardManager reduce={reduce} onSaved={onSaved} />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'proxmox'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={dialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.proxmox.title')}</DialogTitle>
+          </DialogHeader>
+          <ProxmoxManager reduce={reduce} onSaved={onSaved} />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'ntfy'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={dialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.ntfy.title')}</DialogTitle>
+          </DialogHeader>
+          <NtfyCard onSaved={onSaved} bare />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'telegram'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={dialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.telegram.title')}</DialogTitle>
+          </DialogHeader>
+          <TelegramCard onSaved={onSaved} bare />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'mqtt'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={dialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.mqtt.title')}</DialogTitle>
+          </DialogHeader>
+          <MqttCard onSaved={onSaved} bare />
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
@@ -4275,8 +4409,6 @@ export default function Settings() {
   const reduce = useReducedMotion() ?? false
   const { devices, wan, isDemo, refresh: refreshOverview } = useNetPulse()
   const auth = useAuth()
-  // SPEC-65 D65-7c: la tarjeta AdGuard entera desaparece si el servicio está oculto
-  const [services] = useServicesVisibility()
   const [adminPanel, setAdminPanel] = useState<'users' | 'backups' | 'autoupdate' | null>(null)
 
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
@@ -4637,7 +4769,6 @@ export default function Settings() {
       ...(!isDemo && auth?.role === 'admin'
         ? [
             { href: '#sec-red', label: t('settings.sections.network') },
-            { href: '#sec-integraciones', label: t('settings.sections.integrations') },
             { href: '#sec-cuenta', label: t('settings.sections.account') },
             { href: '#sec-admin', label: t('settings.sections.administration') },
           ]
@@ -4707,11 +4838,6 @@ export default function Settings() {
         {!isDemo && auth?.role === 'admin' && (
           <div className="scroll-mt-32 order-80" id="sec-red">
             <SectionLabel>{t('settings.sections.network')}</SectionLabel>
-          </div>
-        )}
-        {!isDemo && auth?.role === 'admin' && (
-          <div className="scroll-mt-32 order-130" id="sec-integraciones">
-            <SectionLabel>{t('settings.sections.integrations')}</SectionLabel>
           </div>
         )}
         {!isDemo && auth?.role === 'admin' && (
@@ -5336,20 +5462,9 @@ export default function Settings() {
           </div>
         )}
 
-        {/* AdGuard Home (GL.iNet) — solo admin, modo live y servicio visible */}
-        {!isDemo && auth?.role === 'admin' && services.adguard && (
-          <div className="order-140">
-            <AdGuardManager reduce={reduce} onSaved={notify} />
-          </div>
-        )}
-
-        {/* Proxmox VE (#561): inventario read-only del cluster para sellar
-            hypervisor/ct. */}
-        {!isDemo && auth?.role === 'admin' && (
-          <div className="order-150">
-            <ProxmoxManager reduce={reduce} onSaved={notify} />
-          </div>
-        )}
+        {/* AdGuard Home y Proxmox VE (#968): sus managers viven SOLO en el
+            Dialog que abre el icono Settings2 de la tarjeta Integraciones;
+            ya no son tarjetas sueltas del flujo. */}
 
         {/* Mi perfil (issue #119): card canónica del shared-shell — avatar,
             nombre editable (clic → input inline ✓/✕), idioma, contraseña y

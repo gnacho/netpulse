@@ -1303,7 +1303,11 @@
       "save": "Save",
       "saving": "Saving…",
       "errorGeneric": "Could not save.",
-      "hint": "GL.iNet mode logs into the router UI through SSH and queries port 3000. Standard mode connects directly to a remote AdGuard Home instance over HTTP; the default port is 3000. The password is stored only on the server."
+      "hint": "GL.iNet mode logs into the router UI through SSH and queries port 3000. Standard mode connects directly to a remote AdGuard Home instance over HTTP; the default port is 3000. The password is stored only on the server.",
+      "detect": "Detect",
+      "detecting": "Detecting…",
+      "detectFound": "AdGuard Home detected at {{host}} - confirm the password and save",
+      "detectNotFound": "AdGuard Home was not found on the gateway or the fleet"
     },
     "appearance": "Appearance",
     "appearanceCaption": "Applies instantly and is remembered on this device",
@@ -1544,15 +1548,22 @@
     },
     "saved": "Preferences saved",
     "services": {
-      "title": "Services",
-      "caption": "Which services are shown and monitored",
+      "title": "Integrations",
+      "caption": "Visible network services and active server integrations",
       "adguardCaption": "Filtered DNS on the gateway",
       "wireguardCaption": "WireGuard VPN tunnels",
       "openvpnCaption": "OpenVPN tunnels (coming soon)",
       "labs": "Labs (experimental features)",
       "labsCaption": "Enable features in development: orchestration, scrapers, and more",
       "orchestrationHint": "Manage routers from the UI (AdGuard, guest Wi-Fi, DDNS…)",
-      "note": "Only checked services are shown and monitored. More services coming soon."
+      "note": "Only checked services are shown and monitored. More services coming soon.",
+      "networkGroup": "Network services",
+      "integrationsGroup": "Integrations",
+      "proxmoxCaption": "Cluster inventory (hypervisors and CTs)",
+      "ntfyCaption": "Push notifications via ntfy",
+      "telegramCaption": "Notifications to the Telegram bot",
+      "mqttCaption": "Fleet state published to the MQTT broker",
+      "configure": "Configure {{name}}"
     },
     "session": {
       "active": "Active session on this device",
