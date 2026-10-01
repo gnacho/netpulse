@@ -3487,9 +3487,9 @@ function ServicesCard({
     </button>
   )
 
-  // Los diálogos de configuración de integraciones van GRANDES (#968): el
-  // manager (formularios, tablas) necesita el ancho casi completo.
-  const dialogCls = 'w-[calc(100vw-2rem)] max-w-7xl max-h-[94vh] overflow-y-auto'
+  // Los diálogos de configuración de integraciones van GRANDES (#968, #977):
+  // el manager (formularios, tablas) necesita el ancho casi completo.
+  const dialogCls = 'w-[calc(100vw-2rem)] max-w-[90rem] max-h-[94vh] overflow-y-auto'
 
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
@@ -3592,9 +3592,9 @@ function ServicesCard({
       </p>
 
       {/* Diálogos de configuración de integraciones (#968): los managers
-          viven SOLO aquí (AdGuard/Proxmox) o también en Notificaciones
-          (ntfy/Telegram/MQTT). Título sr-only: el Card del manager ya lo
-          muestra. */}
+          viven SOLO aquí (#977: las cards sueltas de ntfy/Telegram/MQTT ya
+          no están en Notificaciones). Título sr-only: el Card del manager
+          ya lo muestra. */}
       <Dialog open={dialog === 'adguard'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
         <DialogContent className={dialogCls} aria-describedby={undefined}>
           <DialogHeader>
@@ -3640,7 +3640,9 @@ function ServicesCard({
 }
 
 // ---------------------------------------------------------------------------
-// Tarjeta «Notificaciones push» (SPEC-PUSH §2)
+// Subsección «Notificaciones push» dentro de la card de Notificaciones
+// (#977; antes card suelta, SPEC-PUSH §2). Versión compacta: el texto largo
+// vive en el (i) del título de la subsección.
 // ---------------------------------------------------------------------------
 
 type PushCardState =
@@ -3652,7 +3654,7 @@ type PushCardState =
   | 'enabled' // suscripción push activa
   | 'disabled' // todo listo, falta activar
 
-function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; onSaved: () => void; compact?: boolean }) {
+function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
   const { t } = useTranslation()
   const { isDemo } = useNetPulse()
   const [state, setState] = useState<PushCardState>('loading')
@@ -3762,19 +3764,16 @@ function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; 
   const btnBase =
     'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50'
 
-  const inner = (
+  return (
     <>
       {state === 'loading' && <p className="text-caption text-text-muted">{t('settings.push.checking')}</p>}
 
       {state === 'enabled' && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
-              <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
-              {t('settings.push.stateOn')}
-            </span>
-            {!compact && <p className="text-caption leading-snug text-text-muted">{t('settings.push.stateOnCaption')}</p>}
-          </div>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ok">
+            <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
+            {t('settings.push.stateOn')}
+          </span>
           <button type="button" disabled={busy} onClick={() => void disable()} className={cn(btnBase, 'border border-border bg-elevated text-text-primary')}>
             <BellOff className="h-3.5 w-3.5" strokeWidth={2} />
             {busy ? t('settings.push.disabling') : t('settings.push.disable')}
@@ -3783,8 +3782,7 @@ function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; 
       )}
 
       {state === 'disabled' && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {!compact && <p className="min-w-0 flex-1 text-caption leading-snug text-text-secondary">{t('settings.push.stateOffCaption')}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <button type="button" disabled={busy} onClick={() => void enable()} className={cn(btnBase, 'bg-accent text-canvas')}>
             <BellRing className="h-3.5 w-3.5" strokeWidth={2} />
             {busy ? t('settings.push.enabling') : t('settings.push.enable')}
@@ -3823,19 +3821,7 @@ function PushNotificationsCard({ reduce, onSaved, compact }: { reduce: boolean; 
           {error}
         </p>
       )}
-
-      {!compact && (state === 'enabled' || state === 'disabled') && (
-        <p className="mt-3 text-caption leading-relaxed text-text-muted">{t('settings.push.note')}</p>
-      )}
     </>
-  )
-
-  if (compact) return inner
-
-  return (
-    <Card title={t('settings.push.title')} caption={t('settings.push.caption')} index={4} reduce={reduce}>
-      {inner}
-    </Card>
   )
 }
 
@@ -5340,7 +5326,7 @@ export default function Settings() {
           <ServicesCard reduce={reduce} onSaved={notify} disabled={isDemo} orchOn={orchOn} orchBusy={orchBusy} toggleOrchestration={toggleOrchestration} />
         </div>
 
-        {/* ⑤ Notificaciones visuales */}
+        {/* ⑤ Notificaciones (visuales + push + idioma, #977) */}
         <div className="order-60">
           <Card title={t('settings.notif.title')} caption={t('settings.notif.caption')} index={3} reduce={reduce}>
             <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-3">
@@ -5399,53 +5385,32 @@ export default function Settings() {
                 }
               />
             </div>
-            <p className="mt-3 rounded-xl bg-elevated px-3.5 py-2.5 text-caption leading-relaxed text-text-muted">
-              {t('settings.notif.note')}
-            </p>
+            {/* Notificaciones push DENTRO de la misma card (#977): el texto
+                largo vive en el (i) del título de la subsección. */}
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-2 flex items-center gap-1.5">
+                <span className="text-sm font-medium text-text-primary">{t('settings.push.title')}</span>
+                <InfoTip text={t('settings.push.note')} />
+              </div>
+              <PushNotificationsCard onSaved={notify} />
+            </div>
+
+            {/* Idioma de las notificaciones (#889): movido a esta card (#977) */}
+            {!isDemo && (
+              <div className="mt-4 border-t border-border pt-4">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-text-primary">{t('settings.alertsLang.title')}</span>
+                  <InfoTip text={t('settings.alertsLang.description')} />
+                </div>
+                <AlertsLangControl onSaved={notify} />
+              </div>
+            )}
           </Card>
         </div>
 
-        {/* FORK: Web Push as its own card in Notifications. It was only a
-            small unlabelled button in About, and absent over plain HTTP. */}
-        <div className="order-61">
-          <PushNotificationsCard reduce={reduce} onSaved={notify} />
-        </div>
-
-        {/* Idioma de las notificaciones push (#889): server-wide */}
-        {!isDemo && (
-          <div className="order-69">
-            <Card title={t('settings.alertsLang.title')} caption={t('settings.alertsLang.description')} index={4} reduce={reduce}>
-              <AlertsLangControl onSaved={notify} />
-            </Card>
-          </div>
-        )}
-
-        {/* Telegram (#326): notificaciones directas al bot — sección Notificaciones */}
-        {!isDemo && (
-          <div className="order-70">
-            <Card title={t('settings.telegram.title')} caption={t('settings.telegram.description')} index={4} reduce={reduce}>
-              <TelegramCard onSaved={notify} bare />
-            </Card>
-          </div>
-        )}
-
-        {/* ntfy (#766): notificaciones via ntfy.sh o self-hosted */}
-        {!isDemo && (
-          <div className="order-71">
-            <Card title={t('settings.ntfy.title')} caption={t('settings.ntfy.description')} index={4} reduce={reduce}>
-              <NtfyCard onSaved={notify} />
-            </Card>
-          </div>
-        )}
-
-        {/* MQTT (#838): publisher de flota para Home Assistant y propagación a NetGrip */}
-        {!isDemo && (
-          <div className="order-72">
-            <Card title={t('settings.mqtt.title')} caption={t('settings.mqtt.description')} index={4} reduce={reduce}>
-              <MqttCard onSaved={notify} />
-            </Card>
-          </div>
-        )}
+        {/* ntfy/Telegram/MQTT (#977): ya no son cards sueltas de esta
+            sección; se configuran desde el icono Settings2 de la tarjeta
+            Integraciones (Servicios). */}
 
         {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
             Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
