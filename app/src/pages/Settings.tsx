@@ -20,6 +20,7 @@ import {
   Gauge,
   HardDrive,
   History,
+  Info,
   KeyRound,
   Loader2,
   LogOut,
@@ -62,6 +63,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNetPulse } from '@/data/DataProvider'
 import { fmtEs } from '@/data/mock'
 import { useAuth } from '@/data/AuthContext'
@@ -84,6 +86,28 @@ import pkg from '../../package.json'
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// InfoTip (#975): icono (i) con el texto largo en un tooltip al pasar el
+// ratón, para que la sección quede con lo justo. Reusa el Tooltip radix de
+// la app (mismo patrón que PortPanel).
+function InfoTip({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={text}
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent"
+        >
+          <Info className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-left leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 /** Estado persistido en localStorage (settings.md §Interactions) */
 // Idioma de las notificaciones push (#889): ajuste server-wide (kv
@@ -2255,7 +2279,10 @@ function PresenceRetentionRow() {
 
   return (
     <div>
-      <div className="text-sm font-medium text-text-primary">{t('settings.data.presenceRetention')}</div>
+      <div className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
+        {t('settings.data.presenceRetention')}
+        <InfoTip text={t('settings.data.presenceRetentionNote')} />
+      </div>
       <div className="mt-2 flex items-center gap-2">
         <input
           type="number"
@@ -2277,7 +2304,6 @@ function PresenceRetentionRow() {
           {savedTick ? '✓' : t('common.save')}
         </button>
       </div>
-      <p className="mt-2 text-caption text-text-muted">{t('settings.data.presenceRetentionNote')}</p>
     </div>
   )
 }
@@ -2332,7 +2358,10 @@ function RoamCollectRow() {
 
   return (
     <div>
-      <div className="text-sm font-medium text-text-primary">{t('settings.data.roamCollect')}</div>
+      <div className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
+        {t('settings.data.roamCollect')}
+        <InfoTip text={t('settings.data.roamCollectNote')} />
+      </div>
       <div className="mt-2 flex items-center gap-2">
         <input
           type="number"
@@ -2354,7 +2383,86 @@ function RoamCollectRow() {
           {savedTick ? '✓' : t('common.save')}
         </button>
       </div>
-      <p className="mt-2 text-caption text-text-muted">{t('settings.data.roamCollectNote')}</p>
+    </div>
+  )
+}
+
+// LimitHistoryRow (#975): interruptor maestro «Limitar historial» (ON por
+// defecto; OFF = sin poda, retención ilimitada). El icono Settings2 abre un
+// Dialog con los dos ajustes finos: retención de presencia (#771) e
+// intervalo de ingesta de itinerancia (#907, independiente del límite).
+function LimitHistoryRow({ onSaved }: { onSaved: () => void }) {
+  const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (isDemo) {
+      setEnabled(localStorage.getItem('netpulse.history.limit') !== '0')
+      return
+    }
+    let cancelled = false
+    fetch('/api/settings/history-limit')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j && typeof j.enabled === 'boolean') setEnabled(j.enabled)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+
+  if (enabled === null) return null
+
+  const toggle = (v: boolean) => {
+    setEnabled(v)
+    onSaved()
+    if (isDemo) {
+      localStorage.setItem('netpulse.history.limit', v ? '1' : '0')
+      return
+    }
+    void fetch('/api/settings/history-limit', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: v }),
+    }).catch(() => {})
+  }
+
+  return (
+    <div>
+      <SwitchRow
+        label={t('settings.data.limitHistory')}
+        caption={t('settings.data.limitHistoryCaption')}
+        checked={enabled}
+        onCheckedChange={toggle}
+        trailing={
+          <span className="flex items-center gap-1">
+            <InfoTip text={t('settings.data.limitHistoryHint')} />
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label={t('settings.data.limitHistoryDialog')}
+              title={t('settings.data.limitHistoryDialog')}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+            >
+              <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </span>
+        }
+      />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{t('settings.data.limitHistoryDialog')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <PresenceRetentionRow />
+            <RoamCollectRow />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -4897,7 +5005,10 @@ export default function Settings() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-caption text-text-muted">{t('settings.data.tempUnit')}</div>
+                      <div className="flex items-center gap-1 text-caption text-text-muted">
+                        {t('settings.data.tempUnit')}
+                        <InfoTip text={t('settings.data.tempNote')} />
+                      </div>
                       <div className="mt-1.5">
                         <SegmentedControl
                           options={[
@@ -4949,12 +5060,10 @@ export default function Settings() {
                       ariaLabel={t('settings.data.refresh')}
                     />
                   </div>
-                  <p className="mt-2 text-caption text-text-muted">{t('settings.data.refreshNote')}</p>
                 </div>
-                {/* Retención de eventos de presencia/roaming (#771) */}
-                <PresenceRetentionRow />
-                {/* Cadencia de ingesta de eventos de roaming (#907) */}
-                <RoamCollectRow />
+                {/* Limitar historial (#975): toggle maestro + diálogo con
+                    retención de presencia (#771) e ingesta de itinerancia (#907) */}
+                <LimitHistoryRow onSaved={notify} />
               </div>
 
               {/* Sliders de umbrales */}
@@ -5033,7 +5142,6 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
-              <p className="mt-4 text-caption leading-relaxed text-text-muted">{t('settings.data.tempNote')}</p>
             </div>
 
             {/* divider: Velocidad WAN contratada (izq) | Test de velocidad periódico (der) */}

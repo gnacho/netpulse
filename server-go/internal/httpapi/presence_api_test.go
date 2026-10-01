@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
+	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 )
 
 // TestDevicePresence devuelve los tramos fusionados de una MAC con eventos
@@ -101,6 +102,51 @@ func TestPresenceSettingsRoundtrip(t *testing.T) {
 	io.Copy(io.Discard, resp3.Body)
 	if resp3.StatusCode != http.StatusBadRequest {
 		t.Fatalf("PUT retención inválida: %d, want 400", resp3.StatusCode)
+	}
+}
+
+// TestHistoryLimitRoundtrip (#975): el interruptor maestro de la poda nace
+// ON (ausente = limitar), PUT false lo persiste y GET lo devuelve.
+func TestHistoryLimitRoundtrip(t *testing.T) {
+	ts := makeDeviceActionsTestServer(t, nil)
+	defer ts.Server.Close()
+
+	get := func() bool {
+		resp := deviceReq(t, "GET", ts.Server.URL, "/api/settings/history-limit", ts.cookie, "")
+		defer resp.Body.Close()
+		var body struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return body.Enabled
+	}
+	if !get() {
+		t.Fatal("history-limit debe nacer activado (default ON)")
+	}
+
+	resp := deviceReq(t, "PUT", ts.Server.URL, "/api/settings/history-limit", ts.cookie, `{"enabled":false}`)
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("PUT history-limit: %d, want 200", resp.StatusCode)
+	}
+	if get() {
+		t.Fatal("history-limit debe quedar desactivado tras PUT enabled=false")
+	}
+	if httpapi.HistoryLimitEnabled(ts.db.DB) {
+		t.Fatal("HistoryLimitEnabled debe ser false con kv history.limit_enabled=0")
+	}
+
+	resp2 := deviceReq(t, "PUT", ts.Server.URL, "/api/settings/history-limit", ts.cookie, `{"enabled":true}`)
+	defer resp2.Body.Close()
+	io.Copy(io.Discard, resp2.Body)
+	if resp2.StatusCode != 200 {
+		t.Fatalf("PUT history-limit ON: %d, want 200", resp2.StatusCode)
+	}
+	if !get() {
+		t.Fatal("history-limit debe reactivarse tras PUT enabled=true")
 	}
 }
 

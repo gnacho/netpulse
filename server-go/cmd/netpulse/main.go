@@ -658,13 +658,18 @@ func run() error {
 
 	// Retención de eventos de presencia/roaming (#771): poda horaria de
 	// device_events y roam_events según presence.retention_days (kv; 0 =
-	// conservar siempre). Sin esto ambas tablas crecen sin límite.
+	// conservar siempre). Sin esto ambas tablas crecen sin límite. El
+	// interruptor maestro history.limit_enabled (#975) desactiva la poda
+	// por completo (retención ilimitada).
 	presenceStop := make(chan struct{})
 	if !cfg.DemoMode {
 		go func() {
 			tick := time.NewTicker(time.Hour)
 			defer tick.Stop()
 			prune := func() {
+				if !httpapi.HistoryLimitEnabled(dbHandle.DB) {
+					return
+				}
 				retention := httpapi.PresenceRetentionDays(dbHandle.DB)
 				if retention <= 0 {
 					return

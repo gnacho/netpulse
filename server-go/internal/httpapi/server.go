@@ -358,6 +358,9 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/presence/roaming", s.handlePresenceRoaming)
 	mux.Handle("GET /api/settings/presence", auth.RequireAdmin(http.HandlerFunc(s.handlePresenceSettingsGet)))
 	mux.Handle("PUT /api/settings/presence", auth.RequireAdmin(http.HandlerFunc(s.handlePresenceSettingsPut)))
+	// Interruptor maestro de la poda del historial (#975).
+	mux.Handle("GET /api/settings/history-limit", auth.RequireAdmin(http.HandlerFunc(s.handleHistoryLimitGet)))
+	mux.Handle("PUT /api/settings/history-limit", auth.RequireAdmin(http.HandlerFunc(s.handleHistoryLimitPut)))
 	// Reserva DHCP y bloqueo de dispositivo (issue #439).
 	mux.Handle("GET /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationGet)))
 	mux.Handle("PUT /api/devices/{mac}/reservation", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceReservationPut)))

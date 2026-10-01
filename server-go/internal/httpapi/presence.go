@@ -19,6 +19,11 @@ import (
 
 const presenceRetentionKey = "presence.retention_days"
 
+// historyLimitKey (#975): interruptor maestro de la poda del historial.
+// ON por defecto (ausente = limitar); OFF = retención ilimitada: el loop de
+// poda de main no borra nada aunque presence.retention_days tenga valor.
+const historyLimitKey = "history.limit_enabled"
+
 // handleDevicePresence devuelve los tramos de presencia de una MAC (dias
 // visibles, default 7, máx 30) más los eventos recientes y el nº de
 // conexiones en las últimas 24 h. En demo devuelve una muestra sintética
@@ -145,6 +150,40 @@ func PresenceRetentionDays(db *sql.DB) int {
 		}
 	}
 	return 30
+}
+
+// HistoryLimitEnabled lee el interruptor maestro de la poda (#975): default
+// ON (solo un "0" explícito lo desactiva). Lo usa el loop de poda de main.
+func HistoryLimitEnabled(db *sql.DB) bool {
+	return kvGet(db, historyLimitKey) != "0"
+}
+
+// handleHistoryLimitGet/Put exponen el interruptor maestro «Limitar
+// historial» (#975). OFF = sin poda de presencia/itinerancia (retención
+// ilimitada); el intervalo de ingesta (roam.collect.interval_sec) es
+// independiente y sigue aplicando con el límite desactivado.
+func (s *server) handleHistoryLimitGet(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": HistoryLimitEnabled(s.db.DB)})
+}
+
+func (s *server) handleHistoryLimitPut(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	v := "1"
+	if !body.Enabled {
+		v = "0"
+	}
+	if _, err := s.db.Exec("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		historyLimitKey, v); err != nil {
+		writeError(w, http.StatusInternalServerError, "db_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": body.Enabled})
 }
 
 // presenceRetentionDays es la variante del server para el handler de settings.
