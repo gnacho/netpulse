@@ -74,3 +74,42 @@ func TestIntegrationsPutIsPartialSafe(t *testing.T) {
 		t.Fatalf("PUT vacío: status %d, esperado 400", res.StatusCode)
 	}
 }
+
+// TestIntegrationsMirrorChannelEnabled (#1016/#1017): el toggle de la fila es
+// la única fuente de verdad - el PUT espeja ntfy.enabled/telegram.enabled
+// para que el path de envío y el integrationGate nunca desincronicen.
+func TestIntegrationsMirrorChannelEnabled(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+	if cookie == "" {
+		t.Fatal("login no devolvió cookie")
+	}
+
+	kvVal := func(key string) string {
+		var v string
+		if err := srv.db.QueryRow("SELECT value FROM kv WHERE key = ?", key).Scan(&v); err != nil {
+			return ""
+		}
+		return v
+	}
+
+	res, _ := wanSpeedRequest(t, "PUT", srv.URL, "/api/settings/integrations", cookie, `{"ntfy":false,"telegram":true}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PUT: status %d", res.StatusCode)
+	}
+	if v := kvVal("ntfy.enabled"); v != "false" {
+		t.Fatalf("ntfy.enabled espejo: %q, esperado false", v)
+	}
+	if v := kvVal("telegram.enabled"); v != "true" {
+		t.Fatalf("telegram.enabled espejo: %q, esperado true", v)
+	}
+
+	// Proxmox NO tiene clave de canal que espejar.
+	res, _ = wanSpeedRequest(t, "PUT", srv.URL, "/api/settings/integrations", cookie, `{"proxmox":false}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PUT proxmox: status %d", res.StatusCode)
+	}
+	if v := kvVal("ntfy.enabled"); v != "false" {
+		t.Fatalf("ntfy.enabled tras PUT de proxmox: %q, esperado false intacto", v)
+	}
+}

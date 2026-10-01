@@ -164,10 +164,15 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 		for _, p := range []struct {
 			flag *bool
 			key  string
+			// channelKey: clave "enabled" propia del canal (ntfy.enabled,
+			// telegram.enabled). El toggle de la fila es la ÚNICA fuente de
+			// verdad (#1016/#1017): se espeja aquí para que el path de envío
+			// (que lee la clave del canal) y el integrationGate nunca desincronicen.
+			channelKey string
 		}{
-			{body.Ntfy, integrationNtfyKey},
-			{body.Telegram, integrationTelegramKey},
-			{body.Proxmox, integrationProxmoxKey},
+			{body.Ntfy, integrationNtfyKey, "ntfy.enabled"},
+			{body.Telegram, integrationTelegramKey, "telegram.enabled"},
+			{body.Proxmox, integrationProxmoxKey, ""},
 		} {
 			if p.flag == nil {
 				continue
@@ -177,6 +182,12 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			if err := kvSetStr(s.db.DB, p.key, strconv.FormatBool(*p.flag)); err != nil {
 				writeError(w, http.StatusInternalServerError, "kv_error")
 				return
+			}
+			if p.channelKey != "" {
+				if err := kvSetStr(s.db.DB, p.channelKey, strconv.FormatBool(*p.flag)); err != nil {
+					writeError(w, http.StatusInternalServerError, "kv_error")
+					return
+				}
 			}
 		}
 		if body.MQTT != nil {
