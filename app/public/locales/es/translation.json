@@ -1353,11 +1353,13 @@
       "badge": "Badge de avisos en la navegación",
       "badgeCaption": "Contador junto a «Alertas»",
       "caption": "Avisos dentro de la app y push en este dispositivo",
+      "ntfyCaption": "Notificaciones push por ntfy",
       "pulse": "Punto pulsante en equipos con aviso",
       "pulseCaption": "Dot animado en tarjetas con warn",
       "sound": "Sonido al llegar una alerta",
       "soundOff": "Desactivado",
       "soundOn": "Activado — suena un beep suave",
+      "telegramCaption": "Notificaciones al bot de Telegram",
       "testSound": "Probar beep de alerta",
       "title": "Notificaciones"
     },
@@ -1549,8 +1551,6 @@
       "networkGroup": "Servicios de red",
       "integrationsGroup": "Integraciones",
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
-      "ntfyCaption": "Notificaciones push por ntfy",
-      "telegramCaption": "Notificaciones al bot de Telegram",
       "mqttCaption": "Publicación del estado en el broker MQTT",
       "configure": "Configurar {{name}}"
     },

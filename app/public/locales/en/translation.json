@@ -1353,11 +1353,13 @@
       "badge": "Alerts badge in the navigation",
       "badgeCaption": "Counter next to \"Alerts\"",
       "caption": "In-app notices and push on this device",
+      "ntfyCaption": "Push notifications via ntfy",
       "pulse": "Pulsing dot on devices with warnings",
       "pulseCaption": "Animated dot on cards with warn",
       "sound": "Sound when an alert arrives",
       "soundOff": "Off",
       "soundOn": "On — plays a soft beep",
+      "telegramCaption": "Notifications to the Telegram bot",
       "testSound": "Test alert beep",
       "title": "Notifications"
     },
@@ -1549,8 +1551,6 @@
       "networkGroup": "Network services",
       "integrationsGroup": "Integrations",
       "proxmoxCaption": "Cluster inventory (hypervisors and CTs)",
-      "ntfyCaption": "Push notifications via ntfy",
-      "telegramCaption": "Notifications to the Telegram bot",
       "mqttCaption": "Fleet state published to the MQTT broker",
       "configure": "Configure {{name}}"
     },

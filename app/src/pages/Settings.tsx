@@ -3413,6 +3413,28 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
 // abre el Dialog con su manager, #968).
 type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt'
 
+// Los diálogos de configuración van GRANDES (#968, #977): el manager
+// (formularios, tablas) necesita el ancho casi completo. Wrapper compartido
+// por Servicios, Notificaciones (#996) y el test periódico (#997).
+const integrationDialogCls = 'w-[calc(100vw-2rem)] max-w-[90rem] max-h-[94vh] overflow-y-auto'
+
+// ConfigGear: icono Settings2 que abre el Dialog de configuración (#968).
+// Compartido por Servicios, Notificaciones (#996) y el test periódico (#997).
+function ConfigGear({ label, onClick, disabled = false }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+    >
+      <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+    </button>
+  )
+}
+
 function ServicesCard({
   reduce,
   onSaved,
@@ -3439,10 +3461,11 @@ function ServicesCard({
     { key: 'wireguard', label: 'WireGuard', caption: t('settings.services.wireguardCaption') },
     { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
   ]
+  // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
+  // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
+  // de Notificaciones.
   const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey }[] = [
     { key: 'proxmox', label: 'Proxmox VE', caption: t('settings.services.proxmoxCaption'), dialogKey: 'proxmox' },
-    { key: 'ntfy', label: 'ntfy', caption: t('settings.services.ntfyCaption'), dialogKey: 'ntfy' },
-    { key: 'telegram', label: 'Telegram', caption: t('settings.services.telegramCaption'), dialogKey: 'telegram' },
     { key: 'mqtt', label: 'MQTT', caption: t('settings.services.mqttCaption'), dialogKey: 'mqtt' },
   ]
 
@@ -3476,20 +3499,8 @@ function ServicesCard({
   // Icono Settings2 como trailing del SwitchRow: abre el Dialog con el
   // manager de la integración (#968).
   const gear = (dialogKey: IntegrationDialogKey, name: string) => (
-    <button
-      type="button"
-      onClick={() => setDialog(dialogKey)}
-      aria-label={t('settings.services.configure', { name })}
-      title={t('settings.services.configure', { name })}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-    >
-      <Settings2 className="h-4 w-4" strokeWidth={1.75} />
-    </button>
+    <ConfigGear label={t('settings.services.configure', { name })} onClick={() => setDialog(dialogKey)} />
   )
-
-  // Los diálogos de configuración de integraciones van GRANDES (#968, #977):
-  // el manager (formularios, tablas) necesita el ancho casi completo.
-  const dialogCls = 'w-[calc(100vw-2rem)] max-w-[90rem] max-h-[94vh] overflow-y-auto'
 
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
@@ -3525,8 +3536,8 @@ function ServicesCard({
             />
           </div>
         </div>
-        {/* Grupo "Integraciones": toggles SERVER-SIDE (Proxmox/ntfy/
-            Telegram/MQTT) con icono de configuración. */}
+        {/* Grupo "Integraciones": toggles SERVER-SIDE (Proxmox/MQTT) con
+            icono de configuración (#996: ntfy/Telegram van en Notificaciones). */}
         <div>
           <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
           <div className="divide-y divide-border/60">
@@ -3592,11 +3603,10 @@ function ServicesCard({
       </p>
 
       {/* Diálogos de configuración de integraciones (#968): los managers
-          viven SOLO aquí (#977: las cards sueltas de ntfy/Telegram/MQTT ya
-          no están en Notificaciones). Título sr-only: el Card del manager
-          ya lo muestra. */}
+          viven SOLO en diálogo (#977: las cards sueltas ya no están en el
+          flujo). Título sr-only: el Card del manager ya lo muestra. */}
       <Dialog open={dialog === 'adguard'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={dialogCls} aria-describedby={undefined}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.adguard.title')}</DialogTitle>
           </DialogHeader>
@@ -3604,31 +3614,15 @@ function ServicesCard({
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'proxmox'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={dialogCls} aria-describedby={undefined}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.proxmox.title')}</DialogTitle>
           </DialogHeader>
           <ProxmoxManager reduce={reduce} onSaved={onSaved} />
         </DialogContent>
       </Dialog>
-      <Dialog open={dialog === 'ntfy'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={dialogCls} aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle className="sr-only">{t('settings.ntfy.title')}</DialogTitle>
-          </DialogHeader>
-          <NtfyCard onSaved={onSaved} bare />
-        </DialogContent>
-      </Dialog>
-      <Dialog open={dialog === 'telegram'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={dialogCls} aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle className="sr-only">{t('settings.telegram.title')}</DialogTitle>
-          </DialogHeader>
-          <TelegramCard onSaved={onSaved} bare />
-        </DialogContent>
-      </Dialog>
       <Dialog open={dialog === 'mqtt'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={dialogCls} aria-describedby={undefined}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.mqtt.title')}</DialogTitle>
           </DialogHeader>
@@ -3636,6 +3630,59 @@ function ServicesCard({
         </DialogContent>
       </Dialog>
     </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Canales de envío de avisos dentro de la card de Notificaciones (#996):
+// ntfy y Telegram son canales de notificación, no integraciones de estado o
+// inventario (esas - MQTT y Proxmox - se quedan en Servicios). Mismos
+// toggles server-side settings.integrations.{ntfy,telegram} (#968) e icono
+// Settings2 que abre el Dialog con su card de configuración.
+// ---------------------------------------------------------------------------
+function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; disabled?: boolean }) {
+  const { t } = useTranslation()
+  const { integrations, setIntegration } = useIntegrations(!disabled)
+  const [dialog, setDialog] = useState<'ntfy' | 'telegram' | null>(null)
+  const rows: { key: 'ntfy' | 'telegram'; label: string; caption: string }[] = [
+    { key: 'ntfy', label: 'ntfy', caption: t('settings.notif.ntfyCaption') },
+    { key: 'telegram', label: 'Telegram', caption: t('settings.notif.telegramCaption') },
+  ]
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="divide-y divide-border/60">
+        {rows.map((row) => (
+          <SwitchRow
+            key={row.key}
+            label={row.label}
+            caption={row.caption}
+            checked={integrations[row.key]}
+            disabled={disabled}
+            trailing={<ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />}
+            onCheckedChange={(v) => {
+              setIntegration(row.key, v)
+              onSaved()
+            }}
+          />
+        ))}
+      </div>
+      <Dialog open={dialog === 'ntfy'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.ntfy.title')}</DialogTitle>
+          </DialogHeader>
+          <NtfyCard onSaved={onSaved} bare />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'telegram'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.telegram.title')}</DialogTitle>
+          </DialogHeader>
+          <TelegramCard onSaved={onSaved} bare />
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
 
@@ -5385,6 +5432,11 @@ export default function Settings() {
                 }
               />
             </div>
+            {/* Canales de envío server-side (#996): ntfy y Telegram con sus
+                toggles e icono de configuración, mismo patrón que el resto
+                de la sección. */}
+            <NotifChannels onSaved={notify} disabled={isDemo} />
+
             {/* Notificaciones push DENTRO de la misma card (#977): el texto
                 largo vive en el (i) del título de la subsección. */}
             <div className="mt-4 border-t border-border pt-4">
@@ -5408,9 +5460,9 @@ export default function Settings() {
           </Card>
         </div>
 
-        {/* ntfy/Telegram/MQTT (#977): ya no son cards sueltas de esta
-            sección; se configuran desde el icono Settings2 de la tarjeta
-            Integraciones (Servicios). */}
+        {/* MQTT (#977) se configura desde el icono Settings2 de la tarjeta
+            Integraciones (Servicios); ntfy/Telegram (#996) desde las filas
+            de la propia tarjeta de Notificaciones. */}
 
         {/* AdminBar canónica: Actualizaciones → Usuarios → Modo demo (derecha).
             Solo admin y modo live. Los paneles (Usuarios) se despliegan debajo;
