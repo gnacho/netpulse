@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -530,9 +530,21 @@ function StatsStrip({
 
 // #989: trigger homogéneo de los filtros desplegables (Flota, Conexión y
 // Tipo): icono Filter + etiqueta + badge con el nº de valores activos.
-function FilterMenuTrigger({ label, active }: { label: string; active: number }) {
+// forwardRef + spread de props OBLIGATORIO (#1006): DropdownMenuTrigger
+// asChild inyecta el ref y los handlers; sin ellos el menú no abre.
+const FilterMenuTrigger = forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<'button'> & { label: string; active: number }
+>(function FilterMenuTrigger({ label, active, className, ...props }, ref) {
   return (
-    <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary">
+    <button
+      ref={ref}
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary',
+        className,
+      )}
+      {...props}
+    >
       <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
       {label}
       {active > 0 && (
@@ -542,7 +554,7 @@ function FilterMenuTrigger({ label, active }: { label: string; active: number })
       )}
     </button>
   )
-}
+})
 
 interface FilterBarProps {
   routerIds: string[]
