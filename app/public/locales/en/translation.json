@@ -492,7 +492,7 @@
       "tv": "TV"
     },
     "wiredConnection": "Wired connection",
-    "weakChip": "{{count}} with weak signal",
+    "weakChip": "{{count}} with weak signal (< {{dbm}} dBm)",
     "via": "via {{name}}",
     "unknownManufacturer": "Unknown",
     "onboarding": {

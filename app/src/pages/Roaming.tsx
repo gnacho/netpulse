@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
+import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
 import ReanchorPanel from './ReanchorPanel'
 
 // ---------------------------------------------------------------------------
@@ -171,22 +172,9 @@ export default function Roaming() {
   const [band, setBand] = useState<Band>('all')
   const [weakOnly, setWeakOnly] = useState(false)
   // #906: el filtro "Weak signal only" usa el umbral server-wide del ajuste
-  // Weak signal (#904, /api/settings/thresholds); -70 es el fallback (demo o
-  // servidor antiguo).
-  const [weakDbm, setWeakDbm] = useState(-70)
-  useEffect(() => {
-    if (isDemo) return
-    let cancelled = false
-    fetch('/api/settings/thresholds')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled && j && typeof j.weakSignalDbm === 'number') setWeakDbm(j.weakSignalDbm)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [isDemo])
+  // Weak signal (#904, /api/settings/thresholds); hook compartido con la
+  // página Clientes (#1003), -70 de fallback (demo o servidor antiguo).
+  const weakDbm = useWeakSignalDbm()
   const [usteer, setUsteer] = useState<Usteer | null>(null)
   const [dot11r, setDot11r] = useState<Dot11rOverview | null>(null)
   const [dot11rLoading, setDot11rLoading] = useState(false)

@@ -47,6 +47,7 @@ import { dhcpLease, fmtSeenAgo, manufacturerLabel, numLocale } from '@/i18n'
 import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
+import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
@@ -343,7 +344,10 @@ function StatsStrip({
   const { deviceTotals } = useNetPulse()
   const reduce = useReducedMotion()
   const newThisWeekDevices = allDevices.filter((d) => d.isNew)
-  const weakSignalCount = allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length
+  // #1003: el umbral de señal débil es el ajuste global (/api/settings/thresholds),
+  // no un -70 hardcodeado; mismo criterio que la matriz de roaming (#906).
+  const weakDbm = useWeakSignalDbm()
+  const weakSignalCount = allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < weakDbm).length
   const adguardProtected = allDevices.filter((d) => d.adguard).length
   // Salud de roaming (#771): MACs con más conexiones AP-STA en 24 h (los
   // primeros puestos son los que más rebotan). En demo, muestra local (el
@@ -424,7 +428,7 @@ function StatsStrip({
           <div className="font-mono text-stat text-text-primary">
             <CountUp value={weakSignalCount} nonce={refreshKey} />
           </div>
-          <div className="mt-1 text-caption text-text-muted">&lt; −70 dBm</div>
+          <div className="mt-1 text-caption text-text-muted">&lt; {weakDbm} dBm</div>
         </>
       ),
     },
@@ -556,6 +560,8 @@ interface FilterBarProps {
   onlyWeak: boolean
   setOnlyWeak: (v: boolean) => void
   weakCount: number
+  /** #1003: umbral configurado, se muestra en la etiqueta del chip */
+  weakDbm: number
   view: 'list' | 'grid'
   setView: (v: 'list' | 'grid') => void
   shown: number
@@ -660,7 +666,7 @@ function FilterBar(p: FilterBarProps) {
             )}
           >
             <SignalLow className="h-3.5 w-3.5" strokeWidth={1.75} />
-            {t('devices.weakChip', { count: p.weakCount })}
+            {t('devices.weakChip', { count: p.weakCount, dbm: p.weakDbm })}
           </button>
         )}
         {/* Orden (#799): visible solo en móvil; en desktop la cabecera sticky
@@ -1396,6 +1402,8 @@ export default function Devices() {
     setOnlineState(v)
   }, [])
   const [onlyWeak, setOnlyWeak] = useState(false)
+  // #1003: umbral de señal débil desde el ajuste global (como Roaming #906).
+  const weakDbm = useWeakSignalDbm()
   // Filtro "sin proteger por AdGuard" (#959): se activa/desactiva desde la
   // stat card de AdGuard; se muestra como pill de filtro activo.
   const [onlyUnprotected, setOnlyUnprotected] = useState(false)
@@ -1415,8 +1423,8 @@ export default function Devices() {
   }, [searchParams, setOnline])
 
   const weakCount = useMemo(
-    () => allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < -70).length,
-    [allDevices],
+    () => allDevices.filter((d) => d.online && d.signalDbm !== null && d.signalDbm < weakDbm).length,
+    [allDevices, weakDbm],
   )
   // #772: conectados ahora sin identificar (sin nombre ni hostname DHCP):
   // candidatos a la tarjeta de alta. Un dispositivo conocido que reconecta
@@ -1505,7 +1513,7 @@ export default function Devices() {
     const out = allDevices.filter((d) => {
       if (online === 'online' && !d.online) return false
       if (online === 'offline' && d.online) return false
-      if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < -70)) return false
+      if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < weakDbm)) return false
       if (onlyUnprotected && d.adguard) return false
       if (routerIds.length > 0 && !routerIds.includes(d.routerId)) return false
       if (bandsEffective.length > 0 && !bandsEffective.includes(d.band as BandValue)) return false
@@ -1572,7 +1580,7 @@ export default function Devices() {
       }
       return a.name.localeCompare(b.name, numLocale())
     })
-  }, [allDevices, online, onlyWeak, onlyUnprotected, routerIds, bandsEffective, groups, q, sort, routers])
+  }, [allDevices, online, onlyWeak, weakDbm, onlyUnprotected, routerIds, bandsEffective, groups, q, sort, routers])
 
   const toggleRouterId = useCallback(
     (id: string) => setRouterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
@@ -1787,6 +1795,7 @@ export default function Devices() {
         onlyWeak={onlyWeak}
         setOnlyWeak={setOnlyWeak}
         weakCount={weakCount}
+        weakDbm={weakDbm}
         view={view}
         setView={setView}
         shown={filtered.length}
