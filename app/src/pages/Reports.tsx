@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Activity, AlertTriangle, CalendarDays, Clock, Download, RefreshCw } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
+import { routerName } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -139,6 +140,12 @@ export default function Reports() {
   const { t, i18n } = useTranslation()
   const reduce = useReducedMotion()
   const { isDemo } = useNetPulse()
+  // #988: la UI muestra el nombre dado por el usuario, con el slug entre
+  // paréntesis cuando difieren (patrón LogLabel #953); nunca el slug a secas.
+  const routerLabel = (id: string): string => {
+    const n = routerName(id)
+    return n !== id ? `${n} (${id})` : id
+  }
   const [range, setRange] = useState<Range>('week')
   const [n, setN] = useState<number>(DEFAULT_N.week)
   const [items, setItems] = useState<AvailabilityEntry[]>([])
@@ -404,7 +411,7 @@ export default function Reports() {
               </div>
               {worst ? (
                 <p className="mt-1 font-display text-h2 text-text-primary">
-                  {worst.id}
+                  {routerLabel(worst.id)}
                   <span className={cn('ml-2 text-sm font-normal', STATUS_TEXT[worst.status])}>
                     {worst.pct >= 99.9 ? '100%' : `${worst.pct.toFixed(1)}%`}
                   </span>
@@ -445,7 +452,7 @@ export default function Reports() {
                   {/* Nombre + estado */}
                   <div className="flex min-w-40 items-center gap-2">
                     <span className={cn('h-2 w-2 shrink-0 rounded-full', r.sufficient ? STATUS_DOT[r.status] : 'bg-border-strong')} aria-hidden="true" />
-                    <span className="font-medium text-text-primary">{r.id}</span>
+                    <span className="font-medium text-text-primary">{routerLabel(r.id)}</span>
                     {r.sufficient ? (
                       <span className={cn('text-caption', STATUS_TEXT[r.status])}>{t(`reports.status_${r.status}`)}</span>
                     ) : (

@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { motion } from 'framer-motion'
 import { ChevronRight, CheckCircle2, AlertCircle, ArrowUpRight, Loader2, Wand2, ShieldAlert, Plus, X, Sparkles } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
+import { routerName } from '@/data/mock'
 import { useAuth } from '@/data/AuthContext'
 import { agentMatchesRouter } from '@/lib/agentMatch'
 
@@ -323,7 +324,10 @@ export default function Orchestration() {
             >
               {visibleRouters.map((a) => (
                 <option key={a.slug} value={a.slug}>
-                  {a.slug}{a.slug === gatewayId ? ` (${t('orchestration.gateway')})` : ''}
+                  {/* #988: nombre dado por el usuario + slug entre paréntesis
+                      cuando difieren (patrón LogLabel #953) */}
+                  {routerName(a.slug) !== a.slug ? `${routerName(a.slug)} (${a.slug})` : a.slug}
+                  {a.slug === gatewayId ? ` (${t('orchestration.gateway')})` : ''}
                 </option>
               ))}
             </select>
