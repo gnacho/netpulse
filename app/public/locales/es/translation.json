@@ -1725,6 +1725,8 @@
       "add": "Añadir instancia",
       "delete": "Quitar",
       "instanceName": "Nombre (p. ej. Casa)",
+      "idDuplicate": "Ya existe una instancia con ese identificador.",
+      "idRequired": "Pon un identificador para la instancia nueva.",
       "instanceId": "Identificador (slug, no editable luego)",
       "test": "Probar",
       "testOk": "Conectado: Proxmox {{version}} · {{nodes}} nodo(s), {{vms}} VM(s), {{cts}} CT(s)",

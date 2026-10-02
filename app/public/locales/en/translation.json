@@ -1725,6 +1725,8 @@
       "add": "Add instance",
       "delete": "Remove",
       "instanceName": "Name (e.g. Home)",
+      "idDuplicate": "An instance with that id already exists.",
+      "idRequired": "Enter an id for the new instance.",
       "instanceId": "Identifier (slug, not editable later)",
       "test": "Test",
       "testOk": "Connected: Proxmox {{version}} · {{nodes}} node(s), {{vms}} VM(s), {{cts}} CT(s)",

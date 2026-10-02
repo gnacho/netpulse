@@ -1959,6 +1959,20 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editing || saving) return
+    // #1057: el PUT hace upsert por id y un id vacío se coerciona a
+    // "default" en el server (legado): sin esta guarda, añadir una segunda
+    // instancia dejando el id vacío (o duplicado) pisa la primera.
+    if (isNew) {
+      const newId = editing.id.trim()
+      if (newId === '') {
+        setError(t('settings.proxmox.idRequired'))
+        return
+      }
+      if (instances.some((i) => i.id === newId)) {
+        setError(t('settings.proxmox.idDuplicate'))
+        return
+      }
+    }
     setSaving(true)
     setError(null)
     try {
