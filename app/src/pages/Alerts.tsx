@@ -24,6 +24,7 @@ import {
   Signal,
   Smartphone,
   Tablet,
+  Trash2,
   Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -41,6 +42,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { buildAlertFeed, buildLiveFeed, DAY_ORDER } from '@/data/alertFeed'
 import type { FeedDay, FeedEvent, FeedSpark } from '@/data/alertFeed'
 import { useNetPulse } from '@/data/DataProvider'
@@ -479,6 +490,7 @@ export default function Alerts() {
     alertsConfig,
     setAlertConfig,
     markAlertsRead,
+    markAllAlertsRead,
     clearAllAlerts,
     silenceAlert,
     dismissAlert,
@@ -509,9 +521,18 @@ export default function Alerts() {
   const isRead = (ev: FeedEvent) => ev.read
   const unread = unreadAlerts
 
+  const [confirmClear, setConfirmClear] = useState(false)
+
   const markAllRead = () => {
-    // #971: "Marcar todo como leído" VACÍA el feed (dismiss de las visibles
-    // en servidor), no solo marca. El botón conserva su texto original.
+    // #1034: "Marcar todo como leído" SOLO marca leídas las alertas visibles;
+    // el feed se conserva (las entradas quedan como leídas) y la acción de
+    // vaciado destructiva vive en el botón "Vaciar registro".
+    markAllAlertsRead()
+    setBurst((b) => b + 1)
+  }
+
+  const clearLog = () => {
+    setConfirmClear(false)
     clearAllAlerts()
     setBurst((b) => b + 1)
   }
@@ -665,6 +686,15 @@ export default function Alerts() {
             </motion.span>
             {t('alerts.markAllRead')}
           </button>
+          <button
+            type="button"
+            onClick={() => setConfirmClear(true)}
+            disabled={alertFeed.length === 0}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 text-xs font-medium text-danger transition-colors duration-150 hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+            {t('alerts.clearLog')}
+          </button>
         </div>
         <div className="md:hidden">
           <DropdownMenu>
@@ -692,6 +722,14 @@ export default function Alerts() {
               >
                 <CheckCheck className="h-4 w-4" strokeWidth={1.75} />
                 {t('alerts.markAllRead')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={alertFeed.length === 0}
+                onSelect={() => setConfirmClear(true)}
+                className="gap-2 text-danger focus:bg-hover"
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                {t('alerts.clearLog')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -963,6 +1001,26 @@ export default function Alerts() {
           )}
         </div>
       )}
+
+      {/* #1034: confirmación de la acción destructiva "Vaciar registro".
+          Marcar todo como leído ya no toca el log. */}
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('alerts.clearLogTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('alerts.clearLogDesc')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={clearLog}
+              className="bg-danger text-danger-foreground hover:bg-danger/90"
+            >
+              {t('alerts.clearLogConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
