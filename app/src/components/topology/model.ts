@@ -1425,7 +1425,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
           if (!node) return null
           const isWifi = node.router.backhaul === 'wifi'
           const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
-          const from = gatewayNode ?? null
+          // #1047: el padre lo decide la semántica (FDB del switch cuando no
+          // hay LLDP); solo se cae al gateway si el server no lo resolvió.
+          const from = routerById.get(sl.from) ?? gatewayNode ?? null
           const d = from ? curve(from, node) : ''
           return {
             id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,

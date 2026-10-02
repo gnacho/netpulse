@@ -78,6 +78,32 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		}
 		online = append(online, d)
 	}
+	// #1047: las unidades de la flota (routers/switches gestionados) también
+	// aparecen como Device porque su brMac tiene lease, pero el nodo del
+	// router ya las representa: se excluyen de los chips y su atribución
+	// FDB (dónde se vio la MAC y en qué puerto) queda como evidencia para
+	// anclar el uplink al padre REAL (p. ej. ap1 cuelga de sw1, no del
+	// gateway) aunque no haya LLDP.
+	routerMacs := map[string]string{} // MAC(upper) → router id
+	for _, r := range routers {
+		if r.MAC != "" {
+			routerMacs[strings.ToUpper(r.MAC)] = r.ID
+		}
+	}
+	uplinkEvidence := map[string]struct{ parent, port string }{}
+	filtered := online[:0]
+	for _, d := range online {
+		if rid, ok := routerMacs[strings.ToUpper(d.MAC)]; ok {
+			if rid != d.RouterID {
+				if _, seen := uplinkEvidence[rid]; !seen {
+					uplinkEvidence[rid] = struct{ parent, port string }{d.RouterID, d.Port}
+				}
+			}
+			continue
+		}
+		filtered = append(filtered, d)
+	}
+	online = filtered
 	// #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se
 	// descubre por ARP como un cliente más, pero vive en el lado WAN: si su
 	// IP coincide con la puerta de enlace WAN se representa bajo el nodo
@@ -162,11 +188,21 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		sem.Links = append(sem.Links, TopoLink{From: "internet", To: wanPeerID, Kind: "wan-peer"})
 	}
 	for _, ap := range nonGateway {
-		l := TopoLink{From: gateway.ID, To: ap.ID, Kind: "uplink"}
+		parent := gateway.ID
+		port := ""
 		if ap.Lldp != nil {
-			l.Port = ap.Lldp.PortDesc // puerto del uplink en el gateway (C2)
+			port = ap.Lldp.PortDesc
 		}
-		sem.Links = append(sem.Links, l)
+		// #1047: la evidencia FDB (MAC del equipo aprendida en el puerto de
+		// otro miembro de la flota) manda sobre el fallback al gateway; el
+		// puerto reportado es el del padre (switch), no del gateway.
+		if ev, ok := uplinkEvidence[ap.ID]; ok && ev.parent != ap.ID {
+			parent = ev.parent
+			if ev.port != "" {
+				port = ev.port
+			}
+		}
+		sem.Links = append(sem.Links, TopoLink{From: parent, To: ap.ID, Kind: "uplink", Port: port})
 	}
 	// router → distnode (solo inferred|managed son hubs propios en el mapa).
 	// En una cadena LLDP switch→switch (issue #300) el distnode cuelga de su

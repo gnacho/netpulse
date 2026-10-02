@@ -228,3 +228,41 @@ func TestTopoSemanticsWanPeer(t *testing.T) {
 		t.Fatalf("WanPeer sin gateway WAN = %q, want vacío", sem2.WanPeer)
 	}
 }
+
+// #1047: la MAC de una unidad de flota aprendida en el FDB de otro miembro
+// ancla su uplink al padre real (ap1 cuelga de sw1, no del gateway), aunque
+// no haya LLDP. La unidad deja de duplicarse como chip de cliente.
+func TestTopoSemanticsFdbUplinkParent(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "sw1", Name: "sw1", MAC: "AA:BB:CC:00:00:02"},
+		{ID: "ap1", Name: "ap1", MAC: "AA:BB:CC:00:00:03"},
+	}
+	devices := []Device{
+		// sw1 visto en el puerto 1 del gateway; ap1 en el puerto 5 de sw1.
+		{ID: "dev-sw1", MAC: "AA:BB:CC:00:00:02", RouterID: "gw", Band: "cable", Online: true, Port: "1"},
+		{ID: "dev-ap1", MAC: "AA:BB:CC:00:00:03", RouterID: "sw1", Band: "cable", Online: true, Port: "5"},
+		{ID: "nas", MAC: "AA:BB:CC:00:00:09", RouterID: "gw", Band: "cable", Online: true, Port: "2"},
+	}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "")
+	links := map[string]TopoLink{}
+	for _, l := range sem.Links {
+		if l.Kind == "uplink" {
+			links[l.To] = l
+		}
+	}
+	if got := links["sw1"]; got.From != "gw" || got.Port != "1" {
+		t.Fatalf("uplink sw1: %+v, want from gw puerto 1", got)
+	}
+	if got := links["ap1"]; got.From != "sw1" || got.Port != "5" {
+		t.Fatalf("uplink ap1: %+v, want from sw1 puerto 5", got)
+	}
+	// Las unidades de flota no duplican como chips de cliente.
+	for _, ring := range sem.Rings {
+		for _, id := range ring {
+			if id == "dev-sw1" || id == "dev-ap1" {
+				t.Fatalf("unidad de flota en anillo: %s", id)
+			}
+		}
+	}
+}
