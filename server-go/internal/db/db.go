@@ -341,6 +341,7 @@ CREATE TABLE IF NOT EXISTS wifi_scans (
   channel     INTEGER NOT NULL,
   freq        INTEGER NOT NULL,
   signal_dbm  INTEGER NOT NULL,
+  width_mhz   INTEGER NOT NULL DEFAULT 0,
   ts          INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wifi_scans_router_ts ON wifi_scans(router_id, ts DESC);
@@ -503,6 +504,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "agent_only", "ALTER TABLE routers ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0")
 	// issue #196: bridgeMAC persistido del router (exclusión de "desconocido").
 	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
+	// Ancho de canal de los vecinos (#1087), con el agente nuevo; 0 = viejo.
+	migrate(sqldb, "wifi_scans", "width_mhz", "ALTER TABLE wifi_scans ADD COLUMN width_mhz INTEGER NOT NULL DEFAULT 0")
 	// issue #241: target de firmware por router (string libre; NULL/"" = sin comprobar).
 	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
 	// issue #309: SNMP polling for managed switches.

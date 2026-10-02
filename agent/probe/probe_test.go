@@ -936,6 +936,94 @@ func TestParseUsteer(t *testing.T) {
 }
 
 // TestParseScanExtraeVecinos (#452): parsea la salida de `iw dev` scan.
+func TestParseScanWidthMhz(t *testing.T) {
+	// Bloques HT/VHT reales de `iw dev wlan0 scan` (OpenWrt).
+	out := `==IFACE==wlan0
+BSS 11:22:33:44:55:66(on wlan0)
+	freq: 2437
+	signal: -55.00 dBm
+	SSID: ochenta
+	HT operation:
+		 * primary channel: 6
+		 * secondary channel offset: below
+	VHT operation:
+		 * channel width: 1 (80 MHz)
+BSS aa:bb:cc:dd:ee:ff(on wlan0)
+	freq: 2462
+	signal: -70.00 dBm
+	SSID: cuarenta
+	HT operation:
+		 * primary channel: 11
+		 * secondary channel offset: above
+BSS 22:33:44:55:66:77(on wlan0)
+	freq: 2412
+	signal: -80.00 dBm
+	SSID: veinte
+	HT operation:
+		 * primary channel: 1
+		 * secondary channel offset: no secondary
+BSS 33:44:55:66:77:88(on wlan0)
+	freq: 5500
+	signal: -60.00 dBm
+	SSID: ciento60
+	HT operation:
+		 * primary channel: 100
+		 * secondary channel offset: below
+	VHT operation:
+		 * channel width: 2 (160 MHz)
+`
+	got := ParseScan(out)
+	widths := map[string]int{}
+	for _, s := range got {
+		widths[s.SSID] = s.WidthMhz
+	}
+	if widths["ochenta"] != 80 || widths["cuarenta"] != 40 || widths["veinte"] != 20 || widths["ciento60"] != 160 {
+		t.Fatalf("anchos inesperados: %+v de %+v", widths, got)
+	}
+}
+
+func TestParseIwDev(t *testing.T) {
+	out := `phy#0
+	Interface wlan0
+		ifindex 12
+		wdev 0x200000000
+		addr 62:e5:56:b6:94:bd
+		ssid temiscira
+		type AP
+		channel 6 (2437 MHz), width: 80 MHz, center1: 2437 MHz
+		txpower 20.00 dBm
+	Interface wlan0-1
+		ifindex 13
+		wdev 0x200000001
+		addr 6a:e5:56:b6:94:bd
+		ssid temiscira-guest
+		type AP
+		channel 6 (2437 MHz), width: 20 MHz, center1: 2437 MHz
+	Interface wlan1
+		ifindex 14
+		wdev 0x200000002
+		addr 62:e5:56:b6:94:be
+		ssid temiscira
+		type AP
+		channel 36 (5180 MHz), width: 80 MHz, center1: 5210 MHz
+phy#1
+	Interface uap0
+		ifindex 20
+		addr 62:e5:56:b6:94:bf
+		type managed
+`
+	got := ParseIwDev(out)
+	if len(got) != 3 {
+		t.Fatalf("esperaba 3 APs (uap0 managed fuera): %+v", got)
+	}
+	if got[0].BSSID != "62:E5:56:B6:94:BD" || got[0].SSID != "temiscira" || got[0].Iface != "wlan0" {
+		t.Fatalf("bloque 0 mal parseado: %+v", got[0])
+	}
+	if got[1].SSID != "temiscira-guest" {
+		t.Fatalf("guest sin capturar: %+v", got[1])
+	}
+}
+
 func TestParseScanExtraeVecinos(t *testing.T) {
 	out := `==IFACE==wlan0
 BSS 00:11:22:33:44:55(on wlan0)

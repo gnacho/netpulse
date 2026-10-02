@@ -172,6 +172,13 @@ func (r *AgentRegistry) LocalBssids() []string {
 		if st.Payload == nil {
 			continue
 		}
+		// BSSIDs propios reportados por el agente (#1087): exactos, cubren
+		// MACs aleatorizadas y guests fuera de dawn/usteer.
+		if w := st.Payload.Data.Wireless; w != nil {
+			for _, ob := range w.OwnBssids {
+				add(ob.BSSID)
+			}
+		}
 		if st.Payload.Data.Dawn != nil {
 			for _, ssid := range st.Payload.Data.Dawn.SSIDs {
 				for _, ap := range ssid.APs {

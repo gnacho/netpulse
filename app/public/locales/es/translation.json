@@ -2043,7 +2043,8 @@
     "onlyMine": "Solo mías",
     "legendDfs": "Zona DFS (radar)",
     "legendSuggested": "Bloque sugerido",
-    "legendCurrent": "Tu canal"
+    "legendCurrent": "Tu canal",
+    "heatNoteKnown": "anchos reales de los anuncios HT/VHT de cada vecina"
   },
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",

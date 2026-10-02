@@ -113,6 +113,18 @@ type WirelessData struct {
 	// Scans: redes vecinas vistas por cada interfaz WiFi (Fase 18/#452).
 	// nil/ausente = el scan no se pudo realizar en este push.
 	Scans []ScanResult `json:"scans,omitempty"`
+	// OwnBssids: BSSIDs de las interfaces AP de ESTE equipo (#1087), de
+	// `iw dev`. El server los usa de semilla exacta para no contar las
+	// propias redes como vecinas (casos con MAC aleatorizada o guest cuya
+	// MAC no casa con routers.mac). nil con agentes antiguos.
+	OwnBssids []OwnBSSID `json:"ownBssids,omitempty"`
+}
+
+// OwnBSSID: una interfaz AP local con su BSSID y SSID (#1087).
+type OwnBSSID struct {
+	Iface  string `json:"iface"`
+	BSSID  string `json:"bssid"` // MAC en mayúsculas
+	SSID   string `json:"ssid"`  // puede estar vacío
 }
 
 // ScanResult es un AP vecino detectado por un scan pasivo.
@@ -123,6 +135,10 @@ type ScanResult struct {
 	Channel int    `json:"channel"` // canal numérico
 	Freq    int    `json:"freq"`    // frecuencia en MHz
 	Signal  int    `json:"signal"`  // dBm (negativo)
+	// WidthMhz: ancho de canal anunciado (HT/VHT operation del scan, #1087).
+	// 0 con agentes antiguos o BSS sin esos bloques: la UI usa 20 MHz de
+	// fallback en ese caso.
+	WidthMhz int `json:"widthMhz,omitempty"`
 }
 
 // DHCPData: leases ipv4 (mac en mayúsculas) + clientes GL.iNet.

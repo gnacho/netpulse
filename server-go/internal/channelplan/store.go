@@ -39,8 +39,8 @@ func (s *Store) SaveScan(routerID string, ts int64, scans []probe.ScanResult) er
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO wifi_scans (router_id, iface, bssid, ssid, channel, freq, signal_dbm, ts)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO wifi_scans (router_id, iface, bssid, ssid, channel, freq, signal_dbm, width_mhz, ts)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (s *Store) SaveScan(routerID string, ts int64, scans []probe.ScanResult) er
 	defer stmt.Close()
 
 	for _, sc := range scans {
-		if _, err := stmt.Exec(routerID, sc.Iface, strings.ToUpper(sc.BSSID), sc.SSID, sc.Channel, sc.Freq, sc.Signal, ts); err != nil {
+		if _, err := stmt.Exec(routerID, sc.Iface, strings.ToUpper(sc.BSSID), sc.SSID, sc.Channel, sc.Freq, sc.Signal, sc.WidthMhz, ts); err != nil {
 			return err
 		}
 	}
@@ -63,6 +63,9 @@ type ScanRow struct {
 	Channel  int    `json:"channel"`
 	Freq     int    `json:"freq"`
 	Signal   int    `json:"signal"`
+	// WidthMhz: ancho anunciado por el vecino (#1087); 0 = desconocido
+	// (agente viejo o BSS sin HT/VHT): la UI dibuja 20 MHz de fallback.
+	WidthMhz int    `json:"widthMhz"`
 	Ts       int64  `json:"ts"`
 	RouterID string `json:"routerId"`
 	// Own marca los BSSIDs de la propia malla (#1070): comparten los 5
@@ -99,7 +102,7 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 	var err error
 	if routerID != "" {
 		rows, err = s.db.Query(`
-			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, MAX(ts)
+			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, width_mhz, MAX(ts)
 			FROM wifi_scans
 			WHERE router_id = ? AND ts >= ?
 			GROUP BY bssid
@@ -107,7 +110,7 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 		`, routerID, cutoff)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, MAX(ts)
+			SELECT router_id, iface, bssid, ssid, channel, freq, signal_dbm, width_mhz, MAX(ts)
 			FROM wifi_scans
 			WHERE ts >= ?
 			GROUP BY router_id, bssid
@@ -122,7 +125,7 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 	out := make([]ScanRow, 0)
 	for rows.Next() {
 		var r ScanRow
-		if err := rows.Scan(&r.RouterID, &r.Iface, &r.BSSID, &r.SSID, &r.Channel, &r.Freq, &r.Signal, &r.Ts); err != nil {
+		if err := rows.Scan(&r.RouterID, &r.Iface, &r.BSSID, &r.SSID, &r.Channel, &r.Freq, &r.Signal, &r.WidthMhz, &r.Ts); err != nil {
 			return nil, err
 		}
 		if exactOwn[strings.ToUpper(strings.TrimSpace(r.BSSID))] {

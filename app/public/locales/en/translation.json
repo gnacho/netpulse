@@ -2043,7 +2043,8 @@
     "onlyMine": "Only mine",
     "legendDfs": "DFS range (radar)",
     "legendSuggested": "Suggested block",
-    "legendCurrent": "Your channel"
+    "legendCurrent": "Your channel",
+    "heatNoteKnown": "real widths from each neighbor HT/VHT advertisements"
   },
   "firmwareUpgrades": {
     "title": "Firmware upgrades",

@@ -29,6 +29,7 @@ interface Scan {
   channel: number
   freq: number
   signal: number
+  widthMhz?: number
   routerId: string
   ts?: number
   own?: boolean
@@ -246,7 +247,9 @@ export default function ChannelPlan() {
       channel: s.channel,
       freq: s.freq,
       signal: s.signal,
-      widthMhz: 20,
+      // Ancho real del anuncio HT/VHT del vecino (#1087); 20 MHz de
+      // fallback cuando el agente viejo/no lo trae.
+      widthMhz: s.widthMhz && s.widthMhz > 0 ? s.widthMhz : 20,
       own: s.own ?? false,
       color: s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid),
     }))
@@ -651,7 +654,9 @@ export default function ChannelPlan() {
                     <div className="mb-1.5 flex items-center gap-2">
                       <span className="text-label uppercase text-text-muted">{t('channelPlan.heatTitle')}</span>
                       <span className="ml-auto text-caption font-normal normal-case tracking-normal text-text-muted">
-                        {t('channelPlan.heatNote')}
+                        {bandScans.some((s) => !s.own && !(s.widthMhz && s.widthMhz > 0))
+                          ? t('channelPlan.heatNote')
+                          : t('channelPlan.heatNoteKnown')}
                       </span>
                     </div>
                     <div className="flex justify-between text-[10.5px] text-text-muted">
@@ -856,9 +861,17 @@ export default function ChannelPlan() {
                               </td>
                               <td className="px-3 py-2.5 font-mono font-bold text-text-primary">{s.channel}</td>
                               <td className="px-3 py-2.5">
-                                {s.own && active.widthMhz > 0 ? (
+                                {s.own ? (
+                                  active.widthMhz > 0 ? (
+                                    <span className="rounded-md bg-elevated px-2 py-0.5 text-[11px] font-bold text-text-secondary">
+                                      {active.widthMhz} MHz
+                                    </span>
+                                  ) : (
+                                    <span className="text-text-muted">—</span>
+                                  )
+                                ) : s.widthMhz && s.widthMhz > 0 ? (
                                   <span className="rounded-md bg-elevated px-2 py-0.5 text-[11px] font-bold text-text-secondary">
-                                    {active.widthMhz} MHz
+                                    {s.widthMhz} MHz
                                   </span>
                                 ) : (
                                   <span className="text-text-muted">—</span>
