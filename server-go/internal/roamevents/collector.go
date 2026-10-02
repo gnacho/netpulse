@@ -3,8 +3,10 @@
 //
 // El feed viene de `logread` en cada router con SSH. Una goroutine dedicada
 // (Collector) corre cada 60s, hace SSH `logread | grep -E 'AP-STA-CONNECTED|
-// AP-STA-DISCONNECTED|dawn:'` por router, parsea cada línea a un RoamEvent y
-// lo inserta con INSERT OR IGNORE (dedup por content_hash).
+// AP-STA-DISCONNECTED|IEEE 802.11: (dis)associated|dawn:|usteer:'` por router,
+// parsea cada línea a un RoamEvent y lo inserta con INSERT OR IGNORE (dedup
+// por content_hash). El formato IEEE 802.11 cubre wpad-mbedtls, que no emite
+// AP-STA-* (#1038).
 //
 // Solo se ingestan 3 tipos de eventos: connected, disconnected, dawn_decision.
 // BEACON-REQ/RESP se descartan (90% del ruido, valor bajo sin contexto FT).
@@ -128,7 +130,9 @@ func (c *Collector) tick() {
 
 func (c *Collector) collectRouter(h RouterHost) {
 	// grep extiende el set a futuro (eventos FT, etc.) sin tocar el binario.
-	cmd := "logread 2>/dev/null | grep -E 'AP-STA-CONNECTED|AP-STA-DISCONNECTED|dawn:|usteer:' | tail -100"
+	// "IEEE 802.11: (dis)associated" cubre el formato de wpad-mbedtls que
+	// no emite AP-STA-CONNECTED/DISCONNECTED (#1038).
+	cmd := "logread 2>/dev/null | grep -E 'AP-STA-CONNECTED|AP-STA-DISCONNECTED|IEEE 802\\.11: associated|IEEE 802\\.11: disassociated|dawn:|usteer:' | tail -100"
 	out, err := c.runner.Run(h.Host, cmd, 8*time.Second)
 	if err != nil {
 		return
@@ -229,6 +233,13 @@ var (
 	// hostapd sin prefijo de iface: "AP-STA-CONNECTED <mac>"
 	hostapdConnShortRe = regexp.MustCompile(`^AP-STA-(CONNECTED|DISCONNECTED)\s+([0-9a-fA-F:]{17})`)
 
+	// hostapd formato wpad-mbedtls (#1038): no emite AP-STA-* sino
+	//   "phy1-ap0: STA <mac> IEEE 802.11: associated (aid 1)"
+	//   "phy1-ap0: STA <mac> IEEE 802.11: disassociated"
+	//   "phy1-ap0: STA <mac> IEEE 802.11: disassociated due to inactivity"
+	// El sufijo (aid N / due to inactivity) lo tolera el \b final.
+	hostapdAssocRe = regexp.MustCompile(`^(\S+):\s+STA\s+([0-9a-fA-F:]{17})\s+IEEE 802\.11:\s+(dis)?associated\b`)
+
 	// dawn: "Client / BSSID = <mac> / <bssid>: <action>"
 	dawnClientRe = regexp.MustCompile(`Client\s*/\s*BSSID\s*=\s*([0-9a-fA-F:]{17})\s*/\s*([0-9a-fA-F:]{17}):\s*(.+)`)
 
@@ -300,6 +311,16 @@ func parseHostapd(rest, routerID string, ts int64) (Event, bool) {
 			typ = TypeDisconnected
 		}
 		return Event{TsMs: ts, RouterID: routerID, Type: typ, MAC: mac}, true
+	}
+	// Caso wpad-mbedtls (#1038): "phy1-ap0: STA <mac> IEEE 802.11: associated (aid 1)"
+	if m := hostapdAssocRe.FindStringSubmatch(rest); m != nil {
+		iface := m[1]
+		mac := m[2]
+		typ := TypeConnected
+		if m[3] == "dis" {
+			typ = TypeDisconnected
+		}
+		return Event{TsMs: ts, RouterID: routerID, Type: typ, MAC: mac, Iface: iface}, true
 	}
 	return Event{}, false
 }

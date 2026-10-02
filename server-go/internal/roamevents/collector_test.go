@@ -120,6 +120,26 @@ func TestParseHostapdConnected(t *testing.T) {
 			want:  TypeDisconnected,
 			iface: "wlan0",
 		},
+		{
+			// #1038: wpad-mbedtls no emite AP-STA-*; formato real de
+			// OpenWrt 25.12.5 reportado por crowedavid.
+			name:  "mbedtls-associated",
+			line:  "Thu Oct  1 19:56:50 2026 daemon.info hostapd: phy1-ap0: STA 04:95:e6:76:55:a1 IEEE 802.11: associated (aid 1)",
+			want:  TypeConnected,
+			iface: "phy1-ap0",
+		},
+		{
+			name:  "mbedtls-disassociated",
+			line:  "Thu Oct  1 20:04:52 2026 daemon.info hostapd: phy1-ap0: STA 04:95:e6:76:55:a1 IEEE 802.11: disassociated",
+			want:  TypeDisconnected,
+			iface: "phy1-ap0",
+		},
+		{
+			name:  "mbedtls-disassociated-inactivity",
+			line:  "Thu Oct  1 20:04:52 2026 daemon.info hostapd: phy1-ap0: STA 04:95:e6:76:55:a1 IEEE 802.11: disassociated due to inactivity",
+			want:  TypeDisconnected,
+			iface: "phy1-ap0",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
