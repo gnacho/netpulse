@@ -2018,7 +2018,7 @@
     "scoresFoot": "La puntuación pondera potencia y solapamiento de cada vecina. Tus propias redes no penalizan.",
     "whyAlone": "Sin interferencias",
     "whyNeighbors": "{{n}} redes · máx {{dbm}} dBm",
-    "tableSub": "{{n}} redes · ordenadas por señal · clic para resaltar",
+    "tableSub": "{{n}} redes · clic en columna para ordenar · clic en fila para resaltar",
     "colWidth": "Ancho",
     "gateway": " (Puerta de enlace)",
     "congestion": {
@@ -2031,7 +2031,10 @@
       "good": "Buena",
       "weak": "Floja",
       "veryWeak": "Muy floja"
-    }
+    },
+    "sortable": "ordenar",
+    "sortAsc": "orden ascendente, clic para invertir",
+    "sortDesc": "orden descendente, clic para invertir"
   },
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",

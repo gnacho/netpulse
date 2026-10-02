@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
-import { AlertCircle, RefreshCw, Router, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, RefreshCw, Router, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ssidColor } from '@/lib/ssidColor'
 import { Button } from '@/components/ui/button'
@@ -150,6 +150,7 @@ export default function ChannelPlan() {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
   const [hover, setHover] = useState<{ net: SpectrumNet; x: number; y: number } | null>(null)
+  const [sort, setSort] = useState<{ key: 'signal' | 'ssid' | 'channel'; dir: 'asc' | 'desc' } | null>(null)
   const [lastRefresh, setLastRefresh] = useState<number>(0)
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -289,6 +290,39 @@ export default function ChannelPlan() {
     return Math.max(...tss)
   }, [bandScans])
   const congestion = currentPct >= 80 ? 'low' : currentPct >= 55 ? 'moderate' : 'high'
+
+  // Ordenación de la tabla: por defecto propias primero y luego señal desc;
+  // al elegir columna se ordena puro asc/desc (la alterna al repetir clic).
+  const toggleSort = (key: 'signal' | 'ssid' | 'channel') =>
+    setSort((prev) => (prev && prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'signal' ? 'desc' : 'asc' }))
+
+  const sortedScans = useMemo(() => {
+    const arr = bandScans.slice()
+    if (!sort) return arr.sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
+    const dir = sort.dir === 'asc' ? 1 : -1
+    return arr.sort((a, b) => {
+      if (sort.key === 'signal') return (a.signal - b.signal) * dir
+      if (sort.key === 'channel') return (a.channel - b.channel) * dir
+      return (a.ssid || a.bssid).localeCompare(b.ssid || b.bssid, undefined, { sensitivity: 'base' }) * dir
+    })
+  }, [bandScans, sort])
+
+  const SortHeader = ({ id, label }: { id: 'signal' | 'ssid' | 'channel'; label: string }) => (
+    <button
+      onClick={() => toggleSort(id)}
+      aria-label={`${label}: ${sort?.key === id ? (sort.dir === 'asc' ? t('channelPlan.sortAsc') : t('channelPlan.sortDesc')) : t('channelPlan.sortable')}`}
+      className={cn('inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-text-primary', sort?.key === id ? 'text-accent' : '')}
+    >
+      {label}
+      {sort?.key !== id ? (
+        <ArrowUpDown className="h-3 w-3 opacity-50" strokeWidth={2} />
+      ) : sort.dir === 'asc' ? (
+        <ArrowUp className="h-3 w-3" strokeWidth={2} />
+      ) : (
+        <ArrowDown className="h-3 w-3" strokeWidth={2} />
+      )}
+    </button>
+  )
   const currentDfs = active ? isDfsChannel(active.name, active.channel) : false
 
   return (
@@ -655,18 +689,21 @@ export default function ChannelPlan() {
                   <table className="w-full border-collapse text-left text-sm">
                     <thead>
                       <tr className="text-label uppercase text-text-muted">
-                        <th className="px-5 py-2.5 font-medium">{t('channelPlan.signal')}</th>
-                        <th className="px-3 py-2.5 font-medium">SSID</th>
-                        <th className="px-3 py-2.5 font-medium">{t('channelPlan.currentChannel')}</th>
+                        <th className="px-5 py-2.5 font-medium">
+                          <SortHeader id="signal" label={t('channelPlan.signal')} />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortHeader id="ssid" label="SSID" />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortHeader id="channel" label={t('channelPlan.currentChannel')} />
+                        </th>
                         <th className="px-3 py-2.5 font-medium">{t('channelPlan.colWidth')}</th>
                         <th className="px-3 py-2.5 font-medium">BSSID</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {bandScans
-                        .slice()
-                        .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
-                        .map((s) => {
+                      {sortedScans.map((s) => {
                           const lvl = signalLevel(s.signal)
                           const color = s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid)
                           const key = s.bssid + s.channel

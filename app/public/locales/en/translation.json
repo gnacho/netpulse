@@ -2018,7 +2018,7 @@
     "scoresFoot": "The score weighs each neighbor's power and overlap. Your own networks do not count against.",
     "whyAlone": "No interference",
     "whyNeighbors": "{{n}} networks · max {{dbm}} dBm",
-    "tableSub": "{{n}} networks · sorted by signal · click to highlight",
+    "tableSub": "{{n}} networks · click a column to sort · click a row to highlight",
     "colWidth": "Width",
     "gateway": " (Gateway)",
     "congestion": {
@@ -2031,7 +2031,10 @@
       "good": "Good",
       "weak": "Weak",
       "veryWeak": "Very weak"
-    }
+    },
+    "sortable": "sort",
+    "sortAsc": "ascending order, click to reverse",
+    "sortDesc": "descending order, click to reverse"
   },
   "firmwareUpgrades": {
     "title": "Firmware upgrades",
