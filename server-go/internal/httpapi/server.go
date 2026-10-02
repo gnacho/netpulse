@@ -56,7 +56,7 @@ import (
 // Version es la versión del backend (app.js:18). Es una var (no const) para
 // que goreleaser la inyecte con -X httpapi.Version={{.Version}} y el health
 // reporte la versión del tag; los builds locales caen al fallback.
-var Version = "2.28.43"
+var Version = "2.30.0"
 
 // Deps son las dependencias del servidor API (como createApp de app.js).
 type Deps struct {

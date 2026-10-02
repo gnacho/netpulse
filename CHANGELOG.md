@@ -5,6 +5,38 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.30.0] - 2026-10-02
+
+### Added
+
+- **Soporte RouterOS (MikroTik) de primera clase (#969, gracias @samex)**: nuevo tipo de router en la flota, sondeado desde el servidor por la API REST nativa de RouterOS 7+ (vitals reales: CPU/RAM/uptime, métricas WAN, comprobación de actualizaciones), con cliente del API binario (8728) escrito a mano para instalaciones con `www` cerrado: cero dependencias nuevas, login moderno y solo lectura. Contraseña solo en el servidor (`json:"-"`), TLS autofirmado opt-in, y agente `routeros-pusher` opcional.
+- **M-Lab NDT como proveedor de speedtest por defecto (#1037, idea de @crowedavid)**: red de medición neutra y sin ánimo de lucro, con política de datos abierta: mejor privacidad que Ookla o Cloudflare. Las instalaciones con proveedor guardado lo conservan. Nuevo modo de planificación "auto" que ejecuta el test a la hora de menos tráfico según el histórico propio de la red (#1066).
+- **Anclaje de uplinks de flota por evidencia FDB (#1047, #1051, #1060)**: cada unidad cuelga de su padre real (el switch donde su MAC bridge se aprendió, con etiqueta de puerto); si el puerto tiene un círculo de switch (inferido o gestionado), el uplink sale del círculo: gateway → (switch) → AP. Ya no depende de que las unidades aparezcan como devices.
+- **Equipo aguas arriba del gateway bajo el nodo Internet (#1042)**: cuando la IP de un cliente coincide con la puerta de enlace WAN (módem/ONT del ISP), se dibuja colgando de la nube, junto a la línea WAN, en vez de como cliente LAN.
+- **Granularidad horaria y diaria en Informes (#1032, #1033)**: el selector ofrece Horario (buckets por hora) y Diario; el endpoint conserva semanal/mensual para API/CSV.
+- **Retención del registro de alertas y "Vaciar registro" (#1034)**: "Marcar todo como leído" ya no borra del log (solo del read-set); vaciar es una acción aparte, con confirmación, y `alerts.retentionDays` (default 30, poda horaria y de arranque sin reinicio).
+
+### Fixed
+
+- El feed de roaming mostraba solo Disconnect en APs con wpad-mbedtls (OpenWrt 25.12.x), que no emite AP-STA-* (#1038).
+- Pantalla en blanco al cambiar el rango de Informes (#1029).
+- La tarjeta de edición de flota guardaba y cerraba al elegir el tipo; ahora hay etiquetas visibles, firmware target solo para OpenWrt/GL.iNet y sondeo SNMP disponible en el alta (#1026).
+- La tabla de enlaces siempre nombraba al gateway como padre de los uplinks aunque el mapa los dibujara desde un círculo de switch (#1063).
+- Literales en español filtrándose a UIs en inglés en las tarjetas de puertos; los pares inferidos llevan icono de red (#1039, #1040).
+- El matching LLDP exigía igualdad exacta de nombre: "sw1" (chasis) no casaba con "sw1.lan" (flota) y el uplink caía al gateway (#1041).
+- La integración Proxmox duplicaba un switch inferido entre el switch gestionado y los hosts; el inventario PVE (ground truth) lo absorbe (#1053).
+- La segunda instancia Proxmox con id vacío o duplicado pisaba la primera en silencio; el diálogo lo rechaza (#1057).
+- Previsualizaciones al pasar el cursor mientras se edita el layout de topología (#1045), tooltips que saltaban solos al abrir diálogos y marco de foco en la (x) (#1064, #1068), anillo de foco también al hover (#1069), y los diálogos de config cierran al guardar (#1065).
+- El historial de tráfico de un router desbordaba la tarjeta con muchos puertos: selector en desplegable con filtro All/Active/Inactive (#1035).
+
+### Changed
+
+- Las alertas se componen en inglés nativo y se traducen al idioma del cliente (#1014); las notas de release se muestran en el idioma del cliente (#1011).
+- Terminología consolidada: flota/unidad y clientes (#1025, #1027), botón "Detectar" de Proxmox recuperado (#967).
+- Actualización completa de dependencias (#1020 tramos 1 y 2, #1022, #1028).
+
+Gracias a @crowedavid por los reportes que formaron la mayor parte de esta release, a @samex por la integración RouterOS, y a @gnulan, @borky y todos los que reportan y discuten ideas.
+
 ## [2.28.43] - 2026-10-01
 
 ### Added
