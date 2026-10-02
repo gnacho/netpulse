@@ -159,7 +159,11 @@ export default function ChannelPlan() {
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const sortedRouters = useMemo(() => {
-    return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
+    // Sin unidades que no pueden tener WiFi (p. ej. switches gestionados):
+    // en el picker de un análisis de canales solo estorban (#1085).
+    return [...routers]
+      .filter((r) => r.type !== 'managed-switch')
+      .sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
   }, [routers])
 
   useEffect(() => {
