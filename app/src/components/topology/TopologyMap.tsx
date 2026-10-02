@@ -787,8 +787,12 @@ export function TopologyMap({
   )
 
   // -- tooltips ---------------------------------------------------------------
-  const openTooltip = useCallback((data: TooltipData) => {
-    const el = containerRef.current
+  // #1045: en modo edición de layout se suprime cualquier apertura de tarjeta
+  // (hover/focus de routers, chips, internet, peers) para no estorbar al arrastrar.
+  const openTooltip = useCallback(
+    (data: TooltipData) => {
+      if (editMode) return
+      const el = containerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
     const v = viewRef.current
@@ -798,7 +802,14 @@ export function TopologyMap({
     const rawTop = ((data.y - v.y) / v.h) * rect.height
     const top = below ? clamp(rawTop, 16, rect.height - 190) : clamp(rawTop, 190, rect.height - 20)
     setTooltip({ ...data, left, top, below })
-  }, [])
+    },
+    [editMode],
+  )
+
+  // #1045: si se activa el modo edición con una tarjeta abierta, cerrarla.
+  useEffect(() => {
+    if (editMode) setTooltip(null)
+  }, [editMode])
 
   // El cierre no es inmediato: si el cursor deja el nodo rumbo al popup (que
   // flota sobre él), un retardo evita que el popup desaparezca antes de
