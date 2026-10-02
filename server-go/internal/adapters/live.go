@@ -3252,6 +3252,12 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 		netdev := portNetdev(port)
 		all := portMacs[netdev]
+		// #1036: portMacs se construye iterando el FDB (mapa), así que el
+		// ORDEN de las MACs por boca cambia en cada tick. Con 2-3 MACs la
+		// heurística de "primera con hostname DHCP" elegía un dispositivo
+		// distinto por ciclo y la etiqueta del puerto flappeaba. Orden
+		// estable: la selección queda determinista entre polls.
+		sort.Strings(all)
 		// 1) ¿Otro router al otro lado? (uplink router↔router)
 		neighbor := ""
 		for _, mac := range all {
