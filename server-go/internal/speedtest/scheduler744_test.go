@@ -129,7 +129,7 @@ func TestExecuteDiscardsGarbageResult(t *testing.T) {
 	st, sched := openStore(t)
 	sched.runner = garbageRunner{}
 	sched.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
-	stSettings := Settings{Enabled: true, IntervalHours: 6}
+	stSettings := Settings{Enabled: true, IntervalHours: 6, Provider: ProviderOokla}
 	if err := sched.SaveSettings(stSettings); err != nil {
 		t.Fatalf("save: %v", err)
 	}

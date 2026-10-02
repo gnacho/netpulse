@@ -97,6 +97,10 @@ type Scheduler struct {
 	// en tests.
 	httpRunner Runner
 
+	// ndtRunner (#1037) ejecuta el provider M-Lab NDT; nil = NDTRunner{} por
+	// ejecución. Inyectable en tests.
+	ndtRunner Runner
+
 	// contractDown lee el plan contratado declarado (#151). Inyectada para
 	// no duplicar la lógica kv del httpapi; nil = nunca alertar.
 	contractDown func() (float64, bool)
@@ -125,9 +129,20 @@ func (s *Scheduler) SetAlertEmitter(e AlertEmitter) { s.emit = e }
 // SetHTTPRunner inyecta el runner de los providers HTTP (#976), para tests.
 func (s *Scheduler) SetHTTPRunner(r Runner) { s.httpRunner = r }
 
+// SetNDTRunner inyecta el runner del provider M-Lab NDT (#1037), para tests.
+func (s *Scheduler) SetNDTRunner(r Runner) { s.ndtRunner = r }
+
 // runnerFor elige la implementacion segun el provider configurado.
 func (s *Scheduler) runnerFor(provider string) Runner {
-	if provider == "" || provider == ProviderOokla {
+	// #1037: "" (no configurado) y el default NDT van al runner NDT; Ookla
+	// solo explícito.
+	if provider == "" || provider == ProviderNDT {
+		if s.ndtRunner != nil {
+			return s.ndtRunner
+		}
+		return NDTRunner{}
+	}
+	if provider == ProviderOokla {
 		return s.runner
 	}
 	if s.httpRunner != nil {
@@ -320,6 +335,9 @@ func (s *Scheduler) LoadSettings() Settings {
 	}
 	if v := kvGet(s.db, kvProvider); validProvider(v) {
 		st.Provider = v
+	} else {
+		// #1037: default NDT (privacidad) cuando no hay nada configurado.
+		st.Provider = ProviderNDT
 	}
 	if v, ok := kvInt(s.db, kvAlertPct); ok && v >= 0 && v <= 90 {
 		st.AlertPct = v
@@ -377,12 +395,14 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 	}
 	// Provider (#976): librespeed necesita la URL base de la instancia y
 	// custom (#1001) la URL completa del endpoint; los demás la ignoran
-	// (ookla: servidor concreto opcional; cloudflare: endpoints fijos).
+	// (ookla/ndt: servidor concreto opcional; cloudflare: endpoints fijos).
+	// Por defecto NDT (#1037): medición neutral y sin ánimo comercial, mejor
+	// privacidad que Ookla; los que ya tengan otro provider en kv lo conservan.
 	if st.Provider == "" {
-		st.Provider = ProviderOokla
+		st.Provider = ProviderNDT
 	}
 	if !validProvider(st.Provider) {
-		return errors.New("provider debe ser ookla, cloudflare, librespeed o custom")
+		return errors.New("provider debe ser ookla, cloudflare, librespeed, custom o ndt")
 	}
 	if st.Provider == ProviderLibrespeed && strings.TrimSpace(st.ServerURL) == "" {
 		return errors.New("librespeed exige serverUrl con la URL base de la instancia")

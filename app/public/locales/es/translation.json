@@ -1658,7 +1658,7 @@
       "caption": "Medición periódica real desde el servidor",
       "enabled": "Test periódico activado",
       "provider": "Proveedor del test",
-      "providerHint": "Método de medición. Speedtest.net usa la red de servidores de Ookla; Cloudflare mide contra speed.cloudflare.com por HTTP; LibreSpeed usa una instancia propia o pública (necesitas su URL); Personalizado mide contra la URL que indiques (debe aceptar GET para bajada y POST para subida). Prueba otro si el resultado por defecto no se parece a tu línea.",
+      "providerHint": "Método de medición. Speedtest.net usa la red de servidores de Ookla; Cloudflare mide contra speed.cloudflare.com por HTTP; LibreSpeed usa una instancia propia o pública (necesitas su URL); Personalizado mide contra la URL que indiques (debe aceptar GET para bajada y POST para subida). Prueba otro si el resultado por defecto no se parece a tu línea. M-Lab NDT mide contra los servidores públicos del consorcio (autodetección del más cercano).",
       "providerOokla": "Speedtest.net (Ookla)",
       "providerCloudflare": "Cloudflare",
       "providerLibrespeed": "LibreSpeed",
@@ -1704,7 +1704,9 @@
       "originManual": "Manual",
       "colServer": "Servidor",
       "noRecent": "Aún no hay tests registrados",
-      "recentHide": "Ocultar"
+      "recentHide": "Ocultar",
+      "providerNdt": "M-Lab NDT",
+      "ndtPlaceholder": "Opcional: FQDN de un servidor M-Lab (vacío = autodetectar)"
     },
     "proxmox": {
       "title": "Proxmox VE",

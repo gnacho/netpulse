@@ -3052,8 +3052,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [alertPct, setAlertPct] = useState(50)
   const [serverUrl, setServerUrl] = useState('')
   // Proveedor del test (#976): ookla/cloudflare/librespeed + custom (#1001,
-  // endpoint HTTP libre cuya URL completa escribe el usuario).
-  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed' | 'custom'>('ookla')
+  // endpoint HTTP libre cuya URL completa escribe el usuario) + ndt (#1037,
+  // M-Lab NDT con autodetección de servidor).
+  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed' | 'custom' | 'ndt'>('ndt')
   const [scheduleKind, setScheduleKind] = useState<'interval' | 'weekly' | 'monthly'>('interval')
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [dayOfMonth, setDayOfMonth] = useState(1)
@@ -3077,7 +3078,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
         if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
         // Proveedor del test (#976): ookla/cloudflare/librespeed/custom.
-        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed' || d.provider === 'custom') {
+        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed' || d.provider === 'custom' || d.provider === 'ndt') {
           setProvider(d.provider)
         }
         // Migración visual de los "semanal/mensual" históricos (#744):
@@ -3235,7 +3236,9 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       ? t('settings.speedtest.librespeedPlaceholder')
       : provider === 'custom'
         ? t('settings.speedtest.customPlaceholder')
-        : t('settings.speedtest.serverPlaceholder')
+        : provider === 'ndt'
+          ? t('settings.speedtest.ndtPlaceholder')
+          : t('settings.speedtest.serverPlaceholder')
 
   return (
     <div className="space-y-3">
@@ -3277,7 +3280,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         </span>
         <select
           value={provider}
-          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed' | 'custom')}
+          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed' | 'custom' | 'ndt')}
           disabled={disabled || loading}
           aria-label={t('settings.speedtest.provider')}
           className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
@@ -3286,6 +3289,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           <option value="cloudflare">{t('settings.speedtest.providerCloudflare')}</option>
           <option value="librespeed">{t('settings.speedtest.providerLibrespeed')}</option>
           <option value="custom">{t('settings.speedtest.providerCustom')}</option>
+          <option value="ndt">{t('settings.speedtest.providerNdt')}</option>
         </select>
       </label>
       <div className="grid grid-cols-2 gap-3">
