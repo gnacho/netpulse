@@ -16,7 +16,10 @@
 //     generan enlace (la app los agrupa en su chip "+N" de peers).
 package adapters
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // Capacidad de los anillos canónicos de model.ts (GATEWAY_RINGS 8+12+16+24,
 // AP_RINGS 8+14+18): el límite de chips visibles por anillo que aplica la app.
@@ -34,7 +37,49 @@ const maxTopoPeerChips = 4
 
 // BuildTopoSemantics deriva enlaces, anillos y peers ocultos del mismo bundle
 // que hoy consume la app (routers, devices, wireguard, distributionNodes).
-func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string) *TopoSemantics {
+// topoParent (#1047/#1051): padre de uplink de una unidad de flota derivado
+// de evidencia FDB (en qué equipo se aprendió su MAC y en qué puerto).
+type topoParent struct {
+	parent string
+	port   string
+}
+
+// fleetFdbEvidence (#1051): para cada router de la flota, ¿en qué OTRO miembro
+// se aprendió su MAC bridge y en qué puerto? Fuente directa del FDB de cada
+// poller, sin pasar por la atribución a devices (que no existe en redes donde
+// las unidades no aparecen como clientes). Orden determinista: ids ordenados,
+// primer padre candidato gana.
+func fleetFdbEvidence(polled map[string]*routerPolled) map[string]topoParent {
+	macs := map[string]string{} // MAC bridge (upper) → router propietario
+	ids := make([]string, 0, len(polled))
+	for id, p := range polled {
+		if p == nil || p.brMac == "" {
+			continue
+		}
+		macs[strings.ToUpper(p.brMac)] = id
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := map[string]topoParent{}
+	for _, sid := range ids {
+		p := polled[sid]
+		if p == nil {
+			continue
+		}
+		for mac, port := range p.fdb {
+			rid, ok := macs[strings.ToUpper(mac)]
+			if !ok || rid == sid {
+				continue
+			}
+			if _, seen := out[rid]; !seen {
+				out[rid] = topoParent{parent: sid, port: port}
+			}
+		}
+	}
+	return out
+}
+
+func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent) *TopoSemantics {
 	sem := &TopoSemantics{Links: []TopoLink{}, Rings: map[string][]string{}}
 	if len(routers) == 0 {
 		return sem
@@ -90,13 +135,13 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 			routerMacs[strings.ToUpper(r.MAC)] = r.ID
 		}
 	}
-	uplinkEvidence := map[string]struct{ parent, port string }{}
+	uplinkEvidence := map[string]topoParent{}
 	filtered := online[:0]
 	for _, d := range online {
 		if rid, ok := routerMacs[strings.ToUpper(d.MAC)]; ok {
 			if rid != d.RouterID {
 				if _, seen := uplinkEvidence[rid]; !seen {
-					uplinkEvidence[rid] = struct{ parent, port string }{d.RouterID, d.Port}
+					uplinkEvidence[rid] = topoParent{parent: d.RouterID, port: d.Port}
 				}
 			}
 			continue
@@ -104,6 +149,14 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		filtered = append(filtered, d)
 	}
 	online = filtered
+	// #1051: la evidencia FDB directa del poller cubre las redes donde las
+	// unidades de flota NO aparecen como devices; la atribución de device
+	// (attachTo/override) manda cuando existe.
+	for rid, ev := range fdbEvidence {
+		if _, ok := uplinkEvidence[rid]; !ok {
+			uplinkEvidence[rid] = ev
+		}
+	}
 	// #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se
 	// descubre por ARP como un cliente más, pero vive en el lado WAN: si su
 	// IP coincide con la puerta de enlace WAN se representa bajo el nodo

@@ -2993,6 +2993,10 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	if len(top) > 5 {
 		top = top[:5]
 	}
+	// #1051: evidencia FDB directa para anclar uplinks de flota sin depender
+	// de que la unidad aparezca como device (la MAC bridge de cada router
+	// aprendida en el FDB de otro miembro dice dónde cuelga).
+	fdbEvidence := fleetFdbEvidence(polled)
 	// El motor de alertas es el dueño de la lista y del read-state
 	// (SPEC-ALERTAS §3-4): UnreadAlerts = no leídas que pasaron config.
 	alertsCopy := l.engine.List()
@@ -3009,7 +3013,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		},
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
-		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway), // SPEC-65 D65-3 + #1042
+		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence), // SPEC-65 D65-3 + #1042/#1051
 		Devices:           devices,
 		Usteer:            &UsteerOverview{Available: usteerAvailable},
 		DawnDeprecated:    dawnDetected,
