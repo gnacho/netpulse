@@ -446,6 +446,11 @@ func routerIdentities(polled map[string]*routerPolled) []routerIdentity {
 // del router (case-insensitive). Los dos últimos son el fix tolerante al
 // chassis-ID distinto de la br-lan (issue #252). selfID se excluye (un router
 // no es su propio vecino). nil si no hay coincidencia.
+//
+// #1041: el match por nombre compara el PRIMER label DNS (case-insensitive):
+// un switch enrolado como "sw1.lan" debe casar con el chassis "sw1" que
+// anuncia lldpd, si no el uplink cae al gateway y el vecino duplica como
+// cliente. Antes exigía igualdad exacta del nombre completo.
 func neighborIsRouter(nb *LldpNeighbor, routers []routerIdentity, selfID string) *routerIdentity {
 	if nb == nil {
 		return nil
@@ -468,16 +473,30 @@ func neighborIsRouter(nb *LldpNeighbor, routers []routerIdentity, selfID string)
 			return r
 		}
 	}
-	for i := range routers {
-		r := &routers[i]
-		if r.ID == selfID {
-			continue
-		}
-		if nb.Chassis != "" && r.Name != "" && strings.EqualFold(nb.Chassis, r.Name) {
-			return r
+	if chassis := firstDnsLabel(nb.Chassis); chassis != "" {
+		for i := range routers {
+			r := &routers[i]
+			if r.ID == selfID {
+				continue
+			}
+			// Los Host son IPs en la práctica: comparar primer label de una
+			// IP sería "192"=="192" (falso positivo trivial). Solo nombres.
+			if r.Name != "" && chassis == firstDnsLabel(r.Name) {
+				return r
+			}
 		}
 	}
 	return nil
+}
+
+// firstDnsLabel normaliza a minúsculas y devuelve el primer label DNS
+// ("sw1.lan." → "sw1"). "" si no hay nada usable (#1041).
+func firstDnsLabel(s string) string {
+	s = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), ".")
+	if i := strings.Index(s, "."); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // fillNodeSpeeds pone la velocidad del PRIMER salto: lo que cuelga de una
