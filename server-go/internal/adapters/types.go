@@ -565,6 +565,10 @@ type EthPort struct {
 	Sfp         *SfpInfo `json:"sfp,omitempty"`
 	ConnectedTo string   `json:"connectedTo,omitempty"`
 	DeviceMac   string   `json:"deviceMac,omitempty"`
+	// DeviceCount > 0 indica agregación: hay N MACs detrás de la boca y no
+	// podemos nombrar un único par (hipervisor o switch). El cliente traduce
+	// con su i18n; el server NO pre-formatea (#1036).
+	DeviceCount int `json:"deviceCount,omitempty"`
 	Detail      string   `json:"detail,omitempty"`
 	// Snmp indica que el puerto proviene de un switch gestionado por SNMP
 	// (issue #414). Se usa para aplicar histeresis temporal en ghost-port.

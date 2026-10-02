@@ -856,7 +856,9 @@
       "seriesPort": "Puerto",
       "filterAll": "Todos",
       "filterActive": "Activos",
-      "filterInactive": "Inactivos"
+      "filterInactive": "Inactivos",
+      "aggregation": "{{count}} dispositivos",
+      "aggregationHint": "agregación · ¿hipervisor o switch?"
     },
     "radios": {
       "channel": "Canal",

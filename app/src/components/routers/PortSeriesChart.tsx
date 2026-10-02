@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { SectionHeader } from '@/components/SectionHeader'
 import type { EthPort } from '@/components/routers/routerExtras'
+import { portPeerLabel } from '@/components/routers/routerExtras'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -229,7 +230,7 @@ export function PortSeriesChart({
                   key={p.id}
                   type="button"
                   onClick={() => setPortId(p.id)}
-                  title={p.connectedTo ? `${p.label} · ${p.connectedTo}` : p.label}
+                  title={(() => { const peer = portPeerLabel(p); return peer ? `${p.label} · ${peer}` : p.label })()}
                   className={cn(
                     'shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium transition-colors',
                     portId === p.id
@@ -274,7 +275,7 @@ export function PortSeriesChart({
                   {visiblePorts.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.label}
-                      {p.connectedTo && p.connectedTo !== p.label ? ` · ${p.connectedTo}` : ''}
+                      {(() => { const peer = portPeerLabel(p); return peer && peer !== p.label ? ` · ${peer}` : '' })()}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -302,14 +303,19 @@ export function PortSeriesChart({
         </div>
       </div>
 
-      <p className="mt-1 truncate text-caption text-text-muted" title={activePort?.connectedTo ?? activePort?.label}>
-        {activePort
-          ? activePort.connectedTo && activePort.connectedTo !== activePort.label
-            ? `${activePort.label} · ${activePort.connectedTo}`
-            : activePort.label
-          : ''}
-        {activePort?.speed ? ` · ${activePort.speed}` : ''}
-      </p>
+      {(() => {
+        const activePeer = activePort ? portPeerLabel(activePort) : ''
+        return (
+          <p className="mt-1 truncate text-caption text-text-muted" title={activePeer || activePort?.label}>
+            {activePort
+              ? activePeer && activePeer !== activePort.label
+                ? `${activePort.label} · ${activePeer}`
+                : activePort.label
+              : ''}
+            {activePort?.speed ? ` · ${activePort.speed}` : ''}
+          </p>
+        )
+      })()}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-secondary">
         <span className="inline-flex items-center gap-1.5">

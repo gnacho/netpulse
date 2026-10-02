@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import type { Router } from '@/data/mock'
 import type { WanInfo } from '@/data/types'
 import { SectionHeader } from '@/components/SectionHeader'
-import { getRouterExtras } from '@/components/routers/routerExtras'
+import { getRouterExtras, portPeerDetail, portPeerLabel } from '@/components/routers/routerExtras'
 import type { EthPort, RouterExtras, SfpInfo } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { Activity } from 'lucide-react'
@@ -34,7 +34,7 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
   const isWan = port.id === 'wan'
 
   const aria = port.up
-    ? t('routerDetail.ports.ariaUsed', { label: port.label, connectedTo: port.connectedTo ?? t('routerDetail.ports.unknownDevice'), speed: port.speed ? `, ${port.speed}` : '' })
+    ? t('routerDetail.ports.ariaUsed', { label: port.label, connectedTo: portPeerLabel(port) || t('routerDetail.ports.unknownDevice'), speed: port.speed ? `, ${port.speed}` : '' })
     : t('routerDetail.ports.ariaFree', { label: port.label })
 
   const hasWanInfo = isWan && wan && (wan.proto || wan.publicIp || wan.gateway || (wan.dns?.length ?? 0) > 0)
@@ -112,21 +112,24 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
             {port.up ? (
               <>
                 <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
-                  {port.connectedTo && port.connectedTo === port.label ? (
-                    <span className="font-mono text-[10px] text-text-muted">{port.deviceMac ?? ''}</span>
-                  ) : port.connectedTo && port.deviceMac ? (
-                    <Link
-                      to={`/devices?q=${encodeURIComponent(port.deviceMac)}`}
-                      className="transition-colors hover:text-accent hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {port.connectedTo}
-                    </Link>
-                  ) : port.connectedTo ? (
-                    port.connectedTo
-                  ) : (
-                    t('routerDetail.ports.inUse')
-                  )}
+                  {(() => {
+                    const peer = portPeerLabel(port)
+                    return peer && peer === port.label ? (
+                      <span className="font-mono text-[10px] text-text-muted">{port.deviceMac ?? ''}</span>
+                    ) : peer && port.deviceMac ? (
+                      <Link
+                        to={`/devices?q=${encodeURIComponent(port.deviceMac)}`}
+                        className="transition-colors hover:text-accent hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {peer}
+                      </Link>
+                    ) : peer ? (
+                      peer
+                    ) : (
+                      t('routerDetail.ports.inUse')
+                    )
+                  })()}
                 </div>
                 {port.speed && <div className="font-mono text-[10px] text-text-muted">{port.speed}</div>}
                 {(port.rxBps !== undefined || port.txBps !== undefined) && (
@@ -163,16 +166,22 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
             {isWan && hasWanInfo ? (
               /* Boca WAN: conexión a Internet */
               <div className="mt-1 text-caption leading-snug text-text-secondary">
-                {port.connectedTo && <div>{port.connectedTo}</div>}
+                {(() => {
+                  const peer = portPeerLabel(port)
+                  return peer ? <div>{peer}</div> : null
+                })()}
                 {wan!.proto && <div className="mt-0.5 font-mono text-caption text-accent">{wan!.proto.toUpperCase()}</div>}
               </div>
             ) : (
               /* Boca LAN: dispositivo conectado */
-              port.connectedTo && (
-                <div className="mt-1 text-caption font-medium text-text-primary">
-                  {port.connectedTo}
-                </div>
-              )
+              (() => {
+                const peer = portPeerLabel(port)
+                return peer ? (
+                  <div className="mt-1 text-caption font-medium text-text-primary">
+                    {peer}
+                  </div>
+                ) : null
+              })()
             )}
 
             {isWan && hasWanInfo && wan ? (
@@ -186,10 +195,10 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                 )}
               </div>
             ) : (
-              port.deviceMac && (
+              (port.deviceMac || port.deviceCount) && (
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  <MiniStat label="MAC" value={port.deviceMac} />
-                  {port.detail && <MiniStat label={t('routerDetail.ports.deviceDetail')} value={port.detail} />}
+                  {port.deviceMac && <MiniStat label="MAC" value={port.deviceMac} />}
+                  {(port.detail || port.deviceCount) && <MiniStat label={t('routerDetail.ports.deviceDetail')} value={portPeerDetail(port)} />}
                   {(port.rxBps !== undefined || port.txBps !== undefined) && (
                     <div className="col-span-2">
                       <MiniStat

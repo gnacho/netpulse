@@ -3338,8 +3338,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			// virtual, no el equipo enchufado). La label curada del puerto ya
 			// identifica el físico; aquí se cuenta lo que hay detrás (#291).
 			if len(all) > 3 {
-				port.ConnectedTo = fmt.Sprintf("%d dispositivos", len(all))
-				port.Detail = "agregación · ¿hipervisor o switch?"
+				// deviceCount lo traduce la app; aquí NO se formatea texto (#1036).
+				port.DeviceCount = len(all)
 				enriched = append(enriched, port)
 				continue
 			}

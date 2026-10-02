@@ -79,8 +79,30 @@ export interface EthPort {
   sfp?: SfpInfo // diagnóstico SFP si la boca tiene módulo óptico (#313)
   connectedTo?: string // "NAS Synology" | "Salón · AX3000T"
   deviceMac?: string // MAC del dispositivo conectado (para enlazar a /devices)
+  /** > 0 = agregación: N MACs detrás de la boca, sin par único nombrable (#1036). */
+  deviceCount?: number
   detail?: string // "192.168.8.10 · full duplex"
   health?: PortHealth // health score del puerto (#299)
+}
+
+/**
+ * Etiqueta del par conectado a una boca. En agregación (deviceCount > 0)
+ * el contador lo traduce la app con su i18n; el server ya no pre-formatea
+ * texto en este caso (#1036).
+ */
+export function portPeerLabel(port: EthPort): string {
+  if (port.deviceCount && port.deviceCount > 0) {
+    return i18n.t('routerDetail.ports.aggregation', { count: port.deviceCount })
+  }
+  return port.connectedTo ?? ''
+}
+
+/** Detalle del par: en agregación, la pista "¿hipervisor o switch?" traducida. */
+export function portPeerDetail(port: EthPort): string {
+  if (port.deviceCount && port.deviceCount > 0) {
+    return i18n.t('routerDetail.ports.aggregationHint')
+  }
+  return port.detail ?? ''
 }
 
 export interface BackhaulInfo {
