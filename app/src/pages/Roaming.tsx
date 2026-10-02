@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
+import { ssidColor } from '@/lib/ssidColor'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
 import ReanchorPanel from './ReanchorPanel'
@@ -1112,19 +1113,8 @@ function signalDot(signal: number): string {
   return 'bg-danger'
 }
 
-// ssidColor (#542): color pastel determinista por SSID (hash), como el canal
-// analysis del LuCI: cada red vecina su color para reconocerla en la cascada.
-const SSID_PALETTE = [
-  '#c084fc', '#f472b6', '#34d399', '#60a5fa', '#fbbf24',
-  '#f87171', '#2dd4bf', '#a78bfa', '#facc15', '#fb923c',
-]
-function ssidColor(s: string): string {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return SSID_PALETTE[h % SSID_PALETTE.length] ?? '#a78bfa'
-}
-
-// bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
+// ssidColor vive en @/lib/ssidColor (compartido con el informe de canales
+// #1070). bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
 function bandOfFreq(freq: number): string {
   if (freq >= 2412 && freq <= 2484) return '2.4 GHz'
   if (freq >= 5180 && freq <= 5885) return '5 GHz'
