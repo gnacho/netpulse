@@ -5,6 +5,25 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.31.0] - 2026-10-03
+
+### Added
+
+- **Análisis de canales: de labs a primera clase (#1070, #1076, #1079, #1080, #1082, #1084)** - la página "Canales" es ahora un analizador de espectro WiFi completo y de solo lectura (nunca escribe en los routers): cascada por radio con campanas sobre un eje de frecuencia real, zonas DFS sombreadas con leyenda, franja continua de ocupación, tira de puntuación de TODOS los canales (13 en 2.4 GHz, todos los bloques a su ancho en 5 GHz, DFS etiquetados) agrupada por congestión, tabla ordenable con aislamiento cruzado en el gráfico y selector de flota sin unidades sin WiFi. Sin insignia de labs ni toggle.
+- **Motor de congestión inteligente (#1080, #1082)**: las redes propias nunca congestian un canal (detección por prefijo MAC, transitividad de SSID, datos dawn/usteer y los nuevos BSSIDs propios del agente); las vecinas se ponderan en dominio de potencia (un AP a -50 dBm pesa ~3000x uno a -85); el veredicto de congestión del canal actual es absoluto (umbrales sobre el score), no relativo al resto de la banda. Solo sugiere: recomienda canal y estima la reducción de ruido; aplicarlo sigue en manos del usuario.
+- **Agente 3.0.6 (#1087)**: reporta sus propios BSSIDs (`iw dev`, cubre MACs aleatorizadas y guests fuera de dawn/usteer) y lee el ancho de canal anunciado (HT/VHT operation) de cada vecina, persistido en `wifi_scans.width_mhz`; el espectro dibuja cada red a su ancho real en vez de los 20 MHz estimados.
+
+### Fixed
+
+- La notificación push de "Agent outdated" llevaba la hora estática 16:00:00 (epoch en la zona del servidor) al dispararse tras un reinicio: la rama de inserción de `EmitOrUpdate` notificaba sin el default de timestamp (#1074).
+- El análisis de canales mostraba "este equipo no reporta radios WiFi" cuando el payload del agente estaba momentáneamente fuera de la ventana de frescura; ahora cae al último payload conocido para esa vista de solo lectura (#1080).
+- La tarjeta de resumen proponía un bloque DFS como "mejor canal" al empatar a 100 en la normalización; ahora promociona siempre el canal que recomienda el motor (#1082).
+- El título del documento ("Tu red, de un vistazo") era español fijo en index.html; ahora sigue el idioma de la interfaz.
+
+### Community
+
+- Abiertas las GitHub Discussions del proyecto: sugerencias, preguntas y votos de ideas en https://github.com/gnacho/netpulse/discussions
+
 ## [2.30.0] - 2026-10-02
 
 ### Added
