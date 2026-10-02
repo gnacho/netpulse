@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { SectionHeader } from '@/components/SectionHeader'
 import type { EthPort } from '@/components/routers/routerExtras'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 interface PortPoint {
@@ -27,6 +28,18 @@ type Range = '24h' | '7d' | '30d'
 export type TrafficUnit = 'bps' | 'fps'
 
 const RANGES: Range[] = ['24h', '7d', '30d']
+
+// #1035: con más de 4 bocas la fila de botones desborda la tarjeta; con 8 o
+// más además ofrecemos el filtro All/Active/Inactive para acotar el dropdown.
+const PORT_BUTTON_MAX = 4
+const PORT_FILTER_MIN = 8
+type PortFilter = 'all' | 'active' | 'inactive'
+const PORT_FILTERS: PortFilter[] = ['all', 'active', 'inactive']
+const PORT_FILTER_LABEL: Record<PortFilter, string> = {
+  all: 'routerDetail.ports.filterAll',
+  active: 'routerDetail.ports.filterActive',
+  inactive: 'routerDetail.ports.filterInactive',
+}
 
 function rangeToSeconds(range: Range): number {
   switch (range) {
@@ -127,6 +140,7 @@ export function PortSeriesChart({
   const { t } = useTranslation()
   const [range, setRange] = useState<Range>('24h')
   const [portId, setPortId] = useState<string | null>(null)
+  const [portFilter, setPortFilter] = useState<PortFilter>('all')
   const [data, setData] = useState<PortPoint[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -142,6 +156,23 @@ export function PortSeriesChart({
       return (ports.find((p) => p.up) ?? ports[0])!.id
     })
   }, [ports])
+
+  // Opciones visibles según el filtro All/Active/Inactive (#1035).
+  const visiblePorts = useMemo(() => {
+    if (portFilter === 'active') return ports.filter((p) => p.up)
+    if (portFilter === 'inactive') return ports.filter((p) => !p.up)
+    return ports
+  }, [ports, portFilter])
+
+  // Si el filtro excluye el puerto activo, recoloca la selección dentro del
+  // subconjunto visible (si el subconjunto queda vacío, sobre toda la flota).
+  useEffect(() => {
+    if (ports.length === 0) return
+    setPortId((prev) => {
+      if (prev && visiblePorts.some((p) => p.id === prev)) return prev
+      return (visiblePorts[0] ?? ports[0])!.id
+    })
+  }, [visiblePorts, ports])
 
   const fetchData = useCallback(async () => {
     if (!portId) return
@@ -190,26 +221,66 @@ export function PortSeriesChart({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <SectionHeader title={t('routerDetail.ports.seriesTitle')} />
         <div className="flex flex-wrap items-center gap-2">
-          {/* Selector de puerto */}
-          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-elevated p-0.5">
-            {ports.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPortId(p.id)}
-                title={p.connectedTo ? `${p.label} · ${p.connectedTo}` : p.label}
-                className={cn(
-                  'shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium transition-colors',
-                  portId === p.id
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-text-muted hover:bg-canvas hover:text-text-secondary',
-                  !p.up && portId !== p.id && 'opacity-50',
-                )}
-              >
-                {p.label.replace(/\s+/g, '')}
-              </button>
-            ))}
-          </div>
+          {/* Selector de puerto: fila de botones hasta 4 bocas (#1035) */}
+          {ports.length <= PORT_BUTTON_MAX ? (
+            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-elevated p-0.5">
+              {ports.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPortId(p.id)}
+                  title={p.connectedTo ? `${p.label} · ${p.connectedTo}` : p.label}
+                  className={cn(
+                    'shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium transition-colors',
+                    portId === p.id
+                      ? 'bg-accent/15 text-accent'
+                      : 'text-text-muted hover:bg-canvas hover:text-text-secondary',
+                    !p.up && portId !== p.id && 'opacity-50',
+                  )}
+                >
+                  {p.label.replace(/\s+/g, '')}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              {ports.length >= PORT_FILTER_MIN && (
+                <div className="flex gap-0.5 rounded-lg border border-border bg-elevated p-0.5">
+                  {PORT_FILTERS.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setPortFilter(f)}
+                      className={cn(
+                        'rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                        portFilter === f
+                          ? 'bg-accent/15 text-accent'
+                          : 'text-text-muted hover:bg-canvas hover:text-text-secondary',
+                      )}
+                    >
+                      {t(PORT_FILTER_LABEL[f])}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <Select value={portId ?? ''} onValueChange={setPortId}>
+                <SelectTrigger
+                  aria-label={t('routerDetail.ports.seriesPort')}
+                  className="h-7 w-auto max-w-56 gap-1.5 rounded-lg border-border bg-elevated px-2 font-mono text-[10px] font-medium text-text-secondary"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visiblePorts.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                      {p.connectedTo && p.connectedTo !== p.label ? ` · ${p.connectedTo}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* Selector de rango */}
           <div className="flex gap-0.5 rounded-lg border border-border bg-elevated p-0.5">
             {RANGES.map((r) => (

@@ -852,7 +852,11 @@
       "seriesTitle": "Traffic history",
       "seriesRx": "Receive",
       "seriesTx": "Transmit",
-      "seriesNoData": "No historical data"
+      "seriesNoData": "No historical data",
+      "seriesPort": "Port",
+      "filterAll": "All",
+      "filterActive": "Active",
+      "filterInactive": "Inactive"
     },
     "radios": {
       "channel": "Channel",
