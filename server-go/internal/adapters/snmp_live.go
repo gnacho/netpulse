@@ -46,6 +46,17 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if sysErr != nil {
 		log.Printf("[netpulse] SNMP system %s: %v", cfg.LogLabel(), sysErr)
 	}
+	// #1036: MAC propia del switch (dot1dBaseBridgeAddress). Sin ella el
+	// equipo no tenía MAC en flota ni casaba por MAC en topología. Cache:
+	// si el OID no contesta en este poll se conserva la última conocida.
+	brMac, _ := npsnmp.PollBridgeAddress(session)
+	l.mu.Lock()
+	if brMac == "" {
+		brMac = l.snmpBrMac[cfg.ID]
+	} else {
+		l.snmpBrMac[cfg.ID] = brMac
+	}
+	l.mu.Unlock()
 	ports, ifErr := npsnmp.PollIfTable(session)
 	if ifErr != nil {
 		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.LogLabel(), ifErr)
@@ -166,6 +177,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		net:       netPtr,
 		ports:     ethPorts,
 		fdb:       fdbMap,
+		brMac:     brMac,
 		polledAt:  now.UnixMilli(),
 	}
 	l.mu.Lock()

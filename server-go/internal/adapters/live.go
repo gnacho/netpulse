@@ -258,6 +258,10 @@ type Live struct {
 	// snmpFdbCount (#928): último conteo de entradas FDB por router SNMP,
 	// para loguear solo cuando el resultado cambia.
 	snmpFdbCount map[string]int
+	// snmpBrMac (#1036): última MAC base del bridge leída por SNMP por
+	// router. Cache para no perderla cuando el equipo no contesta el OID
+	// en un poll (la MAC alimenta el matching por MAC de la topología).
+	snmpBrMac map[string]string
 	// snmpPollStats (#930): contadores de éxito/fallo del poll SNMP por
 	// router (ok, fail, consecFail, timestamps, último error). Protegido
 	// por mu; en memoria (no persiste entre reinicios).
@@ -410,6 +414,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
 		snmpFdbCount:         map[string]int{},
+		snmpBrMac:            map[string]string{},
 		snmpPollStats:        map[string]*snmpPollStat{},
 		ping:                 pingHost,
 		snmpLastMetricsTick:  map[string]int64{},
@@ -563,6 +568,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.snmpLastPoll {
 		if !ids[id] {
 			delete(l.snmpLastPoll, id)
+		}
+	}
+	for id := range l.snmpBrMac {
+		if !ids[id] {
+			delete(l.snmpBrMac, id)
 		}
 	}
 	for id := range l.snmpLastMetricsTick {

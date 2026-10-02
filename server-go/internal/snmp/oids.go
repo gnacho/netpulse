@@ -14,6 +14,11 @@ const (
 	OidIfOperStatus= ".1.3.6.1.2.1.2.2.1.8"
 	OidIfInOctets  = ".1.3.6.1.2.1.2.2.1.10"
 	OidIfInErrors  = ".1.3.6.1.2.1.2.2.1.14"
+
+	// OidDot1dBaseBridgeAddress (BRIDGE-MIB): MAC base del bridge del
+	// switch. Fuente para la MAC propia de un switch sondeado por SNMP
+	// (#1036): sin ella el equipo no casaba por MAC en topología.
+	OidDot1dBaseBridgeAddress = ".1.3.6.1.2.1.17.1.1.0"
 	OidIfOutOctets = ".1.3.6.1.2.1.2.2.1.16"
 	OidIfOutErrors = ".1.3.6.1.2.1.2.2.1.20"
 
