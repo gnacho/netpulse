@@ -279,6 +279,51 @@ func TestSeedSkipsConfigButKeepsDedup(t *testing.T) {
 	}
 }
 
+
+// TestEmitOrUpdateInsertNotificaConTs (#1074): la rama de INSERCIÓN de
+// EmitOrUpdate notificaba la `ev` original sin el default de Ts que
+// insertaLocked aplica a su copia local: el notifier recibía Ts=0 y los
+// pushes (ntfy/Telegram) pintaban la hora estática 16:00:00 (epoch en
+// UTC-8). El default debe aplicarse ANTES de Notify, como en Emit (#914).
+func TestEmitOrUpdateInsertNotificaConTs(t *testing.T) {
+	spy := &spyNotifier{}
+	e := New(nil, spy)
+	ev := ev("ou1", CatSystem, false)
+	ev.Ts = 0
+	if !e.EmitOrUpdate(ev) {
+		t.Fatal("EmitOrUpdate insert debe pasar")
+	}
+	if len(spy.got) != 1 {
+		t.Fatalf("notifier: %+v", spy.got)
+	}
+	if spy.got[0].Ts == 0 {
+		t.Fatalf("el notifier recibió Ts=0: %+v", spy.got[0])
+	}
+}
+
+// TestEmitOrUpdateUpdateSobreescribeTs (#1074): la rama de UPDATE sigue
+// refrescando el timestamp a ahora (comportamiento previo, regresión).
+func TestEmitOrUpdateUpdateSobreescribeTs(t *testing.T) {
+	spy := &spyNotifier{}
+	e := New(nil, spy)
+	base := ev("ou2", CatSystem, false)
+	base.Ts = 123
+	if !e.EmitOrUpdate(base) {
+		t.Fatal("primer EmitOrUpdate debe insertar")
+	}
+	upd := ev("ou2", CatSystem, false)
+	upd.Ts = 0 // el emisor no fija Ts en la actualización
+	if !e.EmitOrUpdate(upd) {
+		t.Fatal("segundo EmitOrUpdate debe actualizar")
+	}
+	if len(spy.got) != 2 {
+		t.Fatalf("notifier: %+v", spy.got)
+	}
+	if spy.got[1].Ts <= 123 {
+		t.Fatalf("el update debe refrescar Ts a ahora: %+v", spy.got[1])
+	}
+}
+
 // TestEmitOrUpdateConsolida (#271): re-emitir con el MISMO ID actualiza la
 // alerta existente (ts nuevo, al frente, sin duplicar) en vez de insertar.
 func TestEmitOrUpdateConsolida(t *testing.T) {

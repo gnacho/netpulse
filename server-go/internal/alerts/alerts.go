@@ -593,6 +593,16 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 		e.mu.Unlock()
 		return false
 	}
+	// #1074: mismo default de Ts/Time que en Emit (#914) ANTES de insertar y
+	// notificar. La rama de inserción pasaba la `ev` original a Notify: si el
+	// emisor no fijaba Ts (p. ej. agent-outdated), el notifier recibía Ts=0
+	// y el push pintaba la hora estática 16:00:00 (epoch en zona UTC-8).
+	if ev.Ts == 0 {
+		ev.Ts = e.now().Unix()
+	}
+	if ev.Time == "" {
+		ev.Time = "just now"
+	}
 	now := e.now()
 	for i := range e.list {
 		if e.list[i].ID == ev.ID {
