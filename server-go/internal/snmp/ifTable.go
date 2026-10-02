@@ -45,8 +45,11 @@ func (p PortStats) SpeedString() string {
 }
 
 func (p PortStats) DisplayName() string {
-	if p.Alias != "" {
-		return p.Alias
+	// #1077: algunos vendors (p.ej. TP-Link Omada) persisten un espacio en
+	// blanco como port label y lo emiten en ifAlias; un alias vacío tras
+	// recortar NO cuenta como etiqueta.
+	if a := strings.TrimSpace(p.Alias); a != "" {
+		return a
 	}
 	if p.Name != "" {
 		return p.Name
@@ -116,7 +119,9 @@ func applyPortField(ps *PortStats, oid string, pdu gosnmp.SnmpPDU) {
 			ps.HighSpeedMbps = uint32(v)
 		}
 	case OidIfAlias:
-		ps.Alias = stringVal(pdu)
+		// #1077: recortar siempre; un ifAlias de solo espacios (Omada guarda
+		// el label vacío como " ") no debe ganarle al ifName en DisplayName.
+		ps.Alias = strings.TrimSpace(stringVal(pdu))
 	}
 }
 

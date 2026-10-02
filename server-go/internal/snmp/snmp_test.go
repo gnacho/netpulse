@@ -106,6 +106,9 @@ func TestPortStatsDisplayName(t *testing.T) {
 		{PortStats{Descr: "GigabitEthernet0/1"}, "GigabitEthernet0/1"},
 		{PortStats{Index: 5}, "port-5"},
 		{PortStats{Alias: "Uplink", Name: "eth0"}, "Uplink"},
+		{PortStats{Alias: " ", Name: "gi1/0/8"}, "gi1/0/8"},
+		{PortStats{Alias: "   "}, "port-0"},
+		{PortStats{Alias: " Uplink ", Name: "eth0"}, "Uplink"},
 	}
 	for _, tt := range tests {
 		got := tt.ps.DisplayName()
@@ -140,6 +143,15 @@ func TestApplyPortField(t *testing.T) {
 	applyPortField(ps, OidIfInOctets, gosnmp.SnmpPDU{Value: big.NewInt(123456789)})
 	if ps.RxBytes != 123456789 {
 		t.Errorf("RxBytes = %d; want 123456789", ps.RxBytes)
+	}
+	// #1077: un ifAlias de solo espacios se normaliza a vacío en el parseo.
+	applyPortField(ps, OidIfAlias, gosnmp.SnmpPDU{Value: " "})
+	if ps.Alias != "" {
+		t.Errorf("Alias = %q; want empty for whitespace-only ifAlias", ps.Alias)
+	}
+	applyPortField(ps, OidIfAlias, gosnmp.SnmpPDU{Value: " Uplink "})
+	if ps.Alias != "Uplink" {
+		t.Errorf("Alias = %q; want Uplink (trimmed)", ps.Alias)
 	}
 }
 
