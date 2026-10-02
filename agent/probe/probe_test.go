@@ -465,6 +465,40 @@ func TestParseFdbDenylistPuertos(t *testing.T) {
 // Prober local con runner fake
 // ---------------------------------------------------------------------------
 
+// TestProberWirelessWithoutClients (#1092): una unidad SIN clientes
+// asociados conserva la sección wireless (radios + BSSIDs propios); antes
+// el flag de presencia solo consideraba clientes y el server la veía como
+// "sin WiFi" (encontrado en un AP lab de NetGrip).
+func TestProberWirelessWithoutClients(t *testing.T) {
+	run := fakeRunner{outs: map[string]string{
+		CmdUbusSystemInfo:  `{"uptime":90061,"load":[0.1,0.2,0.3],"memory":{"total":256000000,"free":100000000,"buffered":0,"available":128000000}}`,
+		CmdUbusSystemBoard: `{"model":"GL.iNet Lab","hostname":"lab","release":{"version":"25.12","description":"OpenWrt 25.12"}}`,
+		CmdProcStat:        "cpu  4705 356 584 3699 23 0 23 0 0 0\n",
+		CmdTemp:            "43500\n",
+		CmdNetDev:          "  eth0: 1000000 0 0 0 0 0 0 0 500000 0\n",
+		CmdBridgeMAC:       "94:83:c4:00:00:09\n",
+		// Sin clientes: ningún comando de assoclist/ubus hostapd.
+		CmdRadios:   "2.4|6|HT20|20|0\n",
+		CmdDhcpFile: "1700000000 ec:71:db:44:12:8a 192.168.8.71 movil *\n",
+		CmdBridgeFDB: "==PORTS==\n0x1 lan1\n==MACS==\n1 ec:71:db:44:12:8a\n",
+		CmdPortStates: "lan1 up 1000\nwan down -1\n",
+		CmdUbusWireless: `{"radio0":{"up":true,"interfaces":[{"ifname":"wlan0","config":{"mode":"ap"}}]}}`,
+		CmdIwDev: "phy#0\n\tInterface wlan0\n\t\taddr 62:e5:56:b6:94:bd\n\t\tssid temiscira\n\t\ttype AP\n",
+	}}
+	p := NewProber(run, Options{GwPingTarget: "192.168.8.1", ScanInterval: ScanDisabled})
+
+	pl := p.Build(context.Background(), "lab", "3.0.7")
+	if pl.Data.Wireless == nil {
+		t.Fatal("sin clientes la sección wireless no debe descartarse (#1092)")
+	}
+	if len(pl.Data.Wireless.OwnBssids) != 1 || pl.Data.Wireless.OwnBssids[0].SSID != "temiscira" {
+		t.Fatalf("ownBssids perdidos: %+v", pl.Data.Wireless.OwnBssids)
+	}
+	if len(pl.Data.Wireless.Radios) != 1 {
+		t.Fatalf("radios perdidas: %+v", pl.Data.Wireless.Radios)
+	}
+}
+
 type fakeRunner struct{ outs map[string]string }
 
 func (f fakeRunner) Run(_ context.Context, cmd string, _ time.Duration) (string, error) {
