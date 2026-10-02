@@ -20,8 +20,10 @@ export interface SpectrumNet {
 }
 
 export const BAND_RANGE: Record<string, [number, number]> = {
-  '2.4 GHz': [2401, 2495],
-  '5 GHz': [5170, 5895],
+  // Ajustados a la extensión real de las campanas (#1076): antes el margen
+  // sobrante dejaba hueco antes del ch1 y después del 13 (y tras el 165).
+  '2.4 GHz': [2402, 2482],
+  '5 GHz': [5170, 5862],
   '6 GHz': [5955, 7115],
 }
 

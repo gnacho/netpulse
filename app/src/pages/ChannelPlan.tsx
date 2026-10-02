@@ -550,19 +550,20 @@ export default function ChannelPlan() {
             </div>
           </div>
 
-          {bandScans.length === 0 ? (
-            <p className="rounded-2xl border border-border bg-surface px-4 py-3 text-caption text-warn">{t('channelPlan.noScans')}</p>
-          ) : (
-            <>
-              {/* Espectro a todo lo ancho (#1076); la puntuación baja a una
-                  tira debajo, agrupada por congestión */}
-              <div>
-                <div className="rounded-2xl border border-border bg-surface">
+          {/* Espectro a todo lo ancho (#1076); la puntuación baja a una
+              tira debajo, agrupada por congestión. Espectro, tira y leyenda
+              se muestran SIEMPRE (#1077): en una banda sin vecinos la
+              puntuación es justo lo más útil (todo limpio, elige canal). */}
+          <div>
+            <div className="rounded-2xl border border-border bg-surface">
                   <div className="flex items-start justify-between gap-3 px-5 pt-4">
                     <div>
                       <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.chartTitle', { band: active.name })}</h2>
                       <p className="mt-0.5 text-caption text-text-muted">{t('channelPlan.chartSub')}</p>
                     </div>
+                    {bandScans.length === 0 && (
+                      <span className="rounded-lg bg-warn/10 px-2.5 py-1 text-caption text-warn">{t('channelPlan.noBandScans')}</span>
+                    )}
                     <span className="rounded-full bg-elevated px-2.5 py-1 text-caption font-semibold text-text-secondary">
                       {t('channelPlan.netsCount', { n: nets.length })}
                     </span>
@@ -746,7 +747,8 @@ export default function ChannelPlan() {
                 </div>
               </div>
 
-              {/* Tabla de redes */}
+              {/* Tabla de redes (solo si hay scans) */}
+              {bandScans.length > 0 && (
               <div className="overflow-hidden rounded-2xl border border-border bg-surface">
                 <div className="px-5 pt-4">
                   <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.summaryNetworks')}</h2>
@@ -825,8 +827,7 @@ export default function ChannelPlan() {
                   </table>
                 </div>
               </div>
-            </>
-          )}
+              )}
         </>
       )}
     </div>
