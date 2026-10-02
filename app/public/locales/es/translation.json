@@ -1551,8 +1551,6 @@
       "dismiss": "Cerrar",
       "deleteTitle": "Revocar token del dispositivo",
       "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token.",
-      "canales": "Canales",
-      "canalesCaption": "Planificador de canales WiFi (LABS)",
       "actualizaciones": "Actualizaciones",
       "actualizacionesCaption": "Actualizaciones de firmware (LABS)",
       "regenToken": "Regenerar token",
@@ -2425,7 +2423,7 @@
         "subtitle": "Elegir canal WiFi con la menor interferencia",
         "intro": "La página recoge los escaneos pasivos de vecinos que mandan los agentes y puntúa cada canal; la recomendación es el mejor balance entre tu canal actual y los candidatos.",
         "steps": [
-          "Abre ⟦Plan de canales⟧ en el menú (marcado como labs).",
+          "Abre ⟦Canales⟧ en el menú.",
           "Elige el router: verás cada radio con su canal actual, los vecinos que se oyen y la puntuación de cada canal candidato.",
           "La recomendación destacada es el canal con menos solapamiento; compárala con el canal actual antes de tocar nada."
         ],

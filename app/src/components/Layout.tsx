@@ -60,7 +60,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
-  { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: Wifi, badge: 'labs' },
+  { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: Wifi },
   { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, badge: 'labs', adminOnly: true },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
@@ -196,7 +196,7 @@ function LiveDot() {
 // ---------------------------------------------------------------------------
 
 /** Items de nav visibles según el overview. /roaming solo si hay usteer.
- *  La visibilidad de funcionalidades Labs (canales, actualizaciones) se
+ *  La visibilidad de funcionalidades Labs (actualizaciones) se
  *  controla desde la tarjeta Servicios en Ajustes (useServicesVisibility). */
 function useVisibleNavItems(): NavItem[] {
   const { usteer, orchestration } = useNetPulse()
@@ -212,10 +212,9 @@ function useVisibleNavItems(): NavItem[] {
           (it.to !== '/orchestration' || (labsOn && !!orchestration)) &&
           // Funcionalidades Labs controladas por cada toggle (rediseño v3):
           // solo se muestran en el nav si Labs está activo y su toggle encendido.
-          (it.to !== '/wifi/channel-plan' || (labsOn && services.canales)) &&
           (it.to !== '/firmware-upgrades' || (labsOn && services.actualizaciones)),
       ),
-    [usteerAvailable, orchestration, labsOn, services.canales, services.actualizaciones],
+    [usteerAvailable, orchestration, labsOn, services.actualizaciones],
   )
 }
 

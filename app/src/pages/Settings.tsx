@@ -333,8 +333,7 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
         s: 4 + Math.random() * 4,
         d: Math.random() * 0.15,
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [burstKey],
+      [burstKey],
   )
   if (!burstKey || reduce) return null
   return (
@@ -3930,18 +3929,6 @@ function ServicesCard({
                 onCheckedChange={(v) => void toggleOrchestration(v)}
                 disabled={orchBusy || disabled}
                 danger
-              />
-              {/* Canales */}
-              <SwitchRow
-                label={t('settings.labs.canales')}
-                caption={t('settings.labs.canalesCaption')}
-                checked={services.canales}
-                disabled={disabled}
-                danger
-                onCheckedChange={(v) => {
-                  setService('canales', v)
-                  onSaved()
-                }}
               />
             </div>
             <div className="divide-y divide-border/60">

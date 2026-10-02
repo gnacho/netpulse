@@ -1551,8 +1551,6 @@
       "dismiss": "Dismiss",
       "deleteTitle": "Revoke device token",
       "deleteDesc": "The token for “{{slug}}” will be revoked. The scraper will stop sending data until you regenerate the token.",
-      "canales": "Channels",
-      "canalesCaption": "WiFi channel planner (LABS)",
       "actualizaciones": "Firmware upgrades",
       "actualizacionesCaption": "Firmware upgrades (LABS)",
       "regenToken": "Regenerate token",
@@ -2425,7 +2423,7 @@
         "subtitle": "Pick the WiFi channel with the least interference",
         "intro": "The page collects the passive neighbour scans pushed by the agents and scores each channel; the recommendation balances your current channel against the candidates.",
         "steps": [
-          "Open ⟦Channel plan⟧ in the menu (marked as labs).",
+          "Open ⟦Channels⟧ in the menu.",
           "Pick the router: each radio shows its current channel, the neighbours it hears and the score of every candidate channel.",
           "The highlighted recommendation is the channel with the least overlap; compare it with the current channel before touching anything."
         ],
