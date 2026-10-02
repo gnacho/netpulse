@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes } from 'react-router'
 import { Navigate } from 'react-router'
@@ -26,6 +27,13 @@ import Placeholder from '@/pages/Placeholder'
  * La ruta `/login` queda FUERA del Layout y del gate.
  */
 export default function App() {
+  // El título del documento sigue el idioma (antes era ES fijo en
+  // index.html, que no se traduce).
+  const { t, i18n } = useTranslation()
+  useEffect(() => {
+    document.title = t('app.title')
+  }, [t, i18n.language])
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

@@ -2459,5 +2459,8 @@
   "announcement": {
     "link": "Ver más",
     "dismiss": "Descartar aviso"
+  },
+  "app": {
+    "title": "NetPulse - Tu red, de un vistazo"
   }
 }

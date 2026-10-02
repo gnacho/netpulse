@@ -2459,5 +2459,8 @@
   "announcement": {
     "link": "See more",
     "dismiss": "Dismiss announcement"
+  },
+  "app": {
+    "title": "NetPulse - Your network at a glance"
   }
 }
