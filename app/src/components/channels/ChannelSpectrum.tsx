@@ -327,7 +327,9 @@ export function ChannelSpectrum({
           const f = range[0] + (px / hw) * (range[1] - range[0])
           let sum = 0
           for (const n of visible) {
-            sum += lin(n.signal) * overlap(n.freq, n.widthMhz, f) * (n.own ? 0.6 : 1)
+            // #1080: las propias no congestian (misma regla que el scoring).
+            if (n.own) continue
+            sum += lin(n.signal) * overlap(n.freq, n.widthMhz, f)
           }
           const db = sum > 0 ? 10 * Math.log10(sum) : DBM_BOTTOM
           const tt = Math.min(Math.max((db + 92) / 48, 0), 1)

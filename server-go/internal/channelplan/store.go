@@ -240,17 +240,15 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		return nil, err
 	}
 
-	// #631: la malla propia (los APs de los routers monitorizados) NO debe
-	// contarse como "vecino": sus BSSIDs comparten los primeros 5 octetos con
-	// la MAC del router (radios = MAC base, +1, +2...). Se excluyen del
-	// scoring para que la recomendación optimice contra interferencia externa
-	// y no sugiera canales que la propia malla ya ocupa (autointerferencia).
-	ownPrefixes := s.ownMeshPrefixes()
+	// #631 + #1080: la malla propia NO congestiona. La exclusion usa el flag
+	// Own de los propios ScanRow: prefijo MAC de routers.mac + transitividad
+	// por SSID (#1076), asi el guest de una unidad con MAC ajena tampoco
+	// penaliza. Fuente unica con lo que la UI pinta como "Tu red".
 
 	// Agrupar scans por banda y canal (descartando la propia malla).
 	byBand := map[string]map[int][]ScanRow{}
 	for _, sc := range scans {
-		if isOwnMeshBSSID(sc.BSSID, ownPrefixes) {
+		if sc.Own {
 			continue
 		}
 		band := bandForFreq(sc.Freq)
@@ -325,13 +323,13 @@ func channelScoreDetailed(scans map[int][]ScanRow, channel int) (score int, neig
 			diff := abs(ch - channel)
 			weighted := false
 			if diff == 0 {
-				// Mismo canal: peso completo. Señal fuerte (-60 dBm) suma 40;
-				// señal débil (-90 dBm) suma 10.
-				total += float64(-ap.Signal) / 1.5
+				// Mismo canal: peso completo, en dominio de potencia (#1080):
+				// w = 10^((s+60)/10); una vecina a -50 pesa ~3000x una a -85.
+				total += math.Pow(10, float64(ap.Signal+60)/10)
 				weighted = true
 			} else if diff <= 2 {
-				// Canal adyacente: peso reducido. Importante en 2.4 GHz.
-				total += float64(-ap.Signal) / 5.0
+				// Canal adyacente (+-2): un cuarto (-6 dB), sobre todo en 2.4.
+				total += math.Pow(10, float64(ap.Signal+60)/10) / 4
 				weighted = true
 			}
 			if !weighted {
@@ -348,7 +346,8 @@ func channelScoreDetailed(scans map[int][]ScanRow, channel int) (score int, neig
 		// sale como -9223372036854775808 y rompe la tabla.
 		strongest = 0
 	}
-	return int(total), neighbors, strongest
+	// x1000 para conservar resolucion al pasar a int (w(-90 dBm) ~= 0.001).
+	return int(total * 1000), neighbors, strongest
 }
 
 // channelScore es la puntuación ponderada pura (menor = canal más limpio).

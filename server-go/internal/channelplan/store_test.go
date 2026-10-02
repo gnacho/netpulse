@@ -151,6 +151,84 @@ func TestRecentScansOwnPorSSIDTransitable(t *testing.T) {
 	}
 }
 
+// TestRecommendGuestSSIDNoCongestiona (#1080): el scoring excluye las redes
+// propias por el flag Own (prefijo MAC + transitividad SSID): el guest de una
+// unidad, con MAC que no casa pero mismo SSID que una BSS de flota, no debe
+// ensuciar su canal ni empujar la recomendación a otro.
+func TestRecommendGuestSSIDNoCongestiona(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+	if _, err := d.DB.Exec(`INSERT INTO routers (id, name, host, type, mac, is_gateway, created_at)
+		VALUES ('rt2', 'RT2 AX6', '192.168.1.2', 'openwrt', '8C:DE:F9:33:71:58', 0, ?)`,
+		time.Now().UnixMilli()); err != nil {
+		t.Fatalf("insert router: %v", err)
+	}
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	scans := []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "8C:DE:F9:33:71:59", SSID: "casa", Channel: 11, Freq: 2462, Signal: -30},
+		{Iface: "wlan0", BSSID: "1E:BF:CE:02:7F:48", SSID: "casa", Channel: 1, Freq: 2412, Signal: -30},
+		{Iface: "wlan0", BSSID: "00:11:22:33:44:55", SSID: "vecino", Channel: 6, Freq: 2437, Signal: -60},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "2.4 GHz", Channel: 6, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("esperaba 1 radio, got %+v", recs)
+	}
+	// El guest de "casa" en ch1 no congestiona: con ch6 ocupada por el vecino
+	// (-60) y ch11 por la propia, el 1 (limpio y ortodoxo) es el sugerido.
+	if recs[0].Recommended != 1 {
+		t.Fatalf("el guest propio no debe congestinar: rec %+v", recs[0])
+	}
+}
+
+// TestRecommendFuerzaSobreCantidad (#1080): con ponderación en dominio de
+// potencia, UNA vecina fuerte (-50) ensucia su canal más que CUATRO de
+// juguete (-85): el motor sugiere el de las débiles.
+func TestRecommendFuerzaSobreCantidad(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	// ch6: UNA vecina fuerte (-50). ch11: CUATRO de juguete (-85).
+	// ch1: dos mediocres (-70) que no alteran el orden 11 < 1 << 6.
+	scans := []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "AA:AA:AA:AA:AA:01", SSID: "fuerte", Channel: 6, Freq: 2437, Signal: -50},
+		{Iface: "wlan0", BSSID: "CC:CC:CC:CC:CC:01", SSID: "m1", Channel: 1, Freq: 2412, Signal: -70},
+		{Iface: "wlan0", BSSID: "CC:CC:CC:CC:CC:02", SSID: "m2", Channel: 1, Freq: 2412, Signal: -70},
+		{Iface: "wlan0", BSSID: "BB:BB:BB:BB:BB:01", SSID: "d1", Channel: 11, Freq: 2462, Signal: -85},
+		{Iface: "wlan0", BSSID: "BB:BB:BB:BB:BB:02", SSID: "d2", Channel: 11, Freq: 2462, Signal: -85},
+		{Iface: "wlan0", BSSID: "BB:BB:BB:BB:BB:03", SSID: "d3", Channel: 11, Freq: 2462, Signal: -85},
+		{Iface: "wlan0", BSSID: "BB:BB:BB:BB:BB:04", SSID: "d4", Channel: 11, Freq: 2462, Signal: -85},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "2.4 GHz", Channel: 1, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("esperaba 1 radio, got %+v", recs)
+	}
+	if recs[0].Recommended != 11 {
+		t.Fatalf("una vecina fuerte debe pesar mas que cuatro de juguete: rec %+v", recs[0])
+	}
+}
+
 // TestRecentScansMarcaMallaPropia (#1070): los BSSIDs de la propia flota
 // deben llegar a la UI marcados (own) para destacarse en el informe.
 func TestRecentScansMarcaMallaPropia(t *testing.T) {
