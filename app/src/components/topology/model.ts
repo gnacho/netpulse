@@ -1427,7 +1427,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
           const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
           // #1047: el padre lo decide la semántica (FDB del switch cuando no
           // hay LLDP); solo se cae al gateway si el server no lo resolvió.
-          const from = routerById.get(sl.from) ?? gatewayNode ?? null
+          // #1060: el padre puede ser un distnode (círculo inferido/gestionado):
+          // el uplink sale del círculo, no del router.
+          const from =
+            routerById.get(sl.from) ??
+            distNodes.find((n) => n.id === sl.from) ??
+            gatewayNode ??
+            null
           const d = from ? curve(from, node) : ''
           return {
             id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,

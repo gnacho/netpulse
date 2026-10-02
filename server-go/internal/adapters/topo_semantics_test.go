@@ -338,3 +338,33 @@ func TestFleetFdbEvidence(t *testing.T) {
 		t.Fatal("gw no debe tener padre (cuelga de internet)")
 	}
 }
+
+// #1060: el uplink sale del distnode (círculo inferido/gestionado) cuando el
+// puerto de la evidencia coincide con su (router, puerto): gateway -> círculo
+// -> AP, sin saltarse el switch intermedio.
+func TestTopoSemanticsUplinkViaDistNode(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "ap1", Name: "ap1", MAC: "AA:BB:CC:00:00:03"},
+	}
+	devices := []Device{
+		{ID: "nas", MAC: "AA:BB:CC:00:00:09", RouterID: "gw", Band: "cable", Online: true, Port: "2"},
+	}
+	dists := []DistributionNode{
+		{ID: "dist-gw-lan1", RouterID: "gw", Kind: "inferred", Port: "lan1"},
+	}
+	ev := map[string]topoParent{"ap1": {parent: "gw", port: "lan1"}}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", ev)
+	found := false
+	for _, l := range sem.Links {
+		if l.Kind == "uplink" && l.To == "ap1" {
+			found = true
+			if l.From != "dist-gw-lan1" {
+				t.Fatalf("uplink ap1: from = %q, want dist-gw-lan1 (%+v)", l.From, l)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("falta el uplink de ap1")
+	}
+}

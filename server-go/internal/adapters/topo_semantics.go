@@ -255,7 +255,20 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 				port = ev.port
 			}
 		}
-		sem.Links = append(sem.Links, TopoLink{From: parent, To: ap.ID, Kind: "uplink", Port: port})
+		// #1060: si el puerto de la evidencia tiene un distnode (inferred o
+		// managed) en ese router, el uplink sale del CÍRCULO, no del router:
+		// gateway -> (switch inferido, lan1) -> AP. Sin esto el enlace salta
+		// por encima del círculo y el cableado real no se reconoce.
+		from := parent
+		if port != "" {
+			for _, dn := range dists {
+				if dn.RouterID == parent && (dn.Kind == "inferred" || dn.Kind == "managed") && dn.Port == port {
+					from = dn.ID
+					break
+				}
+			}
+		}
+		sem.Links = append(sem.Links, TopoLink{From: from, To: ap.ID, Kind: "uplink", Port: port})
 	}
 	// router → distnode (solo inferred|managed son hubs propios en el mapa).
 	// En una cadena LLDP switch→switch (issue #300) el distnode cuelga de su
