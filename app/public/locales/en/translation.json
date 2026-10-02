@@ -2042,7 +2042,10 @@
     },
     "hideAll": "Hide all",
     "showAll": "Show all",
-    "onlyMine": "Only mine"
+    "onlyMine": "Only mine",
+    "legendDfs": "DFS range (radar)",
+    "legendSuggested": "Suggested block",
+    "legendCurrent": "Your channel"
   },
   "firmwareUpgrades": {
     "title": "Firmware upgrades",

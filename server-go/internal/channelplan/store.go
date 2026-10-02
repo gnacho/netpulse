@@ -14,10 +14,18 @@ import (
 // Store persiste scans y calcula recomendaciones de canal.
 type Store struct {
 	db *sql.DB
+	// ownSeeds devuelve BSSIDs exactos reportados como propios por los
+	// agentes (dawn/usteer local=true, #1082); opcional, se cablea en main.
+	ownSeeds func() []string
 }
 
 // NewStore crea el store sobre una conexión SQLite ya abierta.
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
+
+// SetOwnSeeds fija el proveedor de BSSIDs propios exactos (p. ej.
+// AgentRegistry.LocalBssids). Se combinan con el prefijo MAC de routers.mac
+// y la transitividad por SSID.
+func (s *Store) SetOwnSeeds(f func() []string) { s.ownSeeds = f }
 
 // SaveScan guarda los resultados de un scan pasivo recibido en un push.
 func (s *Store) SaveScan(routerID string, ts int64, scans []probe.ScanResult) error {
@@ -72,6 +80,15 @@ type ScanRow struct {
 // fila del máximo (https://sqlite.org/lang_select.html#bareagg).
 func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, error) {
 	cutoff := time.Now().Add(-within).Unix()
+	// Semillas exactas de los agentes (dawn/usteer local=true, #1082).
+	exactOwn := map[string]bool{}
+	if s.ownSeeds != nil {
+		for _, mac := range s.ownSeeds() {
+			if mac = strings.ToUpper(strings.TrimSpace(mac)); mac != "" {
+				exactOwn[mac] = true
+			}
+		}
+	}
 	// Los prefijos de la malla propia se leen ANTES de la query principal:
 	// el pool de SQLite va con MaxOpenConns(1) (internal/db) y
 	// ownMeshPrefixes hace su propia Query; con las dos vivas a la vez el
@@ -108,7 +125,11 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 		if err := rows.Scan(&r.RouterID, &r.Iface, &r.BSSID, &r.SSID, &r.Channel, &r.Freq, &r.Signal, &r.Ts); err != nil {
 			return nil, err
 		}
-		r.Own = isOwnMeshBSSID(r.BSSID, prefixes)
+		if exactOwn[strings.ToUpper(strings.TrimSpace(r.BSSID))] {
+			r.Own = true
+		} else {
+			r.Own = isOwnMeshBSSID(r.BSSID, prefixes)
+		}
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {

@@ -302,7 +302,17 @@ export default function ChannelPlan() {
     return 0
   }, [active, scored])
 
-  const bestCand = scored.length > 0 ? scored[0]! : null
+  // Mejor candidato = el RECOMENDADO por el motor (nunca un bloque DFS o no
+  // ortodoxo que empate a 100 en la normalización relativa, #1082).
+  const bestCand = useMemo(() => {
+    if (scored.length === 0) return null
+    if (active && active.recommended > 0) {
+      const rec = scored.find((s) => s.channel === active.recommended)
+      if (rec) return rec
+    }
+    const recs = scored.filter((s) => s.recommendable)
+    return (recs.length > 0 ? recs : scored)[0]!
+  }, [scored, active])
   const suggested = active && active.recommended > 0 && active.recommended !== active.channel ? active.recommended : 0
   const ownCount = bandScans.filter((s) => s.own).length
   const neighborCount = bandScans.length - ownCount
@@ -316,7 +326,22 @@ export default function ChannelPlan() {
     if (tss.length === 0) return 0
     return Math.max(...tss)
   }, [bandScans])
-  const congestion = currentPct >= 80 ? 'low' : currentPct >= 55 ? 'moderate' : 'high'
+  // Congestión ABSOLUTA del canal actual (#1082): el verdict no depende de
+  // lo malo que sea el resto de la banda. Referencias del score (potencia
+  // x1000): 1 vecina a -60 ≈ 1000; a -50 ≈ 10000. Dos -72 ≈ 126 → baja.
+  const congestionAbs = useMemo(() => {
+    if (!active || !currentScoreValid) return null
+    const s = active.currentScore
+    return s < 500 ? 'low' : s < 5000 ? 'moderate' : 'high'
+  }, [active, currentScoreValid])
+
+  // Limpieza ABSOLUTA del anillo (misma escala que el chip): decaimiento
+  // logarítmico sobre el score de potencia, no el peor-vs-mejor de la banda.
+  const ringPct = useMemo(() => {
+    if (!active || !currentScoreValid) return currentPct
+    const clean = Math.round(100 - Math.min(100, (100 * Math.log10(active.currentScore + 1)) / 4))
+    return Math.max(0, clean)
+  }, [active, currentScoreValid, currentPct])
 
   // Ordenación de la tabla: por defecto propias primero y luego señal desc;
   // al elegir columna se ordena puro asc/desc (la alterna al repetir clic).
@@ -477,7 +502,7 @@ export default function ChannelPlan() {
                       : t('channelPlan.neighborsBlock', { count: bestCand.neighbors, dbm: bestCand.strongest })}
                     {bestCand.channel === active.channel || bestCand.pct === currentPct
                       ? ` ${t('channelPlan.alreadyOptimal')}`
-                      : ` ${t('channelPlan.betterThanCurrent', { score: currentPct })}`}
+                      : ` ${t('channelPlan.betterThanCurrent', { score: ringPct })}`}
                   </p>
                   <p className="mt-1.5 text-xs text-text-muted">{t('channelPlan.applyHint')}</p>
                 </>
@@ -489,7 +514,7 @@ export default function ChannelPlan() {
             <div className="rounded-2xl border border-border bg-surface p-5">
               <div className="text-label uppercase text-text-muted">{t('channelPlan.summaryCurrent')}</div>
               <div className="mt-2 flex items-center gap-3.5">
-                <ScoreRing pct={currentPct} />
+                <ScoreRing pct={ringPct} />
                 <div>
                   <div className="text-[15px] font-bold text-text-primary">
                     {active.name === '2.4 GHz' || active.name === '6 GHz'
@@ -498,16 +523,18 @@ export default function ChannelPlan() {
                     {active.widthMhz > 0 && <span className="ml-1 text-caption font-normal text-text-muted">{active.widthMhz} MHz</span>}
                   </div>
                   <div className="mt-1 flex items-center gap-1.5">
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold',
-                        congestion === 'low' && 'bg-ok/10 text-ok',
-                        congestion === 'moderate' && 'bg-warn/10 text-warn',
-                        congestion === 'high' && 'bg-danger/10 text-danger',
-                      )}
-                    >
-                      {t(`channelPlan.congestion.${congestion}`)}
-                    </span>
+                    {congestionAbs && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold',
+                          congestionAbs === 'low' && 'bg-ok/10 text-ok',
+                          congestionAbs === 'moderate' && 'bg-warn/10 text-warn',
+                          congestionAbs === 'high' && 'bg-danger/10 text-danger',
+                        )}
+                      >
+                        {t(`channelPlan.congestion.${congestionAbs}`)}
+                      </span>
+                    )}
                     {currentDfs && (
                       <span className="rounded-full bg-elevated px-2 py-0.5 text-caption font-semibold text-text-muted">
                         {t('channelPlan.tagDfs')}
@@ -561,9 +588,23 @@ export default function ChannelPlan() {
                       <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.chartTitle', { band: active.name })}</h2>
                       <p className="mt-0.5 text-caption text-text-muted">{t('channelPlan.chartSub')}</p>
                     </div>
-                    {bandScans.length === 0 && (
-                      <span className="rounded-lg bg-warn/10 px-2.5 py-1 text-caption text-warn">{t('channelPlan.noBandScans')}</span>
-                    )}
+                    <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-text-muted">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2.5 w-4 rounded-sm" style={{ backgroundColor: 'rgba(167,139,250,0.2)' }} />
+                        {t('channelPlan.legendDfs')}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2.5 w-4 rounded-sm" style={{ backgroundColor: 'rgba(52,211,153,0.2)' }} />
+                        {t('channelPlan.legendSuggested')}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-0 w-4 border-t-2 border-dashed border-accent" />
+                        {t('channelPlan.legendCurrent')}
+                      </span>
+                      {bandScans.length === 0 && (
+                        <span className="rounded-lg bg-warn/10 px-2.5 py-1 text-caption text-warn">{t('channelPlan.noBandScans')}</span>
+                      )}
+                    </div>
                     <span className="rounded-full bg-elevated px-2.5 py-1 text-caption font-semibold text-text-secondary">
                       {t('channelPlan.netsCount', { n: nets.length })}
                     </span>

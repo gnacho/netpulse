@@ -2042,7 +2042,10 @@
     },
     "hideAll": "Ocultar todas",
     "showAll": "Mostrar todas",
-    "onlyMine": "Solo mías"
+    "onlyMine": "Solo mías",
+    "legendDfs": "Zona DFS (radar)",
+    "legendSuggested": "Bloque sugerido",
+    "legendCurrent": "Tu canal"
   },
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",

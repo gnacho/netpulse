@@ -278,6 +278,9 @@ func run() error {
 		}
 	}
 	agentReg := adapters.NewAgentRegistry(agentTTL)
+	// #1082: los agentes conocen sus propios BSSIDs (dawn/usteer local);
+	// el channel-plan los usa para no contar las propias como vecinas.
+	chPlan.SetOwnSeeds(agentReg.LocalBssids)
 	var adapter adapters.Snapshotter
 	var sshPool *adapters.SSHPool
 	var eventsCollector *roamevents.Collector

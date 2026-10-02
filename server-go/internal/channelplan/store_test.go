@@ -108,6 +108,42 @@ func TestRecommendScores24GHzTodosLosCanales(t *testing.T) {
 	}
 }
 
+// TestRecentScansOwnPorSemillaExacta (#1082): un BSSID que el agente
+// reporta como propio (dawn/usteer local=true) se marca own aunque no case
+// ni por prefijo ni por transitividad de SSID.
+func TestRecentScansOwnPorSemillaExacta(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	st.SetOwnSeeds(func() []string { return []string{"1e:bf:ce:02:7f:48"} })
+	now := time.Now().Unix()
+	scans := []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "1E:BF:CE:02:7F:48", SSID: "Casa-2.4", Channel: 1, Freq: 2412, Signal: -53},
+		{Iface: "wlan0", BSSID: "00:11:22:33:44:55", SSID: "vecino", Channel: 6, Freq: 2437, Signal: -60},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := st.RecentScans("rt1", time.Hour)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	bySSID := map[string]bool{}
+	for _, r := range got {
+		bySSID[r.SSID] = r.Own
+	}
+	if !bySSID["Casa-2.4"] {
+		t.Errorf("la semilla exacta debe marcar own: %+v", got)
+	}
+	if bySSID["vecino"] {
+		t.Errorf("vecino NO debe ser own: %+v", got)
+	}
+}
+
 // TestRecentScansOwnPorSSIDTransitable (#1076): si un BSSID de un SSID es
 // propio por prefijo MAC, el resto de filas del mismo SSID también se
 // marcan propias aunque su MAC no case (guest de la misma unidad).
