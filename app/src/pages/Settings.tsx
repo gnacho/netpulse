@@ -3319,6 +3319,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       setSaved(true)
       window.setTimeout(() => setSaved(false), 2000)
       onSaved()
+      setCfgOpen(false) // #1065: guardar con éxito cierra el diálogo
     } finally {
       setBusy(false)
     }
@@ -3950,7 +3951,7 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.adguard.title')}</DialogTitle>
           </DialogHeader>
-          <AdGuardManager reduce={reduce} onSaved={onSaved} />
+          <AdGuardManager reduce={reduce} onSaved={() => { onSaved(); setDialog(null) }} />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'proxmox'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
@@ -3958,7 +3959,7 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.proxmox.title')}</DialogTitle>
           </DialogHeader>
-          <ProxmoxManager reduce={reduce} onSaved={onSaved} />
+          <ProxmoxManager reduce={reduce} onSaved={() => { onSaved(); setDialog(null) }} />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'mqtt'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
@@ -3966,7 +3967,7 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.mqtt.title')}</DialogTitle>
           </DialogHeader>
-          <MqttCard onSaved={onSaved} bare />
+          <MqttCard onSaved={() => { onSaved(); setDialog(null) }} bare />
         </DialogContent>
       </Dialog>
     </Card>
@@ -4043,7 +4044,7 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.ntfy.title')}</DialogTitle>
           </DialogHeader>
-          <NtfyCard onSaved={onSaved} bare />
+          <NtfyCard onSaved={() => { onSaved(); setDialog(null) }} bare />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'telegram'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
@@ -4051,7 +4052,7 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.telegram.title')}</DialogTitle>
           </DialogHeader>
-          <TelegramCard onSaved={onSaved} bare />
+          <TelegramCard onSaved={() => { onSaved(); setDialog(null) }} bare />
         </DialogContent>
       </Dialog>
     </div>
