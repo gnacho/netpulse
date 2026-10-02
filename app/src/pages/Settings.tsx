@@ -3189,10 +3189,14 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   // endpoint HTTP libre cuya URL completa escribe el usuario) + ndt (#1037,
   // M-Lab NDT con autodetección de servidor).
   const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed' | 'custom' | 'ndt'>('ndt')
-  const [scheduleKind, setScheduleKind] = useState<'interval' | 'weekly' | 'monthly'>('interval')
+  const [scheduleKind, setScheduleKind] = useState<'interval' | 'auto' | 'weekly' | 'monthly'>('interval')
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [dayOfMonth, setDayOfMonth] = useState(1)
-  const [schedTime, setSchedTime] = useState('01:00')
+  // Hora por defecto 03:00 (#1066): valle típico del tráfico residencial.
+  const [schedTime, setSchedTime] = useState('03:00')
+  // #1066: con kind "auto" la hora la elige el server (la de menos tráfico
+  // de su histórico) y la expone en /status: el UI la muestra solo lectura.
+  const [autoTime, setAutoTime] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -3218,7 +3222,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         // Migración visual de los "semanal/mensual" históricos (#744):
         // 168h/720h sin scheduleKind pasan a weekly/monthly con día y hora.
         const kind = typeof d.scheduleKind === 'string' ? d.scheduleKind : ''
-        if (kind === 'weekly' || kind === 'monthly') {
+        if (kind === 'interval' || kind === 'auto' || kind === 'weekly' || kind === 'monthly') {
           setScheduleKind(kind)
         } else if (d.intervalHours === 168) {
           setScheduleKind('weekly')
@@ -3238,6 +3242,22 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     }
   }, [])
 
+  // #1066: la hora elegida por kind "auto" la calcula el server; se lee al
+  // abrir el diálogo y se refresca al cambiar a "auto".
+  useEffect(() => {
+    if (scheduleKind !== 'auto') return
+    let alive = true
+    void fetch('/api/speedtest/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && typeof d.autoTime === 'string' && d.autoTime) setAutoTime(d.autoTime)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [scheduleKind, cfgOpen])
+
   const bodyJson = useCallback(
     () => ({
       enabled,
@@ -3248,7 +3268,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       scheduleKind,
       ...(scheduleKind === 'weekly' ? { dayOfWeek } : {}),
       ...(scheduleKind === 'monthly' ? { dayOfMonth } : {}),
-      ...(scheduleKind !== 'interval' ? { time: schedTime } : {}),
+      // "auto" no envía time: la hora la deriva el server del histórico.
+      ...(scheduleKind === 'weekly' || scheduleKind === 'monthly' ? { time: schedTime } : {}),
     }),
     [enabled, intervalHours, serverUrl, provider, alertPct, scheduleKind, dayOfWeek, dayOfMonth, schedTime],
   )
@@ -3295,7 +3316,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       setError(t('settings.speedtest.invalid'))
       return
     }
-    if (scheduleKind !== 'interval' && !/^\d{2}:\d{2}$/.test(schedTime)) {
+    if ((scheduleKind === 'weekly' || scheduleKind === 'monthly') && !/^\d{2}:\d{2}$/.test(schedTime)) {
       setError(t('settings.speedtest.invalidSchedule'))
       return
     }
@@ -3435,12 +3456,13 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </span>
           <select
             value={scheduleKind}
-            onChange={(e) => setScheduleKind(e.target.value as 'interval' | 'weekly' | 'monthly')}
+            onChange={(e) => setScheduleKind(e.target.value as 'interval' | 'auto' | 'weekly' | 'monthly')}
             disabled={disabled || loading}
             aria-label={t('settings.speedtest.interval')}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
             <option value="interval">{t('settings.speedtest.kindInterval')}</option>
+            <option value="auto">{t('settings.speedtest.kindAuto')}</option>
             <option value="weekly">{t('settings.speedtest.kindWeekly')}</option>
             <option value="monthly">{t('settings.speedtest.kindMonthly')}</option>
           </select>
@@ -3459,6 +3481,19 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
                 <option key={h} value={h}>{t('settings.speedtest.intervalH', { hours: h })}</option>
               ))}
             </select>
+          </label>
+        ) : scheduleKind === 'auto' ? (
+          <label className="block">
+            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.timeLabel')}</span>
+            <input
+              type="time"
+              value={autoTime}
+              readOnly
+              disabled={disabled || loading}
+              aria-label={t('settings.speedtest.timeLabel')}
+              title={t('settings.speedtest.kindAuto')}
+              className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-muted focus:outline-none"
+            />
           </label>
         ) : (
           <label className="block">
@@ -3493,6 +3528,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       </div>
       {scheduleKind !== 'interval' && (
         <div className="flex flex-wrap items-end gap-3">
+          {(scheduleKind === 'weekly' || scheduleKind === 'monthly') && (
           <label className="block max-w-[220px]">
             <span className="text-label uppercase text-text-muted">{t('settings.speedtest.timeLabel')}</span>
             <input
@@ -3504,6 +3540,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
               className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
             />
           </label>
+          )}
           <label className="block max-w-[160px]">
             <span className="flex items-center gap-1 text-label uppercase text-text-muted">
               {t('settings.speedtest.alertPctLabel')}

@@ -1697,6 +1697,7 @@
       "lastResult": "Last test: {{when}} · {{down}} Mbps ↓ / {{up}} Mbps ↑",
       "unavailable": "Not available in this mode",
       "kindInterval": "Every N hours",
+      "kindAuto": "Automatic (quietest hour)",
       "kindWeekly": "Weekly (day and time)",
       "kindMonthly": "Monthly (day and time)",
       "everyLabel": "Every:",
