@@ -34,11 +34,13 @@ interface Scan {
   own?: boolean
 }
 
-interface Candidate {
+interface Score {
   channel: number
   score: number
   neighbors: number
   strongest: number // dBm de la vecina más fuerte considerada
+  dfs: boolean
+  recommendable: boolean
 }
 
 interface RadioRec {
@@ -50,7 +52,7 @@ interface RadioRec {
   recommended: number
   currentScore: number
   bestScore: number
-  candidates?: Candidate[]
+  scores?: Score[]
 }
 
 interface ChannelPlanData {
@@ -151,6 +153,8 @@ export default function ChannelPlan() {
   const [selected, setSelected] = useState<string | null>(null)
   const [hover, setHover] = useState<{ net: SpectrumNet; x: number; y: number } | null>(null)
   const [sort, setSort] = useState<{ key: 'signal' | 'ssid' | 'channel'; dir: 'asc' | 'desc' } | null>(null)
+  const [focus, setFocus] = useState<number | null>(null)
+  const [onlyMine, setOnlyMine] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<number>(0)
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -245,23 +249,46 @@ export default function ChannelPlan() {
     return [...neighbors, own]
   }, [active, bandScans, t])
 
-  // Puntuación normalizada (0-100) de cada candidato: 100 = el más limpio.
+  const allKeys = useMemo(() => new Set(nets.map((n) => n.key)), [nets])
+  const nonOwnKeys = useMemo(() => new Set(nets.filter((n) => !n.own).map((n) => n.key)), [nets])
+
+  // "Solo mías": oculta las vecinas mientras el toggle esté activo.
+  useEffect(() => {
+    if (onlyMine) setHidden(new Set(nonOwnKeys))
+  }, [onlyMine, nonOwnKeys])
+
+  // Puntuación normalizada (0-100) de cada canal/bloque de la banda: 100 =
+  // el más limpio. Incluye DFS informativos (#1076); el sugerido es el mejor
+  // recomendable.
   const scored = useMemo(() => {
-    if (!active?.candidates || active.candidates.length === 0) return []
-    const scores = active.candidates.map((c) => c.score)
-    if (active.currentScore > 0 && active.currentScore < 900000) scores.push(active.currentScore)
-    const worst = Math.max(...scores)
-    const best = Math.min(...scores)
+    if (!active?.scores || active.scores.length === 0) return []
+    const raw = active.scores.map((c) => c.score)
+    if (active.currentScore > 0 && active.currentScore < 900000) raw.push(active.currentScore)
+    const worst = Math.max(...raw)
+    const best = Math.min(...raw)
     const pctOf = (score: number) => (worst <= best ? 100 : Math.round((100 * (worst - score)) / (worst - best)))
-    return active.candidates
+    return active.scores
       .map((c) => ({
         ...c,
         pct: pctOf(c.score),
         isCurrent: c.channel === active.channel,
         isBest: c.channel === active.recommended && c.channel !== active.channel,
       }))
-      .sort((a, b) => b.pct - a.pct)
+      .sort((a, b) => b.pct - a.pct || a.channel - b.channel)
   }, [active])
+
+  // Grupos por congestión para la tira de puntuación (#1076).
+  const tiers = useMemo(() => {
+    const t: { key: string; items: typeof scored }[] = [
+      { key: 'optimal', items: [] },
+      { key: 'moderate', items: [] },
+      { key: 'busy', items: [] },
+    ]
+    for (const s of scored) {
+      (s.pct >= 80 ? t[0]! : s.pct >= 55 ? t[1]! : t[2]!).items.push(s)
+    }
+    return t.filter((g) => g.items.length > 0)
+  }, [scored])
 
   const currentScoreValid = !!active && active.currentScore > 0 && active.currentScore < 900000
   const currentPct = useMemo(() => {
@@ -368,6 +395,7 @@ export default function ChannelPlan() {
                     setActiveRadio(key)
                     setHidden(new Set())
                     setSelected(null)
+                    setFocus(null)
                   }}
                   className={cn(
                     'rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-all',
@@ -526,8 +554,9 @@ export default function ChannelPlan() {
             <p className="rounded-2xl border border-border bg-surface px-4 py-3 text-caption text-warn">{t('channelPlan.noScans')}</p>
           ) : (
             <>
-              {/* Espectro + panel de puntuación */}
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+              {/* Espectro a todo lo ancho (#1076); la puntuación baja a una
+                  tira debajo, agrupada por congestión */}
+              <div>
                 <div className="rounded-2xl border border-border bg-surface">
                   <div className="flex items-start justify-between gap-3 px-5 pt-4">
                     <div>
@@ -547,6 +576,7 @@ export default function ChannelPlan() {
                       widthMhz={active.widthMhz}
                       hidden={hidden}
                       selected={selected}
+                      focus={focus}
                       onHover={(net, x, y) => setHover(net ? { net, x, y } : null)}
                       tSuggest={t('channelPlan.suggested')}
                       tDfs={t('channelPlan.tagDfs')}
@@ -584,8 +614,110 @@ export default function ChannelPlan() {
                     </div>
                   </div>
 
+                  {/* Puntuación por canal: tira a todo lo ancho agrupada por
+                      congestión; clic enfoca el bloque en el espectro (#1076) */}
+                  <div className="border-t border-border px-5 py-3">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.scoresTitle')}</h2>
+                      <span className="text-caption text-text-muted">
+                        {active.name === '5 GHz'
+                          ? t('channelPlan.scoresBlocks', { w: active.widthMhz > 0 ? active.widthMhz : 80 })
+                          : t('channelPlan.scoresChannels')}
+                        {' · '}
+                        {t('channelPlan.scoresFoot')}
+                      </span>
+                    </div>
+                    {tiers.map((g) => (
+                      <div key={g.key} className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={cn(
+                            'w-24 shrink-0 text-[11px] font-bold uppercase tracking-wide',
+                            g.key === 'optimal' ? 'text-ok' : g.key === 'moderate' ? 'text-warn' : 'text-danger',
+                          )}
+                        >
+                          {t(`channelPlan.tier.${g.key}`)}
+                        </span>
+                        {g.items.map((s) => (
+                          <button
+                            key={s.channel}
+                            onClick={() => setFocus(focus === s.channel ? null : s.channel)}
+                            title={
+                              s.neighbors === 0
+                                ? t('channelPlan.whyAlone')
+                                : t('channelPlan.whyNeighbors', { n: s.neighbors, dbm: s.strongest })
+                            }
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors',
+                              focus === s.channel
+                                ? 'border-accent/60 bg-accent/10'
+                                : s.isCurrent
+                                  ? 'border-accent/40 bg-accent/5'
+                                  : s.isBest
+                                    ? 'border-ok/40 bg-ok/5'
+                                    : 'border-border hover:border-border-strong',
+                              !s.recommendable && 'opacity-70',
+                            )}
+                          >
+                            <span className="font-mono font-bold text-text-primary">{s.channel}</span>
+                            {s.isCurrent && (
+                              <span className="rounded bg-accent/15 px-1 py-px text-[9px] font-bold uppercase text-accent">
+                                {t('channelPlan.tagCurrent')}
+                              </span>
+                            )}
+                            {s.isBest && (
+                              <span className="rounded bg-ok/15 px-1 py-px text-[9px] font-bold uppercase text-ok">
+                                ★ {t('channelPlan.tagBest')}
+                              </span>
+                            )}
+                            {s.dfs && (
+                              <span className="rounded bg-elevated px-1 py-px text-[9px] font-bold uppercase text-text-muted">
+                                {t('channelPlan.tagDfs')}
+                              </span>
+                            )}
+                            <span
+                              className={cn(
+                                'font-mono font-bold',
+                                s.pct >= 80 ? 'text-ok' : s.pct >= 55 ? 'text-warn' : 'text-danger',
+                              )}
+                            >
+                              {s.pct}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                    {scored.length === 0 && <p className="mt-1 text-caption text-text-muted">{t('channelPlan.noBandScans')}</p>}
+                  </div>
+
                   {/* Leyenda interactiva */}
                   <div className="flex flex-wrap gap-1.5 border-t border-border px-5 py-3">
+                    <button
+                      onClick={() => {
+                        setOnlyMine(false)
+                        setHidden(new Set(allKeys))
+                      }}
+                      className="inline-flex items-center rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                    >
+                      {t('channelPlan.hideAll')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setOnlyMine(false)
+                        setHidden(new Set())
+                      }}
+                      className="inline-flex items-center rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                    >
+                      {t('channelPlan.showAll')}
+                    </button>
+                    <button
+                      onClick={() => setOnlyMine((v) => !v)}
+                      className={cn(
+                        'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors',
+                        onlyMine ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border text-text-secondary hover:border-border-strong hover:text-text-primary',
+                      )}
+                    >
+                      {t('channelPlan.onlyMine')}
+                    </button>
                     {nets.map((n) => (
                       <button
                         key={n.key}
@@ -610,71 +742,6 @@ export default function ChannelPlan() {
                         <span className="font-mono text-caption font-normal text-text-muted">ch {n.channel}</span>
                       </button>
                     ))}
-                  </div>
-                </div>
-
-                {/* Puntuación por canal */}
-                <div className="flex flex-col rounded-2xl border border-border bg-surface">
-                  <div className="px-4 pt-4">
-                    <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.scoresTitle')}</h2>
-                    <p className="mt-0.5 text-caption text-text-muted">
-                      {active.name === '5 GHz'
-                        ? t('channelPlan.scoresBlocks', { w: active.widthMhz > 0 ? active.widthMhz : 80 })
-                        : t('channelPlan.scoresChannels')}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 overflow-auto p-3">
-                    {scored.map((s) => (
-                      <div
-                        key={s.channel}
-                        className={cn(
-                          'rounded-xl border px-3 py-2.5',
-                          s.isCurrent ? 'border-accent/40 bg-accent/5' : s.isBest ? 'border-ok/30' : 'border-border',
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-bold text-text-primary">
-                            {active.name === '2.4 GHz' || active.name === '6 GHz'
-                              ? t('channelPlan.channelWord', { ch: s.channel })
-                              : s.channel}
-                            <span className="ml-1 text-[11px] font-medium text-text-muted">
-                              {active.widthMhz > 0 ? `${active.widthMhz} MHz` : '20 MHz'}
-                            </span>
-                          </span>
-                          {s.isCurrent && (
-                            <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                              {t('channelPlan.tagCurrent')}
-                            </span>
-                          )}
-                          {s.isBest && (
-                            <span className="rounded-md bg-ok/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ok">
-                              ★ {t('channelPlan.tagBest')}
-                            </span>
-                          )}
-                          <span
-                            className={cn(
-                              'ml-auto text-sm font-extrabold',
-                              s.pct >= 80 ? 'text-ok' : s.pct >= 55 ? 'text-warn' : 'text-danger',
-                            )}
-                          >
-                            {s.pct}
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-canvas">
-                          <div
-                            className={cn('h-full rounded-full', s.pct >= 80 ? 'bg-ok' : s.pct >= 55 ? 'bg-warn' : 'bg-danger')}
-                            style={{ width: `${s.pct}%` }}
-                          />
-                        </div>
-                        <div className="mt-1 text-[11.5px] text-text-muted">
-                          {s.neighbors === 0 ? t('channelPlan.whyAlone') : t('channelPlan.whyNeighbors', { n: s.neighbors, dbm: s.strongest })}
-                        </div>
-                      </div>
-                    ))}
-                    {scored.length === 0 && <p className="px-1 py-3 text-caption text-text-muted">{t('channelPlan.noBandScans')}</p>}
-                  </div>
-                  <div className="mt-auto border-t border-border px-4 py-3 text-[11.5px] leading-relaxed text-text-muted">
-                    {t('channelPlan.scoresFoot')}
                   </div>
                 </div>
               </div>

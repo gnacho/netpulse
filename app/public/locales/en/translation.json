@@ -2034,7 +2034,15 @@
     },
     "sortable": "sort",
     "sortAsc": "ascending order, click to reverse",
-    "sortDesc": "descending order, click to reverse"
+    "sortDesc": "descending order, click to reverse",
+    "tier": {
+      "optimal": "Optimal",
+      "moderate": "Moderate",
+      "busy": "Busy"
+    },
+    "hideAll": "Hide all",
+    "showAll": "Show all",
+    "onlyMine": "Only mine"
   },
   "firmwareUpgrades": {
     "title": "Firmware upgrades",

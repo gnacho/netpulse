@@ -100,6 +100,7 @@ export function ChannelSpectrum({
   widthMhz,
   hidden,
   selected,
+  focus,
   onHover,
   tSuggest,
   tDfs,
@@ -112,6 +113,8 @@ export function ChannelSpectrum({
   widthMhz: number
   hidden: Set<string>
   selected: string | null
+  /** Canal con foco (click en la tira de puntuación): el resto se atenúa. */
+  focus: number | null
   onHover: (net: SpectrumNet | null, x: number, y: number) => void
   tSuggest: string
   tDfs: string
@@ -223,7 +226,6 @@ export function ChannelSpectrum({
 
       // Campanas.
       const visible = nets.filter((n) => !hidden.has(n.key))
-      const placed: { px: number; py: number }[] = []
       for (const n of visible) {
         if (n.freq <= 0) continue
         const sigma = Math.max(n.widthMhz * 0.62, 8)
@@ -243,26 +245,48 @@ export function ChannelSpectrum({
         grad.addColorStop(0, withAlpha(n.color, 0.3))
         grad.addColorStop(1, withAlpha(n.color, 0.04))
         g.fillStyle = grad
-        g.fill()
         g.strokeStyle = n.color
         g.lineWidth = n.own ? 2.2 : 1.5
-        g.globalAlpha = selected && selected !== n.key ? 0.22 : 1
+        const dimmed = (selected && selected !== n.key) || (focus != null && n.channel !== focus)
+        g.globalAlpha = dimmed ? 0.14 : 1
+        g.fill()
         g.stroke()
         g.globalAlpha = 1
 
-        if (n.own || n.signal > -75) {
+      }
+
+      // Etiquetas: se asignan de la más fuerte a la más débil en DOS filas
+      // sobre el pico (la propia siempre en la fila interior). Umbral -80 y
+      // clash horizontal corto: en 2.4 GHz denso el draw-order anterior solo
+      // etiquetaba a las propias (#1076).
+      {
+        const labelables = visible
+          .filter((n) => n.freq > 0 && (n.own || n.signal > -80))
+          .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
+        const rows: { px: number; py: number }[][] = [[], []]
+        for (const n of labelables) {
           const px = Math.min(Math.max(x(n.freq), PAD.l + 42), w - PAD.r - 42)
-          const py = peak - 8
-          const clash = placed.some((p) => Math.abs(p.px - px) < 95 && Math.abs(p.py - py) < 15)
-          if (!clash || n.own) {
-            g.fillStyle = n.color
-            g.textAlign = 'center'
-            g.font = n.own ? CANVAS_FONT_BOLD : CANVAS_FONT_SEMI
-            g.fillText(n.ssid, px, py)
-            g.font = CANVAS_FONT
-            placed.push({ px, py })
+          const peakY = y(Math.max(n.signal, DBM_TOP))
+          let done = false
+          for (const rowIdx of n.own ? [0, 1] : [0, 1]) {
+            const py = peakY - 8 - rowIdx * 13
+            const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < 60)
+            if (!clash || (n.own && rowIdx === 0 && !rows[0]!.some((q) => Math.abs(q.px - px) < 40))) {
+              g.fillStyle = n.color
+              g.textAlign = 'center'
+              g.font = n.own ? CANVAS_FONT_BOLD : '10px Inter, ui-sans-serif, system-ui, sans-serif'
+              g.globalAlpha = selected && selected !== n.key ? 0.3 : 1
+              g.fillText(n.ssid, px, py)
+              g.globalAlpha = 1
+              g.font = CANVAS_FONT
+              rows[rowIdx]!.push({ px, py })
+              done = true
+              break
+            }
           }
+          void done
         }
+        void labelables
       }
 
       // Marcador del canal actual (red propia del radio).
@@ -331,7 +355,7 @@ export function ChannelSpectrum({
       ro.disconnect()
       mo.disconnect()
     }
-  }, [band, nets, suggested, widthMhz, hidden, selected, tSuggest, tDfs, tActual, tDbm])
+  }, [band, nets, suggested, widthMhz, hidden, selected, focus, tSuggest, tDfs, tActual, tDbm])
 
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const geom = geomRef.current

@@ -36,10 +36,10 @@ func TestSaveAndRecentScans(t *testing.T) {
 	}
 }
 
-// TestRecommendDevuelveCandidatos (#1070): el informe muestra la puntuación
-// de CADA canal candidato (panel lateral). Los candidatos son no-DFS por
-// construcción (#518/#631).
-func TestRecommendDevuelveCandidatos(t *testing.T) {
+// TestRecommendDevuelveScores (#1070/#1076): el informe puntúa TODOS los
+// bloques de la banda a su ancho, DFS incluidos (informativos); los
+// recomendables son no-DFS y el mejor de ellos es el Recommended.
+func TestRecommendDevuelveScores(t *testing.T) {
 	d, err := db.Open(t.TempDir())
 	if err != nil {
 		t.Fatalf("db: %v", err)
@@ -51,19 +51,103 @@ func TestRecommendDevuelveCandidatos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recommend: %v", err)
 	}
-	if len(recs) != 1 || len(recs[0].Candidates) == 0 {
-		t.Fatalf("esperaba candidatos, got %+v", recs)
+	if len(recs) != 1 || len(recs[0].Scores) == 0 {
+		t.Fatalf("esperaba scores, got %+v", recs)
 	}
-	byCh := map[int]channelplan.Candidate{}
-	for _, c := range recs[0].Candidates {
-		if c.Channel >= 52 && c.Channel <= 144 {
-			t.Errorf("candidato DFS no esperado: %+v", c)
+	byCh := map[int]channelplan.ChannelScore{}
+	var dfsCount int
+	for _, c := range recs[0].Scores {
+		if c.DFS {
+			dfsCount++
 		}
 		byCh[c.Channel] = c
 	}
+	if dfsCount == 0 {
+		t.Errorf("a 80 MHz deben puntuarse también bloques DFS: %+v", recs[0].Scores)
+	}
 	rec := recs[0]
-	if byCh[rec.Recommended].Score != rec.BestScore {
-		t.Errorf("el score del candidato recomendado debe ser BestScore: cand %+v, rec %+v", byCh[rec.Recommended], rec)
+	best := byCh[rec.Recommended]
+	if best.DFS || !best.Recommendable {
+		t.Errorf("el recomendado debe ser un bloque no-DFS recomendable: %+v", best)
+	}
+	// #1076: el rango 68-92 (5350-5470 MHz) no es RLAN en ETSI: se puntúa
+	// pero nunca se recomienda.
+	if b, ok := byCh[68]; ok && b.Recommendable {
+		t.Errorf("el bloque 68 no debe ser recomendable (no RLAN ETSI): %+v", b)
+	}
+	if b, ok := byCh[52]; !ok || !b.DFS {
+		t.Errorf("el bloque 52-64 debe marcarse DFS: %+v", b)
+	}
+	if best.Score != rec.BestScore {
+		t.Errorf("el score del bloque recomendado debe ser BestScore: %+v, rec %+v", best, rec)
+	}
+}
+
+// TestRecommendScores24GHzTodosLosCanales (#1076): a 2.4 GHz se puntúan los
+// 13 canales (no solo los no solapados 1/6/11), todos recomendables.
+func TestRecommendScores24GHzTodosLosCanales(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "2.4 GHz", Channel: 6, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 || len(recs[0].Scores) != 13 {
+		t.Fatalf("esperaba 13 scores en 2.4 GHz, got %+v", recs)
+	}
+	for _, s := range recs[0].Scores {
+		want := s.Channel == 1 || s.Channel == 6 || s.Channel == 11
+		if s.Recommendable != want || s.DFS {
+			t.Errorf("recommendable solo en 1/6/11 (#631): %+v", s)
+		}
+	}
+}
+
+// TestRecentScansOwnPorSSIDTransitable (#1076): si un BSSID de un SSID es
+// propio por prefijo MAC, el resto de filas del mismo SSID también se
+// marcan propias aunque su MAC no case (guest de la misma unidad).
+func TestRecentScansOwnPorSSIDTransitable(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+	if _, err := d.DB.Exec(`INSERT INTO routers (id, name, host, type, mac, is_gateway, created_at)
+		VALUES ('rt2', 'RT2 AX6', '192.168.1.2', 'openwrt', '8C:DE:F9:33:71:58', 0, ?)`,
+		time.Now().UnixMilli()); err != nil {
+		t.Fatalf("insert router: %v", err)
+	}
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	// La main BSS de la malla casa con el prefijo; la guest (misma unidad,
+	// MAC distinta) no.
+	scans := []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "8C:DE:F9:33:71:59", SSID: "casa-guest", Channel: 6, Freq: 2437, Signal: -30},
+		{Iface: "wlan0", BSSID: "1E:BF:CE:02:7F:48", SSID: "casa-guest", Channel: 6, Freq: 2437, Signal: -53},
+		{Iface: "wlan0", BSSID: "00:11:22:33:44:55", SSID: "vecino", Channel: 11, Freq: 2462, Signal: -80},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := st.RecentScans("rt1", time.Hour)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	bySSID := map[string]bool{}
+	for _, r := range got {
+		bySSID[r.SSID] = r.Own
+	}
+	if !bySSID["casa-guest"] {
+		t.Errorf("toda fila de casa-guest debe ser own (transitividad): %+v", got)
+	}
+	if bySSID["vecino"] {
+		t.Errorf("vecino NO debe ser own: %+v", got)
 	}
 }
 

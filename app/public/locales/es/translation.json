@@ -2034,7 +2034,15 @@
     },
     "sortable": "ordenar",
     "sortAsc": "orden ascendente, clic para invertir",
-    "sortDesc": "orden descendente, clic para invertir"
+    "sortDesc": "orden descendente, clic para invertir",
+    "tier": {
+      "optimal": "Óptimos",
+      "moderate": "Moderados",
+      "busy": "Saturados"
+    },
+    "hideAll": "Ocultar todas",
+    "showAll": "Mostrar todas",
+    "onlyMine": "Solo mías"
   },
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",

@@ -111,7 +111,28 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 		r.Own = isOwnMeshBSSID(r.BSSID, prefixes)
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// #1076: transitividad por SSID. Los BSSIDs de una misma unidad pueden
+	// no compartir prefijo con routers.mac (p. ej. el guest de un GL.iNet);
+	// si CUALQUIER BSSID de un SSID es propio por prefijo, todo ese SSID se
+	// considera de la malla. Riesgo de falso positivo: un vecino con el
+	// mismo ESSID (raro en SSIDs personalizados; aceptable en uso doméstico).
+	ownSSIDs := map[string]bool{}
+	for _, r := range out {
+		if r.Own && r.SSID != "" {
+			ownSSIDs[r.SSID] = true
+		}
+	}
+	if len(ownSSIDs) > 0 {
+		for i := range out {
+			if !out[i].Own && out[i].SSID != "" && ownSSIDs[out[i].SSID] {
+				out[i].Own = true
+			}
+		}
+	}
+	return out, nil
 }
 
 // Radio es un resumen de una radio propia con su canal actual y recomendación.
@@ -123,22 +144,92 @@ type Radio struct {
 	Recommended  int    `json:"recommended"` // canal recomendado; 0 = sin datos
 	CurrentScore int    `json:"currentScore"`
 	BestScore    int    `json:"bestScore"`
-	// Candidates es la puntuación de CADA canal candidato (no solo la
-	// mejor), para el panel de puntuación del informe (#1070).
-	Candidates []Candidate `json:"candidates,omitempty"`
+	// Scores puntúa TODOS los canales/bloques de la banda (no solo los
+	// recomendables), para el panel de puntuación del informe (#1070/#1076):
+	// 2.4 GHz canal a canal; 5 GHz bloque a bloque a su ancho, DFS incluidos
+	// (informativos, no recomendables).
+	Scores []ChannelScore `json:"scores,omitempty"`
 	// Section es la sección UCI de la radio ("radio0") reportada por el
 	// agente (#500); vacía con agentes antiguos (la UI deshabilita apply).
 	Section string `json:"section,omitempty"`
 }
 
-// Candidate puntúa un canal candidato de la banda del radio. Los candidatos
-// son no-DFS por construcción (#518/#631): el motor recomienda solo bloques
-// usables sin espera de radar.
-type Candidate struct {
-	Channel   int `json:"channel"`
-	Score     int `json:"score"` // weighted neighbor score; menor = más limpio
-	Neighbors int `json:"neighbors"`
-	Strongest int `json:"strongest"` // dBm de la vecina más fuerte considerada
+// ChannelScore puntúa un canal (2.4 GHz) o bloque a su ancho (5 GHz) de la
+// banda del radio. Score es el weighted neighbor score; menor = más limpio.
+// DFS marca bloques que en ETSI requieren detección de radar (usables, pero
+// no los recomienda el motor). Recommendable = no-DFS y apto para sugerir.
+type ChannelScore struct {
+	Channel       int  `json:"channel"`
+	Score         int  `json:"score"`
+	Neighbors     int  `json:"neighbors"`
+	Strongest     int  `json:"strongest"` // dBm de la vecina más fuerte considerada
+	DFS           bool `json:"dfs"`
+	Recommendable bool `json:"recommendable"`
+}
+
+// bandBlocks devuelve TODOS los canales/bloques puntuables de la banda a su
+// ancho (#1076): 2.4 GHz canal a canal (20 MHz); 5 GHz primarios cuyo bloque
+// completo cabe en la banda (DFS incluidos); 6 GHz solo los no-DFS (no
+// mantenemos la tabla PSC).
+func bandBlocks(band string, widthMhz int) []ChannelScore {
+	mk := func(ch int, dfs bool) ChannelScore {
+		return ChannelScore{Channel: ch, DFS: dfs, Recommendable: !dfs}
+	}
+	switch band {
+	case "2.4 GHz":
+		// Se puntúan los 13 canales, pero el motor solo SUGIERE los no
+		// solapados 1/6/11 (#631): el resto se muestra en la tira (informa
+		// de la congestión real) sin ser recomendables.
+		out := make([]ChannelScore, 0, 13)
+		for ch := 1; ch <= 13; ch++ {
+			orthodox := ch == 1 || ch == 6 || ch == 11
+			c := mk(ch, false)
+			c.Recommendable = orthodox
+			out = append(out, c)
+		}
+		return out
+	case "5 GHz":
+		n := widthMhz / 20
+		if n < 1 {
+			n = 1
+		}
+		// Bloques NO solapados: el salto es el ancho del bloque (n canales
+		// de 20 MHz), alineados a los dos rangos de canales (36-144 y
+		// 149-165). Con salto fijo de 4 los bloques de 40/80 MHz se
+		// solapaban entre sí y la tira de puntuación duplicaba el mismo
+		// espectro (#1076).
+		stride := n * 4
+		out := make([]ChannelScore, 0, 12)
+		for _, base := range [2]int{36, 149} {
+			for ch := base; ch <= 165; ch += stride {
+				if base == 36 && ch > 144 {
+					break
+				}
+				if ch+(n-1)*4 > 165 {
+					continue
+				}
+				dfs := false
+				for i := 0; i < n; i++ {
+					if isDFSChannel(ch + i*4) {
+						dfs = true
+					}
+				}
+				// Recomendables solo UNII-1 (36-48) y UNII-3 (149-161): el
+				// rango 68-92 (5350-5470 MHz) no está asignado a RLAN en
+				// ETSI, aunque no sea DFS (#1076).
+				c := mk(ch, dfs)
+				c.Recommendable = !dfs && (ch <= 48 || ch >= 149)
+				out = append(out, c)
+			}
+		}
+		return out
+	default:
+		out := make([]ChannelScore, 0, len(candidateChannels(band, widthMhz)))
+		for _, ch := range candidateChannels(band, widthMhz) {
+			out = append(out, mk(ch, false))
+		}
+		return out
+	}
 }
 
 // Recommend recibe el estado wireless del router (radios propias) y devuelve
@@ -186,23 +277,24 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		if rec.Iface == "" {
 			rec.Iface = ifaceForBand(band) // placeholder; el agente no reporta iface por radio
 		}
-		candidates := candidateChannels(band, r.WidthMhz)
+		blocks := bandBlocks(band, r.WidthMhz)
 		bestCh, bestScore := 0, math.MaxInt
 		currentScore := math.MaxInt
-		cands := make([]Candidate, 0, len(candidates))
-		for _, ch := range candidates {
-			score, neighbors, strongest := channelScoreDetailed(byBand[band], ch)
-			cands = append(cands, Candidate{Channel: ch, Score: score, Neighbors: neighbors, Strongest: strongest})
-			if ch == r.Channel {
-				currentScore = score
+		scores := make([]ChannelScore, 0, len(blocks))
+		for _, b := range blocks {
+			b.Score, b.Neighbors, b.Strongest = channelScoreDetailed(byBand[band], b.Channel)
+			if b.Channel == r.Channel {
+				currentScore = b.Score
 			}
-			if score < bestScore {
-				bestScore = score
-				bestCh = ch
+			// El motor recomienda solo el mejor bloque no-DFS (#518/#631).
+			if b.Recommendable && b.Score < bestScore {
+				bestScore = b.Score
+				bestCh = b.Channel
 			}
+			scores = append(scores, b)
 		}
-		if len(cands) > 0 {
-			rec.Candidates = cands
+		if len(scores) > 0 {
+			rec.Scores = scores
 		}
 		// #518: el canal ACTUAL puede ser DFS (52/100/112/116...) y no estar en
 		// candidateChannels (solo no-DFS para recomendar). Su score es
