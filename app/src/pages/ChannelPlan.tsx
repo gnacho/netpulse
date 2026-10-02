@@ -1,10 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
-import { AlertCircle, RefreshCw, Sparkles } from 'lucide-react'
+import { AlertCircle, RefreshCw, Router, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ssidColor } from '@/lib/ssidColor'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   ChannelSpectrum,
   channelFreq,
@@ -104,6 +113,31 @@ function ScoreRing({ pct }: { pct: number }) {
     </div>
   )
 }
+
+
+// FleetMenuTrigger (#1070): selector de unidad de flota NO nativo, con el
+// mismo look que los filtros desplegables de Clientes (Devices.tsx #989).
+// forwardRef + spread OBLIGATORIOS (#1006): DropdownMenuTrigger asChild
+// inyecta el ref y los handlers; sin ellos el menú no abre.
+const FleetMenuTrigger = forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<'button'> & { label: string; value: string }
+>(function FleetMenuTrigger({ label, value, className, ...props }, ref) {
+  return (
+    <button
+      ref={ref}
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary',
+        className,
+      )}
+      {...props}
+    >
+      <Router className="h-3.5 w-3.5" strokeWidth={1.75} />
+      {label}
+      <span className="font-semibold text-text-primary">{value}</span>
+    </button>
+  )
+})
 
 export default function ChannelPlan() {
   const { t, i18n } = useTranslation()
@@ -266,21 +300,25 @@ export default function ChannelPlan() {
 
       {/* Barra de contexto: equipo + pestañas de radio + acciones */}
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-4">
-        <label className="inline-flex items-center gap-2 rounded-xl border border-border bg-canvas px-3 py-2">
-          <span className="text-caption font-medium text-text-muted">{t('channelPlan.router')}</span>
-          <select
-            value={routerId}
-            onChange={(e) => setRouterId(e.target.value)}
-            className="bg-transparent text-sm font-semibold text-text-primary outline-none"
-          >
-            {sortedRouters.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-                {r.roleBadge === 'Principal' ? ` ${t('channelPlan.gateway')}` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <FleetMenuTrigger label={t('channelPlan.router')} value={routerName} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel>{t('channelPlan.router')}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={routerId} onValueChange={setRouterId}>
+              {sortedRouters.map((r) => (
+                <DropdownMenuRadioItem key={r.id} value={r.id}>
+                  <span className="flex-1">
+                    {r.name}
+                    {r.roleBadge === 'Principal' ? ` ${t('channelPlan.gateway')}` : ''}
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {radios.length > 1 && (
           <div className="inline-flex items-center gap-0.5 rounded-xl bg-canvas p-1" role="tablist" aria-label={t('channelPlan.band')}>
@@ -375,7 +413,7 @@ export default function ChannelPlan() {
                     {bestCand.neighbors === 0
                       ? t('channelPlan.noNeighborsBlock')
                       : t('channelPlan.neighborsBlock', { count: bestCand.neighbors, dbm: bestCand.strongest })}
-                    {bestCand.channel === active.channel
+                    {bestCand.channel === active.channel || bestCand.pct === currentPct
                       ? ` ${t('channelPlan.alreadyOptimal')}`
                       : ` ${t('channelPlan.betterThanCurrent', { score: currentPct })}`}
                   </p>

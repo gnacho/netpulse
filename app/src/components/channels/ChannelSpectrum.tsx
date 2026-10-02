@@ -70,6 +70,29 @@ export function themeColor(name: string): string {
   return v ? `rgb(${v})` : '#888'
 }
 
+
+// withAlpha aplica opacidad a un color en formato "#rrggbb" o "rgb(r g b)":
+// NO vale concatenar sufijos hex (rompe con los rgb() de themeColor; bug que
+// tiraba la pagina con "CanvasGradient.addColorStop: Invalid color").
+export function withAlpha(color: string, alpha: number): string {
+  const hexMatch = /^#([0-9a-f]{6})$/i.exec(color)
+  if (hexMatch) {
+    return `${color}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
+  }
+  const rgbMatch = /^rgb\(([^)]+)\)$/.exec(color)
+  if (rgbMatch) {
+    const parts = rgbMatch[1]!.trim().split(/[\s,]+/)
+    return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`
+  }
+  return color
+}
+
+// Fuentes del canvas: la stack real del tema (Space Grotesk/Inter viven
+// locales, sin CDN).
+const CANVAS_FONT = '11px Inter, ui-sans-serif, system-ui, sans-serif'
+const CANVAS_FONT_BOLD = '700 11.5px Inter, ui-sans-serif, system-ui, sans-serif'
+const CANVAS_FONT_SEMI = '600 11px Inter, ui-sans-serif, system-ui, sans-serif'
+
 export function ChannelSpectrum({
   band,
   nets,
@@ -136,7 +159,7 @@ export function ChannelSpectrum({
       geomRef.current = { x, y }
       const baseline = y(DBM_BOTTOM)
       g.clearRect(0, 0, w, h)
-      g.font = '11px inherit, sans-serif'
+      g.font = CANVAS_FONT
 
       // Zonas DFS (solo 5 GHz), tinte del token tunnel.
       if (band === '5 GHz') {
@@ -217,8 +240,8 @@ export function ChannelSpectrum({
         g.lineTo(x(f1), baseline)
         g.closePath()
         const grad = g.createLinearGradient(0, peak, 0, baseline)
-        grad.addColorStop(0, `${n.color}4d`)
-        grad.addColorStop(1, `${n.color}0a`)
+        grad.addColorStop(0, withAlpha(n.color, 0.3))
+        grad.addColorStop(1, withAlpha(n.color, 0.04))
         g.fillStyle = grad
         g.fill()
         g.strokeStyle = n.color
@@ -234,9 +257,9 @@ export function ChannelSpectrum({
           if (!clash || n.own) {
             g.fillStyle = n.color
             g.textAlign = 'center'
-            g.font = n.own ? '700 11.5px inherit, sans-serif' : '600 11px inherit, sans-serif'
+            g.font = n.own ? CANVAS_FONT_BOLD : CANVAS_FONT_SEMI
             g.fillText(n.ssid, px, py)
-            g.font = '11px inherit, sans-serif'
+            g.font = CANVAS_FONT
             placed.push({ px, py })
           }
         }
@@ -254,9 +277,9 @@ export function ChannelSpectrum({
         g.setLineDash([])
         g.fillStyle = colors.accent
         g.textAlign = 'left'
-        g.font = '700 10.5px inherit, sans-serif'
+        g.font = CANVAS_FONT_SEMI
         g.fillText(tActual, x(own.freq) + 7, PAD.t + plotH - 8)
-        g.font = '11px inherit, sans-serif'
+        g.font = CANVAS_FONT
       }
 
       // Franja de calor: ocupación continua por MHz (ponderación lineal,

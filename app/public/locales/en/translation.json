@@ -1972,7 +1972,7 @@
   "channelPlan": {
     "title": "Channel analysis",
     "subtitle": "Spectrum occupancy seen by each radio with a channel suggestion. Informational only: nothing is applied.",
-    "router": "Router",
+    "router": "Fleet",
     "band": "Band",
     "currentChannel": "Channel",
     "channelWord": "Channel {{ch}}",

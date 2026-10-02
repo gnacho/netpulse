@@ -1972,7 +1972,7 @@
   "channelPlan": {
     "title": "Análisis de canales",
     "subtitle": "Ocupación del espectro vista por cada radio con sugerencia de canal. Solo informativo: no se aplican cambios.",
-    "router": "Equipo",
+    "router": "Flota",
     "band": "Banda",
     "currentChannel": "Canal",
     "channelWord": "Canal {{ch}}",
