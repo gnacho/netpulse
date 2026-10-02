@@ -3504,7 +3504,10 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             />
           </label>
           <label className="block max-w-[160px]">
-            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
+            <span className="flex items-center gap-1 text-label uppercase text-text-muted">
+              {t('settings.speedtest.alertPctLabel')}
+              <InfoTip text={t('settings.speedtest.alertPctHint')} />
+            </span>
             <input
               type="text"
               inputMode="numeric"
@@ -3519,7 +3522,10 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       )}
       {scheduleKind === 'interval' && (
         <label className="block max-w-[160px]">
-          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
+          <span className="flex items-center gap-1 text-label uppercase text-text-muted">
+            {t('settings.speedtest.alertPctLabel')}
+            <InfoTip text={t('settings.speedtest.alertPctHint')} />
+          </span>
           <input
             type="text"
             inputMode="numeric"
@@ -3531,7 +3537,6 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           />
         </label>
       )}
-      <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
       {/* URL del servidor/instancia/endpoint: no aplica a Cloudflare
           (endpoints fijos); opcional en Ookla, obligatoria en LibreSpeed
           (#976) y en custom (#1001, donde es la URL completa del endpoint
