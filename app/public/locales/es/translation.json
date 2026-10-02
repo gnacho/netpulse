@@ -858,7 +858,13 @@
       "filterActive": "Activos",
       "filterInactive": "Inactivos",
       "aggregation": "{{count}} dispositivos",
-      "aggregationHint": "agregación · ¿hipervisor o switch?"
+      "aggregationHint": "agregación · ¿hipervisor o switch?",
+      "behindLabel": "detrás de {{label}}",
+      "detailRouterLink": "enlace entre routers",
+      "detailRouterLinkLldp": "enlace entre routers · LLDP",
+      "detailApWifi": "cliente WiFi detrás",
+      "detailMac": "MAC {{mac}}",
+      "inferredSwitch": "Switch"
     },
     "radios": {
       "channel": "Canal",

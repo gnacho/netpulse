@@ -3268,11 +3268,12 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 		if neighbor != "" {
 			port.ConnectedTo = routerByMac[neighbor]
-			port.Detail = "enlace entre routers"
+			// El cliente traduce la plantilla según PeerKind (#1039).
+			port.PeerKind = "router-link"
 			// El vecino además se anuncia por LLDP → el frontend puede
 			// mostrar el sufijo "· LLDP" en la etiqueta del uplink (C2).
 			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil {
-				port.Detail = "enlace entre routers · LLDP"
+				port.PeerKind = "router-link-lldp"
 			}
 			enriched = append(enriched, port)
 			continue
@@ -3285,11 +3286,9 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			if ap, isWifi := wifiByMac[all[0]]; isWifi && allWifiOfOneAP(all, wifiByMac) {
 				port.ConnectedTo = ap
 				port.DeviceMac = all[0]
-				if lease, ok := leaseMap[all[0]]; ok && lease.Hostname != "" {
-					port.Detail = "AP · " + lease.Hostname + " por WiFi detrás"
-				} else {
-					port.Detail = "AP · cliente WiFi detrás"
-				}
+				// La pista "cliente WiFi detrás" la traduce el cliente
+				// según PeerKind (#1039); el nombre del AP viaja en ConnectedTo.
+				port.PeerKind = "ap-wifi"
 				enriched = append(enriched, port)
 				continue
 			}
@@ -3319,10 +3318,13 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 				name := deviceDisplayName(mac, leaseMap, aliasByMac)
 				port.DeviceMac = mac
 				if name != mac {
-					port.ConnectedTo = name + " · detrás de " + port.Label
+					// El cliente compone "nombre · detrás de <label>" con
+					// su i18n (#1039); aquí viaja el nombre a pelo.
+					port.ConnectedTo = name
+					port.PeerKind = "curated"
 				} else {
 					port.ConnectedTo = port.Label
-					port.Detail = "MAC " + mac
+					port.PeerKind = "mac"
 				}
 				if lease, ok := leaseMap[mac]; ok && lease.IP != "" {
 					port.Detail = lease.IP
@@ -3399,7 +3401,9 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 					port.DeviceMac = infraMac
 				}
 			} else {
-				port.ConnectedTo = "Switch"
+				// Switch/bridge tonto inferido: sin lease ni alias que lo
+				// nombre. El cliente traduce la etiqueta (#1039/#1040).
+				port.PeerKind = "inferred-switch"
 			}
 			enriched = append(enriched, port)
 			continue

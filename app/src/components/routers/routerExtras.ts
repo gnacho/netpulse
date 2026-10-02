@@ -81,6 +81,12 @@ export interface EthPort {
   deviceMac?: string // MAC del dispositivo conectado (para enlazar a /devices)
   /** > 0 = agregación: N MACs detrás de la boca, sin par único nombrable (#1036). */
   deviceCount?: number
+  /**
+   * Clasificación del par para traducir las plantillas en cliente (#1039):
+   * "" = par nominal tal cual; "router-link" | "router-link-lldp" |
+   * "ap-wifi" | "curated" | "mac" | "inferred-switch".
+   */
+  peerKind?: string
   detail?: string // "192.168.8.10 · full duplex"
   health?: PortHealth // health score del puerto (#299)
 }
@@ -88,13 +94,24 @@ export interface EthPort {
 /**
  * Etiqueta del par conectado a una boca. En agregación (deviceCount > 0)
  * el contador lo traduce la app con su i18n; el server ya no pre-formatea
- * texto en este caso (#1036).
+ * texto en este caso (#1036). Las plantillas por peerKind se traducen aquí
+ * (#1039): el server solo manda el nombre a pelo + la clasificación.
  */
 export function portPeerLabel(port: EthPort): string {
   if (port.deviceCount && port.deviceCount > 0) {
     return i18n.t('routerDetail.ports.aggregation', { count: port.deviceCount })
   }
-  return port.connectedTo ?? ''
+  switch (port.peerKind) {
+    case 'curated':
+      // "nombre · detrás de <label de la boca>" traducido.
+      return port.connectedTo
+        ? `${port.connectedTo} · ${i18n.t('routerDetail.ports.behindLabel', { label: port.label })}`
+        : ''
+    case 'inferred-switch':
+      return i18n.t('routerDetail.ports.inferredSwitch')
+    default:
+      return port.connectedTo ?? ''
+  }
 }
 
 /** Detalle del par: en agregación, la pista "¿hipervisor o switch?" traducida. */
@@ -102,7 +119,22 @@ export function portPeerDetail(port: EthPort): string {
   if (port.deviceCount && port.deviceCount > 0) {
     return i18n.t('routerDetail.ports.aggregationHint')
   }
-  return port.detail ?? ''
+  switch (port.peerKind) {
+    case 'router-link':
+      return i18n.t('routerDetail.ports.detailRouterLink')
+    case 'router-link-lldp':
+      return i18n.t('routerDetail.ports.detailRouterLinkLldp')
+    case 'ap-wifi':
+      return i18n.t('routerDetail.ports.detailApWifi')
+    case 'mac':
+      return port.deviceMac
+        ? i18n.t('routerDetail.ports.detailMac', { mac: port.deviceMac })
+        : ''
+    case 'inferred-switch':
+      return ''
+    default:
+      return port.detail ?? ''
+  }
 }
 
 export interface BackhaulInfo {

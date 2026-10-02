@@ -7,7 +7,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { getRouterExtras, portPeerDetail, portPeerLabel } from '@/components/routers/routerExtras'
 import type { EthPort, RouterExtras, SfpInfo } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
-import { Activity } from 'lucide-react'
+import { Activity, Network } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
@@ -114,6 +114,17 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                 <div className="mt-0.5 w-full truncate text-caption font-medium text-text-primary">
                   {(() => {
                     const peer = portPeerLabel(port)
+                    // #1040: agregación / switch inferido llevan icono de red:
+                    // la app ADIVINA el par, no lo conoce.
+                    const inferred = (port.deviceCount ?? 0) > 0 || port.peerKind === 'inferred-switch'
+                    const peerWithCue = inferred ? (
+                      <span className="inline-flex max-w-full items-center gap-1">
+                        <Network className="h-3 w-3 shrink-0 text-text-muted" strokeWidth={1.75} />
+                        <span className="truncate">{peer}</span>
+                      </span>
+                    ) : (
+                      peer
+                    )
                     return peer && peer === port.label ? (
                       <span className="font-mono text-[10px] text-text-muted">{port.deviceMac ?? ''}</span>
                     ) : peer && port.deviceMac ? (
@@ -122,10 +133,10 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                         className="transition-colors hover:text-accent hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {peer}
+                        {peerWithCue}
                       </Link>
                     ) : peer ? (
-                      peer
+                      peerWithCue
                     ) : (
                       t('routerDetail.ports.inUse')
                     )
