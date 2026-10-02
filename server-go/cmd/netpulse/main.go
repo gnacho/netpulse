@@ -663,6 +663,10 @@ func run() error {
 	// conservar siempre). Sin esto ambas tablas crecen sin límite. El
 	// interruptor maestro history.limit_enabled (#975) desactiva la poda
 	// por completo (retención ilimitada).
+	// El mismo tick horario poda alert_log por antigüedad (#1034) según
+	// alerts.retentionDays (kv; 0 = poda temporal off, la cota de 500 filas
+	// sigue aplicando). Es independiente del interruptor maestro #975: el
+	// log de alertas tiene su propio ajuste.
 	presenceStop := make(chan struct{})
 	if !cfg.DemoMode {
 		go func() {
@@ -683,11 +687,21 @@ func run() error {
 					log.Printf("[netpulse] poda de presencia: %d eventos (> %d días)", n, retention)
 				}
 			}
+			pruneAlerts := func() {
+				if adapter == nil {
+					return
+				}
+				if n := adapter.AlertsEngine().PruneLogByRetention(); n > 0 {
+					log.Printf("[netpulse] poda del log de alertas: %d entradas por antigüedad", n)
+				}
+			}
 			prune() // primera pasada al arrancar
+			pruneAlerts()
 			for {
 				select {
 				case <-tick.C:
 					prune()
+					pruneAlerts()
 				case <-presenceStop:
 					return
 				}

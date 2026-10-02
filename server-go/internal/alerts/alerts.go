@@ -273,6 +273,10 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 		}
 		e.purgeVolatileHistoryLocked()
 		e.loadPersistedLocked()
+		// #1034: poda por antigüedad al arrancar (además de la horaria de
+		// main): una retención bajada mientras el daemon estaba parado se
+		// aplica en el primer arranque posterior.
+		e.PruneLogByRetention()
 	}
 	return e
 }
@@ -811,7 +815,11 @@ func (e *Engine) idInListLocked(id string) bool {
 	return false
 }
 
-// MarkAllRead marca leídas todas las alertas actuales.
+// MarkAllRead marca leídas todas las alertas actuales (#1034): SOLO toca el
+// read-set (persistido en kv y espejado en alert_log.read_flag). NO borra
+// nada de alert_log ni del conjunto dismissed: el feed sigue mostrando las
+// alertas como leídas y el toggle "Solo no leídas" es lo que limpia la vista.
+// Vaciar el log es la acción destructiva aparte (DismissAll).
 func (e *Engine) MarkAllRead() {
 	e.mu.Lock()
 	ids := make([]string, 0, len(e.list))
@@ -864,9 +872,10 @@ func (e *Engine) Dismiss(ids ...string) {
 	e.list = kept
 }
 
-// DismissAll limpia TODAS las alertas del feed (issue #971, botón "Marcar
-// todo como leído"): equivale a Dismiss sobre cada ID presente en la lista.
-// Las persistentes se borran de alert_log y su ID queda en el conjunto
+// DismissAll limpia TODAS las alertas del feed: equivale a Dismiss sobre
+// cada ID presente en la lista. Es la acción destructiva "Vaciar registro"
+// (#1034; antes el botón "Marcar todo como leído" la invocaba, #971). Las
+// persistentes se borran de alert_log y su ID queda en el conjunto
 // dismissed (kv), así que el feed vacío sobrevive a un reload; las volátiles
 // (agent-down) también salen, pero si su condición sigue viva el emisor las
 // re-emite con el mismo ID y vuelven (semántica "alerta viva": lo que no

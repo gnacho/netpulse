@@ -348,12 +348,13 @@ func (s *server) handleAlertsReadAll(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// handleAlertsClear (POST, issue #971): VACÍA el feed - limpia (dismiss)
-// todas las alertas actualmente visibles. Es lo que el botón "Marcar todo
-// como leído" hace desde #971: las alertas salen del feed (badge a 0) y no
-// reaparecen tras un reload (borradas de alert_log + conjunto dismissed en
-// kv). Una alerta viva (volátil, p.ej. agent-down con el agente aún caído)
-// puede volver al re-evaluarse su condición; el histórico NO vuelve.
+// handleAlertsClear (POST): acción destructiva "Vaciar registro" (#1034) -
+// limpia (dismiss) todas las alertas actualmente visibles. Las borra de
+// alert_log y guarda sus IDs en el conjunto dismissed (kv): el feed queda
+// vacío y no se repuebla tras un reload. Una alerta viva (volátil, p.ej.
+// agent-down con el agente aún caído) puede volver al re-evaluarse su
+// condición; el histórico NO vuelve. Para SOLO marcar leídas sin borrar,
+// POST /api/alerts/read-all.
 func (s *server) handleAlertsClear(w http.ResponseWriter, _ *http.Request) {
 	s.adapter.AlertsEngine().DismissAll()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
