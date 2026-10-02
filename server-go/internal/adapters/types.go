@@ -400,6 +400,11 @@ type TopoSemantics struct {
 	Rings map[string][]string `json:"rings"`
 	// HiddenPeers: routerId → nº de clientes no pintados como chip (el "+N").
 	HiddenPeers map[string]int `json:"hiddenPeers,omitempty"`
+	// WanPeer (#1042): id del Device aguas arriba del gateway (módem/ONT del
+	// ISP), identificado porque su IP coincide con la puerta de enlace WAN.
+	// El mapa lo dibuja bajo el nodo Internet en vez de como cliente LAN.
+	// Vacío si no hay coincidencia.
+	WanPeer string `json:"wanPeer,omitempty"`
 }
 
 // TopoLink es un enlace semántico del mapa (sin geometría).

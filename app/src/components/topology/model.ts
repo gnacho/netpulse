@@ -72,7 +72,7 @@ export interface DistNodeView {
   r: number
 }
 
-export type TopoLinkKind = 'wan' | 'uplink' | 'wired' | 'dist' | 'wg'
+export type TopoLinkKind = 'wan' | 'wan-peer' | 'uplink' | 'wired' | 'dist' | 'wg'
 
 export interface TopoLink {
   id: string
@@ -752,7 +752,20 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   const managedMacs = new Set(
     distributionNodes.filter((n) => n.kind === 'managed' && n.mac).map((n) => n.mac!.toUpperCase()),
   )
-  const online = devices.filter((d) => d.online && !managedMacs.has(d.mac.toUpperCase()))
+  // #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se descubre
+  // por ARP como un cliente más, pero vive en el lado WAN: si su IP coincide
+  // con la puerta de enlace WAN se dibuja bajo el nodo Internet (chip propio
+  // junto al enlace WAN), no como cliente LAN. La semántica server ya lo
+  // excluye de los anillos; aquí se excluye de la lista online para el
+  // fallback sin semántica y se reserva el device para el chip.
+  const wanPeerDev = devices.find(
+    (d) => d.online && wan.gateway && d.ip && d.ip === wan.gateway,
+  )
+  // Chip del wan peer, creado tras fijar la posición final de Internet.
+  let wanPeerChip: ChipNode | null = null
+  const online = devices.filter(
+    (d) => d.online && !managedMacs.has(d.mac.toUpperCase()) && d.id !== wanPeerDev?.id,
+  )
   const deviceById = new Map(online.map((d) => [d.id, d]))
   const distById = new Map(distributionNodes.map((n) => [n.id, n]))
   /** hub al que cuelga un dispositivo: attachTo (si existe y resuelve) o su router.
@@ -1034,6 +1047,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // Internet: sobre el gateway (misma x), empujado hacia arriba del viewport.
       const targetY = Math.max(24, gatewayNode.y - clearDist)
       internetNode.y = targetY
+      // #1042: el módem/ONT aguas arriba cuelga del nodo Internet: chip junto
+      // a la línea WAN (punto medio Internet↔gateway, desplazado a un lado).
+      if (wanPeerDev) {
+        const gwTop = { x: gatewayNode.x, y: gatewayNode.y - gatewayNode.r }
+        const mx = (internetNode.x + gwTop.x) / 2
+        const my = (internetNode.y + gwTop.y) / 2
+        wanPeerChip = { ...mkChip(wanPeerDev, 'internet'), x: mx + 46, y: my }
+        chips.push(wanPeerChip)
+      }
       // APs y switches: a lo largo del vector desde el gateway hasta su posición
       // canónica, empujados hasta quedar a >= clearDist (fuera del círculo).
       const pushOut = (rn: RouterNode) => {
@@ -1258,6 +1280,17 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       width: 3, ...flowFor(600),
       from: 'internet', to: gatewayNode.id,
     })
+    // #1042: el módem/ONT aguas arriba cuelga de Internet, junto a la línea WAN.
+    if (wanPeerChip) {
+      const a = pos(internetNode.x, internetNode.y, angleTo(internetNode.x, internetNode.y, wanPeerChip.x, wanPeerChip.y), internetNode.r + 2)
+      links.push({
+        id: 'wan-peer', kind: 'wan-peer',
+        d: `M ${a.x} ${a.y} L ${wanPeerChip.x} ${wanPeerChip.y}`,
+        lx: 0, ly: 0, label: '',
+        width: 1.5, ...flowFor(30),
+        from: 'internet', to: wanPeerChip.id,
+      })
+    }
   }
   const makeUplink = (node: RouterNode) => {
     const isWifi = node.router.backhaul === 'wifi'

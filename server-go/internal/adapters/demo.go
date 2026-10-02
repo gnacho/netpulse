@@ -225,7 +225,7 @@ func (d *Demo) buildOverview() *Overview {
 		Alerts:            d.alertsCopy(),
 		UnreadAlerts:      d.engine.UnreadCount(),
 		DistributionNodes: dists,
-		Topology:          BuildTopoSemantics(d.routers, d.devices, wg, dists), // SPEC-65 D65-3
+		Topology:          BuildTopoSemantics(d.routers, d.devices, wg, dists, ""), // SPEC-65 D65-3
 		VM:                ViewModelVersion,                                    // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}

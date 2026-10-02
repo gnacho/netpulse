@@ -34,7 +34,7 @@ const maxTopoPeerChips = 4
 
 // BuildTopoSemantics deriva enlaces, anillos y peers ocultos del mismo bundle
 // que hoy consume la app (routers, devices, wireguard, distributionNodes).
-func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode) *TopoSemantics {
+func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string) *TopoSemantics {
 	sem := &TopoSemantics{Links: []TopoLink{}, Rings: map[string][]string{}}
 	if len(routers) == 0 {
 		return sem
@@ -77,6 +77,28 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 			continue
 		}
 		online = append(online, d)
+	}
+	// #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se
+	// descubre por ARP como un cliente más, pero vive en el lado WAN: si su
+	// IP coincide con la puerta de enlace WAN se representa bajo el nodo
+	// Internet, no como cliente LAN. Se excluye de anillos y enlaces.
+	wanPeerID := ""
+	if wanGateway != "" {
+		for _, d := range online {
+			if d.IP != "" && d.IP == wanGateway {
+				wanPeerID = d.ID
+				break
+			}
+		}
+		if wanPeerID != "" {
+			filtered := online[:0]
+			for _, d := range online {
+				if d.ID != wanPeerID {
+					filtered = append(filtered, d)
+				}
+			}
+			online = filtered
+		}
 	}
 	deviceByID := map[string]Device{}
 	for _, d := range online {
@@ -135,6 +157,10 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 
 	// -- enlaces (mismo orden que model.ts) --------------------------------
 	sem.Links = append(sem.Links, TopoLink{From: "internet", To: gateway.ID, Kind: "wan"})
+	if wanPeerID != "" {
+		sem.WanPeer = wanPeerID
+		sem.Links = append(sem.Links, TopoLink{From: "internet", To: wanPeerID, Kind: "wan-peer"})
+	}
 	for _, ap := range nonGateway {
 		l := TopoLink{From: gateway.ID, To: ap.ID, Kind: "uplink"}
 		if ap.Lldp != nil {

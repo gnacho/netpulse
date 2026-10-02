@@ -23,7 +23,7 @@ import (
 //   - hiddenPeers ausente: todos los anillos bajo el límite de chips visibles
 //     de la app (gateway 13, AP 20)
 func TestTopoSemanticsGoldenCanon(t *testing.T) {
-	sem := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes())
+	sem := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes(), "")
 
 	wantLinks := []TopoLink{
 		{From: "internet", To: "flint2", Kind: "wan"},
@@ -109,7 +109,7 @@ func TestTopoSemanticsHiddenPeers(t *testing.T) {
 			RouterID: "ap", Band: "2.4 GHz", Online: true,
 		})
 	}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "")
 	want := map[string]int{"gw": 2, "ap": 2} // 62-60 y 42-40
 	if !reflect.DeepEqual(sem.HiddenPeers, want) {
 		t.Fatalf("hiddenPeers: got %+v want %+v", sem.HiddenPeers, want)
@@ -133,7 +133,7 @@ func TestDemoOverviewIncluyeTopologyYVM(t *testing.T) {
 		t.Fatal("overview.Topology ausente en demo")
 	}
 	// Mismo resultado que el builder puro sobre el canon.
-	want := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes())
+	want := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes(), "")
 	if !reflect.DeepEqual(ov.Topology, want) {
 		t.Fatalf("overview.Topology != builder canon:\n got: %+v\nwant: %+v", ov.Topology, want)
 	}
@@ -141,7 +141,7 @@ func TestDemoOverviewIncluyeTopologyYVM(t *testing.T) {
 
 // Sin routers: semántica vacía pero no nil (la app cae a su cálculo propio).
 func TestTopoSemanticsSinRouters(t *testing.T) {
-	sem := BuildTopoSemantics(nil, nil, WireGuardStats{}, nil)
+	sem := BuildTopoSemantics(nil, nil, WireGuardStats{}, nil, "")
 	if sem == nil || sem.Links == nil || sem.Rings == nil {
 		t.Fatalf("semántica vacía debe tener links/rings no-nil: %+v", sem)
 	}
@@ -161,7 +161,7 @@ func TestTopoSemanticsDeviceHubBajoDistnode(t *testing.T) {
 	}
 	routers := []Router{{ID: "gateway", Name: "gateway", RoleBadge: "Principal", Status: "online"}}
 	dists := []DistributionNode{{ID: "dist-gateway-lan1", Kind: "inferred", RouterID: "gateway", Port: "lan1"}}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "")
 
 	var toHost []TopoLink
 	for _, l := range sem.Links {
@@ -187,5 +187,44 @@ func TestTopoSemanticsDeviceHubBajoDistnode(t *testing.T) {
 		if ctLinks[ct] != 1 {
 			t.Errorf("CT %s debe colgar del host una vez, got %d", ct, ctLinks[ct])
 		}
+	}
+}
+
+// #1042: el dispositivo cuya IP coincide con la puerta de enlace WAN es el
+// módem/ONT aguas arriba: va bajo el nodo Internet (sem.WanPeer), queda
+// fuera de los anillos y no genera enlace de cliente LAN.
+func TestTopoSemanticsWanPeer(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal"},
+	}
+	devices := []Device{
+		{ID: "modem", MAC: "AA:BB:CC:00:00:01", RouterID: "gw", Band: "cable", Online: true, IP: "100.64.0.1"},
+		{ID: "nas", MAC: "AA:BB:CC:00:00:02", RouterID: "gw", Band: "cable", Online: true, IP: "192.168.1.10"},
+	}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "100.64.0.1")
+	if sem.WanPeer != "modem" {
+		t.Fatalf("WanPeer = %q, want modem", sem.WanPeer)
+	}
+	for _, id := range sem.Rings["gw"] {
+		if id == "modem" {
+			t.Fatal("el wan peer no debe estar en el anillo del gateway")
+		}
+	}
+	found := false
+	for _, l := range sem.Links {
+		if l.Kind == "wan-peer" && l.From == "internet" && l.To == "modem" {
+			found = true
+		}
+		if l.Kind == "wired" && l.To == "modem" {
+			t.Fatal("el wan peer no debe tener enlace de cliente cableado")
+		}
+	}
+	if !found {
+		t.Fatal("falta el enlace internet→modem (wan-peer)")
+	}
+	// Sin gateway WAN no hay wan peer aunque haya dispositivos.
+	sem2 := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "")
+	if sem2.WanPeer != "" {
+		t.Fatalf("WanPeer sin gateway WAN = %q, want vacío", sem2.WanPeer)
 	}
 }
