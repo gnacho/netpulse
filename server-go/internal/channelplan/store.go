@@ -57,6 +57,10 @@ type ScanRow struct {
 	Signal   int    `json:"signal"`
 	Ts       int64  `json:"ts"`
 	RouterID string `json:"routerId"`
+	// Own marca los BSSIDs de la propia malla (#1070): comparten los 5
+	// primeros octetos con la MAC de un router monitorizado. La UI los
+	// destaca (cascada y tabla) en vez de pintarlos como vecinos ajenos.
+	Own bool `json:"own"`
 }
 
 // RecentScans devuelve los vecinos vistos recientemente (opcionalmente
@@ -68,6 +72,12 @@ type ScanRow struct {
 // fila del máximo (https://sqlite.org/lang_select.html#bareagg).
 func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, error) {
 	cutoff := time.Now().Add(-within).Unix()
+	// Los prefijos de la malla propia se leen ANTES de la query principal:
+	// el pool de SQLite va con MaxOpenConns(1) (internal/db) y
+	// ownMeshPrefixes hace su propia Query; con las dos vivas a la vez el
+	// segundo db.Query se queda esperando conexión para siempre (deadlock
+	// detectado con -timeout: 90 s colgado en db.conn).
+	prefixes := s.ownMeshPrefixes()
 	var rows *sql.Rows
 	var err error
 	if routerID != "" {
@@ -92,12 +102,13 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 	}
 	defer rows.Close()
 
-	var out []ScanRow
+	out := make([]ScanRow, 0)
 	for rows.Next() {
 		var r ScanRow
 		if err := rows.Scan(&r.RouterID, &r.Iface, &r.BSSID, &r.SSID, &r.Channel, &r.Freq, &r.Signal, &r.Ts); err != nil {
 			return nil, err
 		}
+		r.Own = isOwnMeshBSSID(r.BSSID, prefixes)
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -112,9 +123,22 @@ type Radio struct {
 	Recommended  int    `json:"recommended"` // canal recomendado; 0 = sin datos
 	CurrentScore int    `json:"currentScore"`
 	BestScore    int    `json:"bestScore"`
+	// Candidates es la puntuación de CADA canal candidato (no solo la
+	// mejor), para el panel de puntuación del informe (#1070).
+	Candidates []Candidate `json:"candidates,omitempty"`
 	// Section es la sección UCI de la radio ("radio0") reportada por el
 	// agente (#500); vacía con agentes antiguos (la UI deshabilita apply).
 	Section string `json:"section,omitempty"`
+}
+
+// Candidate puntúa un canal candidato de la banda del radio. Los candidatos
+// son no-DFS por construcción (#518/#631): el motor recomienda solo bloques
+// usables sin espera de radar.
+type Candidate struct {
+	Channel   int `json:"channel"`
+	Score     int `json:"score"` // weighted neighbor score; menor = más limpio
+	Neighbors int `json:"neighbors"`
+	Strongest int `json:"strongest"` // dBm de la vecina más fuerte considerada
 }
 
 // Recommend recibe el estado wireless del router (radios propias) y devuelve
@@ -165,8 +189,10 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		candidates := candidateChannels(band, r.WidthMhz)
 		bestCh, bestScore := 0, math.MaxInt
 		currentScore := math.MaxInt
+		cands := make([]Candidate, 0, len(candidates))
 		for _, ch := range candidates {
-			score := channelScore(byBand[band], ch)
+			score, neighbors, strongest := channelScoreDetailed(byBand[band], ch)
+			cands = append(cands, Candidate{Channel: ch, Score: score, Neighbors: neighbors, Strongest: strongest})
 			if ch == r.Channel {
 				currentScore = score
 			}
@@ -174,6 +200,9 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 				bestScore = score
 				bestCh = ch
 			}
+		}
+		if len(cands) > 0 {
+			rec.Candidates = cands
 		}
 		// #518: el canal ACTUAL puede ser DFS (52/100/112/116...) y no estar en
 		// candidateChannels (solo no-DFS para recomendar). Su score es
@@ -192,25 +221,48 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 	return out, nil
 }
 
-// channelScore pondera APs vecinos por canal: señales más fuertas (menos
-// negativas) pesan más. Se suma una penalización por APs en canales adyacentes
-// (sobre todo en 2.4 GHz).
-func channelScore(scans map[int][]ScanRow, channel int) int {
-	score := 0.0
+// channelScoreDetailed pondera APs vecinos por canal: señales más fuertes
+// (menos negativas) pesan más y se penalizan APs en canales adyacentes
+// (sobre todo en 2.4 GHz). Además cuenta cuántas vecinas participan y la
+// más fuerte entre ellas, para el panel de puntuación del informe (#1070).
+func channelScoreDetailed(scans map[int][]ScanRow, channel int) (score int, neighbors int, strongest int) {
+	total := 0.0
+	strongest = math.MinInt
 	for ch, list := range scans {
 		for _, ap := range list {
 			diff := abs(ch - channel)
+			weighted := false
 			if diff == 0 {
-				// Mismo canal: peso completo. Señal fuerte (+60 dBm) suma 60;
+				// Mismo canal: peso completo. Señal fuerte (-60 dBm) suma 40;
 				// señal débil (-90 dBm) suma 10.
-				score += float64(-ap.Signal) / 1.5
+				total += float64(-ap.Signal) / 1.5
+				weighted = true
 			} else if diff <= 2 {
 				// Canal adyacente: peso reducido. Importante en 2.4 GHz.
-				score += float64(-ap.Signal) / 5.0
+				total += float64(-ap.Signal) / 5.0
+				weighted = true
+			}
+			if !weighted {
+				continue
+			}
+			neighbors++
+			if strongest == math.MinInt || ap.Signal > strongest {
+				strongest = ap.Signal
 			}
 		}
 	}
-	return int(score)
+	if neighbors == 0 {
+		// Sin vecinas no hay "más fuerte": 0 en vez de MinInt, que en JSON
+		// sale como -9223372036854775808 y rompe la tabla.
+		strongest = 0
+	}
+	return int(total), neighbors, strongest
+}
+
+// channelScore es la puntuación ponderada pura (menor = canal más limpio).
+func channelScore(scans map[int][]ScanRow, channel int) int {
+	score, _, _ := channelScoreDetailed(scans, channel)
+	return score
 }
 
 // candidateChannels devuelve los canales candidatos no-DFS para la banda,

@@ -36,6 +36,78 @@ func TestSaveAndRecentScans(t *testing.T) {
 	}
 }
 
+// TestRecommendDevuelveCandidatos (#1070): el informe muestra la puntuación
+// de CADA canal candidato (panel lateral). Los candidatos son no-DFS por
+// construcción (#518/#631).
+func TestRecommendDevuelveCandidatos(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "5 GHz", Channel: 36, WidthMhz: 80}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 1 || len(recs[0].Candidates) == 0 {
+		t.Fatalf("esperaba candidatos, got %+v", recs)
+	}
+	byCh := map[int]channelplan.Candidate{}
+	for _, c := range recs[0].Candidates {
+		if c.Channel >= 52 && c.Channel <= 144 {
+			t.Errorf("candidato DFS no esperado: %+v", c)
+		}
+		byCh[c.Channel] = c
+	}
+	rec := recs[0]
+	if byCh[rec.Recommended].Score != rec.BestScore {
+		t.Errorf("el score del candidato recomendado debe ser BestScore: cand %+v, rec %+v", byCh[rec.Recommended], rec)
+	}
+}
+
+// TestRecentScansMarcaMallaPropia (#1070): los BSSIDs de la propia flota
+// deben llegar a la UI marcados (own) para destacarse en el informe.
+func TestRecentScansMarcaMallaPropia(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+	if _, err := d.DB.Exec(`INSERT INTO routers (id, name, host, type, mac, is_gateway, created_at)
+		VALUES ('rt2', 'RT2 AX6', '192.168.1.2', 'openwrt', '8C:DE:F9:33:71:58', 0, ?)`,
+		time.Now().UnixMilli()); err != nil {
+		t.Fatalf("insert router: %v", err)
+	}
+
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+	scans := []probe.ScanResult{
+		{Iface: "wlan0", BSSID: "8C:DE:F9:33:71:59", SSID: "propia", Channel: 1, Freq: 2412, Signal: -30},
+		{Iface: "wlan0", BSSID: "00:11:22:33:44:55", SSID: "vecino", Channel: 6, Freq: 2437, Signal: -62},
+	}
+	if err := st.SaveScan("rt1", now, scans); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	got, err := st.RecentScans("rt1", time.Hour)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("esperaba 2 scans, got %d", len(got))
+	}
+	for _, r := range got {
+		if r.SSID == "propia" && !r.Own {
+			t.Errorf("la malla propia debe marcarse own: %+v", r)
+		}
+		if r.SSID == "vecino" && r.Own {
+			t.Errorf("el vecino ajeno NO debe marcarse own: %+v", r)
+		}
+	}
+}
+
 // TestRecentScansDedupBSSID (#475): cada push reinserta los vecinos; la
 // lectura debe devolver UNA fila por BSSID (la observación más reciente).
 func TestRecentScansDedupBSSID(t *testing.T) {
