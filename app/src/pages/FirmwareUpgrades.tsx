@@ -158,6 +158,15 @@ export default function FirmwareUpgrades() {
     return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
   }, [routers])
 
+  // Solo dispositivos con OpenWrt vanilla: son los únicos actualizables
+  // desde aquí (los GL.iNet se actualizan por su propia vía; SNMP y
+  // externos quedan fuera de esta página y se gestionan donde corresponde).
+  const compatibleItems = useMemo(() => {
+    const compatIds = new Set(sortedRouters.filter((r) => !r.type || r.type === 'openwrt').map((r) => r.id))
+    return items.filter((it) => compatIds.has(it.routerId) || !sortedRouters.some((r) => r.id === it.routerId))
+  }, [items, sortedRouters])
+  const hiddenCount = items.length - compatibleItems.length
+
   const fetchItems = async () => {
     setLoading(true)
     setError('')
@@ -538,12 +547,19 @@ export default function FirmwareUpgrades() {
 
       {items.length === 0 && !loading && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-text-secondary">
-          {t('firmwareUpgrades.empty')}
+          <p>{t('firmwareUpgrades.empty')}</p>
+          {items.length > 0 && <p className="mt-1 text-xs text-text-muted">{t('firmwareUpgrades.compatibleNote', { count: items.length })}</p>}
         </div>
       )}
 
+      {hiddenCount > 0 && (
+        <p className="mb-3 text-[12px] text-text-muted" data-testid="fw-compat-note">
+          {t('firmwareUpgrades.compatibleNote', { count: hiddenCount })}
+        </p>
+      )}
+
       <div className="grid gap-4">
-        {items.map((item) => {
+        {compatibleItems.map((item) => {
           const e = edits[item.routerId] ?? {}
           const active = upgradeActive(item)
           const scheduled = scheduledPending(item)

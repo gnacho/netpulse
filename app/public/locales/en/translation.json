@@ -2157,7 +2157,8 @@
     "consoleReboot": "router is rebooting; waiting for it to come back (up to 15 min)",
     "successTitle": "Upgrade completed!",
     "successBody": "The router is now on {{to}} in {{dur}} s: it rebooted and came back on its own, packages up to date. If you excluded a stack package, check its service is still running.",
-    "successDismiss": "Got it"
+    "successDismiss": "Got it",
+    "compatibleNote": "Only vanilla OpenWrt devices are shown; GL.iNet updates via its own channel."
   },
   "orchestration": {
     "title": "Orchestration",

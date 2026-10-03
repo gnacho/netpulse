@@ -61,7 +61,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
   { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: Wifi },
-  { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, badge: 'labs', adminOnly: true },
+  { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, adminOnly: true },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
   { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true, badge: 'labs' },

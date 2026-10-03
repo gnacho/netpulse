@@ -2157,7 +2157,8 @@
     "consoleReboot": "el router se está reiniciando; esperando a que vuelva (hasta 15 min)",
     "successTitle": "¡Actualización completada!",
     "successBody": "El router quedó en {{to}} en {{dur}} s: reinició y volvió solo, con los paquetes al día. Si excluiste algún paquete del stack, comprueba que su servicio sigue activo.",
-    "successDismiss": "Entendido"
+    "successDismiss": "Entendido",
+    "compatibleNote": "Solo se muestran dispositivos con OpenWrt; los GL.iNet se actualizan por su propia vía."
   },
   "orchestration": {
     "title": "Orquestación",
