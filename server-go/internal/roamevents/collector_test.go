@@ -44,6 +44,45 @@ func TestListEventsSameSecondOrdering(t *testing.T) {
 	}
 }
 
+// TestListEventsMultiSelect (#1127): router y mac aceptan listas separadas
+// por comas (filtros multi-select de la vista de eventos): OR dentro del
+// filtro, AND entre filtros. Las MACs del filtro se comparan en mayúsculas
+// (#1129: la ingesta canonicaliza a mayúsculas desde los logs en minúsculas).
+func TestListEventsMultiSelect(t *testing.T) {
+	db := openMemDB(t)
+	seed := []Event{
+		{TsMs: 1000, RouterID: "rt1", Type: TypeConnected, MAC: "AA:AA:AA:AA:AA:01", Iface: "wlan0"},
+		{TsMs: 2000, RouterID: "rt2", Type: TypeDisconnected, MAC: "AA:AA:AA:AA:AA:02", Iface: "wlan1"},
+		{TsMs: 3000, RouterID: "rt1", Type: TypeDawnDecision, MAC: "AA:AA:AA:AA:AA:03"},
+		{TsMs: 4000, RouterID: "rt3", Type: TypeConnected, MAC: "AA:AA:AA:AA:AA:01", Iface: "wlan0"},
+	}
+	for _, ev := range seed {
+		if err := InsertEvent(db, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// OR de MACs (una en minúsculas en el parámetro -> normaliza).
+	got, err := ListEvents(db, 10, 0, "", "", "aa:aa:aa:aa:aa:01,AA:AA:AA:AA:AA:02")
+	if err != nil || len(got) != 3 {
+		t.Fatalf("filtro mac multi: %v %+v", err, got)
+	}
+	// AND router x mac.
+	got, err = ListEvents(db, 10, 0, "rt1", "", "AA:AA:AA:AA:AA:01")
+	if err != nil || len(got) != 1 || got[0].RouterID != "rt1" {
+		t.Fatalf("filtro router+mac: %v %+v", err, got)
+	}
+	// OR de routers.
+	got, err = ListEvents(db, 10, 0, "rt2,rt3", "", "")
+	if err != nil || len(got) != 2 {
+		t.Fatalf("filtro router multi: %v %+v", err, got)
+	}
+	// Lista con vacíos/espacios no rompe.
+	got, err = ListEvents(db, 10, 0, " rt1 , , rt2 ", "", "")
+	if err != nil || len(got) != 3 {
+		t.Fatalf("filtro router multi con vacíos: %v %+v", err, got)
+	}
+}
+
 func TestParseLogreadFlint2(t *testing.T) {
 	lines := []string{
 		"Sat Aug  8 19:21:45 2026 daemon.notice hostapd: wlan1: BEACON-RESP-RX 1e:4e:75:a0:6f:6f 35 04",
@@ -84,12 +123,12 @@ func TestParseUsteer(t *testing.T) {
 		{
 			"Sat Aug  8 19:21:58 2026 user.info usteer: station 04:95:e6:76:55:a1 connected to node 04:95:e6:76:55:b2",
 			TypeConnected,
-			"04:95:e6:76:55:a1",
+			"04:95:E6:76:55:A1",
 		},
 		{
 			"Sat Aug  8 19:21:59 2026 user.info usteer: station 04:95:e6:76:55:a1 disconnected from node 04:95:e6:76:55:b2",
 			TypeDisconnected,
-			"04:95:e6:76:55:a1",
+			"04:95:E6:76:55:A1",
 		},
 	}
 	for _, tc := range cases {
@@ -187,7 +226,7 @@ func TestParseHostapdConnected(t *testing.T) {
 			if ev.Iface != c.iface {
 				t.Errorf("iface = %q, want %q", ev.Iface, c.iface)
 			}
-			if ev.MAC != "04:95:e6:76:55:a1" {
+			if ev.MAC != "04:95:E6:76:55:A1" {
 				t.Errorf("mac = %q", ev.MAC)
 			}
 		})

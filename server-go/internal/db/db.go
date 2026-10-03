@@ -605,6 +605,15 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "routeros_password", "ALTER TABLE routers ADD COLUMN routeros_password TEXT")
 	migrate(sqldb, "routers", "routeros_insecure", "ALTER TABLE routers ADD COLUMN routeros_insecure INTEGER NOT NULL DEFAULT 0")
 
+	// #1129: las MACs de roam_events se ingirieron en minúsculas (así vienen
+	// en los logs hostapd/dawn/usteer) mientras el resto de la app canonicaliza
+	// a MAYÚSCULAS (#960): el filtro por cliente no casaba con el histórico.
+	// Normalización one-shot de las filas existentes (la ingesta nueva ya
+	// normaliza, ver roamevents.ParseLogreadLine).
+	if _, err := sqldb.Exec("UPDATE roam_events SET mac = UPPER(mac) WHERE mac IS NOT NULL AND mac != UPPER(mac)"); err != nil {
+		log.Printf("[netpulse] aviso: no se pudieron normalizar las MACs de roam_events: %v", err)
+	}
+
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
 	// DB para que el siguiente arranque no dispare una "migración" espuria
 	// (backup + reset de login_attempts) sobre una DB ya Go.
