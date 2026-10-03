@@ -1337,6 +1337,20 @@ func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 }
 
 // offlineRouter: último bueno marcado offline o placeholder (index.js:251-272).
+// pausedRouter (#1085): una unidad pausada no se sondea ni alerta. Se
+// muestra con la última snapshot conocida (o el esqueleto básico) y el
+// estado "paused", que la UI distingue con la insignia de pausada. Reutiliza
+// offlineRouter para el esqueleto y le pisa el estado: pausar no es estar
+// caído, y los flags de acceso/host key no aplican mientras no se sondea.
+func (l *Live) pausedRouter(cfg RouterConfig) Router {
+	r := l.offlineRouter(cfg)
+	r.Status = "paused"
+	r.AccessMissing = false
+	r.HostKeyChanged = false
+	r.Disabled = true
+	return r
+}
+
 // issue #257: si el último fallo fue de ACCESO (el router responde pero la
 // clave SSH no está autorizada), el estado es "unreachable" + accessMissing,
 // no un "offline" de apagado/inalcanzable (config issue, no power issue).
@@ -1476,19 +1490,30 @@ func isHostKeyError(err error) bool {
 }
 
 // pollAll sondea todos los routers en paralelo (Promise.allSettled).
+// issue #1085: las unidades pausadas (disabled) NO se sondean; se limpian
+// sus contadores de fallo y sus alertas de offline abiertas, y quedan con
+// estado "paused" en el overview (ver pausedRouter).
 func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
 	l.mu.Unlock()
+
+	active := make([]RouterConfig, 0, len(routers))
+	for _, cfg := range routers {
+		if cfg.Disabled {
+			continue
+		}
+		active = append(active, cfg)
+	}
 
 	type result struct {
 		cfg RouterConfig
 		p   *routerPolled
 		err error
 	}
-	results := make([]result, len(routers))
+	results := make([]result, len(active))
 	var wg sync.WaitGroup
-	for i, cfg := range routers {
+	for i, cfg := range active {
 		wg.Add(1)
 		go func(i int, cfg RouterConfig) {
 			defer wg.Done()
@@ -1501,6 +1526,18 @@ func (l *Live) pollAll(ctx context.Context) map[string]*routerPolled {
 	polled := map[string]*routerPolled{}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// #1085: una unidad pausada no se sondea: sus fallos en curso se anulan
+	// (al reanudar, el sondeo arranca limpio) y sus alertas de offline se
+	// resuelven: pausar no es estar caído.
+	for _, cfg := range routers {
+		if !cfg.Disabled {
+			continue
+		}
+		l.failCount[cfg.ID] = 0
+		delete(l.lastErr, cfg.ID)
+		delete(l.lastStatus, cfg.ID)
+		l.resolveOfflineAlerts(cfg.ID)
+	}
 	for _, res := range results {
 		if res.err == nil {
 			polled[res.cfg.ID] = res.p
@@ -2921,6 +2958,12 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	routerList := make([]Router, 0, len(routers))
 	for _, cfg := range routers {
 		p := polled[cfg.ID]
+		if cfg.Disabled {
+			// #1085: unidad pausada: última snapshot conocida (o el
+			// esqueleto) con estado "paused"; nunca offline ni alerta.
+			routerList = append(routerList, l.pausedRouter(cfg))
+			continue
+		}
 		if p == nil {
 			l.mu.Lock()
 			prev := l.lastGood[cfg.ID]
@@ -3166,6 +3209,10 @@ func (l *Live) GetRouters(context.Context) []Router {
 	out := make([]Router, 0, len(routers))
 	for _, cfg := range routers {
 		p := polled[cfg.ID]
+		if cfg.Disabled {
+			out = append(out, l.pausedRouter(cfg))
+			continue
+		}
 		if p == nil {
 			l.mu.Lock()
 			prev := l.lastGood[cfg.ID]

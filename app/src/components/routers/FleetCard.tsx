@@ -228,9 +228,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               />
             </motion.div>
             <StatusPill
-              tone={router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : 'danger'}
+              tone={router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : router.status === 'paused' ? 'muted' : 'danger'}
               label={t(`common.status.${router.status}`)}
-              pulse={router.status !== 'online'}
+              pulse={router.status !== 'online' && router.status !== 'paused'}
             />
           </div>
         </div>

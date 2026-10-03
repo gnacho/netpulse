@@ -365,6 +365,7 @@ interface ConfigRouter {
   type: RouterType
   is_gateway: boolean
   agent_only: boolean
+  disabled: boolean
   firmware_target: string
   snmp_enabled: boolean
   snmp_community: string
@@ -421,6 +422,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editType, setEditType] = useState<RouterType>('openwrt')
   const [editGateway, setEditGateway] = useState(false)
   const [editAgentOnly, setEditAgentOnly] = useState(false)
+  const [editDisabled, setEditDisabled] = useState(false)
   const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
   const [editConsolePolling, setEditConsolePolling] = useState(true)
@@ -617,6 +619,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditType(r.type)
     setEditGateway(r.is_gateway)
     setEditAgentOnly(r.agent_only)
+    setEditDisabled(r.disabled ?? false)
     setEditFirmwareTarget(r.firmware_target ?? '')
     setEditSnmpEnabled(r.snmp_enabled ?? false)
     setEditConsolePolling(r.console_polling ?? true)
@@ -646,6 +649,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           type: editType,
           gateway: editGateway,
           agent_only: editAgentOnly,
+          disabled: editDisabled,
           firmware_target: editFirmwareTarget.trim(),
           snmp_enabled: editSnmpEnabled,
           snmp_community: editSnmpCommunity.trim() || undefined,
@@ -776,7 +780,11 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <td className="px-3.5 py-2.5 font-mono text-[12px] font-medium text-text-primary">{r.host}</td>
                   <td className="px-3.5 py-2.5 text-text-secondary">{r.name && r.name !== r.host ? r.name : '—'}</td>
                   <td className="px-3.5 py-2.5">
-                    {r.is_gateway ? (
+                    {r.disabled ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn ring-1 ring-inset ring-warn/40">
+                        {t('settings.routers.disabledBadge')}
+                      </span>
+                    ) : r.is_gateway ? (
                       <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                         {t('settings.routers.gatewayBadge')}
                       </span>
@@ -1170,6 +1178,12 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
                   {t('settings.routers.agentOnly')}
                   <InfoTip text={t('settings.routers.agentOnlyHint')} />
+                </label>
+                {/* #1085: pausa la unidad sin borrarla ni perder histórico. */}
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                  <Switch checked={editDisabled} onCheckedChange={setEditDisabled} />
+                  {t('settings.routers.disabled')}
+                  <InfoTip text={t('settings.routers.disabledHint')} />
                 </label>
                 {editType === 'managed-switch' && (
                   <label className="flex cursor-pointer items-start gap-2 text-sm text-text-secondary">

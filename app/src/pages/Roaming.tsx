@@ -1683,6 +1683,7 @@ function EventsPanel({
             allLabel={t('roaming.events.filterApAll')}
             options={routers
               .filter((r) => {
+                if (r.disabled) return false // #1085: la unidad pausada no se ofrece
                 const b = r.bandSplit
                 return !b || b.band24 + b.band5 + b.band6 > 0
               })

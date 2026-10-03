@@ -336,7 +336,8 @@
     "status": {
       "online": "Online",
       "warn": "Warning",
-      "offline": "Offline"
+      "offline": "Offline",
+      "paused": "Paused"
     },
     "temperature": "Temperature",
     "today": "today",
@@ -1512,7 +1513,10 @@
       "routerosUser": "RouterOS user",
       "routerosPassword": "RouterOS password",
       "routerosPasswordPlaceholder": "Leave blank to keep current",
-      "routerosInsecure": "Accept self-signed TLS certificate"
+      "routerosInsecure": "Accept self-signed TLS certificate",
+      "disabled": "Paused",
+      "disabledHint": "Not polled, no alerts; history is kept. The Paused badge marks it in the fleet and it drops out of dropdowns.",
+      "disabledBadge": "Paused"
     },
     "overrides": {
       "title": "Topology — manual tagging",

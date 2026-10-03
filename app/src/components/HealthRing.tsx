@@ -8,6 +8,7 @@ export const STATUS_COLORS: Record<Status, string> = {
   online: '#34D399',
   warn: '#FBBF24',
   offline: '#F87171',
+  paused: '#6B7280',
 }
 
 interface HealthRingProps {

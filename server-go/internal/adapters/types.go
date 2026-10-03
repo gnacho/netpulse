@@ -161,6 +161,9 @@ type Router struct {
 	// (sin SSH). El frontend lo usa para marcar "agente no instalado" cuando
 	// no hay agente registrado (certeza: el router no es sondeable por SSH).
 	AgentOnly bool `json:"agentOnly,omitempty"`
+	// Disabled (issue #1085): unidad pausada (no se sondea ni alerta; el
+	// status llega como "paused" y la UI la excluye de los desplegables).
+	Disabled bool `json:"disabled,omitempty"`
 	// SelfExpose (#832): el equipo se expone ÉL MISMO a Home Assistant por
 	// MQTT (NetGrip con su MQTT activado). El publisher de flota NO crea
 	// dispositivo ni entidades por router en ese caso. Ausente = no se
@@ -915,6 +918,10 @@ type RouterConfig struct {
 	SnmpCommunity    string `json:"snmp_community,omitempty"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	// Disabled (issue #1085): unidad pausada. No se sondea (SSH/SNMP/agente),
+	// no alerta y queda fuera de los desplegables de la UI; el histórico se
+	// conserva y la insignia "paused" la distingue en la lista de flota.
+	Disabled bool `json:"disabled"`
 	// ConsolePolling (issue #863): sondeo HTTP de la consola RTLPlayground del
 	// switch. true (default) = el server logra en la consola para fw/uptime/MAC;
 	// false = nunca (el firmware tiene una sola sesión global y cada login

@@ -336,7 +336,8 @@
     "status": {
       "online": "Online",
       "warn": "Atención",
-      "offline": "Offline"
+      "offline": "Offline",
+      "paused": "Pausada"
     },
     "temperature": "Temperatura",
     "today": "hoy",
@@ -1512,7 +1513,10 @@
       "routerosUser": "Usuario RouterOS",
       "routerosPassword": "Contraseña RouterOS",
       "routerosPasswordPlaceholder": "Déjalo en blanco para conservar la actual",
-      "routerosInsecure": "Aceptar certificado TLS autofirmado"
+      "routerosInsecure": "Aceptar certificado TLS autofirmado",
+      "disabled": "Pausada",
+      "disabledHint": "No se sondea ni alerta; conserva el histórico. La insignia Pausada la distingue en la flota y queda fuera de los desplegables.",
+      "disabledBadge": "Pausada"
     },
     "overrides": {
       "title": "Topología — etiquetado manual",

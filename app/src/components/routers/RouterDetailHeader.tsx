@@ -26,8 +26,8 @@ export function RouterDetailHeader({ router }: { router: Router }) {
     { label: roleLabel(router.roleBadge), tone: 'accent' as const, pulse: false },
     {
       label: t(`common.status.${router.status}`),
-      tone: (router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : 'danger') as 'ok' | 'warn' | 'danger',
-      pulse: router.status !== 'online',
+      tone: (router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : router.status === 'paused' ? 'muted' : 'danger') as 'ok' | 'warn' | 'danger' | 'muted',
+      pulse: router.status !== 'online' && router.status !== 'paused',
     },
     ...(isGateway && adguard.host
       ? [

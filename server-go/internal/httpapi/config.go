@@ -100,6 +100,8 @@ type routerInput struct {
 	Type      string  `json:"type"`
 	Gateway   bool    `json:"gateway"`
 	AgentOnly bool    `json:"agent_only"`
+	// Disabled (issue #1085): pausa la unidad (nil = no tocar).
+	Disabled *bool `json:"disabled"`
 	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
 	FirmwareTarget *string `json:"firmware_target"`
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
@@ -383,6 +385,7 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
+		Disabled:       in.Disabled,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
 		SSHPort:        sshPort,
