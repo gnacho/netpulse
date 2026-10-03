@@ -54,3 +54,7 @@ local-data/
 local-server.log
 netpulse-local
 jar.txt
+
+# Binarios de build locales (go build -o en raíz)
+/netpulse
+/netpulse-*
