@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next'
 import {
   ReactFlow,
   ReactFlowProvider,
-  ViewportPortal,
   useNodesState,
   useReactFlow,
   Background,
@@ -168,6 +167,28 @@ function RackCanvas() {
     return () => obs.disconnect()
   }, [])
   const [nodes, setNodes, onNodesChange] = useNodesState<RackNodeType | MountNodeType>([])
+  // Cables: capa overlay con coordenadas de PANTALLA medidas del DOM.
+  // Nada de matemáticas de flujo: se mide donde está pintada cada boca.
+  const cableLayerRef = useRef<HTMLDivElement>(null)
+  const [portRects, setPortRects] = useState<Record<string, { x: number; y: number }>>({})
+  const recomputePortRects = useCallback(() => {
+    const layer = cableLayerRef.current
+    if (!layer) return
+    const base = layer.getBoundingClientRect()
+    const out: Record<string, { x: number; y: number }> = {}
+    for (const btn of layer.parentElement?.querySelectorAll('button[data-mount][data-port]') ?? []) {
+      const r = (btn as HTMLElement).getBoundingClientRect()
+      out[`${btn.getAttribute('data-mount')}|${btn.getAttribute('data-port')}`] = {
+        x: r.x + r.width / 2 - base.x,
+        y: r.y + r.height / 2 - base.y,
+      }
+    }
+    setPortRects(out)
+  }, [])
+  useEffect(() => {
+    const id = requestAnimationFrame(() => recomputePortRects())
+    return () => cancelAnimationFrame(id)
+  }, [nodes, visibility, recomputePortRects])
   const cancelRef = useRef(0)
   // Última posición de drag (RF puede disparar dragStop con posición previa).
   const dragPosRef = useRef<{ x: number; y: number } | null>(null)
@@ -359,6 +380,7 @@ function RackCanvas() {
         data: {
           plate,
           ports: portsFor(m),
+          mountId: m.id,
           label: m.label || deviceByMac.get(m.device_mac?.toLowerCase() ?? '')?.name || '',
           color: m.device_mac ? working.profiles.get(m.device_mac)?.color || undefined : undefined,
           status: statusFor(m),
@@ -919,34 +941,6 @@ function RackCanvas() {
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedCableId, selectedMountId, t])
 
-  // --- Cables: posiciones de puerto absolutas (flow coords) ---
-  const absPort = useCallback(
-    (mountId: string, portId: string): { x: number; y: number } | null => {
-      const m = mountById.get(mountId)
-      const rack = m && rackById.get(m.rack_id)
-      const rackNode = nodes.find((n) => n.id === `rack-${m?.rack_id}`)
-      if (!m || !rack || !rackNode) return null
-      const rel = mountRelPos(rack.u_height, m.u_start, m.u_height, m.col_start)
-      const p = portsFor(m).find((pp) => pp.id === portId)
-      if (!p) return null
-      return {
-        x: rackNode.position.x + rel.x + p.x * m.col_span * COL_PX,
-        y: rackNode.position.y + rel.y + p.y * m.u_height * U_PX,
-      }
-    },
-    [mountById, rackById, nodes, portsFor],
-  )
-
-  const cableVisible = useCallback(
-    (c: CableDTO) => {
-      if (c.id === selectedCableId) return true
-      if (patchMode || visibility === 'always') return true
-      if (visibility === 'hidden') return false
-      return c.from_mount === hoverMountId || c.to_mount === hoverMountId
-    },
-    [selectedCableId, patchMode, visibility, hoverMountId],
-  )
-
   // --- Picker data ---
   const mountedMacs = useMemo(
     () => new Set(working.mounts.map((m) => m.device_mac?.toLowerCase() ?? '')),
@@ -1083,6 +1077,7 @@ function RackCanvas() {
               )}
             </div>
           ) : (
+            <>
             <ReactFlow
               nodes={nodes}
               onNodesChange={onNodesChange}
@@ -1099,6 +1094,7 @@ function RackCanvas() {
                 setSelectedMountId(null)
                 setSelectedCableId(null)
               }}
+              onMove={() => recomputePortRects()}
               onDragOver={(e) => {
                 e.preventDefault()
                 e.dataTransfer.dropEffect = 'copy'
@@ -1110,50 +1106,59 @@ function RackCanvas() {
               proOptions={{ hideAttribution: true }}
             >
               <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
-              <ViewportPortal>
-                <svg
-                  data-testid="cables-layer"
-                  style={{ position: 'absolute', left: -10000, top: -10000, width: 20000, height: 20000, overflow: 'visible', pointerEvents: 'none' }}
-                >
-                  <g transform="translate(10000, 10000)" style={{ pointerEvents: 'all' }}>
-                  {working.cables.map((c) => {
-                    if (!cableVisible(c)) return null
-                    const a = absPort(c.from_mount, c.from_port)
-                    const b = absPort(c.to_mount, c.to_port)
-                    if (!a || !b) return null
-                    const sel = c.id === selectedCableId
-                    const audit = working.audit[c.id] ?? (c.origin === 'manual' ? 'manual-only' : 'detected')
-                    const manualOnly = audit === 'manual-only'
-                    const stroke = sel
-                      ? 'rgb(var(--accent))'
-                      : manualOnly
-                        ? 'rgb(var(--warn))'
-                        : c.type === 'fiber'
-                          ? 'rgb(var(--tunnel))'
-                          : 'rgb(var(--text-muted))'
-                    const mx = (a.x + b.x) / 2
-                    const my = (a.y + b.y) / 2
-                    return (
-                      <g key={c.id} data-cable-id={c.id} data-selected={sel} onClick={(e) => { e.stopPropagation(); setSelectedCableId(sel ? null : c.id) }} style={{ cursor: 'pointer' }}>
-                        <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} />
-                        <line
-                          x1={a.x}
-                          y1={a.y}
-                          x2={b.x}
-                          y2={b.y}
-                          stroke={stroke}
-                          strokeWidth={sel ? 2.5 : 1.5}
-                          strokeDasharray={manualOnly ? '6 4' : undefined}
-                        />
-                        {/* badge de auditoría: verde = confirmado por detección */}
-                        {audit === 'confirmed' && <circle cx={mx} cy={my} r={3} fill="rgb(var(--ok))" />}
-                      </g>
-                    )
-                  })}
-                  </g>
-                </svg>
-              </ViewportPortal>
             </ReactFlow>
+            {/* Capa de cables: overlay en coordenadas de pantalla medidas del
+                DOM (rects reales de las bocas), curva con comba colgante. */}
+            <div ref={cableLayerRef} className="pointer-events-none absolute inset-0 z-10">
+              <svg className="absolute inset-0 h-full w-full" style={{ pointerEvents: 'none' }}>
+                {working.cables.map((c) => {
+                  const sel = c.id === selectedCableId
+                  const audit = working.audit[c.id] ?? (c.origin === 'manual' ? 'manual-only' : 'detected')
+                  const manualOnly = audit === 'manual-only'
+                  const A = portRects[`${c.from_mount}|${c.from_port}`]
+                  const B = portRects[`${c.to_mount}|${c.to_port}`]
+                  if (!A || !B) return null
+                  const dist = Math.hypot(B.x - A.x, B.y - A.y) || 1
+                  const sag = Math.min(dist * 0.2, 70)
+                  let px = (B.y - A.y) / dist
+                  let py = -(B.x - A.x) / dist
+                  if (py < 0) {
+                    px = -px
+                    py = -py
+                  }
+                  const cx = (A.x + B.x) / 2 + px * sag
+                  const cy = (A.y + B.y) / 2 + py * sag
+                  const stroke = sel
+                    ? 'rgb(var(--accent))'
+                    : manualOnly
+                      ? 'rgb(var(--warn))'
+                      : c.type === 'fiber'
+                        ? 'rgb(var(--tunnel))'
+                        : 'rgb(var(--text-muted))'
+                  return (
+                    <g
+                      key={c.id}
+                      style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedCableId(sel ? null : c.id)
+                      }}
+                    >
+                      <path d={`M ${A.x} ${A.y} Q ${cx} ${cy} ${B.x} ${B.y}`} stroke="transparent" strokeWidth={12} fill="none" />
+                      <path
+                        d={`M ${A.x} ${A.y} Q ${cx} ${cy} ${B.x} ${B.y}`}
+                        stroke={stroke}
+                        strokeWidth={sel ? 2.5 : 1.5}
+                        strokeDasharray={manualOnly ? '6 4' : undefined}
+                        fill="none"
+                      />
+                      {audit === 'confirmed' && <circle cx={cx} cy={cy} r={3} fill="rgb(var(--ok))" />}
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+            </>
           )}
           {draft && (
             <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-lg border border-border bg-surface px-3 py-1.5 text-[12px] text-text-secondary">

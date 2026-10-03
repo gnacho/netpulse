@@ -113,6 +113,7 @@ export function Faceplate({
               type="button"
               tabIndex={st.interactive ? 0 : -1}
               aria-label={p.id}
+              data-port={p.id}
               title={`${p.id} · ${p.kind}`}
               onClick={(e) => {
                 e.stopPropagation()
