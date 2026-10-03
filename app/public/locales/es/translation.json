@@ -720,7 +720,11 @@
       "connected": "Conectado",
       "disconnected": "Desconectado",
       "dawn": "DAWN",
-      "other": "Otro"
+      "other": "Otro",
+      "filterAp": "AP",
+      "filterApAll": "Todos los APs",
+      "filterClient": "Cliente",
+      "filterClientAll": "Todos los clientes"
     },
     "tabsLabel": "Vistas de itinerancia",
     "daemon": {

@@ -515,7 +515,7 @@ func (s *server) handleSurvey(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRoamEvents: lista paginada de eventos hostapd/DAWN desde SQLite.
-// Query params: limit (default 100, máx 1000), since (epoch ms), router, type.
+// Query params: limit (default 100, máx 1000), since (epoch ms), router, type, mac.
 func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
 	limit := 100
 	if v := r.URL.Query().Get("limit"); v != "" {
@@ -531,7 +531,8 @@ func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	routerID := r.URL.Query().Get("router")
 	eventType := r.URL.Query().Get("type")
-	events, err := roamevents.ListEvents(s.db.DB, limit, since, routerID, eventType)
+	mac := r.URL.Query().Get("mac")
+	events, err := roamevents.ListEvents(s.db.DB, limit, since, routerID, eventType, mac)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return

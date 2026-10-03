@@ -10,6 +10,40 @@ import (
 
 // TestParseLogreadFlint2 usa líneas reales de logread del Flint2 (capturadas
 // vía SSH durante el diseño de Fase 14.5).
+// TestListEventsSameSecondOrdering (#1097): los logs de OpenWrt no llevan
+// millis, y un burst del mismo segundo debe conservar el orden del log:
+// el desempate es el id autoincrement (orden de inserción), no el azar.
+func TestListEventsSameSecondOrdering(t *testing.T) {
+	db := openMemDB(t)
+	// Mismo ts_ms, inserción en orden: conectado primero, desconectado después.
+	ordered := []Event{
+		{TsMs: 5000, RouterID: "rt1", Type: TypeConnected, MAC: "AA:AA:AA:AA:AA:01", Iface: "wlan0"},
+		{TsMs: 5000, RouterID: "rt1", Type: TypeDisconnected, MAC: "AA:AA:AA:AA:AA:01", Iface: "wlan0"},
+	}
+	for _, ev := range ordered {
+		if err := InsertEvent(db, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := ListEvents(db, 10, 0, "", "", "")
+	if err != nil || len(got) != 2 {
+		t.Fatalf("list: %v %+v", err, got)
+	}
+	// Más reciente arriba: el desconectado (insertado después, id mayor).
+	if got[0].Type != TypeDisconnected || got[1].Type != TypeConnected {
+		t.Fatalf("orden a mismo segundo roto: %+v", got)
+	}
+	// Filtro por cliente (#1097): MAC en minúsculas debe normalizarse.
+	one, err := ListEvents(db, 10, 0, "", "", "aa:aa:aa:aa:aa:01")
+	if err != nil || len(one) != 2 {
+		t.Fatalf("filtro mac: %v %+v", err, one)
+	}
+	none, _ := ListEvents(db, 10, 0, "", "", "BB:BB:BB:BB:BB:02")
+	if len(none) != 0 {
+		t.Fatalf("filtro mac negativo: %+v", none)
+	}
+}
+
 func TestParseLogreadFlint2(t *testing.T) {
 	lines := []string{
 		"Sat Aug  8 19:21:45 2026 daemon.notice hostapd: wlan1: BEACON-RESP-RX 1e:4e:75:a0:6f:6f 35 04",
@@ -277,7 +311,7 @@ func TestListEventsFilters(t *testing.T) {
 	}
 
 	// Sin filtro: 3 eventos, orden DESC por ts.
-	got, err := ListEvents(db, 100, 0, "", "")
+	got, err := ListEvents(db, 100, 0, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,17 +322,17 @@ func TestListEventsFilters(t *testing.T) {
 		t.Errorf("primero debería ser ts=3000 (DESC), got %d", got[0].TsMs)
 	}
 
-	got, _ = ListEvents(db, 100, 0, "rt1", "")
+	got, _ = ListEvents(db, 100, 0, "rt1", "", "")
 	if len(got) != 2 {
 		t.Errorf("filtro router rt1: %d, want 2", len(got))
 	}
 
-	got, _ = ListEvents(db, 100, 0, "", TypeConnected)
+	got, _ = ListEvents(db, 100, 0, "", TypeConnected, "")
 	if len(got) != 1 {
 		t.Errorf("filtro tipo connected: %d, want 1", len(got))
 	}
 
-	got, _ = ListEvents(db, 100, 2000, "", "")
+	got, _ = ListEvents(db, 100, 2000, "", "", "")
 	if len(got) != 2 {
 		t.Errorf("filtro since 2000: %d, want 2", len(got))
 	}

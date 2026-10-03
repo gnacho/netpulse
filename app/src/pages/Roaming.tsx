@@ -191,6 +191,8 @@ export default function Roaming() {
   const [eventsError, setEventsError] = useState(false)
   const [eventsNoApi, setEventsNoApi] = useState(false)
   const [eventsTypeFilter, setEventsTypeFilter] = useState<'all' | 'connected' | 'disconnected' | 'dawn_decision'>('all')
+  const [eventsRouterFilter, setEventsRouterFilter] = useState('')
+  const [eventsMacFilter, setEventsMacFilter] = useState('')
   // #907: retención y cadencia efectivas, devueltas como meta por la API, para
   // que la cabecera de la tabla describa los valores reales en vez de texto
   // hardcodeado. null = aún no cargada (o servidor antiguo).
@@ -323,7 +325,10 @@ export default function Roaming() {
     setEventsLoading(true)
     setEventsError(false)
     setEventsNoApi(false)
-    const result = await fetchJson<{ events: RoamEvent[]; retentionDays?: number; collectIntervalSec?: number }>('/api/roam-events?limit=100', { signal: ac.signal })
+    const params = new URLSearchParams({ limit: '100' })
+    if (eventsRouterFilter) params.set('router', eventsRouterFilter)
+    if (eventsMacFilter) params.set('mac', eventsMacFilter)
+    const result = await fetchJson<{ events: RoamEvent[]; retentionDays?: number; collectIntervalSec?: number }>(`/api/roam-events?${params.toString()}`, { signal: ac.signal })
     if (ac.signal.aborted) return
     if (result.ok) {
       setEvents(result.data.events ?? [])
@@ -358,7 +363,7 @@ export default function Roaming() {
       window.clearInterval(id)
       eventsAc.current?.abort()
     }
-  }, [tab])
+  }, [tab, eventsRouterFilter, eventsMacFilter])
 
   // Expulsar a un cliente de su AP actual para forzar la reconexión
   // (usteering manual cuando usteer no cambia al cliente).
@@ -622,7 +627,7 @@ export default function Roaming() {
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
-          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated === true} meta={eventsMeta} />
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} routerFilter={eventsRouterFilter} setRouterFilter={setEventsRouterFilter} macFilter={eventsMacFilter} setMacFilter={setEventsMacFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated === true} meta={eventsMeta} />
         </div>
       )}
 
@@ -1501,6 +1506,10 @@ function EventsPanel({
   noApi,
   typeFilter,
   setTypeFilter,
+  routerFilter,
+  setRouterFilter,
+  macFilter,
+  setMacFilter,
   nameByMac,
   hasDawn,
   meta,
@@ -1511,10 +1520,16 @@ function EventsPanel({
   noApi: boolean
   typeFilter: EventTypeFilter
   setTypeFilter: (t: EventTypeFilter) => void
+  /** #1097: filtros por AP (router) y por cliente (MAC). */
+  routerFilter: string
+  setRouterFilter: (v: string) => void
+  macFilter: string
+  setMacFilter: (v: string) => void
   nameByMac: Map<string, string>
   hasDawn: boolean
   meta: { retentionDays: number; collectIntervalSec: number } | null
 }) {
+  const { routers, devices } = useNetPulse()
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const initial = reduce ? false : { opacity: 0, y: 12 }
@@ -1587,6 +1602,32 @@ function EventsPanel({
               </button>
             ))}
           </div>
+          {/* #1097: seguir un cliente entre APs o acotar a un AP concreto.
+              Las opciones salen de la flota y de los dispositivos conocidos. */}
+          <select
+            value={routerFilter}
+            onChange={(e) => setRouterFilter(e.target.value)}
+            aria-label={t('roaming.events.filterAp')}
+            className="h-8 rounded-lg border border-border bg-elevated px-2 text-caption font-medium text-text-secondary outline-none"
+          >
+            <option value="">{t('roaming.events.filterApAll')}</option>
+            {routers.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+          <select
+            value={macFilter}
+            onChange={(e) => setMacFilter(e.target.value)}
+            aria-label={t('roaming.events.filterClient')}
+            className="h-8 max-w-44 rounded-lg border border-border bg-elevated px-2 text-caption font-medium text-text-secondary outline-none"
+          >
+            <option value="">{t('roaming.events.filterClientAll')}</option>
+            {devices
+              .filter((d) => d.band !== 'cable' && d.mac)
+              .map((d) => (
+                <option key={d.mac} value={d.mac}>{d.name}</option>
+              ))}
+          </select>
         </div>
       </div>
 

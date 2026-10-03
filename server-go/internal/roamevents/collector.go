@@ -174,7 +174,7 @@ func contentHash(ev Event) string {
 }
 
 // ListEvents lee eventos desde SQLite ordenados por ts DESC. Filtros opcionales.
-func ListEvents(db *sql.DB, limit int, sinceMs int64, routerID, eventType string) ([]Event, error) {
+func ListEvents(db *sql.DB, limit int, sinceMs int64, routerID, eventType, mac string) ([]Event, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
@@ -184,11 +184,18 @@ func ListEvents(db *sql.DB, limit int, sinceMs int64, routerID, eventType string
 		q += " AND router_id = ?"
 		args = append(args, routerID)
 	}
+	if mac != "" {
+		q += " AND mac = ?"
+		args = append(args, strings.ToUpper(strings.TrimSpace(mac)))
+	}
 	if eventType != "" {
 		q += " AND type = ?"
 		args = append(args, eventType)
 	}
-	q += " ORDER BY ts_ms DESC LIMIT ?"
+	// #1097: ts_ms tiene precisión de segundo en los logs de OpenWrt (sin
+	// millis) y eventos del mismo segundo quedaban en orden arbitrario. El
+	// id autoincrement preserva el orden de inserción (== orden del log).
+	q += " ORDER BY ts_ms DESC, id DESC LIMIT ?"
 	args = append(args, limit)
 	rows, err := db.Query(q, args...)
 	if err != nil {
