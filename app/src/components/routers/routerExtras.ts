@@ -70,6 +70,10 @@ export interface EthPort {
   up: boolean
   speed?: string // "2.5 Gbps" | "1 Gbps"
   iface?: string // interfaz física (/proc/net/dev), si difiere del id
+  /** #1125: familia para interfaces NO físicas ("lag"|"vlan"|"bridge"|
+   * "tunnel"|"virtual"); ausente = boca física. La tarjeta las agrupa en
+   * la sección colapsada en vez de ocultarlas (#1115). */
+  family?: string
   rxBytes?: number // contadores acumulados de la boca (#305)
   txBytes?: number
   rxErrors?: number

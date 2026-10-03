@@ -874,7 +874,13 @@
       "detailRouterLinkLldp": "enlace entre routers · LLDP",
       "detailApWifi": "cliente WiFi detrás",
       "detailMac": "MAC {{mac}}",
-      "inferredSwitch": "Switch"
+      "inferredSwitch": "Switch",
+      "virtualGroup": "Interfaces virtuales ({{count}})",
+      "fam_lag": "LAG",
+      "fam_vlan": "VLAN",
+      "fam_bridge": "Bridge",
+      "fam_tunnel": "Túnel",
+      "fam_virtual": "Virtual"
     },
     "radios": {
       "channel": "Canal",

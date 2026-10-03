@@ -217,30 +217,32 @@ func TestSortByIndex(t *testing.T) {
 	}
 }
 
-// #1115: la tarjeta de puertos solo lista bocas físicas. Verificado en un
-// LGS310C real: po1-8 (ieee8023adLag) y vlan1 (l3ipvlan) fuera; las 10
-// ethernetCsmacd dentro. El filtro es por exclusión: un switch que no
-// reporta ifType (Type=0) conserva sus puertos.
-func TestPhysicalIfPorts(t *testing.T) {
-	in := []PortStats{
-		{Index: 1, Name: "Slot0/1", Type: 6},
-		{Index: 10, Name: "Slot0/10", Type: 6},
-		{Index: 53, Name: "po1", Type: 161},
-		{Index: 61, Name: "vlan1", Type: 136},
-		{Index: 70, Name: "br0", Type: 209},
-		{Index: 71, Name: "lo", Type: 24},
-		{Index: 72, Name: "tun0", Type: 131},
-		{Index: 73, Name: "vlan2", Type: 135},
-		{Index: 74, Name: "mgmt", Type: 53},
-		{Index: 80, Name: "weird0", Type: 0}, // sin ifType reportado: se conserva
+// #1125 (alternativa a la exclusión de la #1115): el ifTable conserva TODAS
+// las interfaces y cada una se clasifica por familia; las no físicas (LAG,
+// VLAN, bridge, túnel, virtual) van al grupo colapsado de la tarjeta en el
+// frontend en vez de desaparecer. Verificado en un LGS310C real: po1-8
+// (ieee8023adLag) y vlan1 (l3ipvlan) clasificados; un ifType no listado o no
+// reportado (Type=0 por walk fallido) sigue siendo físico (defensa #1115).
+func TestIfFamilyClassification(t *testing.T) {
+	cases := []struct {
+		typ    int
+		family string
+	}{
+		{6, ""},          // ethernetCsmacd: física
+		{117, ""},        // gigabitEthernet: física
+		{161, "lag"},     // ieee8023adLag (LGS310C poN)
+		{136, "vlan"},    // l3ipvlan (LGS310C vlan1)
+		{135, "vlan"},    // l2vlan
+		{209, "bridge"},  // bridge
+		{131, "tunnel"},  // tunnel
+		{24, "virtual"},  // softwareLoopback
+		{53, "virtual"},  // propVirtual
+		{0, ""},          // sin ifType: físico (walk fallido conserva todo)
+		{9999, ""},       // desconocido: se trata como físico por exclusión
 	}
-	got := physicalIfPorts(in)
-	if len(got) != 3 {
-		t.Fatalf("esperaba 3 puertos físicos, obtuve %d: %+v", len(got), got)
-	}
-	for i, want := range []int{1, 10, 80} {
-		if got[i].Index != want {
-			t.Fatalf("puerto %d: Index %d, esperaba %d", i, got[i].Index, want)
+	for _, c := range cases {
+		if got := ifFamily(c.typ); got != c.family {
+			t.Errorf("ifFamily(%d) = %q, esperaba %q", c.typ, got, c.family)
 		}
 	}
 }

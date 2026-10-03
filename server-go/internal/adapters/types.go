@@ -561,6 +561,10 @@ type EthPort struct {
 	Up          bool     `json:"up"`
 	Speed       string   `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
 	Iface       string   `json:"iface,omitempty"` // iface física (/proc/net/dev)
+	// #1125: familia para interfaces NO físicas ("lag"|"vlan"|"bridge"|
+	// "tunnel"|"virtual"); vacío/ausente = boca física. El frontend las
+	// agrupa en la sección colapsada de la tarjeta de puertos.
+	Family      string   `json:"family,omitempty"`
 	RxBytes     uint64   `json:"rxBytes,omitempty"`
 	TxBytes     uint64   `json:"txBytes,omitempty"`
 	RxErrs      uint64   `json:"rxErrors,omitempty"`

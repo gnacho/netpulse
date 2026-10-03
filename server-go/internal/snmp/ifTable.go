@@ -14,6 +14,12 @@ type PortStats struct {
 	Descr      string
 	Alias      string
 	Type       int
+	// Familia de la interfaz para las NO físicas (#1125): "lag", "vlan",
+	// "bridge", "tunnel" o "virtual". Vacío = boca física (o ifType no
+	// reportado por walk fallido: se conserva en el grupo físico, la misma
+	// defensa de la #1115). El frontend las agrupa colapsadas al pie de la
+	// tarjeta de puertos en vez de ocultarlas.
+	Family     string
 	SpeedBps   uint64
 	HighSpeedMbps uint32
 	OperUp     bool
@@ -88,39 +94,34 @@ func PollIfTable(s *gosnmp.GoSNMP) ([]PortStats, error) {
 	}
 	out := make([]PortStats, 0, len(byIdx))
 	for _, ps := range byIdx {
+		ps.Family = ifFamily(ps.Type)
 		out = append(out, *ps)
 	}
 	sortByIndex(out)
-	return physicalIfPorts(out), nil
+	return out, nil
 }
 
-// nonPhysicalIfTypes: ifTypes (IANA) que NO son una boca física del switch
-// y no deben aparecer en la tarjeta de puertos (#1115): interfaces LAG,
-// VLANs, loopbacks, bridges y túneles. Verificado en un Linksys LGS310C
+// nonPhysicalIfTypeFamilies: ifTypes (IANA) que NO son una boca física del
+// switch, con su familia para el grupo colapsado de la tarjeta (#1125,
+// alternativa a ocultarlas de la #1115: nada se pierde y las referencias
+// FDB/LLDP por ifIndex siguen resolviendo). Verificado en un Linksys LGS310C
 // real: po1-8 llegan como ieee8023adLag(161) y vlan1 como l3ipvlan(136).
-var nonPhysicalIfTypes = map[int]bool{
-	24:  true, // softwareLoopback
-	53:  true, // propVirtual
-	131: true, // tunnel
-	135: true, // l2vlan
-	136: true, // l3ipvlan
-	161: true, // ieee8023adLag
-	209: true, // bridge
+// Todo ifType que NO esté en el mapa (incluido Type=0 por walk fallido) se
+// trata como físico: la defensa por exclusión de la #1115 se conserva.
+var nonPhysicalIfTypeFamilies = map[int]string{
+	24:  "virtual", // softwareLoopback
+	53:  "virtual", // propVirtual
+	131: "tunnel",  // tunnel
+	135: "vlan",    // l2vlan
+	136: "vlan",    // l3ipvlan
+	161: "lag",     // ieee8023adLag
+	209: "bridge",  // bridge
 }
 
-// physicalIfPorts descarta las interfaces no físicas del ifTable (#1115).
-// Filtra por EXCLUSIÓN y no por "solo ethernetCsmacd": un switch que no
-// reporte ifType (Type=0 por walk fallido) conserva todos sus puertos en
-// lugar de quedarse a cero.
-func physicalIfPorts(ports []PortStats) []PortStats {
-	out := ports[:0]
-	for _, p := range ports {
-		if nonPhysicalIfTypes[p.Type] {
-			continue
-		}
-		out = append(out, p)
-	}
-	return out
+// ifFamily clasifica una interfaz por su ifType: "" = física (o desconocida),
+// en otro caso la familia del grupo virtual (#1125).
+func ifFamily(t int) string {
+	return nonPhysicalIfTypeFamilies[t]
 }
 
 func applyPortField(ps *PortStats, oid string, pdu gosnmp.SnmpPDU) {

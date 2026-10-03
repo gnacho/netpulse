@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import type { Router } from '@/data/mock'
@@ -7,7 +8,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { getRouterExtras, portPeerDetail, portPeerLabel } from '@/components/routers/routerExtras'
 import type { EthPort, RouterExtras, SfpInfo } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
-import { Activity, Network } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, Network } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
@@ -287,6 +288,17 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   )
 }
 
+// FAMILY_LABEL_KEY (#1125): familia ifType (IANA) -> clave i18n de la
+// etiqueta del grupo de interfaces virtuales. Cerrado: el server solo emite
+// estas cinco ("lag"|"vlan"|"bridge"|"tunnel"|"virtual").
+const FAMILY_LABEL_KEY: Record<string, string> = {
+  lag: 'routerDetail.ports.fam_lag',
+  vlan: 'routerDetail.ports.fam_vlan',
+  bridge: 'routerDetail.ports.fam_bridge',
+  tunnel: 'routerDetail.ports.fam_tunnel',
+  virtual: 'routerDetail.ports.fam_virtual',
+}
+
 export function PortPanel({ router, extras, className, snmpStats }: {
   router: Router
   extras?: RouterExtras
@@ -296,7 +308,18 @@ export function PortPanel({ router, extras, className, snmpStats }: {
   const { t } = useTranslation()
   const { isDemo, wan } = useNetPulse()
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
-  const ports = ex.ethPorts
+  // #1125: las interfaces no físicas (LAG/VLAN/bridge/túnel/virtual) ya no se
+  // descartan (#1115): se listan en la sección colapsada de abajo. El chasis
+  // y el contador usados/total solo cuentan bocas físicas.
+  const ports = ex.ethPorts.filter((p) => !p.family)
+  const virtualPorts = ex.ethPorts.filter((p) => p.family)
+  const [virtualOpen, setVirtualOpen] = useState(() => localStorage.getItem('np-ports-virtual-open') === '1')
+  const toggleVirtual = () =>
+    setVirtualOpen((v) => {
+      const next = !v
+      localStorage.setItem('np-ports-virtual-open', next ? '1' : '0')
+      return next
+    })
   const used = ports.filter((p) => p.up).length
   const wirelessUplink = ex.backhaul?.kind === 'wireless'
 
@@ -358,6 +381,47 @@ export function PortPanel({ router, extras, className, snmpStats }: {
           </span>
         )}
       </div>
+
+      {/* #1125: las interfaces no físicas (LAG/VLAN/bridge/túnel) se listan
+          aquí, agrupadas y colapsadas por defecto, en vez de desaparecer de
+          la tarjeta (#1115): nada se oculta y el chasis queda limpio. El
+          estado plegado se recuerda. */}
+      {virtualPorts.length > 0 && (
+        <div className="mt-4 rounded-xl border border-border/70 bg-elevated/40">
+          <button
+            type="button"
+            onClick={toggleVirtual}
+            aria-expanded={virtualOpen}
+            className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-caption font-medium text-text-secondary transition-colors hover:text-text-primary"
+          >
+            {virtualOpen ? (
+              <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+            )}
+            {t('routerDetail.ports.virtualGroup', { count: virtualPorts.length })}
+          </button>
+          {virtualOpen && (
+            <ul className="border-t border-border/60 px-4 py-2">
+              {virtualPorts.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-1.5 text-caption">
+                  <span className="inline-flex w-16 shrink-0 justify-center rounded border border-border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                    {t(FAMILY_LABEL_KEY[p.family ?? ''] ?? 'routerDetail.ports.fam_virtual', { defaultValue: p.family })}
+                  </span>
+                  <span className="truncate font-mono text-mono-sm text-text-primary">{p.label}</span>
+                  <span className="ml-auto inline-flex shrink-0 items-center gap-2">
+                    {p.speed && <span className="text-text-muted">{p.speed}</span>}
+                    <span
+                      className={p.up ? 'h-1.5 w-1.5 rounded-full bg-ok' : 'h-1.5 w-1.5 rounded-full bg-border-strong/50'}
+                      title={p.up ? t('routerDetail.ports.inUse') : t('routerDetail.ports.free')}
+                    />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </section>
   )
 }

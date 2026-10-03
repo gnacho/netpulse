@@ -123,6 +123,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 			Up:      p.OperUp,
 			Speed:   p.SpeedString(),
 			Iface:   name,
+			Family:  p.Family,
 			RxBytes: p.RxBytes,
 			TxBytes: p.TxBytes,
 			RxErrs:  p.RxErrors,
