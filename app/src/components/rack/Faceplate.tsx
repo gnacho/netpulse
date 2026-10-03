@@ -103,9 +103,15 @@ export function Faceplate({
           const tone = st.drafting
             ? 'text-amber-400'
             : st.cabled
+<<<<<<< Updated upstream
               ? 'text-emerald-500 hover:text-emerald-400'
               : st.interactive
                 ? 'text-zinc-500 hover:text-accent'
+=======
+              ? 'text-emerald-400'
+              : st.interactive
+                ? 'text-zinc-400 hover:text-accent'
+>>>>>>> Stashed changes
                 : 'text-zinc-600'
           return (
             <button
@@ -126,7 +132,7 @@ export function Faceplate({
               {sfp ? (
                 <span className="block rounded-[1px] bg-current" style={{ width: 18, height: 6 }} aria-hidden />
               ) : (
-                <EthernetPort size={16} strokeWidth={2} aria-hidden />
+                <EthernetPort size={16} strokeWidth={st.cabled || st.drafting ? 3 : 2} aria-hidden />
               )}
             </button>
           )

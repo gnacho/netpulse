@@ -61,7 +61,15 @@ function RackCanvas() {
   const [activeRackId, setActiveRackId] = useState<string | null>(null)
   const [patchMode, setPatchMode] = useState(false)
   const [draft, setDraft] = useState<{ mountId: string; portId: string } | null>(null)
-  const [visibility, setVisibility] = useState<CableVisibility>('always')
+  const [visibility, setVisibility] = useState<CableVisibility>(
+    () => {
+      const stored = localStorage.getItem('netpulse-rack-cables')
+      return stored === 'hover' || stored === 'hidden' ? stored : 'always'
+    },
+  )
+  useEffect(() => {
+    localStorage.setItem('netpulse-rack-cables', visibility)
+  }, [visibility])
   const [hoverMountId, setHoverMountId] = useState<string | null>(null)
   const [selectedCableId, setSelectedCableId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
