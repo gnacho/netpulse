@@ -400,6 +400,66 @@ CREATE TABLE IF NOT EXISTS alert_log (
 );
 CREATE INDEX IF NOT EXISTS idx_alert_log_ts ON alert_log(ts DESC);
 
+-- Rack canvas (fase 1): racks, montajes, cables y perfil físico por MAC.
+-- La identidad de dispositivo en NetPulse es la MAC (no hay tabla devices):
+-- rack_mounts.device_mac apunta a esa identidad y device_rack_profile guarda
+-- el modelo físico compartido (faceplate, altura U, span de columnas,
+-- color y puertos con posición). Los montajes con device_mac NULL son
+-- accesorios (blank, shelf, patch panel, PDU): su tamaño lo define el
+-- faceplate del catálogo.
+CREATE TABLE IF NOT EXISTS racks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  u_height INTEGER NOT NULL,
+  width_standard TEXT NOT NULL DEFAULT '19',   -- '19' | '10'
+  numbering TEXT NOT NULL DEFAULT 'bottom-up', -- solo cambia etiquetas, nunca la geometría
+  style_json TEXT NOT NULL DEFAULT '{}',
+  location TEXT,
+  position_x REAL NOT NULL DEFAULT 0,
+  position_y REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS device_rack_profile (
+  mac TEXT PRIMARY KEY,
+  faceplate_id TEXT NOT NULL DEFAULT '',
+  u_height INTEGER NOT NULL DEFAULT 1,
+  col_span INTEGER NOT NULL DEFAULT 12,
+  color TEXT NOT NULL DEFAULT '',
+  ports_json TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS rack_mounts (
+  id TEXT PRIMARY KEY,
+  rack_id TEXT NOT NULL REFERENCES racks(id) ON DELETE CASCADE,
+  device_mac TEXT REFERENCES device_rack_profile(mac) ON DELETE SET NULL, -- NULL = accesorio
+  faceplate_id TEXT NOT NULL DEFAULT '',  -- accesorios; el de dispositivos vive en device_rack_profile
+  u_start INTEGER NOT NULL,               -- 1-based, SIEMPRE contado desde el rail inferior
+  col_start INTEGER NOT NULL DEFAULT 0,   -- 0-based
+  label TEXT,
+  status_pin TEXT NOT NULL DEFAULT 'auto',      -- 'auto' → seguir el estado que conoce el poller
+  port_visibility TEXT NOT NULL DEFAULT 'auto'
+);
+CREATE INDEX IF NOT EXISTS idx_rack_mounts_rack ON rack_mounts(rack_id);
+
+-- Cables port-to-port (relación propia, no edges del canvas lógico).
+-- Pueden cruzar racks. Un puerto normal admite exactamente 1 cable; los
+-- patch panels (pass-through) admiten 2 (tirada de pared al rear + patch al
+-- switch al front). Cobre vs fibra se deriva del puerto de origen del patch.
+CREATE TABLE IF NOT EXISTS rack_cables (
+  id TEXT PRIMARY KEY,
+  from_mount TEXT NOT NULL REFERENCES rack_mounts(id) ON DELETE CASCADE,
+  from_port TEXT NOT NULL,
+  to_mount TEXT NOT NULL REFERENCES rack_mounts(id) ON DELETE CASCADE,
+  to_port TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'ethernet',       -- 'ethernet' | 'fiber'
+  label TEXT,
+  properties_json TEXT NOT NULL DEFAULT '{}',  -- key/value libre
+  origin TEXT NOT NULL DEFAULT 'manual',       -- 'manual' | 'imported' | 'detected'
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rack_cables_from ON rack_cables(from_mount);
+CREATE INDEX IF NOT EXISTS idx_rack_cables_to ON rack_cables(to_mount);
+
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
