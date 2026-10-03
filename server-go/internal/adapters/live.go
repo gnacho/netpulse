@@ -2981,6 +2981,10 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// #954: first/last seen persistente de TODOS los clientes online.
 	l.noteDevicesSeen(devices, time.Now().UnixMilli())
+	// #1095: el overview (snapshot SSE del que vive la tabla de clientes)
+	// escribía las marcas pero NUNCA las aplicaba: la UI en vivo mostraba
+	// "—" aunque la API REST las tuviera (sólo los detalles las aplicaban).
+	l.applyDeviceSeen(devices)
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	countClientsPerRouter(routerList, devices)
 	// Sparkline de la tarjeta para fuentes sin throughput bps (switch beacon/
