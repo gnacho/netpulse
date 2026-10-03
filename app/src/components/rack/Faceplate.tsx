@@ -3,7 +3,6 @@
 // con la altura U y nunca invade la zona de bocas, y bocas con el icono
 // EthernetPort de Lucide (SFP = ranura rectangular). Un nombre, un LED,
 // las bocas.
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EthernetPort } from 'lucide-react'
 import type { FaceplateTemplate, FaceplatePort } from '@/lib/rackFaceplates'
@@ -46,25 +45,6 @@ export function Faceplate({
 }) {
   const { t } = useTranslation()
   const minPortX = ports.length > 0 ? Math.min(...ports.map((p) => p.x)) : 1
-  // Tamaño de icono según el hueco real: 48 bocas en 1U deben caber sin
-  // superponerse (pitch mínimo entre bocas de la misma fila).
-  const iconSize = useMemo(() => {
-    if (ports.length < 2) return 14
-    let minPitch = 1
-    const byY = new Map<number, number[]>()
-    for (const p of ports) {
-      const key = Math.round(p.y * 20)
-      byY.set(key, [...(byY.get(key) ?? []), p.x].sort((a, b) => a - b))
-    }
-    for (const xs of byY.values()) {
-      for (let i = 1; i < xs.length; i++) {
-        const a = xs[i]
-        const b = xs[i - 1]
-        if (a !== undefined && b !== undefined) minPitch = Math.min(minPitch, a - b)
-      }
-    }
-    return Math.max(6, Math.min(14, Math.round(minPitch * 100 * 0.85)))
-  }, [ports])
   const ledColor =
     status === 'online'
       ? 'bg-emerald-400'
@@ -101,7 +81,7 @@ export function Faceplate({
           top: `${plate.labelBox.y * 100}%`,
           height: `${plate.labelBox.h * 100}%`,
           width: `${Math.max(0.12, minPortX - plate.labelBox.x - 0.06) * 100}%`,
-          fontSize: 'min(21cqh, 13px)',
+          fontSize: 'min(17cqh, 12px)',
           color: 'rgb(var(--text-secondary))',
         }}
       >
@@ -144,13 +124,9 @@ export function Faceplate({
               style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
             >
               {sfp ? (
-                <span
-                  className="block rounded-[1px] bg-current"
-                  style={{ width: Math.max(9, iconSize + 1), height: Math.max(4, Math.round(iconSize / 3)) }}
-                  aria-hidden
-                />
+                <span className="block rounded-[1px] bg-current" style={{ width: 18, height: 6 }} aria-hidden />
               ) : (
-                <EthernetPort size={iconSize} strokeWidth={2.2} aria-hidden />
+                <EthernetPort size={16} strokeWidth={2} aria-hidden />
               )}
             </button>
           )

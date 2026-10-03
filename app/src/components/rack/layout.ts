@@ -2,8 +2,12 @@
 // U 1-based desde el rail inferior (RF y crece hacia abajo: la U 1 va abajo
 // del todo). Columnas 0-based.
 
-export const U_PX = 52
-export const COL_PX = 22
+export const U_PX = 48
+/** Proporción real de un rack 19": ancho útil entre raíles (482,6 mm) /
+ * alto de 1U (44,45 mm) ≈ 10,86. El interior mide 10,86 U de ancho. */
+export const RACK19_RATIO = 10.86
+/** Ancho de columna derivado: interior = 12 columnas = U_PX * RACK19_RATIO. */
+export const COL_PX = (U_PX * RACK19_RATIO) / 12
 export const RAIL_PX = 18
 export const RACK_HEADER_PX = 24
 
