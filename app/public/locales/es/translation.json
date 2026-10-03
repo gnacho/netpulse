@@ -2536,6 +2536,8 @@
     "editSubmit": "Guardar cambios",
     "rackUpdated": "Rack actualizado",
     "createLocation": "Ubicación",
-    "locationPlaceholder": "p. ej. Despacho, Salón, Garaje…"
+    "locationPlaceholder": "p. ej. Despacho, Salón, Garaje…",
+    "import": "Importar enlaces",
+    "importResult": "Importación: {{created}} creados · {{skipped}} saltados · {{noFree}} sin puerto libre"
   }
 }

@@ -6,9 +6,11 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rack"
@@ -26,6 +28,68 @@ func (s *server) registerRackRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/racks/cables", auth.RequireAdmin(http.HandlerFunc(s.handleRackCableAdd)))
 	mux.Handle("DELETE /api/racks/cables/{id}", auth.RequireAdmin(http.HandlerFunc(s.handleRackCableDelete)))
 	mux.Handle("PUT /api/racks/profiles/{mac}", auth.RequireAdmin(http.HandlerFunc(s.handleRackProfilePut)))
+	mux.Handle("POST /api/racks/import-cables", auth.RequireAdmin(http.HandlerFunc(s.handleRackImportCables)))
+}
+
+// buildRackHints deriva candidatos de cable desde la DETECCIÓN (FDB): cada
+// dispositivo cableado cuya MAC y la de su router están montados genera un
+// hint con el puerto físico donde el bridge aprende su MAC. La fuente es el
+// descubrimiento, no el dibujo.
+func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []rack.CableHint {
+	mounted := map[string]bool{}
+	for _, m := range mounts {
+		if m.DeviceMAC != "" {
+			mounted[strings.ToLower(m.DeviceMAC)] = true
+		}
+	}
+	routerMAC := map[string]string{}
+	if ov := s.lastOv(); ov != nil {
+		for _, r := range ov.Routers {
+			if r.MAC != "" {
+				routerMAC[r.ID] = strings.ToLower(r.MAC)
+			}
+		}
+	}
+	// Honestidad de la inferencia: un puerto con VARIAS MACs aprendidas es un
+	// agregado (switch/bridge/hipervisor detrás); cablearlo a un dispositivo
+	// concreto sería inventar infraestructura. Solo los puertos de MAC única
+	// generan hint.
+	perPort := map[string]int{}
+	for _, d := range s.adapter.GetDevices(ctx) {
+		if d.Band != "cable" || d.MAC == "" || d.Port == "" {
+			continue
+		}
+		perPort[d.RouterID+"|"+d.Port]++
+	}
+	hints := []rack.CableHint{}
+	seen := map[string]bool{}
+	for _, d := range s.adapter.GetDevices(ctx) {
+		if d.Band != "cable" || d.MAC == "" || d.Port == "" {
+			continue
+		}
+		if perPort[d.RouterID+"|"+d.Port] != 1 {
+			continue
+		}
+		from, ok := routerMAC[d.RouterID]
+		if !ok || from == "" {
+			continue
+		}
+		to := strings.ToLower(d.MAC)
+		if !mounted[from] || !mounted[to] {
+			continue
+		}
+		if seen[from+"|"+to] {
+			continue
+		}
+		seen[from+"|"+to] = true
+		hints = append(hints, rack.CableHint{
+			FromDeviceID: from,
+			ToDeviceID:   to,
+			FromPortHint: d.Port,
+			Source:       "fdb",
+		})
+	}
+	return hints
 }
 
 // --- DTOs (snake_case en el wire) ---
@@ -144,7 +208,7 @@ func dtoToProfile(d profileDTO) rack.DeviceProfile {
 
 // handleRacksGet: bundle completo del canvas en una sola petición
 // (offline-first: racks + montajes con huella + cables + perfiles).
-func (s *server) handleRacksGet(w http.ResponseWriter, _ *http.Request) {
+func (s *server) handleRacksGet(w http.ResponseWriter, r *http.Request) {
 	racks, err := rack.ListRacks(s.db.DB)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
@@ -181,8 +245,33 @@ func (s *server) handleRacksGet(w http.ResponseWriter, _ *http.Request) {
 	for _, p := range profiles {
 		profilesOut = append(profilesOut, profileToDTO(p))
 	}
+	// Auditoría dibujado vs detectado: cada cable lleva su estado.
+	hints := s.buildRackHints(r.Context(), mounts)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"racks": racksOut, "mounts": mountsOut, "cables": cablesOut, "profiles": profilesOut,
+		"audit": rack.AuditCables(cables, hints, mounts),
+	})
+}
+
+// handleRackImportCables: siembra cables desde la topología detectada.
+// Idempotente por construcción: re-ejecutar solo hace la mitad útil.
+func (s *server) handleRackImportCables(w http.ResponseWriter, r *http.Request) {
+	mounts, err := rack.ListMountRows(s.db.DB)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	hints := s.buildRackHints(r.Context(), mounts)
+	res, err := rack.ImportCables(s.db.DB, hints)
+	if err != nil {
+		writeRackStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"hints":      len(hints),
+		"created":    len(res.Created),
+		"skipped":    res.Skipped,
+		"noFreePort": len(res.NoFreePort),
 	})
 }
 

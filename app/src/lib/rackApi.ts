@@ -63,6 +63,8 @@ export interface RackBundle {
   mounts: MountDTO[]
   cables: CableDTO[]
   profiles: ProfileDTO[]
+  /** estado de auditoría por cable: confirmed | manual-only | detected */
+  audit: Record<string, string>
 }
 
 async function req<T>(input: string, init?: RequestInit): Promise<T> {
@@ -116,4 +118,15 @@ export function deleteCable(id: string): Promise<{ ok: boolean }> {
 
 export function upsertProfile(mac: string, body: Omit<ProfileDTO, 'mac'>): Promise<ProfileDTO> {
   return req<ProfileDTO>(`/api/racks/profiles/${encodeURIComponent(mac)}`, json('PUT', body))
+}
+
+export interface ImportResultDTO {
+  hints: number
+  created: number
+  skipped: number
+  noFreePort: number
+}
+
+export function importCables(): Promise<ImportResultDTO> {
+  return req<ImportResultDTO>('/api/racks/import-cables', { method: 'POST' })
 }

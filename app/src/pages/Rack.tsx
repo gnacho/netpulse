@@ -16,7 +16,7 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Cable, Pencil, Plus, Save, Server, Trash2 } from 'lucide-react'
+import { Cable, Link2, Pencil, Plus, Save, Server, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -43,6 +43,7 @@ interface Working {
   mounts: MountDTO[]
   cables: CableDTO[]
   profiles: Map<string, ProfileDTO>
+  audit: Record<string, string>
 }
 
 let localSeq = 0
@@ -54,7 +55,7 @@ function RackCanvas() {
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
 
-  const [working, setWorking] = useState<Working>({ racks: [], mounts: [], cables: [], profiles: new Map() })
+  const [working, setWorking] = useState<Working>({ racks: [], mounts: [], cables: [], profiles: new Map(), audit: {} })
   const [loaded, setLoaded] = useState(false)
   const [activeRackId, setActiveRackId] = useState<string | null>(null)
   const [patchMode, setPatchMode] = useState(false)
@@ -174,6 +175,7 @@ function RackCanvas() {
       mounts: b.mounts,
       cables: b.cables,
       profiles: new Map(b.profiles.map((p) => [p.mac, p])),
+      audit: b.audit ?? {},
     })
     setNewMountIds(new Set())
     setMovedMountIds(new Set())
@@ -456,7 +458,12 @@ function RackCanvas() {
         return
       }
       const existing = working.profiles.get(mac)
-      const plate = existing ? getFaceplate(existing.faceplate_id) : suggestFaceplate(deviceType)
+      // Sin sugerencia para el tipo detectado: faceplate genérico 1U (el
+      // usuario lo afina después); mejor eso que un placeholder sin puertos
+      // por el que el auto-cableado no puede parchar.
+      const plate = existing
+        ? getFaceplate(existing.faceplate_id)
+        : (suggestFaceplate(deviceType) ?? getFaceplate('server-1u'))
       const uHeight = existing?.u_height ?? plate?.uHeight ?? 1
       const colSpan = existing?.col_span ?? plate?.colSpan ?? 12
       const fp = findSlot(rack.u_height, footprintsOfRack(rack.id), 1, 0, uHeight, colSpan)
@@ -464,7 +471,9 @@ function RackCanvas() {
         toast.error(t('rack.noSpace'))
         return
       }
-      if (!existing && plate) {
+      // Perfil nuevo, o perfil placeholder viejo (sin faceplate ni puertos):
+      // lo actualizamos con lo que sabemos ahora.
+      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id))) {
         const prof: ProfileDTO = {
           mac,
           faceplate_id: plate.id,
@@ -523,11 +532,11 @@ function RackCanvas() {
         const res = await fetch(`/api/routers/${encodeURIComponent(router.id)}`)
         if (res.ok) {
           const detail = await res.json()
-          const eth: { iface?: string; name?: string }[] = detail?.extras?.ethPorts ?? []
+          const eth: { id?: string; iface?: string; name?: string }[] = detail?.extras?.ethPorts ?? []
           physical = eth
-            .filter((p) => (p.iface || p.name) && !(p.iface || '').startsWith('wlan'))
-            .map((p) => {
-              const id = p.iface || p.name || ''
+            .map((p) => p.id || p.iface || p.name || '')
+            .filter((id) => id && !id.startsWith('wlan'))
+            .map((id) => {
               const k = /sfp\+|10g|fiber|fibre/i.test(id) ? 'sfp+' : /sfp/i.test(id) ? 'sfp' : 'rj45'
               return { id, kind: k as RackPortKind }
             })
@@ -714,6 +723,18 @@ function RackCanvas() {
     unmountRef.current = unmount
   })
 
+  const runImport = useCallback(async () => {
+    try {
+      const res = await api.importCables()
+      toast.success(
+        t('rack.importResult', { created: res.created, skipped: res.skipped, noFree: res.noFreePort }),
+      )
+      await reload()
+    } catch (e) {
+      toast.error(String(e))
+    }
+  }, [reload, t])
+
   // --- Selección: montajes vía onSelectionChange; Delete gestiona cable o montaje ---
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -827,6 +848,14 @@ function RackCanvas() {
           onChange={setVisibility}
           size="sm"
         />
+        <button
+          type="button"
+          onClick={() => void runImport()}
+          disabled={!isAdmin}
+          className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+        >
+          <Link2 size={15} /> {t('rack.import')}
+        </button>
         <div className="ml-auto flex items-center gap-2">
           {activeRackId && (
             <button
@@ -912,7 +941,17 @@ function RackCanvas() {
                     const b = absPort(c.to_mount, c.to_port)
                     if (!a || !b) return null
                     const sel = c.id === selectedCableId
-                    const stroke = c.type === 'fiber' ? 'rgb(var(--warn))' : sel ? 'rgb(var(--accent))' : 'rgb(var(--text-muted))'
+                    const audit = working.audit[c.id] ?? (c.origin === 'manual' ? 'manual-only' : 'detected')
+                    const manualOnly = audit === 'manual-only'
+                    const stroke = sel
+                      ? 'rgb(var(--accent))'
+                      : manualOnly
+                        ? 'rgb(var(--warn))'
+                        : c.type === 'fiber'
+                          ? 'rgb(var(--tunnel))'
+                          : 'rgb(var(--text-muted))'
+                    const mx = (a.x + b.x) / 2
+                    const my = (a.y + b.y) / 2
                     return (
                       <g key={c.id} data-cable-id={c.id} data-selected={sel} onClick={(e) => { e.stopPropagation(); setSelectedCableId(sel ? null : c.id) }} style={{ cursor: 'pointer' }}>
                         <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} />
@@ -923,8 +962,10 @@ function RackCanvas() {
                           y2={b.y}
                           stroke={stroke}
                           strokeWidth={sel ? 2.5 : 1.5}
-                          strokeDasharray={c.origin === 'manual' ? undefined : '6 4'}
+                          strokeDasharray={manualOnly ? '6 4' : undefined}
                         />
+                        {/* badge de auditoría: verde = confirmado por detección */}
+                        {audit === 'confirmed' && <circle cx={mx} cy={my} r={3} fill="rgb(var(--ok))" />}
                       </g>
                     )
                   })}

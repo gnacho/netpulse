@@ -2536,6 +2536,8 @@
     "editSubmit": "Save changes",
     "rackUpdated": "Rack updated",
     "createLocation": "Location",
-    "locationPlaceholder": "e.g. Office, Living room, Garage…"
+    "locationPlaceholder": "e.g. Office, Living room, Garage…",
+    "import": "Import links",
+    "importResult": "Import: {{created}} created · {{skipped}} skipped · {{noFree}} no free port"
   }
 }
