@@ -120,10 +120,14 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
       <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3.5">
         {/* #442: "Abrir WebUI" genérico: LuCI en OpenWrt, web del fabricante
             en switches gestionados/beacon (ninguno de los dos es "LuCI"). */}
+        {/* #1098: el title expone la URL exacta (http plano a la IP); con
+            HTTPS/LE u otro puerto el botón puede no servir y el usuario debe
+            poder verlo ANTES de pulsar. */}
         <a
           href={`http://${router.ip}`}
           target="_blank"
           rel="noreferrer"
+          title={`http://${router.ip}`}
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
         >
           <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -142,8 +146,11 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           </a>
         )}
         {router.type !== 'routeros' && router.type !== 'managed-switch' && router.type !== 'external' && (
+          {/* #1098: mismo criterio que el botón web: mostrar el comando
+              exacto que se va a copiar. */}
           <button
             onClick={copySsh}
+            title={`ssh root@${router.ip}`}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
           >
             <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
