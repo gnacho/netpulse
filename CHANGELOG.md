@@ -5,6 +5,17 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.31.1] - 2026-10-03
+
+### Fixed
+
+- **Alertas que reaparecen leídas tras un reinicio (#1094)**: una alerta ya leída en una sesión anterior (p. ej. "Agent outdated") se mostraba leída al re-emitirse justo tras arrancar el server; ahora un episodio nuevo tras reinicio vuelve a no-leída (los refreshes de un episodio en curso, como port flapping, conservan su estado).
+- **"First seen"/"Last seen" siempre con guion (#1095)**: la marca de visto solo se escribía desde el resumen; la lista de dispositivos que consume la UI ahora también la persiste (write-through).
+- **Eventos de roaming desordenados dentro del mismo segundo (#1097)**: los logs de OpenWrt no llevan millis; el desempate ahora usa el orden de inserción (id), que reproduce el orden del log. Nuevos filtros por cliente y por AP en la vista de eventos.
+- **Tarjeta "Edit client" (#1096)**: Guardar/Cancelar junto a los campos que editan (nombre, tipo, icono) y título renombrado de "dispositivo" a "cliente".
+- **Tooltips en los botones web/SSH de la unidad (#1098)**: muestran la URL y el comando exactos antes de pulsar.
+- **Agente 3.0.8**: una unidad sin clientes asociados en ese momento descartaba toda su sección wireless (radios, scans, BSSIDs propios); radios o BSSIDs propios ya bastan para reportarla.
+
 ## [2.31.0] - 2026-10-03
 
 ### Added
