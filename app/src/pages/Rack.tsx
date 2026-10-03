@@ -176,9 +176,11 @@ function RackCanvas() {
     if (!layer) return
     const base = layer.getBoundingClientRect()
     const out: Record<string, { x: number; y: number }> = {}
-    for (const btn of layer.parentElement?.querySelectorAll('button[data-mount][data-port]') ?? []) {
+    for (const btn of layer.parentElement?.querySelectorAll('button[data-port]') ?? []) {
+      const mountId = (btn.closest('[data-mount]') as HTMLElement | null)?.getAttribute('data-mount')
+      if (!mountId) continue
       const r = (btn as HTMLElement).getBoundingClientRect()
-      out[`${btn.getAttribute('data-mount')}|${btn.getAttribute('data-port')}`] = {
+      out[`${mountId}|${btn.getAttribute('data-port')}`] = {
         x: r.x + r.width / 2 - base.x,
         y: r.y + r.height / 2 - base.y,
       }

@@ -127,7 +127,7 @@ export function Faceplate({
               {sfp ? (
                 <span className="block rounded-[1px] bg-current" style={{ width: 18, height: 6 }} aria-hidden />
               ) : (
-                <EthernetPort size={16} strokeWidth={2} aria-hidden />
+                <EthernetPort size={16} strokeWidth={st.cabled || st.drafting ? 3 : 2} aria-hidden />
               )}
             </button>
           )
