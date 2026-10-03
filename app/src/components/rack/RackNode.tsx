@@ -8,6 +8,7 @@ import type { GhostState } from './types'
 
 export type RackNodeData = {
   name: string
+  location?: string
   uHeight: number
   numbering: string
   selected: boolean
@@ -34,9 +35,10 @@ export const RackNode = memo(function RackNode({ data }: NodeProps<RackNodeType>
         data.onSelect?.()
       }}
     >
-      {/* Cabecera: nombre del rack */}
-      <div className="flex h-[24px] items-center justify-center truncate px-2 text-[11px] font-semibold text-text-secondary">
-        {name}
+      {/* Cabecera: nombre del rack (+ ubicación) */}
+      <div className="flex h-[24px] items-center justify-center gap-1.5 truncate px-2 text-[11px] font-semibold text-text-secondary">
+        <span className="truncate">{name}</span>
+        {data.location && <span className="truncate text-[10px] font-normal text-text-muted">· {data.location}</span>}
       </div>
 
       {/* Raíl izquierdo: números de U. La U 1 está abajo siempre. */}

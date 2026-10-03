@@ -67,8 +67,10 @@ function RackCanvas() {
   const [editOpen, setEditOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editU, setEditU] = useState('12')
+  const [editLocation, setEditLocation] = useState('')
   const [addName, setAddName] = useState('')
   const [addU, setAddU] = useState('12')
+  const [addLocation, setAddLocation] = useState('')
   const [deleteRackOpen, setDeleteRackOpen] = useState(false)
   const [selectedMountId, setSelectedMountId] = useState<string | null>(null)
 
@@ -265,6 +267,7 @@ function RackCanvas() {
         draggable: true,
         data: {
           name: r.name,
+          location: r.location ?? '',
           uHeight: r.u_height,
           numbering: r.numbering,
           selected: activeRackId === r.id,
@@ -541,6 +544,7 @@ function RackCanvas() {
   const openAddRack = useCallback(() => {
     setAddName(`Rack ${working.racks.length + 1}`)
     setAddU('12')
+    setAddLocation('')
     setAddOpen(true)
   }, [working.racks.length])
 
@@ -551,6 +555,7 @@ function RackCanvas() {
       const r = await api.createRack({
         name: addName.trim() || 'Rack',
         u_height: Math.min(45, Math.max(1, parseInt(addU, 10) || 12)),
+        location: addLocation.trim(),
         position_x: working.racks.length === 0 ? 40 : maxX + 40,
         position_y: 40,
       })
@@ -560,13 +565,14 @@ function RackCanvas() {
     } catch (e) {
       toast.error(String(e))
     }
-  }, [working.racks, rackMoves, addName, addU])
+  }, [working.racks, rackMoves, addName, addU, addLocation])
 
   const openEditRack = useCallback(() => {
     const r = activeRackId ? rackById.get(activeRackId) : undefined
     if (!r) return
     setEditName(r.name)
     setEditU(String(r.u_height))
+    setEditLocation(r.location ?? '')
     setEditOpen(true)
   }, [activeRackId, rackById])
 
@@ -578,6 +584,7 @@ function RackCanvas() {
         ...r,
         name: editName.trim() || r.name,
         u_height: Math.min(45, Math.max(1, parseInt(editU, 10) || r.u_height)),
+        location: editLocation.trim(),
       })
       toast.success(t('rack.rackUpdated'))
       setEditOpen(false)
@@ -585,7 +592,7 @@ function RackCanvas() {
     } catch (e) {
       toast.error(String(e))
     }
-  }, [activeRackId, rackById, editName, editU, reload, t])
+  }, [activeRackId, rackById, editName, editU, editLocation, reload, t])
 
   const confirmDeleteRack = useCallback(async () => {
     const rackId = activeRackId
@@ -982,6 +989,10 @@ function RackCanvas() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rack-location">{t('rack.createLocation')}</Label>
+              <Input id="rack-location" value={addLocation} onChange={(e) => setAddLocation(e.target.value)} maxLength={60} placeholder={t('rack.locationPlaceholder')} />
+            </div>
           </div>
           <DialogFooter>
             <button
@@ -1027,6 +1038,10 @@ function RackCanvas() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rack-edit-location">{t('rack.createLocation')}</Label>
+              <Input id="rack-edit-location" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} maxLength={60} placeholder={t('rack.locationPlaceholder')} />
             </div>
           </div>
           <DialogFooter>

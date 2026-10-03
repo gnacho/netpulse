@@ -2534,6 +2534,8 @@
     "editRack": "Editar rack",
     "editTitle": "Editar rack",
     "editSubmit": "Guardar cambios",
-    "rackUpdated": "Rack actualizado"
+    "rackUpdated": "Rack actualizado",
+    "createLocation": "Ubicación",
+    "locationPlaceholder": "p. ej. Despacho, Salón, Garaje…"
   }
 }
