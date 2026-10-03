@@ -187,6 +187,10 @@ type Engine struct {
 	mu       sync.Mutex
 	db       *db.DB // nil → solo memoria (tests)
 	notifier Notifier
+	// startedAt: arranque de ESTA instancia. Las alertas con Ts anterior a
+	// startedAt vienen de una sesión previa: si se re-emiten (update), es
+	// un episodio nuevo tras el reinicio y vuelven a no-leídas (#1094).
+	startedAt time.Time
 	now      func() time.Time
 
 	cfg        map[string]string
@@ -228,6 +232,7 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 		db:         d,
 		notifier:   n,
 		now:        time.Now,
+		startedAt:  time.Now(),
 		cfg:        DefaultConfig(),
 		dedup:      map[string]int64{},
 		readSet:    map[string]bool{},
@@ -609,7 +614,29 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 			old := e.list[i]
 			ev.Ts = now.Unix()
 			ev.Time = "just now"
-			ev.Read = old.Read
+			// #1094: episodio nuevo tras reinicio (la alerta no se había
+			// refrescado desde el arranque): vuelve a no-leída, que el
+			// humano la vea. Un refresh de episodio en curso (p. ej. port
+			// flapping, que re-emite cada ciclo) conserva su read.
+			if old.Ts >= e.startedAt.Unix() {
+				ev.Read = old.Read
+			} else {
+				// #1094: Read se DERIVA de readSet en List(), y el kv guarda
+				// readOrd: hay que purgar ambos (y el espejo en alert_log)
+				// o la alerta reviviría leída.
+				ev.Read = false
+				delete(e.readSet, ev.ID)
+				for j, rid := range e.readOrd {
+					if rid == ev.ID {
+						e.readOrd = append(e.readOrd[:j], e.readOrd[j+1:]...)
+						break
+					}
+				}
+				e.saveReadLocked()
+				if e.db != nil {
+					_, _ = e.db.Exec("UPDATE alert_log SET read_flag = 0 WHERE id = ?", ev.ID)
+				}
+			}
 			if ev.RouterID == "" {
 				ev.RouterID = old.RouterID
 			}

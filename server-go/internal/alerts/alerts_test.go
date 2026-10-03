@@ -280,6 +280,66 @@ func TestSeedSkipsConfigButKeepsDedup(t *testing.T) {
 }
 
 
+// TestEmitOrUpdateReepisodeAfterRestart (#1094): una alerta leída en una
+// sesión previa que se re-emite tras el arranque (p. ej. "Agent outdated"
+// al reiniciar el server) vuelve a NO-leída: es un episodio nuevo y el
+// humano debe verla. Un refresh del mismo episodio (Ts posterior al
+// arranque, p. ej. port flapping) conserva su read.
+func TestEmitOrUpdateReepisodeAfterRestart(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Sesión 1: la alerta se emite y el humano la marca leída.
+	e1 := New(d, nil)
+	if !e1.EmitOrUpdate(ev("r1", CatSystem, false)) {
+		t.Fatal("insert sesión 1")
+	}
+	e1.MarkRead("r1")
+	if !e1.List()[0].Read {
+		t.Fatal("setup: r1 debería estar leída en la sesión 1")
+	}
+
+	// "Reinicio": engine nuevo sobre la MISMA bd (el log persiste read=1).
+	// startedAt se adelanta para simular un arranque posterior de verdad:
+	// todo el test ocurre dentro del mismo segundo unix.
+	e2 := New(d, nil)
+	e2.startedAt = time.Now().Add(2 * time.Second)
+	if got := e2.List(); len(got) != 1 || !got[0].Read {
+		t.Fatalf("restore: %+v", got)
+	}
+	// El agente vuelve a detectar la condición → re-emite (update).
+	if !e2.EmitOrUpdate(ev("r1", CatSystem, false)) {
+		t.Fatal("re-emisión tras reinicio")
+	}
+	if e2.List()[0].Read {
+		t.Fatalf("episodio nuevo tras reinicio debe volver a no-leído: %+v", e2.List()[0])
+	}
+
+	// Mismo episodio en curso (refresh rápido): conserva el read.
+	e2.startedAt = time.Now().Add(-2 * time.Second)
+	e2.MarkRead("r1")
+	e2b := ev("r2", CatSystem, false)
+	if !e2.EmitOrUpdate(e2b) {
+		t.Fatal("insert r2")
+	}
+	e2.MarkRead("r2")
+	if !e2.EmitOrUpdate(ev("r2", CatSystem, false)) {
+		t.Fatal("refresh del mismo episodio")
+	}
+	found := false
+	for _, x := range e2.List() {
+		if x.ID == "r2" {
+			found = x.Read
+		}
+	}
+	if !found {
+		t.Fatal("refresh en curso debe conservar el read")
+	}
+}
+
 // TestEmitOrUpdateInsertNotificaConTs (#1074): la rama de INSERCIÓN de
 // EmitOrUpdate notificaba la `ev` original sin el default de Ts que
 // insertaLocked aplica a su copia local: el notifier recibía Ts=0 y los
