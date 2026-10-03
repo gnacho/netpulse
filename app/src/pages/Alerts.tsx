@@ -507,7 +507,14 @@ export default function Alerts() {
   const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [onlyUnread, setOnlyUnread] = useState(() => searchParams.get('unread') === '1')
+  // Persistencia de la opción de vista: sobrevive a recargas y sesiones.
+  // Sin preferencia guardada (instalación nueva) arranca en "solo no
+  // leídas"; ?unread=1 en la URL fuerza el estado.
+  const [onlyUnread, setOnlyUnread] = useState(() => {
+    if (searchParams.get('unread') === '1') return true
+    const stored = localStorage.getItem('netpulse-alerts-onlyUnread')
+    return stored === null ? true : stored === '1'
+  })
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [burst, setBurst] = useState(0)
   const [configOpen, setConfigOpen] = useState(false)
@@ -907,7 +914,10 @@ export default function Alerts() {
           type="button"
           role="switch"
           aria-checked={onlyUnread}
-          onClick={() => setOnlyUnread((v) => !v)}
+          onClick={() => setOnlyUnread((v) => {
+            localStorage.setItem('netpulse-alerts-onlyUnread', v ? '0' : '1')
+            return !v
+          })}
           className={cn(
             'inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors duration-150',
             onlyUnread
