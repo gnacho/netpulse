@@ -146,6 +146,31 @@ func TestSaveLayoutAtomicAndOverlap(t *testing.T) {
 	}
 }
 
+func TestUpdateRackGuardShrinkBelowMounted(t *testing.T) {
+	db := openTestDB(t)
+	rack := createTestRack(t, db)
+
+	// Montaje 2U con el fondo en U3.
+	m := Mount{DeviceMAC: "aa:bb:cc:dd:ee:f1", UStart: 2, ColStart: 0}
+	if err := UpsertProfile(db, DeviceProfile{MAC: "aa:bb:cc:dd:ee:f1", UHeight: 2, ColSpan: 12}); err != nil {
+		t.Fatalf("UpsertProfile: %v", err)
+	}
+	if err := SaveLayout(db, LayoutChange{RackID: rack.ID, Upsert: []Mount{m}}); err != nil {
+		t.Fatalf("SaveLayout: %v", err)
+	}
+
+	// Reducir a U2: el montaje llega hasta U3 -> debe rechazar.
+	rack.UHeight = 2
+	if err := UpdateRack(db, rack); !errors.Is(err, ErrOverlap) {
+		t.Fatalf("UpdateRack shrink: err=%v; want ErrOverlap", err)
+	}
+	// Ampliar a U24: válido.
+	rack.UHeight = 24
+	if err := UpdateRack(db, rack); err != nil {
+		t.Fatalf("UpdateRack grow: %v", err)
+	}
+}
+
 func TestProfileCRUD(t *testing.T) {
 	db := openTestDB(t)
 	p := DeviceProfile{

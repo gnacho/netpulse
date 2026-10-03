@@ -17,6 +17,7 @@ export function Faceplate({
   plate,
   ports,
   label,
+  monogram,
   color,
   status,
   patchFacing,
@@ -29,6 +30,8 @@ export function Faceplate({
   plate: FaceplateTemplate
   ports: FaceplatePort[]
   label: string
+  /** iniciales grandes del equipo (nombre); sustituyen al artwork genérico */
+  monogram?: string
   color?: string
   status: 'online' | 'offline' | 'unknown'
   /** true = puertos siempre visibles (equipos patch-facing) */
@@ -48,9 +51,19 @@ export function Faceplate({
   return (
     <div
       className="relative h-full w-full overflow-hidden rounded-[3px] border border-black/40 shadow-inner"
-      style={{ background: bg }}
+      style={{ background: bg, containerType: 'size' }}
       data-faceplate={plate.id}
     >
+      {/* Monograma: nombre (2-3 letras) en grande, ocupa la banda central */}
+      {monogram && (
+        <div
+          className="pointer-events-none absolute bottom-0 left-[20%] top-0 flex items-center font-display font-bold tracking-wide"
+          style={{ fontSize: '38cqh', color: 'rgb(var(--text-secondary) / 0.55)', lineHeight: 1 }}
+          aria-hidden
+        >
+          {monogram}
+        </div>
+      )}
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
         {/* LED de estado, fijo a la izquierda */}
         <circle cx={plate.led.x * 100} cy={plate.led.y * 100} r={Math.max(plate.led.r * 100, 1.4)} className={ledColor} />
@@ -63,8 +76,8 @@ export function Faceplate({
             <span className="truncate">{label || t(plate.nameKey)}</span>
           </div>
         </foreignObject>
-        {/* artwork mínimo por tipo de equipo */}
-        <Artwork kind={plate.artwork} />
+        {/* artwork mínimo por tipo de equipo (el monograma lo sustituye) */}
+        {!monogram && <Artwork kind={plate.artwork} />}
       </svg>
 
       {/* Puertos: botiones HTML sobre las coords 0..1 */}

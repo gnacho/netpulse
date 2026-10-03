@@ -68,8 +68,21 @@ for (const p of p1) {
 }
 const applied = applyFaceplate('switch')
 if (!applied || applied.plate.id !== 'switch' || applied.ports.length !== 28) bad('applyFaceplate(switch) roto')
+// A4b: layoutPhysicalPorts determinista y con ids reales preservados.
+const { layoutPhysicalPorts } = mod
+const phys = layoutPhysicalPorts([
+  ...Array.from({ length: 5 }, (_, i) => ({ id: 'lan' + (i + 1), kind: 'rj45' })),
+  { id: 'eth1', kind: 'sfp+' },
+])
+if (phys.length !== 6) bad(`layoutPhysicalPorts: ${phys.length}; want 6`)
+if (phys[5].id !== 'eth1' || phys[5].x < 0.7) bad('sfp+ no queda a la derecha')
+if (phys[0].id !== 'lan1') bad('ids reales no preservados')
+for (const p of phys) if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) bad(`puerto físico ${p.id} fuera de 0..1`)
+console.log(failed ? '' : 'LAYOUT OK')
+
 const appliedBad = applyFaceplate('iot')
 if (appliedBad !== undefined) bad('applyFaceplate(iot) debería ser undefined')
 console.log(failed ? '' : 'SEED OK')
 
+console.log(failed ? 'CHECK FAILED' : 'ALL CHECKS PASS')
 process.exit(failed ? 1 : 0)

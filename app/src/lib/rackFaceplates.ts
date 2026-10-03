@@ -221,6 +221,39 @@ export function seedPorts(plate: FaceplateTemplate): FaceplatePort[] {
 }
 
 /**
+ * layoutPhysicalPorts dispone puertos físicos reales (id = ifName) en el
+ * faceplate: rj45 en filas de hasta 12 a la izquierda, sfp/sfp+ en columna a
+ * la derecha. Determinista; ids preservados para que el cable casé con la
+ * interfaz real.
+ */
+export function layoutPhysicalPorts(ports: { id: string; kind: RackPortKind }[]): FaceplatePort[] {
+  const rj45 = ports.filter((p) => p.kind === 'rj45')
+  const sfps = ports.filter((p) => p.kind !== 'rj45')
+  const out: FaceplatePort[] = []
+  const rjRows = Math.max(1, Math.ceil(rj45.length / 12))
+  rj45.forEach((p, i) => {
+    const row = Math.floor(i / 12)
+    const inRow = Math.min(12, rj45.length - row * 12)
+    const idx = i % 12
+    out.push({
+      id: p.id,
+      kind: p.kind,
+      x: inRow === 1 ? 0.44 : 0.24 + (0.64 - 0.24) * (idx / (inRow - 1)),
+      y: rjRows === 1 ? 0.5 : 0.28 + (0.72 - 0.28) * (row / (rjRows - 1)),
+    })
+  })
+  sfps.forEach((p, i) => {
+    out.push({
+      id: p.id,
+      kind: p.kind,
+      x: 0.82,
+      y: sfps.length === 1 ? 0.5 : 0.2 + 0.6 * (i / (sfps.length - 1)),
+    })
+  })
+  return out
+}
+
+/**
  * suggestFaceplate sugiere plantilla desde el tipo detectado por NetPulse
  * (clasificador interno, valores canónicos en español con alias en inglés).
  * Tipos sin faceplate propio devuelven undefined y el caller decide.

@@ -2520,6 +2520,20 @@
       "shelf-1u": "Bandeja",
       "blank-1u": "Tapeta 1U",
       "blank-half-1u": "Tapeta 1/2U"
-    }
+    },
+    "createTitle": "Nuevo rack",
+    "createName": "Nombre",
+    "createU": "Altura (U)",
+    "createSubmit": "Crear",
+    "createCancel": "Cancelar",
+    "deleteTitle": "¿Eliminar rack?",
+    "deleteDesc": "Se eliminará «{{name}}» con todo lo que tiene montado. No se puede deshacer.",
+    "deleteConfirm": "Eliminar",
+    "deleteCancel": "Cancelar",
+    "unmounted": "Equipo desmontado del rack",
+    "editRack": "Editar rack",
+    "editTitle": "Editar rack",
+    "editSubmit": "Guardar cambios",
+    "rackUpdated": "Rack actualizado"
   }
 }

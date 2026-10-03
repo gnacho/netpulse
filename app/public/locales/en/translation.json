@@ -2520,6 +2520,20 @@
       "shelf-1u": "Shelf",
       "blank-1u": "1U blank",
       "blank-half-1u": "Half-U blank"
-    }
+    },
+    "createTitle": "New rack",
+    "createName": "Name",
+    "createU": "Height (U)",
+    "createSubmit": "Create",
+    "createCancel": "Cancel",
+    "deleteTitle": "Delete rack?",
+    "deleteDesc": "This will delete «{{name}}» along with everything mounted on it. This cannot be undone.",
+    "deleteConfirm": "Delete",
+    "deleteCancel": "Cancel",
+    "unmounted": "Device unmounted from the rack",
+    "editRack": "Edit rack",
+    "editTitle": "Edit rack",
+    "editSubmit": "Save changes",
+    "rackUpdated": "Rack updated"
   }
 }

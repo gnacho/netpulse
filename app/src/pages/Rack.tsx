@@ -16,16 +16,21 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Cable, Plus, Save, Server, Trash2 } from 'lucide-react'
+import { Cable, Pencil, Plus, Save, Server, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionHeader } from '@/components/SectionHeader'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { RackNode, type RackNodeType } from '@/components/rack/RackNode'
 import { MountNode, type MountNodeType } from '@/components/rack/MountNode'
 import { COL_PX, U_PX, mountRelPos, rackHeightPx, rackWidthPx, relPosToCell } from '@/components/rack/layout'
 import type { CableVisibility, GhostState } from '@/components/rack/types'
 import { findSlot, type Footprint } from '@/lib/rackGeometry'
-import { FACEPLATES, getFaceplate, seedPorts, suggestFaceplate } from '@/lib/rackFaceplates'
+import { FACEPLATES, getFaceplate, layoutPhysicalPorts, seedPorts, suggestFaceplate, type RackPortKind } from '@/lib/rackFaceplates'
 import * as api from '@/lib/rackApi'
 import type { CableDTO, MountDTO, ProfileDTO, RackDTO } from '@/lib/rackApi'
 import { useNetPulse } from '@/data/DataProvider'
@@ -58,6 +63,14 @@ function RackCanvas() {
   const [hoverMountId, setHoverMountId] = useState<string | null>(null)
   const [selectedCableId, setSelectedCableId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editU, setEditU] = useState('12')
+  const [addName, setAddName] = useState('')
+  const [addU, setAddU] = useState('12')
+  const [deleteRackOpen, setDeleteRackOpen] = useState(false)
+  const [selectedMountId, setSelectedMountId] = useState<string | null>(null)
 
   // Dirty tracking (todo lo que Save debe persistir).
   const [newMountIds, setNewMountIds] = useState<Set<string>>(new Set())
@@ -170,6 +183,9 @@ function RackCanvas() {
     setDraft(null)
     setSelectedCableId(null)
     setLoaded(true)
+    // Rack activo por defecto: descubrible el botón Eliminar y el destino de
+    // los montajes del picker sin necesidad de un clic previo.
+    setActiveRackId((cur) => (cur && b.racks.some((r) => r.id === cur) ? cur : b.racks[0]?.id ?? null))
   }, [])
 
   useEffect(() => {
@@ -253,7 +269,11 @@ function RackCanvas() {
           numbering: r.numbering,
           selected: activeRackId === r.id,
           ghost: ghostByRack.get(r.id) ?? null,
-          onSelect: () => setActiveRackId(r.id),
+          onSelect: () => {
+            setActiveRackId(r.id)
+            setSelectedMountId(null)
+            setSelectedCableId(null)
+          },
         },
       })
     }
@@ -273,11 +293,19 @@ function RackCanvas() {
           plate,
           ports: portsFor(m),
           label: m.label || deviceByMac.get(m.device_mac?.toLowerCase() ?? '')?.name || '',
+          monogram: m.device_mac
+            ? (m.label || deviceByMac.get(m.device_mac.toLowerCase())?.name || '')
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .slice(0, 3)
+                .toUpperCase()
+            : undefined,
           color: m.device_mac ? working.profiles.get(m.device_mac)?.color || undefined : undefined,
           status: statusFor(m),
+          selected: selectedMountId === m.id,
+          onSelect: () => setSelectedMountId((cur) => (cur === m.id ? null : m.id)),
+          onUnmount: isAdmin ? () => unmount(m.id) : undefined,
           patchFacing: plate.passThrough === true || plate.rows.reduce((n, r) => n + r.count, 0) >= 8,
           portsVisible: patchMode || hoverMountId === m.id,
-          selected: false,
           portState: (portId: string) => {
             const cabled = cablesOnPort(m.id, portId).length > 0
             const drafting = draft?.mountId === m.id && draft?.portId === portId
@@ -291,7 +319,7 @@ function RackCanvas() {
     }
     if (!draggingRef.current) setNodes(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, working, activeRackId, patchMode, draft, rackMoves, deletedCables, hoverMountId])
+  }, [loaded, working, activeRackId, patchMode, draft, rackMoves, deletedCables, hoverMountId, selectedMountId, isAdmin])
 
   // handlePortClick se declara después; referencia estable vía ref.
   const portClickRef = useRef<(mountId: string, portId: string) => void>(() => {})
@@ -417,7 +445,7 @@ function RackCanvas() {
   )
 
   const mountDevice = useCallback(
-    (mac: string, deviceType: string, label: string) => {
+    (mac: string, deviceType: string, label: string, physicalPorts?: { id: string; kind: RackPortKind }[]) => {
       const rackId = activeRackId ?? working.racks[0]?.id
       const rack = rackId ? rackById.get(rackId) : undefined
       if (!rack) {
@@ -440,7 +468,9 @@ function RackCanvas() {
           u_height: plate.uHeight,
           col_span: plate.colSpan,
           color: '',
-          ports: seedPorts(plate),
+          // Bocas físicas reales cuando el poller las conoce (flota);
+          // si no, la plantilla siembra las típicas.
+          ports: physicalPorts && physicalPorts.length > 0 ? layoutPhysicalPorts(physicalPorts) : seedPorts(plate),
         }
         setProfileChanges((pm) => new Map(pm).set(mac, prof))
         setWorking((w) => ({ ...w, profiles: new Map(w.profiles).set(mac, prof) }))
@@ -481,24 +511,89 @@ function RackCanvas() {
     [activeRackId, working.racks, rackById, footprintsOfRack, mountAt, t],
   )
 
+  // Los routers de flota traen sus bocas reales del poller (extras.ethPorts).
+  const mountRouter = useCallback(
+    async (router: { id: string; mac?: string; name: string }) => {
+      if (!router.mac) return
+      let physical: { id: string; kind: RackPortKind }[] | undefined
+      try {
+        const res = await fetch(`/api/routers/${encodeURIComponent(router.id)}`)
+        if (res.ok) {
+          const detail = await res.json()
+          const eth: { iface?: string; name?: string }[] = detail?.extras?.ethPorts ?? []
+          physical = eth
+            .filter((p) => (p.iface || p.name) && !(p.iface || '').startsWith('wlan'))
+            .map((p) => {
+              const id = p.iface || p.name || ''
+              const k = /sfp\+|10g|fiber|fibre/i.test(id) ? 'sfp+' : /sfp/i.test(id) ? 'sfp' : 'rj45'
+              return { id, kind: k as RackPortKind }
+            })
+        }
+      } catch {
+        physical = undefined
+      }
+      mountDevice(router.mac, 'router', router.name, physical)
+    },
+    [mountDevice],
+  )
+
   // --- Rack ops ---
-  const addRack = useCallback(async () => {
+  const openAddRack = useCallback(() => {
+    setAddName(`Rack ${working.racks.length + 1}`)
+    setAddU('12')
+    setAddOpen(true)
+  }, [working.racks.length])
+
+  const submitAddRack = useCallback(async () => {
+    // A la derecha del último rack para que nazcan separados visualmente.
+    const maxX = working.racks.reduce((acc, r) => Math.max(acc, (rackMoves.get(r.id)?.x ?? r.position_x) + rackWidthPx()), 0)
     try {
-      const r = await api.createRack({ name: `Rack ${working.racks.length + 1}`, u_height: 12, position_x: 40 + working.racks.length * 280, position_y: 40 })
+      const r = await api.createRack({
+        name: addName.trim() || 'Rack',
+        u_height: Math.min(45, Math.max(1, parseInt(addU, 10) || 12)),
+        position_x: working.racks.length === 0 ? 40 : maxX + 40,
+        position_y: 40,
+      })
       setWorking((w) => ({ ...w, racks: [...w.racks, r] }))
       setActiveRackId(r.id)
+      setAddOpen(false)
     } catch (e) {
       toast.error(String(e))
     }
-  }, [working.racks])
+  }, [working.racks, rackMoves, addName, addU])
 
-  const removeRack = useCallback(async () => {
+  const openEditRack = useCallback(() => {
+    const r = activeRackId ? rackById.get(activeRackId) : undefined
+    if (!r) return
+    setEditName(r.name)
+    setEditU(String(r.u_height))
+    setEditOpen(true)
+  }, [activeRackId, rackById])
+
+  const submitEditRack = useCallback(async () => {
+    const r = activeRackId ? rackById.get(activeRackId) : undefined
+    if (!r) return
+    try {
+      await api.saveRack({
+        ...r,
+        name: editName.trim() || r.name,
+        u_height: Math.min(45, Math.max(1, parseInt(editU, 10) || r.u_height)),
+      })
+      toast.success(t('rack.rackUpdated'))
+      setEditOpen(false)
+      await reload()
+    } catch (e) {
+      toast.error(String(e))
+    }
+  }, [activeRackId, rackById, editName, editU, reload, t])
+
+  const confirmDeleteRack = useCallback(async () => {
     const rackId = activeRackId
     if (!rackId) return
-    if (!window.confirm(t('rack.deleteRackConfirm'))) return
     try {
       await api.deleteRack(rackId)
       toast.success(t('rack.rackDeleted'))
+      setDeleteRackOpen(false)
       await reload()
     } catch (e) {
       toast.error(String(e))
@@ -532,11 +627,18 @@ function RackCanvas() {
           ports: prof.ports,
         })
       }
+      // Un cable persistido que toca un montaje borrado no se borra a pie:
+      // la cascada del layout (ON DELETE CASCADE) ya se lo llevó.
+      const deletedMountIds = new Set(deletedMounts.map((d) => d.id))
       for (const cid of deletedCables) {
-        if (!newCables.has(cid)) await api.deleteCable(cid).catch(() => undefined)
+        if (newCables.has(cid)) continue
+        const c = working.cables.find((cc) => cc.id === cid)
+        if (c && (deletedMountIds.has(c.from_mount) || deletedMountIds.has(c.to_mount))) continue
+        await api.deleteCable(cid).catch(() => undefined)
       }
       for (const c of working.cables) {
         if (!newCables.has(c.id)) continue
+        if (deletedMountIds.has(c.from_mount) || deletedMountIds.has(c.to_mount)) continue
         const created = await api.addCable({
           from_mount: c.from_mount,
           from_port: c.from_port,
@@ -560,23 +662,73 @@ function RackCanvas() {
   }, [working, rackById, rackMoves, newMountIds, movedMountIds, deletedMounts, profileChanges, deletedCables, newCables, reload, np, t])
 
   // api.saveRack no existe aún: lo añadimos (UpdateRack endpoint ya existe en Go).
-  // --- Cable selection + Delete ---
+  // Desmontar: el montaje sale del rack (staging); sus cables se descartan
+  // del working copy (al guardar, el layout borra el montaje y la cascada
+  // del server se lleva los cables).
+  // Refs para que el compiler pueda estabilizar el callback (deps de maps/sets).
+  const mountByIdRef = useRef<Map<string, MountDTO>>(new Map())
+  useEffect(() => {
+    mountByIdRef.current = mountById
+  }, [mountById])
+  const newMountIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    newMountIdsRef.current = newMountIds
+  }, [newMountIds])
+
+  // Función plana (no useCallback): el compiler no logra preservar su
+  // memoización manual por las lecturas de ref; los consumidores usan ref.
+  const unmount = (mountId: string) => {
+      const m = mountByIdRef.current.get(mountId)
+      if (!m) return
+      setWorking((w) => ({
+        ...w,
+        mounts: w.mounts.filter((mm) => mm.id !== mountId),
+        cables: w.cables.filter((c) => c.from_mount !== mountId && c.to_mount !== mountId),
+      }))
+      if (newMountIdsRef.current.has(mountId)) {
+        setNewMountIds((prev) => {
+          const n = new Set(prev)
+          n.delete(mountId)
+          return n
+        })
+      } else {
+        setDeletedMounts((d) => [...d, { id: mountId, rackId: m.rack_id }])
+        setMovedMountIds((prev) => {
+          const n = new Set(prev)
+          n.delete(mountId)
+          return n
+        })
+      }
+      setSelectedMountId(null)
+      toast.success(t('rack.unmounted'))
+  }
+  const unmountRef = useRef(unmount)
+  useEffect(() => {
+    unmountRef.current = unmount
+  })
+
+  // --- Selección: montajes vía onSelectionChange; Delete gestiona cable o montaje ---
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDraft(null)
         setSelectedCableId(null)
+        setSelectedMountId(null)
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedCableId) {
-        setDeletedCables((s) => new Set(s).add(selectedCableId))
-        setWorking((w) => ({ ...w, cables: w.cables.filter((c) => c.id !== selectedCableId) }))
-        setSelectedCableId(null)
-        toast.success(t('rack.cableDeleted'))
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedCableId) {
+          setDeletedCables((s) => new Set(s).add(selectedCableId))
+          setWorking((w) => ({ ...w, cables: w.cables.filter((c) => c.id !== selectedCableId) }))
+          setSelectedCableId(null)
+          toast.success(t('rack.cableDeleted'))
+        } else if (selectedMountId) {
+          unmountRef.current(selectedMountId)
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedCableId, t])
+  }, [selectedCableId, selectedMountId, t])
 
   // --- Cables: posiciones de puerto absolutas (flow coords) ---
   const absPort = useCallback(
@@ -611,8 +763,16 @@ function RackCanvas() {
     () => new Set(working.mounts.map((m) => m.device_mac?.toLowerCase() ?? '')),
     [working.mounts],
   )
+  // Solo cableados: el rack es físico; WiFi (2.4/5/6/60 GHz) queda fuera.
   const unmountedDevices = useMemo(
-    () => np.devices.filter((d) => !mountedMacs.has(d.mac.toLowerCase())),
+    () =>
+      np.devices.filter(
+        (d) =>
+          !mountedMacs.has(d.mac.toLowerCase()) &&
+          (d.band === 'cable' || d.band === '—') &&
+          d.infra !== 'ct' &&
+          d.infra !== 'vm',
+      ),
     [np.devices, mountedMacs],
   )
   const unmountedRouters = useMemo(
@@ -631,7 +791,7 @@ function RackCanvas() {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={addRack}
+          onClick={openAddRack}
           disabled={!isAdmin}
           className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
         >
@@ -664,7 +824,17 @@ function RackCanvas() {
           {activeRackId && (
             <button
               type="button"
-              onClick={removeRack}
+              onClick={openEditRack}
+              disabled={!isAdmin}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+            >
+              <Pencil size={15} /> {t('rack.editRack')}
+            </button>
+          )}
+          {activeRackId && (
+            <button
+              type="button"
+              onClick={() => setDeleteRackOpen(true)}
               disabled={!isAdmin}
               className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-danger/50 hover:text-danger disabled:opacity-50"
             >
@@ -693,7 +863,7 @@ function RackCanvas() {
               {isAdmin && (
                 <button
                   type="button"
-                  onClick={addRack}
+                  onClick={openAddRack}
                   className="flex h-9 items-center gap-1.5 rounded-xl bg-accent px-4 text-[13px] font-semibold text-black"
                 >
                   <Plus size={15} /> {t('rack.addRack')}
@@ -712,6 +882,11 @@ function RackCanvas() {
               nodeTypes={nodeTypes}
               deleteKeyCode={null}
               nodesConnectable={false}
+              elementsSelectable={false}
+              onPaneClick={() => {
+                setSelectedMountId(null)
+                setSelectedCableId(null)
+              }}
               minZoom={0.25}
               maxZoom={2.5}
               colorMode={lightTheme ? 'light' : 'dark'}
@@ -721,9 +896,9 @@ function RackCanvas() {
               <ViewportPortal>
                 <svg
                   data-testid="cables-layer"
-                  style={{ position: 'absolute', left: -10000, top: -10000, width: 20000, height: 20000, overflow: 'visible', pointerEvents: 'all' }}
+                  style={{ position: 'absolute', left: -10000, top: -10000, width: 20000, height: 20000, overflow: 'visible', pointerEvents: 'none' }}
                 >
-                  <g transform="translate(10000, 10000)">
+                  <g transform="translate(10000, 10000)" style={{ pointerEvents: 'all' }}>
                   {working.cables.map((c) => {
                     if (!cableVisible(c)) return null
                     const a = absPort(c.from_mount, c.from_port)
@@ -763,7 +938,7 @@ function RackCanvas() {
           <p className="text-[12px] leading-snug text-text-secondary">{t('rack.pickHint')}</p>
           <PickerGroup title={t('rack.pickFleet')}>
             {unmountedRouters.map((r) => (
-              <PickerItem key={r.id} label={r.name} meta={r.modelShort || 'router'} onClick={() => r.mac && mountDevice(r.mac, 'router', r.name)} disabled={!isAdmin} />
+              <PickerItem key={r.id} label={r.name} meta={r.modelShort || 'router'} onClick={() => void mountRouter(r)} disabled={!isAdmin} />
             ))}
           </PickerGroup>
           <PickerGroup title={t('rack.pickDevice')}>
@@ -779,6 +954,115 @@ function RackCanvas() {
           </PickerGroup>
         </aside>
       </div>
+
+      {/* Diálogo de creación: nombre + altura U (los racks nuevos nacen a la
+          derecha del último, separados visualmente). */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('rack.createTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rack-name">{t('rack.createName')}</Label>
+              <Input id="rack-name" value={addName} onChange={(e) => setAddName(e.target.value)} maxLength={40} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rack-u">{t('rack.createU')}</Label>
+              <Select value={addU} onValueChange={setAddU}>
+                <SelectTrigger id="rack-u" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['6', '9', '12', '18', '24', '42'].map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}U
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setAddOpen(false)}
+              className="h-9 rounded-xl border border-border px-4 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {t('rack.createCancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void submitAddRack()}
+              className="h-9 rounded-xl bg-accent px-4 text-[13px] font-semibold text-black"
+            >
+              {t('rack.createSubmit')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edición de propiedades del rack activo (nombre + altura U). */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('rack.editTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rack-edit-name">{t('rack.createName')}</Label>
+              <Input id="rack-edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={40} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rack-edit-u">{t('rack.createU')}</Label>
+              <Select value={editU} onValueChange={setEditU}>
+                <SelectTrigger id="rack-edit-u" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['6', '9', '12', '18', '24', '42'].map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}U
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setEditOpen(false)}
+              className="h-9 rounded-xl border border-border px-4 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {t('rack.createCancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void submitEditRack()}
+              className="h-9 rounded-xl bg-accent px-4 text-[13px] font-semibold text-black"
+            >
+              {t('rack.editSubmit')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación in-app de borrado de rack (cascada incluida). */}
+      <AlertDialog open={deleteRackOpen} onOpenChange={setDeleteRackOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('rack.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('rack.deleteDesc', { name: rackById.get(activeRackId ?? '')?.name ?? '' })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('rack.deleteCancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmDeleteRack()} className="bg-danger text-white hover:bg-danger/90">
+              {t('rack.deleteConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

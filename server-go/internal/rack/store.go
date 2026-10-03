@@ -93,6 +93,17 @@ func UpdateRack(db *sql.DB, r Rack) error {
 	if !r.Valid() {
 		return fmt.Errorf("rack: rack inválido")
 	}
+	// Guarda: no reducir el rack por debajo de lo ya montado (la geometría
+	// quedaría fuera del grid; el anti-solape se valida al guardar layouts).
+	mounts, err := ListMountRowsByRack(db, r.ID)
+	if err != nil {
+		return err
+	}
+	for _, m := range mounts {
+		if bottom := m.UStart + m.UHeight - 1; bottom > r.UHeight {
+			return fmt.Errorf("%w: montaje %s ocupa hasta U%d (nuevo alto U%d)", ErrOverlap, m.ID, bottom, r.UHeight)
+		}
+	}
 	res, err := db.Exec(`UPDATE racks SET name = ?, u_height = ?, width_standard = ?, numbering = ?, style_json = ?, location = NULLIF(?, ''), position_x = ?, position_y = ? WHERE id = ?`,
 		r.Name, r.UHeight, r.WidthStandard, r.Numbering, r.StyleJSON, r.Location, r.PositionX, r.PositionY, r.ID)
 	if err != nil {

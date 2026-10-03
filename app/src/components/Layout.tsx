@@ -58,7 +58,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
-  { to: '/rack', labelKey: 'nav.rack', icon: Server },
+  { to: '/rack', labelKey: 'nav.rack', icon: Server, badge: 'labs' },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
   { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: Wifi },
   { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, adminOnly: true },
