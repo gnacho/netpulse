@@ -3345,10 +3345,23 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     }
   }, [serverUrl, provider, intervalHours, alertPct, scheduleKind, schedTime, bodyJson, onSaved, t])
 
+  // #1092: «Probar» debe funcionar también con el servidor vacío
+  // (auto-detect) en los proveedores que lo soportan (Ookla, NDT,
+  // Cloudflare). LibreSpeed y custom siguen exigiendo URL, igual que
+  // Guardar. Mismo criterio de validación que save().
+  const rawUrl = serverUrl.trim()
+  const urlFormatOk = rawUrl === '' || /^https?:\/\/.+\..+/.test(rawUrl)
+  const urlRequired = provider === 'librespeed' || provider === 'custom'
+  const canTest =
+    urlFormatOk &&
+    (rawUrl === ''
+      ? !urlRequired
+      : rawUrl !== 'https://speedtest.net' && rawUrl !== 'https://www.speedtest.net')
+
   // «Probar»: guarda la URL del servidor y lanza un test de velocidad
   // inmediato (usa esa URL en el backend).
   const testUrl = useCallback(async () => {
-    if (!serverUrl.trim()) return
+    if (!canTest) return
     setBusy(true)
     setError(null)
     try {
@@ -3375,7 +3388,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [serverUrl, bodyJson, onSaved, t])
+  }, [canTest, bodyJson, onSaved, t])
 
   // Etiqueta/placeholder del campo URL según proveedor (#976, #1001):
   // LibreSpeed = base de instancia; custom = endpoint libre; Ookla =
@@ -3607,19 +3620,22 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             <span className="hidden sm:inline">{t('settings.speedtest.serverAuto')}</span>
           </button>
           )}
-          <button
-            type="button"
-            onClick={() => void testUrl()}
-            disabled={disabled || busy || loading || !serverUrl.trim()}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Gauge className="h-4 w-4" strokeWidth={1.75} />
-            {t('settings.speedtest.test')}
-          </button>
         </div>
       </div>
       )}
       <div className="flex flex-wrap items-center gap-3">
+        {/* #1092: «Probar» vive junto a Guardar (no en la fila de URL) para
+            existir también con Cloudflare, y se habilita con el servidor
+            vacío cuando el proveedor soporta auto-detect. */}
+        <button
+          type="button"
+          onClick={() => void testUrl()}
+          disabled={disabled || busy || loading || !canTest}
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Gauge className="h-4 w-4" strokeWidth={1.75} />
+          {t('settings.speedtest.test')}
+        </button>
         <button
           type="button"
           onClick={() => void save()}

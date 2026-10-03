@@ -1,7 +1,7 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { Activity, Loader2 } from 'lucide-react'
+import { Activity, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { fmtBytes, fmtEs } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
@@ -138,6 +138,8 @@ type SpeedtestItem = {
   upMbps: number
   pingMs?: number
   serverName?: string
+  /** manual | auto (#744), para el desplegable de recientes (#1092). */
+  origin?: string
 }
 
 /** Punto de la serie del histórico de speedtests (etiqueta ya formateada). */
@@ -148,38 +150,11 @@ function toPoints(items: SpeedtestItem[]): SpeedtestPoint[] {
   return items.map((it) => ({ t: fmt.format(new Date(it.ts)), down: it.downMbps, up: it.upMbps }))
 }
 
-/** Hook ligero del histórico de speedtests (overview #982): la serie y el
- *  último test real (para la línea de valores), sin estado de ejecución ni
- *  botón. Carga única al montar. */
-export function useSpeedtestHistory(hours = 168): { points: SpeedtestPoint[]; last: SpeedtestItem | null } {
-  const [points, setPoints] = useState<SpeedtestPoint[]>([])
-  const [last, setLast] = useState<SpeedtestItem | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const res = await fetch(`/api/speedtest/history?hours=${hours}`)
-        if (!res.ok || cancelled) return
-        const h = await res.json()
-        if (cancelled) return
-        const items: SpeedtestItem[] = h.items ?? []
-        setPoints(toPoints(items))
-        setLast(items.length ? items[items.length - 1]! : null)
-      } catch {
-        // Sin red / sesión caducada: no se pinta nada.
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [hours])
-  return { points, last }
-}
-
 /** Gráfica del histórico de velocidad medida: SOLO la serie, sin botón de
- *  ejecutar test ni línea de valores. La reutilizan SpeedtestStrip (detalle
- *  del gateway) y el overview dentro de WanTraffic (#982). Lleva sus propios
- *  gradientes (antes dependía de los ids del chart WAN del detalle). */
+ *  ejecutar test ni línea de valores. La reutiliza SpeedtestStrip, que vive
+ *  en el overview (restaurado en #1092) y vivió en el detalle del gateway.
+ *  Lleva sus propios gradientes (antes dependía de los ids del chart WAN del
+ *  detalle). */
 export function SpeedtestHistoryChart({ points, height = 64 }: { points: SpeedtestPoint[]; height?: number }) {
   const { t } = useTranslation()
   if (points.length <= 1) return null
@@ -220,6 +195,7 @@ function useSpeedtestState() {
   const [lastError, setLastError] = useState<string | null>(null)
   const [last, setLast] = useState<SpeedtestItem | null>(null)
   const [points, setPoints] = useState<SpeedtestPoint[]>([])
+  const [items, setItems] = useState<SpeedtestItem[]>([])
   const [starting, setStarting] = useState(false)
 
   const load = useCallback(async () => {
@@ -236,7 +212,11 @@ function useSpeedtestState() {
       }
       if (hRes.ok) {
         const h = await hRes.json()
-        setPoints(toPoints(h.items ?? []))
+        const list: SpeedtestItem[] = h.items ?? []
+        setPoints(toPoints(list))
+        // Recientes para el desplegable (#1092): los 10 últimos, más nuevo
+        // arriba. Los mismos datos que ya trae el histórico.
+        setItems([...list].slice(-10).reverse())
       }
     } catch {
       // Sin red / sesión caducada: se conserva el último estado pintado.
@@ -267,12 +247,13 @@ function useSpeedtestState() {
     }
   }, [])
 
-  return { running, lastError, last, points, starting, run, reload: load }
+  return { running, lastError, last, points, items, starting, run, reload: load }
 }
 
 export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
-  const { t } = useTranslation()
-  const { running, lastError, last, points, starting, run } = useSpeedtestState()
+  const { t, i18n } = useTranslation()
+  const { running, lastError, last, points, items, starting, run } = useSpeedtestState()
+  const [recentOpen, setRecentOpen] = useState(false)
 
   const busy = running || starting
   // El API serializa ts como ISO 8601; relTimeFromTs espera unix SEGUNDOS
@@ -280,6 +261,12 @@ export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
   const when = last ? (relTimeFromTs(Math.floor(new Date(last.ts).getTime() / 1000)) ?? '') : ''
   const planPct =
     contractDown && contractDown > 0 && last ? Math.round((last.downMbps / contractDown) * 100) : null
+  const recentFmt = new Intl.DateTimeFormat(i18n.language?.startsWith('en') ? 'en-GB' : 'es-ES', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   return (
     <div className="mt-4 border-t border-border pt-4" aria-label={t('routerDetail.wan.speedtestTitle')}>
@@ -346,6 +333,73 @@ export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
         <p className="mt-2 text-caption text-text-muted">
           {lastError === 'unavailable' ? t('settings.speedtest.unavailable') : t('routerDetail.wan.speedtestEmpty')}
         </p>
+      )}
+
+      {/* Tests recientes (#1092): desplegable compacto con los 10 últimos
+          resultados (origen, bajada/subida, ping y servidor). Los datos ya
+          los trae /api/speedtest/history. */}
+      {items.length > 0 && (
+        <div className="mt-1">
+          <button
+            type="button"
+            onClick={() => setRecentOpen((v) => !v)}
+            aria-expanded={recentOpen}
+            className="inline-flex cursor-pointer items-center gap-1 text-caption text-accent hover:underline"
+          >
+            {recentOpen ? (
+              <ChevronUp className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+            )}
+            {recentOpen ? t('settings.speedtest.recentHide') : t('settings.speedtest.recentShow')}
+          </button>
+          {recentOpen && (
+            <div className="mt-1.5 overflow-x-auto">
+              <table className="w-full text-caption">
+                <thead>
+                  <tr className="text-left text-text-muted">
+                    <th className="py-1 pr-3 font-medium">{t('settings.speedtest.colWhen')}</th>
+                    <th className="py-1 pr-3 font-medium">{t('settings.speedtest.colOrigin')}</th>
+                    <th className="py-1 pr-3 font-medium">↓</th>
+                    <th className="py-1 pr-3 font-medium">↑</th>
+                    <th className="py-1 pr-3 font-medium">ping</th>
+                    <th className="py-1 font-medium">{t('settings.speedtest.colServer')}</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono text-text-secondary">
+                  {items.map((it, idx) => (
+                    <tr key={`${it.ts}-${idx}`} className="border-t border-border/60">
+                      <td className="py-1.5 pr-3">
+                        {(() => {
+                          try {
+                            return recentFmt.format(new Date(it.ts))
+                          } catch {
+                            return it.ts
+                          }
+                        })()}
+                      </td>
+                      <td className="py-1.5 pr-3">
+                        <span
+                          className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            it.origin === 'manual'
+                              ? 'border-accent/40 bg-accent/10 text-accent'
+                              : 'border-border bg-surface text-text-muted'
+                          }`}
+                        >
+                          {it.origin === 'manual' ? t('settings.speedtest.originManual') : t('settings.speedtest.originAuto')}
+                        </span>
+                      </td>
+                      <td className="py-1.5 pr-3 text-accent">{fmtEs(it.downMbps, 1)}</td>
+                      <td className="py-1.5 pr-3 text-tunnel">{fmtEs(it.upMbps, 1)}</td>
+                      <td className="py-1.5 pr-3">{it.pingMs !== undefined ? `${fmtEs(it.pingMs, 0)} ms` : '-'}</td>
+                      <td className="py-1.5">{it.serverName ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
