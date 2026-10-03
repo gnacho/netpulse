@@ -316,7 +316,7 @@ func SaveLayout(db *sql.DB, change LayoutChange) error {
 		}
 		if _, err := tx.Exec(`INSERT INTO rack_mounts (id, rack_id, device_mac, faceplate_id, u_start, col_start, label, status_pin, port_visibility)
 			VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, NULLIF(?, ''), ?, ?)
-			ON CONFLICT(id) DO UPDATE SET device_mac = excluded.device_mac, faceplate_id = excluded.faceplate_id,
+			ON CONFLICT(id) DO UPDATE SET rack_id = excluded.rack_id, device_mac = excluded.device_mac, faceplate_id = excluded.faceplate_id,
 				u_start = excluded.u_start, col_start = excluded.col_start, label = excluded.label,
 				status_pin = excluded.status_pin, port_visibility = excluded.port_visibility`,
 			m.ID, m.RackID, m.DeviceMAC, m.FaceplateID, m.UStart, m.ColStart, m.Label, m.StatusPin, m.PortVisibility); err != nil {

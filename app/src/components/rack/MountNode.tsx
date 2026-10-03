@@ -33,7 +33,7 @@ export const MountNode = memo(function MountNode({ data }: NodeProps<MountNodeTy
   // reemplaza los objetos y pisaría el estado de selección de React Flow.
   return (
     <div
-      className={'h-full w-full transition-shadow ' + (data.selected ? 'rounded-[3px] shadow-[0_0_0_2px_rgb(var(--accent))]' : '')}
+      className={'h-full w-full transition-shadow ' + (data.selected ? 'rounded-[2px] ring-2 ring-accent' : '')}
       data-testid="mount-node"
       onClick={(e) => {
         e.stopPropagation()

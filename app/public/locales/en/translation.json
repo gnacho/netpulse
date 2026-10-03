@@ -2504,7 +2504,7 @@
     "drafting": "From {{port}}: pick the target port (Esc cancels)",
     "empty": "No racks yet",
     "emptyHint": "Create a rack first",
-    "pickHint": "Click to mount into the active rack (the cyan one). Then drag to adjust the slot.",
+    "pickHint": "Drag onto a rack (or click) to mount into the active rack (the cyan one). Then drag to adjust the slot.",
     "pickFleet": "Routers",
     "pickDevice": "Devices",
     "pickAccessory": "Accessories",
@@ -2519,7 +2519,9 @@
       "ups-4u": "4U UPS",
       "shelf-1u": "Shelf",
       "blank-1u": "1U blank",
-      "blank-half-1u": "Half-U blank"
+      "blank-half-1u": "Half-U blank",
+      "patch-panel-12p": "12-port patch panel",
+      "patch-panel-48p": "48-port patch panel"
     },
     "createTitle": "New rack",
     "createName": "Name",
@@ -2538,6 +2540,13 @@
     "createLocation": "Location",
     "locationPlaceholder": "e.g. Office, Living room, Garage…",
     "import": "Import links",
-    "importResult": "Import: {{created}} created · {{skipped}} skipped · {{noFree}} no free port"
+    "importResult": "Import: {{created}} created · {{skipped}} skipped · {{noFree}} no free port",
+    "askTitle": "Place “{{name}}”",
+    "askTitlePatch": "Place patch panel",
+    "askHeight": "Height (U)",
+    "askPorts": "Ports",
+    "askPlace": "Place",
+    "dropNoRack": "Drop it inside a rack",
+    "portCount": "detected ports"
   }
 }

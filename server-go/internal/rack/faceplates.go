@@ -15,6 +15,8 @@ var accessorySizes = map[string][2]int{
 	"shelf-1u":         {1, 12},
 	"cable-manager-1u": {1, 12},
 	"patch-panel-1u":   {1, 12},
+	"patch-panel-12p":  {1, 12},
+	"patch-panel-48p":  {2, 12},
 	"pdu-1u":           {1, 12},
 }
 

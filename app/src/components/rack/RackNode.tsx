@@ -26,8 +26,8 @@ export const RackNode = memo(function RackNode({ data }: NodeProps<RackNodeType>
   return (
     <div
       className={
-        'relative rounded-md border bg-surface transition-shadow ' +
-        (selected ? 'border-accent shadow-[0_0_0_2px_rgb(var(--accent))]' : 'border-border')
+        'relative rounded-md border-2 bg-surface ' +
+        (selected ? 'border-accent' : 'border-border')
       }
       style={{ width: RAIL_PX * 2 + interiorW, height: 24 + uHeight * U_PX + 4 }}
       onClick={(e) => {
@@ -48,7 +48,7 @@ export const RackNode = memo(function RackNode({ data }: NodeProps<RackNodeType>
           return (
             <div
               key={i}
-              className="flex items-center justify-end pr-[3px] text-[9px] leading-none text-text-secondary/60"
+              className="flex items-center justify-end pr-[3px] text-[11px] font-medium leading-none text-text-secondary"
               style={{ height: U_PX, marginTop: 0 }}
             >
               {labelU}
@@ -92,7 +92,7 @@ export const RackNode = memo(function RackNode({ data }: NodeProps<RackNodeType>
           <div
             className={
               'pointer-events-none absolute rounded-[3px] border-2 ' +
-              (ghost.valid ? 'border-emerald-400/80 bg-emerald-400/10' : 'border-red-400/80 bg-red-400/10')
+              (ghost.valid ? 'border-emerald-400 bg-emerald-400/10' : 'border-red-400 bg-red-400/10')
             }
             style={{
               left: ghost.colStart * COL_PX,

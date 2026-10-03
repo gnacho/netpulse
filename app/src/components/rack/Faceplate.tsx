@@ -1,6 +1,8 @@
 // Faceplate.tsx - renderer SVG de una plantilla de faceplate. Bandas no
-// solapadas: LED a la izquierda, labelBox, artwork del equipo y puertos como
-// botones HTML (targets de click reales, tooltip y hover) en coords 0..1.
+// solapadas: LED a la izquierda, labelBox (nombre + nº de bocas), artwork o
+// monograma, y puertos como botones HTML (targets de click reales) en
+// coords 0..1. Diseño plano: sin sombras ni brillos; la tipografía escala
+// con la altura U (unidades de contenedor).
 import { useTranslation } from 'react-i18next'
 import type { FaceplateTemplate, FaceplatePort } from '@/lib/rackFaceplates'
 
@@ -12,6 +14,9 @@ export interface PortState {
   /** puede pincharse ahora (modo patch) */
   interactive: boolean
 }
+
+/** RJ45 plano: rect con la muesca de traba recortada arriba (clip-path). */
+const RJ45_CLIP = 'polygon(0 42%, 28% 42%, 28% 0, 72% 0, 72% 42%, 100% 42%, 100% 100%, 0 100%)'
 
 export function Faceplate({
   plate,
@@ -50,7 +55,7 @@ export function Faceplate({
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-[3px] border border-black/40 shadow-inner"
+      className="relative h-full w-full overflow-hidden rounded-[2px] border border-black/30"
       style={{ background: bg, containerType: 'size' }}
       data-faceplate={plate.id}
     >
@@ -67,20 +72,31 @@ export function Faceplate({
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
         {/* LED de estado, fijo a la izquierda */}
         <circle cx={plate.led.x * 100} cy={plate.led.y * 100} r={Math.max(plate.led.r * 100, 1.4)} className={ledColor} />
-        {/* labelBox: nombre, clipped */}
-        <foreignObject x={plate.labelBox.x * 100} y={plate.labelBox.y * 100} width={plate.labelBox.w * 100} height={plate.labelBox.h * 100}>
-          <div
-            className="flex h-full items-center overflow-hidden whitespace-nowrap text-[9px] font-semibold leading-none tracking-wide"
-            style={{ color: 'rgb(var(--text-secondary))' }}
-          >
-            <span className="truncate">{label || t(plate.nameKey)}</span>
-          </div>
-        </foreignObject>
         {/* artwork mínimo por tipo de equipo (el monograma lo sustituye) */}
         {!monogram && <Artwork kind={plate.artwork} />}
       </svg>
 
-      {/* Puertos: botiones HTML sobre las coords 0..1 */}
+      {/* labelBox: nombre + conteo de bocas detectadas, clipped */}
+      <div
+        className="pointer-events-none absolute flex items-center gap-[0.6em] overflow-hidden whitespace-nowrap font-semibold leading-none"
+        style={{
+          left: `${plate.labelBox.x * 100}%`,
+          top: `${plate.labelBox.y * 100}%`,
+          width: `${plate.labelBox.w * 100}%`,
+          height: `${plate.labelBox.h * 100}%`,
+          fontSize: 'min(24cqh, 15px)',
+          color: 'rgb(var(--text-secondary))',
+        }}
+      >
+        <span className="truncate">{label || t(plate.nameKey)}</span>
+        {ports.length > 0 && (
+          <span style={{ fontSize: '0.78em', color: 'rgb(var(--text-muted))' }} title={t('rack.portCount')}>
+            ×{ports.length}
+          </span>
+        )}
+      </div>
+
+      {/* Puertos: botones HTML sobre las coords 0..1 */}
       {(patchFacing || portsVisible) &&
         ports.map((p) => {
           const st = portState(p.id)
@@ -101,17 +117,22 @@ export function Faceplate({
               onMouseEnter={() => onPortEnter?.(p.id)}
               onMouseLeave={() => onPortLeave?.(p.id)}
               className={
-                'nodrag absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2px] transition-colors ' +
-                (sfp ? 'h-[10px] w-[16px]' : 'h-3 w-2.5') +
+                'nodrag absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center transition-colors ' +
                 (st.drafting
-                  ? ' bg-amber-400 ring-2 ring-amber-300'
+                  ? ' bg-amber-400'
                   : st.cabled
                     ? ' bg-emerald-500 hover:bg-emerald-400'
                     : st.interactive
-                      ? ' bg-zinc-600 hover:bg-accent'
-                      : ' bg-zinc-700')
+                      ? ' bg-zinc-500 hover:bg-accent'
+                      : ' bg-zinc-600')
               }
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+              style={{
+                left: `${p.x * 100}%`,
+                top: `${p.y * 100}%`,
+                ...(sfp
+                  ? { width: '11%', height: '9%', minWidth: 14, minHeight: 5, borderRadius: 1 }
+                  : { width: '7%', height: '12%', minWidth: 8, minHeight: 7, clipPath: RJ45_CLIP }),
+              }}
             />
           )
         })}
@@ -119,7 +140,7 @@ export function Faceplate({
   )
 }
 
-/** Artwork declarativo mínimo: pistas visuales por tipo, sin iconografía. */
+/** Artwork declarativo mínimo: pistas visuales por tipo, sin sombras. */
 function Artwork({ kind }: { kind: string }) {
   const stroke = 'rgba(255,255,255,0.10)'
   const common = { fill: 'none', stroke, strokeWidth: 1, vectorEffect: 'non-scaling-stroke' as const }

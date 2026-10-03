@@ -2504,7 +2504,7 @@
     "drafting": "Desde {{port}}: elige el puerto de destino (Esc cancela)",
     "empty": "Todavía no hay ningún rack",
     "emptyHint": "Crea primero un rack",
-    "pickHint": "Clic para montar en el rack activo (el resaltado en cyan). Luego arrastra para ajustar el hueco.",
+    "pickHint": "Arrastra al rack (o haz clic) para montar en el rack activo (el resaltado en cyan). Luego arrastra para ajustar el hueco.",
     "pickFleet": "Routers",
     "pickDevice": "Dispositivos",
     "pickAccessory": "Accesorios",
@@ -2519,7 +2519,9 @@
       "ups-4u": "SAI 4U",
       "shelf-1u": "Bandeja",
       "blank-1u": "Tapeta 1U",
-      "blank-half-1u": "Tapeta 1/2U"
+      "blank-half-1u": "Tapeta 1/2U",
+      "patch-panel-12p": "Patch panel 12p",
+      "patch-panel-48p": "Patch panel 48p"
     },
     "createTitle": "Nuevo rack",
     "createName": "Nombre",
@@ -2538,6 +2540,13 @@
     "createLocation": "Ubicación",
     "locationPlaceholder": "p. ej. Despacho, Salón, Garaje…",
     "import": "Importar enlaces",
-    "importResult": "Importación: {{created}} creados · {{skipped}} saltados · {{noFree}} sin puerto libre"
+    "importResult": "Importación: {{created}} creados · {{skipped}} saltados · {{noFree}} sin puerto libre",
+    "askTitle": "Colocar «{{name}}»",
+    "askTitlePatch": "Colocar patch panel",
+    "askHeight": "Altura (U)",
+    "askPorts": "Puertos",
+    "askPlace": "Colocar",
+    "dropNoRack": "Suéltalo dentro de un rack",
+    "portCount": "bocas detectadas"
   }
 }

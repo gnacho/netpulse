@@ -33,6 +33,7 @@ import { findSlot, type Footprint } from '@/lib/rackGeometry'
 import { FACEPLATES, getFaceplate, layoutPhysicalPorts, seedPorts, suggestFaceplate, type RackPortKind } from '@/lib/rackFaceplates'
 import * as api from '@/lib/rackApi'
 import type { CableDTO, MountDTO, ProfileDTO, RackDTO } from '@/lib/rackApi'
+import type { Router } from '@/data/types'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 
@@ -74,6 +75,20 @@ function RackCanvas() {
   const [addLocation, setAddLocation] = useState('')
   const [deleteRackOpen, setDeleteRackOpen] = useState(false)
   const [selectedMountId, setSelectedMountId] = useState<string | null>(null)
+  // Diálogo de colocación: se pregunta SIEMPRE (altura U; puertos si es
+  // patch panel), venga del picker por clic o por drag & drop.
+  const [mountAsk, setMountAsk] = useState<{
+    rackId: string
+    mac?: string
+    deviceType: string
+    label: string
+    faceplateId?: string
+    physicalPorts?: { id: string; kind: RackPortKind }[]
+    defaultU: number
+    isPatch: boolean
+  } | null>(null)
+  const [askU, setAskU] = useState('1')
+  const [askPorts, setAskPorts] = useState('24')
 
   // Dirty tracking (todo lo que Save debe persistir).
   const [newMountIds, setNewMountIds] = useState<Set<string>>(new Set())
@@ -94,7 +109,7 @@ function RackCanvas() {
     rackMoves.size > 0
 
   const draggingRef = useRef(false)
-  const { setViewport } = useReactFlow()
+  const { setViewport, screenToFlowPosition } = useReactFlow()
 
   // Altura restante real de la ventana para el canvas: el contenido superior
   // (header, toolbar, banner de avisos) es variable, un calc fijo se queda corto.
@@ -152,6 +167,28 @@ function RackCanvas() {
   }, [])
   const [nodes, setNodes, onNodesChange] = useNodesState<RackNodeType | MountNodeType>([])
   const cancelRef = useRef(0)
+  // Última posición de drag (RF puede disparar dragStop con posición previa).
+  const dragPosRef = useRef<{ x: number; y: number } | null>(null)
+  // Posiciones actuales de los nodos rack (para hit-testing de drops y drags).
+  const rackPosRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  useEffect(() => {
+    const m = new Map<string, { x: number; y: number }>()
+    for (const n of nodes) {
+      if (n.type === 'rack') m.set(n.id.replace('rack-', ''), n.position)
+    }
+    rackPosRef.current = m
+  }, [nodes])
+
+  /** Rack cuyo rect contiene el punto (flow coords), con el punto relativo. */
+  const rackAtPoint = useCallback((x: number, y: number): { rack: RackDTO; relX: number; relY: number } | null => {
+    for (const r of working.racks) {
+      const pos = rackPosRef.current.get(r.id) ?? { x: r.position_x, y: r.position_y }
+      if (x >= pos.x && x <= pos.x + rackWidthPx() && y >= pos.y && y <= pos.y + rackHeightPx(r.u_height)) {
+        return { rack: r, relX: x - pos.x, relY: y - pos.y }
+      }
+    }
+    return null
+  }, [working.racks])
   // Los nodos cargan asíncronos: fitView de init no los ve. Reenfocamos cada
   // vez que cambia el número de nodos, con margen y sin pasar de escala 1.
   // Encuadre determinista: calculamos el viewport desde el MODELO (posiciones
@@ -372,14 +409,23 @@ function RackCanvas() {
       if (node.type !== 'mount') return
       const mountId = node.id.replace('mount-', '')
       const m = mountById.get(mountId)
-      const rack = m && rackById.get(m.rack_id)
-      if (!m || !rack) return
-      const cell = relPosToCell(rack.u_height, node.position.x, node.position.y, m.u_height)
-      const fp = findSlot(rack.u_height, footprintsOfRack(rack.id, mountId), cell.uStart, cell.colStart, m.u_height, m.col_span)
+      const origRack = m && rackById.get(m.rack_id)
+      if (!m || !origRack) return
+      const origPos = rackPosRef.current.get(origRack.id) ?? { x: origRack.position_x, y: origRack.position_y }
+      dragPosRef.current = node.position
+      // El rack destino se decide por el CENTRO del montaje (el top-left
+      // puede quedar 6px fuera del rect con agarres centrales).
+      const absX = origPos.x + node.position.x
+      const absY = origPos.y + node.position.y
+      const absCx = absX + (m.col_span * COL_PX) / 2
+      const absCy = absY + (m.u_height * U_PX) / 2
+      const hit = rackAtPoint(absCx, absCy) ?? { rack: origRack, relX: node.position.x, relY: node.position.y }
+      const cell = relPosToCell(hit.rack.u_height, hit.relX, hit.relY, m.u_height)
+      const fp = findSlot(hit.rack.u_height, footprintsOfRack(hit.rack.id, mountId), cell.uStart, cell.colStart, m.u_height, m.col_span)
       const ghost: GhostState | null = fp
         ? { ...fp, valid: true }
         : {
-            uStart: Math.min(Math.max(cell.uStart, 1), rack.u_height - m.u_height + 1),
+            uStart: Math.min(Math.max(cell.uStart, 1), hit.rack.u_height - m.u_height + 1),
             uHeight: m.u_height,
             colStart: Math.min(Math.max(cell.colStart, 0), 12 - m.col_span),
             colSpan: m.col_span,
@@ -387,13 +433,13 @@ function RackCanvas() {
           }
       setNodes((ns) =>
         ns.map((n) =>
-          n.id === `rack-${rack.id}` && n.type === 'rack'
+          n.id === `rack-${hit.rack.id}` && n.type === 'rack'
             ? { ...n, data: { ...n.data, ghost } }
             : n,
         ),
       )
     },
-    [mountById, rackById, footprintsOfRack, setNodes],
+    [mountById, rackById, footprintsOfRack, rackAtPoint, setNodes],
   )
 
   const onNodeDragStop = useCallback(
@@ -407,27 +453,39 @@ function RackCanvas() {
       if (node.type !== 'mount') return
       const mountId = node.id.replace('mount-', '')
       const m = mountById.get(mountId)
-      const rack = m && rackById.get(m.rack_id)
-      if (!m || !rack) return
-      const cell = relPosToCell(rack.u_height, node.position.x, node.position.y, m.u_height)
-      const fp = findSlot(rack.u_height, footprintsOfRack(rack.id, mountId), cell.uStart, cell.colStart, m.u_height, m.col_span)
+      const origRack = m && rackById.get(m.rack_id)
+      if (!m || !origRack) return
+      const origPos = rackPosRef.current.get(origRack.id) ?? { x: origRack.position_x, y: origRack.position_y }
+      const pos = dragPosRef.current ?? node.position
+      dragPosRef.current = null
+      const absX = origPos.x + pos.x
+      const absY = origPos.y + pos.y
+      const absCx = absX + (m.col_span * COL_PX) / 2
+      const absCy = absY + (m.u_height * U_PX) / 2
+      const hit = rackAtPoint(absCx, absCy) ?? { rack: origRack, relX: pos.x, relY: pos.y }
+      const cell = relPosToCell(hit.rack.u_height, hit.relX, hit.relY, m.u_height)
+      const fp = findSlot(hit.rack.u_height, footprintsOfRack(hit.rack.id, mountId), cell.uStart, cell.colStart, m.u_height, m.col_span)
       setNodes((ns) =>
         ns.map((n) =>
-          n.id === `rack-${rack.id}` && n.type === 'rack' ? { ...n, data: { ...n.data, ghost: null } } : n,
+          n.id === `rack-${hit.rack.id}` && n.type === 'rack' ? { ...n, data: { ...n.data, ghost: null } } : n,
         ),
       )
       if (!fp) {
         toast.error(t('rack.noSpace'))
         return
       }
-      if (fp.uStart === m.u_start && fp.colStart === m.col_start) return
+      if (fp.uStart === m.u_start && fp.colStart === m.col_start && hit.rack.id === m.rack_id) return
+      // Entre racks el upsert MUEVE la fila (ON CONFLICT rack_id): los
+      // cables del montaje sobreviven; no hay delete en el origen.
       setWorking((w) => ({
         ...w,
-        mounts: w.mounts.map((mm) => (mm.id === mountId ? { ...mm, u_start: fp.uStart, col_start: fp.colStart } : mm)),
+        mounts: w.mounts.map((mm) =>
+          mm.id === mountId ? { ...mm, rack_id: hit.rack.id, u_start: fp.uStart, col_start: fp.colStart } : mm,
+        ),
       }))
       if (!newMountIds.has(mountId)) setMovedMountIds((s) => new Set(s).add(mountId))
     },
-    [mountById, rackById, footprintsOfRack, newMountIds, setNodes, t],
+    [mountById, rackById, footprintsOfRack, rackAtPoint, newMountIds, setNodes, t],
   )
 
   // --- Montar desde el picker ---
@@ -449,11 +507,10 @@ function RackCanvas() {
     [],
   )
 
-  const mountDevice = useCallback(
-    (mac: string, deviceType: string, label: string, physicalPorts?: { id: string; kind: RackPortKind }[]) => {
-      const rackId = activeRackId ?? working.racks[0]?.id
-      const rack = rackId ? rackById.get(rackId) : undefined
-      if (!rack) {
+  const prepareDeviceMount = useCallback(
+    (mac: string, deviceType: string, label: string, physicalPorts?: { id: string; kind: RackPortKind }[], rackId?: string) => {
+      const rid = rackId ?? activeRackId ?? working.racks[0]?.id
+      if (!rid || !rackById.get(rid)) {
         toast.error(t('rack.emptyHint'))
         return
       }
@@ -464,68 +521,90 @@ function RackCanvas() {
       const plate = existing
         ? getFaceplate(existing.faceplate_id)
         : (suggestFaceplate(deviceType) ?? getFaceplate('server-1u'))
-      const uHeight = existing?.u_height ?? plate?.uHeight ?? 1
-      const colSpan = existing?.col_span ?? plate?.colSpan ?? 12
-      const fp = findSlot(rack.u_height, footprintsOfRack(rack.id), 1, 0, uHeight, colSpan)
-      if (!fp) {
-        toast.error(t('rack.noSpace'))
-        return
-      }
-      // Perfil nuevo, o perfil placeholder viejo (sin faceplate ni puertos):
-      // lo actualizamos con lo que sabemos ahora.
-      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id))) {
-        const prof: ProfileDTO = {
-          mac,
-          faceplate_id: plate.id,
-          u_height: plate.uHeight,
-          col_span: plate.colSpan,
-          color: '',
-          // Bocas físicas reales cuando el poller las conoce (flota);
-          // si no, la plantilla siembra las típicas.
-          ports: physicalPorts && physicalPorts.length > 0 ? layoutPhysicalPorts(physicalPorts) : seedPorts(plate),
-        }
-        setProfileChanges((pm) => new Map(pm).set(mac, prof))
-        setWorking((w) => ({ ...w, profiles: new Map(w.profiles).set(mac, prof) }))
-      }
-      mountAt(rack.id, fp, {
-        device_mac: mac,
-        faceplate_id: plate?.id ?? '',
-        u_height: uHeight,
-        col_span: colSpan,
+      const defU = existing?.u_height ?? plate?.uHeight ?? 1
+      setMountAsk({
+        rackId: rid,
+        mac,
+        deviceType,
         label,
+        physicalPorts,
+        faceplateId: plate?.id ?? 'server-1u',
+        defaultU: defU,
+        isPatch: false,
       })
+      setAskU(String(defU))
     },
-    [activeRackId, working.racks, rackById, working.profiles, footprintsOfRack, mountAt, t],
+    [activeRackId, working.racks, rackById, working.profiles, t],
   )
 
-  const mountAccessory = useCallback(
-    (faceplateId: string) => {
-      const rackId = activeRackId ?? working.racks[0]?.id
-      const rack = rackId ? rackById.get(rackId) : undefined
+  const prepareAccessoryMount = useCallback(
+    (faceplateId: string, rackId?: string) => {
+      const rid = rackId ?? activeRackId ?? working.racks[0]?.id
+      const rack = rid ? rackById.get(rid) : undefined
       const plate = getFaceplate(faceplateId)
       if (!rack || !plate) {
         toast.error(t('rack.emptyHint'))
         return
       }
-      const fp = findSlot(rack.u_height, footprintsOfRack(rack.id), 1, 0, plate.uHeight, plate.colSpan)
-      if (!fp) {
-        toast.error(t('rack.noSpace'))
-        return
-      }
-      mountAt(rack.id, fp, {
-        device_mac: '',
-        faceplate_id: faceplateId,
-        u_height: plate.uHeight,
-        col_span: plate.colSpan,
-        label: '',
-      })
+      const isPatch = plate.passThrough === true
+      setMountAsk({ rackId: rid!, deviceType: '', label: '', faceplateId, defaultU: plate.uHeight, isPatch })
+      setAskU(String(plate.uHeight))
+      setAskPorts(faceplateId === 'patch-panel-12p' ? '12' : faceplateId === 'patch-panel-48p' ? '48' : '24')
     },
-    [activeRackId, working.racks, rackById, footprintsOfRack, mountAt, t],
+    [activeRackId, working.racks, rackById, t],
   )
+
+  // Confirmación del diálogo: hueco final según la altura elegida y staging.
+  const commitMount = useCallback(() => {
+    const ask = mountAsk
+    if (!ask) return
+    const rack = rackById.get(ask.rackId)
+    if (!rack) return
+    // Patch panel: el nº de puertos elegido decide la variante del catálogo.
+    let faceplateId = ask.faceplateId ?? ''
+    let uHeight = Math.min(45, Math.max(1, parseInt(askU, 10) || ask.defaultU))
+    if (ask.isPatch) {
+      faceplateId = askPorts === '12' ? 'patch-panel-12p' : askPorts === '48' ? 'patch-panel-48p' : 'patch-panel-1u'
+      // La altura la impone la variante (48p = 2U).
+      uHeight = getFaceplate(faceplateId)?.uHeight ?? uHeight
+    }
+    const plate = getFaceplate(faceplateId)
+    const colSpan = plate?.colSpan ?? 12
+    const fp = findSlot(rack.u_height, footprintsOfRack(rack.id), 1, 0, uHeight, colSpan)
+    if (!fp) {
+      toast.error(t('rack.noSpace'))
+      return
+    }
+    if (ask.mac) {
+      const existing = working.profiles.get(ask.mac)
+      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id) || existing.u_height !== uHeight)) {
+        const prof: ProfileDTO = {
+          mac: ask.mac,
+          faceplate_id: plate.id,
+          u_height: uHeight,
+          col_span: colSpan,
+          color: '',
+          // Bocas físicas reales cuando el poller las conoce (flota);
+          // si no, la plantilla siembra las típicas.
+          ports: ask.physicalPorts && ask.physicalPorts.length > 0 ? layoutPhysicalPorts(ask.physicalPorts) : seedPorts(plate),
+        }
+        setProfileChanges((pm) => new Map(pm).set(ask.mac!, prof))
+        setWorking((w) => ({ ...w, profiles: new Map(w.profiles).set(ask.mac!, prof) }))
+      }
+    }
+    mountAt(rack.id, fp, {
+      device_mac: ask.mac ?? '',
+      faceplate_id: faceplateId,
+      u_height: uHeight,
+      col_span: colSpan,
+      label: ask.label,
+    })
+    setMountAsk(null)
+  }, [mountAsk, askU, askPorts, rackById, footprintsOfRack, working.profiles, mountAt, t])
 
   // Los routers de flota traen sus bocas reales del poller (extras.ethPorts).
   const mountRouter = useCallback(
-    async (router: { id: string; mac?: string; name: string }) => {
+    async (router: { id: string; mac?: string; name: string }, rackId?: string) => {
       if (!router.mac) return
       let physical: { id: string; kind: RackPortKind }[] | undefined
       try {
@@ -544,9 +623,9 @@ function RackCanvas() {
       } catch {
         physical = undefined
       }
-      mountDevice(router.mac, 'router', router.name, physical)
+      prepareDeviceMount(router.mac, 'router', router.name, physical, rackId)
     },
-    [mountDevice],
+    [prepareDeviceMount],
   )
 
   // --- Rack ops ---
@@ -735,6 +814,36 @@ function RackCanvas() {
     }
   }, [reload, t])
 
+  // Drop desde el picker: punto en coords de flow, rack destino y diálogo
+  // de colocación (mismo flujo que el clic).
+  const onPickerDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const raw = e.dataTransfer.getData(DND_MIME)
+      if (!raw) return
+      let payload: PickerDragPayload
+      try {
+        payload = JSON.parse(raw)
+      } catch {
+        return
+      }
+      const flow = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      const hit = rackAtPoint(flow.x, flow.y)
+      if (!hit) {
+        toast.error(t('rack.dropNoRack'))
+        return
+      }
+      if (payload.type === 'accessory' && payload.faceplateId) {
+        prepareAccessoryMount(payload.faceplateId, hit.rack.id)
+      } else if (payload.type === 'router' && payload.routerId && payload.mac) {
+        void mountRouter({ id: payload.routerId, mac: payload.mac, name: payload.label ?? '' }, hit.rack.id)
+      } else if (payload.type === 'device' && payload.mac) {
+        prepareDeviceMount(payload.mac, payload.deviceType ?? '', payload.label ?? '', undefined, hit.rack.id)
+      }
+    },
+    [screenToFlowPosition, rackAtPoint, prepareAccessoryMount, mountRouter, prepareDeviceMount, t],
+  )
+
   // --- Selección: montajes vía onSelectionChange; Delete gestiona cable o montaje ---
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -890,6 +999,17 @@ function RackCanvas() {
       </div>
 
       <div ref={canvasWrapRef} className="mt-3 flex gap-3" style={{ height: canvasH }}>
+        {/* Picker (izquierda, arrastrable al canvas) */}
+        <RackPicker
+          isAdmin={isAdmin}
+          unmountedRouters={unmountedRouters}
+          unmountedDevices={unmountedDevices}
+          accessoryPlates={accessoryPlates}
+          onRouter={(r) => void mountRouter(r)}
+          onDevice={(d) => prepareDeviceMount(d.mac, d.type, d.name)}
+          onAccessory={(id) => prepareAccessoryMount(id)}
+        />
+
         {/* Canvas */}
         <div className="relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-canvas">
           {!loaded ? null : working.racks.length === 0 ? (
@@ -923,6 +1043,11 @@ function RackCanvas() {
                 setSelectedMountId(null)
                 setSelectedCableId(null)
               }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'copy'
+              }}
+              onDrop={onPickerDrop}
               minZoom={0.25}
               maxZoom={2.5}
               colorMode={lightTheme ? 'light' : 'dark'}
@@ -981,26 +1106,6 @@ function RackCanvas() {
           )}
         </div>
 
-        {/* Picker */}
-        <aside className="hidden w-64 shrink-0 flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface p-3 md:flex">
-          <p className="text-[12px] leading-snug text-text-secondary">{t('rack.pickHint')}</p>
-          <PickerGroup title={t('rack.pickFleet')}>
-            {unmountedRouters.map((r) => (
-              <PickerItem key={r.id} label={r.name} meta={r.modelShort || 'router'} onClick={() => void mountRouter(r)} disabled={!isAdmin} />
-            ))}
-          </PickerGroup>
-          <PickerGroup title={t('rack.pickDevice')}>
-            {unmountedDevices.length === 0 && <p className="text-[11px] text-text-muted">—</p>}
-            {unmountedDevices.slice(0, 60).map((d) => (
-              <PickerItem key={d.id} label={d.name} meta={d.type} onClick={() => mountDevice(d.mac, d.type, d.name)} disabled={!isAdmin} />
-            ))}
-          </PickerGroup>
-          <PickerGroup title={t('rack.pickAccessory')}>
-            {accessoryPlates.map((p) => (
-              <PickerItem key={p.id} label={t(p.nameKey)} meta={`${p.uHeight}U · ${p.colSpan}/12`} onClick={() => mountAccessory(p.id)} disabled={!isAdmin} />
-            ))}
-          </PickerGroup>
-        </aside>
       </div>
 
       {/* Diálogo de creación: nombre + altura U (los racks nuevos nacen a la
@@ -1049,6 +1154,74 @@ function RackCanvas() {
               className="h-9 rounded-xl bg-accent px-4 text-[13px] font-semibold text-black"
             >
               {t('rack.createSubmit')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de colocación: altura U (y puertos en patch panels). */}
+      <Dialog open={mountAsk !== null} onOpenChange={(o) => !o && setMountAsk(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {mountAsk?.isPatch ? t('rack.askTitlePatch') : t('rack.askTitle', { name: mountAsk?.label || t(getFaceplate(mountAsk?.faceplateId ?? '')?.nameKey ?? '') })}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            {mountAsk?.isPatch && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ask-ports">{t('rack.askPorts')}</Label>
+                <Select
+                  value={askPorts}
+                  onValueChange={(v) => {
+                    setAskPorts(v)
+                    const variant = getFaceplate(v === '12' ? 'patch-panel-12p' : v === '48' ? 'patch-panel-48p' : 'patch-panel-1u')
+                    if (variant) setAskU(String(variant.uHeight))
+                  }}
+                >
+                  <SelectTrigger id="ask-ports" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['12', '24', '48'].map((n) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="ask-u">{t('rack.askHeight')}</Label>
+              <Select value={askU} onValueChange={setAskU}>
+                <SelectTrigger id="ask-u" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['1', '2', '3', '4', '6'].map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}U
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setMountAsk(null)}
+              className="h-9 rounded-xl border border-border px-4 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {t('rack.createCancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => commitMount()}
+              className="h-9 rounded-xl bg-accent px-4 text-[13px] font-semibold text-black"
+            >
+              {t('rack.askPlace')}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1123,6 +1296,86 @@ function RackCanvas() {
   )
 }
 
+interface PickerDragPayload {
+  type: 'device' | 'router' | 'accessory'
+  mac?: string
+  routerId?: string
+  deviceType?: string
+  label?: string
+  faceplateId?: string
+}
+
+const DND_MIME = 'application/x-netpulse-rack'
+
+function RackPicker({
+  isAdmin,
+  unmountedRouters,
+  unmountedDevices,
+  accessoryPlates,
+  onRouter,
+  onDevice,
+  onAccessory,
+}: {
+  isAdmin: boolean
+  unmountedRouters: Router[]
+  unmountedDevices: { id: string; mac: string; type: string; name: string }[]
+  accessoryPlates: typeof FACEPLATES
+  onRouter: (r: Router) => void
+  onDevice: (d: { mac: string; type: string; name: string }) => void
+  onAccessory: (faceplateId: string) => void
+}) {
+  const { t } = useTranslation()
+  const dragStart = (payload: PickerDragPayload) => (e: React.DragEvent) => {
+    e.dataTransfer.setData(DND_MIME, JSON.stringify(payload))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+  return (
+    <aside className="hidden w-64 shrink-0 flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface p-3 md:flex">
+      <p className="text-[12px] leading-snug text-text-secondary">{t('rack.pickHint')}</p>
+      <PickerGroup title={t('rack.pickFleet')}>
+        {unmountedRouters.map((r) => (
+          <PickerItem
+            key={r.id}
+            label={r.name}
+            meta={r.modelShort || 'router'}
+            disabled={!isAdmin}
+            draggable={isAdmin}
+            onDragStart={dragStart({ type: 'router', routerId: r.id, mac: r.mac, label: r.name })}
+            onClick={() => onRouter(r)}
+          />
+        ))}
+      </PickerGroup>
+      <PickerGroup title={t('rack.pickDevice')}>
+        {unmountedDevices.length === 0 && <p className="text-[11px] text-text-muted">—</p>}
+        {unmountedDevices.slice(0, 60).map((d) => (
+          <PickerItem
+            key={d.id}
+            label={d.name}
+            meta={d.type}
+            disabled={!isAdmin}
+            draggable={isAdmin}
+            onDragStart={dragStart({ type: 'device', mac: d.mac, deviceType: d.type, label: d.name })}
+            onClick={() => onDevice(d)}
+          />
+        ))}
+      </PickerGroup>
+      <PickerGroup title={t('rack.pickAccessory')}>
+        {accessoryPlates.map((p) => (
+          <PickerItem
+            key={p.id}
+            label={t(p.nameKey)}
+            meta={`${p.uHeight}U · ${p.colSpan}/12`}
+            disabled={!isAdmin}
+            draggable={isAdmin}
+            onDragStart={dragStart({ type: 'accessory', faceplateId: p.id })}
+            onClick={() => onAccessory(p.id)}
+          />
+        ))}
+      </PickerGroup>
+    </aside>
+  )
+}
+
 function PickerGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -1132,13 +1385,29 @@ function PickerGroup({ title, children }: { title: string; children: React.React
   )
 }
 
-function PickerItem({ label, meta, onClick, disabled }: { label: string; meta: string; onClick: () => void; disabled?: boolean }) {
+function PickerItem({
+  label,
+  meta,
+  onClick,
+  disabled,
+  draggable,
+  onDragStart,
+}: {
+  label: string
+  meta: string
+  onClick: () => void
+  disabled?: boolean
+  draggable?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      className="flex cursor-grab items-center justify-between gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:border-accent/40 hover:text-accent active:cursor-grabbing disabled:opacity-50"
     >
       <span className="truncate">{label}</span>
       <span className="shrink-0 text-[10px] uppercase text-text-muted">{meta}</span>
