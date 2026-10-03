@@ -16,7 +16,7 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Cable, Link2, Pencil, Plus, Save, Server, Trash2 } from 'lucide-react'
+import { Cable, Cctv, Link2, Monitor, Network, Pencil, Plus, Router as RouterIcon, Save, Server, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -955,12 +955,16 @@ function RackCanvas() {
   // Solo cableados: el rack es físico; WiFi (2.4/5/6/60 GHz) queda fuera.
   const unmountedDevices = useMemo(
     () =>
+      // El rack es hardware de red: switches, servidores, ordenadores de
+      // torre y CCTV. Fuera TVs, altavoces, IoT y resto que no tenga sentido.
       np.devices.filter(
         (d) =>
           !mountedMacs.has(d.mac.toLowerCase()) &&
           (d.band === 'cable' || d.band === '—') &&
           d.infra !== 'ct' &&
-          d.infra !== 'vm',
+          d.infra !== 'vm' &&
+          (['switch', 'servidor', 'ordenador', 'camara'].includes(d.type) ||
+            (d.type === 'desconocido' && d.name.toLowerCase() !== d.mac.toLowerCase())),
       ),
     [np.devices, mountedMacs],
   )
@@ -1385,6 +1389,7 @@ function RackPicker({
         {unmountedRouters.map((r) => (
           <PickerItem
             key={r.id}
+            icon={<RouterIcon size={13} />}
             label={r.name}
             meta={r.modelShort || 'router'}
             disabled={!isAdmin}
@@ -1399,6 +1404,7 @@ function RackPicker({
         {unmountedDevices.slice(0, 60).map((d) => (
           <PickerItem
             key={d.id}
+            icon={<TypeIcon type={d.type} />}
             label={d.name}
             meta={d.type}
             disabled={!isAdmin}
@@ -1425,6 +1431,22 @@ function RackPicker({
   )
 }
 
+function TypeIcon({ type }: { type: string }) {
+  const cls = 'text-text-muted'
+  switch (type) {
+    case 'switch':
+      return <Network size={13} className={cls} aria-hidden />
+    case 'servidor':
+      return <Server size={13} className={cls} aria-hidden />
+    case 'ordenador':
+      return <Monitor size={13} className={cls} aria-hidden />
+    case 'camara':
+      return <Cctv size={13} className={cls} aria-hidden />
+    default:
+      return <Network size={13} className={cls} aria-hidden />
+  }
+}
+
 function PickerGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -1435,6 +1457,7 @@ function PickerGroup({ title, children }: { title: string; children: React.React
 }
 
 function PickerItem({
+  icon,
   label,
   meta,
   onClick,
@@ -1448,6 +1471,7 @@ function PickerItem({
   disabled?: boolean
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
+  icon?: React.ReactNode
 }) {
   return (
     <button
@@ -1458,7 +1482,10 @@ function PickerItem({
       onDragStart={onDragStart}
       className="flex cursor-grab items-center justify-between gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:border-accent/40 hover:text-accent active:cursor-grabbing disabled:opacity-50"
     >
-      <span className="truncate">{label}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        {icon}
+        <span className="truncate">{label}</span>
+      </span>
       <span className="shrink-0 text-[10px] uppercase text-text-muted">{meta}</span>
     </button>
   )
