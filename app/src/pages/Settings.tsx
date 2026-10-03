@@ -3792,7 +3792,7 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
 
 // Clave de integración configurable desde la tarjeta (icono Settings2 que
 // abre el Dialog con su manager, #968).
-type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt'
+type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt' | 'mcp'
 
 // Los diálogos de configuración van GRANDES (#968, #977): el manager
 // (formularios, tablas) necesita el ancho casi completo. Wrapper compartido
@@ -3816,6 +3816,82 @@ function ConfigGear({ label, onClick, disabled = false }: { label: string; onCli
   )
 }
 
+// ---------------------------------------------------------------------------
+// Integración MCP (#1114): endpoint /mcp para asistentes de IA. El toggle es
+// el server-side settings.integrations.mcp (aplica sin reinicio); sin
+// NETPULSE_MCP_ENABLED=1 en el servidor el endpoint no existe y el toggle
+// queda bloqueado. Los tokens de API son la ÚNICA auth del endpoint: se
+// gestionan aquí mismo (crear/revocar).
+// ---------------------------------------------------------------------------
+function McpIntegration({ onToggle }: { onToggle: () => void }) {
+  const { t } = useTranslation()
+  const { integrations, setIntegration, mcpLocked } = useIntegrations()
+  const [copied, setCopied] = useState(false)
+  const endpoint = `${window.location.origin}/mcp`
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <KeyRound className="h-4 w-4 text-accent" strokeWidth={1.75} />
+        <h3 className="text-sm font-semibold text-text-primary">{t('settings.mcp.title')}</h3>
+      </div>
+      <p className="mt-1 text-caption text-text-muted">{t('settings.mcp.description')}</p>
+
+      {mcpLocked ? (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-caption text-text-secondary">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" strokeWidth={1.75} />
+          <span>{t('settings.mcp.lockedHint')}</span>
+        </div>
+      ) : (
+        <div className="mt-2 divide-y divide-border/60">
+          <SwitchRow
+            label={t('settings.mcp.enabled')}
+            checked={integrations.mcp}
+            disabled={mcpLocked}
+            onCheckedChange={(v) => {
+              setIntegration('mcp', v)
+              onToggle()
+            }}
+          />
+        </div>
+      )}
+
+      <div className="mt-3">
+        <div className="text-label uppercase text-text-muted">{t('settings.mcp.endpoint')}</div>
+        <div className="mt-1 flex items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded-lg bg-elevated px-3 py-2 text-caption text-text-primary">{endpoint}</code>
+          <button
+            type="button"
+            onClick={() => {
+              void copyToClipboard(endpoint).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              })
+            }}
+            aria-label={t('settings.mcp.copy')}
+            title={t('settings.mcp.copy')}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+          >
+            {copied ? <Check className="h-4 w-4 text-accent" strokeWidth={1.75} /> : <Copy className="h-4 w-4" strokeWidth={1.75} />}
+          </button>
+        </div>
+        <p className="mt-1.5 flex items-start gap-1.5 text-caption text-text-muted">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+          {t('settings.mcp.endpointHint')}
+        </p>
+      </div>
+
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="text-label uppercase text-text-muted">{t('settings.mcp.tokensTitle')}</div>
+        <p className="mt-1 text-caption text-text-muted">{t('settings.mcp.tokensHint')}</p>
+        <div className="mt-2">
+          <TokensManager />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ServicesCard({
   reduce,
   onSaved,
@@ -3834,8 +3910,10 @@ function ServicesCard({
   const { t } = useTranslation()
   const [services, setService] = useServicesVisibility()
   // Toggles server-side de integraciones (#968): se leen del servidor al
-  // montar (coherencia entre navegadores) y se escriben al cambiar.
-  const { integrations, setIntegration } = useIntegrations(!disabled)
+  // montar (coherencia entre navegadores) y se escriben al cambiar. mcpLocked
+  // (#1114): sin NETPULSE_MCP_ENABLED=1 el endpoint /mcp no existe y el
+  // toggle queda bloqueado con una explicación.
+  const { integrations, setIntegration, mcpLocked } = useIntegrations(!disabled)
   const [dialog, setDialog] = useState<IntegrationDialogKey | null>(null)
   const networkRows: { key: keyof ServicesVisibility; label: string; caption: string; dialogKey?: IntegrationDialogKey }[] = [
     { key: 'adguard', label: 'AdGuard Home', caption: t('settings.services.adguardCaption'), dialogKey: 'adguard' },
@@ -3845,9 +3923,10 @@ function ServicesCard({
   // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
   // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
   // de Notificaciones.
-  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey }[] = [
+  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey; locked?: boolean }[] = [
     { key: 'proxmox', label: 'Proxmox VE', caption: t('settings.services.proxmoxCaption'), dialogKey: 'proxmox' },
     { key: 'mqtt', label: 'MQTT', caption: t('settings.services.mqttCaption'), dialogKey: 'mqtt' },
+    { key: 'mcp', label: 'MCP', caption: t('settings.services.mcpCaption'), dialogKey: 'mcp', locked: mcpLocked },
   ]
 
   // AdGuard (#813): el toggle de Servicios también controla el sondeo y la
@@ -3956,7 +4035,7 @@ function ServicesCard({
               label={row.label}
               caption={row.caption}
               checked={integrations[row.key]}
-              disabled={disabled}
+              disabled={disabled || row.locked}
               trailing={gear(row.dialogKey, row.label)}
                 onCheckedChange={(v) => {
                   setIntegration(row.key, v)
@@ -3992,6 +4071,14 @@ function ServicesCard({
             <DialogTitle className="sr-only">{t('settings.mqtt.title')}</DialogTitle>
           </DialogHeader>
           <MqttCard onSaved={() => { onSaved(); setDialog(null) }} bare />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'mcp'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.mcp.title')}</DialogTitle>
+          </DialogHeader>
+          <McpIntegration onToggle={() => onSaved()} />
         </DialogContent>
       </Dialog>
     </Card>

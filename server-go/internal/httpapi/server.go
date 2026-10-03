@@ -218,6 +218,9 @@ type server struct {
 	// TokenStore: bearer tokens de API (#330). nil = sin tokens.
 	tokenStore *apitoken.Store
 
+	// MCP: servidor MCP embebido (#1114). nil = sin endpoint /mcp.
+	mcp *mcp.Server
+
 	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
 	collectorReader *collectorreader.Reader
 
@@ -266,6 +269,7 @@ func NewHandler(d Deps) http.Handler {
 		ingestLimit:     newIPRateLimit(ingestRateLimit, ingestRateWindow),
 		upgrades:        newUpgradeTracker(),
 		tokenStore:      d.TokenStore,
+		mcp:             d.MCP,
 		collectorReader: d.CollectorReader,
 		baselines:       d.Baselines,
 		internetHealth:  d.InternetHealth,
@@ -577,11 +581,28 @@ func NewHandler(d Deps) http.Handler {
 	var h http.Handler = auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))
 	if d.MCP != nil {
 		outer := http.NewServeMux()
-		outer.Handle("/mcp", d.MCP.Handler(s.tokenStore))
+		// Gate de integración (#1114): con el toggle apagado el endpoint
+		// DESAPARECE (404, no 403: no confirma su existencia a un escáner).
+		// Va antes de la auth Bearer propia del MCP.
+		outer.Handle("/mcp", s.mcpIntegrationGate(d.MCP.Handler(s.tokenStore)))
 		outer.Handle("/", h)
 		h = outer
 	}
 	return requestID(security.Middleware(s.hsts, h))
+}
+
+// mcpIntegrationGate deja pasar /mcp solo con la integración activada en
+// Ajustes (#1114). El gate lee la kv por petición: el toggle aplica sin
+// reiniciar. Default activo cuando el endpoint está montado (el opt-in fue
+// el env del despliegue); la UI puede apagarlo.
+func (s *server) mcpIntegrationGate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !kvGetDefaultOn(s.db.DB, integrationMCPKey) {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en
