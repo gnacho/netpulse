@@ -103,9 +103,9 @@ export const FACEPLATES: FaceplateTemplate[] = [
     led: { x: 0.035, y: 0.5, r: 0.16 },
     labelBox: { x: 0.07, y: 0.3, w: 0.3, h: 0.4 },
     rows: [
-      { kind: 'rj45', count: 5, xStart: 0.38, xEnd: 0.62, y: 0.5 },
-      { kind: 'sfp+', count: 1, xStart: 0.7, xEnd: 0.7, y: 0.5 },
-      { kind: 'rj45', count: 1, xStart: 0.78, xEnd: 0.78, y: 0.5 },
+      { kind: 'rj45', count: 5, xStart: 0.48, xEnd: 0.68, y: 0.5 },
+      { kind: 'sfp+', count: 1, xStart: 0.76, xEnd: 0.76, y: 0.5 },
+      { kind: 'rj45', count: 1, xStart: 0.84, xEnd: 0.84, y: 0.5 },
     ],
   },
   {
@@ -253,10 +253,15 @@ export function seedPorts(plate: FaceplateTemplate): FaceplatePort[] {
  * la derecha. Determinista; ids preservados para que el cable casé con la
  * interfaz real.
  */
-export function layoutPhysicalPorts(ports: { id: string; kind: RackPortKind }[]): FaceplatePort[] {
+export function layoutPhysicalPorts(
+  ports: { id: string; kind: RackPortKind }[],
+  zone?: { xStart: number; xEnd: number },
+): FaceplatePort[] {
   const rj45 = ports.filter((p) => p.kind === 'rj45')
   const sfps = ports.filter((p) => p.kind !== 'rj45')
   const out: FaceplatePort[] = []
+  const zx = zone?.xStart ?? 0.24
+  const ze = zone?.xEnd ?? 0.64
   const rjRows = Math.max(1, Math.ceil(rj45.length / 12))
   rj45.forEach((p, i) => {
     const row = Math.floor(i / 12)
@@ -265,7 +270,7 @@ export function layoutPhysicalPorts(ports: { id: string; kind: RackPortKind }[])
     out.push({
       id: p.id,
       kind: p.kind,
-      x: inRow === 1 ? 0.44 : 0.24 + (0.64 - 0.24) * (idx / (inRow - 1)),
+      x: inRow === 1 ? (zx + ze) / 2 : zx + (ze - zx) * (idx / (inRow - 1)),
       y: rjRows === 1 ? 0.5 : 0.28 + (0.72 - 0.28) * (row / (rjRows - 1)),
     })
   })
@@ -273,7 +278,7 @@ export function layoutPhysicalPorts(ports: { id: string; kind: RackPortKind }[])
     out.push({
       id: p.id,
       kind: p.kind,
-      x: 0.82,
+      x: Math.min(0.9, ze + 0.1),
       y: sfps.length === 1 ? 0.5 : 0.2 + 0.6 * (i / (sfps.length - 1)),
     })
   })

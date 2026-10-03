@@ -1,9 +1,10 @@
 // Faceplate.tsx - renderer de la cara frontal del equipo. Diseño plano y
-// limpio: LED de estado en punto nítido (HTML, no SVG estirado), nombre a
-// tamaño legible que escala con la altura U, y bocas como siluetas RJ45
-// (muesca de traba) o SFP rectangulares. Nada de monogramas ni dobles
-// textos: un nombre, un LED, las bocas.
+// limpio: LED de estado en punto nítido (HTML), un único nombre que escala
+// con la altura U y nunca invade la zona de bocas, y bocas con el icono
+// EthernetPort de Lucide (SFP = ranura rectangular). Un nombre, un LED,
+// las bocas.
 import { useTranslation } from 'react-i18next'
+import { EthernetPort } from 'lucide-react'
 import type { FaceplateTemplate, FaceplatePort } from '@/lib/rackFaceplates'
 
 export interface PortState {
@@ -14,9 +15,6 @@ export interface PortState {
   /** puede pincharse ahora (modo patch) */
   interactive: boolean
 }
-
-/** RJ45 plano: rect con la muesca de traba recortada arriba (clip-path). */
-const RJ45_CLIP = 'polygon(0 42%, 28% 42%, 28% 0, 72% 0, 72% 42%, 100% 42%, 100% 100%, 0 100%)'
 
 export function Faceplate({
   plate,
@@ -46,6 +44,7 @@ export function Faceplate({
   onPortLeave?: (portId: string) => void
 }) {
   const { t } = useTranslation()
+  const minPortX = ports.length > 0 ? Math.min(...ports.map((p) => p.x)) : 1
   const ledColor =
     status === 'online'
       ? 'bg-emerald-400'
@@ -73,14 +72,15 @@ export function Faceplate({
         aria-hidden
       />
 
-      {/* Nombre + conteo de bocas detectadas (único texto) */}
+      {/* Nombre + conteo de bocas: la banda termina antes de la primera
+          boca real, así nunca se montan unos sobre otros. */}
       <div
         className="absolute flex items-center gap-[0.6em] overflow-hidden whitespace-nowrap font-semibold leading-none"
         style={{
           left: 'max(18px, 9%)',
           top: `${plate.labelBox.y * 100}%`,
           height: `${plate.labelBox.h * 100}%`,
-          right: `${(1 - plate.labelBox.x - plate.labelBox.w) * 100}%`,
+          width: `${Math.max(0.12, minPortX - plate.labelBox.x - 0.06) * 100}%`,
           fontSize: 'min(26cqh, 15px)',
           color: 'rgb(var(--text-secondary))',
         }}
@@ -100,6 +100,13 @@ export function Faceplate({
           const visible = patchFacing || portsVisible || st.cabled || st.drafting
           if (!visible) return null
           const sfp = p.kind !== 'rj45'
+          const tone = st.drafting
+            ? 'text-amber-400'
+            : st.cabled
+              ? 'text-emerald-500 hover:text-emerald-400'
+              : st.interactive
+                ? 'text-zinc-500 hover:text-accent'
+                : 'text-zinc-600'
           return (
             <button
               key={p.id}
@@ -113,24 +120,15 @@ export function Faceplate({
               }}
               onMouseEnter={() => onPortEnter?.(p.id)}
               onMouseLeave={() => onPortLeave?.(p.id)}
-              className={
-                'nodrag absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center transition-colors ' +
-                (st.drafting
-                  ? ' bg-amber-400'
-                  : st.cabled
-                    ? ' bg-emerald-500 hover:bg-emerald-400'
-                    : st.interactive
-                      ? ' bg-zinc-500 hover:bg-accent'
-                      : ' bg-zinc-600')
-              }
-              style={{
-                left: `${p.x * 100}%`,
-                top: `${p.y * 100}%`,
-                ...(sfp
-                  ? { width: '11%', height: '9%', minWidth: 14, minHeight: 5, borderRadius: 1 }
-                  : { width: '7%', height: '12%', minWidth: 8, minHeight: 7, clipPath: RJ45_CLIP }),
-              }}
-            />
+              className={'nodrag absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center ' + tone}
+              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+            >
+              {sfp ? (
+                <span className="block rounded-[1px] bg-current" style={{ width: 15, height: 5 }} aria-hidden />
+              ) : (
+                <EthernetPort size={14} strokeWidth={2.2} aria-hidden />
+              )}
+            </button>
           )
         })}
     </div>

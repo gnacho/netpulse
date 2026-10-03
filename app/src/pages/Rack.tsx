@@ -256,12 +256,26 @@ function RackCanvas() {
 
   const portsFor = useCallback(
     (m: MountDTO) => {
+      const plate = plateFor(m)
       if (m.device_mac) {
         const declared = working.profiles.get(m.device_mac)?.ports
-        if (declared && declared.length > 0) return declared
-        return seedPorts(plateFor(m))
+        if (declared && declared.length > 0) {
+          // Sanado de layouts legacy: si las bocas declaradas invaden la
+          // zona de la etiqueta de su plantilla, se re-disponen con la zona
+          // correcta (p. ej. perfiles creados antes de la zona por plantilla).
+          const rjRow = plate.rows.find((r) => r.kind === 'rj45')
+          const minX = Math.min(...declared.map((p) => p.x))
+          if (rjRow && minX < rjRow.xStart - 0.02) {
+            return layoutPhysicalPorts(
+              declared.map((p) => ({ id: p.id, kind: p.kind as RackPortKind })),
+              { xStart: rjRow.xStart, xEnd: rjRow.xEnd },
+            )
+          }
+          return declared
+        }
+        return seedPorts(plate)
       }
-      return seedPorts(plateFor(m))
+      return seedPorts(plate)
     },
     [working.profiles, plateFor],
   )
@@ -595,8 +609,18 @@ function RackCanvas() {
           col_span: colSpan,
           color: '',
           // Bocas físicas reales cuando el poller las conoce (flota);
-          // si no, la plantilla siembra las típicas.
-          ports: ask.physicalPorts && ask.physicalPorts.length > 0 ? layoutPhysicalPorts(ask.physicalPorts) : seedPorts(plate),
+          // si no, la plantilla siembra las típicas. La zona horizontal
+          // viene de la plantilla para no pisar la etiqueta.
+          ports:
+            ask.physicalPorts && ask.physicalPorts.length > 0
+              ? layoutPhysicalPorts(
+                  ask.physicalPorts,
+                  (() => {
+                    const rjRow = plate.rows.find((r) => r.kind === 'rj45')
+                    return rjRow ? { xStart: rjRow.xStart, xEnd: rjRow.xEnd } : undefined
+                  })(),
+                )
+              : seedPorts(plate),
         }
         setProfileChanges((pm) => new Map(pm).set(ask.mac!, prof))
         setWorking((w) => ({ ...w, profiles: new Map(w.profiles).set(ask.mac!, prof) }))
