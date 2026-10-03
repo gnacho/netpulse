@@ -145,9 +145,9 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
             {t('routerDetail.info.openNetgrip')}
           </a>
         )}
+        {/* #1098: mismo criterio que el botón web: mostrar el comando
+            exacto que se va a copiar. */}
         {router.type !== 'routeros' && router.type !== 'managed-switch' && router.type !== 'external' && (
-          {/* #1098: mismo criterio que el botón web: mostrar el comando
-              exacto que se va a copiar. */}
           <button
             onClick={copySsh}
             title={`ssh root@${router.ip}`}
