@@ -44,14 +44,12 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 		}
 	}
 	routerMAC := map[string]string{}
-	routers := []adapters.Router{}
 	if ov := s.lastOv(); ov != nil {
 		for _, r := range ov.Routers {
 			if r.MAC != "" {
 				routerMAC[r.ID] = strings.ToLower(r.MAC)
 			}
 		}
-		routers = ov.Routers
 	}
 	// Honestidad de la inferencia: un puerto con VARIAS MACs aprendidas es un
 	// agregado (switch/bridge/hipervisor detrás); cablearlo a un dispositivo
@@ -95,28 +93,23 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 
 	// Uplinks entre miembros de flota montados: el FDB de cada router/switch
 	// aprende la MAC bridge de los demás miembros (rt3/rt4 en el switch,
-	// switch en el gateway). Es lo mismo que alimenta el mapa de topología.
-	for _, r := range routers {
-		if r.MAC == "" || !mounted[strings.ToLower(r.MAC)] {
-			continue
-		}
-		detail, err := s.adapter.GetRouterDetail(ctx, r.ID)
-		if err != nil {
-			continue
-		}
-		for _, ep := range detail.Ports {
-			peer := strings.ToLower(ep.DeviceMac)
-			if peer == "" || peer == strings.ToLower(r.MAC) || !mounted[peer] || peer == strings.ToLower(r.MAC) {
+	// switch en el gateway). Es lo mismo que alimenta el mapa de topología;
+	// fuente directa del último sondeo (FleetFdbProvider, live).
+	if prov, ok := s.adapter.(adapters.FleetFdbProvider); ok {
+		for childID, up := range prov.FleetFdbUplinks() {
+			from, okFrom := routerMAC[up.ParentID]
+			to, okTo := routerMAC[childID]
+			if !okFrom || !okTo || !mounted[from] || !mounted[to] {
 				continue
 			}
-			if seen[strings.ToLower(r.MAC)+"|"+peer] || seen[peer+"|"+strings.ToLower(r.MAC)] {
+			if seen[from+"|"+to] || seen[to+"|"+from] {
 				continue
 			}
-			seen[strings.ToLower(r.MAC)+"|"+peer] = true
+			seen[from+"|"+to] = true
 			hints = append(hints, rack.CableHint{
-				FromDeviceID: strings.ToLower(r.MAC),
-				ToDeviceID:   peer,
-				FromPortHint: ep.Iface,
+				FromDeviceID: from,
+				ToDeviceID:   to,
+				FromPortHint: up.Port,
 				Source:       "fdb",
 			})
 		}

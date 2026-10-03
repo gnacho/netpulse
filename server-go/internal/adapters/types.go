@@ -606,6 +606,20 @@ type Radio struct {
 // Radios: nil → null (demo sin radios), no-nil vacío → [] (live). Quirk SPEC.
 // Backhaul y Extras son `any`: la demo tiene objetos ricos canónicos
 // (routerExtras, dataset.js) y el live construye los suyos (SPEC §7.8).
+// FdbUplink: el router (hijo) se aprende en el puerto Port del router
+// ParentID. Evidencia directa del FDB de los pollers (#1051).
+type FdbUplink struct {
+	ChildID  string `json:"childId"`
+	ParentID string `json:"parentId"`
+	Port     string `json:"port"`
+}
+
+// FleetFdbProvider lo implementan los adapters capaces de exponer la
+// evidencia FDB de uplinks de flota (live).
+type FleetFdbProvider interface {
+	FleetFdbUplinks() map[string]FdbUplink
+}
+
 type RouterDetail struct {
 	Router   Router     `json:"router"`
 	Ports    []EthPort  `json:"ports"`
