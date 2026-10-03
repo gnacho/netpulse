@@ -294,6 +294,28 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 - **[Discusiones](https://github.com/gnacho/netpulse/discussions)**:
   preguntas, ideas y hablar del futuro.
 
+## Asistentes de IA (MCP)
+
+NetPulse lleva un servidor [MCP](https://modelcontextprotocol.io) embebido
+(streamable-HTTP) para que los asistentes de IA puedan consultar tu instancia
+con herramientas de solo lectura: estado de la flota, salud por router,
+dispositivos conocidos, peers WireGuard, estadísticas de AdGuard Home, el
+grafo de topología detectado y las alertas activas. Nada más: sin cambios de
+configuración ni reinicios.
+
+Está **desactivado por defecto**. Para activarlo:
+
+```bash
+NETPULSE_MCP_ENABLED=1
+```
+
+Después crea un token de API en Ajustes > Tokens de API y apunta tu cliente
+MCP a `http://<host-de-netpulse>:<puerto>/mcp` con ese token como Bearer. El
+endpoint solo acepta tokens de API (nunca la cookie de sesión), lleva rate
+limit y cada llamada a tool queda registrada en el log de auditoría. Mantén
+el puerto en tu LAN o detrás de un firewall: quien tenga el token puede leer
+el estado completo de tu red.
+
 ## Desarrollo
 
 ```bash

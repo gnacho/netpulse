@@ -284,6 +284,27 @@ first to tell.
 - **[Discussions](https://github.com/gnacho/netpulse/discussions)**: questions,
   ideas and shape-the-future talk.
 
+## AI assistants (MCP)
+
+NetPulse ships an embedded [MCP](https://modelcontextprotocol.io) server
+(streamable-HTTP) so AI assistants can query your instance with read-only
+tools: fleet status, per-router health, known devices, WireGuard peers,
+AdGuard Home stats, the detected topology graph and active alerts. Nothing
+else: no configuration changes, no restarts.
+
+It is **disabled by default**. To enable it:
+
+```bash
+NETPULSE_MCP_ENABLED=1
+```
+
+Then create an API token in Settings > API tokens and point your MCP client
+at `http://<your-netpulse-host>:<port>/mcp` with that token as the Bearer
+token. The endpoint only accepts API tokens (never the session cookie), is
+rate limited, and every tool call is logged for audit. Keep the port on your
+LAN or behind a firewall: anyone with the token can read your whole network
+state.
+
 ## Development
 
 ```bash

@@ -45,6 +45,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
+	"github.com/gnacho/netpulse/server-go/internal/mcp"
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/ntfy"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -714,6 +715,25 @@ func run() error {
 
 	mqttMgr := mqttpub.NewManager(mqttpub.LoadConfig(mqttpub.SQLKV{DB: dbHandle.DB}), httpapi.Version, p.LastOverview, cfg.DemoMode)
 
+	// MCP (#1114): servidor MCP embebido (streamable-HTTP en /mcp), solo si
+	// NETPULSE_MCP_ENABLED=1. Sin token store NO se monta: el endpoint solo
+	// existe con su auth Bearer (fail-closed, también en mcp.Handler).
+	var mcpSrv *mcp.Server
+	if cfg.MCPEnabled && tokenStore != nil {
+		var engine *alerts.Engine
+		if adapter != nil {
+			engine = adapter.AlertsEngine()
+		}
+		mcpSrv = mcp.New(mcp.Deps{
+			LastOverview: p.LastOverview,
+			Engine:       engine,
+			Version:      httpapi.Version,
+		})
+		log.Printf("[netpulse] MCP server activo en /mcp (streamable-HTTP, auth: API token Bearer, LAN-only)")
+	} else if cfg.MCPEnabled {
+		log.Printf("[netpulse] aviso: NETPULSE_MCP_ENABLED=1 pero no hay token store; MCP desactivado")
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
 		DB:              dbHandle,
@@ -740,6 +760,7 @@ func run() error {
 		Speedtest:       stScheduler,
 		AlertEmitter:    adapter.AlertsEngine(),
 		ChannelPlan:     chPlan,
+		MCP:             mcpSrv,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

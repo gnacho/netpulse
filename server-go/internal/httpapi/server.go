@@ -39,6 +39,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/internethealth"
+	"github.com/gnacho/netpulse/server-go/internal/mcp"
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
@@ -135,6 +136,10 @@ type Deps struct {
 	AlertEmitter interface {
 		Emit(ev alerts.AlertEvent) bool
 	}
+	// MCP: servidor MCP embebido (#1114). nil → sin endpoint /mcp. Cuando se
+	// monta, va FUERA de RequireAuth (auth Bearer propia por API token, nunca
+	// cookie) con rate limit y fail-closed sin TokenStore.
+	MCP *mcp.Server
 }
 
 type server struct {
@@ -565,7 +570,18 @@ func NewHandler(d Deps) http.Handler {
 		tv = s.tokenStore
 	}
 	s.registerHTTPS(mux)
-	return requestID(security.Middleware(s.hsts, auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))))
+	// /mcp (#1114): streamable-HTTP MCP con auth Bearer propia (API token) y
+	// rate limit. Va en un mux EXTERNO al de sesión: RequireAuth queda fuera
+	// a propósito (nunca acepta cookie; spec fase 3.5) y security headers + HSTS
+	// siguen aplicando al envolver el mux externo completo.
+	var h http.Handler = auth.RequireSameOrigin(auth.RequireAuth(s.db, s.secret, tv, s.demoReadOnly(noStoreMux(mux))))
+	if d.MCP != nil {
+		outer := http.NewServeMux()
+		outer.Handle("/mcp", d.MCP.Handler(s.tokenStore))
+		outer.Handle("/", h)
+		h = outer
+	}
+	return requestID(security.Middleware(s.hsts, h))
 }
 
 // requestID lee o genera un x-request-id para cada petición y lo expone en
