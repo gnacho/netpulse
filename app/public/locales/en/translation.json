@@ -619,7 +619,8 @@
     "orchestration": "Orchestration",
     "channelPlan": "Channels",
     "firmwareUpgrades": "Firmware upgrades",
-    "help": "Help"
+    "help": "Help",
+    "rack": "Rack"
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",
@@ -2479,5 +2480,46 @@
   },
   "app": {
     "title": "NetPulse - Your network at a glance"
+  },
+  "rack": {
+    "title": "Rack",
+    "subtitle": "Your physical hardware, placed and patched.",
+    "addRack": "Add rack",
+    "deleteRack": "Delete rack",
+    "deleteRackConfirm": "Delete this rack and everything mounted on it?",
+    "rackDeleted": "Rack deleted",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Rack saved",
+    "saveFailed": "Could not save",
+    "unsaved": "unsaved changes",
+    "patch": "Patch",
+    "visibility": "Cables",
+    "visibilityHover": "On hover",
+    "visibilityAlways": "Always",
+    "visibilityHidden": "Hidden",
+    "noSpace": "No free slot fits it",
+    "patchBusy": "That port already has all its cables",
+    "cableDeleted": "Cable unplugged",
+    "drafting": "From {{port}}: pick the target port (Esc cancels)",
+    "empty": "No racks yet",
+    "emptyHint": "Create a rack first",
+    "pickHint": "Click to mount into the active rack (the cyan one). Then drag to adjust the slot.",
+    "pickFleet": "Routers",
+    "pickDevice": "Devices",
+    "pickAccessory": "Accessories",
+    "plates": {
+      "server-1u": "1U server",
+      "server-2u": "2U server",
+      "switch": "Switch",
+      "router": "Router",
+      "nas-tower": "NAS tower",
+      "patch-panel-1u": "24-port patch panel",
+      "pdu-1u": "PDU",
+      "ups-4u": "4U UPS",
+      "shelf-1u": "Shelf",
+      "blank-1u": "1U blank",
+      "blank-half-1u": "Half-U blank"
+    }
   }
 }

@@ -619,7 +619,8 @@
     "orchestration": "Orquestación",
     "channelPlan": "Canales",
     "firmwareUpgrades": "Actualizaciones",
-    "help": "Ayuda"
+    "help": "Ayuda",
+    "rack": "Rack"
   },
   "roaming": {
     "subtitle": "Estado de la itinerancia WiFi y la malla WiFi",
@@ -2479,5 +2480,46 @@
   },
   "app": {
     "title": "NetPulse - Tu red, de un vistazo"
+  },
+  "rack": {
+    "title": "Rack",
+    "subtitle": "Tu hardware físico, colocado y cableado.",
+    "addRack": "Añadir rack",
+    "deleteRack": "Eliminar rack",
+    "deleteRackConfirm": "¿Eliminar el rack y todo lo que tiene montado?",
+    "rackDeleted": "Rack eliminado",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Rack guardado",
+    "saveFailed": "No se pudo guardar",
+    "unsaved": "cambios sin guardar",
+    "patch": "Parchar",
+    "visibility": "Cables",
+    "visibilityHover": "Al pasar",
+    "visibilityAlways": "Siempre",
+    "visibilityHidden": "Ocultos",
+    "noSpace": "No cabe en ningún hueco libre del rack",
+    "patchBusy": "Ese puerto ya tiene todos sus cables",
+    "cableDeleted": "Cable desconectado",
+    "drafting": "Desde {{port}}: elige el puerto de destino (Esc cancela)",
+    "empty": "Todavía no hay ningún rack",
+    "emptyHint": "Crea primero un rack",
+    "pickHint": "Clic para montar en el rack activo (el resaltado en cyan). Luego arrastra para ajustar el hueco.",
+    "pickFleet": "Routers",
+    "pickDevice": "Dispositivos",
+    "pickAccessory": "Accesorios",
+    "plates": {
+      "server-1u": "Servidor 1U",
+      "server-2u": "Servidor 2U",
+      "switch": "Switch",
+      "router": "Router",
+      "nas-tower": "NAS torre",
+      "patch-panel-1u": "Patch panel 24p",
+      "pdu-1u": "PDU",
+      "ups-4u": "SAI 4U",
+      "shelf-1u": "Bandeja",
+      "blank-1u": "Tapeta 1U",
+      "blank-half-1u": "Tapeta 1/2U"
+    }
   }
 }

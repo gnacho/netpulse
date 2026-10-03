@@ -15,6 +15,7 @@ import Alerts from '@/pages/Alerts'
 import Roaming from '@/pages/Roaming'
 import ChannelPlan from '@/pages/ChannelPlan'
 import Reports from '@/pages/Reports'
+import Rack from '@/pages/Rack'
 import Orchestration from '@/pages/Orchestration'
 import FirmwareUpgrades from '@/pages/FirmwareUpgrades'
 import Settings from '@/pages/Settings'
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="agents" element={<Navigate to="/routers" replace />} />
         <Route path="devices" element={<Devices />} />
         <Route path="topology" element={<Topology />} />
+        <Route path="rack" element={<Rack />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="roaming" element={<Roaming />} />
         <Route path="wifi/channel-plan" element={<ChannelPlan />} />

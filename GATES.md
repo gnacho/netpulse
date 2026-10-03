@@ -42,7 +42,7 @@ Scope: completar la fase 1 del rack canvas (catálogo declarativo de faceplates,
   EVIDENCE: pending
 
 - [ ] B6: i18n ES/EN de todo lo nuevo (mismo número de claves rack.* en es.json y en.json, sin literales hardcodeados).
-  CHECK: node -e "const a=require('./app/src/i18n/locales/es.json'),b=require('./app/src/i18n/locales/en.json');const ka=Object.keys(a.rack||{}),kb=Object.keys(b.rack||{});const d1=ka.filter(k=>!(k in (b.rack||{}))),d2=kb.filter(k=>!(k in (a.rack||{})));console.log(d1.length===0&&d2.length===0?'I18N MATCH':'FALTAN es:'+d1+' en:'+d2)"
+  CHECK: node -e "const a=require('./app/public/locales/es/translation.json').rack,b=require('./app/public/locales/en/translation.json').rack;const ka=Object.keys(a),kb=Object.keys(b);const flat=(o,p='')=>Object.entries(o).flatMap(([k,v])=>typeof v==='object'?flat(v,p+k+'.'):[p+k]);const fa=flat(a),fb=flat(b);const d1=fa.filter(k=>!fb.includes(k)),d2=fb.filter(k=>!fa.includes(k));console.log(d1.length===0&&d2.length===0?'I18N MATCH':'FALTAN es:'+d1+' en:'+d2)"
   EXPECT: I18N MATCH
   EVIDENCE: pending
 

@@ -54,6 +54,7 @@ export default defineConfig({
         ],
       },
       injectManifest: {
+      maximumFileSizeToCacheInBytes: 3.5 * 1024 * 1024,
         // App-shell precache (mismo glob que con generateSW: 16 entradas);
         // el fallback de navegación vive ahora en src/sw.ts (NavigationRoute)
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
