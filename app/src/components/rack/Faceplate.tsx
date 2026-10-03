@@ -103,15 +103,9 @@ export function Faceplate({
           const tone = st.drafting
             ? 'text-amber-400'
             : st.cabled
-<<<<<<< Updated upstream
-              ? 'text-emerald-500 hover:text-emerald-400'
-              : st.interactive
-                ? 'text-zinc-500 hover:text-accent'
-=======
               ? 'text-emerald-400'
               : st.interactive
                 ? 'text-zinc-400 hover:text-accent'
->>>>>>> Stashed changes
                 : 'text-zinc-600'
           return (
             <button
