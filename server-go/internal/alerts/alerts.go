@@ -962,6 +962,20 @@ func (e *Engine) Resolve(id string) {
 			break
 		}
 	}
+	// #1107: la alerta resuelta es un episodio CERRADO. El read-set es
+	// append-only (kv readOrd) y sobrevivía al Resolve: si la condición se
+	// re-dispara con el mismo ID estable (p. ej. "Agent outdated" tras
+	// actualizar el server y quedar otra vez desactualizado), el episodio
+	// nuevo heredaba el leído viejo en List()/UnreadCount(). Mismo criterio
+	// que Remove (#846): al cerrarse, se olvida el leído.
+	delete(e.readSet, id)
+	for j, rid := range e.readOrd {
+		if rid == id {
+			e.readOrd = append(e.readOrd[:j], e.readOrd[j+1:]...)
+			break
+		}
+	}
+	e.saveReadLocked()
 	if e.db != nil {
 		_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
 	}

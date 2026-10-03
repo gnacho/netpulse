@@ -340,6 +340,47 @@ func TestEmitOrUpdateReepisodeAfterRestart(t *testing.T) {
 	}
 }
 
+// TestResolveForgetsRead (#1107): una alerta leída que se RESUELVE (episodio
+// cerrado, p. ej. "Agent outdated" que desaparece al actualizar el agente)
+// no debe dejar rastro en el read-set. Antes el kv readOrd conservaba el ID
+// y List()/UnreadCount() derivan el read de ahí: al re-dispararse la misma
+// condición con ID estable (otra actualización del server vuelve a dejar el
+// agente desactualizado), el episodio nuevo heredaba el leído viejo y el
+// humano no veía la alerta. Mismo criterio que Remove (#846).
+func TestResolveForgetsRead(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	e1 := New(d, nil)
+	if !e1.EmitOrUpdate(ev("agent-outdated-sw1", CatSystem, false)) {
+		t.Fatal("insert episodio 1")
+	}
+	e1.MarkRead("agent-outdated-sw1")
+	e1.Resolve("agent-outdated-sw1")
+
+	// El agente se actualiza (episodio cerrado) y meses después otra
+	// actualización del server vuelve a dejarlo desactualizado: mismo ID,
+	// episodio nuevo.
+	if !e1.EmitOrUpdate(ev("agent-outdated-sw1", CatSystem, false)) {
+		t.Fatal("re-emisión tras Resolve")
+	}
+	if e1.List()[0].Read {
+		t.Fatalf("episodio nuevo tras Resolve debe ser no-leído: %+v", e1.List()[0])
+	}
+	if e1.UnreadCount() != 1 {
+		t.Fatalf("unread tras re-emisión: %d", e1.UnreadCount())
+	}
+
+	// El read purgado no revive tras un reinicio (kv readOrd limpio).
+	e2 := New(d, nil)
+	if got := e2.List(); len(got) != 1 || got[0].Read {
+		t.Fatalf("el read resucitó tras reinicio: %+v", got)
+	}
+}
+
 // TestEmitOrUpdateInsertNotificaConTs (#1074): la rama de INSERCIÓN de
 // EmitOrUpdate notificaba la `ev` original sin el default de Ts que
 // insertaLocked aplica a su copia local: el notifier recibía Ts=0 y los
