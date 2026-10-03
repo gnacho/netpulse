@@ -341,7 +341,7 @@ function StatsStrip({
 }) {
   const { t } = useTranslation()
   const { refreshKey } = useDashboard()
-  const { deviceTotals } = useNetPulse()
+  const { deviceTotals, adguard } = useNetPulse()
   const reduce = useReducedMotion()
   const newThisWeekDevices = allDevices.filter((d) => d.isNew)
   // #1003: el umbral de señal débil es el ajuste global (/api/settings/thresholds),
@@ -483,9 +483,13 @@ function StatsStrip({
       ),
     },
   ]
+  // #1136: sin AdGuard configurado (host vacío) la tarjeta de cobertura no
+  // aplica: en live el flag por cliente nunca se rellena y la tarjeta
+  // mostraba "0/N protegidos" permanentemente.
+  const visibleCards = adguard.host ? cards : cards.filter((c) => c.key !== 'adguard')
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-      {cards.map((c, i) => (
+      {visibleCards.map((c, i) => (
         <motion.div
           key={c.key}
           initial={reduce ? false : { opacity: 0, y: 16 }}
@@ -816,6 +820,8 @@ function DeviceDetail({
   onEdit: () => void
 }) {
   const { t } = useTranslation()
+  const { adguard } = useNetPulse()
+  const hasAdGuard = Boolean(adguard.host)
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
       <DetailItem label="MAC" mono>
@@ -823,21 +829,25 @@ function DeviceDetail({
       </DetailItem>
       <DetailItem label={t('devices.detail.dhcpLease')}>{dhcpLease(device.dhcpLease)}</DetailItem>
       <DetailItem label={t('devices.detail.firstSeen')}>{fmtSeenAgo(device.firstSeenMs)}</DetailItem>
-      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
-      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
+      {/* #1131: hostname junto a MAC (izquierda) y los "seen" juntos a la
+          derecha: intercambio de posiciones con lastSeen. */}
       <DetailItem label="Hostname" mono>
         {device.hostname}
       </DetailItem>
-      <div className="min-w-0">
-        <div className="text-label uppercase text-text-muted">AdGuard</div>
-        <div className="mt-1.5">
-          {device.adguard ? (
-            <StatusPill tone="ok" label={t('devices.detail.protected')} />
-          ) : (
-            <StatusPill tone="muted" label={t('devices.detail.unfiltered')} />
-          )}
+      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
+      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
+      {hasAdGuard && (
+        <div className="min-w-0">
+          <div className="text-label uppercase text-text-muted">AdGuard</div>
+          <div className="mt-1.5">
+            {device.adguard ? (
+              <StatusPill tone="ok" label={t('devices.detail.protected')} />
+            ) : (
+              <StatusPill tone="muted" label={t('devices.detail.unfiltered')} />
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <ConnectedToItem device={device} />
       {infra && (
         <DetailItem label={t('devices.detail.infra')}>

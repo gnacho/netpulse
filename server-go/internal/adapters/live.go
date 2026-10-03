@@ -1249,8 +1249,14 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
 	} else if p.cfg.Type == "routeros" {
 		r.Role, r.RoleBadge = "Router", "Router"
-	} else if p.cfg.AgentOnly || p.cfg.Type == "managed-switch" {
+	} else if p.cfg.AgentOnly || p.cfg.Type == "managed-switch" || (p.cfg.Type == "external" && p.cfg.SnmpEnabled) {
+		// external sondeado por SNMP = switch en la práctica (#661); evita el
+		// fallback AP para los switches SNMP de crowedavid (#1137).
 		r.Role, r.RoleBadge = "Switch", "SW"
+	} else if p.cfg.Type == "external" {
+		// #1137: un external genérico NO es un AP; el fallback anterior le
+		// colgaba el chip AP cian en la tarjeta del detalle.
+		r.Role, r.RoleBadge = "External", "EXT"
 	} else {
 		r.Role, r.RoleBadge = "Punto de acceso", "AP"
 	}
@@ -1367,8 +1373,10 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 			r.Role, r.RoleBadge = "Gateway principal", "Principal"
 		} else if cfg.Type == "routeros" {
 			r.Role, r.RoleBadge = "Router", "Router"
-		} else if cfg.Type == "managed-switch" {
+		} else if cfg.Type == "managed-switch" || (cfg.Type == "external" && cfg.SnmpEnabled) {
 			r.Role, r.RoleBadge = "Switch", "SW"
+		} else if cfg.Type == "external" {
+			r.Role, r.RoleBadge = "External", "EXT"
 		} else {
 			r.Role, r.RoleBadge = "Punto de acceso", "AP"
 		}

@@ -81,7 +81,7 @@ function TrafficTooltip({
 /** FleetCard grande de /routers (routers.md §②) */
 export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps) {
   const { t } = useTranslation()
-  const { isDemo, serverUptimeSec } = useNetPulse()
+  const { isDemo, serverUptimeSec, adguard } = useNetPulse()
   const [tempUnit] = useTempUnit()
   const agent = useAgentFor(router.id)
   // #887: período de gracia post-arranque del server. Justo tras un reinicio
@@ -199,8 +199,13 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               </div>
               {isPrimary && router.type !== 'routeros' && router.type !== 'managed-switch' && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">AdGuard</span>
+                  {/* #1136: el punto AdGuard solo con AdGuard configurado. */}
+                  {adguard.host && (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">AdGuard</span>
+                    </>
+                  )}
                   <span className="h-1.5 w-1.5 rounded-full bg-tunnel" />
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">WireGuard</span>
                 </div>

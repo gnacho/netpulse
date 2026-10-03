@@ -69,6 +69,10 @@ export function AdGuardPanel() {
     { label: t('home.services.avgDns'), value: adguard.dnsLatencyMs, unit: 'ms' },
   ] as const
 
+  // #1136: sin AdGuard configurado el panel no aplica: el estado caía en el
+  // fallback "inactivo" y la tarjeta se colgaba en el detalle de cada router.
+  if (!adguard.host) return null
+
   // Sin acceso a la API (GL.iNet exige sesión): estado honesto, sin números
   if (adguard.status !== 'active') {
     return (

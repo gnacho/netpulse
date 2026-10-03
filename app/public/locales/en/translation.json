@@ -353,7 +353,8 @@
     "save": "Save",
     "never": "never",
     "notFound": "Page not found",
-    "tunnelIp": "Tunnel IP"
+    "tunnelIp": "Tunnel IP",
+    "roleExternal": "External"
   },
   "devices": {
     "badges": {

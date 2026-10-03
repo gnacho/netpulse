@@ -22,7 +22,7 @@ export interface Router {
   modelShort: string
   role: string
   /** Pill de rol: "Principal" | "AP" | "SW" */
-  roleBadge: 'Principal' | 'AP' | 'SW'
+  roleBadge: 'Principal' | 'AP' | 'SW' | 'EXT'
   ip: string
   /** MAC del bridge br-lan (live) */
   mac?: string

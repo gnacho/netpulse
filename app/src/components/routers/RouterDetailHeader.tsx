@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { roleLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
+import { useNetPulse } from '@/data/DataProvider'
 import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
@@ -18,6 +19,9 @@ export function RouterDetailHeader({ router }: { router: Router }) {
   const reduce = useReducedMotion()
   const isGateway = router.roleBadge === 'Principal'
   const agent = useAgentFor(router.id)
+  // #1136: el chip AdGuard solo tiene sentido con AdGuard configurado; sin
+  // host era un adorno fijo en la cabecera del gateway.
+  const { adguard } = useNetPulse()
   const pills = [
     { label: roleLabel(router.roleBadge), tone: 'accent' as const, pulse: false },
     {
@@ -25,12 +29,14 @@ export function RouterDetailHeader({ router }: { router: Router }) {
       tone: (router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : 'danger') as 'ok' | 'warn' | 'danger',
       pulse: router.status !== 'online',
     },
-    ...(isGateway
+    ...(isGateway && adguard.host
       ? [
           { label: 'AdGuard', tone: 'ok' as const, pulse: false },
           { label: 'WireGuard', tone: 'tunnel' as const, pulse: false },
         ]
-      : []),
+      : isGateway
+        ? [{ label: 'WireGuard', tone: 'tunnel' as const, pulse: false }]
+        : []),
   ]
 
   return (

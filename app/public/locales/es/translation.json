@@ -353,7 +353,8 @@
     "save": "Guardar",
     "never": "nunca",
     "notFound": "Página no encontrada",
-    "tunnelIp": "IP túnel"
+    "tunnelIp": "IP túnel",
+    "roleExternal": "Externo"
   },
   "devices": {
     "badges": {
