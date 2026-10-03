@@ -507,6 +507,22 @@ func (l *Live) loadRouterMacs() {
 // Mode: "live".
 func (l *Live) Mode() string { return "live" }
 
+// FleetFdbUplinks (rack canvas): evidencia FDB de uplinks entre miembros
+// de flota, para el auto-cableado del canvas. Usa el último sondeo.
+func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
+	out := map[string]FdbUplink{}
+	brMacBy := map[string]string{}
+	for id, p := range l.lastPolled {
+		if p != nil && p.brMac != "" {
+			brMacBy[id] = p.brMac
+		}
+	}
+	for child, up := range fleetFdbEvidence(l.lastPolled) {
+		out[child] = FdbUplink{ChildID: child, ParentID: up.parent, Port: up.port}
+	}
+	return out
+}
+
 // Tick: no-op (el sondeo real ocurre en GetOverview, como el JS).
 func (l *Live) Tick(context.Context) error { return nil }
 
