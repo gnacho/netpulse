@@ -2,10 +2,10 @@
 // U 1-based desde el rail inferior (RF y crece hacia abajo: la U 1 va abajo
 // del todo). Columnas 0-based.
 
-export const U_PX = 44
-export const COL_PX = 16
+export const U_PX = 52
+export const COL_PX = 22
 export const RAIL_PX = 18
-export const RACK_HEADER_PX = 22
+export const RACK_HEADER_PX = 24
 
 /** Ancho interior útil de un rack de ancho completo. */
 export function interiorWidthPx(): number {

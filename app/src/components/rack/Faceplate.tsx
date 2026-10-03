@@ -88,8 +88,8 @@ export function Faceplate({
               onMouseEnter={() => onPortEnter?.(p.id)}
               onMouseLeave={() => onPortLeave?.(p.id)}
               className={
-                'absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2px] transition-colors ' +
-                (sfp ? 'h-[10px] w-[16px]' : 'h-[12px] w-[12px]') +
+                'nodrag absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2px] transition-colors ' +
+                (sfp ? 'h-[10px] w-[16px]' : 'h-3 w-2.5') +
                 (st.drafting
                   ? ' bg-amber-400 ring-2 ring-amber-300'
                   : st.cabled

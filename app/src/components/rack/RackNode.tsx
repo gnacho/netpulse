@@ -28,21 +28,21 @@ export const RackNode = memo(function RackNode({ data }: NodeProps<RackNodeType>
         'relative rounded-md border bg-surface transition-shadow ' +
         (selected ? 'border-accent shadow-[0_0_0_2px_rgb(var(--accent))]' : 'border-border')
       }
-      style={{ width: RAIL_PX * 2 + interiorW, height: 22 + uHeight * U_PX + 4 }}
+      style={{ width: RAIL_PX * 2 + interiorW, height: 24 + uHeight * U_PX + 4 }}
       onClick={(e) => {
         e.stopPropagation()
         data.onSelect?.()
       }}
     >
       {/* Cabecera: nombre del rack */}
-      <div className="flex h-[22px] items-center justify-center truncate px-2 text-[11px] font-semibold text-text-secondary">
+      <div className="flex h-[24px] items-center justify-center truncate px-2 text-[11px] font-semibold text-text-secondary">
         {name}
       </div>
 
       {/* Raíl izquierdo: números de U. La U 1 está abajo siempre. */}
-      <div className="absolute left-0 top-[22px] bottom-[4px] w-[18px]">
+      <div className="absolute left-0 top-[24px] bottom-[4px] w-[18px]">
         {Array.from({ length: uHeight }, (_, i) => {
-          const labelU = topDown ? uHeight - i : i + 1
+          const labelU = topDown ? i + 1 : uHeight - i
           return (
             <div
               key={i}
@@ -55,14 +55,14 @@ export const RackNode = memo(function RackNode({ data }: NodeProps<RackNodeType>
         })}
       </div>
       {/* Raíl derecho (simétrico, sin números) */}
-      <div className="absolute right-0 top-[22px] bottom-[4px] w-[18px] border-l border-border/40" />
+      <div className="absolute right-0 top-[24px] bottom-[4px] w-[18px] border-l border-border/40" />
 
       {/* Interior con rejilla: línea por U + separadores de fracciones */}
       <div
         className="absolute border border-border/60"
         style={{
           left: RAIL_PX,
-          top: 22,
+          top: 24,
           width: interiorW,
           height: uHeight * U_PX,
           backgroundImage:

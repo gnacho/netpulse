@@ -11,6 +11,7 @@ import {
   ReactFlowProvider,
   ViewportPortal,
   useNodesState,
+  useReactFlow,
   Background,
   BackgroundVariant,
 } from '@xyflow/react'
@@ -21,7 +22,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { RackNode, type RackNodeType } from '@/components/rack/RackNode'
 import { MountNode, type MountNodeType } from '@/components/rack/MountNode'
-import { COL_PX, U_PX, mountRelPos, relPosToCell } from '@/components/rack/layout'
+import { COL_PX, U_PX, mountRelPos, rackHeightPx, rackWidthPx, relPosToCell } from '@/components/rack/layout'
 import type { CableVisibility, GhostState } from '@/components/rack/types'
 import { findSlot, type Footprint } from '@/lib/rackGeometry'
 import { FACEPLATES, getFaceplate, seedPorts, suggestFaceplate } from '@/lib/rackFaceplates'
@@ -77,7 +78,79 @@ function RackCanvas() {
     rackMoves.size > 0
 
   const draggingRef = useRef(false)
+  const { setViewport } = useReactFlow()
+
+  // Altura restante real de la ventana para el canvas: el contenido superior
+  // (header, toolbar, banner de avisos) es variable, un calc fijo se queda corto.
+  const canvasWrapRef = useRef<HTMLDivElement>(null)
+  const [canvasH, setCanvasH] = useState(560)
+  useEffect(() => {
+    const el = canvasWrapRef.current
+    if (!el) return
+    const update = () => setCanvasH(Math.max(320, window.innerHeight - el.getBoundingClientRect().top - 12))
+    update()
+    const t = setTimeout(update, 400)
+    window.addEventListener('resize', update)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('resize', update)
+    }
+  }, [loaded, working.racks.length])
+
+  const fitCanvas = useCallback(() => {
+    const row = canvasWrapRef.current
+    if (!row || working.racks.length === 0) return
+    const W = row.clientWidth - 268 // aside w-64 + gap-3
+    const H = canvasH
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const r of working.racks) {
+      const move = rackMoves.get(r.id)
+      const x = move?.x ?? r.position_x
+      const y = move?.y ?? r.position_y
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x + rackWidthPx())
+      maxY = Math.max(maxY, y + rackHeightPx(r.u_height))
+    }
+    const pad = 48
+    const bw = Math.max(1, maxX - minX)
+    const bh = Math.max(1, maxY - minY)
+    const zoom = Math.min(1, (W - pad) / bw, (H - pad) / bh)
+    setViewport({
+      x: (W - bw * zoom) / 2 - minX * zoom,
+      y: (H - bh * zoom) / 2 - minY * zoom,
+      zoom,
+    })
+  }, [working.racks, rackMoves, canvasH, setViewport])
+
+  // RF v12 añade la clase light/dark propia; sin colorMode el canvas cae en
+  // el tema claro y pisaría los tokens del app. Ligamos al tema real.
+  const [lightTheme, setLightTheme] = useState(() => document.documentElement.classList.contains('light'))
+  useEffect(() => {
+    const obs = new MutationObserver(() => setLightTheme(document.documentElement.classList.contains('light')))
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
+  }, [])
   const [nodes, setNodes, onNodesChange] = useNodesState<RackNodeType | MountNodeType>([])
+  const cancelRef = useRef(0)
+  // Los nodos cargan asíncronos: fitView de init no los ve. Reenfocamos cada
+  // vez que cambia el número de nodos, con margen y sin pasar de escala 1.
+  // Encuadre determinista: calculamos el viewport desde el MODELO (posiciones
+  // de rack y tamaños conocidos), sin depender de la medición de RF ni de
+  // fitView con nodos asíncronos (race conocida: encuadres a escala 0.3).
+  useEffect(() => {
+    if (nodes.length === 0) return
+    const t1 = requestAnimationFrame(() => {
+      cancelRef.current = requestAnimationFrame(() => fitCanvas())
+    })
+    cancelRef.current = t1
+    return () => cancelAnimationFrame(cancelRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes.length, canvasH])
+
 
   const reload = useCallback(async () => {
     const b = await api.fetchRackBundle()
@@ -610,7 +683,7 @@ function RackCanvas() {
         </div>
       </div>
 
-      <div className="mt-3 flex min-h-0 flex-1 gap-3">
+      <div ref={canvasWrapRef} className="mt-3 flex gap-3" style={{ height: canvasH }}>
         {/* Canvas */}
         <div className="relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-canvas">
           {!loaded ? null : working.racks.length === 0 ? (
@@ -641,12 +714,16 @@ function RackCanvas() {
               nodesConnectable={false}
               minZoom={0.25}
               maxZoom={2.5}
+              colorMode={lightTheme ? 'light' : 'dark'}
               proOptions={{ hideAttribution: true }}
-              fitView
             >
               <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
               <ViewportPortal>
-                <svg style={{ position: 'absolute', left: 0, top: 0 }}>
+                <svg
+                  data-testid="cables-layer"
+                  style={{ position: 'absolute', left: -10000, top: -10000, width: 20000, height: 20000, overflow: 'visible', pointerEvents: 'all' }}
+                >
+                  <g transform="translate(10000, 10000)">
                   {working.cables.map((c) => {
                     if (!cableVisible(c)) return null
                     const a = absPort(c.from_mount, c.from_port)
@@ -655,7 +732,7 @@ function RackCanvas() {
                     const sel = c.id === selectedCableId
                     const stroke = c.type === 'fiber' ? 'rgb(var(--warn))' : sel ? 'rgb(var(--accent))' : 'rgb(var(--text-muted))'
                     return (
-                      <g key={c.id} onClick={(e) => { e.stopPropagation(); setSelectedCableId(sel ? null : c.id) }} style={{ cursor: 'pointer' }}>
+                      <g key={c.id} data-cable-id={c.id} data-selected={sel} onClick={(e) => { e.stopPropagation(); setSelectedCableId(sel ? null : c.id) }} style={{ cursor: 'pointer' }}>
                         <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} />
                         <line
                           x1={a.x}
@@ -669,6 +746,7 @@ function RackCanvas() {
                       </g>
                     )
                   })}
+                  </g>
                 </svg>
               </ViewportPortal>
             </ReactFlow>

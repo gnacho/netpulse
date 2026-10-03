@@ -26,25 +26,25 @@ Scope: completar la fase 1 del rack canvas (catálogo declarativo de faceplates,
 
 ## Leaf B: canvas frontend (1.4)
 
-- [ ] B1: ruta /rack con canvas @xyflow/react: racks dibujados (rails, numeración U bottom-up según numbering, 12 columnas), mounts posicionados según huella, faceplates SVG desde el catálogo, datos del bundle GET /api/racks.
-  EVIDENCE: pending
+- [x] B1: ruta /rack con canvas @xyflow/react: racks dibujados (rails, numeración U bottom-up según numbering, 12 columnas), mounts posicionados según huella, faceplates SVG desde el catálogo, datos del bundle GET /api/racks.
+  EVIDENCE: verify-rack.mjs PASS x13 (heading, empty, rack node, 2 panels, 48 puertos); capturas /tmp/opencode/pw-rack/shot-2-rack.png y shot-4-patch.png (rack centrado, U12 arriba/U1 abajo, 2 patch panels con puertos sembrados)
 
-- [ ] B2: arrastrar desde picker y mover montajes con snap al hueco libre (port de FindSlot a TS: U destino primero, luego hacia fuera, columna deseada primero); drop imposible = preview rojo, nunca colisión silenciosa; estado dirty hasta guardar.
-  EVIDENCE: pending
+- [x] B2: arrastrar desde picker y mover montajes con snap al hueco libre (port de FindSlot a TS: U destino primero, luego hacia fuera, columna deseada primero); drop imposible = preview rojo, nunca colisión silenciosa; estado dirty hasta guardar.
+  EVIDENCE: PASS 'drag persistido u_start [1,4]' tras drag E2E (mouse down/move/up con snap); ghost verde/rojo en onNodeDrag; nodrag en puertos para no arrastrar al pinchar
 
-- [ ] B3: toolbar con Add Rack, Patch (modo parchar), visibilidad de cables, Save explícito (PUT /api/racks + PUT /api/racks/layout); nada persiste sin Save.
-  EVIDENCE: pending
+- [x] B3: toolbar con Add Rack, Patch (modo parchar), visibilidad de cables, Save explícito (PUT /api/racks + PUT /api/racks/layout); nada persiste sin Save.
+  EVIDENCE: PASS 'persiste racks=1 mounts=2 cables=1' tras Save; dirty dot en botón Guardar (captura shot-4); reload sin save no persistía (verificado en desarrollo)
 
-- [ ] B4: interacción de patch: clic en puerto origen (draft) -> clic en destino; release inválido = toast explicativo; Delete sobre cable seleccionado = unplug (DELETE /api/racks/cables).
-  EVIDENCE: pending
+- [x] B4: interacción de patch: clic en puerto origen (draft) -> clic en destino; release inválido = toast explicativo; Delete sobre cable seleccionado = unplug (DELETE /api/racks/cables).
+  EVIDENCE: PASS 'draft banner', 'cable dibujado', 'cable desconectado (staged)', 'cable borrado persiste (0)'; data-selected=true tras click en línea
 
-- [ ] B5: modos de visibilidad hover/always/hidden; cable seleccionado siempre dibujado; puerto con cable visible siempre en ambas placas; equipos patch-facing muestran puertos permanentemente.
-  EVIDENCE: pending
+- [x] B5: modos de visibilidad hover/always/hidden; cable seleccionado siempre dibujado; puerto con cable visible siempre en ambas placas; equipos patch-facing muestran puertos permanentemente.
+  EVIDENCE: PASS 'puertos sembrados visibles (patch-facing) 48/48'; SegmentedControl Al pasar/Siempre/Ocultos en toolbar; puertos cabled con bg-emerald siempre visibles (captura shot-4)
 
-- [ ] B6: i18n ES/EN de todo lo nuevo (mismo número de claves rack.* en es.json y en.json, sin literales hardcodeados).
+- [x] B6: i18n ES/EN de todo lo nuevo (mismo número de claves rack.* en es.json y en.json, sin literales hardcodeados).
   CHECK: node -e "const a=require('./app/public/locales/es/translation.json').rack,b=require('./app/public/locales/en/translation.json').rack;const ka=Object.keys(a),kb=Object.keys(b);const flat=(o,p='')=>Object.entries(o).flatMap(([k,v])=>typeof v==='object'?flat(v,p+k+'.'):[p+k]);const fa=flat(a),fb=flat(b);const d1=fa.filter(k=>!fb.includes(k)),d2=fb.filter(k=>!fa.includes(k));console.log(d1.length===0&&d2.length===0?'I18N MATCH':'FALTAN es:'+d1+' en:'+d2)"
   EXPECT: I18N MATCH
-  EVIDENCE: pending
+  EVIDENCE: I18N MATCH
 
 - [x] B7: gates estáticos frontend: tsc 0 errores, vite build OK, eslint 0 errores en ficheros nuevos/modificados.
   CHECK: cd app && npx tsc -b 2>&1 | grep -c "error TS"
@@ -58,16 +58,16 @@ Scope: completar la fase 1 del rack canvas (catálogo declarativo de faceplates,
   EXPECT: 0
   EVIDENCE: 0
 
-- [ ] I2: embed staticspa reconstruido desde app/dist fresco (rm -rf + cp -a) y clave i18n nueva presente en el binario.
+- [x] I2: embed staticspa reconstruido desde app/dist fresco (rm -rf + cp -a) y clave i18n nueva presente en el binario.
   CHECK: strings netpulse-rack-preview | grep -c "rack.addRack"
   EXPECT: 1
-  EVIDENCE: pending
+  EVIDENCE: 1
 
-- [ ] I3: preview desplegado en CT 226, servicio activo, journal sin errores, login 204.
-  EVIDENCE: pending
+- [x] I3: preview desplegado en CT 226, servicio activo, journal sin errores, login 204.
+  EVIDENCE: systemctl is-active netpulse-go = active; journalctl 10 min = 0 errores; login 204 (3-Oct ~13:20)
 
-- [ ] I4: verificación playwright en vivo contra el CT: /rack renderiza, crear rack+montaje por UI persiste tras reload (GET /api/racks), 0 errores de consola.
-  EVIDENCE: pending
+- [x] I4: verificación playwright en vivo contra el CT: /rack renderiza, crear rack+montaje por UI persiste tras reload (GET /api/racks), 0 errores de consola.
+  EVIDENCE: verify-rack.mjs 18/18 PASS (18 checks: heading, empty, create rack, mount 2 panels, 48 ports, draft banner, cable drawn, persist racks/mounts/cables, origin manual, reload survival, unplug staged+persisted, drag persisted u_start [1,4], cleanup; ERRORES CONSOLA: 0). Guion: /tmp/opencode/pw-verify/verify-rack.mjs; capturas /tmp/opencode/pw-rack/shot-*.png
 
 - [ ] I5: memory actualizada con el estado final de la fase 1.
   EVIDENCE: pending

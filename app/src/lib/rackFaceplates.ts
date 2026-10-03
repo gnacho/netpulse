@@ -88,8 +88,8 @@ export const FACEPLATES: FaceplateTemplate[] = [
     led: { x: 0.03, y: 0.5, r: 0.16 },
     labelBox: { x: 0.06, y: 0.3, w: 0.16, h: 0.4 },
     rows: [
-      { kind: 'rj45', count: 12, xStart: 0.26, xEnd: 0.62, y: 0.3 },
-      { kind: 'rj45', count: 12, xStart: 0.26, xEnd: 0.62, y: 0.7 },
+      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.3 },
+      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.7 },
       { kind: 'sfp+', count: 4, xStart: 0.72, xEnd: 0.92, y: 0.5 },
     ],
   },
@@ -129,8 +129,8 @@ export const FACEPLATES: FaceplateTemplate[] = [
     led: { x: 0.03, y: 0.5, r: 0.16 },
     labelBox: { x: 0.06, y: 0.3, w: 0.12, h: 0.4 },
     rows: [
-      { kind: 'rj45', count: 12, xStart: 0.22, xEnd: 0.6, y: 0.3 },
-      { kind: 'rj45', count: 12, xStart: 0.22, xEnd: 0.6, y: 0.7 },
+      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.3 },
+      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.7 },
     ],
     passThrough: true,
   },
