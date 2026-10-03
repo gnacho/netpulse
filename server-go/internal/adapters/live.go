@@ -3346,6 +3346,14 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		if len(all) == 1 {
 			mac := all[0]
 			lease, ok := leaseMap[mac]
+			// #931: un vecino LLDP en esta boca es el propio equipo
+			// anunciándose; su sysName/mgmt-ip son mejor identificación que
+			// la MAC pelada cuando no hay hostname DHCP ni alias.
+			lldpName, lldpMgmt := "", ""
+			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil {
+				lldpName = nb.displayName()
+				lldpMgmt = nb.Mgmt
+			}
 			// MAC de virtualización (QEMU/KVM, Proxmox, VMware, Hyper-V):
 			// el equipo enchufado es el hypervisor; lo aprendido es una
 			// NIC virtual de una VM/CT (#291).
@@ -3371,12 +3379,18 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 					// su i18n (#1039); aquí viaja el nombre a pelo.
 					port.ConnectedTo = name
 					port.PeerKind = "curated"
+				} else if lldpName != "" {
+					// #931: sin nombre mejor, el equipo se anuncia por LLDP.
+					port.ConnectedTo = lldpName
+					port.PeerKind = "mac"
 				} else {
 					port.ConnectedTo = port.Label
 					port.PeerKind = "mac"
 				}
 				if lease, ok := leaseMap[mac]; ok && lease.IP != "" {
 					port.Detail = lease.IP
+				} else if lldpMgmt != "" && lldpName != "" {
+					port.Detail = lldpMgmt + " · LLDP"
 				}
 				enriched = append(enriched, port)
 				continue
@@ -3388,6 +3402,13 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 				port.ConnectedTo = lease.IP
 			case aliasByMac[mac] != "":
 				port.ConnectedTo = aliasByMac[mac]
+			case lldpName != "":
+				// #931: sin lease ni alias, el nombre anunciado por el
+				// propio equipo (LLDP sysName) es la mejor etiqueta.
+				port.ConnectedTo = lldpName
+				if lldpMgmt != "" {
+					port.Detail = lldpMgmt + " · LLDP"
+				}
 			default:
 				port.ConnectedTo = mac
 			}

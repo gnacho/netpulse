@@ -47,3 +47,10 @@ web/node_modules/
 
 plans
 docs/premortem
+
+# Instancia local de pruebas (worktrees dev; #931 arrastró una llave privada
+# generada por la instancia a un commit: gitleaks la cazó en el PR #1117)
+local-data/
+local-server.log
+netpulse-local
+jar.txt
