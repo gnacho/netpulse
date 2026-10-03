@@ -86,6 +86,8 @@ function RackCanvas() {
     physicalPorts?: { id: string; kind: RackPortKind }[]
     defaultU: number
     isPatch: boolean
+    /** punto de drop en coords relativas al rack (coloca donde se soltó) */
+    dropRel?: { x: number; y: number }
   } | null>(null)
   const [askU, setAskU] = useState('1')
   const [askPorts, setAskPorts] = useState('24')
@@ -530,7 +532,14 @@ function RackCanvas() {
   )
 
   const prepareDeviceMount = useCallback(
-    (mac: string, deviceType: string, label: string, physicalPorts?: { id: string; kind: RackPortKind }[], rackId?: string) => {
+    (
+      mac: string,
+      deviceType: string,
+      label: string,
+      physicalPorts?: { id: string; kind: RackPortKind }[],
+      rackId?: string,
+      dropRel?: { x: number; y: number },
+    ) => {
       const rid = rackId ?? activeRackId ?? working.racks[0]?.id
       if (!rid || !rackById.get(rid)) {
         toast.error(t('rack.emptyHint'))
@@ -555,6 +564,7 @@ function RackCanvas() {
         faceplateId: plate?.id ?? 'server-1u',
         defaultU: defU,
         isPatch: false,
+        dropRel,
       })
       setAskU(String(defU))
     },
@@ -562,7 +572,7 @@ function RackCanvas() {
   )
 
   const prepareAccessoryMount = useCallback(
-    (faceplateId: string, rackId?: string) => {
+    (faceplateId: string, rackId?: string, dropRel?: { x: number; y: number }) => {
       const rid = rackId ?? activeRackId ?? working.racks[0]?.id
       const rack = rid ? rackById.get(rid) : undefined
       const plate = getFaceplate(faceplateId)
@@ -571,7 +581,7 @@ function RackCanvas() {
         return
       }
       const isPatch = plate.passThrough === true
-      setMountAsk({ rackId: rid!, deviceType: '', label: '', faceplateId, defaultU: plate.uHeight, isPatch })
+      setMountAsk({ rackId: rid!, deviceType: '', label: '', faceplateId, defaultU: plate.uHeight, isPatch, dropRel })
       setAskU(String(plate.uHeight))
       setAskPorts(faceplateId === 'patch-panel-12p' ? '12' : faceplateId === 'patch-panel-48p' ? '48' : '24')
     },
@@ -594,7 +604,16 @@ function RackCanvas() {
     }
     const plate = getFaceplate(faceplateId)
     const colSpan = plate?.colSpan ?? 12
-    const fp = findSlot(rack.u_height, footprintsOfRack(rack.id), 1, 0, uHeight, colSpan)
+    // Coloca donde se soltó (snap al hueco libre más cercano a ese punto);
+    // sin punto de drop, el primer hueco libre desde abajo.
+    let dropU = 1
+    let dropCol = 0
+    if (ask.dropRel) {
+      const cell = relPosToCell(rack.u_height, ask.dropRel.x, ask.dropRel.y, uHeight)
+      dropU = cell.uStart
+      dropCol = cell.colStart
+    }
+    const fp = findSlot(rack.u_height, footprintsOfRack(rack.id), dropU, dropCol, uHeight, colSpan)
     if (!fp) {
       toast.error(t('rack.noSpace'))
       return
@@ -632,7 +651,7 @@ function RackCanvas() {
 
   // Los routers de flota traen sus bocas reales del poller (extras.ethPorts).
   const mountRouter = useCallback(
-    async (router: { id: string; mac?: string; name: string }, rackId?: string) => {
+    async (router: { id: string; mac?: string; name: string }, rackId?: string, dropRel?: { x: number; y: number }) => {
       if (!router.mac) return
       let physical: { id: string; kind: RackPortKind }[] | undefined
       try {
@@ -651,7 +670,7 @@ function RackCanvas() {
       } catch {
         physical = undefined
       }
-      prepareDeviceMount(router.mac, 'router', router.name, physical, rackId)
+      prepareDeviceMount(router.mac, 'router', router.name, physical, rackId, dropRel)
     },
     [prepareDeviceMount],
   )
@@ -865,12 +884,13 @@ function RackCanvas() {
         toast.error(t('rack.dropNoRack'))
         return
       }
+      const dropRel = { x: hit.relX, y: hit.relY }
       if (payload.type === 'accessory' && payload.faceplateId) {
-        prepareAccessoryMount(payload.faceplateId, hit.rack.id)
+        prepareAccessoryMount(payload.faceplateId, hit.rack.id, dropRel)
       } else if (payload.type === 'router' && payload.routerId && payload.mac) {
-        void mountRouter({ id: payload.routerId, mac: payload.mac, name: payload.label ?? '' }, hit.rack.id)
+        void mountRouter({ id: payload.routerId, mac: payload.mac, name: payload.label ?? '' }, hit.rack.id, dropRel)
       } else if (payload.type === 'device' && payload.mac) {
-        prepareDeviceMount(payload.mac, payload.deviceType ?? '', payload.label ?? '', undefined, hit.rack.id)
+        prepareDeviceMount(payload.mac, payload.deviceType ?? '', payload.label ?? '', undefined, hit.rack.id, dropRel)
       }
     },
     [screenToFlowPosition, rackAtPoint, prepareAccessoryMount, mountRouter, prepareDeviceMount, t],
