@@ -3922,11 +3922,13 @@ function ServicesCard({
   ]
   // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
   // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
-  // de Notificaciones.
-  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey; locked?: boolean }[] = [
+  // de Notificaciones. MCP (#1114) es LABS: fila con acento rojo (danger)
+  // visible solo con Labs activado; el endpoint no muere al ocultar Labs
+  // (misma semántica que orquestación: el opt-in persiste server-side).
+  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey; locked?: boolean; labs?: boolean; danger?: boolean }[] = [
     { key: 'proxmox', label: 'Proxmox VE', caption: t('settings.services.proxmoxCaption'), dialogKey: 'proxmox' },
     { key: 'mqtt', label: 'MQTT', caption: t('settings.services.mqttCaption'), dialogKey: 'mqtt' },
-    { key: 'mcp', label: 'MCP', caption: t('settings.services.mcpCaption'), dialogKey: 'mcp', locked: mcpLocked },
+    { key: 'mcp', label: 'MCP', caption: t('settings.services.mcpCaption'), dialogKey: 'mcp', locked: mcpLocked, labs: true, danger: true },
   ]
 
   // AdGuard (#813): el toggle de Servicios también controla el sondeo y la
@@ -4029,13 +4031,14 @@ function ServicesCard({
 
         <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
         <div className="divide-y divide-border/60">
-          {integrationRows.map((row) => (
+          {integrationRows.filter((row) => !row.labs || services.labs).map((row) => (
             <SwitchRow
               key={row.key}
               label={row.label}
               caption={row.caption}
               checked={integrations[row.key]}
               disabled={disabled || row.locked}
+              danger={row.danger}
               trailing={gear(row.dialogKey, row.label)}
                 onCheckedChange={(v) => {
                   setIntegration(row.key, v)

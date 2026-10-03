@@ -1575,7 +1575,7 @@
       "integrationsGroup": "Integrations",
       "proxmoxCaption": "Cluster inventory (hypervisors and CTs)",
       "mqttCaption": "Fleet state published to the MQTT broker",
-      "mcpCaption": "Read-only queries for AI assistants",
+      "mcpCaption": "Read-only queries for AI assistants (labs)",
       "configure": "Configure {{name}}"
     },
     "session": {

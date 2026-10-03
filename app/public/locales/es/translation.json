@@ -1575,7 +1575,7 @@
       "integrationsGroup": "Integraciones",
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
       "mqttCaption": "Publicación del estado en el broker MQTT",
-      "mcpCaption": "Consultas de solo lectura para asistentes de IA",
+      "mcpCaption": "Consultas de solo lectura para asistentes de IA (labs)",
       "configure": "Configurar {{name}}"
     },
     "session": {

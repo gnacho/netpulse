@@ -303,7 +303,7 @@ dispositivos conocidos, peers WireGuard, estadísticas de AdGuard Home, el
 grafo de topología detectado y las alertas activas. Nada más: sin cambios de
 configuración ni reinicios.
 
-Está **desactivado por defecto**. Para activarlo:
+Es experimental y vive bajo el flag de Labs en Ajustes. Está **desactivado por defecto**. Para activarlo:
 
 ```bash
 NETPULSE_MCP_ENABLED=1
