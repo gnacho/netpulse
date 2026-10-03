@@ -57,7 +57,7 @@ export const FACEPLATES: FaceplateTemplate[] = [
     uHeight: 1,
     colSpan: fullWidth,
     led: { x: 0.035, y: 0.5, r: 0.16 },
-    labelBox: { x: 0.07, y: 0.28, w: 0.3, h: 0.44 },
+    labelBox: { x: 0.07, y: 0.28, w: 0.5, h: 0.44 },
     rows: [
       { kind: 'rj45', count: 2, xStart: 0.62, xEnd: 0.72, y: 0.5 },
       { kind: 'sfp+', count: 2, xStart: 0.8, xEnd: 0.9, y: 0.5 },
@@ -71,7 +71,7 @@ export const FACEPLATES: FaceplateTemplate[] = [
     uHeight: 2,
     colSpan: fullWidth,
     led: { x: 0.035, y: 0.25, r: 0.08 },
-    labelBox: { x: 0.07, y: 0.14, w: 0.3, h: 0.22 },
+    labelBox: { x: 0.07, y: 0.14, w: 0.45, h: 0.22 },
     rows: [
       { kind: 'rj45', count: 4, xStart: 0.6, xEnd: 0.92, y: 0.25 },
       { kind: 'sfp+', count: 2, xStart: 0.66, xEnd: 0.78, y: 0.62 },
@@ -101,7 +101,7 @@ export const FACEPLATES: FaceplateTemplate[] = [
     uHeight: 1,
     colSpan: fullWidth,
     led: { x: 0.035, y: 0.5, r: 0.16 },
-    labelBox: { x: 0.07, y: 0.3, w: 0.24, h: 0.4 },
+    labelBox: { x: 0.07, y: 0.3, w: 0.3, h: 0.4 },
     rows: [
       { kind: 'rj45', count: 5, xStart: 0.38, xEnd: 0.62, y: 0.5 },
       { kind: 'sfp+', count: 1, xStart: 0.7, xEnd: 0.7, y: 0.5 },

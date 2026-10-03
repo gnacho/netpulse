@@ -1,8 +1,8 @@
-// Faceplate.tsx - renderer SVG de una plantilla de faceplate. Bandas no
-// solapadas: LED a la izquierda, labelBox (nombre + nº de bocas), artwork o
-// monograma, y puertos como botones HTML (targets de click reales) en
-// coords 0..1. Diseño plano: sin sombras ni brillos; la tipografía escala
-// con la altura U (unidades de contenedor).
+// Faceplate.tsx - renderer de la cara frontal del equipo. Diseño plano y
+// limpio: LED de estado en punto nítido (HTML, no SVG estirado), nombre a
+// tamaño legible que escala con la altura U, y bocas como siluetas RJ45
+// (muesca de traba) o SFP rectangulares. Nada de monogramas ni dobles
+// textos: un nombre, un LED, las bocas.
 import { useTranslation } from 'react-i18next'
 import type { FaceplateTemplate, FaceplatePort } from '@/lib/rackFaceplates'
 
@@ -22,7 +22,6 @@ export function Faceplate({
   plate,
   ports,
   label,
-  monogram,
   color,
   status,
   patchFacing,
@@ -35,8 +34,6 @@ export function Faceplate({
   plate: FaceplateTemplate
   ports: FaceplatePort[]
   label: string
-  /** iniciales grandes del equipo (nombre); sustituyen al artwork genérico */
-  monogram?: string
   color?: string
   status: 'online' | 'offline' | 'unknown'
   /** true = puertos siempre visibles (equipos patch-facing) */
@@ -50,7 +47,11 @@ export function Faceplate({
 }) {
   const { t } = useTranslation()
   const ledColor =
-    status === 'online' ? 'fill-emerald-400' : status === 'offline' ? 'fill-red-400' : 'fill-zinc-500'
+    status === 'online'
+      ? 'bg-emerald-400'
+      : status === 'offline'
+        ? 'bg-red-400'
+        : 'bg-zinc-500'
   const bg = color || 'rgb(var(--elevated))'
 
   return (
@@ -59,44 +60,40 @@ export function Faceplate({
       style={{ background: bg, containerType: 'size' }}
       data-faceplate={plate.id}
     >
-      {/* Monograma: nombre (2-3 letras) en grande, ocupa la banda central */}
-      {monogram && (
-        <div
-          className="pointer-events-none absolute bottom-0 left-[20%] top-0 flex items-center font-display font-bold tracking-wide"
-          style={{ fontSize: '38cqh', color: 'rgb(var(--text-secondary) / 0.55)', lineHeight: 1 }}
-          aria-hidden
-        >
-          {monogram}
-        </div>
-      )}
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-        {/* LED de estado, fijo a la izquierda */}
-        <circle cx={plate.led.x * 100} cy={plate.led.y * 100} r={Math.max(plate.led.r * 100, 1.4)} className={ledColor} />
-        {/* artwork mínimo por tipo de equipo (el monograma lo sustituye) */}
-        {!monogram && <Artwork kind={plate.artwork} />}
-      </svg>
-
-      {/* labelBox: nombre + conteo de bocas detectadas, clipped */}
+      {/* LED de estado: punto nítido de tamaño fijo */}
       <div
-        className="pointer-events-none absolute flex items-center gap-[0.6em] overflow-hidden whitespace-nowrap font-semibold leading-none"
+        className={'absolute rounded-full ' + ledColor}
         style={{
-          left: `${plate.labelBox.x * 100}%`,
+          left: 'max(6px, 3%)',
+          top: `${plate.led.y * 100}%`,
+          width: 8,
+          height: 8,
+          transform: 'translateY(-50%)',
+        }}
+        aria-hidden
+      />
+
+      {/* Nombre + conteo de bocas detectadas (único texto) */}
+      <div
+        className="absolute flex items-center gap-[0.6em] overflow-hidden whitespace-nowrap font-semibold leading-none"
+        style={{
+          left: 'max(18px, 9%)',
           top: `${plate.labelBox.y * 100}%`,
-          width: `${plate.labelBox.w * 100}%`,
           height: `${plate.labelBox.h * 100}%`,
-          fontSize: 'min(24cqh, 15px)',
+          right: `${(1 - plate.labelBox.x - plate.labelBox.w) * 100}%`,
+          fontSize: 'min(26cqh, 15px)',
           color: 'rgb(var(--text-secondary))',
         }}
       >
         <span className="truncate">{label || t(plate.nameKey)}</span>
         {ports.length > 0 && (
-          <span style={{ fontSize: '0.78em', color: 'rgb(var(--text-muted))' }} title={t('rack.portCount')}>
+          <span style={{ fontSize: '0.72em', color: 'rgb(var(--text-muted))' }} title={t('rack.portCount')}>
             ×{ports.length}
           </span>
         )}
       </div>
 
-      {/* Puertos: botones HTML sobre las coords 0..1 */}
+      {/* Bocas: siluetas planas sobre las coords 0..1 de la plantilla */}
       {(patchFacing || portsVisible) &&
         ports.map((p) => {
           const st = portState(p.id)
@@ -138,58 +135,4 @@ export function Faceplate({
         })}
     </div>
   )
-}
-
-/** Artwork declarativo mínimo: pistas visuales por tipo, sin sombras. */
-function Artwork({ kind }: { kind: string }) {
-  const stroke = 'rgba(255,255,255,0.10)'
-  const common = { fill: 'none', stroke, strokeWidth: 1, vectorEffect: 'non-scaling-stroke' as const }
-  switch (kind) {
-    case 'server':
-      return (
-        <g>
-          <rect x="42" y="18" width="52" height="10" rx="1.5" {...common} />
-          <rect x="42" y="72" width="52" height="10" rx="1.5" {...common} />
-        </g>
-      )
-    case 'switch':
-      return <rect x="24" y="12" width="70" height="76" rx="2" {...common} />
-    case 'router':
-      return (
-        <g>
-          <line x1="40" y1="20" x2="88" y2="20" {...common} />
-          <line x1="40" y1="80" x2="88" y2="80" {...common} />
-        </g>
-      )
-    case 'nas':
-      return (
-        <g>
-          {[0, 1, 2].map((i) => (
-            <rect key={i} x="18" y={28 + i * 16} width="64" height="10" rx="1.5" {...common} />
-          ))}
-        </g>
-      )
-    case 'ups':
-      return (
-        <g>
-          <rect x="10" y="20" width="80" height="60" rx="3" {...common} />
-          <rect x="14" y="24" width="30" height="52" rx="2" {...common} />
-        </g>
-      )
-    case 'pdu':
-      return (
-        <g>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <circle key={i} cx={70 + (i % 3) * 9} cy={i < 3 ? 38 : 62} r="2.4" {...common} />
-          ))}
-        </g>
-      )
-    case 'shelf':
-      return <line x1="4" y1="88" x2="96" y2="88" {...common} />
-    case 'panel':
-      return <rect x="22" y="10" width="42" height="80" rx="2" {...common} />
-    case 'blank':
-    default:
-      return null
-  }
 }

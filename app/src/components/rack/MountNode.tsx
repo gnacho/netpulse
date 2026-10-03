@@ -10,7 +10,6 @@ export type MountNodeData = {
   plate: FaceplateTemplate
   ports: FaceplatePort[]
   label: string
-  monogram?: string
   color?: string
   status: 'online' | 'offline' | 'unknown'
   patchFacing: boolean
@@ -58,7 +57,6 @@ export const MountNode = memo(function MountNode({ data }: NodeProps<MountNodeTy
         plate={data.plate}
         ports={data.ports}
         label={data.label}
-        monogram={data.monogram}
         color={data.color}
         status={data.status}
         patchFacing={data.patchFacing}

@@ -234,6 +234,7 @@ function RackCanvas() {
   }, [reload])
 
   // --- Modelo derivado ---
+  const deviceByMac = useMemo(() => new Map(np.devices.map((d) => [d.mac.toLowerCase(), d])), [np.devices])
   const rackById = useMemo(() => new Map(working.racks.map((r) => [r.id, r])), [working.racks])
   const mountById = useMemo(() => new Map(working.mounts.map((m) => [m.id, m])), [working.mounts])
 
@@ -241,22 +242,30 @@ function RackCanvas() {
     (m: MountDTO) => {
       if (m.device_mac) {
         const prof = working.profiles.get(m.device_mac)
-        return getFaceplate(prof?.faceplate_id || m.faceplate_id || '') || getFaceplate('blank-1u')!
+        const plate = getFaceplate(prof?.faceplate_id || m.faceplate_id || '')
+        if (plate) return plate
+        // Perfil placeholder/vacío: sugerimos por el tipo detectado del
+        // dispositivo (un switch nunca debe quedarse sin bocas LAN).
+        const devType = deviceByMac.get(m.device_mac.toLowerCase())?.type ?? ''
+        return suggestFaceplate(devType) ?? getFaceplate('blank-1u')!
       }
       return getFaceplate(m.faceplate_id || 'blank-1u') || getFaceplate('blank-1u')!
     },
-    [working.profiles],
+    [working.profiles, deviceByMac],
   )
 
   const portsFor = useCallback(
     (m: MountDTO) => {
-      if (m.device_mac) return working.profiles.get(m.device_mac)?.ports ?? []
+      if (m.device_mac) {
+        const declared = working.profiles.get(m.device_mac)?.ports
+        if (declared && declared.length > 0) return declared
+        return seedPorts(plateFor(m))
+      }
       return seedPorts(plateFor(m))
     },
     [working.profiles, plateFor],
   )
 
-  const deviceByMac = useMemo(() => new Map(np.devices.map((d) => [d.mac.toLowerCase(), d])), [np.devices])
 
   const statusFor = useCallback(
     (m: MountDTO): 'online' | 'offline' | 'unknown' => {
@@ -335,18 +344,17 @@ function RackCanvas() {
           plate,
           ports: portsFor(m),
           label: m.label || deviceByMac.get(m.device_mac?.toLowerCase() ?? '')?.name || '',
-          monogram: m.device_mac
-            ? (m.label || deviceByMac.get(m.device_mac.toLowerCase())?.name || '')
-                .replace(/[^a-zA-Z0-9]/g, '')
-                .slice(0, 3)
-                .toUpperCase()
-            : undefined,
           color: m.device_mac ? working.profiles.get(m.device_mac)?.color || undefined : undefined,
           status: statusFor(m),
           selected: selectedMountId === m.id,
           onSelect: () => setSelectedMountId((cur) => (cur === m.id ? null : m.id)),
           onUnmount: isAdmin ? () => unmount(m.id) : undefined,
-          patchFacing: plate.passThrough === true || plate.rows.reduce((n, r) => n + r.count, 0) >= 8,
+          patchFacing:
+            plate.passThrough === true ||
+            plate.artwork === 'switch' ||
+            plate.artwork === 'router' ||
+            plate.artwork === 'panel' ||
+            plate.rows.reduce((n, r) => n + r.count, 0) >= 8,
           portsVisible: patchMode || hoverMountId === m.id,
           portState: (portId: string) => {
             const cabled = cablesOnPort(m.id, portId).length > 0
@@ -517,10 +525,12 @@ function RackCanvas() {
       const existing = working.profiles.get(mac)
       // Sin sugerencia para el tipo detectado: faceplate genérico 1U (el
       // usuario lo afina después); mejor eso que un placeholder sin puertos
-      // por el que el auto-cableado no puede parchar.
-      const plate = existing
-        ? getFaceplate(existing.faceplate_id)
-        : (suggestFaceplate(deviceType) ?? getFaceplate('server-1u'))
+      // por el que el auto-cableado no puede parchar. Un perfil placeholder
+      // (faceplate vacío) también se sustituye por la sugerencia.
+      const plate =
+        (existing ? getFaceplate(existing.faceplate_id) : undefined) ??
+        suggestFaceplate(deviceType) ??
+        getFaceplate('server-1u')
       const defU = existing?.u_height ?? plate?.uHeight ?? 1
       setMountAsk({
         rackId: rid,
