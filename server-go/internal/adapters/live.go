@@ -3614,7 +3614,13 @@ func (l *Live) attributedDevices() []Device {
 	// #561: sellado de infraestructura con el inventario PVE (si configurado).
 	// El detalle no consume distnodes, pero el sellado de devices sí corre.
 	l.sealProxmoxInfra(devices, nil)
-	// #954: first/last seen persistente (device_seen) en el payload final.
+	// #954 + #1095: first/last seen persistente (device_seen) en el payload
+	// final. La escritura vivía SOLO en buildOverview: si por lo que fuera
+	// esa lista no contenía un cliente (p. ej. flota agent-only), el visto
+	// nunca se persistía y aquí se mostraba "—" para siempre. Escribir también
+	// desde la lista que la UI realmente consume hace el write-through
+	// inevitable; el upsert es idempotente y barato.
+	l.noteDevicesSeen(devices, time.Now().UnixMilli())
 	l.applyDeviceSeen(devices)
 	return devices
 }
