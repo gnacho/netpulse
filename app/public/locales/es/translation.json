@@ -1560,7 +1560,9 @@
       "actualizacionesCaption": "Actualizaciones de firmware (LABS)",
       "regenToken": "Regenerar token",
       "regenTokenCaption": "Rotación del token de agentes externos (LABS)",
-      "badge": "LABS"
+      "badge": "LABS",
+      "rack": "Rack canvas",
+      "rackCaption": "Vista previa del rack físico: dibuja tu rack y detecta los cables. Desactivado por defecto; no usar en producción."
     },
     "saved": "Preferencias guardadas",
     "services": {
@@ -2548,6 +2550,10 @@
     "askPlace": "Colocar",
     "dropNoRack": "Suéltalo dentro de un rack",
     "portCount": "bocas detectadas",
-    "importNeedsSave": "Guarda los cambios del rack antes de importar enlaces"
+    "importNeedsSave": "Guarda los cambios del rack antes de importar enlaces",
+    "betaTitle": "Vista previa: queda mucho trabajo por hacer",
+    "betaText": "Esta vista está en desarrollo activo y todavía no es fiable al 100%. No la utilices todavía en producción; esperamos tus comentarios.",
+    "disabledTitle": "Rack canvas está desactivado",
+    "disabledText": "Es una vista en desarrollo (labs). Actívala en Ajustes → Labs → Rack canvas si quieres probarla."
   }
 }

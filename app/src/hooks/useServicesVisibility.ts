@@ -13,6 +13,8 @@ export interface ServicesVisibility {
   /** Funcionalidades individuales de Labs (rediseño v3): cada una se
    *  activa/desactiva por separado y controla su entrada en el nav/sidebar. */
   actualizaciones: boolean
+  /** Rack canvas (labs): desactivado por defecto hasta madurar. */
+  rack: boolean
 }
 
 const KEY = 'netpulse-services'
@@ -24,6 +26,8 @@ const DEFAULTS: ServicesVisibility = {
   // Por defecto, al activar Labs se muestran las 3 funcionalidades activas;
   // el admin las puede desactivar individualmente.
   actualizaciones: true,
+  // Rack (labs) nace DESACTIVADO: vista en desarrollo.
+  rack: false,
 }
 
 export function getServicesVisibility(): ServicesVisibility {

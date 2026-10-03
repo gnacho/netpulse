@@ -212,7 +212,8 @@ function useVisibleNavItems(): NavItem[] {
           (it.to !== '/orchestration' || (labsOn && !!orchestration)) &&
           // Funcionalidades Labs controladas por cada toggle (rediseño v3):
           // solo se muestran en el nav si Labs está activo y su toggle encendido.
-          (it.to !== '/firmware-upgrades' || (labsOn && services.actualizaciones)),
+          (it.to !== '/firmware-upgrades' || (labsOn && services.actualizaciones)) &&
+          (it.to !== '/rack' || (labsOn && services.rack)),
       ),
     [usteerAvailable, orchestration, labsOn, services.actualizaciones],
   )

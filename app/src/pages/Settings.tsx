@@ -4041,6 +4041,18 @@ function ServicesCard({
                   onSaved()
                 }}
               />
+              {/* Rack canvas (labs): desactivado por defecto */}
+              <SwitchRow
+                label={t('settings.labs.rack')}
+                caption={t('settings.labs.rackCaption')}
+                checked={services.rack}
+                disabled={disabled}
+                danger
+                onCheckedChange={(v) => {
+                  setService('rack', v)
+                  onSaved()
+                }}
+              />
             </div>
           </div>
         )}

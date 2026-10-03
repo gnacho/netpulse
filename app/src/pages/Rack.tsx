@@ -15,7 +15,7 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Cable, Cctv, Link2, Monitor, Network, Pencil, Plus, Router as RouterIcon, Save, Server, Trash2 } from 'lucide-react'
+import { Cable, Cctv, Link2, Monitor, Network, Pencil, Plus, Router as RouterIcon, Save, Server, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -34,6 +34,7 @@ import * as api from '@/lib/rackApi'
 import type { CableDTO, MountDTO, ProfileDTO, RackDTO } from '@/lib/rackApi'
 import type { Router } from '@/data/types'
 import { useNetPulse } from '@/data/DataProvider'
+import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { useAuth } from '@/data/AuthContext'
 
 const nodeTypes = { rack: RackNode, mount: MountNode }
@@ -52,6 +53,7 @@ const localId = (p: string) => `${p}-local-${++localSeq}`
 function RackCanvas() {
   const { t } = useTranslation()
   const np = useNetPulse()
+  const services = useServicesVisibility()[0]
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
 
@@ -970,8 +972,33 @@ function RackCanvas() {
   )
   const accessoryPlates = useMemo(() => FACEPLATES.filter((p) => p.group === 'accessory'), [])
 
+  if (!services.rack) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="mx-auto my-auto max-w-md rounded-xl border border-border bg-surface p-6 text-center">
+          <TriangleAlert size={24} className="mx-auto mb-2 text-warn" aria-hidden />
+          <p className="text-sm font-semibold text-text-primary">{t('rack.disabledTitle')}</p>
+          <p className="mt-1 text-[13px] text-text-secondary">{t('rack.disabledText')}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col">
+      {/* Aviso beta: vista en desarrollo, no usar en producción */}
+      <div
+        className="mb-3 flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3"
+        role="note"
+        data-testid="rack-beta-banner"
+      >
+        <TriangleAlert size={18} className="mt-0.5 shrink-0 text-warn" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-text-primary">{t('rack.betaTitle')}</p>
+          <p className="mt-0.5 text-[12px] leading-snug text-text-secondary">{t('rack.betaText')}</p>
+        </div>
+      </div>
+
       <SectionHeader title={t('rack.title')}>
         <p className="mt-0.5 text-sm text-text-secondary">{t('rack.subtitle')}</p>
       </SectionHeader>
