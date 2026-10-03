@@ -216,3 +216,31 @@ func TestSortByIndex(t *testing.T) {
 		}
 	}
 }
+
+// #1115: la tarjeta de puertos solo lista bocas físicas. Verificado en un
+// LGS310C real: po1-8 (ieee8023adLag) y vlan1 (l3ipvlan) fuera; las 10
+// ethernetCsmacd dentro. El filtro es por exclusión: un switch que no
+// reporta ifType (Type=0) conserva sus puertos.
+func TestPhysicalIfPorts(t *testing.T) {
+	in := []PortStats{
+		{Index: 1, Name: "Slot0/1", Type: 6},
+		{Index: 10, Name: "Slot0/10", Type: 6},
+		{Index: 53, Name: "po1", Type: 161},
+		{Index: 61, Name: "vlan1", Type: 136},
+		{Index: 70, Name: "br0", Type: 209},
+		{Index: 71, Name: "lo", Type: 24},
+		{Index: 72, Name: "tun0", Type: 131},
+		{Index: 73, Name: "vlan2", Type: 135},
+		{Index: 74, Name: "mgmt", Type: 53},
+		{Index: 80, Name: "weird0", Type: 0}, // sin ifType reportado: se conserva
+	}
+	got := physicalIfPorts(in)
+	if len(got) != 3 {
+		t.Fatalf("esperaba 3 puertos físicos, obtuve %d: %+v", len(got), got)
+	}
+	for i, want := range []int{1, 10, 80} {
+		if got[i].Index != want {
+			t.Fatalf("puerto %d: Index %d, esperaba %d", i, got[i].Index, want)
+		}
+	}
+}

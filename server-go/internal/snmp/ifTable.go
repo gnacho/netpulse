@@ -13,6 +13,7 @@ type PortStats struct {
 	Name       string
 	Descr      string
 	Alias      string
+	Type       int
 	SpeedBps   uint64
 	HighSpeedMbps uint32
 	OperUp     bool
@@ -62,7 +63,7 @@ func (p PortStats) DisplayName() string {
 
 func PollIfTable(s *gosnmp.GoSNMP) ([]PortStats, error) {
 	oids := []string{
-		OidIfIndex, OidIfDescr, OidIfSpeed, OidIfOperStatus,
+		OidIfIndex, OidIfDescr, OidIfType, OidIfSpeed, OidIfOperStatus,
 		OidIfInOctets, OidIfInErrors, OidIfOutOctets, OidIfOutErrors,
 		OidIfName, OidIfHighSpeed, OidIfAlias,
 	}
@@ -90,7 +91,36 @@ func PollIfTable(s *gosnmp.GoSNMP) ([]PortStats, error) {
 		out = append(out, *ps)
 	}
 	sortByIndex(out)
-	return out, nil
+	return physicalIfPorts(out), nil
+}
+
+// nonPhysicalIfTypes: ifTypes (IANA) que NO son una boca física del switch
+// y no deben aparecer en la tarjeta de puertos (#1115): interfaces LAG,
+// VLANs, loopbacks, bridges y túneles. Verificado en un Linksys LGS310C
+// real: po1-8 llegan como ieee8023adLag(161) y vlan1 como l3ipvlan(136).
+var nonPhysicalIfTypes = map[int]bool{
+	24:  true, // softwareLoopback
+	53:  true, // propVirtual
+	131: true, // tunnel
+	135: true, // l2vlan
+	136: true, // l3ipvlan
+	161: true, // ieee8023adLag
+	209: true, // bridge
+}
+
+// physicalIfPorts descarta las interfaces no físicas del ifTable (#1115).
+// Filtra por EXCLUSIÓN y no por "solo ethernetCsmacd": un switch que no
+// reporte ifType (Type=0 por walk fallido) conserva todos sus puertos en
+// lugar de quedarse a cero.
+func physicalIfPorts(ports []PortStats) []PortStats {
+	out := ports[:0]
+	for _, p := range ports {
+		if nonPhysicalIfTypes[p.Type] {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func applyPortField(ps *PortStats, oid string, pdu gosnmp.SnmpPDU) {
@@ -99,6 +129,8 @@ func applyPortField(ps *PortStats, oid string, pdu gosnmp.SnmpPDU) {
 		ps.Index = int(uint64Val(pdu))
 	case OidIfDescr:
 		ps.Descr = stringVal(pdu)
+	case OidIfType:
+		ps.Type = int(uint64Val(pdu))
 	case OidIfSpeed:
 		ps.SpeedBps = uint64Val(pdu)
 	case OidIfOperStatus:
