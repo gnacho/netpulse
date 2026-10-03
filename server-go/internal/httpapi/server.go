@@ -538,6 +538,9 @@ func NewHandler(d Deps) http.Handler {
 	// --- Copias de seguridad (issue #158) ---
 	s.registerBackupRoutes(mux)
 
+	// --- Rack canvas (fase 1) ---
+	s.registerRackRoutes(mux)
+
 	// Avisos externos para todas las instancias (siempre: también en demo).
 	s.startAnnouncements()
 	s.registerAnnouncementRoutes(mux)
