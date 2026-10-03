@@ -418,7 +418,7 @@
     "leaseMinutes": "{{minutes}}min",
     "leaseUnlimited": "unlimited",
     "edit": {
-      "title": "Edit device",
+      "title": "Edit client",
       "action": "Edit",
       "name": "Name",
       "nameHint": "Empty = automatic name (DHCP hostname)",

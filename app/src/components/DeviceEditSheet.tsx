@@ -220,6 +220,18 @@ export function DeviceEditSheet({
               </div>
             </div>
 
+            {/* #1096: Save/Cancel junto a la zona que editan (nombre, tipo,
+                icono); abajo quedaban lejos, tras Reserva/Bloqueo, que son
+                acciones independientes con sus propios botones. */}
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
+                {t('common.cancel')}
+              </Button>
+              <Button className="flex-1" onClick={handleSave} disabled={saving}>
+                {saving ? t('common.loading') : t('devices.edit.save')}
+              </Button>
+            </div>
+
             {/* Detalles de red */}
             <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-elevated/40 p-3 text-sm">
               <div>
@@ -460,14 +472,6 @@ export function DeviceEditSheet({
               </p>
             )}
 
-            <div className="mt-auto flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
-                {t('common.cancel')}
-              </Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving}>
-                {saving ? t('common.loading') : t('devices.edit.save')}
-              </Button>
-            </div>
           </div>
         )}
       </SheetContent>
