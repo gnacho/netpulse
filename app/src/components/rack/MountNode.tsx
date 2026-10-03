@@ -10,6 +10,7 @@ export type MountNodeData = {
   plate: FaceplateTemplate
   ports: FaceplatePort[]
   label: string
+  mountId: string
   color?: string
   status: 'online' | 'offline' | 'unknown'
   patchFacing: boolean
@@ -34,6 +35,7 @@ export const MountNode = memo(function MountNode({ data }: NodeProps<MountNodeTy
     <div
       className={'h-full w-full transition-shadow ' + (data.selected ? 'rounded-[2px] ring-2 ring-accent' : '')}
       data-testid="mount-node"
+      data-mount={data.mountId}
       onClick={(e) => {
         e.stopPropagation()
         data.onSelect?.()

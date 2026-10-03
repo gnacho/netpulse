@@ -103,9 +103,9 @@ export function Faceplate({
           const tone = st.drafting
             ? 'text-amber-400'
             : st.cabled
-              ? 'text-emerald-400'
+              ? 'text-emerald-500 hover:text-emerald-400'
               : st.interactive
-                ? 'text-zinc-400 hover:text-accent'
+                ? 'text-zinc-500 hover:text-accent'
                 : 'text-zinc-600'
           return (
             <button
@@ -113,6 +113,7 @@ export function Faceplate({
               type="button"
               tabIndex={st.interactive ? 0 : -1}
               aria-label={p.id}
+              data-port={p.id}
               title={`${p.id} · ${p.kind}`}
               onClick={(e) => {
                 e.stopPropagation()
@@ -126,7 +127,7 @@ export function Faceplate({
               {sfp ? (
                 <span className="block rounded-[1px] bg-current" style={{ width: 18, height: 6 }} aria-hidden />
               ) : (
-                <EthernetPort size={16} strokeWidth={st.cabled || st.drafting ? 3 : 2} aria-hidden />
+                <EthernetPort size={16} strokeWidth={2} aria-hidden />
               )}
             </button>
           )
