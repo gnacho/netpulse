@@ -2547,6 +2547,7 @@
     "askPorts": "Ports",
     "askPlace": "Place",
     "dropNoRack": "Drop it inside a rack",
-    "portCount": "detected ports"
+    "portCount": "detected ports",
+    "importNeedsSave": "Save the rack changes before importing links"
   }
 }

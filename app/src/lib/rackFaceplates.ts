@@ -20,12 +20,14 @@ export interface FaceplatePort {
 export interface PortRow {
   kind: RackPortKind
   count: number
-  /** fracción horizontal 0..1 del primer puerto (centro) */
+}
+
+/** Zona horizontal de las bocas RJ45 (0..1); los SFP van en columna a su
+ * derecha. La disposición concreta (filas de hasta 24, reparto uniforme)
+ * la calcula layoutPortZone: sirve para 4 bocas como para 48+4. */
+export interface PortZone {
   xStart: number
-  /** fracción horizontal 0..1 del último puerto (centro) */
   xEnd: number
-  /** fracción vertical 0..1 de la fila (centro) */
-  y: number
 }
 
 export interface FaceplateTemplate {
@@ -38,10 +40,12 @@ export interface FaceplateTemplate {
   uHeight: number
   /** 12 = ancho completo, 6 = mitad, 4 = tercio, 3 = cuarto */
   colSpan: number
-  /** LED de estado: centro en fracciones 0..1; r = semi-extensión vertical en fracción del alto del faceplate (el renderer ajusta el ancho al aspecto) */
+  /** LED de estado: centro en fracciones 0..1; r queda como referencia
+   * vertical (el renderer dibuja un punto de tamaño fijo) */
   led: { x: number; y: number; r: number }
   labelBox: { x: number; y: number; w: number; h: number }
   rows: PortRow[]
+  portZone?: PortZone
   /** los puertos de un patch panel son pass-through: admite 2 cables */
   passThrough?: boolean
 }
@@ -58,9 +62,10 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: fullWidth,
     led: { x: 0.035, y: 0.5, r: 0.16 },
     labelBox: { x: 0.07, y: 0.28, w: 0.5, h: 0.44 },
+    portZone: { xStart: 0.52, xEnd: 0.94 },
     rows: [
-      { kind: 'rj45', count: 2, xStart: 0.62, xEnd: 0.72, y: 0.5 },
-      { kind: 'sfp+', count: 2, xStart: 0.8, xEnd: 0.9, y: 0.5 },
+      { kind: 'rj45', count: 2 },
+      { kind: 'sfp+', count: 2 },
     ],
   },
   {
@@ -72,10 +77,11 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: fullWidth,
     led: { x: 0.035, y: 0.25, r: 0.08 },
     labelBox: { x: 0.07, y: 0.14, w: 0.45, h: 0.22 },
+    portZone: { xStart: 0.5, xEnd: 0.94 },
     rows: [
-      { kind: 'rj45', count: 4, xStart: 0.6, xEnd: 0.92, y: 0.25 },
-      { kind: 'sfp+', count: 2, xStart: 0.66, xEnd: 0.78, y: 0.62 },
-      { kind: 'rj45', count: 2, xStart: 0.84, xEnd: 0.92, y: 0.62 },
+      { kind: 'rj45', count: 4 },
+      { kind: 'sfp+', count: 2 },
+      { kind: 'rj45', count: 2 },
     ],
   },
   {
@@ -87,10 +93,11 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: fullWidth,
     led: { x: 0.03, y: 0.5, r: 0.16 },
     labelBox: { x: 0.06, y: 0.3, w: 0.16, h: 0.4 },
+    portZone: { xStart: 0.24, xEnd: 0.8 },
     rows: [
-      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.3 },
-      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.7 },
-      { kind: 'sfp+', count: 4, xStart: 0.72, xEnd: 0.92, y: 0.5 },
+      { kind: 'rj45', count: 12 },
+      { kind: 'rj45', count: 12 },
+      { kind: 'sfp+', count: 4 },
     ],
   },
   {
@@ -102,10 +109,11 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: fullWidth,
     led: { x: 0.035, y: 0.5, r: 0.16 },
     labelBox: { x: 0.07, y: 0.3, w: 0.3, h: 0.4 },
+    portZone: { xStart: 0.44, xEnd: 0.88 },
     rows: [
-      { kind: 'rj45', count: 5, xStart: 0.48, xEnd: 0.68, y: 0.5 },
-      { kind: 'sfp+', count: 1, xStart: 0.76, xEnd: 0.76, y: 0.5 },
-      { kind: 'rj45', count: 1, xStart: 0.84, xEnd: 0.84, y: 0.5 },
+      { kind: 'rj45', count: 5 },
+      { kind: 'sfp+', count: 1 },
+      { kind: 'rj45', count: 1 },
     ],
   },
   {
@@ -117,7 +125,8 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: 6,
     led: { x: 0.07, y: 0.06, r: 0.02 },
     labelBox: { x: 0.14, y: 0.04, w: 0.6, h: 0.05 },
-    rows: [{ kind: 'rj45', count: 2, xStart: 0.6, xEnd: 0.8, y: 0.94 }],
+    portZone: { xStart: 0.4, xEnd: 0.94 },
+    rows: [{ kind: 'rj45', count: 2 }],
   },
   {
     id: 'patch-panel-1u',
@@ -128,9 +137,10 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: fullWidth,
     led: { x: 0.03, y: 0.5, r: 0.16 },
     labelBox: { x: 0.06, y: 0.3, w: 0.12, h: 0.4 },
+    portZone: { xStart: 0.2, xEnd: 0.96 },
     rows: [
-      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.3 },
-      { kind: 'rj45', count: 12, xStart: 0.24, xEnd: 0.64, y: 0.7 },
+      { kind: 'rj45', count: 12 },
+      { kind: 'rj45', count: 12 },
     ],
     passThrough: true,
   },
@@ -143,7 +153,8 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: 12,
     led: { x: 0.03, y: 0.5, r: 0.16 },
     labelBox: { x: 0.06, y: 0.3, w: 0.12, h: 0.4 },
-    rows: [{ kind: 'rj45', count: 12, xStart: 0.26, xEnd: 0.66, y: 0.5 }],
+    portZone: { xStart: 0.2, xEnd: 0.96 },
+    rows: [{ kind: 'rj45', count: 12 }],
     passThrough: true,
   },
   {
@@ -155,9 +166,10 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: 12,
     led: { x: 0.03, y: 0.25, r: 0.08 },
     labelBox: { x: 0.06, y: 0.14, w: 0.14, h: 0.22 },
+    portZone: { xStart: 0.2, xEnd: 0.96 },
     rows: [
-      { kind: 'rj45', count: 24, xStart: 0.24, xEnd: 0.64, y: 0.55 },
-      { kind: 'rj45', count: 24, xStart: 0.24, xEnd: 0.64, y: 0.8 },
+      { kind: 'rj45', count: 24 },
+      { kind: 'rj45', count: 24 },
     ],
     passThrough: true,
   },
@@ -181,7 +193,8 @@ export const FACEPLATES: FaceplateTemplate[] = [
     colSpan: fullWidth,
     led: { x: 0.03, y: 0.08, r: 0.04 },
     labelBox: { x: 0.06, y: 0.05, w: 0.5, h: 0.07 },
-    rows: [{ kind: 'rj45', count: 1, xStart: 0.9, xEnd: 0.9, y: 0.08 }],
+    portZone: { xStart: 0.7, xEnd: 0.94 },
+    rows: [{ kind: 'rj45', count: 1 }],
   },
   {
     id: 'shelf-1u',
@@ -230,59 +243,79 @@ export function getFaceplate(id: string): FaceplateTemplate | undefined {
  * puertos; el usuario los edita después.
  */
 export function seedPorts(plate: FaceplateTemplate): FaceplatePort[] {
+  const counts: Partial<Record<RackPortKind, number>> = {}
+  for (const row of plate.rows) counts[row.kind] = (counts[row.kind] ?? 0) + row.count
+  return layoutPortZone(counts, plate.portZone ?? { xStart: 0.24, xEnd: 0.94 })
+}
+
+/**
+ * layoutPortZone: disposición uniforme de bocas en la zona, pensada para el
+ * peor caso real (48 RJ45 + 4 SFP+ en 1U): RJ45 en filas de hasta 24 (reparto
+ * equitativo con la zona entera: 4 bocas la ocupan completa con hueco
+ * garantizado entre ellas, igual que 24) y SFP/SFP+ en columna a la derecha
+ * de la zona. Mismo criterio para el KP-9000 (9) que para rt2 (4).
+ */
+export function layoutPortZone(
+  counts: Partial<Record<RackPortKind, number>>,
+  zone: PortZone,
+): FaceplatePort[] {
   const out: FaceplatePort[] = []
-  let n = 0
-  for (const row of plate.rows) {
-    for (let i = 0; i < row.count; i++) {
-      const t = row.count === 1 ? 0 : i / (row.count - 1)
-      n++
-      out.push({
-        id: 'p' + String(n).padStart(2, '0'),
-        kind: row.kind,
-        x: row.xStart + (row.xEnd - row.xStart) * t,
-        y: row.y,
-      })
+  const rj45 = counts.rj45 ?? 0
+  const sfp = counts.sfp ?? 0
+  const sfpPlus = counts['sfp+'] ?? 0
+  const sfps = sfp + sfpPlus
+  const rjEnd = sfps > 0 ? Math.max(zone.xStart + 0.1, zone.xEnd - 0.08) : zone.xEnd - 0.02
+  if (rj45 > 0) {
+    const rows = Math.max(1, Math.ceil(rj45 / 24))
+    const perRow = Math.ceil(rj45 / rows)
+    let n = 0
+    for (let row = 0; row < rows; row++) {
+      const inRow = Math.min(perRow, rj45 - row * perRow)
+      const y = rows === 1 ? 0.5 : 0.26 + (0.74 - 0.26) * (row / (rows - 1))
+      for (let i = 0; i < inRow; i++) {
+        n++
+        out.push({
+          id: 'p' + String(n).padStart(2, '0'),
+          kind: 'rj45',
+          x: inRow === 1 ? (zone.xStart + rjEnd) / 2 : zone.xStart + (rjEnd - zone.xStart) * (i / (inRow - 1)),
+          y,
+        })
+      }
     }
+  }
+  for (let i = 0; i < sfps; i++) {
+    out.push({
+      id: 'p' + String(out.length + 1).padStart(2, '0'),
+      kind: i < sfpPlus ? 'sfp+' : 'sfp',
+      x: zone.xEnd - 0.02,
+      y: sfps === 1 ? 0.5 : 0.26 + (0.74 - 0.26) * (i / (sfps - 1)),
+    })
   }
   return out
 }
 
 /**
- * layoutPhysicalPorts dispone puertos físicos reales (id = ifName) en el
- * faceplate: rj45 en filas de hasta 12 a la izquierda, sfp/sfp+ en columna a
- * la derecha. Determinista; ids preservados para que el cable casé con la
- * interfaz real.
+ * layoutPhysicalPorts dispone puertos físicos reales (id = ifName) con el
+ * mismo algoritmo de zona, preservando los ids en el orden de disposición.
  */
 export function layoutPhysicalPorts(
   ports: { id: string; kind: RackPortKind }[],
   zone?: { xStart: number; xEnd: number },
 ): FaceplatePort[] {
-  const rj45 = ports.filter((p) => p.kind === 'rj45')
-  const sfps = ports.filter((p) => p.kind !== 'rj45')
-  const out: FaceplatePort[] = []
-  const zx = zone?.xStart ?? 0.24
-  const ze = zone?.xEnd ?? 0.64
-  const rjRows = Math.max(1, Math.ceil(rj45.length / 12))
-  rj45.forEach((p, i) => {
-    const row = Math.floor(i / 12)
-    const inRow = Math.min(12, rj45.length - row * 12)
-    const idx = i % 12
-    out.push({
-      id: p.id,
-      kind: p.kind,
-      x: inRow === 1 ? (zx + ze) / 2 : zx + (ze - zx) * (idx / (inRow - 1)),
-      y: rjRows === 1 ? 0.5 : 0.28 + (0.72 - 0.28) * (row / (rjRows - 1)),
-    })
+  const counts: Partial<Record<RackPortKind, number>> = {}
+  for (const p of ports) counts[p.kind] = (counts[p.kind] ?? 0) + 1
+  const laid = layoutPortZone(counts, zone ?? { xStart: 0.24, xEnd: 0.94 })
+  const byKind: Record<string, string[]> = {}
+  for (const p of ports) {
+    ;(byKind[p.kind] = byKind[p.kind] ?? []).push(p.id)
+  }
+  const used: Record<string, number> = {}
+  return laid.map((slot) => {
+    const ids = byKind[slot.kind] ?? []
+    const idx = Math.min(used[slot.kind] ?? 0, ids.length - 1)
+    used[slot.kind] = (used[slot.kind] ?? 0) + 1
+    return { ...slot, id: ids[idx] ?? slot.id }
   })
-  sfps.forEach((p, i) => {
-    out.push({
-      id: p.id,
-      kind: p.kind,
-      x: Math.min(0.9, ze + 0.1),
-      y: sfps.length === 1 ? 0.5 : 0.2 + 0.6 * (i / (sfps.length - 1)),
-    })
-  })
-  return out
 }
 
 /**

@@ -2547,6 +2547,7 @@
     "askPorts": "Puertos",
     "askPlace": "Colocar",
     "dropNoRack": "Suéltalo dentro de un rack",
-    "portCount": "bocas detectadas"
+    "portCount": "bocas detectadas",
+    "importNeedsSave": "Guarda los cambios del rack antes de importar enlaces"
   }
 }

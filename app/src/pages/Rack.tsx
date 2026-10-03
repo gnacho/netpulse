@@ -61,7 +61,7 @@ function RackCanvas() {
   const [activeRackId, setActiveRackId] = useState<string | null>(null)
   const [patchMode, setPatchMode] = useState(false)
   const [draft, setDraft] = useState<{ mountId: string; portId: string } | null>(null)
-  const [visibility, setVisibility] = useState<CableVisibility>('hover')
+  const [visibility, setVisibility] = useState<CableVisibility>('always')
   const [hoverMountId, setHoverMountId] = useState<string | null>(null)
   const [selectedCableId, setSelectedCableId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -263,12 +263,12 @@ function RackCanvas() {
           // Sanado de layouts legacy: si las bocas declaradas invaden la
           // zona de la etiqueta de su plantilla, se re-disponen con la zona
           // correcta (p. ej. perfiles creados antes de la zona por plantilla).
-          const rjRow = plate.rows.find((r) => r.kind === 'rj45')
+          const zone = plate.portZone ?? { xStart: 0.24, xEnd: 0.94 }
           const minX = Math.min(...declared.map((p) => p.x))
-          if (rjRow && minX < rjRow.xStart - 0.02) {
+          if (minX < zone.xStart - 0.02) {
             return layoutPhysicalPorts(
               declared.map((p) => ({ id: p.id, kind: p.kind as RackPortKind })),
-              { xStart: rjRow.xStart, xEnd: rjRow.xEnd },
+              zone,
             )
           }
           return declared
@@ -613,13 +613,7 @@ function RackCanvas() {
           // viene de la plantilla para no pisar la etiqueta.
           ports:
             ask.physicalPorts && ask.physicalPorts.length > 0
-              ? layoutPhysicalPorts(
-                  ask.physicalPorts,
-                  (() => {
-                    const rjRow = plate.rows.find((r) => r.kind === 'rj45')
-                    return rjRow ? { xStart: rjRow.xStart, xEnd: rjRow.xEnd } : undefined
-                  })(),
-                )
+              ? layoutPhysicalPorts(ask.physicalPorts, plate.portZone)
               : seedPorts(plate),
         }
         setProfileChanges((pm) => new Map(pm).set(ask.mac!, prof))
@@ -837,6 +831,10 @@ function RackCanvas() {
   })
 
   const runImport = useCallback(async () => {
+    if (dirty) {
+      toast.error(t('rack.importNeedsSave'))
+      return
+    }
     try {
       const res = await api.importCables()
       toast.success(
@@ -846,7 +844,7 @@ function RackCanvas() {
     } catch (e) {
       toast.error(String(e))
     }
-  }, [reload, t])
+  }, [dirty, reload, t])
 
   // Drop desde el picker: punto en coords de flow, rack destino y diálogo
   // de colocación (mismo flujo que el clic).
@@ -1228,18 +1226,15 @@ function RackCanvas() {
             )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ask-u">{t('rack.askHeight')}</Label>
-              <Select value={askU} onValueChange={setAskU}>
-                <SelectTrigger id="ask-u" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['1', '2', '3', '4', '6'].map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}U
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                id="ask-u"
+                type="number"
+                min={1}
+                max={45}
+                value={askU}
+                onChange={(e) => setAskU(e.target.value)}
+                className="w-full"
+              />
             </div>
           </div>
           <DialogFooter>
