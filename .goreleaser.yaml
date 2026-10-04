@@ -82,6 +82,7 @@ archives:
       {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - LICENSE
+      - THIRD_PARTY.md
       - src: server-go/.env.example
         dst: .env.example
 
@@ -92,6 +93,7 @@ archives:
       {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - LICENSE
+      - THIRD_PARTY.md
 
   - id: netpulse-agent
     ids: [netpulse-agent]
@@ -100,6 +102,7 @@ archives:
       {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - LICENSE
+      - THIRD_PARTY.md
       - src: agent/deploy/netpulse-agent.init
         dst: netpulse-agent.init
 
