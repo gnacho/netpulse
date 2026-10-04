@@ -195,11 +195,18 @@ func (p *Publisher) loop(ctx context.Context, client *mq.Client) {
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	// Log reconnect bursts once each so an unstable broker connection is
+	// visible in the journal instead of only in broker-side logs (#1153).
+	var loggedReconnects uint64
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			if n := client.GetStats().ReconnectCount; n > loggedReconnects {
+				log.Printf("[mqtt] client reconnected %d time(s): broker connection unstable", n)
+				loggedReconnects = n
+			}
 			if client.IsConnected() {
 				p.publishCycle(client)
 			}

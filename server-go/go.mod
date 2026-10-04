@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/gnacho/netpulse/agent v0.0.0
-	github.com/gonzalop/mq v0.9.10
+	github.com/gonzalop/mq v0.9.11
 	github.com/gosnmp/gosnmp v1.44.0
 	github.com/m-lab/ndt7-client-go v0.10.1
 	github.com/mark3labs/mcp-go v1.1.1
