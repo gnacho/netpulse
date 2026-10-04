@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gonzalop/mq"
@@ -92,6 +93,11 @@ type Publisher struct {
 	snapshot func() *adapters.Overview
 	demo     bool
 
+	// mu guards the fields below: publishCycle runs on the publisher
+	// goroutine AND from the client's OnConnect hook (initial connect and
+	// every reconnect), so the alert/router state must not be touched
+	// without the lock.
+	mu          sync.Mutex
 	seenAlerts  map[string]struct{}
 	seenInit    bool
 	lastRouters string
@@ -223,9 +229,14 @@ func (p *Publisher) publishCycle(client *mq.Client) {
 	p.publishRouters(client, ov)
 	p.publishNewAlerts(client, ov)
 
-	key := routerSetKey(ov)
-	if key != p.lastRouters {
-		p.lastRouters = key
+	newKey := routerSetKey(ov)
+	p.mu.Lock()
+	changed := newKey != p.lastRouters
+	if changed {
+		p.lastRouters = newKey
+	}
+	p.mu.Unlock()
+	if changed {
 		p.publishDiscovery(client)
 	}
 }
@@ -233,6 +244,7 @@ func (p *Publisher) publishCycle(client *mq.Client) {
 // publishNewAlerts emits an event per unseen alert. The first overview only
 // seeds the set, so a fresh server start does not replay the whole backlog.
 func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
+	p.mu.Lock()
 	if !p.seenInit {
 		for _, a := range ov.Alerts {
 			if a.ID != "" {
@@ -240,8 +252,10 @@ func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
 			}
 		}
 		p.seenInit = true
+		p.mu.Unlock()
 		return
 	}
+	var fresh []alertEvent
 	for _, a := range ov.Alerts {
 		if a.ID == "" {
 			continue
@@ -250,10 +264,14 @@ func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
 			continue
 		}
 		p.seenAlerts[a.ID] = struct{}{}
-		payload, err := json.Marshal(alertEvent{
+		fresh = append(fresh, alertEvent{
 			ID: a.ID, Severity: a.Severity, Title: a.Title, Description: a.Description,
 			RouterID: a.RouterID, Urgent: a.Urgent, Ts: a.Ts,
 		})
+	}
+	p.mu.Unlock()
+	for _, ev := range fresh {
+		payload, err := json.Marshal(ev)
 		if err != nil {
 			continue
 		}
