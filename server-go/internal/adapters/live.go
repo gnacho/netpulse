@@ -2779,7 +2779,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	// topología → los chips saltaban de posición al refrescar. Ordenar por
 	// MAC hace el contrato determinista para el mismo set de dispositivos.
 	sort.Slice(devices, func(i, j int) bool { return devices[i].MAC < devices[j].MAC })
-	return normalizeDevices(devices)
+	// #1151: canónicas + fusión de enlazadas (orden: normalizar -> fusionar).
+	return normalizeDevices(mergeLinkedDevices(devices, l.deviceLinks()))
 }
 
 // normalizeDevices: MACs a formato canónico (mayúsculas, ':') y dedup por

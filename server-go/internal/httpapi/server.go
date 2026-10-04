@@ -356,6 +356,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("PUT /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverridePut)))
 	mux.Handle("GET /api/devices/{mac}/override", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceOverrideGet)))
 	mux.Handle("PUT /api/devices/{mac}/ban", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceBanPut)))
+	mux.Handle("PUT /api/devices/{mac}/link", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceLinkPut)))
+	mux.Handle("DELETE /api/devices/{mac}/link", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceLinkDelete)))
 	mux.Handle("DELETE /api/devices/{mac}", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceDelete)))
 	// Onboarding de desconocidos (#772): "dejar como anónimo" silencia la
 	// alerta first-seen de la MAC sin darle nombre (el alta reutiliza

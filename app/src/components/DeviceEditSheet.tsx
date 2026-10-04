@@ -37,6 +37,10 @@ export interface DeviceEditSheetProps {
   onSave: (device: ClientDevice, patch: { icon: string; name: string; type: string }) => void
   /** #1145: tras borrar el cliente del registro (el padre cierra y refresca). */
   onDeleted?: () => void
+  /** #1151: resto de clientes (para el selector de enlace). */
+  clients?: ClientDevice[]
+  /** #1151: tras enlazar/desenlazar (el padre cierra y refresca). */
+  onLinkChanged?: () => void
 }
 
 // #797: tipos válidos del clasificador (paridad con adapters.ValidDeviceTypes
@@ -54,11 +58,51 @@ export function DeviceEditSheet({
   onClose,
   onSave,
   onDeleted,
+  clients,
+  onLinkChanged,
 }: DeviceEditSheetProps) {
   const { t } = useTranslation()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [linkTarget, setLinkTarget] = useState('')
+  const [linkBusy, setLinkBusy] = useState(false)
   const [icon, setIcon] = useState(device?.iconOverride ?? '')
+
+  const otherClients = (clients ?? []).filter(
+    (c) => c.mac && c.mac !== device?.mac && c.mac !== device?.id && !(device?.aliasMacs ?? []).includes(c.mac),
+  )
+
+  const linkClient = async () => {
+    if (!linkTarget || !device?.mac) return
+    setLinkBusy(true)
+    try {
+      await fetchJson(`/api/devices/${encodeURIComponent(linkTarget)}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: device.mac }),
+      })
+      onLinkChanged?.()
+      onClose()
+    } catch {
+      // fallo silencioso: el botón vuelve a habilitarse
+    } finally {
+      setLinkBusy(false)
+    }
+  }
+
+  const unlinkAlias = async (alias: string) => {
+    if (!alias) return
+    setLinkBusy(true)
+    try {
+      await fetchJson(`/api/devices/${encodeURIComponent(alias)}/link`, { method: 'DELETE' })
+      onLinkChanged?.()
+      onClose()
+    } catch {
+      // fallo silencioso
+    } finally {
+      setLinkBusy(false)
+    }
+  }
   const [name, setName] = useState(device?.nameOverride ?? '')
   const [devType, setDevType] = useState(device?.typeOverride ?? '')
   const [reservation, setReservation] = useState<{ reserved: boolean; ip: string; loading: boolean }>({ reserved: false, ip: '', loading: false })
@@ -469,6 +513,49 @@ export function DeviceEditSheet({
                     {t('common.cancel')}
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {/* #1151: MACs enlazadas (mismo dispositivo, varias MACs) */}
+            {!isDemo && device?.mac && (
+              <div className="rounded-xl border border-border bg-elevated/40 p-3">
+                <div className="text-label uppercase tracking-wide text-text-muted">{t('devices.edit.linkedMacs')}</div>
+                {(device.aliasMacs?.length ?? 0) > 0 && (
+                  <ul className="mb-2 mt-1.5 space-y-1">
+                    {device.aliasMacs.map((alias) => (
+                      <li key={alias} className="flex items-center justify-between gap-2 rounded-lg bg-canvas/60 px-2 py-1.5">
+                        <span className="font-mono text-mono-sm text-text-primary">{alias}</span>
+                        <button
+                          type="button"
+                          disabled={linkBusy}
+                          onClick={() => void unlinkAlias(alias)}
+                          className="rounded-md px-2 py-0.5 text-caption text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+                        >
+                          {t('devices.edit.unlink')}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {otherClients.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Select value={linkTarget} onValueChange={setLinkTarget}>
+                      <SelectTrigger className="h-9 flex-1">
+                        <SelectValue placeholder={t('devices.edit.linkPlaceholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {otherClients.map((c) => (
+                          <SelectItem key={c.mac} value={c.mac ?? ''}>
+                            {c.name || c.mac}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" disabled={!linkTarget || linkBusy} onClick={() => void linkClient()}>
+                      {linkBusy ? t('common.loading') : t('devices.edit.link')}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/clientbw"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
 	"github.com/gnacho/netpulse/server-go/internal/roamcfg"
@@ -256,7 +257,39 @@ func (s *server) handleDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	out := paginate(filtered, page, pageSize)
 	out["typeCounts"] = typeCounts
+	// #1151: candidatos a "mismo dispositivo con varias MACs" (hostname+IP
+	// compartidos, nunca simultáneos). Solo sugerencia: el enlazado es manual.
+	if suggestions := adapters.LinkSuggestions(items, loadDeviceLinks(s.db)); len(suggestions) > 0 {
+		out["linkSuggestions"] = suggestions
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// loadDeviceLinks: mapa alias → canónico desde la tabla device_links (una
+// query; vacío si no hay BD o no hay enlaces).
+func loadDeviceLinks(d *db.DB) map[string]string {
+	out := map[string]string{}
+	if d == nil {
+		return out
+	}
+	rows, err := d.Query(`SELECT mac, canonical FROM device_links`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var alias, canonical string
+		if err := rows.Scan(&alias, &canonical); err != nil {
+			continue
+		}
+		out[normalizeMACKey(alias)] = normalizeMACKey(canonical)
+	}
+	return out
+}
+
+// normalizeMACKey: identidad canónica de enlace (mayúsculas, ':').
+func normalizeMACKey(mac string) string {
+	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(mac), "-", ":"))
 }
 
 // deviceMatches: substring (minúsculas) sobre name|hostname|ip|mac|manufacturer.

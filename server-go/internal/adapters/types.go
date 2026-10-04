@@ -298,6 +298,9 @@ type Device struct {
 	// server NO pre-formatea (lección #899).
 	FirstSeenMs  int64  `json:"firstSeenMs,omitempty"`
 	LastSeenMs   int64  `json:"lastSeenMs,omitempty"`
+	// AliasMacs: MACs enlazadas a este cliente (#1151, mismo dispositivo con
+	// varias MACs - p. ej. una por SSID). Solo viaja en el canónico.
+	AliasMacs []string `json:"aliasMacs,omitempty"`
 	Traffic24hRx string `json:"traffic24hRx,omitempty"`
 	Traffic24hTx string `json:"traffic24hTx,omitempty"`
 	Adguard      *bool  `json:"adguard,omitempty"` // puntero: demo emite true/false explícito; live lo omite (paridad Node)

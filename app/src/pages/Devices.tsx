@@ -1351,6 +1351,37 @@ export default function Devices() {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const { devices, deviceTotals, isDemo, routers, distributionNodes, refresh } = useNetPulse()
+  const { refreshKey } = useDashboard()
+  // #1151: candidatos a "mismo dispositivo con varias MACs" que el server
+  // detecta (hostname+IP compartidos, nunca simultáneos). Enlazar es manual.
+  const [linkSuggestions, setLinkSuggestions] = useState<[string, string][]>([])
+  const [dismissedLinks, setDismissedLinks] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (isDemo) return
+    let alive = true
+    void fetchJson<{ linkSuggestions?: [string, string][] }>('/api/devices?page=1&pageSize=1')
+      .then((r) => {
+        if (alive && r.ok && Array.isArray(r.data?.linkSuggestions)) setLinkSuggestions(r.data.linkSuggestions)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [refreshKey, isDemo])
+
+  const linkPair = async (a: string, b: string) => {
+    try {
+      await fetchJson(`/api/devices/${encodeURIComponent(b)}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: a }),
+      })
+      setLinkSuggestions((p) => p.filter(([x, y]) => !(x === a && y === b) && !(x === b && y === a)))
+      refresh()
+    } catch {
+      // fallo silencioso: la sugerencia sigue para reintentar
+    }
+  }
   const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string }>>(() => {
     try {
       const raw = localStorage.getItem('netpulse-device-overrides')
@@ -1801,6 +1832,43 @@ export default function Devices() {
       {/* ② Stats strip */}
       <StatsStrip allDevices={allDevices} onlyUnprotected={onlyUnprotected} onToggleUnprotected={toggleUnprotected} />
 
+      {/* #1151: sugerencias de enlace (mismo dispositivo, varias MACs) */}
+      {linkSuggestions.filter(([a, b]) => !dismissedLinks.has(a + b)).length > 0 && (
+        <div className="mb-4 rounded-2xl border border-accent/30 bg-accent/5 p-4">
+          <div className="text-label uppercase tracking-[0.06em] text-accent">{t('devices.suggestions.title')}</div>
+          <p className="mb-2 mt-1 text-caption text-text-muted">{t('devices.suggestions.desc')}</p>
+          <ul className="space-y-1.5">
+            {linkSuggestions
+              .filter(([a, b]) => !dismissedLinks.has(a + b))
+              .map(([a, b]) => {
+                const na = allDevices.find((d) => d.mac === a)?.name ?? a
+                const nb = allDevices.find((d) => d.mac === b)?.name ?? b
+                return (
+                  <li key={a + b} className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-medium text-text-primary">{na}</span>
+                    <span className="text-text-muted">·</span>
+                    <span className="font-medium text-text-primary">{nb}</span>
+                    <button
+                      type="button"
+                      onClick={() => void linkPair(a, b)}
+                      className="rounded-lg border border-accent/40 px-2.5 py-1 text-caption font-medium text-accent transition-colors hover:bg-accent/10"
+                    >
+                      {t('devices.suggestions.link')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDismissedLinks((p) => new Set(p).add(a + b))}
+                      className="rounded-lg px-2.5 py-1 text-caption text-text-muted transition-colors hover:text-text-primary"
+                    >
+                      {t('devices.suggestions.dismiss')}
+                    </button>
+                  </li>
+                )
+              })}
+          </ul>
+        </div>
+      )}
+
       {/* ③ Filter bar */}
       <FilterBar
         routerIds={routerIds}
@@ -1946,6 +2014,8 @@ export default function Devices() {
         onClose={() => setEditingId(null)}
         onSave={handleEditSave}
         onDeleted={() => setEditingId(null)}
+        clients={allDevices}
+        onLinkChanged={() => setEditingId(null)}
       />
 
       <OnboardingIntake
