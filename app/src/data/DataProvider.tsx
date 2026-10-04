@@ -180,12 +180,7 @@ export interface NetPulseApi extends NetPulseData {
   setAlertConfig: (category: AlertCategory, level: AlertConfigLevel) => Promise<boolean>
   /** Read state en SERVIDOR (live): POST /api/alerts/read. Demo: estado local. Optimista. */
   markAlertsRead: (ids: string[]) => void
-  /** Marca leídas TODAS las alertas actuales sin borrarlas (#1034): el feed
-   * las conserva como leídas; en live POST /api/alerts/read-all. Demo:
-   * estado local. Optimista. */
-  markAllAlertsRead: () => void
-  /** Acción destructiva "Vaciar registro" (#1034) - POST /api/alerts/clear
-   * (live): borra el log del servidor. Demo: estado local. Optimista. */
+  /** #971: VACÍA el feed - POST /api/alerts/clear (live). Demo: estado local. Optimista. */
   clearAllAlerts: () => void
   /** POST /api/alerts/silence (live): silencia alertas con la misma dedup key. */
   silenceAlert: (id: string, duration: '1h' | '24h' | 'forever') => void
@@ -940,39 +935,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
-  /** #1034: marca leídas todas las alertas actuales SIN borrarlas del log:
-   * solo toca el read state (feed conservado, "Solo no leídas" es lo que
-   * limpia la vista). Optimista; en live además POST /api/alerts/read-all. */
-  const markAllAlertsRead = useCallback(() => {
-    setBundle((prev) => ({
-      ...prev,
-      alerts: prev.alerts.map((a) => ({ ...a, read: true })),
-      unreadAlerts: modeRef.current === 'live' ? prev.unreadAlerts : 0,
-    }))
-    if (modeRef.current !== 'live') return
-    void (async () => {
-      try {
-        const res = await fetch('/api/alerts/read-all', { method: 'POST' })
-        if (res.status === 401) redirectLogin()
-        // #891: igual que en markAlertsRead — re-aplica el leído por si un
-        // snapshot pre-POST pisó el estado optimista mientras el POST volaba.
-        if (res.ok) {
-          setBundle((prev) => ({
-            ...prev,
-            alerts: prev.alerts.map((a) => ({ ...a, read: true })),
-          }))
-        }
-      } catch {
-        /* el próximo snapshot/SSE resincroniza el read state */
-      }
-    })()
-  }, [])
-
-  // #1034: "Vaciar registro" BORRA el feed (dismiss en servidor: alert_log +
-  // conjunto dismissed, no reaparecen tras F5). Es la acción destructiva; el
-  // botón "Marcar todo como leído" ya no toca este endpoint (marca leídas
-  // todas sin borrar). Una alerta viva (volátil con la condición aún activa,
-  // p.ej. agent-down) puede volver al re-evaluarse.
+  // #971: "Marcar todo como leído" VACÍA el feed - las alertas visibles se
+  // descartan (dismiss en servidor: borradas de alert_log + conjunto dismissed,
+  // no reaparecen tras F5) - no solo se marcan. Una alerta viva (volátil con
+  // la condición aún activa, p.ej. agent-down) puede volver al re-evaluarse.
   const clearAllAlerts = useCallback(() => {
     setBundle((prev) => ({ ...prev, alerts: [], unreadAlerts: 0 }))
     if (modeRef.current !== 'live') return
@@ -1293,7 +1259,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       alertsConfig,
       setAlertConfig,
       markAlertsRead,
-      markAllAlertsRead,
       clearAllAlerts,
       silenceAlert,
       dismissAlert,
@@ -1304,7 +1269,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       uninstallAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, clearAllAlerts, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

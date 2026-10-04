@@ -225,7 +225,7 @@ func TestTopoSemanticsCadenaLldp(t *testing.T) {
 		{RouterID: "flint2", Band: "cable", Port: "lan3", ID: "pc1", MAC: "04:D4:C4:8B:30:A7", AttachTo: "dist-flint2-lan3", Online: true},
 		{RouterID: "swA", Band: "cable", Port: "ge5", ID: "pc2", MAC: "DC:A6:32:4F:77:02", AttachTo: "dist-swA-ge5", Online: true},
 	}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", nil)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "")
 
 	var gotDist []TopoLink
 	for _, l := range sem.Links {

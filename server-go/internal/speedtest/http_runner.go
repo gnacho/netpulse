@@ -33,11 +33,10 @@ const (
 	ProviderCloudflare = "cloudflare" // speed.cloudflare.com por HTTP directo
 	ProviderLibrespeed = "librespeed" // instancia LibreSpeed (serverURL = base)
 	ProviderCustom     = "custom"     // endpoint HTTP libre (#1001): serverURL es la URL completa
-	ProviderNDT        = "ndt"        // M-Lab NDT (#1037): locate automático, serverURL = FQDN opcional
 )
 
 func validProvider(v string) bool {
-	return v == ProviderOokla || v == ProviderCloudflare || v == ProviderLibrespeed || v == ProviderCustom || v == ProviderNDT
+	return v == ProviderOokla || v == ProviderCloudflare || v == ProviderLibrespeed || v == ProviderCustom
 }
 
 // Limites de la medicion HTTP: al menos minDur midiendo (precision en

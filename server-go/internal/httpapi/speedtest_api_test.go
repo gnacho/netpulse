@@ -66,18 +66,13 @@ func makeSpeedtestServer(t *testing.T, runner speedtest.Runner) *testServer {
 	if err != nil {
 		t.Fatalf("speedtest store: %v", err)
 	}
-	sched := speedtest.NewScheduler(stStore, d.DB, runner)
-	// #1037: el default es NDT y los providers HTTP van por su propio runner;
-	// sin inyectarlos estos tests ejecutarían runners de red reales.
-	sched.SetNDTRunner(runner)
-	sched.SetHTTPRunner(runner)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(),
 		Hub: sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
 		Secret: secret, Agents: adapters.NewAgentRegistry(0),
 		TokenStore:  apitoken.NewStore(d, secret),
 		ChannelPlan: channelplan.NewStore(d.DB),
-		Speedtest:   sched,
+		Speedtest:   speedtest.NewScheduler(stStore, d.DB, runner),
 		Started:     time.Now(),
 	})
 	srv := httptest.NewServer(handler)

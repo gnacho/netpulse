@@ -417,10 +417,6 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 				wd.Scans = ParseScan(out)
 			}
 		}
-		// BSSIDs propios (#1087): `iw dev` sin scan, barato y estable.
-		if out := p.runBest(ctx, CmdIwDev, 5*time.Second); out != "" {
-			wd.OwnBssids = ParseIwDev(out)
-		}
 	} else {
 		p.radiosMu.Lock()
 		cached := p.radiosCache
@@ -433,13 +429,6 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		}
 	}
 
-	// #1092: `any` lo marcaban solo los CLIENTES: una unidad sin clientes
-	// asociados en ese momento descartaba TODA la sección wireless (radios,
-	// scans, BSSIDs propios) y el server la veía como "sin WiFi". Que haya
-	// radios o BSSIDs propios también prueba presencia wireless.
-	if !any && (len(wd.Radios) > 0 || len(wd.OwnBssids) > 0) {
-		any = true
-	}
 	if !any {
 		return nil
 	}

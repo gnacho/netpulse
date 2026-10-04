@@ -15,7 +15,7 @@ import { getRouterExtras, uptimeHours } from '@/components/routers/routerExtras'
 import { fmtTemp, useTempUnit } from '@/lib/temperature'
 import { cn } from '@/lib/utils'
 
-const STATUS_ORDER: Record<Router['status'], number> = { online: 0, warn: 1, offline: 2, paused: 3 }
+const STATUS_ORDER: Record<Router['status'], number> = { online: 0, warn: 1, offline: 2 }
 
 type SortKey = 'name' | 'status' | 'cpu' | 'ram' | 'temp' | 'clients' | 'traffic' | 'uptime'
 

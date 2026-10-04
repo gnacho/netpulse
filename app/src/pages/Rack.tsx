@@ -385,7 +385,11 @@ function RackCanvas() {
           plate,
           ports: portsFor(m),
           mountId: m.id,
-          label: m.label || deviceByMac.get(m.device_mac?.toLowerCase() ?? '')?.name || '',
+          label:
+            m.label ||
+            deviceByMac.get(m.device_mac?.toLowerCase() ?? '')?.name ||
+            routerNameByMac.get(m.device_mac?.toLowerCase() ?? '') ||
+            '',
           color: m.device_mac ? working.profiles.get(m.device_mac)?.color || undefined : undefined,
           status: statusFor(m),
           selected: selectedMountId === m.id,
@@ -955,20 +959,29 @@ function RackCanvas() {
     () =>
       // El rack es hardware de red: switches, servidores, ordenadores de
       // torre y CCTV. Fuera TVs, altavoces, IoT y resto que no tenga sentido.
+      // #rack-mini: los `desconocido` fuera también - si no sabemos qué es,
+      // no se ofrece para el rack.
       np.devices.filter(
         (d) =>
           !mountedMacs.has(d.mac.toLowerCase()) &&
           (d.band === 'cable' || d.band === '—') &&
           d.infra !== 'ct' &&
           d.infra !== 'vm' &&
-          (['switch', 'servidor', 'ordenador', 'camara'].includes(d.type) ||
-            (d.type === 'desconocido' && d.name.toLowerCase() !== d.mac.toLowerCase())),
+          ['switch', 'servidor', 'ordenador', 'camara'].includes(d.type),
       ),
     [np.devices, mountedMacs],
   )
   const unmountedRouters = useMemo(
     () => np.routers.filter((r) => r.mac && !mountedMacs.has(r.mac.toLowerCase())),
     [np.routers, mountedMacs],
+  )
+  // #rack-mini: nombre real para los mounts de unidades de flota - los
+  // routers/switches de la flota NO están en np.devices (eso son clientes),
+  // así que el label del montaje caía vacío y la placa pintaba su nombre por
+  // defecto ("Router") para todos.
+  const routerNameByMac = useMemo(
+    () => new Map(np.routers.filter((r) => r.mac).map((r) => [r.mac.toLowerCase(), r.name])),
+    [np.routers],
   )
   const accessoryPlates = useMemo(() => FACEPLATES.filter((p) => p.group === 'accessory'), [])
 

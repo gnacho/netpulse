@@ -340,7 +340,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-w-2xl md:flex md:flex-col md:w-[800px] md:h-[600px] md:max-w-[calc(100vw-2rem)] md:max-h-[calc(100vh-2rem)]">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DownloadCloud className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
@@ -350,7 +350,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
         </DialogHeader>
 
         {phase === 'confirm' && (
-          <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">
+          <div className="flex flex-col gap-4">
             {/* Tarjeta de versión destacada (estilo Pulse) */}
             <div className="flex flex-col gap-1.5">
               <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
@@ -390,7 +390,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   {t('update.dialog.changelogTitle')}
                 </p>
-                <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5 md:max-h-none md:flex-1 md:min-h-0">
+                <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5">
                   <ul className="flex flex-col gap-1">
                     {status!.commits!.map((c) => (
                       <li
@@ -421,7 +421,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   {t('update.dialog.changelogTitle')}
                 </p>
-                <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5 md:max-h-none md:flex-1 md:min-h-0">
+                <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5">
                   <ul className="flex flex-col gap-1">
                     {changelogLines.map((l, i) => (
                         <li key={i} className="flex items-start gap-2 text-caption leading-snug text-text-secondary">
@@ -483,7 +483,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
               />
               <span>{t('update.dialog.ack')}</span>
             </label>
-            <DialogFooter className="border-t border-border pt-4 md:mt-auto">
+            <DialogFooter className="border-t border-border pt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t('update.dialog.cancel')}
               </Button>

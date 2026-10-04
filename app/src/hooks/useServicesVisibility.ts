@@ -12,11 +12,8 @@ export interface ServicesVisibility {
   labs: boolean
   /** Funcionalidades individuales de Labs (rediseño v3): cada una se
    *  activa/desactiva por separado y controla su entrada en el nav/sidebar. */
-  /** Actualizaciones de firmware: visibilidad propia de la página (#1146),
-   *  ya no es Labs: el admin la muestra u oculta desde Servicios. */
+  canales: boolean
   actualizaciones: boolean
-  /** Rack canvas (labs): desactivado por defecto hasta madurar. */
-  rack: boolean
 }
 
 const KEY = 'netpulse-services'
@@ -25,12 +22,10 @@ const DEFAULTS: ServicesVisibility = {
   wireguard: true,
   openvpn: false,
   labs: false,
-  // Por defecto, al activar Labs se muestran las funcionalidades activas;
+  // Por defecto, al activar Labs se muestran las 3 funcionalidades activas;
   // el admin las puede desactivar individualmente.
-  // Actualizaciones visible por defecto (salió de Labs en #1121).
+  canales: true,
   actualizaciones: true,
-  // Rack (labs) nace DESACTIVADO: vista en desarrollo.
-  rack: false,
 }
 
 export function getServicesVisibility(): ServicesVisibility {
