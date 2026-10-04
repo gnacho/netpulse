@@ -9,7 +9,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { Sparkline } from '@/components/Sparkline'
 import { LatencyGauge } from '@/components/routers/LatencyGauge'
 import { relTimeFromTs } from '@/i18n'
-import { WAN_LATENCY_24H, WAN_LATENCY_STATS } from '@/components/routers/routerExtras'
+import type { RouterExtras } from '@/components/routers/routerExtras'
 
 function WanTooltip({
   active,
@@ -36,12 +36,28 @@ function WanTooltip({
   )
 }
 
-/** ④ WAN & Latencia del gateway (router-detail.md §④) — split 7/5. */
-export function WanLatency() {
+/** ④ WAN & Latencia del gateway (router-detail.md §④) — split 7/5.
+ *  #1148: el spark de latencia y sus stats salen de la serie REAL 24h
+ *  (extras.gatewayLatencySpark, AVG horario de metrics.latency_ms); sin
+ *  sonda/historial se pinta "sin datos" en vez de ceros ni mocks. */
+export function WanLatency({ extras }: { extras?: RouterExtras }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const { traffic: trafficByRange, wan } = useNetPulse()
   const data = trafficByRange['24h']
+
+  // Serie real 24h; stats derivadas. Sin muestras (sonda sin datos, unidad
+  // nueva) todo cae a undefined y la tarjeta muestra su estado vacío.
+  const spark = extras?.gatewayLatencySpark ?? []
+  const hasLatency = spark.length > 0
+  const avgMs = hasLatency ? spark.reduce((a, b) => a + b, 0) / spark.length : undefined
+  const jitterMs = hasLatency
+    ? spark.slice(1).reduce((acc, v, i) => acc + Math.abs(v - spark[i]), 0) / (spark.length - 1)
+    : undefined
+  // La pérdida solo es significativa si la sonda corre (latencia > 0).
+  const hasProbe = wan.latencyMs > 0
+  const lossPct = hasProbe ? wan.lossPct : undefined
+  const fmtMs = (v?: number) => (v === undefined ? '—' : `${fmtEs(v, v < 10 ? 1 : 0)} ms`)
 
   const WAN_METRICS = [
     { label: t('routerDetail.wan.publicIp'), value: wan.publicIp },
@@ -102,16 +118,33 @@ export function WanLatency() {
       <section className="flex flex-col rounded-2xl border border-border bg-surface p-5 md:p-6 lg:col-span-5">
         <SectionHeader title={t('home.latency')} />
         <div className="mt-4 flex flex-1 flex-col items-center justify-center gap-4">
-          <LatencyGauge valueMs={wan.latencyMs} caption={t('routerDetail.latency.toHost', { host: '1.1.1.1' })} />
+          {hasProbe ? (
+            <LatencyGauge valueMs={wan.latencyMs} caption={t('routerDetail.latency.toHost', { host: '1.1.1.1' })} />
+          ) : (
+            <div
+              className="flex h-[160px] w-[160px] flex-col items-center justify-center rounded-full border-2 border-dashed border-border"
+              role="img"
+              aria-label={t('routerDetail.latency.noData')}
+            >
+              <span className="font-mono text-3xl font-semibold text-text-muted">—</span>
+              <span className="text-caption font-medium uppercase tracking-[0.06em] text-text-muted">ms</span>
+            </div>
+          )}
           <div className="w-full">
             <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{t('routerDetail.latency.24h')}</div>
-            <Sparkline data={WAN_LATENCY_24H} width={560} height={48} color="#34D399" area className="w-full" />
+            {hasLatency ? (
+              <Sparkline data={spark} width={560} height={48} color="#34D399" area className="w-full" />
+            ) : (
+              <div className="flex h-12 items-center justify-center text-caption text-text-muted">
+                {t('routerDetail.latency.noData')}
+              </div>
+            )}
           </div>
           <div className="grid w-full grid-cols-3 gap-3 border-t border-border pt-3.5">
             {[
-              [t('home.traffic.average'), `${WAN_LATENCY_STATS.avgMs} ms`],
-              ['Jitter', `${fmtEs(WAN_LATENCY_STATS.jitterMs, 1)} ms`],
-              [t('home.traffic.loss'), `${WAN_LATENCY_STATS.lossPct} %`],
+              [t('home.traffic.average'), fmtMs(avgMs)],
+              ['Jitter', fmtMs(jitterMs)],
+              [t('home.traffic.loss'), lossPct === undefined ? '—' : `${fmtEs(lossPct, 1)} %`],
             ].map(([k, v]) => (
               <div key={k} className="text-center">
                 <div className="text-label uppercase text-text-muted">{k}</div>

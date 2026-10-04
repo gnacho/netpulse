@@ -814,6 +814,7 @@
     },
     "latency": {
       "24h": "Latencia 24 h",
+      "noData": "Sin datos de la sonda aún: hace falta el agente de flota o SSH en la unidad.",
       "aria": "Latencia {{ms}} ms {{caption}}",
       "toHost": "a {{host}}"
     },

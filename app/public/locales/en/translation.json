@@ -814,6 +814,7 @@
     },
     "latency": {
       "24h": "Latency 24 h",
+      "noData": "No probe data yet: it needs the fleet agent or SSH on the unit.",
       "aria": "Latency {{ms}} ms {{caption}}",
       "toHost": "to {{host}}"
     },

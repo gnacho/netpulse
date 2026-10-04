@@ -195,7 +195,7 @@ export default function RouterDetail() {
       </div>
 
       {/* ④ WAN & Latencia (gateway) / Backhaul (APs) */}
-      {isGateway ? <WanLatency /> : <BackhaulPanel router={router} extras={detail?.extras} />}
+      {isGateway ? <WanLatency extras={detail?.extras} /> : <BackhaulPanel router={router} extras={detail?.extras} />}
 
       {/* Las varias conexiones a internet, si el router reporta más de una.
           Va junto a la tarjeta de conexión porque explica la IP que muestra. */}
