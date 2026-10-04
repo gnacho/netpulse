@@ -32,6 +32,7 @@ type ImportResult struct {
 	Created    []Cable
 	Skipped    int // par ya cableado o algún extremo no montado
 	NoFreePort []CableHint
+	Removed    int // #1186: cables detected retirados por el sync
 }
 
 // pairKey dedup por par NO ordenado: sort(a,b).join("|").

@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -110,6 +111,7 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 				FromDeviceID: from,
 				ToDeviceID:   to,
 				FromPortHint: up.Port,
+				ToPortHint:   up.ChildPort,
 				Source:       "fdb",
 			})
 		}
@@ -244,6 +246,17 @@ func (s *server) handleRacksGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
 		return
 	}
+	// #1186: la evidencia FDB manda sobre los cables detectados. Con datos
+	// se reconcilian (altas y bajas); sin evidencia (demo, primer arranque)
+	// no se toca nada. Los manuales nunca se tocan.
+	hints := s.buildRackHints(r.Context(), mounts)
+	if s.adapter.Mode() == "live" {
+		if res, err := rack.SyncDetectedCables(s.db.DB, hints); err != nil {
+			log.Printf("[rack] sync detected cables: %v", err)
+		} else if res.Removed > 0 || len(res.Created) > 0 {
+			log.Printf("[rack] sync detected cables: %d creados, %d retirados", len(res.Created), res.Removed)
+		}
+	}
 	cables, err := rack.ListCables(s.db.DB)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
@@ -270,8 +283,8 @@ func (s *server) handleRacksGet(w http.ResponseWriter, r *http.Request) {
 	for _, p := range profiles {
 		profilesOut = append(profilesOut, profileToDTO(p))
 	}
-	// Auditoría dibujado vs detectado: cada cable lleva su estado.
-	hints := s.buildRackHints(r.Context(), mounts)
+	// Auditoría dibujado vs detectado: cada cable lleva su estado (hints ya
+	// computados arriba para el sync #1186).
 	writeJSON(w, http.StatusOK, map[string]any{
 		"racks": racksOut, "mounts": mountsOut, "cables": cablesOut, "profiles": profilesOut,
 		"audit": rack.AuditCables(cables, hints, mounts),

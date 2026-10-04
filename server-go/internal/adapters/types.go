@@ -619,9 +619,10 @@ type Radio struct {
 // FdbUplink: el router (hijo) se aprende en el puerto Port del router
 // ParentID. Evidencia directa del FDB de los pollers (#1051).
 type FdbUplink struct {
-	ChildID  string `json:"childId"`
-	ParentID string `json:"parentId"`
-	Port     string `json:"port"`
+	ChildID   string `json:"childId"`
+	ParentID  string `json:"parentId"`
+	Port      string `json:"port"`
+	ChildPort string `json:"childPort,omitempty"`
 }
 
 // FleetFdbProvider lo implementan los adapters capaces de exponer la
