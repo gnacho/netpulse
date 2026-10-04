@@ -628,7 +628,9 @@ type FdbUplink struct {
 // FleetFdbProvider lo implementan los adapters capaces de exponer la
 // evidencia FDB de uplinks de flota (live).
 type FleetFdbProvider interface {
-	FleetFdbUplinks() map[string]FdbUplink
+	// FleetFdbUplinks: enlaces derivados del FDB de la unidad designada
+	// (#1186). infraID vacío o inexistente → vacío.
+	FleetFdbUplinks(infraID string) map[string]FdbUplink
 }
 
 type RouterDetail struct {

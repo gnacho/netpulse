@@ -92,28 +92,32 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 		})
 	}
 
-	// Uplinks entre miembros de flota montados: el FDB de cada router/switch
-	// aprende la MAC bridge de los demás miembros (rt3/rt4 en el switch,
-	// switch en el gateway). Es lo mismo que alimenta el mapa de topología;
-	// fuente directa del último sondeo (FleetFdbProvider, live).
+	// Uplinks entre miembros de flota montados: el FDB de la unidad designada
+	// como central (#1186) dice en qué puerto de ella cuelga cada unidad.
+	// Sin designación (kv rack_uplink_unit vacío) no hay hints de flota: el
+	// auto-cableado no inventa nada. Fuente directa del último sondeo
+	// (FleetFdbProvider, live).
 	if prov, ok := s.adapter.(adapters.FleetFdbProvider); ok {
-		for childID, up := range prov.FleetFdbUplinks() {
-			from, okFrom := routerMAC[up.ParentID]
-			to, okTo := routerMAC[childID]
-			if !okFrom || !okTo || !mounted[from] || !mounted[to] {
-				continue
+		infra := s.uplinkUnitID()
+		if infra != "" {
+			for childID, up := range prov.FleetFdbUplinks(infra) {
+				from, okFrom := routerMAC[up.ParentID]
+				to, okTo := routerMAC[childID]
+				if !okFrom || !okTo || !mounted[from] || !mounted[to] {
+					continue
+				}
+				if seen[from+"|"+to] || seen[to+"|"+from] {
+					continue
+				}
+				seen[from+"|"+to] = true
+				hints = append(hints, rack.CableHint{
+					FromDeviceID: from,
+					ToDeviceID:   to,
+					FromPortHint: up.Port,
+					ToPortHint:   up.ChildPort,
+					Source:       "fdb",
+				})
 			}
-			if seen[from+"|"+to] || seen[to+"|"+from] {
-				continue
-			}
-			seen[from+"|"+to] = true
-			hints = append(hints, rack.CableHint{
-				FromDeviceID: from,
-				ToDeviceID:   to,
-				FromPortHint: up.Port,
-				ToPortHint:   up.ChildPort,
-				Source:       "fdb",
-			})
 		}
 	}
 	return hints
