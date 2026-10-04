@@ -14,6 +14,7 @@ import (
 type Manager struct {
 	mu       sync.Mutex
 	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 	cfg      Config
 	version  string
 	snapshot func() *adapters.Overview
@@ -46,22 +47,38 @@ func (m *Manager) startLocked() {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	New(m.cfg, m.version, m.snapshot, m.demo).Start(ctx)
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		New(m.cfg, m.version, m.snapshot, m.demo).Start(ctx)
+	}()
 }
 
 // Apply sustituye la configuración y rearranca el publisher cuando cambia.
+// El publisher anterior termina por completo (publica availability=offline y
+// desconecta) antes de arrancar el nuevo, así el availability retenido que
+// queda en el broker es siempre el "online" del publisher nuevo (#1158).
 func (m *Manager) Apply(cfg Config) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if cfg == m.cfg {
+		m.mu.Unlock()
 		return
 	}
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
-	}
 	m.cfg = cfg
-	m.startLocked()
+	cancel := m.cancel
+	m.cancel = nil
+	m.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+		m.wg.Wait()
+	}
+
+	m.mu.Lock()
+	if m.cancel == nil {
+		m.startLocked()
+	}
+	m.mu.Unlock()
 }
 
 // Config devuelve la configuración en uso.
