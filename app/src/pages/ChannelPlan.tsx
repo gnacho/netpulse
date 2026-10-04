@@ -160,15 +160,25 @@ export default function ChannelPlan() {
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const sortedRouters = useMemo(() => {
-    // Sin unidades que no pueden tener WiFi (p. ej. switches gestionados) ni
-    // pausadas (#1085): en el picker de un análisis de canales solo estorban.
+    // #1147: en el análisis de canales solo tienen sentido los AP. Los
+    // switches (gestionados o externos SNMP) fuera salvo que presenten bandas
+    // WiFi reales (un AP externo sin agente se queda); routers/APs siempre.
+    // Las pausadas (#1085) también fuera: no aportan canales.
     return [...routers]
-      .filter((r) => r.type !== 'managed-switch' && !r.disabled)
+      .filter((r) => {
+        if (r.disabled) return false
+        const b = r.bandSplit
+        const hasWifi = !!b && b.band24 + b.band5 + b.band6 > 0
+        if (r.type === 'managed-switch' || r.type === 'external') return hasWifi
+        return true
+      })
       .sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
   }, [routers])
 
   useEffect(() => {
-    if (!routerId && sortedRouters.length > 0) {
+    // Selecciona la primera unidad si no hay selección o si la actual queda
+    // fuera del picker (p. ej. unidad recién filtrada por no tener WiFi).
+    if (sortedRouters.length > 0 && !sortedRouters.some((r) => r.id === routerId)) {
       setRouterId(sortedRouters[0]!.id)
     }
   }, [sortedRouters, routerId])

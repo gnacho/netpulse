@@ -632,7 +632,7 @@
     "empty": "Ningún router tiene usteer activo. Instálalo en OpenWrt para ver la malla de itinerancia.",
     "tabMatrix": "Matriz",
     "tab11r": "802.11r",
-    "tabSurvey": "Análisis de canales",
+    "tabSurvey": "Canales actuales",
     "tabEvents": "Eventos",
     "comingSoon": "Próximamente",
     "matrix": {
@@ -1567,13 +1567,11 @@
       "dismiss": "Cerrar",
       "deleteTitle": "Revocar token del dispositivo",
       "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token.",
-      "actualizaciones": "Actualizaciones",
-      "actualizacionesCaption": "Actualizaciones de firmware (LABS)",
       "regenToken": "Regenerar token",
       "regenTokenCaption": "Rotación del token de agentes externos (LABS)",
       "badge": "LABS",
       "rack": "Rack canvas",
-      "rackCaption": "Vista previa del rack físico: dibuja tu rack y detecta los cables. Desactivado por defecto; no usar en producción."
+      "rackCaption": "Dibuja tu rack y detecta los cables. Desactivado por defecto; no usar en producción."
     },
     "saved": "Preferencias guardadas",
     "services": {
@@ -1586,6 +1584,7 @@
       "labsCaption": "En desarrollo. Escriben en los routers",
       "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
       "networkGroup": "Servicios de red",
+      "firmwareUpgradesCaption": "Muestra u oculta la página de actualizaciones de firmware",
       "integrationsGroup": "Integraciones",
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
       "mqttCaption": "Publicación del estado en el broker MQTT",
@@ -2079,6 +2078,8 @@
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",
     "subtitle": "Programa actualizaciones de firmware OpenWrt y sigue el progreso por equipo.",
+    "disabledTitle": "Actualizaciones de firmware está oculto",
+    "disabledText": "Actívalo en Ajustes > Servicios para gestionar las actualizaciones desde aquí.",
     "currentVersion": "Versión actual",
     "targetVersion": "Versión objetivo",
     "model": "Modelo / target",
