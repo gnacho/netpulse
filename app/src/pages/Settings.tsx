@@ -39,6 +39,7 @@ import {
    Star,
    Sun,
    Trash2,
+   TriangleAlert,
    UserCog,
    Users,
    Volume2,
@@ -3997,7 +3998,27 @@ function ServicesCard({
   )
 
   return (
-    <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
+    <Card
+      title={t('settings.services.title')}
+      caption={t('settings.services.caption')}
+      index={3}
+      reduce={reduce}
+      headerSlot={
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-label uppercase tracking-[0.06em] text-text-muted">{t('settings.labs.title')}</span>
+          <Switch
+            checked={services.labs}
+            onCheckedChange={(v) => {
+              setService('labs', v)
+              onSaved()
+            }}
+            disabled={disabled}
+            aria-label={t('settings.services.labs')}
+            className="data-[state=checked]:bg-danger"
+          />
+        </div>
+      }
+    >
       {/* Servicios en dos columnas (Labs incluido) y debajo Integraciones,
           también en dos columnas (#1146). Sin divide-y: en flujo de 2
           columnas pinta líneas a mitad de fila. */}
@@ -4018,53 +4039,11 @@ function ServicesCard({
               }}
             />
           ))}
-          <SwitchRow
-            label={t('settings.services.labs')}
-            caption={t('settings.services.labsCaption')}
-            checked={services.labs}
-            disabled={disabled}
-            danger
-            onCheckedChange={(v) => {
-              setService('labs', v)
-              onSaved()
-            }}
-          />
         </div>
-
-        {/* Servicios de Labs (#1012): entre Servicios e Integraciones */}
-        {services.labs && (
-          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
-            <div>
-              {/* Orquestación (opt-in del admin) */}
-              <SwitchRow
-                label={t('settings.admin.orchestration')}
-                caption={t('settings.services.orchestrationHint')}
-                checked={orchOn}
-                onCheckedChange={(v) => void toggleOrchestration(v)}
-                disabled={orchBusy || disabled}
-                danger
-              />
-            </div>
-            <div>
-              {/* Rack canvas (labs): desactivado por defecto */}
-              <SwitchRow
-                label={t('settings.labs.rack')}
-                caption={t('settings.labs.rackCaption')}
-                checked={services.rack}
-                disabled={disabled}
-                danger
-                onCheckedChange={(v) => {
-                  setService('rack', v)
-                  onSaved()
-                }}
-              />
-            </div>
-          </div>
-        )}
 
         <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
         <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-          {integrationRows.filter((row) => !row.labs || services.labs).map((row) => (
+          {integrationRows.filter((row) => !row.labs).map((row) => (
             <SwitchRow
               key={row.key}
               label={row.label}
@@ -4081,6 +4060,55 @@ function ServicesCard({
           ))}
         </div>
       </div>
+
+      {/* Labs: subtarjeta con acento rojo (#1146) con TODAS las filas labs
+          (servicios e integraciones): orquestación, rack y MCP. Sin Labs
+          activo no se muestra nada de este bloque. */}
+      {services.labs && (
+        <div className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4">
+          <div className="mb-1 flex items-center gap-1.5">
+            <TriangleAlert className="h-3.5 w-3.5 text-danger" aria-hidden />
+            <span className="text-label uppercase tracking-[0.06em] text-danger">{t('settings.labs.title')}</span>
+          </div>
+          <p className="mb-2 text-caption text-text-muted">{t('settings.services.labsCaption')}</p>
+          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+            <SwitchRow
+              label={t('settings.admin.orchestration')}
+              caption={t('settings.services.orchestrationHint')}
+              checked={orchOn}
+              onCheckedChange={(v) => void toggleOrchestration(v)}
+              disabled={orchBusy || disabled}
+              danger
+            />
+            <SwitchRow
+              label={t('settings.labs.rack')}
+              caption={t('settings.labs.rackCaption')}
+              checked={services.rack}
+              disabled={disabled}
+              danger
+              onCheckedChange={(v) => {
+                setService('rack', v)
+                onSaved()
+              }}
+            />
+            {integrationRows.filter((row) => row.labs).map((row) => (
+              <SwitchRow
+                key={row.key}
+                label={row.label}
+                caption={row.caption}
+                checked={integrations[row.key]}
+                disabled={disabled || row.locked}
+                danger={row.danger}
+                trailing={gear(row.dialogKey, row.label)}
+                onCheckedChange={(v) => {
+                  setIntegration(row.key, v)
+                  onSaved()
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Diálogos de configuración de integraciones (#968): los managers
           viven SOLO en diálogo (#977: las cards sueltas ya no están en el
