@@ -187,9 +187,15 @@ func New(opts Options) *Manager {
 }
 
 // setUpBeforePortSetting says HTTPS had been configured on this install,
-// from Settings or from the environment, before its port was recorded.
+// from Settings or from the environment, before its port was recorded. The
+// environment alone does not tell an old install from a new one, so there
+// it also takes a CA left by an earlier run.
 func (m *Manager) setUpBeforePortSetting() bool {
-	return m.kvGet(kvEnabled) != "" || (m.opts.EnvEnabled != nil && *m.opts.EnvEnabled)
+	if m.kvGet(kvEnabled) != "" {
+		return true
+	}
+	return m.opts.EnvEnabled != nil && *m.opts.EnvEnabled &&
+		fileExists(filepath.Join(m.opts.DataDir, "tls", "ca.pem"))
 }
 
 // currentPort is the HTTPS port, which SetPort may change at any time.

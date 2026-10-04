@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -721,8 +722,19 @@ func TestAnUpgradeKeepsTheHTTPSPortItWasSetUpOn(t *testing.T) {
 	on := true
 	envOn := opts
 	envOn.EnvEnabled = &on // turned on from the environment, never from Settings
+	envOn.DataDir = t.TempDir()
+	if m := New(envOn); m.port != 443 {
+		t.Fatalf("new env-enabled install: port %d, want the default 443", m.port)
+	}
+	clear()
+	if err := os.MkdirAll(filepath.Join(envOn.DataDir, "tls"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(envOn.DataDir, "tls", "ca.pem"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if m := New(envOn); m.port != legacyDefaultPort {
-		t.Fatalf("env-enabled install: port %d, want %d", m.port, legacyDefaultPort)
+		t.Fatalf("env-enabled install with an earlier CA: port %d, want %d", m.port, legacyDefaultPort)
 	}
 
 	clear()
