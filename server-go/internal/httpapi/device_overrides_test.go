@@ -151,3 +151,47 @@ func TestDeviceDelete(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
+
+// #1151: link con validaciones (self 400, ok 200, ya enlazada 409, target
+// alias 409) y unlink (204 / 404).
+func TestDeviceLinkPutDelete(t *testing.T) {
+	s := panelTestServer(t)
+	do := func(method, mac, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, "/api/devices/"+mac+"/link", strings.NewReader(body))
+		r.SetPathValue("mac", mac)
+		if body != "" {
+			r.Header.Set("Content-Type", "application/json")
+		}
+		rec := httptest.NewRecorder()
+		if method == http.MethodPut {
+			s.handleDeviceLinkPut(rec, r)
+		} else {
+			s.handleDeviceLinkDelete(rec, r)
+		}
+		return rec
+	}
+
+	// self-link: 400
+	if rec := do(http.MethodPut, "AA:AA:AA:00:00:01", `{"target":"AA:AA:AA:00:00:01"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("self link = %d, want 400", rec.Code)
+	}
+	// ok: 200
+	if rec := do(http.MethodPut, "AA:AA:AA:00:00:02", `{"target":"AA:AA:AA:00:00:01"}`); rec.Code != http.StatusOK {
+		t.Fatalf("link = %d, want 200", rec.Code)
+	}
+	// ya enlazada: 409
+	if rec := do(http.MethodPut, "AA:AA:AA:00:00:02", `{"target":"AA:AA:AA:00:00:09"}`); rec.Code != http.StatusConflict {
+		t.Fatalf("relink = %d, want 409", rec.Code)
+	}
+	// target es a su vez alias: 409
+	if rec := do(http.MethodPut, "AA:AA:AA:00:00:03", `{"target":"AA:AA:AA:00:00:02"}`); rec.Code != http.StatusConflict {
+		t.Fatalf("target alias = %d, want 409", rec.Code)
+	}
+	// unlink: 204 y 404
+	if rec := do(http.MethodDelete, "AA:AA:AA:00:00:02", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("unlink = %d, want 204", rec.Code)
+	}
+	if rec := do(http.MethodDelete, "AA:AA:AA:00:00:02", ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("unlink de nuevo = %d, want 404", rec.Code)
+	}
+}

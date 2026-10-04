@@ -255,6 +255,11 @@ export interface Device {
    */
   firstSeenMs?: number
   lastSeenMs?: number
+  /**
+   * #1151: MACs enlazadas a este cliente (mismo dispositivo con varias
+   * MACs, p. ej. una por SSID). Solo viaja en la entrada canónica.
+   */
+  aliasMacs?: string[]
 }
 
 /**

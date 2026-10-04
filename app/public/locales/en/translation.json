@@ -434,6 +434,10 @@
       "banTitle": "Block bands",
       "banHint": "Coming soon: block this device from 2.4/5/6 GHz networks.",
       "demoNotice": "Demo mode: changes are only saved in this browser.",
+      "linkedMacs": "Linked MACs",
+      "linkPlaceholder": "Link another client…",
+      "link": "Link",
+      "unlink": "Unlink",
       "dangerZone": "Danger zone",
       "delete": "Delete client",
       "deleteTitle": "Delete this client?",
@@ -458,6 +462,12 @@
       "planRollback": "Rollback commands (if anything fails)",
       "planRun": "Run and apply",
       "planNone": "Nothing to apply"
+    },
+    "suggestions": {
+      "title": "Possible duplicate clients",
+      "desc": "These clients share hostname and IP and are never seen at the same time: they may be one device with multiple MACs. Link them to show a single row.",
+      "link": "Link",
+      "dismiss": "Dismiss"
     },
     "new": "New",
     "onlyOnline": "Only online",

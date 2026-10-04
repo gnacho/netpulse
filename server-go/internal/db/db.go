@@ -133,6 +133,13 @@ CREATE TABLE IF NOT EXISTS device_seen (
   first_seen INTEGER NOT NULL,
   last_seen  INTEGER NOT NULL
 );
+-- #1151: cliente con varias MACs (un hostname, nunca simultáneas): cada fila
+-- dice "esta MAC es el mismo cliente que canonical". Clave = alias; el
+-- canónico no tiene fila propia (ausencia de fila = MAC canónica).
+CREATE TABLE IF NOT EXISTS device_links (
+  mac       TEXT PRIMARY KEY,
+  canonical TEXT NOT NULL
+);
 -- Routers configurados
 CREATE TABLE IF NOT EXISTS routers (
   id TEXT PRIMARY KEY,
@@ -572,6 +579,9 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_enabled", "ALTER TABLE routers ADD COLUMN snmp_enabled INTEGER NOT NULL DEFAULT 0")
 	// #1145: último nombre conocido del cliente (retención indefinida).
 	migrate(sqldb, "device_seen", "name", "ALTER TABLE device_seen ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+	// #1151: última IP conocida (los fantasmas la conservan para la lista y
+	// las sugerencias de enlace).
+	migrate(sqldb, "device_seen", "ip", "ALTER TABLE device_seen ADD COLUMN ip TEXT NOT NULL DEFAULT ''")
 	// issue #863: sondeo HTTP de la consola de switches RTLPlayground. DEFAULT 1
 	// = comportamiento previo; se desactiva por router (la consola del firmware
 	// tiene una sola sesión global y cada login tumba la sesión humana).

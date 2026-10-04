@@ -31,9 +31,10 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 		return
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op tras Commit
-	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name) VALUES (?, ?, ?, ?)
+	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name, ip) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(mac) DO UPDATE SET last_seen = excluded.last_seen,
-			name = CASE WHEN excluded.name != '' THEN excluded.name ELSE device_seen.name END`)
+			name = CASE WHEN excluded.name != '' THEN excluded.name ELSE device_seen.name END,
+			ip = CASE WHEN excluded.ip != '' THEN excluded.ip ELSE device_seen.ip END`)
 	if err != nil {
 		return
 	}
@@ -50,7 +51,7 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 		if name == "" && d.Name != "" && !strings.EqualFold(d.Name, d.MAC) {
 			name = d.Name
 		}
-		if _, err := stmt.Exec(mac, nowMs, nowMs, name); err != nil {
+		if _, err := stmt.Exec(mac, nowMs, nowMs, name, d.IP); err != nil {
 			return
 		}
 	}
@@ -78,12 +79,12 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 
 type seenRow struct {
 	first, last int64
-	name        string
+	name, ip    string
 }
 
 // seenByMac carga la tabla device_seen completa (una query, sin N+1).
 func (l *Live) seenByMac() (map[string]seenRow, error) {
-	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, '') FROM device_seen`)
+	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, ''), COALESCE(ip, '') FROM device_seen`)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func (l *Live) seenByMac() (map[string]seenRow, error) {
 	for rows.Next() {
 		var mac string
 		var s seenRow
-		if err := rows.Scan(&mac, &s.first, &s.last, &s.name); err != nil {
+		if err := rows.Scan(&mac, &s.first, &s.last, &s.name, &s.ip); err != nil {
 			return nil, err
 		}
 		byMac[mac] = s
@@ -113,9 +114,21 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 	for i := range devices {
 		live[normSeenMAC(devices[i].MAC)] = true
 	}
+	// #1151: una alias enlazada no sale como fantasma propio - su canónico la
+	// representa en la lista (si el canónico no está en el registro, la alias
+	// se muestra tal cual para no perder al cliente).
+	links := l.deviceLinks()
 	byMac, err := l.seenByMac()
 	if err != nil {
 		return nil
+	}
+	// #1151: aliases registradas de cada canónico (para que la hoja las
+	// muestre y permita desenlazarlas).
+	revAlias := map[string][]string{}
+	for alias, canonical := range links {
+		if _, registered := byMac[canonical]; registered {
+			revAlias[canonical] = append(revAlias[canonical], alias)
+		}
 	}
 	var out []Device
 	for rawMac, s := range byMac {
@@ -123,10 +136,16 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 		if live[mac] {
 			continue
 		}
+		if canonical, linked := links[mac]; linked {
+			if _, canonRegistered := byMac[canonical]; canonRegistered {
+				continue
+			}
+		}
 		d := Device{
 			ID:          strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
 			MAC:         mac,
 			Type:        "desconocido",
+			IP:          s.ip,
 			Online:      false,
 			Band:        "—",
 			FirstSeenMs: s.first,
@@ -135,6 +154,9 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 		if s.name != "" {
 			d.Hostname = s.name
 			d.Name = s.name
+		}
+		if aliases := revAlias[mac]; len(aliases) > 0 {
+			d.AliasMacs = aliases
 		}
 		out = append(out, d)
 	}
