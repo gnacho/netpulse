@@ -852,6 +852,38 @@ func ParsePortStates(out string) []PortState {
 
 // ParsePortLayout parsea board.json → [{id, name, label, role}] (WAN
 // normalizado a id 'wan').
+// portPrettyLabel (#1200): etiqueta humana para el panel de bocas. Los
+// patrones clásicos conservan su formato (lan1→"LAN 1", wan→"WAN",
+// eth0→"ETH 0", sfp0→"SFP 0"); cualquier otro nombre físico reconocido
+// muestra su nombre real intacto: los netdev de OpenWrt 25.12+ (sfp-lan,
+// sfp-wan en BPI-R4) y las bocas sin dígitos (lan en UniFi 6 Lite). Ni
+// mayúsculas inyectadas en medio del nombre ni sufijos partidos.
+func portPrettyLabel(name string) string {
+	switch {
+	case name == "lan":
+		return "LAN"
+	case name == "wan":
+		return "WAN"
+	case lanNumRe.MatchString(name):
+		return "LAN " + strings.TrimPrefix(name, "lan")
+	case ethNumRe.MatchString(name):
+		return "ETH " + strings.TrimPrefix(name, "eth")
+	case sfpNumRe.MatchString(name):
+		if name == "sfp" {
+			return "SFP"
+		}
+		return "SFP " + strings.TrimPrefix(name, "sfp")
+	default:
+		return name
+	}
+}
+
+var (
+	lanNumRe = regexp.MustCompile(`^lan\d+$`)
+	ethNumRe = regexp.MustCompile(`^eth\d+$`)
+	sfpNumRe = regexp.MustCompile(`^sfp\d*$`)
+)
+
 func ParsePortLayout(out string) ([]PortLayout, error) {
 	var board struct {
 		Network struct {
@@ -868,7 +900,7 @@ func ParsePortLayout(out string) ([]PortLayout, error) {
 	}
 	ports := []PortLayout{}
 	for _, name := range board.Network.Lan.Ports {
-		ports = append(ports, PortLayout{ID: name, Name: name, Label: strings.Replace(name, "lan", "LAN ", 1), Role: "lan"})
+		ports = append(ports, PortLayout{ID: name, Name: name, Label: portPrettyLabel(name), Role: "lan"})
 	}
 	if wanDev := board.Network.Wan.Device; wanDev != "" {
 		ports = append([]PortLayout{{ID: "wan", Name: wanDev, Label: "WAN", Role: "wan"}}, ports...)
@@ -879,7 +911,7 @@ func ParsePortLayout(out string) ([]PortLayout, error) {
 // phyRe/skipRe: nombres que pueden ser una boca física y nombres que nunca lo
 // son (bridges, VLANs, túneles, wireless, módems).
 var (
-	phyRe  = regexp.MustCompile(`^(eth|sfp|en|swp)[0-9a-zA-Z_\-]*$|^(lan|wan)[0-9]+$`)
+	phyRe  = regexp.MustCompile(`^(eth|sfp|en|swp)[0-9a-zA-Z_\-]*$|^(lan|wan)[0-9]*$`)
 	skipRe = regexp.MustCompile(`^(lo|br[-_]?|br-lan|br0|docker|veth|wg|tun|tap|ifb|pppoe|wlan|wpan|phy|gre|gretap|erspan|ip6tnl|sit|teql|bond|dummy|nat64|rmnet|usb|wwan)`)
 )
 
@@ -976,8 +1008,10 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			used[p.Name] = true
 		}
 	} else {
-		// Fallback sin config
-		lanRe := regexp.MustCompile(`^lan\d+$`)
+		// Fallback sin config. #1200: también "lan"/"wan" a secas (UniFi
+		// 6 Lite: la boca no se llama lan1 sino lan, y antes el panel
+		// salía vacío - 0 de 0 - porque ningún patrón la reconocía).
+		lanRe := regexp.MustCompile(`^lan\d*$`)
 		lans := []PortState{}
 		for _, p := range states {
 			if lanRe.MatchString(p.Name) {
@@ -986,7 +1020,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		}
 		sort.Slice(lans, func(i, j int) bool { return NaturalLess(lans[i].Name, lans[j].Name) })
 		for _, p := range lans {
-			ep := EthPort{ID: p.Name, Label: strings.Replace(p.Name, "lan", "LAN ", 1), Up: p.Up}
+			ep := EthPort{ID: p.Name, Label: portPrettyLabel(p.Name), Up: p.Up}
 			if p.Up {
 				ep.Speed = p.Speed
 			}
@@ -1039,12 +1073,9 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		if conduits[st.Name] {
 			continue // puerto de CPU del switch, no una boca
 		}
-		label := st.Name
-		if strings.HasPrefix(st.Name, "eth") {
-			label = "ETH " + strings.TrimPrefix(st.Name, "eth")
-		} else if strings.HasPrefix(st.Name, "sfp") {
-			label = "SFP " + strings.TrimPrefix(st.Name, "sfp")
-		}
+		// #1200: label centralizado en portPrettyLabel - sfp-lan/sfp-wan
+		// conservan su nombre (antes "SFP -lan"/"SFP -wan").
+		label := portPrettyLabel(st.Name)
 		ep := EthPort{ID: st.Name, Label: label, Up: st.Up}
 		if st.Up {
 			ep.Speed = st.Speed
