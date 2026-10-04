@@ -2779,7 +2779,44 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	// topología → los chips saltaban de posición al refrescar. Ordenar por
 	// MAC hace el contrato determinista para el mismo set de dispositivos.
 	sort.Slice(devices, func(i, j int) bool { return devices[i].MAC < devices[j].MAC })
-	return devices
+	return normalizeDevices(devices)
+}
+
+// normalizeDevices: MACs a formato canónico (mayúsculas, ':') y dedup por
+// MAC. La caché gl-clients de GL.iNet emite MACs con guiones y entradas
+// caducadas: sin normalizar el mismo cliente puede aparecer duplicado
+// (#1145). Gana la entrada online; hostname/IP/fabricante de la descartada
+// enriquecen a la conservada.
+func normalizeDevices(devices []Device) []Device {
+	byMac := make(map[string]int, len(devices))
+	out := make([]Device, 0, len(devices))
+	for _, d := range devices {
+		mac := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(d.MAC), "-", ":"))
+		d.MAC = mac
+		if i, ok := byMac[mac]; ok {
+			a, b := out[i], d
+			if b.Online && !a.Online {
+				a, b = b, a
+			}
+			if a.Hostname == "" {
+				a.Hostname = b.Hostname
+			}
+			if a.IP == "" {
+				a.IP = b.IP
+			}
+			if a.Manufacturer == "" {
+				a.Manufacturer = b.Manufacturer
+			}
+			if a.Name == "" {
+				a.Name = b.Name
+			}
+			out[i] = a
+			continue
+		}
+		byMac[mac] = len(out)
+		out = append(out, d)
+	}
+	return out
 }
 
 // emitTempAlert emite la alerta de temperatura alta UNA vez por proceso
@@ -3052,6 +3089,10 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// escribía las marcas pero NUNCA las aplicaba: la UI en vivo mostraba
 	// "—" aunque la API REST las tuviera (sólo los detalles las aplicaban).
 	l.applyDeviceSeen(devices)
+	// #1145: retención indefinida - clientes del registro que ya no se ven
+	// en ninguna fuente viva salen como offline (con último nombre y seen).
+	// El overview es el snapshot SSE del que vive la tabla de clientes.
+	devices = append(devices, l.ghostDevices(devices)...)
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	countClientsPerRouter(routerList, devices)
 	// Sparkline de la tarjeta para fuentes sin throughput bps (switch beacon/
@@ -3580,6 +3621,9 @@ func (l *Live) attributedDevices() []Device {
 	// inevitable; el upsert es idempotente y barato.
 	l.noteDevicesSeen(devices, time.Now().UnixMilli())
 	l.applyDeviceSeen(devices)
+	// #1145: retención indefinida - clientes del registro que ya no se ven
+	// en ninguna fuente viva salen como offline con su último nombre y seen.
+	devices = append(devices, l.ghostDevices(devices)...)
 	return devices
 }
 

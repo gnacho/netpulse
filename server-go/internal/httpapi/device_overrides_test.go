@@ -4,6 +4,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -114,5 +115,39 @@ func TestDeviceOverrideValidation(t *testing.T) {
 	// Tipo válido del clasificador: aceptado.
 	if rec := doOverridePut(t, s, mac, `{"type":"movil"}`); rec.Code != 200 {
 		t.Errorf("tipo válil debió dar 200, dio %d", rec.Code)
+	}
+}
+
+// #1145: DELETE /api/devices/{mac} borra la fila del registro y 404 si no
+// existe. El handler requiere admin (el test llama al handler directamente
+// con PathValue, como el resto de tests de handlers con PathValue).
+func TestDeviceDelete(t *testing.T) {
+	s := panelTestServer(t)
+	if _, err := s.db.Exec("INSERT INTO device_seen (mac, first_seen, last_seen, name) VALUES ('AA:BB:CC:DD:EE:FF', 1, 2, 'watch')", ); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	r := httptest.NewRequest(http.MethodDelete, "/api/devices/aa-bb-cc-dd-ee-ff", nil)
+	r.SetPathValue("mac", "aa-bb-cc-dd-ee-ff")
+	rec := httptest.NewRecorder()
+	s.handleDeviceDelete(rec, r)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	var n int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM device_seen WHERE mac = 'AA:BB:CC:DD:EE:FF'").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("rows = %d, want 0 (borrado)", n)
+	}
+
+	// MAC desconocida: 404.
+	rec = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodDelete, "/api/devices/11-22-33-44-55-66", nil)
+	r.SetPathValue("mac", "11-22-33-44-55-66")
+	s.handleDeviceDelete(rec, r)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
