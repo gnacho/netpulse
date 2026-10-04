@@ -340,7 +340,10 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-w-2xl md:flex md:flex-col md:w-[800px] md:h-[600px] md:max-w-[calc(100vw-2rem)] md:max-h-[calc(100vh-2rem)]">
+      {/* #1197: max-h y flex-col en TODOS los breakpoints (antes solo md+);
+          el cuerpo de cada fase es el contenedor de scroll, así los gated
+          checks y los botones de acción son alcanzables sin zoom-out. */}
+      <DialogContent className="max-w-2xl flex flex-col max-h-[calc(100vh-2rem)] md:w-[800px] md:h-[600px] md:max-w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DownloadCloud className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
@@ -350,7 +353,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
         </DialogHeader>
 
         {phase === 'confirm' && (
-          <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">
+          <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
             {/* Tarjeta de versión destacada (estilo Pulse) */}
             <div className="flex flex-col gap-1.5">
               <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
@@ -503,7 +506,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
         )}
 
         {phase === 'progress' && (
-          <div className="flex flex-col gap-4" role="status">
+          <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto" role="status">
             {/* Cabecera de progreso estilo Pulse: spinner grande + paso actual */}
             <div className="flex flex-col items-center gap-1.5 py-2">
               <Loader2 className="h-10 w-10 animate-spin text-accent" strokeWidth={1.5} aria-hidden="true" />
@@ -549,7 +552,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
         )}
 
         {phase === 'restarting' && (
-          <div className="flex flex-col items-center gap-3 py-4" role="status">
+          <div className="flex flex-col items-center gap-3 py-4 flex-1 min-h-0 overflow-y-auto" role="status">
             <Loader2 className="h-10 w-10 animate-spin text-accent" strokeWidth={1.5} aria-hidden="true" />
             <p className="text-sm font-medium text-text-primary">{t('update.dialog.restarting')}</p>
             <p className="text-caption text-text-muted">{t('update.dialog.reloadSoon')}</p>
@@ -557,7 +560,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
         )}
 
         {phase === 'error' && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
             <div className="flex items-start gap-3 rounded-xl bg-danger/10 px-4 py-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden="true" />
               <div className="min-w-0">
