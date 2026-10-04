@@ -1,6 +1,6 @@
 module github.com/gnacho/netpulse/server-go
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
@@ -10,7 +10,7 @@ require (
 	github.com/m-lab/ndt7-client-go v0.10.1
 	github.com/mark3labs/mcp-go v1.1.1
 	github.com/showwin/speedtest-go v1.8.3
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/net v0.58.0
 	golang.org/x/text v0.41.0
 	modernc.org/sqlite v1.56.0
