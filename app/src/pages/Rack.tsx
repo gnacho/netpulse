@@ -1,3 +1,8 @@
+// "use no memo": el compilador de React miscompila el patrón de esta página
+// (componente top-level + valor useMemo del padre como prop -> referencia
+// fuera de ámbito en el bundle). #1151/#1176.
+"use no memo"
+
 /**
  * NetPulse - Página Rack `/rack` (rack canvas, fase 1).
  * Canvas con racks y montajes (snap al grid, save explícito), patch de
@@ -53,6 +58,12 @@ const localId = (p: string) => `${p}-local-${++localSeq}`
 function RackCanvas() {
   const { t } = useTranslation()
   const np = useNetPulse()
+  // #1151: nombre real de las unidades de flota por MAC (los routers/switches
+  // de la flota no están en np.devices - eso son clientes).
+  const routerNameByMac = useMemo(
+    () => new Map(np.routers.filter((r) => r.mac).map((r) => [r.mac.toLowerCase(), r.name])),
+    [np.routers],
+  )
   const services = useServicesVisibility()[0]
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
@@ -974,14 +985,6 @@ function RackCanvas() {
   const unmountedRouters = useMemo(
     () => np.routers.filter((r) => r.mac && !mountedMacs.has(r.mac.toLowerCase())),
     [np.routers, mountedMacs],
-  )
-  // #rack-mini: nombre real para los mounts de unidades de flota - los
-  // routers/switches de la flota NO están en np.devices (eso son clientes),
-  // así que el label del montaje caía vacío y la placa pintaba su nombre por
-  // defecto ("Router") para todos.
-  const routerNameByMac = useMemo(
-    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.name]] : []))),
-    [np.routers],
   )
   const accessoryPlates = useMemo(() => FACEPLATES.filter((p) => p.group === 'accessory'), [])
 
