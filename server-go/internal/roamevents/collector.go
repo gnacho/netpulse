@@ -163,6 +163,30 @@ func InsertEvent(db *sql.DB, ev Event) error {
 	return err
 }
 
+// csvValues divide una lista separada por comas en valores recortados no
+// vacíos (#1127: filtros multi-select de la vista de eventos).
+func csvValues(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// placeholders devuelve "?,?,?" con n marcadores.
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
+
 // contentHash calcula el hash de dedup: minute + router + type + mac + iface.
 // Granularidad minuto: dos eventos idénticos en el mismo minuto = dup.
 // En práctica raro (un cliente no se conecta dos veces en 60s al mismo AP).
@@ -174,21 +198,34 @@ func contentHash(ev Event) string {
 }
 
 // ListEvents lee eventos desde SQLite ordenados por ts DESC. Filtros opcionales.
-func ListEvents(db *sql.DB, limit int, sinceMs int64, routerID, eventType string) ([]Event, error) {
+func ListEvents(db *sql.DB, limit int, sinceMs int64, routerID, eventType, mac string) ([]Event, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
 	q := "SELECT id, ts_ms, router_id, type, COALESCE(mac,''), COALESCE(iface,''), COALESCE(detail,'') FROM roam_events WHERE ts_ms >= ?"
 	args := []any{sinceMs}
-	if routerID != "" {
-		q += " AND router_id = ?"
-		args = append(args, routerID)
+	// #1127: router y mac aceptan listas separadas por comas (filtro
+	// multi-select): OR dentro del filtro, AND entre filtros.
+	if ids := csvValues(routerID); len(ids) > 0 {
+		q += " AND router_id IN (" + placeholders(len(ids)) + ")"
+		for _, id := range ids {
+			args = append(args, id)
+		}
+	}
+	if macs := csvValues(mac); len(macs) > 0 {
+		q += " AND mac IN (" + placeholders(len(macs)) + ")"
+		for _, m := range macs {
+			args = append(args, strings.ToUpper(m))
+		}
 	}
 	if eventType != "" {
 		q += " AND type = ?"
 		args = append(args, eventType)
 	}
-	q += " ORDER BY ts_ms DESC LIMIT ?"
+	// #1097: ts_ms tiene precisión de segundo en los logs de OpenWrt (sin
+	// millis) y eventos del mismo segundo quedaban en orden arbitrario. El
+	// id autoincrement preserva el orden de inserción (== orden del log).
+	q += " ORDER BY ts_ms DESC, id DESC LIMIT ?"
 	args = append(args, limit)
 	rows, err := db.Query(q, args...)
 	if err != nil {
@@ -269,27 +306,27 @@ func ParseLogreadLine(line, routerID string) (Event, bool) {
 		return Event{}, false
 	}
 
+	var ev Event
+	var ok bool
 	switch prog {
 	case "hostapd":
-		ev, ok := parseHostapd(rest, routerID, ts)
-		if !ok {
-			return Event{}, false
-		}
-		return ev, true
+		ev, ok = parseHostapd(rest, routerID, ts)
 	case "dawn":
-		ev, ok := parseDawn(rest, routerID, ts)
-		if !ok {
-			return Event{}, false
-		}
-		return ev, true
+		ev, ok = parseDawn(rest, routerID, ts)
 	case "usteer":
-		ev, ok := parseUsteer(rest, routerID, ts)
-		if !ok {
-			return Event{}, false
-		}
-		return ev, true
+		ev, ok = parseUsteer(rest, routerID, ts)
+	default:
+		return Event{}, false
 	}
-	return Event{}, false
+	if !ok {
+		return Event{}, false
+	}
+	// #1129: los logs (hostapd/dawn/usteer) emiten la MAC en minúsculas y
+	// el resto de la app canonicaliza a MAYÚSCULAS (#960). Normalizando en
+	// la ingesta, el filtro por cliente de /api/roam-events (que compara en
+	// mayúsculas) casa con lo guardado y el nameByMac del frontend también.
+	ev.MAC = strings.ToUpper(ev.MAC)
+	return ev, true
 }
 
 func parseHostapd(rest, routerID string, ts int64) (Event, bool) {

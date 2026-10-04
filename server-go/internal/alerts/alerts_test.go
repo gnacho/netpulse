@@ -279,6 +279,152 @@ func TestSeedSkipsConfigButKeepsDedup(t *testing.T) {
 	}
 }
 
+
+// TestEmitOrUpdateReepisodeAfterRestart (#1094): una alerta leída en una
+// sesión previa que se re-emite tras el arranque (p. ej. "Agent outdated"
+// al reiniciar el server) vuelve a NO-leída: es un episodio nuevo y el
+// humano debe verla. Un refresh del mismo episodio (Ts posterior al
+// arranque, p. ej. port flapping) conserva su read.
+func TestEmitOrUpdateReepisodeAfterRestart(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Sesión 1: la alerta se emite y el humano la marca leída.
+	e1 := New(d, nil)
+	if !e1.EmitOrUpdate(ev("r1", CatSystem, false)) {
+		t.Fatal("insert sesión 1")
+	}
+	e1.MarkRead("r1")
+	if !e1.List()[0].Read {
+		t.Fatal("setup: r1 debería estar leída en la sesión 1")
+	}
+
+	// "Reinicio": engine nuevo sobre la MISMA bd (el log persiste read=1).
+	// startedAt se adelanta para simular un arranque posterior de verdad:
+	// todo el test ocurre dentro del mismo segundo unix.
+	e2 := New(d, nil)
+	e2.startedAt = time.Now().Add(2 * time.Second)
+	if got := e2.List(); len(got) != 1 || !got[0].Read {
+		t.Fatalf("restore: %+v", got)
+	}
+	// El agente vuelve a detectar la condición → re-emite (update).
+	if !e2.EmitOrUpdate(ev("r1", CatSystem, false)) {
+		t.Fatal("re-emisión tras reinicio")
+	}
+	if e2.List()[0].Read {
+		t.Fatalf("episodio nuevo tras reinicio debe volver a no-leído: %+v", e2.List()[0])
+	}
+
+	// Mismo episodio en curso (refresh rápido): conserva el read.
+	e2.startedAt = time.Now().Add(-2 * time.Second)
+	e2.MarkRead("r1")
+	e2b := ev("r2", CatSystem, false)
+	if !e2.EmitOrUpdate(e2b) {
+		t.Fatal("insert r2")
+	}
+	e2.MarkRead("r2")
+	if !e2.EmitOrUpdate(ev("r2", CatSystem, false)) {
+		t.Fatal("refresh del mismo episodio")
+	}
+	found := false
+	for _, x := range e2.List() {
+		if x.ID == "r2" {
+			found = x.Read
+		}
+	}
+	if !found {
+		t.Fatal("refresh en curso debe conservar el read")
+	}
+}
+
+// TestResolveForgetsRead (#1107): una alerta leída que se RESUELVE (episodio
+// cerrado, p. ej. "Agent outdated" que desaparece al actualizar el agente)
+// no debe dejar rastro en el read-set. Antes el kv readOrd conservaba el ID
+// y List()/UnreadCount() derivan el read de ahí: al re-dispararse la misma
+// condición con ID estable (otra actualización del server vuelve a dejar el
+// agente desactualizado), el episodio nuevo heredaba el leído viejo y el
+// humano no veía la alerta. Mismo criterio que Remove (#846).
+func TestResolveForgetsRead(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	e1 := New(d, nil)
+	if !e1.EmitOrUpdate(ev("agent-outdated-sw1", CatSystem, false)) {
+		t.Fatal("insert episodio 1")
+	}
+	e1.MarkRead("agent-outdated-sw1")
+	e1.Resolve("agent-outdated-sw1")
+
+	// El agente se actualiza (episodio cerrado) y meses después otra
+	// actualización del server vuelve a dejarlo desactualizado: mismo ID,
+	// episodio nuevo.
+	if !e1.EmitOrUpdate(ev("agent-outdated-sw1", CatSystem, false)) {
+		t.Fatal("re-emisión tras Resolve")
+	}
+	if e1.List()[0].Read {
+		t.Fatalf("episodio nuevo tras Resolve debe ser no-leído: %+v", e1.List()[0])
+	}
+	if e1.UnreadCount() != 1 {
+		t.Fatalf("unread tras re-emisión: %d", e1.UnreadCount())
+	}
+
+	// El read purgado no revive tras un reinicio (kv readOrd limpio).
+	e2 := New(d, nil)
+	if got := e2.List(); len(got) != 1 || got[0].Read {
+		t.Fatalf("el read resucitó tras reinicio: %+v", got)
+	}
+}
+
+// TestEmitOrUpdateInsertNotificaConTs (#1074): la rama de INSERCIÓN de
+// EmitOrUpdate notificaba la `ev` original sin el default de Ts que
+// insertaLocked aplica a su copia local: el notifier recibía Ts=0 y los
+// pushes (ntfy/Telegram) pintaban la hora estática 16:00:00 (epoch en
+// UTC-8). El default debe aplicarse ANTES de Notify, como en Emit (#914).
+func TestEmitOrUpdateInsertNotificaConTs(t *testing.T) {
+	spy := &spyNotifier{}
+	e := New(nil, spy)
+	ev := ev("ou1", CatSystem, false)
+	ev.Ts = 0
+	if !e.EmitOrUpdate(ev) {
+		t.Fatal("EmitOrUpdate insert debe pasar")
+	}
+	if len(spy.got) != 1 {
+		t.Fatalf("notifier: %+v", spy.got)
+	}
+	if spy.got[0].Ts == 0 {
+		t.Fatalf("el notifier recibió Ts=0: %+v", spy.got[0])
+	}
+}
+
+// TestEmitOrUpdateUpdateSobreescribeTs (#1074): la rama de UPDATE sigue
+// refrescando el timestamp a ahora (comportamiento previo, regresión).
+func TestEmitOrUpdateUpdateSobreescribeTs(t *testing.T) {
+	spy := &spyNotifier{}
+	e := New(nil, spy)
+	base := ev("ou2", CatSystem, false)
+	base.Ts = 123
+	if !e.EmitOrUpdate(base) {
+		t.Fatal("primer EmitOrUpdate debe insertar")
+	}
+	upd := ev("ou2", CatSystem, false)
+	upd.Ts = 0 // el emisor no fija Ts en la actualización
+	if !e.EmitOrUpdate(upd) {
+		t.Fatal("segundo EmitOrUpdate debe actualizar")
+	}
+	if len(spy.got) != 2 {
+		t.Fatalf("notifier: %+v", spy.got)
+	}
+	if spy.got[1].Ts <= 123 {
+		t.Fatalf("el update debe refrescar Ts a ahora: %+v", spy.got[1])
+	}
+}
+
 // TestEmitOrUpdateConsolida (#271): re-emitir con el MISMO ID actualiza la
 // alerta existente (ts nuevo, al frente, sin duplicar) en vez de insertar.
 func TestEmitOrUpdateConsolida(t *testing.T) {

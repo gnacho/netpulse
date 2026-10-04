@@ -78,9 +78,18 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 		}
 		slug := agentSlugForRouter(routerID)
 
+		// #1080: solo Fresh() convertía cualquier hueco de frescura del
+		// agente (reconexión, backhaul, reinicio) en "no reporta radios".
+		// Es una vista de análisis: mejor el último payload conocido aunque
+		// pase el TTL que fingir que el equipo no tiene WiFi. El aviso solo
+		// tiene sentido si no existe payload alguno (o no trae wireless).
 		var radios []probe.Radio
 		if s.agents != nil {
-			if payload, ok := s.agents.Fresh(slug); ok && payload.Data.Wireless != nil {
+			payload, ok := s.agents.Fresh(slug)
+			if !ok {
+				payload, _ = s.agents.StalePayload(slug)
+			}
+			if payload != nil && payload.Data.Wireless != nil {
 				radios = payload.Data.Wireless.Radios
 			}
 		}

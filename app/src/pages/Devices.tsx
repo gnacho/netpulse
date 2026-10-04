@@ -341,7 +341,7 @@ function StatsStrip({
 }) {
   const { t } = useTranslation()
   const { refreshKey } = useDashboard()
-  const { deviceTotals } = useNetPulse()
+  const { deviceTotals, adguard } = useNetPulse()
   const reduce = useReducedMotion()
   const newThisWeekDevices = allDevices.filter((d) => d.isNew)
   // #1003: el umbral de señal débil es el ajuste global (/api/settings/thresholds),
@@ -483,9 +483,13 @@ function StatsStrip({
       ),
     },
   ]
+  // #1136: sin AdGuard configurado (host vacío) la tarjeta de cobertura no
+  // aplica: en live el flag por cliente nunca se rellena y la tarjeta
+  // mostraba "0/N protegidos" permanentemente.
+  const visibleCards = adguard.host ? cards : cards.filter((c) => c.key !== 'adguard')
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-      {cards.map((c, i) => (
+      {visibleCards.map((c, i) => (
         <motion.div
           key={c.key}
           initial={reduce ? false : { opacity: 0, y: 16 }}
@@ -816,6 +820,8 @@ function DeviceDetail({
   onEdit: () => void
 }) {
   const { t } = useTranslation()
+  const { adguard } = useNetPulse()
+  const hasAdGuard = Boolean(adguard.host)
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
       <DetailItem label="MAC" mono>
@@ -823,21 +829,25 @@ function DeviceDetail({
       </DetailItem>
       <DetailItem label={t('devices.detail.dhcpLease')}>{dhcpLease(device.dhcpLease)}</DetailItem>
       <DetailItem label={t('devices.detail.firstSeen')}>{fmtSeenAgo(device.firstSeenMs)}</DetailItem>
-      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
-      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
+      {/* #1131: hostname junto a MAC (izquierda) y los "seen" juntos a la
+          derecha: intercambio de posiciones con lastSeen. */}
       <DetailItem label="Hostname" mono>
         {device.hostname}
       </DetailItem>
-      <div className="min-w-0">
-        <div className="text-label uppercase text-text-muted">AdGuard</div>
-        <div className="mt-1.5">
-          {device.adguard ? (
-            <StatusPill tone="ok" label={t('devices.detail.protected')} />
-          ) : (
-            <StatusPill tone="muted" label={t('devices.detail.unfiltered')} />
-          )}
+      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
+      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
+      {hasAdGuard && (
+        <div className="min-w-0">
+          <div className="text-label uppercase text-text-muted">AdGuard</div>
+          <div className="mt-1.5">
+            {device.adguard ? (
+              <StatusPill tone="ok" label={t('devices.detail.protected')} />
+            ) : (
+              <StatusPill tone="muted" label={t('devices.detail.unfiltered')} />
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <ConnectedToItem device={device} />
       {infra && (
         <DetailItem label={t('devices.detail.infra')}>
@@ -1341,6 +1351,37 @@ export default function Devices() {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const { devices, deviceTotals, isDemo, routers, distributionNodes, refresh } = useNetPulse()
+  const { refreshKey } = useDashboard()
+  // #1151: candidatos a "mismo dispositivo con varias MACs" que el server
+  // detecta (hostname+IP compartidos, nunca simultáneos). Enlazar es manual.
+  const [linkSuggestions, setLinkSuggestions] = useState<[string, string][]>([])
+  const [dismissedLinks, setDismissedLinks] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (isDemo) return
+    let alive = true
+    void fetchJson<{ linkSuggestions?: [string, string][] }>('/api/devices?page=1&pageSize=1')
+      .then((r) => {
+        if (alive && r.ok && Array.isArray(r.data?.linkSuggestions)) setLinkSuggestions(r.data.linkSuggestions)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [refreshKey, isDemo])
+
+  const linkPair = async (a: string, b: string) => {
+    try {
+      await fetchJson(`/api/devices/${encodeURIComponent(b)}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: a }),
+      })
+      setLinkSuggestions((p) => p.filter(([x, y]) => !(x === a && y === b) && !(x === b && y === a)))
+      refresh()
+    } catch {
+      // fallo silencioso: la sugerencia sigue para reintentar
+    }
+  }
   const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string }>>(() => {
     try {
       const raw = localStorage.getItem('netpulse-device-overrides')
@@ -1791,6 +1832,43 @@ export default function Devices() {
       {/* ② Stats strip */}
       <StatsStrip allDevices={allDevices} onlyUnprotected={onlyUnprotected} onToggleUnprotected={toggleUnprotected} />
 
+      {/* #1151: sugerencias de enlace (mismo dispositivo, varias MACs) */}
+      {linkSuggestions.filter(([a, b]) => !dismissedLinks.has(a + b)).length > 0 && (
+        <div className="mb-4 rounded-2xl border border-accent/30 bg-accent/5 p-4">
+          <div className="text-label uppercase tracking-[0.06em] text-accent">{t('devices.suggestions.title')}</div>
+          <p className="mb-2 mt-1 text-caption text-text-muted">{t('devices.suggestions.desc')}</p>
+          <ul className="space-y-1.5">
+            {linkSuggestions
+              .filter(([a, b]) => !dismissedLinks.has(a + b))
+              .map(([a, b]) => {
+                const na = allDevices.find((d) => d.mac === a)?.name ?? a
+                const nb = allDevices.find((d) => d.mac === b)?.name ?? b
+                return (
+                  <li key={a + b} className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-medium text-text-primary">{na}</span>
+                    <span className="text-text-muted">·</span>
+                    <span className="font-medium text-text-primary">{nb}</span>
+                    <button
+                      type="button"
+                      onClick={() => void linkPair(a, b)}
+                      className="rounded-lg border border-accent/40 px-2.5 py-1 text-caption font-medium text-accent transition-colors hover:bg-accent/10"
+                    >
+                      {t('devices.suggestions.link')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDismissedLinks((p) => new Set(p).add(a + b))}
+                      className="rounded-lg px-2.5 py-1 text-caption text-text-muted transition-colors hover:text-text-primary"
+                    >
+                      {t('devices.suggestions.dismiss')}
+                    </button>
+                  </li>
+                )
+              })}
+          </ul>
+        </div>
+      )}
+
       {/* ③ Filter bar */}
       <FilterBar
         routerIds={routerIds}
@@ -1935,6 +2013,9 @@ export default function Devices() {
         saving={savingOverride}
         onClose={() => setEditingId(null)}
         onSave={handleEditSave}
+        onDeleted={() => setEditingId(null)}
+        clients={allDevices}
+        onLinkChanged={() => setEditingId(null)}
       />
 
       <OnboardingIntake

@@ -69,6 +69,7 @@ type Config struct {
 	AgentAutoenroll  bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
 	Onbox            bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
 	GhostPortEnabled bool   // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
+	MCPEnabled       bool   // NETPULSE_MCP_ENABLED=1: servidor MCP embebido en /mcp (#1114); default false
 	// NETPULSE_TLS_ENABLED=1: listener HTTPS adicional (puerto NETPULSE_TLS_PORT,
 	// default 443) junto al HTTP de PORT. Opt-in: sin la variable, arranque
 	// idéntico al actual. El modo on-box ya sirve HTTPS en PORT (Fase 9) y no
@@ -454,6 +455,20 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_MCP_ENABLED: '0'|'1', opcional (#1114) - default false. Activa
+	// el endpoint /mcp (streamable-HTTP) para asistentes AI; SOLO auth por API
+	// token Bearer, nunca cookie de sesión. El puerto debe quedar en LAN.
+	mcpEnabled := false
+	if v, ok := env["NETPULSE_MCP_ENABLED"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			mcpEnabled = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_MCP_ENABLED", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
 	// NETPULSE_RTL_PASS / NETPULSE_RTL_POLL_S: sondeo HTTP de la consola de
 	// switches RTLPlayground (KP-9000) para firmware + uptime (#639). La pass
 	// por defecto es la del firmware tras flasheo; la cadencia 300 s (5 min).
@@ -624,6 +639,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		AgentAutoenroll:   agentAutoenroll,
 		Onbox:             onbox,
 		GhostPortEnabled:  ghostPortEnabled,
+		MCPEnabled:        mcpEnabled,
 		RTLConsolePass:    rtlPass,
 		RTLConsolePollSec: rtlPollSec,
 		PollIntervalSec:   pollIntervalSec,

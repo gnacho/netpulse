@@ -161,12 +161,15 @@ type Router struct {
 	// (sin SSH). El frontend lo usa para marcar "agente no instalado" cuando
 	// no hay agente registrado (certeza: el router no es sondeable por SSH).
 	AgentOnly bool `json:"agentOnly,omitempty"`
+	// Disabled (issue #1085): unidad pausada (no se sondea ni alerta; el
+	// status llega como "paused" y la UI la excluye de los desplegables).
+	Disabled bool `json:"disabled,omitempty"`
 	// SelfExpose (#832): el equipo se expone ÉL MISMO a Home Assistant por
 	// MQTT (NetGrip con su MQTT activado). El publisher de flota NO crea
 	// dispositivo ni entidades por router en ese caso. Ausente = no se
 	// expone (lo hace NetPulse).
 	SelfExpose *bool `json:"selfExpose,omitempty"`
-	// Type: "glinet"|"openwrt"|"managed-switch"|"external". El frontend lo usa
+	// Type: "glinet"|"openwrt"|"routeros"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
 	Type   string `json:"type,omitempty"`
@@ -295,6 +298,9 @@ type Device struct {
 	// server NO pre-formatea (lección #899).
 	FirstSeenMs  int64  `json:"firstSeenMs,omitempty"`
 	LastSeenMs   int64  `json:"lastSeenMs,omitempty"`
+	// AliasMacs: MACs enlazadas a este cliente (#1151, mismo dispositivo con
+	// varias MACs - p. ej. una por SSID). Solo viaja en el canónico.
+	AliasMacs []string `json:"aliasMacs,omitempty"`
 	Traffic24hRx string `json:"traffic24hRx,omitempty"`
 	Traffic24hTx string `json:"traffic24hTx,omitempty"`
 	Adguard      *bool  `json:"adguard,omitempty"` // puntero: demo emite true/false explícito; live lo omite (paridad Node)
@@ -561,6 +567,10 @@ type EthPort struct {
 	Up          bool     `json:"up"`
 	Speed       string   `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
 	Iface       string   `json:"iface,omitempty"` // iface física (/proc/net/dev)
+	// #1125: familia para interfaces NO físicas ("lag"|"vlan"|"bridge"|
+	// "tunnel"|"virtual"); vacío/ausente = boca física. El frontend las
+	// agrupa en la sección colapsada de la tarjeta de puertos.
+	Family      string   `json:"family,omitempty"`
 	RxBytes     uint64   `json:"rxBytes,omitempty"`
 	TxBytes     uint64   `json:"txBytes,omitempty"`
 	RxErrs      uint64   `json:"rxErrors,omitempty"`
@@ -606,6 +616,20 @@ type Radio struct {
 // Radios: nil → null (demo sin radios), no-nil vacío → [] (live). Quirk SPEC.
 // Backhaul y Extras son `any`: la demo tiene objetos ricos canónicos
 // (routerExtras, dataset.js) y el live construye los suyos (SPEC §7.8).
+// FdbUplink: el router (hijo) se aprende en el puerto Port del router
+// ParentID. Evidencia directa del FDB de los pollers (#1051).
+type FdbUplink struct {
+	ChildID  string `json:"childId"`
+	ParentID string `json:"parentId"`
+	Port     string `json:"port"`
+}
+
+// FleetFdbProvider lo implementan los adapters capaces de exponer la
+// evidencia FDB de uplinks de flota (live).
+type FleetFdbProvider interface {
+	FleetFdbUplinks() map[string]FdbUplink
+}
+
 type RouterDetail struct {
 	Router   Router     `json:"router"`
 	Ports    []EthPort  `json:"ports"`
@@ -883,7 +907,7 @@ type RouterConfig struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Host      string `json:"host"`
-	Type      string `json:"type"` // "glinet"|"openwrt"
+	Type      string `json:"type"` // "glinet"|"openwrt"|"routeros"
 	IsGateway bool   `json:"is_gateway"`
 	AgentOnly bool   `json:"agent_only"`
 	CreatedAt int64  `json:"created_at"` // epoch ms
@@ -897,6 +921,10 @@ type RouterConfig struct {
 	SnmpCommunity    string `json:"snmp_community,omitempty"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	// Disabled (issue #1085): unidad pausada. No se sondea (SSH/SNMP/agente),
+	// no alerta y queda fuera de los desplegables de la UI; el histórico se
+	// conserva y la insignia "paused" la distingue en la lista de flota.
+	Disabled bool `json:"disabled"`
 	// ConsolePolling (issue #863): sondeo HTTP de la consola RTLPlayground del
 	// switch. true (default) = el server logra en la consola para fw/uptime/MAC;
 	// false = nunca (el firmware tiene una sola sesión global y cada login
@@ -909,6 +937,12 @@ type RouterConfig struct {
 	// de este router. NULL/ausente = DefaultTempThreshold (65). Un router que
 	// corre más caliente sube el suyo sin ocultar problemas en los más frescos.
 	TempThreshold *int `json:"temp_threshold,omitempty"`
+	// RouterOS: credenciales de la REST API nativa (Type "routeros"). User no
+	// es secreto; Password nunca se serializa de vuelta (json:"-"), igual que
+	// la clave privada ed25519 del servidor.
+	RouterOSUser     string `json:"routeros_user,omitempty"`
+	RouterOSPassword string `json:"-"`
+	RouterOSInsecure bool   `json:"routeros_insecure"` // acepta TLS autofirmado (RouterOS de fábrica)
 }
 
 // TempThresholdValue resuelve el umbral efectivo de temperatura alta (°C) de

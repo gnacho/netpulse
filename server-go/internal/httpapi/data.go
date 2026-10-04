@@ -13,6 +13,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/clientbw"
+	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
 	"github.com/gnacho/netpulse/server-go/internal/roamcfg"
@@ -256,7 +257,39 @@ func (s *server) handleDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	out := paginate(filtered, page, pageSize)
 	out["typeCounts"] = typeCounts
+	// #1151: candidatos a "mismo dispositivo con varias MACs" (hostname+IP
+	// compartidos, nunca simultáneos). Solo sugerencia: el enlazado es manual.
+	if suggestions := adapters.LinkSuggestions(items, loadDeviceLinks(s.db)); len(suggestions) > 0 {
+		out["linkSuggestions"] = suggestions
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// loadDeviceLinks: mapa alias → canónico desde la tabla device_links (una
+// query; vacío si no hay BD o no hay enlaces).
+func loadDeviceLinks(d *db.DB) map[string]string {
+	out := map[string]string{}
+	if d == nil {
+		return out
+	}
+	rows, err := d.Query(`SELECT mac, canonical FROM device_links`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var alias, canonical string
+		if err := rows.Scan(&alias, &canonical); err != nil {
+			continue
+		}
+		out[normalizeMACKey(alias)] = normalizeMACKey(canonical)
+	}
+	return out
+}
+
+// normalizeMACKey: identidad canónica de enlace (mayúsculas, ':').
+func normalizeMACKey(mac string) string {
+	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(mac), "-", ":"))
 }
 
 // deviceMatches: substring (minúsculas) sobre name|hostname|ip|mac|manufacturer.
@@ -348,12 +381,13 @@ func (s *server) handleAlertsReadAll(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// handleAlertsClear (POST, issue #971): VACÍA el feed - limpia (dismiss)
-// todas las alertas actualmente visibles. Es lo que el botón "Marcar todo
-// como leído" hace desde #971: las alertas salen del feed (badge a 0) y no
-// reaparecen tras un reload (borradas de alert_log + conjunto dismissed en
-// kv). Una alerta viva (volátil, p.ej. agent-down con el agente aún caído)
-// puede volver al re-evaluarse su condición; el histórico NO vuelve.
+// handleAlertsClear (POST): acción destructiva "Vaciar registro" (#1034) -
+// limpia (dismiss) todas las alertas actualmente visibles. Las borra de
+// alert_log y guarda sus IDs en el conjunto dismissed (kv): el feed queda
+// vacío y no se repuebla tras un reload. Una alerta viva (volátil, p.ej.
+// agent-down con el agente aún caído) puede volver al re-evaluarse su
+// condición; el histórico NO vuelve. Para SOLO marcar leídas sin borrar,
+// POST /api/alerts/read-all.
 func (s *server) handleAlertsClear(w http.ResponseWriter, _ *http.Request) {
 	s.adapter.AlertsEngine().DismissAll()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -514,7 +548,7 @@ func (s *server) handleSurvey(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRoamEvents: lista paginada de eventos hostapd/DAWN desde SQLite.
-// Query params: limit (default 100, máx 1000), since (epoch ms), router, type.
+// Query params: limit (default 100, máx 1000), since (epoch ms), router, type, mac.
 func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
 	limit := 100
 	if v := r.URL.Query().Get("limit"); v != "" {
@@ -530,7 +564,8 @@ func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	routerID := r.URL.Query().Get("router")
 	eventType := r.URL.Query().Get("type")
-	events, err := roamevents.ListEvents(s.db.DB, limit, since, routerID, eventType)
+	mac := r.URL.Query().Get("mac")
+	events, err := roamevents.ListEvents(s.db.DB, limit, since, routerID, eventType, mac)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return

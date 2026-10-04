@@ -3,10 +3,19 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Filter, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
+import { ssidColor } from '@/lib/ssidColor'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import ReanchorPanel from './ReanchorPanel'
 
 // ---------------------------------------------------------------------------
@@ -190,6 +199,10 @@ export default function Roaming() {
   const [eventsError, setEventsError] = useState(false)
   const [eventsNoApi, setEventsNoApi] = useState(false)
   const [eventsTypeFilter, setEventsTypeFilter] = useState<'all' | 'connected' | 'disconnected' | 'dawn_decision'>('all')
+  // #1127: filtros AP/cliente multi-select (string[] = IDs/MACs seleccionados;
+  // vacío = todos). El fetch las serializa separadas por comas.
+  const [eventsRouterFilter, setEventsRouterFilter] = useState<string[]>([])
+  const [eventsMacFilter, setEventsMacFilter] = useState<string[]>([])
   // #907: retención y cadencia efectivas, devueltas como meta por la API, para
   // que la cabecera de la tabla describa los valores reales en vez de texto
   // hardcodeado. null = aún no cargada (o servidor antiguo).
@@ -322,7 +335,10 @@ export default function Roaming() {
     setEventsLoading(true)
     setEventsError(false)
     setEventsNoApi(false)
-    const result = await fetchJson<{ events: RoamEvent[]; retentionDays?: number; collectIntervalSec?: number }>('/api/roam-events?limit=100', { signal: ac.signal })
+    const params = new URLSearchParams({ limit: '100' })
+    if (eventsRouterFilter.length) params.set('router', eventsRouterFilter.join(','))
+    if (eventsMacFilter.length) params.set('mac', eventsMacFilter.join(','))
+    const result = await fetchJson<{ events: RoamEvent[]; retentionDays?: number; collectIntervalSec?: number }>(`/api/roam-events?${params.toString()}`, { signal: ac.signal })
     if (ac.signal.aborted) return
     if (result.ok) {
       setEvents(result.data.events ?? [])
@@ -357,7 +373,7 @@ export default function Roaming() {
       window.clearInterval(id)
       eventsAc.current?.abort()
     }
-  }, [tab])
+  }, [tab, eventsRouterFilter, eventsMacFilter])
 
   // Expulsar a un cliente de su AP actual para forzar la reconexión
   // (usteering manual cuando usteer no cambia al cliente).
@@ -621,7 +637,7 @@ export default function Roaming() {
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
-          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated === true} meta={eventsMeta} />
+          <EventsPanel events={events} loading={eventsLoading} error={eventsError} noApi={eventsNoApi} typeFilter={eventsTypeFilter} setTypeFilter={setEventsTypeFilter} routerFilter={eventsRouterFilter} setRouterFilter={setEventsRouterFilter} macFilter={eventsMacFilter} setMacFilter={setEventsMacFilter} nameByMac={nameByMac} hasDawn={dawnDeprecated === true} meta={eventsMeta} />
         </div>
       )}
 
@@ -1112,19 +1128,8 @@ function signalDot(signal: number): string {
   return 'bg-danger'
 }
 
-// ssidColor (#542): color pastel determinista por SSID (hash), como el canal
-// analysis del LuCI: cada red vecina su color para reconocerla en la cascada.
-const SSID_PALETTE = [
-  '#c084fc', '#f472b6', '#34d399', '#60a5fa', '#fbbf24',
-  '#f87171', '#2dd4bf', '#a78bfa', '#facc15', '#fb923c',
-]
-function ssidColor(s: string): string {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return SSID_PALETTE[h % SSID_PALETTE.length] ?? '#a78bfa'
-}
-
-// bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
+// ssidColor vive en @/lib/ssidColor (compartido con el informe de canales
+// #1070). bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
 function bandOfFreq(freq: number): string {
   if (freq >= 2412 && freq <= 2484) return '2.4 GHz'
   if (freq >= 5180 && freq <= 5885) return '5 GHz'
@@ -1504,6 +1509,67 @@ function formatEventTime(tsMs: number): string {
   return `${dd}/${mo} ${hh}:${mm}`
 }
 
+// EventsFilterMenu (#1127): desplegable multi-select para los filtros de la
+// vista de eventos (AP y cliente). Mismo patrón visual que los filtros de
+// la página Clients (#989): botón con icono + etiqueta + contador, items
+// con checkbox; vacío = todos.
+function EventsFilterMenu({
+  label,
+  allLabel,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string
+  allLabel: string
+  options: { value: string; label: string }[]
+  selected: string[]
+  onToggle: (value: string) => void
+  onClear: () => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className={cn(
+            'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-caption font-medium transition-colors',
+            selected.length > 0
+              ? 'border-accent/50 bg-accent-soft text-accent'
+              : 'border-border bg-elevated text-text-secondary hover:bg-hover hover:text-text-primary',
+          )}
+        >
+          <Filter className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+          <span className="max-w-32 truncate">{label}</span>
+          {selected.length > 0 && (
+            <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[10px] font-semibold">{selected.length}</span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 min-w-44 overflow-y-auto">
+        <DropdownMenuLabel>{allLabel}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {options.length === 0 && <DropdownMenuLabel className="font-normal text-text-muted">-</DropdownMenuLabel>}
+        {options.map((o) => (
+          <DropdownMenuCheckboxItem key={o.value} checked={selected.includes(o.value)} onCheckedChange={() => onToggle(o.value)}>
+            <span className="max-w-48 truncate">{o.label}</span>
+          </DropdownMenuCheckboxItem>
+        ))}
+        {selected.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem checked onCheckedChange={onClear} className="text-text-muted">
+              {allLabel}
+            </DropdownMenuCheckboxItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function EventsPanel({
   events,
   loading,
@@ -1511,6 +1577,10 @@ function EventsPanel({
   noApi,
   typeFilter,
   setTypeFilter,
+  routerFilter,
+  setRouterFilter,
+  macFilter,
+  setMacFilter,
   nameByMac,
   hasDawn,
   meta,
@@ -1521,10 +1591,17 @@ function EventsPanel({
   noApi: boolean
   typeFilter: EventTypeFilter
   setTypeFilter: (t: EventTypeFilter) => void
+  /** #1097/#1127: filtros multi-select por AP (router) y por cliente (MAC);
+   *  string[] vacío = todos. */
+  routerFilter: string[]
+  setRouterFilter: (v: string[]) => void
+  macFilter: string[]
+  setMacFilter: (v: string[]) => void
   nameByMac: Map<string, string>
   hasDawn: boolean
   meta: { retentionDays: number; collectIntervalSec: number } | null
 }) {
+  const { routers, devices } = useNetPulse()
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const initial = reduce ? false : { opacity: 0, y: 12 }
@@ -1597,6 +1674,36 @@ function EventsPanel({
               </button>
             ))}
           </div>
+          {/* #1097/#1127: seguir clientes entre APs o acotar a APs concretos.
+              Multi-select (OR dentro del filtro, AND entre filtros); las
+              opciones de AP se recortan a la flota con bandas WiFi (los
+              switches SNMP no son AP). */}
+          <EventsFilterMenu
+            label={t('roaming.events.filterAp')}
+            allLabel={t('roaming.events.filterApAll')}
+            options={routers
+              .filter((r) => {
+                if (r.disabled) return false // #1085: la unidad pausada no se ofrece
+                const b = r.bandSplit
+                return !b || b.band24 + b.band5 + b.band6 > 0
+              })
+              .map((r) => ({ value: r.id, label: r.name }))}
+            selected={routerFilter}
+            onToggle={(v) =>
+              setRouterFilter(routerFilter.includes(v) ? routerFilter.filter((x) => x !== v) : [...routerFilter, v])
+            }
+            onClear={() => setRouterFilter([])}
+          />
+          <EventsFilterMenu
+            label={t('roaming.events.filterClient')}
+            allLabel={t('roaming.events.filterClientAll')}
+            options={devices
+              .filter((d) => d.band !== 'cable' && d.mac)
+              .map((d) => ({ value: d.mac, label: d.name }))}
+            selected={macFilter}
+            onToggle={(v) => setMacFilter(macFilter.includes(v) ? macFilter.filter((x) => x !== v) : [...macFilter, v])}
+            onClear={() => setMacFilter([])}
+          />
         </div>
       </div>
 

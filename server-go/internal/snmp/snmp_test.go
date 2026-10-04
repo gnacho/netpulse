@@ -106,6 +106,9 @@ func TestPortStatsDisplayName(t *testing.T) {
 		{PortStats{Descr: "GigabitEthernet0/1"}, "GigabitEthernet0/1"},
 		{PortStats{Index: 5}, "port-5"},
 		{PortStats{Alias: "Uplink", Name: "eth0"}, "Uplink"},
+		{PortStats{Alias: " ", Name: "gi1/0/8"}, "gi1/0/8"},
+		{PortStats{Alias: "   "}, "port-0"},
+		{PortStats{Alias: " Uplink ", Name: "eth0"}, "Uplink"},
 	}
 	for _, tt := range tests {
 		got := tt.ps.DisplayName()
@@ -140,6 +143,15 @@ func TestApplyPortField(t *testing.T) {
 	applyPortField(ps, OidIfInOctets, gosnmp.SnmpPDU{Value: big.NewInt(123456789)})
 	if ps.RxBytes != 123456789 {
 		t.Errorf("RxBytes = %d; want 123456789", ps.RxBytes)
+	}
+	// #1077: un ifAlias de solo espacios se normaliza a vacío en el parseo.
+	applyPortField(ps, OidIfAlias, gosnmp.SnmpPDU{Value: " "})
+	if ps.Alias != "" {
+		t.Errorf("Alias = %q; want empty for whitespace-only ifAlias", ps.Alias)
+	}
+	applyPortField(ps, OidIfAlias, gosnmp.SnmpPDU{Value: " Uplink "})
+	if ps.Alias != "Uplink" {
+		t.Errorf("Alias = %q; want Uplink (trimmed)", ps.Alias)
 	}
 }
 
@@ -201,6 +213,36 @@ func TestSortByIndex(t *testing.T) {
 	for i, p := range ps {
 		if p.Index != i+1 {
 			t.Errorf("sortByIndex: ps[%d].Index = %d; want %d", i, p.Index, i+1)
+		}
+	}
+}
+
+// #1125 (alternativa a la exclusión de la #1115): el ifTable conserva TODAS
+// las interfaces y cada una se clasifica por familia; las no físicas (LAG,
+// VLAN, bridge, túnel, virtual) van al grupo colapsado de la tarjeta en el
+// frontend en vez de desaparecer. Verificado en un LGS310C real: po1-8
+// (ieee8023adLag) y vlan1 (l3ipvlan) clasificados; un ifType no listado o no
+// reportado (Type=0 por walk fallido) sigue siendo físico (defensa #1115).
+func TestIfFamilyClassification(t *testing.T) {
+	cases := []struct {
+		typ    int
+		family string
+	}{
+		{6, ""},          // ethernetCsmacd: física
+		{117, ""},        // gigabitEthernet: física
+		{161, "lag"},     // ieee8023adLag (LGS310C poN)
+		{136, "vlan"},    // l3ipvlan (LGS310C vlan1)
+		{135, "vlan"},    // l2vlan
+		{209, "bridge"},  // bridge
+		{131, "tunnel"},  // tunnel
+		{24, "virtual"},  // softwareLoopback
+		{53, "virtual"},  // propVirtual
+		{0, ""},          // sin ifType: físico (walk fallido conserva todo)
+		{9999, ""},       // desconocido: se trata como físico por exclusión
+	}
+	for _, c := range cases {
+		if got := ifFamily(c.typ); got != c.family {
+			t.Errorf("ifFamily(%d) = %q, esperaba %q", c.typ, got, c.family)
 		}
 	}
 }

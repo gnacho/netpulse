@@ -99,6 +99,15 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		l.recordSnmpSuccess(cfg)
 	}
 
+	// #931: vecinos LLDP del switch vía LLDP-MIB (mismo contrato que la
+	// sonda lldpd de los routers, #300). Alimenta routerPolled.lldp y con
+	// ello la fase LLDP-first de la topología (inferLldpLinks). Un switch
+	// sin LLDP devuelve (nil, nil) sin ruido; el error solo se loguea.
+	lldpRem, lldpErr := npsnmp.PollLldpRemTable(session)
+	if lldpErr != nil {
+		log.Printf("[netpulse] SNMP LLDP %s: %v", cfg.LogLabel(), lldpErr)
+	}
+
 	portIdxToName := map[int]string{}
 	for _, p := range ports {
 		portIdxToName[p.Index] = p.DisplayName()
@@ -114,6 +123,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 			Up:      p.OperUp,
 			Speed:   p.SpeedString(),
 			Iface:   name,
+			Family:  p.Family,
 			RxBytes: p.RxBytes,
 			TxBytes: p.TxBytes,
 			RxErrs:  p.RxErrors,
@@ -178,6 +188,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		ports:     ethPorts,
 		fdb:       fdbMap,
 		brMac:     brMac,
+		lldp:      snmpLldpNeighbors(lldpRem, portIdxToName),
 		polledAt:  now.UnixMilli(),
 	}
 	l.mu.Lock()
@@ -400,6 +411,36 @@ func snmpFdbMap(fdb []npsnmp.FdbEntry, portIdxToName map[int]string) map[string]
 			name = fmt.Sprintf("port-%d", e.IfIndex)
 		}
 		out[e.MAC] = name
+	}
+	return out
+}
+
+// snmpLldpNeighbors convierte los vecinos LLDP-MIB del switch al contrato
+// LldpNeighbor (#931). El puerto se nombra como en el FDB (DisplayName del
+// ifTable vía ifIndex; fallback al número de puerto de bridge, paridad con
+// snmpFdbMap #661) para que inferLldpLinks case el vecino con las MACs
+// aprendidas en esa boca.
+func snmpLldpNeighbors(rem []npsnmp.LldpRemEntry, portIdxToName map[int]string) []LldpNeighbor {
+	if len(rem) == 0 {
+		return nil
+	}
+	out := make([]LldpNeighbor, 0, len(rem))
+	for _, e := range rem {
+		port := portIdxToName[e.IfIndex]
+		if port == "" {
+			port = portIdxToName[e.LocalPortNum]
+		}
+		if port == "" {
+			port = fmt.Sprintf("port-%d", e.LocalPortNum)
+		}
+		out = append(out, LldpNeighbor{
+			Port:       port,
+			ChassisMac: e.ChassisMac,
+			Chassis:    e.Chassis,
+			Mgmt:       e.Mgmt,
+			Caps:       e.Caps,
+			PortDesc:   e.PortDesc,
+		})
 	}
 	return out
 }

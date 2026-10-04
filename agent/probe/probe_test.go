@@ -465,6 +465,40 @@ func TestParseFdbDenylistPuertos(t *testing.T) {
 // Prober local con runner fake
 // ---------------------------------------------------------------------------
 
+// TestProberWirelessWithoutClients (#1092): una unidad SIN clientes
+// asociados conserva la sección wireless (radios + BSSIDs propios); antes
+// el flag de presencia solo consideraba clientes y el server la veía como
+// "sin WiFi" (encontrado en un AP lab de NetGrip).
+func TestProberWirelessWithoutClients(t *testing.T) {
+	run := fakeRunner{outs: map[string]string{
+		CmdUbusSystemInfo:  `{"uptime":90061,"load":[0.1,0.2,0.3],"memory":{"total":256000000,"free":100000000,"buffered":0,"available":128000000}}`,
+		CmdUbusSystemBoard: `{"model":"GL.iNet Lab","hostname":"lab","release":{"version":"25.12","description":"OpenWrt 25.12"}}`,
+		CmdProcStat:        "cpu  4705 356 584 3699 23 0 23 0 0 0\n",
+		CmdTemp:            "43500\n",
+		CmdNetDev:          "  eth0: 1000000 0 0 0 0 0 0 0 500000 0\n",
+		CmdBridgeMAC:       "94:83:c4:00:00:09\n",
+		// Sin clientes: ningún comando de assoclist/ubus hostapd.
+		CmdRadios:   "2.4|6|HT20|20|0\n",
+		CmdDhcpFile: "1700000000 ec:71:db:44:12:8a 192.168.8.71 movil *\n",
+		CmdBridgeFDB: "==PORTS==\n0x1 lan1\n==MACS==\n1 ec:71:db:44:12:8a\n",
+		CmdPortStates: "lan1 up 1000\nwan down -1\n",
+		CmdUbusWireless: `{"radio0":{"up":true,"interfaces":[{"ifname":"wlan0","config":{"mode":"ap"}}]}}`,
+		CmdIwDev: "phy#0\n\tInterface wlan0\n\t\taddr 62:e5:56:b6:94:bd\n\t\tssid temiscira\n\t\ttype AP\n",
+	}}
+	p := NewProber(run, Options{GwPingTarget: "192.168.8.1", ScanInterval: ScanDisabled})
+
+	pl := p.Build(context.Background(), "lab", "3.0.7")
+	if pl.Data.Wireless == nil {
+		t.Fatal("sin clientes la sección wireless no debe descartarse (#1092)")
+	}
+	if len(pl.Data.Wireless.OwnBssids) != 1 || pl.Data.Wireless.OwnBssids[0].SSID != "temiscira" {
+		t.Fatalf("ownBssids perdidos: %+v", pl.Data.Wireless.OwnBssids)
+	}
+	if len(pl.Data.Wireless.Radios) != 1 {
+		t.Fatalf("radios perdidas: %+v", pl.Data.Wireless.Radios)
+	}
+}
+
 type fakeRunner struct{ outs map[string]string }
 
 func (f fakeRunner) Run(_ context.Context, cmd string, _ time.Duration) (string, error) {
@@ -936,6 +970,94 @@ func TestParseUsteer(t *testing.T) {
 }
 
 // TestParseScanExtraeVecinos (#452): parsea la salida de `iw dev` scan.
+func TestParseScanWidthMhz(t *testing.T) {
+	// Bloques HT/VHT reales de `iw dev wlan0 scan` (OpenWrt).
+	out := `==IFACE==wlan0
+BSS 11:22:33:44:55:66(on wlan0)
+	freq: 2437
+	signal: -55.00 dBm
+	SSID: ochenta
+	HT operation:
+		 * primary channel: 6
+		 * secondary channel offset: below
+	VHT operation:
+		 * channel width: 1 (80 MHz)
+BSS aa:bb:cc:dd:ee:ff(on wlan0)
+	freq: 2462
+	signal: -70.00 dBm
+	SSID: cuarenta
+	HT operation:
+		 * primary channel: 11
+		 * secondary channel offset: above
+BSS 22:33:44:55:66:77(on wlan0)
+	freq: 2412
+	signal: -80.00 dBm
+	SSID: veinte
+	HT operation:
+		 * primary channel: 1
+		 * secondary channel offset: no secondary
+BSS 33:44:55:66:77:88(on wlan0)
+	freq: 5500
+	signal: -60.00 dBm
+	SSID: ciento60
+	HT operation:
+		 * primary channel: 100
+		 * secondary channel offset: below
+	VHT operation:
+		 * channel width: 2 (160 MHz)
+`
+	got := ParseScan(out)
+	widths := map[string]int{}
+	for _, s := range got {
+		widths[s.SSID] = s.WidthMhz
+	}
+	if widths["ochenta"] != 80 || widths["cuarenta"] != 40 || widths["veinte"] != 20 || widths["ciento60"] != 160 {
+		t.Fatalf("anchos inesperados: %+v de %+v", widths, got)
+	}
+}
+
+func TestParseIwDev(t *testing.T) {
+	out := `phy#0
+	Interface wlan0
+		ifindex 12
+		wdev 0x200000000
+		addr 62:e5:56:b6:94:bd
+		ssid temiscira
+		type AP
+		channel 6 (2437 MHz), width: 80 MHz, center1: 2437 MHz
+		txpower 20.00 dBm
+	Interface wlan0-1
+		ifindex 13
+		wdev 0x200000001
+		addr 6a:e5:56:b6:94:bd
+		ssid temiscira-guest
+		type AP
+		channel 6 (2437 MHz), width: 20 MHz, center1: 2437 MHz
+	Interface wlan1
+		ifindex 14
+		wdev 0x200000002
+		addr 62:e5:56:b6:94:be
+		ssid temiscira
+		type AP
+		channel 36 (5180 MHz), width: 80 MHz, center1: 5210 MHz
+phy#1
+	Interface uap0
+		ifindex 20
+		addr 62:e5:56:b6:94:bf
+		type managed
+`
+	got := ParseIwDev(out)
+	if len(got) != 3 {
+		t.Fatalf("esperaba 3 APs (uap0 managed fuera): %+v", got)
+	}
+	if got[0].BSSID != "62:E5:56:B6:94:BD" || got[0].SSID != "temiscira" || got[0].Iface != "wlan0" {
+		t.Fatalf("bloque 0 mal parseado: %+v", got[0])
+	}
+	if got[1].SSID != "temiscira-guest" {
+		t.Fatalf("guest sin capturar: %+v", got[1])
+	}
+}
+
 func TestParseScanExtraeVecinos(t *testing.T) {
 	out := `==IFACE==wlan0
 BSS 00:11:22:33:44:55(on wlan0)

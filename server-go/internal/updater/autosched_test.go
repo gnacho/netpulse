@@ -4,6 +4,7 @@ package updater
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -84,7 +85,7 @@ func TestAutoUpdateSettingsRoundtrip(t *testing.T) {
 // fakeUA: CheckerApplier scripted.
 type fakeUA struct {
 	status    Status
-	applied   int
+	applied   atomic.Int32
 	applyRet  bool
 	applyHook func()
 }
@@ -92,7 +93,7 @@ type fakeUA struct {
 func (f *fakeUA) Check(ctx context.Context) Status { return f.status }
 func (f *fakeUA) CanApply() bool                   { return f.status.CanApply }
 func (f *fakeUA) ApplyBy(by string) bool {
-	f.applied++
+	f.applied.Add(1)
 	if f.applyHook != nil {
 		f.applyHook()
 	}
@@ -110,7 +111,7 @@ func TestSchedulerShotAppliesWhenDue(t *testing.T) {
 	s.now = func() time.Time { return time.Date(2026, 9, 13, 10, 0, 0, 0, time.Local) }
 	_ = AutoUpdateSettings{Enabled: true, Kind: AutoDaily, Time: "03:30"}
 	s.shot(AutoUpdateSettings{}, autoRunState{})
-	if ua.applied != 1 {
+	if ua.applied.Load() != 1 {
 		t.Fatalf("debe aplicar: %d", ua.applied)
 	}
 	if _, res := AutoRunState(db); res != "applied" {
@@ -128,7 +129,7 @@ func TestSchedulerShotCheckFailed(t *testing.T) {
 	ua := &fakeUA{status: Status{CheckFailed: true, UpdateAvailable: true, CanApply: true}}
 	s := NewScheduler(db, ua)
 	s.shot(AutoUpdateSettings{}, autoRunState{})
-	if ua.applied != 0 {
+	if ua.applied.Load() != 0 {
 		t.Fatalf("check fallido no debe aplicar")
 	}
 	if _, res := AutoRunState(db); res != "check-failed" {
@@ -141,7 +142,7 @@ func TestSchedulerShotUpToDate(t *testing.T) {
 	ua := &fakeUA{status: Status{UpdateAvailable: false, CanApply: true}}
 	s := NewScheduler(db, ua)
 	s.shot(AutoUpdateSettings{}, autoRunState{})
-	if ua.applied != 0 {
+	if ua.applied.Load() != 0 {
 		t.Fatalf("sin novedad no aplica")
 	}
 	if _, res := AutoRunState(db); res != "up-to-date" {
@@ -173,10 +174,10 @@ func TestSchedulerTickMarksBeforeApply(t *testing.T) {
 	}
 	s.tick()
 	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && ua.applied == 0 {
+	for time.Now().Before(deadline) && ua.applied.Load() == 0 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if ua.applied != 1 {
+	if ua.applied.Load() != 1 {
 		t.Fatalf("tick con settings vencidos debe aplicar: %d", ua.applied)
 	}
 }

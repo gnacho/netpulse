@@ -26,6 +26,10 @@ const (
 	integrationNtfyKey     = "settings.integrations.ntfy"
 	integrationTelegramKey = "settings.integrations.telegram"
 	integrationProxmoxKey  = "settings.integrations.proxmox"
+	// integrationMCPKey: toggle del endpoint /mcp (#1114). El endpoint solo
+	// EXISTE si el env NETPULSE_MCP_ENABLED=1 (opt-in duro del despliegue);
+	// esta clave (default activa) permite apagarlo desde Ajustes sin reinicio.
+	integrationMCPKey = "settings.integrations.mcp"
 )
 
 // adguardServiceKey: si el usuario monitoriza AdGuard (#813). Ausente = SÍ
@@ -152,12 +156,13 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			Telegram *bool `json:"telegram"`
 			Proxmox  *bool `json:"proxmox"`
 			MQTT     *bool `json:"mqtt"`
+			MCP      *bool `json:"mcp"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			writeBodyError(w, st, "invalid_body", "")
 			return
 		}
-		if body.Ntfy == nil && body.Telegram == nil && body.Proxmox == nil && body.MQTT == nil {
+		if body.Ntfy == nil && body.Telegram == nil && body.Proxmox == nil && body.MQTT == nil && body.MCP == nil {
 			writeError(w, http.StatusBadRequest, "invalid_input", "at least one integration key is required")
 			return
 		}
@@ -173,6 +178,7 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			{body.Ntfy, integrationNtfyKey, "ntfy.enabled"},
 			{body.Telegram, integrationTelegramKey, "telegram.enabled"},
 			{body.Proxmox, integrationProxmoxKey, ""},
+			{body.MCP, integrationMCPKey, ""},
 		} {
 			if p.flag == nil {
 				continue
@@ -275,18 +281,27 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 
 // integrationsView: estado efectivo de los toggles server-side (#968).
 // Ausente = activo para ntfy/telegram/proxmox; MQTT refleja la config
-// efectiva del manager (env + kv).
-func (s *server) integrationsView() map[string]bool {
+// efectiva del manager (env + kv). MCP (#1114): false con mcpLocked=true
+// cuando el despliegue no lo habilitó por env (el endpoint no existe).
+func (s *server) integrationsView() map[string]any {
 	mqtt := kvGet(s.db.DB, "mqtt.enabled") == "true"
 	if s.mqtt != nil {
 		mqtt = s.mqtt.Config().Enabled
 	}
-	return map[string]bool{
-		"ntfy":     kvGetDefaultOn(s.db.DB, integrationNtfyKey),
-		"telegram": kvGetDefaultOn(s.db.DB, integrationTelegramKey),
-		"proxmox":  kvGetDefaultOn(s.db.DB, integrationProxmoxKey),
-		"mqtt":     mqtt,
+	return map[string]any{
+		"ntfy":      kvGetDefaultOn(s.db.DB, integrationNtfyKey),
+		"telegram":  kvGetDefaultOn(s.db.DB, integrationTelegramKey),
+		"proxmox":   kvGetDefaultOn(s.db.DB, integrationProxmoxKey),
+		"mqtt":      mqtt,
+		"mcp":       s.mcpMounted() && kvGetDefaultOn(s.db.DB, integrationMCPKey),
+		"mcpLocked": !s.mcpMounted(),
 	}
+}
+
+// mcpMounted: el endpoint /mcp existe en este proceso (opt-in duro por env,
+// #1114). El toggle de integración solo puede apagarlo, nunca montarlo.
+func (s *server) mcpMounted() bool {
+	return s.cfg != nil && s.cfg.MCPEnabled && s.mcp != nil
 }
 
 // setMQTTEnabled cambia SOLO el flag enabled del publisher MQTT (#968): carga
