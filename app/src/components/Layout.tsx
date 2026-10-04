@@ -197,8 +197,8 @@ function LiveDot() {
 
 /** Items de nav visibles según el overview. /roaming solo si hay usteer.
  *  La visibilidad de funcionalidades Labs (rack) se controla desde la
- *  tarjeta Servicios en Ajustes (useServicesVisibility). Actualizaciones de
- *  firmware se gradúa de Labs (#1146): siempre en el nav para admins. */
+ *  tarjeta Servicios en Ajustes (useServicesVisibility); actualizaciones de
+ *  firmware tiene toggle propio (#1146). */
 function useVisibleNavItems(): NavItem[] {
   const { usteer, orchestration } = useNetPulse()
   const [services] = useServicesVisibility()
@@ -213,9 +213,11 @@ function useVisibleNavItems(): NavItem[] {
           (it.to !== '/orchestration' || (labsOn && !!orchestration)) &&
           // Funcionalidades Labs controladas por cada toggle (rediseño v3):
           // solo se muestran en el nav si Labs está activo y su toggle encendido.
+          // Firmware upgrades (#1146): visibilidad propia, ya no es Labs.
+          (it.to !== '/firmware-upgrades' || services.actualizaciones) &&
           (it.to !== '/rack' || (labsOn && services.rack)),
       ),
-    [usteerAvailable, orchestration, labsOn, services.rack],
+    [usteerAvailable, orchestration, labsOn, services.rack, services.actualizaciones],
   )
 }
 

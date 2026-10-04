@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { AlertCircle, CalendarClock, Cpu, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
@@ -122,6 +123,8 @@ export default function FirmwareUpgrades() {
   const { t, i18n } = useTranslation()
   const auth = useAuth()
   const { routers } = useNetPulse()
+  // #1146: la visibilidad de la página la controla el toggle de Servicios.
+  const [services] = useServicesVisibility()
   const isAdmin = auth?.role === 'admin'
 
   const [items, setItems] = useState<FirmwareItem[]>([])
@@ -513,6 +516,19 @@ export default function FirmwareUpgrades() {
   const scheduleName = scheduleItem
     ? sortedRouters.find((r) => r.id === scheduleItem.routerId)?.name ?? scheduleItem.name
     : ''
+
+  // Oculta con el toggle de Servicios: aviso en vez de contenido (patrón rack).
+  if (!services.actualizaciones) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="mx-auto my-auto max-w-md rounded-xl border border-border bg-surface p-6 text-center">
+          <TriangleAlert size={24} className="mx-auto mb-2 text-warn" aria-hidden />
+          <p className="text-sm font-semibold text-text-primary">{t('firmwareUpgrades.disabledTitle')}</p>
+          <p className="mt-1 text-[13px] text-text-secondary">{t('firmwareUpgrades.disabledText')}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 md:space-y-5">

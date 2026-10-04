@@ -3949,6 +3949,8 @@ function ServicesCard({
     { key: 'adguard', label: 'AdGuard Home', caption: t('settings.services.adguardCaption'), dialogKey: 'adguard' },
     { key: 'wireguard', label: 'WireGuard', caption: t('settings.services.wireguardCaption') },
     { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
+    // #1146: visibilidad de la página de actualizaciones (ya no es Labs).
+    { key: 'actualizaciones', label: t('nav.firmwareUpgrades'), caption: t('settings.services.firmwareUpgradesCaption') },
   ]
   // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
   // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
@@ -3996,40 +3998,66 @@ function ServicesCard({
 
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
-      {/* Lista única: primero todos los servicios de red, luego todas las
-          integraciones (sin columnas). */}
+      {/* Red e Integraciones en dos columnas (#1146): servicios de red a la
+          izquierda, integraciones a la derecha; Labs (más abajo) sigue
+          aparte porque solo aparece con el toggle activo. */}
       <div>
-        <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
-        <div className="divide-y divide-border/60">
-          {networkRows.map((row) => (
-            <SwitchRow
-              key={row.key}
-              label={row.label}
-              caption={row.caption}
-              checked={services[row.key]}
-              disabled={disabled}
-              trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
-              onCheckedChange={(v) => {
-                onServiceToggle(row.key, v)
-                onSaved()
-              }}
-            />
-          ))}
-          <SwitchRow
-            label={t('settings.services.labs')}
-            caption={t('settings.services.labsCaption')}
-            checked={services.labs}
-            disabled={disabled}
-            danger
-            onCheckedChange={(v) => {
-              setService('labs', v)
-              onSaved()
-            }}
-          />
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
+          <div>
+            <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
+            <div className="divide-y divide-border/60">
+              {networkRows.map((row) => (
+                <SwitchRow
+                  key={row.key}
+                  label={row.label}
+                  caption={row.caption}
+                  checked={services[row.key]}
+                  disabled={disabled}
+                  trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
+                  onCheckedChange={(v) => {
+                    onServiceToggle(row.key, v)
+                    onSaved()
+                  }}
+                />
+              ))}
+              <SwitchRow
+                label={t('settings.services.labs')}
+                caption={t('settings.services.labsCaption')}
+                checked={services.labs}
+                disabled={disabled}
+                danger
+                onCheckedChange={(v) => {
+                  setService('labs', v)
+                  onSaved()
+                }}
+              />
+            </div>
+          </div>
+          <div>
+            <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
+            <div className="divide-y divide-border/60">
+              {integrationRows.filter((row) => !row.labs || services.labs).map((row) => (
+                <SwitchRow
+                  key={row.key}
+                  label={row.label}
+                  caption={row.caption}
+                  checked={integrations[row.key]}
+                  disabled={disabled || row.locked}
+                  danger={row.danger}
+                  trailing={gear(row.dialogKey, row.label)}
+                  onCheckedChange={(v) => {
+                    setIntegration(row.key, v)
+                    onSaved()
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Servicios de Labs (#1012): antes que las integraciones */}
-        {services.labs && (
+      {/* Servicios de Labs (#1012): tras las dos columnas */}
+      {services.labs && (
           <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
             <div className="divide-y divide-border/60">
               {/* Orquestación (opt-in del admin) */}
@@ -4058,26 +4086,6 @@ function ServicesCard({
             </div>
           </div>
         )}
-
-        <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
-        <div className="divide-y divide-border/60">
-          {integrationRows.filter((row) => !row.labs || services.labs).map((row) => (
-            <SwitchRow
-              key={row.key}
-              label={row.label}
-              caption={row.caption}
-              checked={integrations[row.key]}
-              disabled={disabled || row.locked}
-              danger={row.danger}
-              trailing={gear(row.dialogKey, row.label)}
-                onCheckedChange={(v) => {
-                  setIntegration(row.key, v)
-                  onSaved()
-                }}
-              />
-            ))}
-        </div>
-      </div>
 
       {/* Diálogos de configuración de integraciones (#968): los managers
           viven SOLO en diálogo (#977: las cards sueltas ya no están en el
@@ -4153,36 +4161,34 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
     { key: 'telegram', label: 'Telegram', caption: t('settings.notif.telegramCaption') },
   ]
   return (
-    <div className="mt-4 border-t border-border pt-4">
-      <div className="divide-y divide-border/60">
-        {rows.map((row) => (
-          <SwitchRow
-            key={row.key}
-            label={row.label}
-            caption={row.caption}
-            checked={integrations[row.key]}
-            disabled={disabled}
-            trailing={
-              <span className="flex items-center gap-2.5">
-                {integrations[row.key] && configured && !configured[row.key] && (
-                  <button
-                    type="button"
-                    onClick={() => setDialog(row.key)}
-                    className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warn transition-colors hover:bg-warn/20"
-                  >
-                    {t('settings.notif.notConfigured')}
-                  </button>
-                )}
-                <ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />
-              </span>
-            }
+    <div className="mt-4 grid grid-cols-1 gap-x-6 border-t border-border pt-4 sm:grid-cols-2">
+      {rows.map((row) => (
+        <SwitchRow
+          key={row.key}
+          label={row.label}
+          caption={row.caption}
+          checked={integrations[row.key]}
+          disabled={disabled}
+          trailing={
+            <span className="flex items-center gap-2.5">
+              {integrations[row.key] && configured && !configured[row.key] && (
+                <button
+                  type="button"
+                  onClick={() => setDialog(row.key)}
+                  className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warn transition-colors hover:bg-warn/20"
+                >
+                  {t('settings.notif.notConfigured')}
+                </button>
+              )}
+              <ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />
+            </span>
+          }
             onCheckedChange={(v) => {
               setIntegration(row.key, v)
               onSaved()
             }}
           />
         ))}
-      </div>
       <Dialog open={dialog === 'ntfy'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
         <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
           <DialogHeader>
@@ -5958,30 +5964,25 @@ export default function Settings() {
                 de la sección. */}
             <NotifChannels onSaved={notify} disabled={isDemo} />
 
-            {/* Notificaciones push DENTRO de la misma card (#977): el texto
-                largo vive en el (i) del título de la subsección. */}
-            <div className="mt-4 border-t border-border pt-4">
-              <div className="mb-2 flex items-center gap-1.5">
-                <span className="text-sm font-medium text-text-primary">{t('settings.push.title')}</span>
-                <InfoTip text={t('settings.push.note')} />
+            {/* Push + idioma en una fila de dos columnas (#1146) */}
+            <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-4 sm:grid-cols-2">
+              <div className="flex flex-col">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-text-primary">{t('settings.push.title')}</span>
+                  <InfoTip text={t('settings.push.note')} />
+                </div>
+                <PushNotificationsCard onSaved={notify} />
               </div>
-              <PushNotificationsCard onSaved={notify} />
-            </div>
-
-            {/* Idioma de las notificaciones (#889): movido a esta card
-                (#977). #998: una sola fila (título + (i) + select), sin el
-                label duplicado que decía lo mismo. */}
-            {!isDemo && (
-              <div className="mt-4 border-t border-border pt-4">
-                <div className="flex items-center justify-between gap-3">
+              {!isDemo && (
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium text-text-primary">{t('settings.alertsLang.title')}</span>
                     <InfoTip text={t('settings.alertsLang.description')} />
                   </div>
                   <AlertsLangControl onSaved={notify} />
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
         </div>
 
