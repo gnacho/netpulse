@@ -17,7 +17,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn, fetchJson } from '@/lib/utils'
 import type { ClientDevice } from '@/pages/devices-data'
 
@@ -35,12 +34,6 @@ export interface DeviceEditSheetProps {
   onClose: () => void
   /** Patch absoluto: '' en un campo = volver al valor automático (#797). */
   onSave: (device: ClientDevice, patch: { icon: string; name: string; type: string }) => void
-  /** #1145: tras borrar el cliente del registro (el padre cierra y refresca). */
-  onDeleted?: () => void
-  /** #1151: resto de clientes (para el selector de enlace). */
-  clients?: ClientDevice[]
-  /** #1151: tras enlazar/desenlazar (el padre cierra y refresca). */
-  onLinkChanged?: () => void
 }
 
 // #797: tipos válidos del clasificador (paridad con adapters.ValidDeviceTypes
@@ -57,52 +50,9 @@ export function DeviceEditSheet({
   saving,
   onClose,
   onSave,
-  onDeleted,
-  clients,
-  onLinkChanged,
 }: DeviceEditSheetProps) {
   const { t } = useTranslation()
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [linkTarget, setLinkTarget] = useState('')
-  const [linkBusy, setLinkBusy] = useState(false)
   const [icon, setIcon] = useState(device?.iconOverride ?? '')
-
-  const otherClients = (clients ?? []).filter(
-    (c) => c.mac && c.mac !== device?.mac && c.mac !== device?.id && !(device?.aliasMacs ?? []).includes(c.mac),
-  )
-
-  const linkClient = async () => {
-    if (!linkTarget || !device?.mac) return
-    setLinkBusy(true)
-    try {
-      await fetchJson(`/api/devices/${encodeURIComponent(linkTarget)}/link`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: device.mac }),
-      })
-      onLinkChanged?.()
-      onClose()
-    } catch {
-      // fallo silencioso: el botón vuelve a habilitarse
-    } finally {
-      setLinkBusy(false)
-    }
-  }
-
-  const unlinkAlias = async (alias: string) => {
-    if (!alias) return
-    setLinkBusy(true)
-    try {
-      await fetchJson(`/api/devices/${encodeURIComponent(alias)}/link`, { method: 'DELETE' })
-      onLinkChanged?.()
-      onClose()
-    } catch {
-      // fallo silencioso
-    } finally {
-      setLinkBusy(false)
-    }
-  }
   const [name, setName] = useState(device?.nameOverride ?? '')
   const [devType, setDevType] = useState(device?.typeOverride ?? '')
   const [reservation, setReservation] = useState<{ reserved: boolean; ip: string; loading: boolean }>({ reserved: false, ip: '', loading: false })
@@ -268,18 +218,6 @@ export function DeviceEditSheet({
                   )
                 })}
               </div>
-            </div>
-
-            {/* #1096: Save/Cancel junto a la zona que editan (nombre, tipo,
-                icono); abajo quedaban lejos, tras Reserva/Bloqueo, que son
-                acciones independientes con sus propios botones. */}
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
-                {t('common.cancel')}
-              </Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving}>
-                {saving ? t('common.loading') : t('devices.edit.save')}
-              </Button>
             </div>
 
             {/* Detalles de red */}
@@ -516,102 +454,22 @@ export function DeviceEditSheet({
               </div>
             )}
 
-            {/* #1151: MACs enlazadas (mismo dispositivo, varias MACs) */}
-            {!isDemo && device?.mac && (
-              <div className="rounded-xl border border-border bg-elevated/40 p-3">
-                <div className="text-label uppercase tracking-wide text-text-muted">{t('devices.edit.linkedMacs')}</div>
-                {(device.aliasMacs?.length ?? 0) > 0 && (
-                  <ul className="mb-2 mt-1.5 space-y-1">
-                    {device.aliasMacs.map((alias) => (
-                      <li key={alias} className="flex items-center justify-between gap-2 rounded-lg bg-canvas/60 px-2 py-1.5">
-                        <span className="font-mono text-mono-sm text-text-primary">{alias}</span>
-                        <button
-                          type="button"
-                          disabled={linkBusy}
-                          onClick={() => void unlinkAlias(alias)}
-                          className="rounded-md px-2 py-0.5 text-caption text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
-                        >
-                          {t('devices.edit.unlink')}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {otherClients.length > 0 && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Select value={linkTarget} onValueChange={setLinkTarget}>
-                      <SelectTrigger className="h-9 flex-1">
-                        <SelectValue placeholder={t('devices.edit.linkPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {otherClients.map((c) => (
-                          <SelectItem key={c.mac} value={c.mac ?? ''}>
-                            {c.name || c.mac}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button size="sm" variant="outline" disabled={!linkTarget || linkBusy} onClick={() => void linkClient()}>
-                      {linkBusy ? t('common.loading') : t('devices.edit.link')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {isDemo && (
               <p className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-caption text-warn">
                 {t('devices.edit.demoNotice')}
               </p>
             )}
 
-            {/* #1145: borrado del cliente del registro. Un cliente borrado
-                solo reaparece si se le vuelve a ver en vivo. */}
-            {!isDemo && device?.mac && (
-              <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">
-                <div className="text-label uppercase tracking-wide text-danger">{t('devices.edit.dangerZone')}</div>
-                <p className="mb-2 mt-1 text-caption text-text-muted">{t('devices.edit.deleteDesc')}</p>
-                <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} disabled={deleting}>
-                  {t('devices.edit.delete')}
-                </Button>
-              </div>
-            )}
-
+            <div className="mt-auto flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
+                {t('common.cancel')}
+              </Button>
+              <Button className="flex-1" onClick={handleSave} disabled={saving}>
+                {saving ? t('common.loading') : t('devices.edit.save')}
+              </Button>
+            </div>
           </div>
         )}
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('devices.edit.deleteTitle')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('devices.edit.deleteConfirmDesc', { name: device?.name || device?.mac || '' })}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={deleting}
-                onClick={async (e) => {
-                  e.preventDefault()
-                  if (!device?.mac) return
-                  setDeleting(true)
-                  try {
-                    await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}`, { method: 'DELETE' })
-                    setDeleteOpen(false)
-                    onDeleted?.()
-                    onClose()
-                  } catch {
-                    // el fallo deja la hoja abierta; el botón vuelve a habilitarse
-                  } finally {
-                    setDeleting(false)
-                  }
-                }}
-              >
-                {deleting ? t('common.loading') : t('devices.edit.delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </SheetContent>
     </Sheet>
   )

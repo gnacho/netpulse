@@ -11,32 +11,16 @@ export interface IntegrationsState {
   telegram: boolean
   proxmox: boolean
   mqtt: boolean
-  mcp: boolean
 }
 
-const DEFAULTS: IntegrationsState = { ntfy: true, telegram: true, proxmox: true, mqtt: false, mcp: false }
-
-// parseIntegrations: mapea la view del servidor (#968 + MCP #1114). mcp solo
-// es true si el despliegue lo habilitó por env (mcpLocked=false) y el toggle
-// está activo; mcpLocked=true (sin env) lo muestra apagado y bloqueado.
-function parseIntegrations(d: Record<string, unknown>): IntegrationsState {
-  return {
-    ntfy: d.ntfy !== false,
-    telegram: d.telegram !== false,
-    proxmox: d.proxmox !== false,
-    mqtt: d.mqtt === true,
-    mcp: d.mcp === true,
-  }
-}
+const DEFAULTS: IntegrationsState = { ntfy: true, telegram: true, proxmox: true, mqtt: false }
 
 export function useIntegrations(enabled = true): {
   integrations: IntegrationsState
   loaded: boolean
-  mcpLocked: boolean
   setIntegration: (k: keyof IntegrationsState, v: boolean) => void
 } {
   const [integrations, setIntegrations] = useState<IntegrationsState>(DEFAULTS)
-  const [mcpLocked, setMcpLocked] = useState(true)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -46,8 +30,12 @@ export function useIntegrations(enabled = true): {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive || !d) return
-        setIntegrations(parseIntegrations(d))
-        setMcpLocked(d.mcpLocked === true)
+        setIntegrations({
+          ntfy: d.ntfy !== false,
+          telegram: d.telegram !== false,
+          proxmox: d.proxmox !== false,
+          mqtt: d.mqtt === true,
+        })
         setLoaded(true)
       })
       .catch(() => undefined)
@@ -71,8 +59,12 @@ export function useIntegrations(enabled = true): {
       })
       .then((d) => {
         if (d) {
-          setIntegrations(parseIntegrations(d))
-          setMcpLocked(d.mcpLocked === true)
+          setIntegrations({
+            ntfy: d.ntfy !== false,
+            telegram: d.telegram !== false,
+            proxmox: d.proxmox !== false,
+            mqtt: d.mqtt === true,
+          })
         }
       })
       .catch(() => {
@@ -81,13 +73,17 @@ export function useIntegrations(enabled = true): {
           .then((r) => (r.ok ? r.json() : null))
           .then((d) => {
             if (d) {
-              setIntegrations(parseIntegrations(d))
-              setMcpLocked(d.mcpLocked === true)
+              setIntegrations({
+                ntfy: d.ntfy !== false,
+                telegram: d.telegram !== false,
+                proxmox: d.proxmox !== false,
+                mqtt: d.mqtt === true,
+              })
             }
           })
           .catch(() => undefined)
       })
   }, [])
 
-  return { integrations, loaded, mcpLocked, setIntegration }
+  return { integrations, loaded, setIntegration }
 }

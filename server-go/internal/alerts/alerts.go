@@ -187,10 +187,6 @@ type Engine struct {
 	mu       sync.Mutex
 	db       *db.DB // nil → solo memoria (tests)
 	notifier Notifier
-	// startedAt: arranque de ESTA instancia. Las alertas con Ts anterior a
-	// startedAt vienen de una sesión previa: si se re-emiten (update), es
-	// un episodio nuevo tras el reinicio y vuelven a no-leídas (#1094).
-	startedAt time.Time
 	now      func() time.Time
 
 	cfg        map[string]string
@@ -232,7 +228,6 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 		db:         d,
 		notifier:   n,
 		now:        time.Now,
-		startedAt:  time.Now(),
 		cfg:        DefaultConfig(),
 		dedup:      map[string]int64{},
 		readSet:    map[string]bool{},
@@ -278,10 +273,6 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 		}
 		e.purgeVolatileHistoryLocked()
 		e.loadPersistedLocked()
-		// #1034: poda por antigüedad al arrancar (además de la horaria de
-		// main): una retención bajada mientras el daemon estaba parado se
-		// aplica en el primer arranque posterior.
-		e.PruneLogByRetention()
 	}
 	return e
 }
@@ -598,45 +589,13 @@ func (e *Engine) EmitOrUpdate(ev AlertEvent) bool {
 		e.mu.Unlock()
 		return false
 	}
-	// #1074: mismo default de Ts/Time que en Emit (#914) ANTES de insertar y
-	// notificar. La rama de inserción pasaba la `ev` original a Notify: si el
-	// emisor no fijaba Ts (p. ej. agent-outdated), el notifier recibía Ts=0
-	// y el push pintaba la hora estática 16:00:00 (epoch en zona UTC-8).
-	if ev.Ts == 0 {
-		ev.Ts = e.now().Unix()
-	}
-	if ev.Time == "" {
-		ev.Time = "just now"
-	}
 	now := e.now()
 	for i := range e.list {
 		if e.list[i].ID == ev.ID {
 			old := e.list[i]
 			ev.Ts = now.Unix()
 			ev.Time = "just now"
-			// #1094: episodio nuevo tras reinicio (la alerta no se había
-			// refrescado desde el arranque): vuelve a no-leída, que el
-			// humano la vea. Un refresh de episodio en curso (p. ej. port
-			// flapping, que re-emite cada ciclo) conserva su read.
-			if old.Ts >= e.startedAt.Unix() {
-				ev.Read = old.Read
-			} else {
-				// #1094: Read se DERIVA de readSet en List(), y el kv guarda
-				// readOrd: hay que purgar ambos (y el espejo en alert_log)
-				// o la alerta reviviría leída.
-				ev.Read = false
-				delete(e.readSet, ev.ID)
-				for j, rid := range e.readOrd {
-					if rid == ev.ID {
-						e.readOrd = append(e.readOrd[:j], e.readOrd[j+1:]...)
-						break
-					}
-				}
-				e.saveReadLocked()
-				if e.db != nil {
-					_, _ = e.db.Exec("UPDATE alert_log SET read_flag = 0 WHERE id = ?", ev.ID)
-				}
-			}
+			ev.Read = old.Read
 			if ev.RouterID == "" {
 				ev.RouterID = old.RouterID
 			}
@@ -852,11 +811,7 @@ func (e *Engine) idInListLocked(id string) bool {
 	return false
 }
 
-// MarkAllRead marca leídas todas las alertas actuales (#1034): SOLO toca el
-// read-set (persistido en kv y espejado en alert_log.read_flag). NO borra
-// nada de alert_log ni del conjunto dismissed: el feed sigue mostrando las
-// alertas como leídas y el toggle "Solo no leídas" es lo que limpia la vista.
-// Vaciar el log es la acción destructiva aparte (DismissAll).
+// MarkAllRead marca leídas todas las alertas actuales.
 func (e *Engine) MarkAllRead() {
 	e.mu.Lock()
 	ids := make([]string, 0, len(e.list))
@@ -909,10 +864,9 @@ func (e *Engine) Dismiss(ids ...string) {
 	e.list = kept
 }
 
-// DismissAll limpia TODAS las alertas del feed: equivale a Dismiss sobre
-// cada ID presente en la lista. Es la acción destructiva "Vaciar registro"
-// (#1034; antes el botón "Marcar todo como leído" la invocaba, #971). Las
-// persistentes se borran de alert_log y su ID queda en el conjunto
+// DismissAll limpia TODAS las alertas del feed (issue #971, botón "Marcar
+// todo como leído"): equivale a Dismiss sobre cada ID presente en la lista.
+// Las persistentes se borran de alert_log y su ID queda en el conjunto
 // dismissed (kv), así que el feed vacío sobrevive a un reload; las volátiles
 // (agent-down) también salen, pero si su condición sigue viva el emisor las
 // re-emite con el mismo ID y vuelven (semántica "alerta viva": lo que no
@@ -962,20 +916,6 @@ func (e *Engine) Resolve(id string) {
 			break
 		}
 	}
-	// #1107: la alerta resuelta es un episodio CERRADO. El read-set es
-	// append-only (kv readOrd) y sobrevivía al Resolve: si la condición se
-	// re-dispara con el mismo ID estable (p. ej. "Agent outdated" tras
-	// actualizar el server y quedar otra vez desactualizado), el episodio
-	// nuevo heredaba el leído viejo en List()/UnreadCount(). Mismo criterio
-	// que Remove (#846): al cerrarse, se olvida el leído.
-	delete(e.readSet, id)
-	for j, rid := range e.readOrd {
-		if rid == id {
-			e.readOrd = append(e.readOrd[:j], e.readOrd[j+1:]...)
-			break
-		}
-	}
-	e.saveReadLocked()
 	if e.db != nil {
 		_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
 	}

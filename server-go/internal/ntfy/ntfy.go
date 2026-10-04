@@ -350,10 +350,6 @@ func formatMessage(ev alerts.AlertEvent) string {
 	if ev.Urgent {
 		severity = "🔴"
 	}
-	// #1074: Ts<=0 (epoch) por cualquier vía → hora actual, no "16:00:00".
-	if ev.Ts <= 0 {
-		ev.Ts = time.Now().Unix()
-	}
 	ts := time.Unix(ev.Ts, 0).Format("15:04:05")
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s\n", severity, ev.Title)

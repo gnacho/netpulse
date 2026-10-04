@@ -9,7 +9,6 @@ app/node_modules
 
 # Backend: datos y secretos
 server/data/
-server-go/data/
 server/.env
 legacy/server-node/data/
 legacy/server-node/.env
@@ -44,17 +43,3 @@ server-go/internal/agentbin/agents/netpulse-agent-*
 # Rutas prerenderizadas por idioma (generadas, ver web/build-langs.mjs)
 web/langs/
 web/node_modules/
-
-plans
-docs/premortem
-
-# Instancia local de pruebas (worktrees dev; #931 arrastró una llave privada
-# generada por la instancia a un commit: gitleaks la cazó en el PR #1117)
-local-data/
-local-server.log
-netpulse-local
-jar.txt
-
-# Binarios de build locales (go build -o en raíz)
-/netpulse
-/netpulse-*

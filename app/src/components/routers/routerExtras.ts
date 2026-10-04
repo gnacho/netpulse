@@ -70,10 +70,6 @@ export interface EthPort {
   up: boolean
   speed?: string // "2.5 Gbps" | "1 Gbps"
   iface?: string // interfaz física (/proc/net/dev), si difiere del id
-  /** #1125: familia para interfaces NO físicas ("lag"|"vlan"|"bridge"|
-   * "tunnel"|"virtual"); ausente = boca física. La tarjeta las agrupa en
-   * la sección colapsada en vez de ocultarlas (#1115). */
-  family?: string
   rxBytes?: number // contadores acumulados de la boca (#305)
   txBytes?: number
   rxErrors?: number
@@ -125,13 +121,9 @@ export function portPeerDetail(port: EthPort): string {
   }
   switch (port.peerKind) {
     case 'router-link':
+      return i18n.t('routerDetail.ports.detailRouterLink')
     case 'router-link-lldp':
-      // #1150: la mgmt-ip del vecino LLDP viaja en detail y es más útil
-      // que la plantilla; sin dato LLDP se queda la plantilla traducida.
-      return (
-        port.detail ||
-        i18n.t(port.peerKind === 'router-link' ? 'routerDetail.ports.detailRouterLink' : 'routerDetail.ports.detailRouterLinkLldp')
-      )
+      return i18n.t('routerDetail.ports.detailRouterLinkLldp')
     case 'ap-wifi':
       return i18n.t('routerDetail.ports.detailApWifi')
     case 'mac':

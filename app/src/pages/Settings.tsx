@@ -39,7 +39,6 @@ import {
    Star,
    Sun,
    Trash2,
-   TriangleAlert,
    UserCog,
    Users,
    Volume2,
@@ -334,7 +333,8 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
         s: 4 + Math.random() * 4,
         d: Math.random() * 0.15,
       })),
-      [burstKey],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [burstKey],
   )
   if (!burstKey || reduce) return null
   return (
@@ -357,7 +357,7 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
 // Gestión de routers (modo live): CRUD contra /api/config/routers
 // ---------------------------------------------------------------------------
 
-type RouterType = 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external'
+type RouterType = 'glinet' | 'openwrt' | 'managed-switch' | 'external'
 
 interface ConfigRouter {
   id: string
@@ -366,7 +366,6 @@ interface ConfigRouter {
   type: RouterType
   is_gateway: boolean
   agent_only: boolean
-  disabled: boolean
   firmware_target: string
   snmp_enabled: boolean
   snmp_community: string
@@ -375,11 +374,6 @@ interface ConfigRouter {
   ssh_port?: number
   temp_threshold?: number | null
   console_polling?: boolean
-  // RouterOS: routeros_user viaja tal cual; routeros_password NUNCA se
-  // devuelve (json:"-" en el server, igual que la clave SSH) — dejar el
-  // campo en blanco en el form de edición conserva la password existente.
-  routeros_user?: string
-  routeros_insecure?: boolean
 }
 
 interface DiscoverCandidate {
@@ -423,7 +417,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editType, setEditType] = useState<RouterType>('openwrt')
   const [editGateway, setEditGateway] = useState(false)
   const [editAgentOnly, setEditAgentOnly] = useState(false)
-  const [editDisabled, setEditDisabled] = useState(false)
   const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
   const [editConsolePolling, setEditConsolePolling] = useState(true)
@@ -432,9 +425,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
   const [editSshPort, setEditSshPort] = useState(22)
   const [editTempThreshold, setEditTempThreshold] = useState('')
-  const [editRouterOSUser, setEditRouterOSUser] = useState('')
-  const [editRouterOSPassword, setEditRouterOSPassword] = useState('')
-  const [editRouterOSInsecure, setEditRouterOSInsecure] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -620,7 +610,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditType(r.type)
     setEditGateway(r.is_gateway)
     setEditAgentOnly(r.agent_only)
-    setEditDisabled(r.disabled ?? false)
     setEditFirmwareTarget(r.firmware_target ?? '')
     setEditSnmpEnabled(r.snmp_enabled ?? false)
     setEditConsolePolling(r.console_polling ?? true)
@@ -629,9 +618,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
     setEditSshPort(r.ssh_port ?? 22)
     setEditTempThreshold(r.temp_threshold != null ? String(r.temp_threshold) : '')
-    setEditRouterOSUser(r.routeros_user ?? '')
-    setEditRouterOSPassword('') // blank = conservar la password existente
-    setEditRouterOSInsecure(r.routeros_insecure ?? false)
     setError(null)
   }
 
@@ -650,7 +636,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           type: editType,
           gateway: editGateway,
           agent_only: editAgentOnly,
-          disabled: editDisabled,
           firmware_target: editFirmwareTarget.trim(),
           snmp_enabled: editSnmpEnabled,
           snmp_community: editSnmpCommunity.trim() || undefined,
@@ -659,9 +644,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           ssh_port: editSshPort,
           temp_threshold: editTempThreshold.trim() === '' ? 0 : Number(editTempThreshold),
           console_polling: editConsolePolling,
-          routeros_user: editType === 'routeros' ? editRouterOSUser.trim() : undefined,
-          routeros_password: editRouterOSPassword || undefined,
-          routeros_insecure: editType === 'routeros' ? editRouterOSInsecure : undefined,
         }),
       })
       if (res.status === 409) {
@@ -781,11 +763,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <td className="px-3.5 py-2.5 font-mono text-[12px] font-medium text-text-primary">{r.host}</td>
                   <td className="px-3.5 py-2.5 text-text-secondary">{r.name && r.name !== r.host ? r.name : '—'}</td>
                   <td className="px-3.5 py-2.5">
-                    {r.disabled ? (
-                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn ring-1 ring-inset ring-warn/40">
-                        {t('settings.routers.disabledBadge')}
-                      </span>
-                    ) : r.is_gateway ? (
+                    {r.is_gateway ? (
                       <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                         {t('settings.routers.gatewayBadge')}
                       </span>
@@ -993,7 +971,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             options={[
               { value: 'openwrt', label: 'OpenWrt' },
               { value: 'glinet', label: 'GL.iNet' },
-              { value: 'routeros', label: 'RouterOS' },
               { value: 'managed-switch', label: t('settings.routers.typeManaged') },
               { value: 'external', label: t('settings.routers.typeExternal') },
             ]}
@@ -1163,7 +1140,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   options={[
                     { value: 'openwrt', label: 'OpenWrt' },
                     { value: 'glinet', label: 'GL.iNet' },
-                    { value: 'routeros', label: 'RouterOS' },
                     { value: 'managed-switch', label: t('settings.routers.typeManaged') },
                     { value: 'external', label: t('settings.routers.typeExternal') },
                   ]}
@@ -1179,12 +1155,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
                   {t('settings.routers.agentOnly')}
                   <InfoTip text={t('settings.routers.agentOnlyHint')} />
-                </label>
-                {/* #1085: pausa la unidad sin borrarla ni perder histórico. */}
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-                  <Switch checked={editDisabled} onCheckedChange={setEditDisabled} />
-                  {t('settings.routers.disabled')}
-                  <InfoTip text={t('settings.routers.disabledHint')} />
                 </label>
                 {editType === 'managed-switch' && (
                   <label className="flex cursor-pointer items-start gap-2 text-sm text-text-secondary">
@@ -1268,44 +1238,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                         </div>
                     </div>
                   )}
-                </div>
-              )}
-              {editType === 'routeros' && (
-                <div className="space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label htmlFor="routeros-user" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                        {t('settings.routers.routerosUser')}
-                      </label>
-                      <input
-                        id="routeros-user"
-                        type="text"
-                        value={editRouterOSUser}
-                        onChange={(e) => setEditRouterOSUser(e.target.value)}
-                        placeholder="admin"
-                        aria-label={t('settings.routers.routerosUser')}
-                        className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="routeros-password" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                        {t('settings.routers.routerosPassword')}
-                      </label>
-                      <input
-                        id="routeros-password"
-                        type="password"
-                        value={editRouterOSPassword}
-                        onChange={(e) => setEditRouterOSPassword(e.target.value)}
-                        placeholder={t('settings.routers.routerosPasswordPlaceholder')}
-                        aria-label={t('settings.routers.routerosPassword')}
-                        className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-                    <Switch checked={editRouterOSInsecure} onCheckedChange={setEditRouterOSInsecure} />
-                    {t('settings.routers.routerosInsecure')}
-                  </label>
                 </div>
               )}
               {error && <p className="text-caption text-danger">{error}</p>}
@@ -2027,20 +1959,6 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editing || saving) return
-    // #1057: el PUT hace upsert por id y un id vacío se coerciona a
-    // "default" en el server (legado): sin esta guarda, añadir una segunda
-    // instancia dejando el id vacío (o duplicado) pisa la primera.
-    if (isNew) {
-      const newId = editing.id.trim()
-      if (newId === '') {
-        setError(t('settings.proxmox.idRequired'))
-        return
-      }
-      if (instances.some((i) => i.id === newId)) {
-        setError(t('settings.proxmox.idDuplicate'))
-        return
-      }
-    }
     setSaving(true)
     setError(null)
     try {
@@ -2681,72 +2599,6 @@ function LimitHistoryRow({ onSaved }: { onSaved: () => void }) {
   )
 }
 
-// #1034: retención del log de alertas en días (kv alerts.retentionDays, por
-// /api/settings/thresholds). 0 = poda temporal off (la cota de 500 filas
-// sigue aplicando). Efecto sin reinicio: la poda horaria y la de arranque le
-// releen el kv en cada pasada.
-function AlertRetentionRow({ onSaved }: { onSaved: () => void }) {
-  const { t } = useTranslation()
-  const { isDemo } = useNetPulse()
-  const [days, setDays] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (isDemo) {
-      setDays(30)
-      return
-    }
-    let cancelled = false
-    fetch('/api/settings/thresholds')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled && j && typeof j.alertRetentionDays === 'number')
-          setDays(j.alertRetentionDays)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [isDemo])
-
-  if (days === null) return null
-
-  const save = (raw: number) => {
-    if (!Number.isFinite(raw)) return
-    const v = Math.max(0, Math.min(365, Math.round(raw)))
-    setDays(v)
-    onSaved()
-    if (isDemo) return
-    void fetch('/api/settings/thresholds', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alertRetentionDays: v }),
-    }).catch(() => {})
-  }
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1 text-sm font-medium text-text-primary">
-          {t('settings.data.alertRetention')}
-          <InfoTip text={t('settings.data.alertRetentionHint')} />
-        </div>
-        <div className="mt-0.5 text-caption text-text-muted">
-          {t('settings.data.alertRetentionCaption')}
-        </div>
-      </div>
-      <input
-        type="number"
-        min={0}
-        max={365}
-        value={days}
-        onChange={(e) => save(Number(e.target.value))}
-        aria-label={t('settings.data.alertRetention')}
-        className="w-24 rounded-lg border border-border bg-elevated px-3 py-2 text-right text-sm text-text-primary focus:border-accent focus:outline-none"
-      />
-    </div>
-  )
-}
-
 function BackupsPanel() {
   const { t, i18n } = useTranslation()
   const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string; time: string } | null>(null)
@@ -3200,17 +3052,12 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
   const [alertPct, setAlertPct] = useState(50)
   const [serverUrl, setServerUrl] = useState('')
   // Proveedor del test (#976): ookla/cloudflare/librespeed + custom (#1001,
-  // endpoint HTTP libre cuya URL completa escribe el usuario) + ndt (#1037,
-  // M-Lab NDT con autodetección de servidor).
-  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed' | 'custom' | 'ndt'>('ndt')
-  const [scheduleKind, setScheduleKind] = useState<'interval' | 'auto' | 'weekly' | 'monthly'>('interval')
+  // endpoint HTTP libre cuya URL completa escribe el usuario).
+  const [provider, setProvider] = useState<'ookla' | 'cloudflare' | 'librespeed' | 'custom'>('ookla')
+  const [scheduleKind, setScheduleKind] = useState<'interval' | 'weekly' | 'monthly'>('interval')
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [dayOfMonth, setDayOfMonth] = useState(1)
-  // Hora por defecto 03:00 (#1066): valle típico del tráfico residencial.
-  const [schedTime, setSchedTime] = useState('03:00')
-  // #1066: con kind "auto" la hora la elige el server (la de menos tráfico
-  // de su histórico) y la expone en /status: el UI la muestra solo lectura.
-  const [autoTime, setAutoTime] = useState('')
+  const [schedTime, setSchedTime] = useState('01:00')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -3230,13 +3077,13 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         if (typeof d.alertPct === 'number') setAlertPct(d.alertPct)
         if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
         // Proveedor del test (#976): ookla/cloudflare/librespeed/custom.
-        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed' || d.provider === 'custom' || d.provider === 'ndt') {
+        if (d.provider === 'ookla' || d.provider === 'cloudflare' || d.provider === 'librespeed' || d.provider === 'custom') {
           setProvider(d.provider)
         }
         // Migración visual de los "semanal/mensual" históricos (#744):
         // 168h/720h sin scheduleKind pasan a weekly/monthly con día y hora.
         const kind = typeof d.scheduleKind === 'string' ? d.scheduleKind : ''
-        if (kind === 'interval' || kind === 'auto' || kind === 'weekly' || kind === 'monthly') {
+        if (kind === 'weekly' || kind === 'monthly') {
           setScheduleKind(kind)
         } else if (d.intervalHours === 168) {
           setScheduleKind('weekly')
@@ -3256,22 +3103,6 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     }
   }, [])
 
-  // #1066: la hora elegida por kind "auto" la calcula el server; se lee al
-  // abrir el diálogo y se refresca al cambiar a "auto".
-  useEffect(() => {
-    if (scheduleKind !== 'auto') return
-    let alive = true
-    void fetch('/api/speedtest/status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (alive && d && typeof d.autoTime === 'string' && d.autoTime) setAutoTime(d.autoTime)
-      })
-      .catch(() => undefined)
-    return () => {
-      alive = false
-    }
-  }, [scheduleKind, cfgOpen])
-
   const bodyJson = useCallback(
     () => ({
       enabled,
@@ -3282,8 +3113,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       scheduleKind,
       ...(scheduleKind === 'weekly' ? { dayOfWeek } : {}),
       ...(scheduleKind === 'monthly' ? { dayOfMonth } : {}),
-      // "auto" no envía time: la hora la deriva el server del histórico.
-      ...(scheduleKind === 'weekly' || scheduleKind === 'monthly' ? { time: schedTime } : {}),
+      ...(scheduleKind !== 'interval' ? { time: schedTime } : {}),
     }),
     [enabled, intervalHours, serverUrl, provider, alertPct, scheduleKind, dayOfWeek, dayOfMonth, schedTime],
   )
@@ -3330,7 +3160,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       setError(t('settings.speedtest.invalid'))
       return
     }
-    if ((scheduleKind === 'weekly' || scheduleKind === 'monthly') && !/^\d{2}:\d{2}$/.test(schedTime)) {
+    if (scheduleKind !== 'interval' && !/^\d{2}:\d{2}$/.test(schedTime)) {
       setError(t('settings.speedtest.invalidSchedule'))
       return
     }
@@ -3354,29 +3184,15 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       setSaved(true)
       window.setTimeout(() => setSaved(false), 2000)
       onSaved()
-      setCfgOpen(false) // #1065: guardar con éxito cierra el diálogo
     } finally {
       setBusy(false)
     }
   }, [serverUrl, provider, intervalHours, alertPct, scheduleKind, schedTime, bodyJson, onSaved, t])
 
-  // #1092: «Probar» debe funcionar también con el servidor vacío
-  // (auto-detect) en los proveedores que lo soportan (Ookla, NDT,
-  // Cloudflare). LibreSpeed y custom siguen exigiendo URL, igual que
-  // Guardar. Mismo criterio de validación que save().
-  const rawUrl = serverUrl.trim()
-  const urlFormatOk = rawUrl === '' || /^https?:\/\/.+\..+/.test(rawUrl)
-  const urlRequired = provider === 'librespeed' || provider === 'custom'
-  const canTest =
-    urlFormatOk &&
-    (rawUrl === ''
-      ? !urlRequired
-      : rawUrl !== 'https://speedtest.net' && rawUrl !== 'https://www.speedtest.net')
-
   // «Probar»: guarda la URL del servidor y lanza un test de velocidad
   // inmediato (usa esa URL en el backend).
   const testUrl = useCallback(async () => {
-    if (!canTest) return
+    if (!serverUrl.trim()) return
     setBusy(true)
     setError(null)
     try {
@@ -3403,7 +3219,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
     } finally {
       setBusy(false)
     }
-  }, [canTest, bodyJson, onSaved, t])
+  }, [serverUrl, bodyJson, onSaved, t])
 
   // Etiqueta/placeholder del campo URL según proveedor (#976, #1001):
   // LibreSpeed = base de instancia; custom = endpoint libre; Ookla =
@@ -3419,9 +3235,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       ? t('settings.speedtest.librespeedPlaceholder')
       : provider === 'custom'
         ? t('settings.speedtest.customPlaceholder')
-        : provider === 'ndt'
-          ? t('settings.speedtest.ndtPlaceholder')
-          : t('settings.speedtest.serverPlaceholder')
+        : t('settings.speedtest.serverPlaceholder')
 
   return (
     <div className="space-y-3">
@@ -3463,7 +3277,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
         </span>
         <select
           value={provider}
-          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed' | 'custom' | 'ndt')}
+          onChange={(e) => setProvider(e.target.value as 'ookla' | 'cloudflare' | 'librespeed' | 'custom')}
           disabled={disabled || loading}
           aria-label={t('settings.speedtest.provider')}
           className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
@@ -3472,7 +3286,6 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           <option value="cloudflare">{t('settings.speedtest.providerCloudflare')}</option>
           <option value="librespeed">{t('settings.speedtest.providerLibrespeed')}</option>
           <option value="custom">{t('settings.speedtest.providerCustom')}</option>
-          <option value="ndt">{t('settings.speedtest.providerNdt')}</option>
         </select>
       </label>
       <div className="grid grid-cols-2 gap-3">
@@ -3483,13 +3296,12 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           </span>
           <select
             value={scheduleKind}
-            onChange={(e) => setScheduleKind(e.target.value as 'interval' | 'auto' | 'weekly' | 'monthly')}
+            onChange={(e) => setScheduleKind(e.target.value as 'interval' | 'weekly' | 'monthly')}
             disabled={disabled || loading}
             aria-label={t('settings.speedtest.interval')}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
           >
             <option value="interval">{t('settings.speedtest.kindInterval')}</option>
-            <option value="auto">{t('settings.speedtest.kindAuto')}</option>
             <option value="weekly">{t('settings.speedtest.kindWeekly')}</option>
             <option value="monthly">{t('settings.speedtest.kindMonthly')}</option>
           </select>
@@ -3508,19 +3320,6 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
                 <option key={h} value={h}>{t('settings.speedtest.intervalH', { hours: h })}</option>
               ))}
             </select>
-          </label>
-        ) : scheduleKind === 'auto' ? (
-          <label className="block">
-            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.timeLabel')}</span>
-            <input
-              type="time"
-              value={autoTime}
-              readOnly
-              disabled={disabled || loading}
-              aria-label={t('settings.speedtest.timeLabel')}
-              title={t('settings.speedtest.kindAuto')}
-              className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-muted focus:outline-none"
-            />
           </label>
         ) : (
           <label className="block">
@@ -3555,7 +3354,6 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       </div>
       {scheduleKind !== 'interval' && (
         <div className="flex flex-wrap items-end gap-3">
-          {(scheduleKind === 'weekly' || scheduleKind === 'monthly') && (
           <label className="block max-w-[220px]">
             <span className="text-label uppercase text-text-muted">{t('settings.speedtest.timeLabel')}</span>
             <input
@@ -3567,12 +3365,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
               className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
             />
           </label>
-          )}
           <label className="block max-w-[160px]">
-            <span className="flex items-center gap-1 text-label uppercase text-text-muted">
-              {t('settings.speedtest.alertPctLabel')}
-              <InfoTip text={t('settings.speedtest.alertPctHint')} />
-            </span>
+            <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
             <input
               type="text"
               inputMode="numeric"
@@ -3587,10 +3381,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
       )}
       {scheduleKind === 'interval' && (
         <label className="block max-w-[160px]">
-          <span className="flex items-center gap-1 text-label uppercase text-text-muted">
-            {t('settings.speedtest.alertPctLabel')}
-            <InfoTip text={t('settings.speedtest.alertPctHint')} />
-          </span>
+          <span className="text-label uppercase text-text-muted">{t('settings.speedtest.alertPctLabel')}</span>
           <input
             type="text"
             inputMode="numeric"
@@ -3602,6 +3393,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
           />
         </label>
       )}
+      <p className="text-caption text-text-muted">{t('settings.speedtest.alertPctHint')}</p>
       {/* URL del servidor/instancia/endpoint: no aplica a Cloudflare
           (endpoints fijos); opcional en Ookla, obligatoria en LibreSpeed
           (#976) y en custom (#1001, donde es la URL completa del endpoint
@@ -3635,22 +3427,19 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
             <span className="hidden sm:inline">{t('settings.speedtest.serverAuto')}</span>
           </button>
           )}
+          <button
+            type="button"
+            onClick={() => void testUrl()}
+            disabled={disabled || busy || loading || !serverUrl.trim()}
+            className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Gauge className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.speedtest.test')}
+          </button>
         </div>
       </div>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        {/* #1092: «Probar» vive junto a Guardar (no en la fila de URL) para
-            existir también con Cloudflare, y se habilita con el servidor
-            vacío cuando el proveedor soporta auto-detect. */}
-        <button
-          type="button"
-          onClick={() => void testUrl()}
-          disabled={disabled || busy || loading || !canTest}
-          className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3 text-[13px] font-medium text-accent transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Gauge className="h-4 w-4" strokeWidth={1.75} />
-          {t('settings.speedtest.test')}
-        </button>
         <button
           type="button"
           onClick={() => void save()}
@@ -3823,7 +3612,7 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
 
 // Clave de integración configurable desde la tarjeta (icono Settings2 que
 // abre el Dialog con su manager, #968).
-type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt' | 'mcp'
+type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt'
 
 // Los diálogos de configuración van GRANDES (#968, #977): el manager
 // (formularios, tablas) necesita el ancho casi completo. Wrapper compartido
@@ -3847,82 +3636,6 @@ function ConfigGear({ label, onClick, disabled = false }: { label: string; onCli
   )
 }
 
-// ---------------------------------------------------------------------------
-// Integración MCP (#1114): endpoint /mcp para asistentes de IA. El toggle es
-// el server-side settings.integrations.mcp (aplica sin reinicio); sin
-// NETPULSE_MCP_ENABLED=1 en el servidor el endpoint no existe y el toggle
-// queda bloqueado. Los tokens de API son la ÚNICA auth del endpoint: se
-// gestionan aquí mismo (crear/revocar).
-// ---------------------------------------------------------------------------
-function McpIntegration({ onToggle }: { onToggle: () => void }) {
-  const { t } = useTranslation()
-  const { integrations, setIntegration, mcpLocked } = useIntegrations()
-  const [copied, setCopied] = useState(false)
-  const endpoint = `${window.location.origin}/mcp`
-
-  return (
-    <div>
-      <div className="flex items-center gap-2">
-        <KeyRound className="h-4 w-4 text-accent" strokeWidth={1.75} />
-        <h3 className="text-sm font-semibold text-text-primary">{t('settings.mcp.title')}</h3>
-      </div>
-      <p className="mt-1 text-caption text-text-muted">{t('settings.mcp.description')}</p>
-
-      {mcpLocked ? (
-        <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-caption text-text-secondary">
-          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" strokeWidth={1.75} />
-          <span>{t('settings.mcp.lockedHint')}</span>
-        </div>
-      ) : (
-        <div className="mt-2 divide-y divide-border/60">
-          <SwitchRow
-            label={t('settings.mcp.enabled')}
-            checked={integrations.mcp}
-            disabled={mcpLocked}
-            onCheckedChange={(v) => {
-              setIntegration('mcp', v)
-              onToggle()
-            }}
-          />
-        </div>
-      )}
-
-      <div className="mt-3">
-        <div className="text-label uppercase text-text-muted">{t('settings.mcp.endpoint')}</div>
-        <div className="mt-1 flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-lg bg-elevated px-3 py-2 text-caption text-text-primary">{endpoint}</code>
-          <button
-            type="button"
-            onClick={() => {
-              void copyToClipboard(endpoint).then(() => {
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
-              })
-            }}
-            aria-label={t('settings.mcp.copy')}
-            title={t('settings.mcp.copy')}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-          >
-            {copied ? <Check className="h-4 w-4 text-accent" strokeWidth={1.75} /> : <Copy className="h-4 w-4" strokeWidth={1.75} />}
-          </button>
-        </div>
-        <p className="mt-1.5 flex items-start gap-1.5 text-caption text-text-muted">
-          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-          {t('settings.mcp.endpointHint')}
-        </p>
-      </div>
-
-      <div className="mt-5 border-t border-border pt-4">
-        <div className="text-label uppercase text-text-muted">{t('settings.mcp.tokensTitle')}</div>
-        <p className="mt-1 text-caption text-text-muted">{t('settings.mcp.tokensHint')}</p>
-        <div className="mt-2">
-          <TokensManager />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function ServicesCard({
   reduce,
   onSaved,
@@ -3941,27 +3654,20 @@ function ServicesCard({
   const { t } = useTranslation()
   const [services, setService] = useServicesVisibility()
   // Toggles server-side de integraciones (#968): se leen del servidor al
-  // montar (coherencia entre navegadores) y se escriben al cambiar. mcpLocked
-  // (#1114): sin NETPULSE_MCP_ENABLED=1 el endpoint /mcp no existe y el
-  // toggle queda bloqueado con una explicación.
-  const { integrations, setIntegration, mcpLocked } = useIntegrations(!disabled)
+  // montar (coherencia entre navegadores) y se escriben al cambiar.
+  const { integrations, setIntegration } = useIntegrations(!disabled)
   const [dialog, setDialog] = useState<IntegrationDialogKey | null>(null)
   const networkRows: { key: keyof ServicesVisibility; label: string; caption: string; dialogKey?: IntegrationDialogKey }[] = [
     { key: 'adguard', label: 'AdGuard Home', caption: t('settings.services.adguardCaption'), dialogKey: 'adguard' },
     { key: 'wireguard', label: 'WireGuard', caption: t('settings.services.wireguardCaption') },
     { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
-    // #1146: visibilidad de la página de actualizaciones (ya no es Labs).
-    { key: 'actualizaciones', label: t('nav.firmwareUpgrades'), caption: t('settings.services.firmwareUpgradesCaption') },
   ]
   // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
   // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
-  // de Notificaciones. MCP (#1114) es LABS: fila con acento rojo (danger)
-  // visible solo con Labs activado; el endpoint no muere al ocultar Labs
-  // (misma semántica que orquestación: el opt-in persiste server-side).
-  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey; locked?: boolean; labs?: boolean; danger?: boolean }[] = [
+  // de Notificaciones.
+  const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey }[] = [
     { key: 'proxmox', label: 'Proxmox VE', caption: t('settings.services.proxmoxCaption'), dialogKey: 'proxmox' },
     { key: 'mqtt', label: 'MQTT', caption: t('settings.services.mqttCaption'), dialogKey: 'mqtt' },
-    { key: 'mcp', label: 'MCP', caption: t('settings.services.mcpCaption'), dialogKey: 'mcp', locked: mcpLocked, labs: true, danger: true },
   ]
 
   // AdGuard (#813): el toggle de Servicios también controla el sondeo y la
@@ -3998,33 +3704,12 @@ function ServicesCard({
   )
 
   return (
-    <Card
-      title={t('settings.services.title')}
-      caption={t('settings.services.caption')}
-      index={3}
-      reduce={reduce}
-      headerSlot={
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="text-label uppercase tracking-[0.06em] text-text-muted">{t('settings.labs.title')}</span>
-          <Switch
-            checked={services.labs}
-            onCheckedChange={(v) => {
-              setService('labs', v)
-              onSaved()
-            }}
-            disabled={disabled}
-            aria-label={t('settings.services.labs')}
-            className="data-[state=checked]:bg-danger"
-          />
-        </div>
-      }
-    >
-      {/* Servicios en dos columnas (Labs incluido) y debajo Integraciones,
-          también en dos columnas (#1146). Sin divide-y: en flujo de 2
-          columnas pinta líneas a mitad de fila. */}
+    <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
+      {/* Lista única: primero todos los servicios de red, luego todas las
+          integraciones (sin columnas). */}
       <div>
         <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
-        <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+        <div className="divide-y divide-border/60">
           {networkRows.map((row) => (
             <SwitchRow
               key={row.key}
@@ -4039,76 +3724,80 @@ function ServicesCard({
               }}
             />
           ))}
+          <SwitchRow
+            label={t('settings.services.labs')}
+            caption={t('settings.services.labsCaption')}
+            checked={services.labs}
+            disabled={disabled}
+            danger
+            onCheckedChange={(v) => {
+              setService('labs', v)
+              onSaved()
+            }}
+          />
         </div>
 
+        {/* Servicios de Labs (#1012): antes que las integraciones */}
+        {services.labs && (
+          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+            <div className="divide-y divide-border/60">
+              {/* Orquestación (opt-in del admin) */}
+              <SwitchRow
+                label={t('settings.admin.orchestration')}
+                caption={t('settings.services.orchestrationHint')}
+                checked={orchOn}
+                onCheckedChange={(v) => void toggleOrchestration(v)}
+                disabled={orchBusy || disabled}
+                danger
+              />
+              {/* Canales */}
+              <SwitchRow
+                label={t('settings.labs.canales')}
+                caption={t('settings.labs.canalesCaption')}
+                checked={services.canales}
+                disabled={disabled}
+                danger
+                onCheckedChange={(v) => {
+                  setService('canales', v)
+                  onSaved()
+                }}
+              />
+            </div>
+            <div className="divide-y divide-border/60">
+              {/* Actualizaciones */}
+              <SwitchRow
+                label={t('settings.labs.actualizaciones')}
+                caption={t('settings.labs.actualizacionesCaption')}
+                checked={services.actualizaciones}
+                disabled={disabled}
+                danger
+                onCheckedChange={(v) => {
+                  setService('actualizaciones', v)
+                  onSaved()
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
-        <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-          {integrationRows.filter((row) => !row.labs).map((row) => (
+        <div className="divide-y divide-border/60">
+          {integrationRows.map((row) => (
             <SwitchRow
               key={row.key}
               label={row.label}
               caption={row.caption}
               checked={integrations[row.key]}
-              disabled={disabled || row.locked}
-              danger={row.danger}
-              trailing={gear(row.dialogKey, row.label)}
-              onCheckedChange={(v) => {
-                setIntegration(row.key, v)
-                onSaved()
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Labs: subtarjeta con acento rojo (#1146) con TODAS las filas labs
-          (servicios e integraciones): orquestación, rack y MCP. Sin Labs
-          activo no se muestra nada de este bloque. */}
-      {services.labs && (
-        <div className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4">
-          <div className="mb-1 flex items-center gap-1.5">
-            <TriangleAlert className="h-3.5 w-3.5 text-danger" aria-hidden />
-            <span className="text-label uppercase tracking-[0.06em] text-danger">{t('settings.labs.title')}</span>
-          </div>
-          <p className="mb-2 text-caption text-text-muted">{t('settings.services.labsCaption')}</p>
-          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-            <SwitchRow
-              label={t('settings.admin.orchestration')}
-              caption={t('settings.services.orchestrationHint')}
-              checked={orchOn}
-              onCheckedChange={(v) => void toggleOrchestration(v)}
-              disabled={orchBusy || disabled}
-              danger
-            />
-            <SwitchRow
-              label={t('settings.labs.rack')}
-              caption={t('settings.labs.rackCaption')}
-              checked={services.rack}
               disabled={disabled}
-              danger
-              onCheckedChange={(v) => {
-                setService('rack', v)
-                onSaved()
-              }}
-            />
-            {integrationRows.filter((row) => row.labs).map((row) => (
-              <SwitchRow
-                key={row.key}
-                label={row.label}
-                caption={row.caption}
-                checked={integrations[row.key]}
-                disabled={disabled || row.locked}
-                danger={row.danger}
-                trailing={gear(row.dialogKey, row.label)}
+              trailing={gear(row.dialogKey, row.label)}
                 onCheckedChange={(v) => {
                   setIntegration(row.key, v)
                   onSaved()
                 }}
               />
             ))}
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Diálogos de configuración de integraciones (#968): los managers
           viven SOLO en diálogo (#977: las cards sueltas ya no están en el
@@ -4118,7 +3807,7 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.adguard.title')}</DialogTitle>
           </DialogHeader>
-          <AdGuardManager reduce={reduce} onSaved={() => { onSaved(); setDialog(null) }} />
+          <AdGuardManager reduce={reduce} onSaved={onSaved} />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'proxmox'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
@@ -4126,7 +3815,7 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.proxmox.title')}</DialogTitle>
           </DialogHeader>
-          <ProxmoxManager reduce={reduce} onSaved={() => { onSaved(); setDialog(null) }} />
+          <ProxmoxManager reduce={reduce} onSaved={onSaved} />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'mqtt'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
@@ -4134,15 +3823,7 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.mqtt.title')}</DialogTitle>
           </DialogHeader>
-          <MqttCard onSaved={() => { onSaved(); setDialog(null) }} bare />
-        </DialogContent>
-      </Dialog>
-      <Dialog open={dialog === 'mcp'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle className="sr-only">{t('settings.mcp.title')}</DialogTitle>
-          </DialogHeader>
-          <McpIntegration onToggle={() => onSaved()} />
+          <MqttCard onSaved={onSaved} bare />
         </DialogContent>
       </Dialog>
     </Card>
@@ -4184,40 +3865,42 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
     { key: 'telegram', label: 'Telegram', caption: t('settings.notif.telegramCaption') },
   ]
   return (
-    <div className="mt-4 grid grid-cols-1 gap-x-6 border-t border-border pt-4 sm:grid-cols-2">
-      {rows.map((row) => (
-        <SwitchRow
-          key={row.key}
-          label={row.label}
-          caption={row.caption}
-          checked={integrations[row.key]}
-          disabled={disabled}
-          trailing={
-            <span className="flex items-center gap-2.5">
-              {integrations[row.key] && configured && !configured[row.key] && (
-                <button
-                  type="button"
-                  onClick={() => setDialog(row.key)}
-                  className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warn transition-colors hover:bg-warn/20"
-                >
-                  {t('settings.notif.notConfigured')}
-                </button>
-              )}
-              <ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />
-            </span>
-          }
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="divide-y divide-border/60">
+        {rows.map((row) => (
+          <SwitchRow
+            key={row.key}
+            label={row.label}
+            caption={row.caption}
+            checked={integrations[row.key]}
+            disabled={disabled}
+            trailing={
+              <span className="flex items-center gap-2.5">
+                {integrations[row.key] && configured && !configured[row.key] && (
+                  <button
+                    type="button"
+                    onClick={() => setDialog(row.key)}
+                    className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warn transition-colors hover:bg-warn/20"
+                  >
+                    {t('settings.notif.notConfigured')}
+                  </button>
+                )}
+                <ConfigGear label={t('settings.services.configure', { name: row.label })} onClick={() => setDialog(row.key)} />
+              </span>
+            }
             onCheckedChange={(v) => {
               setIntegration(row.key, v)
               onSaved()
             }}
           />
         ))}
+      </div>
       <Dialog open={dialog === 'ntfy'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
         <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.ntfy.title')}</DialogTitle>
           </DialogHeader>
-          <NtfyCard onSaved={() => { onSaved(); setDialog(null) }} bare />
+          <NtfyCard onSaved={onSaved} bare />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'telegram'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
@@ -4225,7 +3908,7 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.telegram.title')}</DialogTitle>
           </DialogHeader>
-          <TelegramCard onSaved={() => { onSaved(); setDialog(null) }} bare />
+          <TelegramCard onSaved={onSaved} bare />
         </DialogContent>
       </Dialog>
     </div>
@@ -5688,7 +5371,6 @@ export default function Settings() {
                 {/* Limitar historial (#975): toggle maestro + diálogo con
                     retención de presencia (#771) e ingesta de itinerancia (#907) */}
                 <LimitHistoryRow onSaved={notify} />
-                <AlertRetentionRow onSaved={notify} />
               </div>
 
               {/* Sliders de umbrales */}
@@ -5987,25 +5669,30 @@ export default function Settings() {
                 de la sección. */}
             <NotifChannels onSaved={notify} disabled={isDemo} />
 
-            {/* Push + idioma en una fila de dos columnas (#1146) */}
-            <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-4 sm:grid-cols-2">
-              <div className="flex flex-col">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <span className="text-sm font-medium text-text-primary">{t('settings.push.title')}</span>
-                  <InfoTip text={t('settings.push.note')} />
-                </div>
-                <PushNotificationsCard onSaved={notify} />
+            {/* Notificaciones push DENTRO de la misma card (#977): el texto
+                largo vive en el (i) del título de la subsección. */}
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-2 flex items-center gap-1.5">
+                <span className="text-sm font-medium text-text-primary">{t('settings.push.title')}</span>
+                <InfoTip text={t('settings.push.note')} />
               </div>
-              {!isDemo && (
-                <div className="flex items-start justify-between gap-3">
+              <PushNotificationsCard onSaved={notify} />
+            </div>
+
+            {/* Idioma de las notificaciones (#889): movido a esta card
+                (#977). #998: una sola fila (título + (i) + select), sin el
+                label duplicado que decía lo mismo. */}
+            {!isDemo && (
+              <div className="mt-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium text-text-primary">{t('settings.alertsLang.title')}</span>
                     <InfoTip text={t('settings.alertsLang.description')} />
                   </div>
                   <AlertsLangControl onSaved={notify} />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </Card>
         </div>
 

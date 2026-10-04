@@ -133,13 +133,6 @@ CREATE TABLE IF NOT EXISTS device_seen (
   first_seen INTEGER NOT NULL,
   last_seen  INTEGER NOT NULL
 );
--- #1151: cliente con varias MACs (un hostname, nunca simultáneas): cada fila
--- dice "esta MAC es el mismo cliente que canonical". Clave = alias; el
--- canónico no tiene fila propia (ausencia de fila = MAC canónica).
-CREATE TABLE IF NOT EXISTS device_links (
-  mac       TEXT PRIMARY KEY,
-  canonical TEXT NOT NULL
-);
 -- Routers configurados
 CREATE TABLE IF NOT EXISTS routers (
   id TEXT PRIMARY KEY,
@@ -348,7 +341,6 @@ CREATE TABLE IF NOT EXISTS wifi_scans (
   channel     INTEGER NOT NULL,
   freq        INTEGER NOT NULL,
   signal_dbm  INTEGER NOT NULL,
-  width_mhz   INTEGER NOT NULL DEFAULT 0,
   ts          INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wifi_scans_router_ts ON wifi_scans(router_id, ts DESC);
@@ -406,66 +398,6 @@ CREATE TABLE IF NOT EXISTS alert_log (
   read_flag     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_alert_log_ts ON alert_log(ts DESC);
-
--- Rack canvas (fase 1): racks, montajes, cables y perfil físico por MAC.
--- La identidad de dispositivo en NetPulse es la MAC (no hay tabla devices):
--- rack_mounts.device_mac apunta a esa identidad y device_rack_profile guarda
--- el modelo físico compartido (faceplate, altura U, span de columnas,
--- color y puertos con posición). Los montajes con device_mac NULL son
--- accesorios (blank, shelf, patch panel, PDU): su tamaño lo define el
--- faceplate del catálogo.
-CREATE TABLE IF NOT EXISTS racks (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  u_height INTEGER NOT NULL,
-  width_standard TEXT NOT NULL DEFAULT '19',   -- '19' | '10'
-  numbering TEXT NOT NULL DEFAULT 'bottom-up', -- solo cambia etiquetas, nunca la geometría
-  style_json TEXT NOT NULL DEFAULT '{}',
-  location TEXT,
-  position_x REAL NOT NULL DEFAULT 0,
-  position_y REAL NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS device_rack_profile (
-  mac TEXT PRIMARY KEY,
-  faceplate_id TEXT NOT NULL DEFAULT '',
-  u_height INTEGER NOT NULL DEFAULT 1,
-  col_span INTEGER NOT NULL DEFAULT 12,
-  color TEXT NOT NULL DEFAULT '',
-  ports_json TEXT NOT NULL DEFAULT '[]'
-);
-
-CREATE TABLE IF NOT EXISTS rack_mounts (
-  id TEXT PRIMARY KEY,
-  rack_id TEXT NOT NULL REFERENCES racks(id) ON DELETE CASCADE,
-  device_mac TEXT REFERENCES device_rack_profile(mac) ON DELETE SET NULL, -- NULL = accesorio
-  faceplate_id TEXT NOT NULL DEFAULT '',  -- accesorios; el de dispositivos vive en device_rack_profile
-  u_start INTEGER NOT NULL,               -- 1-based, SIEMPRE contado desde el rail inferior
-  col_start INTEGER NOT NULL DEFAULT 0,   -- 0-based
-  label TEXT,
-  status_pin TEXT NOT NULL DEFAULT 'auto',      -- 'auto' → seguir el estado que conoce el poller
-  port_visibility TEXT NOT NULL DEFAULT 'auto'
-);
-CREATE INDEX IF NOT EXISTS idx_rack_mounts_rack ON rack_mounts(rack_id);
-
--- Cables port-to-port (relación propia, no edges del canvas lógico).
--- Pueden cruzar racks. Un puerto normal admite exactamente 1 cable; los
--- patch panels (pass-through) admiten 2 (tirada de pared al rear + patch al
--- switch al front). Cobre vs fibra se deriva del puerto de origen del patch.
-CREATE TABLE IF NOT EXISTS rack_cables (
-  id TEXT PRIMARY KEY,
-  from_mount TEXT NOT NULL REFERENCES rack_mounts(id) ON DELETE CASCADE,
-  from_port TEXT NOT NULL,
-  to_mount TEXT NOT NULL REFERENCES rack_mounts(id) ON DELETE CASCADE,
-  to_port TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'ethernet',       -- 'ethernet' | 'fiber'
-  label TEXT,
-  properties_json TEXT NOT NULL DEFAULT '{}',  -- key/value libre
-  origin TEXT NOT NULL DEFAULT 'manual',       -- 'manual' | 'imported' | 'detected'
-  created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_rack_cables_from ON rack_cables(from_mount);
-CREATE INDEX IF NOT EXISTS idx_rack_cables_to ON rack_cables(to_mount);
 
 `
 
@@ -571,17 +503,10 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "agent_only", "ALTER TABLE routers ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0")
 	// issue #196: bridgeMAC persistido del router (exclusión de "desconocido").
 	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
-	// Ancho de canal de los vecinos (#1087), con el agente nuevo; 0 = viejo.
-	migrate(sqldb, "wifi_scans", "width_mhz", "ALTER TABLE wifi_scans ADD COLUMN width_mhz INTEGER NOT NULL DEFAULT 0")
 	// issue #241: target de firmware por router (string libre; NULL/"" = sin comprobar).
 	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
 	// issue #309: SNMP polling for managed switches.
 	migrate(sqldb, "routers", "snmp_enabled", "ALTER TABLE routers ADD COLUMN snmp_enabled INTEGER NOT NULL DEFAULT 0")
-	// #1145: último nombre conocido del cliente (retención indefinida).
-	migrate(sqldb, "device_seen", "name", "ALTER TABLE device_seen ADD COLUMN name TEXT NOT NULL DEFAULT ''")
-	// #1151: última IP conocida (los fantasmas la conservan para la lista y
-	// las sugerencias de enlace).
-	migrate(sqldb, "device_seen", "ip", "ALTER TABLE device_seen ADD COLUMN ip TEXT NOT NULL DEFAULT ''")
 	// issue #863: sondeo HTTP de la consola de switches RTLPlayground. DEFAULT 1
 	// = comportamiento previo; se desactiva por router (la consola del firmware
 	// tiene una sola sesión global y cada login tumba la sesión humana).
@@ -592,10 +517,6 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
 	// issue #605: puerto SSH por router (dropbear en puerto no estándar).
 	migrate(sqldb, "routers", "ssh_port", "ALTER TABLE routers ADD COLUMN ssh_port INTEGER NOT NULL DEFAULT 22")
-	// issue #1085: pausa de una unidad de flota (sin sondeo ni alertas, con
-	// insignia en la lista y fuera de los desplegables; el histórico se
-	// conserva). 0/ausente (columna nueva) = activa.
-	migrate(sqldb, "routers", "disabled", "ALTER TABLE routers ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0")
 	// issue #716: umbral de alerta por temperatura alta (°C). NULL = 65 default.
 	migrate(sqldb, "routers", "temp_threshold", "ALTER TABLE routers ADD COLUMN temp_threshold INTEGER")
 	// issue #494: upgrades desatendidos programados (epoch ms UTC; NULL = manual).
@@ -614,20 +535,6 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		if _, err := sqldb.Exec("DROP INDEX IF EXISTS " + idx); err != nil {
 			log.Printf("[netpulse] aviso: no se pudo eliminar el índice %s: %v", idx, err)
 		}
-	}
-
-	// RouterOS (Type "routeros"): credenciales de la REST API nativa.
-	migrate(sqldb, "routers", "routeros_user", "ALTER TABLE routers ADD COLUMN routeros_user TEXT")
-	migrate(sqldb, "routers", "routeros_password", "ALTER TABLE routers ADD COLUMN routeros_password TEXT")
-	migrate(sqldb, "routers", "routeros_insecure", "ALTER TABLE routers ADD COLUMN routeros_insecure INTEGER NOT NULL DEFAULT 0")
-
-	// #1129: las MACs de roam_events se ingirieron en minúsculas (así vienen
-	// en los logs hostapd/dawn/usteer) mientras el resto de la app canonicaliza
-	// a MAYÚSCULAS (#960): el filtro por cliente no casaba con el histórico.
-	// Normalización one-shot de las filas existentes (la ingesta nueva ya
-	// normaliza, ver roamevents.ParseLogreadLine).
-	if _, err := sqldb.Exec("UPDATE roam_events SET mac = UPPER(mac) WHERE mac IS NOT NULL AND mac != UPPER(mac)"); err != nil {
-		log.Printf("[netpulse] aviso: no se pudieron normalizar las MACs de roam_events: %v", err)
 	}
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la

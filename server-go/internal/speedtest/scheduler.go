@@ -40,21 +40,8 @@ var ValidIntervals = []int{6, 12, 24, 168, 720}
 const (
 	DefaultIntervalHours = 12
 	DefaultAlertPct      = 50
-	// DefaultSchedTime (#1066): hora por defecto de la programación. Era
-	// 01:00; a las 03:00 local el tráfico residencial suele estar en su
-	// mínimo, así el test no compite con el uso real de la línea.
-	DefaultSchedTime = "03:00"
-	testTimeout      = 3 * time.Minute
-	tickEvery        = 30 * time.Second
-)
-
-// #1066: programación "auto": el scheduler elige la hora de menos tráfico
-// de su propio histórico (tabla metrics, últimos 7 días); sin datos, cae a
-// la hora por defecto (03:00).
-const (
-	scheduleKindAuto  = "auto"
-	defaultQuietHour  = 3
-	quietHourLookback = 7 * 24 * time.Hour
+	testTimeout          = 3 * time.Minute
+	tickEvery            = 30 * time.Second
 )
 
 // Settings persistidas en kv (claves settings.speedtest.*).
@@ -70,9 +57,7 @@ type Settings struct {
 	Provider string `json:"provider,omitempty"`
 	// Programación (#744): "interval" (cada IntervalHours, comportamiento
 	// histórico) | "weekly" (DayOfWeek a la Time local) | "monthly"
-	// (DayOfMonth a la Time local; si el mes no tiene ese día, el último) |
-	// "auto" (#1066: diaria a la hora de menos tráfico del histórico propio;
-	// Time la deriva el scheduler y se ignora el valor persistido).
+	// (DayOfMonth a la Time local; si el mes no tiene ese día, el último).
 	ScheduleKind string `json:"scheduleKind,omitempty"`
 	DayOfWeek    *int   `json:"dayOfWeek,omitempty"`  // 0=domingo..6=sábado (weekly)
 	DayOfMonth   *int   `json:"dayOfMonth,omitempty"` // 1..31 (monthly)
@@ -112,10 +97,6 @@ type Scheduler struct {
 	// en tests.
 	httpRunner Runner
 
-	// ndtRunner (#1037) ejecuta el provider M-Lab NDT; nil = NDTRunner{} por
-	// ejecución. Inyectable en tests.
-	ndtRunner Runner
-
 	// contractDown lee el plan contratado declarado (#151). Inyectada para
 	// no duplicar la lógica kv del httpapi; nil = nunca alertar.
 	contractDown func() (float64, bool)
@@ -126,8 +107,7 @@ type Scheduler struct {
 	running  atomic.Bool
 	mu       sync.Mutex
 	lastErr  string
-	belowPln bool   // debounce de la alerta: true hasta que un test recupere
-	autoTime string // #1066: última hora elegida por kind "auto" ("HH:MM")
+	belowPln bool // debounce de la alerta: true hasta que un test recupere
 }
 
 func NewScheduler(store *Store, db *sql.DB, runner Runner) *Scheduler {
@@ -145,20 +125,9 @@ func (s *Scheduler) SetAlertEmitter(e AlertEmitter) { s.emit = e }
 // SetHTTPRunner inyecta el runner de los providers HTTP (#976), para tests.
 func (s *Scheduler) SetHTTPRunner(r Runner) { s.httpRunner = r }
 
-// SetNDTRunner inyecta el runner del provider M-Lab NDT (#1037), para tests.
-func (s *Scheduler) SetNDTRunner(r Runner) { s.ndtRunner = r }
-
 // runnerFor elige la implementacion segun el provider configurado.
 func (s *Scheduler) runnerFor(provider string) Runner {
-	// #1037: "" (no configurado) y el default NDT van al runner NDT; Ookla
-	// solo explícito.
-	if provider == "" || provider == ProviderNDT {
-		if s.ndtRunner != nil {
-			return s.ndtRunner
-		}
-		return NDTRunner{}
-	}
-	if provider == ProviderOokla {
+	if provider == "" || provider == ProviderOokla {
 		return s.runner
 	}
 	if s.httpRunner != nil {
@@ -185,11 +154,6 @@ func (s *Scheduler) Start() {
 
 func (s *Scheduler) tick() {
 	st := s.LoadSettings()
-	if st.ScheduleKind == scheduleKindAuto {
-		// #1066: la hora se reevalúa en cada tick (el patrón de consumo
-		// cambia: findes, vacaciones) y queda cacheada para Status.
-		st.Time = s.resolveAutoTime()
-	}
 	if !st.Enabled || s.running.Load() {
 		return
 	}
@@ -273,9 +237,6 @@ type Status struct {
 	LastError string  `json:"lastError,omitempty"`
 	Last      *Result `json:"last,omitempty"`
 	NextRun   *int64  `json:"nextRunMs,omitempty"` // unix ms; nil = sin programar
-	// AutoTime (#1066): hora elegida por la programación "auto" ("HH:MM",
-	// hora local); solo presente con scheduleKind "auto".
-	AutoTime string `json:"autoTime,omitempty"`
 }
 
 // Status compone la foto actual (running, último error, último resultado y
@@ -283,18 +244,6 @@ type Status struct {
 func (s *Scheduler) Status() Status {
 	st := s.LoadSettings()
 	out := Status{Running: s.running.Load()}
-	if st.ScheduleKind == scheduleKindAuto {
-		// La hora la conoce el tick; si aún no ha pasado ninguno (server
-		// recién arrancado), se calcula ahora para que la UI pueda enseñarla.
-		s.mu.Lock()
-		auto := s.autoTime
-		s.mu.Unlock()
-		if auto == "" {
-			auto = s.resolveAutoTime()
-		}
-		st.Time = auto
-		out.AutoTime = auto
-	}
 	s.mu.Lock()
 	out.LastError = s.lastErr
 	s.mu.Unlock()
@@ -355,56 +304,10 @@ func (s *Scheduler) setLastError(err error) {
 	s.lastErr = err.Error()
 }
 
-// resolveAutoTime (#1066) calcula la hora elegida por la programación "auto"
-// (la de menos tráfico medio del histórico) y la cachea para Status.
-func (s *Scheduler) resolveAutoTime() string {
-	tm := fmt.Sprintf("%02d:00", s.quietHour(s.now()))
-	s.mu.Lock()
-	s.autoTime = tm
-	s.mu.Unlock()
-	return tm
-}
-
-// quietHour devuelve la hora del día (local) con menor tráfico medio
-// (bajada+subida) de los últimos 7 días según la tabla metrics; sin datos
-// suficientes devuelve defaultQuietHour (03:00). La hora se agrupa en la
-// zona horaria local del server (misma referencia que el resto del
-// scheduler), corrigiendo el epoch con el offset activo en `now`.
-func (s *Scheduler) quietHour(now time.Time) int {
-	if s.db == nil {
-		return defaultQuietHour
-	}
-	_, off := now.Zone()
-	rows, err := s.db.Query(
-		`SELECT ((ts/1000 + ?) % 86400) / 3600 AS h,
-		        AVG(COALESCE(rx_bps, 0) + COALESCE(tx_bps, 0)), COUNT(*)
-		 FROM metrics WHERE ts >= ? GROUP BY h`,
-		off, now.Add(-quietHourLookback).UnixMilli())
-	if err != nil {
-		return defaultQuietHour
-	}
-	defer rows.Close()
-	best, bestAvg, seen := 0, 0.0, false
-	for rows.Next() {
-		var h, n int
-		var avg float64
-		if err := rows.Scan(&h, &avg, &n); err != nil {
-			continue
-		}
-		if !seen || avg < bestAvg {
-			best, bestAvg, seen = h, avg, true
-		}
-	}
-	if !seen {
-		return defaultQuietHour
-	}
-	return best
-}
-
 // LoadSettings lee la configuración del kv con defaults sanos (valores
 // inválidos o ausentes → default, nunca error: el test debe poder arrancar).
 func (s *Scheduler) LoadSettings() Settings {
-	st := Settings{IntervalHours: DefaultIntervalHours, AlertPct: DefaultAlertPct, ScheduleKind: "interval", Time: DefaultSchedTime}
+	st := Settings{IntervalHours: DefaultIntervalHours, AlertPct: DefaultAlertPct, ScheduleKind: "interval"}
 	if s.db == nil {
 		return st
 	}
@@ -417,9 +320,6 @@ func (s *Scheduler) LoadSettings() Settings {
 	}
 	if v := kvGet(s.db, kvProvider); validProvider(v) {
 		st.Provider = v
-	} else {
-		// #1037: default NDT (privacidad) cuando no hay nada configurado.
-		st.Provider = ProviderNDT
 	}
 	if v, ok := kvInt(s.db, kvAlertPct); ok && v >= 0 && v <= 90 {
 		st.AlertPct = v
@@ -447,7 +347,7 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 		st.ScheduleKind = "interval"
 	}
 	if !validScheduleKind(st.ScheduleKind) {
-		return errors.New("scheduleKind debe ser interval, auto, weekly o monthly")
+		return errors.New("scheduleKind debe ser interval, weekly o monthly")
 	}
 	switch st.ScheduleKind {
 	case "weekly":
@@ -464,9 +364,6 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 		if !validTimeStr(st.Time) {
 			return errors.New("monthly exige time HH:MM")
 		}
-	case scheduleKindAuto:
-		// sin campos extra: la hora la deriva el scheduler del histórico y
-		// lo que llegue en Time se ignora (no se afirma una hora concreta).
 	default:
 		if !validInterval(st.IntervalHours) {
 			return fmt.Errorf("intervalo inválido (%d): permite %v", st.IntervalHours, ValidIntervals)
@@ -480,14 +377,12 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 	}
 	// Provider (#976): librespeed necesita la URL base de la instancia y
 	// custom (#1001) la URL completa del endpoint; los demás la ignoran
-	// (ookla/ndt: servidor concreto opcional; cloudflare: endpoints fijos).
-	// Por defecto NDT (#1037): medición neutral y sin ánimo comercial, mejor
-	// privacidad que Ookla; los que ya tengan otro provider en kv lo conservan.
+	// (ookla: servidor concreto opcional; cloudflare: endpoints fijos).
 	if st.Provider == "" {
-		st.Provider = ProviderNDT
+		st.Provider = ProviderOokla
 	}
 	if !validProvider(st.Provider) {
-		return errors.New("provider debe ser ookla, cloudflare, librespeed, custom o ndt")
+		return errors.New("provider debe ser ookla, cloudflare, librespeed o custom")
 	}
 	if st.Provider == ProviderLibrespeed && strings.TrimSpace(st.ServerURL) == "" {
 		return errors.New("librespeed exige serverUrl con la URL base de la instancia")
@@ -559,7 +454,7 @@ func trapServerURL(raw string) bool {
 }
 
 func validScheduleKind(v string) bool {
-	return v == "interval" || v == "weekly" || v == "monthly" || v == scheduleKindAuto
+	return v == "interval" || v == "weekly" || v == "monthly"
 }
 
 func validTimeStr(v string) bool {
@@ -617,15 +512,6 @@ func testDue(st Settings, last *Result, now time.Time) bool {
 		return false
 	}
 	switch st.ScheduleKind {
-	case scheduleKindAuto:
-		// Diario a la hora elegida. El tick resuelve st.Time con la hora de
-		// menos tráfico; el fallback cubre llamadas directas con Time vacío.
-		tm := st.Time
-		if !validTimeStr(tm) {
-			tm = DefaultSchedTime
-		}
-		slot := todaySlot(tm, now)
-		return !now.Before(slot) && (last == nil || last.TS.Before(slot))
 	case "weekly":
 		dow := 0
 		if st.DayOfWeek != nil {
@@ -657,18 +543,6 @@ func testDue(st Settings, last *Result, now time.Time) bool {
 func nextRunAt(st Settings, last *Result, now time.Time) time.Time {
 	h, m := parseTimeHHMM(st.Time)
 	switch st.ScheduleKind {
-	case scheduleKindAuto:
-		tm := st.Time
-		if !validTimeStr(tm) {
-			tm = DefaultSchedTime
-		}
-		ah, am := parseTimeHHMM(tm)
-		slot := todaySlot(tm, now)
-		if now.Before(slot) || last == nil || last.TS.Before(slot) {
-			return slot
-		}
-		d := now.AddDate(0, 0, 1)
-		return time.Date(d.Year(), d.Month(), d.Day(), ah, am, 0, 0, now.Location())
 	case "weekly":
 		dow := 0
 		if st.DayOfWeek != nil {

@@ -93,7 +93,7 @@ func TestTickRunsWhenDueAndNotBefore(t *testing.T) {
 	runner := &countingRunner{}
 	sched.runner = runner
 	sched.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
-	if err := sched.SaveSettings(Settings{Enabled: true, IntervalHours: 6, Provider: ProviderOokla}); err != nil {
+	if err := sched.SaveSettings(Settings{Enabled: true, IntervalHours: 6}); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	// Sin resultados previos: el tick ejecuta (primera activación).
@@ -129,7 +129,6 @@ func TestRunNowSingleFlight(t *testing.T) {
 	_, sched := openStore(t)
 	runner := &blockingRunner{release: make(chan struct{})}
 	sched.runner = runner
-	sched.SetNDTRunner(runner)
 	if err := sched.RunNow(); err != nil {
 		t.Fatalf("runnow: %v", err)
 	}
