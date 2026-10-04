@@ -1945,6 +1945,7 @@ export default function Devices() {
         saving={savingOverride}
         onClose={() => setEditingId(null)}
         onSave={handleEditSave}
+        onDeleted={() => setEditingId(null)}
       />
 
       <OnboardingIntake

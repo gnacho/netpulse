@@ -17,6 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn, fetchJson } from '@/lib/utils'
 import type { ClientDevice } from '@/pages/devices-data'
 
@@ -34,6 +35,8 @@ export interface DeviceEditSheetProps {
   onClose: () => void
   /** Patch absoluto: '' en un campo = volver al valor automático (#797). */
   onSave: (device: ClientDevice, patch: { icon: string; name: string; type: string }) => void
+  /** #1145: tras borrar el cliente del registro (el padre cierra y refresca). */
+  onDeleted?: () => void
 }
 
 // #797: tipos válidos del clasificador (paridad con adapters.ValidDeviceTypes
@@ -50,8 +53,11 @@ export function DeviceEditSheet({
   saving,
   onClose,
   onSave,
+  onDeleted,
 }: DeviceEditSheetProps) {
   const { t } = useTranslation()
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [icon, setIcon] = useState(device?.iconOverride ?? '')
   const [name, setName] = useState(device?.nameOverride ?? '')
   const [devType, setDevType] = useState(device?.typeOverride ?? '')
@@ -472,8 +478,53 @@ export function DeviceEditSheet({
               </p>
             )}
 
+            {/* #1145: borrado del cliente del registro. Un cliente borrado
+                solo reaparece si se le vuelve a ver en vivo. */}
+            {!isDemo && device?.mac && (
+              <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">
+                <div className="text-label uppercase tracking-wide text-danger">{t('devices.edit.dangerZone')}</div>
+                <p className="mb-2 mt-1 text-caption text-text-muted">{t('devices.edit.deleteDesc')}</p>
+                <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+                  {t('devices.edit.delete')}
+                </Button>
+              </div>
+            )}
+
           </div>
         )}
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('devices.edit.deleteTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('devices.edit.deleteConfirmDesc', { name: device?.name || device?.mac || '' })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={async (e) => {
+                  e.preventDefault()
+                  if (!device?.mac) return
+                  setDeleting(true)
+                  try {
+                    await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}`, { method: 'DELETE' })
+                    setDeleteOpen(false)
+                    onDeleted?.()
+                    onClose()
+                  } catch {
+                    // el fallo deja la hoja abierta; el botón vuelve a habilitarse
+                  } finally {
+                    setDeleting(false)
+                  }
+                }}
+              >
+                {deleting ? t('common.loading') : t('devices.edit.delete')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   )
