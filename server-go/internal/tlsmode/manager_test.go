@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -695,24 +696,81 @@ func TestAnUpgradeKeepsTheHTTPSPortItWasSetUpOn(t *testing.T) {
 	r.m.Close()
 	opts := r.m.opts
 	opts.Port = 443 // the new default
+	clear := func() {
+		r.m.kvSet(kvPort, "")
+		r.m.kvSet(kvPortMigrated, "")
+		r.m.kvSet(kvEnabled, "")
+	}
 
+	clear()
 	if m := New(opts); m.port != 443 {
 		t.Fatalf("fresh install: port %d, want the default 443", m.port)
 	}
 
+	clear()
 	r.m.kvSet(kvEnabled, "1") // HTTPS configured, no port recorded: pre-#978
 	m := New(opts)
 	if m.port != legacyDefaultPort || m.savedPort() != legacyDefaultPort {
 		t.Fatalf("upgraded install: port %d saved %d, want %d", m.port, m.savedPort(), legacyDefaultPort)
 	}
-	// Recorded once, it is an ordinary setting from then on.
 	if again := New(opts); again.port != legacyDefaultPort {
 		t.Fatalf("after a restart: port %d, want %d", again.port, legacyDefaultPort)
 	}
 
-	envOpts := opts
-	envOpts.EnvPort = true
-	if m := New(envOpts); m.port != 443 {
+	clear()
+	on := true
+	envOn := opts
+	envOn.EnvEnabled = &on // turned on from the environment, never from Settings
+	if m := New(envOn); m.port != legacyDefaultPort {
+		t.Fatalf("env-enabled install: port %d, want %d", m.port, legacyDefaultPort)
+	}
+
+	clear()
+	r.m.kvSet(kvEnabled, "1")
+	envPort := opts
+	envPort.EnvPort = true
+	if m := New(envPort); m.port != 443 {
 		t.Fatalf("env-pinned port: %d, want 443", m.port)
 	}
+}
+
+// FORK: the migration runs once. HTTPS turned on in Settings after the
+// upgrade keeps the port it was turned on with across restarts - it must
+// never be mistaken for a pre-#978 install and moved to 3443.
+func TestHTTPSTurnedOnAfterTheUpgradeKeepsItsPort(t *testing.T) {
+	r := newRig(t, nil) // first start of this build: decides nothing, marks it
+	if err := r.m.SetEnabled(true, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	r.m.Close()
+	if again := New(r.m.opts); again.port != r.port {
+		t.Fatalf("after a restart: port %d, want %d", again.port, r.port)
+	}
+	opts := r.m.opts
+	opts.Port = r.port + 1 // even if the default changes again
+	if again := New(opts); again.port != r.port {
+		t.Fatalf("after a default change: port %d, want %d", again.port, r.port)
+	}
+}
+
+// FORK: the URL agents are given names the port the listener is on, also
+// after SetPort - a reinstall pinned to another port loses the agent.
+func TestAgentURLFollowsTheListenerPort(t *testing.T) {
+	r := newRig(t, nil)
+	if err := r.m.SetEnabled(true, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	check := func(want int) {
+		t.Helper()
+		u := r.m.HTTPSURL("http://192.168.50.2:3000")
+		if !strings.HasSuffix(u, ":"+strconv.Itoa(want)) {
+			t.Fatalf("agent URL %q, want port %d (Status says %d)", u, want, r.m.Status().Port)
+		}
+	}
+	check(r.port)
+	newPort := freePort(t)
+	if err := r.m.SetPort(newPort, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	check(newPort)
 }

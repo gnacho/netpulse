@@ -68,6 +68,8 @@ const (
 	kvEnabled = "settings.https.enabled"
 	kvMode    = "settings.https.mode"
 	kvPort    = "settings.https.port" // #978: UI-chosen HTTPS port
+	// kvPortMigrated (FORK) marks that the pre-#978 port was decided once.
+	kvPortMigrated = "settings.https.port_migrated"
 
 	// ConfirmWindow is how long a staged mode change waits for confirmation
 	// from an HTTPS page before it is dropped.
@@ -169,7 +171,7 @@ func New(opts Options) *Manager {
 	if !opts.EnvPort {
 		if v := m.savedPort(); v != 0 {
 			m.port = v
-		} else if m.kvGet(kvEnabled) != "" {
+		} else if m.kvGet(kvPortMigrated) == "" && m.setUpBeforePortSetting() {
 			// FORK: HTTPS configured before the port became a setting
 			// (#978) was set up on the then-default 3443, and its agents
 			// and bookmarks point there. Moving it to the new default on
@@ -177,8 +179,24 @@ func New(opts Options) *Manager {
 			m.port = legacyDefaultPort
 			m.savePort(legacyDefaultPort)
 		}
+		// Decided once, on the first start of a build that has the
+		// setting: from then on an unrecorded port is simply the default.
+		m.kvSet(kvPortMigrated, "1")
 	}
 	return m
+}
+
+// setUpBeforePortSetting says HTTPS had been configured on this install,
+// from Settings or from the environment, before its port was recorded.
+func (m *Manager) setUpBeforePortSetting() bool {
+	return m.kvGet(kvEnabled) != "" || (m.opts.EnvEnabled != nil && *m.opts.EnvEnabled)
+}
+
+// currentPort is the HTTPS port, which SetPort may change at any time.
+func (m *Manager) currentPort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.port
 }
 
 // legacyDefaultPort is the HTTPS port before #978 made it a setting.
@@ -343,6 +361,11 @@ func (m *Manager) SetEnabled(on bool, by string) error {
 	}
 	m.enabled = on
 	m.saveEnabled(on)
+	// FORK: record the port it was turned on with, so a later change of
+	// the default never moves a listener its agents are pinned to.
+	if on && m.savedPort() == 0 {
+		m.savePort(m.port)
+	}
 	m.opts.Logf("[netpulse] HTTPS turned %s by %s", onOff(on), by)
 	return nil
 }
@@ -597,7 +620,7 @@ func (m *Manager) RedirectTarget(r *http.Request) (string, bool) {
 	}
 	u := url.URL{
 		Scheme:   "https",
-		Host:     net.JoinHostPort(host, fmt.Sprint(m.port)),
+		Host:     net.JoinHostPort(host, fmt.Sprint(m.currentPort())),
 		Path:     r.URL.Path,
 		RawQuery: r.URL.RawQuery,
 	}
