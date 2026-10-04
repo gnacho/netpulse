@@ -13,11 +13,15 @@
 import { useTranslation } from 'react-i18next'
 import {
   BookOpen,
+  Bot,
   CircleHelp,
   Cpu,
   KeyRound,
   ListChecks,
+  Radio,
+  BellRing,
   Router as RouterIcon,
+  Send,
   Server,
   Wifi,
 } from 'lucide-react'
@@ -58,6 +62,10 @@ const FLOWS = [
   { key: 'channelPlan', icon: Wifi },
   { key: 'firmware', icon: Cpu },
   { key: 'proxmoxToken', icon: Server },
+  { key: 'mqtt', icon: Radio },
+  { key: 'ntfy', icon: BellRing },
+  { key: 'telegram', icon: Send },
+  { key: 'mcp', icon: Bot },
 ] as const
 
 export default function Help() {

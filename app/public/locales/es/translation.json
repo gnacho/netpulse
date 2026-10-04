@@ -2501,6 +2501,58 @@
           "Pulsa ⟦Probar⟧: si el token autentica pero no ve invitados, le faltan los permisos del paso 2."
         ],
         "tip": "El secret solo se envía una vez y no vuelve del servidor: para cambiarlo, edita la instancia y escribe el nuevo."
+      },
+      "mqtt": {
+        "title": "Conectar con Home Assistant (MQTT)",
+        "subtitle": "Sensores de la red en Home Assistant, descubiertos solos",
+        "intro": "NetPulse publica el estado de la flota en un broker MQTT y Home Assistant descubre automáticamente un dispositivo con la salud de la red y otro por cada router.",
+        "steps": [
+          "Ve a ⟦Ajustes⟧, sección ⟦Integraciones⟧, y abre la fila ⟦MQTT / Home Assistant⟧.",
+          "Rellena ⟦Broker⟧ (la IP del broker, por ejemplo la de Home Assistant), ⟦Puerto⟧ (1883 por defecto), ⟦Usuario⟧ y ⟦Contraseña⟧ si el broker las exige.",
+          "Dale un nombre a la ⟦Instancia⟧ (por ejemplo casa) y ajusta el ⟦Intervalo de publicación (s)⟧ si lo necesitas.",
+          "Pulsa ⟦Probar conexión⟧ para comprobar la conexión, activa ⟦Activado⟧ y guarda.",
+          "En Home Assistant no hay nada que configurar: el descubrimiento MQTT crea los sensores (salud, clientes, CPU, memoria, temperatura, alertas) en cuanto llega el primer mensaje."
+        ],
+        "tip": "La conexión al broker no lleva TLS: úsala dentro de tu red local o contra un broker en la misma máquina. El mismo ajuste propaga la configuración a los routers con NetGrip."
+      },
+      "ntfy": {
+        "title": "Notificaciones push con ntfy",
+        "subtitle": "Alertas urgentes en el móvil o el escritorio",
+        "intro": "ntfy lleva las alertas urgentes a las apps de móvil y escritorio usando tu propio servidor o ntfy.sh, sin depender de terceros.",
+        "steps": [
+          "Ve a ⟦Ajustes⟧, sección ⟦Notificaciones⟧, y abre la fila ⟦Notificaciones push por ntfy⟧.",
+          "Rellena ⟦Servidor⟧ (https://ntfy.sh o la URL de tu servidor) y un ⟦Topic⟧ largo y aleatorio.",
+          "Si el topic es reservado, añade también el ⟦Token de acceso⟧.",
+          "Activa ⟦Activado⟧, guarda y pulsa ⟦Probar⟧: debe llegarte una notificación de prueba.",
+          "Instala la app de ntfy en el móvil y suscríbete al mismo topic."
+        ],
+        "tip": "El topic funciona como contraseña: quien lo conozca recibirá las notificaciones. Solo se envían las alertas urgentes."
+      },
+      "telegram": {
+        "title": "Alertas por Telegram",
+        "subtitle": "Avisa donde ya estás",
+        "intro": "Un bot de Telegram reenvía las alertas urgentes a un chat privado o de grupo. Solo necesitas crear el bot una vez.",
+        "steps": [
+          "En Telegram, escribe a @BotFather, crea un bot con /newbot y copia el token que te da.",
+          "Envía /start a tu bot nuevo: si no, no podrá escribirte.",
+          "Ve a ⟦Ajustes⟧, sección ⟦Notificaciones⟧, y abre la fila ⟦Notificaciones al bot de Telegram⟧.",
+          "Pega el token en ⟦Token del bot⟧ y tu ID de chat en ⟦ID del chat⟧.",
+          "Activa ⟦Activar notificaciones Telegram⟧ y pulsa ⟦Enviar prueba⟧."
+        ],
+        "tip": "Para avisar a un grupo, añade el bot al grupo y usa el ID de ese chat (empieza por -). Tu ID de usuario lo consultas con @userinfobot."
+      },
+      "mcp": {
+        "title": "Asistentes de IA (MCP)",
+        "subtitle": "Tu instancia, consultable con herramientas de solo lectura",
+        "intro": "El servidor MCP expone un endpoint en /mcp para que los asistentes de IA consulten la flota, la salud por router, los dispositivos, WireGuard, AdGuard, la topología y las alertas. Todo de solo lectura.",
+        "steps": [
+          "El endpoint debe estar habilitado en el servidor: añade NETPULSE_MCP_ENABLED=1 al entorno del servicio (por ejemplo el .env junto al binario) y reinicia. Si falta, el propio diálogo te lo indica.",
+          "Ve a ⟦Ajustes⟧, sección ⟦Integraciones⟧, y abre la fila ⟦MCP — asistentes de IA⟧ (visible con Labs activado).",
+          "Activa ⟦Endpoint /mcp activo⟧.",
+          "Crea un token con el gestor integrado en el propio diálogo.",
+          "En tu asistente, configura un servidor MCP remoto con la URL http://IP:puerto/mcp y el token como Bearer."
+        ],
+        "tip": "Las herramientas son de solo lectura y cada llamada queda registrada en el journal del servidor. Revoca el token cuando dejes de usarlo."
       }
     }
   },
