@@ -33,6 +33,7 @@ export default defineConfig([
       'react-hooks/set-state-in-render': 'off',
       'react-hooks/refs': 'off',
       'react-hooks/static-components': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/use-memo': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/globals': 'off',

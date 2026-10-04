@@ -52,7 +52,7 @@ export function WanLatency({ extras }: { extras?: RouterExtras }) {
   const hasLatency = spark.length > 0
   const avgMs = hasLatency ? spark.reduce((a, b) => a + b, 0) / spark.length : undefined
   const jitterMs = hasLatency
-    ? spark.slice(1).reduce((acc, v, i) => acc + Math.abs(v - spark[i]), 0) / (spark.length - 1)
+    ? spark.slice(1).reduce((acc, v, i) => acc + Math.abs(v - (spark[i] ?? 0)), 0) / (spark.length - 1)
     : undefined
   // La pérdida solo es significativa si la sonda corre (latencia > 0).
   const hasProbe = wan.latencyMs > 0

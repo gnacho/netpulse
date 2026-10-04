@@ -522,7 +522,7 @@ export function DeviceEditSheet({
                 <div className="text-label uppercase tracking-wide text-text-muted">{t('devices.edit.linkedMacs')}</div>
                 {(device.aliasMacs?.length ?? 0) > 0 && (
                   <ul className="mb-2 mt-1.5 space-y-1">
-                    {device.aliasMacs.map((alias) => (
+                    {device.aliasMacs?.map((alias) => (
                       <li key={alias} className="flex items-center justify-between gap-2 rounded-lg bg-canvas/60 px-2 py-1.5">
                         <span className="font-mono text-mono-sm text-text-primary">{alias}</span>
                         <button
