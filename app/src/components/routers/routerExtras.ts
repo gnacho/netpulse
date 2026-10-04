@@ -125,9 +125,13 @@ export function portPeerDetail(port: EthPort): string {
   }
   switch (port.peerKind) {
     case 'router-link':
-      return i18n.t('routerDetail.ports.detailRouterLink')
     case 'router-link-lldp':
-      return i18n.t('routerDetail.ports.detailRouterLinkLldp')
+      // #1150: la mgmt-ip del vecino LLDP viaja en detail y es más útil
+      // que la plantilla; sin dato LLDP se queda la plantilla traducida.
+      return (
+        port.detail ||
+        i18n.t(port.peerKind === 'router-link' ? 'routerDetail.ports.detailRouterLink' : 'routerDetail.ports.detailRouterLinkLldp')
+      )
     case 'ap-wifi':
       return i18n.t('routerDetail.ports.detailApWifi')
     case 'mac':
