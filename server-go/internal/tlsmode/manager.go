@@ -169,10 +169,20 @@ func New(opts Options) *Manager {
 	if !opts.EnvPort {
 		if v := m.savedPort(); v != 0 {
 			m.port = v
+		} else if m.kvGet(kvEnabled) != "" {
+			// FORK: HTTPS configured before the port became a setting
+			// (#978) was set up on the then-default 3443, and its agents
+			// and bookmarks point there. Moving it to the new default on
+			// upgrade would cut them off, so record the port it has.
+			m.port = legacyDefaultPort
+			m.savePort(legacyDefaultPort)
 		}
 	}
 	return m
 }
+
+// legacyDefaultPort is the HTTPS port before #978 made it a setting.
+const legacyDefaultPort = 3443
 
 // Start begins serving HTTPS if it is enabled. h is the API handler, served
 // on the TLS listener exactly as on the plain one. An error is returned only

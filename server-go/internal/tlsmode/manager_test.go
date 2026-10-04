@@ -686,3 +686,33 @@ func TestRenewFollowsAChangedAddress(t *testing.T) {
 		t.Fatal("renewing with nothing changed issued a certificate")
 	}
 }
+
+// FORK: an install whose HTTPS was set up before the port became a setting
+// keeps 3443 across the upgrade; a fresh one gets the new default, and the
+// environment still wins over both.
+func TestAnUpgradeKeepsTheHTTPSPortItWasSetUpOn(t *testing.T) {
+	r := newRig(t, nil)
+	r.m.Close()
+	opts := r.m.opts
+	opts.Port = 443 // the new default
+
+	if m := New(opts); m.port != 443 {
+		t.Fatalf("fresh install: port %d, want the default 443", m.port)
+	}
+
+	r.m.kvSet(kvEnabled, "1") // HTTPS configured, no port recorded: pre-#978
+	m := New(opts)
+	if m.port != legacyDefaultPort || m.savedPort() != legacyDefaultPort {
+		t.Fatalf("upgraded install: port %d saved %d, want %d", m.port, m.savedPort(), legacyDefaultPort)
+	}
+	// Recorded once, it is an ordinary setting from then on.
+	if again := New(opts); again.port != legacyDefaultPort {
+		t.Fatalf("after a restart: port %d, want %d", again.port, legacyDefaultPort)
+	}
+
+	envOpts := opts
+	envOpts.EnvPort = true
+	if m := New(envOpts); m.port != 443 {
+		t.Fatalf("env-pinned port: %d, want 443", m.port)
+	}
+}
