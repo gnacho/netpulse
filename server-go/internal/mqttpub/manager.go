@@ -50,7 +50,7 @@ func (m *Manager) startLocked() {
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		New(m.cfg, m.version, m.snapshot, m.demo).Start(ctx)
+		New(m.cfg, m.version, m.snapshot, m.demo).Run(ctx)
 	}()
 }
 
