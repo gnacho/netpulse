@@ -415,7 +415,7 @@ function RackCanvas() {
     }
     if (!draggingRef.current) setNodes(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, working, activeRackId, patchMode, draft, rackMoves, deletedCables, hoverMountId, selectedMountId, isAdmin])
+  }, [loaded, working, activeRackId, patchMode, draft, rackMoves, deletedCables, hoverMountId, selectedMountId, isAdmin, routerNameByMac])
 
   // handlePortClick se declara después; referencia estable vía ref.
   const portClickRef = useRef<(mountId: string, portId: string) => void>(() => {})
