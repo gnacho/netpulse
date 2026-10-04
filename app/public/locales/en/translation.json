@@ -632,7 +632,7 @@
     "empty": "No router has usteer enabled. Install it on OpenWrt to see the roaming mesh.",
     "tabMatrix": "Matrix",
     "tab11r": "802.11r",
-    "tabSurvey": "Channel analysis",
+    "tabSurvey": "Current channels",
     "tabEvents": "Events",
     "comingSoon": "Coming soon",
     "matrix": {
@@ -1567,8 +1567,6 @@
       "dismiss": "Dismiss",
       "deleteTitle": "Revoke device token",
       "deleteDesc": "The token for “{{slug}}” will be revoked. The scraper will stop sending data until you regenerate the token.",
-      "actualizaciones": "Firmware upgrades",
-      "actualizacionesCaption": "Firmware upgrades (LABS)",
       "regenToken": "Regenerate token",
       "regenTokenCaption": "Rotate external agent token (LABS)",
       "badge": "LABS",

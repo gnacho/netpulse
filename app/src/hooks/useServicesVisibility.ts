@@ -12,7 +12,6 @@ export interface ServicesVisibility {
   labs: boolean
   /** Funcionalidades individuales de Labs (rediseño v3): cada una se
    *  activa/desactiva por separado y controla su entrada en el nav/sidebar. */
-  actualizaciones: boolean
   /** Rack canvas (labs): desactivado por defecto hasta madurar. */
   rack: boolean
 }
@@ -23,9 +22,8 @@ const DEFAULTS: ServicesVisibility = {
   wireguard: true,
   openvpn: false,
   labs: false,
-  // Por defecto, al activar Labs se muestran las 3 funcionalidades activas;
+  // Por defecto, al activar Labs se muestran las funcionalidades activas;
   // el admin las puede desactivar individualmente.
-  actualizaciones: true,
   // Rack (labs) nace DESACTIVADO: vista en desarrollo.
   rack: false,
 }

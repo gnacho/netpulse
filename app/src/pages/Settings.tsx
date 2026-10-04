@@ -4043,18 +4043,6 @@ function ServicesCard({
               />
             </div>
             <div className="divide-y divide-border/60">
-              {/* Actualizaciones */}
-              <SwitchRow
-                label={t('settings.labs.actualizaciones')}
-                caption={t('settings.labs.actualizacionesCaption')}
-                checked={services.actualizaciones}
-                disabled={disabled}
-                danger
-                onCheckedChange={(v) => {
-                  setService('actualizaciones', v)
-                  onSaved()
-                }}
-              />
               {/* Rack canvas (labs): desactivado por defecto */}
               <SwitchRow
                 label={t('settings.labs.rack')}
