@@ -3364,192 +3364,25 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	if p != nil {
 		ports = p.ports
 	}
+	var depsLldp []LldpNeighbor
+	if p != nil {
+		depsLldp = p.lldp
+	}
+	deps := portEnrichDeps{
+		routerByMac: routerByMac,
+		leaseMap:    leaseMap,
+		aliasByMac:  aliasByMac,
+		wifiByMac:   wifiByMac,
+		portMacs:    portMacs,
+		lldp:        depsLldp,
+	}
 	enriched := make([]EthPort, 0, len(ports))
 	for _, port := range ports {
 		if !port.Up {
 			enriched = append(enriched, port)
 			continue
 		}
-		netdev := portNetdev(port)
-		all := portMacs[netdev]
-		// #1036: portMacs se construye iterando el FDB (mapa), así que el
-		// ORDEN de las MACs por boca cambia en cada tick. Con 2-3 MACs la
-		// heurística de "primera con hostname DHCP" elegía un dispositivo
-		// distinto por ciclo y la etiqueta del puerto flappeaba. Orden
-		// estable: la selección queda determinista entre polls.
-		sort.Strings(all)
-		// 1) ¿Otro router al otro lado? (uplink router↔router)
-		neighbor := ""
-		for _, mac := range all {
-			if _, ok := routerByMac[mac]; ok {
-				neighbor = mac
-				break
-			}
-		}
-		if neighbor != "" {
-			port.ConnectedTo = routerByMac[neighbor]
-			// El cliente traduce la plantilla según PeerKind (#1039).
-			port.PeerKind = "router-link"
-			// El vecino además se anuncia por LLDP → el frontend puede
-			// mostrar el sufijo "· LLDP" en la etiqueta del uplink (C2).
-			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil {
-				port.PeerKind = "router-link-lldp"
-			}
-			enriched = append(enriched, port)
-			continue
-		}
-		// 1.5) Cliente WiFi detrás de un AP: la boca del switch lleva al AP
-		// (el cliente viaja por su radio). Atribuir la boca al AP y señalar
-		// el cliente como "detrás" (#291). Guard de longitud PRIMERO: una
-		// boca up sin MACs aprendidas llega con all vacío.
-		if len(all) > 0 {
-			if ap, isWifi := wifiByMac[all[0]]; isWifi && allWifiOfOneAP(all, wifiByMac) {
-				port.ConnectedTo = ap
-				port.DeviceMac = all[0]
-				// La pista "cliente WiFi detrás" la traduce el cliente
-				// según PeerKind (#1039); el nombre del AP viaja en ConnectedTo.
-				port.PeerKind = "ap-wifi"
-				enriched = append(enriched, port)
-				continue
-			}
-		}
-		// 2) Un solo dispositivo final
-		if len(all) == 1 {
-			mac := all[0]
-			lease, ok := leaseMap[mac]
-			// #931: un vecino LLDP en esta boca es el propio equipo
-			// anunciándose; su sysName/mgmt-ip son mejor identificación que
-			// la MAC pelada cuando no hay hostname DHCP ni alias.
-			lldpName, lldpMgmt := "", ""
-			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil {
-				lldpName = nb.displayName()
-				lldpMgmt = nb.Mgmt
-			}
-			// MAC de virtualización (QEMU/KVM, Proxmox, VMware, Hyper-V):
-			// el equipo enchufado es el hypervisor; lo aprendido es una
-			// NIC virtual de una VM/CT (#291).
-			if isVirtualMAC(mac) {
-				port.ConnectedTo = "Hypervisor"
-				port.DeviceMac = mac
-				port.Detail = virtualDetail(mac, leaseMap, aliasByMac)
-				enriched = append(enriched, port)
-				continue
-			}
-			// Label curada que no coincide con el dispositivo resuelto:
-			// - si el dispositivo tiene nombre real (lease/alias), la label
-			//   nombra la infraestructura física y lo aprendido está DETRÁS
-			//   (p. ej. ngxpm detrás de citadel-02);
-			// - si el dispositivo no tiene nombre mejor que su MAC, la label
-			//   ES su nombre (bautizada a mano: "hikvision"), y la MAC queda
-			//   como detalle.
-			if isCuratedLabel(port) && !labelMatchesDevice(port.Label, mac, leaseMap, aliasByMac) {
-				name := deviceDisplayName(mac, leaseMap, aliasByMac)
-				port.DeviceMac = mac
-				if name != mac {
-					// El cliente compone "nombre · detrás de <label>" con
-					// su i18n (#1039); aquí viaja el nombre a pelo.
-					port.ConnectedTo = name
-					port.PeerKind = "curated"
-				} else if lldpName != "" {
-					// #931: sin nombre mejor, el equipo se anuncia por LLDP.
-					port.ConnectedTo = lldpName
-					port.PeerKind = "mac"
-				} else {
-					port.ConnectedTo = port.Label
-					port.PeerKind = "mac"
-				}
-				if lease, ok := leaseMap[mac]; ok && lease.IP != "" {
-					port.Detail = lease.IP
-				} else if lldpMgmt != "" && lldpName != "" {
-					port.Detail = lldpMgmt + " · LLDP"
-				}
-				enriched = append(enriched, port)
-				continue
-			}
-			switch {
-			case ok && lease.Hostname != "":
-				port.ConnectedTo = lease.Hostname
-			case ok && lease.IP != "":
-				port.ConnectedTo = lease.IP
-			case aliasByMac[mac] != "":
-				port.ConnectedTo = aliasByMac[mac]
-			case lldpName != "":
-				// #931: sin lease ni alias, el nombre anunciado por el
-				// propio equipo (LLDP sysName) es la mejor etiqueta.
-				port.ConnectedTo = lldpName
-				if lldpMgmt != "" {
-					port.Detail = lldpMgmt + " · LLDP"
-				}
-			default:
-				port.ConnectedTo = mac
-			}
-			port.DeviceMac = mac
-			if ok && lease.IP != "" {
-				port.Detail = lease.IP + " · full duplex"
-			}
-			enriched = append(enriched, port)
-			continue
-		}
-		// 3) Varios: el vecino es un switch/hub/hipervisor
-		if len(all) > 1 {
-			// Muchas MACs detrás de una boca = agregación (hipervisor Proxmox
-			// con CTs, switch tonto): nombrar UN CT al azar engaña (la MAC es
-			// virtual, no el equipo enchufado). La label curada del puerto ya
-			// identifica el físico; aquí se cuenta lo que hay detrás (#291).
-			if len(all) > 3 {
-				// deviceCount lo traduce la app; aquí NO se formatea texto (#1036).
-				port.DeviceCount = len(all)
-				enriched = append(enriched, port)
-				continue
-			}
-			// Si se anuncia por LLDP, esa identificación (chassis + mgmt-ip)
-			// es mejor pista que el hostname DHCP.
-			if nb := lldpNeighborOnPort(p.lldp, netdev); nb != nil && nb.displayName() != "" {
-				port.ConnectedTo = nb.displayName()
-				if nb.Mgmt != "" {
-					port.Detail = nb.Mgmt + " · LLDP"
-				} else {
-					port.Detail = "LLDP"
-				}
-				enriched = append(enriched, port)
-				continue
-			}
-			infraMac := ""
-			for _, mac := range all {
-				if le, ok := leaseMap[mac]; ok && le.Hostname != "" {
-					infraMac = mac
-					break
-				}
-			}
-			if infraMac == "" {
-				// Sin hostname DHCP: primer alias manual como pista (#291).
-				for _, mac := range all {
-					if aliasByMac[mac] != "" {
-						infraMac = mac
-						break
-					}
-				}
-			}
-			if infraMac != "" {
-				if lease, ok := leaseMap[infraMac]; ok && lease.Hostname != "" {
-					port.ConnectedTo = lease.Hostname
-					port.DeviceMac = infraMac
-					if lease.IP != "" {
-						port.Detail = lease.IP
-					}
-				} else if alias := aliasByMac[infraMac]; alias != "" {
-					port.ConnectedTo = alias
-					port.DeviceMac = infraMac
-				}
-			} else {
-				// Switch/bridge tonto inferido: sin lease ni alias que lo
-				// nombre. El cliente traduce la etiqueta (#1039/#1040).
-				port.PeerKind = "inferred-switch"
-			}
-			enriched = append(enriched, port)
-			continue
-		}
-		enriched = append(enriched, port)
+		enriched = append(enriched, enrichEthPort(port, portNetdev(port), deps))
 	}
 	// Per-port health score (issue #299): compute from recent series + flapping.
 	l.enrichPortHealth(id, enriched)
@@ -4605,4 +4438,212 @@ func deviceDisplayName(mac string, leases map[string]DhcpLease, aliases map[stri
 		return a
 	}
 	return mac
+}
+
+
+// portEnrichDeps: mapas compartidos del enriquecimiento de bocas del
+// detalle (extraído de GetRouterDetail, #1150, para poder testearlo).
+type portEnrichDeps struct {
+	routerByMac map[string]string
+	leaseMap    map[string]DhcpLease
+	aliasByMac  map[string]string
+	wifiByMac   map[string]string
+	portMacs    map[string][]string
+	lldp        []LldpNeighbor
+}
+
+// enrichEthPort: enriquece UNA boca encendida con el par que tiene enfrente
+// (router-link, cliente WiFi detrás del AP, dispositivo único, agregación).
+// Mismo comportamiento que el bucle inline que sustituye (#1150).
+func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
+	all := d.portMacs[netdev]
+	// #1036: d.portMacs se construye iterando el FDB (mapa), así que el
+	// ORDEN de las MACs por boca cambia en cada tick. Con 2-3 MACs la
+	// heurística de "primera con hostname DHCP" elegía un dispositivo
+	// distinto por ciclo y la etiqueta del puerto flappeaba. Orden
+	// estable: la selección queda determinista entre polls.
+	sort.Strings(all)
+	// 1) ¿Otro router al otro lado? (uplink router↔router)
+	neighbor := ""
+	for _, mac := range all {
+		if _, ok := d.routerByMac[mac]; ok {
+			neighbor = mac
+			break
+		}
+	}
+	if neighbor != "" {
+		port.ConnectedTo = d.routerByMac[neighbor]
+		// El cliente traduce la plantilla según PeerKind (#1039).
+		port.PeerKind = "router-link"
+		// #1150: con switches encadenados la boca aprende las MACs de bridge
+		// de VARIAS unidades (el tráfico de sw2 atraviesa sw1) y la primera
+		// MAC ordenada puede nombrar al switch LEJANO. El LLDP anuncia al
+		// vecino DIRECTO de la boca: su chassis MAC (si es unidad conocida)
+		// o su sysName manda sobre la MAC ordenada, y la mgmt-ip va al
+		// detalle del hover.
+		if nb := lldpNeighborOnPort(d.lldp, netdev); nb != nil {
+			port.PeerKind = "router-link-lldp"
+			if nb.ChassisMac != "" {
+				// La MAC del vecino (su bridge) va al hover como en las bocas
+				// de dispositivo único (#1150).
+				port.DeviceMac = strings.ToUpper(nb.ChassisMac)
+				if name, ok := d.routerByMac[strings.ToUpper(nb.ChassisMac)]; ok {
+					port.ConnectedTo = name
+				} else if dn := nb.displayName(); dn != "" {
+					port.ConnectedTo = dn
+				}
+			} else if dn := nb.displayName(); dn != "" {
+				port.ConnectedTo = dn
+			}
+			if nb.Mgmt != "" {
+				port.Detail = nb.Mgmt + " · LLDP"
+			}
+		}
+		return port
+	}
+	// 1.5) Cliente WiFi detrás de un AP: la boca del switch lleva al AP
+	// (el cliente viaja por su radio). Atribuir la boca al AP y señalar
+	// el cliente como "detrás" (#291). Guard de longitud PRIMERO: una
+	// boca up sin MACs aprendidas llega con all vacío.
+	if len(all) > 0 {
+		if ap, isWifi := d.wifiByMac[all[0]]; isWifi && allWifiOfOneAP(all, d.wifiByMac) {
+			port.ConnectedTo = ap
+			port.DeviceMac = all[0]
+			// La pista "cliente WiFi detrás" la traduce el cliente
+			// según PeerKind (#1039); el nombre del AP viaja en ConnectedTo.
+			port.PeerKind = "ap-wifi"
+		return port
+		}
+	}
+	// 2) Un solo dispositivo final
+	if len(all) == 1 {
+		mac := all[0]
+		lease, ok := d.leaseMap[mac]
+		// #931: un vecino LLDP en esta boca es el propio equipo
+		// anunciándose; su sysName/mgmt-ip son mejor identificación que
+		// la MAC pelada cuando no hay hostname DHCP ni alias.
+		lldpName, lldpMgmt := "", ""
+		if nb := lldpNeighborOnPort(d.lldp, netdev); nb != nil {
+			lldpName = nb.displayName()
+			lldpMgmt = nb.Mgmt
+		}
+		// MAC de virtualización (QEMU/KVM, Proxmox, VMware, Hyper-V):
+		// el equipo enchufado es el hypervisor; lo aprendido es una
+		// NIC virtual de una VM/CT (#291).
+		if isVirtualMAC(mac) {
+			port.ConnectedTo = "Hypervisor"
+			port.DeviceMac = mac
+			port.Detail = virtualDetail(mac, d.leaseMap, d.aliasByMac)
+		return port
+		}
+		// Label curada que no coincide con el dispositivo resuelto:
+		// - si el dispositivo tiene nombre real (lease/alias), la label
+		//   nombra la infraestructura física y lo aprendido está DETRÁS
+		//   (p. ej. ngxpm detrás de citadel-02);
+		// - si el dispositivo no tiene nombre mejor que su MAC, la label
+		//   ES su nombre (bautizada a mano: "hikvision"), y la MAC queda
+		//   como detalle.
+		if isCuratedLabel(port) && !labelMatchesDevice(port.Label, mac, d.leaseMap, d.aliasByMac) {
+			name := deviceDisplayName(mac, d.leaseMap, d.aliasByMac)
+			port.DeviceMac = mac
+			if name != mac {
+				// El cliente compone "nombre · detrás de <label>" con
+				// su i18n (#1039); aquí viaja el nombre a pelo.
+				port.ConnectedTo = name
+				port.PeerKind = "curated"
+			} else if lldpName != "" {
+				// #931: sin nombre mejor, el equipo se anuncia por LLDP.
+				port.ConnectedTo = lldpName
+				port.PeerKind = "mac"
+			} else {
+				port.ConnectedTo = port.Label
+				port.PeerKind = "mac"
+			}
+			if lease, ok := d.leaseMap[mac]; ok && lease.IP != "" {
+				port.Detail = lease.IP
+			} else if lldpMgmt != "" && lldpName != "" {
+				port.Detail = lldpMgmt + " · LLDP"
+			}
+		return port
+		}
+		switch {
+		case ok && lease.Hostname != "":
+			port.ConnectedTo = lease.Hostname
+		case ok && lease.IP != "":
+			port.ConnectedTo = lease.IP
+		case d.aliasByMac[mac] != "":
+			port.ConnectedTo = d.aliasByMac[mac]
+		case lldpName != "":
+			// #931: sin lease ni alias, el nombre anunciado por el
+			// propio equipo (LLDP sysName) es la mejor etiqueta.
+			port.ConnectedTo = lldpName
+			if lldpMgmt != "" {
+				port.Detail = lldpMgmt + " · LLDP"
+			}
+		default:
+			port.ConnectedTo = mac
+		}
+		port.DeviceMac = mac
+		if ok && lease.IP != "" {
+			port.Detail = lease.IP + " · full duplex"
+		}
+		return port
+	}
+	// 3) Varios: el vecino es un switch/hub/hipervisor
+	if len(all) > 1 {
+		// Muchas MACs detrás de una boca = agregación (hipervisor Proxmox
+		// con CTs, switch tonto): nombrar UN CT al azar engaña (la MAC es
+		// virtual, no el equipo enchufado). La label curada del puerto ya
+		// identifica el físico; aquí se cuenta lo que hay detrás (#291).
+		if len(all) > 3 {
+			// deviceCount lo traduce la app; aquí NO se formatea texto (#1036).
+			port.DeviceCount = len(all)
+		return port
+		}
+		// Si se anuncia por LLDP, esa identificación (chassis + mgmt-ip)
+		// es mejor pista que el hostname DHCP.
+		if nb := lldpNeighborOnPort(d.lldp, netdev); nb != nil && nb.displayName() != "" {
+			port.ConnectedTo = nb.displayName()
+			if nb.Mgmt != "" {
+				port.Detail = nb.Mgmt + " · LLDP"
+			} else {
+				port.Detail = "LLDP"
+			}
+		return port
+		}
+		infraMac := ""
+		for _, mac := range all {
+			if le, ok := d.leaseMap[mac]; ok && le.Hostname != "" {
+				infraMac = mac
+				break
+			}
+		}
+		if infraMac == "" {
+			// Sin hostname DHCP: primer alias manual como pista (#291).
+			for _, mac := range all {
+				if d.aliasByMac[mac] != "" {
+					infraMac = mac
+					break
+				}
+			}
+		}
+		if infraMac != "" {
+			if lease, ok := d.leaseMap[infraMac]; ok && lease.Hostname != "" {
+				port.ConnectedTo = lease.Hostname
+				port.DeviceMac = infraMac
+				if lease.IP != "" {
+					port.Detail = lease.IP
+				}
+			} else if alias := d.aliasByMac[infraMac]; alias != "" {
+				port.ConnectedTo = alias
+				port.DeviceMac = infraMac
+			}
+		} else {
+			// Switch/bridge tonto inferido: sin lease ni alias que lo
+			// nombre. El cliente traduce la etiqueta (#1039/#1040).
+			port.PeerKind = "inferred-switch"
+		}
+		return port
+	}
+	return port
 }

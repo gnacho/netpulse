@@ -207,7 +207,7 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                 )}
               </div>
             ) : (
-              (port.deviceMac || port.deviceCount) && (
+              (port.deviceMac || port.deviceCount || port.detail) && (
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                   {port.deviceMac && <MiniStat label="MAC" value={port.deviceMac} />}
                   {(port.detail || port.deviceCount) && <MiniStat label={t('routerDetail.ports.deviceDetail')} value={portPeerDetail(port)} />}
