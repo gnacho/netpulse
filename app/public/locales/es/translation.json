@@ -2501,6 +2501,55 @@
           "Pulsa ⟦Probar⟧: si el token autentica pero no ve invitados, le faltan los permisos del paso 2."
         ],
         "tip": "El secret solo se envía una vez y no vuelve del servidor: para cambiarlo, edita la instancia y escribe el nuevo."
+      },
+      "mqtt": {
+        "title": "MQTT y Home Assistant",
+        "subtitle": "Publica el estado de tu red a un broker MQTT y Home Assistant lo descubre solo",
+        "intro": "Necesitas un broker MQTT accesible desde NetPulse: Mosquitto, el addon de MQTT de Home Assistant o cualquier servidor compatible.",
+        "steps": [
+          "Localiza tu broker MQTT y sus credenciales (host, puerto —normalmente 1883—, usuario y contraseña si el broker las pide).",
+          "Ve a ⟦Ajustes → Integraciones⟧ y abre la tarjeta de ⟦MQTT⟧.",
+          "Rellena host, puerto y credenciales y guarda.",
+          "NetPulse se conecta y publica el descubrimiento: en Home Assistant aparece un dispositivo con la salud de la red y uno por router.",
+          "Los sensores se crean solos: CPU, memoria, temperatura, clientes y alertas por unidad. También puedes controlar tus routers NetGrip desde allí."
+        ],
+        "tip": "Home Assistant lo descubre todo automáticamente: no hace falta tocar YAML."
+      },
+      "ntfy": {
+        "title": "Notificaciones ntfy",
+        "subtitle": "Avisos push en tu móvil sin cuentas ni nube",
+        "intro": "Necesitas la app de ntfy y un topic privado; si no usas ntfy.sh, también un servidor ntfy propio.",
+        "steps": [
+          "Instala la app de ntfy en tu móvil y suscríbete a un topic con nombre difícil de adivinar (cualquiera que conozca el topic puede leer los avisos).",
+          "Ve a ⟦Ajustes → Notificaciones⟧ y abre la tarjeta de ⟦ntfy⟧.",
+          "Introduce el topic y, si usas un servidor propio, su URL.",
+          "Guarda y pulsa el botón de prueba: el aviso debería llegar al móvil."
+        ],
+        "tip": "Si publicas en ntfy.sh, el topic funciona como una contraseña: usa algo largo y aleatorio."
+      },
+      "telegram": {
+        "title": "Notificaciones de Telegram",
+        "subtitle": "Avisos a un chat de Telegram a través de un bot",
+        "intro": "Necesitas un bot creado con BotFather y el chat donde quieres recibir los avisos.",
+        "steps": [
+          "Crea un bot con ⟦@BotFather⟧ y guarda el token que te da.",
+          "Abre un chat con tu bot (o añádelo a un grupo): Telegram exige que le hayas escrito primero.",
+          "Ve a ⟦Ajustes → Notificaciones⟧ y abre la tarjeta de ⟦Telegram⟧.",
+          "Introduce el token del bot y el chat ID; guarda y pulsa el botón de prueba."
+        ],
+        "tip": "Para saber el chat ID de un grupo, añade al bot al grupo y usa la API getUpdates de Telegram."
+      },
+      "mcp": {
+        "title": "MCP: consulta tu red con IA",
+        "subtitle": "Expón NetPulse a asistentes de IA por el protocolo MCP (experimental)",
+        "intro": "MCP es el protocolo con el que los asistentes de IA consultan herramientas y datos. NetPulse expone un endpoint de solo lectura, autenticado por token y con límite de tasa.",
+        "steps": [
+          "Activa ⟦Labs⟧ en ⟦Ajustes⟧ si no lo está: el MCP es experimental.",
+          "Ve a ⟦Ajustes → Integraciones⟧ y abre la tarjeta de ⟦MCP⟧.",
+          "Crea un token de API en la propia tarjeta y copia la URL del endpoint.",
+          "Configura tu asistente de IA con esa URL y el token: solo podrá consultar, nunca cambiar."
+        ],
+        "tip": "El endpoint es de solo lectura y auditado: cada consulta queda en el diario del servidor."
       }
     }
   },
