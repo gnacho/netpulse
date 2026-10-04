@@ -3998,68 +3998,43 @@ function ServicesCard({
 
   return (
     <Card title={t('settings.services.title')} caption={t('settings.services.caption')} index={3} reduce={reduce}>
-      {/* Red e Integraciones en dos columnas (#1146): servicios de red a la
-          izquierda, integraciones a la derecha; Labs (más abajo) sigue
-          aparte porque solo aparece con el toggle activo. */}
+      {/* Servicios en dos columnas (Labs incluido) y debajo Integraciones,
+          también en dos columnas (#1146). Sin divide-y: en flujo de 2
+          columnas pinta líneas a mitad de fila. */}
       <div>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
-          <div>
-            <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
-            <div className="divide-y divide-border/60">
-              {networkRows.map((row) => (
-                <SwitchRow
-                  key={row.key}
-                  label={row.label}
-                  caption={row.caption}
-                  checked={services[row.key]}
-                  disabled={disabled}
-                  trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
-                  onCheckedChange={(v) => {
-                    onServiceToggle(row.key, v)
-                    onSaved()
-                  }}
-                />
-              ))}
-              <SwitchRow
-                label={t('settings.services.labs')}
-                caption={t('settings.services.labsCaption')}
-                checked={services.labs}
-                disabled={disabled}
-                danger
-                onCheckedChange={(v) => {
-                  setService('labs', v)
-                  onSaved()
-                }}
-              />
-            </div>
-          </div>
-          <div>
-            <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
-            <div className="divide-y divide-border/60">
-              {integrationRows.filter((row) => !row.labs || services.labs).map((row) => (
-                <SwitchRow
-                  key={row.key}
-                  label={row.label}
-                  caption={row.caption}
-                  checked={integrations[row.key]}
-                  disabled={disabled || row.locked}
-                  danger={row.danger}
-                  trailing={gear(row.dialogKey, row.label)}
-                  onCheckedChange={(v) => {
-                    setIntegration(row.key, v)
-                    onSaved()
-                  }}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="pb-1 text-label uppercase text-text-muted">{t('settings.services.networkGroup')}</div>
+        <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {networkRows.map((row) => (
+            <SwitchRow
+              key={row.key}
+              label={row.label}
+              caption={row.caption}
+              checked={services[row.key]}
+              disabled={disabled}
+              trailing={row.dialogKey ? gear(row.dialogKey, row.label) : undefined}
+              onCheckedChange={(v) => {
+                onServiceToggle(row.key, v)
+                onSaved()
+              }}
+            />
+          ))}
+          <SwitchRow
+            label={t('settings.services.labs')}
+            caption={t('settings.services.labsCaption')}
+            checked={services.labs}
+            disabled={disabled}
+            danger
+            onCheckedChange={(v) => {
+              setService('labs', v)
+              onSaved()
+            }}
+          />
         </div>
-      </div>
 
-      {/* Servicios de Labs (#1012): tras las dos columnas */}
-      {services.labs && (
+        {/* Servicios de Labs (#1012): entre Servicios e Integraciones */}
+        {services.labs && (
           <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
-            <div className="divide-y divide-border/60">
+            <div>
               {/* Orquestación (opt-in del admin) */}
               <SwitchRow
                 label={t('settings.admin.orchestration')}
@@ -4070,7 +4045,7 @@ function ServicesCard({
                 danger
               />
             </div>
-            <div className="divide-y divide-border/60">
+            <div>
               {/* Rack canvas (labs): desactivado por defecto */}
               <SwitchRow
                 label={t('settings.labs.rack')}
@@ -4086,6 +4061,26 @@ function ServicesCard({
             </div>
           </div>
         )}
+
+        <div className="pb-1 pt-4 text-label uppercase text-text-muted">{t('settings.services.integrationsGroup')}</div>
+        <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {integrationRows.filter((row) => !row.labs || services.labs).map((row) => (
+            <SwitchRow
+              key={row.key}
+              label={row.label}
+              caption={row.caption}
+              checked={integrations[row.key]}
+              disabled={disabled || row.locked}
+              danger={row.danger}
+              trailing={gear(row.dialogKey, row.label)}
+              onCheckedChange={(v) => {
+                setIntegration(row.key, v)
+                onSaved()
+              }}
+            />
+          ))}
+        </div>
+      </div>
 
       {/* Diálogos de configuración de integraciones (#968): los managers
           viven SOLO en diálogo (#977: las cards sueltas ya no están en el
