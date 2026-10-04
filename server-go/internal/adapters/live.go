@@ -511,14 +511,12 @@ func (l *Live) Mode() string { return "live" }
 // de flota, para el auto-cableado del canvas. Usa el último sondeo.
 func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
 	out := map[string]FdbUplink{}
-	brMacBy := map[string]string{}
-	for id, p := range l.lastPolled {
-		if p != nil && p.brMac != "" {
-			brMacBy[id] = p.brMac
-		}
+	gw := ""
+	if l.gatewayCfg != nil {
+		gw = l.gatewayCfg.ID
 	}
-	for child, up := range fleetFdbEvidence(l.lastPolled) {
-		out[child] = FdbUplink{ChildID: child, ParentID: up.parent, Port: up.port}
+	for child, up := range fleetFdbEvidence(l.lastPolled, gw) {
+		out[child] = FdbUplink{ChildID: child, ParentID: up.parent, Port: up.port, ChildPort: up.childPort}
 	}
 	return out
 }
@@ -3113,6 +3111,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	if gw != nil {
 		gwID = gw.ID
 	}
+	fdbEvidence := fleetFdbEvidence(polled, gwID)
 	wan := l.defaultWan(gw)
 	for _, r := range routerList {
 		if r.ID == gwID && r.Status == "offline" {
@@ -3149,7 +3148,6 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// #1051: evidencia FDB directa para anclar uplinks de flota sin depender
 	// de que la unidad aparezca como device (la MAC bridge de cada router
 	// aprendida en el FDB de otro miembro dice dónde cuelga).
-	fdbEvidence := fleetFdbEvidence(polled)
 	// El motor de alertas es el dueño de la lista y del read-state
 	// (SPEC-ALERTAS §3-4): UnreadAlerts = no leídas que pasaron config.
 	alertsCopy := l.engine.List()

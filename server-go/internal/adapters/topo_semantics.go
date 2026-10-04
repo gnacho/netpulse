@@ -40,43 +40,121 @@ const maxTopoPeerChips = 4
 // topoParent (#1047/#1051): padre de uplink de una unidad de flota derivado
 // de evidencia FDB (en qué equipo se aprendió su MAC y en qué puerto).
 type topoParent struct {
-	parent string
-	port   string
+	parent    string
+	port      string // puerto del PADRE donde aprende la MAC del hijo
+	childPort string // puerto del HIJO hacia el padre (del FDB del hijo)
 }
 
-// fleetFdbEvidence (#1051): para cada router de la flota, ¿en qué OTRO miembro
-// se aprendió su MAC bridge y en qué puerto? Fuente directa del FDB de cada
-// poller, sin pasar por la atribución a devices (que no existe en redes donde
-// las unidades no aparecen como clientes). Orden determinista: ids ordenados,
-// primer padre candidato gana.
-func fleetFdbEvidence(polled map[string]*routerPolled) map[string]topoParent {
-	macs := map[string]string{} // MAC bridge (upper) → router propietario
+// fleetFdbEvidence (#1051/#1186): para cada router de la flota, ¿en qué OTRO
+// miembro se aprendió su MAC bridge y en qué puerto? Fuente directa del FDB
+// de cada poller, sin pasar por la atribución a devices (que no existe en
+// redes donde las unidades no aparecen como clientes).
+//
+// Resolución v2 (#1186): todos los miembros que aprenden la MAC de una unidad
+// son candidatos a padre. El gateway aprende TODO detrás de los switches (su
+// candidata es el artefacto de estrella plana), así que el padre es el
+// candidato NO-gateway más profundo, con la profundidad propagándose del root
+// hacia las hojas en pasadas (gw=0; switch colgado del gw=1; routers colgados
+// del switch=2). Devuelve también el puerto del lado del hijo (en qué puerto
+// de la propia unidad se aprende la MAC del padre), para cablear ambos
+// extremos. Orden determinista: ids ordenados.
+func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[string]topoParent {
+	macs := map[string]string{}   // MAC bridge (upper) → router propietario
+	idToMac := map[string]string{} // router id → MAC bridge (upper)
+	// learned[sid] = qué MACs (upper) aprende sid y en qué puerto propio.
+	learned := map[string]map[string]string{}
 	ids := make([]string, 0, len(polled))
 	for id, p := range polled {
-		if p == nil || p.brMac == "" {
-			continue
-		}
-		macs[strings.ToUpper(p.brMac)] = id
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	out := map[string]topoParent{}
-	for _, sid := range ids {
-		p := polled[sid]
 		if p == nil {
 			continue
 		}
+		ids = append(ids, id)
+		lm := map[string]string{}
 		for mac, port := range p.fdb {
-			rid, ok := macs[strings.ToUpper(mac)]
+			lm[strings.ToUpper(mac)] = port
+		}
+		learned[id] = lm
+		if p.brMac != "" {
+			macs[strings.ToUpper(p.brMac)] = id
+			idToMac[id] = strings.ToUpper(p.brMac)
+		}
+	}
+	sort.Strings(ids)
+	// candidatos[rid] = unidades que aprenden la MAC bridge de rid y el puerto
+	// (del lado de la unidad que aprende) donde la vieron.
+	candidates := map[string][]topoParent{}
+	for _, sid := range ids {
+		for ownerMac, port := range learned[sid] {
+			rid, ok := macs[ownerMac]
 			if !ok || rid == sid {
 				continue
 			}
-			if _, seen := out[rid]; !seen {
-				out[rid] = topoParent{parent: sid, port: port}
+			candidates[rid] = append(candidates[rid], topoParent{parent: sid, port: port})
+		}
+	}
+	// Resolución en pasadas: el gateway (root, profundidad 0) no tiene padre;
+	// el resto elige su padre entre sus candidatos strong: el NO-gateway con
+	// mayor profundidad conocida (el gateway aprende TODO detrás de los
+	// switches: su candidata es el artefacto de estrella plana). Guarda de
+	// ciclos: un candidato que cuelga de rid (rid en su cadena de padres) no
+	// puede ser el padre de rid. Estabiliza en ≤ N+1 pasadas.
+	depth := map[string]int{gatewayID: 0}
+	parent := map[string]topoParent{}
+	isDescendant := func(rid, c string) bool {
+		cur := c
+		for i := 0; i <= len(ids); i++ {
+			if cur == "" || cur == rid {
+				return cur == rid
+			}
+			p, ok := parent[cur]
+			if !ok {
+				return false
+			}
+			cur = p.parent
+		}
+		return false
+	}
+	for iter := 0; iter <= len(ids); iter++ {
+		changed := false
+		for _, rid := range ids {
+			if rid == gatewayID {
+				continue
+			}
+			for _, c := range candidates[rid] {
+				if c.parent == gatewayID {
+					// provisional: solo si aún no tiene padre ninguno
+					if _, has := parent[rid]; !has {
+						parent[rid] = c
+						depth[rid] = 1
+						changed = true
+					}
+					continue
+				}
+				if isDescendant(rid, c.parent) {
+					continue
+				}
+				if d, known := depth[c.parent]; known && d+1 > depth[rid] {
+					parent[rid] = c
+					depth[rid] = d + 1
+					changed = true
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	// Puerto del lado del hijo: en qué puerto de la propia unidad se aprende
+	// la MAC bridge del padre.
+	for rid, p := range parent {
+		if lm, ok := learned[rid]; ok {
+			if port, ok := lm[idToMac[p.parent]]; ok {
+				p.childPort = port
+				parent[rid] = p
 			}
 		}
 	}
-	return out
+	return parent
 }
 
 func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent) *TopoSemantics {

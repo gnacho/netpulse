@@ -327,7 +327,7 @@ func TestFleetFdbEvidence(t *testing.T) {
 		"sw1": {brMac: "AA:BB:CC:00:00:02", fdb: map[string]string{"AA:BB:CC:00:00:03": "5"}},
 		"ap1": {brMac: "AA:BB:CC:00:00:03", fdb: map[string]string{}},
 	}
-	ev := fleetFdbEvidence(polled)
+	ev := fleetFdbEvidence(polled, "gw")
 	if got := ev["sw1"]; got.parent != "gw" || got.port != "1" {
 		t.Fatalf("sw1: %+v, want gw/1", got)
 	}
@@ -336,6 +336,30 @@ func TestFleetFdbEvidence(t *testing.T) {
 	}
 	if _, ok := ev["gw"]; ok {
 		t.Fatal("gw no debe tener padre (cuelga de internet)")
+	}
+}
+
+// #1186: el caso real del switch gestionado: el switch aprende la MAC del gw
+// (su uplink, puerto 7) y la de los routers colgados de él; el router aprende
+// la MAC del switch. El padre del router es el switch (NO el gateway, que es
+// el artefacto de estrella plana) y el cable lleva ambos puertos.
+func TestFleetFdbEvidenceBothPorts(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", fdb: map[string]string{"AA:BB:CC:00:00:02": "1"}},
+		"sw": {brMac: "AA:BB:CC:00:00:02", fdb: map[string]string{
+			"AA:BB:CC:00:00:01": "7", // uplink hacia el gw
+			"AA:BB:CC:00:00:03": "3", // rt colgado del puerto 3
+		}},
+		"rt": {brMac: "AA:BB:CC:00:00:03", fdb: map[string]string{"AA:BB:CC:00:00:02": "1"}},
+	}
+	ev := fleetFdbEvidence(polled, "gw")
+	sw := ev["sw"]
+	if sw.parent != "gw" || sw.port != "1" || sw.childPort != "7" {
+		t.Fatalf("sw: %+v, want gw/1 con childPort 7", sw)
+	}
+	rt := ev["rt"]
+	if rt.parent != "sw" || rt.port != "3" || rt.childPort != "1" {
+		t.Fatalf("rt: %+v, want sw/3 con childPort 1", rt)
 	}
 }
 

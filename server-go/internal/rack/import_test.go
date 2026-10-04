@@ -169,3 +169,73 @@ func TestAuditCables(t *testing.T) {
 		t.Fatalf("audit mixto: %+v", audit)
 	}
 }
+
+// #1186: el sync ajusta los detected a la evidencia: fuera los que ya no la
+// tienen, recrea los recableados (puertos nuevos) y no toca los manuales.
+func TestSyncDetectedCables(t *testing.T) {
+	db := openTestDB(t)
+	sw, s1, s2 := escenarioImport(t, db)
+
+	// Evidencia inicial: dos pares.
+	if _, err := ImportCables(db, []CableHint{
+		{FromDeviceID: sw.DeviceMAC, ToDeviceID: s1.DeviceMAC, FromPortHint: "lan2", Source: "fdb"},
+		{FromDeviceID: sw.DeviceMAC, ToDeviceID: s2.DeviceMAC, FromPortHint: "lan1", Source: "fdb"},
+	}); err != nil {
+		t.Fatalf("import inicial: %v", err)
+	}
+
+	// Nueva evidencia: sw↔s1 se recablea a lan1; sw↔s2 ya no está.
+	res, err := SyncDetectedCables(db, []CableHint{
+		{FromDeviceID: sw.DeviceMAC, ToDeviceID: s1.DeviceMAC, FromPortHint: "lan1", Source: "fdb"},
+	})
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	cables, err := ListCables(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cables) != 1 {
+		t.Fatalf("cables = %d, want 1 (s2 sin evidencia fuera)", len(cables))
+	}
+	c := cables[0]
+	if c.FromMount != sw.ID || c.ToMount != s1.ID {
+		t.Fatalf("cable = %v->%v, want sw->s1", c.FromMount, c.ToMount)
+	}
+	if c.FromPort != "lan1" {
+		t.Fatalf("fromPort = %q, want lan1 (puerto nuevo de la evidencia)", c.FromPort)
+	}
+	if res.Removed != 2 { // el de s2 (sin evidencia) + el de s1 (puertos cambiados)
+		t.Fatalf("removed = %d, want 2", res.Removed)
+	}
+
+	// Cable manual entre sw y s2 (creado por la UI, origin=manual): el sync
+	// NO lo toca aunque no haya evidencia que lo respalde.
+	if _, err := db.Exec(`INSERT INTO rack_cables (id, from_mount, from_port, to_mount, to_port, type, origin, created_at)
+		VALUES ('manual-1', ?, 'lan1', ?, 'lan1', 'ethernet', 'manual', ?)`, sw.ID, s2.ID, 1000); err != nil {
+		t.Fatalf("insert manual: %v", err)
+	}
+	manuales, _ := ListCables(db)
+	var manualID string
+	for _, c := range manuales {
+		if c.Origin == OriginManual {
+			manualID = c.ID
+		}
+	}
+	if manualID == "" {
+		t.Fatal("el cable manual no se creó")
+	}
+	if _, err := SyncDetectedCables(db, nil); err != nil {
+		t.Fatalf("sync sin evidencia: %v", err)
+	}
+	quedan, _ := ListCables(db)
+	var manualQueda bool
+	for _, c := range quedan {
+		if c.ID == manualID {
+			manualQueda = true
+		}
+	}
+	if !manualQueda {
+		t.Fatal("el cable manual debe sobrevivir al sync sin evidencia")
+	}
+}
