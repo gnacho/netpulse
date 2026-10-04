@@ -286,6 +286,73 @@ func TestParseWireless(t *testing.T) {
 	}
 }
 
+// TestPortPrettyLabel (#1200): etiquetas del panel de bocas. Los patrones
+// clásicos conservan formato; los netdev 25.12+ (sfp-lan/sfp-wan) y las
+// bocas sin dígitos (lan en UniFi 6 Lite) muestran su nombre real.
+func TestPortPrettyLabel(t *testing.T) {
+	cases := map[string]string{
+		"lan1":    "LAN 1",
+		"lan10":   "LAN 10",
+		"lan":     "LAN",
+		"wan":     "WAN",
+		"eth0":    "ETH 0",
+		"sfp0":    "SFP 0",
+		"sfp":     "SFP",
+		"sfp-lan": "sfp-lan",
+		"sfp-wan": "sfp-wan",
+		"enp3s0":  "enp3s0",
+	}
+	for name, want := range cases {
+		if got := portPrettyLabel(name); got != want {
+			t.Errorf("portPrettyLabel(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+// TestBuildEthPortsNetdevNames (#1200): BPI-R4 con nombres openwrt,netdev-name
+// (25.12+). En board.json, sfp-lan es miembro de lan; sfp-wan no está y llega
+// por extras. Antes: "sfp-LAN " (Replace a ciegas) y "SFP -wan" (sufijo
+// partido). Ahora: el nombre real de la interfaz.
+func TestBuildEthPortsNetdevNames(t *testing.T) {
+	board := `{"network":{"lan":{"ports":["lan1","lan2","lan3","sfp-lan"],"device":"br-lan"},"wan":{"device":""}}}`
+	layout, err := ParsePortLayout(board)
+	if err != nil {
+		t.Fatalf("layout: %v", err)
+	}
+	labels := map[string]string{}
+	for _, p := range layout {
+		labels[p.ID] = p.Label
+	}
+	if labels["sfp-lan"] != "sfp-lan" {
+		t.Fatalf("sfp-lan en layout: %q", labels["sfp-lan"])
+	}
+	if labels["lan1"] != "LAN 1" {
+		t.Fatalf("lan1 en layout: %q", labels["lan1"])
+	}
+	states := ParsePortStates("lan1 up 1000\nlan2 down -1\nlan3 down -1\nsfp-lan up 10000\nsfp-wan up 2500\neth1 up 100\n")
+	ports := BuildEthPorts(layout, states, nil, nil, "")
+	got := map[string]string{}
+	for _, p := range ports {
+		got[p.ID] = p.Label
+	}
+	if got["sfp-lan"] != "sfp-lan" {
+		t.Errorf("sfp-lan: %q", got["sfp-lan"])
+	}
+	if got["sfp-wan"] != "sfp-wan" {
+		t.Errorf("sfp-wan: %q", got["sfp-wan"])
+	}
+}
+
+// TestBuildEthPortsBareLan (#1200): UniFi 6 Lite, la boca se llama "lan" a
+// secas. Antes el panel salía vacío (0 de 0): ^lan\d+$ no la cogía y phyRe
+// (^lan\d+$) la excluía de extras.
+func TestBuildEthPortsBareLan(t *testing.T) {
+	ports := BuildEthPorts(nil, ParsePortStates("lan up 1000\n"), nil, nil, "")
+	if len(ports) != 1 || ports[0].ID != "lan" || ports[0].Label != "LAN" || !ports[0].Up {
+		t.Fatalf("boca lan a secas: %+v", ports)
+	}
+}
+
 func TestParsePortsYLayout(t *testing.T) {
 	// La boca WAN aparece en /sys aunque esté esclavizada al bridge: sin ella
 	// en los estados sería un device que no existe y BuildEthPorts la
