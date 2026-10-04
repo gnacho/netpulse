@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gonzalop/mq"
@@ -92,6 +93,11 @@ type Publisher struct {
 	snapshot func() *adapters.Overview
 	demo     bool
 
+	// mu guards the fields below: publishCycle runs on the publisher
+	// goroutine AND from the client's OnConnect hook (initial connect and
+	// every reconnect), so the alert/router state must not be touched
+	// without the lock.
+	mu          sync.Mutex
 	seenAlerts  map[string]struct{}
 	seenInit    bool
 	lastRouters string
@@ -121,10 +127,12 @@ func (p *Publisher) Start(ctx context.Context) {
 		}
 		return
 	}
-	go p.run(ctx)
+	go p.Run(ctx)
 }
 
-func (p *Publisher) run(ctx context.Context) {
+// Run es el bucle del publisher; los callers que necesitan saber cuándo ha
+// terminado (Manager, #1158) lo invocan en su propio goroutine.
+func (p *Publisher) Run(ctx context.Context) {
 	backoff := initialBackoff
 	for {
 		if ctx.Err() != nil {
@@ -144,10 +152,6 @@ func (p *Publisher) run(ctx context.Context) {
 		}
 		backoff = initialBackoff
 		log.Printf("[mqtt] connected to %s:%d as instance %q", p.cfg.Host, p.cfg.Port, p.cfg.Instance)
-
-		p.publishAvailability(client, "online")
-		p.publishDiscovery(client)
-		p.publishCycle(client)
 
 		p.loop(ctx, client)
 
@@ -195,11 +199,18 @@ func (p *Publisher) loop(ctx context.Context, client *mq.Client) {
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	// Log reconnect bursts once each so an unstable broker connection is
+	// visible in the journal instead of only in broker-side logs (#1153).
+	var loggedReconnects uint64
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			if n := client.GetStats().ReconnectCount; n > loggedReconnects {
+				log.Printf("[mqtt] client reconnected %d time(s): broker connection unstable", n)
+				loggedReconnects = n
+			}
 			if client.IsConnected() {
 				p.publishCycle(client)
 			}
@@ -218,9 +229,14 @@ func (p *Publisher) publishCycle(client *mq.Client) {
 	p.publishRouters(client, ov)
 	p.publishNewAlerts(client, ov)
 
-	key := routerSetKey(ov)
-	if key != p.lastRouters {
-		p.lastRouters = key
+	newKey := routerSetKey(ov)
+	p.mu.Lock()
+	changed := newKey != p.lastRouters
+	if changed {
+		p.lastRouters = newKey
+	}
+	p.mu.Unlock()
+	if changed {
 		p.publishDiscovery(client)
 	}
 }
@@ -228,6 +244,7 @@ func (p *Publisher) publishCycle(client *mq.Client) {
 // publishNewAlerts emits an event per unseen alert. The first overview only
 // seeds the set, so a fresh server start does not replay the whole backlog.
 func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
+	p.mu.Lock()
 	if !p.seenInit {
 		for _, a := range ov.Alerts {
 			if a.ID != "" {
@@ -235,8 +252,10 @@ func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
 			}
 		}
 		p.seenInit = true
+		p.mu.Unlock()
 		return
 	}
+	var fresh []alertEvent
 	for _, a := range ov.Alerts {
 		if a.ID == "" {
 			continue
@@ -245,10 +264,14 @@ func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
 			continue
 		}
 		p.seenAlerts[a.ID] = struct{}{}
-		payload, err := json.Marshal(alertEvent{
+		fresh = append(fresh, alertEvent{
 			ID: a.ID, Severity: a.Severity, Title: a.Title, Description: a.Description,
 			RouterID: a.RouterID, Urgent: a.Urgent, Ts: a.Ts,
 		})
+	}
+	p.mu.Unlock()
+	for _, ev := range fresh {
+		payload, err := json.Marshal(ev)
 		if err != nil {
 			continue
 		}

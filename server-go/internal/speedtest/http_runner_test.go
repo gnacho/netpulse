@@ -179,9 +179,9 @@ func TestSpeedtestProviderSettings(t *testing.T) {
 	}
 	sched := NewScheduler(st, d.DB, fakeRunner{})
 
-	// Default: provider vacio (ookla) en instalaciones sin la clave.
-	if got := sched.LoadSettings(); got.Provider != "" {
-		t.Fatalf("provider default = %q, want vacio (ookla)", got.Provider)
+	// Default: NDT (#1037) en instalaciones sin la clave (privacidad).
+	if got := sched.LoadSettings(); got.Provider != ProviderNDT {
+		t.Fatalf("provider default = %q, want ndt", got.Provider)
 	}
 	// Roundtrip cloudflare.
 	if err := sched.SaveSettings(Settings{IntervalHours: 12, Provider: ProviderCloudflare}); err != nil {

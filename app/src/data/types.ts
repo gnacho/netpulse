@@ -9,7 +9,7 @@
 // Tipos base
 // ---------------------------------------------------------------------------
 
-export type Status = 'online' | 'warn' | 'offline'
+export type Status = 'online' | 'warn' | 'offline' | 'paused'
 export type TimeRange = '1h' | '24h' | '7d' | '30d'
 
 export interface Router {
@@ -22,7 +22,7 @@ export interface Router {
   modelShort: string
   role: string
   /** Pill de rol: "Principal" | "AP" | "SW" */
-  roleBadge: 'Principal' | 'AP' | 'SW'
+  roleBadge: 'Principal' | 'AP' | 'SW' | 'EXT'
   ip: string
   /** MAC del bridge br-lan (live) */
   mac?: string
@@ -34,6 +34,8 @@ export interface Router {
   firmwareOutdated?: boolean
   /** Router configurado para funcionar solo con agente (sin SSH). */
   agentOnly?: boolean
+  /** #1085: unidad pausada (no se sondea ni alerta; insignia "paused"). */
+  disabled?: boolean
   /** Tipo de dispositivo: "glinet"|"openwrt"|"managed-switch"|"external". */
   type?: string
   status: Status
@@ -253,6 +255,11 @@ export interface Device {
    */
   firstSeenMs?: number
   lastSeenMs?: number
+  /**
+   * #1151: MACs enlazadas a este cliente (mismo dispositivo con varias
+   * MACs, p. ej. una por SSID). Solo viaja en la entrada canónica.
+   */
+  aliasMacs?: string[]
 }
 
 /**

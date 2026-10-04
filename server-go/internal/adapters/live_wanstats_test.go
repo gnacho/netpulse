@@ -94,3 +94,50 @@ func TestWanDayStatsSinBD(t *testing.T) {
 		t.Fatalf("sin BD debería devolver zeros/'—': %+v", res)
 	}
 }
+
+// latencySpark24h: solo muestras con sonda (latency_ms NOT NULL) dentro de
+// la ventana 24h, en orden (#1148).
+func TestLatencySpark24h(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d, now: fixedNow}
+	now := fixedNow()
+
+	insertLatency := func(ts time.Time, lat *float64) {
+		t.Helper()
+		if lat != nil {
+			if _, err := d.Exec(
+				"INSERT INTO metrics (router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps) VALUES ('gw', ?, 0,0,0, ?, 0, 0)",
+				ts.UnixMilli(), *lat); err != nil {
+				t.Fatalf("insert: %v", err)
+			}
+			return
+		}
+		// Muestra sin sonda (latency_ms NULL): no debe entrar en la serie.
+		if _, err := d.Exec(
+			"INSERT INTO metrics (router_id, ts, cpu, ram, temp, rx_bps, tx_bps) VALUES ('gw', ?, 0,0,0, 0, 0)",
+			ts.UnixMilli()); err != nil {
+			t.Fatalf("insert null: %v", err)
+		}
+	}
+	f := func(v float64) *float64 { return &v }
+
+	insertLatency(now.Add(-25*time.Hour), f(99)) // fuera de ventana
+	insertLatency(now.Add(-3*time.Hour), f(20))
+	insertLatency(now.Add(-2*time.Hour), f(12.5))
+	insertLatency(now.Add(-1*time.Hour), nil) // NULL: fuera
+	insertLatency(now.Add(-30*time.Minute), f(25))
+	// Otra unidad: no contamina.
+	if _, err := d.Exec(
+		"INSERT INTO metrics (router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps) VALUES ('rt2', ?, 0,0,0, 77, 0, 0)",
+		now.Add(-2*time.Hour).UnixMilli()); err != nil {
+		t.Fatalf("insert rt2: %v", err)
+	}
+
+	got := l.latencySpark24h("gw")
+	if len(got) != 3 {
+		t.Fatalf("len=%d, want 3 muestras en ventana con sonda", len(got))
+	}
+	if got[0] != 20 || got[1] != 12.5 || got[2] != 25 {
+		t.Fatalf("serie = %v, want [20 12.5 25] en orden temporal", got)
+	}
+}

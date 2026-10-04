@@ -11,6 +11,10 @@ export function InfoTip({ text }: { text: string }) {
       <TooltipTrigger asChild>
         <button
           type="button"
+          // #1064: sin tabIndex={-1}, el diálogo que lo contiene focaliza este
+          // botón al abrir (es el primer enfocable) y el tooltip salta solo.
+          // El texto sigue en aria-label para lectores de pantalla.
+          tabIndex={-1}
           aria-label={text}
           className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-accent"
         >

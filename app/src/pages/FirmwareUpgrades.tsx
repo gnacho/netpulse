@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { AlertCircle, CalendarClock, Cpu, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
@@ -122,6 +123,8 @@ export default function FirmwareUpgrades() {
   const { t, i18n } = useTranslation()
   const auth = useAuth()
   const { routers } = useNetPulse()
+  // #1146: la visibilidad de la página la controla el toggle de Servicios.
+  const [services] = useServicesVisibility()
   const isAdmin = auth?.role === 'admin'
 
   const [items, setItems] = useState<FirmwareItem[]>([])
@@ -157,6 +160,15 @@ export default function FirmwareUpgrades() {
   const sortedRouters = useMemo(() => {
     return [...routers].sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
   }, [routers])
+
+  // Solo dispositivos con OpenWrt vanilla: son los únicos actualizables
+  // desde aquí (los GL.iNet se actualizan por su propia vía; SNMP y
+  // externos quedan fuera de esta página y se gestionan donde corresponde).
+  const compatibleItems = useMemo(() => {
+    const compatIds = new Set(sortedRouters.filter((r) => !r.type || r.type === 'openwrt').map((r) => r.id))
+    return items.filter((it) => compatIds.has(it.routerId) || !sortedRouters.some((r) => r.id === it.routerId))
+  }, [items, sortedRouters])
+  const hiddenCount = items.length - compatibleItems.length
 
   const fetchItems = async () => {
     setLoading(true)
@@ -505,6 +517,19 @@ export default function FirmwareUpgrades() {
     ? sortedRouters.find((r) => r.id === scheduleItem.routerId)?.name ?? scheduleItem.name
     : ''
 
+  // Oculta con el toggle de Servicios: aviso en vez de contenido (patrón rack).
+  if (!services.actualizaciones) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="mx-auto my-auto max-w-md rounded-xl border border-border bg-surface p-6 text-center">
+          <TriangleAlert size={24} className="mx-auto mb-2 text-warn" aria-hidden />
+          <p className="text-sm font-semibold text-text-primary">{t('firmwareUpgrades.disabledTitle')}</p>
+          <p className="mt-1 text-[13px] text-text-secondary">{t('firmwareUpgrades.disabledText')}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 md:space-y-5">
       <header className="flex items-start justify-between gap-4">
@@ -538,12 +563,19 @@ export default function FirmwareUpgrades() {
 
       {items.length === 0 && !loading && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-text-secondary">
-          {t('firmwareUpgrades.empty')}
+          <p>{t('firmwareUpgrades.empty')}</p>
+          {items.length > 0 && <p className="mt-1 text-xs text-text-muted">{t('firmwareUpgrades.compatibleNote', { count: items.length })}</p>}
         </div>
       )}
 
+      {hiddenCount > 0 && (
+        <p className="mb-3 text-[12px] text-text-muted" data-testid="fw-compat-note">
+          {t('firmwareUpgrades.compatibleNote', { count: hiddenCount })}
+        </p>
+      )}
+
       <div className="grid gap-4">
-        {items.map((item) => {
+        {compatibleItems.map((item) => {
           const e = edits[item.routerId] ?? {}
           const active = upgradeActive(item)
           const scheduled = scheduledPending(item)

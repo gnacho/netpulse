@@ -3,6 +3,7 @@ package mqttpub
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 )
@@ -187,5 +188,41 @@ func TestHAEntitiesSelfExposeMarkedForRemoval(t *testing.T) {
 	// La marca forma parte de la clave de conjunto: un cambio republica discovery.
 	if routerSetKey(ov) == routerSetKey(sampleOverview()) {
 		t.Fatal("routerSetKey must change when a router starts self-exposing")
+	}
+}
+
+// #1158: Apply debe esperar al publisher viejo (bounded) antes de arrancar el
+// nuevo, sin colgarse aunque el broker sea inalcanzable (el goroutine viejo
+// sale en cuanto procesa el cancel).
+func TestManagerApplyReplacesPublisher(t *testing.T) {
+	snapshot := func() *adapters.Overview { return &adapters.Overview{} }
+	m := NewManager(Config{Enabled: true, Host: "127.0.0.1", Port: 1, Instance: "t"}, "test", snapshot, false)
+	m.Start()
+	if !m.Running() {
+		t.Fatal("publisher should be running after Start")
+	}
+
+	start := time.Now()
+	m.Apply(Config{Enabled: true, Host: "127.0.0.1", Port: 2, Instance: "t"})
+	if elapsed := time.Since(start); elapsed > shutdownWait+2*time.Second {
+		t.Fatalf("Apply took %v, the old publisher shutdown must be bounded", elapsed)
+	}
+	if !m.Running() {
+		t.Fatal("publisher should still be running after Apply")
+	}
+	if got := m.Config(); got.Port != 2 {
+		t.Fatalf("config port = %d, want 2", got.Port)
+	}
+
+	// Misma config: no-op (no rearranca ni cuelga).
+	m.Apply(Config{Enabled: true, Host: "127.0.0.1", Port: 2, Instance: "t"})
+	if !m.Running() {
+		t.Fatal("publisher must keep running after a no-op Apply")
+	}
+
+	// Deshabilitar: el publisher para.
+	m.Apply(Config{Enabled: false, Host: "127.0.0.1", Port: 2, Instance: "t"})
+	if m.Running() {
+		t.Fatal("publisher must stop when disabled")
 	}
 }

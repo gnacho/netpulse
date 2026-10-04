@@ -151,6 +151,56 @@ func (r *AgentRegistry) ExternalDownConfirm(slug string, base time.Duration) tim
 	return base
 }
 
+// LocalBssids devuelve los BSSID que los agentes reportan como propios
+// (AP local=true en sus datos dawn/usteer). El channel-plan los usa de
+// semilla exacta para la detección de redes propias (#1082): casos como el
+// guest de un GL.iNet, cuya MAC no comparte prefijo con routers.mac.
+func (r *AgentRegistry) LocalBssids() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	seen := map[string]bool{}
+	var out []string
+	add := func(mac string) {
+		mac = strings.ToUpper(strings.TrimSpace(mac))
+		if mac == "" || seen[mac] {
+			return
+		}
+		seen[mac] = true
+		out = append(out, mac)
+	}
+	for _, st := range r.states {
+		if st.Payload == nil {
+			continue
+		}
+		// BSSIDs propios reportados por el agente (#1087): exactos, cubren
+		// MACs aleatorizadas y guests fuera de dawn/usteer.
+		if w := st.Payload.Data.Wireless; w != nil {
+			for _, ob := range w.OwnBssids {
+				add(ob.BSSID)
+			}
+		}
+		if st.Payload.Data.Dawn != nil {
+			for _, ssid := range st.Payload.Data.Dawn.SSIDs {
+				for _, ap := range ssid.APs {
+					if ap.Local {
+						add(ap.BSSID)
+					}
+				}
+			}
+		}
+		if st.Payload.Data.Usteer != nil {
+			for _, ssid := range st.Payload.Data.Usteer.SSIDs {
+				for _, ap := range ssid.APs {
+					if ap.Local {
+						add(ap.BSSID)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
 // Fresh devuelve el último payload si está dentro de su ventana de
 // frescura (TTL base o 3x cadencia declarada, #288).
 func (r *AgentRegistry) Fresh(slug string) (*probe.Payload, bool) {

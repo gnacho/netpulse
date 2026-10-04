@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes } from 'react-router'
 import { Navigate } from 'react-router'
@@ -14,6 +15,7 @@ import Alerts from '@/pages/Alerts'
 import Roaming from '@/pages/Roaming'
 import ChannelPlan from '@/pages/ChannelPlan'
 import Reports from '@/pages/Reports'
+import Rack from '@/pages/Rack'
 import Orchestration from '@/pages/Orchestration'
 import FirmwareUpgrades from '@/pages/FirmwareUpgrades'
 import Settings from '@/pages/Settings'
@@ -26,6 +28,13 @@ import Placeholder from '@/pages/Placeholder'
  * La ruta `/login` queda FUERA del Layout y del gate.
  */
 export default function App() {
+  // El título del documento sigue el idioma (antes era ES fijo en
+  // index.html, que no se traduce).
+  const { t, i18n } = useTranslation()
+  useEffect(() => {
+    document.title = t('app.title')
+  }, [t, i18n.language])
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -46,6 +55,7 @@ export default function App() {
         <Route path="agents" element={<Navigate to="/routers" replace />} />
         <Route path="devices" element={<Devices />} />
         <Route path="topology" element={<Topology />} />
+        <Route path="rack" element={<Rack />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="roaming" element={<Roaming />} />
         <Route path="wifi/channel-plan" element={<ChannelPlan />} />

@@ -84,6 +84,10 @@ const (
 	// emite "==IFACE==<iface>" antes de cada scan y parsea BSS/freq/signal/SSID.
 	// Si `iw` no está disponible, la sección Scans queda vacía (best-effort).
 	CmdScan = `for i in $(iw dev 2>/dev/null | awk '/Interface / {print $2}'); do echo "==IFACE==$i"; iw dev "$i" scan 2>/dev/null; done`
+	// CmdIwDev (#1087): `iw dev` a secas, sin scan. Lista las interfaces con
+	// su MAC y SSID: fuente de los BSSIDs propios para el análisis de
+	// canales. Barato (no saca la radio del canal).
+	CmdIwDev = "iw dev 2>/dev/null"
 	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
 	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
 	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`
@@ -1492,10 +1496,21 @@ func ParseScan(out string) []ScanResult {
 	var res []ScanResult
 	iface := ""
 	var current *ScanResult
+	// Estado del bloque HT/VHT en curso para el ancho de canal (#1087).
+	section := ""
+	ht40, vhtWidth := false, 0
 	flush := func() {
 		if current != nil && current.BSSID != "" && current.Freq > 0 {
 			current.Channel = FreqToChannel(current.Freq)
 			if current.Channel > 0 {
+				switch {
+				case vhtWidth > 0:
+					current.WidthMhz = vhtWidth
+				case ht40:
+					current.WidthMhz = 40
+				default:
+					current.WidthMhz = 20
+				}
 				res = append(res, *current)
 			}
 		}
@@ -1516,9 +1531,41 @@ func ParseScan(out string) []ScanResult {
 			}
 			bssid := strings.ToUpper(strings.Split(fields[1], "(")[0])
 			current = &ScanResult{Iface: iface, BSSID: bssid}
+			section, ht40, vhtWidth = "", false, 0
 			continue
 		}
 		if current == nil {
+			continue
+		}
+		// Ancho de canal anunciado por el vecino (#1087): HT operation da
+		// el salto de 40 MHz; VHT operation el de 80/160.
+		switch {
+		case strings.HasPrefix(line, "HT operation:"):
+			section = "ht"
+			continue
+		case strings.HasPrefix(line, "VHT operation:"):
+			section = "vht"
+			continue
+		case strings.HasPrefix(line, "HE operation:") || strings.HasPrefix(line, "EHT operation:"):
+			section = ""
+			continue
+		}
+		if section == "ht" && strings.Contains(line, "secondary channel offset:") {
+			ht40 = !strings.Contains(line, "no secondary")
+			continue
+		}
+		if section == "vht" && strings.Contains(line, "channel width:") {
+			// "* channel width: 1 (80 MHz)": 1 = 80 MHz, 2 = 160 MHz.
+			re := vhtWidthRe.FindStringSubmatch(line)
+			if re != nil {
+				n, _ := strconv.Atoi(re[1])
+				switch n {
+				case 1:
+					vhtWidth = 80
+				case 2:
+					vhtWidth = 160
+				}
+			}
 			continue
 		}
 		if strings.HasPrefix(line, "freq:") {
@@ -1537,6 +1584,45 @@ func ParseScan(out string) []ScanResult {
 		}
 		if strings.HasPrefix(line, "SSID:") {
 			current.SSID = strings.TrimSpace(strings.TrimPrefix(line, "SSID:"))
+			continue
+		}
+	}
+	flush()
+	return res
+}
+
+var vhtWidthRe = regexp.MustCompile(`channel width:\s*(\d)\s*\(`)
+
+// ParseIwDev parsea la salida de CmdIwDev (`iw dev`) y devuelve las
+// interfaces AP de ESTE equipo con su BSSID y SSID (#1087). Los bloques
+// "Interface <name>" traen addr, ssid y type; solo type AP interesa (los
+// STA/clientes managed no son red propia).
+func ParseIwDev(out string) []OwnBSSID {
+	var res []OwnBSSID
+	iface, addr, ssid, ifType := "", "", "", ""
+	flush := func() {
+		if iface != "" && addr != "" && ifType == "AP" {
+			res = append(res, OwnBSSID{Iface: iface, BSSID: strings.ToUpper(addr), SSID: ssid})
+		}
+	}
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(raw)
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == "Interface" {
+			flush()
+			iface, addr, ssid, ifType = fields[1], "", "", ""
+			continue
+		}
+		if len(fields) >= 2 && fields[0] == "addr" {
+			addr = fields[1]
+			continue
+		}
+		if len(fields) >= 2 && fields[0] == "ssid" {
+			ssid = strings.TrimSpace(strings.TrimPrefix(line, "ssid"))
+			continue
+		}
+		if len(fields) >= 2 && fields[0] == "type" {
+			ifType = fields[1]
 			continue
 		}
 	}

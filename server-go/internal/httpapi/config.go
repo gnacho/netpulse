@@ -100,6 +100,8 @@ type routerInput struct {
 	Type      string  `json:"type"`
 	Gateway   bool    `json:"gateway"`
 	AgentOnly bool    `json:"agent_only"`
+	// Disabled (issue #1085): pausa la unidad (nil = no tocar).
+	Disabled *bool `json:"disabled"`
 	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
 	FirmwareTarget *string `json:"firmware_target"`
 	// SNMP (issue #309): credenciales para sondeo SNMP del switch gestionado.
@@ -115,6 +117,10 @@ type routerInput struct {
 	// TempThreshold (issue #716): umbral de alerta por temperatura alta (°C).
 	// Ausente = no tocar; 0 = reset a default (65); 1..150 = fijar.
 	TempThreshold *int `json:"temp_threshold"`
+	// RouterOS: credenciales de la REST API nativa (Type "routeros").
+	RouterOSUser     *string `json:"routeros_user"`
+	RouterOSPassword *string `json:"routeros_password"`
+	RouterOSInsecure *bool   `json:"routeros_insecure"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -192,8 +198,8 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	if typ == "" {
 		typ = "openwrt"
 	}
-	if typ != "glinet" && typ != "openwrt" && typ != "managed-switch" && typ != "external" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
+	if typ != "glinet" && typ != "openwrt" && typ != "routeros" && typ != "managed-switch" && typ != "external" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external'")
 		return
 	}
 	var firmwareTarget string
@@ -239,11 +245,24 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		}
 		sshPort = p
 	}
+	routerosUser := ""
+	if in.RouterOSUser != nil {
+		routerosUser = strings.TrimSpace(*in.RouterOSUser)
+	}
+	routerosPassword := ""
+	if in.RouterOSPassword != nil {
+		routerosPassword = *in.RouterOSPassword
+	}
+	routerosInsecure := false
+	if in.RouterOSInsecure != nil {
+		routerosInsecure = *in.RouterOSInsecure
+	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
-		SSHPort: sshPort,
+		SSHPort:        sshPort,
+		RouterOSUser:   routerosUser, RouterOSPassword: routerosPassword, RouterOSInsecure: routerosInsecure,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -304,8 +323,8 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	var typ *string
 	if in.Type != "" {
 		t := in.Type
-		if t != "glinet" && t != "openwrt" && t != "managed-switch" && t != "external" {
-			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
+		if t != "glinet" && t != "openwrt" && t != "routeros" && t != "managed-switch" && t != "external" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external'")
 			return
 		}
 		typ = &t
@@ -358,14 +377,21 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		}
 		tempThreshold = &v
 	}
+	var routerosUser *string
+	if in.RouterOSUser != nil {
+		v := strings.TrimSpace(*in.RouterOSUser)
+		routerosUser = &v
+	}
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
+		Disabled:       in.Disabled,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
 		SSHPort:        sshPort,
 		TempThreshold:  tempThreshold,
 		ConsolePolling: in.ConsolePolling,
+		RouterOSUser:   routerosUser, RouterOSPassword: in.RouterOSPassword, RouterOSInsecure: in.RouterOSInsecure,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

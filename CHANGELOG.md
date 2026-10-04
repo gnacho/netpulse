@@ -5,6 +5,68 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.31.1] - 2026-10-03
+
+### Fixed
+
+- **Alertas que reaparecen leídas tras un reinicio (#1094)**: una alerta ya leída en una sesión anterior (p. ej. "Agent outdated") se mostraba leída al re-emitirse justo tras arrancar el server; ahora un episodio nuevo tras reinicio vuelve a no-leída (los refreshes de un episodio en curso, como port flapping, conservan su estado).
+- **"First seen"/"Last seen" siempre con guion (#1095)**: la marca de visto solo se escribía desde el resumen; la lista de dispositivos que consume la UI ahora también la persiste (write-through).
+- **Eventos de roaming desordenados dentro del mismo segundo (#1097)**: los logs de OpenWrt no llevan millis; el desempate ahora usa el orden de inserción (id), que reproduce el orden del log. Nuevos filtros por cliente y por AP en la vista de eventos.
+- **Tarjeta "Edit client" (#1096)**: Guardar/Cancelar junto a los campos que editan (nombre, tipo, icono) y título renombrado de "dispositivo" a "cliente".
+- **Tooltips en los botones web/SSH de la unidad (#1098)**: muestran la URL y el comando exactos antes de pulsar.
+- **Agente 3.0.8**: una unidad sin clientes asociados en ese momento descartaba toda su sección wireless (radios, scans, BSSIDs propios); radios o BSSIDs propios ya bastan para reportarla.
+
+## [2.31.0] - 2026-10-03
+
+### Added
+
+- **Análisis de canales: de labs a primera clase (#1070, #1076, #1079, #1080, #1082, #1084)** - la página "Canales" es ahora un analizador de espectro WiFi completo y de solo lectura (nunca escribe en los routers): cascada por radio con campanas sobre un eje de frecuencia real, zonas DFS sombreadas con leyenda, franja continua de ocupación, tira de puntuación de TODOS los canales (13 en 2.4 GHz, todos los bloques a su ancho en 5 GHz, DFS etiquetados) agrupada por congestión, tabla ordenable con aislamiento cruzado en el gráfico y selector de flota sin unidades sin WiFi. Sin insignia de labs ni toggle.
+- **Motor de congestión inteligente (#1080, #1082)**: las redes propias nunca congestian un canal (detección por prefijo MAC, transitividad de SSID, datos dawn/usteer y los nuevos BSSIDs propios del agente); las vecinas se ponderan en dominio de potencia (un AP a -50 dBm pesa ~3000x uno a -85); el veredicto de congestión del canal actual es absoluto (umbrales sobre el score), no relativo al resto de la banda. Solo sugiere: recomienda canal y estima la reducción de ruido; aplicarlo sigue en manos del usuario.
+- **Agente 3.0.7 (#1087)**: reporta sus propios BSSIDs (`iw dev`, cubre MACs aleatorizadas y guests fuera de dawn/usteer) y lee el ancho de canal anunciado (HT/VHT operation) de cada vecina, persistido en `wifi_scans.width_mhz`; el espectro dibuja cada red a su ancho real en vez de los 20 MHz estimados.
+
+### Fixed
+
+- La notificación push de "Agent outdated" llevaba la hora estática 16:00:00 (epoch en la zona del servidor) al dispararse tras un reinicio: la rama de inserción de `EmitOrUpdate` notificaba sin el default de timestamp (#1074).
+- El análisis de canales mostraba "este equipo no reporta radios WiFi" cuando el payload del agente estaba momentáneamente fuera de la ventana de frescura; ahora cae al último payload conocido para esa vista de solo lectura (#1080).
+- La tarjeta de resumen proponía un bloque DFS como "mejor canal" al empatar a 100 en la normalización; ahora promociona siempre el canal que recomienda el motor (#1082).
+- El título del documento ("Tu red, de un vistazo") era español fijo en index.html; ahora sigue el idioma de la interfaz.
+
+### Community
+
+- Abiertas las GitHub Discussions del proyecto: sugerencias, preguntas y votos de ideas en https://github.com/gnacho/netpulse/discussions
+
+## [2.30.0] - 2026-10-02
+
+### Added
+
+- **Soporte RouterOS (MikroTik) de primera clase (#969, gracias @samex)**: nuevo tipo de router en la flota, sondeado desde el servidor por la API REST nativa de RouterOS 7+ (vitals reales: CPU/RAM/uptime, métricas WAN, comprobación de actualizaciones), con cliente del API binario (8728) escrito a mano para instalaciones con `www` cerrado: cero dependencias nuevas, login moderno y solo lectura. Contraseña solo en el servidor (`json:"-"`), TLS autofirmado opt-in, y agente `routeros-pusher` opcional.
+- **M-Lab NDT como proveedor de speedtest por defecto (#1037, idea de @crowedavid)**: red de medición neutra y sin ánimo de lucro, con política de datos abierta: mejor privacidad que Ookla o Cloudflare. Las instalaciones con proveedor guardado lo conservan. Nuevo modo de planificación "auto" que ejecuta el test a la hora de menos tráfico según el histórico propio de la red (#1066).
+- **Anclaje de uplinks de flota por evidencia FDB (#1047, #1051, #1060)**: cada unidad cuelga de su padre real (el switch donde su MAC bridge se aprendió, con etiqueta de puerto); si el puerto tiene un círculo de switch (inferido o gestionado), el uplink sale del círculo: gateway → (switch) → AP. Ya no depende de que las unidades aparezcan como devices.
+- **Equipo aguas arriba del gateway bajo el nodo Internet (#1042)**: cuando la IP de un cliente coincide con la puerta de enlace WAN (módem/ONT del ISP), se dibuja colgando de la nube, junto a la línea WAN, en vez de como cliente LAN.
+- **Granularidad horaria y diaria en Informes (#1032, #1033)**: el selector ofrece Horario (buckets por hora) y Diario; el endpoint conserva semanal/mensual para API/CSV.
+- **Retención del registro de alertas y "Vaciar registro" (#1034)**: "Marcar todo como leído" ya no borra del log (solo del read-set); vaciar es una acción aparte, con confirmación, y `alerts.retentionDays` (default 30, poda horaria y de arranque sin reinicio).
+
+### Fixed
+
+- El feed de roaming mostraba solo Disconnect en APs con wpad-mbedtls (OpenWrt 25.12.x), que no emite AP-STA-* (#1038).
+- Pantalla en blanco al cambiar el rango de Informes (#1029).
+- La tarjeta de edición de flota guardaba y cerraba al elegir el tipo; ahora hay etiquetas visibles, firmware target solo para OpenWrt/GL.iNet y sondeo SNMP disponible en el alta (#1026).
+- La tabla de enlaces siempre nombraba al gateway como padre de los uplinks aunque el mapa los dibujara desde un círculo de switch (#1063).
+- Literales en español filtrándose a UIs en inglés en las tarjetas de puertos; los pares inferidos llevan icono de red (#1039, #1040).
+- El matching LLDP exigía igualdad exacta de nombre: "sw1" (chasis) no casaba con "sw1.lan" (flota) y el uplink caía al gateway (#1041).
+- La integración Proxmox duplicaba un switch inferido entre el switch gestionado y los hosts; el inventario PVE (ground truth) lo absorbe (#1053).
+- La segunda instancia Proxmox con id vacío o duplicado pisaba la primera en silencio; el diálogo lo rechaza (#1057).
+- Previsualizaciones al pasar el cursor mientras se edita el layout de topología (#1045), tooltips que saltaban solos al abrir diálogos y marco de foco en la (x) (#1064, #1068), anillo de foco también al hover (#1069), y los diálogos de config cierran al guardar (#1065).
+- El historial de tráfico de un router desbordaba la tarjeta con muchos puertos: selector en desplegable con filtro All/Active/Inactive (#1035).
+
+### Changed
+
+- Las alertas se componen en inglés nativo y se traducen al idioma del cliente (#1014); las notas de release se muestran en el idioma del cliente (#1011).
+- Terminología consolidada: flota/unidad y clientes (#1025, #1027), botón "Detectar" de Proxmox recuperado (#967).
+- Actualización completa de dependencias (#1020 tramos 1 y 2, #1022, #1028).
+
+Gracias a @crowedavid por los reportes que formaron la mayor parte de esta release, a @samex por la integración RouterOS, y a @gnulan, @borky y todos los que reportan y discuten ideas.
+
 ## [2.28.43] - 2026-10-01
 
 ### Added

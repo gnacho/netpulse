@@ -534,6 +534,47 @@ func TestConfigRoutersSNMP(t *testing.T) {
 	}
 }
 
+func TestConfigRoutersRouterOS(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	// POST RouterOS con credenciales
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"mikrotik","host":"192.168.8.1","type":"routeros","routeros_user":"admin","routeros_password":"secretpassword","routeros_insecure":true}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	router := body["router"].(map[string]any)
+	if router["type"] != "routeros" {
+		t.Fatalf("type: %v", router["type"])
+	}
+	if router["routeros_user"] != "admin" {
+		t.Fatalf("routeros_user: %v", router["routeros_user"])
+	}
+	if router["routeros_insecure"] != true {
+		t.Fatalf("routeros_insecure: %v", router["routeros_insecure"])
+	}
+	if _, present := router["routeros_password"]; present {
+		t.Fatalf("routeros_password no debe devolverse en la API: %v", router)
+	}
+
+	// PUT actualiza usuario e insecure
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/mikrotik", cookie,
+		`{"host":"192.168.8.1","routeros_user":"netpulse","routeros_insecure":false}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT router: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	rt := body["router"].(map[string]any)
+	if rt["routeros_user"] != "netpulse" {
+		t.Fatalf("routeros_user tras PUT: %v", rt["routeros_user"])
+	}
+	if rt["routeros_insecure"] != false {
+		t.Fatalf("routeros_insecure tras PUT: %v", rt["routeros_insecure"])
+	}
+}
+
 // TestProxmoxConfig (#561): PUT/GET /api/config/proxmox
 //   - guardar url+token, GET no devuelve el secret (solo tokenSet)
 //   - url vacía desactiva (limpia kv)

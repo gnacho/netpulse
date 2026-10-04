@@ -18,7 +18,8 @@ interface AgentBadgeProps {
 }
 
 function isOpenWrtDevice(t?: string): boolean {
-  return t === undefined || t === '' || t === 'glinet' || t === 'openwrt'
+  if (!t) return true
+  return t === 'glinet' || t === 'openwrt'
 }
 
 /**

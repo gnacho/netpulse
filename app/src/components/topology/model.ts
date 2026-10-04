@@ -1427,7 +1427,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
           const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
           // #1047: el padre lo decide la semántica (FDB del switch cuando no
           // hay LLDP); solo se cae al gateway si el server no lo resolvió.
-          const from = routerById.get(sl.from) ?? gatewayNode ?? null
+          // #1060: el padre puede ser un distnode (círculo inferido/gestionado):
+          // el uplink sale del círculo, no del router.
+          const from =
+            routerById.get(sl.from) ??
+            distNodes.find((n) => n.id === sl.from) ??
+            gatewayNode ??
+            null
           const d = from ? curve(from, node) : ''
           return {
             id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
@@ -1550,6 +1556,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     return mbps >= 1000 ? `${(mbps / 1000).toFixed(mbps % 1000 === 0 ? 0 : 1)} Gbps` : `${mbps} Mbps`
   }
   const backhauls: BackhaulRow[] = []
+  // #1063: la columna A de un uplink debe nombrar al padre REAL que dice la
+  // semántica server-side (sem.links kind 'uplink': from = id de router o de
+  // distnode, p. ej. el padre aprendido por FDB #1047/#1060), no siempre el
+  // gateway. Sin semántica o sin match → gateway (comportamiento de siempre,
+  // demo incluido).
+  const uplinkFromByNodeId = new Map<string, string>()
+  if (sem) {
+    for (const sl of sem.links) {
+      if (sl.kind === 'uplink') uplinkFromByNodeId.set(sl.to, sl.from)
+    }
+  }
+  const uplinkParentName = (nodeId: string): string => {
+    const fromId = uplinkFromByNodeId.get(nodeId)
+    if (fromId) {
+      const rn = routerById.get(fromId)
+      if (rn) return rn.router.name
+      const dn = distById.get(fromId) ?? distNodes.find((n) => n.id === fromId)?.node
+      if (dn) return dn.name ?? dn.ip ?? dn.id
+    }
+    return gatewayNode?.router.name ?? ''
+  }
   if (gatewayNode) {
     backhauls.push({
       id: 'wan', a: gatewayNode.router.name, b: 'Internet', kind: 'wan',
@@ -1561,7 +1588,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   for (const node of apNodes) {
     const isWifi = node.router.backhaul === 'wifi'
     backhauls.push({
-      id: `uplink-${node.id}`, a: gatewayNode?.router.name ?? '', b: node.router.name, kind: 'uplink',
+      id: `uplink-${node.id}`, a: uplinkParentName(node.id), b: node.router.name, kind: 'uplink',
       type: isWifi ? 'topology.links.wifiUplink' : 'common.cable',
       // El contrato no trae ni tasa PHY ni señal del backhaul de un AP, así
       // que no se afirma ninguna. El tono sí es información real: un enlace

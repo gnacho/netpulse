@@ -23,8 +23,7 @@ import {
   Settings,
   Waypoints,
   Wifi,
-  Wrench,
-} from 'lucide-react'
+  Wrench, RadioTower, Server } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useNetPulse } from '@/data/DataProvider'
 import { DashboardProvider, useDashboard } from '@/hooks/useDashboard'
@@ -59,9 +58,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
+  { to: '/rack', labelKey: 'nav.rack', icon: Server, badge: 'labs' },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
-  { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: Wifi, badge: 'labs' },
-  { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, badge: 'labs', adminOnly: true },
+  { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: RadioTower },
+  { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, adminOnly: true },
   { to: '/alerts', labelKey: 'nav.alerts', icon: Bell },
   { to: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
   { to: '/orchestration', labelKey: 'nav.orchestration', icon: Wrench, adminOnly: true, badge: 'labs' },
@@ -196,8 +196,9 @@ function LiveDot() {
 // ---------------------------------------------------------------------------
 
 /** Items de nav visibles según el overview. /roaming solo si hay usteer.
- *  La visibilidad de funcionalidades Labs (canales, actualizaciones) se
- *  controla desde la tarjeta Servicios en Ajustes (useServicesVisibility). */
+ *  La visibilidad de funcionalidades Labs (rack) se controla desde la
+ *  tarjeta Servicios en Ajustes (useServicesVisibility); actualizaciones de
+ *  firmware tiene toggle propio (#1146). */
 function useVisibleNavItems(): NavItem[] {
   const { usteer, orchestration } = useNetPulse()
   const [services] = useServicesVisibility()
@@ -212,10 +213,11 @@ function useVisibleNavItems(): NavItem[] {
           (it.to !== '/orchestration' || (labsOn && !!orchestration)) &&
           // Funcionalidades Labs controladas por cada toggle (rediseño v3):
           // solo se muestran en el nav si Labs está activo y su toggle encendido.
-          (it.to !== '/wifi/channel-plan' || (labsOn && services.canales)) &&
-          (it.to !== '/firmware-upgrades' || (labsOn && services.actualizaciones)),
+          // Firmware upgrades (#1146): visibilidad propia, ya no es Labs.
+          (it.to !== '/firmware-upgrades' || services.actualizaciones) &&
+          (it.to !== '/rack' || (labsOn && services.rack)),
       ),
-    [usteerAvailable, orchestration, labsOn, services.canales, services.actualizaciones],
+    [usteerAvailable, orchestration, labsOn, services.rack, services.actualizaciones],
   )
 }
 

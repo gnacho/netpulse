@@ -195,7 +195,7 @@ export default function RouterDetail() {
       </div>
 
       {/* ④ WAN & Latencia (gateway) / Backhaul (APs) */}
-      {isGateway ? <WanLatency /> : <BackhaulPanel router={router} extras={detail?.extras} />}
+      {isGateway ? <WanLatency extras={detail?.extras} /> : <BackhaulPanel router={router} extras={detail?.extras} />}
 
       {/* Las varias conexiones a internet, si el router reporta más de una.
           Va junto a la tarjeta de conexión porque explica la IP que muestra. */}
@@ -206,8 +206,9 @@ export default function RouterDetail() {
       {/* ⑤⑥ Servicios + Puertos (gateway) / Radios + Puertos (APs) */}
       {isGateway ? (
         <>
-          <AdGuardPanel />
-          <WireGuardPanel />
+          {/* AdGuard Home y WireGuard (vía ubus OpenWrt); no aplican a RouterOS. */}
+          {router.type !== 'routeros' && <AdGuardPanel />}
+          {router.type !== 'routeros' && <WireGuardPanel />}
           <PortPanel router={router} extras={detail?.extras} snmpStats={snmpStats} className="lg:col-span-12" />
         </>
       ) : (
