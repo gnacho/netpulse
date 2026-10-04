@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -72,14 +71,14 @@ func firmwareTestServerWithAdapter(t *testing.T, adapter adapters.Snapshotter, r
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
 	chPlan := channelplan.NewStore(d.DB)
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Config: cfg, DB: d, Adapter: adapter, Hub: hub, Secret: secret, Started: time.Now(),
-		ConfigBackup:  configBackup,
-		Orchestr:      orchestrMgr,
-		Firmware:      fwStore,
+		Config:       cfg, DB: d, Adapter: adapter, Hub: hub, Secret: secret, Started: time.Now(),
+		ConfigBackup: configBackup,
+		Orchestr:     orchestrMgr,
+		Firmware:     fwStore,
 		FirmwareImage: imageResolver,
-		AgentHub:      agentHub,
-		ChannelPlan:   chPlan,
-		Agents:        agents,
+		AgentHub:     agentHub,
+		ChannelPlan:  chPlan,
+		Agents:       agents,
 	})
 	srv := httptest.NewServer(handler)
 	ts := &testServer{Server: srv, db: d, secret: secret}
@@ -238,7 +237,7 @@ func TestFirmwareUpgradeRequested(t *testing.T) {
 	// Conectar un agente falso al SSE para que Send tenga éxito.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var connected atomic.Bool
+	var connected bool
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -249,7 +248,7 @@ func TestFirmwareUpgradeRequested(t *testing.T) {
 			return
 		}
 		defer resp.Body.Close()
-		connected.Store(true)
+		connected = true
 		// Leemos hasta que se cancele el contexto o cierre el servidor.
 		buf := make([]byte, 1024)
 		for {
@@ -263,7 +262,7 @@ func TestFirmwareUpgradeRequested(t *testing.T) {
 	}()
 	// Dar tiempo a que el stream se registre.
 	time.Sleep(200 * time.Millisecond)
-	if !connected.Load() {
+	if !connected {
 		t.Fatal("el stream SSE no se conectó")
 	}
 

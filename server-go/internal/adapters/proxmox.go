@@ -401,50 +401,6 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			continue
 		}
 		n := inv.nodes[key]
-		host := &devices[idx]
-		// #1053: si L2 infirió un nodo "inferred" en el (router, puerto) del
-		// host y TODO lo colgado de él es el host o sus invitados, ese
-		// círculo es redundante con la ground truth PVE: se absorbe. El host
-		// pasa a colgar DIRECTAMENTE del router con su puerto (igual que el
-		// hipervisor del canon demo) y el distnode PVE que se crea abajo
-		// queda como agrupación de CTs, no como nodo dibujado extra.
-		guests := map[string]bool{id: true}
-		for i := range devices {
-			if devices[i].AttachTo == id {
-				guests[devices[i].ID] = true
-			}
-		}
-		absorbed := ""
-		for di := range dists {
-			dn := &dists[di]
-			if dn.Kind != "inferred" || dn.RouterID != host.RouterID ||
-				dn.Port == "" || host.Port == "" || dn.Port != host.Port {
-				continue
-			}
-			explained := true
-			for i := range devices {
-				if devices[i].AttachTo == dn.ID && !guests[devices[i].ID] {
-					explained = false
-					break
-				}
-			}
-			if !explained {
-				continue
-			}
-			absorbed = dn.ID
-			dn.Kind = "absorbed" // se filtra al salir del bucle
-			break
-		}
-		if absorbed != "" {
-			if host.AttachTo == absorbed {
-				host.AttachTo = ""
-			}
-			for i := range devices {
-				if devices[i].AttachTo == absorbed {
-					devices[i].AttachTo = id
-				}
-			}
-		}
 		dists = append(dists, DistributionNode{
 			ID: "dist-pve-" + n.Instance + "-" + n.Node, Kind: "hypervisor",
 			RouterID: devices[idx].RouterID, Port: devices[idx].Port, PortLabel: devices[idx].PortLabel,
@@ -452,14 +408,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			Source: "proxmox", Instance: n.Instance,
 		})
 	}
-	// #1053: retirar los nodos inferred absorbidos por un host PVE.
-	kept := dists[:0]
-	for _, dn := range dists {
-		if dn.Kind != "absorbed" {
-			kept = append(kept, dn)
-		}
-	}
-	return kept
+	return dists
 }
 
 // looksLikeMACName: true si el nombre del device es una MAC (no tiene nombre

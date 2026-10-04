@@ -594,60 +594,6 @@ func TestDemoRouterLldpCanon(t *testing.T) {
 
 // --- Regresión single-flight GetOverview ---
 
-// TestDisabledUnitPaused (#1085): una unidad pausada no se sondea (sin
-// fallos, sin alerta de offline) y aparece en el overview con status
-// "paused" + Disabled. La unidad activa sin cliente, en cambio, acumula
-// fallo y alerta (control de que el sondeo sigue vivo para el resto).
-func TestDisabledUnitPaused(t *testing.T) {
-	eng := alerts.New(nil, nil)
-	l := &Live{
-		cfg:           &config.Config{},
-		engine:        eng,
-		routers:       []RouterConfig{{ID: "pausado", Host: "192.0.2.10", Type: "openwrt", Disabled: true}, {ID: "activo", Host: "192.0.2.20", Type: "openwrt"}},
-		lastGood:      map[string]*Router{},
-		lastStatus:    map[string]string{},
-		boardCache:    map[string]*BoardInfo{},
-		layoutCache:   map[string][]PortLayout{},
-		extrasCache:   map[string]*extrasSnapshot{},
-		lastPolled:    map[string]*routerPolled{},
-		failCount:     map[string]int{},
-		lastErr:       map[string]error{},
-		offlineOpen:   map[string]bool{},
-		wanDown:       map[string]int{},
-		onlineMacs:    map[string]bool{},
-		weakAlerted:   map[string]int64{},
-		backhaulCache: map[string]backhaulCacheEntry{},
-		lldpCache:     map[string]lldpCacheEntry{},
-	}
-
-	ov, err := l.GetOverview(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	byID := map[string]Router{}
-	for _, r := range ov.Routers {
-		byID[r.ID] = r
-	}
-	paused, ok := byID["pausado"]
-	if !ok {
-		t.Fatal("la unidad pausada no aparece en el overview")
-	}
-	if paused.Status != "paused" || !paused.Disabled {
-		t.Fatalf("status/disabled = %q/%v, esperaba paused/true", paused.Status, paused.Disabled)
-	}
-	if l.failCount["pausado"] != 0 {
-		t.Fatalf("la unidad pausada se sondeó (failCount %d)", l.failCount["pausado"])
-	}
-	for _, ev := range eng.List() {
-		if ev.RouterID == "pausado" {
-			t.Fatalf("alerta inesperada para la unidad pausada: %+v", ev)
-		}
-	}
-	if l.failCount["activo"] == 0 {
-		t.Fatal("la unidad activa debería haberse sondeado (y fallado sin cliente)")
-	}
-}
-
 func TestLiveGetOverviewConcurrent(t *testing.T) {
 	cfg := &config.Config{}
 	eng := alerts.New(nil, nil)

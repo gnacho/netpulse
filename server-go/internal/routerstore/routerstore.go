@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold, console_polling, routeros_user, routeros_password, routeros_insecure, disabled FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold, console_polling FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -35,17 +35,16 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort, consolePoll, roInsecure, disabled int
-		var name, ft, snmpComm, roUser, roPass sql.NullString
+		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort, consolePoll int
+		var name, ft, snmpComm sql.NullString
 		var tt sql.NullInt64
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt, &consolePoll, &roUser, &roPass, &roInsecure, &disabled); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt, &consolePoll); err != nil {
 			continue
 		}
 		// DEFAULT 1 de la migración, pero una fila insertada antes de la
 		// columna con valor 0 explícito cuenta como desactivada; el NULL no
 		// aplica (NOT NULL DEFAULT 1).
 		r.ConsolePolling = consolePoll == 1
-		r.Disabled = disabled == 1
 		r.Name = name.String
 		r.FirmwareTarget = ft.String
 		r.IsGateway = gw == 1
@@ -59,9 +58,6 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 			v := int(tt.Int64)
 			r.TempThreshold = &v
 		}
-		r.RouterOSUser = roUser.String
-		r.RouterOSPassword = roPass.String
-		r.RouterOSInsecure = roInsecure == 1
 		out = append(out, r)
 	}
 	return out
@@ -151,10 +147,6 @@ type AddInput struct {
 	// ConsolePolling (issue #863): sondeo HTTP de la consola del switch.
 	// nil = default ON (el sondeo no se desactiva por omisión).
 	ConsolePolling *bool
-	// RouterOS: credenciales de la REST API nativa (Type "routeros").
-	RouterOSUser     string
-	RouterOSPassword string
-	RouterOSInsecure bool
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -207,13 +199,9 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if in.ConsolePolling != nil && !*in.ConsolePolling {
 		consolePoll = 0
 	}
-	roInsecure := 0
-	if in.RouterOSInsecure {
-		roInsecure = 1
-	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, console_polling, routeros_user, routeros_password, routeros_insecure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort, consolePoll, in.RouterOSUser, in.RouterOSPassword, roInsecure,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, console_polling) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort, consolePoll,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -246,9 +234,6 @@ type UpdateInput struct {
 	Type      *string
 	IsGateway *bool
 	AgentOnly *bool
-	// Disabled (issue #1085): nil = no tocar; true = pausar la unidad
-	// (sin sondeo ni alertas, insignia y fuera de desplegables).
-	Disabled *bool
 	// FirmwareTarget: versión objetivo (issue #241). nil = no tocar; "" = limpiar.
 	FirmwareTarget *string
 	// SNMP (issue #309): nil = no tocar; puntero a bool/string/int = aplicar.
@@ -264,12 +249,6 @@ type UpdateInput struct {
 	// ConsolePolling (issue #863): sondeo HTTP de la consola del switch.
 	// nil = no tocar. DEFAULT ON (la columna migra a 1).
 	ConsolePolling *bool
-	// RouterOS: nil = no tocar. Password: string vacía se ignora (no borra
-	// una password ya guardada) — dejar el campo en blanco en el form de
-	// edición conserva la credencial existente.
-	RouterOSUser     *string
-	RouterOSPassword *string
-	RouterOSInsecure *bool
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -323,14 +302,6 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 		sets = append(sets, "agent_only = ?")
 		args = append(args, ao)
 	}
-	if in.Disabled != nil {
-		v := 0
-		if *in.Disabled {
-			v = 1
-		}
-		sets = append(sets, "disabled = ?")
-		args = append(args, v)
-	}
 	if in.FirmwareTarget != nil {
 		sets = append(sets, "firmware_target = ?")
 		args = append(args, *in.FirmwareTarget)
@@ -383,22 +354,6 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 			// <= 0 = reset a default (NULL), misma convención que snmp_poll_interval.
 			sets = append(sets, "temp_threshold = NULL")
 		}
-	}
-	if in.RouterOSUser != nil {
-		sets = append(sets, "routeros_user = ?")
-		args = append(args, *in.RouterOSUser)
-	}
-	if in.RouterOSPassword != nil && *in.RouterOSPassword != "" {
-		sets = append(sets, "routeros_password = ?")
-		args = append(args, *in.RouterOSPassword)
-	}
-	if in.RouterOSInsecure != nil {
-		v := 0
-		if *in.RouterOSInsecure {
-			v = 1
-		}
-		sets = append(sets, "routeros_insecure = ?")
-		args = append(args, v)
 	}
 	if len(sets) > 0 {
 		args = append(args, id)

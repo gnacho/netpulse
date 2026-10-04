@@ -179,29 +179,3 @@ func (s *server) handleDeviceBanPut(w http.ResponseWriter, r *http.Request) {
 	_ = body
 	writeError(w, http.StatusNotImplemented, "not_implemented", "baneo por banda: Fase 2 del issue #437")
 }
-
-// handleDeviceDelete: borra un cliente del registro device_seen (#1145,
-// retención indefinida con control explícito). Si el cliente sigue viéndose
-// en vivo, el siguiente ciclo del poller lo vuelve a dar de alta: borrar
-// elimina el recuerdo, no el equipo físico (la UI lo documenta en el
-// diálogo de confirmación).
-func (s *server) handleDeviceDelete(w http.ResponseWriter, r *http.Request) {
-	raw := strings.TrimSpace(r.PathValue("mac"))
-	mac := strings.ToUpper(strings.ReplaceAll(raw, "-", ":"))
-	if mac == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "missing mac")
-		return
-	}
-	// BDs legadas pueden guardar la MAC sin normalizar (con guiones): se
-	// borran ambas formas (#1145).
-	res, err := s.db.Exec("DELETE FROM device_seen WHERE mac = ? OR mac = ?", mac, raw)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "storage_error", "")
-		return
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		writeError(w, http.StatusNotFound, "not_found", "")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}

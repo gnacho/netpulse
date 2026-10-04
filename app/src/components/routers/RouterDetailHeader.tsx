@@ -4,7 +4,6 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { roleLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
-import { useNetPulse } from '@/data/DataProvider'
 import { HealthRing } from '@/components/HealthRing'
 import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
@@ -19,24 +18,19 @@ export function RouterDetailHeader({ router }: { router: Router }) {
   const reduce = useReducedMotion()
   const isGateway = router.roleBadge === 'Principal'
   const agent = useAgentFor(router.id)
-  // #1136: el chip AdGuard solo tiene sentido con AdGuard configurado; sin
-  // host era un adorno fijo en la cabecera del gateway.
-  const { adguard } = useNetPulse()
   const pills = [
     { label: roleLabel(router.roleBadge), tone: 'accent' as const, pulse: false },
     {
       label: t(`common.status.${router.status}`),
-      tone: (router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : router.status === 'paused' ? 'muted' : 'danger') as 'ok' | 'warn' | 'danger' | 'muted',
-      pulse: router.status !== 'online' && router.status !== 'paused',
+      tone: (router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : 'danger') as 'ok' | 'warn' | 'danger',
+      pulse: router.status !== 'online',
     },
-    ...(isGateway && adguard.host
+    ...(isGateway
       ? [
           { label: 'AdGuard', tone: 'ok' as const, pulse: false },
           { label: 'WireGuard', tone: 'tunnel' as const, pulse: false },
         ]
-      : isGateway
-        ? [{ label: 'WireGuard', tone: 'tunnel' as const, pulse: false }]
-        : []),
+      : []),
   ]
 
   return (
@@ -73,13 +67,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
           <div className="min-w-0">
             <h1 className="font-display text-h1 text-text-primary">{router.name}</h1>
             <p className="text-caption text-text-muted">
-              {router.type === 'routeros'
-                ? (router.model || 'RouterOS')
-                : router.type === 'managed-switch'
-                  ? (router.model || 'Switch')
-                  : isGateway
-                    ? router.model
-                    : `OpenWrt · ${router.modelShort}`}
+              {isGateway ? router.model : `OpenWrt · ${router.modelShort}`}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {pills.map((p, i) => (

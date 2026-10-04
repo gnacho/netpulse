@@ -1,26 +1,19 @@
 // manager.go: ciclo de vida del publisher MQTT (#838). Los Ajustes lo
 // reconfiguran en caliente (cancel + rearranque) sin reiniciar NetPulse.
-
 package mqttpub
 
 import (
 	"context"
 	"log"
 	"sync"
-	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 )
-
-// shutdownWait: cuánto espera Apply a que el publisher viejo termine su
-// cierre (offline retenido + DISCONNECT) antes de arrancar el nuevo (#1158).
-const shutdownWait = 5 * time.Second
 
 // Manager posee el publisher en marcha y permite sustituirlo.
 type Manager struct {
 	mu       sync.Mutex
 	cancel   context.CancelFunc
-	done     chan struct{} // se cierra cuando el goroutine del publisher sale
 	cfg      Config
 	version  string
 	snapshot func() *adapters.Overview
@@ -52,35 +45,8 @@ func (m *Manager) startLocked() {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
 	m.cancel = cancel
-	m.done = done
-	pub := New(m.cfg, m.version, m.snapshot, m.demo)
-	go func() {
-		defer close(done)
-		pub.Run(ctx)
-	}()
-}
-
-// stopLocked cancela el publisher en marcha y espera (acotado) a que su
-// goroutine termine, de modo que su offline retenido SIEMPRE aterriza antes
-// de que el siguiente publisher publique online (#1158): si el offline del
-// viejo llegase después del online del nuevo, el broker retendría offline y
-// las entidades de HA quedarían unavailable con datos fluyendo.
-func (m *Manager) stopLocked() {
-	if m.cancel == nil {
-		return
-	}
-	m.cancel()
-	m.cancel = nil
-	if m.done != nil {
-		select {
-		case <-m.done:
-		case <-time.After(shutdownWait):
-			log.Printf("[mqtt] publisher shutdown timed out after %s; starting the new one anyway", shutdownWait)
-		}
-		m.done = nil
-	}
+	New(m.cfg, m.version, m.snapshot, m.demo).Start(ctx)
 }
 
 // Apply sustituye la configuración y rearranca el publisher cuando cambia.
@@ -90,7 +56,10 @@ func (m *Manager) Apply(cfg Config) {
 	if cfg == m.cfg {
 		return
 	}
-	m.stopLocked()
+	if m.cancel != nil {
+		m.cancel()
+		m.cancel = nil
+	}
 	m.cfg = cfg
 	m.startLocked()
 }

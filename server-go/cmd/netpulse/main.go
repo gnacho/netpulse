@@ -45,7 +45,6 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
-	"github.com/gnacho/netpulse/server-go/internal/mcp"
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/ntfy"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -279,9 +278,6 @@ func run() error {
 		}
 	}
 	agentReg := adapters.NewAgentRegistry(agentTTL)
-	// #1082: los agentes conocen sus propios BSSIDs (dawn/usteer local);
-	// el channel-plan los usa para no contar las propias como vecinas.
-	chPlan.SetOwnSeeds(agentReg.LocalBssids)
 	var adapter adapters.Snapshotter
 	var sshPool *adapters.SSHPool
 	var eventsCollector *roamevents.Collector
@@ -667,10 +663,6 @@ func run() error {
 	// conservar siempre). Sin esto ambas tablas crecen sin límite. El
 	// interruptor maestro history.limit_enabled (#975) desactiva la poda
 	// por completo (retención ilimitada).
-	// El mismo tick horario poda alert_log por antigüedad (#1034) según
-	// alerts.retentionDays (kv; 0 = poda temporal off, la cota de 500 filas
-	// sigue aplicando). Es independiente del interruptor maestro #975: el
-	// log de alertas tiene su propio ajuste.
 	presenceStop := make(chan struct{})
 	if !cfg.DemoMode {
 		go func() {
@@ -691,21 +683,11 @@ func run() error {
 					log.Printf("[netpulse] poda de presencia: %d eventos (> %d días)", n, retention)
 				}
 			}
-			pruneAlerts := func() {
-				if adapter == nil {
-					return
-				}
-				if n := adapter.AlertsEngine().PruneLogByRetention(); n > 0 {
-					log.Printf("[netpulse] poda del log de alertas: %d entradas por antigüedad", n)
-				}
-			}
 			prune() // primera pasada al arrancar
-			pruneAlerts()
 			for {
 				select {
 				case <-tick.C:
 					prune()
-					pruneAlerts()
 				case <-presenceStop:
 					return
 				}
@@ -714,25 +696,6 @@ func run() error {
 	}
 
 	mqttMgr := mqttpub.NewManager(mqttpub.LoadConfig(mqttpub.SQLKV{DB: dbHandle.DB}), httpapi.Version, p.LastOverview, cfg.DemoMode)
-
-	// MCP (#1114): servidor MCP embebido (streamable-HTTP en /mcp), solo si
-	// NETPULSE_MCP_ENABLED=1. Sin token store NO se monta: el endpoint solo
-	// existe con su auth Bearer (fail-closed, también en mcp.Handler).
-	var mcpSrv *mcp.Server
-	if cfg.MCPEnabled && tokenStore != nil {
-		var engine *alerts.Engine
-		if adapter != nil {
-			engine = adapter.AlertsEngine()
-		}
-		mcpSrv = mcp.New(mcp.Deps{
-			LastOverview: p.LastOverview,
-			Engine:       engine,
-			Version:      httpapi.Version,
-		})
-		log.Printf("[netpulse] MCP server activo en /mcp (streamable-HTTP, auth: API token Bearer, LAN-only)")
-	} else if cfg.MCPEnabled {
-		log.Printf("[netpulse] aviso: NETPULSE_MCP_ENABLED=1 pero no hay token store; MCP desactivado")
-	}
 
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:          cfg,
@@ -760,7 +723,6 @@ func run() error {
 		Speedtest:       stScheduler,
 		AlertEmitter:    adapter.AlertsEngine(),
 		ChannelPlan:     chPlan,
-		MCP:             mcpSrv,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

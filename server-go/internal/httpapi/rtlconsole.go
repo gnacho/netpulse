@@ -90,14 +90,12 @@ func (c *rtlConsoleCache) snapshot(slug, host string) *rtlConsoleEntry {
 		go c.poll(slug, host)
 		c.mu.Lock()
 	}
-	// Copia bajo el lock: el caller lee los campos ya fuera del mutex y el
-	// poll en background los puede estar escribiendo en paralelo (#1167).
-	out := *e
+	out := e
 	c.mu.Unlock()
 	if out.Firmware == "" {
 		return nil
 	}
-	return &out
+	return out
 }
 
 // invalidate marca la entrada para re-poll inmediato (reboot detectado por el

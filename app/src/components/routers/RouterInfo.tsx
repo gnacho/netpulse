@@ -54,7 +54,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     // aparecer en ningún sitio de la web; la fila ID lo hace visible.
     { label: 'ID', node: router.id },
     { label: 'IP LAN', node: router.ip },
-    { label: 'MAC', node: ex.mac && ex.mac !== '—' ? ex.mac : (router.mac || '—') },
+    { label: 'MAC', node: ex.mac },
     {
       label: 'Firmware',
       node: (
@@ -64,14 +64,14 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           {router.firmwareTarget && (
             <span className="text-text-muted">{t('routerDetail.info.firmwareTarget', { target: router.firmwareTarget })}</span>
           )}
-          {ex.firmwareAvailable ? (
-            <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
-              <StatusPill tone="warn" label={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })} />
-            </span>
-          ) : router.firmwareOutdated ? (
+          {router.firmwareOutdated ? (
             <StatusPill tone="warn" label={t('routers.firmwareOutdated')} />
           ) : ex.firmwareUpdated ? (
             <StatusPill tone="ok" label={t('routerDetail.info.updated')} />
+          ) : ex.firmwareAvailable ? (
+            <span title={t('routers.firmwareAvailable', { version: ex.firmwareAvailable })}>
+              <StatusPill tone="warn" label={ex.firmwareAvailable} />
+            </span>
           ) : null}
         </span>
       ),
@@ -81,17 +81,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     { label: t('routerDetail.info.timezone'), node: ex.timezone ?? '—' },
     {
       label: t('routerDetail.info.access'),
-      node: router.type === 'routeros' ? (
-        <span className="inline-flex items-center gap-1.5">
-          <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
-          RouterOS API
-          <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">8728</span>
-        </span>
-      ) : router.type === 'managed-switch' || router.type === 'external' ? (
-        <span className="inline-flex items-center gap-1.5">
-          SNMP / API
-        </span>
-      ) : (
+      node: (
         <span className="inline-flex items-center gap-1.5">
           <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
           SSH
@@ -120,14 +110,10 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
       <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3.5">
         {/* #442: "Abrir WebUI" genérico: LuCI en OpenWrt, web del fabricante
             en switches gestionados/beacon (ninguno de los dos es "LuCI"). */}
-        {/* #1098: el title expone la URL exacta (http plano a la IP); con
-            HTTPS/LE u otro puerto el botón puede no servir y el usuario debe
-            poder verlo ANTES de pulsar. */}
         <a
           href={`http://${router.ip}`}
           target="_blank"
           rel="noreferrer"
-          title={`http://${router.ip}`}
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
         >
           <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -145,18 +131,13 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
             {t('routerDetail.info.openNetgrip')}
           </a>
         )}
-        {/* #1098: mismo criterio que el botón web: mostrar el comando
-            exacto que se va a copiar. */}
-        {router.type !== 'routeros' && router.type !== 'managed-switch' && router.type !== 'external' && (
-          <button
-            onClick={copySsh}
-            title={`ssh root@${router.ip}`}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
-          >
-            <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
-            {t('routerDetail.info.copySsh')}
-          </button>
-        )}
+        <button
+          onClick={copySsh}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+        >
+          <Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {t('routerDetail.info.copySsh')}
+        </button>
       </div>
 
       {/* Toast "Comando copiado" */}
