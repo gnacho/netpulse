@@ -85,7 +85,8 @@ en vivo contra tu plan contratado, feed de alertas, estadísticas de AdGuard
 Home y peers WireGuard en la misma pantalla (es la captura de arriba).
 
 **Un mapa de topología que se dibuja solo.** Inferido en vivo del FDB del
-bridge (y de LLDP donde está disponible): clientes cableados e inalámbricos
+bridge (y de LLDP donde está disponible, con LLDP-MIB en los switches
+gestionados por SNMP): clientes cableados e inalámbricos
 bajo el router y el puerto por los que hablan de verdad, switches
 gestionados e inferidos, hosts de Proxmox con sus VMs anidadas y túneles
 WireGuard trazados del peer a Internet. Los dispositivos callados conservan
@@ -116,7 +117,8 @@ y entérate cuando aparece algo nuevo.
 **Salud por router, de un vistazo.** Modelo, firmware, CPU, memoria,
 temperatura, uptime y tráfico en vivo de cada router, con historial por
 puerto y desglose de clientes por banda. Los switches gestionados sondeados
-por SNMP también son ciudadanos de primera.
+por SNMP también son ciudadanos de primera, y cualquier unidad se puede
+pausar sin borrarla: sin sondeo ni alertas, con su histórico intacto.
 
 <p align="center">
   <picture>
@@ -134,6 +136,17 @@ por SNMP también son ciudadanos de primera.
   más bloqueados.
 - **Wi-Fi y roaming**: matriz de señal por AP, estado 802.11r, utilización
   por canal, eventos de roaming persistentes.
+- **Analizador de canales WiFi**: un espectro real por radio, cada red dibujada
+  sobre el eje de frecuencias con puntuación de congestión por canal. Lee el
+  aire y aconseja; nunca escribe en tus routers.
+- **Actualizaciones de firmware de la flota**: actualiza dispositivos OpenWrt
+  desde la UI, solo OpenWrt vanilla (lista filtrada, con nota explicativa).
+- **Rack físico (preview en Labs)**: dibuja tu rack de 19", coloca tu hardware
+  y deja que NetPulse proponga el cableado desde la topología detectada.
+  Apagado por defecto.
+- **Asistente IA (MCP)**: un servidor MCP integrado de solo lectura que tu
+  asistente consulta con un token de API (ver
+  [Asistentes de IA](#asistentes-de-ia-mcp)).
 - **Alertas que te encuentran**: temperatura, dispositivo nuevo, firmware
   disponible, WAN caída, problemas de agente; feed en la campana más canales
   de aviso (Web Push nativo, ntfy, Telegram y webhook saliente). Los canales

@@ -36,7 +36,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260924a" />
+  <link rel="stylesheet" href="styles.css?v=20261004a" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -176,9 +176,9 @@
           <h3 data-i18n="featuresPage.routersTitle">Flota de routers</h3>
           <p data-i18n="featuresPage.routersP">Vista de conjunto de todos tus routers con CPU, memoria, temperatura, uptime, clientes conectados y mini sparkline de carga de las últimas 24 h. Los switches gestionados sondeados por SNMP también son ciudadanos de primera, con su histórico de tráfico y sus clientes.</p>
           <ul class="feature-list">
-            <li data-i18n="featuresPage.routersL1">Tarjeta por router con rol (gateway / AP)</li>
-            <li data-i18n="featuresPage.routersL2">Alerta por temperatura o uso crítico</li>
-            <li data-i18n="featuresPage.routersL3">Detalle de interfaces y backhaul</li>
+            <li data-i18n="featuresPage.routersL1">Tarjeta por router con rol (gateway / AP / switch)</li>
+            <li data-i18n="featuresPage.routersL2">Pausa una unidad sin borrarla: sin sondeo ni alertas, con su histórico intacto</li>
+            <li data-i18n="featuresPage.routersL3">LLDP-MIB en switches SNMP: uplinks reales sin OpenWrt</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -193,6 +193,7 @@
             <li data-i18n="featuresPage.agentL2">Aviso de agente desactualizado y botón de upgrade</li>
             <li data-i18n="featuresPage.agentL3">Rearme y estado del agente en tiempo real</li>
             <li data-i18n="featuresPage.agentL4">owut check: comprueba si tu router tiene actualización de firmware</li>
+            <li data-i18n="featuresPage.agentL5">Actualizaciones de firmware desde la UI, solo OpenWrt vanilla</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -206,6 +207,19 @@
             <li data-i18n="featuresPage.wifiL1">Eventos de asociación/desasociación y roaming</li>
             <li data-i18n="featuresPage.wifiL2">Recomendación de re-anclaje por señal</li>
             <li data-i18n="featuresPage.wifiL3">Migración del steering de DAWN a usteer</li>
+          </ul>
+          <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- Channels -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/></svg>
+          <h3 data-i18n="featuresPage.channelTitle">Analizador de canales WiFi</h3>
+          <p data-i18n="featuresPage.channelP">Un espectro real por radio: cada red se dibuja como una campana sobre el eje de frecuencias, con las zonas DFS sombreadas y una franja de ocupación continua. Tu red, vista como la ve el aire.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.channelL1">Puntuación de congestión por canal (óptimo, moderado, saturado); clic para enfocarlo</li>
+            <li data-i18n="featuresPage.channelL2">Tus redes propias nunca congestionan un canal (detección por MAC, SSID y dawn/usteer)</li>
+            <li data-i18n="featuresPage.channelL3">Solo sugiere: aplicar el canal queda en tus manos, en tu router</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -326,6 +340,32 @@
             <li data-i18n="featuresPage.onboxL4">HTTPS opcional para la UI: tus certificados o autofirmado</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+        </div>
+
+        <!-- MCP -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg>
+          <h3 data-i18n="featuresPage.mcpTitle">Asistente IA (MCP)</h3>
+          <p data-i18n="featuresPage.mcpP">Servidor MCP integrado en /mcp: tu asistente IA consulta el estado de la flota, los dispositivos, las alertas y la topología por HTTP con un token de API. Herramientas de solo lectura sobre el último sondeo.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.mcpL1">Flota, salud por router, dispositivos, peers WireGuard, AdGuard, topología y alertas</li>
+            <li data-i18n="featuresPage.mcpL2">Solo tokens de API (nunca la cookie de sesión), con rate limit</li>
+            <li data-i18n="featuresPage.mcpL3">Cada llamada de herramienta queda registrada para auditoría</li>
+          </ul>
+          <span class="feature-status labs" data-i18n="featuresPage.statusLabs">Labs (experimental)</span>
+        </div>
+
+        <!-- Rack -->
+        <div class="card feature reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--tunnel))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          <h3 data-i18n="featuresPage.rackTitle">Rack físico</h3>
+          <p data-i18n="featuresPage.rackP">Dibuja tu rack de 19 pulgadas, coloca routers, switches y servidores por altura U, y deja que NetPulse proponga el cableado a partir de la topología detectada, incluidos los uplinks entre routers. Vista previa temprana.</p>
+          <ul class="feature-list">
+            <li data-i18n="featuresPage.rackL1">Racks y montajes con altura U y proporción real de 19"</li>
+            <li data-i18n="featuresPage.rackL2">Cableado propuesto desde el FDB: los cables importados quedan marcados como detectados</li>
+            <li data-i18n="featuresPage.rackL3">Apagado por defecto: se activa en Ajustes, Labs</li>
+          </ul>
+          <span class="feature-status labs" data-i18n="featuresPage.statusLabs">Labs (experimental)</span>
         </div>
 
         <!-- Home Assistant -->
@@ -459,7 +499,7 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20260925a"></script>
+  <script src="i18n.js?v=20261004a"></script>
   <script src="app.js?v=20260925b"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9"></script>
 </body>

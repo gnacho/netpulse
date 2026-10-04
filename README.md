@@ -83,7 +83,8 @@ contracted plan, alert feed, AdGuard Home stats and WireGuard peers on the
 same screen (that's the screenshot above).
 
 **A topology map that draws itself.** Inferred live from the bridge FDB (and
-LLDP where available): wired and wireless clients under the router and port
+LLDP where available, including LLDP-MIB on SNMP-managed switches): wired and
+wireless clients under the router and port
 they actually talk through, managed and inferred switches, Proxmox hosts with
 their VMs nested, and WireGuard tunnels drawn from peer to Internet. Quiet
 devices keep their place; nothing jumps around on refresh. Drag nodes to
@@ -112,7 +113,9 @@ new shows up.
 
 **Per-router health at a glance.** Model, firmware, CPU, memory, temperature,
 uptime and live traffic for each router, with port-level history and per-band
-client splits. SNMP-polled managed switches are first-class citizens too.
+client splits. SNMP-polled managed switches are first-class citizens too, and
+any unit can be paused without removing it: no polling, no alerts, history
+kept.
 
 <p align="center">
   <picture>
@@ -128,6 +131,16 @@ client splits. SNMP-polled managed switches are first-class citizens too.
 - **AdGuard Home**: query stats, blocked share, top blocked domains.
 - **Wi-Fi and roaming**: signal matrix per AP, 802.11r status, channel
   utilization, persistent roaming events.
+- **Wi-Fi channel analyzer**: a real spectrum per radio, every network drawn on
+  the frequency axis with a congestion score for every channel. It reads the
+  air and advises; it never writes to your routers.
+- **Fleet firmware upgrades**: upgrade OpenWrt devices from the UI, vanilla
+  OpenWrt only (device list filtered, with an explanatory note).
+- **Physical rack (Labs preview)**: draw your 19" rack, place your hardware and
+  let NetPulse propose the cabling from the detected topology. Off by default.
+- **AI assistant (MCP)**: an embedded read-only MCP server your assistant can
+  query with an API token (see
+  [AI assistants](#ai-assistants-mcp)).
 - **Alerts that find you**: temperature, new device, firmware available, WAN
   down, agent issues; bell feed plus notification channels (native Web Push,
   ntfy, Telegram and outgoing webhook). Notification channels only carry
