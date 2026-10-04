@@ -5,6 +5,58 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.34.0] - 2026-10-05
+
+### Added
+
+- **Flujos guiados de integraciones en la Ayuda (#1184)**: MQTT y Home Assistant, ntfy, Telegram y el servidor MCP se explican ahora con un recorrido paso a paso dentro de la app, en castellano y en inglés (#1196, #1198).
+
+### Fixed
+
+- **La tarjeta "Actualizar NetPulse" era inutilizable en pantallas cortas (#1197)**: el diálogo apilaba changelog, requisitos, aviso de tiempo sin servicio y botones de acción en una altura fija sin scroll; ahora se ajusta al viewport en todos los tamaños y el cuerpo es el contenedor de scroll (#1199).
+- **Nombres de interfaz en OpenWrt (#1200)**: los netdev 25.12+ del BPI-R4 (sfp-lan, sfp-wan) se mostraban como "sfp-LAN " y "SFP -wan", y la boca "lan" a secas del UniFi 6 Lite dejaba el panel de puertos vacío (0 de 0); un etiquetado único conserva el formato clásico (LAN 1, WAN, ETH 0, SFP 0) y muestra el nombre real del resto (agente 3.0.10) (#1201). Reportado por @pl-komuch, con capturas que dejaron el diagnóstico trivia.
+
+## [2.33.0] - 2026-10-04
+
+### Added
+
+- **Retención indefinida de clientes (#1145)**: los equipos descubiertos ya no desaparecen de la lista al caducar su lease o limpiarse la tabla ARP; permanecen como offline con su último nombre, IP y última vez vistos. Reportado por @crowedavid (#1172).
+- **Un cliente, varias MAC (#1151)**: los dispositivos que usan una MAC distinta por red (un reloj, un portátil) se enlazan en una sola fila. Reportado por @crowedavid (#1174).
+- **Borrar cliente**: nueva acción en la hoja de edición, con confirmación; un cliente borrado solo reaparece si se le vuelve a ver en la red.
+- **Pausa de unidades de flota (#1085)**: pausa una unidad sin borrarla: deja de sondearse, no alerta y se distingue con su insignia.
+- **Topología y rack**: los uplinks salen del FDB del switch gestionado (adiós a la estrella plana y a los cables inventados); nueva **designación de unidad central** para el auto-cableado, que se sincroniza solo al cambiar el cableado físico; los montajes muestran los nombres reales de la flota y los equipos no identificados ya no se ofrecen como candidatos. Diseñado con la comunidad en las discussions #1108 y #1109.
+- **Latencia real (#1148)**: la tarjeta de latencia del gateway muestra la serie de 24 h medida (antes: un 0 ms falso con gráfica de demo). Reportado por @crowedavid.
+- **Documentación (#1152)**: landing y READMEs al día (análisis de canales, MCP, rack).
+
+### Fixed
+
+- **MQTT (#1153, #1158, #1162)**: el publisher usa gonzalop/mq v0.9.11 (adiós a la tormenta de reconexiones que congelaba Home Assistant durante horas), espera el apagado del publisher viejo al reconfigurar en caliente y protege su estado interno con mutex.
+- **Puertos y LLDP (#1149, #1150)**: los tooltips de los puertos ya no recortan IP/MAC/detalle y muestran la información del vecino LLDP.
+- **Canales (#1147, parcial)**: el desplegable solo ofrece APs (quedan el scan ad hoc y las sugerencias conservadoras).
+- **Firmware upgrades (#1146)**: fuera de Labs, con su toggle propio de visibilidad.
+- **Seguridad y cumplimiento (#1167 a #1173)**: THIRD_PARTY.md con las licencias de dependencias incluido en los archivos de release, bump de golang.org/x/crypto (2 CVEs SSH) y otras dependencias, fixes de carreras en el sondeo RTL y en los tests.
+
+Gracias a @crowedavid: la retención de clientes, el enlazado de MACs, el LLDP y la latencia de esta release empezaron con sus reportes (los squash de #1172 y #1174 salieron sin el crédito del commit; queda registrado aquí).
+
+## [2.32.0] - 2026-10-03
+
+### Added
+
+- **Servidor MCP integrado (labs)**: servidor MCP de solo lectura en `/mcp`: estado de flota, dispositivos, alertas y topología consultables por un asistente IA por HTTP con token de API. Solo en Labs, apagado por defecto, con rate-limit y auditoría.
+- **Topología LLDP-MIB en switches SNMP**: los switches gestionados por SNMP ya usan LLDP-MIB para el descubrimiento de topología: enlaces reales en hardware que nunca expuso un bridge OpenWrt. Esta funcionalidad existe gracias a @crowedavid: literalmente, sin él y su hardware esto no habría sido posible.
+- **Rack canvas (vista previa experimental, labs)**: una vista física del mueble de 19" con routers, switches y servidores, y detección del cableado desde el FDB (uplinks entre routers incluidos). Vista previa muy temprana: desactivada por defecto (Ajustes → Labs), aún en pleno desarrollo.
+- **Actualizaciones de firmware (#1121)**: lista solo dispositivos con OpenWrt vanilla, con nota explicativa, y sale de labs.
+
+### Fixed
+
+- Alertas: la opción "solo no leídas" ahora persiste (#1122) y se olvida la marca de leída al resolverse una alerta (#1133).
+- Speedtest: botón adhoc y detección de estado "testing" restaurados (#1132).
+- Roaming: el filtro de cliente de los eventos coincide con la vista de detalle y los filtros son multiselección (#1139).
+- Interfaz: los marcadores AdGuard y AP ya no se muestran donde no aplican (#1141).
+- SNMP: las interfaces virtuales se agrupan en vez de ocultarse (#1142, cierra #1125) y se ignoran ifAlias de solo espacios (#1077).
+- Resumen: first/last seen aplicado al snapshot SSE de dispositivos (#1111).
+- Diálogo de actualización con tamaño y fondo de estilo Pulse (#1116).
+
 ## [2.31.1] - 2026-10-03
 
 ### Fixed
