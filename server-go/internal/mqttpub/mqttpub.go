@@ -121,10 +121,12 @@ func (p *Publisher) Start(ctx context.Context) {
 		}
 		return
 	}
-	go p.run(ctx)
+	go p.Run(ctx)
 }
 
-func (p *Publisher) run(ctx context.Context) {
+// Run es el bucle del publisher; los callers que necesitan saber cuándo ha
+// terminado (Manager, #1158) lo invocan en su propio goroutine.
+func (p *Publisher) Run(ctx context.Context) {
 	backoff := initialBackoff
 	for {
 		if ctx.Err() != nil {
@@ -144,10 +146,6 @@ func (p *Publisher) run(ctx context.Context) {
 		}
 		backoff = initialBackoff
 		log.Printf("[mqtt] connected to %s:%d as instance %q", p.cfg.Host, p.cfg.Port, p.cfg.Instance)
-
-		p.publishAvailability(client, "online")
-		p.publishDiscovery(client)
-		p.publishCycle(client)
 
 		p.loop(ctx, client)
 
