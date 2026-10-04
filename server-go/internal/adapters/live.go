@@ -3419,7 +3419,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		MAC: "—", Firmware: "—", FirmwareUpdated: true, LastReboot: "—",
 		Soc: "—", Flash: "—", RamMb: 0,
 		BandSplit:           bandSplit,
-		GatewayLatencySpark: []float64{},
+		GatewayLatencySpark: l.latencySpark24h(id),
 		BackhaulSignal:      []float64{},
 		Radios:              radios,
 		Ports:               enriched,
@@ -3520,6 +3520,35 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 // topología: Port/AttachTo, como en buildOverview).
 func (l *Live) GetDevices(context.Context) []Device {
 	return l.attributedDevices()
+}
+
+// latencySpark24h: serie 24h de latencia de la unidad en buckets horarios
+// (AVG de latency_ms en la tabla metrics, solo muestras con sonda). #1148:
+// alimenta el spark real del detalle; vacía si no hay historial (sin sonda
+// o unidad recién añadida) para que el front pinte "sin datos" y no ceros.
+func (l *Live) latencySpark24h(routerID string) []float64 {
+	if l.db == nil || routerID == "" {
+		return []float64{}
+	}
+	rows, err := l.db.Query(
+		`SELECT (ts / 3600000) AS bucket, AVG(latency_ms) AS lat
+		 FROM metrics WHERE router_id = ? AND ts >= ? AND latency_ms IS NOT NULL
+		 GROUP BY bucket ORDER BY bucket`,
+		routerID, l.now().UnixMilli()-86400e3)
+	if err != nil {
+		return []float64{}
+	}
+	defer rows.Close()
+	out := []float64{}
+	for rows.Next() {
+		var bucket int64
+		var lat float64
+		if err := rows.Scan(&bucket, &lat); err != nil {
+			continue
+		}
+		out = append(out, lat)
+	}
+	return out
 }
 
 // attributedDevices builds the device list with everything that decides who
