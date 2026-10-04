@@ -630,7 +630,7 @@ type FdbUplink struct {
 type FleetFdbProvider interface {
 	// FleetFdbUplinks: enlaces derivados del FDB de la unidad designada
 	// (#1186). infraID vacío o inexistente → vacío.
-	FleetFdbUplinks(infraID string) map[string]FdbUplink
+	FleetFdbUplinks(infraID, infraMAC string) map[string]FdbUplink
 }
 
 type RouterDetail struct {
