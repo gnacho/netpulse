@@ -160,7 +160,7 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
         side="top"
         align="center"
         sideOffset={6}
-        className="w-56 border border-border-strong bg-elevated text-text-primary shadow-xl"
+        className="w-max min-w-56 max-w-[24rem] border border-border-strong bg-elevated text-text-primary shadow-xl"
       >
         {!port.up ? (
           <span className="text-caption text-text-muted">{t('routerDetail.ports.freeLabel', { label: port.label })}</span>
@@ -276,12 +276,15 @@ function SfpDetail({ sfp }: { sfp: SfpInfo }) {
   )
 }
 
-/** MiniStat: celda de dato del tooltip (mismo patrón que la topología). */
+/** MiniStat: celda de dato del tooltip (mismo patrón que la topología).
+ *  #1149: el valor hace wrap (break-words) en vez de truncar: lo único que
+ *  importa (IP, MAC, detalle) no se recorta por la derecha; el tooltip ya
+ *  crece con el contenido hasta max-w y aquí cae a una segunda línea. */
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-canvas/60 px-2 py-1.5">
       <div className="text-caption uppercase tracking-[0.06em] text-text-muted">{label}</div>
-      <div className="truncate font-mono text-mono-sm text-text-primary" title={value}>
+      <div className="break-words font-mono text-mono-sm text-text-primary" title={value}>
         {value}
       </div>
     </div>
