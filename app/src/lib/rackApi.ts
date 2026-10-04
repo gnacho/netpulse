@@ -127,6 +127,18 @@ export interface ImportResultDTO {
   noFreePort: number
 }
 
+/** #1186: unidad designada como central del auto-cableado ("" = sin designar). */
+export function fetchUplinkUnit(): Promise<{ id: string }> {
+  return req<{ id: string }>('/api/racks/uplink-unit')
+}
+
+export function setUplinkUnit(id: string): Promise<{ id: string }> {
+  if (id === '') {
+    return req<{ id: string }>('/api/racks/uplink-unit', { method: 'DELETE' })
+  }
+  return req<{ id: string }>('/api/racks/uplink-unit', json('PUT', { id }))
+}
+
 export function importCables(): Promise<ImportResultDTO> {
   return req<ImportResultDTO>('/api/racks/import-cables', { method: 'POST' })
 }

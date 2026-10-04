@@ -359,6 +359,9 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("PUT /api/devices/{mac}/link", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceLinkPut)))
 	mux.Handle("DELETE /api/devices/{mac}/link", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceLinkDelete)))
 	mux.Handle("DELETE /api/devices/{mac}", auth.RequireAdmin(http.HandlerFunc(s.handleDeviceDelete)))
+	mux.Handle("GET /api/racks/uplink-unit", auth.RequireAdmin(http.HandlerFunc(s.handleRacksUplinkUnitGet)))
+	mux.Handle("PUT /api/racks/uplink-unit", auth.RequireAdmin(http.HandlerFunc(s.handleRacksUplinkUnitPut)))
+	mux.Handle("DELETE /api/racks/uplink-unit", auth.RequireAdmin(http.HandlerFunc(s.handleRacksUplinkUnitDelete)))
 	// Onboarding de desconocidos (#772): "dejar como anónimo" silencia la
 	// alerta first-seen de la MAC sin darle nombre (el alta reutiliza
 	// known-macs + override + reservation).

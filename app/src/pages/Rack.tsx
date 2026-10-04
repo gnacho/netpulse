@@ -243,8 +243,14 @@ function RackCanvas() {
   }, [nodes.length, canvasH])
 
 
+  const [uplinkUnit, setUplinkUnit] = useState('')
   const reload = useCallback(async () => {
     const b = await api.fetchRackBundle()
+    // #1186: la unidad central designada (para el selector del toolbar)
+    void api
+      .fetchUplinkUnit()
+      .then((r) => setUplinkUnit(r.id ?? ''))
+      .catch(() => undefined)
     setWorking({
       racks: b.racks,
       mounts: b.mounts,
@@ -890,6 +896,22 @@ function RackCanvas() {
     unmountRef.current = unmount
   })
 
+  // #1186: cambia la unidad central del auto-cableado y refresca el bundle
+  // (el sync de cables detectados corre en la lectura del GET).
+  const changeUplinkUnit = useCallback(
+    async (id: string) => {
+      try {
+        await api.setUplinkUnit(id)
+        setUplinkUnit(id)
+        toast.success(t('rack.uplinkUnitSet'))
+        await reload()
+      } catch (e) {
+        toast.error(String(e))
+      }
+    },
+    [reload, t],
+  )
+
   const runImport = useCallback(async () => {
     if (dirty) {
       toast.error(t('rack.importNeedsSave'))
@@ -1021,6 +1043,24 @@ function RackCanvas() {
 
       {/* Toolbar */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        {/* #1186: unidad central del auto-cableado (su FDB es la verdad) */}
+        <div className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3">
+          <span className="text-[12px] text-text-muted">{t('rack.uplinkUnit')}</span>
+          <Select value={uplinkUnit} onValueChange={(v) => void changeUplinkUnit(v)}>
+            <SelectTrigger className="h-7 w-44 border-0 bg-transparent px-1 text-[13px] text-text-secondary">
+              <SelectValue placeholder={t('rack.uplinkUnitNone')} />
+            </SelectTrigger>
+            <SelectContent>
+              {np.routers
+                .filter((r) => r.mac)
+                .map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
         <button
           type="button"
           onClick={openAddRack}
