@@ -980,7 +980,7 @@ function RackCanvas() {
   // así que el label del montaje caía vacío y la placa pintaba su nombre por
   // defecto ("Router") para todos.
   const routerNameByMac = useMemo(
-    () => new Map(np.routers.filter((r) => r.mac).map((r) => [r.mac.toLowerCase(), r.name])),
+    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.name]] : []))),
     [np.routers],
   )
   const accessoryPlates = useMemo(() => FACEPLATES.filter((p) => p.group === 'accessory'), [])
