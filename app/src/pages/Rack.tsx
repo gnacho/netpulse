@@ -61,7 +61,7 @@ function RackCanvas() {
   // #1151: nombre real de las unidades de flota por MAC (los routers/switches
   // de la flota no están en np.devices - eso son clientes).
   const routerNameByMac = useMemo(
-    () => new Map(np.routers.filter((r) => r.mac).map((r) => [r.mac.toLowerCase(), r.name])),
+    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.name] as const] : []))),
     [np.routers],
   )
   const services = useServicesVisibility()[0]
