@@ -292,20 +292,36 @@ export default function ChannelPlan() {
           own: true,
           color: themeColor('--accent'),
         }
-    const neighbors: SpectrumNet[] = bandScans.map((s) => ({
-      key: s.bssid + s.channel,
-      ssid: s.ssid || t('channelPlan.hidden'),
-      bssid: s.bssid,
-      channel: s.channel,
-      freq: s.freq,
-      signal: s.signal,
-      // Ancho real del anuncio HT/VHT del vecino (#1087); 20 MHz de
-      // fallback cuando el agente viejo/no lo trae.
-      widthMhz: s.widthMhz && s.widthMhz > 0 ? s.widthMhz : 20,
-      own: s.own ?? false,
-      color: s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid),
-    }))
-    return own ? [...neighbors, own] : neighbors
+    // #1214: las propias se deduplican por (SSID, canal) conservando la más
+    // fuerte - el mismo radio anuncia varios BSSIDs (guest, etc.) y en la
+    // vista densa (todo capsulado en el techo) eran una pared indistinguible.
+    const seenOwn = new Map<string, SpectrumNet>()
+    const neighbors: SpectrumNet[] = []
+    for (const s of bandScans) {
+      const net: SpectrumNet = {
+        key: s.bssid + s.channel,
+        ssid: s.ssid || t('channelPlan.hidden'),
+        bssid: s.bssid,
+        channel: s.channel,
+        freq: s.freq,
+        signal: s.signal,
+        // Ancho real del anuncio HT/VHT del vecino (#1087); 20 MHz de
+        // fallback cuando el agente viejo/no lo trae.
+        widthMhz: s.widthMhz && s.widthMhz > 0 ? s.widthMhz : 20,
+        own: s.own ?? false,
+        color: s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid),
+      }
+      if (net.own) {
+        const k = net.ssid + '|' + net.channel
+        const prev = seenOwn.get(k)
+        if (!prev || net.signal > prev.signal) seenOwn.set(k, net)
+      } else {
+        neighbors.push(net)
+      }
+    }
+    const ownNets = [...seenOwn.values()]
+    const all = own ? [own, ...neighbors, ...ownNets] : [...neighbors, ...ownNets]
+    return all
   }, [active, bandScans, t])
 
   const allKeys = useMemo(() => new Set(nets.map((n) => n.key)), [nets])

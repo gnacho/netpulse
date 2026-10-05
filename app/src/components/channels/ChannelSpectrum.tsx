@@ -32,13 +32,7 @@ export const BAND_CHANNELS: Record<string, number[]> = {
   '5 GHz': [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165],
 }
 
-// DFS (ETSI) en MHz para el sombreado de zona: UNII-2A y UNII-2C.
-const DFS_RANGES_MHZ: [number, number][] = [
-  [5260, 5320],
-  [5500, 5720],
-]
-
-const DBM_TOP = -20
+const DBM_TOP = -25
 const DBM_BOTTOM = -95
 const PAD = { l: 44, r: 14, t: 30, b: 30 }
 
@@ -56,6 +50,15 @@ export function channelFreq(band: string, ch: number): number {
     if (ch >= 1 && ch <= 229) return 5955 + (ch - 1) * 5
     return 0
   }
+  return 0
+}
+
+// channelOfFreq redondea una frecuencia a su canal: el eje del gráfico usa
+// SLOTS uniformes por canal (como LuCI), no el eje de MHz continuo (#1214).
+export function channelOfFreq(f: number): number {
+  if (f <= 0) return 0
+  if (f < 2500) return Math.round((f - 2407) / 5)
+  if (f >= 5000 && f <= 6000) return Math.round((f - 5000) / 5)
   return 0
 }
 
@@ -125,7 +128,7 @@ export function ChannelSpectrum({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const heatRef = useRef<HTMLCanvasElement>(null)
-  const geomRef = useRef<{ x: (f: number) => number; y: (d: number) => number } | null>(null)
+  const geomRef = useRef<{ x: (ch: number) => number; y: (d: number) => number } | null>(null)
 
   useEffect(() => {
     const cv = canvasRef.current
@@ -159,41 +162,53 @@ export function ChannelSpectrum({
       if (!g) return
       const plotW = w - PAD.l - PAD.r
       const plotH = h - PAD.t - PAD.b
-      const x = (mhz: number) => PAD.l + ((mhz - range[0]) / (range[1] - range[0])) * plotW
+      // Eje de SLOTS uniformes por canal (como LuCI, #1214): cada canal
+      // ocupa una franja fija y una red se dibuja sobre el slot de su canal.
+      const bandChs = BAND_CHANNELS[band] ?? []
+      const slotW = plotW / Math.max(bandChs.length, 1)
+      const slotOf = (ch: number) => bandChs.indexOf(ch)
+      const xch = (ch: number) => {
+        const i = slotOf(ch)
+        if (i < 0) return PAD.l
+        return PAD.l + slotW * (i + 0.5)
+      }
       const y = (dbm: number) => PAD.t + ((DBM_TOP - dbm) / (DBM_TOP - DBM_BOTTOM)) * plotH
-      geomRef.current = { x, y }
+      geomRef.current = { x: xch, y }
       const baseline = y(DBM_BOTTOM)
       g.clearRect(0, 0, w, h)
       g.font = CANVAS_FONT
 
-      // Zonas DFS (solo 5 GHz), tinte del token tunnel.
+      // Zonas DFS (solo 5 GHz): slots de los canales DFS sombreados + etiqueta.
       if (band === '5 GHz') {
-        for (const [f0, f1] of DFS_RANGES_MHZ) {
+        const dfsChs = bandChs.filter((c) => isDfsChannel(band, c))
+        if (dfsChs.length > 0) {
+          const i0 = slotOf(dfsChs[0]!)
+          const i1 = slotOf(dfsChs[dfsChs.length - 1]!)
           g.fillStyle = 'rgba(167,139,250,0.07)'
-          g.fillRect(x(f0), PAD.t, x(f1) - x(f0), plotH)
+          g.fillRect(PAD.l + slotW * i0, PAD.t, slotW * (i1 - i0 + 1), plotH)
           g.fillStyle = colors.tunnel
           g.globalAlpha = 0.75
           g.textAlign = 'left'
-          g.fillText(tDfs, x(f0) + 7, PAD.t + 14)
+          g.fillText(tDfs, PAD.l + slotW * i0 + 7, PAD.t + 14)
           g.globalAlpha = 1
         }
       }
 
       // Zona recomendada (bloque del canal sugerido).
-      const sugFreq = suggested > 0 ? channelFreq(band, suggested) : 0
       const own = nets.find((n) => n.own)
-      if (sugFreq > 0 && suggested !== (own?.channel ?? 0)) {
-        const half = (widthMhz > 0 ? widthMhz : 20) / 2
+      if (suggested > 0 && suggested !== (own?.channel ?? 0) && slotOf(suggested) >= 0) {
+        const halfSlots = Math.max((widthMhz > 0 ? widthMhz : 20) / 20, 1) / 2
+        const i = slotOf(suggested)
         g.fillStyle = 'rgba(52,211,153,0.08)'
-        g.fillRect(x(sugFreq - half), PAD.t, x(sugFreq + half) - x(sugFreq - half), plotH)
+        g.fillRect(PAD.l + slotW * (i - halfSlots + 0.5), PAD.t, slotW * halfSlots * 2, plotH)
         g.fillStyle = colors.ok
         g.textAlign = 'center'
-        const lx = Math.min(Math.max(x(sugFreq), PAD.l + 60), w - PAD.r - 60)
+        const lx = Math.min(Math.max(xch(suggested), PAD.l + 60), w - PAD.r - 60)
         g.fillText(`★ ${tSuggest} · ${suggested}`, lx, PAD.t - 8)
       }
 
       // Rejilla de señal.
-      for (const d of [-30, -50, -70, -90]) {
+      for (const d of [-25, -50, -75, -92]) {
         g.strokeStyle = colors.border
         g.lineWidth = 1
         g.beginPath()
@@ -208,47 +223,52 @@ export function ChannelSpectrum({
       g.textAlign = 'left'
       g.fillText(tDbm, 6, PAD.t - 8)
 
-      // Eje de canales (frecuencias reales).
-      const known = new Set<number>(BAND_CHANNELS[band] ?? [])
+      // Eje de canales (slots uniformes).
+      const known = new Set<number>(bandChs)
       for (const n of nets) known.add(n.channel)
       g.textAlign = 'center'
       for (const c of [...known].sort((a, b) => a - b)) {
-        const f = channelFreq(band, c)
-        if (f <= 0) continue
+        const i = slotOf(c)
+        if (i < 0) continue
         g.strokeStyle = colors.border
         g.globalAlpha = 0.5
         g.beginPath()
-        g.moveTo(x(f), PAD.t)
-        g.lineTo(x(f), PAD.t + plotH)
+        g.moveTo(PAD.l + slotW * i, PAD.t)
+        g.lineTo(PAD.l + slotW * i, PAD.t + plotH)
         g.stroke()
         g.globalAlpha = 1
         g.fillStyle = colors.muted
-        g.fillText(String(c), x(f), h - 10)
+        g.fillText(String(c), PAD.l + slotW * (i + 0.5), h - 10)
       }
 
-      // Redes como trapecios LuCI (#1214): techo plano al ancho REAL de la
-      // red y faldones que caen un canal (20 MHz) por lado. Las campanas
-      // gaussianas 1.35x se fundían en una sopa cuando la malla propia
-      // domina el entorno (el caso doméstico típico).
+      // Redes como campanas de techo plano (#1214): techo plano a su señal
+      // con subida y caída curvas (pelín de curva), huella visual acotada
+      // por slot. Las gaussianas 1.35x se fundían en una sopa y los
+      // trapecios afilados quedaban rígidos.
       const visible = nets.filter((n) => !hidden.has(n.key))
       for (const n of visible) {
-        if (n.freq <= 0) continue
-        const halfW = Math.max(n.widthMhz, 20) / 2
-        const slope = halfW + 20
-        const xL = x(n.freq - halfW)
-        const xR = x(n.freq + halfW)
-        const xLS = x(Math.max(n.freq - slope, range[0]))
-        const xRS = x(Math.min(n.freq + slope, range[1]))
+        if (n.channel <= 0 || slotOf(n.channel) < 0) continue
+        const xc = xch(n.channel)
+        // las propias se dibujan a 20 MHz de ancho visual (su bloque de
+        // canal): el ancho real (40/80) queda en hover y tabla, pero
+        // dibujarlo entero convierte la vista densa en una pared (#1214)
+        const drawW = n.own ? Math.min(n.widthMhz, 20) : n.widthMhz
+        const topHalf = (0.75 * slotW * Math.max(drawW, 20)) / 20
+        const sigma = slotW
+        const reach = topHalf + 1.75 * slotW
         const peak = y(Math.max(n.signal, DBM_TOP))
         g.beginPath()
-        g.moveTo(xLS, baseline)
-        g.lineTo(xL, peak)
-        g.lineTo(xR, peak)
-        g.lineTo(xRS, baseline)
+        for (let d = -reach; d <= reach; d += 1) {
+          const fall = Math.max(Math.abs(d) - topHalf, 0)
+          const amp = Math.exp(-(fall * fall) / (sigma * sigma))
+          const yy = baseline - (baseline - peak) * amp
+          if (d <= -reach) g.moveTo(xc + d, yy)
+          else g.lineTo(xc + d, yy)
+        }
         g.closePath()
         const grad = g.createLinearGradient(0, peak, 0, baseline)
-        grad.addColorStop(0, withAlpha(n.color, 0.3))
-        grad.addColorStop(1, withAlpha(n.color, 0.04))
+        grad.addColorStop(0, withAlpha(n.color, n.own ? 0.26 : 0.18))
+        grad.addColorStop(1, withAlpha(n.color, 0.03))
         g.fillStyle = grad
         g.strokeStyle = n.color
         g.lineWidth = n.own ? 2.2 : 1.5
@@ -257,26 +277,21 @@ export function ChannelSpectrum({
         g.fill()
         g.stroke()
         g.globalAlpha = 1
-
       }
 
-      // Etiquetas: se asignan de la más fuerte a la más débil en DOS filas
-      // sobre el pico (la propia siempre en la fila interior). Umbral -80 y
-      // clash horizontal corto: en 2.4 GHz denso el draw-order anterior solo
-      // etiquetaba a las propias (#1076).
+      // Etiquetas: dos filas sobre el pico, anti-solapado por slot.
       {
         const labelables = visible
-          .filter((n) => n.freq > 0 && (n.own || n.signal > -80))
+          .filter((n) => n.channel > 0 && (n.own || n.signal > -80))
           .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
-          const px = Math.min(Math.max(x(n.freq), PAD.l + 42), w - PAD.r - 42)
+          const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
           const peakY = y(Math.max(n.signal, DBM_TOP))
-          let done = false
-          for (const rowIdx of n.own ? [0, 1] : [0, 1]) {
+          for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
-            const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < 60)
-            if (!clash || (n.own && rowIdx === 0 && !rows[0]!.some((q) => Math.abs(q.px - px) < 40))) {
+            const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
+            if (!clash || (n.own && rowIdx === 0 && !rows[0]!.some((q) => Math.abs(q.px - px) < slotW * 1.2))) {
               g.fillStyle = n.color
               g.textAlign = 'center'
               g.font = n.own ? CANVAS_FONT_BOLD : '10px Inter, ui-sans-serif, system-ui, sans-serif'
@@ -285,70 +300,63 @@ export function ChannelSpectrum({
               g.globalAlpha = 1
               g.font = CANVAS_FONT
               rows[rowIdx]!.push({ px, py })
-              done = true
               break
             }
           }
-          void done
         }
-        void labelables
       }
 
       // Marcador del canal actual (red propia del radio).
-      if (own && own.freq > 0) {
+      if (own && own.channel > 0 && slotOf(own.channel) >= 0) {
+        const xc = xch(own.channel)
         g.setLineDash([4, 4])
         g.strokeStyle = colors.accent
         g.lineWidth = 1.4
         g.beginPath()
-        g.moveTo(x(own.freq), PAD.t + 6)
-        g.lineTo(x(own.freq), PAD.t + plotH)
+        g.moveTo(xc, PAD.t + 6)
+        g.lineTo(xc, PAD.t + plotH)
         g.stroke()
         g.setLineDash([])
         g.fillStyle = colors.accent
         g.textAlign = 'left'
         g.font = CANVAS_FONT_SEMI
-        g.fillText(tActual, x(own.freq) + 7, PAD.t + plotH - 8)
+        g.fillText(tActual, xc + 7, PAD.t + plotH - 8)
         g.font = CANVAS_FONT
       }
 
-      // Franja de calor: ocupación continua por MHz (ponderación lineal,
-      // mismas convenciones que el mockup del informe).
+      // Franja de calor por canal: una barra por slot, ocupación = potencia
+      // de los vecinos (las propias no congestian, #1080).
       const { g: hg, w: hw, h: hh } = setup(heat, 22)
       if (hg) {
-        const lin = (dbm: number) => Math.pow(10, dbm / 10)
-        const overlap = (fc: number, wMhz: number, f: number) => {
-          const sigma = (wMhz + 20) / 6
-          return Math.exp(-Math.pow((f - fc) / sigma, 2))
-        }
         const stops: [number, string][] = [
           [0, '#3a4757'],
           [0.35, '#2dd4bf'],
           [0.62, '#f5c26b'],
           [1, '#ef6b5b'],
         ]
-        for (let px = 0; px < hw; px++) {
-          const f = range[0] + (px / hw) * (range[1] - range[0])
+        const barW = hw / Math.max(bandChs.length, 1)
+        for (let i = 0; i < bandChs.length; i++) {
+          const ch = bandChs[i]!
           let sum = 0
           for (const n of visible) {
-            // #1080: las propias no congestian (misma regla que el scoring).
-            if (n.own) continue
-            sum += lin(n.signal) * overlap(n.freq, n.widthMhz, f)
+            if (n.own || n.channel !== ch) continue
+            sum += Math.pow(10, n.signal / 10)
           }
           const db = sum > 0 ? 10 * Math.log10(sum) : DBM_BOTTOM
           const tt = Math.min(Math.max((db + 92) / 48, 0), 1)
           let c1 = stops[0]!
           let c2 = stops[stops.length - 1]!
           let tt2 = 0
-          for (let i = 0; i < stops.length - 1; i++) {
-            if (tt >= stops[i]![0] && tt <= stops[i + 1]![0]) {
-              c1 = stops[i]!
-              c2 = stops[i + 1]!
+          for (let k = 0; k < stops.length - 1; k++) {
+            if (tt >= stops[k]![0] && tt <= stops[k + 1]![0]) {
+              c1 = stops[k]!
+              c2 = stops[k + 1]!
               tt2 = (tt - c1[0]) / (c2[0] - c1[0])
               break
             }
           }
           hg.fillStyle = mixHex(c1[1], c2[1], tt2)
-          hg.fillRect(px, 0, 1.5, hh)
+          hg.fillRect(i * barW + 1, 0, barW - 2, hh)
         }
       }
     }
@@ -370,21 +378,23 @@ export function ChannelSpectrum({
     if (!geom || !cv) return
     const r = cv.getBoundingClientRect()
     const mx = e.clientX - r.left
-    const range = BAND_RANGE[band]
-    if (!range) return
+    const bandChs = BAND_CHANNELS[band] ?? []
+    if (bandChs.length === 0) return
     const plotW = r.width - PAD.l - PAD.r
-    const f = range[0] + ((mx - PAD.l) / plotW) * (range[1] - range[0])
+    const slotW = plotW / bandChs.length
+    const slotIdx = Math.min(Math.max(Math.floor((mx - PAD.l) / slotW), 0), bandChs.length - 1)
+    const ch = bandChs[slotIdx]!
     let best: SpectrumNet | null = null
     let bestD = Infinity
     for (const n of nets) {
       if (hidden.has(n.key)) continue
-      const d = Math.abs(n.freq - f)
-      if (d < n.widthMhz * 1.2 && d < bestD) {
+      const d = Math.abs(n.channel - ch)
+      if (d <= 1 && d < bestD) {
         bestD = d
         best = n
       }
     }
-    onHover(best, geom.x(best?.freq ?? f), geom.y(best?.signal ?? DBM_BOTTOM))
+    onHover(best, geom.x(best?.channel ?? ch), geom.y(best?.signal ?? DBM_BOTTOM))
   }
 
   return (
