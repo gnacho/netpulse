@@ -447,8 +447,17 @@ export function ChannelSpectrum({
               break
             }
           }
-          hg.fillStyle = mixHex(c1[1], c2[1], tt2)
+          if (dbs[i]! === -Infinity) {
+            // Slot sin NINGUNA vecina (p.ej. tu 5 GHz, 0 vecinas): verde
+            // calmado = banda libre para ti. El gris pizarra se leia como
+            // "grafica rota sin colores".
+            hg.globalAlpha = 0.22
+            hg.fillStyle = '#2dd4bf'
+          } else {
+            hg.fillStyle = mixHex(c1[1], c2[1], tt2)
+          }
           hg.fillRect(i * barW + 1, 0, barW - 2, hh)
+          hg.globalAlpha = 1
         }
       }
     }
