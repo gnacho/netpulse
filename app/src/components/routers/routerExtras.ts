@@ -30,6 +30,10 @@ export interface RadioInfo {
   powerDbm: number
   clients: number
   congested?: boolean
+  /** #1213: suelo de ruido en dBm (iwinfo); ausente si el driver no lo da */
+  noiseDbm?: number
+  /** #1206: BSSID de la interfaz AP - "el sitio donde viven" esas MACs */
+  bssid?: string
 }
 
 export interface PortInfo {

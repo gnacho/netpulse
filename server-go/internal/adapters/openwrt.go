@@ -668,7 +668,8 @@ func radiosToAdapter(in []probe.Radio) []Radio {
 	out := make([]Radio, 0, len(in))
 	for _, r := range in {
 		out = append(out, Radio{Name: r.Name, Channel: r.Channel,
-			WidthMhz: r.WidthMhz, PowerDbm: r.PowerDbm, Clients: r.Clients})
+			WidthMhz: r.WidthMhz, PowerDbm: r.PowerDbm, Clients: r.Clients,
+			NoiseDbm: r.NoiseDbm, BSSID: r.BSSID})
 	}
 	return out
 }

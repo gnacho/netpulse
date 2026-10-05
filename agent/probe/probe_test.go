@@ -431,6 +431,33 @@ func TestParseFdbYRadios(t *testing.T) {
 	}
 }
 
+// TestParseRadiosNoiseBssid (#1213): el formato nuevo lleva BSSID y ruido de
+// iwinfo; el histórico de 5 campos sigue parseando (sin ruido, sin BSSID).
+func TestParseRadiosNoiseBssid(t *testing.T) {
+	radios := ParseRadios("2.4|6|HT20|20|aa:bb:cc:00:00:01|-96|3\n5|36|HT80|23|aa:bb:cc:00:00:02|-91|7\n")
+	if len(radios) != 2 {
+		t.Fatalf("radios: %+v", radios)
+	}
+	if radios[0].NoiseDbm == nil || *radios[0].NoiseDbm != -96 {
+		t.Fatalf("ruido 2.4: %+v", radios[0])
+	}
+	if radios[0].BSSID != "AA:BB:CC:00:00:01" {
+		t.Fatalf("bssid 2.4: %+v", radios[0])
+	}
+	if radios[1].NoiseDbm == nil || *radios[1].NoiseDbm != -91 || radios[1].Clients != 7 {
+		t.Fatalf("radio 5: %+v", radios[1])
+	}
+	// driver sin ruido ("unknown" → campo vacío) y formato viejo
+	old := ParseRadios("5|36|HT80|23|aa:bb:cc:00:00:02||7\n")
+	if len(old) != 1 || old[0].NoiseDbm != nil || old[0].Clients != 7 {
+		t.Fatalf("radio 5 sin ruido: %+v", old)
+	}
+	legacy := ParseRadios("5|36|HT80|23|7\n")
+	if len(legacy) != 1 || legacy[0].NoiseDbm != nil || legacy[0].BSSID != "" || legacy[0].Clients != 7 {
+		t.Fatalf("formato viejo: %+v", legacy)
+	}
+}
+
 // TestParseFdbBridgeFdb — #253: formato `bridge fdb show` (puerto por nombre,
 // p. ej. eth0/eth1 en GLuON) y puertos ethernet fuera de lanN/wan.
 func TestParseFdbBridgeFdb(t *testing.T) {

@@ -606,6 +606,10 @@ type Radio struct {
 	PowerDbm  float64 `json:"powerDbm"`
 	Clients   int     `json:"clients"`
 	Congested bool    `json:"congested,omitempty"` // solo demo
+	// #1213/#1206: ruido de la banda y BSSID de la interfaz AP (del agente o
+	// de iwinfo vía SSH). nil/vacío = el driver no los reporta.
+	NoiseDbm *int   `json:"noiseDbm,omitempty"`
+	BSSID    string `json:"bssid,omitempty"`
 }
 
 // Backhaul del AP (null en gateway): {kind:'cable', headline, latencyMs} o el

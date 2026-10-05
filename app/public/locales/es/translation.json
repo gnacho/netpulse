@@ -906,6 +906,8 @@
       "clear": "Canal despejado",
       "congested": "Congestionado",
       "power": "Potencia",
+      "noise": "Ruido",
+      "bssid": "BSSID",
       "title": "Radios WiFi",
       "width": "Ancho"
     },
