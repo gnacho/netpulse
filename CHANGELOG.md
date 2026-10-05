@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.36.0] - 2026-10-06
+
+### Added
+
+- **La lente "Ahora" funciona en flotas solo-agente (#1270, agente 3.0.13)**: el survey de ocupación iba por SSH y las unidades sin SSH (solo agente) no lo ejecutaban jamás - la lente nacía vacía. Ahora el propio agente ejecuta `iw dev <iface> survey dump` en su sondeo completo (throttle de 5 minutos, forzado por el botón Actualizar) y empuja el texto crudo; el servidor lo cachea 15 minutos y la lente lo fusiona reutilizando el parser existente. Las unidades con SSH siguen igual.
+
 ## [2.35.0] - 2026-10-06
 
 ### Added
