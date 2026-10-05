@@ -5,6 +5,30 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.35.0] - 2026-10-06
+
+### Added
+
+- **Análisis de canales rehecho (#1214)**: espectro estilo LuCI con techo plano y falda curvada, eje dBm adaptativo con rejillas reales (múltiplos de 10 dentro del rango de la vista), colores estables por SSID para todas las redes (propias incluidas), sombreado de la red bajo el cursor con hit-test que respeta campanas anidadas, etiquetas en el pico y en la banda del suelo para todas, franja de ocupación con solapamiento real de anchos y tonos relativos a la vista, y orden persistente de columnas en Redes detectadas (#1267).
+- **Botón "Escanear ahora" (#1227) y fallback de 30 días (#1243)**: pensado para flotas con `NETPULSE_SCAN_INTERVAL=0`; si la ventana de 24 h está vacía se usan los últimos scans conocidos y se indica la fecha.
+- **Sugerencias de canal conservadoras (#1225)**: solo se propone cambiar con ganancia clara (margen ≥30 %, con excepción DFS); en caso contrario, "mantén tu canal".
+- **Lente "Ahora" en Canales (#1229)**: el survey en vivo se pliega dentro de Canales y desaparece de Itinerancia.
+- **Sello de build en el menú lateral (#1250)**: el hash del commit en ejecución, para diagnosticar cachés y service workers de un vistazo.
+- **SNMP (#1266)**: nombre completo del dispositivo y temperatura de chasis en MikroTik SwOS.
+- **Telemetría de radio (#1213/#1216, agente 3.0.11)**: ruido y BSSID por radio en el detalle de unidad.
+- **Diálogo de actualización centrado en las novedades (#1223)**.
+
+### Fixed
+
+- **El service worker servía el app shell viejo indefinidamente (#1249)**: las navegaciones van red-primero (precache solo como fallback offline); un reload normal basta para actualizar.
+- **El espectro dibujaba todas las redes pegadas al techo (#1251)**: el clamp del pico usaba `Math.max` en vez de `Math.min`; con un entorno a -85..-97 todo se aplastaba arriba y solo sobrevivía una etiqueta.
+- **Franja de ocupación (#1255/#1265)**: la potencia se reparte por los slots que cubre el ancho de cada red (antes solo el canal sintonizado) y la escala es relativa a la vista; una banda sin vecinas se pinta en verde calmado con su nota.
+- **Clientes (#1210/#1212)**: export CSV, borrado solo-offline con confirmación y chip OFFLINE; los BSSID de la propia flota dejan de aparecer como clientes. Reportado por @crowedavid.
+- **Latencia WAN honesta (#1211)**: objetivo configurable en el reinstalador (`NETPULSE_WAN_TARGET`/`GW_TARGET`) y "—" cuando no hay dato. Reportado por @crowedavid.
+- **Updater y supervisor**: normalización del SHA corto antes de comparar (falso `updateAvailable` en rolling, #1261); guard del agente embebido contra versiones inyectadas (#1262); el supervisor no rearma SSH de slugs ausentes de la tabla (#1260).
+- **HTTPS (#1226)**: una instalación anterior a #978 conserva el puerto donde se configuró.
+- Varios: survey de Roaming solo con APs y título "Canales actuales" (#1217), fallo de copia de tokens visible (#1220), dependencias Go al día (`gonzalop/mq` con el fix de backoff, #1235).
+
 ## [2.34.0] - 2026-10-05
 
 ### Added
