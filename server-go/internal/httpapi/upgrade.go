@@ -390,10 +390,10 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 				// external son scrapers que no entienden el comando "upgrade".
 				if !s.routerUpgradeable(slug) {
 					item.Status = "not_openwrt"
-				// #447: solo hay novedad si el agente es MÁS VIEJO que el
-				// binario embebido (build incluido); un agente más nuevo no
-				// está desactualizado y el botón ofrecería un downgrade.
-				} else if version != "" && vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) < 0 {
+					// #447: solo hay novedad si el agente es MÁS VIEJO que el
+					// binario embebido (build incluido); un agente más nuevo no
+					// está desactualizado y el botón ofrecería un downgrade.
+				} else if !agentbin.EmbeddedMismatch() && version != "" && vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) < 0 {
 					item.Status = s.sendOrQueueUpgrade(slug)
 					item.Upgraded = item.Status == "sent"
 					if item.Status == "sent" {
