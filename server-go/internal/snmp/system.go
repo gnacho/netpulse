@@ -8,8 +8,8 @@ import (
 )
 
 type SystemInfo struct {
-	Descr    string
-	Name     string
+	Descr     string
+	Name      string
 	UpTimeSec uint64
 }
 
@@ -94,4 +94,50 @@ func bridgeMacFromPDU(v gosnmp.SnmpPDU) string {
 		return ""
 	}
 	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", b[0], b[1], b[2], b[3], b[4], b[5])
+}
+
+// PollMikrotikTemp lee la temperatura del chasis de un switch MikroTik SwOS
+// (#1256, OidMikrotikTemp, grados enteros). Best-effort: cualquier fallo
+// (OID ausente, equipo no MikroTik, timeout) devuelve ok=false y NUNCA
+// tumba el poll, igual que PollBridgeAddress (#1036).
+func PollMikrotikTemp(s *gosnmp.GoSNMP) (temp int, ok bool) {
+	result, err := s.Get([]string{OidMikrotikTemp})
+	if err != nil {
+		return 0, false
+	}
+	for _, v := range result.Variables {
+		if v.Name != OidMikrotikTemp {
+			continue
+		}
+		return mikrotikTempFromPDU(v)
+	}
+	return 0, false
+}
+
+// mikrotikTempFromPDU convierte el Gauge32 del OID de temperatura a (°C,
+// true). NoSuchObject/Instance u otro tipo de dato → (0, false): la vital
+// queda a null en la UI (#441), no a cero falso.
+func mikrotikTempFromPDU(v gosnmp.SnmpPDU) (int, bool) {
+	if v.Type == gosnmp.NoSuchObject || v.Type == gosnmp.NoSuchInstance {
+		return 0, false
+	}
+	// Solo tipos numéricos: ToBigInt parsea strings y octet strings, que
+	// aquí serían un dato del equipo mal formado, no una temperatura.
+	switch v.Type {
+	case gosnmp.Gauge32, gosnmp.Integer, gosnmp.Counter32, gosnmp.Counter64:
+	default:
+		return 0, false
+	}
+	bi, okBig := v.Value.(*big.Int)
+	if !okBig {
+		bi = gosnmp.ToBigInt(v.Value)
+	}
+	if !bi.IsInt64() {
+		return 0, false
+	}
+	n := bi.Int64()
+	if n < -40 || n > 125 {
+		return 0, false // fuera de rango físico: dato basura, no una temp
+	}
+	return int(n), true
 }
