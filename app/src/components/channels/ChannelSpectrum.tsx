@@ -132,6 +132,10 @@ export function ChannelSpectrum({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const heatRef = useRef<HTMLCanvasElement>(null)
   const geomRef = useRef<{ x: (ch: number) => number; y: (d: number) => number } | null>(null)
+  // Red bajo el cursor (#1214): sombreada al pasar por encima; draw se
+  // invoca a mano cuando cambia para que el brillo siga al raton.
+  const hoverKeyRef = useRef<string | null>(null)
+  const drawRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const cv = canvasRef.current
@@ -294,16 +298,23 @@ export function ChannelSpectrum({
           else g.lineTo(xc + d, yy)
         }
         g.closePath()
+        const dimmed = (selected && selected !== n.key) || (focus != null && n.channel !== focus)
+        const hovered = hoverKeyRef.current === n.key
         const grad = g.createLinearGradient(0, peak, 0, baseline)
-        grad.addColorStop(0, withAlpha(n.color, n.own ? 0.26 : 0.18))
-        grad.addColorStop(1, withAlpha(n.color, 0.03))
+        grad.addColorStop(0, withAlpha(n.color, hovered ? (n.own ? 0.4 : 0.32) : n.own ? 0.26 : 0.18))
+        grad.addColorStop(1, withAlpha(n.color, hovered ? 0.08 : 0.03))
         g.fillStyle = grad
         g.strokeStyle = n.color
-        g.lineWidth = n.own ? 2.2 : 1.5
-        const dimmed = (selected && selected !== n.key) || (focus != null && n.channel !== focus)
+        g.lineWidth = hovered ? (n.own ? 2.8 : 2.1) : n.own ? 2.2 : 1.5
         g.globalAlpha = dimmed ? 0.14 : 1
+        // Sombreado al pasar por encima (#1214): glow del color de la red.
+        if (hovered && !dimmed) {
+          g.shadowColor = n.color
+          g.shadowBlur = 14
+        }
         g.fill()
         g.stroke()
+        g.shadowBlur = 0
         g.globalAlpha = 1
       }
 
@@ -440,6 +451,7 @@ export function ChannelSpectrum({
       }
     }
 
+    drawRef.current = draw
     draw()
     const ro = new ResizeObserver(draw)
     ro.observe(cv)
@@ -474,6 +486,11 @@ export function ChannelSpectrum({
       }
     }
     onHover(best, geom.x(best?.channel ?? ch), geom.y(best?.signal ?? DBM_BOTTOM))
+    const hk = best?.key ?? null
+    if (hk !== hoverKeyRef.current) {
+      hoverKeyRef.current = hk
+      drawRef.current?.()
+    }
   }
 
   return (
@@ -482,7 +499,13 @@ export function ChannelSpectrum({
         ref={canvasRef}
         className="block w-full cursor-crosshair"
         onMouseMove={onMove}
-        onMouseLeave={() => onHover(null, 0, 0)}
+        onMouseLeave={() => {
+          onHover(null, 0, 0)
+          if (hoverKeyRef.current !== null) {
+            hoverKeyRef.current = null
+            drawRef.current?.()
+          }
+        }}
       />
       <canvas ref={heatRef} className="mt-3 block w-full rounded-md" />
     </div>
