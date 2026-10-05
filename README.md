@@ -305,7 +305,8 @@ tools: fleet status, per-router health, known devices, WireGuard peers,
 AdGuard Home stats, the detected topology graph and active alerts. Nothing
 else: no configuration changes, no restarts.
 
-It is experimental and lives under the Labs flag in Settings. It is **disabled by default**. To enable it:
+It lives under Settings > Integrations and is **disabled by default at the
+server level**. To enable it:
 
 ```bash
 NETPULSE_MCP_ENABLED=1

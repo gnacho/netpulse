@@ -1604,7 +1604,7 @@
       "integrationsGroup": "Integraciones",
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
       "mqttCaption": "Publicación del estado en el broker MQTT",
-      "mcpCaption": "Consultas de solo lectura para asistentes de IA (labs)",
+      "mcpCaption": "Consultas de solo lectura para asistentes de IA",
       "configure": "Configurar {{name}}"
     },
     "session": {
@@ -2547,7 +2547,7 @@
         "intro": "El servidor MCP expone un endpoint en /mcp para que los asistentes de IA consulten la flota, la salud por router, los dispositivos, WireGuard, AdGuard, la topología y las alertas. Todo de solo lectura.",
         "steps": [
           "El endpoint debe estar habilitado en el servidor: añade NETPULSE_MCP_ENABLED=1 al entorno del servicio (por ejemplo el .env junto al binario) y reinicia. Si falta, el propio diálogo te lo indica.",
-          "Ve a ⟦Ajustes⟧, sección ⟦Integraciones⟧, y abre la fila ⟦MCP — asistentes de IA⟧ (visible con Labs activado).",
+          "Ve a ⟦Ajustes⟧, sección ⟦Integraciones⟧, y abre la fila ⟦MCP — asistentes de IA⟧.",
           "Activa ⟦Endpoint /mcp activo⟧.",
           "Crea un token con el gestor integrado en el propio diálogo.",
           "En tu asistente, configura un servidor MCP remoto con la URL http://IP:puerto/mcp y el token como Bearer."

@@ -1604,7 +1604,7 @@
       "integrationsGroup": "Integrations",
       "proxmoxCaption": "Cluster inventory (hypervisors and CTs)",
       "mqttCaption": "Fleet state published to the MQTT broker",
-      "mcpCaption": "Read-only queries for AI assistants (labs)",
+      "mcpCaption": "Read-only queries for AI assistants",
       "configure": "Configure {{name}}"
     },
     "session": {
@@ -2547,7 +2547,7 @@
         "intro": "The MCP server exposes an endpoint at /mcp so AI assistants can query the fleet, per-router health, devices, WireGuard, AdGuard, topology and alerts. All read-only.",
         "steps": [
           "The endpoint must be enabled on the server: add NETPULSE_MCP_ENABLED=1 to the service environment (e.g. the .env next to the binary) and restart. If it is missing, the dialog itself tells you.",
-          "Go to ⟦Settings⟧, ⟦Integrations⟧ section, and open the ⟦MCP — AI assistants⟧ row (visible with Labs enabled).",
+          "Go to ⟦Settings⟧, ⟦Integrations⟧ section, and open the ⟦MCP — AI assistants⟧ row.",
           "Enable ⟦Endpoint /mcp active⟧.",
           "Create a token with the manager built into the dialog.",
           "In your assistant, configure a remote MCP server with the URL http://IP:port/mcp and the token as a Bearer credential."
