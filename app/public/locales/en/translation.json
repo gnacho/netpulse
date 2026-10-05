@@ -1589,7 +1589,7 @@
       "regenToken": "Regenerate token",
       "regenTokenCaption": "Rotate external agent token (LABS)",
       "badge": "LABS",
-      "rack": "Rack canvas",
+      "rack": "Rack view",
       "rackCaption": "Draw your rack and detect cables. Off by default; do not use in production."
     },
     "saved": "Preferences saved",
@@ -2637,7 +2637,7 @@
     "importNeedsSave": "Save the rack changes before importing links",
     "betaTitle": "Preview: much work remains",
     "betaText": "This view is under active development and not fully reliable yet. Do not use it in production; feedback is welcome.",
-    "disabledTitle": "Rack canvas is disabled",
-    "disabledText": "It is a development view (labs). Enable it in Settings → Labs → Rack canvas to try it."
+    "disabledTitle": "The rack view is disabled",
+    "disabledText": "It is a development view (labs). Enable it in Settings → Labs → Rack view to try it."
   }
 }
