@@ -263,7 +263,7 @@ export function ChannelSpectrum({
         const topHalf = (0.5 * slotW * Math.max(n.widthMhz, 20)) / 20
         const sigma = 0.75 * slotW
         const reach = topHalf + 1.5 * slotW
-        const peak = y(Math.max(n.signal, DBM_TOP))
+        const peak = y(Math.min(n.signal, DBM_TOP))
         g.beginPath()
         for (let d = -reach; d <= reach; d += 1) {
           const fall = Math.max(Math.abs(d) - topHalf, 0)
@@ -301,7 +301,7 @@ export function ChannelSpectrum({
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
-          const peakY = y(Math.max(n.signal, DBM_TOP))
+          const peakY = y(Math.min(n.signal, DBM_TOP))
           for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
             const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
