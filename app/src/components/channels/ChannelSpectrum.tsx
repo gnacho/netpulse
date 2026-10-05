@@ -249,7 +249,11 @@ export function ChannelSpectrum({
       for (const n of visible) {
         if (n.channel <= 0 || slotOf(n.channel) < 0) continue
         const xc = xch(n.channel)
-        const topHalf = (0.75 * slotW * Math.max(n.widthMhz, 20)) / 20
+        // las propias se dibujan a 20 MHz de ancho visual (su bloque de
+        // canal): el ancho real (40/80) queda en hover y tabla, pero
+        // dibujarlo entero convierte la vista densa en una pared (#1214)
+        const drawW = n.own ? Math.min(n.widthMhz, 20) : n.widthMhz
+        const topHalf = (0.75 * slotW * Math.max(drawW, 20)) / 20
         const sigma = slotW
         const reach = topHalf + 1.75 * slotW
         const peak = y(Math.max(n.signal, DBM_TOP))
