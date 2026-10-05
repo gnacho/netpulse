@@ -148,7 +148,7 @@ export default function ChannelPlan() {
   const [routerId, setRouterId] = useState('')
   const [data, setData] = useState<ChannelPlanData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [, setError] = useState('')
   // #1214: scan ad hoc para flotas con NETPULSE_SCAN_INTERVAL=0. El endpoint
   // manda "refresh" por SSE y el agente fuerza un ciclo con ForceScan (el
   // throttle del intervalo no aplica); los vecinos llegan con el próximo
