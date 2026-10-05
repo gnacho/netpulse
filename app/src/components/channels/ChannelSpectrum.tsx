@@ -262,7 +262,7 @@ export function ChannelSpectrum({
         // propias auto-oidas (>= -45) son una PESTAÑA de referencia en el
         // borde superior; las propias LEJANAS de la malla (-50..) y las
         // vecinas van a su altura real.
-        const selfHeard = n.own && n.signal >= -45
+        const selfHeard = n.own && n.signal >= -60
         if (selfHeard) {
           const halfTab = Math.max((0.75 * slotW * Math.min(n.widthMhz, 20)) / 20, slotW * 0.4)
           g.beginPath()
@@ -307,7 +307,7 @@ export function ChannelSpectrum({
           .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
-          const selfHeardLbl = n.own && n.signal >= -45
+          const selfHeardLbl = n.own && n.signal >= -60
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
           const peakY = selfHeardLbl ? PAD.t + 2 : y(Math.max(n.signal, DBM_TOP))
           for (const rowIdx of [0, 1]) {
