@@ -754,9 +754,11 @@ export default function ChannelPlan() {
                     <div className="mb-1.5 flex items-center gap-2">
                       <span className="text-label uppercase text-text-muted">{t('channelPlan.heatTitle')}</span>
                       <span className="ml-auto text-caption font-normal normal-case tracking-normal text-text-muted">
-                        {bandScans.some((s) => !s.own && !(s.widthMhz && s.widthMhz > 0))
-                          ? t('channelPlan.heatNote')
-                          : t('channelPlan.heatNoteKnown')}
+                        {!bandScans.some((s) => !s.own)
+                          ? t('channelPlan.heatNoNeighbors')
+                          : bandScans.some((s) => !s.own && !(s.widthMhz && s.widthMhz > 0))
+                            ? t('channelPlan.heatNote')
+                            : t('channelPlan.heatNoteKnown')}
                       </span>
                     </div>
                     <div className="flex justify-between text-[10.5px] text-text-muted">

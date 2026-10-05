@@ -186,8 +186,11 @@ export function ChannelSpectrum({
       let botDbm = DBM_BOTTOM
       if (signals.length > 0) {
         topDbm = Math.min(DBM_TOP, Math.max(...signals) + 5)
-        botDbm = Math.max(DBM_BOTTOM, Math.min(...signals) - 4)
-        if (botDbm - topDbm < 30) botDbm = Math.min(topDbm + 30, DBM_BOTTOM)
+        // El suelo se estira hasta la señal más débil real (hasta -105):
+        // con el piso clavado en -95, una red a -97 se aplastaba contra la
+        // línea base y se veia como una linea recta (Hobbiton, #1214).
+        botDbm = Math.max(-105, Math.min(...signals) - 4)
+        if (topDbm - botDbm < 30) botDbm = Math.max(-105, topDbm - 30)
       }
       const y = (dbm: number) => PAD.t + ((topDbm - dbm) / (topDbm - botDbm)) * plotH
       geomRef.current = { x: xch, y }
