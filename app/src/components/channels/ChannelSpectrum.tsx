@@ -225,8 +225,7 @@ export function ChannelSpectrum({
       }
 
       // Rejilla de señal: múltiplos de 10 dentro del rango real de la vista.
-      const tickStart = Math.ceil(topDbm / 10) * 10
-      for (let d = tickStart; d <= botDbm + 1; d += 10) {
+      for (let d = Math.floor(topDbm / 10) * 10; d >= botDbm; d -= 10) {
         g.strokeStyle = colors.border
         g.lineWidth = 1
         g.beginPath()
