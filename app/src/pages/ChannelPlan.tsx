@@ -164,7 +164,28 @@ export default function ChannelPlan() {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
   const [hover, setHover] = useState<{ net: SpectrumNet; x: number; y: number } | null>(null)
-  const [sort, setSort] = useState<{ key: 'signal' | 'ssid' | 'channel'; dir: 'asc' | 'desc' } | null>(null)
+  // Orden de la tabla Redes detectadas PERSISTENTE (#1267): el usuario que
+  // ordena por canal no debe volver a senal en cada recarga.
+  const [sort, setSort] = useState<{ key: 'signal' | 'ssid' | 'channel'; dir: 'asc' | 'desc' } | null>(() => {
+    try {
+      const raw = localStorage.getItem('netpulse.channelPlan.sort')
+      if (!raw) return null
+      const v: unknown = JSON.parse(raw)
+      if (
+        v &&
+        typeof v === 'object' &&
+        'key' in v &&
+        'dir' in v &&
+        ((v as { key: unknown }).key === 'signal' || (v as { key: unknown }).key === 'ssid' || (v as { key: unknown }).key === 'channel') &&
+        ((v as { dir: unknown }).dir === 'asc' || (v as { dir: unknown }).dir === 'desc')
+      ) {
+        return v as { key: 'signal' | 'ssid' | 'channel'; dir: 'asc' | 'desc' }
+      }
+    } catch {
+      /* almacenamiento no disponible: orden por defecto */
+    }
+    return null
+  })
   const [focus, setFocus] = useState<number | null>(null)
   const [onlyMine, setOnlyMine] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<number>(0)
@@ -406,7 +427,15 @@ export default function ChannelPlan() {
   // Ordenación de la tabla: por defecto propias primero y luego señal desc;
   // al elegir columna se ordena puro asc/desc (la alterna al repetir clic).
   const toggleSort = (key: 'signal' | 'ssid' | 'channel') =>
-    setSort((prev) => (prev && prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'signal' ? 'desc' : 'asc' }))
+    setSort((prev) => {
+      const next: { key: 'signal' | 'ssid' | 'channel'; dir: 'asc' | 'desc' } = prev && prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'signal' ? 'desc' : 'asc' }
+      try {
+        localStorage.setItem('netpulse.channelPlan.sort', JSON.stringify(next))
+      } catch {
+        /* almacenamiento no disponible */
+      }
+      return next
+    })
 
   const sortedScans = useMemo(() => {
     const arr = bandScans.slice()
