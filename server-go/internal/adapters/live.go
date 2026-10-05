@@ -240,6 +240,8 @@ type Live struct {
 	pool *SSHPool
 
 	mu         sync.Mutex
+	surveyMu   sync.Mutex
+	surveyRaw  map[string]surveyEntry
 	routers    []RouterConfig
 	gatewayCfg *RouterConfig
 	clients    map[string]*OpenWrtClient
@@ -4373,7 +4375,10 @@ func freqToBand(freq int) string {
 //
 // Cada bloque empieza con "Survey data from <dev>". Los valores están
 // tabulados y separados por ":". El "[in use]" marca el canal operativo.
-func parseIwSurvey(out string) map[string][]SurveyChannel {
+// ParseIwSurvey parsea la salida de `iw dev wlanX survey dump` (#1214):
+// exportada para que el httpapi pueda parsear el survey crudo que empuja el
+// agente en unidades agent-only.
+func ParseIwSurvey(out string) map[string][]SurveyChannel {
 	type rawChannel struct {
 		freq     int
 		inUse    bool
@@ -4452,6 +4457,59 @@ func parseIwSurvey(out string) map[string][]SurveyChannel {
 	return result
 }
 
+// surveyEntry: survey crudo del agente con su marca de tiempo (#1214).
+type surveyEntry struct {
+	raw string
+	at  time.Time
+}
+
+const agentSurveyTTL = 15 * time.Minute
+
+// StoreAgentSurvey guarda el texto crudo de `iw survey dump` que empuja un
+// agente (#1214): fuente de la lente "Ahora" en unidades agent-only sin SSH.
+// El httpapi lo llama en cada push que traiga surveyRaw.
+func (l *Live) StoreAgentSurvey(routerID, raw string) {
+	if raw == "" {
+		return
+	}
+	l.surveyMu.Lock()
+	if l.surveyRaw == nil {
+		l.surveyRaw = map[string]surveyEntry{}
+	}
+	l.surveyRaw[routerID] = surveyEntry{raw: raw, at: time.Now()}
+	l.surveyMu.Unlock()
+}
+
+// agentSurveyRadios parsea el survey crudo del agente si está fresco
+// (agentSurveyTTL); nil si no hay datos o caducaron.
+func (l *Live) agentSurveyRadios(routerID string) []SurveyRadio {
+	l.surveyMu.Lock()
+	e, ok := l.surveyRaw[routerID]
+	l.surveyMu.Unlock()
+	if !ok || time.Since(e.at) > agentSurveyTTL {
+		return nil
+	}
+	per := ParseIwSurvey(e.raw)
+	radios := []SurveyRadio{}
+	for dev, channels := range per {
+		if len(channels) == 0 {
+			continue
+		}
+		band := ""
+		for _, c := range channels {
+			if c.InUse {
+				band = freqToBand(c.Freq)
+				break
+			}
+		}
+		if band == "" {
+			band = freqToBand(channels[0].Freq)
+		}
+		radios = append(radios, SurveyRadio{Device: dev, Band: band, Channels: channels})
+	}
+	return radios
+}
+
 // GetSurvey: utilización por canal wifi (iw survey dump) por router y radio.
 // Recorre los routers (saltando agent-only, que no tienen wifi) y hace SSH
 // `iw dev` para listar interfaces, luego `iw dev wlanX survey dump` por cada
@@ -4486,8 +4544,18 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 			name = cfg.ID
 		}
 		r := SurveyRouter{RouterID: cfg.ID, Name: name, Radios: []SurveyRadio{}}
-		// Agent-only y SNMP (#1026): unidades sin SSH; se listan sin radios.
-		if cfg.AgentOnly || cfg.SnmpEnabled {
+		// Agent-only y SNMP (#1026): unidades sin SSH. Las agent-only pueden
+		// traer survey vía push del agente (#1214); SNMP se lista sin radios.
+		if cfg.AgentOnly {
+			if radios := l.agentSurveyRadios(cfg.ID); len(radios) > 0 {
+				r.Available = true
+				r.Radios = radios
+				any = true
+			}
+			out.Routers = append(out.Routers, r)
+			continue
+		}
+		if cfg.SnmpEnabled {
 			out.Routers = append(out.Routers, r)
 			continue
 		}
@@ -4519,7 +4587,7 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 			if err != nil {
 				continue
 			}
-			channels := parseIwSurvey(surveyOut)[dev]
+			channels := ParseIwSurvey(surveyOut)[dev]
 			if len(channels) == 0 {
 				continue
 			}

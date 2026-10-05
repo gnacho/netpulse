@@ -270,6 +270,14 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[netpulse] error guardando scans de %s: %v", p.Router, err)
 		}
 	}
+	// #1214: survey crudo del agente para la lente "Ahora" en unidades
+	// agent-only. El adaptador Live lo cachea en memoria con TTL; los
+	// adaptadores sin survey (demo) no implementan la interfaz y se omiten.
+	if p.Data.Wireless != nil && p.Data.Wireless.SurveyRaw != "" {
+		if st, ok := s.adapter.(interface{ StoreAgentSurvey(string, string) }); ok {
+			st.StoreAgentSurvey(p.Router, p.Data.Wireless.SurveyRaw)
+		}
+	}
 	// #401: si hay un upgrade en marcha y este push ya reporta la versión
 	// objetivo, el ciclo se cierra con el paso terminal "done" en vez de
 	// dejar el estado en "restarting" hasta el TTL.

@@ -90,6 +90,12 @@ const (
 	// emite "==IFACE==<iface>" antes de cada scan y parsea BSS/freq/signal/SSID.
 	// Si `iw` no está disponible, la sección Scans queda vacía (best-effort).
 	CmdScan = `for i in $(iw dev 2>/dev/null | awk '/Interface / {print $2}'); do echo "==IFACE==$i"; iw dev "$i" scan 2>/dev/null; done`
+	// CmdSurvey (#1214): `iw dev <iface> survey dump` por interfaz, con el
+	// mismo marcador "==IFACE==" que CmdScan. El server parsea el texto
+	// crudo con su parser existente: alimenta la lente "Ahora" (ocupación
+	// por canal en vivo) en unidades agent-only sin SSH. Barato: no saca
+	// la radio del canal.
+	CmdSurvey = `for i in $(iw dev 2>/dev/null | awk '/Interface / {print $2}'); do echo "==IFACE==$i"; iw dev "$i" survey dump 2>/dev/null; done`
 	// CmdIwDev (#1087): `iw dev` a secas, sin scan. Lista las interfaces con
 	// su MAC y SSID: fuente de los BSSIDs propios para el análisis de
 	// canales. Barato (no saca la radio del canal).

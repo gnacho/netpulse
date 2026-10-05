@@ -260,6 +260,9 @@ func Run(ctx context.Context, opts Options) error {
 			// forzamos el scan pasivo (no esperar al throttle #591): el
 			// usuario está mirando datos frescos de canales.
 			prober.ForceScan()
+			// Y el survey en vivo (#1214): la lente "Ahora" quiere datos
+			// frescos de ocupación.
+			prober.ForceSurvey()
 		case <-time.After(client.Delay(opts.Interval)):
 		}
 	}

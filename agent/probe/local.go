@@ -100,7 +100,16 @@ type Prober struct {
 	lastScanAt   time.Time
 	scanForced   bool
 	scanInterval time.Duration
+
+	// Survey en vivo (#1214): throttle propio de 5 min. No saca la radio
+	// del canal, pero el texto crudo engorda el push: no va en cada ciclo.
+	surveyMu     sync.Mutex
+	surveyForced bool
+	surveyAt     time.Time
 }
+
+// surveyInterval: mínimo entre `iw survey dump` si no hay force (#1214).
+const surveyInterval = 5 * time.Minute
 
 const radiosTTL = 5 * time.Minute
 
@@ -141,6 +150,32 @@ func (p *Prober) ForceScan() {
 	p.scanMu.Lock()
 	p.scanForced = true
 	p.scanMu.Unlock()
+}
+
+// ForceSurvey pide un survey en el próximo Build (#1214): el runtime lo
+// llama cuando el server envía "refresh" por SSE.
+func (p *Prober) ForceSurvey() {
+	p.surveyMu.Lock()
+	p.surveyForced = true
+	p.surveyMu.Unlock()
+}
+
+// surveyDue decide si toca lanzar CmdSurvey en este sondeo completo: true si
+// hay force pendiente o si pasó surveyInterval desde el último intento. Al
+// devolver true registra el intento para no repetirlo.
+func (p *Prober) surveyDue() bool {
+	p.surveyMu.Lock()
+	defer p.surveyMu.Unlock()
+	if p.surveyForced {
+		p.surveyForced = false
+		p.surveyAt = time.Now()
+		return true
+	}
+	if p.surveyAt.IsZero() || time.Since(p.surveyAt) >= surveyInterval {
+		p.surveyAt = time.Now()
+		return true
+	}
+	return false
 }
 
 // scanDue decide si toca lanzar CmdScan en este sondeo completo: true si hay
@@ -420,6 +455,14 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		// BSSIDs propios (#1087): `iw dev` sin scan, barato y estable.
 		if out := p.runBest(ctx, CmdIwDev, 5*time.Second); out != "" {
 			wd.OwnBssids = ParseIwDev(out)
+		}
+		// Survey en vivo (#1214): ocupación por canal para la lente "Ahora"
+		// del server en unidades agent-only (sin SSH). Texto crudo: el
+		// parser vive en el server y así no se duplica.
+		if p.surveyDue() {
+			if out := p.runBest(ctx, CmdSurvey, 10*time.Second); out != "" {
+				wd.SurveyRaw = out
+			}
 		}
 	} else {
 		p.radiosMu.Lock()
