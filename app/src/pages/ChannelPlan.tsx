@@ -293,7 +293,10 @@ export default function ChannelPlan() {
         // fallback cuando el agente viejo/no lo trae.
         widthMhz: s.widthMhz && s.widthMhz > 0 ? s.widthMhz : 20,
         own: s.own ?? false,
-        color: s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid),
+        // #1214: color estable por SSID TAMBIEN para las propias - con
+        // todas en el acento del tema la vista perdia los tonos que
+        // tenia la paleta vieja (lila/ámbar/teal).
+        color: ssidColor(s.ssid || s.bssid),
       }
       if (net.own) {
         const k = net.ssid + '|' + net.channel
@@ -926,7 +929,7 @@ export default function ChannelPlan() {
                     <tbody>
                       {sortedScans.map((s) => {
                           const lvl = signalLevel(s.signal)
-                          const color = s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid)
+                          const color = ssidColor(s.ssid || s.bssid)
                           const key = s.bssid + s.channel
                           return (
                             <tr
