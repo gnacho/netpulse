@@ -263,7 +263,11 @@ export function ChannelSpectrum({
         const topHalf = (0.5 * slotW * Math.max(n.widthMhz, 20)) / 20
         const sigma = 0.75 * slotW
         const reach = topHalf + 1.5 * slotW
-        const peak = y(Math.min(n.signal, DBM_TOP))
+        // #1214: clamp a AMBOS lados. Sin el inferior, una red < -100
+        // dBm ponía el pico bajo la línea base y la campana salía
+        // INVERTIDA (borde en la base, centro colgando del canvas).
+        const sig = Math.max(DBM_BOTTOM, Math.min(n.signal, DBM_TOP))
+        const peak = y(sig)
         g.beginPath()
         for (let d = -reach; d <= reach; d += 1) {
           const fall = Math.max(Math.abs(d) - topHalf, 0)
@@ -301,7 +305,7 @@ export function ChannelSpectrum({
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
-          const peakY = y(Math.min(n.signal, DBM_TOP))
+          const peakY = y(Math.max(DBM_BOTTOM, Math.min(n.signal, DBM_TOP)))
           for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
             const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
@@ -317,6 +321,31 @@ export function ChannelSpectrum({
               break
             }
           }
+        }
+        // #1214: banda del suelo para el resto de redes visibles. Las
+        // débiles (-80..-100) no tenían etiqueta (el top-6 se las comía) y
+        // el usuario no las veía frente a "Redes detectadas" ni a LuCI,
+        // que etiqueta también las bajas. Tres filas escalonadas por
+        // paridad de slot sobre la línea base; si aun así chocan, se caen
+        // (la tabla de abajo siempre las lista).
+        const labeled = new Set(labelables.map((n) => n.key))
+        const floorRows: { px: number }[][] = [[], [], []]
+        for (const n of visible) {
+          if (n.channel <= 0 || labeled.has(n.key) || hidden.has(n.key)) continue
+          const slot = slotOf(n.channel)
+          if (slot < 0) continue
+          const px = Math.min(Math.max(xch(n.channel), PAD.l + 36), w - PAD.r - 36)
+          const rowIdx = slot % 3
+          if (floorRows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 0.9)) continue
+          const py = baseline - 8 - rowIdx * 11
+          g.fillStyle = n.color
+          g.textAlign = 'center'
+          g.font = '9px Inter, ui-sans-serif, system-ui, sans-serif'
+          g.globalAlpha = selected && selected !== n.key ? 0.25 : 0.8
+          g.fillText(n.ssid, px, py)
+          g.globalAlpha = 1
+          g.font = CANVAS_FONT
+          floorRows[rowIdx]!.push({ px })
         }
       }
 
