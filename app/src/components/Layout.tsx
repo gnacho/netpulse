@@ -69,10 +69,22 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/help', labelKey: 'nav.help', icon: CircleHelp },
 ]
 
-/** Badge de alertas sin leer, desde el DataProvider */
+/** Badge de alertas sin leer, desde el DataProvider.
+ *  #1274: también Flota (agentes pendientes de actualizar + unidades no
+ *  pausadas con problema) y Clientes (conectados sin identificar). */
 function useNavBadge(to: string): number {
-  const { unreadAlerts } = useNetPulse()
-  return to === '/alerts' ? unreadAlerts : 0
+  const { unreadAlerts, agents, routers, devices } = useNetPulse()
+  if (to === '/alerts') return unreadAlerts
+  if (to === '/routers') {
+    const pendingAgents = agents.filter((a) => a.updateAvailable).length
+    const troubled = routers.filter((r) => r.status !== 'paused' && r.status !== 'online').length
+    return pendingAgents + troubled
+  }
+  if (to === '/devices') {
+    // Misma definición que la tarjeta de alta (#772): conectados sin nombre.
+    return devices.filter((d) => d.online && d.name === d.mac).length
+  }
+  return 0
 }
 
 const PAGE_TITLE_KEYS: [RegExp, string][] = [
@@ -221,7 +233,33 @@ function useVisibleNavItems(): NavItem[] {
   )
 }
 
-function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
+/** Versión del server (una petición, cacheada en el módulo): el sello del
+ *  sidebar muestra "version · build" (#1274). Cache de módulo para que el
+ *  Sidebar y el Rail no dupliquen la petición. */
+let serverVersionCache = ''
+function useServerVersion(): string {
+  const [v, setV] = useState(serverVersionCache)
+  useEffect(() => {
+    if (serverVersionCache) return
+    let disposed = false
+    fetch('/api/health', { signal: AbortSignal.timeout(3000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const ver = typeof d?.version === 'string' ? d.version : ''
+        if (!disposed && ver) {
+          serverVersionCache = ver
+          setV(ver)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      disposed = true
+    }
+  }, [])
+  return v
+}
+
+function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: boolean; onToggleCollapse: () => void; serverVersion: string }) {
   const { t } = useTranslation()
   const items = useVisibleNavItems()
 
@@ -232,7 +270,7 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
         <div className="flex h-16 items-center pt-safe">
           <Logo compact />
         </div>
-        <nav className="flex-1 space-y-1 py-2" aria-label={t('nav.mainNav')}>
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2" aria-label={t('nav.mainNav')}>
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -278,7 +316,7 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
       <div className="flex h-16 items-center px-5 pt-safe">
         <Logo />
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-2" aria-label={t('nav.mainNav')}>
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2" aria-label={t('nav.mainNav')}>
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -319,7 +357,7 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
           navegador. Imprescindible para diagnosticar cachés y service
           workers: una captura del usuario dice qué build ve de verdad. */}
       <div className="px-3 pb-1.5 pt-0.5 text-[10px] font-medium tabular-nums tracking-wide text-text-secondary/50">
-        build {__NP_BUILD__}
+        {serverVersion ? `${serverVersion} · build ${__NP_BUILD__}` : `build ${__NP_BUILD__}`}
       </div>
       <div className="flex items-center gap-2 border-t border-border p-3">
         <LivePill />
@@ -349,7 +387,7 @@ function Rail() {
       <div className="flex h-16 items-center pt-safe">
         <Logo compact />
       </div>
-      <nav className="flex-1 space-y-1 py-2" aria-label={t('nav.mainNav')}>
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2" aria-label={t('nav.mainNav')}>
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -727,9 +765,11 @@ function Shell() {
     })
   }
 
+  const serverVersion = useServerVersion()
+
   return (
     <div className="min-h-[100dvh] bg-canvas">
-      <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
+      <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} serverVersion={serverVersion} />
       <Rail />
       <div className={collapsed ? 'md:pl-16 lg:pl-16' : 'md:pl-16 lg:pl-[232px]'}>
         <Topbar />
