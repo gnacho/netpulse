@@ -91,18 +91,23 @@ func pickGatewayCfg(polled map[string]*routerPolled) *RouterConfig {
 
 // routerPolled es el sondeo de un tick de un router.
 type routerPolled struct {
-	cfg       RouterConfig
-	client    *OpenWrtClient
-	sysInfo   *SysInfo
-	board     *BoardInfo
-	cpu       int
-	ram       int
-	temp              int
+	cfg     RouterConfig
+	client  *OpenWrtClient
+	sysInfo *SysInfo
+	board   *BoardInfo
+	cpu     int
+	ram     int
+	temp    int
+	// #1256: SNMP rellena sysDescr (nombre/modelo completo del switch) y,
+	// en MikroTik SwOS, la temperatura del chasis (hasTemp). hasTemp
+	// distingue "no aplica" de "0 °C" para no pisar el null de #441.
+	hasTemp           bool
+	sysDescr          string
 	flash             string
 	firmwareAvailable string
 	uptimeSec         float64
-	net       *NetDevBps
-	leases    []DhcpLease
+	net               *NetDevBps
+	leases            []DhcpLease
 	// glClients (GL.iNet): base de clientes del firmware, superset de las
 	// leases. Se usa SOLO para resolver IPs de dispositivos ya conocidos que
 	// salen sin IP (dnsmasq sin lease), nunca para crear dispositivos nuevos.
@@ -290,10 +295,10 @@ type Live struct {
 	// flap breve no cierre el incidente.
 	offlineOpen   map[string]bool
 	recoverStreak map[string]int
-	engine              *alerts.Engine
-	wgActive            map[string]bool
-	weakAlerted         map[string]int64
-	onlineMacs          map[string]bool
+	engine        *alerts.Engine
+	wgActive      map[string]bool
+	weakAlerted   map[string]int64
+	onlineMacs    map[string]bool
 	// unknownGrace: ticks consecutivos online+sin nombre (Name == MAC) por
 	// MAC. unknownAlerted: MACs que ya dispararon la alerta de desconocido
 	// (issue #248, persistido en kv: cada MAC alerta UNA sola vez).
@@ -1250,6 +1255,11 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.board != nil && p.board.Model != "" {
 		model = p.board.Model
 	}
+	// #1256: los switches SNMP no tienen board (sondeo sin SSH); el
+	// sysDescr declara el nombre/modelo completo del equipo.
+	if p.cfg.SnmpEnabled && p.sysDescr != "" {
+		model = p.sysDescr
+	}
 	name := p.cfg.Name
 	if name == "" {
 		name = p.cfg.Host
@@ -1302,6 +1312,11 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if noVitals {
 		r.VitalsAvailable = bptr(false)
 		r.CPU, r.RAM, r.Temp = nil, nil, nil
+		// #1256: si el sondeo SNMP trajo temperatura real (MikroTik SwOS),
+		// no la pisamos con null: se conserva la vital junto a las demás.
+		if p.hasTemp {
+			r.Temp = iptr(p.temp)
+		}
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
 	if p.selfExpose {
@@ -4601,7 +4616,6 @@ func deviceDisplayName(mac string, leases map[string]DhcpLease, aliases map[stri
 	return mac
 }
 
-
 // portEnrichDeps: mapas compartidos del enriquecimiento de bocas del
 // detalle (extraído de GetRouterDetail, #1150, para poder testearlo).
 type portEnrichDeps struct {
@@ -4673,7 +4687,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 			// La pista "cliente WiFi detrás" la traduce el cliente
 			// según PeerKind (#1039); el nombre del AP viaja en ConnectedTo.
 			port.PeerKind = "ap-wifi"
-		return port
+			return port
 		}
 	}
 	// 2) Un solo dispositivo final
@@ -4695,7 +4709,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 			port.ConnectedTo = "Hypervisor"
 			port.DeviceMac = mac
 			port.Detail = virtualDetail(mac, d.leaseMap, d.aliasByMac)
-		return port
+			return port
 		}
 		// Label curada que no coincide con el dispositivo resuelto:
 		// - si el dispositivo tiene nombre real (lease/alias), la label
@@ -4725,7 +4739,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 			} else if lldpMgmt != "" && lldpName != "" {
 				port.Detail = lldpMgmt + " · LLDP"
 			}
-		return port
+			return port
 		}
 		switch {
 		case ok && lease.Hostname != "":
@@ -4759,7 +4773,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		if len(all) > 3 {
 			// deviceCount lo traduce la app; aquí NO se formatea texto (#1036).
 			port.DeviceCount = len(all)
-		return port
+			return port
 		}
 		// Si se anuncia por LLDP, esa identificación (chassis + mgmt-ip)
 		// es mejor pista que el hostname DHCP.
@@ -4770,7 +4784,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 			} else {
 				port.Detail = "LLDP"
 			}
-		return port
+			return port
 		}
 		infraMac := ""
 		for _, mac := range all {

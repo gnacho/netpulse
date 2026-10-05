@@ -46,6 +46,10 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if sysErr != nil {
 		log.Printf("[netpulse] SNMP system %s: %v", cfg.LogLabel(), sysErr)
 	}
+	// #1256: temperatura del chasis en MikroTik SwOS (grados enteros).
+	// Best-effort: los switches que no exponen el OID responden
+	// NoSuchInstance y hasTemp queda false (vitals a null como antes).
+	mikroTemp, hasTemp := npsnmp.PollMikrotikTemp(session)
 	// #1036: MAC propia del switch (dot1dBaseBridgeAddress). Sin ella el
 	// equipo no tenía MAC en flota ni casaba por MAC en topología. Cache:
 	// si el OID no contesta en este poll se conserva la última conocida.
@@ -191,6 +195,13 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		lldp:      snmpLldpNeighbors(lldpRem, portIdxToName),
 		polledAt:  now.UnixMilli(),
 	}
+	if sysInfo != nil {
+		// #1256: el sysDescr declara el nombre/modelo completo del equipo
+		// (p. ej. "CSS610-8G-2S+ SwOS v2.21"); buildRouter lo usa como
+		// model de la unidad SNMP en lugar del nombre corto configurado.
+		p.sysDescr = sysInfo.Descr
+	}
+	p.temp, p.hasTemp = mikroTemp, hasTemp
 	l.mu.Lock()
 	l.snmpLastPoll[cfg.ID] = now
 	l.mu.Unlock()

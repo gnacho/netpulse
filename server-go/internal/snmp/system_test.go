@@ -1,6 +1,7 @@
 package snmp
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -24,5 +25,27 @@ func TestBridgeMacFromPDU(t *testing.T) {
 	noObj := gosnmp.SnmpPDU{Name: OidDot1dBaseBridgeAddress, Type: gosnmp.NoSuchObject, Value: nil}
 	if got := bridgeMacFromPDU(noObj); got != "" {
 		t.Errorf("nosuchobject: got %q, want vacío", got)
+	}
+}
+
+// #1256: el Gauge32 del OID MikroTik da grados enteros; NoSuchInstance u
+// otro tipo dejan la vital a null (ok=false), y un valor fuera de rango
+// físico se descarta como basura.
+func TestMikrotikTempFromPDU(t *testing.T) {
+	good := gosnmp.SnmpPDU{Name: OidMikrotikTemp, Type: gosnmp.Gauge32, Value: big.NewInt(60)}
+	if n, ok := mikrotikTempFromPDU(good); !ok || n != 60 {
+		t.Errorf("gauge 60: got (%d,%v)", n, ok)
+	}
+	noObj := gosnmp.SnmpPDU{Name: OidMikrotikTemp, Type: gosnmp.NoSuchInstance, Value: nil}
+	if _, ok := mikrotikTempFromPDU(noObj); ok {
+		t.Error("nosuchinstance debe dar ok=false")
+	}
+	str := gosnmp.SnmpPDU{Name: OidMikrotikTemp, Type: gosnmp.OctetString, Value: "60"}
+	if _, ok := mikrotikTempFromPDU(str); ok {
+		t.Error("octetstring debe dar ok=false")
+	}
+	hot := gosnmp.SnmpPDU{Name: OidMikrotikTemp, Type: gosnmp.Gauge32, Value: big.NewInt(900)}
+	if _, ok := mikrotikTempFromPDU(hot); ok {
+		t.Error("900 fuera de rango debe dar ok=false")
 	}
 }
