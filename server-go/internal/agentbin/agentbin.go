@@ -10,11 +10,13 @@
 package agentbin
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
 	"io"
 	"io/fs"
+	"strings"
 	"sync"
 )
 
@@ -37,6 +39,7 @@ var (
 	digestMu    sync.Mutex
 	digestCache = map[string]string{}
 )
+
 // Digest devuelve el sha256 (hex) del binario embebido para arch, o "" si no
 // existe o no se puede leer. Cacheado. Normaliza armv7 -> arm como Open.
 func Digest(arch string) string {
@@ -109,4 +112,55 @@ func Open(arch string) (fs.File, error) {
 		return nil, fs.ErrNotExist
 	}
 	return f, nil
+}
+
+// ---- Guard de coherencia versión embebida (#1246) ----
+
+// embeddedMismatch: true cuando los binarios embebidos NO corresponden a
+// EmbeddedAgentVersion (build manual que no reconstruyó agents/*). En ese
+// estado los upgrades de agentes se desactivan: si no, cada agente vería
+// updateAvailable, descargaría el "nuevo" binario, reiniciaría en la MISMA
+// versión y repetiría el ciclo para siempre.
+var embeddedMismatch bool
+
+// SetEmbeddedMismatch marca/desmarca el estado de inconsistencia (lo invoca
+// el arranque tras VerifyEmbedded; también usable en tests).
+func SetEmbeddedMismatch(v bool) { embeddedMismatch = v }
+
+// EmbeddedMismatch informa de si los upgrades de agentes están desactivados
+// por binarios embebidos incoherentes con EmbeddedAgentVersion.
+func EmbeddedMismatch() bool { return embeddedMismatch }
+
+// VerifyEmbedded comprueba que cada binario embebido contenga el string de
+// EmbeddedAgentVersion. No podemos ejecutar binarios de otras arquitecturas:
+// los -X main.Version del build van a rodata, así que la presencia del
+// string en el ELF es la verificación posible. Devuelve (ok, archs malos).
+// Sin binarios (dev) o con la versión default sin ldflags no hay nada que
+// verificar: (true, "").
+func VerifyEmbedded() (bool, string) {
+	if !HasBinaries() {
+		return true, ""
+	}
+	return verifyFSVersion(agentsFS, EmbeddedAgentVersion)
+}
+
+// verifyFSVersion es verifyEmbedded desacoplada del embed para tests.
+func verifyFSVersion(fsys fs.FS, version string) (bool, string) {
+	if version == "" || version == "0.1.0" {
+		return true, ""
+	}
+	var bad []string
+	for _, arch := range []string{"amd64", "arm64", "arm", "mips", "mipsle"} {
+		b, err := fs.ReadFile(fsys, "agents/netpulse-agent-"+arch)
+		if err != nil || len(b) == 0 {
+			continue // sin binario para esa arquitectura: Open ya da 404
+		}
+		if !bytes.Contains(b, []byte(version)) {
+			bad = append(bad, arch)
+		}
+	}
+	if len(bad) > 0 {
+		return false, strings.Join(bad, ",")
+	}
+	return true, ""
 }

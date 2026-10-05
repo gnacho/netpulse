@@ -624,7 +624,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				if agentKind == "netgrip" {
 					item.UpdateAvailable = item.Version != "" && cmpSemver(netgripLatest(), item.Version) > 0
 				} else {
-					item.UpdateAvailable = agentUpgradeable(matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
+					item.UpdateAvailable = !agentbin.EmbeddedMismatch() && agentUpgradeable(matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
 				}
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
+	"github.com/gnacho/netpulse/server-go/internal/alertlang"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -59,7 +60,6 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
-	"github.com/gnacho/netpulse/server-go/internal/alertlang"
 	"github.com/gnacho/netpulse/server-go/internal/staticspa"
 	"github.com/gnacho/netpulse/server-go/internal/telegram"
 	"github.com/gnacho/netpulse/server-go/internal/telemetry"
@@ -805,6 +805,15 @@ func run() error {
 	}
 
 	errCh := make(chan error, 2)
+	// #1246: guard de coherencia de los binarios embebidos del agente. Un
+	// build manual puede embeber binarios viejos con EmbeddedAgentVersion
+	// nueva: los agentes verían updateAvailable, descargarían, reiniciarían
+	// en la misma versión y repetirían para siempre. Si la versión no está
+	// en los ELF, se desactivan los upgrades y se avisa en el log.
+	if ok, bad := agentbin.VerifyEmbedded(); !ok {
+		log.Printf("[netpulse] ERROR: binarios de agente embebidos (%s) sin la versión %s: upgrades de agentes DESACTIVADOS hasta recompilar (#1246)", bad, agentbin.EmbeddedAgentVersion)
+		agentbin.SetEmbeddedMismatch(true)
+	}
 	go func() {
 		scheme := "http"
 		if cfg.Onbox {
