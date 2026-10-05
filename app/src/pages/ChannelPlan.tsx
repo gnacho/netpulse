@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   ChannelSpectrum,
-  channelFreq,
   isDfsChannel,
   themeColor,
   type SpectrumNet,
@@ -270,28 +269,13 @@ export default function ChannelPlan() {
     return ifaceHits.length > 0 ? ifaceHits : inBand
   }, [data, active])
 
-  // Redes para el espectro: la propia del radio va al final para pintarse
-  // encima de las campanas vecinas que se solapen.
+  // Redes para el espectro: propias al final para pintarse encima de las
+  // vecinas que se solapen. SIN montaña sintética (#1214): cuando los
+  // scans no traen propias, un bloque fijo a -25 mentía la señal (todo lo
+  // demás a -85/-97 y "tu red" en el techo). La posición de tu red la
+  // marca la línea de "Tu canal", que ahora usa el canal REAL del radio.
   const nets = useMemo<SpectrumNet[]>(() => {
     if (!active) return []
-    // #1214: la montaña sintética de "tu red" (a -25 fijos, se leía como
-    // "estoy a 30 dBm" en la rejilla) solo como fallback cuando los scans
-    // NO traen las propias: los agentes (#1087) ya las reportan a su señal
-    // real y la malla se ve con sus niveles verdaderos.
-    const hasOwnScans = bandScans.some((s) => s.own)
-    const own: SpectrumNet | null = hasOwnScans
-      ? null
-      : {
-          key: 'own',
-          ssid: t('channelPlan.ownNetwork'),
-          bssid: '',
-          channel: active.channel,
-          freq: channelFreq(active.name, active.channel),
-          signal: -25,
-          widthMhz: active.widthMhz > 0 ? active.widthMhz : 20,
-          own: true,
-          color: themeColor('--accent'),
-        }
     // #1214: las propias se deduplican por (SSID, canal) conservando la más
     // fuerte - el mismo radio anuncia varios BSSIDs (guest, etc.) y en la
     // vista densa (todo capsulado en el techo) eran una pared indistinguible.
@@ -319,9 +303,7 @@ export default function ChannelPlan() {
         neighbors.push(net)
       }
     }
-    const ownNets = [...seenOwn.values()]
-    const all = own ? [own, ...neighbors, ...ownNets] : [...neighbors, ...ownNets]
-    return all
+    return [...neighbors, ...seenOwn.values()]
   }, [active, bandScans, t])
 
   const allKeys = useMemo(() => new Set(nets.map((n) => n.key)), [nets])
@@ -737,6 +719,7 @@ export default function ChannelPlan() {
                   <div className="relative px-3 pt-2">
                     <ChannelSpectrum
                       band={active.name}
+                      currentChannel={active.channel}
                       nets={nets}
                       suggested={suggested}
                       widthMhz={active.widthMhz}
