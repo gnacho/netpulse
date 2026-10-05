@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/sheet'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn, fetchJson } from '@/lib/utils'
+import { useNetPulse } from '@/data/DataProvider'
 import type { ClientDevice } from '@/pages/devices-data'
 
 // #693: el server solo acepta hostnames DNS en la reserva DHCP. Un nombre
@@ -62,6 +63,7 @@ export function DeviceEditSheet({
   onLinkChanged,
 }: DeviceEditSheetProps) {
   const { t } = useTranslation()
+  const { refresh } = useNetPulse()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [linkTarget, setLinkTarget] = useState('')
@@ -566,8 +568,11 @@ export function DeviceEditSheet({
             )}
 
             {/* #1145: borrado del cliente del registro. Un cliente borrado
-                solo reaparece si se le vuelve a ver en vivo. */}
-            {!isDemo && device?.mac && (
+                solo reaparece si se le vuelve a ver en vivo. #1205: el botón
+                solo tiene sentido para clientes offline (los online los
+                re-detecta el siguiente ciclo del poller y parece que "no
+                borra"): para ellos se sugiere Bloquear. */}
+            {!isDemo && device?.mac && device.online === false && (
               <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">
                 <div className="text-label uppercase tracking-wide text-danger">{t('devices.edit.dangerZone')}</div>
                 <p className="mb-2 mt-1 text-caption text-text-muted">{t('devices.edit.deleteDesc')}</p>
@@ -576,11 +581,18 @@ export function DeviceEditSheet({
                 </Button>
               </div>
             )}
+            {!isDemo && device?.mac && device.online && (
+              <div className="rounded-xl border border-border bg-elevated p-3">
+                <div className="text-label uppercase tracking-wide text-text-muted">{t('devices.edit.dangerZone')}</div>
+                <p className="mt-1 text-caption text-text-muted">{t('devices.edit.deleteOnlineHint')}</p>
+              </div>
+            )}
 
           </div>
         )}
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
+          {/* #1205: el aviso lleva el mismo tinte rojo que la zona que lo abre */}
+          <AlertDialogContent className="border-danger/40 bg-surface">
             <AlertDialogHeader>
               <AlertDialogTitle>{t('devices.edit.deleteTitle')}</AlertDialogTitle>
               <AlertDialogDescription>
@@ -591,12 +603,16 @@ export function DeviceEditSheet({
               <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
               <AlertDialogAction
                 disabled={deleting}
+                className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20"
                 onClick={async (e) => {
                   e.preventDefault()
                   if (!device?.mac) return
                   setDeleting(true)
                   try {
                     await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}`, { method: 'DELETE' })
+                    // #1205: refresco inmediato - si no, la fila seguiría en
+                    // pantalla hasta el próximo ciclo y parecería que no borra
+                    void refresh()
                     setDeleteOpen(false)
                     onDeleted?.()
                     onClose()
