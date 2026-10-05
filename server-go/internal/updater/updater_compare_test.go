@@ -33,6 +33,9 @@ func TestCheckFetchesCompareCommits(t *testing.T) {
 		case strings.HasPrefix(r.URL.Path, "/repos/owner/netpulse/compare/"):
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, compareBody)
+		case r.URL.Path == "/repos/owner/netpulse/releases/latest":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tag_name":"v2.5.0"}`)
 		default:
 			t.Errorf("path inesperado: %s", r.URL.Path)
 		}
@@ -102,6 +105,9 @@ func TestCheckCompareFailureTolerated(t *testing.T) {
 		case r.URL.Path == "/repos/owner/netpulse/releases":
 			// #404: body no vacío en el mock → no llega aquí, pero por si acaso.
 			fmt.Fprint(w, `[]`)
+		case r.URL.Path == "/repos/owner/netpulse/releases/latest":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tag_name":"v2.5.0"}`)
 		default:
 			t.Errorf("path inesperado: %s", r.URL.Path)
 		}
@@ -133,6 +139,9 @@ func TestCheckCompareCachedPerPair(t *testing.T) {
 			compareCalls++
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, compareBody)
+		case r.URL.Path == "/repos/owner/netpulse/releases/latest":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tag_name":"v2.5.0"}`)
 		default:
 			t.Errorf("path inesperado: %s", r.URL.Path)
 		}

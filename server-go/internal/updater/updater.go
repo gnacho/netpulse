@@ -74,8 +74,13 @@ const stepDefaultWeight = 50
 // updater.js): updating es false | {step, progress 0-100}; lastLog son los
 // últimos 800 chars.
 type Status struct {
-	Current         string  `json:"current"`
-	Latest          *string `json:"latest"`
+	Current string  `json:"current"`
+	Latest  *string `json:"latest"`
+	// CurrentVersion/LatestVersion (#1222): semver legible (sin prefijo v)
+	// para la tarjeta de versión de la UI. LatestVersion puede ir vacío en
+	// rolling si la consulta del último release falló.
+	CurrentVersion  string  `json:"currentVersion"`
+	LatestVersion   string  `json:"latestVersion,omitempty"`
 	LatestMsg       *string `json:"latestMsg"`
 	UpdateAvailable bool    `json:"updateAvailable"`
 	CanApply        bool    `json:"canApply"`
@@ -129,6 +134,12 @@ type Updater struct {
 	latest     *string
 	latestMsg  *string
 	latestBody *string // cuerpo del commit/notas del release (changelog #280)
+	// currentVersion/latestVersion (#1222): semver legible del binario en
+	// marcha y del último release publicado. En rolling current es el hash
+	// corto (gitShort) y latest el sha de main: la UI muestra estos semver
+	// en la tarjeta de versión con el hash como detalle secundario.
+	currentVersion string
+	latestVersion  string
 	// compare de GitHub cacheado (issue #490): commits current→latest y
 	// clave "current|latest" del último fetch para no repetir la consulta.
 	commits      []CommitRef
@@ -471,6 +482,8 @@ func parseSemver(s string) [3]int {
 func (u *Updater) Check(ctx context.Context) Status {
 	var current, latest, latestMsg, latestBody, errCode string
 	var latestSHA string
+	currentVersion := u.version
+	var latestVersion string
 
 	if u.mode == "stable" {
 		current = u.version
@@ -478,12 +491,19 @@ func (u *Updater) Check(ctx context.Context) Status {
 			current = "desconocido"
 		}
 		latest, latestMsg, latestBody, errCode = u.fetchLatestRelease(ctx)
+		latestVersion = strings.TrimPrefix(latest, "v")
 	} else {
 		current = gitShort(u.repoRoot)
 		if current == "" {
 			current = "desconocido"
 		}
 		latest, latestSHA, latestMsg, latestBody, errCode = u.fetchLatestCommit(ctx)
+		// #1222: el versionado real público en rolling es el tag del último
+		// release (main puede ir por delante). Fallo -> se queda vacío y la
+		// UI cae al sha.
+		if tag, _, _, relErr := u.fetchLatestRelease(ctx); relErr == "" {
+			latestVersion = strings.TrimPrefix(tag, "v")
+		}
 		// Issue #404: si el body del commit está vacío, intentar usar las
 		// notas del release asociado a ese commit (rolling en CTs reales).
 		if errCode == "" && latestBody == "" && latestSHA != "" {
@@ -523,6 +543,8 @@ func (u *Updater) Check(ctx context.Context) Status {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.current = current
+	u.currentVersion = currentVersion
+	u.latestVersion = latestVersion
 	u.lastCheck = &now
 	if errCode != "" {
 		u.err = &errCode
@@ -849,6 +871,8 @@ func (u *Updater) statusLocked() Status {
 	return Status{
 		Current:         u.current,
 		Latest:          u.latest,
+		CurrentVersion:  u.currentVersion,
+		LatestVersion:   u.latestVersion,
 		LatestMsg:       u.latestMsg,
 		LatestBody:      u.latestBody,
 		Commits:         u.commits,

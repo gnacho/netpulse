@@ -1981,7 +1981,6 @@
     },
     "dialog": {
       "title": "Actualizar NetPulse",
-      "desc": "La actualización se aplica en varios pasos y tarda unos minutos.",
       "start": "Actualizar ahora",
       "cancel": "Cancelar",
       "close": "Cerrar",
@@ -1998,7 +1997,6 @@
       "changelogLink": "Ver notas del release en GitHub",
       "downNotice": "El servicio estará caído mientras se reinicia",
       "versionUpdate": "Actualización de versión",
-      "eta": "Tiempo estimado: 2-5 minutos",
       "backupNote": "Se creará una copia de seguridad automática antes de actualizar",
       "prerequisites": "Prerrequisitos",
       "ack": "Entiendo que el servicio quedará no disponible brevemente durante la actualización"
