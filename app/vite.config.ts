@@ -1,5 +1,17 @@
 import path from "path"
+import { execSync } from "node:child_process"
 import react from "@vitejs/plugin-react"
+
+// Sello de build visible en el sidebar: diagnostica al instante qué
+// código está ejecutando el navegador de cada usuario (#1214: "no veo
+// los cambios" era el service worker sirviendo el app shell viejo; con
+// el sello, una captura del usuario dice exactamente qué build ve).
+let npBuild = "dev"
+try {
+  npBuild = execSync("git rev-parse --short=8 HEAD", { encoding: "utf8" }).trim()
+} catch {
+  /* fuera de repo: deja "dev" */
+}
 import { defineConfig, type Plugin } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
@@ -25,6 +37,7 @@ function goatcounterPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: { __NP_BUILD__: JSON.stringify(npBuild) },
   // Servido desde el backend Hono en la raíz del dominio → rutas absolutas.
   // (Con './' las rutas anidadas tipo /routers/:id rompen los assets al recargar.)
   base: '/',
