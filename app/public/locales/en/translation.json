@@ -2372,7 +2372,8 @@
     "expires": "Expires",
     "lastUsed": "Last used",
     "revoke": "Revoke",
-    "descShort": "Tokens allow API access without a session."
+    "descShort": "Tokens allow API access without a session.",
+    "copyFailed": "Could not copy; select it manually"
   },
   "collector": {
     "title": "TCP Latency (collector)",
