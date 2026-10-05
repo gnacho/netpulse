@@ -33,7 +33,7 @@ func (m *Manager) HTTPSURL(base string) string {
 	if host == "" {
 		return ""
 	}
-	return "https://" + net.JoinHostPort(host, strconv.Itoa(m.opts.Port))
+	return "https://" + net.JoinHostPort(host, strconv.Itoa(m.currentPort()))
 }
 
 // AgentTrust is how an agent (re)installed with base as its server should
