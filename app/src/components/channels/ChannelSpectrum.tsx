@@ -480,7 +480,11 @@ export function ChannelSpectrum({
     for (const n of nets) {
       if (hidden.has(n.key)) continue
       const d = Math.abs(n.channel - ch)
-      if (d <= 1 && d < bestD) {
+      // A igual distancia de canal gana la mas fuerte: al solaparse una
+      // propia y una vecina debil en el mismo canal, el sombreado y el
+      // tooltip deben ir a la campana dominante, no a la primera de la
+      // lista (#1214).
+      if (d <= 1 && (d < bestD || (d === bestD && best != null && n.signal > best.signal))) {
         bestD = d
         best = n
       }
