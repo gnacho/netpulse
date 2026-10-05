@@ -63,8 +63,8 @@ github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63Y
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/gomodule/redigo v1.9.3 h1:dNPSXeXv6HCq2jdyWfjgmhBdqnR6PRO3m/G05nvpPC8=
 github.com/gomodule/redigo v1.9.3/go.mod h1:KsU3hiK/Ay8U42qpaJk+kuNa3C+spxapWpM+ywhcgtw=
-github.com/gonzalop/mq v0.9.11 h1:cKdoCT3dgiz3kV53QKUDqtcdDHCpMHS8nXrxVhqt3gE=
-github.com/gonzalop/mq v0.9.11/go.mod h1:QVPtaf408IuhzPJO4w2Q0sjzM+nP6FWHyfyXUjvY/PQ=
+github.com/gonzalop/mq v0.9.12-0.20261005063636-8319b4e891dc h1:RoMdAT3P6DYeDWpxeNjnnyyJhOSY3A0DxZLzd25IljU=
+github.com/gonzalop/mq v0.9.12-0.20261005063636-8319b4e891dc/go.mod h1:QVPtaf408IuhzPJO4w2Q0sjzM+nP6FWHyfyXUjvY/PQ=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
