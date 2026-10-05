@@ -2064,6 +2064,7 @@
     "heatNote": "neighbors drawn at 20 MHz (width unknown)",
     "heatClean": "Clean",
     "heatBusy": "Busy",
+    "heatNoNeighbors": "no neighbor networks in this band: zero occupancy",
     "scoresTitle": "Channel score",
     "scoresBlocks": "{{w}} MHz blocks",
     "scoresChannels": "20 MHz channels",

@@ -2064,6 +2064,7 @@
     "heatNote": "los vecinos se dibujan a 20 MHz (ancho desconocido)",
     "heatClean": "Limpio",
     "heatBusy": "Saturado",
+    "heatNoNeighbors": "sin redes vecinas en esta banda: ocupación nula",
     "scoresTitle": "Puntuación por canal",
     "scoresBlocks": "Bloques de {{w}} MHz",
     "scoresChannels": "Canales de 20 MHz",
