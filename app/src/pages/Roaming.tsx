@@ -102,31 +102,6 @@ interface Dot11rOverview {
 // Tipos del contrato GET /api/survey (server-go/internal/adapters/types.go).
 // ---------------------------------------------------------------------------
 
-interface SurveyChannel {
-  freq: number
-  channel: number
-  inUse: boolean
-  noiseDbm: number
-  busyPct: number
-  rxPct: number
-  txPct: number
-}
-interface SurveyRadio {
-  device: string
-  band: string
-  channels: SurveyChannel[]
-}
-interface SurveyRouter {
-  routerId: string
-  name: string
-  available: boolean
-  radios: SurveyRadio[]
-}
-interface SurveyOverview {
-  available: boolean
-  routers: SurveyRouter[]
-}
-
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/roam-events (server-go/internal/roamevents).
 // ---------------------------------------------------------------------------
@@ -142,7 +117,7 @@ interface RoamEvent {
 }
 
 type Band = 'all' | '2.4 GHz' | '5 GHz'
-type Tab = 'matrix' | '11r' | 'survey' | 'events' | 'reanchor'
+type Tab = 'matrix' | '11r' | 'events' | 'reanchor'
 
 /** Orden estable de pestañas (issue #229: navegación por teclado). */
 const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events', 'reanchor']
@@ -189,11 +164,6 @@ export default function Roaming() {
   const [dot11rLoading, setDot11rLoading] = useState(false)
   const [dot11rError, setDot11rError] = useState(false)
   const [dot11rNoApi, setDot11rNoApi] = useState(false)
-  const [survey, setSurvey] = useState<SurveyOverview | null>(null)
-  const [surveyLoading, setSurveyLoading] = useState(false)
-  const [surveyError, setSurveyError] = useState(false)
-  const [surveyNoApi, setSurveyNoApi] = useState(false)
-  const [surveyBand, setSurveyBand] = useState<'all' | '2.4 GHz' | '5 GHz'>('2.4 GHz')
   const [events, setEvents] = useState<RoamEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventsError, setEventsError] = useState(false)
@@ -230,7 +200,6 @@ export default function Roaming() {
   // abortan todos.
   const usteerAc = useRef<AbortController | null>(null)
   const dot11rAc = useRef<AbortController | null>(null)
-  const surveyAc = useRef<AbortController | null>(null)
   const eventsAc = useRef<AbortController | null>(null)
   // Timer del spin del botón Refresh (#227): limpiado en unmount.
   const spinTimer = useRef<number | null>(null)
@@ -296,35 +265,9 @@ export default function Roaming() {
     }
   }, [tab, dot11r, dot11rLoading, dot11rError])
 
-  // Carga perezosa de /api/survey: igual que dot11r, un SSH por router con wifi.
-  async function loadSurvey() {
-    surveyAc.current?.abort()
-    const ac = new AbortController()
-    surveyAc.current = ac
-    setSurveyLoading(true)
-    setSurveyError(false)
-    setSurveyNoApi(false)
-    const result = await fetchJson<SurveyOverview>('/api/survey', { signal: ac.signal })
-    if (ac.signal.aborted) return
-    if (result.ok) {
-      setSurvey(result.data)
-    } else if (result.kind === 'unauthorized') {
-      redirectLogin()
-    } else if (result.kind === 'no-api' && isDemo) {
-      setSurveyNoApi(true)
-      setSurvey(null)
-    } else {
-      setSurveyError(true)
-      setSurvey(null)
-    }
     setSurveyLoading(false)
   }
 
-  useEffect(() => {
-    if (tab === 'survey' && survey === null && !surveyLoading && !surveyError) {
-      void loadSurvey()
-    }
-  }, [tab, survey, surveyLoading, surveyError])
 
   // Carga perezosa de /api/roam-events. Polling cada 30s mientras la pestaña
   // está activa (los eventos llegan por ingest continua al SQLite).
@@ -500,7 +443,6 @@ export default function Roaming() {
       {/* ① Page header */}
       <header>
         <motion.nav
-          initial={initial}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           aria-label={t('common.breadcrumb')}
@@ -541,7 +483,6 @@ export default function Roaming() {
             onClick={() => {
               void load()
               if (tab === '11r') void loadDot11r()
-              if (tab === 'survey') void loadSurvey()
               if (tab === 'events') void loadEvents()
               if (tab === 'reanchor') setReanchorTick((n) => n + 1)
               if (reduce) return
@@ -662,11 +603,6 @@ export default function Roaming() {
           {error && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.error')}
-            </div>
-          )}
-          {!loading && !error && usteer && usteer.aps.length === 0 && (
-            <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-              {t('roaming.empty')}
             </div>
           )}
 
@@ -1158,234 +1094,14 @@ function ChannelAnalysisChart({ bandName, channels, scans }: { bandName: string;
   const padR = 16
   const padT = 18
   const padB = 26
-  const dBmMax = -20
   const dBmMin = -92
   if (channels.length === 0 || scans.length === 0) {
-    return <div className="text-caption text-text-muted">{t('roaming.survey.empty')}</div>
-  }
-  const innerW = W - padL - padR
-  const slot = innerW / channels.length
-  const cx = (i: number) => padL + slot * i + slot / 2
   const y = (dbm: number) => padT + ((dBmMax - dbm) / (dBmMax - dBmMin)) * (H - padT - padB)
   const gridDbm = [-25, -50, -75, -92]
   const half = Math.min(slot * 0.45, 22)
-  const byChan = (c: number) => scans.filter((s) => s.channel === c)
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${bandName} · ${t('roaming.survey.title')}`}>
-      {gridDbm.map((d) => (
-        <g key={d}>
           <line x1={padL} y1={y(d)} x2={W - padR} y2={y(d)} stroke="currentColor" className="text-border" strokeWidth={0.5} />
-          <text x={padL - 6} y={y(d) + 3} textAnchor="end" className="fill-text-muted" fontSize={9}>
-            {d} dBm
-          </text>
-        </g>
-      ))}
-      {channels.map((c, i) =>
-        byChan(c).slice().sort((a, b) => a.signal - b.signal).map((s) => {
           const x0 = cx(i)
-          const cy = y(s.signal)
-          const base = y(dBmMin)
-          const col = s.own ? ssidColor('') : ssidColor(s.ssid || s.bssid)
-          return (
-            <path
-              key={`${s.bssid || 'own'}-${c}`}
-              d={`M ${x0 - half} ${base + 8} C ${x0 - half} ${(base + 8 + cy) / 2}, ${x0 - half * 0.5} ${cy}, ${x0} ${cy} C ${x0 + half * 0.5} ${cy}, ${x0 + half} ${(base + 8 + cy) / 2}, ${x0 + half} ${base + 8} Z`}
-              fill={s.own ? '#8b5cf6' : col}
-              fillOpacity={s.own ? 0.55 : 0.28}
-              stroke={s.own ? '#8b5cf6' : col}
-              strokeOpacity={s.own ? 1 : 0.5}
-              strokeWidth={s.own ? 2 : 1}
-            >
-              <title>{`${s.ssid || s.bssid}${s.own ? ' (red propia)' : ''} · ${c} · ${s.signal} dBm`}</title>
-            </path>
-          )
-        })
-      )}
-      {channels.map((c, i) => (
-        <text key={c} x={cx(i)} y={H - 6} textAnchor="middle" className="fill-text-muted" fontSize={9}>
-          {c}
-        </text>
-      ))}
-    </svg>
-  )
-}
-
-// Neighbor scan del channel-plan (#538): red visible en un canal.
-interface Scan {
-  iface: string
-  bssid: string
-  ssid: string
-  channel: number
-  freq: number
-  signal: number
-  routerId: string
-  own?: boolean
-}
-
-interface ChannelPlanData {
-  routerId: string
-  radios: PlanRadio[]
-  scans: Scan[]
-}
-
-/** Radio recomendada del channel-plan (para mostrar el ancho del canal propio). */
-interface PlanRadio {
-  name: string
-  channel: number
-  widthMhz: number
-  band?: string
-}
-
-// ChannelAnalysisView (#542): vista del análisis de canales (réplica del LuCI).
-// Selector de router + filtro de banda, cascada de curvas y tabla de vecinos.
-function ChannelAnalysisView({
-  over,
-  band,
-  scansByRouter,
-  radiosByRouter,
-}: {
-  over: SurveyOverview
-  band: SurveyBand
-  scansByRouter: Record<string, Scan[]>
-  radiosByRouter: Record<string, PlanRadio[]>
 }) {
-  const { t } = useTranslation()
-  // Una sola banda activa a la vez (controlada desde el header del panel); si la
-  // prop es "all" lo tratamos como 2.4 GHz por defecto.
-  const activeBand = band === '5 GHz' ? '5 GHz' : '2.4 GHz'
-  const channels = bandChannels(activeBand)
-  // Los routers con escaneos (datos) primero; el resto se muestra igualmente
-  // con su aviso de "sin escaneos".
-  const hasData = (rid: string) => (scansByRouter[rid] ?? []).length > 0
-  const routers = over.routers.filter((r) => r.available).slice().sort((a, b) => (hasData(b.routerId) ? 1 : 0) - (hasData(a.routerId) ? 1 : 0))
-
-  // #602: ancho de canal de la radio propia, cruzando con el channel-plan.
-  const ownWidth = (routerId: string, band: string, channel: number): number => {
-    const r = (radiosByRouter[routerId] ?? []).find((x) => x.name === band && x.channel === channel)
-    return r && r.widthMhz > 0 ? r.widthMhz : 0
-  }
-
-  if (routers.length === 0) {
-    return <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">{t('roaming.survey.empty')}</div>
-  }
-
-  return (
-    <div className="space-y-4">
-      {routers.map((router) => {
-        const name = router.name
-        const allScans = (scansByRouter[router.routerId] ?? []).filter((s) => s.signal >= -90)
-        // Red propia: montaña a -25 dBm en el canal en uso de cada radio.
-        const ownScans: Scan[] = (router.radios ?? []).flatMap((radio) => {
-          if (radio.band !== activeBand) return []
-          const ch = radio.channels.find((c) => c.inUse)
-          if (!ch) return []
-          return [{ iface: radio.device, bssid: `own-${radio.device}`, ssid: `${t('roaming.survey.ownLabel')} (${name})`, channel: ch.channel, freq: ch.freq, signal: -25, routerId: router.routerId, own: true }]
-        })
-        const bandScans = allScans.filter((s) => bandOfFreq(s.freq) === activeBand)
-        const scans = [...ownScans, ...bandScans]
-        const noData = !hasData(router.routerId) && ownScans.length === 0
-        return (
-          <div key={router.routerId} className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-            <h3 className="mb-2 font-display text-h3 text-text-primary">{name}</h3>
-            <div className="mb-1 font-mono text-caption text-text-muted">{activeBand}</div>
-            {noData && (
-              <p className="rounded-lg bg-warn/10 px-3 py-2 text-caption text-warn">
-                {t('roaming.survey.noScans')}
-              </p>
-            )}
-            {!noData && (
-              <>
-                <ChannelAnalysisChart bandName={activeBand} channels={channels} scans={scans} />
-                {bandScans.length > 0 && (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="w-full border-separate border-spacing-0 text-left text-sm">
-                      <thead>
-                        <tr className="text-label uppercase text-text-muted">
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSignal')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSsid')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBssid')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scans.slice().sort((a, b) => b.signal - a.signal).map((s) => (
-                          <tr key={s.bssid + s.channel}>
-                            <td className="border-b border-border/60 py-2 pr-3">
-                              <span className="inline-flex items-center gap-2">
-                                <span className={cn('inline-block h-2 w-8 rounded-full', s.own ? 'bg-accent' : signalDot(s.signal))} />
-                                <span className="font-mono text-mono-sm text-text-secondary">{s.signal} dBm</span>
-                              </span>
-                            </td>
-                            <td className="border-b border-border/60 py-2 pr-3">
-                              <span className="inline-flex items-center gap-2">
-                                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.own ? '#8b5cf6' : ssidColor(s.ssid || s.bssid) }} />
-                                <span className="text-text-primary">{s.ssid || <em className="text-text-muted">hidden</em>}</span>
-                              </span>
-                            </td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">
-                              {s.channel}
-                              {s.own && (() => {
-                                const w = ownWidth(router.routerId, activeBand, s.channel)
-                                return w > 0 ? <span className="ml-1 text-caption text-text-muted">· {w} MHz</span> : null
-                              })()}
-                            </td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.bssid}</td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.freq} MHz</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function SurveyPanel({
-  overview,
-  loading,
-  error,
-  noApi,
-  band,
-  setBand,
-}: {
-  overview: SurveyOverview | null
-  loading: boolean
-  error: boolean
-  noApi: boolean
-  band: SurveyBand
-  setBand: (b: SurveyBand) => void
-}) {
-  const { t } = useTranslation()
-  const reduce = useReducedMotion()
-  const initial = reduce ? false : { opacity: 0, y: 12 }
-
-  // Vecinos por router (capa de la matriz survey, #538): cada router con
-  // survey pide su canal-plan (scans) para superponer quién ocupa cada canal.
-  const [scansByRouter, setScansByRouter] = useState<Record<string, Scan[]>>({})
-  const [radiosByRouter, setRadiosByRouter] = useState<Record<string, PlanRadio[]>>({})
-  useEffect(() => {
-    if (!overview?.available) return
-    let active = true
-    setScansByRouter({})
-    setRadiosByRouter({})
-    for (const r of overview.routers) {
-      if (!r.available) continue
-      fetchJson<ChannelPlanData>(`/api/wifi/channel-plan?routerId=${encodeURIComponent(r.routerId)}`)
-        .then((res) => {
-          if (res.ok && active) {
-            setScansByRouter((prev) => ({ ...prev, [r.routerId]: res.data.scans ?? [] }))
-            setRadiosByRouter((prev) => ({ ...prev, [r.routerId]: res.data.radios ?? [] }))
-          }
-        })
-        .catch(() => { /* capa opcional: la matriz funciona solo con el survey */ })
     }
     return () => { active = false }
   }, [overview])

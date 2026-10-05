@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Radar, RefreshCw, Router, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CurrentChannels } from '@/components/channels/CurrentChannels'
 import { ssidColor } from '@/lib/ssidColor'
 import { Button } from '@/components/ui/button'
 import {
@@ -157,6 +158,9 @@ export default function ChannelPlan() {
   const [scanRequested, setScanRequested] = useState(false)
   const [scanError, setScanError] = useState('')
   const scanTimers = useRef<number[]>([])
+  // #1214: dos lentes - "24 h" (análisis con scans) y "Ahora" (survey en
+  // vivo de la unidad, ex-tab de Itinerancia).
+  const [lens, setLens] = useState<'24h' | 'now'>('24h')
   const [activeRadio, setActiveRadio] = useState('')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
@@ -490,6 +494,21 @@ export default function ChannelPlan() {
           </div>
         )}
 
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('channelPlan.lensAria')}>
+          {([['24h', t('channelPlan.lens24h')], ['now', t('channelPlan.lensNow')]] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setLens(id)}
+              className={cn(
+                'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
+                lens === id ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="ml-auto flex items-center gap-3">
           <span className="text-caption text-text-muted">
             {lastScanAt > 0
@@ -543,7 +562,11 @@ export default function ChannelPlan() {
         </div>
       )}
 
-      {!loading && data && active && (
+      {lens === 'now' && routerId && (
+        <CurrentChannels routerId={routerId} routerName={(routers ?? []).find((r) => r.id === routerId)?.name} />
+      )}
+
+      {lens === '24h' && !loading && data && active && (
         <>
           {/* Resumen: sugerido / actual / redes detectadas */}
           <div className="grid gap-3 lg:grid-cols-3">
