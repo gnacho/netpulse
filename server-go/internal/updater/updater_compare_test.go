@@ -159,3 +159,41 @@ func TestCheckCompareCachedPerPair(t *testing.T) {
 		t.Fatalf("commits cacheados: %+v", st2.Commits)
 	}
 }
+
+// #1245: BuildCommit local puede tener 8+ chars (git rev-parse --short) vs
+// latest de 7 del API: el mismo commit no debe marcar update disponible.
+func TestCheckRollingNormalizaLongitudSHA(t *testing.T) {
+	old := BuildCommit
+	BuildCommit = "e19bec93"
+	defer func() { BuildCommit = old }()
+	root := t.TempDir()
+	writeDeployScript(t, root)
+	writeGitHead(t, root)
+	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/owner/netpulse/commits/main":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"sha":"e19bec935566778899aabbccddeeff00112233","commit":{"message":"feat: same commit"}}`)
+		case "/repos/owner/netpulse/releases":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		case "/repos/owner/netpulse/releases/latest":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tag_name":"v2.5.0"}`)
+		default:
+			if strings.Contains(r.URL.Path, "/compare/") {
+				fmt.Fprint(w, `{"commits":[]}`)
+				return
+			}
+			t.Errorf("path inesperado: %s", r.URL.Path)
+		}
+	})
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
+	st := u.Check(context.Background())
+	if st.Error != nil {
+		t.Fatalf("error: %v", *st.Error)
+	}
+	if st.UpdateAvailable {
+		t.Fatalf("mismo commit (8 vs 7 chars) no debe marcar update: current=%v latest=%v", st.Current, *st.Latest)
+	}
+}
