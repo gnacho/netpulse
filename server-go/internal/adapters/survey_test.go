@@ -78,7 +78,7 @@ Survey data from wlan1
 	channel receive time:		0 ms
 	channel transmit time:		0 ms
 `
-	result := parseIwSurvey(out)
+	result := ParseIwSurvey(out)
 
 	if len(result) != 2 {
 		t.Fatalf("expected 2 devices, got %d: %v", len(result), result)
@@ -128,7 +128,7 @@ func TestParseIwSurveyEdge(t *testing.T) {
 	}
 	for name, in := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := parseIwSurvey(in)
+			got := ParseIwSurvey(in)
 			if name == "only-header" {
 				// 1 device con 0 channels (no se hace flush sin campos).
 				if len(got["wlan0"]) != 0 {
@@ -150,7 +150,7 @@ func TestParseIwSurveyChannelNoActive(t *testing.T) {
 	frequency:			2412 MHz
 	noise:				-85 dBm
 `
-	result := parseIwSurvey(out)
+	result := ParseIwSurvey(out)
 	if len(result["wlan0"]) != 1 {
 		t.Fatalf("expected 1 channel, got %d", len(result["wlan0"]))
 	}

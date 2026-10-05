@@ -118,6 +118,11 @@ type WirelessData struct {
 	// propias redes como vecinas (casos con MAC aleatorizada o guest cuya
 	// MAC no casa con routers.mac). nil con agentes antiguos.
 	OwnBssids []OwnBSSID `json:"ownBssids,omitempty"`
+	// SurveyRaw (#1214): salida cruda de `iw dev <iface> survey dump` con
+	// marcadores "==IFACE==" por interfaz. El server la parsea con su
+	// parser (adapters.ParseIwSurvey) para la lente "Ahora" en unidades
+	// agent-only sin SSH. Vacío = sin survey fresco (throttle 5 min).
+	SurveyRaw string `json:"surveyRaw,omitempty"`
 }
 
 // OwnBSSID: una interfaz AP local con su BSSID y SSID (#1087).
