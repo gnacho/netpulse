@@ -175,9 +175,23 @@ export function ChannelSpectrum({
         if (i < 0) return PAD.l
         return PAD.l + slotW * (i + 0.5)
       }
-      const y = (dbm: number) => PAD.t + ((DBM_TOP - dbm) / (DBM_TOP - DBM_BOTTOM)) * plotH
+      // #1214: eje Y ADAPTATIVO. Con la escala fija -25..-95 y un entorno
+      // real de -50..-95, media gráfica era espacio muerto y las débiles
+      // quedaban aplastadas en el suelo. La escala ahora se ajusta a lo que
+      // hay en la vista (techo = señal más fuerte +5 dB, sin pasar de -25;
+      // suelo = la más débil -4 dB, sin bajar de -95) con un recorrido
+      // mínimo de 30 dB para no exagerar cuando casi todo está junto.
+      const signals = nets.filter((n) => n.channel > 0 && n.signal < 0).map((n) => n.signal)
+      let topDbm = DBM_TOP
+      let botDbm = DBM_BOTTOM
+      if (signals.length > 0) {
+        topDbm = Math.min(DBM_TOP, Math.max(...signals) + 5)
+        botDbm = Math.max(DBM_BOTTOM, Math.min(...signals) - 4)
+        if (botDbm - topDbm < 30) botDbm = Math.min(topDbm + 30, DBM_BOTTOM)
+      }
+      const y = (dbm: number) => PAD.t + ((topDbm - dbm) / (topDbm - botDbm)) * plotH
       geomRef.current = { x: xch, y }
-      const baseline = y(DBM_BOTTOM)
+      const baseline = y(botDbm)
       g.clearRect(0, 0, w, h)
       g.font = CANVAS_FONT
 
@@ -210,8 +224,9 @@ export function ChannelSpectrum({
         g.fillText(`★ ${tSuggest} · ${suggested}`, lx, PAD.t - 8)
       }
 
-      // Rejilla de señal.
-      for (const d of [-25, -50, -75, -92]) {
+      // Rejilla de señal: múltiplos de 10 dentro del rango real de la vista.
+      const tickStart = Math.ceil(topDbm / 10) * 10
+      for (let d = tickStart; d <= botDbm + 1; d += 10) {
         g.strokeStyle = colors.border
         g.lineWidth = 1
         g.beginPath()
@@ -266,7 +281,7 @@ export function ChannelSpectrum({
         // #1214: clamp a AMBOS lados. Sin el inferior, una red < -100
         // dBm ponía el pico bajo la línea base y la campana salía
         // INVERTIDA (borde en la base, centro colgando del canvas).
-        const sig = Math.max(DBM_BOTTOM, Math.min(n.signal, DBM_TOP))
+        const sig = Math.max(botDbm, Math.min(n.signal, topDbm))
         const peak = y(sig)
         g.beginPath()
         for (let d = -reach; d <= reach; d += 1) {
@@ -305,7 +320,7 @@ export function ChannelSpectrum({
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
-          const peakY = y(Math.max(DBM_BOTTOM, Math.min(n.signal, DBM_TOP)))
+          const peakY = y(Math.max(botDbm, Math.min(n.signal, topDbm)))
           for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
             const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
