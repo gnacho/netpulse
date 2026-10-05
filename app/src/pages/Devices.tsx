@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   Columns3,
+  Download,
   Filter,
   LayoutGrid,
   List,
@@ -35,6 +36,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -1135,7 +1137,7 @@ function ListRow({
               {device.isNew && <NewPill />}
               {infra && <InfraBadge info={infra} />}
               <TypeBadge type={device.type} className="lg:hidden" />
-              {!device.online && <StatusPill tone="muted" label={t('common.status.offline')} />}
+              {/* #1208: sin chip OFFLINE - el gris del texto y el filtro ya distinguen, y el chip empujaba el texto en pantallas pequeñas */}
             </div>
             <div className="truncate text-caption text-text-muted">{manufacturerLabel(device.manufacturer)}</div>
           </div>
@@ -1310,7 +1312,8 @@ function GridCard({
             >
               <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
             </button>
-            {!device.online ? <StatusPill tone="muted" label={t('common.status.offline')} /> : device.isNew ? <NewPill /> : null}
+            {/* #1208: sin chip OFFLINE - el gris del texto y el filtro ya distinguen */}
+            {device.online && device.isNew ? <NewPill /> : null}
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
@@ -1635,6 +1638,30 @@ export default function Devices() {
     })
   }, [allDevices, online, onlyWeak, weakDbm, onlyUnprotected, routerIds, bandsEffective, groups, q, sort, routers])
 
+  // #1207: export CSV de la vista filtrada actual (cliente, sin backend).
+  const exportCsv = useCallback(() => {
+    const routerName = new Map((routers ?? []).map((r) => [r.id, r.name]))
+    const esc = (v: unknown): string => {
+      const s = v === null || v === undefined ? '' : String(v)
+      return /[",\n;]/.test(s) ? '"' + s.replaceAll('"', '""') + '"' : s
+    }
+    const head = ['name', 'hostname', 'mac', 'ip', 'type', 'group', 'manufacturer', 'router', 'band', 'online', 'signalDbm', 'port', 'portLabel', 'firstSeenMs', 'lastSeenMs', 'dhcpLease', 'adguard', 'traffic24hRx', 'traffic24hTx']
+    const rows = filtered.map((d) => [
+      d.name, d.hostname, d.mac, d.ip, d.type, d.group, d.manufacturer,
+      routerName.get(d.routerId) ?? d.routerId, d.band, d.online ? 'online' : 'offline',
+      d.signalDbm ?? '', d.port ?? '', d.portLabel ?? '', d.firstSeenMs ?? '', d.lastSeenMs ?? '',
+      d.dhcpLease, d.adguard ? 'yes' : 'no', d.traffic24hRx, d.traffic24hTx,
+    ].map(esc).join(','))
+    // BOM + CRLF para que Excel lo abra bien con acentos
+    const csv = '\ufeff' + head.join(',') + '\r\n' + rows.join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `netpulse-clients-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [filtered, routers])
+
   const toggleRouterId = useCallback(
     (id: string) => setRouterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
     [setRouterIds],
@@ -1800,9 +1827,21 @@ export default function Devices() {
             initial={reduce ? false : { opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-            className="hidden md:block"
+            className="hidden md:flex items-center gap-2"
           >
             {searchBox('w-72')}
+            {/* #1207: export CSV de la vista filtrada */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={exportCsv}
+              disabled={filtered.length === 0}
+              aria-label={t('devices.exportCsv')}
+              title={t('devices.exportCsv')}
+              className="h-10 w-10 shrink-0"
+            >
+              <Download className="h-4 w-4" strokeWidth={1.75} />
+            </Button>
           </motion.div>
         </div>
       </header>
