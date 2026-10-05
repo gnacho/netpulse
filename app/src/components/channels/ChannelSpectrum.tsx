@@ -257,12 +257,27 @@ export function ChannelSpectrum({
         const sigma = slotW
         const reach = topHalf + 1.75 * slotW
         // #1214: una radio se oye A SÍ MISMA a -20/-22 en su propio scan:
-        // dibujar eso como señal real pone todas las propias en el techo.
-        // Como LuCI ("Local Interface"), las propias auto-oidas (>= -45)
-        // se dibujan como bloque de referencia plano a -30; las propias
-        // LEJANAS de la malla (-50..) y las vecinas van a su altura real.
+        // como campana de señal pone todas las propias a la misma altura y
+        // ahoga el dato comparativo. Como el "Local Interface" de LuCI, las
+        // propias auto-oidas (>= -45) son una PESTAÑA de referencia en el
+        // borde superior; las propias LEJANAS de la malla (-50..) y las
+        // vecinas van a su altura real.
         const selfHeard = n.own && n.signal >= -45
-        const peak = y(Math.max(selfHeard ? -30 : n.signal, DBM_TOP))
+        if (selfHeard) {
+          const halfTab = Math.max((0.75 * slotW * Math.min(n.widthMhz, 20)) / 20, slotW * 0.4)
+          g.beginPath()
+          g.roundRect(xc - halfTab, PAD.t + 2, halfTab * 2, 16, 3)
+          g.fillStyle = withAlpha(n.color, 0.55)
+          g.strokeStyle = n.color
+          g.lineWidth = 1.2
+          const dimTab = (selected && selected !== n.key) || (focus != null && n.channel !== focus)
+          g.globalAlpha = dimTab ? 0.2 : 1
+          g.fill()
+          g.stroke()
+          g.globalAlpha = 1
+          continue
+        }
+        const peak = y(Math.max(n.signal, DBM_TOP))
         g.beginPath()
         for (let d = -reach; d <= reach; d += 1) {
           const fall = Math.max(Math.abs(d) - topHalf, 0)
@@ -294,7 +309,7 @@ export function ChannelSpectrum({
         for (const n of labelables) {
           const selfHeardLbl = n.own && n.signal >= -45
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
-          const peakY = y(Math.max(selfHeardLbl ? -30 : n.signal, DBM_TOP))
+          const peakY = selfHeardLbl ? PAD.t + 2 : y(Math.max(n.signal, DBM_TOP))
           for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
             const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
