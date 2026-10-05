@@ -239,17 +239,24 @@ export default function ChannelPlan() {
   // encima de las campanas vecinas que se solapen.
   const nets = useMemo<SpectrumNet[]>(() => {
     if (!active) return []
-    const own: SpectrumNet = {
-      key: 'own',
-      ssid: t('channelPlan.ownNetwork'),
-      bssid: '',
-      channel: active.channel,
-      freq: channelFreq(active.name, active.channel),
-      signal: -25,
-      widthMhz: active.widthMhz > 0 ? active.widthMhz : 20,
-      own: true,
-      color: themeColor('--accent'),
-    }
+    // #1214: la montaña sintética de "tu red" (a -25 fijos, se leía como
+    // "estoy a 30 dBm" en la rejilla) solo como fallback cuando los scans
+    // NO traen las propias: los agentes (#1087) ya las reportan a su señal
+    // real y la malla se ve con sus niveles verdaderos.
+    const hasOwnScans = bandScans.some((s) => s.own)
+    const own: SpectrumNet | null = hasOwnScans
+      ? null
+      : {
+          key: 'own',
+          ssid: t('channelPlan.ownNetwork'),
+          bssid: '',
+          channel: active.channel,
+          freq: channelFreq(active.name, active.channel),
+          signal: -25,
+          widthMhz: active.widthMhz > 0 ? active.widthMhz : 20,
+          own: true,
+          color: themeColor('--accent'),
+        }
     const neighbors: SpectrumNet[] = bandScans.map((s) => ({
       key: s.bssid + s.channel,
       ssid: s.ssid || t('channelPlan.hidden'),
@@ -263,7 +270,7 @@ export default function ChannelPlan() {
       own: s.own ?? false,
       color: s.own ? themeColor('--accent') : ssidColor(s.ssid || s.bssid),
     }))
-    return [...neighbors, own]
+    return own ? [...neighbors, own] : neighbors
   }, [active, bandScans, t])
 
   const allKeys = useMemo(() => new Set(nets.map((n) => n.key)), [nets])
@@ -319,17 +326,17 @@ export default function ChannelPlan() {
     return 0
   }, [active, scored])
 
-  // Mejor candidato = el RECOMENDADO por el motor (nunca un bloque DFS o no
-  // ortodoxo que empate a 100 en la normalización relativa, #1082).
+  // Mejor candidato = SOLO cuando el motor sugiere un CAMBIO (#1214: si
+  // recomienda el canal actual es un "mantén", y esa tarjeta se pinta por
+  // su lado; antes la UI caía a scored[0] y sugería cambios frívolos).
+  const suggestedChanged = !!active && active.recommended > 0 && active.recommended !== active.channel
   const bestCand = useMemo(() => {
-    if (scored.length === 0) return null
-    if (active && active.recommended > 0) {
-      const rec = scored.find((s) => s.channel === active.recommended)
-      if (rec) return rec
-    }
-    const recs = scored.filter((s) => s.recommendable)
-    return (recs.length > 0 ? recs : scored)[0]!
-  }, [scored, active])
+    if (!active || !suggestedChanged) return null
+    return scored.find((s) => s.channel === active.recommended) ?? null
+  }, [scored, active, suggestedChanged])
+  // #1214: ¿hay dato con el que opinar en la banda? (alguna vecina en los
+  // scores). Distingue "mantén tu canal" de "sin datos para opinar".
+  const bandHasNeighbors = useMemo(() => scored.some((s) => s.neighbors > 0), [scored])
   const suggested = active && active.recommended > 0 && active.recommended !== active.channel ? active.recommended : 0
   const ownCount = bandScans.filter((s) => s.own).length
   const neighborCount = bandScans.length - ownCount
@@ -524,7 +531,10 @@ export default function ChannelPlan() {
                   <p className="mt-1.5 text-xs text-text-muted">{t('channelPlan.applyHint')}</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-text-secondary">{t('channelPlan.noBandScans')}</p>
+                <p className="mt-2 text-sm text-text-secondary">
+                  {/* #1214: el motor no sugiere cambio: mantiene (con dato) o sin datos */}
+                  {bandHasNeighbors ? t('channelPlan.keepCurrent') : t('channelPlan.noDataOpinion')}
+                </p>
               )}
             </div>
 

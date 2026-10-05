@@ -2044,6 +2044,8 @@
     "betterThanCurrent": "Mejor que tu canal actual ({{score}}/100).",
     "applyHint": "Sugerencia: aplícalo desde la configuración de tu router.",
     "summarySuggested": "Mejor canal sugerido",
+    "keepCurrent": "Mantén tu canal actual: no hay una mejora apreciable cambiando. Cambiar de canal es disruptivo y solo se sugiere con ganancia clara.",
+    "noDataOpinion": "Sin vecinos visibles en esta banda: no hay datos para opinar. Escanea ahora o habilita el escaneo periódico del agente.",
     "summaryCurrent": "Tu canal actual",
     "summaryNetworks": "Redes detectadas",
     "neighborsInBlock": "{{count}} redes en tu bloque",

@@ -325,10 +325,36 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		if currentScore == math.MaxInt {
 			currentScore = channelScore(byBand[band], r.Channel)
 		}
-		if bestCh != 0 && bestScore != math.MaxInt {
+		rec.CurrentScore = currentScore
+		rec.BestScore = bestScore
+		// #1214: sugerencias conservadoras. (1) Sin vecinas en la banda no
+		// hay dato con el que opinar. (2) Con dato, el cambio solo se
+		// sugiere si el mejor bloque recomendable es apreciablemente mejor
+		// (>=30% menos ruido ponderado) que el canal actual: cambiar de
+		// canal es disruptivo y el empate técnico no lo justifica. En ambos
+		// casos Recommended = canal ACTUAL ("mantén"); la UI distingue
+		// mantener de "sin datos" con las vecinas de los scores.
+		// EXCEPCIÓN: si el bloque ACTUAL cruza DFS o no es recomendable, se
+		// sugiere el mejor recomendable aunque no haya vecinos (el radar
+		// desaloja el canal igualmente; no es una sugerencia frívola).
+		bandNeighbors := 0
+		for _, m := range byBand[band] {
+			bandNeighbors += len(m)
+		}
+		currentNotRecommendable := true
+		for _, b := range scores {
+			if b.Channel == r.Channel {
+				currentNotRecommendable = !b.Recommendable
+				break
+			}
+		}
+		switch {
+		case currentNotRecommendable && bestCh != 0:
 			rec.Recommended = bestCh
-			rec.CurrentScore = currentScore
-			rec.BestScore = bestScore
+		case bestCh != 0 && bandNeighbors > 0 && bestScore < currentScore && bestScore*100 <= currentScore*70:
+			rec.Recommended = bestCh
+		default:
+			rec.Recommended = r.Channel
 		}
 		out = append(out, rec)
 	}
