@@ -131,7 +131,7 @@ export function ChannelSpectrum({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const heatRef = useRef<HTMLCanvasElement>(null)
-  const geomRef = useRef<{ x: (ch: number) => number; y: (d: number) => number } | null>(null)
+  const geomRef = useRef<{ x: (ch: number) => number; y: (d: number) => number; topDbm: number; botDbm: number } | null>(null)
   // Red bajo el cursor (#1214): sombreada al pasar por encima; draw se
   // invoca a mano cuando cambia para que el brillo siga al raton.
   const hoverKeyRef = useRef<string | null>(null)
@@ -197,7 +197,7 @@ export function ChannelSpectrum({
         if (topDbm - botDbm < 30) botDbm = Math.max(-105, topDbm - 30)
       }
       const y = (dbm: number) => PAD.t + ((topDbm - dbm) / (topDbm - botDbm)) * plotH
-      geomRef.current = { x: xch, y }
+      geomRef.current = { x: xch, y, topDbm, botDbm }
       const baseline = y(botDbm)
       g.clearRect(0, 0, w, h)
       g.font = CANVAS_FONT
@@ -477,20 +477,46 @@ export function ChannelSpectrum({
     const slotW = plotW / bandChs.length
     const slotIdx = Math.min(Math.max(Math.floor((mx - PAD.l) / slotW), 0), bandChs.length - 1)
     const ch = bandChs[slotIdx]!
+    // #1214: hit-test con la Y del cursor. Las campanas se anidan (una red
+    // debil dentro de una grande en el mismo canal): el cursor cerca del
+    // suelo esta DENTRO de la pequena y debe elegir a ella, no a la
+    // dominante. Regla de graficos por capas: gana la campana mas interior
+    // (curva mas baja) que contenga el punto; por encima de todas, la mas
+    // fuerte a igual distancia de canal.
+    const baseline = geom.y(geom.botDbm)
+    const my = Math.min(e.clientY - r.top, baseline)
     let best: SpectrumNet | null = null
-    let bestD = Infinity
+    let bestV = -Infinity
+    let fb: SpectrumNet | null = null
+    let fbD = Infinity
     for (const n of nets) {
       if (hidden.has(n.key)) continue
+      const i = bandChs.indexOf(n.channel)
+      if (i < 0) continue
       const d = Math.abs(n.channel - ch)
-      // A igual distancia de canal gana la mas fuerte: al solaparse una
-      // propia y una vecina debil en el mismo canal, el sombreado y el
-      // tooltip deben ir a la campana dominante, no a la primera de la
-      // lista (#1214).
-      if (d <= 1 && (d < bestD || (d === bestD && best != null && n.signal > best.signal))) {
-        bestD = d
-        best = n
+      if (d > 1) continue
+      const xc = PAD.l + slotW * (i + 0.5)
+      const topHalf = (0.5 * slotW * Math.max(n.widthMhz, 20)) / 20
+      const sigma = 0.75 * slotW
+      const fall = Math.max(Math.abs(mx - xc) - topHalf, 0)
+      const amp = Math.exp(-(fall * fall) / (sigma * sigma))
+      const peak = geom.y(Math.max(geom.botDbm, Math.min(n.signal, geom.topDbm)))
+      const v = baseline - (baseline - peak) * amp
+      if (v <= my) {
+        // El punto cae dentro del cuerpo de esta campana: gana la mas
+        // interior (curva mas baja) de las que lo contienen.
+        if (v > bestV) {
+          bestV = v
+          best = n
+        }
+      } else if (fb == null || d < fbD || (d === fbD && n.signal > fb.signal)) {
+        // Fallback si el cursor esta por encima de todas: mas cercana, y a
+        // igual distancia la mas fuerte.
+        fbD = d
+        fb = n
       }
     }
+    if (best == null) best = fb
     onHover(best, geom.x(best?.channel ?? ch), geom.y(best?.signal ?? DBM_BOTTOM))
     const hk = best?.key ?? null
     if (hk !== hoverKeyRef.current) {
