@@ -529,7 +529,18 @@ export default function ChannelPlan() {
           <span className="text-caption text-text-muted">
             {lastScanAt > 0
               ? t('channelPlan.lastScan', {
-                  time: new Date(lastScanAt * 1000).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+                  // #1214: con flotas SCAN_INTERVAL=0 el último scan puede
+                  // ser de hace días (fallback a 30 días): mostrar la fecha
+                  // si no es de hoy, no solo la hora.
+                  time: (() => {
+                    const d = new Date(lastScanAt * 1000)
+                    const today = new Date()
+                    const sameDay = d.toDateString() === today.toDateString()
+                    return sameDay
+                      ? d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+                      : d.toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit' }) + ' ' +
+                        d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+                  })(),
                 })
               : lastRefresh > 0 &&
                 t('channelPlan.lastRefresh', {

@@ -104,6 +104,19 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusInternalServerError, "channel_plan_error")
 			return
 		}
+		// #1214: flotas con NETPULSE_SCAN_INTERVAL=0 no escanean nunca por
+		// intervalo - con la ventana fija de 24h la vista moría en cuanto el
+		// último scan cumplía un día (solo quedaba el bloque propio
+		// sintético y un espectro vacío). Misma filosofía que #1080 con los
+		// radios: mejor el último dato conocido, aunque sea antiguo, que
+		// fingir que no hay nada; el "Escanear ahora" lo renueva al momento.
+		if len(scans) == 0 {
+			scans, err = s.channelPlan.RecentScans(slug, 30*24*time.Hour)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "channel_plan_error")
+				return
+			}
+		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"routerId": routerID,
