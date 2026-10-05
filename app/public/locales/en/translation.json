@@ -2042,6 +2042,8 @@
     "betterThanCurrent": "Better than your current channel ({{score}}/100).",
     "applyHint": "Suggestion: apply it from your router's settings.",
     "summarySuggested": "Best suggested channel",
+    "keepCurrent": "Keep your current channel: switching would not bring an appreciable gain. Channel changes are disruptive, so suggestions need a clear win.",
+    "noDataOpinion": "No neighbors visible on this band: not enough data to have an opinion. Run a scan now or enable periodic scanning on the agent.",
     "summaryCurrent": "Your current channel",
     "summaryNetworks": "Networks detected",
     "neighborsInBlock": "{{count}} networks in your block",

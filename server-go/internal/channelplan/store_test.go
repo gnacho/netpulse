@@ -66,9 +66,10 @@ func TestRecommendDevuelveScores(t *testing.T) {
 		t.Errorf("a 80 MHz deben puntuarse también bloques DFS: %+v", recs[0].Scores)
 	}
 	rec := recs[0]
-	best := byCh[rec.Recommended]
-	if best.DFS || !best.Recommendable {
-		t.Errorf("el recomendado debe ser un bloque no-DFS recomendable: %+v", best)
+	// #1214: sin scans que la tienda conozca, el motor MANTIENE el canal
+	// actual (no hay dato con el que opinar).
+	if rec.Recommended != rec.Channel {
+		t.Errorf("sin datos se debe mantener el canal actual: Recommended=%d, canal=%d", rec.Recommended, rec.Channel)
 	}
 	// #1076: el rango 68-92 (5350-5470 MHz) no es RLAN en ETSI: se puntúa
 	// pero nunca se recomienda.
@@ -77,9 +78,6 @@ func TestRecommendDevuelveScores(t *testing.T) {
 	}
 	if b, ok := byCh[52]; !ok || !b.DFS {
 		t.Errorf("el bloque 52-64 debe marcarse DFS: %+v", b)
-	}
-	if best.Score != rec.BestScore {
-		t.Errorf("el score del bloque recomendado debe ser BestScore: %+v, rec %+v", best, rec)
 	}
 }
 
@@ -564,5 +562,72 @@ func TestRecommendCurrentDfsChannelScoreNotMaxInt(t *testing.T) {
 	}
 	if rec.Recommended != 36 {
 		t.Errorf("debería recomendar el 36 libre (no-DFS), got %d", rec.Recommended)
+	}
+}
+
+// TestRecommendConservador (#1214): el motor no sugiere cambios frívolos.
+// (a) canal actual limpio → mantiene (0). (b) canal actual sucio con un
+// bloque mucho más limpio → sugiere, y el sugerido es recomendable no-DFS.
+// (c) empate técnico (ruido similar en el actual y el mejor) → mantiene.
+func TestRecommendConservador(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+	st := channelplan.NewStore(d.DB)
+	now := time.Now().Unix()
+
+	// (a) 2.4: una vecina débil en ch11; el actual es ch1 (limpio) → mantiene.
+	if err := st.SaveScan("rt1", now, []probe.ScanResult{
+		{BSSID: "00:11:22:33:44:01", SSID: "vecino", Channel: 11, Freq: 2462, Signal: -88},
+	}); err != nil {
+		t.Fatalf("save a: %v", err)
+	}
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "2.4 GHz", Channel: 1, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend a: %v", err)
+	}
+	// (a) el canal actual está limpio: se MANTIENE (Recommended = actual).
+	if recs[0].Recommended != 1 {
+		t.Errorf("(a) canal limpio: se espera mantener 1: %+v", recs[0])
+	}
+
+	// (b) ch6 con un vecino FUERTE (-40); 1 y 11 limpios → sugiere 1 o 11.
+	if err := st.SaveScan("rt2", now, []probe.ScanResult{
+		{BSSID: "00:11:22:33:44:02", SSID: "vecino", Channel: 6, Freq: 2437, Signal: -40},
+		{BSSID: "00:11:22:33:44:03", SSID: "vecino", Channel: 11, Freq: 2462, Signal: -88},
+	}); err != nil {
+		t.Fatalf("save b: %v", err)
+	}
+	recs, err = st.Recommend("rt2", []probe.Radio{{Name: "2.4 GHz", Channel: 6, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend b: %v", err)
+	}
+	if recs[0].Recommended != 1 && recs[0].Recommended != 11 {
+		t.Errorf("(b) canal sucio: se esperaba sugerencia a 1 o 11: %+v", recs[0])
+	}
+	for _, s := range recs[0].Scores {
+		if s.Channel == recs[0].Recommended && (s.DFS || !s.Recommendable) {
+			t.Errorf("(b) el sugerido debe ser no-DFS recomendable: %+v", s)
+		}
+	}
+
+	// (c) empate técnico: los tres canales ortodoxos igual de ocupados (-70
+	// en 1, 6 y 11) → no hay mejora apreciable → se mantiene el actual.
+	if err := st.SaveScan("rt3", now, []probe.ScanResult{
+		{BSSID: "00:11:22:33:44:04", SSID: "vecino", Channel: 6, Freq: 2437, Signal: -70},
+		{BSSID: "00:11:22:33:44:05", SSID: "vecino", Channel: 1, Freq: 2412, Signal: -70},
+		{BSSID: "00:11:22:33:44:06", SSID: "vecino", Channel: 11, Freq: 2462, Signal: -70},
+	}); err != nil {
+		t.Fatalf("save c: %v", err)
+	}
+	recs, err = st.Recommend("rt3", []probe.Radio{{Name: "2.4 GHz", Channel: 6, WidthMhz: 20}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend c: %v", err)
+	}
+	// (c) empate técnico: se mantiene el actual (Recommended = canal actual).
+	if recs[0].Recommended != 6 {
+		t.Errorf("(c) empate técnico: se espera mantener 6: %+v", recs[0])
 	}
 }
