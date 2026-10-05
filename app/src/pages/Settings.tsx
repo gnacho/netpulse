@@ -3955,13 +3955,13 @@ function ServicesCard({
   ]
   // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
   // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
-  // de Notificaciones. MCP (#1114) es LABS: fila con acento rojo (danger)
-  // visible solo con Labs activado; el endpoint no muere al ocultar Labs
-  // (misma semántica que orquestación: el opt-in persiste server-side).
+  // de Notificaciones. MCP (#1157) ya NO es Labs: fila visible siempre, como
+  // una integración más; sigue desactivado por defecto en el servidor
+  // (NETPULSE_MCP_ENABLED) y la fila queda bloqueada (locked) si falta.
   const integrationRows: { key: keyof IntegrationsState; label: string; caption: string; dialogKey: IntegrationDialogKey; locked?: boolean; labs?: boolean; danger?: boolean }[] = [
     { key: 'proxmox', label: 'Proxmox VE', caption: t('settings.services.proxmoxCaption'), dialogKey: 'proxmox' },
     { key: 'mqtt', label: 'MQTT', caption: t('settings.services.mqttCaption'), dialogKey: 'mqtt' },
-    { key: 'mcp', label: 'MCP', caption: t('settings.services.mcpCaption'), dialogKey: 'mcp', locked: mcpLocked, labs: true, danger: true },
+    { key: 'mcp', label: 'MCP', caption: t('settings.services.mcpCaption'), dialogKey: 'mcp', locked: mcpLocked },
   ]
 
   // AdGuard (#813): el toggle de Servicios también controla el sondeo y la
@@ -4062,7 +4062,7 @@ function ServicesCard({
       </div>
 
       {/* Labs: subtarjeta con acento rojo (#1146) con TODAS las filas labs
-          (servicios e integraciones): orquestación, rack y MCP. Sin Labs
+          (servicios e integraciones): orquestación y rack. Sin Labs
           activo no se muestra nada de este bloque. */}
       {services.labs && (
         <div className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4">
