@@ -493,7 +493,7 @@ func (u *Updater) Check(ctx context.Context) Status {
 		latest, latestMsg, latestBody, errCode = u.fetchLatestRelease(ctx)
 		latestVersion = strings.TrimPrefix(latest, "v")
 	} else {
-		current = gitShort(u.repoRoot)
+		current = shortSHA(gitShort(u.repoRoot))
 		if current == "" {
 			current = "desconocido"
 		}
