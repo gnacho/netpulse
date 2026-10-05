@@ -706,8 +706,7 @@
       "unreachable": "Router not reachable over SSH."
     },
     "survey": {
-      "title": "Channel analysis",
-      "description": "Noise floor and load on each WiFi channel (iw survey dump). Congested channels are the most common cause of slow home WiFi.",
+      "title": "Current channels",
       "empty": "No router returned survey data. Verify that `iw dev wlanX survey dump` works on your routers.",
       "unreachable": "Router not reachable over SSH or no wireless interfaces.",
       "colChannel": "Channel",

@@ -1435,7 +1435,7 @@ function SurveyPanel({
             <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
             <div>
               <h2 className="font-display text-h2 text-text-primary">{t('roaming.survey.title')}</h2>
-              <p className="mt-0.5 max-w-2xl text-caption text-text-muted">{t('roaming.survey.description')}</p>
+              {/* #1214: la nota de análisis de canales fuera - este tab es "Canales actuales" */}
             </div>
           </div>
           <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
