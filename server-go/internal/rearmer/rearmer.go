@@ -475,6 +475,12 @@ type Supervisor struct {
 	mu    sync.Mutex
 	slots map[string]time.Time
 
+	// unknownLogged (#1247): slugs registrados sin fila en la tabla routers
+	// (router dado de baja). Se omiten del rearme de forma permanente hasta
+	// que el slug vuelva a existir; el log es único por slug para no ruido
+	// en cada tick del supervisor.
+	unknownLogged map[string]bool
+
 	// failIDs: slug → ID de la alerta de fallo abierta (issue #271). Mientras
 	// el incidente persiste, los reintentos actualizan esa misma alerta en vez
 	// de insertar una copia cada cooldown. Al recuperarse se borra la entrada
@@ -499,7 +505,8 @@ func NewSupervisor(r *Rearmer, registry *adapters.AgentRegistry, db *sql.DB, eng
 		interval: interval, cooldown: cooldown,
 		slots: map[string]time.Time{}, failIDs: map[string]string{},
 		reinstallSlots: map[string]time.Time{}, reinstallCooldown: ReinstallCooldownDefault,
-		stop: make(chan struct{}), done: make(chan struct{}),
+		unknownLogged: map[string]bool{},
+		stop:          make(chan struct{}), done: make(chan struct{}),
 	}
 }
 
@@ -545,15 +552,31 @@ func (s *Supervisor) CheckOnce() {
 	if s.registry == nil || s.db == nil || s.rearmer == nil {
 		return
 	}
+	if s.unknownLogged == nil {
+		s.unknownLogged = map[string]bool{}
+	}
 	// Externos (p. ej. switch gestionado por beacon): sin SSH, nunca se
 	// rearman. Se resuelven una vez por pasada (misma tabla que Rearm).
+	// known (#1247): cualquier slug con fila en routers; los registrados sin
+	// fila (router dado de baja, agente fantasma) se omiten del rearme.
 	external := map[string]bool{}
+	known := map[string]bool{}
 	for _, rc := range routerstore.ListRouters(s.db) {
+		known[rc.ID] = true
+		delete(s.unknownLogged, rc.ID)
 		if !nativeAgentType(rc.Type) {
 			external[rc.ID] = true
 		}
 	}
 	for _, slug := range s.registeredSlugs() {
+		if !known[slug] {
+			if !s.unknownLogged[slug] {
+				s.unknownLogged[slug] = true
+				log.Printf("[netpulse] supervisor: agente %s sin fila en routers; se omite el rearme (router dado de baja)", slug)
+			}
+			s.closeFailID(slug)
+			continue
+		}
 		if external[slug] {
 			// El Dead Man's Switch ya alerta la caída; aquí solo se ignora.
 			s.closeFailID(slug)
