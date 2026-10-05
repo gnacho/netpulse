@@ -100,6 +100,7 @@ const CANVAS_FONT_SEMI = '600 11px Inter, ui-sans-serif, system-ui, sans-serif'
 
 export function ChannelSpectrum({
   band,
+  currentChannel,
   nets,
   suggested,
   widthMhz,
@@ -113,6 +114,8 @@ export function ChannelSpectrum({
   tDbm,
 }: {
   band: string
+  /** Canal del radio activo: marca "Tu canal" y excluye la zona sugerida. */
+  currentChannel: number
   nets: SpectrumNet[]
   suggested: number
   widthMhz: number
@@ -194,9 +197,9 @@ export function ChannelSpectrum({
         }
       }
 
-      // Zona recomendada (bloque del canal sugerido).
-      const own = nets.find((n) => n.own)
-      if (suggested > 0 && suggested !== (own?.channel ?? 0) && slotOf(suggested) >= 0) {
+      // Zona recomendada (bloque del canal sugerido): comparar contra el
+      // canal REAL del radio, no contra una red propia cualquiera (#1214).
+      if (suggested > 0 && suggested !== currentChannel && slotOf(suggested) >= 0) {
         const halfSlots = Math.max((widthMhz > 0 ? widthMhz : 20) / 20, 1) / 2
         const i = slotOf(suggested)
         g.fillStyle = 'rgba(52,211,153,0.08)'
@@ -285,8 +288,15 @@ export function ChannelSpectrum({
 
       // Etiquetas: dos filas sobre el pico, anti-solapado por slot.
       {
+        // #1214: propias siempre + las 6 vecinas más fuertes. Con todo el
+        // entorno a -85..-97 las 13 etiquetas compartían altura, chocaban
+        // y solo sobrevivía una; el resto vive en la tabla de abajo.
+        const neighborsSorted = visible
+          .filter((n) => n.channel > 0 && !n.own)
+          .sort((a, b) => b.signal - a.signal)
+          .slice(0, 6)
         const labelables = visible
-          .filter((n) => n.channel > 0)
+          .filter((n) => n.channel > 0 && (n.own || neighborsSorted.includes(n)))
           .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
@@ -310,9 +320,11 @@ export function ChannelSpectrum({
         }
       }
 
-      // Marcador del canal actual (red propia del radio).
-      if (own && own.channel > 0 && slotOf(own.channel) >= 0) {
-        const xc = xch(own.channel)
+      // Marcador del canal actual: el canal del radio (#1214: antes se
+      // usaba la primera red propia, que podía ser un BSSID de la malla en
+      // OTRO canal).
+      if (currentChannel > 0 && slotOf(currentChannel) >= 0) {
+        const xc = xch(currentChannel)
         g.setLineDash([4, 4])
         g.strokeStyle = colors.accent
         g.lineWidth = 1.4
