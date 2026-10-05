@@ -27,6 +27,7 @@ export function TokensManager() {
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<CreatedToken | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -88,9 +89,11 @@ export function TokensManager() {
   const copyToken = useCallback(async (raw: string) => {
     const ok = await copyToClipboard(raw)
     setCopied(ok)
-    if (ok) {
-      setTimeout(() => setCopied(false), 2000)
-    }
+    setCopyFailed(!ok)
+    window.setTimeout(() => {
+      setCopied(false)
+      setCopyFailed(false)
+    }, 2000)
   }, [])
 
   const fmtDate = (ms: number) => {
@@ -198,6 +201,7 @@ export function TokensManager() {
             </button>
           </div>
           {copied && <p className="mt-1 text-xs text-ok">{t('tokens.copied')}</p>}
+          {copyFailed && <p className="mt-1 text-xs text-danger">{t('tokens.copyFailed')}</p>}
           <button
             type="button"
             onClick={() => setCreated(null)}

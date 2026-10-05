@@ -2371,7 +2371,8 @@
     "expires": "Caduca",
     "lastUsed": "Último uso",
     "revoke": "Revocar",
-    "descShort": "Los tokens permiten acceder a la API sin sesión."
+    "descShort": "Los tokens permiten acceder a la API sin sesión.",
+    "copyFailed": "No se pudo copiar; selecciónalo a mano"
   },
   "collector": {
     "title": "Latencia TCP (collector)",
