@@ -394,15 +394,32 @@ export function ChannelSpectrum({
           [1, '#ef6b5b'],
         ]
         const barW = hw / Math.max(bandChs.length, 1)
-        for (let i = 0; i < bandChs.length; i++) {
-          const ch = bandChs[i]!
-          let sum = 0
-          for (const n of visible) {
-            if (n.own || n.channel !== ch) continue
-            sum += Math.pow(10, n.signal / 10)
+        // #1214: dos arreglos para entornos limpios. (1) El solapamiento es
+        // físico: una red de 20 MHz en el 6 tapa del 4 al 8, así que su
+        // potencia se reparte por todos los slots que cubre su ancho (no
+        // solo el canal sintonizado - antes la franja estaba a rayas).
+        // (2) Escala RELATIVA a la vista: la absoluta arrancaba en -92 dBm
+        // y con vecinos a -85..-97 todo quedaba gris ("todos los canales
+        // en gris"). La congestión absoluta ya la dice el chip del panel.
+        const sums: number[] = bandChs.map(() => 0)
+        for (const n of visible) {
+          if (n.own) continue
+          const i = slotOf(n.channel)
+          if (i < 0) continue
+          const half = Math.max(1, Math.round((n.widthMhz > 0 ? n.widthMhz : 20) / 10))
+          const p = Math.pow(10, n.signal / 10)
+          for (let k = Math.max(0, i - half); k <= Math.min(bandChs.length - 1, i + half); k++) {
+            sums[k]! += p
           }
-          const db = sum > 0 ? 10 * Math.log10(sum) : DBM_BOTTOM
-          const tt = Math.min(Math.max((db + 92) / 48, 0), 1)
+        }
+        const dbs = sums.map((p) => (p > 0 ? 10 * Math.log10(p) : -Infinity))
+        const withData = dbs.filter((d) => d > -Infinity)
+        let loDb = withData.length > 0 ? Math.min(...withData) : DBM_BOTTOM
+        const hiDbRaw = withData.length > 0 ? Math.max(...withData) : DBM_BOTTOM
+        if (hiDbRaw - loDb < 12) loDb = hiDbRaw - 12
+        const norm = (d: number) => 0.12 + 0.5 * ((d - loDb) / (hiDbRaw - loDb))
+        for (let i = 0; i < bandChs.length; i++) {
+          const tt = dbs[i]! === -Infinity ? 0 : Math.min(Math.max(norm(dbs[i]!), 0), 1)
           let c1 = stops[0]!
           let c2 = stops[stops.length - 1]!
           let tt2 = 0
