@@ -1600,7 +1600,7 @@
       "wireguardCaption": "WireGuard VPN tunnels",
       "openvpnCaption": "OpenVPN tunnels (coming soon)",
       "labs": "Labs (experimental features)",
-      "labsCaption": "In development. They write to your routers",
+      "labsCaption": "In development. For experimental use",
       "orchestrationHint": "Manage routers from the UI (AdGuard, guest Wi-Fi, DDNS…)",
       "networkGroup": "Network services",
       "firmwareUpgradesCaption": "Show or hide the firmware upgrades page",
