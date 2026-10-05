@@ -2656,6 +2656,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			rows.Close()
 		}
 	}
+	// #1206: los BSSID propios de la flota (reportados por los agentes,
+	// #1087) son infraestructura, no clientes: sin esto aparecían en la
+	// tabla de clientes al dejar de filtrarse por la retención de #1145.
+	if l.agents != nil {
+		for _, b := range l.agents.LocalBssids() {
+			routerMacs[b] = true
+		}
+	}
 	for _, p := range polled {
 		if p.brMac != "" {
 			routerMacs[p.brMac] = true
