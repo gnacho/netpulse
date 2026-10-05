@@ -44,7 +44,53 @@ const caPath = "/etc/netpulse-ca.pem"
 // FORK: trust, when given, is how the agent should reach the server now -
 // the HTTPS address with the private CA - and wins over serverURL and
 // serverFP; its root is written to the router to verify downloads with.
+// TargetsFor: resuelve los objetivos de sonda para un slug desde la tabla de
+// routers (#1204): la unidad gateway hace ping a internet; el resto, al
+// gateway (su IP de la tabla). Sin gateway declarado no se escribe nada.
+type RouterRow struct {
+	ID        string
+	Host      string
+	IsGateway bool
+}
+
+func TargetsFor(routers []RouterRow, slug string) WanTargets {
+	gwIP := ""
+	for _, rc := range routers {
+		if rc.IsGateway && rc.ID != slug {
+			gwIP = rc.Host
+		}
+	}
+	for _, rc := range routers {
+		if rc.ID != slug {
+			continue
+		}
+		if rc.IsGateway {
+			return WanTargets{WanTarget: "1.1.1.1"}
+		}
+		if gwIP != "" {
+			return WanTargets{GwTarget: gwIP}
+		}
+	}
+	return WanTargets{}
+}
+
 func Script(slug, token, serverURL, serverFP string, digests map[string]string, trust ...Trust) string {
+	return ScriptWithTargets(slug, token, serverURL, serverFP, digests, WanTargets{}, trust...)
+}
+
+// WanTargets (#1204): la sonda de latencia del agente solo corre con
+// NETPULSE_WAN_TARGET (gateway) o NETPULSE_GW_TARGET (APs) en su env, y el
+// instalador histórico las dejaba comentadas: ninguna instalación las tenía
+// y las tarjetas de latencia se quedaban sin datos para siempre. El server
+// sabe qué unidad es el gateway: resuelve los objetivos y el script escribe
+// las líneas ACTIVAS. Unidades ya instaladas: un reinstall desde la UI las
+// estrena.
+type WanTargets struct {
+	WanTarget string // gateway: ping a internet (p. ej. "1.1.1.1"); vacío = comentada
+	GwTarget  string // APs: IP del gateway para el ping; vacío = comentada
+}
+
+func ScriptWithTargets(slug, token, serverURL, serverFP string, digests map[string]string, targets WanTargets, trust ...Trust) string {
 	var tr Trust
 	if len(trust) > 0 {
 		tr = trust[0]
@@ -118,11 +164,11 @@ chmod 0755 /tmp/netpulse-agent.new
 mv -f /tmp/netpulse-agent.new "$BIN"
 
 # Config (chmod 600). El rewrite toca SOLO las vars gestionadas (SERVER,
-# SLUG, TOKEN, SERVER_FP): las NETPULSE_* del usuario (p. ej.
-# NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
+# SLUG, TOKEN, SERVER_FP, WAN_TARGET, GW_TARGET): las NETPULSE_* del usuario
+# (p. ej. NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
 USER_VARS=""
 if [ -f "$ENV_FILE" ]; then
-	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)=') || true
+	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET)=') || true
 fi
 cat > "$ENV_FILE" <<EOF
 # netpulse-agent — config (generado por reinstall)
@@ -132,8 +178,17 @@ NETPULSE_TOKEN=$TOKEN
 # NETPULSE_SERVER_FP=<sha256>    # pin SPKI del server (https); lo rellena el instalador
 # NETPULSE_INTERVAL=30           # segundos entre pushes
 # NETPULSE_SCAN_INTERVAL=30m     # min entre scans de vecinos; "0" = sin scans periódicos
-# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway
-# NETPULSE_GW_TARGET=192.168.8.1 # ping al gateway (APs)
+` + func() string {
+	wanLine := "# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway"
+	if targets.WanTarget != "" {
+		wanLine = "NETPULSE_WAN_TARGET=" + targets.WanTarget
+	}
+	gwLine := "# NETPULSE_GW_TARGET=192.168.8.1 # ping al gateway (APs)"
+	if targets.GwTarget != "" {
+		gwLine = "NETPULSE_GW_TARGET=" + targets.GwTarget
+	}
+	return wanLine + "\n" + gwLine
+}() + `
 # NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat
 EOF
 # #851: con server https el agente exige el SPKI pin; vacío = http plano o

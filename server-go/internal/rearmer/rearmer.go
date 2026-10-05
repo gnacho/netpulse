@@ -387,12 +387,20 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 			prevSeen = seen
 		}
 	}
+	// #1204: el env del agente lleva la sonda de latencia ACTIVA (WAN en el
+	// gateway, ping al gateway en los APs), resuelta de la tabla routers.
+	rows := routerstore.ListRouters(r.db)
+	trows := make([]reinstall.RouterRow, 0, len(rows))
+	for _, rc := range rows {
+		trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway})
+	}
+	targets := reinstall.TargetsFor(trows, slug)
 	if err := r.rotateTokenAtomic(slug, func(t string) error {
 		var trust []reinstall.Trust
 		if f := r.trust.Load(); f != nil {
 			trust = append(trust, (*f)(publicURL))
 		}
-		_, err := r.pool.Run(host, reinstall.Script(slug, t, publicURL, reinstall.ServerFP(publicURL), reinstall.Digests(), trust...), ReinstallSSHWait)
+		_, err := r.pool.Run(host, reinstall.ScriptWithTargets(slug, t, publicURL, reinstall.ServerFP(publicURL), reinstall.Digests(), targets, trust...), ReinstallSSHWait)
 		return err
 	}); err != nil {
 		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)
