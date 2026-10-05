@@ -13,8 +13,9 @@
  * de siempre (16 entradas).
  */
 import { clientsClaim } from 'workbox-core'
-import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
+import { NetworkFirst } from 'workbox-strategies'
 import { localizePush, pushLang, type PushCatalog } from '@/lib/push-i18n'
 
 declare let self: ServiceWorkerGlobalScope
@@ -36,10 +37,27 @@ cleanupOutdatedCaches()
 // root certificate, the fingerprint, and API downloads (CSV exports, the
 // backup). Served from here they turned into the app's "page not found".
 if (!import.meta.env.DEV) {
+  // #1214: las navegaciones van NETWORK-FIRST (con fallback corto de 3s) en
+  // vez del precache cache-first. Con createHandlerBoundToURL('/index.html')
+  // el SW servía el index.html PRECACHEADO aunque el servidor ya publicara
+  // uno nuevo: el navegador del usuario se quedaba con la UI vieja
+  // indefinidamente (los hashes viejos desaparecían del servidor y la app
+  // "no se actualizaba" hasta que el SW se reinstalaba a su ritmo). Ahora un
+  // reload normal ya trae la UI nueva; si no hay red, cae al index.html del
+  // precache y la app sigue abriendo offline.
+  const nav = new NetworkFirst({ cacheName: 'np-nav-v1', networkTimeoutSeconds: 3 })
   registerRoute(
-    new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-      denylist: [/^\/api\//, /^\/netpulse-ca\./, /^\/fingerprint$/, /^\/health$/],
-    }),
+    new NavigationRoute(
+      async (params) => {
+        try {
+          return await nav.handle(params)
+        } catch {
+          const cached = await caches.match('/index.html')
+          return cached ?? Response.error()
+        }
+      },
+      { denylist: [/^\/api\//, /^\/netpulse-ca\./, /^\/fingerprint$/, /^\/health$/] },
+    ),
   )
 }
 
