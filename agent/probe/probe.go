@@ -58,7 +58,8 @@ const (
 	// CmdWirelessCombined (#368): iwinfo en UNA pasada por interfaz (info una
 	// vez + assoclist una vez) emitiendo clientes y resumen de radio juntos.
 	// Sustituye a CmdIwinfoAssoc+CmdRadios cuando ubus no está: la mitad de
-	// spawns. Líneas "C|mac|sig|freq" (clientes) y "R|freq|ch|ht|tx|n" (radio).
+	// spawns. Líneas "C|mac|sig|freq" (clientes) y
+	// "R|freq|ch|ht|tx|bssid|noise|n" (radio; #1213).
 	CmdWirelessCombined = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
 		`info=$(iwinfo "$i" info 2>/dev/null) || continue; ` +
 		`echo "$info" | grep -q ESSID || continue; ` +
@@ -66,11 +67,14 @@ const (
 		`ch=$(echo "$info" | sed -n 's/.*Channel: \([0-9][0-9]*\).*/\1/p' | head -1); ` +
 		`ht=$(echo "$info" | sed -n 's/.*HT [Mm]ode: \([A-Za-z0-9]*\).*/\1/p' | head -1); ` +
 		`tx=$(echo "$info" | sed -n 's/.*Tx-Power: \([0-9]*\).*/\1/p' | head -1); ` +
+		`bssid=$(echo "$info" | sed -n 's/.*Access Point: \([0-9A-Fa-f:]\{17\}\).*/\1/p' | head -1); ` +
+		`noise=$(echo "$info" | sed -n 's/.*Noise: \(-\{0,1\}[0-9][0-9]*\).*/\1/p' | head -1); ` +
 		`al=$(iwinfo "$i" assoclist 2>/dev/null); ` +
 		`n=$(echo "$al" | grep -c '^[0-9A-Fa-f:]'); ` +
-		`echo "R|$freq|$ch|$ht|$tx|$n"; ` +
+		`echo "R|$freq|$ch|$ht|$tx|$bssid|$noise|$n"; ` +
 		`echo "$al" | sed -n "s/^\([0-9A-Fa-f:]\{17\}\) *\(-[0-9]*\).*/C|\1|\2|$freq/p"; done`
-	// CmdRadios: "freq|ch|ht|tx|n" por radio (se agrega por banda al parsear).
+	// CmdRadios: "freq|ch|ht|tx|bssid|noise|n" por radio (se agrega por banda
+	// al parsear). #1213: bssid + noise de iwinfo info.
 	CmdRadios = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
 		`info=$(iwinfo "$i" info 2>/dev/null) || continue; ` +
 		`echo "$info" | grep -q ESSID || continue; ` +
@@ -78,8 +82,10 @@ const (
 		`ch=$(echo "$info" | sed -n 's/.*Channel: \([0-9][0-9]*\).*/\1/p' | head -1); ` +
 		`ht=$(echo "$info" | sed -n 's/.*HT [Mm]ode: \([A-Za-z0-9]*\).*/\1/p' | head -1); ` +
 		`tx=$(echo "$info" | sed -n 's/.*Tx-Power: \([0-9]*\).*/\1/p' | head -1); ` +
+		`bssid=$(echo "$info" | sed -n 's/.*Access Point: \([0-9A-Fa-f:]\{17\}\).*/\1/p' | head -1); ` +
+		`noise=$(echo "$info" | sed -n 's/.*Noise: \(-\{0,1\}[0-9][0-9]*\).*/\1/p' | head -1); ` +
 		`n=$(iwinfo "$i" assoclist 2>/dev/null | grep -c '^[0-9A-Fa-f:]'); ` +
-		`echo "$freq|$ch|$ht|$tx|$n"; done`
+		`echo "$freq|$ch|$ht|$tx|$bssid|$noise|$n"; done`
 	// CmdScan (#452): scan pasivo de vecinos con `iw dev`. Lista interfaces,
 	// emite "==IFACE==<iface>" antes de cada scan y parsea BSS/freq/signal/SSID.
 	// Si `iw` no está disponible, la sección Scans queda vacía (best-effort).
@@ -339,6 +345,12 @@ type Radio struct {
 	// pueda construir cambios de canal (uci set wireless.<section>.channel).
 	// Vacía si no se pudo resolver (#500).
 	Section string `json:"section,omitempty"`
+	// #1213/#1206: suelo de ruido (dBm, de iwinfo info "Noise") y BSSID de la
+	// interfaz AP ("Access Point"). Opcionales: drivers que no los reportan →
+	// nil/vacío y el front no dibuja esas filas. El BSSID es "el sitio donde
+	// viven" las MACs de interfaz que antes asomaban como clientes.
+	NoiseDbm *int   `json:"noiseDbm,omitempty"`
+	BSSID    string `json:"bssid,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1455,11 +1467,30 @@ func ParseRadios(out string) []Radio {
 		}
 		ch, _ := strconv.Atoi(p[1])
 		tx, _ := strconv.Atoi(p[3])
-		n, _ := strconv.Atoi(p[4])
+		// #1213: formato nuevo "freq|ch|ht|tx|bssid|noise|n" (7 campos);
+		// el histórico "freq|ch|ht|tx|n" (5) sigue parseando igual.
+		var noise *int
+		var bssid string
+		n := 0
+		if len(p) >= 7 {
+			bssid = strings.ToUpper(strings.TrimSpace(p[4]))
+			if v, err := strconv.Atoi(strings.TrimSpace(p[5])); err == nil && v != 0 {
+				noise = &v
+			}
+			n, _ = strconv.Atoi(p[6])
+		} else {
+			n, _ = strconv.Atoi(p[4])
+		}
 		if cur, ok := byBand[band]; ok {
 			cur.Clients += n
+			if cur.NoiseDbm == nil {
+				cur.NoiseDbm = noise
+			}
+			if cur.BSSID == "" {
+				cur.BSSID = bssid
+			}
 		} else {
-			byBand[band] = &Radio{Name: band, Channel: ch, WidthMhz: width, PowerDbm: float64(tx), Clients: n}
+			byBand[band] = &Radio{Name: band, Channel: ch, WidthMhz: width, PowerDbm: float64(tx), Clients: n, NoiseDbm: noise, BSSID: bssid}
 			order = append(order, band)
 		}
 	}

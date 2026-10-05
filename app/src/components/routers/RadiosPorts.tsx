@@ -62,6 +62,10 @@ export function RadiosPorts({ router, extras, snmpStats }: {
                   [t('routerDetail.radios.width'), `${radio.widthMhz} MHz`],
                   [t('routerDetail.radios.power'), `${radio.powerDbm} dBm`],
                   [t('routers.colClients'), String(radio.clients)],
+                  // #1213: el ruido solo se muestra si el driver lo reporta
+                  ...(radio.noiseDbm != null ? [[t('routerDetail.radios.noise'), `${radio.noiseDbm} dBm`]] : []),
+                  // #1206: el BSSID de la interfaz (la MAC que antes asomaba como cliente)
+                  ...(radio.bssid ? [[t('routerDetail.radios.bssid'), radio.bssid]] : []),
                 ].map(([k, v]) => (
                   <div key={k}>
                     <dt className="text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{k}</dt>
