@@ -226,22 +226,25 @@ export function ChannelSpectrum({
         g.fillText(String(c), x(f), h - 10)
       }
 
-      // Campanas.
+      // Redes como trapecios LuCI (#1214): techo plano al ancho REAL de la
+      // red y faldones que caen un canal (20 MHz) por lado. Las campanas
+      // gaussianas 1.35x se fundían en una sopa cuando la malla propia
+      // domina el entorno (el caso doméstico típico).
       const visible = nets.filter((n) => !hidden.has(n.key))
       for (const n of visible) {
         if (n.freq <= 0) continue
-        const sigma = Math.max(n.widthMhz * 0.62, 8)
-        const span = n.widthMhz * 1.35
-        const f0 = Math.max(n.freq - span, range[0])
-        const f1 = Math.min(n.freq + span, range[1])
+        const halfW = Math.max(n.widthMhz, 20) / 2
+        const slope = halfW + 20
+        const xL = x(n.freq - halfW)
+        const xR = x(n.freq + halfW)
+        const xLS = x(Math.max(n.freq - slope, range[0]))
+        const xRS = x(Math.min(n.freq + slope, range[1]))
         const peak = y(Math.max(n.signal, DBM_TOP))
         g.beginPath()
-        g.moveTo(x(f0), baseline)
-        for (let f = f0; f <= f1; f += 1) {
-          const amp = Math.exp(-Math.pow((f - n.freq) / sigma, 2))
-          g.lineTo(x(f), baseline - (baseline - peak) * amp)
-        }
-        g.lineTo(x(f1), baseline)
+        g.moveTo(xLS, baseline)
+        g.lineTo(xL, peak)
+        g.lineTo(xR, peak)
+        g.lineTo(xRS, baseline)
         g.closePath()
         const grad = g.createLinearGradient(0, peak, 0, baseline)
         grad.addColorStop(0, withAlpha(n.color, 0.3))
