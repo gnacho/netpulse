@@ -315,6 +315,12 @@ function Sidebar({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggle
       </nav>
       {/* Pie del sidebar (#981): indicador "En vivo" + boton de plegar en la
           misma fila (sustituye a la antigua tarjeta de estado del gateway). */}
+      {/* Sello de build (#1214): identifica el commit exacto que ejecuta el
+          navegador. Imprescindible para diagnosticar cachés y service
+          workers: una captura del usuario dice qué build ve de verdad. */}
+      <div className="px-3 pb-1.5 pt-0.5 text-[10px] font-medium tabular-nums tracking-wide text-text-secondary/50">
+        build {__NP_BUILD__}
+      </div>
       <div className="flex items-center gap-2 border-t border-border p-3">
         <LivePill />
         <button
