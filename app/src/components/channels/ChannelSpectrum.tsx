@@ -431,7 +431,9 @@ export function ChannelSpectrum({
         let loDb = withData.length > 0 ? Math.min(...withData) : DBM_BOTTOM
         const hiDbRaw = withData.length > 0 ? Math.max(...withData) : DBM_BOTTOM
         if (hiDbRaw - loDb < 12) loDb = hiDbRaw - 12
-        const norm = (d: number) => 0.12 + 0.5 * ((d - loDb) / (hiDbRaw - loDb))
+        // Rango tonal COMPLETO (pizarra -> teal -> ambar -> rojo): el
+        // tramo corto 0.12..0.62 dejaba la franja sin matices.
+        const norm = (d: number) => 0.04 + 0.96 * ((d - loDb) / (hiDbRaw - loDb))
         for (let i = 0; i < bandChs.length; i++) {
           const tt = dbs[i]! === -Infinity ? 0 : Math.min(Math.max(norm(dbs[i]!), 0), 1)
           let c1 = stops[0]!
