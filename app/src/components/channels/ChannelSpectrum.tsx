@@ -158,7 +158,7 @@ export function ChannelSpectrum({
         return { g, w: r.width, h: cssH }
       }
 
-      const { g, w, h } = setup(cv, 340)
+      const { g, w, h } = setup(cv, 400)
       if (!g) return
       const plotW = w - PAD.l - PAD.r
       const plotH = h - PAD.t - PAD.b
@@ -256,7 +256,13 @@ export function ChannelSpectrum({
         const topHalf = (0.75 * slotW * Math.max(drawW, 20)) / 20
         const sigma = slotW
         const reach = topHalf + 1.75 * slotW
-        const peak = y(Math.max(n.signal, DBM_TOP))
+        // #1214: una radio se oye A SÍ MISMA a -20/-22 en su propio scan:
+        // dibujar eso como señal real pone todas las propias en el techo.
+        // Como LuCI ("Local Interface"), las propias auto-oidas (>= -45)
+        // se dibujan como bloque de referencia plano a -30; las propias
+        // LEJANAS de la malla (-50..) y las vecinas van a su altura real.
+        const selfHeard = n.own && n.signal >= -45
+        const peak = y(Math.max(selfHeard ? -30 : n.signal, DBM_TOP))
         g.beginPath()
         for (let d = -reach; d <= reach; d += 1) {
           const fall = Math.max(Math.abs(d) - topHalf, 0)
@@ -286,8 +292,9 @@ export function ChannelSpectrum({
           .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
+          const selfHeardLbl = n.own && n.signal >= -45
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
-          const peakY = y(Math.max(n.signal, DBM_TOP))
+          const peakY = y(Math.max(selfHeardLbl ? -30 : n.signal, DBM_TOP))
           for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
             const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
