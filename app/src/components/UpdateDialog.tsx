@@ -12,8 +12,9 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Circle,
-  Clock,
   DownloadCloud,
   ExternalLink,
   Loader2,
@@ -21,7 +22,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -41,6 +41,9 @@ export interface UpdateCommit {
 export interface UpdateStatusInfo {
   current: string
   latest: string | null
+  /** Semver legible (#1222): versión del binario y del último release. */
+  currentVersion?: string
+  latestVersion?: string
   latestMsg: string | null
   /** Cuerpo del commit (rolling) o notas del release (estable): changelog. */
   latestBody?: string | null
@@ -114,6 +117,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
   // Confirmación explícita de la caída del servicio (patrón Pulse): sin
   // marcarla, el botón de actualizar no se habilita.
   const [ackDowntime, setAckDowntime] = useState(false)
+  const [showPrereq, setShowPrereq] = useState(false)
 
   const esRef = useRef<EventSource | null>(null)
   const pollRef = useRef<number | null>(null)
@@ -349,29 +353,37 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
             <DownloadCloud className="h-5 w-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
             {t('update.dialog.title')}
           </DialogTitle>
-          {phase === 'confirm' && <DialogDescription>{t('update.dialog.desc')}</DialogDescription>}
         </DialogHeader>
 
         {phase === 'confirm' && (
           <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
-            {/* Tarjeta de versión destacada (estilo Pulse) */}
+            {/* Tarjeta de versión destacada (estilo Pulse): versionado real
+                (#1222) con el commit/hash como detalle secundario. */}
             <div className="flex flex-col gap-1.5">
               <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                 {t('update.dialog.versionUpdate')}
               </p>
               <div className="flex items-center justify-center gap-4 rounded-xl border border-accent/40 bg-accent-soft px-4 py-3.5">
-                <span className="font-mono text-base text-text-secondary">{status?.current ?? '—'}</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-base font-semibold text-text-secondary">
+                    {status?.currentVersion || status?.current || '—'}
+                  </span>
+                  {status?.currentVersion && status.currentVersion !== status.current && (
+                    <span className="font-mono text-xs text-text-muted">{status.current}</span>
+                  )}
+                </div>
                 <ArrowRight className="h-4 w-4 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
-                <span className="font-mono text-base font-semibold text-accent">
-                  {status?.latest ?? '—'}
-                </span>
+                <div className="flex flex-col items-center">
+                  <span className="text-base font-semibold text-accent">
+                    {status?.latestVersion || status?.latest || '—'}
+                  </span>
+                  {status?.latest && (!status.latestVersion || status.latestVersion !== status.latest) && (
+                    <span className="font-mono text-xs text-text-muted">{status.latest}</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex flex-col gap-1.5 text-caption">
-              <span className="flex items-center gap-2 text-text-secondary">
-                <Clock className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
-                {t('update.dialog.eta')}
-              </span>
               <span className="flex items-center gap-2 text-ok">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
                 {t('update.dialog.backupNote')}
@@ -398,7 +410,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                     {status!.commits!.map((c) => (
                       <li
                         key={c.sha + c.subject}
-                        className="flex items-start gap-2 text-caption leading-snug text-text-secondary"
+                        className="flex items-start gap-2 text-sm leading-relaxed text-text-secondary"
                       >
                         <span className="shrink-0 font-mono text-text-muted">{c.sha}</span>
                         <span className="min-w-0 break-words">{c.subject}</span>
@@ -427,7 +439,7 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
                 <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-surface px-3.5 py-2.5 md:max-h-none md:flex-1 md:min-h-0">
                   <ul className="flex flex-col gap-1">
                     {changelogLines.map((l, i) => (
-                        <li key={i} className="flex items-start gap-2 text-caption leading-snug text-text-secondary">
+                        <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-text-secondary">
                           <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-text-muted/60" aria-hidden="true" />
                           {l.replace(/^[-*]\s+/, '')}
                         </li>
@@ -466,10 +478,24 @@ export function UpdateDialog({ open, onOpenChange, initialStatus }: UpdateDialog
             )}
             {status?.readiness && (
               <div className="flex flex-col gap-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  {t('update.dialog.prerequisites')}
-                </p>
-                <ReadinessPanel readiness={status.readiness} compact />
+                {/* #1222: prerrequisitos plegados por defecto; la atención va
+                    a las novedades. */}
+                <button
+                  type="button"
+                  onClick={() => setShowPrereq((v) => !v)}
+                  aria-expanded={showPrereq}
+                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 transition-colors hover:bg-hover"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    {t('update.dialog.prerequisites')}
+                  </span>
+                  {showPrereq ? (
+                    <ChevronUp className="h-4 w-4 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
+                  )}
+                </button>
+                {showPrereq && <ReadinessPanel readiness={status.readiness} compact />}
               </div>
             )}
             {/* Aviso downtime (caja ámbar) + confirmación por separado */}
