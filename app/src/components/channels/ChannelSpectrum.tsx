@@ -249,34 +249,17 @@ export function ChannelSpectrum({
       for (const n of visible) {
         if (n.channel <= 0 || slotOf(n.channel) < 0) continue
         const xc = xch(n.channel)
-        // las propias se dibujan a 20 MHz de ancho visual (su bloque de
-        // canal): el ancho real (40/80) queda en hover y tabla, pero
-        // dibujarlo entero convierte la vista densa en una pared (#1214)
-        const drawW = n.own ? Math.min(n.widthMhz, 20) : n.widthMhz
-        const topHalf = (0.75 * slotW * Math.max(drawW, 20)) / 20
-        const sigma = slotW
-        const reach = topHalf + 1.75 * slotW
-        // #1214: una radio se oye A SÍ MISMA a -20/-22 en su propio scan:
-        // como campana de señal pone todas las propias a la misma altura y
-        // ahoga el dato comparativo. Como el "Local Interface" de LuCI, las
-        // propias auto-oidas (>= -45) son una PESTAÑA de referencia en el
-        // borde superior; las propias LEJANAS de la malla (-50..) y las
-        // vecinas van a su altura real.
-        const selfHeard = n.own && n.signal >= -60
-        if (selfHeard) {
-          const halfTab = Math.max((0.75 * slotW * Math.min(n.widthMhz, 20)) / 20, slotW * 0.4)
-          g.beginPath()
-          g.roundRect(xc - halfTab, PAD.t + 2, halfTab * 2, 16, 3)
-          g.fillStyle = withAlpha(n.color, 0.55)
-          g.strokeStyle = n.color
-          g.lineWidth = 1.2
-          const dimTab = (selected && selected !== n.key) || (focus != null && n.channel !== focus)
-          g.globalAlpha = dimTab ? 0.2 : 1
-          g.fill()
-          g.stroke()
-          g.globalAlpha = 1
-          continue
-        }
+        // #1214, el diseño final pedido ("los valores de OpenWrt con un
+        // pelín de curva"): la geometría del análisis de canales de LuCI -
+        // techo plano que cubre el rango del canal (0.5 slot por lado a
+        // 20 MHz, escala con el ancho anunciado) y faldones de ~1.5 slots -
+        // pero con subida y caída curvas en vez de rectas. TODAS las redes
+        // a su altura real: las propias fuertes (-20/-54, la malla cercana)
+        // son capuchas en el techo como el "Local Interface" de LuCI, y las
+        // débiles (-80..-100) bultos visibles gracias al fondo en -100.
+        const topHalf = (0.5 * slotW * Math.max(n.widthMhz, 20)) / 20
+        const sigma = 0.75 * slotW
+        const reach = topHalf + 1.5 * slotW
         const peak = y(Math.max(n.signal, DBM_TOP))
         g.beginPath()
         for (let d = -reach; d <= reach; d += 1) {
@@ -303,13 +286,12 @@ export function ChannelSpectrum({
       // Etiquetas: dos filas sobre el pico, anti-solapado por slot.
       {
         const labelables = visible
-          .filter((n) => n.channel > 0 && (n.own || n.signal > -80))
+          .filter((n) => n.channel > 0)
           .sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
         const rows: { px: number; py: number }[][] = [[], []]
         for (const n of labelables) {
-          const selfHeardLbl = n.own && n.signal >= -60
           const px = Math.min(Math.max(xch(n.channel), PAD.l + 42), w - PAD.r - 42)
-          const peakY = selfHeardLbl ? PAD.t + 2 : y(Math.max(n.signal, DBM_TOP))
+          const peakY = y(Math.max(n.signal, DBM_TOP))
           for (const rowIdx of [0, 1]) {
             const py = peakY - 8 - rowIdx * 13
             const clash = rows[rowIdx]!.some((q) => Math.abs(q.px - px) < slotW * 1.6)
