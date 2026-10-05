@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNetPulse } from '@/data/DataProvider'
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, RefreshCw, Router, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Radar, RefreshCw, Router, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ssidColor } from '@/lib/ssidColor'
 import { Button } from '@/components/ui/button'
@@ -149,6 +149,14 @@ export default function ChannelPlan() {
   const [data, setData] = useState<ChannelPlanData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // #1214: scan ad hoc para flotas con NETPULSE_SCAN_INTERVAL=0. El endpoint
+  // manda "refresh" por SSE y el agente fuerza un ciclo con ForceScan (el
+  // throttle del intervalo no aplica); los vecinos llegan con el próximo
+  // push, así que el refresco del plan va en dos tandas.
+  const [scanning, setScanning] = useState(false)
+  const [scanRequested, setScanRequested] = useState(false)
+  const [scanError, setScanError] = useState('')
+  const scanTimers = useRef<number[]>([])
   const [activeRadio, setActiveRadio] = useState('')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
@@ -204,6 +212,29 @@ export default function ChannelPlan() {
         if (!silent) setLoading(false)
       })
   }, [])
+
+  // #1214: pide el scan one-shot al agente del router activo.
+  const scanNow = useCallback(() => {
+    if (!routerId || scanning) return
+    setScanning(true)
+    setScanRequested(false)
+    setScanError('')
+    fetch(`/api/wifi/channel-plan/scan?routerId=${encodeURIComponent(routerId)}`, { method: 'POST' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text())
+        setScanRequested(true)
+        scanTimers.current.push(window.setTimeout(() => { void loadPlan(routerId, true) }, 12000))
+        scanTimers.current.push(window.setTimeout(() => {
+          void loadPlan(routerId, true)
+          setScanning(false)
+          setScanRequested(false)
+        }, 35000))
+      })
+      .catch((e) => {
+        setScanError(e?.message ? `${t('channelPlan.scanFailed')}: ${e.message}` : t('channelPlan.scanFailed'))
+        setScanning(false)
+      })
+  }, [routerId, scanning, loadPlan, t])
 
   useEffect(() => {
     if (!routerId) return
@@ -470,6 +501,17 @@ export default function ChannelPlan() {
                   time: new Date(lastRefresh).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
                 })}
           </span>
+          {/* #1214: scan ad hoc (flotas con NETPULSE_SCAN_INTERVAL=0) */}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!routerId || scanning}
+            onClick={scanNow}
+            title={t('channelPlan.scanNow')}
+          >
+            <Radar className={cn('mr-1.5 h-3.5 w-3.5', scanning && 'animate-pulse')} strokeWidth={1.75} />
+            {t('channelPlan.scanNow')}
+          </Button>
           <Button size="sm" variant="outline" disabled={!routerId || loading} onClick={() => loadPlan(routerId)}>
             <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', loading && 'animate-spin')} strokeWidth={1.75} />
             {t('channelPlan.refresh')}
@@ -477,10 +519,15 @@ export default function ChannelPlan() {
         </div>
       </div>
 
-      {error && (
+      {scanRequested && (
+        <div className="rounded-xl border border-info/30 bg-info/5 px-4 py-2.5 text-caption text-text-secondary">
+          {t('channelPlan.scanRequested')}
+        </div>
+      )}
+      {scanError && (
         <div className="flex items-start gap-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
-          <span>{error}</span>
+          <span>{scanError}</span>
         </div>
       )}
 

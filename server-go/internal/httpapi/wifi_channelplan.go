@@ -111,4 +111,26 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 			"scans":    scans,
 		})
 	})))
+
+	// #1214: scan ad hoc para flotas con NETPULSE_SCAN_INTERVAL=0. El evento
+	// "refresh" fuerza en el agente un ciclo con ForceScan (el throttle del
+	// intervalo no aplica) y el push siguiente trae los vecinos nuevos a
+	// wifi_scans. Requiere el agente conectado por SSE.
+	mux.Handle("POST /api/wifi/channel-plan/scan", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		routerID := r.URL.Query().Get("routerId")
+		if routerID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_body", "routerId requerido")
+			return
+		}
+		slug := agentSlugForRouter(routerID)
+		if s.agentHub == nil {
+			writeError(w, http.StatusServiceUnavailable, "unavailable", "SSE agentHub no configurado")
+			return
+		}
+		if !s.agentHub.Send(slug, "refresh", map[string]any{}) {
+			writeError(w, http.StatusNotFound, "not_found", "el agente no está conectado por SSE")
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+	})))
 }
