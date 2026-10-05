@@ -188,6 +188,35 @@ func TestSupervisorNoRearmaSlugNuncaVisto(t *testing.T) {
 	}
 }
 
+// #1247: un slug registrado (push previo + token) cuyo router fue dado de
+// baja de la tabla routers se omite del rearme de forma permanente, no
+// solo un cooldown: el bug reintentaba SSH cada 30s para siempre. Si el
+// router vuelve a existir, la supervisión retoma.
+func TestSupervisorOmiteSlugSinFilaEnRouters(t *testing.T) {
+	env := makeRearmEnv(t, "fantasma") // token registrado, pero SIN fila en routers
+	env.pushViejo("fantasma")
+	env.expira(time.Minute)
+
+	env.arm.SetPollWait(50 * time.Millisecond)
+	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, time.Hour)
+	sup.CheckOnce()
+	sup.CheckOnce() // segundo tick inmediato: el skip no depende del cooldown
+
+	if env.ssh.count() != 0 {
+		t.Fatalf("slug sin fila en routers no debe rearmarse: tuve %d comandos", env.ssh.count())
+	}
+
+	if _, err := routerstore.AddRouter(env.d.DB, routerstore.AddInput{
+		Name: "fantasma", Host: "192.168.1.99", Type: "openwrt",
+	}); err != nil {
+		t.Fatalf("AddRouter fantasma: %v", err)
+	}
+	sup.CheckOnce()
+	if env.ssh.count() == 0 {
+		t.Fatal("con el router de vuelta en la tabla el rearme debe retomarse")
+	}
+}
+
 func TestSupervisorCooldownLargo(t *testing.T) {
 	env := makeRearmEnv(t, "patio")
 	env.pushViejo("patio")
