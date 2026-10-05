@@ -101,8 +101,11 @@ type routerPolled struct {
 	// #1256: SNMP rellena sysDescr (nombre/modelo completo del switch) y,
 	// en MikroTik SwOS, la temperatura del chasis (hasTemp). hasTemp
 	// distingue "no aplica" de "0 °C" para no pisar el null de #441.
-	hasTemp           bool
-	sysDescr          string
+	hasTemp  bool
+	sysDescr string
+	// sysName (#1256): hostname que el usuario define en el equipo; para
+	// SNMP alimenta el Name visible de la unidad en flota.
+	sysName           string
 	flash             string
 	firmwareAvailable string
 	uptimeSec         float64
@@ -1266,6 +1269,12 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.board != nil && p.board.Hostname != "" {
 		name = p.board.Hostname
+	}
+	// #1256: los switches SNMP no tienen board; el sysName (hostname que el
+	// usuario define en el equipo, p. ej. la página de sistema de SwOS) es
+	// el nombre natural de la unidad.
+	if p.cfg.SnmpEnabled && p.sysName != "" {
+		name = p.sysName
 	}
 	health := 100
 	if p.cpu > 85 {

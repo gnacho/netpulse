@@ -196,10 +196,11 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		polledAt:  now.UnixMilli(),
 	}
 	if sysInfo != nil {
-		// #1256: el sysDescr declara el nombre/modelo completo del equipo
-		// (p. ej. "CSS610-8G-2S+ SwOS v2.21"); buildRouter lo usa como
-		// model de la unidad SNMP en lugar del nombre corto configurado.
+		// #1256: sysDescr declara el modelo completo del equipo (p. ej.
+		// "CSS610-8G-2S+ SwOS v2.21") y sysName el hostname que define el
+		// usuario; buildRouter los reparte entre Model y Name.
 		p.sysDescr = sysInfo.Descr
+		p.sysName = sysInfo.Name
 	}
 	p.temp, p.hasTemp = mikroTemp, hasTemp
 	l.mu.Lock()
