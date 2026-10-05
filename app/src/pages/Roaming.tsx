@@ -5,7 +5,6 @@ import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Filter, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
-import { ssidColor } from '@/lib/ssidColor'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
 import {
@@ -120,7 +119,7 @@ type Band = 'all' | '2.4 GHz' | '5 GHz'
 type Tab = 'matrix' | '11r' | 'events' | 'reanchor'
 
 /** Orden estable de pestañas (issue #229: navegación por teclado). */
-const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events', 'reanchor']
+const TAB_IDS: Tab[] = ['matrix', '11r', 'events', 'reanchor']
 
 /** Clase de color por señal (-dBm): verde óptimo, ámbar aceptable, rojo límite. */
 function signalClass(s: number): string {
@@ -265,9 +264,6 @@ export default function Roaming() {
     }
   }, [tab, dot11r, dot11rLoading, dot11rError])
 
-    setSurveyLoading(false)
-  }
-
 
   // Carga perezosa de /api/roam-events. Polling cada 30s mientras la pestaña
   // está activa (los eventos llegan por ingest continua al SQLite).
@@ -303,7 +299,6 @@ export default function Roaming() {
   useEffect(() => () => {
     usteerAc.current?.abort()
     dot11rAc.current?.abort()
-    surveyAc.current?.abort()
     eventsAc.current?.abort()
     if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
   }, [])
@@ -411,7 +406,6 @@ export default function Roaming() {
   const tabs: { id: Tab; label: string; soon: boolean }[] = [
     { id: 'matrix', label: t('roaming.tabMatrix'), soon: false },
     { id: '11r', label: t('roaming.tab11r'), soon: false },
-    { id: 'survey', label: t('roaming.tabSurvey'), soon: false },
     { id: 'events', label: t('roaming.tabEvents'), soon: false },
     { id: 'reanchor', label: t('roaming.tabReanchor'), soon: false },
   ]
@@ -443,6 +437,7 @@ export default function Roaming() {
       {/* ① Page header */}
       <header>
         <motion.nav
+          initial={initial}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           aria-label={t('common.breadcrumb')}
@@ -558,7 +553,7 @@ export default function Roaming() {
       </div>
 
       {/* ③ Contenido */}
-      {tab !== 'matrix' && tab !== '11r' && tab !== 'survey' && tab !== 'events' && (
+      {tab !== 'matrix' && tab !== '11r' && tab !== 'events' && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('roaming.comingSoon')}
         </div>
@@ -570,11 +565,6 @@ export default function Roaming() {
         </div>
       )}
 
-      {tab === 'survey' && (
-        <div role="tabpanel" id="panel-survey" aria-labelledby="tab-survey" tabIndex={0}>
-          <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} noApi={surveyNoApi} band={surveyBand} setBand={setSurveyBand} />
-        </div>
-      )}
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
@@ -603,6 +593,11 @@ export default function Roaming() {
           {error && (
             <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
               {t('roaming.error')}
+            </div>
+          )}
+          {!loading && !error && usteer && usteer.aps.length === 0 && (
+            <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+              {t('roaming.empty')}
             </div>
           )}
 
@@ -1054,144 +1049,6 @@ function Flag({ on, label }: { on: boolean; label?: string }) {
 // ---------------------------------------------------------------------------
 // Pestaña Survey (Fase 14.4) — utilización por canal, por router y radio
 // ---------------------------------------------------------------------------
-
-type SurveyBand = 'all' | '2.4 GHz' | '5 GHz'
-
-// señal → color (#538): verde fuerte a muy buena, ámbar intermedia, roja débil.
-function signalDot(signal: number): string {
-  if (signal >= -55) return 'bg-ok'
-  if (signal >= -70) return 'bg-warn'
-  return 'bg-danger'
-}
-
-// ssidColor vive en @/lib/ssidColor (compartido con el informe de canales
-// #1070). bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
-function bandOfFreq(freq: number): string {
-  if (freq >= 2412 && freq <= 2484) return '2.4 GHz'
-  if (freq >= 5180 && freq <= 5885) return '5 GHz'
-  if (freq >= 5955) return '6 GHz'
-  return `${freq} MHz`
-}
-
-// bandChannels: lista completa de canales de una banda, como el channel
-// analysis del LuCI (2.4 → 1-13; 5 GHz → canales típicos UNII-1..4).
-function bandChannels(band: string): number[] {
-  if (band === '2.4 GHz') return Array.from({ length: 13 }, (_, i) => i + 1)
-  if (band === '5 GHz') return [36, 40, 44, 48, 52, 56, 60, 64, 68, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165]
-  return []
-}
-
-// ChannelAnalysisChart (#542): gráfico de cascada de la ocupación por canal,
-// réplica del "channel analysis" del LuCI. Dibuja UNA banda con TODOS sus
-// canales en el eje X (slots uniformes, incluidos los vacíos), eje Y = señal
-// dBm (-92 abajo, -20 arriba). Cada red es una "montaña" centrada en su canal
-// (altura = señal); la del propio router (canal in use) se dibuja a -25 dBm.
-function ChannelAnalysisChart({ bandName, channels, scans }: { bandName: string; channels: number[]; scans: Scan[] }) {
-  const { t } = useTranslation()
-  const W = 900
-  const H = 240
-  const padL = 46
-  const padR = 16
-  const padT = 18
-  const padB = 26
-  const dBmMin = -92
-  if (channels.length === 0 || scans.length === 0) {
-  const y = (dbm: number) => padT + ((dBmMax - dbm) / (dBmMax - dBmMin)) * (H - padT - padB)
-  const gridDbm = [-25, -50, -75, -92]
-  const half = Math.min(slot * 0.45, 22)
-          <line x1={padL} y1={y(d)} x2={W - padR} y2={y(d)} stroke="currentColor" className="text-border" strokeWidth={0.5} />
-          const x0 = cx(i)
-}) {
-    }
-    return () => { active = false }
-  }, [overview])
-
-  if (loading && !overview) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.loading')}
-      </div>
-    )
-  }
-  if (noApi) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.noApi')}
-      </div>
-    )
-  }
-  if (error) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.error')}
-      </div>
-    )
-  }
-  if (!overview || !overview.available || overview.routers.length === 0) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.survey.empty')}
-      </div>
-    )
-  }
-
-  const bandOptions: SurveyBand[] = ['2.4 GHz', '5 GHz']
-
-  return (
-    <motion.section
-      initial={initial}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
-      className="space-y-4"
-    >
-      {/* Header + filtro banda */}
-      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-            <div>
-              <h2 className="font-display text-h2 text-text-primary">{t('roaming.survey.title')}</h2>
-              {/* #1214: la nota de análisis de canales fuera - este tab es "Canales actuales" */}
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
-            {bandOptions.map((b) => (
-              <button
-                key={b}
-                onClick={() => setBand(b)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                  (band === b || (band === 'all' && b === '2.4 GHz')) ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
-                )}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Análisis de canales (#542): cascada de curvas + tabla de vecinos */}
-      <ChannelAnalysisView over={overview} band={band} scansByRouter={scansByRouter} radiosByRouter={radiosByRouter} />
-
-      {/* Leyenda */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ok/40 ring-1 ring-inset ring-ok/40" />
-          {t('roaming.survey.legendFree')}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warn/40 ring-1 ring-inset ring-warn/40" />
-          {t('roaming.survey.legendBusy')}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger/40 ring-1 ring-inset ring-danger/40" />
-          {t('roaming.survey.legendCongested')}
-        </span>
-      </div>
-    </motion.section>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Pestaña Eventos (Fase 14.5) — feed temporal de hostapd/DAWN con histórico
