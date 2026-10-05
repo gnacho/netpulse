@@ -1600,7 +1600,7 @@
       "wireguardCaption": "Túneles VPN WireGuard",
       "openvpnCaption": "Túneles VPN OpenVPN (próximamente)",
       "labs": "Labs (aplicaciones experimentales)",
-      "labsCaption": "En desarrollo. Escriben en los routers",
+      "labsCaption": "En desarrollo. Para uso experimental",
       "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
       "networkGroup": "Servicios de red",
       "firmwareUpgradesCaption": "Muestra u oculta la página de actualizaciones de firmware",
