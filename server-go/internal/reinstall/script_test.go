@@ -61,11 +61,37 @@ func TestScriptEnvDocumentsDefaults(t *testing.T) {
 
 // #851: el rewrite del env conserva las NETPULSE_* del usuario (p. ej.
 // NETPULSE_SCAN_INTERVAL=0) en vez de pisarlas.
+// TestScriptWritesActiveTargets (#1204): con objetivos resueltos por el
+// server, el env lleva las líneas ACTIVAS (no comentadas); sin objetivos,
+// siguen documentadas como antes.
+func TestScriptWritesActiveTargets(t *testing.T) {
+	slug, token, url, fp := "test-router", strings.Repeat("a1", 32), "http://192.168.1.226:3000", ""
+	digests := map[string]string{"arm64": "cafebabe"}
+	withWan := reinstall.ScriptWithTargets(slug, token, url, fp, digests, reinstall.WanTargets{WanTarget: "1.1.1.1"})
+	if !strings.Contains(withWan, "\nNETPULSE_WAN_TARGET=1.1.1.1\n") {
+		t.Errorf("gateway sin línea WAN activa")
+	}
+	if strings.Contains(withWan, "\nNETPULSE_GW_TARGET=") {
+		t.Errorf("el gateway no debe llevar GW_TARGET activo")
+	}
+	withGw := reinstall.ScriptWithTargets(slug, token, url, fp, digests, reinstall.WanTargets{GwTarget: "192.168.1.1"})
+	if !strings.Contains(withGw, "\nNETPULSE_GW_TARGET=192.168.1.1\n") {
+		t.Errorf("AP sin línea GW activa")
+	}
+	if strings.Contains(withGw, "\nNETPULSE_WAN_TARGET=") {
+		t.Errorf("el AP no debe llevar WAN_TARGET activo")
+	}
+	plain := scriptForTest()
+	if !strings.Contains(plain, "# NETPULSE_WAN_TARGET=1.1.1.1") || !strings.Contains(plain, "# NETPULSE_GW_TARGET=192.168.8.1") {
+		t.Errorf("sin objetivos las líneas deben seguir comentadas")
+	}
+}
+
 func TestScriptPreservesUserVars(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
 		`USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE"`,
-		`grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)='`,
+		`grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET)='`,
 		`printf '%s\n' "$USER_VARS" >> "$ENV_FILE"`,
 	} {
 		if !strings.Contains(s, want) {

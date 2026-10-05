@@ -163,8 +163,9 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
 
               {/* Latencia + Clientes: debajo del saludo, centrados en la mitad izquierda */}
               <div className="flex items-center justify-center gap-8">
+                {/* #1204: sin sonda no se pinta un 0 ms seguro de sí mismo; "—" */}
                 <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
-                  <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
+                  {wan.latencyMs > 0 ? <><CountUp value={wan.latencyMs} nonce={refreshKey} /> ms</> : <span className="font-mono">—</span>}
                 </MiniStat>
                 <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
                   <CountUp value={deviceTotals.total} nonce={refreshKey} />
@@ -318,8 +319,9 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
 
         {/* Stats: latencia + dispositivos en fila, centrados */}
         <div className="mt-1 flex w-full items-center justify-center gap-8 md:gap-12">
+          {/* #1204: sin sonda no se pinta un 0 ms seguro de sí mismo; "—" */}
           <MiniStat icon={Gauge} label={t('home.latency')} colorClass="text-ok" index={0}>
-            <CountUp value={wan.latencyMs} nonce={refreshKey} /> ms
+            {wan.latencyMs > 0 ? <><CountUp value={wan.latencyMs} nonce={refreshKey} /> ms</> : <span className="font-mono">—</span>}
           </MiniStat>
           <MiniStat icon={MonitorSmartphone} label={t('home.devices')} colorClass="text-text-primary" index={1}>
             <CountUp value={deviceTotals.total} nonce={refreshKey} />

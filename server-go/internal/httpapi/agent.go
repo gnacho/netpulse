@@ -816,6 +816,19 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// #1204: el env del agente lleva la sonda de latencia ACTIVA (WAN en el
+	// gateway, ping al gateway en los APs): el server resuelve el rol desde
+	// la tabla routers.
+	var targets reinstall.WanTargets
+	if s.db != nil {
+		rows := routerstore.ListRouters(s.db.DB)
+		trows := make([]reinstall.RouterRow, 0, len(rows))
+		for _, rc := range rows {
+			trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway})
+		}
+		targets = reinstall.TargetsFor(trows, slug)
+	}
+
 	// URL base del server (para que el router descargue el binario).
 	// NETPULSE_PUBLIC_URL manda si está configurada (#457): sin ella, llamar
 	// al endpoint vía localhost haría que el router descargue de localhost.
@@ -842,7 +855,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	token, err := s.rotateAgentTokenAtomic(slug, func(t string) error {
 		// FORK: with HTTPS on, the agent moves to it and pins the root.
 		trust := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, serverURL)
-		_, runErr := s.pool.Run(host, reinstall.Script(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), trust), 300*time.Second)
+		_, runErr := s.pool.Run(host, reinstall.ScriptWithTargets(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), targets, trust), 300*time.Second)
 		return runErr
 	})
 	if err != nil {
