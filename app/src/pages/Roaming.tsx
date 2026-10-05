@@ -5,7 +5,6 @@ import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Filter, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
-import { ssidColor } from '@/lib/ssidColor'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
 import {
@@ -102,31 +101,6 @@ interface Dot11rOverview {
 // Tipos del contrato GET /api/survey (server-go/internal/adapters/types.go).
 // ---------------------------------------------------------------------------
 
-interface SurveyChannel {
-  freq: number
-  channel: number
-  inUse: boolean
-  noiseDbm: number
-  busyPct: number
-  rxPct: number
-  txPct: number
-}
-interface SurveyRadio {
-  device: string
-  band: string
-  channels: SurveyChannel[]
-}
-interface SurveyRouter {
-  routerId: string
-  name: string
-  available: boolean
-  radios: SurveyRadio[]
-}
-interface SurveyOverview {
-  available: boolean
-  routers: SurveyRouter[]
-}
-
 // ---------------------------------------------------------------------------
 // Tipos del contrato GET /api/roam-events (server-go/internal/roamevents).
 // ---------------------------------------------------------------------------
@@ -142,10 +116,10 @@ interface RoamEvent {
 }
 
 type Band = 'all' | '2.4 GHz' | '5 GHz'
-type Tab = 'matrix' | '11r' | 'survey' | 'events' | 'reanchor'
+type Tab = 'matrix' | '11r' | 'events' | 'reanchor'
 
 /** Orden estable de pestañas (issue #229: navegación por teclado). */
-const TAB_IDS: Tab[] = ['matrix', '11r', 'survey', 'events', 'reanchor']
+const TAB_IDS: Tab[] = ['matrix', '11r', 'events', 'reanchor']
 
 /** Clase de color por señal (-dBm): verde óptimo, ámbar aceptable, rojo límite. */
 function signalClass(s: number): string {
@@ -189,11 +163,6 @@ export default function Roaming() {
   const [dot11rLoading, setDot11rLoading] = useState(false)
   const [dot11rError, setDot11rError] = useState(false)
   const [dot11rNoApi, setDot11rNoApi] = useState(false)
-  const [survey, setSurvey] = useState<SurveyOverview | null>(null)
-  const [surveyLoading, setSurveyLoading] = useState(false)
-  const [surveyError, setSurveyError] = useState(false)
-  const [surveyNoApi, setSurveyNoApi] = useState(false)
-  const [surveyBand, setSurveyBand] = useState<'all' | '2.4 GHz' | '5 GHz'>('2.4 GHz')
   const [events, setEvents] = useState<RoamEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventsError, setEventsError] = useState(false)
@@ -230,7 +199,6 @@ export default function Roaming() {
   // abortan todos.
   const usteerAc = useRef<AbortController | null>(null)
   const dot11rAc = useRef<AbortController | null>(null)
-  const surveyAc = useRef<AbortController | null>(null)
   const eventsAc = useRef<AbortController | null>(null)
   // Timer del spin del botón Refresh (#227): limpiado en unmount.
   const spinTimer = useRef<number | null>(null)
@@ -296,35 +264,6 @@ export default function Roaming() {
     }
   }, [tab, dot11r, dot11rLoading, dot11rError])
 
-  // Carga perezosa de /api/survey: igual que dot11r, un SSH por router con wifi.
-  async function loadSurvey() {
-    surveyAc.current?.abort()
-    const ac = new AbortController()
-    surveyAc.current = ac
-    setSurveyLoading(true)
-    setSurveyError(false)
-    setSurveyNoApi(false)
-    const result = await fetchJson<SurveyOverview>('/api/survey', { signal: ac.signal })
-    if (ac.signal.aborted) return
-    if (result.ok) {
-      setSurvey(result.data)
-    } else if (result.kind === 'unauthorized') {
-      redirectLogin()
-    } else if (result.kind === 'no-api' && isDemo) {
-      setSurveyNoApi(true)
-      setSurvey(null)
-    } else {
-      setSurveyError(true)
-      setSurvey(null)
-    }
-    setSurveyLoading(false)
-  }
-
-  useEffect(() => {
-    if (tab === 'survey' && survey === null && !surveyLoading && !surveyError) {
-      void loadSurvey()
-    }
-  }, [tab, survey, surveyLoading, surveyError])
 
   // Carga perezosa de /api/roam-events. Polling cada 30s mientras la pestaña
   // está activa (los eventos llegan por ingest continua al SQLite).
@@ -360,7 +299,6 @@ export default function Roaming() {
   useEffect(() => () => {
     usteerAc.current?.abort()
     dot11rAc.current?.abort()
-    surveyAc.current?.abort()
     eventsAc.current?.abort()
     if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
   }, [])
@@ -468,7 +406,6 @@ export default function Roaming() {
   const tabs: { id: Tab; label: string; soon: boolean }[] = [
     { id: 'matrix', label: t('roaming.tabMatrix'), soon: false },
     { id: '11r', label: t('roaming.tab11r'), soon: false },
-    { id: 'survey', label: t('roaming.tabSurvey'), soon: false },
     { id: 'events', label: t('roaming.tabEvents'), soon: false },
     { id: 'reanchor', label: t('roaming.tabReanchor'), soon: false },
   ]
@@ -541,7 +478,6 @@ export default function Roaming() {
             onClick={() => {
               void load()
               if (tab === '11r') void loadDot11r()
-              if (tab === 'survey') void loadSurvey()
               if (tab === 'events') void loadEvents()
               if (tab === 'reanchor') setReanchorTick((n) => n + 1)
               if (reduce) return
@@ -617,7 +553,7 @@ export default function Roaming() {
       </div>
 
       {/* ③ Contenido */}
-      {tab !== 'matrix' && tab !== '11r' && tab !== 'survey' && tab !== 'events' && (
+      {tab !== 'matrix' && tab !== '11r' && tab !== 'events' && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
           {t('roaming.comingSoon')}
         </div>
@@ -629,11 +565,6 @@ export default function Roaming() {
         </div>
       )}
 
-      {tab === 'survey' && (
-        <div role="tabpanel" id="panel-survey" aria-labelledby="tab-survey" tabIndex={0}>
-          <SurveyPanel overview={survey} loading={surveyLoading} error={surveyError} noApi={surveyNoApi} band={surveyBand} setBand={setSurveyBand} />
-        </div>
-      )}
 
       {tab === 'events' && (
         <div role="tabpanel" id="panel-events" aria-labelledby="tab-events" tabIndex={0}>
@@ -1118,364 +1049,6 @@ function Flag({ on, label }: { on: boolean; label?: string }) {
 // ---------------------------------------------------------------------------
 // Pestaña Survey (Fase 14.4) — utilización por canal, por router y radio
 // ---------------------------------------------------------------------------
-
-type SurveyBand = 'all' | '2.4 GHz' | '5 GHz'
-
-// señal → color (#538): verde fuerte a muy buena, ámbar intermedia, roja débil.
-function signalDot(signal: number): string {
-  if (signal >= -55) return 'bg-ok'
-  if (signal >= -70) return 'bg-warn'
-  return 'bg-danger'
-}
-
-// ssidColor vive en @/lib/ssidColor (compartido con el informe de canales
-// #1070). bandOfFreq: 2.4 / 5 / 6 GHz a partir de la frecuencia del canal.
-function bandOfFreq(freq: number): string {
-  if (freq >= 2412 && freq <= 2484) return '2.4 GHz'
-  if (freq >= 5180 && freq <= 5885) return '5 GHz'
-  if (freq >= 5955) return '6 GHz'
-  return `${freq} MHz`
-}
-
-// bandChannels: lista completa de canales de una banda, como el channel
-// analysis del LuCI (2.4 → 1-13; 5 GHz → canales típicos UNII-1..4).
-function bandChannels(band: string): number[] {
-  if (band === '2.4 GHz') return Array.from({ length: 13 }, (_, i) => i + 1)
-  if (band === '5 GHz') return [36, 40, 44, 48, 52, 56, 60, 64, 68, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165]
-  return []
-}
-
-// ChannelAnalysisChart (#542): gráfico de cascada de la ocupación por canal,
-// réplica del "channel analysis" del LuCI. Dibuja UNA banda con TODOS sus
-// canales en el eje X (slots uniformes, incluidos los vacíos), eje Y = señal
-// dBm (-92 abajo, -20 arriba). Cada red es una "montaña" centrada en su canal
-// (altura = señal); la del propio router (canal in use) se dibuja a -25 dBm.
-function ChannelAnalysisChart({ bandName, channels, scans }: { bandName: string; channels: number[]; scans: Scan[] }) {
-  const { t } = useTranslation()
-  const W = 900
-  const H = 240
-  const padL = 46
-  const padR = 16
-  const padT = 18
-  const padB = 26
-  const dBmMax = -20
-  const dBmMin = -92
-  if (channels.length === 0 || scans.length === 0) {
-    return <div className="text-caption text-text-muted">{t('roaming.survey.empty')}</div>
-  }
-  const innerW = W - padL - padR
-  const slot = innerW / channels.length
-  const cx = (i: number) => padL + slot * i + slot / 2
-  const y = (dbm: number) => padT + ((dBmMax - dbm) / (dBmMax - dBmMin)) * (H - padT - padB)
-  const gridDbm = [-25, -50, -75, -92]
-  const half = Math.min(slot * 0.45, 22)
-  const byChan = (c: number) => scans.filter((s) => s.channel === c)
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${bandName} · ${t('roaming.survey.title')}`}>
-      {gridDbm.map((d) => (
-        <g key={d}>
-          <line x1={padL} y1={y(d)} x2={W - padR} y2={y(d)} stroke="currentColor" className="text-border" strokeWidth={0.5} />
-          <text x={padL - 6} y={y(d) + 3} textAnchor="end" className="fill-text-muted" fontSize={9}>
-            {d} dBm
-          </text>
-        </g>
-      ))}
-      {channels.map((c, i) =>
-        byChan(c).slice().sort((a, b) => a.signal - b.signal).map((s) => {
-          const x0 = cx(i)
-          const cy = y(s.signal)
-          const base = y(dBmMin)
-          const col = s.own ? ssidColor('') : ssidColor(s.ssid || s.bssid)
-          return (
-            <path
-              key={`${s.bssid || 'own'}-${c}`}
-              d={`M ${x0 - half} ${base + 8} C ${x0 - half} ${(base + 8 + cy) / 2}, ${x0 - half * 0.5} ${cy}, ${x0} ${cy} C ${x0 + half * 0.5} ${cy}, ${x0 + half} ${(base + 8 + cy) / 2}, ${x0 + half} ${base + 8} Z`}
-              fill={s.own ? '#8b5cf6' : col}
-              fillOpacity={s.own ? 0.55 : 0.28}
-              stroke={s.own ? '#8b5cf6' : col}
-              strokeOpacity={s.own ? 1 : 0.5}
-              strokeWidth={s.own ? 2 : 1}
-            >
-              <title>{`${s.ssid || s.bssid}${s.own ? ' (red propia)' : ''} · ${c} · ${s.signal} dBm`}</title>
-            </path>
-          )
-        })
-      )}
-      {channels.map((c, i) => (
-        <text key={c} x={cx(i)} y={H - 6} textAnchor="middle" className="fill-text-muted" fontSize={9}>
-          {c}
-        </text>
-      ))}
-    </svg>
-  )
-}
-
-// Neighbor scan del channel-plan (#538): red visible en un canal.
-interface Scan {
-  iface: string
-  bssid: string
-  ssid: string
-  channel: number
-  freq: number
-  signal: number
-  routerId: string
-  own?: boolean
-}
-
-interface ChannelPlanData {
-  routerId: string
-  radios: PlanRadio[]
-  scans: Scan[]
-}
-
-/** Radio recomendada del channel-plan (para mostrar el ancho del canal propio). */
-interface PlanRadio {
-  name: string
-  channel: number
-  widthMhz: number
-  band?: string
-}
-
-// ChannelAnalysisView (#542): vista del análisis de canales (réplica del LuCI).
-// Selector de router + filtro de banda, cascada de curvas y tabla de vecinos.
-function ChannelAnalysisView({
-  over,
-  band,
-  scansByRouter,
-  radiosByRouter,
-}: {
-  over: SurveyOverview
-  band: SurveyBand
-  scansByRouter: Record<string, Scan[]>
-  radiosByRouter: Record<string, PlanRadio[]>
-}) {
-  const { t } = useTranslation()
-  // Una sola banda activa a la vez (controlada desde el header del panel); si la
-  // prop es "all" lo tratamos como 2.4 GHz por defecto.
-  const activeBand = band === '5 GHz' ? '5 GHz' : '2.4 GHz'
-  const channels = bandChannels(activeBand)
-  // Los routers con escaneos (datos) primero; el resto se muestra igualmente
-  // con su aviso de "sin escaneos".
-  const hasData = (rid: string) => (scansByRouter[rid] ?? []).length > 0
-  const routers = over.routers.filter((r) => r.available).slice().sort((a, b) => (hasData(b.routerId) ? 1 : 0) - (hasData(a.routerId) ? 1 : 0))
-
-  // #602: ancho de canal de la radio propia, cruzando con el channel-plan.
-  const ownWidth = (routerId: string, band: string, channel: number): number => {
-    const r = (radiosByRouter[routerId] ?? []).find((x) => x.name === band && x.channel === channel)
-    return r && r.widthMhz > 0 ? r.widthMhz : 0
-  }
-
-  if (routers.length === 0) {
-    return <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">{t('roaming.survey.empty')}</div>
-  }
-
-  return (
-    <div className="space-y-4">
-      {routers.map((router) => {
-        const name = router.name
-        const allScans = (scansByRouter[router.routerId] ?? []).filter((s) => s.signal >= -90)
-        // Red propia: montaña a -25 dBm en el canal en uso de cada radio.
-        const ownScans: Scan[] = (router.radios ?? []).flatMap((radio) => {
-          if (radio.band !== activeBand) return []
-          const ch = radio.channels.find((c) => c.inUse)
-          if (!ch) return []
-          return [{ iface: radio.device, bssid: `own-${radio.device}`, ssid: `${t('roaming.survey.ownLabel')} (${name})`, channel: ch.channel, freq: ch.freq, signal: -25, routerId: router.routerId, own: true }]
-        })
-        const bandScans = allScans.filter((s) => bandOfFreq(s.freq) === activeBand)
-        const scans = [...ownScans, ...bandScans]
-        const noData = !hasData(router.routerId) && ownScans.length === 0
-        return (
-          <div key={router.routerId} className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-            <h3 className="mb-2 font-display text-h3 text-text-primary">{name}</h3>
-            <div className="mb-1 font-mono text-caption text-text-muted">{activeBand}</div>
-            {noData && (
-              <p className="rounded-lg bg-warn/10 px-3 py-2 text-caption text-warn">
-                {t('roaming.survey.noScans')}
-              </p>
-            )}
-            {!noData && (
-              <>
-                <ChannelAnalysisChart bandName={activeBand} channels={channels} scans={scans} />
-                {bandScans.length > 0 && (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="w-full border-separate border-spacing-0 text-left text-sm">
-                      <thead>
-                        <tr className="text-label uppercase text-text-muted">
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSignal')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colSsid')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colChannel')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colBssid')}</th>
-                          <th className="pb-2 pr-3 font-medium">{t('roaming.survey.colFreq')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scans.slice().sort((a, b) => b.signal - a.signal).map((s) => (
-                          <tr key={s.bssid + s.channel}>
-                            <td className="border-b border-border/60 py-2 pr-3">
-                              <span className="inline-flex items-center gap-2">
-                                <span className={cn('inline-block h-2 w-8 rounded-full', s.own ? 'bg-accent' : signalDot(s.signal))} />
-                                <span className="font-mono text-mono-sm text-text-secondary">{s.signal} dBm</span>
-                              </span>
-                            </td>
-                            <td className="border-b border-border/60 py-2 pr-3">
-                              <span className="inline-flex items-center gap-2">
-                                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.own ? '#8b5cf6' : ssidColor(s.ssid || s.bssid) }} />
-                                <span className="text-text-primary">{s.ssid || <em className="text-text-muted">hidden</em>}</span>
-                              </span>
-                            </td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-text-primary">
-                              {s.channel}
-                              {s.own && (() => {
-                                const w = ownWidth(router.routerId, activeBand, s.channel)
-                                return w > 0 ? <span className="ml-1 text-caption text-text-muted">· {w} MHz</span> : null
-                              })()}
-                            </td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.bssid}</td>
-                            <td className="border-b border-border/60 py-2 pr-3 font-mono text-caption text-text-muted">{s.freq} MHz</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function SurveyPanel({
-  overview,
-  loading,
-  error,
-  noApi,
-  band,
-  setBand,
-}: {
-  overview: SurveyOverview | null
-  loading: boolean
-  error: boolean
-  noApi: boolean
-  band: SurveyBand
-  setBand: (b: SurveyBand) => void
-}) {
-  const { t } = useTranslation()
-  const reduce = useReducedMotion()
-  const initial = reduce ? false : { opacity: 0, y: 12 }
-
-  // Vecinos por router (capa de la matriz survey, #538): cada router con
-  // survey pide su canal-plan (scans) para superponer quién ocupa cada canal.
-  const [scansByRouter, setScansByRouter] = useState<Record<string, Scan[]>>({})
-  const [radiosByRouter, setRadiosByRouter] = useState<Record<string, PlanRadio[]>>({})
-  useEffect(() => {
-    if (!overview?.available) return
-    let active = true
-    setScansByRouter({})
-    setRadiosByRouter({})
-    for (const r of overview.routers) {
-      if (!r.available) continue
-      fetchJson<ChannelPlanData>(`/api/wifi/channel-plan?routerId=${encodeURIComponent(r.routerId)}`)
-        .then((res) => {
-          if (res.ok && active) {
-            setScansByRouter((prev) => ({ ...prev, [r.routerId]: res.data.scans ?? [] }))
-            setRadiosByRouter((prev) => ({ ...prev, [r.routerId]: res.data.radios ?? [] }))
-          }
-        })
-        .catch(() => { /* capa opcional: la matriz funciona solo con el survey */ })
-    }
-    return () => { active = false }
-  }, [overview])
-
-  if (loading && !overview) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.loading')}
-      </div>
-    )
-  }
-  if (noApi) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.noApi')}
-      </div>
-    )
-  }
-  if (error) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.error')}
-      </div>
-    )
-  }
-  if (!overview || !overview.available || overview.routers.length === 0) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.survey.empty')}
-      </div>
-    )
-  }
-
-  const bandOptions: SurveyBand[] = ['2.4 GHz', '5 GHz']
-
-  return (
-    <motion.section
-      initial={initial}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut', delay: 0.08 }}
-      className="space-y-4"
-    >
-      {/* Header + filtro banda */}
-      <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-            <div>
-              <h2 className="font-display text-h2 text-text-primary">{t('roaming.survey.title')}</h2>
-              {/* #1214: la nota de análisis de canales fuera - este tab es "Canales actuales" */}
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
-            {bandOptions.map((b) => (
-              <button
-                key={b}
-                onClick={() => setBand(b)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                  (band === b || (band === 'all' && b === '2.4 GHz')) ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
-                )}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Análisis de canales (#542): cascada de curvas + tabla de vecinos */}
-      <ChannelAnalysisView over={overview} band={band} scansByRouter={scansByRouter} radiosByRouter={radiosByRouter} />
-
-      {/* Leyenda */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-text-muted">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ok/40 ring-1 ring-inset ring-ok/40" />
-          {t('roaming.survey.legendFree')}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warn/40 ring-1 ring-inset ring-warn/40" />
-          {t('roaming.survey.legendBusy')}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger/40 ring-1 ring-inset ring-danger/40" />
-          {t('roaming.survey.legendCongested')}
-        </span>
-      </div>
-    </motion.section>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Pestaña Eventos (Fase 14.5) — feed temporal de hostapd/DAWN con histórico
