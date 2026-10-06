@@ -274,9 +274,36 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /api/config/routers/:id — 204 o 404.
 func (s *server) handleDeleteConfigRouter(w http.ResponseWriter, r *http.Request) {
-	if !routerstore.RemoveRouter(s.db.DB, r.PathValue("id")) {
+	id := r.PathValue("id")
+	// #1276: MAC aprendida del último push del agente (bridge MAC), para
+	// purgar su entrada del registro de clientes tras borrar el router.
+	var macs []string
+	if s.agents != nil {
+		if p, ok := s.agents.StalePayload(id); ok {
+			if sys := p.Data.System; sys != nil && sys.BridgeMAC != "" {
+				macs = append(macs, sys.BridgeMAC)
+			}
+		}
+	}
+	if !routerstore.RemoveRouter(s.db.DB, id) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
+	}
+	// #1276: limpieza del stub de Dispositivos/Agentes. Sin esto, el estado
+	// persistido (agent.state.*) y el registro seguían listando la unidad
+	// borrada sin forma de quitarla. Se revoca TAMBIÉN el token: si el
+	// agente sigue instalado en la caja, su siguiente push recibe 401 y
+	// deja de re-crear la entrada. Re-añadir el router requiere re-emparejar
+	// el agente (reinstall).
+	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentTokenKeyPrefix+id)
+	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentStateKeyPrefix+id)
+	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentTransportPrefix+id)
+	if s.agents != nil {
+		s.agents.Forget(id)
+	}
+	for _, m := range macs {
+		_, _ = s.db.Exec("DELETE FROM device_seen WHERE mac = ? OR mac = ?",
+			strings.ToUpper(m), strings.ToLower(strings.ReplaceAll(m, ":", "-")))
 	}
 	s.syncRouters()
 	w.WriteHeader(http.StatusNoContent)
