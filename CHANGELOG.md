@@ -5,6 +5,22 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.37.0] - 2026-10-07
+
+### Added
+
+- **Sello de build con versión** (#1275): el menú muestra `versión · build <hash>`, con badges de navegación en Flota (agentes pendientes de actualizar + unidades con problema) y Clientes (conectados sin identificar), y el sidebar hace scroll en pantallas cortas (portrait).
+- **Banda sticky y lentes con nombre (#1283, parcial)**: la banda elegida se mantiene al cambiar de unidad, y el selector dice "Análisis / Canales actuales" en vez del críptico "24 h / Ahora".
+- **Latencia WAN real en OpenWrt (#1287, agente 3.0.14)**: el parser del ping solo entendía el formato GNU de 4 números; busybox imprime 3 - en OpenWrt la latencia era siempre "—".
+
+### Fixed
+
+- **SNMP: puertos 2.5 GE mostrados como "2 Gbps" (#1284)**: la división entera truncaba el decimal.
+- **Selector de Canales sin unidades sin WiFi (#1285)**: los switches OpenWrt cable-only se ofrecían como fuente de análisis.
+- **HTTPS: el puerto pedido se aplica antes del enable (#1288)**: activar HTTPS con puerto nuevo intentaba siempre el bind en :443 y fallaba en no-root.
+- **Clientes: los borrados se quedan borrados (#1290/#1292)**: el borrado escribe una lápida que filtra el registro Y la lista final (una estación stale del AP re-emitía la MAC en cada ciclo); las MACs base y bridge de la flota se purgan del registro; las IPs no-parseables se descartan.
+- **Borrar router limpia el stub (#1291)**: revoca el token del agente, olvida el registro y purga su estado y MAC aprendida. Re-añadir el router exige re-emparejar el agente.
+
 ## [2.36.0] - 2026-10-06
 
 ### Added
