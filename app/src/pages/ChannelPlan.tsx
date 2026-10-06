@@ -161,6 +161,10 @@ export default function ChannelPlan() {
   // vivo de la unidad, ex-tab de Itinerancia).
   const [lens, setLens] = useState<'24h' | 'now'>('24h')
   const [activeRadio, setActiveRadio] = useState('')
+  // #1283: banda preferida del usuario ('2.4 GHz'...). Al cambiar de unidad
+  // NO se resetea: si el nuevo AP tiene esa banda, se selecciona - poder
+  // comparar la misma banda entre APs sin que salte a la primera radio.
+  const [bandPref, setBandPref] = useState('')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
   const [hover, setHover] = useState<{ net: SpectrumNet; x: number; y: number } | null>(null)
@@ -276,7 +280,10 @@ export default function ChannelPlan() {
 
   const radioKey = (r: RadioRec) => `${r.section || r.iface}-${r.name}-${r.channel}`
   const radios: RadioRec[] = data?.radios ?? []
-  const active: RadioRec | undefined = radios.find((r) => radioKey(r) === activeRadio) ?? radios[0]
+  const active: RadioRec | undefined =
+    radios.find((r) => radioKey(r) === activeRadio) ??
+    (bandPref ? radios.find((r) => r.name === bandPref) : undefined) ??
+    radios[0]
   const routerName = sortedRouters.find((r) => r.id === routerId)?.name ?? routerId
 
   // Vecinos de la radio activa: por banda; si el iface del radio casa con
@@ -506,6 +513,7 @@ export default function ChannelPlan() {
                   aria-selected={isActive}
                   onClick={() => {
                     setActiveRadio(key)
+                    setBandPref(r.name)
                     setHidden(new Set())
                     setSelected(null)
                     setFocus(null)
@@ -603,7 +611,22 @@ export default function ChannelPlan() {
       )}
 
       {lens === 'now' && routerId && (
-        <CurrentChannels routerId={routerId} routerName={(routers ?? []).find((r) => r.id === routerId)?.name} />
+        <CurrentChannels
+          routerId={routerId}
+          routerName={(routers ?? []).find((r) => r.id === routerId)?.name}
+          band={active?.name === '5 GHz' ? '5 GHz' : '2.4 GHz'}
+          onBandChange={(b) => {
+            // #1283: el selector superior manda - elegir la radio de esa banda.
+            const r = radios.find((rr) => rr.name === b)
+            if (r) {
+              setActiveRadio(radioKey(r))
+              setBandPref(b)
+              setHidden(new Set())
+              setSelected(null)
+              setFocus(null)
+            }
+          }}
+        />
       )}
 
       {lens === '24h' && !loading && data && active && (
