@@ -495,7 +495,11 @@ func NetDevBps(prevRx, prevTx, rx, tx, dt float64) (rxBps, txBps *float64) {
 }
 
 var pingLossRe = regexp.MustCompile(`(\d+(?:\.\d+)?)% packet loss`)
-var pingRTTRe = regexp.MustCompile(`= [\d.]+/([\d.]+)/[\d.]+/[\d.]+ ms`)
+// #1281: GNU iputils imprime min/avg/max/MDEV (4 numeros) pero busybox
+// (OpenWrt) imprime min/avg/max (3): la regex exigia los 4 y en OpenWrt
+// la latencia salia nil siempre ("—" en Overview y Flota). El avg es el
+// segundo numero en ambos formatos.
+var pingRTTRe = regexp.MustCompile(`= [\d.]+/([\d.]+)(?:/[\d.]+){1,2} ms`)
 
 // ParsePingSummary extrae (latencia avg redondeada, pérdida %) del resumen de
 // ping; cada una es nil si su línea no está.
