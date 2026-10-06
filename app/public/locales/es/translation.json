@@ -2024,6 +2024,8 @@
     "currentChannel": "Canal",
     "channelWord": "Canal {{ch}}",
     "signal": "Señal",
+    "minSignal": "Señal mín.",
+    "minSignalAll": "Todas",
     "score": "Puntuación",
     "scanInfo": "scans de las últimas 24 h",
     "refresh": "Actualizar",

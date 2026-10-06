@@ -846,19 +846,22 @@ function DeviceDetail({
       </DetailItem>
       <DetailItem label={t('devices.detail.dhcpLease')}>{dhcpLease(device.dhcpLease)}</DetailItem>
       <DetailItem label={t('devices.detail.firstSeen')}>{fmtSeenAgo(device.firstSeenMs)}</DetailItem>
-      {/* #1131: hostname junto a MAC (izquierda) y los "seen" juntos a la
-          derecha: intercambio de posiciones con lastSeen. */}
+      {/* #1305: Linked MACs bajo MAC (columna izquierda), Hostname debajo de
+          Linked MACs, y First/Last Seen en la tercera columna una debajo de
+          otra. El item se renderiza siempre (con raya cuando no hay) para que
+          el emparejamiento vertical de los "seen" no dependa de condicionales. */}
+      <DetailItem label={t('devices.detail.linkedMacs')} mono>
+        {device.aliasMacs && device.aliasMacs.length > 0 ? (
+          <span className="break-all">{device.aliasMacs.join(', ')}</span>
+        ) : (
+          <span className="text-text-muted">—</span>
+        )}
+      </DetailItem>
+      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
+      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
       <DetailItem label="Hostname" mono>
         {device.hostname}
       </DetailItem>
-      {device.aliasMacs && device.aliasMacs.length > 0 && (
-        // #1298: las MACs enlazadas (#1151) visibles en el detalle.
-        <DetailItem label={t('devices.detail.linkedMacs')} mono>
-          <span className="break-all">{device.aliasMacs.join(', ')}</span>
-        </DetailItem>
-      )}
-      <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
-      <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
       {hasAdGuard && (
         <div className="min-w-0">
           <div className="text-label uppercase text-text-muted">AdGuard</div>
