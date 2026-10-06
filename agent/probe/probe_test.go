@@ -191,6 +191,13 @@ func TestParsePingSummary(t *testing.T) {
 	if lat == nil || *lat != 9 || loss == nil || *loss != 0 {
 		t.Fatalf("ping: %v %v", lat, loss)
 	}
+	// #1281: busybox (OpenWrt) imprime min/avg/max SIN mdev.
+	if lat, _ := ParsePingSummary("3 packets transmitted, 3 packets received, 0% packet loss\nround-trip min/avg/max = 6.196/6.326/6.527 ms"); lat == nil || *lat != 6 {
+		t.Errorf("busybox rtt: lat = %v, want 6", lat)
+	}
+	if lat, loss := ParsePingSummary("round-trip min/avg/max = 10.5/20.4/30.6 ms\n3 packets transmitted, 3 received, 50% packet loss"); lat == nil || *lat != 20 || loss == nil || *loss != 50 {
+		t.Errorf("busybox rtt+loss: lat=%v loss=%v", lat, loss)
+	}
 	if lat, _ := ParsePingSummary("2 packets transmitted, 0 received, 100% packet loss"); lat != nil {
 		t.Fatalf("sin rtt → nil: %v", lat)
 	}
