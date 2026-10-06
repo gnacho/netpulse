@@ -387,8 +387,6 @@
     },
     "copyIp": "Copiar IP",
     "detail": {
-      "minSignalAny": "Cualquier señal",
-      "minSignal": "Señal mínima",
       "linkedMacs": "MACs enlazadas",
       "dhcpLease": "Concesión DHCP",
       "firstSeen": "Primera vez vista",
