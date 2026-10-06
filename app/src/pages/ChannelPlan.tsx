@@ -192,17 +192,16 @@ export default function ChannelPlan() {
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const sortedRouters = useMemo(() => {
-    // #1147: en el análisis de canales solo tienen sentido los AP. Los
-    // switches (gestionados o externos SNMP) fuera salvo que presenten bandas
-    // WiFi reales (un AP externo sin agente se queda); routers/APs siempre.
-    // Las pausadas (#1085) también fuera: no aportan canales.
+    // #1147/#1282: en el análisis de canales solo tienen sentido los AP.
+    // Cualquier unidad sin bandas WiFi declaradas fuera (switches OpenWrt
+    // cable-only incluidos: antes pasaban por tipo); sin datos de bandSplit
+    // se da el beneficio de la duda, igual que en Roaming. Las pausadas
+    // (#1085) también fuera: no aportan canales.
     return [...routers]
       .filter((r) => {
         if (r.disabled) return false
         const b = r.bandSplit
-        const hasWifi = !!b && b.band24 + b.band5 + b.band6 > 0
-        if (r.type === 'managed-switch' || r.type === 'external') return hasWifi
-        return true
+        return !b || b.band24 + b.band5 + b.band6 > 0
       })
       .sort((a, b) => (a.roleBadge === 'Principal' ? -1 : 1) || a.name.localeCompare(b.name))
   }, [routers])
