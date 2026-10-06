@@ -199,6 +199,13 @@ func (s *server) handleDeviceDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "storage_error", "")
 		return
 	}
+	// #1278: lápida. Sin ella, la siguiente fuente que reporte la MAC como
+	// online (una entrada cacheada del AP, un colector) la re-daba de alta y
+	// el borrado "no funcionaba".
+	if err := s.db.AddDeletedClient(mac); err != nil {
+		writeError(w, http.StatusInternalServerError, "storage_error", "")
+		return
+	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		writeError(w, http.StatusNotFound, "not_found", "")
 		return

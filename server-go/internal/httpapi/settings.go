@@ -380,6 +380,7 @@ func (s *server) registerKnownMacsRoutes(mux *http.ServeMux) {
 			return
 		}
 		if err := s.db.UpsertKnownMac(db.KnownMac{MAC: mac, Name: body.Name, Note: body.Note}); err != nil {
+		_ = s.db.DeleteDeletedClient(mac) // #1278: re-alta manual quita la lápida
 			writeError(w, http.StatusInternalServerError, "db_error")
 			return
 		}
