@@ -5,6 +5,18 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.38.0] - 2026-10-07
+
+### Added
+
+- **La lente "Canales actuales" sigue al selector superior (#1300)**: su título y selector internos desaparecen; la banda se elige desde la barra de arriba (2.4/5 GHz) y el survey la sigue.
+- **Tabla de clientes (#1300, #1298)**: ordenar por banda o SSID desempata por señal descendente (los vecinos fuertes agrupados arriba), nuevo filtro de señal mínima (≥ -70/-80/-90 dBm) para ocultar el ruido de vecinos débiles, y las MACs enlazadas (#1151) son buscables y visibles en el detalle del cliente.
+
+### Fixed
+
+- **Restaurada la banda sticky (#1300)**: el merge de #1286 solo llevó la mitad de i18n del cambio - la banda volvía a saltar al cambiar de unidad.
+- **CI (#1271)**: el snapshot de main se compila en cada push (sin filtro de paths): el updater rolling ya no aplica snapshots viejos en pushes solo-Go.
+
 ## [2.37.0] - 2026-10-07
 
 ### Added
