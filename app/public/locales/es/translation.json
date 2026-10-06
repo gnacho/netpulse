@@ -727,7 +727,9 @@
       "colSsid": "Red (SSID)",
       "router": "Router",
       "noScans": "Este router no envía escaneos de canales. Si corre NetGrip no escanea; usa un router con el agente NetPulse o revisa que esté activo.",
-      "ownLabel": "Red propia"
+      "ownLabel": "Red propia",
+      "notParticipating": "Esta unidad no aporta datos de survey. Las que sí: {{units}}",
+      "unitNoSurvey": "Esta unidad no tiene radios WiFi o no devolvió survey (SNMP/solo cable)."
     },
     "events": {
       "title": "Eventos de itinerancia",

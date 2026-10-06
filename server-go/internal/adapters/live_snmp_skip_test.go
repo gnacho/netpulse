@@ -56,23 +56,41 @@ func TestGetSurveySkipsSnmpRouters(t *testing.T) {
 	}
 }
 
-// #1214 (ex-#1147): el gateway no se lista en el survey cuando hay más
-// unidades (la pestaña es de roaming, solo APs). Pool nil como tripwire: si
-// el gateway no se saltara, pool.Run paniquea. Un fleet mono-router mantiene
-// el gateway (sin otros que pisen, no se salta).
-func TestGetSurveySkipsGatewayWhenOthersExist(t *testing.T) {
+// #1308: el gateway YA NO se excluye del survey cuando hay más unidades (la
+// exclusión era de la época de la pestaña de roaming, #1214; la lente vive en
+// Canales desde #1229 y ahí el gateway es un AP más). Pool nil como tripwire
+// para las unidades SSH; con el gateway como agent-only y survey empujado
+// debe aparecer en el overview con sus radios.
+func TestGetSurveyIncludesGateway(t *testing.T) {
 	l := NewLive(nil, nil, nil, nil)
 	l.SetRouters([]RouterConfig{
-		{ID: "gw", Name: "Gateway", Host: "192.168.1.1", IsGateway: true},
+		{ID: "gw", Name: "Gateway", AgentOnly: true, IsGateway: true},
 		{ID: "ap1", Name: "AP 1", Host: "192.168.1.2", AgentOnly: true},
 	})
+	l.StoreAgentSurvey("gw", `Survey data from wlan0
+	frequency:			2412 MHz [in use]
+	noise:				-90 dBm
+	channel active time:		1000 ms
+	channel busy time:		400 ms
+`)
 
 	s, err := l.GetSurvey(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Gateway excluido y ap1 agent-only → ninguna unidad con wifi → (nil, nil).
-	if s != nil {
-		t.Fatalf("expected nil SurveyOverview, got %+v", s)
+	if s == nil || !s.Available {
+		t.Fatalf("expected available overview, got %+v", s)
+	}
+	var gw *SurveyRouter
+	for i := range s.Routers {
+		if s.Routers[i].RouterID == "gw" {
+			gw = &s.Routers[i]
+		}
+	}
+	if gw == nil {
+		t.Fatalf("gateway missing from survey routers: %+v", s.Routers)
+	}
+	if !gw.Available || len(gw.Radios) == 0 {
+		t.Fatalf("expected gateway available with radios, got %+v", gw)
 	}
 }

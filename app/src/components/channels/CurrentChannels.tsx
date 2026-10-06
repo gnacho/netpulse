@@ -233,12 +233,31 @@ export function CurrentChannels({
       </div>
     )
   }
-  // La unidad seleccionada no participa en el survey (agent-only/SNMP sin
-  // SSH, o el gateway en flotas con APs): estado vacío propio.
-  if (!overview || !overview.available || !router) {
+  // #1308: estados vacíos distinguibles. El mensaje genérico de "revisa iw"
+  // solo aplica cuando NADIE devuelve survey; si la unidad no participa (sin
+  // WiFi, SNMP, o sin agente con survey) se dice eso y se listan las que sí.
+  if (!overview || !overview.available) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
         {t('roaming.survey.empty')}
+      </div>
+    )
+  }
+  if (!router) {
+    const units = overview.routers
+      .filter((r) => r.available)
+      .map((r) => r.name)
+      .join(' · ')
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {units ? t('roaming.survey.notParticipating', { units }) : t('roaming.survey.empty')}
+      </div>
+    )
+  }
+  if (!router.available) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
+        {t('roaming.survey.unitNoSurvey')}
       </div>
     )
   }
