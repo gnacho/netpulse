@@ -7,9 +7,10 @@ name: dist
 on:
   push:
     branches: [main]
-    paths:
-      - 'app/**'
-      - '.github/workflows/dist.yml'
+    # #1271: SIN filtro de paths. El updater rolling descarga el snapshot de
+    # su commit exacto: si un push solo-Go no genera snapshot, el updater
+    # aplica uno viejo desalineado (le paso con main en 4b0718c y el artifact
+    # de 1a9db42).
   workflow_dispatch:
 
 jobs:
