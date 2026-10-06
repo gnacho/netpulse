@@ -443,3 +443,31 @@ func TestTheAgentListIsNeverNull(t *testing.T) {
 		t.Fatalf("status: %s", body)
 	}
 }
+
+// #1277: activar HTTPS con un puerto nuevo en la MISMA petición tiene que
+// aplicar el puerto ANTES del enable. Con el orden viejo (enable primero) el
+// bind del puerto por defecto fallaba (443 como no-root) y el error de
+// ":443" salía aunque el usuario hubiera cambiado el puerto.
+func TestEnableWithANewPortAppliesThePortFirst(t *testing.T) {
+	ts, mgr := makeHTTPSTestServer(t)
+	// Ocupar el puerto actual del manager: reproducir "permission denied".
+	held, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", mgr.Status().Port))
+	if err != nil {
+		t.Skipf("no se pudo ocupar el puerto %d: %v", mgr.Status().Port, err)
+	}
+	defer held.Close()
+	// Puerto nuevo libre.
+	free, _ := net.Listen("tcp", "127.0.0.1:0")
+	newPort := free.Addr().(*net.TCPAddr).Port
+	free.Close()
+
+	status, body := httpsCall(t, ts, "POST", "/api/settings/https",
+		fmt.Sprintf(`{"enabled":true,"port":%d,"password":"test123456"}`, newPort), true)
+	if status != 200 {
+		t.Fatalf("status %d: %v", status, body)
+	}
+	st := mgr.Status()
+	if !st.Enabled || st.Port != newPort {
+		t.Fatalf("tras el POST: port %d enabled %v, want %d true", st.Port, st.Enabled, newPort)
+	}
+}

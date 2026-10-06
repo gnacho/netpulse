@@ -208,12 +208,6 @@ func (s *server) handleHTTPSChange(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if body.Enabled != nil {
-		if err := s.tlsMgr.SetEnabled(*body.Enabled, by); err != nil {
-			writeHTTPSError(w, err)
-			return
-		}
-	}
 	// Puerto HTTPS (#978): cambiarlo reconecta el listener al momento. Los
 	// agentes que ya reportan por HTTPS apuntan al puerto viejo y no tienen
 	// vuelta solos: mismo aviso que al desactivar, salvo force.
@@ -230,6 +224,12 @@ func (s *server) handleHTTPSChange(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := s.tlsMgr.SetPort(httpsPort, by); err != nil {
+			writeHTTPSError(w, err)
+			return
+		}
+	}
+	if body.Enabled != nil {
+		if err := s.tlsMgr.SetEnabled(*body.Enabled, by); err != nil {
 			writeHTTPSError(w, err)
 			return
 		}
