@@ -377,6 +377,8 @@
     "colFirstSeen": "First seen",
     "colLastSeen": "Last seen",
     "colSignal": "Signal",
+    "minSignal": "Min signal",
+    "minSignalAny": "Any",
     "colTraffic": "Traffic",
     "colType": "Type",
     "columns": {
