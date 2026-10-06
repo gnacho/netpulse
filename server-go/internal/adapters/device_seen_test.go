@@ -107,3 +107,57 @@ func TestNoteDevicesSeenKeepsLastName(t *testing.T) {
 		t.Fatalf("ghosts = %+v, want 1 con hostname iphone", ghosts)
 	}
 }
+
+// #1278: un cliente borrado a mano (lápida) no vuelve a alta aunque una
+// fuente lo siga reportando online, y no sale en la lista de fantasmas.
+// La re-alta manual (allowlist) quita la lápida.
+func TestDeletedClientTombstone(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	mac := "12:77:BC:5A:5A:FA"
+	if err := d.AddDeletedClient(mac); err != nil {
+		t.Fatal(err)
+	}
+	devs := []Device{{MAC: mac, Online: true, Name: "iphone-viejo"}}
+	l.noteDevicesSeen(devs, 1000)
+
+	count := func() int {
+		t.Helper()
+		rows, err := d.Query("SELECT COUNT(*) FROM device_seen WHERE mac = ?", mac)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		if !rows.Next() {
+			t.Fatal("sin fila de conteo")
+		}
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	if n := count(); n != 0 {
+		t.Errorf("la MAC enterrada se dio de alta igual (%d filas)", n)
+	}
+
+	// Fantasmas: la MAC no sale aunque tenga registro previo.
+	if _, err := d.Exec("INSERT INTO device_seen (mac, first_seen, last_seen) VALUES (?, 1, 2)", mac); err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range l.ghostDevices(nil) {
+		if g.MAC == mac {
+			t.Errorf("la MAC enterrada sale como fantasma: %+v", g)
+		}
+	}
+
+	// Re-alta manual: la lápida se quita y vuelve a alta normal.
+	if err := d.DeleteDeletedClient(mac); err != nil {
+		t.Fatal(err)
+	}
+	l.noteDevicesSeen(devs, 3000)
+	if n := count(); n != 1 {
+		t.Errorf("tras quitar la lápida la MAC se da de alta (%d filas)", n)
+	}
+}

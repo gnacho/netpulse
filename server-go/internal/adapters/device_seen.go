@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"net"
 	"strings"
 )
 
@@ -22,9 +23,60 @@ func normSeenMAC(mac string) string {
 // #1145: guarda también el último nombre conocido (hostname de lease o nombre
 // visible) para que un cliente que deje de verse conserve su nombre en la
 // lista (el nombre nuevo pisa al viejo solo si no es vacío).
+// saneIP: nil si el valor no es una IP (#1278). Algunas fuentes reportan
+// el hostname con formato MAC-con-guiones en el campo ip y acaba pintándose
+// en la columna IP de la tabla.
+func saneIP(ip string) string {
+	if ip == "" {
+		return ""
+	}
+	if net.ParseIP(ip) == nil {
+		return ""
+	}
+	return ip
+}
+
+// purgeFleetSeen (#1278): borra del registro la MAC base de las unidades de
+// flota. Las bocas/gestiones de los propios equipos se aprendían como
+// "clientes" vía FDB de los switches y quedaban como fantasmas offline para
+// siempre. Purga de MACs BASE (routers.mac): las por-interfaz las cubre la
+// lápida del borrado manual.
+func (l *Live) purgeFleetSeen() {
+	macs := map[string]bool{}
+	// MAC base de cada unidad (tabla routers).
+	if rows, err := l.db.Query("SELECT mac FROM routers WHERE mac IS NOT NULL AND mac != ''"); err == nil {
+		for rows.Next() {
+			var m string
+			if err := rows.Scan(&m); err == nil {
+				if n := normSeenMAC(m); n != "" {
+					macs[n] = true
+				}
+			}
+		}
+		rows.Close()
+	}
+	// MAC de bridge del último push de cada agente (la "mgmt" que los
+	// switches aprenden por FDB y reaparece como cliente fantasma).
+	l.mu.Lock()
+	for _, p := range l.lastPolled {
+		if m := normSeenMAC(p.brMac); m != "" {
+			macs[m] = true
+		}
+	}
+	l.mu.Unlock()
+	for m := range macs {
+		_, _ = l.db.Exec("DELETE FROM device_seen WHERE mac = ?", m)
+	}
+}
+
 func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 	if l.db == nil {
 		return
+	}
+	l.purgeFleetSeen()
+	tomb, err := l.db.DeletedClients()
+	if err != nil {
+		tomb = map[string]bool{}
 	}
 	tx, err := l.db.DB.Begin()
 	if err != nil {
@@ -47,11 +99,14 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 		if mac == "" {
 			continue
 		}
+		if tomb[mac] {
+			continue // #1278: borrado a mano, no re-alta
+		}
 		name := d.Hostname
 		if name == "" && d.Name != "" && !strings.EqualFold(d.Name, d.MAC) {
 			name = d.Name
 		}
-		if _, err := stmt.Exec(mac, nowMs, nowMs, name, d.IP); err != nil {
+		if _, err := stmt.Exec(mac, nowMs, nowMs, name, saneIP(d.IP)); err != nil {
 			return
 		}
 	}
@@ -130,11 +185,18 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 			revAlias[canonical] = append(revAlias[canonical], alias)
 		}
 	}
+	tomb, err := l.db.DeletedClients()
+	if err != nil {
+		tomb = map[string]bool{}
+	}
 	var out []Device
 	for rawMac, s := range byMac {
 		mac := normSeenMAC(rawMac)
 		if live[mac] {
 			continue
+		}
+		if tomb[mac] {
+			continue // #1278: borrado a mano, fuera de la lista de fantasmas
 		}
 		if canonical, linked := links[mac]; linked {
 			if _, canonRegistered := byMac[canonical]; canonRegistered {
@@ -145,7 +207,7 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 			ID:          strings.ToLower(strings.ReplaceAll(mac, ":", "-")),
 			MAC:         mac,
 			Type:        "desconocido",
-			IP:          s.ip,
+			IP:          saneIP(s.ip),
 			Online:      false,
 			Band:        "—",
 			FirstSeenMs: s.first,

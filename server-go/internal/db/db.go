@@ -133,6 +133,13 @@ CREATE TABLE IF NOT EXISTS device_seen (
   first_seen INTEGER NOT NULL,
   last_seen  INTEGER NOT NULL
 );
+-- #1278: lápidas de clientes borrados a mano. Sin esto, cualquier fuente
+-- que vuelva a reportar la MAC online (una entrada cacheada del AP, un
+-- colector) la re-alta y el borrado "no funciona".
+CREATE TABLE IF NOT EXISTS deleted_clients (
+  mac        TEXT PRIMARY KEY,
+  deleted_at INTEGER NOT NULL
+);
 -- #1151: cliente con varias MACs (un hostname, nunca simultáneas): cada fila
 -- dice "esta MAC es el mismo cliente que canonical". Clave = alias; el
 -- canónico no tiene fila propia (ausencia de fila = MAC canónica).
@@ -944,6 +951,38 @@ func (d *DB) UpsertKnownMac(k KnownMac) error {
 		`INSERT INTO known_macs (mac, name, note, created_at) VALUES (?, ?, ?, ?)
 		 ON CONFLICT(mac) DO UPDATE SET name=excluded.name, note=excluded.note`,
 		k.MAC, k.Name, k.Note, NowMS())
+	return err
+}
+
+// AddDeletedClient registra una lápida: el usuario borró este cliente a mano
+// y NO quiere que vuelva a alta solo (#1278).
+func (d *DB) AddDeletedClient(mac string) error {
+	_, err := d.Exec("INSERT INTO deleted_clients (mac, deleted_at) VALUES (?, ?) ON CONFLICT(mac) DO UPDATE SET deleted_at=excluded.deleted_at", mac, NowMS())
+	return err
+}
+
+// DeletedClients devuelve el set de MACs enterradas.
+func (d *DB) DeletedClients() (map[string]bool, error) {
+	rows, err := d.Query("SELECT mac FROM deleted_clients")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var mac string
+		if err := rows.Scan(&mac); err != nil {
+			continue
+		}
+		out[mac] = true
+	}
+	return out, rows.Err()
+}
+
+// DeleteDeletedClient quita la lápida: el usuario vuelve a dar de alta la
+// MAC (allowlist/alta guiada), así que puede reaparecer con normalidad.
+func (d *DB) DeleteDeletedClient(mac string) error {
+	_, err := d.Exec("DELETE FROM deleted_clients WHERE mac = ?", mac)
 	return err
 }
 
