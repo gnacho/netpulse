@@ -43,6 +43,12 @@ func (p PortStats) SpeedString() string {
 		return ""
 	}
 	if bps >= 1_000_000_000 {
+		// #1280: un decimal cuando no es múltiplo exacto de 1 Gbps. La
+		// división entera truncaba un 2.5 GE a "2 Gbps" (ifSpeed reporta
+		// 2500000000 y el dígito se perdía aquí).
+		if bps%1_000_000_000 != 0 {
+			return fmt.Sprintf("%.1f Gbps", float64(bps)/1_000_000_000)
+		}
 		return fmt.Sprintf("%d Gbps", bps/1_000_000_000)
 	}
 	if bps >= 1_000_000 {

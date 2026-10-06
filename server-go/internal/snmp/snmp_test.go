@@ -85,7 +85,7 @@ func TestPortStatsSpeedString(t *testing.T) {
 		{"1G highspeed", PortStats{OperUp: true, HighSpeedMbps: 1000}, "1 Gbps"},
 		{"10G highspeed", PortStats{OperUp: true, HighSpeedMbps: 10000}, "10 Gbps"},
 		{"100M ifSpeed", PortStats{OperUp: true, SpeedBps: 100_000_000}, "100 Mbps"},
-		{"2.5G highspeed", PortStats{OperUp: true, HighSpeedMbps: 2500}, "2 Gbps"},
+		{"2.5G highspeed", PortStats{OperUp: true, HighSpeedMbps: 2500}, "2.5 Gbps"}, // #1280: ya no trunca
 		{"zero speed", PortStats{OperUp: true}, ""},
 	}
 	for _, tt := range tests {
