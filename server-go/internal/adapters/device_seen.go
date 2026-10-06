@@ -36,6 +36,28 @@ func saneIP(ip string) string {
 	return ip
 }
 
+// filterTombstoned (#1292): quita de la LISTA FINAL las MACs enterradas.
+// Una fuente viva (una estación stale del AP) puede seguir emitiéndolas en
+// cada ciclo sin que pasen por device_seen (ni first_seen ni last_seen):
+// el filtro del registro no basta, la lista misma se filtra.
+func (l *Live) filterTombstoned(devices []Device) []Device {
+	if l.db == nil || len(devices) == 0 {
+		return devices
+	}
+	tomb, err := l.db.DeletedClients()
+	if err != nil || len(tomb) == 0 {
+		return devices
+	}
+	out := devices[:0]
+	for _, d := range devices {
+		if tomb[normSeenMAC(d.MAC)] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 // purgeFleetSeen (#1278): borra del registro la MAC base de las unidades de
 // flota. Las bocas/gestiones de los propios equipos se aprendían como
 // "clientes" vía FDB de los switches y quedaban como fantasmas offline para

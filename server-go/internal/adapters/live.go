@@ -3178,6 +3178,9 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 			l.mu.Unlock()
 		}
 	}
+	// #1292: lápidas filtradas de la lista final (una estación stale del AP
+	// re-emite la MAC en cada ciclo sin pasar por device_seen).
+	devices = l.filterTombstoned(devices)
 	l.trackUnknownDevices(devices, distNodes)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// #954: first/last seen persistente de TODOS los clientes online.
@@ -3707,6 +3710,9 @@ func (l *Live) attributedDevices() []Device {
 		overlayStickyFdb(polled, detailMemo, detailNowMs),
 		l.buildDevices(polled),
 	)
+	// #1292: lápidas fuera de la lista del detalle (la fuente viva puede
+	// seguir emitiendo la MAC borrada).
+	devices = l.filterTombstoned(devices)
 	// #561: sellado de infraestructura con el inventario PVE (si configurado).
 	// El detalle no consume distnodes, pero el sellado de devices sí corre.
 	l.sealProxmoxInfra(devices, nil)

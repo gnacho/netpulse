@@ -161,3 +161,20 @@ func TestDeletedClientTombstone(t *testing.T) {
 		t.Errorf("tras quitar la lápida la MAC se da de alta (%d filas)", n)
 	}
 }
+
+// #1292: la lápida filtra la LISTA FINAL - una estación stale del AP puede
+// re-emitir la MAC sin que pase por device_seen.
+func TestFilterTombstonedFinalList(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	if err := d.AddDeletedClient("12:77:BC:5A:5A:FA"); err != nil {
+		t.Fatal(err)
+	}
+	devs := l.filterTombstoned([]Device{
+		{MAC: "12:77:BC:5A:5A:FA", Online: true},
+		{MAC: "AA:BB:CC:DD:EE:FF", Online: true},
+	})
+	if len(devs) != 1 || devs[0].MAC != "AA:BB:CC:DD:EE:FF" {
+		t.Errorf("filterTombstoned = %+v", devs)
+	}
+}
