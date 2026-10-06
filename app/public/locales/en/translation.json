@@ -385,6 +385,9 @@
     },
     "copyIp": "Copy IP",
     "detail": {
+      "minSignalAny": "Any signal",
+      "minSignal": "Min signal",
+      "linkedMacs": "Linked MACs",
       "dhcpLease": "DHCP lease",
       "firstSeen": "First seen",
       "lastSeen": "Last seen",

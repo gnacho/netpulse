@@ -145,14 +145,32 @@ function ChannelAnalysisChart({ bandName, channels, scans }: { bandName: string;
   )
 }
 
-export function CurrentChannels({ routerId, routerName }: { routerId: string; routerName?: string }) {
+export function CurrentChannels({
+  routerId,
+  routerName,
+  band: bandProp,
+  onBandChange,
+}: {
+  routerId: string
+  routerName?: string
+  /** #1283: banda controlada por el selector superior de Canales. Cuando
+   *  llega, el selector interno se oculta (el de arriba manda). */
+  band?: '2.4 GHz' | '5 GHz'
+  onBandChange?: (b: '2.4 GHz' | '5 GHz') => void
+}) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const [overview, setOverview] = useState<SurveyOverview | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const [noApi, setNoApi] = useState(false)
-  const [band, setBand] = useState<SurveyBand>('all')
+  const controlled = bandProp !== undefined
+  const [internalBand, setInternalBand] = useState<SurveyBand>('all')
+  const band: SurveyBand = controlled ? (bandProp as SurveyBand) : internalBand
+  const setBand = (b: SurveyBand) => {
+    if (controlled) onBandChange?.(b as '2.4 GHz' | '5 GHz')
+    else setInternalBand(b)
+  }
   // Vecinos recientes del channel-plan de la unidad (capa opcional sobre el
   // survey, #538).
   const [scans, setScans] = useState<Scan[]>([])
@@ -252,28 +270,30 @@ export function CurrentChannels({ routerId, routerName }: { routerId: string; ro
     >
       {/* Header + filtro banda */}
       <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-            <div>
-              <h2 className="font-display text-h2 text-text-primary">{t('roaming.survey.title')}</h2>
+        {!controlled && (
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+              <div>
+                <h2 className="font-display text-h2 text-text-primary">{t('roaming.survey.title')}</h2>
+              </div>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
+              {bandOptions.map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBand(b)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
+                    band === b ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
+                  )}
+                >
+                  {b}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated p-1" role="group" aria-label={t('roaming.matrix.filterBand')}>
-            {bandOptions.map((b) => (
-              <button
-                key={b}
-                onClick={() => setBand(b)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-caption font-medium transition-colors',
-                  band === b ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text-secondary',
-                )}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* La tarjeta de la unidad seleccionada */}

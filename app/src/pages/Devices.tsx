@@ -578,6 +578,9 @@ interface FilterBarProps {
   onlyWeak: boolean
   setOnlyWeak: (v: boolean) => void
   weakCount: number
+  /** #1283: señal mínima para la tabla (null = sin filtro). */
+  minSignal: number | null
+  setMinSignal: (v: number | null) => void
   /** #1003: umbral configurado, se muestra en la etiqueta del chip */
   weakDbm: number
   view: 'list' | 'grid'
@@ -660,6 +663,18 @@ function FilterBar(p: FilterBarProps) {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Señal mínima (#1283): oculta los vecinos débiles de la tabla */}
+        <select
+          value={p.minSignal ?? ''}
+          onChange={(e) => p.setMinSignal(e.target.value === '' ? null : Number(e.target.value))}
+          aria-label={t('devices.minSignal')}
+          className="h-9 rounded-lg border border-border bg-elevated px-2.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-accent/40 focus:outline-none"
+        >
+          <option value="">{t('devices.minSignalAny')}</option>
+          <option value="-70">≥ -70 dBm</option>
+          <option value="-80">≥ -80 dBm</option>
+          <option value="-90">≥ -90 dBm</option>
+        </select>
         {/* Estado online: All / Online / Offline (#923) */}
         <SegmentedControl<OnlineFilter>
           options={[
@@ -836,6 +851,12 @@ function DeviceDetail({
       <DetailItem label="Hostname" mono>
         {device.hostname}
       </DetailItem>
+      {device.aliasMacs && device.aliasMacs.length > 0 && (
+        // #1298: las MACs enlazadas (#1151) visibles en el detalle.
+        <DetailItem label={t('devices.detail.linkedMacs')} mono>
+          <span className="break-all">{device.aliasMacs.join(', ')}</span>
+        </DetailItem>
+      )}
       <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
       <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
       {hasAdGuard && (
@@ -1458,6 +1479,9 @@ export default function Devices() {
     setOnlineState(v)
   }, [])
   const [onlyWeak, setOnlyWeak] = useState(false)
+  // #1283: señal mínima de la tabla (oculta vecinos débiles); null = sin filtro.
+  const [minSignal, setMinSignal] = useState<number | null>(null)
+
   // #1003: umbral de señal débil desde el ajuste global (como Roaming #906).
   const weakDbm = useWeakSignalDbm()
   // Filtro "sin proteger por AdGuard" (#959): se activa/desactiva desde la
@@ -1570,12 +1594,15 @@ export default function Devices() {
       if (online === 'online' && !d.online) return false
       if (online === 'offline' && d.online) return false
       if (onlyWeak && !(d.online && d.signalDbm !== null && d.signalDbm < weakDbm)) return false
+      if (minSignal !== null && d.signalDbm !== null && d.signalDbm < minSignal) return false
       if (onlyUnprotected && d.adguard) return false
       if (routerIds.length > 0 && !routerIds.includes(d.routerId)) return false
       if (bandsEffective.length > 0 && !bandsEffective.includes(d.band as BandValue)) return false
       if (groups.length > 0 && !groups.includes(d.group)) return false
       if (q) {
-        const hay = `${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname}`.toLowerCase()
+        // #1298: las MACs enlazadas (#1151) también buscables - la MAC de
+        // otra banda/red del mismo cliente encuentra al canónico.
+        const hay = `${d.name} ${d.ip} ${d.mac} ${d.manufacturer} ${d.hostname} ${(d.aliasMacs ?? []).join(' ')}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -1618,6 +1645,13 @@ export default function Devices() {
             break
         }
         if (c !== 0) return dir * c
+        // #1283: al ordenar por banda o SSID, desempate por señal DESC
+        // (primero lo que más impacta: vecinos cercanos/fuertes agrupados).
+        if (sort.key === 'band' || sort.key === 'name') {
+          const sa = a.signalDbm ?? -999
+          const sb = b.signalDbm ?? -999
+          if (sa !== sb) return sb - sa
+        }
         // Desempate: online primero, luego nombre
         if (a.online !== b.online) return a.online ? -1 : 1
         return a.name.localeCompare(b.name, numLocale())
@@ -1910,6 +1944,8 @@ export default function Devices() {
 
       {/* ③ Filter bar */}
       <FilterBar
+        minSignal={minSignal}
+        setMinSignal={setMinSignal}
         routerIds={routerIds}
         toggleRouterId={toggleRouterId}
         routerCounts={routerCounts}
