@@ -892,6 +892,94 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /api/agents/reemit — #1294: re-emitir el env de conexión a TODA la
+// flota de agentes nativos SSH-reachable tras un cambio de TLS/HTTPS. El
+// reinstall por unidad ya reescribía el env (scheme, CA raíz y pin SPKI
+// actuales), pero había que lanzarlo a mano unidad a unidad: activar HTTPS
+// después de instalar la flota dejaba los agentes empujando a http para
+// siempre. Este endpoint corre la variante ligera (reinstall.EnvScript: solo
+// CA + env + restart, sin descargar binario) por cada slug, rotando el token
+// de forma atómica igual que el reinstall (#630). Las unidades no
+// alcanzables por SSH (NetGrip-embebidos, scrapers) se saltan con su causa.
+// ---------------------------------------------------------------------------
+
+type reemitItem struct {
+	Slug   string `json:"slug"`
+	Status string `json:"status"` // reemitted | ssh_failed | not_openwrt | netgrip_managed | router_unknown
+	Error  string `json:"error,omitempty"`
+}
+
+func (s *server) handleAgentsReemit(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil || s.pool == nil {
+		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
+		return
+	}
+	slugs, err := s.registeredAgentSlugs()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "db_error")
+		return
+	}
+
+	// URL base y trust: mismas reglas que el reinstall por unidad.
+	scheme := "http"
+	if auth.IsSecureRequest(r) {
+		scheme = "https"
+	}
+	serverURL := scheme + "://" + r.Host
+	if s.cfg != nil && s.cfg.PublicURL != "" {
+		serverURL = s.cfg.PublicURL
+	}
+	trust := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, serverURL)
+
+	rows := routerstore.ListRouters(s.db.DB)
+	trows := make([]reinstall.RouterRow, 0, len(rows))
+	hostOf := map[string]string{}
+	for _, rc := range rows {
+		trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway})
+		hostOf[rc.ID] = rc.SSHAddr()
+	}
+
+	out := []reemitItem{}
+	reemitted := 0
+	for _, slug := range slugs {
+		item := reemitItem{Slug: slug}
+		switch {
+		case s.agentKindOf(slug) == "netgrip":
+			// #363: el binario standalone destrozaría el embebido de NetGrip.
+			item.Status = "netgrip_managed"
+		case !s.routerUpgradeable(slug):
+			item.Status = "not_openwrt"
+		default:
+			host := hostOf[slug]
+			if host == "" {
+				item.Status = "router_unknown"
+				break
+			}
+			t := reinstall.TargetsFor(trows, slug)
+			_, err := s.rotateAgentTokenAtomic(slug, func(tok string) error {
+				_, runErr := s.pool.Run(host, reinstall.EnvScript(slug, tok, serverURL, reinstall.ServerFP(serverURL), t, trust), 120*time.Second)
+				return runErr
+			})
+			if err != nil {
+				item.Status = "ssh_failed"
+				item.Error = err.Error()
+			} else {
+				item.Status = "reemitted"
+				reemitted++
+			}
+		}
+		out = append(out, item)
+	}
+	log.Printf("[netpulse] reemit: env re-emitido a %d/%d agentes", reemitted, len(out))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"agents":  out,
+		"reemitted": reemitted,
+		"total":   len(out),
+		"message": fmt.Sprintf("env re-emitido a %d de %d agentes", reemitted, len(out)),
+	})
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/agents/{slug}/uninstall — #624: desinstalar el agente nativo del
 // router vía SSH y olvidar su token. Es la inversa del reinstall: detiene y
 // deshabilita el init procd, borra binario/watchdog/env y la línea de cron,

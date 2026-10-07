@@ -470,6 +470,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/agents/{slug}/upgrade-progress", s.handleAgentUpgradeProgress)
 	// #251: upgrade masivo de todos los agentes con versión desactualizada.
 	mux.Handle("POST /api/agents/upgrade-all", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsUpgradeAll)))
+	// #1294: re-emitir el env de conexión a la flota tras un cambio de TLS.
+	mux.Handle("POST /api/agents/reemit", auth.RequireAdmin(http.HandlerFunc(s.handleAgentsReemit)))
 	// Fase 7.3: SSE bidireccional agente↔servidor. El agente mantiene una
 	// conexión SSE abierta; el servidor envía comandos (refresh, etc.).
 	// Auth por token de agente (Bearer), igual que ingesta y binary.

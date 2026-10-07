@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
-import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink, RefreshCw } from 'lucide-react'
+import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink, RefreshCw, Send } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { InfoTip } from '@/components/InfoTip'
 
@@ -51,6 +51,10 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
   const [confirmUrl, setConfirmUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [renewing, setRenewing] = useState(false)
+  // #1294: re-emitir el env de conexión a la flota tras un cambio de TLS.
+  const [reemitting, setReemitting] = useState(false)
+  const [reemitResults, setReemitResults] = useState<{ slug: string; status: string; error?: string }[] | null>(null)
+  const [reemitError, setReemitError] = useState('')
   const [renewNote, setRenewNote] = useState('')
   const [portDraft, setPortDraft] = useState(0)
   const confirming = useRef(false)
@@ -165,6 +169,28 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       setRenewNote(t('settings.https.applyFailed'))
     } finally {
       setRenewing(false)
+    }
+  }
+
+  // #1294: reescribe /etc/netpulse-agent.env (scheme, CA y pin actuales) en
+  // toda la flota SSH-reachable y reinicia cada agente para que lo relea.
+  // Las unidades no alcanzables (NetGrip-embebidos, scrapers) se saltan.
+  const reemit = async () => {
+    setReemitting(true)
+    setReemitError('')
+    setReemitResults(null)
+    try {
+      const r = await fetch('/api/agents/reemit', { method: 'POST' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setReemitError(d.message || t('settings.https.applyFailed'))
+        return
+      }
+      setReemitResults(d.agents ?? [])
+    } catch {
+      setReemitError(t('settings.https.applyFailed'))
+    } finally {
+      setReemitting(false)
     }
   }
 
@@ -309,6 +335,44 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
                 {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
+          </div>
+
+          {/* #1294: re-emitir el env de conexión a la flota tras un cambio
+              de TLS/HTTPS/puerto: sin esto los agentes instalados antes del
+              cambio siguen empujando al scheme viejo para siempre (#1289). */}
+          <div>
+            <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+              {t('settings.https.reemitTitle')}
+              <InfoTip text={t('settings.https.reemitHint')} />
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void reemit()}
+                disabled={reemitting}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+              >
+                {reemitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {t('settings.https.reemit')}
+              </button>
+              {reemitError && <span className="text-[11px] text-danger">{reemitError}</span>}
+            </div>
+            {reemitResults && (
+              <ul className="mt-2 space-y-0.5">
+                {reemitResults.map((it) => (
+                  <li key={it.slug} className="flex items-center gap-2 font-mono text-[11px]">
+                    <span className={it.status === 'reemitted' ? 'text-ok' : it.status === 'ssh_failed' ? 'text-danger' : 'text-text-muted'}>
+                      {it.status === 'reemitted' ? '✓' : it.status === 'ssh_failed' ? '✗' : '–'}
+                    </span>
+                    <span className="text-text-primary">{it.slug}</span>
+                    <span className="text-text-muted">
+                      {t(`settings.https.reemitStatus.${it.status}`, it.status)}
+                      {it.error ? ` · ${it.error}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* What plain HTTP may still do */}
