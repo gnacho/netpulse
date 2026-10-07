@@ -24,6 +24,10 @@ Wants=network-online.target
 Type=simple
 User=netpulse
 Group=netpulse
+# #1306: permitir el bind de puertos privilegiados (<=1024, p.ej. el TLS por
+# defecto en :443) sin root. La capability la concede systemd SOLO a este
+# servicio; el proceso sigue siendo el usuario netpulse en todo lo demás.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 WorkingDirectory=/opt/netpulse/server-go
 EnvironmentFile=/opt/netpulse/server-go/.env
 ExecStart=/opt/netpulse/server-go/netpulse
