@@ -2586,7 +2586,8 @@
   },
   "announcement": {
     "link": "Ver más",
-    "dismiss": "Descartar aviso"
+    "dismiss": "Descartar aviso",
+    "goal": "{{current}} / {{target}} estrellas"
   },
   "app": {
     "title": "NetPulse - Tu red, de un vistazo"

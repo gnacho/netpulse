@@ -1,6 +1,29 @@
 {
   "announcements": [
     {
+      "id": "github-stars-2026-10",
+      "urgency": "info",
+      "title": {
+        "es": "Vamos a por las 100 estrellas - entre todos podemos",
+        "en": "Let's reach 100 stars - together we can"
+      },
+      "body": {
+        "es": "NetPulse es 100% libre (AGPL), sin cuentas ni nube, y lo construimos entre todos.\nNos ayudas mucho a ganar visibilidad con una estrella en GitHub, y si frecuentas foros donde pregunten por herramientas así, como Reddit r/selfhosted, r/foss, r/openwrt... foros oficiales de OpenWrt, XDA Developers...",
+        "en": "NetPulse is 100% free software (AGPL), no accounts, no cloud, and we build it together.\nYou help us gain visibility with a star on GitHub, and if you hang out in forums where people ask for tools like this - Reddit r/selfhosted, r/foss, r/openwrt... the official OpenWrt forums, XDA Developers..."
+      },
+      "url": "https://github.com/gnacho/netpulse",
+      "urlLabel": {
+        "es": "Dar una estrella",
+        "en": "Star on GitHub"
+      },
+      "starts": "2026-10-07",
+      "expires": "2026-12-31",
+      "goal": {
+        "current": 85,
+        "target": 100
+      }
+    },
+    {
       "id": "home-assistant-2026-09",
       "urgency": "info",
       "title": {
@@ -18,25 +41,6 @@
       },
       "starts": "2026-09-23",
       "expires": "2026-11-30"
-    },
-    {
-      "id": "github-stars-2026-09",
-      "urgency": "info",
-      "title": {
-        "es": "Ayúdanos a llegar a las 100 estrellas en GitHub",
-        "en": "Help us reach 100 stars on GitHub"
-      },
-      "body": {
-        "es": "NetPulse es libre (AGPL), sin nube ni cuentas, y lo construimos entre todos: cada vez somos más los que queremos ver nuestra red de un vistazo. Vamos 68 estrellas y queremos llegar a 100; si te sirve, déjanos la tuya.",
-        "en": "NetPulse is free software (AGPL), no cloud, no accounts, built together: more of us every day want to see our network at a glance. We're at 68 stars and aiming for 100; if it's useful to you, leave yours."
-      },
-      "url": "https://github.com/gnacho/netpulse",
-      "urlLabel": {
-        "es": "Estrella en GitHub",
-        "en": "Star on GitHub"
-      },
-      "starts": "2026-09-22",
-      "expires": "2026-12-31"
     },
     {
       "id": "netgrip-beta-2026-09",
