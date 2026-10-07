@@ -178,3 +178,56 @@ func TestFilterTombstonedFinalList(t *testing.T) {
 		t.Errorf("filterTombstoned = %+v", devs)
 	}
 }
+
+// #1307: el purge de MACs de flota (#1278) también debe cubrir los BSSID de
+// las radios (ap1-phy1-mac-addr...): los AP se ven a sí mismos como
+// estaciones y esas MACs reaparecen como clientes fantasma igual que la MAC
+// base y la de bridge.
+func TestPurgeFleetSeenIncludesRadioBSSIDs(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d, lastPolled: map[string]*routerPolled{
+		"ap1": {brMac: "aa:aa:aa:aa:aa:01", radios: []Radio{
+			{Name: "2.4 GHz", BSSID: "aa:aa:aa:aa:aa:02"},
+			{Name: "5 GHz", BSSID: "AA-AA-AA-AA-AA-03"}, // guiones: normaliza
+			{Name: "5 GHz", BSSID: ""},                  // sin BSSID: no-op
+		}},
+	}}
+	// El registro guarda MACs normalizadas (normSeenMAC en el alta): mayúsculas
+	// y dos puntos.
+	purged := []string{"AA:AA:AA:AA:AA:01", "AA:AA:AA:AA:AA:02", "AA:AA:AA:AA:AA:03"}
+	kept := "BB:BB:BB:BB:BB:BB"
+	for _, m := range append(append([]string{}, purged...), kept) {
+		if _, err := d.Exec("INSERT INTO device_seen (mac, first_seen, last_seen) VALUES (?, 1, 2)", m); err != nil {
+			t.Fatalf("seed %s: %v", m, err)
+		}
+	}
+	l.purgeFleetSeen()
+	for _, m := range purged {
+		var n int
+		if err := d.QueryRow("SELECT COUNT(*) FROM device_seen WHERE mac = ?", m).Scan(&n); err != nil || n != 0 {
+			t.Errorf("mac %s debería estar purgada (n=%d, err=%v)", m, n, err)
+		}
+	}
+	var n int
+	if err := d.QueryRow("SELECT COUNT(*) FROM device_seen WHERE mac = ?", kept).Scan(&n); err != nil || n != 1 {
+		t.Errorf("mac ajena %s no debe tocarse (n=%d, err=%v)", kept, n, err)
+	}
+}
+
+// #1307: la fuente viva re-emite las MACs de flota cada ciclo; el purge del
+// registro no basta, la LISTA final debe filtrarlas igual que las lápidas.
+func TestFilterTombstonedAlsoFiltersFleetMACs(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d, lastPolled: map[string]*routerPolled{
+		"ap1": {brMac: "aa:aa:aa:aa:aa:01", radios: []Radio{{Name: "2.4 GHz", BSSID: "aa:aa:aa:aa:aa:02"}}},
+	}}
+	devs := []Device{
+		{MAC: "AA:AA:AA:AA:AA:01"}, // bridge
+		{MAC: "aa:aa:aa:aa:aa:02"}, // BSSID radio (case-insensitive)
+		{MAC: "cc:cc:cc:cc:cc:cc"}, // cliente real
+	}
+	out := l.filterTombstoned(devs)
+	if len(out) != 1 || out[0].MAC != "cc:cc:cc:cc:cc:cc" {
+		t.Fatalf("filterTombstoned = %+v, want solo el cliente real", out)
+	}
+}

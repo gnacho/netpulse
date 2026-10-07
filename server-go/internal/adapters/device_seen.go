@@ -40,17 +40,25 @@ func saneIP(ip string) string {
 // Una fuente viva (una estación stale del AP) puede seguir emitiéndolas en
 // cada ciclo sin que pasen por device_seen (ni first_seen ni last_seen):
 // el filtro del registro no basta, la lista misma se filtra.
+// #1307: el mismo razonamiento aplica a las MACs propias de flota (base,
+// bridge y BSSID de radios): aunque el purge las borre del registro, la
+// fuente viva las re-emitiría como cliente nuevo en el mismo ciclo.
 func (l *Live) filterTombstoned(devices []Device) []Device {
 	if l.db == nil || len(devices) == 0 {
 		return devices
 	}
 	tomb, err := l.db.DeletedClients()
-	if err != nil || len(tomb) == 0 {
+	if err != nil {
+		tomb = map[string]bool{}
+	}
+	fleet := l.fleetSeenMACs()
+	if len(tomb) == 0 && len(fleet) == 0 {
 		return devices
 	}
 	out := devices[:0]
 	for _, d := range devices {
-		if tomb[normSeenMAC(d.MAC)] {
+		m := normSeenMAC(d.MAC)
+		if tomb[m] || fleet[m] {
 			continue
 		}
 		out = append(out, d)
@@ -58,34 +66,50 @@ func (l *Live) filterTombstoned(devices []Device) []Device {
 	return out
 }
 
-// purgeFleetSeen (#1278): borra del registro la MAC base de las unidades de
-// flota. Las bocas/gestiones de los propios equipos se aprendían como
-// "clientes" vía FDB de los switches y quedaban como fantasmas offline para
-// siempre. Purga de MACs BASE (routers.mac): las por-interfaz las cubre la
-// lápida del borrado manual.
-func (l *Live) purgeFleetSeen() {
+// fleetSeenMACs (#1278/#1307): MACs propias de la flota que nunca deben
+// tratarse como clientes - MAC base de cada unidad (tabla routers), MAC de
+// bridge del último push de cada agente (la "mgmt" que los switches aprenden
+// por FDB) y BSSID de cada radio (#1307, p.ej. ap1-phy1-mac-addr: los AP se
+// ven a sí mismos como estaciones stale). La usan el purge del registro y
+// el filtrado de las listas finales.
+func (l *Live) fleetSeenMACs() map[string]bool {
 	macs := map[string]bool{}
 	// MAC base de cada unidad (tabla routers).
-	if rows, err := l.db.Query("SELECT mac FROM routers WHERE mac IS NOT NULL AND mac != ''"); err == nil {
-		for rows.Next() {
-			var m string
-			if err := rows.Scan(&m); err == nil {
-				if n := normSeenMAC(m); n != "" {
-					macs[n] = true
+	if l.db != nil {
+		if rows, err := l.db.Query("SELECT mac FROM routers WHERE mac IS NOT NULL AND mac != ''"); err == nil {
+			for rows.Next() {
+				var m string
+				if err := rows.Scan(&m); err == nil {
+					if n := normSeenMAC(m); n != "" {
+						macs[n] = true
+					}
 				}
 			}
+			rows.Close()
 		}
-		rows.Close()
 	}
-	// MAC de bridge del último push de cada agente (la "mgmt" que los
-	// switches aprenden por FDB y reaparece como cliente fantasma).
 	l.mu.Lock()
 	for _, p := range l.lastPolled {
 		if m := normSeenMAC(p.brMac); m != "" {
 			macs[m] = true
 		}
+		for _, r := range p.radios {
+			if m := normSeenMAC(r.BSSID); m != "" {
+				macs[m] = true
+			}
+		}
 	}
 	l.mu.Unlock()
+	return macs
+}
+
+// purgeFleetSeen (#1278): borra del registro la MAC base de las unidades de
+// flota. Las bocas/gestiones de los propios equipos se aprendían como
+// "clientes" vía FDB de los switches y quedaban como fantasmas offline para
+// siempre. Purgamos todo el conjunto de fleetSeenMACs (base + bridge +
+// BSSID de radios, #1307); las lápidas del borrado manual van aparte.
+func (l *Live) purgeFleetSeen() {
+	macs := l.fleetSeenMACs()
 	for m := range macs {
 		_, _ = l.db.Exec("DELETE FROM device_seen WHERE mac = ?", m)
 	}
