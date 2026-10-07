@@ -4527,24 +4527,12 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 
 	out := SurveyOverview{Routers: []SurveyRouter{}}
 	any := false
-	// #1214 (ex-#1147): la pestaña es de roaming - solo APs. El gateway sale
-	// del listado salvo que sea la única unidad con WiFi posible (fleet
-	// mono-router): sin APs que pise, el survey del gateway sigue siendo lo
-	// único que hay que ver.
-	gwID := ""
-	if l.gatewayCfg != nil {
-		gwID = l.gatewayCfg.ID
-	}
-	others := 0
+	// #1308: el gateway YA NO se excluye. La exclusión venía de #1214, cuando
+	// el survey vivía en la pestaña de roaming (los clientes no reanclan al
+	// gateway en flotas con APs). Desde #1229 la lente es de CANALES, donde el
+	// gateway es un AP más: su agente empuja iw survey dump igual que los
+	// demás (#1270) y su espectro importa para el análisis.
 	for _, cfg := range routers {
-		if cfg.ID != gwID {
-			others++
-		}
-	}
-	for _, cfg := range routers {
-		if cfg.ID == gwID && others > 0 {
-			continue
-		}
 		name := cfg.Name
 		if name == "" {
 			name = cfg.ID

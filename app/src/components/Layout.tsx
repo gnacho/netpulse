@@ -270,7 +270,7 @@ function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: bo
         <div className="flex h-16 items-center pt-safe">
           <Logo compact />
         </div>
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2" aria-label={t('nav.mainNav')}>
+        <nav className="min-h-0 flex-1 space-y-1 overscroll-contain overflow-y-auto py-2" aria-label={t('nav.mainNav')}>
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -316,7 +316,7 @@ function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: bo
       <div className="flex h-16 items-center px-5 pt-safe">
         <Logo />
       </div>
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2" aria-label={t('nav.mainNav')}>
+      <nav className="min-h-0 flex-1 space-y-1 overscroll-contain overflow-y-auto px-3 py-2" aria-label={t('nav.mainNav')}>
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -387,7 +387,7 @@ function Rail() {
       <div className="flex h-16 items-center pt-safe">
         <Logo compact />
       </div>
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2" aria-label={t('nav.mainNav')}>
+      <nav className="min-h-0 flex-1 space-y-1 overscroll-contain overflow-y-auto py-2" aria-label={t('nav.mainNav')}>
         {items.map((item) => (
           <NavLink
             key={item.to}

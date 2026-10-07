@@ -377,6 +377,8 @@
     "colFirstSeen": "Vista por primera vez",
     "colLastSeen": "Última vez vista",
     "colSignal": "Señal",
+    "minSignal": "Señal mín.",
+    "minSignalAny": "Cualquiera",
     "colTraffic": "Tráfico",
     "colType": "Tipo",
     "columns": {
@@ -385,8 +387,6 @@
     },
     "copyIp": "Copiar IP",
     "detail": {
-      "minSignalAny": "Cualquier señal",
-      "minSignal": "Señal mínima",
       "linkedMacs": "MACs enlazadas",
       "dhcpLease": "Concesión DHCP",
       "firstSeen": "Primera vez vista",
@@ -727,7 +727,9 @@
       "colSsid": "Red (SSID)",
       "router": "Router",
       "noScans": "Este router no envía escaneos de canales. Si corre NetGrip no escanea; usa un router con el agente NetPulse o revisa que esté activo.",
-      "ownLabel": "Red propia"
+      "ownLabel": "Red propia",
+      "notParticipating": "Esta unidad no aporta datos de survey. Las que sí: {{units}}",
+      "unitNoSurvey": "Esta unidad no tiene radios WiFi o no devolvió survey (SNMP/solo cable)."
     },
     "events": {
       "title": "Eventos de itinerancia",
@@ -2024,6 +2026,8 @@
     "currentChannel": "Canal",
     "channelWord": "Canal {{ch}}",
     "signal": "Señal",
+    "minSignal": "Señal mín.",
+    "minSignalAll": "Todas",
     "score": "Puntuación",
     "scanInfo": "scans de las últimas 24 h",
     "refresh": "Actualizar",

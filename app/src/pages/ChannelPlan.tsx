@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { CurrentChannels } from '@/components/channels/CurrentChannels'
 import { ssidColor } from '@/lib/ssidColor'
 import { Button } from '@/components/ui/button'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -191,6 +192,17 @@ export default function ChannelPlan() {
     return null
   })
   const [focus, setFocus] = useState<number | null>(null)
+  // #1304: filtro de señal mínima de la tabla Redes detectadas (>= -70/-80/-90)
+  // para ocultar el ruido débil. Persistente como el orden (#1267).
+  const [minSignal, setMinSignal] = useState<number | null>(() => {
+    try {
+      const raw = localStorage.getItem('netpulse.channelPlan.minSignal')
+      if (raw === '70' || raw === '80' || raw === '90') return -Number(raw)
+    } catch {
+      /* almacenamiento no disponible */
+    }
+    return null
+  })
   const [onlyMine, setOnlyMine] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<number>(0)
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -444,15 +456,27 @@ export default function ChannelPlan() {
     })
 
   const sortedScans = useMemo(() => {
-    const arr = bandScans.slice()
+    const arr = bandScans.filter((s) => minSignal === null || s.signal >= minSignal)
+    // #1304: los desempates (SSID, canal) van por señal DESC: agrupa las
+    // vecinas más fuertes juntas aunque ordenes alfabéticamente.
     if (!sort) return arr.sort((a, b) => Number(b.own ?? false) - Number(a.own ?? false) || b.signal - a.signal)
     const dir = sort.dir === 'asc' ? 1 : -1
     return arr.sort((a, b) => {
       if (sort.key === 'signal') return (a.signal - b.signal) * dir
-      if (sort.key === 'channel') return (a.channel - b.channel) * dir
-      return (a.ssid || a.bssid).localeCompare(b.ssid || b.bssid, undefined, { sensitivity: 'base' }) * dir
+      if (sort.key === 'channel') return (a.channel - b.channel) * dir || b.signal - a.signal
+      return (a.ssid || a.bssid).localeCompare(b.ssid || b.bssid, undefined, { sensitivity: 'base' }) * dir || b.signal - a.signal
     })
-  }, [bandScans, sort])
+  }, [bandScans, sort, minSignal])
+
+  const setMinSignalPersist = (v: number | null) => {
+    setMinSignal(v)
+    try {
+      if (v === null) localStorage.removeItem('netpulse.channelPlan.minSignal')
+      else localStorage.setItem('netpulse.channelPlan.minSignal', String(-v))
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }
 
   const SortHeader = ({ id, label }: { id: 'signal' | 'ssid' | 'channel'; label: string }) => (
     <button
@@ -956,19 +980,37 @@ export default function ChannelPlan() {
               {/* Tabla de redes (solo si hay scans) */}
               {bandScans.length > 0 && (
               <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-                <div className="px-5 pt-4">
-                  <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.summaryNetworks')}</h2>
-                  <p className="mt-0.5 text-caption text-text-muted">{t('channelPlan.tableSub', { n: bandScans.length })}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
+                  <div>
+                    <h2 className="text-sm font-bold text-text-primary">{t('channelPlan.summaryNetworks')}</h2>
+                    <p className="mt-0.5 text-caption text-text-muted">{t('channelPlan.tableSub', { n: sortedScans.length })}</p>
+                  </div>
+                  {/* #1304: filtro de señal mínima para ocultar el ruido débil. */}
+                  <div className="flex items-center gap-2 pb-1">
+                    <span className="text-label uppercase text-text-muted">{t('channelPlan.minSignal')}</span>
+                    <SegmentedControl
+                      size="sm"
+                      ariaLabel={t('channelPlan.minSignal')}
+                      options={[
+                        { value: 'all', label: t('channelPlan.minSignalAll') },
+                        { value: '70', label: '≥ -70' },
+                        { value: '80', label: '≥ -80' },
+                        { value: '90', label: '≥ -90' },
+                      ]}
+                      value={minSignal === null ? 'all' : String(-minSignal)}
+                      onChange={(v) => setMinSignalPersist(v === 'all' ? null : -Number(v))}
+                    />
+                  </div>
                 </div>
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full border-collapse text-left text-sm">
                     <thead>
                       <tr className="text-label uppercase text-text-muted">
                         <th className="px-5 py-2.5 font-medium">
-                          <SortHeader id="signal" label={t('channelPlan.signal')} />
+                          <SortHeader id="ssid" label="SSID" />
                         </th>
                         <th className="px-3 py-2.5 font-medium">
-                          <SortHeader id="ssid" label="SSID" />
+                          <SortHeader id="signal" label={t('channelPlan.signal')} />
                         </th>
                         <th className="px-3 py-2.5 font-medium">
                           <SortHeader id="channel" label={t('channelPlan.currentChannel')} />
@@ -992,15 +1034,6 @@ export default function ChannelPlan() {
                               )}
                             >
                               <td className="px-5 py-2.5">
-                                <span className="inline-flex items-center gap-2 tabular-nums">
-                                  <SignalBars signal={s.signal} own={s.own} />
-                                  <b className="text-text-primary">{s.signal}</b>
-                                  <small className="text-caption text-text-muted">
-                                    dBm · {t(`channelPlan.quality.${lvl === 4 ? 'excellent' : lvl === 3 ? 'good' : lvl === 2 ? 'weak' : 'veryWeak'}`)}
-                                  </small>
-                                </span>
-                              </td>
-                              <td className="px-3 py-2.5">
                                 <span className="flex items-center gap-2.5">
                                   <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: color }} />
                                   <span>
@@ -1013,6 +1046,15 @@ export default function ChannelPlan() {
                                       </span>
                                     )}
                                   </span>
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <span className="inline-flex items-center gap-2 tabular-nums">
+                                  <SignalBars signal={s.signal} own={s.own} />
+                                  <b className="text-text-primary">{s.signal}</b>
+                                  <small className="text-caption text-text-muted">
+                                    dBm · {t(`channelPlan.quality.${lvl === 4 ? 'excellent' : lvl === 3 ? 'good' : lvl === 2 ? 'weak' : 'veryWeak'}`)}
+                                  </small>
                                 </span>
                               </td>
                               <td className="px-3 py-2.5 font-mono font-bold text-text-primary">{s.channel}</td>

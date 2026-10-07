@@ -377,6 +377,8 @@
     "colFirstSeen": "First seen",
     "colLastSeen": "Last seen",
     "colSignal": "Signal",
+    "minSignal": "Min signal",
+    "minSignalAny": "Any",
     "colTraffic": "Traffic",
     "colType": "Type",
     "columns": {
@@ -385,8 +387,6 @@
     },
     "copyIp": "Copy IP",
     "detail": {
-      "minSignalAny": "Any signal",
-      "minSignal": "Min signal",
       "linkedMacs": "Linked MACs",
       "dhcpLease": "DHCP lease",
       "firstSeen": "First seen",
@@ -727,7 +727,9 @@
       "colSsid": "Network (SSID)",
       "router": "Router",
       "noScans": "This router does not report channel scans. NetGrip routers do not scan; use one running the NetPulse agent or check it is active.",
-      "ownLabel": "Own network"
+      "ownLabel": "Own network",
+      "notParticipating": "This unit does not provide survey data. Units that do: {{units}}",
+      "unitNoSurvey": "This unit has no WiFi radios or returned no survey (SNMP/cable-only)."
     },
     "events": {
       "title": "Roaming events",
@@ -2024,6 +2026,8 @@
     "currentChannel": "Channel",
     "channelWord": "Channel {{ch}}",
     "signal": "Signal",
+    "minSignal": "Min signal",
+    "minSignalAll": "All",
     "score": "Score",
     "scanInfo": "scans from the last 24 h",
     "refresh": "Refresh",
