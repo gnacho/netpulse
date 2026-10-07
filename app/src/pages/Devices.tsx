@@ -860,7 +860,7 @@ function DeviceDetail({
       <DetailItem label={t('devices.detail.manufacturer')}>{manufacturerLabel(device.manufacturer)}</DetailItem>
       <DetailItem label={t('devices.detail.lastSeen')}>{fmtSeenAgo(device.lastSeenMs)}</DetailItem>
       <DetailItem label="Hostname" mono>
-        {device.hostname}
+        {device.hostname || <span className="text-text-muted">—</span>}
       </DetailItem>
       {hasAdGuard && (
         <div className="min-w-0">

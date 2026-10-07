@@ -142,20 +142,33 @@ function formatLeaseRemaining(totalSeconds: number): string {
 
 /** Detalles por defecto para un cliente que la API reporta sin metadatos. */
 function defaultDetails(d: Device): Omit<ClientDevice, keyof Device> {
+  // #1315: el lease con tiempo restante se muestra aunque el cliente esté
+  // desconectado (dnsmasq conserva la concesión hasta su expiración; antes
+  // se pintaba "Expired" a TODO lo offline, con tiempo restante o sin él).
+  const remaining = d.leaseRemaining
+  const leaseActive = remaining != null && remaining > 0
   const leaseText =
-    d.leaseRemaining != null && d.leaseRemaining > 0
-      ? `renews in ${formatLeaseRemaining(d.leaseRemaining)}`
-      : d.leaseRemaining === 0
+    remaining != null && remaining > 0
+      ? `renews in ${formatLeaseRemaining(remaining)}`
+      : remaining === 0
         ? 'Expired'
         : 'Static IP (reservation)'
   return {
-    hostname: slug(d.name),
-    dhcpLease: d.online ? leaseText : 'Expired',
+    // #1315: cuando el nombre es la propia MAC (sin hostname conocido), el
+    // campo Hostname queda vacío: la MAC ya tiene su campo en la vista y el
+    // slug en formato guionado ("34-5f-45-...") se leía como hostname.
+    hostname: isMACName(d.name) ? '' : slug(d.name),
+    dhcpLease: leaseActive || d.online ? leaseText : 'Expired',
     traffic24hRx: '—',
     traffic24hTx: '—',
     adguard: true,
     group: TYPE_TO_GROUP[d.type],
   }
+}
+
+/** #1315: el fallback del server sin hostname es la MAC (colons o dashes). */
+function isMACName(name: string): boolean {
+  return /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(name.trim())
 }
 
 /** Metadatos de cliente que pueden venir inline (canon JSON / API demo).
