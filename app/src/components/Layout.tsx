@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+
 import type { MouseEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -14,10 +15,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Cpu,
-  Download,
   LayoutDashboard,
   MonitorSmartphone,
-  MoreHorizontal,
   RefreshCw,
   Router as RouterIcon,
   Settings,
@@ -34,7 +33,6 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { AnnouncementBanner } from '@/components/AnnouncementBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn, exitDemo } from '@/lib/utils'
@@ -568,10 +566,8 @@ function MobileHeader() {
 }
 
 // ---------------------------------------------------------------------------
-// Bottom tab bar móvil (<768px) — 5 tabs + sheet "Más"
+// Bottom tab bar móvil (<768px) — fila deslizable con TODAS las secciones
 // ---------------------------------------------------------------------------
-
-const TAB_ITEMS = NAV_ITEMS.filter((i) => ['/', '/routers', '/devices', '/alerts'].includes(i.to))
 
 /** Orden completo de vistas (para la dirección del deslizamiento móvil). */
 const NAV_ORDER: { to: string }[] = NAV_ITEMS
@@ -579,71 +575,6 @@ const NAV_ORDER: { to: string }[] = NAV_ITEMS
 function navIndex(path: string): number {
   const active = (to: string) => (to === '/' ? path === '/' : path.startsWith(to))
   return NAV_ORDER.findIndex(({ to }) => active(to))
-}
-
-function MoreSheet() {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const location = useLocation()
-  const moreActive = ['/topology', '/settings'].some((p) => location.pathname.startsWith(p))
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'flex h-full min-w-[56px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
-            moreActive ? 'text-accent' : 'text-text-muted',
-          )}
-          aria-label={t('nav.moreOptions')}
-        >
-          <span className={cn('flex h-8 items-center rounded-full px-3', moreActive && 'bg-accent-soft')}>
-            <MoreHorizontal className="h-5 w-5" strokeWidth={1.75} />
-          </span>
-          <span className="text-[10px] font-medium">{t('nav.more')}</span>
-        </button>
-      </SheetTrigger>
-      <SheetContent side="bottom" className="rounded-t-2xl border-border bg-elevated pb-safe">
-        <SheetHeader>
-          <SheetTitle className="font-display text-text-primary">{t('nav.more')}</SheetTitle>
-        </SheetHeader>
-        <div className="mt-2 space-y-1">
-          {[
-            { to: '/topology', label: t('nav.topology'), icon: Waypoints, desc: t('nav.topologyDesc') },
-            { to: '/settings', label: t('nav.settings'), icon: Settings, desc: t('nav.settingsDesc') },
-          ].map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-hover"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-accent">
-                <item.icon className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <span>
-                <span className="block text-sm font-medium text-text-primary">{item.label}</span>
-                <span className="block text-caption text-text-muted">{item.desc}</span>
-              </span>
-            </Link>
-          ))}
-          <div className="flex items-center gap-3 rounded-xl px-3 py-3 opacity-70">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-text-secondary">
-              <Download className="h-5 w-5" strokeWidth={1.75} />
-            </span>
-            <span>
-              <span className="block text-sm font-medium text-text-primary">{t('nav.installApp')}</span>
-              <span className="block text-caption text-text-muted">{t('nav.installFromSettings')}</span>
-            </span>
-          </div>
-          <div className="flex items-center justify-between rounded-xl px-3 py-3">
-            <span className="text-sm font-medium text-text-primary">{t('nav.theme')}</span>
-            <ThemeToggle />
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  )
 }
 
 function TabBar() {
@@ -685,13 +616,26 @@ function TabBar() {
       navigate(to, { replace: true })
     }
   }
+  const items = useVisibleNavItems()
+  /* Fila deslizable: centra el tab activo (NavLink marca aria-current="page"). */
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = tabBarRef.current
+    const activeEl = el?.querySelector('[aria-current="page"]')
+    if (el && activeEl) {
+      activeEl.scrollIntoView({ inline: 'center', block: 'nearest' })
+    }
+  }, [location.pathname])
   return (
     <nav
       className="[view-transition-name:netpulse-nav] fixed inset-x-0 bottom-0 z-40 border-t border-border bg-elevated/90 backdrop-blur-md md:hidden"
       aria-label={t('nav.mainNav')}
     >
-      <div className="flex h-16 items-stretch px-2 pb-[env(safe-area-inset-bottom)]">
-        {TAB_ITEMS.map((item) => (
+      <div
+        ref={tabBarRef}
+        className="flex h-16 items-stretch overflow-x-auto px-2 pb-[env(safe-area-inset-bottom)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -699,7 +643,7 @@ function TabBar() {
             onClick={handleMobileNav(item.to)}
             className={({ isActive }) =>
               cn(
-                'flex h-full min-w-[56px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
+                'flex h-full min-w-[60px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-colors',
                 isActive ? 'text-accent' : 'text-text-muted',
               )
             }
@@ -715,7 +659,6 @@ function TabBar() {
             )}
           </NavLink>
         ))}
-        <MoreSheet />
       </div>
     </nav>
   )
