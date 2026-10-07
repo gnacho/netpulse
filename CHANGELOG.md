@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.39.1] - 2026-10-07
+
+### Added
+
+- **Campaña: vamos a por las 100 estrellas**: el banner de anuncios estrena botón prominente (debajo del texto, fondo acento, fuente mayor) y barra de progreso de campaña (85/100 al publicar). El aviso pide una estrella en GitHub y difundir en comunidades (r/selfhosted, r/foss, r/openwrt, foros de OpenWrt, XDA Developers). Si lo descartaste antes, vuelve a aparecer con el nuevo enfoque.
+
 ## [2.39.0] - 2026-10-07
 
 ### Added
