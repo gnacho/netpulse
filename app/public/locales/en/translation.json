@@ -2586,7 +2586,8 @@
   },
   "announcement": {
     "link": "See more",
-    "dismiss": "Dismiss announcement"
+    "dismiss": "Dismiss announcement",
+    "goal": "{{current}} / {{target}} stars"
   },
   "app": {
     "title": "NetPulse - Your network at a glance"

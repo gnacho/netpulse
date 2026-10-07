@@ -19,6 +19,7 @@ interface Announcement {
   body?: Record<string, string>
   url?: string
   urlLabel?: Record<string, string>
+  goal?: { current: number; target: number }
 }
 
 const pick = (m: Record<string, string> | undefined, lang: string) =>
@@ -80,34 +81,66 @@ export function AnnouncementBanner() {
         className="mb-2"
       >
         <div
-          className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 ${
+          className={`rounded-xl border px-4 py-3 ${
             warn ? 'border-warn/40 bg-warn/10' : 'border-accent/40 bg-accent-soft'
           }`}
         >
-          <Megaphone className={`h-4 w-4 shrink-0 ${warn ? 'text-warn' : 'text-accent'}`} strokeWidth={1.75} />
-          <div className="min-w-0 flex-1">
-            {title && <p className="text-[22px] font-bold leading-tight text-text-primary">{title}</p>}
-            {body && <p className="text-lg leading-snug text-text-secondary">{body}</p>}
-          </div>
-          {a.url && (
-            <a
-              href={a.url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-2"
+          <div className="flex items-start gap-3">
+            <Megaphone className={`mt-1 h-4 w-4 shrink-0 ${warn ? 'text-warn' : 'text-accent'}`} strokeWidth={1.75} />
+            <div className="min-w-0 flex-1">
+              {title && <p className="text-[22px] font-bold leading-tight text-text-primary">{title}</p>}
+              {body && <p className="mt-0.5 whitespace-pre-line text-lg leading-snug text-text-secondary">{body}</p>}
+              {/* Meta de campaña (opcional): barra de progreso con el punto
+                  de la reta, p.ej. estrellas de GitHub (85/100). */}
+              {a.goal && a.goal.target > 0 && (
+                <div className="mt-2.5 max-w-md">
+                  <div className="flex items-baseline justify-between text-caption">
+                    <span className="font-semibold text-text-primary">
+                      {t('announcement.goal', { current: a.goal.current, target: a.goal.target })}
+                    </span>
+                    <span className="font-mono text-text-muted">{Math.round((a.goal.current / a.goal.target) * 100)}%</span>
+                  </div>
+                  <div
+                    className="mt-1 h-2 overflow-hidden rounded-full bg-border/60"
+                    role="progressbar"
+                    aria-valuenow={a.goal.current}
+                    aria-valuemin={0}
+                    aria-valuemax={a.goal.target}
+                  >
+                    <div
+                      className={`h-full rounded-full ${warn ? 'bg-warn' : 'bg-accent'}`}
+                      style={{ width: `${Math.min(100, Math.max(0, (a.goal.current / a.goal.target) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {/* Botón DEBAJO del texto, prominente: fondo acento y fuente
+                  mayor (antes iba en línea, pequeño y neutro). */}
+              {a.url && (
+                <a
+                  href={a.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`mt-2.5 inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-150 ${
+                    warn
+                      ? 'bg-warn text-canvas hover:bg-warn/90'
+                      : 'bg-accent text-canvas hover:bg-accent/90'
+                  }`}
+                >
+                  <ExternalLink className="h-4 w-4" strokeWidth={2} />
+                  {urlLabel}
+                </a>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={dismiss}
+              aria-label={t('announcement.dismiss')}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:text-text-primary"
             >
-              <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
-              <span className="hidden sm:inline">{urlLabel}</span>
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={dismiss}
-            aria-label={t('announcement.dismiss')}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:text-text-primary"
-          >
-            <X className="h-4 w-4" strokeWidth={1.75} />
-          </button>
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
       </motion.div>
     </AnimatePresence>

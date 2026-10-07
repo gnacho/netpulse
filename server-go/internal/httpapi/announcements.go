@@ -26,7 +26,9 @@ const (
 
 // Announcement es un aviso publicado en announcements.json. Title/Body van
 // por idioma (es/en; el cliente cae a en). Starts/Expires ("YYYY-MM-DD",
-// opcionales) delimitan la ventana de vigencia.
+// opcionales) delimitan la ventana de vigencia. Goal (opcional) añade una
+// barra de progreso de campaña (p.ej. estrellas de GitHub): Current/Target
+// se publican a mano en el JSON; no hay contador en vivo.
 type Announcement struct {
 	ID       string            `json:"id"`
 	Urgency  string            `json:"urgency"` // "info" | "warn"
@@ -34,8 +36,15 @@ type Announcement struct {
 	Body     map[string]string `json:"body,omitempty"`
 	URL      string            `json:"url,omitempty"`
 	URLLabel map[string]string `json:"urlLabel,omitempty"`
+	Goal     *AnnouncementGoal `json:"goal,omitempty"`
 	Starts   string            `json:"starts,omitempty"`
 	Expires  string            `json:"expires,omitempty"`
+}
+
+// AnnouncementGoal: meta visible de campaña con barra de progreso.
+type AnnouncementGoal struct {
+	Current int `json:"current"`
+	Target  int `json:"target"`
 }
 
 type announcementsFile struct {
