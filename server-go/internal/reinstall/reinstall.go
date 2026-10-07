@@ -90,6 +90,98 @@ type WanTargets struct {
 	GwTarget  string // APs: IP del gateway para el ping; vacío = comentada
 }
 
+// caSetupBlock escribe (o borra) la raíz de la CA en el router. Without a
+// root, one left from an earlier install (a CA since replaced) would make
+// every https download fail against it.
+func caSetupBlock(tr Trust) string {
+	if len(tr.CAPEM) == 0 {
+		return "\nrm -f " + caPath + "\n"
+	}
+	return `
+# FORK: the server's root, to verify downloads with (written over this SSH
+# session, so it is the server's own)
+cat > ` + caPath + ` <<'CAEOF'
+` + strings.TrimSpace(string(tr.CAPEM)) + `
+CAEOF
+chmod 644 ` + caPath + `
+`
+}
+
+// envRewriteBlock regenera /etc/netpulse-agent.env con las vars gestionadas
+// actuales, conservando las NETPULSE_* del usuario (#851). Usa las vars de
+// entorno del script anfitrión: SERVER, SLUG, TOKEN y SERVER_FP.
+func envRewriteBlock(targets WanTargets) string {
+	return `USER_VARS=""
+if [ -f "$ENV_FILE" ]; then
+	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET)=') || true
+fi
+cat > "$ENV_FILE" <<EOF
+# netpulse-agent — config (generado por reinstall)
+NETPULSE_SERVER=$SERVER
+NETPULSE_SLUG=$SLUG
+NETPULSE_TOKEN=$TOKEN
+# NETPULSE_SERVER_FP=<sha256>    # pin SPKI del server (https); lo rellena el instalador
+# NETPULSE_INTERVAL=30           # segundos entre pushes
+# NETPULSE_SCAN_INTERVAL=30m     # min entre scans de vecinos; "0" = sin scans periódicos
+` + func() string {
+		wanLine := "# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway"
+		if targets.WanTarget != "" {
+			wanLine = "NETPULSE_WAN_TARGET=" + targets.WanTarget
+		}
+		gwLine := "# NETPULSE_GW_TARGET=192.168.8.1 # ping al gateway (APs)"
+		if targets.GwTarget != "" {
+			gwLine = "NETPULSE_GW_TARGET=" + targets.GwTarget
+		}
+		return wanLine + "\n" + gwLine
+	}() + `
+# NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat
+EOF
+# #851: con server https el agente exige el SPKI pin; vacío = http plano o
+# el server no pudo derivarlo (se comporta como antes).
+if [ -n "$SERVER_FP" ]; then
+	echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"
+fi
+if [ -n "$USER_VARS" ]; then
+	printf '%s\n' "$USER_VARS" >> "$ENV_FILE"
+fi
+chmod 600 "$ENV_FILE"
+`
+}
+
+// EnvScript (#1294) es la variante LIGERA del script de instalación: NO
+// descarga binario ni toca el init; solo reescribe la CA raíz y
+// /etc/netpulse-agent.env (rotando el token) y reinicia el agente para que
+// relea el env. Es lo que convierte un cambio de TLS/HTTPS en un despliegue
+// de un clic: enable HTTPS → re-emit → toda la flota SSH-reachable migra sin
+// reinstalar a mano. Mismos gestos de trust que ScriptWithTargets.
+func EnvScript(slug, token, serverURL, serverFP string, targets WanTargets, trust ...Trust) string {
+	var tr Trust
+	if len(trust) > 0 {
+		tr = trust[0]
+	}
+	if tr.ServerURL != "" {
+		serverURL = tr.ServerURL
+	}
+	if tr.ServerFP != "" {
+		serverFP = tr.ServerFP
+	}
+	return `#!/bin/sh
+set -e
+INIT=/etc/init.d/netpulse-agent
+ENV_FILE=/etc/netpulse-agent.env
+SERVER="` + serverURL + `"
+SLUG="` + slug + `"
+TOKEN="` + token + `"
+SERVER_FP="` + serverFP + `"
+` + caSetupBlock(tr) + envRewriteBlock(targets) + `
+# Releer el env: el agente lo lee del fichero en cada arranque (#1287), así
+# que basta un restart del init procd (respawn inmediato).
+if [ -f "$INIT" ]; then
+	"$INIT" restart >/dev/null 2>&1 || true
+fi
+`
+}
+
 func ScriptWithTargets(slug, token, serverURL, serverFP string, digests map[string]string, targets WanTargets, trust ...Trust) string {
 	var tr Trust
 	if len(trust) > 0 {
@@ -101,19 +193,7 @@ func ScriptWithTargets(slug, token, serverURL, serverFP string, digests map[stri
 	if tr.ServerFP != "" {
 		serverFP = tr.ServerFP
 	}
-	// Without a root, one left from an earlier install (a CA since replaced)
-	// would make every https download fail against it.
-	caSetup := "\nrm -f " + caPath + "\n"
-	if len(tr.CAPEM) > 0 {
-		caSetup = `
-# FORK: the server's root, to verify downloads with (written over this SSH
-# session, so it is the server's own)
-cat > ` + caPath + ` <<'CAEOF'
-` + strings.TrimSpace(string(tr.CAPEM)) + `
-CAEOF
-chmod 644 ` + caPath + `
-`
-	}
+	caSetup := caSetupBlock(tr)
 	return `#!/bin/sh
 set -e
 INIT=/etc/init.d/netpulse-agent
@@ -166,41 +246,7 @@ mv -f /tmp/netpulse-agent.new "$BIN"
 # Config (chmod 600). El rewrite toca SOLO las vars gestionadas (SERVER,
 # SLUG, TOKEN, SERVER_FP, WAN_TARGET, GW_TARGET): las NETPULSE_* del usuario
 # (p. ej. NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
-USER_VARS=""
-if [ -f "$ENV_FILE" ]; then
-	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET)=') || true
-fi
-cat > "$ENV_FILE" <<EOF
-# netpulse-agent — config (generado por reinstall)
-NETPULSE_SERVER=$SERVER
-NETPULSE_SLUG=$SLUG
-NETPULSE_TOKEN=$TOKEN
-# NETPULSE_SERVER_FP=<sha256>    # pin SPKI del server (https); lo rellena el instalador
-# NETPULSE_INTERVAL=30           # segundos entre pushes
-# NETPULSE_SCAN_INTERVAL=30m     # min entre scans de vecinos; "0" = sin scans periódicos
-` + func() string {
-	wanLine := "# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway"
-	if targets.WanTarget != "" {
-		wanLine = "NETPULSE_WAN_TARGET=" + targets.WanTarget
-	}
-	gwLine := "# NETPULSE_GW_TARGET=192.168.8.1 # ping al gateway (APs)"
-	if targets.GwTarget != "" {
-		gwLine = "NETPULSE_GW_TARGET=" + targets.GwTarget
-	}
-	return wanLine + "\n" + gwLine
-}() + `
-# NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat
-EOF
-# #851: con server https el agente exige el SPKI pin; vacío = http plano o
-# el server no pudo derivarlo (se comporta como antes).
-if [ -n "$SERVER_FP" ]; then
-	echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"
-fi
-if [ -n "$USER_VARS" ]; then
-	printf '%s\n' "$USER_VARS" >> "$ENV_FILE"
-fi
-chmod 600 "$ENV_FILE"
-
+` + envRewriteBlock(targets) + `
 # Init procd con self-heal (#457): un sysupgrade solo conserva /etc, así que
 # si el binario falta al arrancar se descarga del server con este env.
 cat > "$INIT" <<'INITEOF'

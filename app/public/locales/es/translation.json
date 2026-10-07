@@ -1922,7 +1922,17 @@
       "renewHint": "Se comprueba solo cada 10 minutos: si cambia la dirección o el nombre del servidor, el certificado se renueva. Misma raíz: no hay que reinstalar nada.",
       "renewed": "Se emitió un certificado nuevo para las direcciones y nombres actuales del servidor.",
       "renewUnchanged": "Sin cambios: el certificado ya cubre las direcciones y nombres del servidor.",
-      "uncovered": "Sin cubrir: {{names}}. Esta raíz solo puede avalar direcciones privadas y los nombres locales con los que se creó; para llegar al servidor con estos hace falta una raíz nueva, instalada de nuevo en cada dispositivo (docs/https.md, \"Starting over\")."
+      "uncovered": "Sin cubrir: {{names}}. Esta raíz solo puede avalar direcciones privadas y los nombres locales con los que se creó; para llegar al servidor con estos hace falta una raíz nueva, instalada de nuevo en cada dispositivo (docs/https.md, \"Starting over\").",
+      "reemitTitle": "Re-emitir connection strings",
+      "reemitHint": "Tras un cambio de TLS/puerto, reescribe /etc/netpulse-agent.env (URL del server, CA raíz, pin SPKI) en cada agente nativo alcanzable por SSH y lo reinicia, rotando su token. Salta agentes embebidos en NetGrip y scrapers no-OpenWrt.",
+      "reemit": "Re-emitir a la flota",
+      "reemitStatus": {
+        "reemitted": "env reescrito, agente reiniciado",
+        "ssh_failed": "SSH falló",
+        "not_openwrt": "agente nativo OpenWrt no (saltado)",
+        "netgrip_managed": "embebido en NetGrip (actualiza NetGrip)",
+        "router_unknown": "sin fila de router (saltado)"
+      }
     }
   },
   "statcard": {

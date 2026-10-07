@@ -1922,7 +1922,17 @@
       "renewHint": "Checked by itself every 10 minutes: after the server's address or name changes, a new certificate follows. Same root - nothing to reinstall.",
       "renewed": "A new certificate was issued for the server's current addresses and names.",
       "renewUnchanged": "Nothing changed: the certificate already covers the server's addresses and names.",
-      "uncovered": "Not covered: {{names}}. This root may only vouch for private addresses and the local names it was created with, so reaching the server under these needs a new root, installed again on every device (docs/https.md, \"Starting over\")."
+      "uncovered": "Not covered: {{names}}. This root may only vouch for private addresses and the local names it was created with, so reaching the server under these needs a new root, installed again on every device (docs/https.md, \"Starting over\").",
+      "reemitTitle": "Re-emit connection strings",
+      "reemitHint": "After a TLS/port change, rewrites /etc/netpulse-agent.env (server URL, CA root, SPKI pin) on every SSH-reachable native agent and restarts it, rotating its token. Skips NetGrip-embedded agents and non-OpenWrt scrapers.",
+      "reemit": "Re-emit to fleet",
+      "reemitStatus": {
+        "reemitted": "env rewritten, agent restarted",
+        "ssh_failed": "SSH failed",
+        "not_openwrt": "not a native OpenWrt agent (skipped)",
+        "netgrip_managed": "embedded in NetGrip (update NetGrip instead)",
+        "router_unknown": "no router row (skipped)"
+      }
     }
   },
   "statcard": {

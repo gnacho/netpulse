@@ -344,3 +344,65 @@ func TestScriptWithTrust(t *testing.T) {
 		t.Fatalf("not valid sh: %v\n%s", err, out)
 	}
 }
+
+// #1294: EnvScript es la variante ligera: mismo env gestionado (y mismas
+// vars de usuario conservadas) que el script completo, pero SIN descargar
+// binario ni reescribir el init: solo CA + env + restart del agente.
+func TestEnvScriptIsLightweight(t *testing.T) {
+	full := scriptForTest()
+	env := reinstall.EnvScript("test-router", strings.Repeat("a1", 32),
+		"http://192.168.1.226:3000", "", reinstall.WanTargets{})
+
+	// Lleva lo esencial del env gestionado.
+	for _, want := range []string{
+		`SERVER="http://192.168.1.226:3000"`,
+		"NETPULSE_SERVER=$SERVER",
+		"NETPULSE_TOKEN=$TOKEN",
+		`chmod 600 "$ENV_FILE"`,
+		// conserva las NETPULSE_* del usuario (#851)
+		`USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+='`,
+		// restart para que el agente relea el env
+		`"$INIT" restart`,
+	} {
+		if !strings.Contains(env, want) {
+			t.Errorf("EnvScript sin %q", want)
+		}
+	}
+	// NO descarga binario ni toca el init (eso es del reinstall completo).
+	for _, unwanted := range []string{
+		"/api/agents/$SLUG/binary",
+		"INITEOF",
+		"selfheal_binary",
+		"sha256sum",
+	} {
+		if strings.Contains(env, unwanted) {
+			t.Errorf("EnvScript NO debería contener %q (variante ligera)", unwanted)
+		}
+	}
+	// El bloque del env es literalmente el compartido con el script completo.
+	if !strings.Contains(full, `USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+='`) {
+		t.Errorf("script completo perdió el bloque de env compartido")
+	}
+}
+
+// #1294: con trust HTTPS se escribe la CA raíz; sin trust se BORRA la que
+// pudiera quedar de una instalación anterior (mismo gesto que el completo).
+func TestEnvScriptTrustCA(t *testing.T) {
+	tr := reinstall.Trust{ServerURL: "https://np.local:3443", ServerFP: "fingerprint",
+		CAPEM: []byte("-----BEGIN CERTIFICATE-----\nMIIB fake\n-----END CERTIFICATE-----")}
+	s := reinstall.EnvScript("ap1", "tok", "http://192.168.1.226:3000", "", reinstall.WanTargets{}, tr)
+	for _, want := range []string{
+		`SERVER="https://np.local:3443"`,
+		"MIIB fake",
+		`SERVER_FP="fingerprint"`,
+		"NETPULSE_SERVER_FP=$SERVER_FP",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("EnvScript con trust sin %q", want)
+		}
+	}
+	noTrust := reinstall.EnvScript("ap1", "tok", "http://192.168.1.226:3000", "", reinstall.WanTargets{})
+	if !strings.Contains(noTrust, "rm -f /etc/netpulse-ca.pem") {
+		t.Errorf("EnvScript sin trust debe borrar la CA previa")
+	}
+}
