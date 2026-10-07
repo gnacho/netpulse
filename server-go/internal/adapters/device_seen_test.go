@@ -231,3 +231,35 @@ func TestFilterTombstonedAlsoFiltersFleetMACs(t *testing.T) {
 		t.Fatalf("filterTombstoned = %+v, want solo el cliente real", out)
 	}
 }
+
+// #1315: cuando el lease expira la fuente viva deja de dar nombre/IP (Name
+// vuelve a ser la MAC, IP vacía) pero el cliente sigue listado vía
+// estación/ARP. applyDeviceSeen debe restaurar el último conocido del
+// registro (#1145), como ya hacían los ghosts.
+func TestApplyDeviceSeenRestoresNameAndIP(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	l.noteDevicesSeen([]Device{
+		{MAC: "aa:bb:cc:dd:ee:ff", Online: true, Hostname: "iphone-peter", IP: "192.168.1.50"},
+	}, 1000)
+
+	// Mismo cliente en el ciclo vivo SIN nombre ni IP (lease expirado).
+	out := []Device{{MAC: "AA:BB:CC:DD:EE:FF", Name: "AA:BB:CC:DD:EE:FF", Online: false}}
+	l.applyDeviceSeen(out)
+	if out[0].Name != "iphone-peter" {
+		t.Errorf("Name = %q, want iphone-peter (retenido del registro)", out[0].Name)
+	}
+	if out[0].Hostname != "iphone-peter" {
+		t.Errorf("Hostname = %q, want iphone-peter", out[0].Hostname)
+	}
+	if out[0].IP != "192.168.1.50" {
+		t.Errorf("IP = %q, want 192.168.1.50", out[0].IP)
+	}
+
+	// Un nombre real (alias/override) NO se pisa con el del registro.
+	aliased := []Device{{MAC: "AA:BB:CC:DD:EE:FF", Name: "telefono-ana", Online: false}}
+	l.applyDeviceSeen(aliased)
+	if aliased[0].Name != "telefono-ana" {
+		t.Errorf("Name = %q, want telefono-ana (el alias manda)", aliased[0].Name)
+	}
+}

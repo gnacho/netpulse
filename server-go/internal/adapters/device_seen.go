@@ -174,8 +174,32 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 		if s, ok := byMac[normSeenMAC(devices[i].MAC)]; ok {
 			devices[i].FirstSeenMs = s.first
 			devices[i].LastSeenMs = s.last
+			// #1315: la fuente viva pierde nombre e IP cuando el lease DHCP
+			// expira (el cliente sigue listado vía estación/ARP/FDB): Name
+			// vuelve a ser la MAC y la IP queda vacía. El registro (#1145)
+			// conserva el último conocido: lo restauramos. Los ghosts
+			// (fuera de la lista viva) ya lo hacen en ghostDevices.
+			if s.name != "" && isMACFallbackName(devices[i].Name, devices[i].MAC) {
+				devices[i].Name = s.name
+			}
+			if s.name != "" && devices[i].Hostname == "" {
+				devices[i].Hostname = s.name
+			}
+			if s.ip != "" && devices[i].IP == "" {
+				devices[i].IP = saneIP(s.ip)
+			}
 		}
 	}
+}
+
+// isMACFallbackName: true cuando el nombre visible es la propia MAC (el
+// fallback de buildDevices cuando ninguna fuente da nombre). Acepta los dos
+// formatos que usa el fallback (dashes en el ID, colons en la MAC).
+func isMACFallbackName(name, mac string) bool {
+	if name == "" || mac == "" {
+		return false
+	}
+	return normSeenMAC(name) == normSeenMAC(mac)
 }
 
 type seenRow struct {
