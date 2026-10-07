@@ -5,6 +5,23 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.39.0] - 2026-10-07
+
+### Added
+
+- **Re-emitir connection strings a la flota (#1294)**: tras activar HTTPS o cambiar su puerto/CA, un botón en Ajustes > HTTPS reescribe `/etc/netpulse-agent.env` (URL del server, CA raíz, pin SPKI) en todos los agentes nativos alcanzables por SSH y los reinicia, rotando sus tokens de forma atómica. El despliegue de HTTPS pasa a ser: activar → confirmar → re-emitir.
+- **Barra de navegación móvil deslizable (#1312/#1314)**: todas las secciones visibles en una fila horizontal que auto-centra la activa; la hoja "Más" desaparece.
+
+### Fixed
+
+- **"Canales actuales" decía sin datos con el gateway (#1308)**: el survey excluía al gateway por una guarda heredada de la antigua pestaña de itinerancia; desde que la lente vive en Canales es un AP más y su agente aporta survey como los demás.
+- **MACs de radios de la flota en Clientes (#1307)**: el purge de #1290 no cubría los BSSID por radio; ahora se purgan del registro y se filtran de las listas finales (una fuente viva los re-emitía cada ciclo).
+- **Detalle de cliente reorganizado (#1305)**: las MACs enlazadas quedan bajo la MAC canónica, el hostname debajo, y First/Last Seen juntos verticalmente.
+- **Redes detectadas (#1304)**: SSID como primera columna, desempate por señal descendente en los ordenados por SSID/canal y filtro persistente de señal mínima (≥ -70/-80/-90 dBm).
+- **Overscroll del menú en tablets (#1302)**: el scroll táctil sobre el sidebar ya no salta al contenido principal.
+- **HTTPS en puertos ≤ 1024 sin root (#1306/#1311)**: la unidad systemd distribuida concede `CAP_NET_BIND_SERVICE` al servicio.
+- **Filtro de señal de Clientes mostraba la clave i18n cruda**: las claves vivían mal ubicadas bajo `devices.detail`.
+
 ## [2.38.0] - 2026-10-07
 
 ### Added
