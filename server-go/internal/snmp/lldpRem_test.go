@@ -169,3 +169,78 @@ func TestLldpCapsFromBits(t *testing.T) {
 		}
 	}
 }
+
+// Fixture del caso Omada real (#1279, snmpwalk de sw1 del contribuidor): la
+// rem table SOLO expone chassisIdSubtype (7=networkAddress, 4=macAddress)
+// sin NINGÚN valor de identidad detrás; la tabla local de puertos sí está
+// completa y su descripción lleva el nombre del vecino que el admin anotó
+// (o la copia del propio id si no la tocó).
+func omadaRemPdus() []gosnmp.SnmpPDU {
+	const base = OidLldpRemTable
+	return []gosnmp.SnmpPDU{
+		{Name: base + ".4.1055607100.20.1", Type: gosnmp.Integer, Value: 7},
+		{Name: base + ".4.1056751200.21.1", Type: gosnmp.Integer, Value: 7},
+		{Name: base + ".4.527503400.22.1", Type: gosnmp.Integer, Value: 4},
+	}
+}
+
+func omadaLocPdus() []gosnmp.SnmpPDU {
+	const base = OidLldpLocPortTable
+	return []gosnmp.SnmpPDU{
+		{Name: base + ".2.13", Type: gosnmp.Integer, Value: 5},
+		{Name: base + ".3.13", Type: gosnmp.OctetString, Value: []byte("two-gigabitEthernet 1/0/13")},
+		{Name: base + ".4.13", Type: gosnmp.OctetString, Value: []byte("two-gigabitEthernet 1/0/13")}, // copia por defecto
+		{Name: base + ".2.20", Type: gosnmp.Integer, Value: 5},
+		{Name: base + ".3.20", Type: gosnmp.OctetString, Value: []byte("two-gigabitEthernet 1/0/20")},
+		{Name: base + ".4.20", Type: gosnmp.OctetString, Value: []byte("gateway")},
+		{Name: base + ".2.21", Type: gosnmp.Integer, Value: 5},
+		{Name: base + ".3.21", Type: gosnmp.OctetString, Value: []byte("two-gigabitEthernet 1/0/21")},
+		{Name: base + ".4.21", Type: gosnmp.OctetString, Value: []byte("ap1")},
+		{Name: base + ".2.22", Type: gosnmp.Integer, Value: 5},
+		{Name: base + ".3.22", Type: gosnmp.OctetString, Value: []byte("two-gigabitEthernet 1/0/22")},
+		{Name: base + ".4.22", Type: gosnmp.OctetString, Value: []byte("sw2")},
+	}
+}
+
+func TestLldpLocPortsOmada(t *testing.T) {
+	loc := lldpLocPorts(omadaLocPdus())
+	if len(loc) != 4 {
+		t.Fatalf("esperaba 4 puertos locales, obtuve %d: %+v", len(loc), loc)
+	}
+	if loc[20].ID != "two-gigabitEthernet 1/0/20" || loc[20].Desc != "gateway" {
+		t.Fatalf("puerto 20: %+v", loc[20])
+	}
+	if loc[13].Desc != loc[13].ID {
+		t.Fatalf("la copia por defecto debe conservarse tal cual para que applyLocPortIdentity la descarte: %+v", loc[13])
+	}
+}
+
+// #1279: una rem table sin identidad + la local completa = vecinos con
+// nombre. Las entradas con identidad propia no se pisan y PortDesc (puerto
+// REMOTO) no se toca.
+func TestApplyLocPortIdentityOmada(t *testing.T) {
+	entries := lldpRemEntries(omadaRemPdus(), map[int]int{}, nil)
+	if len(entries) != 3 {
+		t.Fatalf("esperaba 3 vecinos (solo subtypes), obtuve %d: %+v", len(entries), entries)
+	}
+	applyLocPortIdentity(entries, lldpLocPorts(omadaLocPdus()))
+	byPort := map[int]LldpRemEntry{}
+	for _, e := range entries {
+		byPort[e.LocalPortNum] = e
+	}
+	for port, want := range map[int]string{20: "gateway", 21: "ap1", 22: "sw2"} {
+		if byPort[port].Chassis != want {
+			t.Fatalf("puerto %d: Chassis %q, want %q", port, byPort[port].Chassis, want)
+		}
+		if byPort[port].PortDesc != "" {
+			t.Fatalf("puerto %d: PortDesc %q debe seguir vacío (el local no es el remoto)", port, byPort[port].PortDesc)
+		}
+	}
+	// Puerto con descripción = copia del id (sin anotar): queda huérfano.
+	// Identidad propia se respeta.
+	entries = append(entries, LldpRemEntry{LocalPortNum: 20, Chassis: "sysname-propio"})
+	applyLocPortIdentity(entries, lldpLocPorts(omadaLocPdus()))
+	if entries[3].Chassis != "sysname-propio" {
+		t.Fatalf("la identidad propia no debe pisarse: %q", entries[3].Chassis)
+	}
+}

@@ -3213,6 +3213,9 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		gwID = gw.ID
 	}
 	fdbEvidence := fleetFdbEvidence(polled, gwID)
+	// #1279: uplinks resueltos por LLDP (regla de puerto raíz); mandan sobre
+	// la evidencia FDB/device en BuildTopoSemantics.
+	lldpEvidence := fleetLldpEvidence(polled, gwID)
 	wan := l.defaultWan(gw)
 	for _, r := range routerList {
 		if r.ID == gwID && r.Status == "offline" {
@@ -3265,7 +3268,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		},
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
-		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence), // SPEC-65 D65-3 + #1042/#1051
+		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence, lldpEvidence), // SPEC-65 D65-3 + #1042/#1051/#1279
 		Devices:           devices,
 		Usteer:            &UsteerOverview{Available: usteerAvailable},
 		DawnDeprecated:    dawnDetected,

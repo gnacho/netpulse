@@ -39,6 +39,13 @@ const (
 	// contrato que la sonda lldpd de los routers (#300).
 	OidLldpRemTable   = ".1.0.8802.1.1.2.1.4.1.1"
 	OidLldpRemManAddr = ".1.0.8802.1.1.2.1.4.2.1"
+	// OidLldpLocPortTable: tabla de puertos locales LLDP (#1279). Los Omada
+	// (SG3428X-M2/SG3210X-M2) exponen la rem table MUTILADA (solo
+	// chassisIdSubtype, sin chassis/port/sysName) pero la local COMPLETA:
+	// lldpLocPortId = nombre del puerto y lldpLocPortDesc = la descripción
+	// que el admin le puso al puerto (en redes bien llevadas, el nombre del
+	// vecino). Es la única identidad del vecino que estos switches dan.
+	OidLldpLocPortTable = ".1.0.8802.1.1.2.1.3.7.1"
 
 	// OidMikrotikTemp: temperatura del chasis en switches MikroTik SwOS
 	// (OID empresarial 14988, health table). Gauge32 en GRADOS ENTEROS

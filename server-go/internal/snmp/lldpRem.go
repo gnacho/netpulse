@@ -56,7 +56,18 @@ func PollLldpRemTable(s *gosnmp.GoSNMP) ([]LldpRemEntry, error) {
 		mgmt = lldpMgmtAddrs(addrPdus)
 	}
 
-	return lldpRemEntries(pdus, portToIfIndex, mgmt), nil
+	entries := lldpRemEntries(pdus, portToIfIndex, mgmt)
+	// #1279: los Omada exponen la rem table sin identidad (solo el subtype
+	// del chasis, sin valor) pero la tabla de puertos locales completa, con
+	// la descripción del admin en lldpLocPortDesc. Esa descripción es la
+	// única identidad del vecino que dan: se usa como Chassis en las
+	// entradas que siguen huérfanas.
+	loc := map[int]locPortInfo{}
+	if locPdus, err := walkSafe(s, OidLldpLocPortTable); err == nil {
+		loc = lldpLocPorts(locPdus)
+	}
+	applyLocPortIdentity(entries, loc)
+	return entries, nil
 }
 
 // lldpRemEntries convierte los PDUs crudos del walk lldpRemTable en
@@ -148,6 +159,70 @@ func lldpRemColumn(name string) (col, port, idx int, ok bool) {
 		return 0, 0, 0, false
 	}
 	return col, port, idx, true
+}
+
+// locPortInfo es una fila de lldpLocPortTable: identidad del puerto local.
+type locPortInfo struct {
+	ID   string // lldpLocPortId ("two-gigabitEthernet 1/0/20")
+	Desc string // lldpLocPortDesc (descripción del admin; vacía si no hay)
+}
+
+// lldpLocPorts convierte los PDUs crudos del walk lldpLocPortTable en un
+// mapa por número de puerto local. Es pura para probarla sin agente SNMP.
+// El índice de cada PDU es <columna>.<locPortNum>; columnas 2 (subtype del
+// id), 3 (id) y 4 (descripción). Locales: solo 1-4 (el índice es la 1).
+func lldpLocPorts(pdus []gosnmp.SnmpPDU) map[int]locPortInfo {
+	out := map[int]locPortInfo{}
+	for _, pdu := range pdus {
+		parts := oidSuffixInts(pdu.Name, OidLldpLocPortTable)
+		if len(parts) != 2 {
+			continue
+		}
+		col, port := parts[0], parts[1]
+		if col < 2 || col > 4 || port <= 0 {
+			continue
+		}
+		info := out[port]
+		switch col {
+		case 3: // lldpLocPortId
+			if s := stringVal(pdu); s != "" {
+				info.ID = s
+			}
+		case 4: // lldpLocPortDesc
+			info.Desc = stringVal(pdu)
+		}
+		out[port] = info
+	}
+	return out
+}
+
+// applyLocPortIdentity rellena la identidad del vecino (Chassis) de las
+// entradas que llegan huérfanas (#1279, caso Omada: la rem table da el
+// puerto pero ni chasis ni sysName). La descripción local del puerto es el
+// único dato de identidad que estos switches exponen; cuando el admin la
+// usó para anotar el vecino (≠ al id del puerto, que Omada copia por
+// defecto en la descripción) se toma como nombre del chasis. No toca
+// entradas con identidad propia ni las descripciones de puerto: PortDesc
+// sigue siendo el puerto REMOTO anunciado, no el local.
+func applyLocPortIdentity(entries []LldpRemEntry, loc map[int]locPortInfo) {
+	if len(loc) == 0 {
+		return
+	}
+	for i := range entries {
+		e := &entries[i]
+		if e.Chassis != "" || e.ChassisMac != "" || e.Mgmt != "" {
+			continue
+		}
+		info, ok := loc[e.LocalPortNum]
+		if !ok {
+			continue
+		}
+		desc := strings.TrimSpace(info.Desc)
+		if desc == "" || desc == strings.TrimSpace(info.ID) {
+			continue // sin descripción, o la copia por defecto del id
+		}
+		e.Chassis = desc
+	}
 }
 
 // lldpMgmtAddrs extrae la primera IPv4 de gestión por vecino
