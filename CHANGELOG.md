@@ -5,6 +5,14 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.40.0] - 2026-10-08
+
+### Added
+
+- **La topología obedece a lo que los equipos se anuncian por cable (#1279, #1324)**: LLDP manda sobre la inferencia FDB al decidir dónde cuelga cada unidad de la flota, con regla de puerto raíz (el vecino que vive en el puerto donde la unidad aprende la MAC bridge del gateway). Los switches TP-Link Omada, que publican una tabla LLDP remota capada, aportan ahora la identidad del vecino desde su tabla de puertos local (las descripciones que el admin les puso). Los switches de la flota estrenan etiqueta en el mapa: se calculaba y no se pintaba.
+- **Tus etiquetas manuales mueven routers, APs y switches de verdad (#1321, #1326)**: un etiquetado cuya MAC es la bridge de una unidad de flota fija su uplink por encima de toda inferencia (manual > LLDP > device > FDB > gateway), en los tres formatos de destino: MAC del padre, id de router o `router:puerto` (este último fija también la boca). Los enlaces de uplink llevan la velocidad real negociada (EthPort del padre) y el mapa y la tabla muestran "padre · puerto" en vez de un genérico "1G".
+- **Iconos dedicados para cámaras CCTV, aspiradores y videoporteros (#1327, #1328, #1329, #1330)**: las cámaras pintan el glifo CCTV (y su regla va antes que la de TV: "cctv-salon" ya no cae en TV), los robots aspiradores salen del cubo IoT genérico con tipo propio (`aspirador`), y los timbres con cámara tienen el suyo (`videoportero`) en vez de mezclarse con las cámaras. Los tres glifos también son seleccionables en el picker manual de iconos al editar un cliente, y el botón Editar del detalle flotan 20 px separado de la esquina del panel.
+
 ## [2.39.1] - 2026-10-07
 
 ### Added
