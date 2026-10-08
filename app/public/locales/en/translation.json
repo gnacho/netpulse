@@ -505,6 +505,7 @@
     "viewRouter": "View router {{name}}",
     "types": {
       "altavoz": "speaker",
+      "aspirador": "vacuum",
       "camara": "camera",
       "consola": "console",
       "desconocido": "unknown",
@@ -515,7 +516,8 @@
       "servidor": "server",
       "switch": "switch",
       "tablet": "tablet",
-      "tv": "TV"
+      "tv": "TV",
+      "videoportero": "video doorbell"
     },
     "wiredConnection": "Wired connection",
     "weakChip": "{{count}} with weak signal (< {{dbm}} dBm)",

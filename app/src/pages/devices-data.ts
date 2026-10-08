@@ -111,6 +111,8 @@ const TYPE_TO_GROUP: Record<Device['type'], FilterGroup> = {
   consola: 'tv',
   iot: 'iot',
   camara: 'iot',
+  aspirador: 'iot',
+  videoportero: 'iot',
   altavoz: 'iot',
   servidor: 'red',
   switch: 'red',
