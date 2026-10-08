@@ -257,7 +257,7 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 	return out
 }
 
-func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent, lldpEvidence map[string]topoParent) *TopoSemantics {
+func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent, lldpEvidence map[string]topoParent, overrideUplinks map[string]topoParent) *TopoSemantics {
 	sem := &TopoSemantics{Links: []TopoLink{}, Rings: map[string][]string{}}
 	if len(routers) == 0 {
 		return sem
@@ -343,6 +343,20 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		if ev.parent != rid {
 			uplinkEvidence[rid] = ev
 		}
+	}
+	// #1321: el attach manual (#142) sobre la MAC bridge de una unidad de
+	// flota es la voluntad del admin y manda sobre TODO. Si el override no
+	// fija puerto, se conserva el que la inferencia hubiera dado.
+	for rid, ev := range overrideUplinks {
+		if ev.parent == rid {
+			continue
+		}
+		if ev.port == "" {
+			if old, ok := uplinkEvidence[rid]; ok {
+				ev.port = old.port
+			}
+		}
+		uplinkEvidence[rid] = ev
 	}
 	// #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se
 	// descubre por ARP como un cliente más, pero vive en el lado WAN: si su

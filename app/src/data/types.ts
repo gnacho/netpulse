@@ -424,6 +424,8 @@ export interface TopoSemLink {
   kind: 'wan' | 'uplink' | 'wired' | 'dist' | 'wg'
   /** puerto físico si aplica */
   port?: string
+  /** velocidad negociada en la boca del padre (Mbps), 0/ausente = sin dato (#1321) */
+  speedMbps?: number
 }
 
 /**

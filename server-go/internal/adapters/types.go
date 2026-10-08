@@ -419,6 +419,10 @@ type TopoLink struct {
 	To   string `json:"to"`
 	Kind string `json:"kind"`           // "wan"|"uplink"|"wired"|"dist"|"wg"
 	Port string `json:"port,omitempty"` // puerto físico si aplica
+	// SpeedMbps del enlace cuando el padre la reporta en esa boca (#1321):
+	// el padre es un switch sondeado y su EthPort da la velocidad negociada.
+	// 0 = desconocida (el front pinta "—" en vez de inventar).
+	SpeedMbps int `json:"speedMbps,omitempty"`
 }
 
 // RoamingDaemon clasifica el daemon de roaming/band-steering activo en la

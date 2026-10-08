@@ -265,3 +265,69 @@ func applyTopologyOverrides(routers []Router, devices []Device, dists []Distribu
 	}
 	return devices, dists
 }
+
+// fleetOverrideEvidence (#1321): uplinks de unidades de flota fijados a mano
+// por la capa manual (#142). Un override kind=attach cuya MAC es la MAC
+// bridge de OTRO router de la flota fija el padre de esa unidad por encima
+// de toda inferencia (LLDP > FDB > device > gateway quedan por debajo).
+// El target se resuelve en los tres formatos del parent (#690): MAC de
+// router, id de router, o "routerId:puerto" (este también fija el puerto
+// del enlace). Los overrides de clientes (MAC que no es bridge de flota)
+// los sigue aplicando la capa de devices, no esta. Con varios overrides
+// sobre la misma unidad gana el ÚLTIMO (la carga viene created_at ASC, así
+// que es el más reciente). Pure function, sin BD.
+//
+// El parseo del parent es local y NO pasa NormalizeMAC al conjunto: el
+// formato "routerId:puerto" llevaba el puerto a minúsculas y dejaba de
+// casar con el nombre real de la boca ("two-gigabitEthernet 1/0/21").
+func fleetOverrideEvidence(overrides []TopologyOverride, routers []Router) map[string]topoParent {
+	if len(overrides) == 0 {
+		return nil
+	}
+	routerByMac := map[string]string{}
+	routerByID := map[string]bool{}
+	for _, r := range routers {
+		if r.MAC != "" {
+			routerByMac[NormalizeMAC(r.MAC)] = r.ID
+		}
+		routerByID[r.ID] = true
+	}
+	out := map[string]topoParent{}
+	for _, o := range overrides {
+		if !o.Enabled || o.Kind != "attach" {
+			continue
+		}
+		rid, ok := routerByMac[NormalizeMAC(o.MAC)]
+		if !ok {
+			continue
+		}
+		p := strings.TrimSpace(o.Parent)
+		if p == "" {
+			continue
+		}
+		var parent, port string
+		switch {
+		case macRe.MatchString(strings.ToLower(p)):
+			parent = routerByMac[strings.ToLower(p)]
+			if parent == "" {
+				continue // el target no es un router de flota
+			}
+		default:
+			routerID := ""
+			if i := strings.IndexByte(p, ':'); i >= 0 {
+				routerID, port = NormalizeMAC(p[:i]), strings.TrimSpace(p[i+1:])
+			} else {
+				routerID = NormalizeMAC(p)
+			}
+			if !routerByID[routerID] {
+				continue
+			}
+			parent = routerID
+		}
+		if parent == "" || parent == rid {
+			continue
+		}
+		out[rid] = topoParent{parent: parent, port: port}
+	}
+	return out
+}

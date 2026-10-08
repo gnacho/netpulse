@@ -3127,8 +3127,10 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	devices, distNodes := inferTopology(stickyPolled, devices)
 	// Capa 2 manual (issue #142): overrides de topología tras el autodiscover.
 	// Sin BD (tests/demo) → no-op.
+	var overrides []TopologyOverride
 	if l.db != nil {
-		devices, distNodes = applyTopologyOverrides(routerList, devices, distNodes, loadTopologyOverrides(l.db))
+		overrides = loadTopologyOverrides(l.db)
+		devices, distNodes = applyTopologyOverrides(routerList, devices, distNodes, overrides)
 	}
 	// Capa 3 PVE (#561): si hay cluster Proxmox configurado, el inventario
 	// read-only sella hypervisor/ct con attachTo correcto (la relación
@@ -3216,6 +3218,9 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// #1279: uplinks resueltos por LLDP (regla de puerto raíz); mandan sobre
 	// la evidencia FDB/device en BuildTopoSemantics.
 	lldpEvidence := fleetLldpEvidence(polled, gwID)
+	// #1321: los attaches manuales (#142) cuya MAC es la bridge de una unidad
+	// de flota fijan su uplink por encima de toda inferencia.
+	overrideUplinks := fleetOverrideEvidence(overrides, routerList)
 	wan := l.defaultWan(gw)
 	for _, r := range routerList {
 		if r.ID == gwID && r.Status == "offline" {
@@ -3258,6 +3263,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	unread := l.engine.UnreadCount()
 	usteerAvailable := l.usteerAvailableCached()
 	dawnDetected := dawnDeprecatedFromPolled(polled)
+	topo := BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence, lldpEvidence, overrideUplinks) // SPEC-65 D65-3 + #1042/#1051/#1279/#1321
+	fillUplinkSpeeds(polled, distNodes, topo.Links)
 	return &Overview{
 		Health:  computeHealth(routerList, adguard),
 		WAN:     wan,
@@ -3268,7 +3275,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		},
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
-		Topology:          BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence, lldpEvidence), // SPEC-65 D65-3 + #1042/#1051/#1279
+		Topology:          topo,
 		Devices:           devices,
 		Usteer:            &UsteerOverview{Available: usteerAvailable},
 		DawnDeprecated:    dawnDetected,

@@ -527,3 +527,48 @@ func fillNodeSpeeds(polled map[string]*routerPolled, dists []DistributionNode) {
 		}
 	}
 }
+
+// fillUplinkSpeeds (#1321): velocidad del uplink de una unidad cuando el
+// padre la reporta en esa boca (EthPort up + parseSpeedMbps, el mismo
+// criterio conservador de fillNodeSpeeds). El From del enlace puede ser el
+// router o un distnode suyo (salto #1060); en ambos casos la boca vive en
+// el router que la sondea. Sin dato, SpeedMbps queda a 0 y el front pinta
+// "—" en vez de afirmar una velocidad que nadie midió.
+func fillUplinkSpeeds(polled map[string]*routerPolled, dists []DistributionNode, links []TopoLink) {
+	if len(links) == 0 {
+		return
+	}
+	routerOfDist := map[string]string{}
+	portOfDist := map[string]string{}
+	for _, d := range dists {
+		routerOfDist[d.ID] = d.RouterID
+		portOfDist[d.ID] = d.Port
+	}
+	for i := range links {
+		l := &links[i]
+		if l.Kind != "uplink" || l.SpeedMbps > 0 || l.Port == "" {
+			continue
+		}
+		routerID := l.From
+		if r, ok := routerOfDist[l.From]; ok {
+			routerID = r
+			if p := portOfDist[l.From]; p != "" && p != l.Port {
+				// El distnode ancla otra boca: su velocidad no describe
+				// este enlace.
+				continue
+			}
+		}
+		p := polled[routerID]
+		if p == nil {
+			continue
+		}
+		for _, ep := range p.ports {
+			if ep.ID == l.Port && ep.Up {
+				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
+					l.SpeedMbps = mbps
+				}
+				break
+			}
+		}
+	}
+}
