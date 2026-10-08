@@ -1426,7 +1426,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
           const node = i >= 0 ? apNodes[i] : routerById.get(sl.to)
           if (!node) return null
           const isWifi = node.router.backhaul === 'wifi'
-          const label = isWifi ? 'WiFi uplink' : `Cable 1G${node.router.lldp ? ' · LLDP' : ''}`
+          // #1321: el enlace dice la velocidad real si el padre la midió en
+          // esa boca y el puerto por el que entra; sin dato, "1G" genérico.
+          const speedText = sl.speedMbps && sl.speedMbps > 0
+            ? (sl.speedMbps >= 1000
+              ? `${(sl.speedMbps / 1000).toFixed(sl.speedMbps % 1000 === 0 ? 0 : 1)} Gbps`
+              : `${sl.speedMbps} Mbps`)
+            : '1G'
+          const portSuffix = sl.port ? ` · ${sl.port}` : ''
+          const label = isWifi ? 'WiFi uplink' : `Cable ${speedText}${node.router.lldp ? ' · LLDP' : ''}${portSuffix}`
           // #1047: el padre lo decide la semántica (FDB del switch cuando no
           // hay LLDP); solo se cae al gateway si el server no lo resolvió.
           // #1060: el padre puede ser un distnode (círculo inferido/gestionado):
@@ -1563,14 +1571,14 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // distnode, p. ej. el padre aprendido por FDB #1047/#1060), no siempre el
   // gateway. Sin semántica o sin match → gateway (comportamiento de siempre,
   // demo incluido).
-  const uplinkFromByNodeId = new Map<string, string>()
+  const uplinkSemByNodeId = new Map<string, TopoSemLink>()
   if (sem) {
     for (const sl of sem.links) {
-      if (sl.kind === 'uplink') uplinkFromByNodeId.set(sl.to, sl.from)
+      if (sl.kind === 'uplink') uplinkSemByNodeId.set(sl.to, sl)
     }
   }
   const uplinkParentName = (nodeId: string): string => {
-    const fromId = uplinkFromByNodeId.get(nodeId)
+    const fromId = uplinkSemByNodeId.get(nodeId)?.from
     if (fromId) {
       const rn = routerById.get(fromId)
       if (rn) return rn.router.name
@@ -1579,6 +1587,14 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
     return gatewayNode?.router.name ?? ''
   }
+  // #1321: puerto (y velocidad si el padre la midió) del uplink de una
+  // unidad, desde la semántica server-side; "—" honesta si no hay dato.
+  const uplinkPortSuffix = (nodeId: string): string => {
+    const port = uplinkSemByNodeId.get(nodeId)?.port
+    return port ? ` · ${port}` : ''
+  }
+  const uplinkSpeed = (nodeId: string): string =>
+    linkSpeed(uplinkSemByNodeId.get(nodeId)?.speedMbps)
   if (gatewayNode) {
     backhauls.push({
       id: 'wan', a: gatewayNode.router.name, b: 'Internet', kind: 'wan',
@@ -1590,12 +1606,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   for (const node of apNodes) {
     const isWifi = node.router.backhaul === 'wifi'
     backhauls.push({
-      id: `uplink-${node.id}`, a: uplinkParentName(node.id), b: node.router.name, kind: 'uplink',
+      id: `uplink-${node.id}`, a: `${uplinkParentName(node.id)}${uplinkPortSuffix(node.id)}`, b: node.router.name, kind: 'uplink',
       type: isWifi ? 'topology.links.wifiUplink' : 'common.cable',
-      // El contrato no trae ni tasa PHY ni señal del backhaul de un AP, así
-      // que no se afirma ninguna. El tono sí es información real: un enlace
-      // por wifi merece mirarse más que uno por cable.
-      speed: '—',
+      // El contrato no trae señal del backhaul de un AP, así que no se
+      // afirma ninguna. La velocidad sí cuando el padre la midió en esa
+      // boca (#1321); "—" si nadie la midió. El tono sí es información
+      // real: un enlace por wifi merece mirarse más que uno por cable.
+      speed: uplinkSpeed(node.id),
       signal: '—',
       tone: isWifi ? 'warn' : 'ok',
       statusLabel: isWifi ? 'common.status.warn' : 'common.status.online',

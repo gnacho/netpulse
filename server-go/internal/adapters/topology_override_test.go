@@ -213,3 +213,76 @@ func TestApplyAttachOverrideParentInvalido(t *testing.T) {
 		}
 	}
 }
+
+// #1321: un attach manual cuya MAC es la bridge de una unidad de flota fija
+// su uplink por encima de toda inferencia, en los tres formatos de parent.
+func TestFleetOverrideEvidence(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "sw1", Name: "sw1", MAC: "AA:BB:CC:00:00:02"},
+		{ID: "ap1", Name: "ap1", MAC: "AA:BB:CC:00:00:03"},
+	}
+	overrides := []TopologyOverride{
+		// Target por MAC del switch (el caso de pl-komuch: AP etiquetado
+		// contra el MikroTik).
+		{Kind: "attach", MAC: "aa:bb:cc:00:00:03", Parent: "AA:BB:CC:00:00:02", Enabled: true},
+		// Overrides de clientes: NO son uplinks de flota.
+		{Kind: "attach", MAC: "00:00:00:00:00:09", Parent: "sw1", Enabled: true},
+		// Sin identidad de flota en la MAC del override: fuera.
+		{Kind: "attach", MAC: "00:00:00:00:00:08", Parent: "gw", Enabled: true},
+		// Apagado: fuera.
+		{Kind: "attach", MAC: "AA:BB:CC:00:00:03", Parent: "gw", Enabled: false},
+	}
+	ev := fleetOverrideEvidence(overrides, routers)
+	if got := ev["ap1"]; got.parent != "sw1" || got.port != "" {
+		t.Fatalf("ap1: %+v, want sw1 sin puerto", got)
+	}
+	if _, ok := ev["gw"]; ok {
+		t.Fatal("gw no debe tener padre")
+	}
+	// routerId:puerto fija también el puerto (respetando su caja original).
+	overrides = append(overrides, TopologyOverride{Kind: "attach", MAC: "aa:bb:cc:00:00:03", Parent: "sw1:two-gigabitEthernet 1/0/21", Enabled: true})
+	ev = fleetOverrideEvidence(overrides, routers)
+	if got := ev["ap1"]; got.parent != "sw1" || got.port != "two-gigabitEthernet 1/0/21" {
+		t.Fatalf("ap1 (router:port): %+v, want sw1/two-gigabitEthernet 1/0/21", got)
+	}
+	// Último override gana; colgarse de sí mismo se ignora.
+	overrides = append(overrides,
+		TopologyOverride{Kind: "attach", MAC: "aa:bb:cc:00:00:02", Parent: "sw1", Enabled: true},
+		TopologyOverride{Kind: "attach", MAC: "aa:bb:cc:00:00:03", Parent: "ap1", Enabled: true},
+	)
+	ev = fleetOverrideEvidence(overrides, routers)
+	if _, ok := ev["sw1"]; ok {
+		t.Fatal("un router no puede colgarse de sí mismo vía override")
+	}
+	if got := ev["ap1"]; got.parent != "sw1" {
+		t.Fatalf("ap1 tras override colgándolo de sí mismo: %+v, want sw1 (se ignora)", got)
+	}
+}
+
+// #1321: velocidad del uplink desde la EthPort del padre (directo o vía
+// distnode con la misma boca).
+func TestFillUplinkSpeeds(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"sw1": {ports: []EthPort{
+			{ID: "two-gigabitEthernet 1/0/21", Up: true, Speed: "2.5 Gbps"},
+			{ID: "lan8", Up: false, Speed: "1 Gbps"},
+		}},
+	}
+	dists := []DistributionNode{{ID: "dist-sw1-lan8", RouterID: "sw1", Port: "lan8"}}
+	links := []TopoLink{
+		{From: "sw1", To: "ap1", Kind: "uplink", Port: "two-gigabitEthernet 1/0/21"},
+		{From: "dist-sw1-lan8", To: "ap2", Kind: "uplink", Port: "lan8"}, // boca caída: sin velocidad
+		{From: "gw", To: "ap3", Kind: "uplink"},                          // sin puerto: nada que mirar
+	}
+	fillUplinkSpeeds(polled, dists, links)
+	if links[0].SpeedMbps != 2500 {
+		t.Fatalf("uplink ap1: %d, want 2500", links[0].SpeedMbps)
+	}
+	if links[1].SpeedMbps != 0 {
+		t.Fatalf("uplink ap2 (boca caída): %d, want 0", links[1].SpeedMbps)
+	}
+	if links[2].SpeedMbps != 0 {
+		t.Fatalf("uplink ap3 (sin puerto): %d, want 0", links[2].SpeedMbps)
+	}
+}
