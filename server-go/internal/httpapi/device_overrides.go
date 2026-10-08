@@ -48,7 +48,8 @@ func validateIcon(icon string) bool {
 	}
 	allowed := map[string]bool{
 		"monitor": true, "laptop": true, "smartphone": true, "tablet": true,
-		"tv": true, "gamepad": true, "camera": true, "speaker": true,
+		"tv": true, "gamepad": true, "camera": true, "cctv": true,
+		"vacuum": true, "doorbell": true, "speaker": true,
 		"router": true, "server": true, "watch": true, "car": true,
 		"home": true, "printer": true, "plug": true, "shield": true,
 		"help-circle": true, "wifi": true, "ethernet": true,

@@ -885,12 +885,13 @@ function DeviceDetail({
           )}
         </DetailItem>
       )}
-      {/* Editar a la derecha, sin texto auxiliar (#985). */}
+      {/* Editar a la derecha, sin texto auxiliar (#985). #1329: flotando
+          20px arriba y a la izquierda de la esquina del panel. */}
       <div className="col-span-2 flex justify-end md:col-span-3">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+          className="inline-flex -translate-x-5 -translate-y-5 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
         >
           <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('devices.edit.action')}
