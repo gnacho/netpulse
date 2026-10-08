@@ -23,7 +23,7 @@ import (
 //   - hiddenPeers ausente: todos los anillos bajo el límite de chips visibles
 //     de la app (gateway 13, AP 20)
 func TestTopoSemanticsGoldenCanon(t *testing.T) {
-	sem := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes(), "", nil)
+	sem := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes(), "", nil, nil)
 
 	wantLinks := []TopoLink{
 		{From: "internet", To: "flint2", Kind: "wan"},
@@ -109,7 +109,7 @@ func TestTopoSemanticsHiddenPeers(t *testing.T) {
 			RouterID: "ap", Band: "2.4 GHz", Online: true,
 		})
 	}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil, nil)
 	want := map[string]int{"gw": 2, "ap": 2} // 62-60 y 42-40
 	if !reflect.DeepEqual(sem.HiddenPeers, want) {
 		t.Fatalf("hiddenPeers: got %+v want %+v", sem.HiddenPeers, want)
@@ -133,7 +133,7 @@ func TestDemoOverviewIncluyeTopologyYVM(t *testing.T) {
 		t.Fatal("overview.Topology ausente en demo")
 	}
 	// Mismo resultado que el builder puro sobre el canon.
-	want := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes(), "", nil)
+	want := BuildTopoSemantics(canonRouters(), canonAllDevices(), canonWireguard(), canonDistributionNodes(), "", nil, nil)
 	if !reflect.DeepEqual(ov.Topology, want) {
 		t.Fatalf("overview.Topology != builder canon:\n got: %+v\nwant: %+v", ov.Topology, want)
 	}
@@ -141,7 +141,7 @@ func TestDemoOverviewIncluyeTopologyYVM(t *testing.T) {
 
 // Sin routers: semántica vacía pero no nil (la app cae a su cálculo propio).
 func TestTopoSemanticsSinRouters(t *testing.T) {
-	sem := BuildTopoSemantics(nil, nil, WireGuardStats{}, nil, "", nil)
+	sem := BuildTopoSemantics(nil, nil, WireGuardStats{}, nil, "", nil, nil)
 	if sem == nil || sem.Links == nil || sem.Rings == nil {
 		t.Fatalf("semántica vacía debe tener links/rings no-nil: %+v", sem)
 	}
@@ -161,7 +161,7 @@ func TestTopoSemanticsDeviceHubBajoDistnode(t *testing.T) {
 	}
 	routers := []Router{{ID: "gateway", Name: "gateway", RoleBadge: "Principal", Status: "online"}}
 	dists := []DistributionNode{{ID: "dist-gateway-lan1", Kind: "inferred", RouterID: "gateway", Port: "lan1"}}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", nil)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", nil, nil)
 
 	var toHost []TopoLink
 	for _, l := range sem.Links {
@@ -201,7 +201,7 @@ func TestTopoSemanticsWanPeer(t *testing.T) {
 		{ID: "modem", MAC: "AA:BB:CC:00:00:01", RouterID: "gw", Band: "cable", Online: true, IP: "100.64.0.1"},
 		{ID: "nas", MAC: "AA:BB:CC:00:00:02", RouterID: "gw", Band: "cable", Online: true, IP: "192.168.1.10"},
 	}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "100.64.0.1", nil)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "100.64.0.1", nil, nil)
 	if sem.WanPeer != "modem" {
 		t.Fatalf("WanPeer = %q, want modem", sem.WanPeer)
 	}
@@ -223,7 +223,7 @@ func TestTopoSemanticsWanPeer(t *testing.T) {
 		t.Fatal("falta el enlace internet→modem (wan-peer)")
 	}
 	// Sin gateway WAN no hay wan peer aunque haya dispositivos.
-	sem2 := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil)
+	sem2 := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil, nil)
 	if sem2.WanPeer != "" {
 		t.Fatalf("WanPeer sin gateway WAN = %q, want vacío", sem2.WanPeer)
 	}
@@ -244,7 +244,7 @@ func TestTopoSemanticsFdbUplinkParent(t *testing.T) {
 		{ID: "dev-ap1", MAC: "AA:BB:CC:00:00:03", RouterID: "sw1", Band: "cable", Online: true, Port: "5"},
 		{ID: "nas", MAC: "AA:BB:CC:00:00:09", RouterID: "gw", Band: "cable", Online: true, Port: "2"},
 	}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil, nil)
 	links := map[string]TopoLink{}
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" {
@@ -282,7 +282,7 @@ func TestTopoSemanticsFdbEvidenceSinDevices(t *testing.T) {
 		"sw1": {parent: "gw", port: "1"},
 		"ap1": {parent: "sw1", port: "5"},
 	}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", ev)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", ev, nil)
 	links := map[string]TopoLink{}
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" {
@@ -308,7 +308,7 @@ func TestTopoSemanticsDeviceEvidenceManda(t *testing.T) {
 		{ID: "dev-ap1", MAC: "AA:BB:CC:00:00:03", RouterID: "gw", Band: "cable", Online: true, Port: "4"},
 	}
 	ev := map[string]topoParent{"ap1": {parent: "swX", port: "9"}}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", ev)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", ev, nil)
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" && l.To == "ap1" {
 			if l.From != "gw" || l.Port != "4" {
@@ -378,7 +378,7 @@ func TestTopoSemanticsUplinkViaDistNode(t *testing.T) {
 		{ID: "dist-gw-lan1", RouterID: "gw", Kind: "inferred", Port: "lan1"},
 	}
 	ev := map[string]topoParent{"ap1": {parent: "gw", port: "lan1"}}
-	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", ev)
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", ev, nil)
 	found := false
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" && l.To == "ap1" {
@@ -391,4 +391,87 @@ func TestTopoSemanticsUplinkViaDistNode(t *testing.T) {
 	if !found {
 		t.Fatal("falta el uplink de ap1")
 	}
+}
+
+// #1279: fleetLldpEvidence resuelve el uplink por LLDP con la regla del
+// puerto raíz: el padre es el vecino que vive en el puerto local donde la
+// unidad aprende la MAC bridge del gateway. Topología árbol real del
+// contribuidor: gw -> sw1 -> {ap1, sw2 -> ap2}; sw2 ve a ap2 y a sw1 por
+// LLDP, pero su root port es el 8 (hacia sw1), no el 7.
+func TestFleetLldpEvidenceRootPort(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		"sw1": {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "sw1", Name: "sw1", Type: "managed-switch"},
+			fdb: map[string]string{"AA:BB:CC:00:00:01": "two-gigabitEthernet 1/0/20"},
+			lldp: []LldpNeighbor{
+				{Port: "two-gigabitEthernet 1/0/20", Chassis: "gateway"},
+				{Port: "two-gigabitEthernet 1/0/21", Chassis: "ap1"},
+				{Port: "two-gigabitEthernet 1/0/22", Chassis: "sw2"},
+			}},
+		"sw2": {brMac: "AA:BB:CC:00:00:04", cfg: RouterConfig{ID: "sw2", Name: "sw2", Type: "managed-switch"},
+			fdb: map[string]string{"AA:BB:CC:00:00:01": "ten-gigabitEthernet 1/0/8"},
+			lldp: []LldpNeighbor{
+				{Port: "two-gigabitEthernet 1/0/7", Chassis: "ap2"},
+				{Port: "ten-gigabitEthernet 1/0/8", Chassis: "sw1"},
+			}},
+		"ap2": {brMac: "AA:BB:CC:00:00:05", cfg: RouterConfig{ID: "ap2", Name: "ap2"},
+			lldp: []LldpNeighbor{{Port: "eth0", Chassis: "sw2", PortDesc: "two-gigabitEthernet 1/0/7"}}},
+	}
+	ev := fleetLldpEvidence(polled, "gw")
+	if got := ev["sw1"]; got.parent != "gw" {
+		t.Fatalf("sw1: %+v, want gw (root port 20)", got)
+	}
+	// sw2: root port 8 -> sw1; el puerto (lado padre) se rellena desde la
+	// vista LLDP de sw1, que ve a sw2 en su 1/0/22.
+	if got := ev["sw2"]; got.parent != "sw1" || got.port != "two-gigabitEthernet 1/0/22" {
+		t.Fatalf("sw2: %+v, want sw1/two-gigabitEthernet 1/0/22", got)
+	}
+	// ap2: candidato único, puerto del lado padre (el que sw2 anuncia).
+	if got := ev["ap2"]; got.parent != "sw2" || got.port != "two-gigabitEthernet 1/0/7" {
+		t.Fatalf("ap2: %+v, want sw2/two-gigabitEthernet 1/0/7", got)
+	}
+	if _, ok := ev["gw"]; ok {
+		t.Fatal("gw no debe tener padre (cuelga de internet)")
+	}
+}
+
+// #1279: con varios candidatos y sin señal FDB, se prefiere el switch
+// gestionado (hacia el núcleo) sobre un router regular.
+func TestFleetLldpEvidenceAmbiguoPrefiereSwitch(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw":  {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		"sw":  {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "sw", Name: "sw", Type: "managed-switch"},
+			lldp: []LldpNeighbor{
+				{Port: "p1", Chassis: "rta"},
+				{Port: "p2", Chassis: "swb"},
+			}},
+		"rta": {brMac: "AA:BB:CC:00:00:03", cfg: RouterConfig{ID: "rta", Name: "rta"}},
+		"swb": {brMac: "AA:BB:CC:00:00:04", cfg: RouterConfig{ID: "swb", Name: "swb", Type: "managed-switch"}},
+	}
+	ev := fleetLldpEvidence(polled, "gw")
+	if got := ev["sw"]; got.parent != "swb" {
+		t.Fatalf("sw: %+v, want swb (switch manda en el empate)", got)
+	}
+}
+
+// #1279: la evidencia LLDP manda sobre la FDB/device en el uplink (ground
+// truth de dos equipos que se anuncian por el cable).
+func TestTopoSemanticsLldpEvidenceWins(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "sw1", Name: "sw1", MAC: "AA:BB:CC:00:00:02"},
+		{ID: "ap1", Name: "ap1", MAC: "AA:BB:CC:00:00:03"},
+	}
+	fdb := map[string]topoParent{"ap1": {parent: "gw", port: "9"}}
+	lldp := map[string]topoParent{"ap1": {parent: "sw1", port: "two-gigabitEthernet 1/0/21"}}
+	sem := BuildTopoSemantics(routers, nil, WireGuardStats{}, nil, "", fdb, lldp)
+	for _, l := range sem.Links {
+		if l.Kind == "uplink" && l.To == "ap1" {
+			if l.From != "sw1" || l.Port != "two-gigabitEthernet 1/0/21" {
+				t.Fatalf("LLDP debe mandar sobre la FDB: %+v", l)
+			}
+			return
+		}
+	}
+	t.Fatal("falta el uplink de ap1")
 }

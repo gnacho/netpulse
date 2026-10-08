@@ -1491,6 +1491,18 @@ export function TopologyMap({
                 : t('common.clientsCount', { count: node.router.clients })}
               subColor={node.router.status === 'warn' ? COLOR.warn : undefined} />
           ))}
+          {/* Switches gestionados de la flota (#1279): su label ya se
+              calculaba en el modelo pero no se renderizaba, y los switches
+              SNMP quedaban como círculos anónimos en el mapa. */}
+          {model.switchNodes.map((node, i) => (
+            <LabelText key={node.id} x={node.label.x} y={node.label.y} anchor={node.label.anchor}
+              delay={(2.2 + i * 0.03) * T} reduce={reduce ?? false}
+              title={node.router.name}
+              sub={node.router.status === 'warn'
+                ? `${t('common.clientsCount', { count: node.router.clients })} · ${t('common.status.warn')}`
+                : t('common.clientsCount', { count: node.router.clients })}
+              subColor={node.router.status === 'warn' ? COLOR.warn : undefined} />
+          ))}
           {/* Distnodes (inferidos / gestionados vía LLDP) */}
           {distNodes.map((dv, i) =>
             dv.node.kind === 'managed' ? (

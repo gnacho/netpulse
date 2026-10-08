@@ -157,7 +157,107 @@ func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[str
 	return parent
 }
 
-func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent) *TopoSemantics {
+// fleetLldpEvidence (#1279): uplinks resueltos POR LLDP con la regla del
+// puerto raíz. El uplink de una unidad es el vecino router que vive en el
+// puerto local donde la propia unidad aprende la MAC bridge del gateway
+// (tránsito hacia el núcleo): un switch ve al gateway directo o al switch
+// padre en ese puerto, un AP solo ve a su switch. Sin MAC de gateway
+// disponible: un único candidato manda; con varios, se prefiere el switch
+// gestionado (hacia el core) y si el empate persiste no hay evidencia
+// (decide la FDB). El puerto es el del lado del PADRE (PortDesc que el
+// padre anuncia); si el padre es una unidad sondeada, se rellena con el
+// puerto local del padre desde SU vista LLDP (dos lados #1279).
+func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[string]topoParent {
+	routers := routerIdentities(polled)
+	gwMac := ""
+	if gw := polled[gatewayID]; gw != nil && gw.brMac != "" {
+		gwMac = strings.ToUpper(gw.brMac)
+	}
+	ids := make([]string, 0, len(polled))
+	for id := range polled {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	type lldpCand struct {
+		parentID  string
+		port      string // lado padre (anunciado por él)
+		localPort string // puerto local del poller hacia él
+		isSwitch  bool
+	}
+	out := map[string]topoParent{}
+	for _, rid := range ids {
+		if rid == gatewayID {
+			continue
+		}
+		p := polled[rid]
+		if p == nil || len(p.lldp) == 0 {
+			continue
+		}
+		var cands []lldpCand
+		for i := range p.lldp {
+			nb := &p.lldp[i]
+			if nb.Port == "" {
+				continue
+			}
+			ri := neighborIsRouter(nb, routers, rid)
+			if ri == nil || ri.ID == rid {
+				continue
+			}
+			cands = append(cands, lldpCand{
+				parentID: ri.ID, port: nb.PortDesc, localPort: nb.Port,
+				isSwitch: ri.Type == "managed-switch",
+			})
+		}
+		if len(cands) == 0 {
+			continue
+		}
+		chosen := -1
+		if gwMac != "" {
+			rootPort, ok := p.fdb[gwMac]
+			if ok {
+				for i := range cands {
+					if cands[i].localPort == rootPort {
+						chosen = i
+						break
+					}
+				}
+			}
+		}
+		if chosen == -1 && len(cands) == 1 {
+			chosen = 0
+		}
+		if chosen == -1 {
+			for i := range cands {
+				if cands[i].isSwitch {
+					chosen = i
+					break
+				}
+			}
+		}
+		if chosen == -1 {
+			continue
+		}
+		ev := topoParent{parent: cands[chosen].parentID, port: cands[chosen].port}
+		if ev.port == "" {
+			// El padre no anuncia su puerto (Omada sin PortDesc remoto):
+			// si el padre es una unidad sondeada, su propia vista LLDP da
+			// el puerto local por el que nos ve.
+			if pp := polled[ev.parent]; pp != nil {
+				for i := range pp.lldp {
+					if ri := neighborIsRouter(&pp.lldp[i], routers, ev.parent); ri != nil && ri.ID == rid {
+						ev.port = pp.lldp[i].Port
+						break
+					}
+				}
+			}
+		}
+		out[rid] = ev
+	}
+	return out
+}
+
+func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent, lldpEvidence map[string]topoParent) *TopoSemantics {
 	sem := &TopoSemantics{Links: []TopoLink{}, Rings: map[string][]string{}}
 	if len(routers) == 0 {
 		return sem
@@ -232,6 +332,15 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 	// (attachTo/override) manda cuando existe.
 	for rid, ev := range fdbEvidence {
 		if _, ok := uplinkEvidence[rid]; !ok {
+			uplinkEvidence[rid] = ev
+		}
+	}
+	// #1279: el LLDP es ground truth (dos equipos que se anuncian por el
+	// cable, con regla de puerto raíz contra la FDB propia) y manda SOBRE la
+	// inferencia FDB/device. Se aplica al final: pisa lo inferido cuando hay
+	// vecino LLDP resuelto; donde no lo hay, quedan device/FDB como antes.
+	for rid, ev := range lldpEvidence {
+		if ev.parent != rid {
 			uplinkEvidence[rid] = ev
 		}
 	}

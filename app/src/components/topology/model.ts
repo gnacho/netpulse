@@ -150,6 +150,8 @@ export interface RingOverflowChip {
 export interface TopologyModel {
   gatewayNode: RouterNode | null
   apNodes: RouterNode[]
+  /** Switches gestionados de la flota (roleBadge SW), hasta 3 (#1279) */
+  switchNodes: RouterNode[]
   routerNodes: RouterNode[]
   internetNode: { id: 'internet'; x: number; y: number }
   peerNodes: PeerNode[]
@@ -1751,6 +1753,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   return {
     gatewayNode,
     apNodes,
+    switchNodes,
     routerNodes,
     internetNode,
     peerNodes,
