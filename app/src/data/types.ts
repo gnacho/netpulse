@@ -184,6 +184,8 @@ export type DeviceType =
   | 'consola'
   | 'iot'
   | 'camara'
+  | 'aspirador'
+  | 'videoportero'
   | 'altavoz'
   | 'servidor'
   | 'tablet'

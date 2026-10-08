@@ -20,12 +20,19 @@ var typeRules = []struct {
 	typ  string
 	subs []string
 }{
+	// Videoportero antes que camara: "doorbell"/"timbre" son cámaras para
+	// el resto de reglas, pero el usuario distingue el timbre con cámara
+	// (#1327). Aspirador antes que iot: los nombres de robots aspiradores
+	// son muy reconocibles y el cubo genérico los esconde.
+	{"videoportero", []string{"videoportero", "doorbell", "timbre", "portero", "videocitofono", "citofono", "chime"}},
 	// Consola antes que tv/iot: "switch" a secas es switch de red, pero
 	// "switch OLED" no aparece en hostnames reales; Nintendo suele anunciarse
 	// como "nintendo-switch".
 	{"consola", []string{"playstation", "ps4", "ps5", "xbox", "nintendo", "steamdeck", "steam-deck", "consola"}},
+	// Camara antes que tv: "cctv-..." contiene "tv-" y caeria en TV (#1327).
+	{"camara", []string{"camara", "camera", "cctv", "nvr", "ezviz", "tapo-c", "-cam", "cam-"}},
 	{"tv", []string{"appletv", "apple-tv", "bravia", "webos", "firetv", "fire-tv", "chromecast", "mibox", "mi-box", "shield", "television", "smart-tv", "smarttv", "-tv", "tv-"}},
-	{"camara", []string{"camara", "camera", "doorbell", "timbre", "ezviz", "tapo-c", "-cam", "cam-"}},
+	{"aspirador", []string{"roomba", "irobot", "roborock", "aspirador", "vacuum", "deebot", "ecovacs", "dreame", "qrevo", "s8-max", "s8-pro", "k10"}},
 	{"altavoz", []string{"sonos", "heos", "homepod", "echo-", "altavoz", "speaker", "soundbar", "marantz", "denon", "home-mini", "nest-mini", "nest-audio", "amplificador", "receiver"}},
 	{"tablet", []string{"ipad", "tablet", "kindle", "kobo"}},
 	{"movil", []string{"iphone", "android", "pixel", "galaxy-s", "galaxy-a", "redmi-note", "oneplus", "xiaomi-1", "mi-1", "phone", "movil"}},
@@ -33,7 +40,7 @@ var typeRules = []struct {
 	{"servidor", []string{"proxmox", "pve", "jellyfin", "transmission", "helios", "homeassistant", "home-assistant", "haos", "servidor", "server", "nas", "citadel", "omv", "truenas", "pihole", "pi-hole", "adguard", "raspberry", "rpi", "docker", "keynest", "deltos", "nido", "netpulse"}},
 	{"ordenador", []string{"imac", "mac-mini", "macstudio", "mac-studio", "desktop", "sobremesa", "workstation", "nuc", "ser9", "pc-", "-pc", "tower", "minipc", "mini-pc"}},
 	{"switch", []string{"gs308", "gs305", "tl-sg", "switch"}},
-	{"iot", []string{"roomba", "irobot", "roborock", "aspirador", "robot", "tasmota", "sonoff", "shelly", "esphome", "tuya", "smartlife", "meross", "gosund", "switchbot", "aqara", "lumi", "zigbee", "zhirui", "osram", "ikea", "tradfri", "hue", "wled", "athom", "cargador", "wallbox", "feyree", "tedee", "cerradura", "enchufe", "plug", "bombilla", "downlight", "persiana", "curtain", "riego", "sprinkler", "termo", "termostato", "caldera", "aire", "ac-", "slzb", "impresora", "printer", "epson", "brother", "canon"}},
+	{"iot", []string{"robot", "tasmota", "sonoff", "shelly", "esphome", "tuya", "smartlife", "meross", "gosund", "switchbot", "aqara", "lumi", "zigbee", "zhirui", "osram", "ikea", "tradfri", "hue", "wled", "athom", "cargador", "wallbox", "feyree", "tedee", "cerradura", "enchufe", "plug", "bombilla", "downlight", "persiana", "curtain", "riego", "sprinkler", "termo", "termostato", "caldera", "aire", "ac-", "slzb", "impresora", "printer", "epson", "brother", "canon"}},
 }
 
 // GuessDeviceType estima el DeviceType con reglas deterministas: patrones de
@@ -94,6 +101,7 @@ var ValidDeviceTypes = map[string]bool{
 	"consola": true, "tv": true, "camara": true, "altavoz": true,
 	"tablet": true, "movil": true, "portatil": true, "servidor": true,
 	"ordenador": true, "switch": true, "iot": true, "desconocido": true,
+	"aspirador": true, "videoportero": true,
 }
 
 // guessFromMdns (#338): classify a device from its mDNS service types when
