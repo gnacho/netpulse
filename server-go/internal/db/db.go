@@ -589,6 +589,11 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// #1151: última IP conocida (los fantasmas la conservan para la lista y
 	// las sugerencias de enlace).
 	migrate(sqldb, "device_seen", "ip", "ALTER TABLE device_seen ADD COLUMN ip TEXT NOT NULL DEFAULT ''")
+	// #1315: último tipo inferido (no override) del cliente: al expirar el
+	// lease la clasificación viva cae en "desconocido" y el icono se perdía;
+	// el valor retenido lo conserva (stickiness del tipo, solo se escribe
+	// cuando la inferencia viva no es el genérico).
+	migrate(sqldb, "device_seen", "device_type", "ALTER TABLE device_seen ADD COLUMN device_type TEXT NOT NULL DEFAULT ''")
 	// issue #863: sondeo HTTP de la consola de switches RTLPlayground. DEFAULT 1
 	// = comportamiento previo; se desactiva por router (la consola del firmware
 	// tiene una sola sesión global y cada login tumba la sesión humana).

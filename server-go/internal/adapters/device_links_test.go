@@ -51,6 +51,35 @@ func TestMergeLinkedDevicesNoLinks(t *testing.T) {
 	}
 }
 
+// #1315: al expirar el lease ninguna de las dos interfaces tiene nombre y
+// el merge NO debe promover la MAC de una alias a nombre del canónico (eso
+// era lo que la tarjeta expandida mostraba como hostname). Con un nombre
+// real en la alias, sí se hereda como antes.
+func TestMergeLinkedDevicesDoesNotPromoteAliasMAC(t *testing.T) {
+	links := map[string]string{"AA:AA:AA:00:00:02": "BB:BB:BB:00:00:01"}
+	devs := []Device{
+		{MAC: "BB:BB:BB:00:00:01", Online: false, Name: "BB:BB:BB:00:00:01"},
+		{MAC: "AA:AA:AA:00:00:02", Online: true, Name: "AA:AA:AA:00:00:02"},
+	}
+	out := mergeLinkedDevices(devs, links)
+	if len(out) != 1 {
+		t.Fatalf("devices = %d, want 1 (fundidas)", len(out))
+	}
+	if out[0].Name != "BB:BB:BB:00:00:01" {
+		t.Errorf("Name = %q, want la MAC propia del canónico (la de la alias no es un nombre)", out[0].Name)
+	}
+
+	// La alias con nombre real sigue enriqueciendo al canónico sin nombre.
+	named := []Device{
+		{MAC: "BB:BB:BB:00:00:01", Online: false, Name: "BB:BB:BB:00:00:01"},
+		{MAC: "AA:AA:AA:00:00:02", Online: true, Name: "watch"},
+	}
+	out = mergeLinkedDevices(named, links)
+	if out[0].Name != "watch" {
+		t.Errorf("Name = %q, want watch (nombre real de la alias heredado)", out[0].Name)
+	}
+}
+
 // Sugerencias: hostname+IP compartidos y no simultáneos sugieren; ya
 // enlazadas o ambas online no.
 func TestLinkSuggestions(t *testing.T) {
