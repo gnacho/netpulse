@@ -59,7 +59,7 @@ type topoParent struct {
 // de la propia unidad se aprende la MAC del padre), para cablear ambos
 // extremos. Orden determinista: ids ordenados.
 func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[string]topoParent {
-	macs := map[string]string{}   // MAC bridge (upper) → router propietario
+	macs := map[string]string{}    // MAC bridge (upper) → router propietario
 	idToMac := map[string]string{} // router id → MAC bridge (upper)
 	// learned[sid] = qué MACs (upper) aprende sid y en qué puerto propio.
 	learned := map[string]map[string]string{}
@@ -200,6 +200,14 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 			if nb.Port == "" {
 				continue
 			}
+			// #1279 (reapertura): el Chassis sintetizado desde lldpLocPortDesc
+			// es la anotación del admin en el puerto LOCAL, no identidad
+			// remota: casarla con los nombres de la flota produjo padres
+			// falsos en bucle (sw1<->sw2). Sigue valiendo para etiquetas;
+			// aquí no cuenta como candidato.
+			if nb.ChassisFromLocDesc {
+				continue
+			}
 			ri := neighborIsRouter(nb, routers, rid)
 			if ri == nil || ri.ID == rid {
 				continue
@@ -245,6 +253,9 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 			// el puerto local por el que nos ve.
 			if pp := polled[ev.parent]; pp != nil {
 				for i := range pp.lldp {
+					if pp.lldp[i].ChassisFromLocDesc {
+						continue
+					}
 					if ri := neighborIsRouter(&pp.lldp[i], routers, ev.parent); ri != nil && ri.ID == rid {
 						ev.port = pp.lldp[i].Port
 						break
@@ -254,7 +265,65 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 		}
 		out[rid] = ev
 	}
+	breakEvidenceCycles(out)
 	return out
+}
+
+// breakEvidenceCycles: defensa en profundidad (#1279, reapertura). La
+// resolución de uplinks nunca debe producir un ciclo entre unidades de
+// flota: si la evidencia LLDP lo genera (p.ej. dos unidades con un único
+// candidato cruzado, "un candidato manda"), se elimina a los miembros del
+// ciclo del mapa y BuildTopoSemantics degrada esos uplinks al siguiente
+// nivel de evidencia (device/FDB), que resuelve con guarda de descendencia.
+func breakEvidenceCycles(ev map[string]topoParent) {
+	const (
+		unvisited = iota
+		visiting
+		done
+	)
+	state := map[string]int{}
+	inCycle := map[string]bool{}
+	ids := make([]string, 0, len(ev))
+	for id := range ev {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, start := range ids {
+		if state[start] != unvisited {
+			continue
+		}
+		var chain []string
+		for cur := start; ; {
+			if state[cur] == visiting {
+				// Ciclo: desde la primera aparición de cur en la cadena.
+				for i, n := range chain {
+					if n == cur {
+						for _, m := range chain[i:] {
+							inCycle[m] = true
+						}
+						break
+					}
+				}
+				break
+			}
+			if state[cur] == done {
+				break
+			}
+			e, ok := ev[cur]
+			if !ok {
+				break // sin entrada: la cadena de padres se acaba aquí
+			}
+			state[cur] = visiting
+			chain = append(chain, cur)
+			cur = e.parent
+		}
+		for _, n := range chain {
+			state[n] = done
+		}
+	}
+	for rid := range inCycle {
+		delete(ev, rid)
+	}
 }
 
 func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, dists []DistributionNode, wanGateway string, fdbEvidence map[string]topoParent, lldpEvidence map[string]topoParent, overrideUplinks map[string]topoParent) *TopoSemantics {

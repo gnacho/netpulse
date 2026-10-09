@@ -13,9 +13,9 @@ import (
 func lgs310cRemPdus() []gosnmp.SnmpPDU {
 	const base = OidLldpRemTable
 	return []gosnmp.SnmpPDU{
-		{Name: base + ".4.9900.5.1", Type: gosnmp.Integer, Value: 4},                            // chassisIdSubtype = macAddress
+		{Name: base + ".4.9900.5.1", Type: gosnmp.Integer, Value: 4}, // chassisIdSubtype = macAddress
 		{Name: base + ".5.9900.5.1", Type: gosnmp.OctetString, Value: []byte{0x78, 0x55, 0x36, 0x02, 0x58, 0xBA}},
-		{Name: base + ".6.9900.5.1", Type: gosnmp.Integer, Value: 3},                            // portIdSubtype = macAddress
+		{Name: base + ".6.9900.5.1", Type: gosnmp.Integer, Value: 3}, // portIdSubtype = macAddress
 		{Name: base + ".7.9900.5.1", Type: gosnmp.OctetString, Value: []byte{0x78, 0x55, 0x36, 0x02, 0x58, 0xBA}},
 		{Name: base + ".8.9900.5.1", Type: gosnmp.OctetString, Value: []byte("enp195s0")},       // portDesc
 		{Name: base + ".9.9900.5.1", Type: gosnmp.OctetString, Value: []byte("ryzen-ai")},       // sysName
@@ -105,12 +105,12 @@ func TestLldpRemEntriesSkipsUnusablePdus(t *testing.T) {
 	const base = OidLldpRemTable
 	pdus := []gosnmp.SnmpPDU{
 		{Name: base, Type: gosnmp.Integer, Value: 4},
-		{Name: base + ".4.9900.5", Type: gosnmp.Integer, Value: 4},          // índice corto
-		{Name: base + ".4.9900.5.1.9", Type: gosnmp.Integer, Value: 4},      // índice largo
-		{Name: base + ".3.9900.5.1", Type: gosnmp.Integer, Value: 4},        // columna 3 (índice, not-accessible)
-		{Name: base + ".13.9900.5.1", Type: gosnmp.Integer, Value: 4},       // columna inexistente
-		{Name: base + ".4.9900.0.1", Type: gosnmp.Integer, Value: 4},        // puerto 0
-		{Name: base + ".4.9900.x.1", Type: gosnmp.Integer, Value: 4},        // componente no entero
+		{Name: base + ".4.9900.5", Type: gosnmp.Integer, Value: 4},                   // índice corto
+		{Name: base + ".4.9900.5.1.9", Type: gosnmp.Integer, Value: 4},               // índice largo
+		{Name: base + ".3.9900.5.1", Type: gosnmp.Integer, Value: 4},                 // columna 3 (índice, not-accessible)
+		{Name: base + ".13.9900.5.1", Type: gosnmp.Integer, Value: 4},                // columna inexistente
+		{Name: base + ".4.9900.0.1", Type: gosnmp.Integer, Value: 4},                 // puerto 0
+		{Name: base + ".4.9900.x.1", Type: gosnmp.Integer, Value: 4},                 // componente no entero
 		{Name: ".1.0.8802.1.1.2.1.4.1.2.4.9900.5.1", Type: gosnmp.Integer, Value: 4}, // prefijo distinto
 	}
 	if got := lldpRemEntries(pdus, nil, nil); len(got) != 0 {
@@ -156,8 +156,8 @@ func TestLldpCapsFromBits(t *testing.T) {
 		b    []byte
 		want []string
 	}{
-		{[]byte{0x10, 0x00}, []string{"Wlan"}},                  // LGS310C real (lldpd PC)
-		{[]byte{0x28, 0x00}, []string{"Bridge", "Router"}},      // switch/router típico
+		{[]byte{0x10, 0x00}, []string{"Wlan"}},             // LGS310C real (lldpd PC)
+		{[]byte{0x28, 0x00}, []string{"Bridge", "Router"}}, // switch/router típico
 		{[]byte{0x01, 0x00}, []string{"Station"}},
 		{[]byte{0x39, 0x00}, []string{"Bridge", "Wlan", "Router", "Station"}},
 		{nil, nil},
@@ -232,6 +232,9 @@ func TestApplyLocPortIdentityOmada(t *testing.T) {
 		if byPort[port].Chassis != want {
 			t.Fatalf("puerto %d: Chassis %q, want %q", port, byPort[port].Chassis, want)
 		}
+		if !byPort[port].ChassisFromLocDesc {
+			t.Fatalf("puerto %d: ChassisFromLocDesc debe marcarse (vino de locPortDesc)", port)
+		}
 		if byPort[port].PortDesc != "" {
 			t.Fatalf("puerto %d: PortDesc %q debe seguir vacío (el local no es el remoto)", port, byPort[port].PortDesc)
 		}
@@ -242,5 +245,8 @@ func TestApplyLocPortIdentityOmada(t *testing.T) {
 	applyLocPortIdentity(entries, lldpLocPorts(omadaLocPdus()))
 	if entries[3].Chassis != "sysname-propio" {
 		t.Fatalf("la identidad propia no debe pisarse: %q", entries[3].Chassis)
+	}
+	if entries[3].ChassisFromLocDesc {
+		t.Fatal("la identidad propia no debe marcarse como venida de locPortDesc")
 	}
 }

@@ -1404,8 +1404,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   if (sem) {
     /** Geometría de un enlace semántico sin equivalente derivado localmente. */
     const semLinkGeometry = (sl: TopoSemLink, wgIdx: number): TopoLink | null => {
+      const curveEdge = (a: { x: number; y: number; r: number }, b: { x: number; y: number }) =>
+        pos(a.x, a.y, angleTo(a.x, a.y, b.x, b.y), a.r + 2)
       const curve = (a: { x: number; y: number; r: number }, b: { x: number; y: number }): string => {
-        const edge = pos(a.x, a.y, angleTo(a.x, a.y, b.x, b.y), a.r + 2)
+        const edge = curveEdge(a, b)
         const dx = b.x - edge.x
         const dy = b.y - edge.y
         return `M ${edge.x} ${edge.y} Q ${edge.x + dx * 0.5 - dy * 0.1} ${edge.y + dy * 0.5 + dx * 0.1}, ${b.x} ${b.y}`
@@ -1445,10 +1447,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
             gatewayNode ??
             null
           const d = from ? curve(from, node) : ''
+          // #1279: el uplink generado (sin equivalente local) ponía la
+          // etiqueta en (0,0) y se amontonaba arriba a la izquierda del
+          // mapa; va en el punto medio del enlace, como makeUplink.
+          const edge = from ? curveEdge(from, node) : null
           return {
             id: `uplink-${node.id}`, kind: 'uplink', wifi: isWifi,
             d,
-            lx: 0, ly: 0,
+            lx: edge ? Math.round((edge.x + node.x) / 2) : 0,
+            ly: edge ? Math.round((edge.y + node.y) / 2) : 0,
             label,
             width: isWifi ? 2 : 3, ...flowFor(Math.max(subtreeTraffic(node.id), isWifi ? 40 : 120)),
             from: sl.from, to: sl.to,
@@ -1511,6 +1518,19 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
     links.length = 0
     links.push(...semLinks)
+    // #1279: dos semLinks sobre la misma pareja de nodos (enlace real +
+    // huérfano) dibujaban ambos sus etiquetas en el mismo punto y se
+    // solapaban; una sola etiqueta por pareja de nodos, la primera.
+    const labeledPair = new Set<string>()
+    for (const l of links) {
+      if (!l.label) continue
+      const pair = l.from < l.to ? `${l.from}|${l.to}` : `${l.to}|${l.from}`
+      if (labeledPair.has(pair)) {
+        l.label = ''
+      } else {
+        labeledPair.add(pair)
+      }
+    }
   }
 
   /** Guardrail de rendimiento: máx ~60 paquetes simultáneos (mockup) */

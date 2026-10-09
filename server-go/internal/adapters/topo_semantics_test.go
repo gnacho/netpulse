@@ -439,8 +439,8 @@ func TestFleetLldpEvidenceRootPort(t *testing.T) {
 // gestionado (hacia el núcleo) sobre un router regular.
 func TestFleetLldpEvidenceAmbiguoPrefiereSwitch(t *testing.T) {
 	polled := map[string]*routerPolled{
-		"gw":  {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
-		"sw":  {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "sw", Name: "sw", Type: "managed-switch"},
+		"gw": {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		"sw": {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "sw", Name: "sw", Type: "managed-switch"},
 			lldp: []LldpNeighbor{
 				{Port: "p1", Chassis: "rta"},
 				{Port: "p2", Chassis: "swb"},
@@ -451,6 +451,101 @@ func TestFleetLldpEvidenceAmbiguoPrefiereSwitch(t *testing.T) {
 	ev := fleetLldpEvidence(polled, "gw")
 	if got := ev["sw"]; got.parent != "swb" {
 		t.Fatalf("sw: %+v, want swb (switch manda en el empate)", got)
+	}
+}
+
+// #1279 (reapertura): el Chassis sintetizado desde lldpLocPortDesc (la
+// anotación del admin en el puerto LOCAL del Omada, p.ej. "ap2") NO es
+// identidad remota: no debe resolver vecinos de flota para el uplink. En la
+// flota del contribuidor estas entradas hacían que sw1 eligiera a sw2 (y
+// viceversa) por el empate del switch gestionado, cerrando un bucle y
+// dejando al gateway sin hijos. La identidad enriquecida sigue sirviendo
+// para etiquetas (displayName), solo se excluye de la evidencia.
+func TestFleetLldpEvidenceIgnoresLocDescIdentity(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		// sw1 estilo Omada: los tres vecinos son anotaciones locPortDesc
+		// (rem table sin identidad). Sin FDB de la MAC del gateway.
+		"sw1": {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "sw1", Name: "sw1", Type: "managed-switch"},
+			lldp: []LldpNeighbor{
+				{Port: "two-gigabitEthernet 1/0/20", Chassis: "gateway", ChassisFromLocDesc: true},
+				{Port: "two-gigabitEthernet 1/0/21", Chassis: "ap1", ChassisFromLocDesc: true},
+				{Port: "two-gigabitEthernet 1/0/22", Chassis: "sw2", ChassisFromLocDesc: true},
+			}},
+		"sw2": {brMac: "AA:BB:CC:00:00:04", cfg: RouterConfig{ID: "sw2", Name: "sw2", Type: "managed-switch"},
+			lldp: []LldpNeighbor{
+				{Port: "two-gigabitEthernet 1/0/7", Chassis: "ap2", ChassisFromLocDesc: true},
+				{Port: "two-gigabitEthernet 1/0/8", Chassis: "sw1", ChassisFromLocDesc: true},
+			}},
+		"ap1": {brMac: "AA:BB:CC:00:00:03", cfg: RouterConfig{ID: "ap1", Name: "ap1"}},
+		"ap2": {brMac: "AA:BB:CC:00:00:05", cfg: RouterConfig{ID: "ap2", Name: "ap2"}},
+	}
+	ev := fleetLldpEvidence(polled, "gw")
+	if len(ev) != 0 {
+		t.Fatalf("sin candidatos reales no debe haber evidencia LLDP: %+v", ev)
+	}
+	// Mezcla: un vecino con identidad remota real y otro sintetizado; el
+	// real es el único candidato y manda.
+	polled["sw1"] = &routerPolled{brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "sw1", Name: "sw1", Type: "managed-switch"},
+		lldp: []LldpNeighbor{
+			{Port: "two-gigabitEthernet 1/0/21", Chassis: "ap1", ChassisFromLocDesc: true},
+			{Port: "ten-gigabitEthernet 1/0/25", Chassis: "rta", PortDesc: "lan2"},
+		}}
+	polled["rta"] = &routerPolled{brMac: "AA:BB:CC:00:00:06", cfg: RouterConfig{ID: "rta", Name: "rta"}}
+	ev = fleetLldpEvidence(polled, "gw")
+	if got := ev["sw1"]; got.parent != "rta" || got.port != "lan2" {
+		t.Fatalf("sw1: %+v, want rta/lan2 (el candidato real; el de locDesc no cuenta)", got)
+	}
+}
+
+// #1279 (reapertura): la evidencia LLDP nunca debe producir un ciclo entre
+// unidades de flota. Topología real gw -> ap1 -> ap2 con evidencia cruzada
+// falsa (ap1 ve a ap2 y ap2 ve a ap1, un candidato cada uno): sin guarda,
+// "un candidato manda" fija padres mutuos. Con la guarda, esa evidencia se
+// degrada y decide la FDB: el gateway conserva hijos y no hay bucle.
+func TestFleetLldpEvidenceNoCycle(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		"ap1": {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "ap1", Name: "ap1"},
+			lldp: []LldpNeighbor{{Port: "eth1", Chassis: "ap2", PortDesc: "eth0"}}},
+		"ap2": {brMac: "AA:BB:CC:00:00:03", cfg: RouterConfig{ID: "ap2", Name: "ap2"},
+			lldp: []LldpNeighbor{{Port: "eth0", Chassis: "ap1", PortDesc: "eth1"}}},
+	}
+	ev := fleetLldpEvidence(polled, "gw")
+	for start := range ev {
+		seen := map[string]bool{}
+		for cur := start; ; {
+			if seen[cur] {
+				t.Fatalf("ciclo en la evidencia LLDP: %+v", ev)
+			}
+			seen[cur] = true
+			e, ok := ev[cur]
+			if !ok {
+				break
+			}
+			cur = e.parent
+		}
+	}
+	// Degradada la evidencia en bucle, la FDB decide y el gateway conserva
+	// hijos: gw -> ap1 -> ap2.
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "ap1", Name: "ap1", MAC: "AA:BB:CC:00:00:02"},
+		{ID: "ap2", Name: "ap2", MAC: "AA:BB:CC:00:00:03"},
+	}
+	fdb := map[string]topoParent{
+		"ap1": {parent: "gw", port: "lan1"},
+		"ap2": {parent: "ap1", port: "eth1"},
+	}
+	sem := BuildTopoSemantics(routers, nil, WireGuardStats{}, nil, "", fdb, ev, nil)
+	uplink := map[string]string{}
+	for _, l := range sem.Links {
+		if l.Kind == "uplink" {
+			uplink[l.To] = l.From
+		}
+	}
+	if uplink["ap1"] != "gw" || uplink["ap2"] != "ap1" {
+		t.Fatalf("uplinks: %+v, want ap1<-gw y ap2<-ap1 (FDB tras degradar el ciclo)", uplink)
 	}
 }
 
