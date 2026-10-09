@@ -439,6 +439,28 @@ func (s *server) rotateTokenHot(slug, token string) string {
 	return "hot"
 }
 
+// agentBaseURL: URL base con la que los agentes deben alcanzar al server.
+// Cadena de precedencia (#1335): NETPULSE_AGENT_URL (URL de la LAN para los
+// agentes) > NETPULSE_PUBLIC_URL > la URL de la petición actual. Antes de
+// #1335 el install line ignoraba ambas variables y siempre usaba el Host de
+// la sesión, así que tras un reverse proxy con dominio público el comando
+// copiado hacía los routers salir a internet para volver a entrar.
+func (s *server) agentBaseURL(r *http.Request) string {
+	if s.cfg != nil {
+		if s.cfg.AgentURL != "" {
+			return s.cfg.AgentURL
+		}
+		if s.cfg.PublicURL != "" {
+			return s.cfg.PublicURL
+		}
+	}
+	scheme := "http"
+	if auth.IsSecureRequest(r) {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
 // agentInstallLine: one-liner de instalación vía SSH desde esta máquina.
 // El host del router se resuelve de la tabla routers si el slug existe.
 // Fase 6.2: el binario se descarga del propio servidor con el token del agente
@@ -453,11 +475,7 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 			}
 		}
 	}
-	scheme := "http"
-	if auth.IsSecureRequest(r) {
-		scheme = "https"
-	}
-	server := scheme + "://" + r.Host
+	server := s.agentBaseURL(r)
 	// #572: el copy-command corre en el server, donde la llave de routers del
 	// app (cfg.SSHKeyPath) puede ser la única autorizada en el router. Si el
 	// script no la pasa, el SSH cae a la default (~/.ssh/id_*) y falla.
@@ -838,16 +856,10 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// URL base del server (para que el router descargue el binario).
-	// NETPULSE_PUBLIC_URL manda si está configurada (#457): sin ella, llamar
-	// al endpoint vía localhost haría que el router descargue de localhost.
-	scheme := "http"
-	if auth.IsSecureRequest(r) {
-		scheme = "https"
-	}
-	serverURL := scheme + "://" + r.Host
-	if s.cfg != nil && s.cfg.PublicURL != "" {
-		serverURL = s.cfg.PublicURL
-	}
+	// Cadena #1335: NETPULSE_AGENT_URL > NETPULSE_PUBLIC_URL (#457) > Host de
+	// la petición; sin las variables, llamar al endpoint vía localhost haría
+	// que el router descargue de localhost.
+	serverURL := s.agentBaseURL(r)
 
 	before := time.Now()
 	var prevSeen time.Time
@@ -920,15 +932,9 @@ func (s *server) handleAgentsReemit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// URL base y trust: mismas reglas que el reinstall por unidad.
-	scheme := "http"
-	if auth.IsSecureRequest(r) {
-		scheme = "https"
-	}
-	serverURL := scheme + "://" + r.Host
-	if s.cfg != nil && s.cfg.PublicURL != "" {
-		serverURL = s.cfg.PublicURL
-	}
+	// URL base y trust: mismas reglas que el reinstall por unidad
+	// (AGENT_URL > PUBLIC_URL > Host de la petición, #1335).
+	serverURL := s.agentBaseURL(r)
 	trust := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, serverURL)
 
 	rows := routerstore.ListRouters(s.db.DB)

@@ -66,6 +66,12 @@ descarta lo más viejo (mismo patrón que el fix del buffer del satélite).
   flash es justa: a `/tmp` + script de arranque que lo re-descarga del
   servidor), token en `/etc/netpulse-agent.env` (chmod 600), init procd con
   `respawn`, `enabled` por defecto.
+- La URL base con la que el agente alcanza al server (la del propio comando)
+  se resuelve así (#1335): `NETPULSE_AGENT_URL` (p. ej. una URL de la LAN
+  como `http://192.168.1.50:8080` cuando el server se sirve tras un reverse
+  proxy con dominio público) > `NETPULSE_PUBLIC_URL` > el Host de la
+  petición con la que se generó el comando. Sin variables, el comando usa el
+  dominio desde el que se copió: los routers darían la vuelta por internet.
 - Opcional a futuro: paquete `.ipk` con postinst.
 - Upgrade: el updater existente del servidor se extiende a agentes (el agente
   reporta versión en cada push; el servidor ofrece binario firmado sha256).
@@ -97,8 +103,8 @@ escalado:
    timeout 10 s) y espera otro push nuevo hasta 30 s. Arregla el caso de
    un 401 por token desincronizado.
 3. **Reinstalación** (opt-in, `NETPULSE_AUTO_REINSTALL=1` +
-   `NETPULSE_PUBLIC_URL`): script canónico completo (binario verificado
-   + config + init self-heal), timeout SSH 300 s.
+   `NETPULSE_PUBLIC_URL` o `NETPULSE_AGENT_URL`): script canónico completo
+   (binario verificado + config + init self-heal), timeout SSH 300 s.
 
 Anti-martilleo: el supervisor rearma como mucho 1 vez cada 10 min por
 slug (reinstala 1 vez cada cooldown propio). NetGrip embebido solo

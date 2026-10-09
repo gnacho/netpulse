@@ -240,3 +240,46 @@ func TestPrivateCASettings(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadAgentURL(t *testing.T) {
+	// Válida: se acepta y se recorta la barra final.
+	cfg, err := Load(map[string]string{
+		"AUTH_PASS": "diez-carac-", "NETPULSE_AGENT_URL": "http://192.168.1.50:8080/",
+	}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.AgentURL != "http://192.168.1.50:8080" {
+		t.Fatalf("AgentURL = %q, esperaba %q", cfg.AgentURL, "http://192.168.1.50:8080")
+	}
+
+	// Sin prefijo http(s)://: se rechaza señalando la variable.
+	_, err = Load(map[string]string{
+		"AUTH_PASS": "diez-carac-", "NETPULSE_AGENT_URL": "192.168.1.50:8080",
+	}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_AGENT_URL") {
+		t.Fatalf("AGENT_URL sin prefijo debe fallar señalando la variable: %v", err)
+	}
+}
+
+func TestLoadAutoReinstallConAgentURL(t *testing.T) {
+	// #1335: AGENT_URL cubre el requisito de URL que pedía AUTO_REINSTALL.
+	cfg, err := Load(map[string]string{
+		"AUTH_PASS": "diez-carac-", "NETPULSE_AUTO_REINSTALL": "1",
+		"NETPULSE_AGENT_URL": "http://192.168.1.50:8080",
+	}, t.TempDir())
+	if err != nil {
+		t.Fatalf("AUTO_REINSTALL con AGENT_URL (sin PUBLIC_URL) no debe fallar: %v", err)
+	}
+	if !cfg.AutoReinstall {
+		t.Fatal("AutoReinstall debe quedar activo")
+	}
+
+	// Sin ninguna de las dos URL sigue fallando.
+	_, err = Load(map[string]string{
+		"AUTH_PASS": "diez-carac-", "NETPULSE_AUTO_REINSTALL": "1",
+	}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_PUBLIC_URL") {
+		t.Fatalf("AUTO_REINSTALL sin ninguna URL debe fallar señalando el par: %v", err)
+	}
+}
