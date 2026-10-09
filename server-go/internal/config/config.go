@@ -65,6 +65,7 @@ type Config struct {
 	AutoRearm        bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
 	AutoReinstall    bool   // NETPULSE_AUTO_REINSTALL=1: el supervisor escala rearm→reinstall (#457); exige PUBLIC_URL
 	PublicURL        string // NETPULSE_PUBLIC_URL: URL base con la que los routers alcanzan al server (reinstall/self-heal)
+	AgentURL         string // NETPULSE_AGENT_URL: URL base preferente SOLO para agentes (install line, reinstall, reemit, auto-reinstall); manda sobre PublicURL (#1335)
 	BeaconListen     string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
 	AgentAutoenroll  bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
 	Onbox            bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
@@ -300,8 +301,22 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 			publicURL = strings.TrimRight(publicURL, "/")
 		}
 	}
-	if autoReinstall && publicURL == "" {
-		errs.issues = append(errs.issues, issue{"NETPULSE_AUTO_REINSTALL", "NETPULSE_PUBLIC_URL is required when auto-reinstall is enabled"})
+	// NETPULSE_AGENT_URL: URL base (http(s)://host[:port]) con la que los
+	// AGENTES deben alcanzar al servidor, p. ej. una URL de la LAN
+	// (http://192.168.1.50:8080) cuando el server se sirve tras un reverse
+	// proxy con dominio público (#1335). Opcional; manda sobre
+	// NETPULSE_PUBLIC_URL en todo lo que configura la conexión agente ->
+	// server (install line, reinstall, reemit, auto-reinstall).
+	agentURL := strings.TrimSpace(env["NETPULSE_AGENT_URL"])
+	if agentURL != "" {
+		if !strings.HasPrefix(agentURL, "http://") && !strings.HasPrefix(agentURL, "https://") {
+			errs.issues = append(errs.issues, issue{"NETPULSE_AGENT_URL", "String must contain a http:// or https:// prefix"})
+		} else {
+			agentURL = strings.TrimRight(agentURL, "/")
+		}
+	}
+	if autoReinstall && publicURL == "" && agentURL == "" {
+		errs.issues = append(errs.issues, issue{"NETPULSE_AUTO_REINSTALL", "NETPULSE_PUBLIC_URL or NETPULSE_AGENT_URL is required when auto-reinstall is enabled"})
 	}
 
 	// MAX_SSE_CLIENTS: int 1..100, default 10
@@ -635,6 +650,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		AutoRearm:         autoRearm,
 		AutoReinstall:     autoReinstall,
 		PublicURL:         publicURL,
+		AgentURL:          agentURL,
 		BeaconListen:      beaconListen,
 		AgentAutoenroll:   agentAutoenroll,
 		Onbox:             onbox,

@@ -344,11 +344,11 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 // init self-heal + watchdog) y espera el push de vuelta. Es el escalado
 // cuando un rearme no recupera el agente (proceso muerto o binario perdido
 // por un sysupgrade).
-func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
+func (r *Rearmer) Reinstall(slug, agentURL string) (Result, error) {
 	if r.db == nil {
 		return Result{}, ErrNoDB
 	}
-	if publicURL == "" {
+	if agentURL == "" {
 		return Result{}, fmt.Errorf("reinstall automático sin NETPULSE_PUBLIC_URL")
 	}
 	if r.agents != nil {
@@ -398,9 +398,9 @@ func (r *Rearmer) Reinstall(slug, publicURL string) (Result, error) {
 	if err := r.rotateTokenAtomic(slug, func(t string) error {
 		var trust []reinstall.Trust
 		if f := r.trust.Load(); f != nil {
-			trust = append(trust, (*f)(publicURL))
+			trust = append(trust, (*f)(agentURL))
 		}
-		_, err := r.pool.Run(host, reinstall.ScriptWithTargets(slug, t, publicURL, reinstall.ServerFP(publicURL), reinstall.Digests(), targets, trust...), ReinstallSSHWait)
+		_, err := r.pool.Run(host, reinstall.ScriptWithTargets(slug, t, agentURL, reinstall.ServerFP(agentURL), reinstall.Digests(), targets, trust...), ReinstallSSHWait)
 		return err
 	}); err != nil {
 		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)
@@ -468,7 +468,7 @@ type Supervisor struct {
 	// NETPULSE_PUBLIC_URL). Cuando un rearme ejecutado NO recupera el push,
 	// se reinstala el agente completo con cooldown propio (1 h por slug).
 	autoReinstall     bool
-	publicURL         string
+	agentURL          string
 	reinstallSlots    map[string]time.Time
 	reinstallCooldown time.Duration
 
@@ -511,14 +511,15 @@ func NewSupervisor(r *Rearmer, registry *adapters.AgentRegistry, db *sql.DB, eng
 }
 
 // EnableReinstall activa el escalado rearm→reinstall del supervisor (#457).
-// Requiere publicURL (NETPULSE_PUBLIC_URL): es la URL con la que el router
-// descarga el binario del servidor. cooldown <= 0 → 1 h.
-func (s *Supervisor) EnableReinstall(publicURL string, cooldown time.Duration) {
+// Requiere agentURL: la URL efectiva con la que los routers descargan el
+// binario del servidor (NETPULSE_AGENT_URL o NETPULSE_PUBLIC_URL; #1335).
+// cooldown <= 0 → 1 h.
+func (s *Supervisor) EnableReinstall(agentURL string, cooldown time.Duration) {
 	if cooldown <= 0 {
 		cooldown = ReinstallCooldownDefault
 	}
 	s.autoReinstall = true
-	s.publicURL = publicURL
+	s.agentURL = agentURL
 	s.reinstallCooldown = cooldown
 }
 
@@ -625,13 +626,13 @@ func (s *Supervisor) CheckOnce() {
 			continue
 		}
 		log.Printf("[netpulse] supervisor: el rearme no recuperó a %s — escalando (rotación de token%s)",
-			slug, map[bool]string{true: ", luego reinstall si sigue caído", false: ""}[s.autoReinstall && s.publicURL != ""])
+			slug, map[bool]string{true: ", luego reinstall si sigue caído", false: ""}[s.autoReinstall && s.agentURL != ""])
 		// #457: el rearme no recuperó el agente (proceso muerto o binario
 		// perdido). Si el escalado está activo, reinstalación completa con
 		// cooldown propio; solo para slugs con preconditions válidas.
-		if s.autoReinstall && s.publicURL != "" && s.reinstallSlotFree(slug) {
+		if s.autoReinstall && s.agentURL != "" && s.reinstallSlotFree(slug) {
 			log.Printf("[netpulse] supervisor: reinstalando el agente en %s vía SSH (timeout %v)", slug, ReinstallSSHWait)
-			if r2, err := s.rearmer.Reinstall(slug, s.publicURL); err == nil {
+			if r2, err := s.rearmer.Reinstall(slug, s.agentURL); err == nil {
 				s.markReinstallSlot(slug)
 				if r2.Recovered {
 					log.Printf("[netpulse] supervisor: agente %s recuperado con la reinstalación", slug)
