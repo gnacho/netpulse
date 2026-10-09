@@ -64,3 +64,24 @@ func TestGuessDeviceType(t *testing.T) {
 		}
 	}
 }
+
+// The devices that came back unclassified from a real network, and what
+// each one now resolves to.
+func TestGuessDeviceTypeOnTheGapsFoundLive(t *testing.T) {
+	for _, tc := range []struct{ name, hostname, manufacturer, want string }{
+		{"smart bulb", "bulb_1a2b3c", "WiZ", "iot"},
+		{"air conditioner", "gree", "Gree Electric Appliances,Inc. of Zhuhai", "iot"},
+		{"connected oven", "oven-0000000000000", "BSH Hausgeräte GmbH", "iot"},
+		// Xiaomi sells phones AND appliances under the same OUI, so the
+		// vendor cannot decide it; the name can.
+		{"air purifier", "AirPurifierBedroom", "Beijing Xiaomi Mobile Software", "iot"},
+		{"a Xiaomi that is not an appliance", "mi-9t", "Beijing Xiaomi Mobile Software", "desconocido"},
+		// A recorder is a camera, not a generic gadget.
+		{"recorder by name", "NVR", "", "camara"},
+		{"recorder by vendor", "", "Reolink Innovation Limited", "camara"},
+	} {
+		if got := GuessDeviceType(tc.hostname, tc.manufacturer, "", "", ""); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

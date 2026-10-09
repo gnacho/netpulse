@@ -33,6 +33,12 @@ const (
 	// CmdPingGateway: ping corto al gateway desde un AP. %s = host gateway.
 	CmdPingGateway = "ping -c 2 -W 2 %s 2>/dev/null | tail -1"
 	CmdDhcpUbus    = "ubus call dhcp ipv4leases"
+	// CmdDhcpReservations: the `config host` entries of /etc/config/dhcp. A
+	// device with a fixed address set on the device itself never asks for a
+	// lease, so the name the admin pinned here is the only one the router
+	// has for it. Lines for other sections come through too; the parser
+	// keeps only the ones it saw declared as host.
+	CmdDhcpReservations = `uci -q show dhcp 2>/dev/null | grep -E "=host$|\.(mac|name|ip)=" || true`
 	// CmdDhcpFile: cat del fichero de leases de dnsmasq. Resuelve la ubicación
 	// real vía UCI (dhcp.@dnsmasq[0].leasefile), porque puede NO ser la
 	// standard /tmp/dhcp.leases (p. ej. en un SSD montado, #568); si el valor
@@ -171,6 +177,12 @@ const (
 	// lightweight mDNS daemon). Returns JSON with hostname -> services.
 	// Falls back to empty if umdns is not installed.
 	CmdMdnsBrowse = "ubus call umdns browse 2>/dev/null || echo '{}'"
+	// CmdMdnsHosts (#338): the plain host records umdns has learned, as
+	// "<name>.local" -> {ipv4, ipv6}. browse only lists hosts that advertise
+	// a SERVICE; a device that just announces its name (most laptops and
+	// phones) appears here and nowhere else, and this is the map that names
+	// a client with no DHCP hostname.
+	CmdMdnsHosts  = "ubus call umdns hosts 2>/dev/null || echo '{}'"
 	CmdEthtoolSFP = "ethtool -m %s 2>/dev/null || true"
 )
 
@@ -221,6 +233,14 @@ type WanInfo struct {
 	// internet ("lan1" para un PPPoE sobre esa boca, "eth1.20" con VLAN).
 	// Vacía cuando el uplink no pasa por ninguna (módem celular).
 	Port string `json:"port,omitempty"`
+}
+
+// DhcpReservation is one `config host` of /etc/config/dhcp: the name and
+// address pinned to a MAC (both optional). MAC uppercase, like DhcpLease.
+type DhcpReservation struct {
+	MAC  string `json:"mac"`
+	Name string `json:"name,omitempty"`
+	IP   string `json:"ip,omitempty"`
 }
 
 // DhcpLease es {mac, ip, hostname} (mac en mayúsculas) + señales de huella
@@ -706,6 +726,68 @@ func ParseWanStatusPreferring(raw []byte, preferred string) WanInfo {
 		return WanInfo{}
 	}
 	return wanInfoFrom(one)
+}
+
+// ParseDhcpReservations parses the host sections of `uci show dhcp`. A host
+// entry can carry several MACs (GL firmware stores mac as a list) and they
+// all share the entry's name and address. Sorted by MAC so the payload does
+// not churn between pushes.
+func ParseDhcpReservations(out string) []DhcpReservation {
+	type entry struct {
+		name, ip string
+		macs     []string
+	}
+	entries := map[string]*entry{}
+	order := []string{}
+	get := func(section string) *entry {
+		e, ok := entries[section]
+		if !ok {
+			e = &entry{}
+			entries[section] = e
+			order = append(order, section)
+		}
+		return e
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		key, val, ok := strings.Cut(line, "=")
+		if !ok || !strings.HasPrefix(key, "dhcp.") {
+			continue
+		}
+		key = strings.TrimPrefix(key, "dhcp.")
+		val = strings.Trim(val, "'")
+		section, attr, isAttr := strings.Cut(key, ".")
+		if !isAttr {
+			if val == "host" {
+				get(section)
+			}
+			continue
+		}
+		e, declared := entries[section]
+		if !declared {
+			continue // an option of a section that is not a host entry
+		}
+		switch attr {
+		case "name":
+			e.name = val
+		case "ip":
+			e.ip = val
+		case "mac":
+			// A list comes back as 'aa:..' 'bb:..'; a single value plain.
+			for _, mac := range strings.Fields(strings.ReplaceAll(val, "'", " ")) {
+				e.macs = append(e.macs, strings.ToUpper(mac))
+			}
+		}
+	}
+	res := []DhcpReservation{}
+	for _, section := range order {
+		e := entries[section]
+		for _, mac := range e.macs {
+			res = append(res, DhcpReservation{MAC: mac, Name: e.name, IP: e.ip})
+		}
+	}
+	sort.Slice(res, func(i, j int) bool { return res[i].MAC < res[j].MAC })
+	return res
 }
 
 // ParseDhcpLeasesFile parsea /tmp/dhcp.leases:
@@ -1768,6 +1850,26 @@ func max0(v float64) float64 {
 		return 0
 	}
 	return v
+}
+
+// ParseMdnsHosts (#338): parses `ubus call umdns hosts` into IP -> hostname.
+// The trailing ".local" is dropped: it is the mDNS suffix, not part of the
+// name anyone recognises. Entries without an IPv4 are skipped.
+func ParseMdnsHosts(raw []byte) map[string]string {
+	var hosts map[string]struct {
+		IPv4 string `json:"ipv4"`
+	}
+	out := map[string]string{}
+	if json.Unmarshal(raw, &hosts) != nil {
+		return out
+	}
+	for name, h := range hosts {
+		if h.IPv4 == "" {
+			continue
+		}
+		out[h.IPv4] = strings.TrimSuffix(name, ".local")
+	}
+	return out
 }
 
 // ParseMdnsBrowse (#338): parsea la salida de `ubus call umdns browse`.

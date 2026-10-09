@@ -695,6 +695,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	} else if cached != nil {
 		out.vlans = cached.vlans
 	}
+	if dh := p.Data.DHCP; dh != nil && len(dh.Reservations) > 0 {
+		out.reservations = dh.Reservations
+	}
 	if fd := p.Data.FDB; fd != nil {
 		if fd.MACs != nil {
 			out.fdb = fd.MACs

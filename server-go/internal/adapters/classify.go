@@ -30,7 +30,7 @@ var typeRules = []struct {
 	// como "nintendo-switch".
 	{"consola", []string{"playstation", "ps4", "ps5", "xbox", "nintendo", "steamdeck", "steam-deck", "consola"}},
 	// Camara antes que tv: "cctv-..." contiene "tv-" y caeria en TV (#1327).
-	{"camara", []string{"camara", "camera", "cctv", "nvr", "ezviz", "tapo-c", "-cam", "cam-"}},
+	{"camara", []string{"camara", "camera", "cctv", "nvr", "reolink", "ezviz", "tapo-c", "-cam", "cam-"}},
 	{"tv", []string{"appletv", "apple-tv", "bravia", "webos", "firetv", "fire-tv", "chromecast", "mibox", "mi-box", "shield", "television", "smart-tv", "smarttv", "-tv", "tv-"}},
 	{"aspirador", []string{"roomba", "irobot", "roborock", "aspirador", "vacuum", "deebot", "ecovacs", "dreame", "qrevo", "s8-max", "s8-pro", "k10"}},
 	{"altavoz", []string{"sonos", "heos", "homepod", "echo-", "altavoz", "speaker", "soundbar", "marantz", "denon", "home-mini", "nest-mini", "nest-audio", "amplificador", "receiver"}},
@@ -40,7 +40,10 @@ var typeRules = []struct {
 	{"servidor", []string{"proxmox", "pve", "jellyfin", "transmission", "helios", "homeassistant", "home-assistant", "haos", "servidor", "server", "nas", "citadel", "omv", "truenas", "pihole", "pi-hole", "adguard", "raspberry", "rpi", "docker", "keynest", "deltos", "nido", "netpulse"}},
 	{"ordenador", []string{"imac", "mac-mini", "macstudio", "mac-studio", "desktop", "sobremesa", "workstation", "nuc", "ser9", "pc-", "-pc", "tower", "minipc", "mini-pc"}},
 	{"switch", []string{"gs308", "gs305", "tl-sg", "switch"}},
-	{"iot", []string{"robot", "tasmota", "sonoff", "shelly", "esphome", "tuya", "smartlife", "meross", "gosund", "switchbot", "aqara", "lumi", "zigbee", "zhirui", "osram", "ikea", "tradfri", "hue", "wled", "athom", "cargador", "wallbox", "feyree", "tedee", "cerradura", "enchufe", "plug", "bombilla", "downlight", "persiana", "curtain", "riego", "sprinkler", "termo", "termostato", "caldera", "aire", "ac-", "slzb", "impresora", "printer", "epson", "brother", "canon"}},
+	{"iot", []string{"robot", "tasmota", "sonoff", "shelly", "esphome", "tuya", "smartlife", "meross", "gosund", "switchbot", "aqara", "lumi", "zigbee", "zhirui", "osram", "ikea", "tradfri", "hue", "wled", "athom", "cargador", "wallbox", "feyree", "tedee", "cerradura", "enchufe", "plug", "bombilla", "downlight", "persiana", "curtain", "riego", "sprinkler", "termo", "termostato", "caldera", "aire", "ac-", "slzb", "impresora", "printer", "epson", "brother", "canon",
+		// Xiaomi vende móviles Y electrodomésticos bajo el mismo OUI, así
+		// que el fabricante no decide: el nombre sí.
+		"purificator", "purificador", "purifier", "humidifier", "humidificador"}},
 }
 
 // GuessDeviceType estima el DeviceType con reglas deterministas: patrones de
@@ -88,6 +91,11 @@ func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldp
 		}
 	}
 	// Fabricante como refuerzo cuando el hostname no dice nada (OUI DB).
+	// Cámaras primero: un fabricante de videovigilancia es más específico
+	// que "iot", y hay un tipo propio para ello.
+	if oui.IsCameraVendor(m) {
+		return "camara"
+	}
 	if oui.IsIoTVendor(m) {
 		return "iot"
 	}

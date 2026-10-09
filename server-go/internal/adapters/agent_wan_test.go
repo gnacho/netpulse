@@ -98,3 +98,23 @@ func TestPolledFromAgentWithoutMultiWanStaysNil(t *testing.T) {
 		t.Fatalf("multiWan = %+v, want nothing", p.multiWan)
 	}
 }
+
+func TestPolledFromAgentTakesReservationsFromPayload(t *testing.T) {
+	// A client with a fixed address of its own never takes a lease, so the
+	// reservation is the only name the router has for it.
+	l := NewLive(nil, nil, []RouterConfig{
+		{ID: "gateway", Host: "192.0.2.1", Name: "openwrt", IsGateway: true, AgentOnly: true},
+	}, nil)
+	payload := &probe.Payload{
+		Router: "gateway", Ts: 1, Version: "2.28.24",
+		Data: probe.PayloadData{DHCP: &probe.DHCPData{
+			Reservations: []probe.DhcpReservation{
+				{MAC: "02:00:00:00:00:01", Name: "printer", IP: "192.0.2.10"},
+			},
+		}},
+	}
+	p := l.polledFromAgent(l.routers[0], payload)
+	if len(p.reservations) != 1 || p.reservations[0].Name != "printer" {
+		t.Fatalf("reservations from the payload: %+v", p.reservations)
+	}
+}

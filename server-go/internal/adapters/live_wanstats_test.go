@@ -44,8 +44,8 @@ func TestWanDayStats(t *testing.T) {
 
 	// Ayer (fuera del rango de hoy, pero 2 muestras dentro de la ventana 24h
 	// si caen >= now-24h). now-24h = 11-Ago 21:00.
-	insertMetric(t, d, "gw", now.Add(-25*time.Hour), 10e6)  // 11-Ago 20:00 → fuera de 24h
-	insertMetric(t, d, "gw", now.Add(-24*time.Hour), 20e6)  // 11-Ago 21:00 → dentro (borde)
+	insertMetric(t, d, "gw", now.Add(-25*time.Hour), 10e6) // 11-Ago 20:00 → fuera de 24h
+	insertMetric(t, d, "gw", now.Add(-24*time.Hour), 20e6) // 11-Ago 21:00 → dentro (borde)
 	// Hoy (12-Ago): pico a las 15:00 con 90 Mbps.
 	insertMetric(t, d, "gw", time.Date(2026, 8, 12, 10, 0, 0, 0, time.Local), 30e6)
 	insertMetric(t, d, "gw", time.Date(2026, 8, 12, 15, 0, 0, 0, time.Local), 90e6)

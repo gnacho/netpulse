@@ -11,9 +11,9 @@ func testLivePresence(t *testing.T) *Live {
 	t.Helper()
 	d := openLiveTestDB(t)
 	return &Live{
-		db:                  d,
-		devicePresence:      map[string]bool{},
-		presenceMisses:      map[string]int{},
+		db:                   d,
+		devicePresence:       map[string]bool{},
+		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
 	}
 }

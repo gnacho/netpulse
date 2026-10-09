@@ -153,6 +153,10 @@ type DHCPData struct {
 	// leases — resuelve IPs de equipos con IP estática o sin lease en el
 	// dnsmasq del Flint2 (issue #5 bug 1). Vacío/ausente en otros routers.
 	GlClients []DhcpLease `json:"glClients,omitempty"`
+	// Reservations: the `config host` entries of /etc/config/dhcp. Without
+	// them a client with a fixed address of its own shows as a bare MAC,
+	// because it never takes a lease to carry a hostname.
+	Reservations []DhcpReservation `json:"reservations,omitempty"`
 }
 
 // FDBData: MAC aprendida → puerto del bridge + puertos ethernet.

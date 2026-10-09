@@ -87,16 +87,17 @@ type netIfSample struct {
 // LOCALMENTE con el mismo package (misma fuente de verdad) y empuja esos
 // shapes al endpoint de ingesta (SPEC-AGENTE-PILOTO §1-2).
 type (
-	SysInfo        = probe.SysInfo
-	BoardInfo      = probe.BoardInfo
-	DhcpLease      = probe.DhcpLease
-	WirelessClient = probe.WirelessClient
-	PortState      = probe.PortState
-	PortLayout     = probe.PortLayout
-	VlanPort       = probe.VlanPort
-	MultiWanInfo   = probe.MultiWanInfo
-	WanUplink      = probe.WanUplink
-	VlanEntry      = probe.VlanEntry
+	SysInfo         = probe.SysInfo
+	BoardInfo       = probe.BoardInfo
+	DhcpLease       = probe.DhcpLease
+	WirelessClient  = probe.WirelessClient
+	PortState       = probe.PortState
+	PortLayout      = probe.PortLayout
+	VlanPort        = probe.VlanPort
+	MultiWanInfo    = probe.MultiWanInfo
+	WanUplink       = probe.WanUplink
+	VlanEntry       = probe.VlanEntry
+	DhcpReservation = probe.DhcpReservation
 )
 
 // NewOpenWrtClient crea el cliente de un router.
@@ -390,6 +391,17 @@ func (c *OpenWrtClient) GetWanInfo() probe.WanInfo {
 		return probe.ParseWanStatus(raw)
 	}
 	return probe.WanInfo{}
+}
+
+// GetDhcpReservations: the `config host` entries of /etc/config/dhcp, for
+// the routers polled over SSH (the agent sends them in its payload). Error
+// or no entries → empty, and clients keep falling back to their MAC.
+func (c *OpenWrtClient) GetDhcpReservations() []DhcpReservation {
+	out, err := c.pool.Run(c.Host, probe.CmdDhcpReservations, 0)
+	if err != nil {
+		return nil
+	}
+	return probe.ParseDhcpReservations(out)
 }
 
 // GetGlClients: base de clientes del firmware GL.iNet (`ubus call gl-clients
