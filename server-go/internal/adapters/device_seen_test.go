@@ -265,10 +265,10 @@ func TestApplyDeviceSeenRestoresNameAndIP(t *testing.T) {
 }
 
 // #1315 (sub-bug a, MACs enlazadas): con alias -> canónico, al expirar el
-// lease el merge deja como nombre del canónico la MAC de una alias (el
-// restore antiguo solo reconocía la propia MAC). El nombre vivo que es una
-// MAC de cualquier interfaz (isMACLike) se restaura desde el registro y el
-// server nunca emite esa MAC como hostname.
+// lease el merge deja como nombre del canónico la MAC de una alias (la
+// clasificación/restore antigua solo reconocía la propia MAC). El nombre
+// vivo que es una MAC de cualquier interfaz (isMACLike) se restaura desde
+// el registro y el server nunca emite esa MAC como hostname.
 func TestApplyDeviceSeenRestoresLinkedAliasMACName(t *testing.T) {
 	d := openLiveTestDB(t)
 	l := &Live{db: d}
@@ -333,5 +333,79 @@ func TestApplyDeviceSeenIgnoresStoredMACName(t *testing.T) {
 	}
 	if out[0].Hostname != "" {
 		t.Errorf("Hostname = %q, want vacío (nunca se emite una MAC como hostname)", out[0].Hostname)
+	}
+}
+
+// #1315 (sub-bug b): stickiness del tipo. Se persiste el último tipo
+// INFERIDO (no override, no genérico) y, al expirar el lease, cuando la
+// clasificación viva cae en "desconocido" se conserva el retenido. Los
+// overrides manuales nunca se persisten ni se pisan.
+func TestApplyDeviceSeenStickyInferredType(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	l.noteDevicesSeen([]Device{
+		{MAC: "aa:bb:cc:dd:ee:ff", Online: true, Hostname: "galaxy-s9", Type: "movil"},
+		{MAC: "11:22:33:44:55:66", Online: true, Hostname: "tv-salon", Type: "tv", TypeOverride: "tv"},
+		{MAC: "77:77:77:77:77:77", Online: true, Hostname: "sin-tipo", Type: "desconocido"},
+	}, 1000)
+
+	// Lease expirado: nombre degradado, clasificación viva "desconocido".
+	out := []Device{
+		{MAC: "AA:BB:CC:DD:EE:FF", Name: "AA:BB:CC:DD:EE:FF", Online: true, Type: "desconocido"},
+		{MAC: "11:22:33:44:55:66", Name: "11:22:33:44:55:66", Online: true, Type: "tv", TypeOverride: "tv"},
+	}
+	l.applyDeviceSeen(out)
+	if out[0].Type != "movil" {
+		t.Errorf("Type = %q, want movil (sticky del último inferido)", out[0].Type)
+	}
+	if out[1].Type != "tv" || out[1].TypeOverride != "tv" {
+		t.Errorf("Type = %q/%q, want tv override intacto (nunca se pisa)", out[1].Type, out[1].TypeOverride)
+	}
+	// El override manual NO quedó persistido como inferido.
+	var stored string
+	if err := d.QueryRow("SELECT device_type FROM device_seen WHERE mac = '11:22:33:44:55:66'").Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != "" {
+		t.Errorf("device_type persistido del override = %q, want vacío (solo se guarda lo inferido)", stored)
+	}
+	// El genérico tampoco se persiste.
+	if err := d.QueryRow("SELECT device_type FROM device_seen WHERE mac = '77:77:77:77:77:77'").Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != "" {
+		t.Errorf("device_type persistido del desconocido = %q, want vacío", stored)
+	}
+
+	// Inferencia viva no genérica: manda sobre el retenido.
+	l.noteDevicesSeen([]Device{
+		{MAC: "aa:bb:cc:dd:ee:ff", Online: true, Hostname: "nuevo-nombre-tv", Type: "tv"},
+	}, 2000)
+	out2 := []Device{{MAC: "AA:BB:CC:DD:EE:FF", Name: "AA:BB:CC:DD:EE:FF", Online: true, Type: "desconocido"}}
+	l.applyDeviceSeen(out2)
+	if out2[0].Type != "tv" {
+		t.Errorf("Type = %q, want tv (la inferencia nueva pisa al retenido)", out2[0].Type)
+	}
+}
+
+// #1315 (sub-bug b): los fantasmas también conservan el último tipo
+// inferido; sin esto el icono se perdía igual que en la lista viva.
+func TestGhostDevicesStickyType(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	l.noteDevicesSeen([]Device{
+		{MAC: "aa:bb:cc:dd:ee:ff", Online: true, Hostname: "roborock-s8", Type: "aspirador"},
+		{MAC: "11:22:33:44:55:66", Online: true, Hostname: "sin-tipo"},
+	}, 1000)
+	ghosts := l.ghostDevices(nil)
+	byMAC := map[string]Device{}
+	for _, g := range ghosts {
+		byMAC[g.MAC] = g
+	}
+	if g := byMAC["AA:BB:CC:DD:EE:FF"]; g.Type != "aspirador" {
+		t.Errorf("ghost Type = %q, want aspirador (sticky)", g.Type)
+	}
+	if g := byMAC["11:22:33:44:55:66"]; g.Type != "desconocido" {
+		t.Errorf("ghost Type = %q, want desconocido (nunca hubo inferencia)", g.Type)
 	}
 }

@@ -24,7 +24,8 @@ func normSeenMAC(mac string) string {
 // visible) para que un cliente que deje de verse conserve su nombre en la
 // lista (el nombre nuevo pisa al viejo solo si no es vacío). Una MAC nunca se
 // guarda como nombre (isMACLike, #1315): el registro recuerda nombres, no
-// identidades.
+// identidades. Lo mismo para el tipo inferido: solo valores no genéricos y
+// nunca overrides manuales (#1315, stickiness del tipo al expirar el lease).
 // saneIP: nil si el valor no es una IP (#1278). Algunas fuentes reportan
 // el hostname con formato MAC-con-guiones en el campo ip y acaba pintándose
 // en la columna IP de la tabla.
@@ -63,6 +64,19 @@ func isMACLike(v string) bool {
 		}
 	}
 	return true
+}
+
+// #1315: stickiness del tipo inferido. Al expirar el lease la clasificación
+// viva se rehace con el nombre ya degradado (la MAC) y vuelve a caer en
+// "desconocido", perdiendo el icono que el cliente llevaba. Se persiste el
+// último tipo INFERIDO (nunca un override manual: esos ya sobreviven porque
+// se aplican en cada ciclo) y se conserva mientras la inferencia viva dé el
+// genérico. "" cuando no hay nada que conservar.
+func inferredDeviceType(d Device) string {
+	if d.TypeOverride != "" || d.Type == "" || d.Type == "desconocido" {
+		return ""
+	}
+	return d.Type
 }
 
 // filterTombstoned (#1292): quita de la LISTA FINAL las MACs enterradas.
@@ -158,10 +172,11 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 		return
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op tras Commit
-	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name, ip) VALUES (?, ?, ?, ?, ?)
+	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name, ip, device_type) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(mac) DO UPDATE SET last_seen = excluded.last_seen,
 			name = CASE WHEN excluded.name != '' THEN excluded.name ELSE device_seen.name END,
-			ip = CASE WHEN excluded.ip != '' THEN excluded.ip ELSE device_seen.ip END`)
+			ip = CASE WHEN excluded.ip != '' THEN excluded.ip ELSE device_seen.ip END,
+			device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE device_seen.device_type END`)
 	if err != nil {
 		return
 	}
@@ -184,7 +199,7 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 		if name == "" && d.Name != "" && !isMACLike(d.Name) {
 			name = d.Name
 		}
-		if _, err := stmt.Exec(mac, nowMs, nowMs, name, saneIP(d.IP)); err != nil {
+		if _, err := stmt.Exec(mac, nowMs, nowMs, name, saneIP(d.IP), inferredDeviceType(d)); err != nil {
 			return
 		}
 	}
@@ -224,6 +239,14 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 			if s.ip != "" && devices[i].IP == "" {
 				devices[i].IP = saneIP(s.ip)
 			}
+			// #1315: stickiness del tipo. La clasificación viva se rehizo con
+			// el nombre ya degradado y cayó en "desconocido": se conserva el
+			// último tipo inferido (no override) del registro. Un override
+			// manual manda siempre (va en TypeOverride) y una inferencia viva
+			// no genérica ya viaja en Type: el sticky solo rellena el hueco.
+			if devices[i].TypeOverride == "" && devices[i].Type == "desconocido" && s.deviceType != "" {
+				devices[i].Type = s.deviceType
+			}
 		}
 	}
 }
@@ -231,13 +254,14 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 type seenRow struct {
 	first, last int64
 	name, ip    string
+	deviceType  string
 }
 
 // seenByMac carga la tabla device_seen completa (una query, sin N+1).
 // #1315: un nombre con forma de MAC (BDs contaminadas por ciclos previos)
 // se devuelve vacío: nunca se restaura ni emite una MAC como nombre.
 func (l *Live) seenByMac() (map[string]seenRow, error) {
-	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, ''), COALESCE(ip, '') FROM device_seen`)
+	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, ''), COALESCE(ip, ''), COALESCE(device_type, '') FROM device_seen`)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +270,7 @@ func (l *Live) seenByMac() (map[string]seenRow, error) {
 	for rows.Next() {
 		var mac string
 		var s seenRow
-		if err := rows.Scan(&mac, &s.first, &s.last, &s.name, &s.ip); err != nil {
+		if err := rows.Scan(&mac, &s.first, &s.last, &s.name, &s.ip, &s.deviceType); err != nil {
 			return nil, err
 		}
 		if isMACLike(s.name) {
@@ -313,6 +337,13 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 			Band:        "—",
 			FirstSeenMs: s.first,
 			LastSeenMs:  s.last,
+		}
+		// #1315: el fantasma conserva el último tipo inferido (misma
+		// stickiness que applyDeviceSeen: al expirar el lease la
+		// clasificación viva cae en "desconocido" y sin esto el icono se
+		// pierde también en los clientes retenidos).
+		if s.deviceType != "" {
+			d.Type = s.deviceType
 		}
 		if s.name != "" {
 			d.Hostname = s.name
