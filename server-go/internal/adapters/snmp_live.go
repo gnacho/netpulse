@@ -446,12 +446,13 @@ func snmpLldpNeighbors(rem []npsnmp.LldpRemEntry, portIdxToName map[int]string) 
 			port = fmt.Sprintf("port-%d", e.LocalPortNum)
 		}
 		out = append(out, LldpNeighbor{
-			Port:       port,
-			ChassisMac: e.ChassisMac,
-			Chassis:    e.Chassis,
-			Mgmt:       e.Mgmt,
-			Caps:       e.Caps,
-			PortDesc:   e.PortDesc,
+			Port:               port,
+			ChassisMac:         e.ChassisMac,
+			Chassis:            e.Chassis,
+			Mgmt:               e.Mgmt,
+			Caps:               e.Caps,
+			PortDesc:           e.PortDesc,
+			ChassisFromLocDesc: e.ChassisFromLocDesc,
 		})
 	}
 	return out

@@ -34,6 +34,12 @@ type LldpNeighbor struct {
 	Mgmt       string   // primera mgmt-ip anunciada
 	Caps       []string // capacidades enabled ("Bridge", "Router", "Wlan"…)
 	PortDesc   string   // descripción del puerto remoto
+	// ChassisFromLocDesc: el Chassis se sintetizó desde lldpLocPortDesc del
+	// puerto LOCAL del que sondea (caso Omada #1279), no de un anuncio remoto.
+	// Vale para etiquetas de puerto; la resolución de uplinks de flota lo
+	// excluye del matching de routers (la anotación del admin no identifica
+	// al vecino y producía padres falsos en bucle entre unidades).
+	ChassisFromLocDesc bool
 }
 
 // info construye el LldpInfo del contrato (Caps unidas, como la demo).
@@ -104,13 +110,21 @@ func isLldpUnavailable(err error) bool {
 	return strings.Contains(msg, "status 127") || strings.Contains(msg, "not found")
 }
 
-// lldpFromProbe: conversión probe.LldpNeighbor → LldpNeighbor (campos
-// idénticos; el parser vive en agent/probe desde #489 para compartirlo con
-// la sonda del agente).
+// lldpFromProbe: conversión probe.LldpNeighbor → LldpNeighbor (el parser
+// vive en agent/probe desde #489 para compartirlo con la sonda del agente).
+// Campo a campo: el contrato local añade ChassisFromLocDesc (solo lo
+// sintetiza el camino SNMP, #1279), que el probe no conoce.
 func lldpFromProbe(nbs []probe.LldpNeighbor) []LldpNeighbor {
 	out := make([]LldpNeighbor, len(nbs))
 	for i, n := range nbs {
-		out[i] = LldpNeighbor(n)
+		out[i] = LldpNeighbor{
+			Port:       n.Port,
+			ChassisMac: n.ChassisMac,
+			Chassis:    n.Chassis,
+			Mgmt:       n.Mgmt,
+			Caps:       n.Caps,
+			PortDesc:   n.PortDesc,
+		}
 	}
 	return out
 }

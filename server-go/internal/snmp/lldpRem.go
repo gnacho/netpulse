@@ -25,6 +25,13 @@ type LldpRemEntry struct {
 	Mgmt         string   // primera IPv4 de gestión anunciada para ese vecino
 	Caps         []string // capacidades enabled ("Bridge", "Router", "Wlan"...)
 	PortDesc     string   // descripción del puerto remoto (o su id si no hay)
+	// ChassisFromLocDesc: true cuando el Chassis vino de lldpLocPortDesc del
+	// puerto LOCAL (caso Omada #1279: la rem table no expone identidad y la
+	// descripción que el admin anotó en su propio puerto es lo único
+	// disponible). NO es identidad remota anunciada: sirve para etiquetas,
+	// pero no para matching de routers en la resolución de uplinks (un
+	// "ap1" anotado por el admin no prueba que el vecino sea esa unidad).
+	ChassisFromLocDesc bool
 }
 
 // PollLldpRemTable sondea los vecinos LLDP del switch. Un equipo sin LLDP
@@ -222,6 +229,7 @@ func applyLocPortIdentity(entries []LldpRemEntry, loc map[int]locPortInfo) {
 			continue // sin descripción, o la copia por defecto del id
 		}
 		e.Chassis = desc
+		e.ChassisFromLocDesc = true
 	}
 }
 

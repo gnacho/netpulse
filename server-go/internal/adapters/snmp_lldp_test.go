@@ -44,6 +44,23 @@ func TestSnmpLldpNeighborsVacio(t *testing.T) {
 	}
 }
 
+// #1279 (reapertura): el flag ChassisFromLocDesc viaja del LLDP-MIB al
+// contrato LldpNeighbor para que la resolución de uplinks pueda excluir la
+// identidad sintetizada de la anotación local del admin.
+func TestSnmpLldpNeighborsPropagaLocDesc(t *testing.T) {
+	rem := []npsnmp.LldpRemEntry{
+		{LocalPortNum: 21, IfIndex: 21, Chassis: "ap1", ChassisFromLocDesc: true},
+		{LocalPortNum: 22, IfIndex: 22, Chassis: "sw2"},
+	}
+	got := snmpLldpNeighbors(rem, map[int]string{21: "1/0/21", 22: "1/0/22"})
+	if !got[0].ChassisFromLocDesc {
+		t.Fatalf("vecino 0: el flag ChassisFromLocDesc debe propagarse: %+v", got[0])
+	}
+	if got[1].ChassisFromLocDesc {
+		t.Fatalf("vecino 1: identidad remota real, flag a false: %+v", got[1])
+	}
+}
+
 // #931: en una boca con UN solo equipo aprendido y sin hostname DHCP ni
 // alias, el sysName anunciado por LLDP es la mejor etiqueta (antes salía la
 // MAC o la label del puerto). La mgmt-ip viaja al detalle.
