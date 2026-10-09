@@ -21,7 +21,16 @@ func TestGuessDeviceType(t *testing.T) {
 		{"jellyfin", "", "", "", "", "servidor"},
 		{"transmission", "", "", "", "", "servidor"},
 		{"homeassistant", "", "", "", "", "servidor"},
-		{"raspberry-pi", "", "", "", "", "servidor"},
+		{"raspberry-pi", "", "", "", "", "servidor"}, // aditivo: raspberry sigue en servidor
+		{"rpi4", "", "", "", "", "servidor"},
+		{"orangepi5", "", "", "", "", "placa"},
+		{"nanopi-neo", "", "", "", "", "placa"},
+		{"bananapi-m2", "", "", "", "", "placa"},
+		{"rockpi-4c", "", "", "", "", "placa"},
+		{"pihole-lan", "", "", "", "", "servidor"}, // aditivo: pihole sigue en servidor
+		{"sbc-lab", "", "", "", "", "placa"},
+		{"sbcglobal-01", "", "", "", "", "desconocido"}, // "sbc" interno no casa
+		{"mac-mini-salon", "", "", "", "", "ordenador"}, // "mac-" contiene "ac-"
 		{"pc-sobremesa", "", "", "", "", "ordenador"},
 		{"imac-estudio", "", "", "", "", "ordenador"},
 		{"switch-netgear", "", "", "", "", "switch"},
@@ -38,6 +47,20 @@ func TestGuessDeviceType(t *testing.T) {
 		{"cctv-garaje", "", "", "", "", "camara"},
 		{"doorbell-entrada", "", "", "", "", "videoportero"},
 		{"timbre-salon", "", "", "", "", "videoportero"},
+		{"ac-salon", "", "", "", "", "iot"}, // aditivo: "ac-" sigue en iot
+		{"minisplit-hab", "", "", "", "", "clima"},
+		{"aire-acondicionado-dormitorio", "", "", "", "", "clima"},
+		{"clima-estudio", "", "", "", "", "clima"},
+		{"fujitsu-split-salon", "", "", "", "", "clima"},
+		{"aireacondicionado-2", "", "", "", "", "clima"},
+		{"acme-router", "", "", "", "", "desconocido"}, // "ac" interno no casa
+		{"caldera-gas", "", "", "", "", "iot"},         // aditivo: "caldera" sigue en iot
+		{"calefaccion-suelo", "", "", "", "", "caldera"},
+		{"calefacción-central", "", "", "", "", "caldera"}, // con tilde
+		{"gas-boiler", "", "", "", "", "caldera"},
+		{"radiador-bano", "", "", "", "", "caldera"},
+		{"water-heater", "", "", "", "", "caldera"},
+		{"termo-agua", "", "", "", "", "iot"}, // termo sigue en iot
 		{"sonoff-mini", "", "", "", "", "iot"},
 		{"A4:CF:12:9A:01:02", "", "", "", "", "desconocido"}, // MAC como nombre
 		{"", "", "", "", "", "desconocido"},
