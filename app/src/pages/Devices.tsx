@@ -840,7 +840,7 @@ function DeviceDetail({
   const { adguard } = useNetPulse()
   const hasAdGuard = Boolean(adguard.host)
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
+    <div className="relative grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
       <DetailItem label="MAC" mono>
         {device.mac}
       </DetailItem>
@@ -886,8 +886,12 @@ function DeviceDetail({
         </DetailItem>
       )}
       {/* Editar a la derecha, sin texto auxiliar (#985). #1329: flotando
-          20px arriba y a la izquierda de la esquina del panel. */}
-      <div className="col-span-2 flex justify-end md:col-span-3">
+          sobre la esquina del panel. #1341: en md+ sube a la esquina
+          superior derecha, alineado con la primera fila de detalle (la
+          celda de esa esquina, "primera vez vista", es corta y deja hueco);
+          en movil se queda en su fila al pie: en 2 columnas la primera fila
+          no tiene hueco libre. */}
+      <div className="col-span-2 flex justify-end md:hidden">
         <button
           type="button"
           onClick={onEdit}
@@ -897,6 +901,14 @@ function DeviceDetail({
           {t('devices.edit.action')}
         </button>
       </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="absolute top-4 right-5 hidden items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent md:inline-flex"
+      >
+        <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+        {t('devices.edit.action')}
+      </button>
     </div>
   )
 }
