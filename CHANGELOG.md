@@ -5,6 +5,21 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.41.0] - 2026-10-09
+
+### Added
+
+- **Iconos dedicados para aire acondicionado, caldera y placas SBC (#1340, #1345, discusión #1337)**: tres tipos nuevos (`clima`, `caldera`, `placa`) con sus glifos Lucide (AirVent, Heater, CircuitBoard), estrictamente aditivo: los tokens que ya pertenecían a otra regla se quedan donde estaban, así que ningún dispositivo existente cambia de tipo ni de icono. Los tres glifos entran también en el picker manual (mapa del front y allowlist del server en lockstep).
+- **URL local para instalaciones desatendidas de agentes (#1335, #1336)**: nueva variable `NETPULSE_AGENT_URL` que sustituye al dominio público en la URL con la que cada agente conecta (línea de instalación, reinstall, re-emit y auto-reinstall) cuando el server vive detrás de un reverse proxy. Cadena de resolución: AGENT_URL > PUBLIC_URL > host de la petición.
+- **Integración del trabajo de borky (#1332, #1333)**: el agente lee las reservas DHCP de `/etc/config/dhcp` y los clientes con fixed-address ganan su nombre end-to-end; los host records de mDNS completan la mitad discovery de #338; y el matching de fabricantes se afina (OUIs de videovigilancia a `camara`, purificadores y humidificadores Xiaomi por nombre, tokens cortos con matching whole-word: "gree" ya no traga "greenwave" ni "wiz" casa WIZnet). Agente embebido 3.0.15.
+
+### Fixed
+
+- **Bucle de topología de flota de la 2.40.0 (#1279, #1342)**: la identidad sintetizada desde las descripciones de puerto locales de los switches Omada casaba routers de flota por nombre y LLDP-first fijaba padres falsos: unidades conectadas en bucle y gateway sin hijos. Esa identidad ahora solo etiqueta; cualquier ciclo residual degrada a la evidencia device/FDB, y las labels de los enlaces semánticos se colocan en el punto medio del enlace (antes se amontonaban en la esquina superior izquierda).
+- **El ciclo de vida del cliente ya no pierde datos (#1315, #1343)**: una MAC nunca se trata como nombre (tampoco la de una MAC enlazada: el merge promovía la MAC de la alias al canónico, y las filas contaminadas de `device_seen` se curan al leer, sin migración de datos), y el último tipo inferido sobrevive a la expiración del lease en dispositivos Auto (los overrides manuales siguen mandando, y los fantasmas conservan su icono).
+- **El rail del tablet tiene botón (#1318, #1344)**: el pie del rail (breakpoint md) estrena el toggle expandir/plegar y el estado colapsado funciona desde md, así que el rail en vertical retrato se comporta como el del portátil. La barra móvil no cambia.
+- **Botón Editar del detalle arriba (#1341, #1346)**: en escritorio ancla arriba a la derecha del panel, alineado con la primera fila de detalle (MAC / concesión / primera vez vista); en móvil sigue en su fila al pie.
+
 ## [2.40.0] - 2026-10-08
 
 ### Added
