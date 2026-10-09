@@ -33,12 +33,27 @@ var typeRules = []struct {
 	{"camara", []string{"camara", "camera", "cctv", "nvr", "reolink", "ezviz", "tapo-c", "-cam", "cam-"}},
 	{"tv", []string{"appletv", "apple-tv", "bravia", "webos", "firetv", "fire-tv", "chromecast", "mibox", "mi-box", "shield", "television", "smart-tv", "smarttv", "-tv", "tv-"}},
 	{"aspirador", []string{"roomba", "irobot", "roborock", "aspirador", "vacuum", "deebot", "ecovacs", "dreame", "qrevo", "s8-max", "s8-pro", "k10"}},
+	// Caldera: calefaccion/boiler/radiador eran 'desconocido' o caian mal;
+	// #1340 les da tipo propio. ADITIVO: "caldera" se QUEDA en iot (regla
+	// antigua), no se roba: una caldera ya clasificada no cambia de icono.
+	{"caldera", []string{"calefaccion", "calefacción", "boiler", "heater", "heating", "radiador"}},
 	{"altavoz", []string{"sonos", "heos", "homepod", "echo-", "altavoz", "speaker", "soundbar", "marantz", "denon", "home-mini", "nest-mini", "nest-audio", "amplificador", "receiver"}},
 	{"tablet", []string{"ipad", "tablet", "kindle", "kobo"}},
 	{"movil", []string{"iphone", "android", "pixel", "galaxy-s", "galaxy-a", "redmi-note", "oneplus", "xiaomi-1", "mi-1", "phone", "movil"}},
 	{"portatil", []string{"macbook", "laptop", "thinkpad", "ideapad", "portatil", "notebook", "surface", "hp-laptop", "lenovo-yoga"}},
+	// Placa: SBC no cubiertas antes (orange/nano/banana/rock pi). ADITIVO:
+	// raspberry/rpi/pihole se QUEDAN en servidor (regla antigua): un RPi ya
+	// clasificado no cambia de icono. "-sbc"/"sbc-" con guion para no casar
+	// dentro de otra palabra.
+	{"placa", []string{"orangepi", "orange-pi", "nanopi", "nano-pi", "bananapi", "banana-pi", "rockpi", "rock-pi", "-sbc", "sbc-"}},
 	{"servidor", []string{"proxmox", "pve", "jellyfin", "transmission", "helios", "homeassistant", "home-assistant", "haos", "servidor", "server", "nas", "citadel", "omv", "truenas", "pihole", "pi-hole", "adguard", "raspberry", "rpi", "docker", "keynest", "deltos", "nido", "netpulse"}},
 	{"ordenador", []string{"imac", "mac-mini", "macstudio", "mac-studio", "desktop", "sobremesa", "workstation", "nuc", "ser9", "pc-", "-pc", "tower", "minipc", "mini-pc"}},
+	// Clima: nombre explicito del aire acondicionado (#1340). ADITIVO:
+	// "aire"/"ac-" se QUEDAN en iot (regla antigua): un dispositivo ya
+	// clasificado no cambia de icono. Los tokens cortos van con guion
+	// ("-split"/"split-") igual que "-tv"/"tv-": "split" a secas comeria
+	// "band-splitter" o similar.
+	{"clima", []string{"aire-acondicionado", "air-conditioner", "aireacondicionado", "minisplit", "-split", "split-", "clima"}},
 	{"switch", []string{"gs308", "gs305", "tl-sg", "switch"}},
 	{"iot", []string{"robot", "tasmota", "sonoff", "shelly", "esphome", "tuya", "smartlife", "meross", "gosund", "switchbot", "aqara", "lumi", "zigbee", "zhirui", "osram", "ikea", "tradfri", "hue", "wled", "athom", "cargador", "wallbox", "feyree", "tedee", "cerradura", "enchufe", "plug", "bombilla", "downlight", "persiana", "curtain", "riego", "sprinkler", "termo", "termostato", "caldera", "aire", "ac-", "slzb", "impresora", "printer", "epson", "brother", "canon",
 		// Xiaomi vende móviles Y electrodomésticos bajo el mismo OUI, así
@@ -110,6 +125,7 @@ var ValidDeviceTypes = map[string]bool{
 	"tablet": true, "movil": true, "portatil": true, "servidor": true,
 	"ordenador": true, "switch": true, "iot": true, "desconocido": true,
 	"aspirador": true, "videoportero": true,
+	"clima": true, "caldera": true, "placa": true,
 }
 
 // guessFromMdns (#338): classify a device from its mDNS service types when
