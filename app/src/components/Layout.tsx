@@ -310,7 +310,7 @@ function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: bo
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-border bg-surface lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-border bg-surface md:flex">
       <div className="flex h-16 items-center px-5 pt-safe">
         <Logo />
       </div>
@@ -374,10 +374,10 @@ function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: bo
 }
 
 // ---------------------------------------------------------------------------
-// Rail tablet (768–1023px) — 64px con tooltips
+// Rail tablet (768–1023px, colapsado) — 64px con tooltips
 // ---------------------------------------------------------------------------
 
-function Rail() {
+function Rail({ onToggleCollapse }: { onToggleCollapse: () => void }) {
   const { t } = useTranslation()
   const items = useVisibleNavItems()
   return (
@@ -411,8 +411,19 @@ function Rail() {
           </NavLink>
         ))}
       </nav>
-      <div className="flex items-center justify-center border-t border-border py-3">
+      {/* Pie igual que el sidebar colapsado de lg (#1318): punto live + boton
+          expand. En md el rail ya no es un callejon sin salida: expande al
+          sidebar de 232px con el mismo toggle que en lg. */}
+      <div className="flex flex-col items-center gap-3 border-t border-border py-3">
         <LiveDot />
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={t('nav.expand')}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+        >
+          <ChevronsRight className="h-4 w-4" strokeWidth={1.75} />
+        </button>
       </div>
     </aside>
   )
@@ -713,8 +724,8 @@ function Shell() {
   return (
     <div className="min-h-[100dvh] bg-canvas">
       <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} serverVersion={serverVersion} />
-      <Rail />
-      <div className={collapsed ? 'md:pl-16 lg:pl-16' : 'md:pl-16 lg:pl-[232px]'}>
+      {collapsed && <Rail onToggleCollapse={toggleCollapse} />}
+      <div className={collapsed ? 'md:pl-16' : 'md:pl-[232px]'}>
         <Topbar />
         <MobileHeader />
         <main className="[view-transition-name:netpulse-content] mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
