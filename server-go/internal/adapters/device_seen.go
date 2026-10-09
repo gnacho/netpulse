@@ -22,7 +22,9 @@ func normSeenMAC(mac string) string {
 // first_seen=last_seen=now; las ya conocidas solo actualizan last_seen.
 // #1145: guarda también el último nombre conocido (hostname de lease o nombre
 // visible) para que un cliente que deje de verse conserve su nombre en la
-// lista (el nombre nuevo pisa al viejo solo si no es vacío).
+// lista (el nombre nuevo pisa al viejo solo si no es vacío). Una MAC nunca se
+// guarda como nombre (isMACLike, #1315): el registro recuerda nombres, no
+// identidades.
 // saneIP: nil si el valor no es una IP (#1278). Algunas fuentes reportan
 // el hostname con formato MAC-con-guiones en el campo ip y acaba pintándose
 // en la columna IP de la tabla.
@@ -34,6 +36,33 @@ func saneIP(ip string) string {
 		return ""
 	}
 	return ip
+}
+
+// #1315: una MAC no es un nombre. El fallback del server sin hostname es la
+// propia MAC (en la MAC del dispositivo o, con MACs enlazadas #1151, en la
+// de una alias) y el registro existe para recordar NOMBRES: persistir una
+// MAC contaminaría la restauración (#1315: el hostname mostraba una MAC
+// enlazada en formato guionado). Acepta los dos formatos (dashes/colons) en
+// cualquier mayúscula.
+func isMACLike(v string) bool {
+	v = strings.TrimSpace(v)
+	if len(v) != 17 {
+		return false
+	}
+	for i := 0; i < len(v); i++ {
+		switch i {
+		case 2, 5, 8, 11, 14:
+			if v[i] != ':' && v[i] != '-' {
+				return false
+			}
+		default:
+			c := v[i]
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // filterTombstoned (#1292): quita de la LISTA FINAL las MACs enterradas.
@@ -149,7 +178,10 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 			continue // #1278: borrado a mano, no re-alta
 		}
 		name := d.Hostname
-		if name == "" && d.Name != "" && !strings.EqualFold(d.Name, d.MAC) {
+		if isMACLike(name) {
+			name = ""
+		}
+		if name == "" && d.Name != "" && !isMACLike(d.Name) {
 			name = d.Name
 		}
 		if _, err := stmt.Exec(mac, nowMs, nowMs, name, saneIP(d.IP)); err != nil {
@@ -178,8 +210,12 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 			// expira (el cliente sigue listado vía estación/ARP/FDB): Name
 			// vuelve a ser la MAC y la IP queda vacía. El registro (#1145)
 			// conserva el último conocido: lo restauramos. Los ghosts
-			// (fuera de la lista viva) ya lo hacen en ghostDevices.
-			if s.name != "" && isMACFallbackName(devices[i].Name, devices[i].MAC) {
+			// (fuera de la lista viva) ya lo hacen en ghostDevices. El guard
+			// es isMACLike (no solo "la propia MAC"): con MACs enlazadas
+			// (#1151) el merge puede dejar como nombre la MAC de una alias,
+			// que tampoco es un nombre. Los alias/override reales nunca son
+			// MAC-shaped, así que siguen sin pisarse.
+			if s.name != "" && isMACLike(devices[i].Name) {
 				devices[i].Name = s.name
 			}
 			if s.name != "" && devices[i].Hostname == "" {
@@ -192,22 +228,14 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 	}
 }
 
-// isMACFallbackName: true cuando el nombre visible es la propia MAC (el
-// fallback de buildDevices cuando ninguna fuente da nombre). Acepta los dos
-// formatos que usa el fallback (dashes en el ID, colons en la MAC).
-func isMACFallbackName(name, mac string) bool {
-	if name == "" || mac == "" {
-		return false
-	}
-	return normSeenMAC(name) == normSeenMAC(mac)
-}
-
 type seenRow struct {
 	first, last int64
 	name, ip    string
 }
 
 // seenByMac carga la tabla device_seen completa (una query, sin N+1).
+// #1315: un nombre con forma de MAC (BDs contaminadas por ciclos previos)
+// se devuelve vacío: nunca se restaura ni emite una MAC como nombre.
 func (l *Live) seenByMac() (map[string]seenRow, error) {
 	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, ''), COALESCE(ip, '') FROM device_seen`)
 	if err != nil {
@@ -220,6 +248,9 @@ func (l *Live) seenByMac() (map[string]seenRow, error) {
 		var s seenRow
 		if err := rows.Scan(&mac, &s.first, &s.last, &s.name, &s.ip); err != nil {
 			return nil, err
+		}
+		if isMACLike(s.name) {
+			s.name = ""
 		}
 		byMac[mac] = s
 	}

@@ -116,7 +116,13 @@ func mergeLinkedDevices(devices []Device, links map[string]string) []Device {
 			if canon.Hostname == "" {
 				canon.Hostname = d.Hostname
 			}
-			if canon.Name == "" || canon.Name == canon.MAC {
+			// #1315: el canónico sin nombre hereda el de la alias solo si
+			// eso es un nombre real. Si su nombre actual es una MAC (fallback
+			// sin hostname) y la alias solo ofrece otra MAC, se conserva la
+			// propia: mejor la MAC del canónico que la de una alias.
+			if canon.Name == "" {
+				canon.Name = d.Name
+			} else if isMACLike(canon.Name) && !isMACLike(d.Name) {
 				canon.Name = d.Name
 			}
 			if canon.Manufacturer == "" {

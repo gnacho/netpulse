@@ -263,3 +263,75 @@ func TestApplyDeviceSeenRestoresNameAndIP(t *testing.T) {
 		t.Errorf("Name = %q, want telefono-ana (el alias manda)", aliased[0].Name)
 	}
 }
+
+// #1315 (sub-bug a, MACs enlazadas): con alias -> canónico, al expirar el
+// lease el merge deja como nombre del canónico la MAC de una alias (el
+// restore antiguo solo reconocía la propia MAC). El nombre vivo que es una
+// MAC de cualquier interfaz (isMACLike) se restaura desde el registro y el
+// server nunca emite esa MAC como hostname.
+func TestApplyDeviceSeenRestoresLinkedAliasMACName(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	l.noteDevicesSeen([]Device{
+		{MAC: "cc:cc:cc:00:00:01", Online: true, Hostname: "galaxy-s9", Type: "movil"},
+	}, 1000)
+
+	// El canónico llega vivo con la MAC de una alias como nombre (merge de
+	// #1151 cuando el primario no tiene hostname).
+	out := []Device{{MAC: "CC:CC:CC:00:00:01", Name: "AA:AA:AA:00:00:02", Online: true, Type: "desconocido"}}
+	l.applyDeviceSeen(out)
+	if out[0].Name != "galaxy-s9" {
+		t.Errorf("Name = %q, want galaxy-s9 (la MAC de la alias no es un nombre)", out[0].Name)
+	}
+	if out[0].Hostname != "galaxy-s9" {
+		t.Errorf("Hostname = %q, want galaxy-s9", out[0].Hostname)
+	}
+}
+
+// #1315 (sub-bug a): noteDevicesSeen nunca persiste una MAC como nombre. El
+// caso linked es el que contaminaba el registro: el nombre fusionado era la
+// MAC de una alias (distinta de la MAC del dispositivo) y el guard antiguo
+// (!= MAC propia, case-insensitive) la dejaba pasar.
+func TestNoteDevicesSeenSkipsMACLikeNames(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	l.noteDevicesSeen([]Device{
+		{MAC: "cc:cc:cc:00:00:01", Online: true, Name: "cc:cc:cc:00:00:01"},           // MAC propia
+		{MAC: "dd:dd:dd:00:00:01", Online: true, Name: "AA:AA:AA:00:00:02"},           // MAC de otra interfaz (linked)
+		{MAC: "ee:ee:ee:00:00:01", Online: true, Name: "EE-EE-EE-00-00-01"},           // MAC con guiones
+		{MAC: "ff:ff:ff:00:00:01", Online: true, Name: "iphone-peter", Type: "movil"}, // nombre real
+	}, 1000)
+
+	ghosts := l.ghostDevices(nil)
+	byMAC := map[string]Device{}
+	for _, g := range ghosts {
+		byMAC[g.MAC] = g
+	}
+	for _, mac := range []string{"CC:CC:CC:00:00:01", "DD:DD:DD:00:00:01", "EE:EE:EE:00:00:01"} {
+		if g, ok := byMAC[mac]; !ok || g.Hostname != "" || g.Name != "" {
+			t.Errorf("registro de %s = %+v, want sin nombre (una MAC no es nombre)", mac, g)
+		}
+	}
+	if g, ok := byMAC["FF:FF:FF:00:00:01"]; !ok || g.Hostname != "iphone-peter" {
+		t.Errorf("registro de FF:FF:FF:00:00:01 = %+v, want iphone-peter", g)
+	}
+}
+
+// #1315 (sub-bug a): sanidad de BD vieja. Los ciclos anteriores al fix
+// pudieron persistir una MAC como nombre; al leer, seenByMac lo ignora y el
+// server deja de emitirla como hostname en vez de restaurarla.
+func TestApplyDeviceSeenIgnoresStoredMACName(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	if _, err := d.Exec("INSERT INTO device_seen (mac, first_seen, last_seen, name) VALUES ('CC:CC:CC:00:00:01', 1, 2, 'AA-BB-CC-DD-EE-FF')"); err != nil {
+		t.Fatal(err)
+	}
+	out := []Device{{MAC: "CC:CC:CC:00:00:01", Name: "CC:CC:CC:00:00:01", Online: false}}
+	l.applyDeviceSeen(out)
+	if out[0].Name != "CC:CC:CC:00:00:01" {
+		t.Errorf("Name = %q, want la MAC viva conservada (el nombre MAC del registro no se restaura)", out[0].Name)
+	}
+	if out[0].Hostname != "" {
+		t.Errorf("Hostname = %q, want vacío (nunca se emite una MAC como hostname)", out[0].Hostname)
+	}
+}
