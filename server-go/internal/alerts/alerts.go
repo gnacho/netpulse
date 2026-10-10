@@ -131,6 +131,10 @@ const (
 	TypeAutoRearmFailed    = "auto-rearm-failed"
 	TypeUplinkRestored     = "uplink-restored"
 	TypeSnmpRecovered      = "snmp-recovered"
+	// #1354: router offline (was reused from HintDeviceOffline, now its own slug)
+	// and client device offline (opt-in, volatile).
+	TypeRouterOffline = "router-offline"
+	TypeDeviceOffline = "device-offline"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
@@ -191,7 +195,7 @@ type Engine struct {
 	// startedAt vienen de una sesión previa: si se re-emiten (update), es
 	// un episodio nuevo tras el reinicio y vuelven a no-leídas (#1094).
 	startedAt time.Time
-	now      func() time.Time
+	now       func() time.Time
 
 	cfg        map[string]string
 	list       []AlertEvent

@@ -70,9 +70,10 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		Icon *string `json:"icon"`
-		Name *string `json:"name"`
-		Type *string `json:"type"`
+		Icon          *string `json:"icon"`
+		Name          *string `json:"name"`
+		Type          *string `json:"type"`
+		NotifyOffline *bool   `json:"notifyOffline"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
 		writeBodyError(w, st, "invalid_body", "body JSON inválido")
@@ -101,8 +102,9 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 	// Valores actuales (los campos ausentes conservan lo persistido).
 	var curIcon sql.NullString
 	var curName, curType string
-	row := s.db.QueryRow("SELECT icon, name, device_type FROM device_overrides WHERE mac = ?", mac)
-	switch err := row.Scan(&curIcon, &curName, &curType); err {
+	var curNotifyOffline bool
+	row := s.db.QueryRow("SELECT icon, name, device_type, notify_offline FROM device_overrides WHERE mac = ?", mac)
+	switch err := row.Scan(&curIcon, &curName, &curType, &curNotifyOffline); err {
 	case nil:
 	case sql.ErrNoRows:
 	default:
@@ -111,6 +113,7 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 	}
 	nextIcon := curIcon.String
 	nextName, nextType := curName, curType
+	nextNotifyOffline := curNotifyOffline
 	if body.Icon != nil {
 		nextIcon = *body.Icon
 	}
@@ -120,17 +123,21 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 	if body.Type != nil {
 		nextType = *body.Type
 	}
+	if body.NotifyOffline != nil {
+		nextNotifyOffline = *body.NotifyOffline
+	}
 
 	now := time.Now().UnixMilli()
-	if nextIcon == "" && nextName == "" && nextType == "" {
+	if nextIcon == "" && nextName == "" && nextType == "" && !nextNotifyOffline {
 		_, _ = s.db.Exec("DELETE FROM device_overrides WHERE mac = ?", mac)
 	} else {
 		_, err := s.db.Exec(
-			`INSERT INTO device_overrides (mac, icon, name, device_type, banned_bands, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, '', ?, ?)
+			`INSERT INTO device_overrides (mac, icon, name, device_type, banned_bands, notify_offline, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, '', ?, ?, ?)
 			 ON CONFLICT(mac) DO UPDATE SET icon=excluded.icon, name=excluded.name,
-			   device_type=excluded.device_type, updated_at=excluded.updated_at`,
-			mac, nextIcon, nextName, nextType, now, now,
+			   device_type=excluded.device_type, notify_offline=excluded.notify_offline,
+			   updated_at=excluded.updated_at`,
+			mac, nextIcon, nextName, nextType, nextNotifyOffline, now, now,
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "db_error", err.Error())
@@ -143,6 +150,7 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "mac": mac, "icon": nextIcon, "name": nextName, "type": nextType,
+		"notifyOffline": nextNotifyOffline,
 	})
 }
 
@@ -154,17 +162,19 @@ func (s *server) handleDeviceOverrideGet(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var icon, name, deviceType, banned sql.NullString
-	row := s.db.QueryRow("SELECT icon, name, device_type, banned_bands FROM device_overrides WHERE mac = ?", mac)
-	if err := row.Scan(&icon, &name, &deviceType, &banned); err != nil && err != sql.ErrNoRows {
+	var notifyOffline bool
+	row := s.db.QueryRow("SELECT icon, name, device_type, banned_bands, notify_offline FROM device_overrides WHERE mac = ?", mac)
+	if err := row.Scan(&icon, &name, &deviceType, &banned, &notifyOffline); err != nil && err != sql.ErrNoRows {
 		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"mac":         mac,
-		"icon":        icon.String,
-		"name":        name.String,
-		"type":        deviceType.String,
-		"bannedBands": banned.String,
+		"mac":           mac,
+		"icon":          icon.String,
+		"name":          name.String,
+		"type":          deviceType.String,
+		"bannedBands":   banned.String,
+		"notifyOffline": notifyOffline,
 	})
 }
 

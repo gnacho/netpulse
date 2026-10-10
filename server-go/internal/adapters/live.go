@@ -324,6 +324,15 @@ type Live struct {
 	// presencePruneAfter: ticks sin verse que eliminan la MAC de los mapas
 	// (dispositivo que se fue para siempre; ~2h a 5s/tick, issue #206).
 	presencePruneAfter int
+	// offlineAlert (#1354): seguimiento opt-in de desconexión de dispositivos
+	// marcados (notify_offline). offlineOnline marca qué MACs se vieron online
+	// alguna vez (línea base del arranque); offlineMisses cuenta ticks offline
+	// seguidos antes de confirmar; offlineAlerted evita re-emitir mientras el
+	// incidente sigue abierto.
+	offlineOnline   map[string]bool
+	offlineMisses   map[string]int
+	offlineAlerted  map[string]bool
+	offlineAlertNum int // ticks offline seguidos antes de emitir (default 3)
 	// usteerAvailable: cache de "¿hay usteer en algún router?" para el flag del
 	// overview (entrada /roaming). Refrescado asíncronamente (TTL 30s, 1 SSH
 	// al gateway) por usteerAvailableCached para no bloquear buildOverview.
@@ -455,6 +464,10 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
 		presencePruneAfter:   2000,
+		offlineOnline:        map[string]bool{},
+		offlineMisses:        map[string]int{},
+		offlineAlerted:       map[string]bool{},
+		offlineAlertNum:      3,
 		wanDown:              map[string]int{},
 		uplinkWatch:          map[string]*uplinkWatch{},
 		backhaulCache:        map[string]backhaulCacheEntry{},
@@ -1747,7 +1760,7 @@ func (l *Live) trackRouterOffline(cfg *RouterConfig, err error, fails int) {
 		Title:       name + " offline",
 		Description: fmt.Sprintf("No response from %s: %v", cfg.Host, err),
 		Hint:        alerts.HintFor(alerts.HintDeviceOffline),
-		Type:        alerts.HintDeviceOffline,
+		Type:        alerts.TypeRouterOffline,
 		Vars:        map[string]string{"router": name, "host": cfg.Host, "error": fmt.Sprint(err)},
 		Time:        "just now", RouterID: cfg.ID,
 	}
@@ -2240,6 +2253,64 @@ func (l *Live) trackDevicePresence(devices []Device, nowMs int64) {
 	l.presenceSeen = true
 }
 
+// trackOfflineDevices (#1354): alerta volátil opt-in cuando un dispositivo
+// marcado (override notify_offline) cae de la red. La transición
+// online->offline se CONFIRMA tras offlineAlertNum (default 3) ticks offline
+// seguidos, espejo de trackDevicePresence; un flap corto dentro de la gracia
+// no emite nada. Anti-arranque: solo alerta para MACs vistas online alguna vez
+// (una MAC ya offline al arrancar nunca "se desconecta"). Al volver online se
+// retira la entrada volátil (engine.Remove), de modo que el feed se
+// auto-resuelve. Toma l.mu internamente.
+func (l *Live) trackOfflineDevices(devices []Device) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, d := range devices {
+		if !d.NotifyOffline {
+			continue
+		}
+		if d.Online {
+			l.offlineOnline[d.MAC] = true
+			if l.offlineAlerted[d.MAC] {
+				l.offlineAlerted[d.MAC] = false
+				l.engine.Remove("alert-device-offline-" + d.MAC)
+			}
+			l.offlineMisses[d.MAC] = 0
+			continue
+		}
+		// Solo transiciones reales: MACs que ya vimos online en un ciclo previo.
+		if !l.offlineOnline[d.MAC] {
+			continue
+		}
+		l.offlineMisses[d.MAC]++
+		if l.offlineMisses[d.MAC] >= l.offlineAlertNum && !l.offlineAlerted[d.MAC] {
+			l.offlineAlerted[d.MAC] = true
+			l.emitDeviceOffline(d)
+		}
+	}
+}
+
+// emitDeviceOffline emite la alerta volátil de desconexión (category clients,
+// warn, urgente). ID estable por MAC: un incidente = una entrada del feed.
+// Debe llamarse con l.mu tomado.
+func (l *Live) emitDeviceOffline(d Device) {
+	name := d.Name
+	if name == "" {
+		name = d.MAC
+	}
+	router := l.routerDisplayName(d.RouterID)
+	l.engine.EmitVolatile(AlertEvent{
+		ID:       "alert-device-offline-" + d.MAC,
+		Category: alerts.CatClients, Urgent: true,
+		Severity:    "warn",
+		Title:       fmt.Sprintf("Device offline: %s", name),
+		Description: fmt.Sprintf("%s went offline on %s", name, router),
+		Hint:        alerts.HintFor(alerts.HintDeviceOffline),
+		Type:        alerts.TypeDeviceOffline,
+		Vars:        map[string]string{"device": name, "router": router},
+		Time:        "just now", RouterID: d.RouterID,
+	})
+}
+
 // insertDeviceEvent persiste una transición de presencia. Con db nil
 // (demo/tests sin BD) es no-op. Debe llamarse con l.mu tomado.
 func (l *Live) insertDeviceEvent(mac, routerID, state string, signalDbm *int, nowMs int64) {
@@ -2725,22 +2796,24 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	// issue #437/#797: overrides manuales de dispositivo (icono, nombre
 	// visible y tipo) sobre el dispositivo auto-descubierto.
 	type overrideInfo struct {
-		Icon        string
-		Name        string
-		DeviceType  string
-		BannedBands string
+		Icon          string
+		Name          string
+		DeviceType    string
+		BannedBands   string
+		NotifyOffline bool
 	}
 	deviceOverrides := map[string]overrideInfo{}
 	if l.db != nil {
-		if rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands FROM device_overrides"); err == nil {
+		if rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands, notify_offline FROM device_overrides"); err == nil {
 			for rows.Next() {
 				var mac, name, deviceType, bannedBands string
 				var icon sql.NullString
-				if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands); err == nil {
+				var notifyOffline bool
+				if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands, &notifyOffline); err == nil {
 					// Clave en minúsculas: las MACs de los sondeos pueden
 					// llegar en cualquier caso y el lookup debe ser robusto
 					// (#797: icon overrides que "desaparecían" por caso).
-					deviceOverrides[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands}
+					deviceOverrides[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
 				}
 			}
 			rows.Close()
@@ -2874,6 +2947,10 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok && ov.DeviceType != "" {
 			d.Type = ov.DeviceType
 			d.TypeOverride = ov.DeviceType
+		}
+		// #1354: flag opt-in de alerta por desconexión (override persistido).
+		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok {
+			d.NotifyOffline = ov.NotifyOffline
 		}
 		if isSeen {
 			d.RouterID = s.routerID
@@ -3211,6 +3288,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// re-emite la MAC en cada ciclo sin pasar por device_seen).
 	devices = l.filterTombstoned(devices)
 	l.trackUnknownDevices(devices, distNodes)
+	l.trackOfflineDevices(devices)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// #954: first/last seen persistente de TODOS los clientes online.
 	l.noteDevicesSeen(devices, time.Now().UnixMilli())

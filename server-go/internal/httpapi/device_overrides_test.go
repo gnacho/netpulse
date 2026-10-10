@@ -48,13 +48,52 @@ func doOverrideGet(t *testing.T, s *server, mac string) map[string]any {
 func TestDeviceOverrideNameTypeRoundtrip(t *testing.T) {
 	s := newOverrideTestServer(t)
 	mac := "aa:bb:cc:dd:ee:ff"
-	rec := doOverridePut(t, s, mac, `{"icon":"tv","name":"TV Salón","type":"tv"}`)
+	rec := doOverridePut(t, s, mac, `{"icon":"tv","name":"TV Salón","type":"tv","notifyOffline":true}`)
 	if rec.Code != 200 {
 		t.Fatalf("put: %d %s", rec.Code, rec.Body.String())
 	}
 	got := doOverrideGet(t, s, mac)
-	if got["icon"] != "tv" || got["name"] != "TV Salón" || got["type"] != "tv" {
+	if got["icon"] != "tv" || got["name"] != "TV Salón" || got["type"] != "tv" || got["notifyOffline"] != true {
 		t.Errorf("roundtrip incompleto: %+v", got)
+	}
+}
+
+func TestDeviceOverrideNotifyOffline(t *testing.T) {
+	s := newOverrideTestServer(t)
+	mac := "aa:bb:cc:dd:ee:ff"
+
+	// Marcar opt-in: persiste el flag aunque icon/name/type queden vacíos.
+	if rec := doOverridePut(t, s, mac, `{"notifyOffline":true}`); rec.Code != 200 {
+		t.Fatalf("notifyOffline true: %d", rec.Code)
+	}
+	if got := doOverrideGet(t, s, mac); got["notifyOffline"] != true {
+		t.Errorf("notifyOffline no persistió: %+v", got)
+	}
+
+	// Apagar el flag con el resto vacío: la fila se borra (cero estado).
+	if rec := doOverridePut(t, s, mac, `{"notifyOffline":false}`); rec.Code != 200 {
+		t.Fatalf("notifyOffline false: %d", rec.Code)
+	}
+	var n int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM device_overrides WHERE mac = ?", mac).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("la fila debió borrarse con notifyOffline=false y sin más campos, quedaron %d", n)
+	}
+
+	// El flag se conserva ante un put parcial que no lo envía (cliente antiguo).
+	doOverridePut(t, s, mac, `{"name":"TV","notifyOffline":true}`)
+	if rec := doOverridePut(t, s, mac, `{"icon":"tv"}`); rec.Code != 200 {
+		t.Fatalf("put parcial: %d", rec.Code)
+	}
+	if got := doOverrideGet(t, s, mac); got["notifyOffline"] != true {
+		t.Errorf("el put parcial pisó notifyOffline: %+v", got)
+	}
+
+	// Tipo inválido (string en un bool): el decode falla y devuelve 400.
+	if rec := doOverridePut(t, s, mac, `{"notifyOffline":"yes"}`); rec.Code != 400 {
+		t.Errorf("notifyOffline no booleano debió dar 400, dio %d", rec.Code)
 	}
 }
 
@@ -123,7 +162,7 @@ func TestDeviceOverrideValidation(t *testing.T) {
 // con PathValue, como el resto de tests de handlers con PathValue).
 func TestDeviceDelete(t *testing.T) {
 	s := panelTestServer(t)
-	if _, err := s.db.Exec("INSERT INTO device_seen (mac, first_seen, last_seen, name) VALUES ('AA:BB:CC:DD:EE:FF', 1, 2, 'watch')", ); err != nil {
+	if _, err := s.db.Exec("INSERT INTO device_seen (mac, first_seen, last_seen, name) VALUES ('AA:BB:CC:DD:EE:FF', 1, 2, 'watch')"); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 

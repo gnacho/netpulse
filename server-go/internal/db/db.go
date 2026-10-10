@@ -275,13 +275,14 @@ CREATE INDEX IF NOT EXISTS idx_update_history_ts ON update_history(ts DESC);
 -- bloqueo por banda. La clave es la MAC normalizada (minúsculas, ':').
 -- #797: name (nombre visible) y device_type (override del tipo clasificado).
 CREATE TABLE IF NOT EXISTS device_overrides (
-  mac         TEXT PRIMARY KEY,
-  icon        TEXT,
-  name        TEXT NOT NULL DEFAULT '',
-  device_type TEXT NOT NULL DEFAULT '',
-  banned_bands TEXT NOT NULL DEFAULT '', -- lista separada por comas: '2.4,5,6'
-  created_at  INTEGER NOT NULL,
-  updated_at  INTEGER NOT NULL
+  mac            TEXT PRIMARY KEY,
+  icon           TEXT,
+  name           TEXT NOT NULL DEFAULT '',
+  device_type    TEXT NOT NULL DEFAULT '',
+  banned_bands   TEXT NOT NULL DEFAULT '', -- lista separada por comas: '2.4,5,6'
+  notify_offline INTEGER NOT NULL DEFAULT 0, -- issue #1354: alert opt-in cuando se desconecta
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
 );
 
 -- Per-port time series (issue #302): raw (7d) -> 5m (1y) -> daily (forever).
@@ -617,6 +618,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// issue #797: nombre visible y tipo de dispositivo sobreescritos a mano.
 	migrate(sqldb, "device_overrides", "name", "ALTER TABLE device_overrides ADD COLUMN name TEXT NOT NULL DEFAULT ''")
 	migrate(sqldb, "device_overrides", "device_type", "ALTER TABLE device_overrides ADD COLUMN device_type TEXT NOT NULL DEFAULT ''")
+	// issue #1354: opt-in alert when a marked device goes offline (0 = off).
+	migrate(sqldb, "device_overrides", "notify_offline", "ALTER TABLE device_overrides ADD COLUMN notify_offline INTEGER NOT NULL DEFAULT 0")
 
 	// #817: port_series_raw tenía dos índices idénticos a su PK, creados por
 	// error en db.go y portseries.go. Se eliminan de forma idempotente (no se

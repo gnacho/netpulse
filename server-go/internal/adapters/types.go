@@ -265,7 +265,7 @@ type Device struct {
 	SpeedMbps int `json:"speedMbps,omitempty"`
 	// Infra: rol de infraestructura sellado server-side (Fase 4). La app NO
 	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
- 
+
 	// "ct" (contenedor anidado bajo hipervisor), "vm" (máquina virtual, que
 	// solo el inventario del hipervisor distingue de un contenedor),
 	// "managed-switch" (switch con gestión identificado por LLDP — hoy
@@ -289,6 +289,9 @@ type Device struct {
 	// el override crudo para que la UI de edición pueda mostrarlo y limpiarlo.
 	NameOverride string `json:"nameOverride,omitempty"`
 	TypeOverride string `json:"typeOverride,omitempty"`
+	// NotifyOffline (#1354): opt-in del usuario para alertar cuando este
+	// dispositivo se desconecta (override persistido notify_offline).
+	NotifyOffline bool `json:"notifyOffline,omitempty"`
 	// --- extras demo (omitempty = ausentes en live) ---
 	Hostname  string `json:"hostname,omitempty"`
 	DHCPLease string `json:"dhcpLease,omitempty"`
@@ -296,17 +299,17 @@ type Device struct {
 	// vio al cliente (#954; persistidos en la tabla device_seen). 0/ausente =
 	// desconocido. La app formatea en relativo con el locale del usuario; el
 	// server NO pre-formatea (lección #899).
-	FirstSeenMs  int64  `json:"firstSeenMs,omitempty"`
-	LastSeenMs   int64  `json:"lastSeenMs,omitempty"`
+	FirstSeenMs int64 `json:"firstSeenMs,omitempty"`
+	LastSeenMs  int64 `json:"lastSeenMs,omitempty"`
 	// AliasMacs: MACs enlazadas a este cliente (#1151, mismo dispositivo con
 	// varias MACs - p. ej. una por SSID). Solo viaja en el canónico.
-	AliasMacs []string `json:"aliasMacs,omitempty"`
-	Traffic24hRx string `json:"traffic24hRx,omitempty"`
-	Traffic24hTx string `json:"traffic24hTx,omitempty"`
-	Adguard      *bool  `json:"adguard,omitempty"` // puntero: demo emite true/false explícito; live lo omite (paridad Node)
-	Group        string `json:"group,omitempty"`
-	IsNew        bool   `json:"isNew,omitempty"`
-	NewThisWeek  bool   `json:"newThisWeek,omitempty"`
+	AliasMacs    []string `json:"aliasMacs,omitempty"`
+	Traffic24hRx string   `json:"traffic24hRx,omitempty"`
+	Traffic24hTx string   `json:"traffic24hTx,omitempty"`
+	Adguard      *bool    `json:"adguard,omitempty"` // puntero: demo emite true/false explícito; live lo omite (paridad Node)
+	Group        string   `json:"group,omitempty"`
+	IsNew        bool     `json:"isNew,omitempty"`
+	NewThisWeek  bool     `json:"newThisWeek,omitempty"`
 }
 
 // LldpInfo identifica un vecino que se anuncia por LLDP (switch gestionado,
@@ -566,11 +569,11 @@ type SfpInfo struct {
 // vecino en el detalle: connectedTo/deviceMac/detail, SPEC §7.8 + contadores
 // por puerto #305: iface física, bytes/errores acumulados y rates + SFP #313).
 type EthPort struct {
-	ID          string   `json:"id"`
-	Label       string   `json:"label"`
-	Up          bool     `json:"up"`
-	Speed       string   `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
-	Iface       string   `json:"iface,omitempty"` // iface física (/proc/net/dev)
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Up    bool   `json:"up"`
+	Speed string `json:"speed,omitempty"` // solo si up ("1 Gbps"|"100 Mbps")
+	Iface string `json:"iface,omitempty"` // iface física (/proc/net/dev)
 	// #1125: familia para interfaces NO físicas ("lag"|"vlan"|"bridge"|
 	// "tunnel"|"virtual"); vacío/ausente = boca física. El frontend las
 	// agrupa en la sección colapsada de la tarjeta de puertos.
@@ -593,7 +596,7 @@ type EthPort struct {
 	// cual (nombre/IP/alias). Valores: "router-link", "router-link-lldp",
 	// "ap-wifi", "curated", "inferred-switch".
 	PeerKind string `json:"peerKind,omitempty"`
-	Detail      string   `json:"detail,omitempty"`
+	Detail   string `json:"detail,omitempty"`
 	// Snmp indica que el puerto proviene de un switch gestionado por SNMP
 	// (issue #414). Se usa para aplicar histeresis temporal en ghost-port.
 	Snmp bool `json:"-"`
