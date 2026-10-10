@@ -26,6 +26,7 @@ interface LocalOverride {
   icon?: string
   name?: string
   type?: string
+  notifyOffline?: boolean
 }
 
 /** ⑦ Clientes de este router (router-detail.md §⑦). */
@@ -61,6 +62,7 @@ export function RouterClients({ router }: { router: Router }) {
           type: (ov.type || d.type) as ClientDevice['type'],
           nameOverride: ov.name || d.nameOverride,
           typeOverride: ov.type || d.typeOverride,
+          notifyOffline: ov.notifyOffline ?? d.notifyOffline,
         }
       })
     // #827: los sin identificar (nombre = MAC) son los accionables: se
@@ -92,9 +94,9 @@ export function RouterClients({ router }: { router: Router }) {
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
 
-  const handleEditSave = async (device: ClientDevice, patch: { icon: string; name: string; type: string }) => {
+  const handleEditSave = async (device: ClientDevice, patch: { icon: string; name: string; type: string; notifyOffline: boolean }) => {
     if (isDemo) {
-      setOverrides((prev) => ({ ...prev, [device.id]: { icon: patch.icon, name: patch.name, type: patch.type } }))
+      setOverrides((prev) => ({ ...prev, [device.id]: { icon: patch.icon, name: patch.name, type: patch.type, notifyOffline: patch.notifyOffline } }))
       setEditingId(null)
       setToast(t('devices.edit.saved'))
       return
@@ -103,7 +105,7 @@ export function RouterClients({ router }: { router: Router }) {
     const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/override`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ icon: patch.icon, name: patch.name, type: patch.type }),
+      body: JSON.stringify({ icon: patch.icon, name: patch.name, type: patch.type, notifyOffline: patch.notifyOffline }),
     })
     setSaving(false)
     if (!res.ok) {

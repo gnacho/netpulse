@@ -1422,10 +1422,10 @@ export default function Devices() {
       // fallo silencioso: la sugerencia sigue para reintentar
     }
   }
-  const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string }>>(() => {
+  const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string; notifyOffline?: boolean }>>(() => {
     try {
       const raw = localStorage.getItem('netpulse-device-overrides')
-      return raw ? (JSON.parse(raw) as Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string }>) : {}
+      return raw ? (JSON.parse(raw) as Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string; notifyOffline?: boolean }>) : {}
     } catch {
       return {}
     }
@@ -1447,6 +1447,7 @@ export default function Devices() {
         type: (ov?.typeOverride || d.type) as ClientDevice['type'],
         nameOverride: ov?.nameOverride || d.nameOverride,
         typeOverride: ov?.typeOverride || d.typeOverride,
+        notifyOffline: ov?.notifyOffline ?? d.notifyOffline,
       }
     })
     const hosts = new Set(
@@ -1753,14 +1754,15 @@ export default function Devices() {
   const [savingOverride, setSavingOverride] = useState(false)
 
   const persistOverride = useCallback(
-    (id: string, patch: { iconOverride: string; nameOverride: string; typeOverride: string } | null) => {
+    (id: string, patch: { iconOverride: string; nameOverride: string; typeOverride: string; notifyOffline: boolean } | null) => {
       setDeviceOverrides((prev) => {
         const next = { ...prev }
-        if (patch && (patch.iconOverride || patch.nameOverride || patch.typeOverride)) {
+        if (patch && (patch.iconOverride || patch.nameOverride || patch.typeOverride || patch.notifyOffline)) {
           next[id] = {
             iconOverride: patch.iconOverride,
             nameOverride: patch.nameOverride,
             typeOverride: patch.typeOverride,
+            notifyOffline: patch.notifyOffline,
           }
         } else {
           delete next[id]
@@ -1780,11 +1782,12 @@ export default function Devices() {
   // return de "sin cambios" impedía limpiar un override (p. ej. volver al
   // icono Auto).
   const handleEditSave = useCallback(
-    async (device: ClientDevice, patch: { icon: string; name: string; type: string }) => {
+    async (device: ClientDevice, patch: { icon: string; name: string; type: string; notifyOffline: boolean }) => {
       persistOverride(device.id, {
         iconOverride: patch.icon,
         nameOverride: patch.name,
         typeOverride: patch.type,
+        notifyOffline: patch.notifyOffline,
       })
 
       if (!isDemo) {
@@ -1792,7 +1795,7 @@ export default function Devices() {
         const res = await fetchJson(`/api/devices/${encodeURIComponent(device.mac)}/override`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ icon: patch.icon, name: patch.name, type: patch.type }),
+          body: JSON.stringify({ icon: patch.icon, name: patch.name, type: patch.type, notifyOffline: patch.notifyOffline }),
         })
         setSavingOverride(false)
         if (!res.ok) {
