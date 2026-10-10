@@ -17,6 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse } from '@/data/DataProvider'
@@ -35,7 +36,7 @@ export interface DeviceEditSheetProps {
   saving?: boolean
   onClose: () => void
   /** Patch absoluto: '' en un campo = volver al valor automático (#797). */
-  onSave: (device: ClientDevice, patch: { icon: string; name: string; type: string }) => void
+  onSave: (device: ClientDevice, patch: { icon: string; name: string; type: string; notifyOffline: boolean }) => void
   /** #1145: tras borrar el cliente del registro (el padre cierra y refresca). */
   onDeleted?: () => void
   /** #1151: resto de clientes (para el selector de enlace). */
@@ -69,6 +70,7 @@ export function DeviceEditSheet({
   const [linkTarget, setLinkTarget] = useState('')
   const [linkBusy, setLinkBusy] = useState(false)
   const [icon, setIcon] = useState(device?.iconOverride ?? '')
+  const [notifyOffline, setNotifyOffline] = useState(device?.notifyOffline ?? false)
 
   const otherClients = (clients ?? []).filter(
     (c) => c.mac && c.mac !== device?.mac && c.mac !== device?.id && !(device?.aliasMacs ?? []).includes(c.mac),
@@ -139,8 +141,9 @@ export function DeviceEditSheet({
     setIcon(device?.iconOverride ?? '')
     setName(device?.nameOverride ?? '')
     setDevType(device?.typeOverride ?? '')
+    setNotifyOffline(device?.notifyOffline ?? false)
     setReserveDraft(device?.ip ?? '')
-  }, [device?.id, device?.iconOverride, device?.nameOverride, device?.typeOverride, device?.ip])
+  }, [device?.id, device?.iconOverride, device?.nameOverride, device?.typeOverride, device?.notifyOffline, device?.ip])
 
   useEffect(() => {
     if (!device || isDemo) return
@@ -171,7 +174,7 @@ export function DeviceEditSheet({
 
   const handleSave = () => {
     if (!device) return
-    onSave(device, { icon, name: name.trim(), type: devType })
+    onSave(device, { icon, name: name.trim(), type: devType, notifyOffline })
   }
 
   // #800: hostname DNS derivado del nombre visible (input del sheet o nombre
@@ -270,6 +273,17 @@ export function DeviceEditSheet({
                   )
                 })}
               </div>
+            </div>
+
+            {/* #1354: alerta opt-in cuando el dispositivo se desconecta */}
+            <div className="flex items-center justify-between rounded-xl border border-border bg-elevated/40 p-3">
+              <label className="text-label uppercase text-text-muted">{t('devices.edit.notifyOffline')}</label>
+              <Switch
+                checked={notifyOffline}
+                onCheckedChange={setNotifyOffline}
+                disabled={saving}
+                aria-label={t('devices.edit.notifyOffline')}
+              />
             </div>
 
             {/* #1096: Save/Cancel junto a la zona que editan (nombre, tipo,

@@ -253,6 +253,8 @@ export interface Device {
   nameOverride?: string
   /** Override manual del tipo (#797). El efectivo viaja en `type`. */
   typeOverride?: string
+  /** #1354: avisar cuando este dispositivo se desconecta (opt-in). */
+  notifyOffline?: boolean
   /**
    * Epoch ms de la primera/última vez que el server vio online al cliente
    * (#954, tabla device_seen). Ausente/0 = desconocido; la app formatea el

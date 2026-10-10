@@ -242,12 +242,12 @@ func TestLiveRouterReconcileRemovesOrphan(t *testing.T) {
 	// y una de OTRO router que no responde en este ciclo.
 	l.engine.Emit(alerts.AlertEvent{
 		ID: "alert-offline-patio-111", Category: alerts.CatRouter, Urgent: true,
-		Severity: "critical", Title: "Patio offline", Type: alerts.HintDeviceOffline,
+		Severity: "critical", Title: "Patio offline", Type: alerts.TypeRouterOffline,
 		RouterID: "patio",
 	})
 	l.engine.Emit(alerts.AlertEvent{
 		ID: "alert-offline-living-222", Category: alerts.CatRouter, Urgent: true,
-		Severity: "critical", Title: "Living offline", Type: alerts.HintDeviceOffline,
+		Severity: "critical", Title: "Living offline", Type: alerts.TypeRouterOffline,
 		RouterID: "living",
 	})
 	if n := len(l.engine.List()); n != 2 {
@@ -285,14 +285,14 @@ func TestLiveRouterOfflineOpenReplacesOrphans(t *testing.T) {
 	}
 	l.engine.Emit(alerts.AlertEvent{
 		ID: "alert-offline-patio-111", Category: alerts.CatRouter, Urgent: true,
-		Severity: "critical", Title: "Patio offline", Type: alerts.HintDeviceOffline,
+		Severity: "critical", Title: "Patio offline", Type: alerts.TypeRouterOffline,
 		RouterID: "patio",
 	})
 	// Segunda huérfana con la misma key de dedup: solo entra sin dedup (es el
 	// shape real tras reinicios seguidos durante una caída larga).
 	l.engine.EmitNoDedup(alerts.AlertEvent{
 		ID: "alert-offline-patio-222", Category: alerts.CatRouter, Urgent: true,
-		Severity: "critical", Title: "Patio offline", Type: alerts.HintDeviceOffline,
+		Severity: "critical", Title: "Patio offline", Type: alerts.TypeRouterOffline,
 		RouterID: "patio",
 	})
 	cfg := &RouterConfig{ID: "patio", Name: "Patio", Host: "10.0.0.1"}

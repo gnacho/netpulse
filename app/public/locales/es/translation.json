@@ -81,6 +81,7 @@
       "agent-outdated": "Actualiza el agente desde Ajustes, Agentes (botón Actualizar); si es un panel NetGrip, actualiza desde su propio panel.",
       "degraded-link": "Revisa el cable y los conectores: un enlace degradado suele ser síntoma de cable dañado o conector flojo.",
       "device-offline": "Verifica la alimentación y el cable de red del equipo.",
+      "router-offline": "Verifica la alimentación y el cable de red del equipo.",
       "firmware-outdated": "Tu router tiene firmware más reciente disponible; revisa Actualizaciones de firmware (Laboratorio) o LuCI.",
       "gateway-unreachable": "Comprueba la conexión entre la puerta de enlace y el resto de la red.",
       "ghost-port": "Revisa el cable y el dispositivo conectado: un puerto activo que enmudece suele indicar un cable suelto o un equipo apagado.",
@@ -131,6 +132,10 @@
         "description": "La velocidad negociada cayó de {{prev}} a {{speed}} Mbps durante {{polls}} sondeos consecutivos"
       },
       "device-offline": {
+        "title": "Dispositivo desconectado: {{device}}",
+        "description": "{{device}} se ha desconectado de {{router}}"
+      },
+      "router-offline": {
         "title": "{{router}} offline",
         "description": "Sin respuesta de {{host}}: {{error}}"
       },
@@ -429,6 +434,7 @@
       "nameHint": "Vacío = nombre automático (hostname DHCP)",
       "type": "Tipo",
       "icon": "Icono",
+      "notifyOffline": "Avisar si se desconecta",
       "auto": "Auto",
       "save": "Guardar",
       "saved": "Dispositivo actualizado",
