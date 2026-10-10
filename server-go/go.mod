@@ -17,7 +17,8 @@ require (
 )
 
 // Módulo hermano en el mismo repo: sondas/parseo compartido con el agente
-// nativo (SPEC-AGENTE-PILOTO §2). Solo stdlib — no arrastra dependencias.
+// nativo (SPEC-AGENTE-PILOTO §2). El agente lleva una única dependencia
+// (golang.org/x/net); el resto del árbol de require es del server.
 replace github.com/gnacho/netpulse/agent => ../agent
 
 require (
