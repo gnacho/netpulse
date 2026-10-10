@@ -679,6 +679,27 @@ function flowFor(mbps: number, alive = false): { packets: number; packetDur: num
   return { packets, packetDur: Math.max(1.6, 5 - mbps / 12) }
 }
 
+/**
+ * Tag de evidencia real del uplink (#1325). El server manda `evidence` por
+ * enlace; el front ya no decide el "· LLDP" por node.router.lldp (heurístico
+ * del router), que podía etiquetar "LLDP" un enlace resuelto por FDB/device.
+ * Vacía = fallback al gateway (sin evidencia, sin tag).
+ */
+function evidenceTag(evidence?: string): string {
+  switch (evidence) {
+    case 'lldp':
+      return ' · LLDP'
+    case 'fdb':
+      return ' · FDB'
+    case 'device':
+      return ' · device'
+    case 'override':
+      return ' · manual'
+    default:
+      return ''
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Builder
 // ---------------------------------------------------------------------------
@@ -1436,7 +1457,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
               : `${sl.speedMbps} Mbps`)
             : '1G'
           const portSuffix = sl.port ? ` · ${sl.port}` : ''
-          const label = isWifi ? 'WiFi uplink' : `Cable ${speedText}${node.router.lldp ? ' · LLDP' : ''}${portSuffix}`
+          const label = isWifi ? 'WiFi uplink' : `Cable ${speedText}${evidenceTag(sl.evidence)}${portSuffix}`
           // #1047: el padre lo decide la semántica (FDB del switch cuando no
           // hay LLDP); solo se cae al gateway si el server no lo resolvió.
           // #1060: el padre puede ser un distnode (círculo inferido/gestionado):
