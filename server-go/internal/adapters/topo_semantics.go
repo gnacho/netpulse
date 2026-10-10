@@ -383,12 +383,18 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		}
 	}
 	uplinkEvidence := map[string]topoParent{}
+	// uplinkSource (#1325): qué capa fijó el padre de cada unidad de flota,
+	// para exponer la evidencia real por enlace (el front ya no decide el tag
+	// "LLDP" por node.router.lldp). Valores canónicos: "device"/"fdb"/"lldp"/
+	// "override". Vacío = fallback al gateway (sin evidencia, sin tag).
+	uplinkSource := map[string]string{}
 	filtered := online[:0]
 	for _, d := range online {
 		if rid, ok := routerMacs[strings.ToUpper(d.MAC)]; ok {
 			if rid != d.RouterID {
 				if _, seen := uplinkEvidence[rid]; !seen {
 					uplinkEvidence[rid] = topoParent{parent: d.RouterID, port: d.Port}
+					uplinkSource[rid] = "device"
 				}
 			}
 			continue
@@ -402,6 +408,7 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 	for rid, ev := range fdbEvidence {
 		if _, ok := uplinkEvidence[rid]; !ok {
 			uplinkEvidence[rid] = ev
+			uplinkSource[rid] = "fdb"
 		}
 	}
 	// #1279: el LLDP es ground truth (dos equipos que se anuncian por el
@@ -411,6 +418,7 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 	for rid, ev := range lldpEvidence {
 		if ev.parent != rid {
 			uplinkEvidence[rid] = ev
+			uplinkSource[rid] = "lldp"
 		}
 	}
 	// #1321: el attach manual (#142) sobre la MAC bridge de una unidad de
@@ -426,6 +434,7 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 			}
 		}
 		uplinkEvidence[rid] = ev
+		uplinkSource[rid] = "override"
 	}
 	// #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se
 	// descubre por ARP como un cliente más, pero vive en el lado WAN: si su
@@ -538,7 +547,7 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 				}
 			}
 		}
-		sem.Links = append(sem.Links, TopoLink{From: from, To: ap.ID, Kind: "uplink", Port: port})
+		sem.Links = append(sem.Links, TopoLink{From: from, To: ap.ID, Kind: "uplink", Port: port, Evidence: uplinkSource[ap.ID]})
 	}
 	// router → distnode (solo inferred|managed son hubs propios en el mapa).
 	// En una cadena LLDP switch→switch (issue #300) el distnode cuelga de su

@@ -241,3 +241,99 @@ func TestTopoSemanticsCadenaLldp(t *testing.T) {
 		t.Fatalf("dist links:\n got: %+v\nwant: %+v", gotDist, wantDist)
 	}
 }
+
+// #1325: un switch gestionado (distnode managed) con un puerto NO-uplink que
+// aprende >= 2 clientes cableados -> nodo inferido hoja anclado al switch
+// (Parent). El uplink (root port), los puertos ya resueltos por LLDP y las
+// MACs de la propia flota no generan nodo hoja. Los clientes se atribuyen al
+// gateway (DHCP), no al switch: la fase FDB (keptMacsForPort) no los veía por
+// su filtro de RouterID; la nueva fase usa leafSwitchClients, sin ese filtro.
+func TestInferTopologySwitchHojaTrasGestionado(t *testing.T) {
+	gw := &routerPolled{cfg: RouterConfig{ID: "flint2", IsGateway: true}, brMac: "94:83:C4:00:00:01",
+		fdb: map[string]string{
+			macGS308E: "lan3", "04:D4:C4:8B:30:A7": "lan3", "DC:A6:32:4F:77:02": "lan3",
+		},
+		lldp: []LldpNeighbor{{Port: "lan3", Chassis: "GS308E", ChassisMac: macGS308E, Mgmt: "192.168.8.13", Caps: []string{"Bridge"}, PortDesc: "ge5"}},
+	}
+	gwDevices := []Device{
+		dev("04:D4:C4:8B:30:A7", "flint2", "cable"),
+		dev("DC:A6:32:4F:77:02", "flint2", "cable"),
+	}
+	swCfg := RouterConfig{ID: "swA", Name: "GS308E", Type: "managed-switch", AgentOnly: true}
+	managedRoot := distSummary{id: "dist-flint2-lan3", kind: "managed", routerID: "flint2", port: "lan3", mac: macGS308E, name: "GS308E", ip: "192.168.8.13", macCount: 2}
+
+	tests := []struct {
+		name    string
+		swFdb   map[string]string
+		swLldp  []LldpNeighbor
+		devices []Device
+		want    []distSummary
+	}{
+		{
+			name:  "hoja en puerto no-uplink",
+			swFdb: map[string]string{"94:83:C4:00:00:01": "ge1", "10:20:30:40:50:60": "ge3", "10:20:30:40:50:61": "ge3"},
+			devices: []Device{
+				dev("10:20:30:40:50:60", "flint2", "cable"),
+				dev("10:20:30:40:50:61", "flint2", "cable"),
+			},
+			want: []distSummary{
+				managedRoot,
+				{id: "dist-swA-ge3", kind: "inferred", routerID: "swA", port: "ge3", parent: "dist-flint2-lan3", macCount: 2},
+			},
+		},
+		{
+			// El uplink (root port) también aprende clientes en tránsito, pero
+			// es el puerto hacia el núcleo: no es un switch hoja.
+			name:  "uplink del switch no genera hoja",
+			swFdb: map[string]string{"94:83:C4:00:00:01": "ge1", "10:20:30:40:50:60": "ge1", "10:20:30:40:50:61": "ge1"},
+			devices: []Device{
+				dev("10:20:30:40:50:60", "flint2", "cable"),
+				dev("10:20:30:40:50:61", "flint2", "cable"),
+			},
+			want: []distSummary{managedRoot},
+		},
+		{
+			// El puerto ya tiene distnode managed (switch→switch por LLDP): no
+			// se duplica con un nodo hoja.
+			name:   "puerto ya resuelto por LLDP no duplica",
+			swFdb:  map[string]string{"94:83:C4:00:00:01": "ge1", macLGS352: "ge5", "10:20:30:40:50:60": "ge5"},
+			swLldp: []LldpNeighbor{{Port: "ge5", Chassis: "LGS352C", ChassisMac: macLGS352, Mgmt: "192.168.8.20", Caps: []string{"Bridge"}, PortDesc: "ge1"}},
+			devices: []Device{
+				dev(macLGS352, "swA", "cable"),
+				dev("10:20:30:40:50:60", "swA", "cable"),
+			},
+			want: []distSummary{
+				managedRoot,
+				{id: "dist-swA-ge5", kind: "managed", routerID: "swA", port: "ge5", parent: "dist-flint2-lan3", mac: macLGS352, name: "LGS352C", ip: "192.168.8.20", macCount: 2},
+			},
+		},
+		{
+			// La bridge-MAC de otro router de la flota no es un cliente: con un
+			// solo cliente cableado el umbral (>= 2) no se alcanza.
+			name:  "MACs de flota no cuentan",
+			swFdb: map[string]string{"94:83:C4:00:00:01": "ge1", "94:83:C4:00:00:02": "ge3", "10:20:30:40:50:60": "ge3"},
+			devices: []Device{
+				dev("10:20:30:40:50:60", "flint2", "cable"),
+			},
+			want: []distSummary{managedRoot},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			polled := map[string]*routerPolled{
+				"flint2": gw,
+				"swA":    {cfg: swCfg, brMac: macGS308E, fdb: tt.swFdb, lldp: tt.swLldp},
+			}
+			if tt.name == "MACs de flota no cuentan" {
+				polled["ap1"] = &routerPolled{cfg: RouterConfig{ID: "ap1"}, brMac: "94:83:C4:00:00:02", fdb: map[string]string{}}
+			}
+			devices := append(append([]Device{}, gwDevices...), tt.devices...)
+			_, dists := inferTopology(polled, devices)
+			got := summarizeDists(dists)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("dists:\n got: %+v\nwant: %+v", got, tt.want)
+			}
+		})
+	}
+}

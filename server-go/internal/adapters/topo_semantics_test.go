@@ -251,11 +251,11 @@ func TestTopoSemanticsFdbUplinkParent(t *testing.T) {
 			links[l.To] = l
 		}
 	}
-	if got := links["sw1"]; got.From != "gw" || got.Port != "1" {
-		t.Fatalf("uplink sw1: %+v, want from gw puerto 1", got)
+	if got := links["sw1"]; got.From != "gw" || got.Port != "1" || got.Evidence != "device" {
+		t.Fatalf("uplink sw1: %+v, want from gw puerto 1 evidencia device", got)
 	}
-	if got := links["ap1"]; got.From != "sw1" || got.Port != "5" {
-		t.Fatalf("uplink ap1: %+v, want from sw1 puerto 5", got)
+	if got := links["ap1"]; got.From != "sw1" || got.Port != "5" || got.Evidence != "device" {
+		t.Fatalf("uplink ap1: %+v, want from sw1 puerto 5 evidencia device", got)
 	}
 	// Las unidades de flota no duplican como chips de cliente.
 	for _, ring := range sem.Rings {
@@ -289,11 +289,11 @@ func TestTopoSemanticsFdbEvidenceSinDevices(t *testing.T) {
 			links[l.To] = l
 		}
 	}
-	if got := links["ap1"]; got.From != "sw1" || got.Port != "5" {
-		t.Fatalf("uplink ap1: %+v, want from sw1 puerto 5", got)
+	if got := links["ap1"]; got.From != "sw1" || got.Port != "5" || got.Evidence != "fdb" {
+		t.Fatalf("uplink ap1: %+v, want from sw1 puerto 5 evidencia fdb", got)
 	}
-	if got := links["sw1"]; got.From != "gw" || got.Port != "1" {
-		t.Fatalf("uplink sw1: %+v, want from gw puerto 1", got)
+	if got := links["sw1"]; got.From != "gw" || got.Port != "1" || got.Evidence != "fdb" {
+		t.Fatalf("uplink sw1: %+v, want from gw puerto 1 evidencia fdb", got)
 	}
 }
 
@@ -311,7 +311,7 @@ func TestTopoSemanticsDeviceEvidenceManda(t *testing.T) {
 	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", ev, nil, nil)
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" && l.To == "ap1" {
-			if l.From != "gw" || l.Port != "4" {
+			if l.From != "gw" || l.Port != "4" || l.Evidence != "device" {
 				t.Fatalf("la evidencia de device debe mandar: %+v", l)
 			}
 			return
@@ -562,7 +562,7 @@ func TestTopoSemanticsLldpEvidenceWins(t *testing.T) {
 	sem := BuildTopoSemantics(routers, nil, WireGuardStats{}, nil, "", fdb, lldp, nil)
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" && l.To == "ap1" {
-			if l.From != "sw1" || l.Port != "two-gigabitEthernet 1/0/21" {
+			if l.From != "sw1" || l.Port != "two-gigabitEthernet 1/0/21" || l.Evidence != "lldp" {
 				t.Fatalf("LLDP debe mandar sobre la FDB: %+v", l)
 			}
 			return
@@ -584,8 +584,27 @@ func TestTopoSemanticsOverrideEvidenceWins(t *testing.T) {
 	sem := BuildTopoSemantics(routers, nil, WireGuardStats{}, nil, "", nil, lldp, ovr)
 	for _, l := range sem.Links {
 		if l.Kind == "uplink" && l.To == "ap1" {
-			if l.From != "sw1" || l.Port != "lan4" {
+			if l.From != "sw1" || l.Port != "lan4" || l.Evidence != "override" {
 				t.Fatalf("el override debe mandar conservando el puerto inferido: %+v", l)
+			}
+			return
+		}
+	}
+	t.Fatal("falta el uplink de ap1")
+}
+
+// #1325: sin evidencia de ninguna capa el uplink cae al gateway y no lleva
+// tag de evidencia (Evidence vacía). El fallback al gateway no es evidencia.
+func TestTopoSemanticsFallbackSinEvidencia(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "ap1", Name: "ap1", MAC: "AA:BB:CC:00:00:03"},
+	}
+	sem := BuildTopoSemantics(routers, nil, WireGuardStats{}, nil, "", nil, nil, nil)
+	for _, l := range sem.Links {
+		if l.Kind == "uplink" && l.To == "ap1" {
+			if l.From != "gw" || l.Evidence != "" {
+				t.Fatalf("uplink ap1 sin evidencia: %+v, want from gw y Evidence vacía", l)
 			}
 			return
 		}

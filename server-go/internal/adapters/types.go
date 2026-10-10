@@ -426,6 +426,10 @@ type TopoLink struct {
 	// el padre es un switch sondeado y su EthPort da la velocidad negociada.
 	// 0 = desconocida (el front pinta "—" en vez de inventar).
 	SpeedMbps int `json:"speedMbps,omitempty"`
+	// Evidence (#1325): capa que resolvió el uplink del hijo ("override",
+	// "lldp", "device", "fdb"). Vacío = fallback al gateway (sin evidencia:
+	// el front no pinta tag). Solo en enlaces kind="uplink".
+	Evidence string `json:"evidence,omitempty"`
 }
 
 // RoamingDaemon clasifica el daemon de roaming/band-steering activo en la
