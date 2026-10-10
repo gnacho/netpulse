@@ -291,7 +291,10 @@ function TooltipCard({
             <span className="font-display text-sm font-semibold text-text-primary">
               {tip.node.name ?? t('topology.dist.managed')}
             </span>
-            <StatusPill tone="accent" label="LLDP" />
+            {/* #1325: la procedencia se alinea con la evidencia real del nodo
+                (LLDP si el router lo vio anunciarse; si no, el integrador).
+                Antes era "LLDP" en todas las cajas gestionadas. */}
+            <StatusPill tone="accent" label={distBadge(tip.node) || t('topology.dist.managed')} />
           </div>
           <div className="mt-0.5 text-caption text-text-muted">
             {[tip.node.ip, portName(tip.node.port, tip.node.portLabel)].filter(Boolean).join(' · ')}
@@ -300,7 +303,12 @@ function TooltipCard({
             <MiniStat label={t('topology.dist.port', { owner: portOwnerName(tip.node) })} value={portName(tip.node.port, tip.node.portLabel)} />
             <MiniStat label={t('topology.dist.macs')} value={String(tip.node.macCount)} />
           </div>
-          {tip.node.lldp && (
+          {/* #1325 (item 1): work-around defensivo. La label del distnode
+              (name/ip) y la del puerto (lldp.chassis/mgmt) resuelven al MISMO
+              vecino por vías distintas; si el chasis LLDP repite el nombre del
+              nodo, se pinta UNA sola línea (el nombre ya identifica al peer).
+              Mientras el server no unifique las dos vías. */}
+          {tip.node.lldp && tip.node.lldp.chassis !== tip.node.name && (
             <div className="mt-2 text-caption font-semibold text-accent">
               {t('topology.lldpIdentified', {
                 chassis: tip.node.lldp.chassis ?? '—',

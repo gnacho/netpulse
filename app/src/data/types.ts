@@ -433,6 +433,12 @@ export interface TopoSemLink {
   port?: string
   /** velocidad negociada en la boca del padre (Mbps), 0/ausente = sin dato (#1321) */
   speedMbps?: number
+  /**
+   * Evidencia real que resolvió el uplink del hijo (#1325): "override" |
+   * "lldp" | "device" | "fdb". Ausente/vacía = fallback al gateway (sin
+   * evidencia: el front no pinta tag). Solo en enlaces kind='uplink'.
+   */
+  evidence?: string
 }
 
 /**

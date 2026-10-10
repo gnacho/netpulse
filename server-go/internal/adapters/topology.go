@@ -93,6 +93,28 @@ func keptMacsForPort(portMACs []string, routerID string, byMAC map[string]int, d
 	return kept
 }
 
+// leafSwitchClients (#1325): MACs de un puerto del FDB de un SWITCH gestionado
+// que cuentan como clientes para el umbral de switch hoja (>= 2). Excluye las
+// bridge-MACs de la flota y los clientes wifi conocidos (los de un AP que
+// transitan por el switch). A diferencia de keptMacsForPort, NO filtra por
+// RouterID: los clientes cableados de un switch se atribuyen al DHCP server
+// (casi siempre el gateway), no al switch, y aquí importa el enlace físico.
+func leafSwitchClients(portMACs []string, byMAC map[string]int, devices []Device, routerMACs map[string]bool) []string {
+	kept := make([]string, 0, len(portMACs))
+	for _, mac := range portMACs {
+		if routerMACs[mac] {
+			continue
+		}
+		if idx, ok := byMAC[mac]; ok {
+			if devices[idx].Band != "cable" && devices[idx].Band != "—" {
+				continue
+			}
+		}
+		kept = append(kept, mac)
+	}
+	return kept
+}
+
 // hypervisorHostMAC: MAC del host de un hipervisor claro en `kept` (MACs OUI
 // de hipervisor + exactamente un host normal, siendo ese host un Device del
 // router). Vacío+false si el puerto no es un hipervisor claro.
@@ -379,6 +401,81 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				if idx, ok := byMAC[mac]; ok && devices[idx].RouterID == routerID {
 					devices[idx].AttachTo = id
 				}
+			}
+		}
+	}
+
+	// #1325: switches hoja inferidos tras switches gestionados. Un switch
+	// gestionado (distnode kind="managed") aprende en SU FDB los clientes
+	// cableados de un switch hoja no gestionado: cada puerto que NO sea su
+	// uplink (root port, donde aprende la bridge-MAC del gateway) y que
+	// aprenda >= 2 clientes cableados -> nodo inferido hoja anclado al switch
+	// (Parent) para que cuelgue de él en el mapa, no del router. Los APs
+	// (no-switch) siguen excluidos: su puerto multi-MAC es su propio uplink.
+	// La fase FDB no los veía porque keptMacsForPort filtra por RouterID y
+	// los clientes de un switch se atribuyen al DHCP server (el gateway).
+	if gatewayID != "" {
+		switchIDByMac := map[string]string{}
+		for id, p := range polled {
+			if p != nil && p.brMac != "" && p.cfg.Type == "managed-switch" {
+				switchIDByMac[strings.ToUpper(p.brMac)] = id
+			}
+		}
+		gwMac := ""
+		if gw := polled[gatewayID]; gw != nil {
+			gwMac = strings.ToUpper(gw.brMac)
+		}
+		var managed []DistributionNode
+		for _, dn := range dists {
+			if dn.Kind == "managed" && dn.Mac != "" {
+				managed = append(managed, dn)
+			}
+		}
+		for _, dn := range managed {
+			switchID, ok := switchIDByMac[strings.ToUpper(dn.Mac)]
+			if !ok {
+				continue
+			}
+			p := polled[switchID]
+			if p == nil {
+				continue
+			}
+			rootPort := ""
+			if gwMac != "" {
+				rootPort = p.fdb[gwMac]
+			}
+			byPort := fdbByPort(p.fdb)
+			ports := make([]string, 0, len(byPort))
+			for port := range byPort {
+				ports = append(ports, port)
+			}
+			sort.Strings(ports)
+			for _, port := range ports {
+				if port == rootPort {
+					continue // uplink del propio switch (bucle)
+				}
+				if lldpHandled[switchID][port] {
+					continue
+				}
+				occupied := false
+				for _, d2 := range dists {
+					if d2.RouterID == switchID && d2.Port == port && (d2.Kind == "managed" || d2.Kind == "inferred") {
+						occupied = true
+						break
+					}
+				}
+				if occupied {
+					continue // el puerto ya tiene distnode managed/inferred
+				}
+				kept := leafSwitchClients(byPort[port], byMAC, devices, routerMACs)
+				if len(kept) < 2 {
+					continue
+				}
+				id := fmt.Sprintf("dist-%s-%s", switchID, port)
+				dists = append(dists, DistributionNode{
+					ID: id, Kind: "inferred", RouterID: switchID, Port: port,
+					PortLabel: portLabel(p, port), MacCount: len(kept), Parent: dn.ID,
+				})
 			}
 		}
 	}
