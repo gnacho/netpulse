@@ -621,6 +621,14 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// issue #1354: opt-in alert when a marked device goes offline (0 = off).
 	migrate(sqldb, "device_overrides", "notify_offline", "ALTER TABLE device_overrides ADD COLUMN notify_offline INTEGER NOT NULL DEFAULT 0")
 
+	// #1354: las filas de alert_log tipadas "device-offline" son eventos de
+	// ROUTER offline (ese slug lo emitía trackRouterOffline antes de partirlo
+	// en router-offline). Discriminador idempotente: las filas del router
+	// llevan "host" en vars; las de cliente nuevas, no (vars = device/router).
+	if _, err := sqldb.Exec(`UPDATE alert_log SET type = 'router-offline' WHERE type = 'device-offline' AND vars LIKE '%"host"%'`); err != nil {
+		log.Printf("[netpulse] aviso: no se pudo migrar el tipo de alertas router-offline: %v", err)
+	}
+
 	// #817: port_series_raw tenía dos índices idénticos a su PK, creados por
 	// error en db.go y portseries.go. Se eliminan de forma idempotente (no se
 	// vuelven a crear); el VACUUM nocturno recupera el espacio en las DBs ya
