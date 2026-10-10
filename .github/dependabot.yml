@@ -1,0 +1,22 @@
+# Monthly dependency review (#1350): reactive bumps were the only mechanism
+# before this. PRs flow through the usual squash merge; individual updates can
+# sit until a release batch.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /server-go
+    schedule:
+      interval: monthly
+  - package-ecosystem: gomod
+    directory: /agent
+    schedule:
+      interval: monthly
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: monthly
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
