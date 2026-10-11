@@ -44,38 +44,6 @@ No necesitas un solo router para ver NetPulse funcionando:
   es el inventario completo: cada pantalla y cada función, con las decisiones
   técnicas y el alcance honesto de cada una.
 
-## ¿Por qué NetPulse?
-
-Si usas OpenWrt, tu red ya es tuya. Pero que sea tuya implica *conocerla*:
-qué se conecta dónde, qué va bien, qué cambió anoche. LuCI te muestra un
-router cada vez; las suites NMS tipo Zabbix o LibreNMS están pensadas para
-un datacenter. Lo que faltaba es lo intermedio: un NOC doméstico que se
-instala en minutos y simplemente te enseña tu red.
-
-NetPulse es esa pieza. Nació de mi propia red: un GL.iNet Flint 2 como
-gateway y tres puntos de acceso Xiaomi AX6 de segunda mano, todos con
-OpenWrt, cada uno con su LuCI. Quería una sola pantalla que me dijera la
-verdad sobre el conjunto, así que la construí y la uso cada mañana.
-
-Tres reglas dan forma a todo lo que hace:
-
-- **El sondeo nunca escribe.** El servidor genera su propio par de claves
-  SSH; autorizas la pública en cada router y NetPulse solo *lee* (ubus,
-  `/proc`, iwinfo, `bridge fdb`, `wg show`). Todo lo que escribe (reservar
-  una IP, bloquear un dispositivo, orquestar servicios, actualizar
-  firmware) es una acción explícita que lanzas tú, con snapshot de
-  configuración y rollback automático.
-- **Sin nube, sin cuentas.** Un único binario Go estático con la web
-  embebida, corriendo en una caja pequeña dentro de tu LAN. SQLite para las
-  series temporales, modo WAL, sin servicios externos. La única llamada a
-  casa es un contador diario anónimo de instancias: un id aleatorio, la
-  versión y el OS/arquitectura, nada más (no se guardan IPs ni sale ningún
-  dato de tu red). Existe solo para saber cuántas instancias corren y se
-  actualizan; desactívalo cuando quieras con `NETPULSE_TELEMETRY=0`.
-- **Libre de verdad, para siempre.** AGPL-3.0, sin versión premium esperando
-  detrás de un pago. Si te sirve, una estrella en GitHub es la forma de dar
-  las gracias.
-
 ## Qué te llevas
 
 **Resumen de flota y una puntuación de salud que significa algo.** Un único
@@ -144,9 +112,6 @@ pausar sin borrarla: sin sondeo ni alertas, con su histórico intacto.
 - **Rack físico (preview en Labs)**: dibuja tu rack de 19", coloca tu hardware
   y deja que NetPulse proponga el cableado desde la topología detectada.
   Apagado por defecto.
-- **Asistente IA (MCP)**: un servidor MCP integrado de solo lectura que tu
-  asistente consulta con un token de API (ver
-  [Asistentes de IA](#asistentes-de-ia-mcp)).
 - **Alertas que te encuentran**: temperatura, dispositivo nuevo, firmware
   disponible, WAN caída, problemas de agente; feed en la campana más canales
   de aviso (Web Push nativo, ntfy, Telegram y webhook saliente). Los canales
@@ -168,19 +133,20 @@ pausar sin borrarla: sin sondeo ni alertas, con su histórico intacto.
   o las opciones UCI `mqtt_*` en on-box). Topics, entidades y limitaciones en el
   [manual](docs/manual.es.md#home-assistant-mqtt).
 
+**Un servidor MCP para tu asistente de IA.** NetPulse lleva un servidor
+[MCP](https://modelcontextprotocol.io) embebido de solo lectura (streamable
+HTTP en `/mcp`) para que tu asistente consulte el estado de la flota, la
+salud por router, los dispositivos conocidos, los peers WireGuard, las
+estadísticas de AdGuard Home, el grafo de topología y las alertas activas con
+un token de API. Solo tokens (nunca la cookie de sesión), rate limit y cada
+llamada registrada en el log de auditoría. Desactivado por defecto: actívalo
+con `NETPULSE_MCP_ENABLED=1` y crea un token en Ajustes → Tokens de API.
+Mantén el puerto en tu LAN: quien tenga el token puede leer el estado
+completo de tu red.
+
 Esto sigue siendo una selección: **[todas las funcionalidades están en la
 web](https://netpulse.cloudless.club/features)**, una a una, y todo lo
 anterior se puede tocar en la **[demo en vivo](https://demo.netpulse.cloudless.club)**.
-
-## Cómo funciona el descubrimiento
-
-NetPulse descubre los dispositivos cliente a partir de tres fuentes en los
-routers monitorizados: leases DHCP, el FDB del bridge (clientes cableados) y
-mDNS cuando `umdns` está instalado. LLDP identifica routers y switches
-vecinos. El tráfico por cliente prefiere `nlbwmon` (contadores por MAC,
-cable) y cae a los contadores de bytes de hostapd (Wi-Fi); si un cliente
-cableado no muestra serie de tráfico, instala `nlbwmon` en ese router.
-`vnstat` mide totales por interfaz, no por cliente, así que no es sustituto.
 
 ## Empieza en unos cinco minutos
 
@@ -284,17 +250,6 @@ cambiado" antes de actualizar. El historial completo vive en
 [página de releases](https://github.com/gnacho/netpulse/releases); el plan
 que viene, en [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Qué debes esperar
-
-NetPulse es un proyecto personal, construido para mi propia red y publicado
-como software libre (AGPL-3.0). Es y será siempre libre. Trabajo en él en mi
-tiempo libre y evoluciona siguiendo primero mis propias necesidades; con
-colaboraciones o apoyo quizás crezca más rápido, pero no puedo prometer
-nada. **Nota honesta de alcance**: de momento solo se ha probado con mi
-propio hardware (un gateway GL.iNet Flint 2 y tres puntos de acceso Xiaomi
-AX6 con OpenWrt), además de WireGuard y AdGuard Home. Otros dispositivos
-OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
-
 ## Documentación
 
 - **[Manual de usuario](docs/manual.es.md)** (también en
@@ -306,46 +261,6 @@ OpenWrt deberían funcionar, pero el tuyo sería el primero en contarlo.
 - **[Hoja de ruta](docs/ROADMAP.md)**: qué está hecho y qué viene.
 - **[Discusiones](https://github.com/gnacho/netpulse/discussions)**:
   preguntas, ideas y hablar del futuro.
-
-## Asistentes de IA (MCP)
-
-NetPulse lleva un servidor [MCP](https://modelcontextprotocol.io) embebido
-(streamable-HTTP) para que los asistentes de IA puedan consultar tu instancia
-con herramientas de solo lectura: estado de la flota, salud por router,
-dispositivos conocidos, peers WireGuard, estadísticas de AdGuard Home, el
-grafo de topología detectado y las alertas activas. Nada más: sin cambios de
-configuración ni reinicios.
-
-Vive en Ajustes > Integraciones y está **desactivado por defecto a nivel de
-servidor**. Para activarlo:
-
-```bash
-NETPULSE_MCP_ENABLED=1
-```
-
-Después crea un token de API en Ajustes > Tokens de API y apunta tu cliente
-MCP a `http://<host-de-netpulse>:<puerto>/mcp` con ese token como Bearer. El
-endpoint solo acepta tokens de API (nunca la cookie de sesión), lleva rate
-limit y cada llamada a tool queda registrada en el log de auditoría. Mantén
-el puerto en tu LAN o detrás de un firewall: quien tenga el token puede leer
-el estado completo de tu red.
-
-## Desarrollo
-
-```bash
-# Backend (Go; sirve app/dist vía go:embed)
-cd server-go
-cp ../app/dist internal/staticspa/dist -r   # el dist embebido nunca se trackea
-go build -o netpulse ./cmd/netpulse && DEMO_MODE=1 ./netpulse
-
-# Frontend (dev server con proxy)
-cd app
-npm install
-npm run dev
-
-# Tests
-cd server-go && go test ./...
-```
 
 ## Gracias enormes
 

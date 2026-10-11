@@ -153,6 +153,7 @@
             <li data-i18n="featuresPage.topologyL2">Hipervisores con contenedores anidados visibles</li>
             <li data-i18n="featuresPage.topologyL3">Animación de tráfico y estado de enlaces</li>
             <li data-i18n="featuresPage.topologyL4">Modo edición: arrastra los nodos y guarda tu layout</li>
+            <li data-i18n="featuresPage.topologyL5">Etiqueta de evidencia en cada enlace: LLDP, FDB, atribución por device o override manual</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -163,9 +164,10 @@
           <h3 data-i18n="featuresPage.devicesTitle">Dispositivos</h3>
           <p data-i18n="featuresPage.devicesP">Cada cliente clasificado automáticamente por patrones de hostname y OUI, con banda, señal en dBm, primer visto y el router o puerto al que habla.</p>
           <ul class="feature-list">
-            <li data-i18n="featuresPage.devicesL1">Clasificación por tipo: ordenador, móvil, IoT, cámara, consola...</li>
+            <li data-i18n="featuresPage.devicesL1">Clasificación por tipo: ordenador, móvil, IoT, cámara, aspirador, videoportero, aire acondicionado, caldera, placa SBC...</li>
             <li data-i18n="featuresPage.devicesL2">Banda (2.4 GHz / 5 GHz / cable) y señal</li>
             <li data-i18n="featuresPage.devicesL3">Estado online/offline y first-seen</li>
+            <li data-i18n="featuresPage.devicesL4">Alertas de desconexión opt-in: marca un cliente y recibe un push urgente cuando se cae de verdad</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -246,6 +248,7 @@
             <li data-i18n="featuresPage.wireguardL1">Estado de cada peer y tiempo desde el último handshake</li>
             <li data-i18n="featuresPage.wireguardL2">RX/TX acumulado por túnel</li>
             <li data-i18n="featuresPage.wireguardL3">Visualización del túnel desde Internet hasta el gateway</li>
+            <li data-i18n="featuresPage.wireguardL4">Eventos de conexión y desconexión en el registro, con la duración de la sesión</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -267,11 +270,12 @@
         <div class="card feature reveal">
           <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <h3 data-i18n="featuresPage.alertsTitle">Alertas</h3>
-          <p data-i18n="featuresPage.alertsP">Seis categorías con urgencia por categoría: temperatura, firmware disponible, nuevo dispositivo, handshake WireGuard, puerto de red y eventos de roaming. Feed en la campana y notificaciones Web Push.</p>
+          <p data-i18n="featuresPage.alertsP">Alertas categorizadas como router, internet, clientes, señal, VPN y sistema, cada una con su nivel de urgencia. Feed persistente con resolución automática, Web Push nativo y alertas de desconexión por dispositivo que activas desde el editor del cliente.</p>
           <ul class="feature-list">
             <li data-i18n="featuresPage.alertsL1">Feed persistente con resolución automática</li>
             <li data-i18n="featuresPage.alertsL2">Web Push nativo VAPID sin terceros</li>
             <li data-i18n="featuresPage.alertsL3">Sugerencias de acción en alertas de puerto</li>
+            <li data-i18n="featuresPage.alertsL4">Canales extra: ntfy, Telegram y webhooks salientes (solo alertas urgentes)</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
@@ -298,6 +302,7 @@
             <li data-i18n="featuresPage.settingsL1">Usuarios con roles y bcrypt</li>
             <li data-i18n="featuresPage.settingsL2">Test de velocidad WAN real, ejecutado desde el servidor</li>
             <li data-i18n="featuresPage.settingsL3">Auto-actualización con changelog</li>
+            <li data-i18n="featuresPage.settingsL4">Integraciones: publicador MQTT/Home Assistant, servidor MCP, tokens de API, HTTPS</li>
           </ul>
           <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
         </div>
