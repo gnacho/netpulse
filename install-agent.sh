@@ -22,6 +22,8 @@
 #                   y obtiene el token real automáticamente; Fase 9 R3)
 #   --server-fp X   SHA-256 SPKI del servidor en hex (https). Opcional: si no
 #                   se pasa, el script lo deriva del propio certificado (#851)
+#   --ca-file X     PEM de la CA del server (https con CA propia): se usa como
+#                   --cacert en la descarga del binario desde el server (#1367)
 #   --ssh-user X    usuario SSH del router (default: root)
 #   --ssh-key X     ruta a la identidad privada SSH (opción -i). OBLIGATORIA en
 #                   el server para routers que solo autorizan la llave del
@@ -50,7 +52,7 @@ ENV_FILE="/etc/netpulse-agent.env"
 INIT_NAME="netpulse-agent"
 INIT_DST="/etc/init.d/$INIT_NAME"
 
-HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; SSH_USER="root"; SSH_KEY=""; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0; UPDATE_NETGRIP=0; NETGRIP_FORCE=0
+HOST=""; SERVER=""; SLUG=""; TOKEN=""; PAIRING_TOKEN=""; SERVER_FP=""; CA_FILE=""; SSH_USER="root"; SSH_KEY=""; BINARY=""; NETPULSE_VERSION=""; USE_TMP=0; UNINSTALL=0; UPDATE_NETGRIP=0; NETGRIP_FORCE=0
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     C_G=$(printf '\033[32m'); C_R=$(printf '\033[31m'); C_Y=$(printf '\033[33m'); C_B=$(printf '\033[1m'); C_0=$(printf '\033[0m')
@@ -78,6 +80,8 @@ while [ "$#" -gt 0 ]; do
         --pairing-token=*)  PAIRING_TOKEN="${1#*=}"; shift ;;
         --server-fp)        SERVER_FP="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
         --server-fp=*)      SERVER_FP="${1#*=}"; shift ;;
+        --ca-file)          CA_FILE="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
+        --ca-file=*)        CA_FILE="${1#*=}"; shift ;;
         --ssh-user)         SSH_USER="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
         --ssh-user=*)       SSH_USER="${1#*=}"; shift ;;
         --ssh-key)          SSH_KEY="${2-}"; [ "$#" -ge 2 ] && shift 2 || shift ;;
@@ -274,28 +278,60 @@ else
     else fatal 21 "necesito curl o wget"; fi
     fetch_to() { $FETCH "$1" > "$2"; }
     command -v sha256sum >/dev/null 2>&1 || fatal 21 "falta sha256sum"
-    if [ -z "$NETPULSE_VERSION" ]; then
-        info "resolviendo última release"
-        NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
-            | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4) \
-            || fatal 31 "no pude resolver la última release; usa --version=X.Y.Z"
+    # ------------------------------------------------------------- server --
+    # #1367: el binario sale del PROPIO server con la arch detectada arriba.
+    # Antes el one-liner pre-descargaba sin ?arch= y el handler defaulteaba
+    # a arm64: un router MIPS recibía un binario aarch64. Aquí la verdad es
+    # del router (uname + EI_DATA) y el handler exige la arch explícita.
+    # sha256 verificado contra la cabecera X-Checksum-Sha256 del server (#284);
+    # GitHub queda como fallback (dev sin binarios embebidos, sin curl o con
+    # --version explícita, que pide esa release concreta).
+    if [ -z "$NETPULSE_VERSION" ] && [ -n "$TOKEN" ] && command -v curl >/dev/null 2>&1; then
+        CA_ARGS=""
+        [ -n "$CA_FILE" ] && CA_ARGS="--cacert $CA_FILE"
+        info "descargando netpulse-agent ($GOARCH) de $SERVER"
+        if curl -fsSL $CA_ARGS --connect-timeout 10 --retry 3 \
+                -H "Authorization: Bearer $TOKEN" -D "$TMP/headers" \
+                "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o "$TMP/$BIN_NAME" \
+                && [ -s "$TMP/$BIN_NAME" ]; then
+            SUM_REF=$(grep -i '^x-checksum-sha256:' "$TMP/headers" | tr -d '\r' | awk '{print $2}')
+            if [ -n "$SUM_REF" ]; then
+                SUM_FILE=$(sha256sum "$TMP/$BIN_NAME" | awk '{print $1}')
+                [ "$SUM_FILE" = "$SUM_REF" ] || fatal 33 "sha256 NO COINCIDE (server, arch $GOARCH)"
+                ok "sha256 verificado (server)"
+            else
+                warn "el server no envió X-Checksum-Sha256; sin verificación de suma"
+            fi
+        else
+            warn "descarga del server falló; pruebo con la release de GitHub"
+            rm -f "$TMP/$BIN_NAME"
+        fi
     fi
-    VERSION_NORM=$(echo "$NETPULSE_VERSION" | sed 's/^v//')
-    case "$NETPULSE_VERSION" in
-        v*) NETPULSE_TAG="$NETPULSE_VERSION" ;;
-        *)  NETPULSE_TAG="v$NETPULSE_VERSION" ;;
-    esac
-    ASSET="${BIN_NAME}_${VERSION_NORM}_linux_${GOARCH}.tar.gz"
-    BASE_URL="https://github.com/$GH_REPO/releases/download/$NETPULSE_TAG"
-    info "descargando $ASSET"
-    fetch_to "$BASE_URL/$ASSET" "$TMP/$ASSET" || fatal 32 "descarga falló: $BASE_URL/$ASSET"
-    fetch_to "$BASE_URL/checksums.txt" "$TMP/checksums.txt" || fatal 32 "checksums.txt no está en $NETPULSE_VERSION"
-    SUM_FILE=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
-    SUM_REF=$(grep "  $ASSET\$" "$TMP/checksums.txt" | awk '{print $1}')
-    [ -n "$SUM_REF" ] || fatal 33 "$ASSET no está en checksums.txt"
-    [ "$SUM_FILE" = "$SUM_REF" ] || fatal 33 "sha256 NO COINCIDE para $ASSET"
-    ok "sha256 verificado"
-    tar -xzf "$TMP/$ASSET" -C "$TMP"
+
+    if [ ! -s "$TMP/$BIN_NAME" ]; then
+        if [ -z "$NETPULSE_VERSION" ]; then
+            info "resolviendo última release"
+            NETPULSE_VERSION=$($FETCH "https://api.github.com/repos/$GH_REPO/releases/latest" \
+                | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4) \
+                || fatal 31 "no pude resolver la última release; usa --version=X.Y.Z"
+        fi
+        VERSION_NORM=$(echo "$NETPULSE_VERSION" | sed 's/^v//')
+        case "$NETPULSE_VERSION" in
+            v*) NETPULSE_TAG="$NETPULSE_VERSION" ;;
+            *)  NETPULSE_TAG="v$NETPULSE_VERSION" ;;
+        esac
+        ASSET="${BIN_NAME}_${VERSION_NORM}_linux_${GOARCH}.tar.gz"
+        BASE_URL="https://github.com/$GH_REPO/releases/download/$NETPULSE_TAG"
+        info "descargando $ASSET"
+        fetch_to "$BASE_URL/$ASSET" "$TMP/$ASSET" || fatal 32 "descarga falló: $BASE_URL/$ASSET"
+        fetch_to "$BASE_URL/checksums.txt" "$TMP/checksums.txt" || fatal 32 "checksums.txt no está en $NETPULSE_VERSION"
+        SUM_FILE=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
+        SUM_REF=$(grep "  $ASSET\$" "$TMP/checksums.txt" | awk '{print $1}')
+        [ -n "$SUM_REF" ] || fatal 33 "$ASSET no está en checksums.txt"
+        [ "$SUM_FILE" = "$SUM_REF" ] || fatal 33 "sha256 NO COINCIDE para $ASSET"
+        ok "sha256 verificado"
+        tar -xzf "$TMP/$ASSET" -C "$TMP"
+    fi
 fi
 [ -s "$TMP/$BIN_NAME" ] || fatal 34 "no hay binario que instalar"
 

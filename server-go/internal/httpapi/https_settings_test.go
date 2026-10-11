@@ -408,7 +408,10 @@ func TestTheInstallLineCarriesTheRoot(t *testing.T) {
 	}
 	_, _, line := createAgentToken(t, ts, "test-router-2")
 	wantServer := fmt.Sprintf("--server=https://192.168.50.2:%d", mgr.Status().Port)
-	for _, want := range []string{`--cacert "$NPCA"`, "NPCA=$(mktemp)", "--server-fp=" + mgr.Fingerprint(), wantServer} {
+	// #1367: la CA sigue viajando en la línea, pero ya no como --cacert del
+	// one-liner (que ya no descarga el binario): va como --ca-file para que
+	// install-agent.sh la use en la descarga server-side del binario.
+	for _, want := range []string{`--ca-file="$NPCA"`, "NPCA=$(mktemp)", "--server-fp=" + mgr.Fingerprint(), wantServer} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("install line lacks %q:\n%s", want, line)
 		}

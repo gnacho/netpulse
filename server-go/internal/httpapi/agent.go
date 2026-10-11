@@ -308,9 +308,16 @@ func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	// #1367: sin default silencioso. El default arm64 hizo que un router
+	// MIPS instalado con el one-liner recibiera un binario aarch64 (exec
+	// format error) sin ningún aviso. Todos los consumidores automáticos
+	// (reinstall, self-heal, self-upgrade) mandan arch explícita; si falta,
+	// se pide en vez de adivinar.
 	arch := r.URL.Query().Get("arch")
 	if arch == "" {
-		arch = "arm64"
+		writeError(w, http.StatusBadRequest, "invalid_request",
+			"falta ?arch= (amd64, arm64, armv7, mips, mipsle)")
+		return
 	}
 	f, err := agentbin.Open(arch)
 	if err != nil {
@@ -463,8 +470,11 @@ func (s *server) agentBaseURL(r *http.Request) string {
 
 // agentInstallLine: one-liner de instalación vía SSH desde esta máquina.
 // El host del router se resuelve de la tabla routers si el slug existe.
-// Fase 6.2: el binario se descarga del propio servidor con el token del agente
-// en vez de GitHub, eliminando la dependencia de internet y el token en argv.
+// Fase 6.2: el binario lo sirve el propio servidor, eliminando la
+// dependencia de GitHub. #1367: el one-liner ya NO pre-descarga el binario
+// (sin arch no puede acertar en MIPS); install-agent.sh detecta la
+// arquitectura del router por SSH y descarga del server con ?arch= (verdad
+// del router, no del servidor), con GitHub como fallback.
 func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	host := "<ip-del-router>"
 	if s.db != nil {
@@ -485,23 +495,21 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	}
 	// FORK: with HTTPS on, the line points the agent at it and pins the
 	// root; the root travels inside the line - copied from the admin's own
-	// session - so the binary download, token included, is verified too.
-	caArg, fpArg := "", ""
+	// session - so the download of the binary from the server, token
+	// included, is verified too (install-agent.sh lo usa vía --ca-file).
+	caArg, fpArg, caFileArg := "", "", ""
 	if tr := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, server); tr.ServerURL != "" {
 		server = tr.ServerURL
 		pemEsc := strings.ReplaceAll(strings.TrimSpace(string(tr.CAPEM)), "\n", `\n`)
 		caArg = fmt.Sprintf("NPCA=$(mktemp) && printf '%%b' '%s\\n' > \"$NPCA\" && ", pemEsc)
+		caFileArg = ` --ca-file="$NPCA"`
 		fpArg = " --server-fp=" + tr.ServerFP
 	} else if tr.ServerFP != "" {
 		fpArg = " --server-fp=" + tr.ServerFP
 	}
-	curlCA := ""
-	if caArg != "" {
-		curlCA = ` --cacert "$NPCA"`
-	}
 	return fmt.Sprintf(
-		"%scurl -fsSL%s -H 'Authorization: Bearer %s' %s/api/agents/%s/binary -o /tmp/netpulse-agent && curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --binary=/tmp/netpulse-agent --host=%s --server=%s --slug=%s --token=%s%s%s",
-		caArg, curlCA, token, server, slug, host, server, slug, token, fpArg, sshKeyArg)
+		"%scurl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --host=%s --server=%s --slug=%s --token=%s%s%s%s",
+		caArg, host, server, slug, token, caFileArg, fpArg, sshKeyArg)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.
