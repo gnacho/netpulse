@@ -308,6 +308,11 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
   const { t } = useTranslation()
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
+  // #1357: badge de categoría por fila - la fila se tiñe por severidad y la
+  // categoría solo vivía en los chips de filtro (info-azul == internet-azul
+  // confundía a quien leía el color como categoría).
+  const catMeta = CATEGORY_META[ev.category]
+  const CatIcon = catMeta?.icon
   const [showSilence, setShowSilence] = useState(false)
   // #393: posición del pointerdown para distinguir click (sin movimiento →
   // togglear) de arrastre de selección de texto (movimiento → no togglear).
@@ -363,6 +368,17 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
               {ev.urgent && (
                 <span className="shrink-0 rounded-md bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-danger">
                   {t('alerts.urgentBadge')}
+                </span>
+              )}
+              {catMeta && CatIcon && (
+                <span
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em]',
+                    catMeta.tile,
+                  )}
+                >
+                  <CatIcon className="h-3 w-3" strokeWidth={2} />
+                  {t(`alerts.categories.${ev.category}`)}
                 </span>
               )}
             </span>
