@@ -306,6 +306,7 @@ type Live struct {
 	recoverStreak map[string]int
 	engine        *alerts.Engine
 	wgActive      map[string]bool
+	wgActiveSince map[string]time.Time // when each active peer became active (disconnect duration)
 	weakAlerted   map[string]int64
 	onlineMacs    map[string]bool
 	// unknownGrace: ticks consecutivos online+sin nombre (Name == MAC) por
@@ -455,6 +456,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		recoverStreak:        map[string]int{},
 		engine:               alerts.New(d, nil),
 		wgActive:             map[string]bool{},
+		wgActiveSince:        map[string]time.Time{},
 		weakAlerted:          map[string]int64{},
 		onlineMacs:           map[string]bool{},
 		unknownGrace:         map[string]int{},
@@ -2431,7 +2433,7 @@ func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
 	return stats
 }
 
-// pollWireGuard: stats WG del gateway + alerta de handshake nuevo.
+// pollWireGuard: gateway WireGuard stats plus connect/disconnect alerts.
 func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -2450,7 +2452,17 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 		log.Printf("[netpulse] WireGuard no disponible: %v", err)
 		return &WireGuardStats{Interface: l.cfg.WGInterface, Subnet: "", Status: "inactive", Peers: []WGPeer{}}
 	}
-	// Alerta en handshake nuevo (peer pasa a activo)
+	// Transitions run only on a successful poll: a failed poll would mark every
+	// previously active peer as spuriously disconnected.
+	l.applyWireGuardTransitions(stats, gw.ID)
+	return stats
+}
+
+// applyWireGuardTransitions emits connect (handshake) and disconnect alerts for
+// peers whose active state changed since the last successful poll, and keeps
+// wgActive/wgActiveSince in sync. A peer that was never active cannot emit a
+// disconnect; the first post-boot cycle never emits a connect (warmup).
+func (l *Live) applyWireGuardTransitions(stats *WireGuardStats, gwID string) {
 	activeNow := map[string]bool{}
 	for _, p := range stats.Peers {
 		if p.Active {
@@ -2458,8 +2470,39 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 		}
 	}
 	l.mu.Lock()
+	defer l.mu.Unlock()
+	// Disconnects: previously active peers no longer present in activeNow.
+	for id := range l.wgActive {
+		if activeNow[id] {
+			continue
+		}
+		name := id
+		for _, p := range stats.Peers {
+			if p.ID == id {
+				name = p.Name
+			}
+		}
+		dur := wgDuration(time.Since(l.wgActiveSince[id]))
+		l.engine.Emit(AlertEvent{
+			ID:          fmt.Sprintf("alert-wg-down-%s-%d", id, time.Now().UnixMilli()),
+			Category:    alerts.CatVPN,
+			Urgent:      false,
+			Severity:    "info",
+			Title:       "WireGuard disconnect",
+			Description: fmt.Sprintf("%s disconnected after %s", name, dur),
+			Type:        alerts.TypeWireguardDisconnect,
+			Vars:        map[string]string{"peer": name, "duration": dur},
+			Time:        "just now",
+			RouterID:    gwID,
+		})
+		delete(l.wgActiveSince, id)
+	}
+	// Connects: newly active peers, skipping the first post-boot cycle.
 	for id := range activeNow {
-		if !l.wgActive[id] && len(l.wgActive) > 0 {
+		if l.wgActive[id] {
+			continue
+		}
+		if len(l.wgActive) > 0 {
 			name := id
 			for _, p := range stats.Peers {
 				if p.ID == id {
@@ -2467,19 +2510,32 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 				}
 			}
 			l.engine.Emit(AlertEvent{
-				ID:       fmt.Sprintf("alert-wg-%s-%d", id, time.Now().UnixMilli()),
-				Category: alerts.CatVPN, Urgent: false,
-				Severity: "info", Title: "WireGuard handshake",
+				ID:          fmt.Sprintf("alert-wg-%s-%d", id, time.Now().UnixMilli()),
+				Category:    alerts.CatVPN,
+				Urgent:      false,
+				Severity:    "info",
+				Title:       "WireGuard handshake",
 				Description: name + " connected",
 				Type:        alerts.TypeWireguardHandshake,
 				Vars:        map[string]string{"peer": name},
-				Time:        "just now", RouterID: gw.ID,
+				Time:        "just now",
+				RouterID:    gwID,
 			})
 		}
+		l.wgActiveSince[id] = time.Now()
 	}
 	l.wgActive = activeNow
-	l.mu.Unlock()
-	return stats
+}
+
+// wgDuration humanizes a WireGuard session duration as "Xh Ym" (hours and
+// minutes). Negative values collapse to "0h 0m".
+func wgDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	return fmt.Sprintf("%dh %dm", h, m)
 }
 
 // buildDevices: unión de leases + MACs vistas (wireless > FDB satélites >

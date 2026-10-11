@@ -15,6 +15,7 @@ import (
 var newTypeSlugs = []string{
 	TypeAgentRecovered, TypeSSHAccessLost, TypeSSHAccessRecovered,
 	TypeAgentUpdated, TypeRouterRecovered, TypeWireguardHandshake,
+	TypeWireguardDisconnect,
 	TypePortStable, TypeGhostPortRecovered, TypeLinkRecovered,
 	TypeSwitchLoop, TypePortDisabled, TypePortRecovered,
 	TypeLinkDown, TypeLinkUp, TypeSfpRxLow, TypeSfpTempHigh,
@@ -49,8 +50,8 @@ func TestNewTypeSlugsAreKebabCaseAndUnique(t *testing.T) {
 		}
 		seen[slug] = true
 	}
-	if len(newTypeSlugs) != 23 {
-		t.Errorf("se esperan 23 slugs nuevos, hay %d", len(newTypeSlugs))
+	if len(newTypeSlugs) != 24 {
+		t.Errorf("se esperan 24 slugs nuevos, hay %d", len(newTypeSlugs))
 	}
 }
 

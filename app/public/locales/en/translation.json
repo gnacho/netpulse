@@ -243,6 +243,10 @@
         "title": "WireGuard handshake",
         "description": "{{peer}} connected"
       },
+      "wireguard-disconnect": {
+        "title": "WireGuard disconnect",
+        "description": "{{peer}} disconnected after {{duration}}"
+      },
       "firmware-upgrade-done": {
         "title": "Firmware upgraded",
         "description": "{{router}}: {{from}} → {{to}} (owut, {{origin}})"
