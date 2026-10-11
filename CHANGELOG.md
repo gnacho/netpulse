@@ -5,6 +5,21 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.42.0] - 2026-10-11
+
+### Added
+
+- **Aviso opt-in cuando un cliente se desconecta (#1354, #1355)**: check "Avisar si se desconecta" en el editor del dispositivo. Al confirmarse la caída (tres ciclos seguidos offline, sin avisos por flapping corto ni por el arranque del server) entra una alerta urgente con push, y al volver la entrada se retira sola del feed, como la de agente caído.
+- **Desconexión de túneles WireGuard en el registro (#1348, #1361)**: el panel ya registraba la conexión de un peer; ahora también su desconexión, con la duración de la sesión. Solo en sondeos correctos: un fallo de lectura nunca marca desconexiones espurias.
+- **Badge de categoría por fila en el registro de actividad (#1357, #1362)**: las filas se tiñen por severidad y la categoría solo existía en los chips de filtro; el azul de info coincide con el de Internet y confundía la categoría de un evento. Cada fila muestra ahora su categoría con icono y etiqueta.
+- **Evidencia real en los enlaces de topología y switches hoja inferidos (#1325, #1356)**: cada enlace de unidad de flota declara su procedencia (LLDP, FDB, device o manual) en la label; antes el front la deducía con un heurístico del router y un enlace resuelto por FDB podía etiquetarse "LLDP". Los switches no gestionados colgados de un puerto de un switch gestionado con dos o más clientes cableados aparecen como nodos inferidos colgando del switch. Las hover cards de puertos de switch colapsan la línea duplicada cuando ambas vías nombran al mismo vecino.
+- **Política de seguridad** (`SECURITY.md`, canal privado de reporte) y **Dependabot mensual** para Go y npm (#1350, #1351).
+
+### Changed
+
+- **Tabla de clientes más aireada (#1360, #1363)**: la columna de dispositivo cede peso (3.4 -> 2.8fr) a las de fecha, que suben a 1.0fr con nowrap y cabeceras españolas más cortas ("Primera vez" / "Última vez"); dejan de partir el texto en dos líneas. Recordatorio: el selector de columnas permite ocultar cualquiera y el espacio se reparte entre las visibles.
+- Dependencias: `gonzalop/mq` al tag oficial v0.9.12 (#1352) y 31 actualizaciones npm minor+patch agrupadas (#1353), ambas vía Dependabot.
+
 ## [2.41.0] - 2026-10-09
 
 ### Added
