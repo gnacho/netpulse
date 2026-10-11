@@ -1070,11 +1070,14 @@ const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number;
   band: { md: 0.85, lg: 0.6 },
   signal: { md: 0.95, lg: 0.75 },
   traffic: { md: 0.75, lg: 0.75, xl: 0.7 },
-  firstSeen: { lg: 0.7, xlOnly: true },
-  lastSeen: { lg: 0.7, xlOnly: true },
+  firstSeen: { lg: 1.0, xlOnly: true },
+  lastSeen: { lg: 1.0, xlOnly: true },
 }
 
-const DEVICE_COL_FR = { md: 3, lg: 3.4, xl: 3.4 } as const
+// #1360: la columna de dispositivo repartía holgura que las fechas (sin
+// nowrap y a 0.7fr) pagaban con wraps feos; el peso baja a 2.8 y las fechas
+// suben a 1.0fr para que "Primera vez"/"Última vez" quepan en una línea.
+const DEVICE_COL_FR = { md: 3, lg: 2.8, xl: 2.8 } as const
 
 /** Reparto al ocultar columnas: el fr liberado se distribuye A PARTES IGUALES
  *  entre las columnas visibles (dispositivo incluida). El reparto nativo de
@@ -1234,15 +1237,17 @@ function ListRow({
             </span>
           </div>
         )}
-        {/* First/Last seen (#954): solo en xl para no engordar la tabla */}
+        {/* First/Last seen (#954): solo en xl para no engordar la tabla.
+            #1360: whitespace-nowrap - con 1.0fr caben; sin nowrap partían
+            el texto ("hace 2 días") en dos líneas. */}
         {vis.has('firstSeen') && (
           <div className="hidden xl:block">
-            <span className="text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
+            <span className="whitespace-nowrap text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
           </div>
         )}
         {vis.has('lastSeen') && (
           <div className="hidden xl:block">
-            <span className="text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
+            <span className="whitespace-nowrap text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
           </div>
         )}
         <ChevronDown
