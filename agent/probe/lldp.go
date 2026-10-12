@@ -106,6 +106,22 @@ func parseLldpEntry(raw json.RawMessage, fallbackName string) LldpNeighbor {
 	// Best-effort: un campo de tipo inesperado (chassis como cadena, port
 	// como número…) no invalida el resto de la entrada.
 	_ = json.Unmarshal(raw, &e)
+	// lldpd 1.0.20 (OpenWrt 25.x, #1370): cada entrada del array puede ser
+	// un objeto de UNA clave cuyo nombre es la interfaz ({"lan1": {...}}),
+	// sin campo "name" dentro. Descender usando la clave como nombre de
+	// puerto. Las claves que son campos conocidos no son interfaces.
+	if e.Name == "" && e.Chassis == nil {
+		var byName map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &byName); err == nil && len(byName) == 1 {
+			for name, inner := range byName {
+				switch name {
+				case "name", "chassis", "port", "via", "rid", "age":
+				default:
+					return parseLldpEntry(inner, name)
+				}
+			}
+		}
+	}
 	n := LldpNeighbor{Port: e.Name}
 	if n.Port == "" {
 		n.Port = fallbackName

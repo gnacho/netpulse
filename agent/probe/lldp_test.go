@@ -148,6 +148,78 @@ func TestParseLldpNeighborsDefensivo(t *testing.T) {
 	}
 }
 
+// Fixture real de lldpd 1.0.20 (OpenWrt 25.12, #1370): el array de interface
+// lleva objetos de UNA clave con el nombre de la interfaz, sin campo "name".
+const lldpcliKeyedArrayFixture = `{
+  "lldp": {
+    "interface": [
+      {
+        "lan1": {
+          "via": "LLDP",
+          "rid": "1",
+          "age": "0 day, 00:06:34",
+          "chassis": {
+            "core-switch": {
+              "id": {"type": "mac", "value": "78:d8:00:32:31:49"},
+              "descr": "Managed switch",
+              "mgmt-ip": ["192.168.8.6"],
+              "capability": [
+                {"type": "Bridge", "enabled": true},
+                {"type": "Router", "enabled": false}
+              ]
+            }
+          },
+          "port": {
+            "id": {"type": "ifname", "value": "3"},
+            "ttl": "120"
+          }
+        }
+      },
+      {
+        "lan1": {
+          "via": "LLDP",
+          "rid": "2",
+          "age": "0 day, 00:00:59",
+          "chassis": {
+            "ap-atico": {
+              "id": {"type": "mac", "value": "9c:9d:7e:54:ef:b8"},
+              "capability": [
+                {"type": "Wlan", "enabled": true}
+              ]
+            }
+          },
+          "port": {
+            "id": {"type": "mac", "value": "9c:9d:7e:54:ef:b8"},
+            "descr": "lan1",
+            "ttl": "120"
+          }
+        }
+      }
+    ]
+  }
+}`
+
+func TestParseLldpNeighborsKeyedArray(t *testing.T) {
+	nbs, err := ParseLldpNeighbors([]byte(lldpcliKeyedArrayFixture))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(nbs) != 2 {
+		t.Fatalf("vecinos: %d", len(nbs))
+	}
+	got := nbs[0]
+	if got.Port != "lan1" || got.Chassis != "core-switch" || got.ChassisMac != "78:D8:00:32:31:49" {
+		t.Fatalf("n[0]: %+v", got)
+	}
+	if got.Mgmt != "192.168.8.6" || !reflect.DeepEqual(got.Caps, []string{"Bridge"}) {
+		t.Fatalf("n[0] mgmt/caps: %+v", got)
+	}
+	got = nbs[1]
+	if got.Port != "lan1" || got.Chassis != "ap-atico" || got.ChassisMac != "9C:9D:7E:54:EF:B8" || got.PortDesc != "lan1" {
+		t.Fatalf("n[1]: %+v", got)
+	}
+}
+
 // TestProberLldp: contrato de disponibilidad de la sonda (#489).
 func TestProberLldp(t *testing.T) {
 	ctx := context.Background()
