@@ -171,7 +171,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
           </motion.li>
         </ul>
       </div>
-      <div>
+      <div className={cn(horizontal && 'justify-self-end')}>
         <div className="mb-2 text-label uppercase text-text-muted">{t('routers.colStatus')}</div>
         <ul className={cn('grid gap-x-4 gap-y-2', horizontal ? 'grid-cols-1' : 'grid-cols-3')}>
           {STATUS_ROWS.map((r) => (
@@ -199,7 +199,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
 export function LegendCard({ model }: { model: TopologyModel }) {
   const { t } = useTranslation()
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
+    <section className="rounded-2xl border border-border bg-surface px-[25px] py-5">
       <h2 className="mb-4 font-display text-h2 text-text-primary">{t('topology.legend.title')}</h2>
       <LegendContent model={model} horizontal />
     </section>
