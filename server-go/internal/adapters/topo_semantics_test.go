@@ -420,6 +420,55 @@ func TestFleetFdbEvidenceRootPortDescartaDownstream(t *testing.T) {
 	}
 }
 
+// #1373: no-regresión sobre el árbol documentado del contribuidor de #1279
+// (gw -> sw1 -> {ap1, sw2 -> ap2}), con sus dos artefactos: estrella plana
+// (el gateway aprende todas las MACs en lan1) y tránsito FDB (ap2 visible en
+// la tabla de sw1 por el puerto hacia sw2). La guarda del root port NO debe
+// cambiar la resolución: cada padre aprende a su hijo en puerto de bajada.
+func TestFleetFdbEvidenceArbolContribuidor(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:00:00:00:00:01", fdb: map[string]string{
+			"AA:00:00:00:00:02": "lan1", // sw1
+			"AA:00:00:00:00:03": "lan1", // ap1
+			"AA:00:00:00:00:04": "lan1", // sw2
+			"AA:00:00:00:00:05": "lan1", // ap2 (estrella plana)
+		}},
+		"sw1": {brMac: "AA:00:00:00:00:02", fdb: map[string]string{
+			"AA:00:00:00:00:01": "1", // root port hacia el gw
+			"AA:00:00:00:00:03": "3", // ap1
+			"AA:00:00:00:00:04": "4", // sw2
+			"AA:00:00:00:00:05": "4", // ap2 (tránsito FDB)
+		}},
+		"ap1": {brMac: "AA:00:00:00:00:03", fdb: map[string]string{
+			"AA:00:00:00:00:01": "1",
+			"AA:00:00:00:00:02": "1", // sw1 por su uplink
+		}},
+		"sw2": {brMac: "AA:00:00:00:00:04", fdb: map[string]string{
+			"AA:00:00:00:00:01": "8", // root port hacia sw1
+			"AA:00:00:00:00:02": "8", // sw1 por su uplink
+			"AA:00:00:00:00:05": "7", // ap2
+		}},
+		"ap2": {brMac: "AA:00:00:00:00:05", fdb: map[string]string{
+			"AA:00:00:00:00:01": "1",
+			"AA:00:00:00:00:02": "1",
+			"AA:00:00:00:00:04": "1", // sw2 por su uplink
+		}},
+	}
+	ev := fleetFdbEvidence(polled, "gw")
+	if sw1 := ev["sw1"]; sw1.parent != "gw" || sw1.port != "lan1" || sw1.childPort != "1" {
+		t.Fatalf("sw1: %+v, want gw/lan1 childPort 1", sw1)
+	}
+	if ap1 := ev["ap1"]; ap1.parent != "sw1" || ap1.port != "3" || ap1.childPort != "1" {
+		t.Fatalf("ap1: %+v, want sw1/3 childPort 1", ap1)
+	}
+	if sw2 := ev["sw2"]; sw2.parent != "sw1" || sw2.port != "4" || sw2.childPort != "8" {
+		t.Fatalf("sw2: %+v, want sw1/4 childPort 8", sw2)
+	}
+	if ap2 := ev["ap2"]; ap2.parent != "sw2" || ap2.port != "7" || ap2.childPort != "1" {
+		t.Fatalf("ap2: %+v, want sw2/7 childPort 1", ap2)
+	}
+}
+
 // #1060: el uplink sale del distnode (círculo inferido/gestionado) cuando el
 // puerto de la evidencia coincide con su (router, puerto): gateway -> círculo
 // -> AP, sin saltarse el switch intermedio.
