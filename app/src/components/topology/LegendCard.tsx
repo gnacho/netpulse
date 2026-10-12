@@ -126,7 +126,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
         }
   let i = 0
   return (
-    <div className={cn(horizontal ? 'flex flex-wrap gap-x-[50px] gap-y-4' : 'space-y-4', compact && 'space-y-3')}>
+    <div className={cn(horizontal ? 'grid grid-cols-4 gap-x-[50px] gap-y-4' : 'space-y-4', compact && 'space-y-3')}>
       <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.legend.bandConnection')}</div>
         <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -142,7 +142,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
           </motion.li>
         </ul>
       </div>
-      <div>
+      <div className={cn(horizontal && 'col-span-2')}>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.links.title')}</div>
         <ul className={cn('grid gap-x-4 gap-y-2', horizontal ? 'grid-cols-3' : 'grid-cols-1')}>
           <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
@@ -183,7 +183,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
         </ul>
       </div>
       <motion.p
-        className={cn('border-t border-border pt-3 text-caption text-text-muted', horizontal && 'w-full')}
+        className={cn('border-t border-border pt-3 text-caption text-text-muted', horizontal && 'col-span-full')}
         {...row(i++)}
       >
         {t('topology.legend.summary', { online: deviceTotals.online, peers: activePeerCount, links: activeLinkCount })}
