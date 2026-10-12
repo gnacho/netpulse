@@ -1618,9 +1618,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // gateway. Sin semántica o sin match → gateway (comportamiento de siempre,
   // demo incluido).
   const uplinkSemByNodeId = new Map<string, TopoSemLink>()
+  // #1384: velocidad del cable de un dispositivo cuando el padre la midió
+  // en esa boca (server, fillWiredSpeeds: p. ej. los hipervisores en las
+  // bocas a 2,5 G del switch gestionado, aunque el device no traiga
+  // speedMbps de ningún controlador).
+  const wiredSemSpeedByTo = new Map<string, number>()
   if (sem) {
     for (const sl of sem.links) {
       if (sl.kind === 'uplink') uplinkSemByNodeId.set(sl.to, sl)
+      if (sl.kind === 'wired' && sl.speedMbps && sl.speedMbps > 0) wiredSemSpeedByTo.set(sl.to, sl.speedMbps)
     }
   }
   const uplinkParentName = (nodeId: string): string => {
@@ -1657,7 +1663,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       spark: gatewayNode.router.sparkline, sparkColor: COLOR.accent,
     })
   }
-  for (const node of apNodes) {
+  for (const node of [...apNodes, ...switchNodes]) {
+    // #1384: el uplink lo lista TODA unidad de flota no-gateway, no solo los
+    // APs: el switch gestionado (roleBadge SW) también cuelga del gateway y
+    // su enlace (p. ej. Flint2 <-> KP-9000 a 2,5 Gbps) estaba en el mapa y
+    // en la semántica pero no en la tabla. No hay duplicado con el bucle
+    // 'dist' de abajo: la sombra distnode del switch se absorbe server-side
+    // (#1374/#1376) y no llega en distributionNodes.
     const isWifi = node.router.backhaul === 'wifi'
     backhauls.push({
       id: `uplink-${node.id}`, a: `${uplinkParentName(node.id)}${uplinkPortSuffix(node.id)}`, b: node.router.name, kind: 'uplink',
@@ -1718,7 +1730,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       id: `wired-${host.id}`, a: hubNameOf(host),
       b: [host.name, port, `${ctCountByHost.get(host.id) ?? 0} CT`].filter(Boolean).join(' · '),
       kind: 'wired', type: 'topology.links.hypervisorCable',
-      speed: linkSpeed(host.speedMbps), ping: '—', signal: '—',
+      // #1384: primero la boca medida por el padre en este sondeo (sem
+      // wired, fillWiredSpeeds); si no, el sello del controlador en el
+      // device; si ninguno, "—" honesta.
+      speed: linkSpeed(wiredSemSpeedByTo.get(host.id) ?? host.speedMbps), ping: '—', signal: '—',
       tone: 'ok', statusLabel: 'common.status.online',
       spark: host.sparkline, sparkColor: COLOR.ok,
     })
