@@ -762,4 +762,12 @@ func TestTopoSemanticsAbsorbeDistnodeSombra(t *testing.T) {
 	if fromOf["pc"] != "gw" {
 		t.Fatalf("pc cuelga de %q, want gw (cliente del switch tonto, no del gestionado)", fromOf["pc"])
 	}
+	// #1378: la absorción no debe corromper el slice del caller (aliasing):
+	// dists conserva su len y contenido; los absorbidos se exponen aparte.
+	if len(dists) != 1 || dists[0].ID != "dist-gw-lan1" {
+		t.Fatalf("dists del caller corrupto: %+v", dists)
+	}
+	if len(sem.AbsorbedDists) != 1 || sem.AbsorbedDists[0] != "dist-gw-lan1" {
+		t.Fatalf("AbsorbedDists: %+v", sem.AbsorbedDists)
+	}
 }

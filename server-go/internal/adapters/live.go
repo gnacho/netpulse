@@ -3425,6 +3425,22 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	usteerAvailable := l.usteerAvailableCached()
 	dawnDetected := dawnDeprecatedFromPolled(polled)
 	topo := BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence, lldpEvidence, overrideUplinks) // SPEC-65 D65-3 + #1042/#1051/#1279/#1321
+	// #1374: retirar de la lista que ve el frontend los distnodes absorbidos
+	// como sombra de un switch gestionado. Slice NUEVO: filtrar in situ
+	// reescribe el backing array compartido y duplica el último (#1378).
+	if len(topo.AbsorbedDists) > 0 {
+		absorbed := map[string]bool{}
+		for _, id := range topo.AbsorbedDists {
+			absorbed[id] = true
+		}
+		filtered := make([]DistributionNode, 0, len(distNodes))
+		for _, dn := range distNodes {
+			if !absorbed[dn.ID] {
+				filtered = append(filtered, dn)
+			}
+		}
+		distNodes = filtered
+	}
 	fillUplinkSpeeds(polled, distNodes, topo.Links)
 	return &Overview{
 		Health:  computeHealth(routerList, adguard),

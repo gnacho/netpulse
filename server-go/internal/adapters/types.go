@@ -414,6 +414,11 @@ type TopoSemantics struct {
 	// El mapa lo dibuja bajo el nodo Internet en vez de como cliente LAN.
 	// Vacío si no hay coincidencia.
 	WanPeer string `json:"wanPeer,omitempty"`
+	// AbsorbedDists (#1374): ids de distnodes inferred absorbidos como sombra
+	// de un switch gestionado. El caller filtra su lista con un slice NUEVO:
+	// reescribir el backing array compartido duplicaba el último elemento
+	// (#1378).
+	AbsorbedDists []string `json:"absorbedDists,omitempty"`
 }
 
 // TopoLink es un enlace semántico del mapa (sin geometría).

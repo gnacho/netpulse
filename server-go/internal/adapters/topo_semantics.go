@@ -466,7 +466,10 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 	}
 	if len(switchUnit) > 0 {
 		absorbed := map[string]string{} // distnode -> switch que lo absorbe
-		kept := dists[:0]
+		// kept es un slice NUEVO: filtrar in situ (dists[:0]) reescribe el
+		// backing array del caller, que conserva su len original y acaba con
+		// el último elemento duplicado (#1378).
+		kept := make([]DistributionNode, 0, len(dists))
 		for _, dn := range dists {
 			hub := ""
 			if dn.Kind == "inferred" {
@@ -485,6 +488,11 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		}
 		if len(absorbed) > 0 {
 			dists = kept
+			sem.AbsorbedDists = make([]string, 0, len(absorbed))
+			for id := range absorbed {
+				sem.AbsorbedDists = append(sem.AbsorbedDists, id)
+			}
+			sort.Strings(sem.AbsorbedDists)
 			for i := range online {
 				// Re-anclar al switch SOLO los clientes atribuidos a él: los
 				// atribuidos a otro router (p. ej. equipos de un switch NO
