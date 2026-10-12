@@ -135,7 +135,7 @@ export interface TopologyInput {
    * conectan con la posición real). Los chips sin posición guardada (p. ej.
    * dispositivos nuevos) conservan su posición automática.
    */
-  seedPositions?: Record<string, { x: number; y: number }>
+  seedPositions?: Record<string, { x: number; y: number; ts?: number }>
 }
 
 /** Chip "+N" de un anillo desbordado (posición ya calculada, geometría local).
@@ -981,10 +981,15 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // sus chips hijos (abanico/anillos) para que se re-deriven alrededor de la
   // posición movida. El resolver de colisiones los trata como fixed, así que
   // nada los desplaza después.
+  // #1377: si el router dueño del distnode se pineó DESPUÉS (ts mayor), el
+  // pin del distnode es del cluster viejo y se ignora: el distnode sigue a su
+  // router y el grupo se mueve junto. Un pin posterior del distnode sí manda.
   if (seedPositions) {
     for (const dv of distNodes) {
       const p = seedPositions[dv.id]
       if (!p) continue
+      const owner = seedPositions[dv.node.routerId]
+      if (owner && (owner.ts ?? 0) > (p.ts ?? 0)) continue
       dv.x = p.x
       dv.y = p.y
       if (anchorPos.has(dv.id)) anchorPos.set(dv.id, { x: p.x, y: p.y })
@@ -1189,10 +1194,17 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       if (!hypervisorHosts.has(c.id)) continue
       c.size = 30
       const p = seedPositions[c.id]
-      if (p) {
-        c.x = p.x
-        c.y = p.y
-      }
+      if (!p) continue
+      // #1377: si el hub del host (router/switch, posiblemente vía su
+      // distnode) se pineó después que el host, la semilla del host es del
+      // cluster viejo: no se aplica y el grid de CTs se re-deriva alrededor
+      // de la posición re-derivada del host (el grupo sigue al padre).
+      let hubTs = seedPositions[c.hubId]?.ts ?? 0
+      const hubDist = distById.get(c.hubId)
+      if (hubDist) hubTs = Math.max(hubTs, seedPositions[hubDist.routerId]?.ts ?? 0)
+      if (hubTs > (p.ts ?? 0)) continue
+      c.x = p.x
+      c.y = p.y
     }
   } else {
     for (const c of chips) {
@@ -1234,10 +1246,26 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // bajo el host y el pin de su semilla vieja (#1378).
       if (c.isCt && hypervisorHosts.has(c.hubId)) continue
       const p = seedPositions[c.id]
-      if (p) {
-        c.x = p.x
-        c.y = p.y
-      }
+      if (!p) continue
+      // #1377: si el hub del chip (router/AP/switch/distnode) se pineó
+      // DESPUÉS que el chip (ts mayor), la semilla del chip es del cluster
+      // viejo y se ignora: el chip se re-deriva alrededor del padre movido
+      // y el grupo se mueve junto, igual que los CTs con su hipervisor.
+      // Un pin del chip POSTERIOR al del padre sí se respeta (reubicar un
+      // hijo a mano sigue funcionando; la próxima vez que se arrastre el
+      // padre, el hijo volverá a seguirlo). Semillas antiguas sin ts (=0)
+      // se tratan como las más viejas.
+      // Cadena: si el hub es un distnode (p. ej. el nodo hipervisor de un
+      // host Proxmox), quien puede llevar el pin nuevo es su ROUTER dueño
+      // (switch16 -> dist-pve-citadel-01 -> chip citadel-01), así que el ts
+      // del cluster del hub es el máximo de ambos niveles.
+      const hub = seedPositions[c.hubId]
+      let hubTs = hub?.ts ?? 0
+      const hubDist = distById.get(c.hubId)
+      if (hubDist) hubTs = Math.max(hubTs, seedPositions[hubDist.routerId]?.ts ?? 0)
+      if (hubTs > (p.ts ?? 0)) continue
+      c.x = p.x
+      c.y = p.y
     }
   }
 

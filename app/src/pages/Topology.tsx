@@ -89,7 +89,7 @@ export default function Topology() {
   // (no se reordena); solo se re-edita al entrar de nuevo o al "Restablecer".
   const LAYOUT_KEY = 'netpulse.topology.layout'
   const [editMode, setEditMode] = useState(false)
-  const [layout, setLayout] = useState<Record<string, { x: number; y: number }>>(() => {
+  const [layout, setLayout] = useState<Record<string, { x: number; y: number; ts?: number }>>(() => {
     try {
       return JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}')
     } catch {
@@ -114,8 +114,10 @@ export default function Topology() {
 
   // Durante el arrastre, onMoveNode actualiza la posición del nodo en `layout`
   // (vía semilla → el modelo recalcula y los hijos se re-derivan alrededor).
+  // #1377: la semilla lleva ts (epoch ms) para que el modelo sepa si el pin de
+  // un hijo es anterior al de su padre (entonces lo sigue) o posterior (manda).
   const handleMoveNode = (id: string, x: number, y: number) => {
-    setLayout((prev) => (prev[id] && prev[id]!.x === x && prev[id]!.y === y ? prev : { ...prev, [id]: { x, y } }))
+    setLayout((prev) => (prev[id] && prev[id]!.x === x && prev[id]!.y === y ? prev : { ...prev, [id]: { x, y, ts: Date.now() } }))
   }
 
   const handleSaveLayout = () => {
