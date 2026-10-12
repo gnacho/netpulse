@@ -450,6 +450,48 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		uplinkEvidence[rid] = ev
 		uplinkSource[rid] = "override"
 	}
+	// #1374: un distnode inferred que es la sombra no gestionada de un switch
+	// gestionado de la flota se absorbe: si el uplink del switch apunta al
+	// mismo (router, puerto) que ocupa el distnode, ambos nodos son la misma
+	// caja física (un puerto = un cable). El switch enlaza directo con el
+	// padre (el salto #1060 deja de encontrar distnode) y los clientes del
+	// distnode pasan a colgar del switch, su posición física real. Solo
+	// inferred: los managed tienen identidad propia (chassis MAC) y su dedup
+	// es el de #1325/D1.
+	switchUnit := map[string]bool{}
+	for _, r := range routers {
+		if r.Role == "Switch" {
+			switchUnit[r.ID] = true
+		}
+	}
+	if len(switchUnit) > 0 {
+		absorbed := map[string]string{} // distnode -> switch que lo absorbe
+		kept := dists[:0]
+		for _, dn := range dists {
+			hub := ""
+			if dn.Kind == "inferred" {
+				for rid := range switchUnit {
+					if ev, ok := uplinkEvidence[rid]; ok && ev.parent == dn.RouterID && ev.port != "" && ev.port == dn.Port {
+						hub = rid
+						break
+					}
+				}
+			}
+			if hub != "" {
+				absorbed[dn.ID] = hub
+				continue
+			}
+			kept = append(kept, dn)
+		}
+		if len(absorbed) > 0 {
+			dists = kept
+			for i := range online {
+				if sw, ok := absorbed[online[i].AttachTo]; ok {
+					online[i].AttachTo = sw
+				}
+			}
+		}
+	}
 	// #1042: el equipo aguas arriba del gateway (módem/ONT del ISP) se
 	// descubre por ARP como un cliente más, pero vive en el lado WAN: si su
 	// IP coincide con la puerta de enlace WAN se representa bajo el nodo

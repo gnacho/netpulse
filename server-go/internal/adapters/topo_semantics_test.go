@@ -717,3 +717,46 @@ func TestTopoSemanticsFallbackSinEvidencia(t *testing.T) {
 	}
 	t.Fatal("falta el uplink de ap1")
 }
+
+// #1374: el distnode inferred que es la sombra no gestionada de un switch
+// gestionado de la flota se absorbe: el switch enlaza directo con el padre
+// y los clientes del blob pasan a colgar del switch (su posición física).
+func TestTopoSemanticsAbsorbeDistnodeSombra(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", Role: "Gateway principal", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "sw", Name: "switch", Role: "Switch", RoleBadge: "SW", MAC: "AA:BB:CC:00:00:02"},
+	}
+	devices := []Device{
+		{ID: "nas", MAC: "AA:BB:CC:00:00:09", RouterID: "gw", Band: "cable", Online: true, AttachTo: "dist-gw-lan1"},
+	}
+	dists := []DistributionNode{
+		{ID: "dist-gw-lan1", RouterID: "gw", Kind: "inferred", Port: "lan1"},
+	}
+	ev := map[string]topoParent{"sw": {parent: "gw", port: "lan1"}}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, dists, "", ev, nil, nil)
+	var uplink *TopoLink
+	for i := range sem.Links {
+		l := &sem.Links[i]
+		if l.Kind == "uplink" && l.To == "sw" {
+			uplink = l
+		}
+		if l.From == "dist-gw-lan1" || l.To == "dist-gw-lan1" {
+			t.Fatalf("el distnode sombra no debe aparecer en enlaces: %+v", *l)
+		}
+	}
+	if uplink == nil || uplink.From != "gw" || uplink.Port != "lan1" {
+		t.Fatalf("uplink sw: %+v, want desde gw por lan1", uplink)
+	}
+	found := false
+	for _, l := range sem.Links {
+		if l.Kind == "wired" && l.To == "nas" {
+			found = true
+			if l.From != "sw" {
+				t.Fatalf("nas cuelga de %q, want sw", l.From)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("falta el enlace cableado del nas")
+	}
+}
