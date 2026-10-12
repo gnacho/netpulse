@@ -310,3 +310,46 @@ func TestFillUplinkSpeedsLldpPortFisico(t *testing.T) {
 		t.Fatalf("uplink rt4 (boca \"6\" = lan6): %d, want 1000", links[1].SpeedMbps)
 	}
 }
+
+// #1384: velocidad del cable de un dispositivo cuando el padre es un router
+// sondeado que midió esa boca (hipervisor en el switch gestionado); detrás
+// de un distnode o de otro device nadie la midió y queda a 0.
+func TestFillWiredSpeeds(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"sw1": {ports: []EthPort{
+			{ID: "lan5", Up: true, Speed: "2.5 Gbps"},
+			{ID: "lan8", Up: false, Speed: "2.5 Gbps"},
+		}},
+		"gw": {ports: []EthPort{
+			{ID: "lan2", Up: true, Speed: "1 Gbps"},
+		}},
+	}
+	dists := []DistributionNode{{ID: "dist-gw-lan3", RouterID: "gw", Port: "lan3"}}
+	links := []TopoLink{
+		{From: "sw1", To: "pve-01", Kind: "wired", Port: "lan5"},      // hipervisor directo al switch: 2,5 G
+		{From: "sw1", To: "pve-02", Kind: "wired", Port: "8"},         // normalización "8" = lan8, pero caída: 0
+		{From: "gw", To: "nas", Kind: "wired", Port: "lan2"},          // directo al gateway: 1 G
+		{From: "dist-gw-lan3", To: "pc", Kind: "wired", Port: "lan3"}, // detrás de distnode: nadie midió, 0
+		{From: "pve-01", To: "ct-1", Kind: "wired", Port: "lan5"},     // CT del hipervisor: 0
+		{From: "gw", To: "sin-puerto", Kind: "wired"},                 // sin puerto: 0
+	}
+	fillWiredSpeeds(polled, dists, links)
+	if links[0].SpeedMbps != 2500 {
+		t.Fatalf("wired pve-01 (lan5 up 2.5G): %d, want 2500", links[0].SpeedMbps)
+	}
+	if links[1].SpeedMbps != 0 {
+		t.Fatalf("wired pve-02 (boca caída): %d, want 0", links[1].SpeedMbps)
+	}
+	if links[2].SpeedMbps != 1000 {
+		t.Fatalf("wired nas (lan2 gateway): %d, want 1000", links[2].SpeedMbps)
+	}
+	if links[3].SpeedMbps != 0 {
+		t.Fatalf("wired pc (detrás de distnode): %d, want 0", links[3].SpeedMbps)
+	}
+	if links[4].SpeedMbps != 0 {
+		t.Fatalf("wired ct-1 (device-hub no sondeado): %d, want 0", links[4].SpeedMbps)
+	}
+	if links[5].SpeedMbps != 0 {
+		t.Fatalf("wired sin puerto: %d, want 0", links[5].SpeedMbps)
+	}
+}

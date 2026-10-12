@@ -625,6 +625,17 @@ func fillNodeSpeeds(polled map[string]*routerPolled, dists []DistributionNode) {
 	}
 }
 
+// #1380: los enlaces con evidencia LLDP llevan la boca física del switch
+// ("3", del PortDesc LLDP) mientras la tabla de puertos del switch la
+// nombra "lan3". Se normaliza el prefijo "lan" (solo si va seguido de un
+// dígito) para casar ambos lados sin falsos positivos (lan10 != "1").
+func stripLANPrefix(s string) string {
+	if len(s) > 3 && s[:3] == "lan" && s[3] >= '0' && s[3] <= '9' {
+		return s[3:]
+	}
+	return s
+}
+
 // fillUplinkSpeeds (#1321): velocidad del uplink de una unidad cuando el
 // padre la reporta en esa boca (EthPort up + parseSpeedMbps, el mismo
 // criterio conservador de fillNodeSpeeds). El From del enlace puede ser el
@@ -640,16 +651,6 @@ func fillUplinkSpeeds(polled map[string]*routerPolled, dists []DistributionNode,
 	for _, d := range dists {
 		routerOfDist[d.ID] = d.RouterID
 		portOfDist[d.ID] = d.Port
-	}
-	// #1380: los enlaces con evidencia LLDP llevan la boca física del switch
-	// ("3", del PortDesc LLDP) mientras la tabla de puertos del switch la
-	// nombra "lan3". Se normaliza el prefijo "lan" (solo si va seguido de un
-	// dígito) para casar ambos lados sin falsos positivos (lan10 != "1").
-	stripLAN := func(s string) string {
-		if len(s) > 3 && s[:3] == "lan" && s[3] >= '0' && s[3] <= '9' {
-			return s[3:]
-		}
-		return s
 	}
 	for i := range links {
 		l := &links[i]
@@ -670,7 +671,49 @@ func fillUplinkSpeeds(polled map[string]*routerPolled, dists []DistributionNode,
 			continue
 		}
 		for _, ep := range p.ports {
-			if ep.Up && (ep.ID == l.Port || stripLAN(ep.ID) == stripLAN(l.Port)) {
+			if ep.Up && (ep.ID == l.Port || stripLANPrefix(ep.ID) == stripLANPrefix(l.Port)) {
+				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
+					l.SpeedMbps = mbps
+				}
+				break
+			}
+		}
+	}
+}
+
+// fillWiredSpeeds (#1384): velocidad de un enlace cableado cuando el padre
+// es un router de la flota sondeado directamente (gateway o switch
+// gestionado vía beacon, p. ej. el KP-9000) y midió esa boca (EthPort up +
+// parseSpeedMbps, el mismo criterio conservador de fillUplinkSpeeds). Es lo
+// que permite a la tabla de enlaces dar la velocidad del cable de un
+// hipervisor (citadel-01 en lan5 a 2,5 Gbps) aunque el device no traiga
+// speedMbps de ningún controlador.
+//
+// Solo enlaces que cuelgan DIRECTO del router: detrás de un distnode
+// (switch inferido/gestionado) o de otro device (los CTs de un hipervisor)
+// nadie midió la boca del dispositivo y SpeedMbps queda a 0 ("—" honesta).
+func fillWiredSpeeds(polled map[string]*routerPolled, dists []DistributionNode, links []TopoLink) {
+	if len(links) == 0 {
+		return
+	}
+	isDist := map[string]bool{}
+	for _, d := range dists {
+		isDist[d.ID] = true
+	}
+	for i := range links {
+		l := &links[i]
+		if l.Kind != "wired" || l.SpeedMbps > 0 || l.Port == "" {
+			continue
+		}
+		if isDist[l.From] {
+			continue
+		}
+		p := polled[l.From]
+		if p == nil {
+			continue
+		}
+		for _, ep := range p.ports {
+			if ep.Up && (ep.ID == l.Port || stripLANPrefix(ep.ID) == stripLANPrefix(l.Port)) {
 				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
 					l.SpeedMbps = mbps
 				}

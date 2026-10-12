@@ -3443,6 +3443,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		distNodes = filtered
 	}
 	fillUplinkSpeeds(polled, distNodes, topo.Links)
+	fillWiredSpeeds(polled, distNodes, topo.Links) // #1384
 	return &Overview{
 		Health:  computeHealth(routerList, adguard),
 		WAN:     wan,
