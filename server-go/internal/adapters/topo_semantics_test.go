@@ -727,7 +727,10 @@ func TestTopoSemanticsAbsorbeDistnodeSombra(t *testing.T) {
 		{ID: "sw", Name: "switch", Role: "Switch", RoleBadge: "SW", MAC: "AA:BB:CC:00:00:02"},
 	}
 	devices := []Device{
-		{ID: "nas", MAC: "AA:BB:CC:00:00:09", RouterID: "gw", Band: "cable", Online: true, AttachTo: "dist-gw-lan1"},
+		{ID: "cam", MAC: "AA:BB:CC:00:00:09", RouterID: "sw", Band: "cable", Online: true, AttachTo: "dist-gw-lan1"},
+		// Equipo de un switch NO gestionado colgado del gateway: el blob se
+		// absorbe pero este cliente NO se re-ancla al switch (no es suyo).
+		{ID: "pc", MAC: "AA:BB:CC:00:00:0A", RouterID: "gw", Band: "cable", Online: true, AttachTo: "dist-gw-lan1"},
 	}
 	dists := []DistributionNode{
 		{ID: "dist-gw-lan1", RouterID: "gw", Kind: "inferred", Port: "lan1"},
@@ -747,16 +750,16 @@ func TestTopoSemanticsAbsorbeDistnodeSombra(t *testing.T) {
 	if uplink == nil || uplink.From != "gw" || uplink.Port != "lan1" {
 		t.Fatalf("uplink sw: %+v, want desde gw por lan1", uplink)
 	}
-	found := false
+	fromOf := map[string]string{}
 	for _, l := range sem.Links {
-		if l.Kind == "wired" && l.To == "nas" {
-			found = true
-			if l.From != "sw" {
-				t.Fatalf("nas cuelga de %q, want sw", l.From)
-			}
+		if l.Kind == "wired" {
+			fromOf[l.To] = l.From
 		}
 	}
-	if !found {
-		t.Fatal("falta el enlace cableado del nas")
+	if fromOf["cam"] != "sw" {
+		t.Fatalf("cam cuelga de %q, want sw (cliente atribuido al switch)", fromOf["cam"])
+	}
+	if fromOf["pc"] != "gw" {
+		t.Fatalf("pc cuelga de %q, want gw (cliente del switch tonto, no del gestionado)", fromOf["pc"])
 	}
 }

@@ -486,7 +486,12 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		if len(absorbed) > 0 {
 			dists = kept
 			for i := range online {
-				if sw, ok := absorbed[online[i].AttachTo]; ok {
+				// Re-anclar al switch SOLO los clientes atribuidos a él: los
+				// atribuidos a otro router (p. ej. equipos de un switch NO
+				// gestionado que cuelga del gateway y cuyo tráfico el switch
+				// aprende en su root port) no son suyos; al quitar el blob
+				// quedan con su router, su posición física.
+				if sw, ok := absorbed[online[i].AttachTo]; ok && online[i].RouterID == sw {
 					online[i].AttachTo = sw
 				}
 			}
