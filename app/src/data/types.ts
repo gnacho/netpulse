@@ -85,6 +85,12 @@ export interface Router {
   lldp?: LldpInfo | null
   /** Sparkline de tráfico 24h (Mbps, 24 puntos) */
   sparkline: number[]
+  /**
+   * Latencia sondeada de la unidad en ms (#1384): ping unidad→gateway en
+   * no-gateway, latencia WAN en el gateway. Ausente si la fuente no la
+   * sondea (agent-only/external/SNMP): la tabla de enlaces pinta "—".
+   */
+  latencyMs?: number
 }
 
 export interface WanInfo {

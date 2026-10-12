@@ -1339,6 +1339,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		CPU: iptr(p.cpu), RAM: iptr(p.ram), Temp: iptr(p.temp),
 		Uptime: fmtUptime(p.uptimeSec), Clients: len(p.leases),
 		Sparkline: sparkline, TempThreshold: thr,
+		LatencyMs: p.latencyMs,
 	}
 	if noVitals {
 		r.VitalsAvailable = bptr(false)

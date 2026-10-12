@@ -357,14 +357,14 @@ export default function Topology() {
 
 
 
-      {/* ③ + ④ Leyenda y enlaces (desktop: 5/7 cols; móvil: solo enlaces en lista) */}
-      <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
-        <div className="hidden lg:col-span-5 lg:block">
+      {/* ③ + ④ Leyenda y enlaces (#1384): ambas a todo lo ancho, apiladas;
+          la leyenda va en una sola fila de columnas (desktop; en móvil solo
+          la lista de enlaces, la leyenda vive en el sheet del mapa). */}
+      <div className="grid grid-cols-1 gap-4 md:gap-5">
+        <div className="hidden lg:block">
           <LegendCard model={model} />
         </div>
-        <div className="lg:col-span-7">
-          <LinksTable model={model} hoverLink={hoverLink} onHoverLink={setHoverLink} />
-        </div>
+        <LinksTable model={model} hoverLink={hoverLink} onHoverLink={setHoverLink} />
       </div>
 
       {/* Etiquetado manual de hardware (issue #142 Fase B): clic en un chip

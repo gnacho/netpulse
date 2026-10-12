@@ -175,6 +175,10 @@ type Router struct {
 	Type   string `json:"type,omitempty"`
 	Status string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
 	Health int    `json:"health"`
+	// LatencyMs (#1384): latencia sondeada de la unidad (ping unidad→gateway
+	// en no-gateway; latencia WAN en el gateway). Null cuando la fuente no la
+	// sondea (agent-only/external/SNMP) - la tabla de enlaces pinta "—".
+	LatencyMs *float64 `json:"latencyMs,omitempty"`
 	// AccessMissing: el router responde pero el acceso SSH/ubus no está
 	// configurado (clave del servidor no autorizada) — issue #257. La UI lo
 	// pinta como "sin acceso" en vez de "offline" (config issue, no power).

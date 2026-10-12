@@ -126,6 +126,7 @@ export function LinksTable({ model, hoverLink, onHoverLink }: LinksTableProps) {
               <th scope="col" className="pb-2 pr-4 font-medium">{t('topology.links.colLink')}</th>
               <th scope="col" className="pb-2 pr-4 font-medium">{t('devices.colType')}</th>
               <th scope="col" className="pb-2 pr-4 font-medium">{t('topology.links.colSpeed')}</th>
+              <th scope="col" className="pb-2 pr-4 font-medium">{t('topology.links.colPing')}</th>
               <th scope="col" className="pb-2 pr-4 font-medium">{t('devices.colSignal')}</th>
               <th scope="col" className="pb-2 pr-4 font-medium">{t('routers.colStatus')}</th>
               <th scope="col" className="relative pb-2 font-medium">
@@ -152,6 +153,7 @@ export function LinksTable({ model, hoverLink, onHoverLink }: LinksTableProps) {
                 </td>
                 <td className="py-3 pr-4 whitespace-nowrap text-text-secondary">{t(row.type)}</td>
                 <td className="py-3 pr-4 whitespace-nowrap font-mono text-mono-sm text-text-primary">{row.speed}</td>
+                <td className="py-3 pr-4 whitespace-nowrap font-mono text-mono-sm text-text-secondary">{row.ping}</td>
                 <td className="py-3 pr-4 whitespace-nowrap font-mono text-mono-sm text-text-secondary">{row.signal}</td>
                 <td className="py-3 pr-4 whitespace-nowrap">
                   <StatusPill tone={row.tone} label={t(row.statusLabel)} pulse={row.tone !== 'ok'} />
@@ -186,7 +188,7 @@ export function LinksTable({ model, hoverLink, onHoverLink }: LinksTableProps) {
               <div className="space-y-0.5 text-caption text-text-secondary">
                 <div>
                   {t(row.type)} · <span className="font-mono text-text-primary">{row.speed}</span> ·{' '}
-                  <span className="font-mono">{row.signal}</span>
+                  <span className="font-mono">{row.ping}</span> · <span className="font-mono">{row.signal}</span>
                 </div>
                 {row.note && <div className="text-warn"><LinkNote note={row.note} /></div>}
               </div>

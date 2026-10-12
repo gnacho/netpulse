@@ -1195,6 +1195,7 @@
     "links": {
       "colLink": "Enlace",
       "colSpeed": "Velocidad",
+      "colPing": "Ping",
       "congestedChannel": "Canal congestionado",
       "fiberWan": "Fibra WAN",
       "hypervisorCable": "Cable de hipervisor",

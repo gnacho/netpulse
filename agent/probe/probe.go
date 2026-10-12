@@ -526,7 +526,8 @@ var pingRTTRe = regexp.MustCompile(`= [\d.]+/([\d.]+)(?:/[\d.]+){1,2} ms`)
 func ParsePingSummary(out string) (latency, loss *float64) {
 	if m := pingRTTRe.FindStringSubmatch(out); m != nil {
 		v, _ := strconv.ParseFloat(m[1], 64)
-		v = float64(int(v + 0.5))
+		// #1384: sin redondeo a entero - en LAN el ping es <1 ms y el
+		// redondeo lo dejaba en 0 (ruido). El formateo es cosa de la UI.
 		latency = &v
 	}
 	if m := pingLossRe.FindStringSubmatch(out); m != nil {

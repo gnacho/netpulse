@@ -188,15 +188,19 @@ func TestBuildEthPortsSkipsDsaConduit(t *testing.T) {
 func TestParsePingSummary(t *testing.T) {
 	out := "3 packets transmitted, 3 received, 0% packet loss, time 2003ms\nrtt min/avg/max/mdev = 8.123/9.456/10.999/0.5 ms"
 	lat, loss := ParsePingSummary(out)
-	if lat == nil || *lat != 9 || loss == nil || *loss != 0 {
+	if lat == nil || *lat != 9.456 || loss == nil || *loss != 0 {
 		t.Fatalf("ping: %v %v", lat, loss)
 	}
 	// #1281: busybox (OpenWrt) imprime min/avg/max SIN mdev.
-	if lat, _ := ParsePingSummary("3 packets transmitted, 3 packets received, 0% packet loss\nround-trip min/avg/max = 6.196/6.326/6.527 ms"); lat == nil || *lat != 6 {
-		t.Errorf("busybox rtt: lat = %v, want 6", lat)
+	if lat, _ := ParsePingSummary("3 packets transmitted, 3 packets received, 0% packet loss\nround-trip min/avg/max = 6.196/6.326/6.527 ms"); lat == nil || *lat != 6.326 {
+		t.Errorf("busybox rtt: lat = %v, want 6.326", lat)
 	}
-	if lat, loss := ParsePingSummary("round-trip min/avg/max = 10.5/20.4/30.6 ms\n3 packets transmitted, 3 received, 50% packet loss"); lat == nil || *lat != 20 || loss == nil || *loss != 50 {
+	if lat, loss := ParsePingSummary("round-trip min/avg/max = 10.5/20.4/30.6 ms\n3 packets transmitted, 3 received, 50% packet loss"); lat == nil || *lat != 20.4 || loss == nil || *loss != 50 {
 		t.Errorf("busybox rtt+loss: lat=%v loss=%v", lat, loss)
+	}
+	// #1384: sub-ms LAN ping must survive (0.4 ms, antes redondeado a 0).
+	if lat, _ := ParsePingSummary("round-trip min/avg/max = 0.3/0.4/0.6 ms"); lat == nil || *lat != 0.4 {
+		t.Errorf("sub-ms rtt: lat = %v, want 0.4", lat)
 	}
 	if lat, _ := ParsePingSummary("2 packets transmitted, 0 received, 100% packet loss"); lat != nil {
 		t.Fatalf("sin rtt → nil: %v", lat)

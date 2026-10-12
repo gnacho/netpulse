@@ -108,7 +108,7 @@ function WgSample() {
   )
 }
 
-export function LegendContent({ model, compact = false }: { model: TopologyModel; compact?: boolean }) {
+export function LegendContent({ model, compact = false, horizontal = false }: { model: TopologyModel; compact?: boolean; horizontal?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const { deviceTotals, routers, devices } = useNetPulse()
@@ -126,7 +126,7 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
         }
   let i = 0
   return (
-    <div className={cn('space-y-4', compact && 'space-y-3')}>
+    <div className={cn(horizontal ? 'grid grid-cols-2 gap-x-6 gap-y-4 xl:grid-cols-4' : 'space-y-4', compact && 'space-y-3')}>
       <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.legend.bandConnection')}</div>
         <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -144,7 +144,7 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
       </div>
       <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.links.title')}</div>
-        <ul className="grid grid-cols-1 gap-x-4 gap-y-2">
+        <ul className={cn('grid gap-x-4 gap-y-2', horizontal ? 'grid-cols-2' : 'grid-cols-1')}>
           <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
             <LineSample color={COLOR.ok} />
             {t('topology.legend.wiredLink')}
@@ -173,7 +173,7 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
       </div>
       <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('routers.colStatus')}</div>
-        <ul className="grid grid-cols-3 gap-x-4 gap-y-2">
+        <ul className={cn('grid gap-x-4 gap-y-2', horizontal ? 'grid-cols-1' : 'grid-cols-3')}>
           {STATUS_ROWS.map((r) => (
             <motion.li key={r.labelKey} className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
               <RingSample color={r.color} />
@@ -182,7 +182,10 @@ export function LegendContent({ model, compact = false }: { model: TopologyModel
           ))}
         </ul>
       </div>
-      <motion.p className="border-t border-border pt-3 text-caption text-text-muted" {...row(i++)}>
+      <motion.p
+        className={cn('text-caption text-text-muted', horizontal ? 'self-center xl:pl-6 xl:border-l xl:border-border' : 'border-t border-border pt-3')}
+        {...row(i++)}
+      >
         {t('topology.legend.summary', { online: deviceTotals.online, peers: activePeerCount, links: activeLinkCount })}
       </motion.p>
     </div>
@@ -198,7 +201,7 @@ export function LegendCard({ model }: { model: TopologyModel }) {
   return (
     <section className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="mb-4 font-display text-h2 text-text-primary">{t('topology.legend.title')}</h2>
-      <LegendContent model={model} />
+      <LegendContent model={model} horizontal />
     </section>
   )
 }
