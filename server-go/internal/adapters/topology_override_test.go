@@ -286,3 +286,27 @@ func TestFillUplinkSpeeds(t *testing.T) {
 		t.Fatalf("uplink ap3 (sin puerto): %d, want 0", links[2].SpeedMbps)
 	}
 }
+
+// #1380: el enlace con evidencia LLDP lleva la boca física del switch ("3",
+// del PortDesc LLDP) y la tabla del switch la nombra "lan3": la velocidad
+// debe cruzar igualmente.
+func TestFillUplinkSpeedsLldpPortFisico(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"sw": {ports: []EthPort{
+			{ID: "lan3", Up: true, Speed: "1 Gbps"},
+			{ID: "lan6", Up: true, Speed: "1 Gbps"},
+			{ID: "lan7", Up: true, Speed: "2.5 Gbps"},
+		}},
+	}
+	links := []TopoLink{
+		{From: "sw", To: "rt3", Kind: "uplink", Port: "3"},
+		{From: "sw", To: "rt4", Kind: "uplink", Port: "6"},
+	}
+	fillUplinkSpeeds(polled, nil, links)
+	if links[0].SpeedMbps != 1000 {
+		t.Fatalf("uplink rt3 (boca \"3\" = lan3): %d, want 1000", links[0].SpeedMbps)
+	}
+	if links[1].SpeedMbps != 1000 {
+		t.Fatalf("uplink rt4 (boca \"6\" = lan6): %d, want 1000", links[1].SpeedMbps)
+	}
+}

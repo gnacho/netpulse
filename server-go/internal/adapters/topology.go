@@ -641,6 +641,16 @@ func fillUplinkSpeeds(polled map[string]*routerPolled, dists []DistributionNode,
 		routerOfDist[d.ID] = d.RouterID
 		portOfDist[d.ID] = d.Port
 	}
+	// #1380: los enlaces con evidencia LLDP llevan la boca física del switch
+	// ("3", del PortDesc LLDP) mientras la tabla de puertos del switch la
+	// nombra "lan3". Se normaliza el prefijo "lan" (solo si va seguido de un
+	// dígito) para casar ambos lados sin falsos positivos (lan10 != "1").
+	stripLAN := func(s string) string {
+		if len(s) > 3 && s[:3] == "lan" && s[3] >= '0' && s[3] <= '9' {
+			return s[3:]
+		}
+		return s
+	}
 	for i := range links {
 		l := &links[i]
 		if l.Kind != "uplink" || l.SpeedMbps > 0 || l.Port == "" {
@@ -660,7 +670,7 @@ func fillUplinkSpeeds(polled map[string]*routerPolled, dists []DistributionNode,
 			continue
 		}
 		for _, ep := range p.ports {
-			if ep.ID == l.Port && ep.Up {
+			if ep.Up && (ep.ID == l.Port || stripLAN(ep.ID) == stripLAN(l.Port)) {
 				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
 					l.SpeedMbps = mbps
 				}
