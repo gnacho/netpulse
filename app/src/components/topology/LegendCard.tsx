@@ -126,7 +126,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
         }
   let i = 0
   return (
-    <div className={cn(horizontal ? 'grid grid-cols-4 gap-x-6 gap-y-4' : 'space-y-4', compact && 'space-y-3')}>
+    <div className={cn(horizontal ? 'flex flex-wrap gap-x-[50px] gap-y-4' : 'space-y-4', compact && 'space-y-3')}>
       <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.legend.bandConnection')}</div>
         <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -142,7 +142,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
           </motion.li>
         </ul>
       </div>
-      <div className={cn(horizontal && 'col-span-2')}>
+      <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('topology.links.title')}</div>
         <ul className={cn('grid gap-x-4 gap-y-2', horizontal ? 'grid-cols-3' : 'grid-cols-1')}>
           <motion.li className="flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
@@ -171,7 +171,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
           </motion.li>
         </ul>
       </div>
-      <div className={cn(horizontal && 'justify-self-end')}>
+      <div>
         <div className="mb-2 text-label uppercase text-text-muted">{t('routers.colStatus')}</div>
         <ul className={cn('grid gap-x-4 gap-y-2', horizontal ? 'grid-cols-1' : 'grid-cols-3')}>
           {STATUS_ROWS.map((r) => (
@@ -183,7 +183,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
         </ul>
       </div>
       <motion.p
-        className={cn('border-t border-border pt-3 text-caption text-text-muted', horizontal && 'col-span-full')}
+        className={cn('border-t border-border pt-3 text-caption text-text-muted', horizontal && 'w-full')}
         {...row(i++)}
       >
         {t('topology.legend.summary', { online: deviceTotals.online, peers: activePeerCount, links: activeLinkCount })}
@@ -199,7 +199,7 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
 export function LegendCard({ model }: { model: TopologyModel }) {
   const { t } = useTranslation()
   return (
-    <section className="rounded-2xl border border-border bg-surface px-[25px] py-5">
+    <section className="rounded-2xl border border-border bg-surface px-[50px] py-5">
       <h2 className="mb-4 font-display text-h2 text-text-primary">{t('topology.legend.title')}</h2>
       <LegendContent model={model} horizontal />
     </section>
