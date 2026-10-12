@@ -368,6 +368,47 @@ func TestAgentsListUpdateAvailable(t *testing.T) {
 	}
 }
 
+// TestAgentsListUpdateAvailableStale — #1382: un agente SIN pulso reciente
+// (equipo apagado o retirado de la red) no se ofrece como actualizable aunque
+// su última versión conocida sea vieja: no hay forma de aplicarle un upgrade
+// y el aviso sería ruido permanente en la tabla de flota.
+func TestAgentsListUpdateAvailableStale(t *testing.T) {
+	ts := makeUpgradeTestServer(t)
+	st, tok := createUpgradeToken(t, ts, "patio")
+	if st != 201 {
+		t.Fatalf("create: %d", st)
+	}
+
+	agentItem := func() map[string]any {
+		res := get(t, ts.URL, "/api/agents", ts.cookie)
+		body := readJSON(t, res)
+		for _, a := range body["agents"].([]any) {
+			if m, _ := a.(map[string]any); m["slug"] == "patio" {
+				return m
+			}
+		}
+		t.Fatalf("patio ausente: %v", body)
+		return nil
+	}
+
+	// Fresco con versión vieja: pendiente de actualizar.
+	upgradeIngest(t, ts, tok, upgradePayload("0.0.9"))
+	if patio := agentItem(); patio["updateAvailable"] != true {
+		t.Fatalf("fresco con 0.0.9 debe dar updateAvailable=true: %v", patio)
+	}
+
+	// El reloj avanza más allá del TTL del registry: la última versión
+	// conocida sigue siendo vieja, pero sin pulso no hay aviso.
+	now := time.Now()
+	ts.agents.SetClock(func() time.Time { return now.Add(2 * time.Hour) })
+	if patio := agentItem(); patio["fresh"] != false {
+		t.Fatalf("tras 2h sin push debe dar fresh=false: %v", patio)
+	}
+	if patio := agentItem(); patio["updateAvailable"] != false {
+		t.Fatalf("stale con 0.0.9 debe dar updateAvailable=false: %v", patio)
+	}
+}
+
 // TestAgentsUpgradeAll — #251: POST /api/agents/upgrade-all.
 //   - 403 sin admin.
 //   - Con un agente conectado y desactualizado → status "sent".

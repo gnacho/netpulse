@@ -225,6 +225,13 @@ export interface NetPulseApi extends NetPulseData {
    */
   uninstallAgent: (slug: string) => Promise<{ gone: boolean; token?: boolean; error?: string } | null>
   /**
+   * #1382: DELETE /api/agents/{slug} — retira el agente de la flota (revoca
+   * su token y olvida su estado). Para equipos dados de baja de la red; si
+   * el equipo vuelve, hay que re-enrolarlo. Distinto de uninstallAgent, que
+   * desinstala el software del router vía SSH.
+   */
+  removeAgent: (slug: string) => Promise<{ error?: string } | null>
+  /**
    * #245: POST /api/agents — crea/rota el token del agente y devuelve el
    * one-liner de instalación manual (fallback para routers sin SSH desde el
    * server). El token rota en cada llamada (se muestra UNA vez); el comando
@@ -1160,6 +1167,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const removeAgent = useCallback(async (slug: string): Promise<{ error?: string } | null> => {
+    if (modeRef.current !== 'live') return null
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (res.status === 401) redirectLogin()
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        return { error: body.message ?? `HTTP ${res.status}` }
+      }
+      return {}
+    } catch {
+      return { error: 'network' }
+    }
+  }, [])
+
   const createAgentInstall = useCallback(async (slug: string): Promise<{ install: string; token?: string } | null> => {
     if (modeRef.current !== 'live') return null
     try {
@@ -1302,9 +1327,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       upgradeAllAgents,
       reinstallAgent,
       uninstallAgent,
+      removeAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

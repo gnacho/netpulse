@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Check, Clipboard, Clock, Loader2, Radar, RotateCcw, Unplug } from 'lucide-react'
+import { Check, Clipboard, Clock, Loader2, Radar, RotateCcw, Trash2, Unplug } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
@@ -58,7 +68,7 @@ const TIMELINE_STALLED_S = 90
 /** Fila de un agente con sus acciones de recuperación (estado local). */
 function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router | undefined; nowSec: number }) {
   const { t } = useTranslation()
-  const { reinstallAgent, uninstallAgent, createAgentInstall, refreshAgents } = useNetPulse()
+  const { reinstallAgent, uninstallAgent, removeAgent, createAgentInstall, refreshAgents } = useNetPulse()
   const auth = useAuth()
   const [reinstallState, setReinstallState] = useState<ReinstallState>('idle')
   const [reinstallMsg, setReinstallMsg] = useState('')
@@ -82,6 +92,14 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
   // presente: no tiene sentido desinstalar algo que no está, ni un NetGrip
   // (que se gestiona desde su propio panel) ni un scraper externo.
   const canUninstall = auth?.role === 'admin' && isOpenWrt && agent !== undefined && agent.kind !== 'external' && agent.kind !== 'netgrip'
+  // #1382: retirar el agente de la flota (revoca token + olvida estado) solo
+  // se ofrece con el agente SIN pulso (equipo apagado o quitado de la red):
+  // retirar uno vivo deja un proceso empujando contra un token revocado.
+  // Es la única baja posible de agentes netgrip/external (sin SSH).
+  const canRemove = auth?.role === 'admin' && agent !== undefined && !agent.fresh
+  const [removeState, setRemoveState] = useState<ReinstallState>('idle')
+  const [removeMsg, setRemoveMsg] = useState('')
+  const [confirmRemove, setConfirmRemove] = useState(false)
 
   const slug = agent?.slug ?? router?.id ?? ''
   // #691: el relativo se calcula con el reloj compartido nowSec (prop), no con
@@ -156,13 +174,38 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
     window.setTimeout(() => setCopyState('idle'), 4000)
   }
 
+  // #1382: retira el agente de la flota (DELETE /api/agents/{slug}: revoca
+  // el token y olvida su estado). Para equipos dados de baja de la red; si
+  // vuelven a conectar con el token viejo recibirán 401 (re-enrolar).
+  // Confirmación con diálogo propio (AlertDialog), acción destructiva.
+  const remove = async () => {
+    if (removeState === 'busy') return
+    setRemoveState('busy')
+    setRemoveMsg('')
+    const res = await removeAgent(slug)
+    if (res && !res.error) {
+      setRemoveState('done')
+      setRemoveMsg(t('routers.agents.removeDone'))
+      await refreshAgents()
+    } else {
+      setRemoveState('fail')
+      setRemoveMsg(res?.error ?? t('routers.agents.removeFail'))
+    }
+    window.setTimeout(() => setRemoveState('idle'), 8000)
+  }
+
   return (
     <>
     <motion.tr
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="border-b border-border/60 last:border-0"
+      className={cn(
+        'border-b border-border/60 last:border-0',
+        // #1382: agente sin pulso (equipo apagado o quitado de la red):
+        // toda la fila en acento rojo; la única acción ofrecida es Retirar.
+        isStale && 'bg-danger/5',
+      )}
     >
       <td className="py-3 pr-3">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -234,22 +277,22 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
       </td>
       <td className="py-3">
         <div className="flex flex-wrap items-center gap-2">
+          {/* #1382: con el agente SIN pulso la única acción operable es
+              Retirar (abajo): actualizar/rearmar/reinstalar/desinstalar
+              necesitan un equipo vivo en la red. */}
+          {!isStale && (
+          <>
           {/* Actualizar: self-update del agente con progreso en vivo (#243).
               NetGrip (#363): el evento SSE dispara el self-update del propio
-              panel; el reinstall no aplica (no hay proceso standalone), y el
-              rearm de un NetGrip STALE reinicia el servicio netgrip (#569). */}
+              panel; el reinstall no aplica (no hay proceso standalone). */}
           <AgentUpgradeButton agent={agent} className="h-8" />
           {isNetgrip ? (
-            // #569: un NetGrip STALE (caído) SÍ se puede recuperar desde
-            // aquí: el botón reinicia el servicio netgrip del router por SSH
-            // (recarga el env del agente embebido). El hint explica el caso
-            // fresco; el stale ofrece el botón + su hint.
-            <>
-              {!agent?.fresh && <AgentRearmButton agent={agent} />}
-              <span className="text-caption text-text-muted">
-                {agent?.fresh ? t('routers.agents.netgripHint') : t('routers.agents.netgripStaleHint')}
-              </span>
-            </>
+            // #363: NetGrip fresco se auto-actualiza desde su panel; el hint
+            // lo explica. (El rearm por SSH de un NetGrip caído de #569 quedó
+            // absorbido por la regla #1382: sin pulso -> solo Retirar.)
+            <span className="text-caption text-text-muted">
+              {t('routers.agents.netgripHint')}
+            </span>
           ) : (
             <>
           {/* Rearm: canal preferente para heartbeat stale (proceso vivo).
@@ -340,6 +383,37 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
           )}
             </>
           )}
+          </>
+          )}
+          {/* #1382: Retirar de la flota (server-side, cualquier kind): revoca
+              el token y olvida el estado. Solo con el agente sin pulso
+              (equipo apagado o quitado de la red); si vuelve hay que
+              re-enrolarlo. */}
+          {canRemove && (
+            <button
+              type="button"
+              onClick={() => setConfirmRemove(true)}
+              disabled={removeState === 'busy'}
+              title={t('routers.agents.removeTip')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
+                removeState === 'done'
+                  ? 'border-ok/40 bg-ok/10 text-ok'
+                  : removeState === 'fail'
+                    ? 'border-danger/40 bg-danger/10 text-danger'
+                    : 'border-border text-text-secondary hover:border-danger/40 hover:text-danger',
+              )}
+            >
+              <Trash2 className={cn('h-3.5 w-3.5', removeState === 'busy' && 'animate-pulse')} strokeWidth={1.75} />
+              {removeState === 'busy'
+                ? t('routers.agents.removing')
+                : removeState === 'done'
+                  ? t('routers.agents.removed')
+                  : removeState === 'fail'
+                    ? t('routers.agents.removeRetry')
+                    : t('routers.agents.remove')}
+            </button>
+          )}
         </div>
         {reinstallMsg && reinstallState !== 'idle' && (
           <p className={cn('mt-1.5 text-caption', reinstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>
@@ -349,6 +423,11 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
         {uninstallMsg && uninstallState !== 'idle' && (
           <p className={cn('mt-1.5 text-caption', uninstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>
             {uninstallMsg}
+          </p>
+        )}
+        {removeMsg && removeState !== 'idle' && (
+          <p className={cn('mt-1.5 text-caption', removeState === 'fail' ? 'text-danger' : 'text-text-muted')}>
+            {removeMsg}
           </p>
         )}
       </td>
@@ -410,6 +489,27 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
           </motion.tr>
         )
       })()}
+      {/* #1382: confirmación propia (no window.confirm) de la retirada del
+          agente de la flota. */}
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('routers.agents.removeTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('routers.agents.removeConfirm', { router: router?.name ?? slug })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void remove()}
+              className="bg-danger text-danger-foreground hover:bg-danger/90"
+            >
+              {t('routers.agents.remove')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

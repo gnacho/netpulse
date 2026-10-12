@@ -656,10 +656,13 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				// (mismo criterio que finishIfTarget y upgrade-all: un agente
 				// más nuevo que el embebido no está desactualizado).
 				if agentKind == "netgrip" {
-					item.UpdateAvailable = item.Version != "" && cmpSemver(netgripLatest(), item.Version) > 0
+					item.UpdateAvailable = item.Fresh && item.Version != "" && cmpSemver(netgripLatest(), item.Version) > 0
 				} else {
-					item.UpdateAvailable = !agentbin.EmbeddedMismatch() && agentUpgradeable(matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
+					item.UpdateAvailable = item.Fresh && !agentbin.EmbeddedMismatch() && agentUpgradeable(matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
 				}
+				// #1382: un agente sin pulso reciente (equipo apagado o
+				// retirado de la red) no puede actualizarse; marcarlo como
+				// pendiente es ruido permanente en la tabla de flota.
 				// Progreso en vivo del upgrade (#284), si hay actividad reciente.
 				if st, ok := s.upgrades.snapshot(slug); ok {
 					ts := st.Ts.Unix()
