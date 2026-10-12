@@ -363,6 +363,63 @@ func TestFleetFdbEvidenceBothPorts(t *testing.T) {
 	}
 }
 
+// #1373: matriz FDB real de una flota con switch gestionado (12-Oct-2026):
+// la relajación por profundidad dejaba el uplink del switch en un AP
+// (rt3/rt4 se inflan la profundidad mutuamente en L2 plana y pisan la
+// candidata provisional del gateway). La FDB propia del switch lo desmiente:
+// los APs viven AGUAS ABAJO de su root port (lan7, donde aprende la MAC del
+// gateway). Un candidato aprendido fuera del root port no puede ser padre.
+func TestFleetFdbEvidenceRootPortDescartaDownstream(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gateway": {brMac: "94:83:C4:BA:BF:AA", fdb: map[string]string{
+			"8C:DE:F9:33:71:58": "lan4", // rt2
+			"9C:9D:7E:1B:EA:B2": "lan1", // rt3
+			"9C:9D:7E:54:EF:B8": "lan1", // rt4
+			"78:D8:00:32:31:49": "lan1", // switch16
+		}},
+		"redmi-ax6": {brMac: "8C:DE:F9:33:71:58", fdb: map[string]string{
+			"94:83:C4:BA:BF:AA": "wan",
+			"9C:9D:7E:1B:EA:B2": "wan",
+			"9C:9D:7E:54:EF:B8": "wan",
+		}},
+		"redmi-ax6-2": {brMac: "9C:9D:7E:1B:EA:B2", fdb: map[string]string{
+			"94:83:C4:BA:BF:AA": "lan1",
+			"8C:DE:F9:33:71:58": "lan1",
+			"9C:9D:7E:54:EF:B8": "lan1",
+			"78:D8:00:32:31:49": "lan1",
+		}},
+		"redmi-ax6-3": {brMac: "9C:9D:7E:54:EF:B8", fdb: map[string]string{
+			"94:83:C4:BA:BF:AA": "lan1",
+			"8C:DE:F9:33:71:58": "lan1",
+			"9C:9D:7E:1B:EA:B2": "lan1",
+			"78:D8:00:32:31:49": "lan1",
+		}},
+		"switch16": {brMac: "78:D8:00:32:31:49", fdb: map[string]string{
+			"94:83:C4:BA:BF:AA": "lan7", // gateway: root port real
+			"8C:DE:F9:33:71:58": "lan7", // rt2 también cuelga del gateway
+			"9C:9D:7E:1B:EA:B2": "lan3", // rt3: puerto de cobre 3
+			"9C:9D:7E:54:EF:B8": "lan6", // rt4: puerto de cobre 6
+		}},
+	}
+	ev := fleetFdbEvidence(polled, "gateway")
+	sw := ev["switch16"]
+	if sw.parent != "gateway" || sw.port != "lan1" || sw.childPort != "lan7" {
+		t.Fatalf("switch16: %+v, want gateway/lan1 con childPort lan7", sw)
+	}
+	// Sin regresión en los APs: rt2 sigue colgando del gateway y, como
+	// bonus, la FDB sola ya cuelga rt3/rt4 del switch (antes los dejaba en
+	// cadena rt2->rt3->rt4): el switch los aprende fuera de su root port.
+	if rt2 := ev["redmi-ax6"]; rt2.parent != "gateway" || rt2.port != "lan4" {
+		t.Fatalf("rt2: %+v, want gateway/lan4", rt2)
+	}
+	if rt3 := ev["redmi-ax6-2"]; rt3.parent != "switch16" || rt3.port != "lan3" || rt3.childPort != "lan1" {
+		t.Fatalf("rt3: %+v, want switch16/lan3 con childPort lan1", rt3)
+	}
+	if rt4 := ev["redmi-ax6-3"]; rt4.parent != "switch16" || rt4.port != "lan6" || rt4.childPort != "lan1" {
+		t.Fatalf("rt4: %+v, want switch16/lan6 con childPort lan1", rt4)
+	}
+}
+
 // #1060: el uplink sale del distnode (círculo inferido/gestionado) cuando el
 // puerto de la evidencia coincide con su (router, puerto): gateway -> círculo
 // -> AP, sin saltarse el switch intermedio.

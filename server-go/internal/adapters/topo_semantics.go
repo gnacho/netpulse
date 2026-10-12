@@ -130,6 +130,20 @@ func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[str
 					}
 					continue
 				}
+				// #1373: el padre de rid es quien aprende a rid FUERA de su
+				// propio root port (rid es downstream suyo). Un candidato que
+				// aprende a rid EN su root port tiene a rid aguas ARRIBA (o es
+				// lateral en L2 plana) y no puede ser su padre: sin esta guarda
+				// la relajación por profundidad cuelga un switch gestionado de
+				// sus propios APs (p. ej. switch16 <- rt4 cuando la física es
+				// switch16 -> gateway por lan7).
+				cRoot := ""
+				if gwMac := idToMac[gatewayID]; gwMac != "" {
+					cRoot = learned[c.parent][gwMac]
+				}
+				if cRoot != "" && c.port == cRoot {
+					continue
+				}
 				if isDescendant(rid, c.parent) {
 					continue
 				}
