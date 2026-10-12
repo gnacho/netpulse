@@ -451,6 +451,10 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			HostDeviceID: id, Name: n.Node, MacCount: ctCountByHost[id],
 			Source: "proxmox", Instance: n.Instance,
 		})
+		// #1378: dos claves de inventario pueden resolver al mismo host (IP
+		// repetida o IP+nombre); sin marcarlo aquí el distnode salía duplicado
+		// y el frontend dibujaba los CTs dos veces.
+		existingHost[id] = true
 	}
 	// #1053: retirar los nodos inferred absorbidos por un host PVE.
 	kept := dists[:0]

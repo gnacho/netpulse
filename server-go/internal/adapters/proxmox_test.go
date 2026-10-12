@@ -627,3 +627,36 @@ func TestPVENoAbsorbeInferredConDesconocidos(t *testing.T) {
 		t.Fatalf("host AttachTo=%q (want sin cambios)", devices[0].AttachTo)
 	}
 }
+
+// #1378: dos claves de inventario que resuelven al mismo host (p. ej. dos
+// entradas nodeIPs con la misma IP, o IP + nombre) no deben emitir el
+// distnode hypervisor dos veces: el frontend dibujaba los CTs duplicados.
+func TestPVEHypervisorDistNodesNoDuplicaHostRepetido(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:A4:9E:BB": {Name: "webs", Node: "citadel-02", Type: "lxc", Instance: "default"},
+		},
+		nodes: map[string]pveNode{
+			"default|citadel-02": {Instance: "default", Node: "citadel-02"},
+			"default|pve2":       {Instance: "default", Node: "pve2"},
+		},
+		nodeIPs: map[string][]string{
+			"default|citadel-02": {"192.168.1.101"},
+			"default|pve2":       {"192.168.1.101"}, // misma IP: mismo host físico
+		},
+	}
+	devices := []Device{
+		{ID: "e8-ff-1e-dd-c7-ed", MAC: "E8:FF:1E:DD:C7:ED", Name: "beelink-nas", IP: "192.168.1.101", RouterID: "switch16", Port: "lan8"},
+		{ID: "bc-24-11-a4-9e-bb", MAC: "BC:24:11:A4:9E:BB", Name: "webs"},
+	}
+	dists := applyPVEInfra(devices, nil, inv)
+	count := 0
+	for _, dn := range dists {
+		if dn.Kind == "hypervisor" && dn.HostDeviceID == "e8-ff-1e-dd-c7-ed" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("distnodes hypervisor para el mismo host: %d (want 1): %+v", count, dists)
+	}
+}

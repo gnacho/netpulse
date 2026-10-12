@@ -1225,9 +1225,12 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // posición real del chip tras el override.
   if (seedPositions) {
     for (const c of chips) {
-      // Los CTs de un host hipervisores con semilla NO se pinnean: siguen la
-      // posición del host (el grid ya se re-derivó alrededor de él arriba).
-      if (c.isCt && hypervisorHosts.has(c.hubId) && seedPositions[c.hubId]) continue
+      // Los CTs de un host hipervisor NO se pinnean nunca por su propia
+      // semilla: siguen la posición del host (el grid se deriva de él).
+      // Con la condición antigua (solo si el host tenía semilla), un CT con
+      // posición guardada y un host sin fijar se pintaba dos veces: el grid
+      // bajo el host y el pin de su semilla vieja (#1378).
+      if (c.isCt && hypervisorHosts.has(c.hubId)) continue
       const p = seedPositions[c.id]
       if (p) {
         c.x = p.x
