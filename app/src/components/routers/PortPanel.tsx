@@ -325,6 +325,10 @@ export function PortPanel({ router, extras, className, snmpStats }: {
     })
   const used = ports.filter((p) => p.up).length
   const wirelessUplink = ex.backhaul?.kind === 'wireless'
+  // #1383: la info WAN del contexto es la del gateway; pintarla en la boca
+  // "wan" de cualquier otra unidad (p.ej. un AP cuyo uplink entra por su ex
+  // boca WAN) le cuelga una IP pública y DNS que no son suyos.
+  const jackWan = router.roleBadge === 'Principal' ? wan : undefined
 
   // Separador visual tras el puerto WAN
   const wanPorts = ports.filter((p) => p.id === 'wan')
@@ -360,7 +364,7 @@ export function PortPanel({ router, extras, className, snmpStats }: {
         )}
       >
         {wanPorts.map((p, i) => (
-          <Jack key={p.id} port={p} index={i} wan={wan} />
+          <Jack key={p.id} port={p} index={i} wan={jackWan} />
         ))}
         {wanPorts.length > 0 && lanPorts.length > 0 && (
           <div className="mx-1 h-[104px] w-px shrink-0 self-center bg-border/70" aria-hidden="true" />
