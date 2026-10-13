@@ -798,7 +798,6 @@ type Dot11rIface struct {
 	Ifname  string `json:"ifname"`  // wlan0, wlan1 (puede estar vacío en configs muy nuevas)
 	SSID    string `json:"ssid"`
 	MAC     string `json:"mac"`               // macaddr (BSSID del BSS)
-	Mac     string `json:"mac"`               // macaddr (BSSID del BSS)
 	Channel int    `json:"channel,omitempty"` // mapeado desde radio.channel
 	Band    string `json:"band,omitempty"`    // "2.4 GHz"|"5 GHz" desde radio.band
 

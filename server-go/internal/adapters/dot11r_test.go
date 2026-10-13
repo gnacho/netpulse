@@ -1,6 +1,10 @@
 package adapters
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 // TestParseUciWirelessFlint2 usa la salida real de `uci show wireless` del
 // Flint2 (gateway de Mandor) como fixture. Cubre:
@@ -238,5 +242,18 @@ func TestDot11rSkip(t *testing.T) {
 		if got := dot11rSkip(c.ifc); got != c.want {
 			t.Errorf("%s: dot11rSkip = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// #1391: el tag json "mac" estaba duplicado (campos MAC y Mac) y
+// encoding/json no serializaba NINGUNO: la tabla 802.11r del front
+// (Roaming.tsx) pintaba la columna MAC siempre "-". Anti-regresión.
+func TestDot11rIfaceSerializesMAC(t *testing.T) {
+	raw, err := json.Marshal(Dot11rIface{SSID: "temiscira", MAC: "AA:BB:CC:DD:EE:FF"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"mac":"AA:BB:CC:DD:EE:FF"`) {
+		t.Fatalf("mac no serializada: %s", raw)
 	}
 }
