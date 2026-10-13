@@ -95,6 +95,14 @@ const (
 	// CmdScan (#452): scan pasivo de vecinos con `iw dev`. Lista interfaces,
 	// emite "==IFACE==<iface>" antes de cada scan y parsea BSS/freq/signal/SSID.
 	// Si `iw` no está disponible, la sección Scans queda vacía (best-effort).
+	//
+	// DEPRECATED (#1338): el bucle monolítico corría con UN solo timeout para
+	// todas las interfaces y, al expirar, la salida parcial se descartaba
+	// entera. Una radio lenta (5 GHz en canal DFS, scan pasivo canal a canal)
+	// dejaba la unidad sin NINGÚN vecino, aunque las demás interfaces sí
+	// hubieran escaneado. El agente escanea ahora por interfaz con
+	// CmdScanIface, cada una con su propio presupuesto. Se conserva la
+	// constante por compatibilidad del módulo (consumidores vendorizados).
 	CmdScan = `for i in $(iw dev 2>/dev/null | awk '/Interface / {print $2}'); do echo "==IFACE==$i"; iw dev "$i" scan 2>/dev/null; done`
 	// CmdSurvey (#1214): `iw dev <iface> survey dump` por interfaz, con el
 	// mismo marcador "==IFACE==" que CmdScan. El server parsea el texto
@@ -106,6 +114,13 @@ const (
 	// su MAC y SSID: fuente de los BSSIDs propios para el análisis de
 	// canales. Barato (no saca la radio del canal).
 	CmdIwDev = "iw dev 2>/dev/null"
+	// scanIfaceTimeout (#1338): presupuesto POR INTERFAZ del scan de vecinos.
+	// Una radio 5 GHz en canal DFS escanea en pasivo canal a canal y puede
+	// tardar varios segundos; con el presupuesto único de 10 s para todas,
+	// esa radio lenta mataba el bucle y se perdían también los scans ya
+	// hechos. Cada interfaz tiene ahora su propio tiempo y un fallo o un
+	// cuelgue solo vacía su propia sección.
+	scanIfaceTimeout = 8 * time.Second
 	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
 	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
 	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`
@@ -185,6 +200,14 @@ const (
 	CmdMdnsHosts  = "ubus call umdns hosts 2>/dev/null || echo '{}'"
 	CmdEthtoolSFP = "ethtool -m %s 2>/dev/null || true"
 )
+
+// CmdScanIface (#1338): scan pasivo de UNA interfaz. El agente lo lanza una
+// vez por interfaz de `iw dev` (en vez del bucle monolítico de CmdScan) para
+// que cada radio tenga su propio presupuesto de tiempo y una interfaz lenta
+// o colgada no se lleve por delante los resultados de las demás.
+func CmdScanIface(iface string) string {
+	return `iw dev "` + iface + `" scan 2>/dev/null`
+}
 
 // ---------------------------------------------------------------------------
 // Shapes parseados (salida de las sondas; contrato del payload del agente)
@@ -1782,6 +1805,19 @@ func ParseIwDev(out string) []OwnBSSID {
 		}
 	}
 	flush()
+	return res
+}
+
+// IwDevIfaces (#1338) lista TODAS las interfaces de `iw dev` (cualquier
+// tipo, no solo AP como ParseIwDev): son las candidatas a escanear vecinos.
+func IwDevIfaces(out string) []string {
+	var res []string
+	for _, raw := range strings.Split(out, "\n") {
+		fields := strings.Fields(strings.TrimSpace(raw))
+		if len(fields) >= 2 && fields[0] == "Interface" {
+			res = append(res, fields[1])
+		}
+	}
 	return res
 }
 

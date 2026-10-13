@@ -7,29 +7,33 @@ package probe
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
 
-// countingRunner cuenta las invocaciones de CmdScan sobre un fakeRunner.
+// countingRunner cuenta los scans por interfaz (#1338: antes era UNA llamada
+// a CmdScan; ahora es un `iw dev <iface> scan` por interfaz) sobre un
+// fakeRunner.
 type countingRunner struct {
 	fakeRunner
 	scanCalls int
 }
 
 func (r *countingRunner) Run(ctx context.Context, cmd string, timeout time.Duration) (string, error) {
-	if cmd == CmdScan {
+	if strings.HasPrefix(cmd, `iw dev "`) && strings.HasSuffix(cmd, `" scan 2>/dev/null`) {
 		r.scanCalls++
 	}
 	return r.fakeRunner.Run(ctx, cmd, timeout)
 }
 
-// newScanProber devuelve un Prober cuyo runner solo responde a CmdScan (el
-// resto de sondas falla y Build sigue sin scans/radios: suficiente para
-// probar el throttle).
+// newScanProber devuelve un Prober cuyo runner solo responde a `iw dev` (una
+// interfaz wlan0) y a su scan (el resto de sondas falla y Build sigue sin
+// radios: suficiente para probar el throttle).
 func newScanProber() (*Prober, *countingRunner) {
 	run := &countingRunner{fakeRunner: fakeRunner{outs: map[string]string{
-		CmdScan: "==IFACE==wlan0\nBSS 00:11:22:33:44:55\n\tfreq: 2412\n\tsignal: -45.00 dBm\n\tSSID: test\n",
+		CmdIwDev:              "phy#0\n\tInterface wlan0\n\t\taddr 00:11:22:33:44:66\n\t\ttype AP\n",
+		CmdScanIface("wlan0"): "BSS 00:11:22:33:44:55\n\tfreq: 2412\n\tsignal: -45.00 dBm\n\tSSID: test\n",
 	}}}
 	return NewProber(run, Options{}), run
 }

@@ -445,16 +445,30 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 				p.radiosMu.Unlock()
 			}
 		}
+		// `iw dev` a secas, barato y estable: alimenta con UN solo spawn los
+		// BSSIDs propios (#1087) y la lista de interfaces a escanear (#1338).
+		iwDev := p.runBest(ctx, CmdIwDev, 5*time.Second)
 		// Scan pasivo de vecinos (#452): SOLO en sondeo completo y con
 		// throttle (#591) para no sacar la radio del canal en cada push.
-		if p.scanDue() {
-			if out := p.runBest(ctx, CmdScan, 10*time.Second); out != "" {
-				wd.Scans = ParseScan(out)
+		// #1338: un comando POR INTERFAZ, cada una con su propio presupuesto
+		// (8 s). Antes el bucle completo compartía un timeout de 10 s y, al
+		// expirar, la salida parcial se descartaba entera: una radio lenta
+		// (5 GHz en canal DFS, scan pasivo canal a canal) dejaba la unidad
+		// sin NINGÚN vecino aunque las demás interfaces sí hubieran
+		// escaneado con éxito.
+		if p.scanDue() && iwDev != "" {
+			var sb strings.Builder
+			for _, iface := range IwDevIfaces(iwDev) {
+				sb.WriteString("==IFACE==" + iface + "\n")
+				sb.WriteString(p.runBest(ctx, CmdScanIface(iface), scanIfaceTimeout))
+			}
+			if scans := ParseScan(sb.String()); len(scans) > 0 {
+				wd.Scans = scans
 			}
 		}
-		// BSSIDs propios (#1087): `iw dev` sin scan, barato y estable.
-		if out := p.runBest(ctx, CmdIwDev, 5*time.Second); out != "" {
-			wd.OwnBssids = ParseIwDev(out)
+		// BSSIDs propios (#1087), del mismo `iw dev` de arriba.
+		if iwDev != "" {
+			wd.OwnBssids = ParseIwDev(iwDev)
 		}
 		// Survey en vivo (#1214): ocupación por canal para la lente "Ahora"
 		// del server en unidades agent-only (sin SSH). Texto crudo: el
