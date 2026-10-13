@@ -12,6 +12,7 @@ package adapters
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -198,6 +199,57 @@ func (r *AgentRegistry) LocalBssids() []string {
 			}
 		}
 	}
+	return out
+}
+
+// LocalSsids devuelve los SSID que los agentes reportan como propios
+// (#1358): OwnBssids con SSID no vacío + SSIDs con al menos un AP local en
+// dawn/usteer. Es la lista "auto-aprobada" para la detección de SSID
+// impostor: cualquier BSSID ajeno anunciando uno de estos nombres es
+// sospechoso. Dedup, ordenado para salida estable.
+func (r *AgentRegistry) LocalSsids() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	seen := map[string]bool{}
+	var out []string
+	add := func(ssid string) {
+		if ssid == "" || seen[ssid] {
+			return
+		}
+		seen[ssid] = true
+		out = append(out, ssid)
+	}
+	for _, st := range r.states {
+		if st.Payload == nil {
+			continue
+		}
+		if w := st.Payload.Data.Wireless; w != nil {
+			for _, ob := range w.OwnBssids {
+				add(ob.SSID)
+			}
+		}
+		if st.Payload.Data.Dawn != nil {
+			for name, ssid := range st.Payload.Data.Dawn.SSIDs {
+				for _, ap := range ssid.APs {
+					if ap.Local {
+						add(name)
+						break
+					}
+				}
+			}
+		}
+		if st.Payload.Data.Usteer != nil {
+			for name, ssid := range st.Payload.Data.Usteer.SSIDs {
+				for _, ap := range ssid.APs {
+					if ap.Local {
+						add(name)
+						break
+					}
+				}
+			}
+		}
+	}
+	sort.Strings(out)
 	return out
 }
 

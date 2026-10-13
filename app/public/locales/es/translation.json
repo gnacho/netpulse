@@ -88,6 +88,7 @@
       "high-temperature": "Mejora la ventilación y aleja el router de fuentes de calor.",
       "port-flapping": "Revisa el cable o el puerto del switch: un enlace inestable suele ser el culpable.",
       "unknown-device": "Si no lo reconoces, bloquéalo o márcalo como de confianza en Ajustes.",
+      "wifi-ssid-impostor": "Una radio desconocida está emitiendo el nombre de tu red. Mira qué hay cerca del AP que la oyó; si no reconoces el BSSID, trátala como un AP malicioso.",
       "uplink-switched": "Revisa la línea que se ha caído: el router volverá a ella solo cuando se recupere.",
       "wan-down": "Comprueba el módem/ONT y contacta con tu operador si la caída persiste.",
       "wan-slow": "Reinicia el router y el módem/ONT y repite el test; si sigue bajo, contacta con tu operador (degrada la línea o hay saturación en tu área).",
@@ -217,6 +218,10 @@
         "title": "Dispositivo desconocido",
         "description": "{{mac}} se ha conectado a {{router}}",
         "descriptionWhere": "{{mac}} · {{ip}} se ha conectado a {{where}}"
+      },
+      "wifi-ssid-impostor": {
+        "title": "SSID impostor detectado",
+        "description": "{{bssid}} anuncia {{ssid}} (oído por {{router}}, {{signal}} dBm)"
       },
       "uplink-restored": {
         "title": "Internet vuelve por {{to}}",

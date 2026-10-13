@@ -319,6 +319,10 @@ type Live struct {
 	unknownGrace    map[string]int
 	unknownAlerted  map[string]bool
 	unknownGraceNum int // ticks antes de declarar desconocido (default 3, #234)
+	// impostorActive (#1358): BSSID impostor → alertID emitida. Solo en
+	// memoria a propósito: si el server reinicia y el impostor sigue
+	// visible, la alerta se re-emite (seguridad prima sobre re-aviso).
+	impostorActive map[string]string
 	// Presencia wireless (issue #184): devicePresence = MAC → online del
 	// último ciclo evaluado; presenceMisses = ticks seguidos sin verse.
 	// presenceSeen evita la avalancha del primer ciclo (anti-arranque).
@@ -466,6 +470,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		unknownGrace:         map[string]int{},
 		unknownAlerted:       map[string]bool{},
 		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
+		impostorActive:       map[string]string{},
 		devicePresence:       map[string]bool{},
 		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,

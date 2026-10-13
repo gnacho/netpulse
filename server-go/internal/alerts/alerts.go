@@ -95,6 +95,7 @@ const (
 	HintPortFlapping  = "port-flapping"
 	HintDeviceOffline = "device-offline"
 	HintUnknownDevice = "unknown-device"
+	HintSsidImpostor  = "wifi-ssid-impostor"
 	HintFirmware      = "firmware-outdated"
 	HintWanDown       = "wan-down"
 	HintWifiWeak      = "wifi-weak"
@@ -150,6 +151,7 @@ var Hints = map[string]string{
 	HintPortFlapping:  "Check the cable or switch port: an unstable link is usually the culprit.",
 	HintDeviceOffline: "Verify the device power and network cable.",
 	HintUnknownDevice: "If you do not recognize it, block it or mark it as trusted in Settings.",
+	HintSsidImpostor:  "An unknown radio is broadcasting your network name. Check the area around the hearing AP; if you do not recognize the BSSID, treat it as a rogue AP.",
 	HintFirmware:      "Your router has newer firmware available; check Firmware upgrades (Labs) or LuCI.",
 	HintWanDown:       "Check the modem/ONT and contact your ISP if the outage persists.",
 	HintWifiWeak:      "Move the device closer to an access point or relocate the AP.",

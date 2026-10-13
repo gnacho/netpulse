@@ -269,6 +269,12 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		if err := s.channelPlan.SaveScan(p.Router, p.Ts, p.Data.Wireless.Scans); err != nil {
 			log.Printf("[netpulse] error guardando scans de %s: %v", p.Router, err)
 		}
+		// #1358: con el scan recién guardado, reevalúa impostores de SSID
+		// (BSSID ajeno anunciando un SSID de la flota). Solo adaptadores que
+		// lo implementan (live); demo se omite.
+		if ev, ok := s.adapter.(interface{ EvalSsidImpostors() }); ok {
+			ev.EvalSsidImpostors()
+		}
 	}
 	// #1214: survey crudo del agente para la lente "Ahora" en unidades
 	// agent-only. El adaptador Live lo cachea en memoria con TTL; los
