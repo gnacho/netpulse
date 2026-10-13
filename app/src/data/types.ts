@@ -91,6 +91,12 @@ export interface Router {
    * sondea (agent-only/external/SNMP): la tabla de enlaces pinta "—".
    */
   latencyMs?: number
+  /**
+   * #1369: aviso de config subóptima del lldpd del router, reportado por el
+   * agente. Código estable ("lldpd-bridge-only"); se traduce en la UI.
+   * Ausente = sin aviso.
+   */
+  lldpHint?: string
 }
 
 export interface WanInfo {

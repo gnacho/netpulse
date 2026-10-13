@@ -23,6 +23,18 @@ const CmdLldpCheck = "command -v lldpcli"
 // CmdLldpNeighbors: vecinos LLDP en JSON (lldpd). Igual que la sonda SSH.
 const CmdLldpNeighbors = "lldpcli -f json show neighbors"
 
+// CmdLldpdIfaces: binding de lldpd en OpenWrt (UCI). Vacío si no hay UCI
+// (Linux genérico) o la opción no existe (lldpd escucha en todas las
+// físicas por defecto). Solo se consulta cuando hay 0 vecinos (#1369).
+const CmdLldpdIfaces = "uci -q get lldpd.config.interface 2>/dev/null || true"
+
+// HintLldpdBridgeOnly: valor de LldpData.Hint cuando lldpd está instalado,
+// reporta 0 vecinos y su binding UCI es SOLO a interfaces bridge (br-*):
+// en varios targets (qualcommax nss-dp verificado; DSA probable) los frames
+// LLDP nunca suben al listener del bridge master y lldpd no ve a nadie sin
+// avisar (#1369). La UI lo traduce a "configura lldpd en puertos físicos".
+const HintLldpdBridgeOnly = "lldpd-bridge-only"
+
 // LldpData: sección lldp del payload del agente (#489).
 type LldpData struct {
 	// Available: false cuando lldpd no está instalado en el equipo.
@@ -32,6 +44,27 @@ type LldpData struct {
 	// SIN omitempty a propósito: hay que distinguir nil de vacío en el
 	// wire format.
 	Neighbors []LldpNeighbor `json:"neighbors"`
+	// Hint: aviso de configuración subóptima detectada (p. ej.
+	// HintLldpdBridgeOnly). Código estable, la UI lo traduce (i18n).
+	Hint string `json:"hint,omitempty"`
+}
+
+// LldpdBridgeOnly: true si el binding UCI de lldpd (CSV de patrones, p. ej.
+// "br-lan" o "lan*,wan") nombra SOLO interfaces bridge. Vacío (sin opción:
+// lldpd escucha en todas las físicas) o cualquier patrón físico → false.
+func LldpdBridgeOnly(ifaces string) bool {
+	any := false
+	for _, tok := range strings.Split(ifaces, ",") {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		any = true
+		if !strings.HasPrefix(tok, "br-") {
+			return false
+		}
+	}
+	return any
 }
 
 // LldpNeighbor: un vecino LLDP anunciado en un puerto local. Todos los

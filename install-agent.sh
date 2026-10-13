@@ -465,6 +465,28 @@ fi
 ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
 ok "servicio $INIT_NAME habilitado y arrancado"
 
+# ------------------------------------------------- lldpd en puertos físicos (#1369) --
+# lldpd bound al bridge (br-lan) no recibe vecinos en varios targets
+# (qualcommax nss-dp verificado; DSA probable): los frames LLDP nunca suben
+# al listener del bridge master y la topología queda sin evidencia directa
+# sin avisar. Si lldpd está instalado y su binding es SOLO bridge, lo pasamos
+# a los puertos físicos (patrón OpenWrt estándar). Idempotente: un binding
+# que ya incluye puertos físicos (lan*/wan/eth*) no se toca. NO instalamos
+# lldpd aquí: instalar paquetes es decisión del usuario (el agente detecta
+# lldpd solo si ya está).
+if ssh $SSH_IDENT_ARGS "$SSH" "command -v lldpcli >/dev/null 2>&1"; then
+    LLDP_IF=$(ssh $SSH_IDENT_ARGS "$SSH" "uci -q get lldpd.config.interface 2>/dev/null")
+    if printf '%s' "$LLDP_IF" | grep -qE '(^|,)[[:space:]]*(lan|wan|eth)'; then
+        ok "lldpd ya escucha en puertos físicos (${LLDP_IF:-auto})"
+    else
+        ssh $SSH_IDENT_ARGS "$SSH" "uci set lldpd.config.interface='lan*,wan' && uci commit lldpd && /etc/init.d/lldpd restart >/dev/null 2>&1" \
+            && ok "lldpd reconfigurado: escucha en puertos físicos (lan*,wan)${LLDP_IF:+ - antes: $LLDP_IF}" \
+            || warn "no se pudo reconfigurar lldpd; a mano: uci set lldpd.config.interface='lan*,wan' && uci commit lldpd && /etc/init.d/lldpd restart"
+    fi
+else
+    info "lldpd no instalado: sin evidencia LLDP directa (con 'opkg install lldpd' la activas; reejecuta este instalador y lo deja en puertos físicos)"
+fi
+
 # Watchdog cron: NO se instala (#851). Si el agente crashea en bucle, un
 # reinicio a ciegas cada 2 min no lo arregla y ensucia el log; la detección
 # efectiva es el dead-man del servidor (alerta) y el crash puntual lo cubre

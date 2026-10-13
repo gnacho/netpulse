@@ -147,6 +147,25 @@ export default function RouterDetail() {
         </motion.div>
       )}
 
+      {/* #1369: lldpd escuchando solo en el bridge (br-lan) → 0 vecinos LLDP
+          silencioso en nss-dp/DSA. El agente lo detecta y avisa aquí. */}
+      {router.lldpHint === 'lldpd-bridge-only' && (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.38 }}
+          className="lg:col-span-12"
+        >
+          <div role="alert" className="flex items-start gap-3 rounded-2xl border border-warn/50 bg-warn/10 px-5 py-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warn" strokeWidth={1.75} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-warn">{t('routerDetail.lldpBridgeOnlyTitle')}</div>
+              <p className="mt-0.5 text-sm text-text-secondary">{t('routerDetail.lldpBridgeOnlyBody')}</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Banner contextual (Patio) */}
       {router.status === 'warn' && router.hotMetric === 'temp' && (
         <motion.div

@@ -141,6 +141,10 @@ type routerPolled struct {
 	// lldpUnavailable: lldpd no está instalado en este router (issue #247) →
 	// el view-model expone `lldpAvailable:false` para el hint de instalación.
 	lldpUnavailable bool
+	// lldpHint: aviso de config subóptima reportado por el agente (#1369,
+	// p. ej. probe.HintLldpdBridgeOnly). Se recicla con la cache igual que
+	// los vecinos; vacío = sin aviso.
+	lldpHint string
 	// clientBw (#551): contadores nlbwmon por MAC del último payload del
 	// agente. nil = nlbwmon no instalado o sonda no disponible (→ la fuente
 	// de tráfico por cliente cae a hostapd bytes de wireless).
@@ -1380,6 +1384,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.lldpUnavailable {
 		r.LldpAvailable = bptr(false)
+	}
+	if p.lldpHint != "" {
+		r.LldpHint = p.lldpHint
 	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description

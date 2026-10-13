@@ -861,6 +861,8 @@
     "hostKeyConfirm": "Confirmar nueva clave",
     "hostKeyBusy": "Confirmando…",
     "hostKeyDone": "Clave aceptada: reconectando…",
+    "lldpBridgeOnlyTitle": "lldpd no ve vecinos: escucha solo en el bridge",
+    "lldpBridgeOnlyBody": "lldpd está instalado pero configurado para escuchar en br-lan, y en este hardware los mensajes LLDP no llegan al bridge: la topología se queda sin evidencia directa. Arréglalo con: uci set lldpd.config.interface='lan*,wan' && uci commit lldpd && /etc/init.d/lldpd restart",
     "perf": {
       "chartAria": "{{label}} de {{name}}, rango {{range}}. Valor actual {{value}} {{unit}}.",
       "maxTemp": "máx {{temp}}",

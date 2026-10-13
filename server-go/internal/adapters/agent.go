@@ -735,7 +735,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// fallida (Available=true con Neighbors nil) o ausente (push
 	// event-driven) recicla la última cacheada. Available=false explícito =
 	// lldpd no instalado (hint de UI), y eso SÍ pisa lo cacheado.
-	resolveLldp := func() (nbs []LldpNeighbor, unavailable bool) {
+	resolveLldp := func() (nbs []LldpNeighbor, unavailable bool, hint string) {
 		ld := p.Data.Lldp
 		if ld == nil || (ld.Available && ld.Neighbors == nil) {
 			ld = nil
@@ -744,14 +744,14 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 			}
 		}
 		if ld == nil {
-			return nil, false
+			return nil, false, ""
 		}
 		if !ld.Available {
-			return nil, true
+			return nil, true, ""
 		}
-		return lldpFromProbe(ld.Neighbors), false
+		return lldpFromProbe(ld.Neighbors), false, ld.Hint
 	}
-	out.lldp, out.lldpUnavailable = resolveLldp()
+	out.lldp, out.lldpUnavailable, out.lldpHint = resolveLldp()
 	// ClientBw (#551): contadores nlbwmon por MAC. Anti-parpadeo idéntico a
 	// LLDP: la sección buena del payload manda; una sección fallida
 	// (Available=true con Hosts nil) o ausente (push event-driven) recicla

@@ -226,6 +226,10 @@ type Router struct {
 	// UI muestra el hint "instala lldpd" para identificar switches gestionados
 	// (issue #247). Nunca emite true (ausente = OK).
 	LldpAvailable *bool `json:"lldpAvailable,omitempty"`
+	// LldpHint: aviso de config subóptima del lldpd del router, reportado por
+	// el agente (#1369). Código estable (p. ej. "lldpd-bridge-only"); la UI
+	// lo traduce. Ausente = sin aviso.
+	LldpHint string `json:"lldpHint,omitempty"`
 }
 
 // DeviceTotals del overview (quirk: NewToday=0 en live).

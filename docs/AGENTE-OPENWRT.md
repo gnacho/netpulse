@@ -117,6 +117,30 @@ push, escalado y resultado), para poder seguir la recuperación sin mirar
 código. Los agentes NetGrip embebidos y los rearmes manuales desde la UI
 siguen el mismo camino y también quedan registrados.
 
+## lldpd en puertos físicos (#1369)
+
+La sonda LLDP del agente lee vecinos de `lldpd`. OJO con el binding: en
+varios targets (qualcommax nss-dp verificado; DSA probable) un lldpd bound
+al bridge (`lldpd.config.interface='br-lan'`, config típica tras un
+`opkg install lldpd` stock) reporta CERO vecinos para siempre - los frames
+LLDP (01:80:c2:00:00:0e) no llegan al listener del bridge master y no hay
+aviso en ningún sitio. La topología cae a inferencia FDB en silencio.
+
+Fix: escuchar en los puertos físicos:
+
+```sh
+uci set lldpd.config.interface='lan*,wan'
+uci commit lldpd
+/etc/init.d/lldpd restart
+```
+
+`install-agent.sh` lo deja así automáticamente cuando lldpd ya está
+instalado (idempotente: un binding con puertos físicos no se toca; no
+instala lldpd por sí solo). Cuando el agente detecta el caso (0 vecinos
+honestos + binding solo bridge) lo reporta en el payload como
+`lldp.hint="lldpd-bridge-only"` y la UI muestra un aviso en la ficha del
+router. TX (anunciarse) funciona en ambas configs; solo RX está afectado.
+
 ## Qué NO es el agente
 
 - No es obligatorio: NetPulse sigue funcionando 100% en Tier 0 (SSH) +

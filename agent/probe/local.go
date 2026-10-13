@@ -630,7 +630,15 @@ func (p *Prober) probeLldp(ctx context.Context) *LldpData {
 	if err != nil {
 		return &LldpData{Available: true}
 	}
-	return &LldpData{Available: true, Neighbors: neighbors}
+	d := &LldpData{Available: true, Neighbors: neighbors}
+	// #1369: 0 vecinos honestos + binding SOLO a bridge (br-lan) = el caso
+	// silencioso de OpenWrt (los frames LLDP no suben al bridge master en
+	// nss-dp/DSA). Solo entonces consultamos UCI (un fork extra por ronda
+	// cuando sí hay vecinos sería desperdicio).
+	if len(neighbors) == 0 && LldpdBridgeOnly(p.runBest(ctx, CmdLldpdIfaces, 0)) {
+		d.Hint = HintLldpdBridgeOnly
+	}
+	return d
 }
 
 // probeClientBw: contadores por MAC de nlbwmon (#551). Contrato: Available=

@@ -861,6 +861,8 @@
     "hostKeyConfirm": "Confirm new key",
     "hostKeyBusy": "Confirming…",
     "hostKeyDone": "Key accepted: reconnecting…",
+    "lldpBridgeOnlyTitle": "lldpd sees no neighbors: it listens on the bridge only",
+    "lldpBridgeOnlyBody": "lldpd is installed but bound to br-lan, and on this hardware LLDP frames never reach the bridge master: topology loses its direct evidence silently. Fix it with: uci set lldpd.config.interface='lan*,wan' && uci commit lldpd && /etc/init.d/lldpd restart",
     "perf": {
       "chartAria": "{{label}} of {{name}}, range {{range}}. Current value {{value}} {{unit}}.",
       "maxTemp": "max {{temp}}",
