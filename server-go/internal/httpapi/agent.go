@@ -275,6 +275,10 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := s.adapter.(interface{ EvalSsidImpostors() }); ok {
 			ev.EvalSsidImpostors()
 		}
+		// #1359: misma coyuntura para SSIDs vecinos nuevos con dwell.
+		if ev, ok := s.adapter.(interface{ EvalNewNeighborSsids() }); ok {
+			ev.EvalNewNeighborSsids()
+		}
 	}
 	// #1214: survey crudo del agente para la lente "Ahora" en unidades
 	// agent-only. El adaptador Live lo cachea en memoria con TTL; los
