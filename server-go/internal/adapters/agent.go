@@ -991,7 +991,10 @@ func (l *Live) checkAgentVersion(cfg RouterConfig, p *probe.Payload) {
 				Description: fmt.Sprintf("%s now pushes version %s of %s", name, p.Version, kindLabel),
 				Type:        alerts.TypeAgentUpdated,
 				Vars:        map[string]string{"router": name, "version": p.Version, "kind": kindLabel},
-				Time:        "just now", RouterID: cfg.ID,
+				// #1349: el evento de cierre referencia al que resuelve
+				// (conservado en el log marcado, no borrado).
+				Resolves: []string{fmt.Sprintf("alert-agent-outdated-%s", cfg.ID)},
+				Time:     "just now", RouterID: cfg.ID,
 			})
 		}
 	}

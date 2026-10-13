@@ -369,6 +369,12 @@ export interface AlertEvent {
   routerId?: string
   /** Router padre que suprime esta alerta (issue #332). Ausente si no aplica. */
   suppressedBy?: string
+  /** #1349: unix segundos de cuándo se resolvió. Ausente/0 = activa. El
+   *  evento resuelto se conserva en el log (pestaña Resueltas). */
+  resolvedTs?: number
+  /** #1349: IDs de los eventos que este evento de cierre resuelve. La UI
+   *  los lista al expandirlo. */
+  resolves?: string[]
 }
 
 // ---------------------------------------------------------------------------

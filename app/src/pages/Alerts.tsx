@@ -300,11 +300,14 @@ interface FeedRowProps {
   onSilence?: (id: string, duration: '1h' | '24h' | 'forever') => void
   onDismiss?: (id: string) => void
   action?: { icon: LucideIcon; title: string; onClick: () => void }
+  /** #1349: feed por id para resolver los eventos que un evento de cierre
+   *  (`ev.resolves`) cerró y listarlos al expandirlo. */
+  feedById?: Map<string, FeedEvent>
 }
 
 // #862: RowAction vive en components/RowAction.tsx (compartido con AlertItem).
 
-function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDismiss, action }: FeedRowProps) {
+function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDismiss, action, feedById }: FeedRowProps) {
   const { t } = useTranslation()
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
@@ -368,6 +371,12 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
               {ev.urgent && (
                 <span className="shrink-0 rounded-md bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-danger">
                   {t('alerts.urgentBadge')}
+                </span>
+              )}
+              {/* #1349: marca visible del episodio cerrado en el log */}
+              {!!ev.resolvedTs && ev.resolvedTs > 0 && (
+                <span className="shrink-0 rounded-md bg-ok/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-ok">
+                  {t('alerts.resolvedBadge')}
                 </span>
               )}
               {catMeta && CatIcon && (
@@ -482,6 +491,30 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
           >
             <div className="mx-3 mb-2 mt-1">
               <ContextPanel ev={ev} animateIn={!reduce} />
+              {/* #1349: el evento de cierre lista los eventos que resolvió
+                  (conservados en el log marcados, no borrados). */}
+              {expanded && ev.resolves && ev.resolves.length > 0 && feedById && (
+                <div className="mt-2 rounded-lg border border-border bg-canvas px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">
+                    {t('alerts.resolvesTitle', { count: ev.resolves.length })}
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {ev.resolves.map((rid) => {
+                      const orig = feedById.get(rid)
+                      return (
+                        <li key={rid} className="flex items-center justify-between gap-2 text-caption">
+                          <span className="min-w-0 truncate text-text-secondary">
+                            {orig ? alertTitle(t, orig) : rid}
+                          </span>
+                          {orig && (
+                            <span className="shrink-0 font-mono text-[10px] text-text-muted">{alertRelTime(orig)}</span>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -613,7 +646,15 @@ export default function Alerts() {
   const filtered = useMemo(
     () =>
       alertFeed.filter((ev) => {
-        if (sev !== 'todas' && ev.severity !== SEV_MATCH[sev]) return false
+        // #1349: un evento resuelto (resolvedTs) pertenece a la pestaña
+        // Resueltas; en Avisos/Info ya no cuenta (su condición cerró).
+        // "Todas" lo muestra: es el registro de actividad completo.
+        if (sev === 'resueltas') {
+          if (ev.severity !== 'ok' && !(ev.resolvedTs && ev.resolvedTs > 0)) return false
+        } else if (sev !== 'todas') {
+          if (ev.resolvedTs && ev.resolvedTs > 0) return false
+          if (ev.severity !== SEV_MATCH[sev]) return false
+        }
         if (cats.size > 0 && !cats.has(ev.category)) return false
         if (onlyUnread && isRead(ev)) return false
         return true
@@ -628,6 +669,9 @@ export default function Alerts() {
       ),
     [filtered],
   )
+
+  // #1349: lookup por id para el dropdown de "eventos que resuelve".
+  const feedById = useMemo(() => new Map(alertFeed.map((ev) => [ev.id, ev])), [alertFeed])
 
   // Infinite scroll simulado: skeleton → fin del historial (alerts.md §Scroll)
   useEffect(() => {
@@ -995,6 +1039,7 @@ export default function Alerts() {
                     onSilence={silenceAlert}
                     onDismiss={dismissAlert}
                     action={actionOf(ev)}
+                    feedById={feedById}
                   />
                 ))}
               </ul>

@@ -581,6 +581,10 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
 	// Ancho de canal de los vecinos (#1087), con el agente nuevo; 0 = viejo.
 	migrate(sqldb, "wifi_scans", "width_mhz", "ALTER TABLE wifi_scans ADD COLUMN width_mhz INTEGER NOT NULL DEFAULT 0")
+	// #1349: el evento resuelto NO se borra del log: queda marcado con su
+	// ts de resolución para revisión posterior (y el evento de cierre lo
+	// referencia con `resolves`). 0 = activo/no resuelto.
+	migrate(sqldb, "alert_log", "resolved_ts", "ALTER TABLE alert_log ADD COLUMN resolved_ts INTEGER NOT NULL DEFAULT 0")
 	// issue #241: target de firmware por router (string libre; NULL/"" = sin comprobar).
 	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
 	// issue #309: SNMP polling for managed switches.

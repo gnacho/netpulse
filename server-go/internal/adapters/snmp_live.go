@@ -256,7 +256,8 @@ func (l *Live) recordSnmpSuccess(cfg RouterConfig) {
 
 	if wasOpen {
 		log.Printf("[netpulse] SNMP recuperado %s", cfg.LogLabel())
-		l.engine.Resolve(fmt.Sprintf("alert-snmp-failing-%s", cfg.ID))
+		failID := fmt.Sprintf("alert-snmp-failing-%s", cfg.ID)
+		l.engine.Resolve(failID)
 		l.engine.Emit(AlertEvent{
 			ID:       fmt.Sprintf("alert-snmp-recovered-%s-%d", cfg.ID, now),
 			Category: alerts.CatSystem, Urgent: false,
@@ -265,6 +266,7 @@ func (l *Live) recordSnmpSuccess(cfg RouterConfig) {
 			Description: fmt.Sprintf("SNMP polling for %s is responding again", name),
 			Type:        alerts.TypeSnmpRecovered,
 			Vars:        map[string]string{"router": name},
+			Resolves:    []string{failID}, // #1349
 			Time:        "just now", RouterID: cfg.ID,
 		})
 	}

@@ -130,10 +130,35 @@ func TestResolvePersistsAcrossRestart(t *testing.T) {
 	e := New(d, nil)
 	e.Emit(ev("a1", CatSystem, false))
 	e.Resolve("a1")
+	// En memoria sale del feed activo en caliente (como siempre).
+	if e.Has("a1") {
+		t.Fatal("Has tras resolve en caliente")
+	}
 
+	// #1349: tras reinicio el evento resuelto VUELVE al log marcado
+	// (resolvedTs>0, leído): el registro conserva qué pasó y cuándo cerró.
 	e2 := New(d, nil)
-	if got := len(e2.List()); got != 0 {
-		t.Fatalf("lista tras reinicio: %d, esperaba 0", got)
+	got := e2.List()
+	if len(got) != 1 {
+		t.Fatalf("lista tras reinicio: %d, esperaba 1 (resuelto conservado)", len(got))
+	}
+	if got[0].ResolvedTs == 0 {
+		t.Fatal("el evento cargado debe llevar resolvedTs")
+	}
+	if !got[0].Read {
+		t.Fatal("el resuelto nunca vuelve como pendiente de leer")
+	}
+
+	// Reincidencia con el mismo ID estable: el upsert lo des-resuelve y
+	// vuelve activo y no leído (#1107 sigue valiendo con el log conservado).
+	e2.Emit(ev("a1", CatSystem, false))
+	e3 := New(d, nil)
+	got3 := e3.List()
+	if len(got3) != 1 || got3[0].ResolvedTs != 0 {
+		t.Fatalf("reincidencia debe des-resolver: %+v", got3)
+	}
+	if got3[0].Read {
+		t.Fatal("la reincidencia no puede heredar el leído")
 	}
 }
 

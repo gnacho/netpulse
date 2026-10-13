@@ -79,6 +79,15 @@ type AlertEvent struct {
 	// SuppressedBy is the routerId of the parent router whose offline alert
 	// is suppressing this one (issue #332). Empty when not suppressed.
 	SuppressedBy string `json:"suppressedBy,omitempty"`
+	// ResolvedTs (#1349): unix SEGUNDOS de cuándo se resolvió la condición.
+	// 0/ausente = activa. El evento resuelto NO se borra del log: queda
+	// marcado para revisión posterior (pestaña Resueltas) y una
+	// reincidencia con el mismo ID estable lo des-resuelve (upsert).
+	ResolvedTs int64 `json:"resolvedTs,omitempty"`
+	// Resolves (#1349): IDs de los eventos que este evento CIERRA (p. ej.
+	// "Agent updated" resuelve "alert-agent-outdated-<id>"). La UI los
+	// muestra al expandir el evento de cierre.
+	Resolves []string `json:"resolves,omitempty"`
 	// Volatile (#966): la alerta vive SOLO en memoria (no se persiste en
 	// alert_log ni sobrevive a reinicios) y desaparece del feed cuando su
 	// condicion se resuelve (engine.Remove). Uso: caida de agente, cuya
@@ -319,7 +328,7 @@ func (e *Engine) loadPersistedLocked() {
 	}
 	rows, err := e.db.Query(
 		`SELECT id, ts, category, type, severity, urgent, title, description, hint,
-		        router_id, suppressed_by, vars, read_flag
+		        router_id, suppressed_by, vars, read_flag, resolved_ts
 		 FROM alert_log ORDER BY ts DESC LIMIT ?`, MaxEvents)
 	if err != nil {
 		return
@@ -335,12 +344,17 @@ func (e *Engine) loadPersistedLocked() {
 		var typ, sev, hint, routerID, suppressedBy, varsRaw string
 		var urgent, read int
 		if err := rows.Scan(&ev.ID, &ev.Ts, &ev.Category, &typ, &sev, &urgent,
-			&ev.Title, &ev.Description, &hint, &routerID, &suppressedBy, &varsRaw, &read); err != nil {
+			&ev.Title, &ev.Description, &hint, &routerID, &suppressedBy, &varsRaw, &read, &ev.ResolvedTs); err != nil {
 			return
 		}
 		// #833: una alerta limpiada no vuelve a aparecer tras un reinicio.
 		if e.dismissed[ev.ID] {
 			continue
+		}
+		// #1349: un evento resuelto vuelve al feed MARCADO (historia
+		// consultable en Resueltas) y nunca como pendiente de leer.
+		if ev.ResolvedTs > 0 {
+			read = 1
 		}
 		ev.Type = typ
 		ev.Severity = sev
@@ -363,8 +377,13 @@ func (e *Engine) loadPersistedLocked() {
 		key := r.ev.Category + "|" + r.ev.Title + "|" + r.ev.RouterID
 		// Las filas vienen de más reciente a más antigua: solo la primera por
 		// clave es el timestamp de dedup válido (no pisar con la más vieja).
-		if _, ok := e.dedup[key]; !ok {
-			e.dedup[key] = r.ev.Ts * 1000
+		// #1349: un RESUELTO no siembra dedup - su condición está cerrada y
+		// una reincidencia tras reinicio debe alertar de inmediato (mismo
+		// criterio que Resolve en caliente, que borra la clave de dedup).
+		if r.ev.ResolvedTs == 0 {
+			if _, ok := e.dedup[key]; !ok {
+				e.dedup[key] = r.ev.Ts * 1000
+			}
 		}
 		if r.read && r.ev.ID != "" && !e.readSet[r.ev.ID] {
 			e.readSet[r.ev.ID] = true
@@ -508,14 +527,15 @@ func (e *Engine) persistLocked(ev AlertEvent) {
 		urgent = 1
 	}
 	_, _ = e.db.Exec(
-		`INSERT INTO alert_log (id, ts, category, type, severity, urgent, title, description, hint, router_id, suppressed_by, vars)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO alert_log (id, ts, category, type, severity, urgent, title, description, hint, router_id, suppressed_by, vars, resolved_ts)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET ts=excluded.ts, category=excluded.category,
 		   type=excluded.type, severity=excluded.severity, urgent=excluded.urgent,
 		   title=excluded.title, description=excluded.description, hint=excluded.hint,
-		   router_id=excluded.router_id, suppressed_by=excluded.suppressed_by, vars=excluded.vars`,
+		   router_id=excluded.router_id, suppressed_by=excluded.suppressed_by, vars=excluded.vars,
+		   resolved_ts=excluded.resolved_ts`,
 		ev.ID, ev.Ts, ev.Category, ev.Type, ev.Severity, urgent,
-		ev.Title, ev.Description, ev.Hint, ev.RouterID, ev.SuppressedBy, varsRaw)
+		ev.Title, ev.Description, ev.Hint, ev.RouterID, ev.SuppressedBy, varsRaw, ev.ResolvedTs)
 	_, _ = e.db.Exec(
 		`DELETE FROM alert_log WHERE id NOT IN
 		   (SELECT id FROM alert_log ORDER BY ts DESC LIMIT ?)`, PersistMaxEvents)
@@ -986,7 +1006,14 @@ func (e *Engine) Resolve(id string) {
 	}
 	e.saveReadLocked()
 	if e.db != nil {
-		_, _ = e.db.Exec("DELETE FROM alert_log WHERE id = ?", id)
+		// #1349: el evento resuelto se CONSERVA en el log (marcado con su ts
+		// de cierre) en vez de borrarse: el registro de actividad mantiene
+		// qué pasó y cuándo se cerró. La pestaña Resueltas de la UI lo lista.
+		// read_flag=0: el resuelto se muestra leído por la regla de carga
+		// (resolved_ts>0 → leído), y si la condición REINCIDE con el mismo
+		// ID estable, el upsert (resolved_ts=0) no puede heredar un leído
+		// viejo de la fila conservada (#1107 sigue valiendo).
+		_, _ = e.db.Exec("UPDATE alert_log SET resolved_ts = ?, read_flag = 0 WHERE id = ?", time.Now().Unix(), id)
 	}
 }
 
