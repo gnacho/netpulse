@@ -3360,7 +3360,10 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	l.trackOfflineDevices(devices)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// #954: first/last seen persistente de TODOS los clientes online.
-	l.noteDevicesSeen(devices, time.Now().UnixMilli())
+	// #1323: los que entran al registro por primera vez CON nombre alertan
+	// ("new client"); los sin nombre los cubre unknown-device (#234).
+	firstTimers := l.noteDevicesSeen(devices, time.Now().UnixMilli())
+	l.trackNewClients(firstTimers, devices, distNodes)
 	// #1095: el overview (snapshot SSE del que vive la tabla de clientes)
 	// escribía las marcas pero NUNCA las aplicaba: la UI en vivo mostraba
 	// "—" aunque la API REST las tuviera (sólo los detalles las aplicaban).

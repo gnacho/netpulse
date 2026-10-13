@@ -1,8 +1,11 @@
 package adapters
 
 import (
+	"fmt"
 	"net"
 	"strings"
+
+	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
 // device_seen.go — seguimiento first/last seen de clientes (#954).
@@ -158,18 +161,39 @@ func (l *Live) purgeFleetSeen() {
 	}
 }
 
-func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
+// noteDevicesSeen actualiza el registro (#954) y devuelve los clientes que
+// entran en él por PRIMERA vez y YA tienen nombre (#1323): son el hueco que
+// "unknown-device" no cubre (un cliente nuevo con hostname/reserva DHCP
+// resuelve nombre en el primer tick y nunca es "desconocido").
+//
+// Anti-avalancha: si la tabla estaba VACÍA al entrar (primer arranque del
+// server o BD nueva), todo lo online es "la red existente" - se siembra el
+// registro en silencio y no se devuelve nada. Con tabla poblada (reinicio
+// normal), las MACs nuevas sí se devuelven para alertar.
+func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 	if l.db == nil {
-		return
+		return nil
 	}
 	l.purgeFleetSeen()
 	tomb, err := l.db.DeletedClients()
 	if err != nil {
 		tomb = map[string]bool{}
 	}
+	// MACs ya registradas: la diferencia serán las verdaderamente nuevas.
+	existing := map[string]bool{}
+	if rows, err := l.db.Query("SELECT mac FROM device_seen"); err == nil {
+		for rows.Next() {
+			var m string
+			if rows.Scan(&m) == nil {
+				existing[m] = true
+			}
+		}
+		rows.Close()
+	}
+	tableWasEmpty := len(existing) == 0
 	tx, err := l.db.DB.Begin()
 	if err != nil {
-		return
+		return nil
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op tras Commit
 	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name, ip, device_type) VALUES (?, ?, ?, ?, ?, ?)
@@ -178,9 +202,10 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 			ip = CASE WHEN excluded.ip != '' THEN excluded.ip ELSE device_seen.ip END,
 			device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE device_seen.device_type END`)
 	if err != nil {
-		return
+		return nil
 	}
 	defer stmt.Close()
+	var firstTimers []Device
 	for _, d := range devices {
 		if !d.Online {
 			continue
@@ -190,7 +215,7 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 			continue
 		}
 		if tomb[mac] {
-			continue // #1278: borrado a mano, no re-alta
+			continue // #1278: borrado a mano, no re-alta (ni re-aviso, #1290)
 		}
 		name := d.Hostname
 		if isMACLike(name) {
@@ -200,10 +225,80 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) {
 			name = d.Name
 		}
 		if _, err := stmt.Exec(mac, nowMs, nowMs, name, saneIP(d.IP), inferredDeviceType(d)); err != nil {
-			return
+			return nil
+		}
+		// #1323: primera vez CON nombre (los sin nombre los cubre
+		// unknown-device con su gracia; alertar ambos sería duplicar ruido).
+		if !existing[mac] && name != "" {
+			firstTimers = append(firstTimers, d)
 		}
 	}
 	_ = tx.Commit()
+	if tableWasEmpty {
+		return nil // siembra silenciosa del primer arranque
+	}
+	return firstTimers
+}
+
+// trackNewClients emite "cliente nuevo visto por primera vez" (#1323) para
+// las MACs que acaban de entrar en el registro CON nombre. One-shot por MAC
+// (kv new_client_alerted:, misma persistencia que unknown_alerted de #248);
+// una MAC que ya alertó como desconocida no re-alertar aquí si luego
+// resuelve nombre. Toma l.mu internamente.
+func (l *Live) trackNewClients(firstTimers []Device, devices []Device, dists []DistributionNode) {
+	if len(firstTimers) == 0 || l.db == nil || l.engine == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	alerted := map[string]bool{}
+	if rows, err := l.db.Query(`SELECT key FROM kv WHERE key LIKE 'new_client_alerted:%' OR key LIKE 'unknown_alerted:%'`); err == nil {
+		for rows.Next() {
+			var k string
+			if rows.Scan(&k) == nil {
+				alerted[k] = true
+			}
+		}
+		rows.Close()
+	}
+	for _, d := range firstTimers {
+		mac := normSeenMAC(d.MAC)
+		if alerted["new_client_alerted:"+mac] || alerted["unknown_alerted:"+mac] {
+			continue
+		}
+		name := d.Name
+		if d.Hostname != "" {
+			name = d.Hostname
+		}
+		where, port := l.deviceLocation(d, devices, dists)
+		vars := map[string]string{
+			"mac": mac, "name": name,
+			"router": l.routerDisplayName(d.RouterID),
+			"where":  where,
+		}
+		if d.IP != "" {
+			vars["ip"] = d.IP
+		}
+		if port != "" {
+			vars["port"] = port
+		}
+		desc := fmt.Sprintf("%s (%s) connected for the first time to %s", name, mac, where)
+		if d.IP != "" {
+			desc = fmt.Sprintf("%s (%s · %s) connected for the first time to %s", name, mac, d.IP, where)
+		}
+		l.engine.Emit(AlertEvent{
+			ID:       "alert-new-client-" + mac,
+			Category: alerts.CatClients, Urgent: true,
+			Severity:    "info",
+			Title:       "New client: " + name,
+			Description: desc,
+			Hint:        alerts.HintFor(alerts.HintNewClient),
+			Type:        alerts.HintNewClient,
+			Vars:        vars,
+			Time:        "just now", RouterID: d.RouterID,
+		})
+		_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "new_client_alerted:"+mac)
+	}
 }
 
 // applyDeviceSeen rellena FirstSeenMs/LastSeenMs de cada dispositivo desde
