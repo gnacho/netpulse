@@ -254,6 +254,7 @@ El mapa se construye con el bridge FDB (para clientes por cable), LLDP cuando es
 
 - La topología es **inferida**, no configurada: se deduce de las tablas del router, por eso a veces aparece un switch "inferido" que no has dado de alta.
 - LLDP solo identifica routers y switches vecinos, no a los clientes finales.
+- LLDP asume switches **compatibles con 802.1AB** (no reenvían las tramas LLDP entre bocas). Un switch que las inunde como multicast normal mete "vecinos fantasma" de segundo salto en el mismo puerto; NetPulse los desempata corroborando por FDB qué candidato intercambia tráfico real por esa boca (y, en empate, prefiere el switch gestionado). Si tu switch inunda LLDP (algunos firmwares lo hacen), los enlaces raros desaparecen al bloquear la multicast reservada en el switch o al actualizar su firmware.
 - El botón **Refrescar** fuerza un sondeo inmediato en el backend (POST /api/refresh) y el mapa se actualiza con la instantánea que llega por SSE, sin recargar la página.
 
 ### Procedimiento: usar el mapa de topología

@@ -198,6 +198,7 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 		port      string // lado padre (anunciado por él)
 		localPort string // puerto local del poller hacia él
 		isSwitch  bool
+		brMac     string // #1372: bridge MAC del candidato (corroboración FDB)
 	}
 	out := map[string]topoParent{}
 	for _, rid := range ids {
@@ -228,7 +229,7 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 			}
 			cands = append(cands, lldpCand{
 				parentID: ri.ID, port: nb.PortDesc, localPort: nb.Port,
-				isSwitch: ri.Type == "managed-switch",
+				isSwitch: ri.Type == "managed-switch", brMac: strings.ToUpper(ri.BrMac),
 			})
 		}
 		if len(cands) == 0 {
@@ -238,10 +239,50 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 		if gwMac != "" {
 			rootPort, ok := p.fdb[gwMac]
 			if ok {
+				// #1372 (phantom guard): un switch que inunda la multicast
+				// reservada 01:80:c2:00:00:0e (no 802.1AB-compliant) mete
+				// vecinos de SEGUNDO salto por el MISMO puerto raíz, así que
+				// "el primer candidato del root port" puede ser un phantom.
+				// Corroboración FDB por MAC: el peer verdadero intercambia
+				// tráfico real con nosotros y su bridge MAC está aprendida
+				// en la FDB de ese puerto; un phantom puro (sin tráfico
+				// directo) no. Solo se exige al desempatar varios candidatos
+				// en el mismo puerto: con uno solo, la LLDP basta (la FDB
+				// puede ir vacía o aún sin aprendizaje).
+				var onRoot []int
 				for i := range cands {
 					if cands[i].localPort == rootPort {
-						chosen = i
-						break
+						onRoot = append(onRoot, i)
+					}
+				}
+				if len(onRoot) == 1 {
+					chosen = onRoot[0]
+				} else if len(onRoot) > 1 {
+					var corr []int
+					for _, i := range onRoot {
+						if cands[i].brMac == "" {
+							continue
+						}
+						if port, ok2 := p.fdb[cands[i].brMac]; ok2 && port == cands[i].localPort {
+							corr = append(corr, i)
+						}
+					}
+					if len(corr) == 1 {
+						chosen = corr[0]
+					} else {
+						// Varios corroborados (LAN plana: todos hablan con
+						// todos) o ninguno (FDB sin datos): switch gestionado
+						// preferido entre los del root port (hacia el core).
+						pool := corr
+						if len(pool) == 0 {
+							pool = onRoot
+						}
+						for _, i := range pool {
+							if cands[i].isSwitch {
+								chosen = i
+								break
+							}
+						}
 					}
 				}
 			}

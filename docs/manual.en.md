@@ -254,6 +254,7 @@ The map is built from the bridge FDB (for wired clients), LLDP when available (t
 
 - The topology is **inferred**, not configured: it is deduced from the router tables, which is why you sometimes see an "inferred" switch you never onboarded.
 - LLDP only identifies neighboring routers and switches, not end clients.
+- LLDP assumes **802.1AB-compliant** switches (they never forward LLDP frames between ports). A switch that floods them as regular multicast injects second-hop "phantom neighbors" on the same port; NetPulse disambiguates by FDB-corroborating which candidate actually exchanges traffic on that port (and, on a tie, prefers the managed switch). If your switch floods LLDP (some firmwares do), the odd links disappear once you block the reserved multicast on the switch or update its firmware.
 - The **Refresh** button forces an immediate backend poll (POST /api/refresh) and the map updates with the snapshot arriving over SSE, without reloading the page.
 
 ### Procedure: use the topology map
