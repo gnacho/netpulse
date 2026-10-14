@@ -5,6 +5,30 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.43.0] - 2026-10-14
+
+### Added
+
+- **Alertas de seguridad WiFi desde los scans que ya existían (#1358, #1359, #1393, #1394)**: dos detectores nuevos sin nada que instalar ni configurar. El de **SSID impostor** avisa urgente cuando un BSSID que no es de la flota anuncia un SSID que sí lo es (firma clásica de evil twin); confirma con dos scans reales separados 20 min para no levantar falsos positivos, y se auto-resuelve cuando desaparece. El de **SSID vecino nuevo** avisa (info) cuando un nombre de red nunca visto aguanta 4 h cerca: un router nuevo enchufado, un IoT en modo pairing, un hotspot fijo; los vecinos de siempre se siembran como conocidos la primera vez para no inundar, y cada SSID avisa una sola vez.
+- **Alerta cuando un cliente se ve por primera vez (#1323, #1397)**: el hueco que dejaba "dispositivo desconocido" (que solo cubre clientes sin nombre): un equipo con reserva DHCP o nombre estático entraba en la lista sin ruido. Ahora cualquier MAC que entra al registro por primera vez con nombre genera su alerta (clients, urgente, push), una sola vez por MAC; la siembra del primer arranque no avisa de los ya presentes.
+- **Los eventos resueltos se conservan en el registro (#1349, #1396)**: al resolverse una alerta (desactualizado → actualizado, SNMP fallando → recuperado), el evento original ya no desaparece del log: queda marcado con su fecha de cierre y la pestaña Resueltas lo lista. El evento de cierre referencia los que resuelve y, al expandirlo, muestra el desplegable con ellos. Una reincidencia reabre el mismo episodio sin heredar el leído.
+- **Arrastrar un switch o AP mueve también a sus cableados (#1377, #1390)**: en el mapa de topología, los clientes cableados siguen a su padre al arrastrarlo, igual que los CTs siguen a su hipervisor. Las posiciones guardadas llevan ahora marca de tiempo: un hijo reubicado a mano después que el padre conserva su sitio hasta la próxima vez que muevas el padre.
+- **lldpd configurado en puertos físicos al instalar el agente (#1369, #1392)**: en OpenWrt (qualcommax/nss-dp verificado, DSA probable), un lldpd escuchando en el bridge no ve vecinos nunca y nadie avisa. El instalador lo deja escuchando en `lan*,wan` (idempotente, nunca instala paquetes por sí solo) y, si detecta el caso, el agente lo reporta y la ficha del router muestra el aviso con el comando exacto para arreglarlo.
+- **Tabla de enlaces con columna de ping y leyenda a lo ancho (#1387)**: la leyenda del mapa ocupa una fila completa con muestras de enlaces en tres columnas, la tabla de enlaces lista también los uplinks de switches gestionados con su latencia sondeada, y los cables de hipervisores muestran la velocidad medida por su padre.
+- **Retirar agentes de la flota desde la UI (#1385)**: un agente sin pulso (equipo apagado o retirado) ya no ofrece actualización (imposible sin pulso) y su fila se marca en rojo con la acción Retirar, que revoca su token y lo saca de la lista con confirmación en app.
+
+### Fixed
+
+- **Topología: evidencia LLDP endurecida (#1371, #1376, #1379, #1381, #1372, #1398)**: parser compatible con el JSON keyed-array de lldpd 1.0.x (sin él, cero vecinos en OpenWrt 25.x); los uplinks se anclan a la verdad del puerto raíz y los nodos fantasma del switch gestionado se absorben en vez de duplicarse; los CTs de hipervisor ya no salen duplicados; las velocidades medidas cruzan a los uplinks con evidencia LLDP; y cuando varios candidatos de flota llegan por el mismo puerto raíz (switch que inunda la multicast reservada, no 802.1AB), el candidato se corrobora por FDB en vez de ganar por orden de scan.
+- **Tooltip WAN solo en el gateway (#1386)**: las bocas `wan` de routers no-gateway mostraban la IP pública y DNS del gateway sobre un enlace local; ahora solo la unidad principal muestra esa información.
+- **Tabla 802.11r de Itinerancia sin columna MAC (#1391, #1395)**: un tag JSON duplicado (resto de un renombrado) hacía que el BSSID nunca se serializara y la columna salía siempre "-".
+- **Scans de vecinos por interfaz con su propio timeout (#1388)** y **servir la arquitectura de agente correcta o fallar en voz alta (#1367)**.
+
+### Changed
+
+- **Agente embebido 3.0.17** (#1375, #1389): parser de ping sin redondeo a entero (pings LAN sub-milisegundo ya no salen como 0 ms), sonda LLDP con detección de binding bridge-only y scan de vecinos por interfaz. Los agentes se actualizan solos desde el servidor al detectar la diferencia de versión.
+- Documentación: repaso de cobertura de la web y README más ligero (#1365).
+
 ## [2.42.0] - 2026-10-11
 
 ### Added
