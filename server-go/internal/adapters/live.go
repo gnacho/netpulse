@@ -323,6 +323,10 @@ type Live struct {
 	// memoria a propósito: si el server reinicia y el impostor sigue
 	// visible, la alerta se re-emite (seguridad prima sobre re-aviso).
 	impostorActive map[string]string
+	// impostorAllow (#1400): BSSIDs aprobados a mano como propios (APs
+	// conocidos fuera de la flota: UniFi, Omada...). Persistido en kv
+	// (impostorAllowKey) para sobrevivir reinicios.
+	impostorAllow map[string]bool
 	// Presencia wireless (issue #184): devicePresence = MAC → online del
 	// último ciclo evaluado; presenceMisses = ticks seguidos sin verse.
 	// presenceSeen evita la avalancha del primer ciclo (anti-arranque).
@@ -471,6 +475,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		unknownAlerted:       map[string]bool{},
 		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
 		impostorActive:       map[string]string{},
+		impostorAllow:        map[string]bool{},
 		devicePresence:       map[string]bool{},
 		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
@@ -516,6 +521,16 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 				}
 			}
 			rows.Close()
+		}
+		// #1400: BSSIDs de impostor aprobados a mano, persistidos en kv.
+		var allowRaw string
+		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", "impostor_allowlist_v1").Scan(&allowRaw); err == nil {
+			var list []string
+			if json.Unmarshal([]byte(allowRaw), &list) == nil {
+				for _, b := range list {
+					l.impostorAllow[strings.ToUpper(strings.TrimSpace(b))] = true
+				}
+			}
 		}
 	}
 	l.SetRouters(initial)

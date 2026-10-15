@@ -189,6 +189,9 @@ export interface NetPulseApi extends NetPulseData {
   clearAllAlerts: () => void
   /** POST /api/alerts/silence (live): silencia alertas con la misma dedup key. */
   silenceAlert: (id: string, duration: '1h' | '24h' | 'forever') => void
+  /** POST /api/alerts/impostor-approve (live): aprueba un BSSID como propio
+   * (#1400); la alerta de impostor de ese BSSID se resuelve y no vuelve. */
+  approveImpostorBssid: (bssid: string) => void
   /** POST /api/alerts/dismiss (live): limpia una alerta del feed (#833). Demo: estado local. Optimista. */
   dismissAlert: (id: string) => void
   /**
@@ -1032,6 +1035,34 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
+  /** Aprueba un BSSID como propio (#1400): quita del feed las alertas de
+   * impostor de ese BSSID (optimista) y lo persiste en el backend (live). */
+  const approveImpostorBssid = useCallback((bssid: string) => {
+    setBundle((prev) => {
+      const alerts = prev.alerts.filter(
+        (a) => !(a.type === 'wifi-ssid-impostor' && a.vars?.bssid === bssid),
+      )
+      const unreadAlerts =
+        modeRef.current === 'live'
+          ? prev.unreadAlerts
+          : countUnreadAlerts(alerts, configRef.current)
+      return { ...prev, alerts, unreadAlerts }
+    })
+    if (modeRef.current !== 'live') return
+    void (async () => {
+      try {
+        const res = await fetch('/api/alerts/impostor-approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bssid }),
+        })
+        if (res.status === 401) redirectLogin()
+      } catch {
+        /* resync por snapshot */
+      }
+    })()
+  }, [])
+
   /** Limpia una alerta del feed (issue #833): oculta la fila al instante y,
    * en live, la persiste como dismiss en el backend (no reaparece tras un
    * reinicio; si la condición se re-dispara, vuelve sola). */
@@ -1321,6 +1352,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAllAlertsRead,
       clearAllAlerts,
       silenceAlert,
+      approveImpostorBssid,
       dismissAlert,
       rearmAgent,
       upgradeAgent,
@@ -1330,7 +1362,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       removeAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, approveImpostorBssid, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

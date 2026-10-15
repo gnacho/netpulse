@@ -206,3 +206,95 @@ func TestImpostorAlertUsesLatestSighting(t *testing.T) {
 		t.Fatalf("vars deben ser del sighting más reciente: %+v", got[0].Vars)
 	}
 }
+
+func TestImpostorApprovedDoesNotAlert(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	now := time.Now()
+	// #1400: BSSID aprobado a mano (AP UniFi ajeno a la flota NetPulse).
+	if err := l.ApproveImpostorBssid("de:ad:be:ef:00:10"); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:10", "temiscira", now.Add(-40*time.Minute))
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:10", "temiscira", now)
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 0 {
+		t.Fatalf("BSSID aprobado no debe alertar; alertas: %+v", got)
+	}
+	if got := l.ImpostorApproved(); len(got) != 1 || got[0] != "DE:AD:BE:EF:00:10" {
+		t.Fatalf("ImpostorApproved = %v", got)
+	}
+}
+
+func TestImpostorApproveResolvesActiveAlert(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	now := time.Now()
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:11", "temiscira", now.Add(-40*time.Minute))
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:11", "temiscira", now)
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 1 {
+		t.Fatalf("debió alertar; alertas: %d", len(got))
+	}
+	if err := l.ApproveImpostorBssid("DE:AD:BE:EF:00:11"); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if got := impostorAlerts(l); len(got) != 0 {
+		t.Fatalf("aprobar debe resolver la alerta activa; alertas: %+v", got)
+	}
+	if len(l.impostorActive) != 0 {
+		t.Fatalf("tracking residual tras aprobar: %+v", l.impostorActive)
+	}
+	// Re-evaluar con la evidencia intacta: no re-alerta (aprobado).
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 0 {
+		t.Fatalf("aprobado no debe re-alertar; alertas: %+v", got)
+	}
+}
+
+func TestImpostorRevokeReAlerts(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	now := time.Now()
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:12", "temiscira", now.Add(-40*time.Minute))
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:12", "temiscira", now)
+	if err := l.ApproveImpostorBssid("DE:AD:BE:EF:00:12"); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 0 {
+		t.Fatalf("aprobado no debe alertar; alertas: %+v", got)
+	}
+	l.RevokeImpostorBssid("DE:AD:BE:EF:00:12")
+	if got := l.ImpostorApproved(); len(got) != 0 {
+		t.Fatalf("revoke debe vaciar la lista; got %v", got)
+	}
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 1 {
+		t.Fatalf("revocado y visible debe re-alertar; alertas: %d", len(got))
+	}
+}
+
+func TestImpostorApproveInvalidBssid(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	for _, bad := range []string{"", "no-es-mac", "DE:AD:BE:EF:00", "zz:zz:zz:zz:zz:zz"} {
+		if err := l.ApproveImpostorBssid(bad); err == nil {
+			t.Fatalf("bssid inválido %q debe dar error", bad)
+		}
+	}
+	if got := l.ImpostorApproved(); len(got) != 0 {
+		t.Fatalf("ningún inválido debe entrar en la lista; got %v", got)
+	}
+}
+
+func TestImpostorAllowlistPersistsAcrossRestart(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	if err := l.ApproveImpostorBssid("DE:AD:BE:EF:00:13"); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	// Simula un reinicio: Live NUEVO sobre la misma BD (mismo dir).
+	dir := t.TempDir() // dummy para no confundir; la BD real es la de l
+	_ = dir
+	d2 := l.db // misma BD abierta
+	l2 := NewLive(nil, d2, []RouterConfig{{ID: "ap1", Name: "AP Uno"}}, nil)
+	if got := l2.ImpostorApproved(); len(got) != 1 || got[0] != "DE:AD:BE:EF:00:13" {
+		t.Fatalf("la lista debe sobrevivir al reinicio; got %v", got)
+	}
+}

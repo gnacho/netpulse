@@ -27,6 +27,7 @@
     "onlyUnread": "Solo no leídas",
     "silence": "Silenciar",
     "silenceForever": "Siempre",
+    "approveBssid": "Este BSSID es nuestro: aprobarlo y dejar de alertar de impostor por él",
     "sevAll": "Todas",
     "sevInfo": "Info",
     "sevResolved": "Resueltas",

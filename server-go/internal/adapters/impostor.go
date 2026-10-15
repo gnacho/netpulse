@@ -18,7 +18,10 @@ package adapters
 // configurar para el caso común.
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,6 +39,10 @@ const (
 	impostorRecent = 2 * time.Hour
 	// impostorWindow: sightings más viejos que esto no cuentan.
 	impostorWindow = 6 * time.Hour
+	// impostorAllowKey (#1400): clave kv con la lista persistida de BSSIDs
+	// aprobados a mano (APs conocidos fuera de la flota NetPulse: UniFi,
+	// Omada... cuyos BSSIDs no llegan por agentes/SSH/DAWN).
+	impostorAllowKey = "impostor_allowlist_v1"
 )
 
 // EvalSsidImpostors: una pasada sobre wifi_scans recientes. La llama el
@@ -61,6 +68,12 @@ func (l *Live) EvalSsidImpostors() {
 				ownBssids[strings.ToUpper(r.BSSID)] = true
 			}
 		}
+	}
+	// #1400: BSSIDs aprobados a mano (lista persistida en kv). Copia local
+	// para evaluar fuera del mutex.
+	approved := make(map[string]bool, len(l.impostorAllow))
+	for b := range l.impostorAllow {
+		approved[b] = true
 	}
 	l.mu.Unlock()
 	fleetSsids := map[string]bool{}
@@ -93,7 +106,7 @@ func (l *Live) EvalSsidImpostors() {
 			continue
 		}
 		bssid = strings.ToUpper(strings.TrimSpace(bssid))
-		if bssid == "" || !fleetSsids[ssid] || ownBssids[bssid] {
+		if bssid == "" || !fleetSsids[ssid] || ownBssids[bssid] || approved[bssid] {
 			continue
 		}
 		s := byBssid[bssid]
@@ -167,4 +180,66 @@ func (l *Live) EvalSsidImpostors() {
 			delete(l.impostorActive, bssid)
 		}
 	}
+}
+
+// ImpostorApproved (#1400): BSSIDs aprobados a mano, ordenados. La UI la
+// muestra y permite revocar.
+func (l *Live) ImpostorApproved() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := make([]string, 0, len(l.impostorAllow))
+	for b := range l.impostorAllow {
+		out = append(out, b)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ApproveImpostorBssid (#1400): marca un BSSID como propio (AP conocido que
+// no forma parte de la flota NetPulse). Persiste en kv y, si hay una alerta
+// de impostor activa para él, la resuelve al momento.
+func (l *Live) ApproveImpostorBssid(bssid string) error {
+	mac, err := net.ParseMAC(strings.TrimSpace(bssid))
+	if err != nil {
+		return fmt.Errorf("invalid bssid %q: %w", bssid, err)
+	}
+	norm := strings.ToUpper(mac.String())
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.impostorAllow[norm] = true
+	l.saveImpostorAllowLocked()
+	if alertID, ok := l.impostorActive[norm]; ok {
+		l.engine.Resolve(alertID)
+		delete(l.impostorActive, norm)
+	}
+	return nil
+}
+
+// RevokeImpostorBssid (#1400): quita un BSSID de la lista de aprobados. Si
+// el BSSID sigue visible, la regla vuelve a alertar en la próxima evaluación
+// (con la confirmación anti-transitorio de siempre).
+func (l *Live) RevokeImpostorBssid(bssid string) {
+	norm := strings.ToUpper(strings.TrimSpace(bssid))
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.impostorAllow, norm)
+	l.saveImpostorAllowLocked()
+}
+
+// saveImpostorAllowLocked: persiste la lista en kv. Caller holds l.mu.
+func (l *Live) saveImpostorAllowLocked() {
+	if l.db == nil {
+		return
+	}
+	list := make([]string, 0, len(l.impostorAllow))
+	for b := range l.impostorAllow {
+		list = append(list, b)
+	}
+	raw, err := json.Marshal(list)
+	if err != nil {
+		return
+	}
+	_, _ = l.db.Exec(
+		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+		impostorAllowKey, string(raw))
 }
