@@ -28,6 +28,8 @@
     "silence": "Silenciar",
     "silenceForever": "Siempre",
     "approveBssid": "Este BSSID es nuestro: aprobarlo y dejar de alertar de impostor por él",
+    "impostorRule": "Detección de impostores de SSID",
+    "impostorRuleDesc": "Avisa cuando una radio desconocida emite el nombre de una red de tu flota. Apágala si tus propios APs fuera de NetPulse (UniFi, Omada...) generan falsos positivos.",
     "sevAll": "Todas",
     "sevInfo": "Info",
     "sevResolved": "Resueltas",

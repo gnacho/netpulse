@@ -43,6 +43,10 @@ const (
 	// aprobados a mano (APs conocidos fuera de la flota NetPulse: UniFi,
 	// Omada... cuyos BSSIDs no llegan por agentes/SSH/DAWN).
 	impostorAllowKey = "impostor_allowlist_v1"
+	// impostorEnabledKey (#1400): clave kv con el interruptor global de la
+	// regla ("1"/"0"; ausente = activada). Apagarla para la detección y
+	// resuelve las alertas de impostor activas.
+	impostorEnabledKey = "alerts.impostor_enabled"
 )
 
 // EvalSsidImpostors: una pasada sobre wifi_scans recientes. La llama el
@@ -51,6 +55,12 @@ const (
 func (l *Live) EvalSsidImpostors() {
 	if l.db == nil || l.agents == nil || l.engine == nil {
 		return
+	}
+	l.mu.Lock()
+	ruleEnabled := l.impostorEnabled
+	l.mu.Unlock()
+	if !ruleEnabled {
+		return // #1400: regla desactivada globalmente desde Configurar alertas
 	}
 	now := time.Now()
 
@@ -242,4 +252,36 @@ func (l *Live) saveImpostorAllowLocked() {
 	_, _ = l.db.Exec(
 		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
 		impostorAllowKey, string(raw))
+}
+
+// ImpostorRuleEnabled (#1400): interruptor global de la regla (default on).
+func (l *Live) ImpostorRuleEnabled() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.impostorEnabled
+}
+
+// SetImpostorRuleEnabled (#1400): activa/desactiva la detección de
+// impostores de SSID. Persistido en kv. Al desactivar, las alertas de
+// impostor activas se resuelven (dejan de molestar al momento); al activar,
+// la próxima evaluación vuelve a detectar desde cero.
+func (l *Live) SetImpostorRuleEnabled(enabled bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.impostorEnabled = enabled
+	if l.db != nil {
+		v := "0"
+		if enabled {
+			v = "1"
+		}
+		_, _ = l.db.Exec(
+			"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+			impostorEnabledKey, v)
+	}
+	if !enabled {
+		for bssid, alertID := range l.impostorActive {
+			l.engine.Resolve(alertID)
+			delete(l.impostorActive, bssid)
+		}
+	}
 }

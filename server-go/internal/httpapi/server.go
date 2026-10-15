@@ -397,6 +397,8 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/alerts/impostor-approve", s.handleAlertsImpostorApprove)
 	mux.HandleFunc("POST /api/alerts/impostor-revoke", s.handleAlertsImpostorRevoke)
 	mux.HandleFunc("GET /api/alerts/impostor-approved", s.handleAlertsImpostorApproved)
+	mux.HandleFunc("GET /api/alerts/impostor-rule", s.handleAlertsImpostorRuleGet)
+	mux.HandleFunc("POST /api/alerts/impostor-rule", s.handleAlertsImpostorRuleSet)
 	mux.HandleFunc("GET /api/alert-rules", s.handleAlertRulesList)
 	mux.HandleFunc("GET /api/alert-rules/{id}", s.handleAlertRulesGet)
 	mux.HandleFunc("POST /api/alert-rules", s.handleAlertRulesCreate)

@@ -37,6 +37,7 @@ import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
 import { RowAction } from '@/components/RowAction'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { Switch } from '@/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -283,6 +284,55 @@ function ContextPanel({ ev, animateIn }: { ev: FeedEvent; animateIn: boolean }) 
           <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
         </Link>
       )}
+    </div>
+  )
+}
+
+// ImpostorRuleToggle (#1400): interruptor global de la detección de SSID
+// impostor. Vive en el diálogo "Configurar alertas"; fetch propio (no
+// pertenece al bundle: solo se consulta aquí). En demo es solo local.
+function ImpostorRuleToggle() {
+  const { t } = useTranslation()
+  const { isDemo } = useNetPulse()
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (isDemo) {
+      setEnabled(true)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/alerts/impostor-rule')
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as { enabled?: boolean }
+          setEnabled(data.enabled !== false)
+        }
+      } catch {
+        /* sin estado: el toggle queda oculto */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+  const toggle = (v: boolean) => {
+    setEnabled(v)
+    if (isDemo) return
+    void fetch('/api/alerts/impostor-rule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: v }),
+    }).catch(() => setEnabled((prev) => prev))
+  }
+  if (enabled === null) return null
+  return (
+    <div className="mt-4 flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-text-primary">{t('alerts.impostorRule')}</div>
+        <p className="mt-0.5 text-caption leading-snug text-text-muted">{t('alerts.impostorRuleDesc')}</p>
+      </div>
+      <Switch checked={enabled} onCheckedChange={toggle} aria-label={t('alerts.impostorRule')} />
     </div>
   )
 }
@@ -953,6 +1003,7 @@ export default function Alerts() {
                   )
                 })}
               </ul>
+              <ImpostorRuleToggle />
               <div className="mt-4 border-t border-border/60 pt-4">
                 <RulesManager />
               </div>

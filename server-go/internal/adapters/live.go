@@ -327,6 +327,9 @@ type Live struct {
 	// conocidos fuera de la flota: UniFi, Omada...). Persistido en kv
 	// (impostorAllowKey) para sobrevivir reinicios.
 	impostorAllow map[string]bool
+	// impostorEnabled (#1400): interruptor global de la regla de impostores
+	// (default true; persistido en kv impostorEnabledKey).
+	impostorEnabled bool
 	// Presencia wireless (issue #184): devicePresence = MAC → online del
 	// último ciclo evaluado; presenceMisses = ticks seguidos sin verse.
 	// presenceSeen evita la avalancha del primer ciclo (anti-arranque).
@@ -476,6 +479,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
 		impostorActive:       map[string]string{},
 		impostorAllow:        map[string]bool{},
+		impostorEnabled:      true,
 		devicePresence:       map[string]bool{},
 		presenceMisses:       map[string]int{},
 		presenceOfflineAfter: 3,
@@ -531,6 +535,11 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 					l.impostorAllow[strings.ToUpper(strings.TrimSpace(b))] = true
 				}
 			}
+		}
+		// #1400: interruptor global de la regla (ausente = activada).
+		var enRaw string
+		if err := d.QueryRow("SELECT value FROM kv WHERE key = ?", "alerts.impostor_enabled").Scan(&enRaw); err == nil {
+			l.impostorEnabled = enRaw != "0"
 		}
 	}
 	l.SetRouters(initial)

@@ -521,6 +521,41 @@ func (s *server) handleAlertsImpostorApproved(w http.ResponseWriter, _ *http.Req
 	writeJSON(w, http.StatusOK, ap.ImpostorApproved())
 }
 
+// handleAlertsImpostorRuleGet (GET): interruptor global de la regla de
+// impostores (#1400) → {"enabled": bool}. Default true.
+func (s *server) handleAlertsImpostorRuleGet(w http.ResponseWriter, _ *http.Request) {
+	ap, ok := s.adapter.(interface{ ImpostorRuleEnabled() bool })
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]bool{"enabled": true})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"enabled": ap.ImpostorRuleEnabled()})
+}
+
+// handleAlertsImpostorRuleSet (POST): body {"enabled": bool} → activa o
+// desactiva la regla entera (#1400). Al desactivar, las alertas de impostor
+// activas se resuelven.
+func (s *server) handleAlertsImpostorRuleSet(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "body JSON inválido")
+		return
+	}
+	if body.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "enabled is required")
+		return
+	}
+	ap, ok := s.adapter.(interface{ SetImpostorRuleEnabled(bool) })
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "not_supported", "adapter does not support impostor rule toggle")
+		return
+	}
+	ap.SetImpostorRuleEnabled(*body.Enabled)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": *body.Enabled})
+}
+
 // handleTopology: {routers, devices} sin paginar.
 func (s *server) handleTopology(w http.ResponseWriter, r *http.Request) {
 	routers := s.adapter.GetRouters(r.Context())

@@ -298,3 +298,47 @@ func TestImpostorAllowlistPersistsAcrossRestart(t *testing.T) {
 		t.Fatalf("la lista debe sobrevivir al reinicio; got %v", got)
 	}
 }
+
+func TestImpostorRuleDisabledNoAlerts(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	now := time.Now()
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:20", "temiscira", now.Add(-40*time.Minute))
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:20", "temiscira", now)
+	l.SetImpostorRuleEnabled(false)
+	if l.ImpostorRuleEnabled() {
+		t.Fatal("la regla debe quedar desactivada")
+	}
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 0 {
+		t.Fatalf("regla desactivada no debe alertar; alertas: %+v", got)
+	}
+	// Persistencia: un Live nuevo sobre la misma BD arranca desactivado.
+	l2 := NewLive(nil, l.db, []RouterConfig{{ID: "ap1", Name: "AP Uno"}}, nil)
+	if l2.ImpostorRuleEnabled() {
+		t.Fatal("el interruptor debe sobrevivir al reinicio")
+	}
+}
+
+func TestImpostorRuleDisableResolvesActive(t *testing.T) {
+	l, _ := newImpostorLive(t)
+	now := time.Now()
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:21", "temiscira", now.Add(-40*time.Minute))
+	insertScan(t, l, "ap1", "DE:AD:BE:EF:00:21", "temiscira", now)
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 1 {
+		t.Fatalf("debió alertar; alertas: %d", len(got))
+	}
+	l.SetImpostorRuleEnabled(false)
+	if got := impostorAlerts(l); len(got) != 0 {
+		t.Fatalf("desactivar debe resolver las activas; alertas: %+v", got)
+	}
+	if len(l.impostorActive) != 0 {
+		t.Fatalf("tracking residual tras desactivar: %+v", l.impostorActive)
+	}
+	// Re-activar: la evidencia sigue ahí, vuelve a alertar.
+	l.SetImpostorRuleEnabled(true)
+	l.EvalSsidImpostors()
+	if got := impostorAlerts(l); len(got) != 1 {
+		t.Fatalf("re-activar debe re-alertar con evidencia vigente; alertas: %d", len(got))
+	}
+}
