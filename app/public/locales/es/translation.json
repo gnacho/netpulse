@@ -320,6 +320,7 @@
       "d_one": "hace {{n}} día",
       "d_other": "hace {{n}} días"
     },
+    "close": "Cerrar",
     "days": {
       "mon": "Lun",
       "tue": "Mar",
@@ -2228,6 +2229,7 @@
     "owutConfirmTitle": "Actualizar con owut (ASU)",
     "owutConfirmBody": "El servidor ASU construirá una imagen OpenWrt estándar y el router la instalará. La sesión se cortará al reiniciar.",
     "owutConfirmPackages": "La imagen ASU conserva los paquetes que instalaste en el router",
+    "owutConfirmVendor": "Esta actualización procede del repositorio del fabricante (GL.iNet), no de OpenWrt.",
     "scheduleTitle": "Programar actualización",
     "scheduleBody": "Fecha/hora y recurrencia. Solo flashea si la versión instalada difiere del objetivo.",
     "rec_once": "Una vez",

@@ -320,6 +320,7 @@
       "d_one": "{{n}} day ago",
       "d_other": "{{n}} days ago"
     },
+    "close": "Close",
     "days": {
       "mon": "Mon",
       "tue": "Tue",
@@ -2228,6 +2229,7 @@
     "owutConfirmTitle": "Upgrade with owut (ASU)",
     "owutConfirmBody": "The ASU server will build a stock OpenWrt image and the router will install it. The session drops when it reboots.",
     "owutConfirmPackages": "The ASU image keeps the packages you installed on the router",
+    "owutConfirmVendor": "This upgrade comes from the vendor repository (GL.iNet), not from OpenWrt.",
     "scheduleTitle": "Schedule upgrade",
     "scheduleBody": "Date/time and recurrence. It only flashes when the installed version differs from the target.",
     "rec_once": "Once",
