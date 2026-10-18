@@ -387,9 +387,12 @@ html[dir="rtl"] .alert-item { transform: translateX(14px); }
 @media (max-width: 860px) { .features { grid-template-columns: 1fr; } }
 
 /* instalación */
-.install-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.25rem; margin-top: 2.75rem; }
+.install-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-top: 2.75rem; }
 .install-grid > * { min-width: 0; }
 @media (max-width: 860px) { .install-grid { grid-template-columns: 1fr; } }
+/* v2.3 - /#install: tarjeta Recomendado a 100% con dos columnas internas (#1403) */
+.install-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem 2rem; margin-top: 1.75rem; }
+@media (max-width: 860px) { .install-cols { grid-template-columns: 1fr; } }
 .codecard { padding: 1.6rem; }
 .codecard h3 { font-family: "Space Grotesk", sans-serif; font-size: 1.15rem; margin: 0 0 1.15rem; }
 .codebox {
@@ -406,7 +409,8 @@ html[dir="rtl"] .alert-item { transform: translateX(14px); }
   font-size: 0.8rem; font-weight: 700; padding: 0.4rem 0.85rem; cursor: pointer;
 }
 .copybtn:hover { color: rgb(var(--text-primary)); }
-.req-list { margin: 0; padding: 0; list-style: none; }
+.req-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 0 2.5rem; }
+@media (max-width: 860px) { .req-list { grid-template-columns: 1fr; } }
 .req-list li { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.55rem 0; color: rgb(var(--text-secondary)); font-size: 0.95rem; }
 .req-list svg { width: 1.1rem; height: 1.1rem; flex-shrink: 0; margin-top: 0.15rem; color: rgb(var(--ok)); }
 .install-note { margin-top: 1.1rem; font-size: 0.9rem; color: rgb(var(--text-muted)); }
@@ -694,6 +698,22 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
 .feature-status.partial { background: rgb(var(--warn) / 0.12); color: rgb(var(--warn)); }
 .feature-status.labs { background: rgb(var(--danger) / 0.12); color: rgb(var(--danger)); }
 .feature-status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* v2.3 - /features: tarjetas plegadas (details/summary, #1403) */
+.feature-fold { display: block; padding: 0 !important; }
+.feature-fold summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.9rem; padding: 1.1rem 1.4rem; }
+.feature-fold summary::-webkit-details-marker { display: none; }
+.feature-fold summary > svg { width: 1.6rem; height: 1.6rem; flex-shrink: 0; margin: 0; }
+.feature-fold .feature-head { flex: 1; min-width: 0; }
+.feature-fold .feature-head h3 { font-size: 1.08rem; margin: 0; }
+.feature-fold .feature-tag { margin: 0.15rem 0 0; font-size: 0.88rem; line-height: 1.4; color: rgb(var(--text-muted)); flex: none; }
+.feature-fold summary::after { content: "+"; font-size: 1.3rem; font-weight: 400; color: rgb(var(--text-muted)); transition: transform .2s; flex-shrink: 0; }
+.feature-fold[open] summary::after { transform: rotate(45deg); }
+.feature-fold summary:hover .feature-head h3 { color: rgb(var(--accent)); }
+.feature-fold .feature-status { margin-top: 0; flex-shrink: 0; }
+.feature-fold .feature-body { padding: 0 1.4rem 1.3rem; }
+.feature-fold .feature-body .feature-list { margin-top: 0.9rem; }
+.feature-fold .feature-body .chip-link { margin-top: 1rem; }
 
 .decisions { display: grid; gap: 0.85rem; margin-top: 2.5rem; }
 .decision { padding: 0 !important; }
