@@ -2642,6 +2642,9 @@
   "rack": {
     "title": "Rack",
     "subtitle": "Your physical hardware, placed and patched.",
+    "uplinkUnit": "Uplink unit",
+    "uplinkUnitNone": "None",
+    "uplinkUnitSet": "Uplink unit updated",
     "addRack": "Add rack",
     "deleteRack": "Delete rack",
     "deleteRackConfirm": "Delete this rack and everything mounted on it?",

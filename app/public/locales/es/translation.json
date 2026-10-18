@@ -2642,6 +2642,9 @@
   "rack": {
     "title": "Rack",
     "subtitle": "Tu hardware físico, colocado y cableado.",
+    "uplinkUnit": "Unidad de uplink",
+    "uplinkUnitNone": "Ninguna",
+    "uplinkUnitSet": "Unidad de uplink actualizada",
     "addRack": "Añadir rack",
     "deleteRack": "Eliminar rack",
     "deleteRackConfirm": "¿Eliminar el rack y todo lo que tiene montado?",
