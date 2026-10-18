@@ -5,7 +5,21 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [2.43.0] - 2026-10-14
+## [2.44.0] - 2026-10-18
+
+### Added
+
+- **Domar la regla de SSID impostor (#1400, #1401)**: una regla que da falsos positivos es peor que ninguna. Desde la fila de la alerta, el botón del escudo **aprueba el BSSID** como propio (se resuelve al momento, queda en una lista persistida y no vuelve a saltar; revocable desde la misma lista). Y en los ajustes de alertas hay un **interruptor global** de la regla entera: al apagarla se resuelven también las alertas de impostor activas. Pensado para redes con APs de terceros que saltaban en cadena.
+- **La vista de rack sale de Labs (#1407, #1408)**: toggle propio siempre visible en Ajustes → Servicios (sigue desactivado por defecto), el item del nav pierde el badge LABS y ya no exige Labs activo, y la copy suelta el "no usar en producción".
+
+### Fixed
+
+- **Cadenas que se pintaban como clave cruda (#1408)**: el selector de unidad de uplink del rack y su toast (`uplinkUnit`, `uplinkUnitNone`, `uplinkUnitSet`), el aria-label de cerrar en Itinerancia (`common.close`) y el aviso ámbar del diálogo de confirmación owut cuando la imagen viene del repositorio del fabricante (`owutConfirmVendor`). Auditoría completa de claves `t()` literales contra los locales (con plurales): 0 ausentes.
+
+### Changed
+
+- Landing pública (#1403, #1404, #1405, #1406): las tarjetas de /features se pliegan en filas compactas con frase de gancho (el detalle se despliega al clic), la sección de instalar va a ancho completo con columnas internas, las capturas EN muestran la app en inglés de verdad y el dataset del demo se anuncia como 65 dispositivos (era lo que dice el test, no 67). Sin cambios en el binario.
+
 
 ### Added
 
