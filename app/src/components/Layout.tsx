@@ -56,7 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/routers', labelKey: 'nav.routers', icon: RouterIcon },
   { to: '/devices', labelKey: 'nav.devices', icon: MonitorSmartphone },
   { to: '/topology', labelKey: 'nav.topology', icon: Waypoints },
-  { to: '/rack', labelKey: 'nav.rack', icon: Server, badge: 'labs' },
+  { to: '/rack', labelKey: 'nav.rack', icon: Server },
   { to: '/roaming', labelKey: 'nav.roaming', icon: Wifi },
   { to: '/wifi/channel-plan', labelKey: 'nav.channelPlan', icon: RadioTower },
   { to: '/firmware-upgrades', labelKey: 'nav.firmwareUpgrades', icon: Cpu, adminOnly: true },
@@ -206,9 +206,9 @@ function LiveDot() {
 // ---------------------------------------------------------------------------
 
 /** Items de nav visibles según el overview. /roaming solo si hay usteer.
- *  La visibilidad de funcionalidades Labs (rack) se controla desde la
- *  tarjeta Servicios en Ajustes (useServicesVisibility); actualizaciones de
- *  firmware tiene toggle propio (#1146). */
+ *  La visibilidad del rack se controla desde la tarjeta Servicios en
+ *  Ajustes (useServicesVisibility); ya no requiere Labs (#1407).
+ *  Actualizaciones de firmware tiene toggle propio (#1146). */
 function useVisibleNavItems(): NavItem[] {
   const { usteer, orchestration } = useNetPulse()
   const [services] = useServicesVisibility()
@@ -221,11 +221,10 @@ function useVisibleNavItems(): NavItem[] {
           (it.to !== '/roaming' || usteerAvailable) &&
           // Orquestación: opt-in del admin (#121) y solo con Labs activo.
           (it.to !== '/orchestration' || (labsOn && !!orchestration)) &&
-          // Funcionalidades Labs controladas por cada toggle (rediseño v3):
-          // solo se muestran en el nav si Labs está activo y su toggle encendido.
           // Firmware upgrades (#1146): visibilidad propia, ya no es Labs.
           (it.to !== '/firmware-upgrades' || services.actualizaciones) &&
-          (it.to !== '/rack' || (labsOn && services.rack)),
+          // Rack (#1407): graduado de Labs, solo requiere su toggle.
+          (it.to !== '/rack' || !!services.rack),
       ),
     [usteerAvailable, orchestration, labsOn, services.rack, services.actualizaciones],
   )

@@ -1641,9 +1641,7 @@
       "deleteDesc": "Se revocará el token de \"{{slug}}\". El scraper dejará de poder enviar datos hasta que regeneres el token.",
       "regenToken": "Regenerar token",
       "regenTokenCaption": "Rotación del token de agentes externos (LABS)",
-      "badge": "LABS",
-      "rack": "Vista de rack",
-      "rackCaption": "Dibuja tu rack y detecta los cables. Desactivado por defecto; no usar en producción."
+      "badge": "LABS"
     },
     "saved": "Preferencias guardadas",
     "services": {
@@ -1656,6 +1654,7 @@
       "labsCaption": "En desarrollo. Para uso experimental",
       "orchestrationHint": "Permite gestionar routers desde la interfaz (AdGuard, WiFi invitados, DDNS…)",
       "networkGroup": "Servicios de red",
+      "rackCaption": "Dibuja tu rack y detecta los cables. Desactivado por defecto.",
       "firmwareUpgradesCaption": "Muestra u oculta la página de actualizaciones de firmware",
       "integrationsGroup": "Integraciones",
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
@@ -2711,6 +2710,6 @@
     "betaTitle": "Vista previa: queda mucho trabajo por hacer",
     "betaText": "Esta vista está en desarrollo activo y todavía no es fiable al 100%. No la utilices todavía en producción; esperamos tus comentarios.",
     "disabledTitle": "La vista de rack está desactivada",
-    "disabledText": "Es una vista en desarrollo (labs). Actívala en Ajustes → Labs → Vista de rack si quieres probarla."
+    "disabledText": "Es una vista opcional. Actívala en Ajustes → Servicios → Vista de rack."
   }
 }

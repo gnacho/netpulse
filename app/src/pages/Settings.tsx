@@ -3952,6 +3952,8 @@ function ServicesCard({
     { key: 'openvpn', label: 'OpenVPN', caption: t('settings.services.openvpnCaption') },
     // #1146: visibilidad de la página de actualizaciones (ya no es Labs).
     { key: 'actualizaciones', label: t('nav.firmwareUpgrades'), caption: t('settings.services.firmwareUpgradesCaption') },
+    // #1407: el rack se gradúa de Labs, con toggle propio en Servicios.
+    { key: 'rack', label: t('nav.rack'), caption: t('settings.services.rackCaption') },
   ]
   // #996: el grupo Integraciones se queda SOLO con MQTT y Proxmox (estado e
   // inventario); ntfy y Telegram son canales de aviso y viven en la tarjeta
@@ -4061,9 +4063,10 @@ function ServicesCard({
         </div>
       </div>
 
-      {/* Labs: subtarjeta con acento rojo (#1146) con TODAS las filas labs
-          (servicios e integraciones): orquestación y rack. Sin Labs
-          activo no se muestra nada de este bloque. */}
+      {/* Labs: subtarjeta con acento rojo (#1146) con las filas labs
+          restantes (orquestación e integraciones marcadas labs). Sin Labs
+          activo no se muestra nada de este bloque. El rack ya no está aquí
+          (#1407): tiene su fila propia en Servicios de red. */}
       {services.labs && (
         <div className="mt-4 rounded-xl border border-danger/30 bg-danger/5 p-4">
           <div className="mb-1 flex items-center gap-1.5">
@@ -4079,17 +4082,6 @@ function ServicesCard({
               onCheckedChange={(v) => void toggleOrchestration(v)}
               disabled={orchBusy || disabled}
               danger
-            />
-            <SwitchRow
-              label={t('settings.labs.rack')}
-              caption={t('settings.labs.rackCaption')}
-              checked={services.rack}
-              disabled={disabled}
-              danger
-              onCheckedChange={(v) => {
-                setService('rack', v)
-                onSaved()
-              }}
             />
             {integrationRows.filter((row) => row.labs).map((row) => (
               <SwitchRow
