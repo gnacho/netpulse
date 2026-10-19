@@ -23,7 +23,7 @@ function getCssVar(name) {
 function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3) }
 function easeOutExpo(x) { return x === 1 ? 1 : 1 - Math.pow(2, -10 * x) }
 
-function animateNumber(el, target, { decimals = 0, suffix = '', duration = 1200, format } = {}) {
+function animateNumber(el: HTMLElement, target: number, { decimals = 0, suffix = '', duration = 1200, format }: { decimals?: number, suffix?: string, duration?: number, format?: (n: number) => string } = {}) {
   if (reduceMotion) { el.textContent = format ? format(target) : target.toFixed(decimals) + suffix; return }
   const start = performance.now()
   function frame(now) {
@@ -60,7 +60,7 @@ function mulberry32(seed) {
 }
 
 function initBackgroundCanvas() {
-  const canvas = document.getElementById('bgCanvas')
+  const canvas = document.getElementById('bgCanvas') as HTMLCanvasElement | null
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   const reduce = reduceMotion
@@ -235,7 +235,7 @@ function initBackgroundCanvas() {
 
 /* ---------- count-up hero ---------- */
 function heroCountUps() {
-  document.querySelectorAll('#heroStrip [data-count]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('#heroStrip [data-count]').forEach(el => {
     const target = parseFloat(el.dataset.count)
     const decimals = parseInt(el.dataset.decimals || '0', 10)
     const suffix = el.dataset.suffix || ''
@@ -272,15 +272,15 @@ function playRing() {
   animateNumber(document.getElementById('hDown'), DEMO_WAN.downMbps, { decimals: 1, duration: 1400 })
   animateNumber(document.getElementById('hUp'), DEMO_WAN.upMbps, { decimals: 1, duration: 1400 })
   animateNumber(document.getElementById('hLat'), DEMO_WAN.latencyMs, { duration: 1400 })
-  if (reduceMotion) { arc.style.strokeDashoffset = C * (1 - score / 100); num.textContent = score; return }
+  if (reduceMotion) { arc.style.strokeDashoffset = String(C * (1 - score / 100)); num.textContent = String(score); return }
   const dur = 1300
   const start = performance.now()
   function frame(now) {
     const p = Math.min(1, (now - start) / dur)
     const e = easeOutCubic(p)
     const v = score * e
-    num.textContent = Math.round(v)
-    arc.style.strokeDashoffset = C * (1 - v / 100)
+    num.textContent = String(Math.round(v))
+    arc.style.strokeDashoffset = String(C * (1 - v / 100))
     if (p < 1) requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)
@@ -303,8 +303,8 @@ function renderTrafficChart(animate) {
   const Y = (v) => padT + (H - padT - padB) * (1 - v / max)
   const path = (key) => data.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p[key]).toFixed(1)}`).join(' ')
   const down = path('down'), up = path('up')
-  const lineDown = document.getElementById('lineDown')
-  const lineUp = document.getElementById('lineUp')
+  const lineDown = document.getElementById('lineDown') as unknown as SVGPathElement
+  const lineUp = document.getElementById('lineUp') as unknown as SVGPathElement
   const areaDown = document.getElementById('areaDown')
   const areaUp = document.getElementById('areaUp')
   const x0 = X(0).toFixed(1), xN = X(data.length - 1).toFixed(1)
@@ -318,7 +318,7 @@ function renderTrafficChart(animate) {
   for (let g = 1; g <= 3; g++) {
     const gy = padT + (H - padT - padB) * (g / 4)
     const el = document.createElementNS(NS_T, 'line')
-    el.setAttribute('x1', padL); el.setAttribute('x2', W - padR); el.setAttribute('y1', gy); el.setAttribute('y2', gy)
+    el.setAttribute('x1', String(padL)); el.setAttribute('x2', String(W - padR)); el.setAttribute('y1', String(gy)); el.setAttribute('y2', String(gy))
     el.setAttribute('stroke', 'rgb(var(--border))'); el.setAttribute('stroke-dasharray', '3 6'); el.setAttribute('opacity', '0.5')
     grid.appendChild(el)
   }
@@ -329,21 +329,21 @@ function renderTrafficChart(animate) {
   for (let k = 0; k < n; k++) {
     const idx = Math.round((k * (data.length - 1)) / (n - 1))
     const tx = document.createElementNS(NS_T, 'text')
-    tx.setAttribute('x', X(idx)); tx.setAttribute('y', H - 8); tx.setAttribute('text-anchor', 'middle')
+    tx.setAttribute('x', String(X(idx))); tx.setAttribute('y', String(H - 8)); tx.setAttribute('text-anchor', 'middle')
     tx.textContent = data[idx].t
     ticks.appendChild(tx)
   }
   if (animate) {
     const Ld = lineDown.getTotalLength()
     const Lu = lineUp.getTotalLength()
-    lineDown.style.strokeDasharray = Ld; lineDown.style.strokeDashoffset = Ld
-    lineUp.style.strokeDasharray = Lu; lineUp.style.strokeDashoffset = Lu
+    lineDown.style.strokeDasharray = String(Ld); lineDown.style.strokeDashoffset = String(Ld)
+    lineUp.style.strokeDasharray = String(Lu); lineUp.style.strokeDashoffset = String(Lu)
     const start = performance.now(), dur = 1400
     function frame(now) {
       const p = Math.min(1, (now - start) / dur)
       const e = easeOutCubic(p)
-      lineDown.style.strokeDashoffset = Ld * (1 - e)
-      lineUp.style.strokeDashoffset = Lu * (1 - e)
+      lineDown.style.strokeDashoffset = String(Ld * (1 - e))
+      lineUp.style.strokeDashoffset = String(Lu * (1 - e))
       areaDown.setAttribute('opacity', String(e * 0.9))
       areaUp.setAttribute('opacity', String(e * 0.8))
       if (p < 1) requestAnimationFrame(frame)
@@ -390,7 +390,7 @@ function playTraffic() {
 function setTrafficRange(r) {
   if (trafficRange === r) return
   trafficRange = r
-  document.querySelectorAll('#trafficRanges button').forEach((b) => b.classList.toggle('on', b.dataset.range === r))
+  document.querySelectorAll<HTMLElement>('#trafficRanges button').forEach((b) => b.classList.toggle('on', b.dataset.range === r))
   renderTrafficChart(false)
 }
 
@@ -593,7 +593,7 @@ function buildTopologyModel({ routers, devices, wan, wireguard, distributionNode
   const gatewayNode = gateway ? { kind: 'router', id: gateway.id, router: gateway, ...GATEWAY_COORD } : null
   const apNodes = aps.map((router, i) => ({ kind: 'router', id: router.id, router, ...AP_COORDS[i] }))
   const routerNodes = gatewayNode ? [gatewayNode, ...apNodes] : apNodes
-  const routerById = new Map(routerNodes.map((n) => [n.id, n]))
+  const routerById = new Map<string, any>(routerNodes.map((n) => [n.id, n]))
   const internetNode = { id: 'internet', ...INTERNET_COORD }
 
   const managedMacs = new Set(distributionNodes.filter((n) => n.kind === 'managed' && n.mac).map((n) => n.mac.toUpperCase()))
@@ -610,7 +610,7 @@ function buildTopologyModel({ routers, devices, wan, wireguard, distributionNode
   const deviceHubs = new Set()
   for (const d of online) { if (d.attachTo && deviceById.has(d.attachTo)) deviceHubs.add(d.attachTo) }
 
-  const distNodes = []
+  const distNodes: any[] = []
   const anchorPos = new Map()
   const fanArcByRouter = new Map()
   const hypervisorHosts = new Set(distributionNodes.filter((n) => n.kind === 'hypervisor' && n.hostDeviceId).map((n) => n.hostDeviceId))
@@ -653,7 +653,7 @@ function buildTopologyModel({ routers, devices, wan, wireguard, distributionNode
     }
   }
 
-  const chips = []
+  const chips: any[] = []
   const mkChip = (d, hubId, isCt = false) => ({
     kind: 'chip', id: d.id, device: d, x: 0, y: 0,
     size: isWired(d) ? 26 : 24, wired: isWired(d), band: d.band,
@@ -1013,7 +1013,7 @@ function drawTopology() {
 
   // etiquetas
   const labelsG = mk('g', { class: 'topo-labels', 'pointer-events': 'none', 'aria-hidden': 'true' })
-  function label(x, y, anchor, title, sub, subColor) {
+  function label(x, y, anchor, title, sub, subColor?) {
     const g = mk('g', {}, labelsG)
     mk('text', { x, y, 'text-anchor': anchor, 'font-size': 13, 'font-weight': 600, fill: 'rgb(var(--text-primary))', stroke: 'rgb(var(--canvas))', 'stroke-width': 4, style: 'paint-order: stroke' }, g).textContent = title
     mk('text', { x, y: y + 15, 'text-anchor': anchor, 'font-size': 10.5, fill: subColor || 'rgb(var(--text-secondary))', stroke: 'rgb(var(--canvas))', 'stroke-width': 3, style: 'paint-order: stroke' }, g).textContent = sub
@@ -1108,10 +1108,10 @@ function buildRouters() {
 
 function fillRouterBars(instant) {
   const grid = document.getElementById('routerGrid')
-  grid.querySelectorAll('.router-health-ring').forEach(ring => {
+  grid.querySelectorAll<SVGPathElement>('.router-health-ring').forEach(ring => {
     const target = ring.dataset.target
-    if (instant || reduceMotion) ring.style.strokeDashoffset = target
-    else setTimeout(() => ring.style.strokeDashoffset = target, 80)
+    if (instant || reduceMotion) ring.style.strokeDashoffset = target as string
+    else setTimeout(() => ring.style.strokeDashoffset = target as string, 80)
   })
 }
 
@@ -1148,13 +1148,13 @@ function playAdGuard() {
   agPlayed = true
   // animación del arco del donut
   if (reduceMotion) {
-    arc.style.strokeDashoffset = AG_DONUT_C * (1 - ag.blockedPct / 100)
+    arc.style.strokeDashoffset = String(AG_DONUT_C * (1 - ag.blockedPct / 100))
   } else {
     const start = performance.now(), dur = 1100
     function frame(now) {
       const p = Math.min(1, (now - start) / dur)
       const e = easeOutCubic(p)
-      arc.style.strokeDashoffset = AG_DONUT_C * (1 - (ag.blockedPct / 100) * e)
+      arc.style.strokeDashoffset = String(AG_DONUT_C * (1 - (ag.blockedPct / 100) * e))
       if (p < 1) requestAnimationFrame(frame)
     }
     requestAnimationFrame(frame)
@@ -1171,7 +1171,7 @@ function playAdGuard() {
       </div>
     `).join('')
   }
-  bars.querySelectorAll('.bar i').forEach((bar, i) => {
+  bars.querySelectorAll<HTMLElement>('.bar i').forEach((bar, i) => {
     const w = bar.dataset.w
     if (reduceMotion) { bar.style.width = w + '%'; return }
     setTimeout(() => { bar.style.width = w + '%' }, 200 + i * 120)
@@ -1183,7 +1183,7 @@ let agentPlayed = false
 function playAgent() {
   if (agentPlayed) return
   agentPlayed = true
-  const lines = document.querySelectorAll('#stage6 .term-line')
+  const lines = document.querySelectorAll<HTMLElement>('#stage6 .term-line')
   if (!lines.length) return
   if (reduceMotion) { lines.forEach(l => l.style.opacity = '1'); return }
   lines.forEach((l, i) => {
@@ -1233,7 +1233,7 @@ function setStage(i) {
   if (i === currentStage) return
   currentStage = i
   document.querySelectorAll('.stage').forEach((s, idx) => s.classList.toggle('active', idx === i))
-  document.querySelectorAll('.tstep').forEach(s => {
+  document.querySelectorAll<HTMLElement>('.tstep').forEach(s => {
     s.style.opacity = parseInt(s.dataset.stage, 10) === i ? '1' : ''
   })
   STAGE_PLAYERS[i]()
@@ -1244,7 +1244,7 @@ function initTheater() {
   if (!steps.length) return
   if (!('IntersectionObserver' in window)) { setStage(0); return }
   const io = new IntersectionObserver(entries => {
-    entries.forEach(en => { if (en.isIntersecting) setStage(parseInt(en.target.dataset.stage, 10)) })
+    entries.forEach(en => { if (en.isIntersecting) setStage(parseInt((en.target as HTMLElement).dataset.stage, 10)) })
   }, { rootMargin: '-42% 0px -42% 0px', threshold: 0 })
   steps.forEach(s => io.observe(s))
   setStage(0)
@@ -1273,13 +1273,13 @@ function applyTheme() {
   if (themeMode === 'light') light = true
   else if (themeMode === 'system') light = window.matchMedia('(prefers-color-scheme: light)').matches
   root.classList.toggle('light', light)
-  const meta = document.querySelector('meta[name="theme-color"]')
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   if (meta) meta.content = light ? '#F3F5F9' : '#070B12'
   if (typeof renderShot === 'function') renderShot()
   if (typeof renderHashots === 'function') renderHashots()
 }
 function updateAppearancePanel() {
-  document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === themeMode))
+  document.querySelectorAll<HTMLElement>('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === themeMode))
 }
 function setMode(m) {
   themeMode = m; writeStore(MODE_KEY, m); applyTheme(); updateAppearancePanel()
@@ -1291,10 +1291,10 @@ function initAppearance() {
   applyTheme(); updateAppearancePanel()
   const fab = document.getElementById('appFab')
   const panel = document.getElementById('appPanel')
-  fab.addEventListener('click', () => { panel.classList.toggle('open'); fab.setAttribute('aria-expanded', panel.classList.contains('open')) })
-  document.addEventListener('click', e => { if (!panel.contains(e.target) && !fab.contains(e.target)) panel.classList.remove('open') })
+  fab.addEventListener('click', () => { panel.classList.toggle('open'); fab.setAttribute('aria-expanded', String(panel.classList.contains('open'))) })
+  document.addEventListener('click', e => { if (!panel.contains(e.target as Node) && !fab.contains(e.target as Node)) panel.classList.remove('open') })
   document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.classList.remove('open') })
-  document.querySelectorAll('#themeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
+  document.querySelectorAll<HTMLElement>('#themeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)))
   window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themeMode === 'system') applyTheme() })
 }
 
@@ -1329,8 +1329,8 @@ function initTrafficRanges() {
   const wrap = document.getElementById('trafficRanges')
   if (!wrap) return
   wrap.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-range]')
-    if (btn) setTrafficRange(btn.dataset.range)
+    const btn = (e.target as HTMLElement).closest('button[data-range]')
+    if (btn) setTrafficRange((btn as HTMLElement).dataset.range)
   })
 }
 
@@ -1359,22 +1359,22 @@ function renderHashots() {
   const raw = (document.documentElement.lang || 'en').slice(0, 2)
   const lang = (raw === 'es' || raw === 'en') ? raw : 'en'
   const theme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
-  document.querySelectorAll('img[data-hashot]').forEach(img => {
+  document.querySelectorAll<HTMLImageElement>('img[data-hashot]').forEach(img => {
     img.src = `/assets/ha-${img.dataset.hashot}-${lang}-${theme}.webp`
   })
 }
 
-function renderShot(i) {
+function renderShot(i?: number) {
   if (typeof i === 'number') shotIndex = (i + SHOT_SLIDES.length) % SHOT_SLIDES.length
   const view = SHOT_SLIDES[shotIndex]
-  const img = document.getElementById('shotImg')
+  const img = document.getElementById('shotImg') as HTMLImageElement
   const cap = document.getElementById('shotCaption')
   if (!img) return
   const lang = (document.documentElement.lang || 'en').slice(0, 2)
   img.src = shotUrl(view)
   img.alt = (SHOT_ALT[view] && SHOT_ALT[view][lang]) || view
   // captura del hero: siempre la vista "overview", siguiendo idioma y tema
-  const hero = document.getElementById('heroShot')
+  const hero = document.getElementById('heroShot') as HTMLImageElement
   if (hero) {
     hero.src = shotUrl('overview')
     hero.alt = (SHOT_ALT.overview && SHOT_ALT.overview[lang]) || 'NetPulse overview'
@@ -1386,14 +1386,14 @@ function renderShot(i) {
 }
 
 function initSlider() {
-  const img = document.getElementById('shotImg')
+  const img = document.getElementById('shotImg') as HTMLImageElement
   if (!img) return
-  document.querySelectorAll('#shotThumbs img[data-view]').forEach((el) => {
+  document.querySelectorAll<HTMLImageElement>('#shotThumbs img[data-view]').forEach((el) => {
     el.src = shotUrl(el.dataset.view)
   })
   document.getElementById('shotPrev').addEventListener('click', () => renderShot(shotIndex - 1))
   document.getElementById('shotNext').addEventListener('click', () => renderShot(shotIndex + 1))
-  document.querySelectorAll('#shotThumbs .thumb').forEach((th) => {
+  document.querySelectorAll<HTMLElement>('#shotThumbs .thumb').forEach((th) => {
     th.addEventListener('click', () => renderShot(parseInt(th.dataset.slide, 10)))
   })
   renderShot(0)
@@ -1402,7 +1402,7 @@ function initSlider() {
 /* ---------- lightbox de capturas ---------- */
 function initLightbox() {
   const lightbox = document.getElementById('lightbox')
-  const lightboxImg = document.getElementById('lightboxImg')
+  const lightboxImg = document.getElementById('lightboxImg') as HTMLImageElement
   const lightboxCaption = document.getElementById('lightboxCaption')
   const lightboxClose = document.getElementById('lightboxClose')
   const lightboxPrev = document.getElementById('lightboxPrev')
@@ -1467,8 +1467,8 @@ async function initGhMeta() {
       const d = await r.json()
       if (typeof d.stargazers_count === 'number') {
         show('ghStars', `★ ${d.stargazers_count}`)
-        const nav = document.getElementById('navStar')
-        const c = nav && nav.querySelector('[data-n]')
+        const nav = document.getElementById('navStar') as HTMLElement | null
+        const c = nav && nav.querySelector<HTMLElement>('[data-n]')
         if (c) { c.textContent = d.stargazers_count; c.hidden = false }
       }
     }

@@ -4151,7 +4151,7 @@ Object.entries(I18N_FILL).forEach(([lang, dict]) => {
 })
 
 
-function t(path, vars) {
+function t(path: string, vars?: Record<string, string>) {
   const seg = path.split('.')
   let o = I18N[CURRENT]
   for (const s of seg) { o = o ? o[s] : undefined }
@@ -4177,22 +4177,22 @@ function applyLang(lang) {
   document.documentElement.lang = lang
   document.documentElement.dir = meta.dir
   try { localStorage.setItem(LANG_KEY, lang) } catch { /* modo privado */ }
-  document.querySelectorAll('[data-i18n]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
     el.textContent = t(el.dataset.i18n)
   })
-  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-i18n-aria]').forEach(el => {
     el.setAttribute('aria-label', t(el.dataset.i18nAria))
   })
-  document.querySelectorAll('[data-i18n-attr]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-i18n-attr]').forEach(el => {
     const attr = el.dataset.i18nAttr
     const key = el.dataset.i18n
     if (attr && key) el.setAttribute(attr, t(key))
   })
-  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-i18n-html]').forEach(el => {
     el.innerHTML = t(el.dataset.i18nHtml)
   })
   // selector de idioma
-  const sel = document.getElementById('langSelect')
+  const sel = document.getElementById('langSelect') as HTMLSelectElement | null
   if (sel) sel.value = lang
   // re-render dinámicos
   if (typeof renderTicker === 'function') renderTicker()
@@ -4206,7 +4206,7 @@ function applyLang(lang) {
 }
 
 function buildLangSelect() {
-  const sel = document.getElementById('langSelect')
+  const sel = document.getElementById('langSelect') as HTMLSelectElement | null
   if (!sel) return
   Object.entries(LANGS).forEach(([code, m]) => {
     const o = document.createElement('option')
@@ -4222,3 +4222,29 @@ document.addEventListener('DOMContentLoaded', () => {
   buildLangSelect()
   applyLang(CURRENT)
 })
+
+/* ---------- verificación estática de catálogos (type-only, no genera JS) ----------
+   El dict EN (I18N.en + I18N_EXTRA.en) define la forma de referencia.
+   - es debe cubrir TODAS las claves de en (salvo topo.names: los nombres canónicos
+     ya son castellanos y tName() los devuelve tal cual si no hay entrada).
+   - Los idiomas secundarios admiten claves de menos (t() hace fallback a EN); las
+     que traen deben respetar la forma del catálogo.
+   Añadir una clave nueva solo a EN rompe el build hasta añadir su traducción a ES. */
+type DeepDict<T> = { [K in keyof T]: T[K] extends object ? DeepDict<T[K]> : string }
+type DeepPartialDict<T> = { [K in keyof T]?: T[K] extends object ? DeepPartialDict<T[K]> : string }
+type EnFullCatalog = DeepDict<typeof I18N.en & typeof I18N_EXTRA.en>
+type EsFullCatalog = Omit<EnFullCatalog, 'topo'> & { topo: Omit<EnFullCatalog['topo'], 'names'> & { names?: Record<string, string> } }
+type SecCatalog = DeepPartialDict<EnFullCatalog>
+type SecLang = 'zh' | 'ar' | 'hi' | 'pt' | 'fr' | 'ja' | 'ru' | 'de'
+
+declare const enResolved: typeof I18N.en & typeof I18N_EXTRA.en
+type Assert<T extends true> = T
+type _EnCatalogOk = typeof enResolved extends EnFullCatalog ? true : false
+type _EnCatalogCheck = Assert<_EnCatalogOk>
+
+declare const esResolved: typeof I18N.es & typeof I18N_EXTRA.es
+type _EsCatalogOk = typeof esResolved extends EsFullCatalog ? true : false
+type _EsCatalogCheck = Assert<_EsCatalogOk>
+
+type _SecCatalogOk = typeof I18N extends Record<SecLang, SecCatalog> ? true : false
+type _SecCatalogCheck = Assert<_SecCatalogOk>
