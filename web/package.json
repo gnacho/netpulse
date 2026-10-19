@@ -1,12 +1,14 @@
 {
   "name": "netpulse-landing",
   "private": true,
-  "description": "Static landing for NetPulse. build:langs prerenders one crawlable route per language (issue #842).",
+  "description": "Static landing for NetPulse. tsc builds src/*.ts to app.js/i18n.js; build:langs prerenders one crawlable route per language (issue #842).",
   "type": "module",
   "scripts": {
-    "build:langs": "node build-langs.mjs"
+    "build:langs": "node build-langs.mjs",
+    "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "playwright": "^1.56.0"
+    "playwright": "^1.56.0",
+    "typescript": "^5.9.3"
   }
 }
