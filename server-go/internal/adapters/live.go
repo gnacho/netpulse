@@ -1449,7 +1449,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
 	} else if p.cfg.Type == "routeros" {
 		r.Role, r.RoleBadge = "Router", "Router"
-	} else if p.cfg.AgentOnly || p.cfg.Type == "managed-switch" || (p.cfg.Type == "external" && p.cfg.SnmpEnabled) {
+	} else if cfgIsSwitch(p.cfg) {
 		// external sondeado por SNMP = switch en la práctica (#661); evita el
 		// fallback AP para los switches SNMP de crowedavid (#1137).
 		r.Role, r.RoleBadge = "Switch", "SW"
@@ -3540,6 +3540,11 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	unread := l.engine.UnreadCount()
 	usteerAvailable := l.usteerAvailableCached()
 	dawnDetected := dawnDeprecatedFromPolled(polled)
+	// #1417: los clientes cableados que la FDB de un switch de flota aprendió
+	// en un puerto no-raíz cuelgan físicamente de él (switches SNMP externos
+	// de #1137 incluidos). Antes de la semántica: los blobs del gateway que
+	// queden vacíos los absorbe después #1374 sin dejar huérfanos.
+	claimSwitchFdbClients(polled, devices, distNodes, gwID, fdbEvidence, lldpEvidence, overrideUplinks)
 	topo := BuildTopoSemantics(routerList, devices, wgStats, distNodes, wan.Gateway, fdbEvidence, lldpEvidence, overrideUplinks) // SPEC-65 D65-3 + #1042/#1051/#1279/#1321
 	// #1374: retirar de la lista que ve el frontend los distnodes absorbidos
 	// como sombra de un switch gestionado. Slice NUEVO: filtrar in situ

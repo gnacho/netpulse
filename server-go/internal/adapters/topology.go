@@ -244,6 +244,167 @@ func inferLldpLinks(polled map[string]*routerPolled, devices []Device, byMAC map
 	return dists, handled
 }
 
+// cfgIsSwitch: el disyuntivo de rol "Switch" de buildRouter (#661/#1137):
+// agent-only, managed-switch, o external sondeado por SNMP. La pasada de
+// claim (#1417) usa el mismo criterio para decidir qué unidades de flota
+// pueden reclamar clientes con su FDB.
+func cfgIsSwitch(c RouterConfig) bool {
+	return c.AgentOnly || c.Type == "managed-switch" || (c.Type == "external" && c.SnmpEnabled)
+}
+
+// claimSwitchFdbClients (#1417): los clientes cableados atribuidos al gateway
+// que la FDB de un switch de flota aprendió en un puerto que NO es su root
+// port están físicamente detrás de ese switch, aunque la única atribución
+// DHCP disponible sea la del gateway (los switches SNMP no dan DHCP ni LLDP
+// útil: para la atribución son clientes del gateway; ver leafSwitchClients).
+//
+// Reglas:
+//   - Root port del switch = el puerto donde su FDB aprende la bridge-MAC del
+//     gateway (#1373). Sin esa MAC en su FDB el switch no reclama nada: sin
+//     root port no se distingue arriba de abajo.
+//   - Si varios switches reclaman la misma MAC (el trunk de sw1 ve también a
+//     los clientes de sw2), gana el más profundo según la evidencia de uplink
+//     (override > lldp > fdb, la precedencia de BuildTopoSemantics); empate
+//     de profundidad → id menor (determinista).
+//   - Un puerto del switch con hoja inferida #1325 ya creada recibe los
+//     attach de sus clientes (la hoja se llena; no se rodea).
+//   - Solo se re-anclan devices atribuidos al gateway con banda cable/"—"
+//     cuyo attach esté vacío o apunte a un distnode del gateway (el blob
+//     sombra #1374): un attach a un device-hub (hipervisor) o a un distnode
+//     de otro router no se toca. Los blobs del gateway que queden vacíos los
+//     absorbe después la pasada #1374 sin dejar huérfanos.
+//
+// Mutates devices; dists solo se lee.
+func claimSwitchFdbClients(polled map[string]*routerPolled, devices []Device, dists []DistributionNode, gatewayID string, fdbEv, lldpEv, overrideEv map[string]topoParent) {
+	if gatewayID == "" {
+		return
+	}
+	gw := polled[gatewayID]
+	if gw == nil || gw.brMac == "" {
+		return
+	}
+	gwMac := strings.ToUpper(gw.brMac)
+	routerMACs := map[string]bool{}
+	ids := make([]string, 0, len(polled))
+	for id, p := range polled {
+		ids = append(ids, id)
+		if p.brMac != "" {
+			routerMACs[strings.ToUpper(p.brMac)] = true
+		}
+	}
+	sort.Strings(ids)
+
+	// Uplinks por precedencia (override > lldp > fdb) y profundidad desde el
+	// gateway para el desempate entre switches.
+	up := map[string]topoParent{}
+	for rid, ev := range fdbEv {
+		if rid != gatewayID {
+			up[rid] = ev
+		}
+	}
+	for rid, ev := range lldpEv {
+		if rid != gatewayID {
+			up[rid] = ev // el LLDP pisa la FDB (#1279)
+		}
+	}
+	for rid, ev := range overrideEv {
+		if rid != gatewayID && ev.parent != rid {
+			up[rid] = ev // el override manual lo pisa todo (#1321)
+		}
+	}
+	depth := map[string]int{gatewayID: 0}
+	for iter := 0; iter <= len(ids); iter++ {
+		changed := false
+		for _, rid := range ids {
+			if rid == gatewayID {
+				continue
+			}
+			ev, ok := up[rid]
+			if !ok {
+				continue
+			}
+			if d, seen := depth[ev.parent]; seen && depth[rid] < d+1 {
+				depth[rid] = d + 1
+				changed = true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+
+	// Reclamos por MAC: el switch más profundo gana.
+	type swClaim struct {
+		switchID string // switch que aprende la MAC (para portLabel)
+		target   string // id del switch o de su hoja #1325
+		port     string
+		depth    int
+	}
+	best := map[string]swClaim{}
+	for _, sid := range ids {
+		if sid == gatewayID {
+			continue
+		}
+		p := polled[sid]
+		if !cfgIsSwitch(p.cfg) || len(p.fdb) == 0 {
+			continue
+		}
+		root := p.fdb[gwMac]
+		if root == "" {
+			continue // sin root port conocido: no se distingue arriba de abajo
+		}
+		for mac, port := range p.fdb {
+			if port == root || mac == "" {
+				continue
+			}
+			if routerMACs[mac] {
+				continue
+			}
+			// Un puerto con hoja #1325 ya creada reclama para la hoja.
+			target := sid
+			for _, dn := range dists {
+				if dn.RouterID == sid && dn.Port == port && (dn.Kind == "inferred" || dn.Kind == "managed") {
+					target = dn.ID
+					break
+				}
+			}
+			c := swClaim{switchID: sid, target: target, port: port, depth: depth[sid]}
+			if prev, ok := best[mac]; ok {
+				if c.depth < prev.depth || (c.depth == prev.depth && target >= prev.target) {
+					continue
+				}
+			}
+			best[mac] = c
+		}
+	}
+	if len(best) == 0 {
+		return
+	}
+
+	// Aplicar: solo gateway-atribuidos cableados con attach vacío o a blob
+	// del gateway; device-hubs y distnodes ajenos intactos.
+	distRouter := map[string]string{}
+	for _, dn := range dists {
+		distRouter[dn.ID] = dn.RouterID
+	}
+	for i := range devices {
+		d := &devices[i]
+		if d.RouterID != gatewayID || (d.Band != "cable" && d.Band != "—") {
+			continue
+		}
+		if d.AttachTo != "" && distRouter[d.AttachTo] != gatewayID {
+			continue // device-hub, distnode de otro router o id desconocido
+		}
+		c, ok := best[strings.ToUpper(d.MAC)]
+		if !ok {
+			continue
+		}
+		d.AttachTo = c.target
+		d.Port = c.port
+		d.PortLabel = portLabel(polled[c.switchID], c.port)
+	}
+}
+
 // containsMAC: ¿está mac (case-sensitive, como el FDB) en la lista?
 func containsMAC(macs []string, mac string) bool {
 	for _, m := range macs {
