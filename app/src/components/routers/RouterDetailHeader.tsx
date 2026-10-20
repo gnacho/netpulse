@@ -10,6 +10,7 @@ import { StatusPill } from '@/components/StatusPill'
 import { AgentBadge } from '@/components/routers/AgentBadge'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
 import { AgentUpgradeButton } from '@/components/routers/AgentUpgradeButton'
+import { AgentBackupButton } from '@/components/routers/AgentBackupButton'
 import { useAgentFor } from '@/hooks/useAgentFor'
 import { cn } from '@/lib/utils'
 
@@ -117,6 +118,15 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   transition={{ duration: 0.2, delay: 0.15 + (pills.length + 2) * 0.06 }}
                 >
                   <AgentUpgradeButton agent={agent} />
+                </motion.span>
+              )}
+              {agent && (
+                <motion.span
+                  initial={reduce ? false : { opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2, delay: 0.15 + (pills.length + 3) * 0.06 }}
+                >
+                  <AgentBackupButton agent={agent} routerId={router.id} />
                 </motion.span>
               )}
             </div>

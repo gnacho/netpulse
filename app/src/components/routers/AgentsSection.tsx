@@ -19,6 +19,7 @@ import type { AgentInfo, Router } from '@/data/types'
 import { relTimeFromTs } from '@/i18n'
 import { AgentRearmButton } from '@/components/routers/AgentRearmButton'
 import { AgentUpgradeButton, activeUpgrade, upgradeStepText } from '@/components/routers/AgentUpgradeButton'
+import { AgentBackupButton } from '@/components/routers/AgentBackupButton'
 import { agentMatchesRouter, findRouterFor } from '@/lib/agentMatch'
 import { cn, copyToClipboard } from '@/lib/utils'
 
@@ -286,6 +287,10 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
               NetGrip (#363): el evento SSE dispara el self-update del propio
               panel; el reinstall no aplica (no hay proceso standalone). */}
           <AgentUpgradeButton agent={agent} className="h-8" />
+          {/* #1462: snapshot standalone de la config (SSE config_backup);
+              el resultado se confirma al aparecer la entrada en la lista de
+              backups de la unidad. */}
+          <AgentBackupButton agent={agent} routerId={agent?.routerId} className="h-8" />
           {isNetgrip ? (
             // #363: NetGrip fresco se auto-actualiza desde su panel; el hint
             // lo explica. (El rearm por SSH de un NetGrip caído de #569 quedó

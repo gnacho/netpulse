@@ -218,6 +218,13 @@ export interface NetPulseApi extends NetPulseData {
    */
   upgradeAgent: (slug: string) => Promise<'sent' | 'queued' | 'not_connected' | null>
   /**
+   * #1462: POST /api/agents/{slug}/backup — pide al agente un snapshot
+   * standalone de su config (evento SSE "config_backup"). 202 enviado, 409 no
+   * conectado (a diferencia del upgrade NO se encola: un backup no es
+   * imperativo). null si la petición falló (demo siempre null).
+   */
+  backupAgent: (slug: string) => Promise<'sent' | 'not_connected' | null>
+  /**
    * #251: POST /api/agents/upgrade-all — envía el upgrade a todos los agentes
    * con versión desactualizada. Devuelve el resumen por slug; null si falló.
    */
@@ -1203,8 +1210,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const upgradeAllAgents = useCallback(async (): Promise<{ sent: number; total: number; message: string; agents: { slug: string; status: string }[] } | null> => {
+  const backupAgent = useCallback(async (slug: string): Promise<'sent' | 'not_connected' | null> => {
     if (modeRef.current !== 'live') return null
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/backup`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (res.status === 401) redirectLogin()
+      if (res.status === 409) return 'not_connected'
+      if (!res.ok) return null
+      // 202: el comando salió por SSE. El resultado real se ve al aparecer
+      // la entrada nueva en GET /api/firmware-backups/{routerId} (el agente
+      // sube el tar.gz con el mismo contrato que el backup del flujo
+      // firmware, #1414); la UI lo sondea (AgentBackupButton).
+      return 'sent'
+    } catch {
+      return null
+    }
+  }, [])
+
+  const upgradeAllAgents = useCallback(async (): Promise<{ sent: number; total: number; message: string; agents: { slug: string; status: string }[] } | null> => {    if (modeRef.current !== 'live') return null
     try {
       const res = await fetch('/api/agents/upgrade-all', {
         method: 'POST',
@@ -1415,13 +1441,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       dismissAlert,
       rearmAgent,
       upgradeAgent,
+      backupAgent,
       upgradeAllAgents,
       reinstallAgent,
       uninstallAgent,
       removeAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, approveImpostorBssid, setPeerUrgent, dismissAlert, rearmAgent, upgradeAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, approveImpostorBssid, setPeerUrgent, dismissAlert, rearmAgent, upgradeAgent, backupAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>
