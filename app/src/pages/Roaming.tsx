@@ -800,7 +800,7 @@ function Dot11rPanel({
   if (error) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.error')}
+        {t('roaming.dot11r.error')}
       </div>
     )
   }

@@ -4522,6 +4522,11 @@ type dot11rIfaceRef struct {
 func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
+	reg := l.agents
+	macs := make(map[string]string, len(l.routerMacs))
+	for k, v := range l.routerMacs {
+		macs[k] = v
+	}
 	l.mu.Unlock()
 
 	out := Dot11rOverview{Routers: []Dot11rRouter{}, SSIDs: []Dot11rSSID{}}
@@ -4533,18 +4538,36 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 			name = cfg.ID
 		}
 		r := Dot11rRouter{RouterID: cfg.ID, Name: name, Ifaces: []Dot11rIface{}}
-		// Agent-only (switches sin SSH ni wifi) y los sondeados por SNMP (sin
-		// SSH en absoluto, #1026) se listan como Available=false.
-		if cfg.AgentOnly || cfg.SnmpEnabled {
+		// #1450: en flotas agent-only no hay llave SSH. La config sale del
+		// último payload del agente (uciWirelessRaw), parseado con la MISMA
+		// parseUciWireless del camino SSH. Solo payload fresco (mismo
+		// criterio que la vista usteer, #1431): un router que dejó de
+		// empujar no debe seguir pintando su config como actual.
+		// SNMP (sin SSH en absoluto, #1026) y agentes antiguos sin el campo
+		// se listan con Available=false, como antes.
+		var ifaces []Dot11rIface
+		switch {
+		case cfg.AgentOnly:
+			if reg != nil {
+				if _, p, fresh := reg.MatchRouter(cfg, macs); fresh && p != nil {
+					ifaces = dot11rIfacesFromPayload(p)
+				}
+			}
+			if len(ifaces) == 0 {
+				out.Routers = append(out.Routers, r)
+				continue
+			}
+		case cfg.SnmpEnabled:
 			out.Routers = append(out.Routers, r)
 			continue
+		default:
+			uciOut, err := l.pool.Run(cfg.SSHAddr(), "uci show wireless", 0)
+			if err != nil {
+				out.Routers = append(out.Routers, r)
+				continue
+			}
+			ifaces = parseUciWireless(uciOut)
 		}
-		uciOut, err := l.pool.Run(cfg.SSHAddr(), "uci show wireless", 0)
-		if err != nil {
-			out.Routers = append(out.Routers, r)
-			continue
-		}
-		ifaces := parseUciWireless(uciOut)
 		r.Available = true
 		r.Ifaces = ifaces
 		out.Routers = append(out.Routers, r)
@@ -4599,6 +4622,18 @@ func (l *Live) GetDot11r(ctx context.Context) (*Dot11rOverview, error) {
 		if s.EnabledCount > 0 {
 			out.Available = true
 			break
+		}
+	}
+	// #1450: si la configuración wifi SÍ se pudo leer pero ningún SSID tiene
+	// 802.11r, la vista está disponible (el panel pinta el estado "inactivo"
+	// en vez de un error de lectura). Antes este caso devolvía (nil, nil) y el
+	// handler respondía 503, que la UI mostraba como "no se pudo leer".
+	if !out.Available {
+		for _, r := range out.Routers {
+			if r.Available {
+				out.Available = true
+				break
+			}
 		}
 	}
 	if !out.Available {

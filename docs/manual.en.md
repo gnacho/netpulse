@@ -327,7 +327,7 @@ Five tabs:
 ### What data it needs
 
 - **Matrix** and **Re-anchor** depend on **usteer** (or DAWN, which is deprecated and shows a notice). Without an active roaming daemon on the routers, these tabs have no data.
-- **802.11r** reads `uci show wireless` from each router with WiFi (one SSH per router).
+- **802.11r** reads `uci show wireless` from each router with WiFi. On units with an agent (agent-only fleets) the configuration arrives in the agent push; everywhere else it is read over SSH (one SSH per router).
 - **Survey** uses `iw survey dump` (one SSH per WiFi router).
 - **Events** arrive via continuous agent ingestion into the SQLite database (30 days).
 

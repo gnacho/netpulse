@@ -720,6 +720,7 @@
     "dot11r": {
       "title": "802.11r status",
       "description": "Fast BSS Transition (fast roaming) read from `uci show wireless`. Without it the client fully re-authenticates when jumping APs (1-2 s hiccup).",
+      "error": "Could not read the 802.11r configuration: no router reported its wireless config. An updated agent is required (older ones don't send it); units without an agent are read over SSH.",
       "empty": "No router has 802.11r enabled on any SSID.",
       "allOn": "802.11r active on all {{n}} SSIDs",
       "partial": "Partial: active on {{on}} of {{total}} SSIDs",

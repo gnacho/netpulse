@@ -327,7 +327,7 @@ Cinco pestañas:
 ### Qué datos necesita
 
 - La **Matriz** y **Reanclar** dependen de **usteer** (o de DAWN, que está en desuso y muestra un aviso). Sin un daemon de itinerancia activo en los routers, estas pestañas no tienen datos.
-- **802.11r** lee `uci show wireless` de cada router con WiFi (un SSH por router).
+- **802.11r** lee `uci show wireless` de cada router con WiFi. En las unidades con agente (flotas agent-only) la configuración llega en el push del agente; en el resto se lee por SSH (un SSH por router).
 - **Survey** usa `iw survey dump` (un SSH por router con WiFi).
 - **Eventos** llegan por ingesta continua del agente a la base SQLite (30 días).
 

@@ -720,6 +720,7 @@
     "dot11r": {
       "title": "Estado 802.11r",
       "description": "Fast BSS Transition (itinerancia rápida) leído de `uci show wireless`. Sin él, el cliente se re-autentica completo al saltar de AP (corte de 1-2 s).",
+      "error": "No se pudo leer la configuración 802.11r: ningún router ha reportado su configuración wifi. Hace falta un agente actualizado (los anteriores no la envían); en los equipos sin agente se lee por SSH.",
       "empty": "Ningún router tiene 802.11r habilitado en ningún SSID.",
       "allOn": "802.11r activo en los {{n}} SSIDs",
       "partial": "Parcial: activo en {{on}} de {{total}} SSIDs",
