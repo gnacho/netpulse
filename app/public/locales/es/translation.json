@@ -1220,10 +1220,11 @@
       "healthy": "Saludable",
       "hide": "Ocultar leyenda",
       "show": "Mostrar leyenda",
-      "summary": "{{online}} clientes online · {{peers}} peers VPN · {{links}} enlaces activos",
+      "summary": "{{online}} clientes online · {{peers}} de {{peersTotal}} peers VPN · {{links}} enlaces activos",
       "title": "Leyenda",
       "wired": "Cable",
       "wgTunnel": "Túnel WireGuard",
+      "peerDown": "Peer sin túnel (caído)",
       "wiredLink": "Cable físico (WAN, uplinks, equipos)",
       "wifiUplink": "Uplink wifi (backhaul inalámbrico)",
       "lldpIdentified": "Identificado vía LLDP",
@@ -1247,6 +1248,11 @@
     },
     "mapAria": "Mapa de la red: Internet conectado al Gateway Flint 2, tres puntos de acceso (Salón, Estudio y Patio) con sus clientes, y dos túneles WireGuard activos.",
     "peerAria": "{{name}}, túnel WireGuard activo, {{ip}}",
+    "peerAriaDown": "{{name}}, túnel WireGuard caído, {{ip}}",
+    "peer": {
+      "down": "Caído",
+      "downHint": "Sin túnel activo: no hay handshake reciente"
+    },
     "plan": "Plan",
     "received": "Recibido",
     "refreshNow": "Refrescar ahora",
@@ -1299,7 +1305,8 @@
     },
     "peers": {
       "overflowTitle": "{{count}} peers más",
-      "overflowAria": "{{count}} peers WireGuard adicionales"
+      "overflowAria": "{{count}} peers WireGuard adicionales",
+      "overflowAriaDown": "{{count}} peers WireGuard adicionales, {{down}} caídos"
     },
     "ring": {
       "overflowAria": "{{count}} clientes más en {{router}}",

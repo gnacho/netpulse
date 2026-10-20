@@ -219,14 +219,21 @@ function TooltipCard({
         <div>
           <div className="flex items-center justify-between gap-2">
             <span className="font-display text-sm font-semibold text-text-primary">{tip.peer.name}</span>
-            <StatusPill tone="tunnel" label={t('common.active')} pulse />
+            {tip.peer.active ? (
+              <StatusPill tone="tunnel" label={t('common.active')} pulse />
+            ) : (
+              <StatusPill tone="danger" label={t('topology.peer.down')} />
+            )}
           </div>
           <div className="mt-0.5 font-mono text-caption text-text-muted">
             {tip.peer.tunnelIp} · wg0 · {t('topology.viaInternet')}
           </div>
+          {!tip.peer.active && (
+            <div className="mt-1 text-caption text-danger">{t('topology.peer.downHint')}</div>
+          )}
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <MiniStat label="Handshake" value={relTime(tip.peer.lastHandshake)} />
-            <MiniStat label={t('topology.tunnel')} value="WireGuard" />
+            <MiniStat label={t('topology.tunnel')} value={tip.peer.active ? 'WireGuard' : '—'} />
             <MiniStat label={t('topology.received')} value={`↓ ${tip.peer.rx}`} />
             <MiniStat label={t('topology.sent')} value={`↑ ${tip.peer.tx}`} />
           </div>
@@ -238,13 +245,19 @@ function TooltipCard({
             <span className="font-display text-sm font-semibold text-text-primary">
               {t('topology.peers.overflowTitle', { count: tip.peers.length })}
             </span>
-            <StatusPill tone="tunnel" label={t('common.active')} pulse />
+            {tip.peers.some((p) => p.active) ? (
+              <StatusPill tone="tunnel" label={t('common.active')} pulse />
+            ) : (
+              <StatusPill tone="danger" label={t('topology.peer.down')} />
+            )}
           </div>
           <div className="mt-2 space-y-1.5">
             {tip.peers.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-3 text-caption">
                 <span className="font-semibold text-text-primary">{p.name}</span>
-                <span className="font-mono text-text-muted">Handshake {relTime(p.lastHandshake)}</span>
+                <span className="font-mono text-text-muted">
+                  {p.active ? `Handshake ${relTime(p.lastHandshake)}` : t('topology.peer.down')}
+                </span>
               </div>
             ))}
           </div>
@@ -524,6 +537,8 @@ export function TopologyMap({
   const reduce = useReducedMotion()
   const navigate = useNavigate()
   const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, hypervisorSourceByHost, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
+  /** peers caídos dentro del chip "+N" (#1440): el chip lo dice en el aria-label */
+  const hiddenDownCount = hiddenPeers.filter((p) => !p.active).length
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [initialView] = useState<View | null>(() => loadSavedView())
@@ -1268,8 +1283,12 @@ export function TopologyMap({
         })}
 
         {/* ------------------------- Peers WireGuard ------------------------- */}
+        {/* #1440: se dibujan TODOS los peers configurados. Un peer sin
+            handshake reciente sigue en el mapa, atenuado, con borde discontinuo
+            y sin túnel: una caída site-to-site ya no queda invisible. */}
         {peerNodes.map((node, i) => {
           const PeerIcon = node.peer.type === 'movil' ? Smartphone : Laptop
+          const down = !node.peer.active
           return (
             <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
               <motion.g
@@ -1282,8 +1301,12 @@ export function TopologyMap({
                   className="cursor-pointer outline-none"
                   role="button"
                   tabIndex={0}
-                  aria-label={t('topology.peerAria', { name: node.peer.name, ip: node.peer.tunnelIp })}
-                  animate={{ opacity: nodeOpacity(node.id) }}
+                  aria-label={
+                    down
+                      ? t('topology.peerAriaDown', { name: node.peer.name, ip: node.peer.tunnelIp })
+                      : t('topology.peerAria', { name: node.peer.name, ip: node.peer.tunnelIp })
+                  }
+                  animate={{ opacity: nodeOpacity(node.id) * (down ? 0.55 : 1) }}
                   transition={{ duration: 0.2 }}
                   onPointerEnter={(e) =>
                     handleNodeHover({ kind: 'peer', id: node.id, peer: node.peer, x: node.x, y: node.y + 30 }, e)
@@ -1301,15 +1324,49 @@ export function TopologyMap({
                     }
                   }}
                 >
-                  {!reduce && (
+                  {!reduce && !down && (
                     <circle r={22} fill="none" stroke={COLOR.tunnel} strokeWidth={1.5}>
                       <animate attributeName="r" values="18;27" dur="2.2s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.5;0" dur="2.2s" repeatCount="indefinite" />
                     </circle>
                   )}
-                  <rect x={-18} y={-18} width={36} height={36} rx={11} fill="rgb(var(--elevated))" stroke={COLOR.tunnel} strokeWidth={1.5} />
-                  <PeerIcon x={-9} y={-9} width={18} height={18} className="text-tunnel" strokeWidth={1.75} aria-hidden />
+                  <rect
+                    x={-18}
+                    y={-18}
+                    width={36}
+                    height={36}
+                    rx={11}
+                    fill="rgb(var(--elevated))"
+                    stroke={down ? COLOR.danger : COLOR.tunnel}
+                    strokeWidth={1.5}
+                    strokeDasharray={down ? '4 3' : undefined}
+                  />
+                  <PeerIcon
+                    x={-9}
+                    y={-9}
+                    width={18}
+                    height={18}
+                    className={down ? 'text-danger' : 'text-tunnel'}
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                 </motion.g>
+                {/* Estado caído sin depender del color: texto + trazo discontinuo
+                    (el aria-label del grupo ya lo dice para lectores de pantalla). */}
+                {down && (
+                  <text
+                    x={0}
+                    y={34}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={700}
+                    letterSpacing="0.04em"
+                    fill={COLOR.danger}
+                    aria-hidden
+                  >
+                    {`× ${t('topology.peer.down')}`}
+                  </text>
+                )}
               </motion.g>
             </g>
           )
@@ -1328,7 +1385,11 @@ export function TopologyMap({
                 className="cursor-pointer outline-none"
                 role="button"
                 tabIndex={0}
-                aria-label={t('topology.peers.overflowAria', { count: hiddenPeers.length })}
+                aria-label={
+                  hiddenDownCount > 0
+                    ? t('topology.peers.overflowAriaDown', { count: hiddenPeers.length, down: hiddenDownCount })
+                    : t('topology.peers.overflowAria', { count: hiddenPeers.length })
+                }
                 onPointerEnter={(e) =>
                   handleNodeHover(
                     { kind: 'peersOverflow', id: 'peers-overflow', peers: hiddenPeers, x: PEERS_OVERFLOW_COORD.x, y: PEERS_OVERFLOW_COORD.y + 30 },
@@ -1365,8 +1426,25 @@ export function TopologyMap({
                   }
                 }}
               >
-                <rect x={-15} y={-11} width={30} height={22} rx={8} fill="rgb(var(--elevated))" stroke={COLOR.tunnel} strokeWidth={1.5} />
-                <text x={0} y={3.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={COLOR.tunnel}>
+                <rect
+                  x={-15}
+                  y={-11}
+                  width={30}
+                  height={22}
+                  rx={8}
+                  fill="rgb(var(--elevated))"
+                  stroke={hiddenDownCount === hiddenPeers.length ? COLOR.danger : COLOR.tunnel}
+                  strokeWidth={1.5}
+                  strokeDasharray={hiddenDownCount > 0 ? '3 2' : undefined}
+                />
+                <text
+                  x={0}
+                  y={3.5}
+                  textAnchor="middle"
+                  fontSize={9.5}
+                  fontWeight={700}
+                  fill={hiddenDownCount === hiddenPeers.length ? COLOR.danger : COLOR.tunnel}
+                >
                   +{hiddenPeers.length}
                 </text>
               </g>

@@ -144,6 +144,7 @@ export function LinksTable({ model, hoverLink, onHoverLink }: LinksTableProps) {
                 className={cn(
                   'cursor-default border-b border-border/60 transition-colors duration-150 last:border-0',
                   row.tone === 'warn' && 'bg-warn/5',
+                  row.tone === 'danger' && 'bg-danger/5',
                   hoverLink === row.id && 'bg-hover',
                 )}
               >
@@ -177,6 +178,7 @@ export function LinksTable({ model, hoverLink, onHoverLink }: LinksTableProps) {
             className={cn(
               'rounded-xl border border-border/60 bg-elevated/50 p-3 transition-colors duration-150',
               row.tone === 'warn' && 'border-warn/30 bg-warn/5',
+              row.tone === 'danger' && 'border-danger/30 bg-danger/5',
               hoverLink === row.id && 'bg-hover',
             )}
           >

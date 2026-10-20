@@ -106,7 +106,7 @@ export interface BackhaulRow {
   /** Latencia del extremo destino en ms, formateada (#1384); "—" sin dato. */
   ping: string
   signal: string
-  tone: 'ok' | 'warn' | 'tunnel'
+  tone: 'ok' | 'warn' | 'tunnel' | 'danger'
   statusLabel: string
   note?: string
   spark: number[]
@@ -156,8 +156,13 @@ export interface TopologyModel {
   switchNodes: RouterNode[]
   routerNodes: RouterNode[]
   internetNode: { id: 'internet'; x: number; y: number }
+  /**
+   * Peers WireGuard visibles, TODOS los configurados (issue #1440): activos
+   * primero y caídos después, atenuados y sin túnel. Un peer sin handshake
+   * reciente sigue en el mapa para que una caída site-to-site no sea invisible.
+   */
   peerNodes: PeerNode[]
-  /** Peers activos que exceden las coordenadas canónicas (chip "+N") */
+  /** Peers configurados que exceden las coordenadas canónicas (chip "+N") */
   hiddenPeers: WGPeer[]
   chips: ChipNode[]
   distNodes: DistNodeView[]
@@ -178,7 +183,10 @@ export interface TopologyModel {
   totalPackets: number
   activeLinkCount: number
   backhauls: BackhaulRow[]
+  /** Peers con túnel levantado (handshake reciente). NO cuenta los caídos. */
   activePeerCount: number
+  /** Peers WireGuard configurados en total (activos + caídos), #1440. */
+  totalPeerCount: number
   wan: WanInfo
   relatedTo: (nodeId: string) => { nodes: Set<string>; links: Set<string> }
 }
@@ -1308,16 +1316,23 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
 
   // -- peers WireGuard (arriba; túnel trazado vía Internet) -------------------
-  // Hay 4 coordenadas canónicas: los activos que exceden se agrupan en el
-  // chip "+N" (antes se descartaban silenciosamente).
+  // Hay 4 coordenadas canónicas. #1440: se dibujan TODOS los peers
+  // configurados, no solo los activos: un túnel caído era invisible en el
+  // mapa. Orden: activos primero y caídos después, ambos en el orden del API.
+  // Así un peer caído nunca desplaza a un túnel vivo de su coordenada y los
+  // 4 slots visibles coinciden con los que el servidor manda como enlaces
+  // `wg` en la semántica (primeros 4 activos). Los caídos ocupan el mismo
+  // bloque, atenuados y sin enlace de túnel. Los que exceden van al chip "+N".
   const activePeers = wireguard.peers.filter((p) => p.active)
-  const peerNodes: PeerNode[] = activePeers.slice(0, PEER_COORDS.length).map((peer, i) => ({
+  const downPeers = wireguard.peers.filter((p) => !p.active)
+  const orderedPeers = [...activePeers, ...downPeers]
+  const peerNodes: PeerNode[] = orderedPeers.slice(0, PEER_COORDS.length).map((peer, i) => ({
     kind: 'peer',
     id: `peer-${peer.id}`,
     peer,
     ...PEER_COORDS[i]!,
   }))
-  const hiddenPeers = activePeers.slice(PEER_COORDS.length)
+  const hiddenPeers = orderedPeers.slice(PEER_COORDS.length)
 
   // -- tráfico agregado de un sub-árbol (para el flujo ∝ Mbps) ----------------
   const subtreeTraffic = (hubId: string, seen = new Set<string>()): number => {
@@ -1479,6 +1494,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
   }
   peerNodes.forEach((node, i) => {
+    // #1440: un peer caído no tiene túnel. Sin enlace no hay camino hacia
+    // Internet que dibujar (ni paquetes que animar).
+    if (!node.peer.active) return
     links.push({
       id: `wg-${node.peer.id}`, kind: 'wg',
       d: wgTunnelPath(node), lx: 0, ly: 0, label: '',
@@ -1582,7 +1600,8 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         }
         case 'wg': {
           const pn = peerNodes.find((p) => p.id === sl.from)
-          if (!pn) return null
+          // #1440: sin túnel no hay enlace que dibujar.
+          if (!pn || !pn.peer.active) return null
           return {
             id: `wg-${pn.peer.id}`, kind: 'wg',
             d: wgTunnelPath(pn), lx: 0, ly: 0, label: '',
@@ -1803,18 +1822,24 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       spark: host.sparkline, sparkColor: COLOR.ok,
     })
   }
-  // La tabla canónica muestra un único túnel (el más reciente)
-  for (const node of peerNodes.slice(0, 1)) {
+  // La tabla canónica muestra un único túnel (el más reciente): el primer
+  // peer ACTIVO; si no hay ninguno, el primero configurado, ya marcado caído
+  // (#1440: antes se pintaba como "activo" aunque estuviera sin handshake).
+  const backhaulPeer = peerNodes.find((n) => n.peer.active) ?? peerNodes[0]
+  if (backhaulPeer) {
+    const node = backhaulPeer
     const device = devices.find((d) => d.id === node.peer.id)
     backhauls.push({
       id: `wg-${node.peer.id}`, a: 'Internet', b: node.peer.name, kind: 'wg',
       type: 'WireGuard', speed: '—', ping: '—', signal: '—',
-      tone: 'tunnel', statusLabel: 'common.active',
-      spark: device?.sparkline ?? [0, 0], sparkColor: COLOR.tunnel,
+      tone: node.peer.active ? 'tunnel' : 'danger',
+      statusLabel: node.peer.active ? 'common.active' : 'topology.peer.down',
+      spark: device?.sparkline ?? [0, 0], sparkColor: node.peer.active ? COLOR.tunnel : COLOR.danger,
     })
   }
 
   const activePeerCount = activePeers.length
+  const totalPeerCount = wireguard.peers.length
 
   // Adyacencia (hover: atenuar nodos no relacionados)
   const adjacency = new Map<string, { nodes: Set<string>; links: Set<string> }>()
@@ -1922,6 +1947,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     activeLinkCount,
     backhauls,
     activePeerCount,
+    totalPeerCount,
     wan,
     relatedTo,
   }

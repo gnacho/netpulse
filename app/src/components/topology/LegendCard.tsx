@@ -108,11 +108,21 @@ function WgSample() {
   )
 }
 
+/** Muestra de peer WireGuard caído: recuadro discontinuo + aspa (#1440) */
+function WgDownSample() {
+  return (
+    <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
+      <rect x="5" y="1" width="16" height="12" rx="4" fill="none" stroke={COLOR.danger} strokeWidth="1.5" strokeDasharray="3 2" />
+      <path d="M10 5 L16 9 M16 5 L10 9" stroke={COLOR.danger} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function LegendContent({ model, compact = false, horizontal = false }: { model: TopologyModel; compact?: boolean; horizontal?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const { deviceTotals, routers, devices } = useNetPulse()
-  const { activeLinkCount, activePeerCount } = model
+  const { activeLinkCount, activePeerCount, totalPeerCount } = model
   // #991: la fila 6 GHz desaparece si la red no tiene 6 GHz (networkHasBand6).
   const hasBand6 = networkHasBand6(routers, devices)
   const bandRows = hasBand6 ? BAND_ROWS : BAND_ROWS.filter((r) => r.band !== '6 GHz')
@@ -139,6 +149,10 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
           <motion.li className="col-span-2 flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
             <WgSample />
             {t('topology.legend.wgTunnel')}
+          </motion.li>
+          <motion.li className="col-span-2 flex items-center gap-2 text-sm text-text-secondary" {...row(i++)}>
+            <WgDownSample />
+            {t('topology.legend.peerDown')}
           </motion.li>
         </ul>
       </div>
@@ -186,7 +200,12 @@ export function LegendContent({ model, compact = false, horizontal = false }: { 
         className={cn('border-t border-border pt-3 text-caption text-text-muted', horizontal && 'col-span-full')}
         {...row(i++)}
       >
-        {t('topology.legend.summary', { online: deviceTotals.online, peers: activePeerCount, links: activeLinkCount })}
+        {t('topology.legend.summary', {
+          online: deviceTotals.online,
+          peers: activePeerCount,
+          peersTotal: totalPeerCount,
+          links: activeLinkCount,
+        })}
       </motion.p>
     </div>
   )

@@ -1220,10 +1220,11 @@
       "healthy": "Healthy",
       "hide": "Hide legend",
       "show": "Show legend",
-      "summary": "{{online}} clients online · {{peers}} VPN peers · {{links}} active links",
+      "summary": "{{online}} clients online · {{peers}} of {{peersTotal}} VPN peers · {{links}} active links",
       "title": "Legend",
       "wired": "Wired",
       "wgTunnel": "WireGuard tunnel",
+      "peerDown": "Peer with no tunnel (down)",
       "wiredLink": "Physical cable (WAN, uplinks, units)",
       "wifiUplink": "WiFi uplink (wireless backhaul)",
       "lldpIdentified": "Identified via LLDP",
@@ -1247,6 +1248,11 @@
     },
     "mapAria": "Network map: Internet connected to the Flint 2 Gateway, three access points (Living Room, Study and Patio) with their clients, and two active WireGuard tunnels.",
     "peerAria": "{{name}}, active WireGuard tunnel, {{ip}}",
+    "peerAriaDown": "{{name}}, WireGuard tunnel down, {{ip}}",
+    "peer": {
+      "down": "Down",
+      "downHint": "No active tunnel: no recent handshake"
+    },
     "plan": "Plan",
     "received": "Received",
     "refreshNow": "Refresh now",
@@ -1299,7 +1305,8 @@
     },
     "peers": {
       "overflowTitle": "{{count}} more peers",
-      "overflowAria": "{{count}} additional WireGuard peers"
+      "overflowAria": "{{count}} additional WireGuard peers",
+      "overflowAriaDown": "{{count}} additional WireGuard peers, {{down}} down"
     },
     "ring": {
       "overflowAria": "{{count}} more clients on {{router}}",
