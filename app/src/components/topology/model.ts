@@ -1342,6 +1342,23 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     return sum
   }
 
+  // Curva de un túnel WG peer → Internet: sale del borde del icono del peer
+  // en dirección a Internet y ENTRA en el borde del nodo Internet por el lado
+  // que mira a ese peer (mismo radio que el cable WAN). Antes el final era un
+  // offset fijo (-26,+22) que caía dentro del anillo orbital del nodo, se
+  // solapaba con su pie ("Internet · —") y cruzaba el cable WAN, que sale del
+  // borde inferior (#1433).
+  const wgTunnelPath = (node: { x: number; y: number }): string => {
+    const start = pos(node.x, node.y, angleTo(node.x, node.y, internetNode.x, internetNode.y), 20)
+    const end = pos(internetNode.x, internetNode.y, angleTo(internetNode.x, internetNode.y, node.x, node.y), internetNode.r + 4)
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const sag = Math.min(26, Math.hypot(dx, dy) * 0.1)
+    const mx = (start.x + end.x) / 2
+    const my = (start.y + end.y) / 2 + sag
+    return `M ${start.x} ${start.y} Q ${mx} ${my}, ${end.x} ${end.y}`
+  }
+
   // -- enlaces -----------------------------------------------------------------
   const links: TopoLink[] = []
   if (gatewayNode) {
@@ -1354,7 +1371,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     links.push({
       id: 'wan', kind: 'wan',
       d,
-      lx: 518, ly: Math.round((wanEdge.y + gwTop.y) / 2), label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
+      lx: internetNode.x + 18, ly: Math.round((wanEdge.y + gwTop.y) / 2), label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
       width: 3, ...flowFor(600),
       from: 'internet', to: gatewayNode.id,
     })
@@ -1462,10 +1479,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     }
   }
   peerNodes.forEach((node, i) => {
-    const d = `M ${node.x + 7} ${node.y + 18} C ${node.x + 60} ${node.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
     links.push({
       id: `wg-${node.peer.id}`, kind: 'wg',
-      d, lx: 0, ly: 0, label: '',
+      d: wgTunnelPath(node), lx: 0, ly: 0, label: '',
       width: 2, packets: 1, packetDur: WG_DURS[i] ?? 3.2,
       from: node.id, to: 'internet',
     })
@@ -1567,10 +1583,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         case 'wg': {
           const pn = peerNodes.find((p) => p.id === sl.from)
           if (!pn) return null
-          const d = `M ${pn.x + 7} ${pn.y + 18} C ${pn.x + 60} ${pn.y + 56}, ${internetNode.x - 40} ${internetNode.y + 36}, ${internetNode.x - 26} ${internetNode.y + 22}`
           return {
             id: `wg-${pn.peer.id}`, kind: 'wg',
-            d, lx: 0, ly: 0, label: '',
+            d: wgTunnelPath(pn), lx: 0, ly: 0, label: '',
             width: 2, packets: 1, packetDur: WG_DURS[wgIdx] ?? 3.2,
             from: sl.from, to: sl.to,
           }
