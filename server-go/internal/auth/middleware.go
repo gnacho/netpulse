@@ -57,13 +57,13 @@ func WriteError(w http.ResponseWriter, status int, code string, message ...strin
 	_, _ = w.Write(data)
 }
 
-// isAgentReportPath: /api/agents/{slug}/binary|stream|apply-result|upgrade-result|upgrade-progress|firmware-progress|firmware-result.
+// isAgentReportPath: /api/agents/{slug}/binary|stream|apply-result|upgrade-result|upgrade-progress|firmware-progress|firmware-result|firmware-backup.
 func isAgentReportPath(path string) bool {
 	return strings.HasPrefix(path, "/api/agents/") &&
 		(strings.HasSuffix(path, "/binary") || strings.HasSuffix(path, "/stream") ||
 			strings.HasSuffix(path, "/apply-result") || strings.HasSuffix(path, "/upgrade-result") ||
 			strings.HasSuffix(path, "/upgrade-progress") || strings.HasSuffix(path, "/firmware-progress") ||
-			strings.HasSuffix(path, "/firmware-result"))
+			strings.HasSuffix(path, "/firmware-result") || strings.HasSuffix(path, "/firmware-backup"))
 }
 
 // IsAgentRequest reports whether r is a route agents and embedders call with
