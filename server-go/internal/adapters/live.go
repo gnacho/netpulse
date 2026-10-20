@@ -4145,6 +4145,11 @@ type usteerClientRaw struct {
 func (l *Live) GetUsteer(context.Context) (*Usteer, error) {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
+	reg := l.agents
+	macs := make(map[string]string, len(l.routerMacs))
+	for k, v := range l.routerMacs {
+		macs[k] = v
+	}
 	l.mu.Unlock()
 
 	aps := []UsteerAP{}
@@ -4154,8 +4159,21 @@ func (l *Live) GetUsteer(context.Context) (*Usteer, error) {
 		if name == "" {
 			name = cfg.ID
 		}
-		if cfg.AgentOnly || cfg.SnmpEnabled {
+		if cfg.SnmpEnabled {
 			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: false, ApsSeen: 0})
+			continue
+		}
+		if cfg.AgentOnly {
+			// #1431: en flotas agent-only no hay sondeo SSH; la vista se
+			// alimenta del payload que el agente empuja (usteer + wireless).
+			apsR, seen := []UsteerAP{}, 0
+			if reg != nil {
+				if _, p, fresh := reg.MatchRouter(cfg, macs); fresh && p != nil {
+					apsR, seen = usteerAPsFromPayload(name, p)
+				}
+			}
+			mesh = append(mesh, UsteerMesh{RouterID: cfg.ID, Name: name, Usteer: seen > 0, ApsSeen: seen})
+			aps = append(aps, apsR...)
 			continue
 		}
 		localOut, err := l.pool.Run(cfg.SSHAddr(), "ubus call usteer local_info", 0)
