@@ -509,6 +509,8 @@ func NewHandler(d Deps) http.Handler {
 		mux.Handle("POST /api/agents/{slug}/refresh", auth.RequireAdmin(http.HandlerFunc(s.handleAgentRefresh)))
 		// Self-update del agente vía SSE (admin; Fase 6.3, issue #243).
 		mux.Handle("POST /api/agents/{slug}/upgrade", auth.RequireAdmin(http.HandlerFunc(s.handleAgentUpgrade)))
+		// Snapshot standalone de la config vía SSE (admin; #1462).
+		mux.Handle("POST /api/agents/{slug}/backup", auth.RequireAdmin(http.HandlerFunc(s.handleAgentBackup)))
 	}
 
 	// --- Fase 9 R3: Pairing / adopción de agentes ---

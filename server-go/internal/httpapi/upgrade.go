@@ -287,6 +287,35 @@ func (s *server) FlushQueuedUpgrade(slug string) {
 	}
 }
 
+// handleAgentBackup (admin, #1462): pide a un agente conectado un snapshot
+// standalone de su config (evento SSE "config_backup"; el agente NetGrip lo
+// resuelve con su propio módulo de snapshots, netgrip#553). A diferencia del
+// upgrade no se encola: un backup no es imperativo, si el agente no está
+// conectado se rechaza y la UI lo muestra.
+//
+//	Códigos: 404 slug desconocido (sin token), 409 agente no conectado,
+//	         202 comando enviado, 503 sin AgentHub.
+func (s *server) handleAgentBackup(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !agentSlugRe.MatchString(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if s.agentHub == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "SSE agentHub no configurado")
+		return
+	}
+	if !s.agentTokenExists(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if !s.agentHub.Send(slug, "config_backup", map[string]any{}) {
+		writeError(w, http.StatusConflict, "not_connected", "agente no conectado por SSE")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "status": "sent"})
+}
+
 // handleAgentUpgradeProgress: el agente reporta un paso intermedio del
 // self-update (downloading/swapping/restarting). Auth por token de agente
 // (Bearer), igual que upgrade-result (#284).

@@ -93,6 +93,12 @@ type Options struct {
 	// OnUpgrade sustituye el self-upgrade integrado (evento SSE "upgrade").
 	// nil usa el comportamiento estándar: descargar binario + swap + restart.
 	OnUpgrade func(data string)
+
+	// OnConfigBackup sustituye el backup de config integrado (evento SSE
+	// "config_backup", #1462). nil usa el estándar: sysupgrade -b + subida a
+	// POST /api/config-backup. Los embedders (NetGrip) lo sobreescriben para
+	// usar su propio módulo de snapshots (netgrip#553).
+	OnConfigBackup func(data string)
 }
 
 // Status es una foto del agente para que el embedder pinte estado.
@@ -225,6 +231,13 @@ func Run(ctx context.Context, opts Options) error {
 				}
 				if ev.Name == "firmware_upgrade" && ev.Data != "" {
 					go handleFirmwareUpgrade(opts, transport, ev.Data)
+				}
+				if ev.Name == "config_backup" {
+					if opts.OnConfigBackup != nil {
+						go opts.OnConfigBackup(ev.Data)
+					} else {
+						go handleConfigBackup(opts, transport)
+					}
 				}
 				log.Debug("[netpulse-agent] SSE evento", "event", ev.Name)
 			})
