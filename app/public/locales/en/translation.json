@@ -2325,7 +2325,20 @@
     "releasesVersions": "{{count}} published versions",
     "releasesCheckNow": "Check now",
     "releasesInterval": "Every",
-    "releasesHours": "h"
+    "releasesHours": "h",
+    "uploadExpected": "Expected SHA256 (optional)",
+    "uploadExpectedPlaceholder": "from the image release",
+    "uploadChecksumMatch": "The SHA256 matches the one computed by the server.",
+    "uploadChecksumMismatch": "The SHA256 does NOT match the one computed by the server. Do not install this image.",
+    "uploadChecksumNote": "Without a reference SHA256 corruption cannot be ruled out: compare the computed value with the one from the image release before installing.",
+    "uploadComputed": "Computed SHA256",
+    "tipInstallOwut": "Installs the owut package (attended sysupgrade) on the unit via SSH",
+    "tipOwutDownload": "Builds and downloads the image on the unit with owut, without flashing, to review it before installing",
+    "tipOwutInstallImage": "Installs the image downloaded in the previous step on the unit",
+    "tipUpgradeOwut": "Flashes the target version now with owut (keeping current packages)",
+    "tipSchedule": "Schedule the upgrade for later or recurring",
+    "tipSave": "Saves model and target for the classic flow (URL/image)",
+    "owutStepsGroup": "owut steps"
   },
   "orchestration": {
     "title": "Orchestration",

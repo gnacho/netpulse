@@ -2325,7 +2325,20 @@
     "releasesVersions": "{{count}} versiones publicadas",
     "releasesCheckNow": "Comprobar ahora",
     "releasesInterval": "Cada",
-    "releasesHours": "h"
+    "releasesHours": "h",
+    "uploadExpected": "SHA256 esperado (opcional)",
+    "uploadExpectedPlaceholder": "de la publicación de la imagen",
+    "uploadChecksumMatch": "El SHA256 coincide con el calculado por el servidor.",
+    "uploadChecksumMismatch": "El SHA256 NO coincide con el calculado por el servidor. No instales esta imagen.",
+    "uploadChecksumNote": "Sin SHA256 de referencia no se puede descartar una corrupción: contrasta el valor calculado con el de la publicación de la imagen antes de instalar.",
+    "uploadComputed": "SHA256 calculado",
+    "tipInstallOwut": "Instala el paquete owut (attended sysupgrade) en la unidad por SSH",
+    "tipOwutDownload": "Construye y descarga la imagen en la unidad con owut, sin flashear, para revisarla antes de instalar",
+    "tipOwutInstallImage": "Instala en la unidad la imagen descargada en el paso anterior",
+    "tipUpgradeOwut": "Flashea ahora la versión de destino con owut (con los paquetes actuales)",
+    "tipSchedule": "Programa la actualización para más tarde o de forma recurrente",
+    "tipSave": "Guarda modelo y target para el flujo clásico (URL/imagen)",
+    "owutStepsGroup": "Pasos owut"
   },
   "orchestration": {
     "title": "Orquestación",
