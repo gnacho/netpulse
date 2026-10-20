@@ -106,10 +106,25 @@ type Prober struct {
 	surveyMu     sync.Mutex
 	surveyForced bool
 	surveyAt     time.Time
+
+	// Config wireless cruda (#1450): `uci show wireless` para que el server
+	// pinte 802.11r en flotas agent-only. Se refresca cada uciWirelessTTL
+	// (la config cambia a mano, no sola) y el valor cacheado se emite en
+	// TODOS los pushes: un push de evento (BuildWireless) no debe dejar al
+	// server sin la sección mientras llega el siguiente sondeo completo.
+	uciWirelessMu  sync.Mutex
+	uciWirelessRaw string
+	uciWirelessAt  time.Time
 }
 
 // surveyInterval: mínimo entre `iw survey dump` si no hay force (#1214).
 const surveyInterval = 5 * time.Minute
+
+// uciWirelessTTL: mínimo entre lecturas de `uci show wireless` (#1450).
+// Leer /etc/config/wireless es barato, pero la configuración solo cambia
+// cuando alguien la edita: con 5 min el panel sigue fresco y el push no
+// engorda en cada ciclo.
+const uciWirelessTTL = 5 * time.Minute
 
 const radiosTTL = 5 * time.Minute
 
@@ -176,6 +191,33 @@ func (p *Prober) surveyDue() bool {
 		return true
 	}
 	return false
+}
+
+// refreshUciWireless lee `uci show wireless` si toca (#1450) y lo deja en
+// caché para el resto de pushes. Marca el intento aunque falle: un equipo sin
+// uci (o un switch sin sección wireless) no reintenta en cada sondeo.
+func (p *Prober) refreshUciWireless(ctx context.Context) {
+	p.uciWirelessMu.Lock()
+	due := p.uciWirelessAt.IsZero() || time.Since(p.uciWirelessAt) >= uciWirelessTTL
+	p.uciWirelessMu.Unlock()
+	if !due {
+		return
+	}
+	out := p.runBest(ctx, CmdUciWireless, 3*time.Second)
+	p.uciWirelessMu.Lock()
+	p.uciWirelessAt = time.Now()
+	if out != "" {
+		p.uciWirelessRaw = out
+	}
+	p.uciWirelessMu.Unlock()
+}
+
+// uciWirelessCached devuelve el último volcado bueno de la config wireless
+// ("" si nunca se pudo leer).
+func (p *Prober) uciWirelessCached() string {
+	p.uciWirelessMu.Lock()
+	defer p.uciWirelessMu.Unlock()
+	return p.uciWirelessRaw
 }
 
 // scanDue decide si toca lanzar CmdScan en este sondeo completo: true si hay
@@ -497,6 +539,16 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 	if !any && (len(wd.Radios) > 0 || len(wd.OwnBssids) > 0) {
 		any = true
 	}
+	// Config wireless cruda (#1450): alimenta la vista 802.11r del server en
+	// flotas agent-only. Se refresca solo en el sondeo completo y se emite
+	// SIEMPRE desde la caché (también en el path de eventos, para que el
+	// último payload no pierda la sección). No cuenta para `any`: una unidad
+	// con la config presente pero sin wifi operativa no debe aparecer como
+	// wireless vivo.
+	if full {
+		p.refreshUciWireless(ctx)
+	}
+	wd.UciWirelessRaw = p.uciWirelessCached()
 	if !any {
 		return nil
 	}

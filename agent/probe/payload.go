@@ -123,13 +123,21 @@ type WirelessData struct {
 	// parser (adapters.ParseIwSurvey) para la lente "Ahora" en unidades
 	// agent-only sin SSH. Vacío = sin survey fresco (throttle 5 min).
 	SurveyRaw string `json:"surveyRaw,omitempty"`
+	// UciWirelessRaw (#1450): salida cruda de `uci show wireless`. El server
+	// la parsea con su parseUciWireless (misma función que el camino SSH)
+	// para la vista 802.11r en flotas agent-only, donde no hay llave SSH.
+	// Se refresca cada uciWirelessTTL pero va en TODOS los pushes (también
+	// los de evento), para que el último payload del router nunca la pierda.
+	// Vacío = no se pudo leer, o agente antiguo que no manda el campo: en
+	// ambos casos el server degrada a "802.11r no disponible" sin error.
+	UciWirelessRaw string `json:"uciWirelessRaw,omitempty"`
 }
 
 // OwnBSSID: una interfaz AP local con su BSSID y SSID (#1087).
 type OwnBSSID struct {
-	Iface  string `json:"iface"`
-	BSSID  string `json:"bssid"` // MAC en mayúsculas
-	SSID   string `json:"ssid"`  // puede estar vacío
+	Iface string `json:"iface"`
+	BSSID string `json:"bssid"` // MAC en mayúsculas
+	SSID  string `json:"ssid"`  // puede estar vacío
 }
 
 // ScanResult es un AP vecino detectado por un scan pasivo.

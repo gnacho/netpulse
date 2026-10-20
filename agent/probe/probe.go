@@ -124,6 +124,21 @@ const (
 	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
 	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
 	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`
+	// CmdUciWireless (#1450): volcado crudo de la configuración wireless, tal
+	// cual lo emite `uci show wireless`. El server lo parsea con su
+	// parseUciWireless (vista 802.11r) en unidades agent-only sin SSH: el
+	// parser NO se duplica en el agente, igual que con CmdSurvey (#1214).
+	// Solo lectura de /etc/config/wireless, barato (unos pocos KB).
+	//
+	// Los campos de SECRETO se descartan antes de enviarlo: a diferencia del
+	// camino SSH (que los lee y los tira en el server), este volcado viaja en
+	// cada push y queda persistido en kv agent.state.<slug>. El parser 802.11r
+	// no usa la PSK, así que filtrarla no quita información a la vista.
+	CmdUciWireless = `uci -q show wireless 2>/dev/null | ` + uciWirelessSecretsFilter
+	// uciWirelessSecretsFilter: líneas `option` con secretos fuera del push
+	// (key/PSK/SAE/contraseñas/RADIUS). Se conserva el resto del volcado tal
+	// cual. Busybox grep -E soporta la alternancia.
+	uciWirelessSecretsFilter = `grep -v -E '\.(key|sae_key|wpa_psk|psk|password|secret|radius_secret)='`
 	// CmdPortStates: "<name> <operstate> <speed> <dsa> <type> <conduit>" por
 	// interfaz.
 	//   - dsa: "dsa" cuando la interfaz es un conduit DSA (tiene el directorio

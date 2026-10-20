@@ -18,11 +18,17 @@ import (
 type countingRunner struct {
 	fakeRunner
 	scanCalls int
+	// calls cuenta por comando exacto (#1450: comprobar que el volcado de
+	// `uci show wireless` se cachea y no se relanza). nil = no se cuenta.
+	calls map[string]int
 }
 
 func (r *countingRunner) Run(ctx context.Context, cmd string, timeout time.Duration) (string, error) {
 	if strings.HasPrefix(cmd, `iw dev "`) && strings.HasSuffix(cmd, `" scan 2>/dev/null`) {
 		r.scanCalls++
+	}
+	if r.calls != nil {
+		r.calls[cmd]++
 	}
 	return r.fakeRunner.Run(ctx, cmd, timeout)
 }
