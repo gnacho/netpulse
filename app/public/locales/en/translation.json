@@ -1039,6 +1039,8 @@
       "rearmFailCooldown": "Recently rearmed; wait a moment",
       "rearmFailSSH": "Could not restart the service over SSH",
       "upgrade": "Update agent",
+      "upgradeNetgrip": "Update NetGrip",
+      "upgradeNetgripTip": "Downloads the latest NetGrip release on the router and restarts the panel: this is NetGrip's own self-update, not the agent's. It can take a few minutes.",
       "upgrading": "Sending…",
       "upgradeSent": "Update sent",
       "upgradeNotConnected": "Agent not connected",

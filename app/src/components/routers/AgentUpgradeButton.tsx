@@ -69,6 +69,9 @@ export function upgradeElapsed(u: AgentUpgradeProgress, nowSec: number): string 
  * swapping, restarting) el botón muestra el paso en vivo y los segundos
  * transcurridos, en vez de quedarse congelado en "Enviando". El flash
  * final "Actualizado" aparece cuando updateAvailable pasa a false.
+ * #1436: para agentes kind=netgrip el label es "Actualizar NetGrip": la
+ * acción dispara el self-update del panel en el router (que reporta el
+ * resultado, #549 en netgrip), no el reemplazo del agente standalone.
  */
 export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps) {
   const { t } = useTranslation()
@@ -116,6 +119,12 @@ export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps
   if (!agent) return null
   if (!agent.updateAvailable && !justDone) return null
 
+  // #1436: para un agente embebido en NetGrip la acción dispara el
+  // self-update del PROPIO NetGrip (su release de GitHub), no del binario
+  // netpulse-agent: el label y el tooltip deben decirlo para no sugerir
+  // que se va a reemplazar el agente standalone.
+  const isNetgrip = agent.kind === 'netgrip'
+
   const label =
     state === 'busy' ? t('routers.agent.upgrading')
     : live ? `${upgradeStepText(live, t)} · ${upgradeElapsed(live, nowSec)}`
@@ -124,6 +133,7 @@ export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps
     : state === 'queued' ? t('routers.agent.upgradeQueued')
     : state === 'not_connected' ? t('routers.agent.upgradeNotConnected')
     : state === 'fail' || liveFailed ? t('routers.agent.upgradeFail')
+    : isNetgrip ? t('routers.agent.upgradeNetgrip')
     : t('routers.agent.upgrade')
 
   const onClick = async () => {
@@ -143,7 +153,7 @@ export function AgentUpgradeButton({ agent, className }: AgentUpgradeButtonProps
       type="button"
       onClick={onClick}
       disabled={state === 'busy' || live !== undefined}
-      title={liveFailed ? agent.upgrade?.error || t('routers.agent.upgradeFail') : live?.step === 'queued' ? t('routers.agent.upgradeQueuedTip') : t('routers.agent.upgradeTip', { version: agent.version ?? '?' })}
+      title={liveFailed ? agent.upgrade?.error || t('routers.agent.upgradeFail') : live?.step === 'queued' ? t('routers.agent.upgradeQueuedTip') : isNetgrip ? t('routers.agent.upgradeNetgripTip', { version: agent.version ?? '?' }) : t('routers.agent.upgradeTip', { version: agent.version ?? '?' })}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50',
         state === 'sent' || justDone ? 'bg-ok text-canvas'
