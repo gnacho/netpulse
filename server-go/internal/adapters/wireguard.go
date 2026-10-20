@@ -18,19 +18,31 @@ const handshakeActiveSec = 180 // handshake < 3 min ⇒ peer activo
 // los wireguard_peer) sin un segundo roundtrip (issue #659).
 const wgUciMarker = "===NETPULSE_UCI==="
 
-// wgStatsCommand devuelve el comando que emite el dump de `wg show <iface>`
-// y, a continuación, la config WireGuard UCI. El exit code es el de `wg show`
-// (si el túnel está caído, la llamada falla y GetWireGuardStats salta esa
-// interfaz sin tumbar el resto, issue #714).
+// wgGlMarker separa, tras el UCI de network, el volcado filtrado del config
+// propietario wireguard_server de GL.iNet (firmware GL: el servidor WG no usa
+// proto 'wireguard', así que los clientes NO aparecen en uci show network;
+// viven en secciones config peers con option name, issue #1433).
+const wgGlMarker = "===NETPULSE_GL==="
+
+// wgGlNamesCommand vuelca SOLO name/public_key/client_ip de
+// wireguard_server. El grep corre EN EL ROUTER: las private_key de los peers
+// (que GL.iNet guarda en ese mismo config) jamás salen del equipo.
+const wgGlNamesCommand = "uci show wireguard_server 2>/dev/null | grep -E '\\.(name|public_key|client_ip)='"
+
+// wgStatsCommand devuelve el comando que emite el dump de `wg show <iface>`,
+// a continuación la config WireGuard UCI y, tras el segundo marker, los
+// nombres de peers del config wireguard_server (GL.iNet). El exit code es el
+// de `wg show` (si el túnel está caído, la llamada falla y GetWireGuardStats
+// salta esa interfaz sin tumbar el resto, issue #714).
 func wgStatsCommand(iface string) string {
-	return fmt.Sprintf("wg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; exit $rc", iface, wgUciMarker)
+	return fmt.Sprintf("wg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; echo '%s'; %s; exit $rc", iface, wgUciMarker, wgGlMarker, wgGlNamesCommand)
 }
 
 // awgStatsCommand es la variante AmneziaWG de wgStatsCommand: mismo contrato
-// (dump + marker + UCI, exit del dump) pero con la herramienta `awg`, la
+// (dump + markers + UCI, exit del dump) pero con la herramienta `awg`, la
 // única que puede leer interfaces de la familia amneziawg (issue #776).
 func awgStatsCommand(iface string) string {
-	return fmt.Sprintf("awg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; exit $rc", iface, wgUciMarker)
+	return fmt.Sprintf("awg show %s dump; rc=$?; echo '%s'; uci show network 2>/dev/null; echo '%s'; %s; exit $rc", iface, wgUciMarker, wgGlMarker, wgGlNamesCommand)
 }
 
 // wgListCommand lista las interfaces WireGuard presentes en el router
@@ -83,13 +95,21 @@ func wgInterfaces(pool sshRunner, host, iface string) []string {
 	return out
 }
 
-// splitWGUci separa la salida combinada en la parte del dump y la parte UCI.
-func splitWGUci(out string) (string, string) {
-	if idx := strings.Index(out, wgUciMarker); idx >= 0 {
-		uci := strings.TrimLeft(out[idx+len(wgUciMarker):], "\n")
-		return out[:idx], uci
+// splitWGParts separa la salida combinada (dump + marker UCI + marker GL) en
+// sus tres partes. Cualquier parte cuyo marker falte queda vacía (los routers
+// sin config wireguard_server, es decir, los no-GL.iNet, no emiten nada tras
+// el segundo marker).
+func splitWGParts(out string) (dump, uci, gl string) {
+	dump = out
+	if idx := strings.Index(dump, wgUciMarker); idx >= 0 {
+		uci = strings.TrimLeft(dump[idx+len(wgUciMarker):], "\n")
+		dump = dump[:idx]
 	}
-	return out, ""
+	if idx := strings.Index(uci, wgGlMarker); idx >= 0 {
+		gl = strings.TrimLeft(uci[idx+len(wgGlMarker):], "\n")
+		uci = strings.TrimRight(uci[:idx], "\n")
+	}
+	return dump, uci, gl
 }
 
 // WGDumpPeer es un peer parseado del dump (campos numéricos crudos).
@@ -207,9 +227,73 @@ func parseWGUciDescs(uci string) map[string]string {
 	return out
 }
 
+// parseWGServerNames extrae los nombres de peers del config propietario
+// wireguard_server de GL.iNet (issue #1433): secciones `config peers` con
+// option name/public_key/client_ip. Indexa por public_key y por client_ip
+// normalizada (sin máscara, p.ej. 10.0.0.2/24 → 10.0.0.2), como hace
+// parseWGUciDescs con las allowed_ips. Solo secciones con name no vacío.
+func parseWGServerNames(gl string) map[string]string {
+	type glPeer struct {
+		pub  string
+		name string
+		ip   string
+	}
+	bySec := map[string]*glPeer{}
+	for _, line := range strings.Split(gl, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "wireguard_server.") {
+			continue
+		}
+		rest := strings.TrimPrefix(line, "wireguard_server.")
+		eq := strings.Index(rest, "=")
+		if eq < 0 {
+			continue
+		}
+		val := strings.Trim(strings.TrimPrefix(rest[eq:], "="), "'")
+		path := rest[:eq]
+		dot := strings.LastIndex(path, ".")
+		if dot < 0 {
+			continue
+		}
+		sec, opt := path[:dot], path[dot+1:]
+		p := bySec[sec]
+		if p == nil {
+			p = &glPeer{}
+			bySec[sec] = p
+		}
+		switch opt {
+		case "public_key":
+			p.pub = val
+		case "name":
+			p.name = val
+		case "client_ip":
+			p.ip = val
+		}
+	}
+	out := map[string]string{}
+	for _, p := range bySec {
+		if p.name == "" {
+			continue
+		}
+		if p.pub != "" {
+			out[p.pub] = p.name
+		}
+		if ip := p.ip; ip != "" {
+			if i := strings.Index(ip, "/"); i >= 0 {
+				ip = ip[:i]
+			}
+			if ip != "" {
+				out[ip] = p.name
+			}
+		}
+	}
+	return out
+}
+
 // buildWGPeer convierte un peer del dump en un WGPeer, resolviendo el nombre
 // con la prioridad de siempre (nombre de device NetPulse → description UCI →
-// tunnelIP → "Peer <pubkey8>", issue #659) y asignando el fallback de ID
+// nombre del config wireguard_server (GL.iNet) → tunnelIP → "Peer <pubkey8>",
+// issues #659/#1433) y asignando el fallback de ID
 // "peer-<idx>" con un contador global (idx) para que los peers de varias
 // interfaces no colisionen (#713).
 func buildWGPeer(p WGDumpPeer, peerNames map[string]WGPeerName, descs map[string]string, nowSec int64, idx int) WGPeer {
@@ -260,8 +344,9 @@ func buildWGPeer(p WGDumpPeer, peerNames map[string]WGPeerName, descs map[string
 // todas con `wg show interfaces`; valor → interfaz o lista separada por
 // comas). peerNames: mapa tunnelIp/pubkey → etiqueta opcional (nombre de
 // device). El nombre de cada peer se resuelve en este orden: nombre de device
-// de NetPulse (peerNames) → description del peer en UCI (OpenWrt) → IP del
-// túnel → "Peer <pubkey8>" (issue #659).
+// de NetPulse (peerNames) → description del peer en UCI (OpenWrt) → name del
+// config wireguard_server (GL.iNet, issue #1433) → IP del túnel →
+// "Peer <pubkey8>" (issue #659).
 //
 // Tolerancia a fallos (#714): el fallo del dump de UNA interfaz se salta (se
 // acumulan los peers de las que responden); si TODAS fallan se devuelve
@@ -296,7 +381,13 @@ func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map
 			}
 		}
 		ok++
-		dump, uci := splitWGUci(out)
+		dump, uci, gl := splitWGParts(out)
+		// Nombres del config wireguard_server (GL.iNet) como base; la
+		// description UCI estándar (network.*) pisa a la de GL cuando ambas
+		// existen para la misma clave.
+		for k, v := range parseWGServerNames(gl) {
+			descs[k] = v
+		}
 		for k, v := range parseWGUciDescs(uci) {
 			descs[k] = v
 		}

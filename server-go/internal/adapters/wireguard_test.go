@@ -45,19 +45,29 @@ network.peer3.allowed_ips='10.0.0.4/32'`
 }
 
 func TestSplitWGUci(t *testing.T) {
-	out := "peer-a\tAAA=\t10.0.0.2/32\n===NETPULSE_UCI===\nnetwork.wg0=interface\n"
-	dump, uci := splitWGUci(out)
+	out := "peer-a\tAAA=\t10.0.0.2/32\n===NETPULSE_UCI===\nnetwork.wg0=interface\n===NETPULSE_GL===\nwireguard_server.peer_1.name='Nacho'\n"
+	dump, uci, gl := splitWGParts(out)
 	if dump != "peer-a\tAAA=\t10.0.0.2/32\n" {
 		t.Errorf("dump = %q, want dump", dump)
 	}
-	if uci != "network.wg0=interface\n" {
-		t.Errorf("uci = %q, want uci", uci)
+	if uci != "network.wg0=interface" {
+		t.Errorf("uci = %q, want uci sin salto final", uci)
+	}
+	if gl != "wireguard_server.peer_1.name='Nacho'\n" {
+		t.Errorf("gl = %q, want sección wireguard_server", gl)
 	}
 
-	// Sin marker: todo es dump, uci vacío.
-	dump, uci = splitWGUci("solo-dump\n")
-	if dump != "solo-dump\n" || uci != "" {
-		t.Errorf("sin marker: dump=%q uci=%q, want dump con uci vacío", dump, uci)
+	// Sin marker GL: la parte UCI conserva todo y gl queda vacío (routers
+	// no-GL.iNet no emiten nada tras el segundo marker).
+	dump, uci, gl = splitWGParts("solo-dump\n===NETPULSE_UCI===\nnetwork.wg0=interface\n")
+	if dump != "solo-dump\n" || uci != "network.wg0=interface\n" || gl != "" {
+		t.Errorf("sin marker GL: dump=%q uci=%q gl=%q", dump, uci, gl)
+	}
+
+	// Sin markers: todo es dump.
+	dump, uci, gl = splitWGParts("solo-dump\n")
+	if dump != "solo-dump\n" || uci != "" || gl != "" {
+		t.Errorf("sin marker: dump=%q uci=%q gl=%q, want dump con resto vacío", dump, uci, gl)
 	}
 }
 
@@ -68,6 +78,15 @@ func TestWGStatsCommand(t *testing.T) {
 	}
 	if !contains(cmd, "===NETPULSE_UCI===") {
 		t.Errorf("comando no incluye el marker UCI: %q", cmd)
+	}
+	if !contains(cmd, wgGlMarker) {
+		t.Errorf("comando no incluye el marker wireguard_server: %q", cmd)
+	}
+	if !contains(cmd, "wireguard_server") || !contains(cmd, "grep") {
+		t.Errorf("comando no vuelca wireguard_server filtrado: %q", cmd)
+	}
+	if contains(cmd, "private_key") {
+		t.Errorf("el comando no debe mencionar private_key: %q", cmd)
 	}
 	if !contains(cmd, "exit $rc") {
 		t.Errorf("comando no preserva el exit de wg: %q", cmd)
@@ -119,6 +138,113 @@ func wgPeerLine(pubkey, allowedIPs, handshake string) string {
 // GetWireGuardStats espera del comando de stats.
 func wgStatsOutput(dump, uci string) string {
 	return dump + wgUciMarker + "\n" + uci
+}
+
+// wgStatsOutputGL añade el volcado filtrado de wireguard_server tras el
+// segundo marker (formato real del comando tras #1433).
+func wgStatsOutputGL(dump, uci, gl string) string {
+	return wgStatsOutput(dump, uci) + "\n" + wgGlMarker + "\n" + gl
+}
+
+func TestParseWGServerNames(t *testing.T) {
+	// Volcado REAL (filtrado) de un Flint2 GL.iNet: solo name/public_key/
+	// client_ip; las private_key nunca salen del router.
+	gl := `wireguard_server.peer_659.name='Nacho Serra'
+wireguard_server.peer_659.peer_id='659'
+wireguard_server.peer_659.public_key='WKja9B/ZIjO2xkTS5P4X5iMuKLw0Q8wRGeMewOABNWI='
+wireguard_server.peer_659.client_ip='10.0.0.2/24'
+wireguard_server.peer_7607.name='Alvaro'
+wireguard_server.peer_7607.public_key='LwjAqGFYTNo8+Hxo+hZjmiT6vgZXyQq/rJJH3upjzQc='
+wireguard_server.peer_7607.client_ip='10.0.0.3/24'
+wireguard_server.peer_780.name=''
+wireguard_server.peer_780.public_key='NbWwCCTAQj49uLrXPTCcKr+CmPrFehScgOLiisNjRm0='
+wireguard_server.peer_780.client_ip='10.0.0.6/24'
+wireguard_server.main_server=server
+wireguard_server.main_server.private_key='NO-DEBE-APARECER'`
+
+	names := parseWGServerNames(gl)
+
+	cases := map[string]string{
+		"WKja9B/ZIjO2xkTS5P4X5iMuKLw0Q8wRGeMewOABNWI=": "Nacho Serra",
+		"10.0.0.2": "Nacho Serra", // client_ip normalizada
+		"LwjAqGFYTNo8+Hxo+hZjmiT6vgZXyQq/rJJH3upjzQc=": "Alvaro",
+		"10.0.0.3": "Alvaro",
+		"NbWwCCTAQj49uLrXPTCcKr+CmPrFehScgOLiisNjRm0=": "", // name vacío → descartado
+		"10.0.0.6":         "",
+		"NO-DEBE-APARECER": "",
+	}
+	for key, want := range cases {
+		if got := names[key]; got != want {
+			t.Errorf("names[%q] = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestGetWireGuardStatsGLServerNames(t *testing.T) {
+	// #1433: en firmware GL.iNet los peers NO están en uci show network (el
+	// servidor WG usa proto propietario 'wgserver'); los nombres viven en
+	// wireguard_server y deben resolver igual que la description UCI.
+	dump := wgPeerDump("wgserver", wgPeerLine("WKja9B/ZIjO2xkTS5P4X5iMuKLw0Q8wRGeMewOABNWI=", "10.0.0.2/32", "0"))
+	gl := "wireguard_server.peer_659.name='Nacho Serra'\nwireguard_server.peer_659.public_key='WKja9B/ZIjO2xkTS5P4X5iMuKLw0Q8wRGeMewOABNWI='\nwireguard_server.peer_659.client_ip='10.0.0.2/24'\n"
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		switch {
+		case cmd == wgListCommand:
+			return "wgserver\n", nil
+		case strings.Contains(cmd, "wg show wgserver dump"):
+			return wgStatsOutputGL(dump, "", gl), nil
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	stats, err := GetWireGuardStats(f, "host", "auto", "", nil)
+	if err != nil {
+		t.Fatalf("GetWireGuardStats: %v", err)
+	}
+	if len(stats.Peers) != 1 {
+		t.Fatalf("len(Peers) = %d, want 1", len(stats.Peers))
+	}
+	if p := stats.Peers[0]; p.Name != "Nacho Serra" {
+		t.Errorf("Name = %q, want Nacho Serra (wireguard_server)", p.Name)
+	}
+	// El comando sondeado debe filtrar las options en el router (nunca
+	// vuelca private_key).
+	var sawGlCmd bool
+	for _, c := range f.calls {
+		if strings.Contains(c, "wireguard_server") && strings.Contains(c, "grep") {
+			sawGlCmd = true
+		}
+		if strings.Contains(c, "private_key") {
+			t.Errorf("el comando exfiltra private_key: %q", c)
+		}
+	}
+	if !sawGlCmd {
+		t.Errorf("ninguna llamada vuelca wireguard_server filtrado: %v", f.calls)
+	}
+}
+
+func TestGetWireGuardStatsUciDescWinsOverGL(t *testing.T) {
+	// description UCI (OpenWrt estándar) pisa al name de wireguard_server.
+	dump := wgPeerDump("wg0", wgPeerLine("AAA=", "10.0.0.2/32", "0"))
+	uci := "network.peer1=wireguard_wg0\nnetwork.peer1.public_key='AAA='\nnetwork.peer1.allowed_ips='10.0.0.2/32'\nnetwork.peer1.description='iPhone'\n"
+	gl := "wireguard_server.peer_1.name='Otro nombre'\nwireguard_server.peer_1.public_key='AAA='\nwireguard_server.peer_1.client_ip='10.0.0.2/24'\n"
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		switch {
+		case cmd == wgListCommand:
+			return "wg0\n", nil
+		case strings.Contains(cmd, "wg show wg0 dump"):
+			return wgStatsOutputGL(dump, uci, gl), nil
+		}
+		return "", fmt.Errorf("comando inesperado: %s", cmd)
+	}}
+	stats, err := GetWireGuardStats(f, "host", "auto", "", nil)
+	if err != nil {
+		t.Fatalf("GetWireGuardStats: %v", err)
+	}
+	if len(stats.Peers) != 1 {
+		t.Fatalf("len(Peers) = %d, want 1", len(stats.Peers))
+	}
+	if p := stats.Peers[0]; p.Name != "iPhone" {
+		t.Errorf("Name = %q, want iPhone (description UCI pisa a wireguard_server)", p.Name)
+	}
 }
 
 func TestParseWGInterfaces(t *testing.T) {
