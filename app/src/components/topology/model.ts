@@ -172,6 +172,12 @@ export interface TopologyModel {
   ctCountByHost: Map<string, number>
   /** origen del hipervisor por hostId ("" = L2; "proxmox" = API PVE, #561) */
   hypervisorSourceByHost: Map<string, string>
+  /**
+   * Hosts hipervisor conocidos (hostId), tengan o no invitados (#1446). Un
+   * nodo PVE sin CTs/VMs sigue siendo un hipervisor: el mapa lo pinta como tal
+   * en vez de degradarlo a cliente cableado.
+   */
+  hypervisorHosts: Set<string>
   /** radios de los anillos wifi realmente usados por router (guías punteadas) */
   ringRadii: Map<string, number[]>
   /**
@@ -1941,6 +1947,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     ctsByHost,
     ctCountByHost,
     hypervisorSourceByHost,
+    hypervisorHosts,
     ringRadii,
     ringOverflowChips,
     links,

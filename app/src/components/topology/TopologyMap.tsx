@@ -584,7 +584,7 @@ export function TopologyMap({
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const navigate = useNavigate()
-  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, hypervisorSourceByHost, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
+  const { chips, ctsByHost, ctCountByHost, distNodes, hiddenPeers, hypervisorHosts, hypervisorSourceByHost, internetNode, links, peerNodes, relatedTo, ringOverflowChips, routerNodes, wan } = model
   /** peers caídos dentro del chip "+N" (#1440): el chip lo dice en el aria-label */
   const hiddenDownCount = hiddenPeers.filter((p) => !p.active).length
   /** peers urgentes dentro del chip "+N" (#1441): insignia "!" + aria-label */
@@ -1612,6 +1612,7 @@ export function TopologyMap({
             chip={chip}
             ctCount={ctCountByHost.get(chip.id) ?? 0}
             hostSource={hypervisorSourceByHost.get(chip.id)}
+            isHypervisor={hypervisorHosts.has(chip.id)}
             delay={(1.6 + Math.min(i * 0.02, 0.8)) * T}
             reduce={reduce ?? false}
             opacity={nodeOpacity(chip.id)}
@@ -1692,8 +1693,11 @@ export function TopologyMap({
                 sub={`${t('topology.dist.inferred')} · ${portName(dv.node.port, dv.node.portLabel)}`} />
             ),
           )}
-          {/* Hosts hipervisores (badge +N ya en el chip; etiqueta con puerto y nº CTs) */}
-          {[...ctsByHost.keys()].map((hostId, i) => {
+          {/* Hosts hipervisores (badge +N ya en el chip; etiqueta con puerto y nº CTs).
+              #1446: también los hosts SIN invitados (nodo PVE de un clúster que
+              no tiene CTs/VMs): antes solo se etiquetaban los de `ctsByHost` y
+              un nodo vacío quedaba como cliente cableado anónimo. */}
+          {[...new Set([...ctsByHost.keys(), ...hypervisorHosts])].map((hostId, i) => {
             const host = chips.find((c) => c.id === hostId)
             if (!host) return null
             // #561: el host sellado vía API PVE se etiqueta "Proxmox"; el
@@ -1917,6 +1921,7 @@ const ChipGroup = memo(function ChipGroup({
   chip,
   ctCount,
   hostSource,
+  isHypervisor = false,
   delay,
   reduce,
   opacity,
@@ -1931,6 +1936,8 @@ const ChipGroup = memo(function ChipGroup({
   ctCount: number
   /** origen del host hipervisores ("proxmox" = sellado vía API PVE, #561) */
   hostSource?: string
+  /** el chip es un host hipervisor conocido, aunque no tenga invitados (#1446) */
+  isHypervisor?: boolean
   delay: number
   reduce: boolean
   opacity: number
@@ -1949,7 +1956,8 @@ const ChipGroup = memo(function ChipGroup({
   const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
   // Host hipervisor (Proxmox…): mini NODO redondo con sus CTs detrás, no un
   // chip cuadrado más (#656 feedback). Acento cuando viene de la API PVE.
-  const isHost = ctCount > 0 && !chip.isCt
+  // #1446: un host sin invitados sigue siendo host (si no, caía a cliente).
+  const isHost = (ctCount > 0 || isHypervisor) && !chip.isCt
   const hostStroke = hostSource === 'proxmox' ? COLOR.accent : COLOR.ok
   return (
     <g
