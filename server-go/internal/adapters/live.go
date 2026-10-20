@@ -3439,14 +3439,18 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 			last := l.weakAlerted[d.MAC]
 			if time.Now().UnixMilli()-last > 24*3600e3 {
 				l.weakAlerted[d.MAC] = time.Now().UnixMilli()
+				routerName := l.routerDisplayName(d.RouterID)
+				if routerName == "" {
+					routerName = d.RouterID
+				}
 				l.engine.Emit(AlertEvent{
 					ID:       fmt.Sprintf("alert-weak-%s-%d", d.MAC, time.Now().UnixMilli()),
 					Category: alerts.CatSignal, Urgent: false,
 					Severity: "warn", Title: "Weak signal on " + d.Name,
-					Description: fmt.Sprintf("%d dBm on %s - check coverage or move closer to an AP", *d.SignalDbm, d.RouterID),
+					Description: fmt.Sprintf("%d dBm on %s - check coverage or move closer to an AP", *d.SignalDbm, routerName),
 					Hint:        alerts.HintFor(alerts.HintWifiWeak),
 					Type:        alerts.HintWifiWeak,
-					Vars:        map[string]string{"device": d.Name, "signal": strconv.Itoa(*d.SignalDbm), "router": d.RouterID},
+					Vars:        map[string]string{"device": d.Name, "signal": strconv.Itoa(*d.SignalDbm), "router": routerName},
 					Time:        "just now", RouterID: d.RouterID,
 				})
 			}
