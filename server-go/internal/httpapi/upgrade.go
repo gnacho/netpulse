@@ -384,22 +384,38 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 	for _, slug := range slugs {
 		item := upgradeAllItem{Slug: slug}
 		if s.agents != nil {
-			if _, version, _, _, ok := s.agents.Info(slug); ok {
+			if _, version, kind, _, ok := s.agents.Info(slug); ok {
 				item.Version = version
+				switch {
+				case kind == "netgrip":
+					// #1436: coherente con la fila de flota (y con el
+					// botón "Actualizar NetGrip", #363): "hay novedad" =
+					// versión reportada < última release de NetGrip. El
+					// comando SSE dispara el self-update del propio
+					// NetGrip, no el del agente nativo.
+					if version != "" && cmpSemver(netgripLatest(), version) > 0 {
+						item.Status = s.sendOrQueueUpgrade(slug)
+						item.Upgraded = item.Status == "sent"
+						if item.Status == "sent" {
+							sent++
+						}
+					} else {
+						item.Status = "up_to_date"
+					}
 				// Solo agentes nativos OpenWrt: los de type managed-switch/
 				// external son scrapers que no entienden el comando "upgrade".
-				if !s.routerUpgradeable(slug) {
+				case !s.routerUpgradeable(slug):
 					item.Status = "not_openwrt"
-					// #447: solo hay novedad si el agente es MÁS VIEJO que el
-					// binario embebido (build incluido); un agente más nuevo no
-					// está desactualizado y el botón ofrecería un downgrade.
-				} else if !agentbin.EmbeddedMismatch() && version != "" && vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) < 0 {
+				// #447: solo hay novedad si el agente es MÁS VIEJO que el
+				// binario embebido (build incluido); un agente más nuevo no
+				// está desactualizado y el botón ofrecería un downgrade.
+				case !agentbin.EmbeddedMismatch() && version != "" && vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) < 0:
 					item.Status = s.sendOrQueueUpgrade(slug)
 					item.Upgraded = item.Status == "sent"
 					if item.Status == "sent" {
 						sent++
 					}
-				} else {
+				default:
 					item.Status = "up_to_date"
 				}
 			} else {

@@ -465,3 +465,52 @@ func TestAgentsUpgradeAll(t *testing.T) {
 		t.Fatalf("al_dia debería ser up_to_date: %v", bySlug)
 	}
 }
+
+// TestAgentsUpgradeAllNetgrip — #1436: upgrade-all trata los agentes
+// kind=netgrip con su propio criterio (versión vs última release de NetGrip),
+// no contra el binario embebido del agente nativo (una versión de NetGrip
+// tipo v0.75.0 SIEMPRE es "menor" que 3.0.x y re-dispararía su self-update en
+// cada upgrade-all).
+func TestAgentsUpgradeAllNetgrip(t *testing.T) {
+	httpapi.NetgripTestSetFetch(func() string { return "v0.77.1" })
+	t.Cleanup(func() { httpapi.NetgripTestSetFetch(func() string { return "" }) })
+
+	ts := makeUpgradeTestServer(t)
+
+	netgripPayload := func(router, version string) string {
+		return fmt.Sprintf(`{"router":%q,"ts":%d,"version":%q,"kind":"netgrip","data":{"system":{"sysinfo":{"uptime":100,"load":[0,0,0],"memory":{"total":100,"free":50,"buffered":0,"available":50}},"cpu":10,"temp":40},"wireless":{"clients":{}},"dhcp":{"leases":[]},"fdb":{"macs":{}}}}`, router, time.Now().Unix(), version)
+	}
+
+	// "ngold" (netgrip viejo) conectado → su self-update se dispara (sent).
+	st, tok := createUpgradeToken(t, ts, "ngold")
+	if st != 201 {
+		t.Fatalf("create ngold: %d", st)
+	}
+	upgradeIngest(t, ts, tok, netgripPayload("ngold", "v0.75.0"))
+	cancel, done := openStream(t, ts, "ngold", tok)
+	defer func() { cancel(); <-done }()
+
+	// "ngnew" (netgrip al día, sin conectar) → up_to_date, NO queued.
+	st2, tok2 := createUpgradeToken(t, ts, "ngnew")
+	if st2 != 201 {
+		t.Fatalf("create ngnew: %d", st2)
+	}
+	upgradeIngest(t, ts, tok2, netgripPayload("ngnew", "v0.77.1"))
+
+	res := doReq(t, "POST", ts.URL+"/api/agents/upgrade-all", ts.cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("upgrade-all: got %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	bySlug := map[string]string{}
+	for _, a := range body["agents"].([]any) {
+		m := a.(map[string]any)
+		bySlug[m["slug"].(string)] = m["status"].(string)
+	}
+	if bySlug["ngold"] != "sent" {
+		t.Fatalf("ngold debería ser sent: %v", bySlug)
+	}
+	if bySlug["ngnew"] != "up_to_date" {
+		t.Fatalf("ngnew debería ser up_to_date (no queued): %v", bySlug)
+	}
+}
