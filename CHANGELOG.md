@@ -5,6 +5,34 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.46.0] - 2026-10-20
+
+### Added
+
+- **Urgencia por peer WireGuard (#1441)**: no todos los peers importan igual. Marca un peer como *Urgente* (tarjeta del mapa o panel WireGuard) y sus caídas avisan como las de una unidad; los demás solo quedan en el registro. El mapa prioriza sus ranuras y el health score penaliza sus caídas (#1442). Y los peers caídos **siguen visibles** en el mapa: borde discontinuo, etiqueta y tarjeta con sus datos (#1440).
+- **Roaming e itinerancia en flotas agent-only (#1431, #1450)**: las vistas de usteer y 802.11r se alimentan ahora del payload del agente, igual que el resto de la telemetría. Una flota gestionada solo por agentes (sin SSH) ya no ve el roaming vacío.
+- **Chequeo periódico de releases publicados (#1444)**: NetPulse consulta cada día (configurable, 6 h a 7 d) el índice oficial de releases y la alerta de firmware desactualizado solo salta cuando el target configurado **existe de verdad**. Un target inventado es ahora un aviso de configuración propio, no una alerta permanente. Tarjeta en la página de firmware con el último chequeo y "comprobar ahora".
+- **Velocidad en enlaces entre unidades resueltos por FDB (#1429)**: cuando el padre no reporta velocidad, se lee la tabla de puertos del extremo hijo (la evidencia FDB ya conocía su boca). La tabla de enlaces deja de mostrar "—" en sw1↔ap1, sw2↔ap2, sw1↔sw2.
+- **Auto-resolución de la alerta de señal débil (#1452)**: la alerta se cierra sola cuando el cliente se estabiliza por encima del umbral + margen de histéresis durante N muestras consecutivas (ambos ajustables en *Datos y umbrales*). El episodio cerrado conserva duración y valor de recuperación; un cliente que desaparece no cuenta como recuperado.
+- **SHA256 de referencia en la subida local (#1414)**: al subir una imagen propia puedes contrastar el hash calculado por el server con el de la publicación; si no coincide, aviso de no instalar.
+
+### Changed
+
+- **Topología: clientes cableados tras switches gestionados, reclamados por su switch (#1417)**: los clientes que la FDB de un switch de flota aprende en sus puertos de acceso cuelgan de él, no del gateway (los Sonos tras sw1, por fin).
+- **WireGuard conecta de verdad (#1443)**: los eventos de conexión de túneles iniciados por la propia unidad ya no se pierden, cada reconexión emite su connect (sin coalescing), y el seguimiento usa la clave pública estable del peer (el índice del dump fabricaba pares fantasma de caída+conexión).
+- **Health score con VPN (#1442)**: una interfaz WireGuard caída (-10) o peers urgentes caídos (-6, tope -12) ya no dejan la nota en 100; el desglose explica cada penalización.
+- **Detección de bridge del agente 3.0.19 (#1435)**: unidades cuyo bridge no se llama br-lan/br0 (p. ej. switches con bridge `switch`) reportan FDB real de nuevo.
+- **Nombres de peers GL.iNet y cables de Internet (#1433)**: los peers con nombre del servidor wgserver del firmware GL.iNet se muestran con su nombre, y las curvas VPN terminan en el borde del nodo Internet sin solaparse con el WAN.
+- **Botón "Actualizar NetGrip" (#1436)**: la acción de flota sobre unidades NetGrip explica que dispara el self-update del panel y "actualizar todo" compara contra la última release de NetGrip, no contra el agente embebido.
+- **Hosts Proxmox sin invitados (#1446)**: un nodo PVE con 0 CTs se dibuja como hipervisor (anillo e icono), no como cliente cableado.
+- **Landing migrada a TypeScript (#1425)**: los catálogos de traducción se verifican en build (ES debe cubrir EN).
+- **El feed de alertas se sincroniza al instante (#1434)**: marcar leídas, limpiar o resolver ya actualiza Resumen y la campaña por SSE en el momento, sin esperar al ciclo de sondeo.
+- **Revisión del selector de método (#1414, feedback)**: pasos owut agrupados y con tooltips, "Guardar" oculto en modo owut (era un resto del flujo URL) y aviso cuando se sube una imagen sin SHA256 de referencia.
+
+### Fixed
+
+- **Aristas del flag de urgencia (#1445)**: dos urgentes cayendo a la vez notifican ambos; las claves urgentes de peers borrados se recogen tras 3 sondeos seguidos sin verlos (a prueba de dumps parciales); un peer que desaparece del dump al caer conserva su aviso urgente.
+
 ## [2.45.0] - 2026-10-19
 
 ### Added
