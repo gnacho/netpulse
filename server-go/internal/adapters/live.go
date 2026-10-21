@@ -3826,8 +3826,19 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		distNodes = filtered
 	}
 	fillUplinkSpeeds(polled, distNodes, topo.Links)
-	fillWiredSpeeds(polled, distNodes, topo.Links)             // #1384
-	fillUplinkSpeedsFromChild(polled, fdbEvidence, topo.Links) // #1429
+	fillWiredSpeeds(polled, distNodes, topo.Links) // #1384
+	// #1429/#1471: la boca del hijo sale de la evidencia que resolvió el
+	// enlace, sea FDB o LLDP (el vecino LLDP guarda el puerto local). Misma
+	// precedencia que BuildTopoSemantics al construir el enlace: LLDP manda y
+	// la FDB rellena los huecos.
+	childEvidence := make(map[string]topoParent, len(fdbEvidence)+len(lldpEvidence))
+	for id, ev := range fdbEvidence {
+		childEvidence[id] = ev
+	}
+	for id, ev := range lldpEvidence {
+		childEvidence[id] = ev
+	}
+	fillUplinkSpeedsFromChild(polled, childEvidence, topo.Links)
 	return &Overview{
 		Health:  computeHealth(routerList, adguard, wireguard),
 		WAN:     wan,

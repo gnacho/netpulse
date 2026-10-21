@@ -180,7 +180,9 @@ func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[str
 // gestionado (hacia el core) y si el empate persiste no hay evidencia
 // (decide la FDB). El puerto es el del lado del PADRE (PortDesc que el
 // padre anuncia); si el padre es una unidad sondeada, se rellena con el
-// puerto local del padre desde SU vista LLDP (dos lados #1279).
+// puerto local del padre desde SU vista LLDP (dos lados #1279). childPort es
+// la boca del HIJO hacia el padre (su puerto local hacia él): la necesita el
+// cálculo de velocidad cuando el padre no reporta la suya (#1471).
 func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[string]topoParent {
 	routers := routerIdentities(polled)
 	gwMac := ""
@@ -301,7 +303,7 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 		if chosen == -1 {
 			continue
 		}
-		ev := topoParent{parent: cands[chosen].parentID, port: cands[chosen].port}
+		ev := topoParent{parent: cands[chosen].parentID, port: cands[chosen].port, childPort: cands[chosen].localPort}
 		if ev.port == "" {
 			// El padre no anuncia su puerto (Omada sin PortDesc remoto):
 			// si el padre es una unidad sondeada, su propia vista LLDP da

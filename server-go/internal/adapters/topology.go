@@ -884,14 +884,15 @@ func fillWiredSpeeds(polled map[string]*routerPolled, dists []DistributionNode, 
 	}
 }
 
-// fillUplinkSpeedsFromChild (#1429): los enlaces entre unidades resueltos
-// por FDB (los switches SNMP no aportan LLDP útil) ya identifican la boca en
-// AMBOS extremos (la evidencia FDB guarda también el childPort: la boca del
-// hijo hacia el padre, aprendida del propio FDB del hijo). Cuando el lado
-// del padre no dio velocidad, se mira la tabla de puertos del HIJO: un
-// OpenWrt sabe la velocidad negociada de su propia boca de uplink. El padre
-// manda cuando ambos extremos reportan: son el mismo cable y el dato del
-// lado que sondea el enlace es el directo.
+// fillUplinkSpeedsFromChild (#1429/#1471): los enlaces entre unidades
+// resueltos por FDB (los switches SNMP no aportan LLDP útil) ya identifican la
+// boca en AMBOS extremos (la evidencia FDB guarda también el childPort: la
+// boca del hijo hacia el padre, aprendida del propio FDB del hijo); desde
+// #1471 la evidencia LLDP trae ese mismo dato (el puerto local con el que la
+// unidad ve a su padre). Cuando el lado del padre no dio velocidad, se mira la
+// tabla de puertos del HIJO: un OpenWrt sabe la velocidad negociada de su
+// propia boca de uplink. El padre manda cuando ambos extremos reportan: son el
+// mismo cable y el dato del lado que sondea el enlace es el directo.
 func fillUplinkSpeedsFromChild(polled map[string]*routerPolled, evidence map[string]topoParent, links []TopoLink) {
 	if len(links) == 0 {
 		return

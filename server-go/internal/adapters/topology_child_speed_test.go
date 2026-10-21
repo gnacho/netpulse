@@ -75,3 +75,43 @@ func TestFillUplinkSpeedsFromChildDownPort(t *testing.T) {
 		t.Fatalf("boca del hijo caída: %d, want 0", links[0].SpeedMbps)
 	}
 }
+
+// #1471: el uplink resuelto por LLDP también trae la boca del HIJO (el puerto
+// local desde el que la unidad ve a su padre), así que la velocidad se puede
+// leer de la tabla del propio hijo cuando el padre no la reporta. Antes de este
+// cambio solo la evidencia FDB guardaba childPort y estos enlaces se quedaban
+// sin velocidad.
+func TestLldpUplinkSpeedFromChildPort(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		"ap1": {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "ap1", Name: "ap1"},
+			lldp:  []LldpNeighbor{{Port: "lan1", Chassis: "gateway", PortDesc: "lan2"}},
+			ports: []EthPort{{ID: "lan1", Up: true, Speed: "2.5 Gbps"}}},
+	}
+	ev := fleetLldpEvidence(polled, "gw")
+	if got := ev["ap1"]; got.parent != "gw" || got.port != "lan2" || got.childPort != "lan1" {
+		t.Fatalf("ap1: %+v, want gw/lan2 con childPort lan1", got)
+	}
+	links := []TopoLink{{From: "gw", To: "ap1", Kind: "uplink", Port: "lan2"}}
+	fillUplinkSpeedsFromChild(polled, ev, links)
+	if links[0].SpeedMbps != 2500 {
+		t.Fatalf("velocidad %d Mbps, want 2500 (tabla del hijo vía LLDP)", links[0].SpeedMbps)
+	}
+}
+
+// #1471: la boca del padre sigue mandando cuando existe (mismo cable, dato
+// directo del lado que sondea el enlace); la del hijo solo rellena el hueco.
+func TestLldpUplinkSpeedParentWins(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", cfg: RouterConfig{ID: "gw", Name: "gateway"}},
+		"ap1": {brMac: "AA:BB:CC:00:00:02", cfg: RouterConfig{ID: "ap1", Name: "ap1"},
+			lldp:  []LldpNeighbor{{Port: "lan1", Chassis: "gateway", PortDesc: "lan2"}},
+			ports: []EthPort{{ID: "lan1", Up: true, Speed: "2.5 Gbps"}}},
+	}
+	ev := fleetLldpEvidence(polled, "gw")
+	links := []TopoLink{{From: "gw", To: "ap1", Kind: "uplink", Port: "lan2", SpeedMbps: 1000}}
+	fillUplinkSpeedsFromChild(polled, ev, links)
+	if links[0].SpeedMbps != 1000 {
+		t.Fatalf("velocidad %d Mbps, want 1000 (la del padre no se pisa)", links[0].SpeedMbps)
+	}
+}

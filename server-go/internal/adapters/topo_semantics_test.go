@@ -527,14 +527,25 @@ func TestFleetLldpEvidenceRootPort(t *testing.T) {
 	if got := ev["sw1"]; got.parent != "gw" {
 		t.Fatalf("sw1: %+v, want gw (root port 20)", got)
 	}
+	// #1471: la evidencia guarda la boca del hijo (su puerto local hacia el
+	// padre), que es de donde se lee la velocidad negociada del enlace.
+	if got := ev["sw1"]; got.childPort != "two-gigabitEthernet 1/0/20" {
+		t.Fatalf("sw1: %+v, want childPort two-gigabitEthernet 1/0/20", got)
+	}
 	// sw2: root port 8 -> sw1; el puerto (lado padre) se rellena desde la
 	// vista LLDP de sw1, que ve a sw2 en su 1/0/22.
 	if got := ev["sw2"]; got.parent != "sw1" || got.port != "two-gigabitEthernet 1/0/22" {
 		t.Fatalf("sw2: %+v, want sw1/two-gigabitEthernet 1/0/22", got)
 	}
+	if got := ev["sw2"]; got.childPort != "ten-gigabitEthernet 1/0/8" {
+		t.Fatalf("sw2: %+v, want childPort ten-gigabitEthernet 1/0/8", got)
+	}
 	// ap2: candidato único, puerto del lado padre (el que sw2 anuncia).
 	if got := ev["ap2"]; got.parent != "sw2" || got.port != "two-gigabitEthernet 1/0/7" {
 		t.Fatalf("ap2: %+v, want sw2/two-gigabitEthernet 1/0/7", got)
+	}
+	if got := ev["ap2"]; got.childPort != "eth0" {
+		t.Fatalf("ap2: %+v, want childPort eth0", got)
 	}
 	if _, ok := ev["gw"]; ok {
 		t.Fatal("gw no debe tener padre (cuelga de internet)")
