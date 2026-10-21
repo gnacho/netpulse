@@ -88,11 +88,28 @@ type AlertEvent struct {
 	// "Agent updated" resuelve "alert-agent-outdated-<id>"). La UI los
 	// muestra al expandir el evento de cierre.
 	Resolves []string `json:"resolves,omitempty"`
+	// Resolved (#1466): datos de los eventos que este evento cerró (título,
+	// ts de disparo, tipo y vars para traducir). El feed se pagina (20 por
+	// página): el evento resuelto puede NO estar en la página que el cliente
+	// tiene cargada, así que el payload va autocontenido y la UI no depende
+	// de buscarlo en su feed local.
+	Resolved []ResolvedEvent `json:"resolved,omitempty"`
 	// Volatile (#966): la alerta vive SOLO en memoria (no se persiste en
 	// alert_log ni sobrevive a reinicios) y desaparece del feed cuando su
 	// condicion se resuelve (engine.Remove). Uso: caida de agente, cuya
 	// semantica es "viva por router", no un historico de incidentes.
 	Volatile bool `json:"-"`
+}
+
+// ResolvedEvent (#1466): datos mínimos del evento que un cierre resolvió.
+// Type+Vars permiten traducir el título en el front; Title/Ts son el
+// fallback literal y el instante del disparo original.
+type ResolvedEvent struct {
+	ID    string            `json:"id"`
+	Title string            `json:"title,omitempty"`
+	Ts    int64             `json:"ts"`
+	Type  string            `json:"type,omitempty"`
+	Vars  map[string]string `json:"vars,omitempty"`
 }
 
 // Stable alert-type slugs (issue #310): keys of the Hints map.
@@ -115,14 +132,14 @@ const (
 	// de OpenWrt (chequeo periódico contra downloads.openwrt.org). Es un
 	// aviso de configuración, no una alerta de firmware desactualizado.
 	HintFirmwareUnknownTarget = "firmware-target-unknown"
-	HintWanDown           = "wan-down"
-	HintWifiWeak          = "wifi-weak"
-	HintGhostPort         = "ghost-port"
-	HintDegradedLink      = "degraded-link"
-	HintAgentOutdated     = "agent-outdated"
-	HintWanSlow           = "wan-slow"
-	HintUplinkSwitch      = "uplink-switched"
-	HintSnmpFailing       = "snmp-failing"
+	HintWanDown               = "wan-down"
+	HintWifiWeak              = "wifi-weak"
+	HintGhostPort             = "ghost-port"
+	HintDegradedLink          = "degraded-link"
+	HintAgentOutdated         = "agent-outdated"
+	HintWanSlow               = "wan-slow"
+	HintUplinkSwitch          = "uplink-switched"
+	HintSnmpFailing           = "snmp-failing"
 )
 
 // Additional stable alert-type slugs (issue #712): recovery/info/beacon/rearmer
@@ -810,6 +827,11 @@ func (e *Engine) List() []AlertEvent {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.pruneSilenceLocked()
+	// #1466: índice id → evento para resolver los cierres con datos propios.
+	byID := make(map[string]*AlertEvent, len(e.list))
+	for i := range e.list {
+		byID[e.list[i].ID] = &e.list[i]
+	}
 	out := make([]AlertEvent, 0, len(e.list))
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
@@ -820,6 +842,19 @@ func (e *Engine) List() []AlertEvent {
 			continue
 		}
 		ev.Read = e.readSet[ev.ID]
+		if len(ev.Resolves) > 0 {
+			ev.Resolved = make([]ResolvedEvent, 0, len(ev.Resolves))
+			for _, rid := range ev.Resolves {
+				ref := ResolvedEvent{ID: rid}
+				if orig, ok := byID[rid]; ok {
+					ref.Title = orig.Title
+					ref.Ts = orig.Ts
+					ref.Type = orig.Type
+					ref.Vars = orig.Vars
+				}
+				ev.Resolved = append(ev.Resolved, ref)
+			}
+		}
 		out = append(out, ev)
 	}
 	return out
