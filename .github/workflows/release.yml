@@ -75,7 +75,53 @@ jobs:
       # resuelve "agents/netpulse-agent-" + normalizeArch(arch) y esta mapea
       # armv7/armv7l/armhf -> arm, asi que el fichero se llama
       # netpulse-agent-arm (con GOARM=7), NO netpulse-agent-armv7 (#458).
+      # #1469: cuando agent/VERSION no cambió respecto al tag anterior, los
+      # binarios del agente son los mismos que la release previa: se
+      # descargan sus assets y se extraen al embed en vez de recompilar 5
+      # arquitecturas. Garantiza además embed == assets bit a bit. Si la
+      # descarga o la verificación falla, se compila (fallback explícito).
+      - name: Reutiliza agentes del release anterior (si agent/VERSION no cambió)
+        id: agent-reuse
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^ 2>/dev/null || true)
+          AGENT_VERSION=${{ steps.version.outputs.agent }}
+          if [ -z "$PREV_TAG" ]; then
+            echo "sin tag anterior: se compila"
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PREV_AGENT=$(git show "$PREV_TAG:agent/VERSION" 2>/dev/null | tr -d '[:space:]' || true)
+          if [ "$PREV_AGENT" != "$AGENT_VERSION" ]; then
+            echo "agente cambió ($PREV_AGENT -> $AGENT_VERSION): se compila"
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TMP=$(mktemp -d)
+          cd "$TMP"
+          for arch in amd64 arm64 armv7 mipsle mips; do
+            gh release download "$PREV_TAG" --pattern "netpulse-agent_*_linux_${arch}.tar.gz" --clobber
+          done
+          # Verificación: los tarballs deben casar con el checksums.txt del
+          # release anterior (filtrado a los assets del agente).
+          gh release download "$PREV_TAG" --pattern checksums.txt --clobber
+          grep 'netpulse-agent_.*_linux_.*\.tar\.gz' checksums.txt > agent-checksums.txt
+          sha256sum -c agent-checksums.txt
+          NAMES="amd64:amd64 arm64:arm64 armv7:arm mipsle:mipsle mips:mips"
+          for pair in $NAMES; do
+            arch="${pair%%:*}"; name="${pair##*:}"
+            tarball=$(ls netpulse-agent_*_linux_${arch}.tar.gz)
+            tar xzf "$tarball" netpulse-agent
+            mv netpulse-agent "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}"
+            chmod +x "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}"
+          done
+          echo "agente $AGENT_VERSION reutilizado de $PREV_TAG"
+          echo "reused=true" >> "$GITHUB_OUTPUT"
+
       - name: Build agent binaries para embed (todas las arquitecturas)
+        if: steps.agent-reuse.outputs.reused != 'true'
         env:
           CGO_ENABLED: 0
           GOOS: linux
