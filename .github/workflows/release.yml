@@ -78,8 +78,9 @@ jobs:
       # #1469: cuando agent/VERSION no cambió respecto al tag anterior, los
       # binarios del agente son los mismos que la release previa: se
       # descargan sus assets y se extraen al embed en vez de recompilar 5
-      # arquitecturas. Garantiza además embed == assets bit a bit. Si la
-      # descarga o la verificación falla, se compila (fallback explícito).
+      # arquitecturas. Garantiza además embed == assets bit a bit. Cualquier
+      # fallo de la descarga o la verificación deja reused=false y el paso
+      # de compilación (fallback) corre encima, sobreescribiendo lo extraído.
       - name: Reutiliza agentes del release anterior (si agent/VERSION no cambió)
         id: agent-reuse
         env:
@@ -99,26 +100,35 @@ jobs:
             echo "reused=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          TMP=$(mktemp -d)
-          cd "$TMP"
-          for arch in amd64 arm64 armv7 mipsle mips; do
-            gh release download "$PREV_TAG" --pattern "netpulse-agent_*_linux_${arch}.tar.gz" --clobber
-          done
-          # Verificación: los tarballs deben casar con el checksums.txt del
-          # release anterior (filtrado a los assets del agente).
-          gh release download "$PREV_TAG" --pattern checksums.txt --clobber
-          grep 'netpulse-agent_.*_linux_.*\.tar\.gz' checksums.txt > agent-checksums.txt
-          sha256sum -c agent-checksums.txt
-          NAMES="amd64:amd64 arm64:arm64 armv7:arm mipsle:mipsle mips:mips"
-          for pair in $NAMES; do
-            arch="${pair%%:*}"; name="${pair##*:}"
-            tarball=$(ls netpulse-agent_*_linux_${arch}.tar.gz)
-            tar xzf "$tarball" netpulse-agent
-            mv netpulse-agent "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}"
-            chmod +x "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}"
-          done
-          echo "agente $AGENT_VERSION reutilizado de $PREV_TAG"
-          echo "reused=true" >> "$GITHUB_OUTPUT"
+          reuse() {
+            # set -e NO aplica dentro de una función llamada en condición:
+            # cada paso crítico aborta explícitamente con || return 1.
+            TMP=$(mktemp -d) || return 1
+            cd "$TMP" || return 1
+            for arch in amd64 arm64 armv7 mipsle mips; do
+              gh release download "$PREV_TAG" --pattern "netpulse-agent_*_linux_${arch}.tar.gz" --clobber || return 1
+            done
+            # Los tarballs deben casar con el checksums.txt del release
+            # anterior (filtrado a los assets del agente).
+            gh release download "$PREV_TAG" --pattern checksums.txt --clobber || return 1
+            grep 'netpulse-agent_.*_linux_.*\.tar\.gz' checksums.txt > agent-checksums.txt || return 1
+            sha256sum -c agent-checksums.txt || return 1
+            NAMES="amd64:amd64 arm64:arm64 armv7:arm mipsle:mipsle mips:mips"
+            for pair in $NAMES; do
+              arch="${pair%%:*}"; name="${pair##*:}"
+              tarball=$(ls netpulse-agent_*_linux_${arch}.tar.gz) || return 1
+              tar xzf "$tarball" netpulse-agent || return 1
+              mv netpulse-agent "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}" || return 1
+              chmod +x "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}" || return 1
+            done
+          }
+          if reuse; then
+            echo "agente $AGENT_VERSION reutilizado de $PREV_TAG"
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::reutilización del agente falló; se compila"
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build agent binaries para embed (todas las arquitecturas)
         if: steps.agent-reuse.outputs.reused != 'true'
