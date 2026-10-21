@@ -199,8 +199,14 @@ func TestScriptNoWatchdogCron(t *testing.T) {
 
 func TestScriptFinishesWithStart(t *testing.T) {
 	s := scriptForTest()
-	if !strings.HasSuffix(strings.TrimSpace(s), "\"$INIT\" enable\n\"$INIT\" restart") {
-		t.Error("el script debe terminar con enable + restart")
+	// #1476: entre enable y restart va la preservación en sysupgrade.conf, así
+	// que el final ya no es la pareja literal; lo que importa es que el último
+	// gesto sea arrancar el servicio y que el enable vaya antes.
+	if !strings.HasSuffix(strings.TrimSpace(s), "\"$INIT\" restart") {
+		t.Error("el script debe terminar con el restart del servicio")
+	}
+	if strings.Index(s, `"$INIT" enable`) > strings.LastIndex(s, `"$INIT" restart`) {
+		t.Error("el script debe habilitar el servicio antes de reiniciarlo")
 	}
 }
 
@@ -404,5 +410,49 @@ func TestEnvScriptTrustCA(t *testing.T) {
 	noTrust := reinstall.EnvScript("ap1", "tok", "http://192.168.1.226:3000", "", reinstall.WanTargets{})
 	if !strings.Contains(noTrust, "rm -f /etc/netpulse-ca.pem") {
 		t.Errorf("EnvScript sin trust debe borrar la CA previa")
+	}
+}
+
+// #1476: en una actualización de imagen se perdían el init y el env porque no
+// estaban en /etc/sysupgrade.conf (OpenWrt solo conserva conffiles de paquetes,
+// ese fichero y /lib/upgrade/keep.d/*). El script los añade, sin duplicar
+// líneas, después del enable (los symlinks de /etc/rc.d ya existen) y antes del
+// restart final.
+func TestScriptPreservesOnSysupgrade(t *testing.T) {
+	s := scriptForTest()
+	for _, want := range []string{
+		"P=/etc/sysupgrade.conf",
+		`ensure_sysupgrade() { grep -qxF "$1" "$P" 2>/dev/null || echo "$1" >> "$P"; }`,
+		"ensure_sysupgrade /usr/sbin/netpulse-agent",
+		"ensure_sysupgrade /etc/netpulse-agent.env",
+		"ensure_sysupgrade /etc/init.d/netpulse-agent",
+		`for f in /etc/rc.d/*netpulse-agent*; do [ -e "$f" ] && ensure_sysupgrade "$f"; done`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script sin %q", want)
+		}
+	}
+	enable := strings.Index(s, `"$INIT" enable`)
+	preserve := strings.Index(s, "ensure_sysupgrade /etc/init.d/netpulse-agent")
+	restart := strings.LastIndex(s, `"$INIT" restart`)
+	if !(enable >= 0 && preserve > enable && preserve < restart) {
+		t.Errorf("orden inesperado: enable=%d preserve=%d restart=%d", enable, preserve, restart)
+	}
+}
+
+// #1476: la variante ligera (EnvScript, que corre en la migración a HTTPS
+// sobre toda la flota) también escribe las entradas, para curar instalaciones
+// antiguas que nunca las añadieron.
+func TestEnvScriptPreservesOnSysupgrade(t *testing.T) {
+	env := reinstall.EnvScript("test-router", strings.Repeat("a1", 32),
+		"http://192.168.1.226:3000", "", reinstall.WanTargets{})
+	for _, want := range []string{
+		"P=/etc/sysupgrade.conf",
+		"ensure_sysupgrade /etc/init.d/netpulse-agent",
+		"ensure_sysupgrade /etc/netpulse-agent.env",
+	} {
+		if !strings.Contains(env, want) {
+			t.Errorf("EnvScript sin %q", want)
+		}
 	}
 }

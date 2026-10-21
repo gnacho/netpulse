@@ -148,6 +148,25 @@ chmod 600 "$ENV_FILE"
 `
 }
 
+// preserveOnSysupgrade (#1476) añade los ficheros del agente a
+// /etc/sysupgrade.conf. OpenWrt solo conserva en una actualización de imagen los
+// conffiles declarados por los paquetes instalados, lo listado en ese fichero y
+// /lib/upgrade/keep.d/*; el init y el env los escribe este script como ficheros
+// sueltos, así que sin esta lista desaparecen y el self-heal nunca llega a
+// correr, porque lo que se pierde es el punto de entrada. Idempotente (no
+// duplica líneas) y el mismo gesto que firmware.EnsureStackPreserved (owut).
+const preserveOnSysupgrade = `
+# Preservar el agente en sysupgrade (#1476): mismo gesto que el flujo owut.
+P=/etc/sysupgrade.conf
+touch "$P"
+ensure_sysupgrade() { grep -qxF "$1" "$P" 2>/dev/null || echo "$1" >> "$P"; }
+ensure_sysupgrade /usr/sbin/netpulse-agent
+ensure_sysupgrade /etc/netpulse-agent.env
+ensure_sysupgrade /etc/init.d/netpulse-agent
+for f in /etc/rc.d/*netpulse-agent*; do [ -e "$f" ] && ensure_sysupgrade "$f"; done
+true
+`
+
 // EnvScript (#1294) es la variante LIGERA del script de instalación: NO
 // descarga binario ni toca el init; solo reescribe la CA raíz y
 // /etc/netpulse-agent.env (rotando el token) y reinicia el agente para que
@@ -173,7 +192,7 @@ SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
 SERVER_FP="` + serverFP + `"
-` + caSetupBlock(tr) + envRewriteBlock(targets) + `
+` + caSetupBlock(tr) + envRewriteBlock(targets) + preserveOnSysupgrade + `
 # Releer el env: el agente lo lee del fichero en cada arranque (#1287), así
 # que basta un restart del init procd (respawn inmediato).
 if [ -f "$INIT" ]; then
@@ -247,8 +266,10 @@ mv -f /tmp/netpulse-agent.new "$BIN"
 # SLUG, TOKEN, SERVER_FP, WAN_TARGET, GW_TARGET): las NETPULSE_* del usuario
 # (p. ej. NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
 ` + envRewriteBlock(targets) + `
-# Init procd con self-heal (#457): un sysupgrade solo conserva /etc, así que
-# si el binario falta al arrancar se descarga del server con este env.
+# Init procd con self-heal (#457): un sysupgrade no conserva los ficheros
+# sueltos, así que el binario, el init y el env se añaden a
+# /etc/sysupgrade.conf (#1476); si aun así falta el binario al arrancar se
+# descarga del server con este env.
 cat > "$INIT" <<'INITEOF'
 #!/bin/sh /etc/rc.common
 # netpulse-agent — agente nativo NetPulse para OpenWrt, con self-heal.
@@ -329,6 +350,7 @@ if [ -f /etc/crontabs/root ]; then
 fi
 
 "$INIT" enable
+` + preserveOnSysupgrade + `
 "$INIT" restart
 `
 }
