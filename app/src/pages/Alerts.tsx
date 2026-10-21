@@ -558,8 +558,33 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
             <div className="mx-3 mb-2 mt-1">
               <ContextPanel ev={ev} animateIn={!reduce} />
               {/* #1349: el evento de cierre lista los eventos que resolvió
-                  (conservados en el log marcados, no borrados). */}
-              {expanded && ev.resolves && ev.resolves.length > 0 && feedById && (
+                  (conservados en el log marcados, no borrados).
+                  #1466: el server manda `resolved` autocontenido (título,
+                  ts, type/vars): el feed se pagina y el evento resuelto
+                  puede no estar en la página local. `resolves` queda como
+                  fallback para servidores viejos. */}
+              {expanded && (ev.resolved?.length ?? 0) > 0 && (
+                <div className="mt-2 rounded-lg border border-border bg-canvas px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">
+                    {t('alerts.resolvesTitle', { count: ev.resolved?.length ?? 0 })}
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {ev.resolved?.map((r) => (
+                      <li key={r.id} className="flex items-center justify-between gap-2 text-caption">
+                        <span className="min-w-0 truncate text-text-secondary">
+                          {alertTitle(t, { title: r.title ?? r.id, type: r.type, vars: r.vars })}
+                        </span>
+                        {r.ts > 0 && (
+                          <span className="shrink-0 font-mono text-[10px] text-text-muted">
+                            {alertRelTime({ ts: r.ts, time: '' })}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {expanded && (ev.resolved?.length ?? 0) === 0 && ev.resolves && ev.resolves.length > 0 && feedById && (
                 <div className="mt-2 rounded-lg border border-border bg-canvas px-3 py-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">
                     {t('alerts.resolvesTitle', { count: ev.resolves.length })}

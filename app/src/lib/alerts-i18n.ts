@@ -15,7 +15,11 @@ import type { TFunction } from 'i18next'
 import type { AlertEvent } from '@/data/types'
 import { formatAlertTempVars, readTempUnit } from '@/lib/temperature'
 
-export function alertTitle(t: TFunction, ev: AlertEvent): string {
+/** Campos mínimos para traducir un título: AlertEvent los cumple, y también
+ *  las referencias de eventos resueltos (#1466). */
+export type AlertTitleSource = Pick<AlertEvent, 'title'> & Partial<Pick<AlertEvent, 'type' | 'vars'>>
+
+export function alertTitle(t: TFunction, ev: AlertTitleSource): string {
   if (!ev.type) return ev.title
   return t(`alerts.types.${ev.type}.title`, { defaultValue: ev.title, ...(ev.vars ?? {}) })
 }

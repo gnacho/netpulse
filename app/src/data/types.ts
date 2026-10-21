@@ -384,6 +384,19 @@ export interface AlertEvent {
   /** #1349: IDs de los eventos que este evento de cierre resuelve. La UI
    *  los lista al expandirlo. */
   resolves?: string[]
+  /** #1466: datos de lo que el cierre resolvió (título, ts, type y vars).
+   *  Viene del server para no depender de tener el evento en la página
+   *  actual del feed; si falta (servidor viejo), la UI cae a `resolves`. */
+  resolved?: ResolvedAlertRef[]
+}
+
+/** #1466: referencia de un evento resuelto, autocontenida. */
+export interface ResolvedAlertRef {
+  id: string
+  title?: string
+  ts: number
+  type?: string
+  vars?: Record<string, string>
 }
 
 // ---------------------------------------------------------------------------
