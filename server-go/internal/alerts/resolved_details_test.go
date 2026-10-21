@@ -83,3 +83,36 @@ func TestListResolvedUnknownID(t *testing.T) {
 	}
 	t.Fatal("el evento de cierre no está en el feed")
 }
+
+// #1466: `resolves` sobrevive al reinicio (se persiste en alert_log). Sin
+// esto, tras cada reinicio del server los cierres perdían sus referencias y
+// el bloque de resueltos desaparecía del log.
+func TestResolvesSurviveRestart(t *testing.T) {
+	dir := t.TempDir()
+	e1 := newPersistTestEngine(t, dir, false)
+	orig := AlertEvent{
+		ID: "alert-weak-x", Category: CatSignal, Severity: "warn",
+		Title: "Señal débil", Type: "wifi-weak", RouterID: "rt4",
+	}
+	if !e1.Emit(orig) {
+		t.Fatal("no emitió el original")
+	}
+	if !e1.Emit(AlertEvent{
+		ID: "alert-weak-x-ok", Category: CatSignal, Severity: "ok",
+		Title: "Recuperada", RouterID: "rt4", Resolves: []string{"alert-weak-x"},
+	}) {
+		t.Fatal("no emitió el cierre")
+	}
+
+	e2 := newPersistTestEngine(t, dir, false)
+	for _, ev := range e2.List() {
+		if ev.ID != "alert-weak-x-ok" {
+			continue
+		}
+		if len(ev.Resolved) != 1 || ev.Resolved[0].ID != "alert-weak-x" || ev.Resolved[0].Title != "Señal débil" {
+			t.Fatalf("tras reiniciar, resolved: %+v (resolves=%v)", ev.Resolved, ev.Resolves)
+		}
+		return
+	}
+	t.Fatal("el evento de cierre no volvió tras el reinicio")
+}

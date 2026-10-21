@@ -411,7 +411,8 @@ CREATE TABLE IF NOT EXISTS alert_log (
   router_id     TEXT NOT NULL DEFAULT '',
   suppressed_by TEXT NOT NULL DEFAULT '',
   vars          TEXT NOT NULL DEFAULT '',
-  read_flag     INTEGER NOT NULL DEFAULT 0
+  read_flag     INTEGER NOT NULL DEFAULT 0,
+  resolves      TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_alert_log_ts ON alert_log(ts DESC);
 
@@ -588,6 +589,10 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// ts de resolución para revisión posterior (y el evento de cierre lo
 	// referencia con `resolves`). 0 = activo/no resuelto.
 	migrate(sqldb, "alert_log", "resolved_ts", "ALTER TABLE alert_log ADD COLUMN resolved_ts INTEGER NOT NULL DEFAULT 0")
+	// #1466: `resolves` (IDs de los eventos que un cierre resolvió) en JSON.
+	// Sin persistirlo, tras un reinicio el evento de cierre perdía sus
+	// referencias y el bloque "Resuelve N eventos" desaparecía del log.
+	migrate(sqldb, "alert_log", "resolves", "ALTER TABLE alert_log ADD COLUMN resolves TEXT NOT NULL DEFAULT ''")
 	// issue #241: target de firmware por router (string libre; NULL/"" = sin comprobar).
 	migrate(sqldb, "routers", "firmware_target", "ALTER TABLE routers ADD COLUMN firmware_target TEXT")
 	// issue #309: SNMP polling for managed switches.

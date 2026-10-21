@@ -366,7 +366,7 @@ func (e *Engine) loadPersistedLocked() {
 	}
 	rows, err := e.db.Query(
 		`SELECT id, ts, category, type, severity, urgent, title, description, hint,
-		        router_id, suppressed_by, vars, read_flag, resolved_ts
+		        router_id, suppressed_by, vars, read_flag, resolved_ts, resolves
 		 FROM alert_log ORDER BY ts DESC LIMIT ?`, MaxEvents)
 	if err != nil {
 		return
@@ -379,10 +379,10 @@ func (e *Engine) loadPersistedLocked() {
 	loaded := []row{}
 	for rows.Next() {
 		var ev AlertEvent
-		var typ, sev, hint, routerID, suppressedBy, varsRaw string
+		var typ, sev, hint, routerID, suppressedBy, varsRaw, resolvesRaw string
 		var urgent, read int
 		if err := rows.Scan(&ev.ID, &ev.Ts, &ev.Category, &typ, &sev, &urgent,
-			&ev.Title, &ev.Description, &hint, &routerID, &suppressedBy, &varsRaw, &read, &ev.ResolvedTs); err != nil {
+			&ev.Title, &ev.Description, &hint, &routerID, &suppressedBy, &varsRaw, &read, &ev.ResolvedTs, &resolvesRaw); err != nil {
 			return
 		}
 		// #833: una alerta limpiada no vuelve a aparecer tras un reinicio.
@@ -404,6 +404,13 @@ func (e *Engine) loadPersistedLocked() {
 			vars := map[string]string{}
 			if json.Unmarshal([]byte(varsRaw), &vars) == nil {
 				ev.Vars = vars
+			}
+		}
+		// #1466: referencias del cierre (qué eventos resolvió).
+		if resolvesRaw != "" {
+			var ids []string
+			if json.Unmarshal([]byte(resolvesRaw), &ids) == nil && len(ids) > 0 {
+				ev.Resolves = ids
 			}
 		}
 		loaded = append(loaded, row{ev: ev, read: read != 0})
@@ -573,20 +580,28 @@ func (e *Engine) persistLocked(ev AlertEvent) {
 			varsRaw = string(raw)
 		}
 	}
+	// #1466: las referencias del cierre se persisten; si no, tras un reinicio
+	// el evento de cierre queda sin saber qué resolvió.
+	resolvesRaw := ""
+	if len(ev.Resolves) > 0 {
+		if raw, err := json.Marshal(ev.Resolves); err == nil {
+			resolvesRaw = string(raw)
+		}
+	}
 	urgent := 0
 	if ev.Urgent {
 		urgent = 1
 	}
 	_, _ = e.db.Exec(
-		`INSERT INTO alert_log (id, ts, category, type, severity, urgent, title, description, hint, router_id, suppressed_by, vars, resolved_ts)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO alert_log (id, ts, category, type, severity, urgent, title, description, hint, router_id, suppressed_by, vars, resolved_ts, resolves)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET ts=excluded.ts, category=excluded.category,
 		   type=excluded.type, severity=excluded.severity, urgent=excluded.urgent,
 		   title=excluded.title, description=excluded.description, hint=excluded.hint,
 		   router_id=excluded.router_id, suppressed_by=excluded.suppressed_by, vars=excluded.vars,
-		   resolved_ts=excluded.resolved_ts`,
+		   resolved_ts=excluded.resolved_ts, resolves=excluded.resolves`,
 		ev.ID, ev.Ts, ev.Category, ev.Type, ev.Severity, urgent,
-		ev.Title, ev.Description, ev.Hint, ev.RouterID, ev.SuppressedBy, varsRaw, ev.ResolvedTs)
+		ev.Title, ev.Description, ev.Hint, ev.RouterID, ev.SuppressedBy, varsRaw, ev.ResolvedTs, resolvesRaw)
 	_, _ = e.db.Exec(
 		`DELETE FROM alert_log WHERE id NOT IN
 		   (SELECT id FROM alert_log ORDER BY ts DESC LIMIT ?)`, PersistMaxEvents)
