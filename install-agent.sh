@@ -4,7 +4,9 @@
 #
 #   Instala el agente nativo netpulse-agent en un router/AP OpenWrt: copia el
 #   binario (arm64/armv7/mipsle/mips), escribe /etc/netpulse-agent.env (chmod
-#   600) e instala el servicio procd (respawn) habilitado y arrancado.
+#   600) e instala el servicio procd (respawn) habilitado y arrancado. Añade
+#   binario, init y env a /etc/sysupgrade.conf para que sobrevivan a una
+#   actualización de firmware (#1476).
 #
 # Uso (el token lo genera POST /api/agents y se muestra UNA sola vez):
 #   sh install-agent.sh --host 192.168.8.3 \
@@ -119,6 +121,12 @@ if [ "$UNINSTALL" -eq 1 ]; then
         # quitar la línea del watchdog del crontab (si existe)
         if [ -f /etc/crontabs/root ]; then
             sed -i '/netpulse-watchdog/d' /etc/crontabs/root
+        fi
+        # (#1476) retirar del sysupgrade.conf las entradas de la instalación
+        if [ -r /etc/sysupgrade.conf ]; then
+            grep -vxF -e /usr/sbin/$BIN_NAME -e $ENV_FILE -e $INIT_DST /etc/sysupgrade.conf 2>/dev/null \
+                | grep -vE '^/etc/rc\.d/[^/]*$INIT_NAME\$' > /tmp/np-sysupgrade.conf || true
+            mv /tmp/np-sysupgrade.conf /etc/sysupgrade.conf
         fi
     "
     ok "$BIN_NAME desinstalado de $HOST"
@@ -410,8 +418,10 @@ ENV_FILE=/etc/netpulse-agent.env
 BIN=/usr/sbin/netpulse-agent
 [ -x "$BIN" ] || BIN=/tmp/netpulse-agent
 
-# Self-heal: un sysupgrade solo conserva /etc, así que si el binario falta
-# al arrancar se descarga del server con el env (mismo criterio que el
+# Self-heal: un sysupgrade NO conserva los ficheros sueltos (solo conffiles
+# de paquetes, /etc/sysupgrade.conf y keep.d), por eso el instalador añade
+# binario, init y env a /etc/sysupgrade.conf (#1476). Si aun así falta el
+# binario al arrancar se descarga del server con el env (mismo criterio que el
 # reinstall del server; #851 retiró el watchdog cron, esto cubre el boot).
 selfheal_binary() {
     [ -x "$BIN" ] && return 0
@@ -471,6 +481,17 @@ INITEOF
 fi
 ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $INIT_DST && $INIT_DST enable && $INIT_DST restart"
 ok "servicio $INIT_NAME habilitado y arrancado"
+
+# ------------------------------------------------------- sysupgrade (#1476) --
+# OpenWrt solo conserva en una actualización de imagen los conffiles de los
+# paquetes instalados, lo listado en /etc/sysupgrade.conf y
+# /lib/upgrade/keep.d/*. El init y el env que escribe este instalador son
+# ficheros sueltos: sin esta lista desaparecen al actualizar y el self-heal del
+# init nunca llega a correr, porque lo que se pierde es el punto de entrada.
+# Mismo gesto que el flujo owut (firmware.EnsureStackPreserved), idempotente.
+info "preservando el agente en /etc/sysupgrade.conf (#1476)"
+ssh $SSH_IDENT_ARGS "$SSH" "P=/etc/sysupgrade.conf; touch \$P; ensure() { grep -qxF \"\$1\" \$P 2>/dev/null || echo \"\$1\" >> \$P; }; ensure /usr/sbin/$BIN_NAME; ensure $ENV_FILE; ensure $INIT_DST; for f in /etc/rc.d/*$INIT_NAME*; do [ -e \"\$f\" ] && ensure \"\$f\"; done; true" \
+    || warn "no pude actualizar /etc/sysupgrade.conf: el agente no sobrevivirá a una actualización de firmware"
 
 # ------------------------------------------------- lldpd en puertos físicos (#1369) --
 # lldpd bound al bridge (br-lan) no recibe vecinos en varios targets

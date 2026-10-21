@@ -19,8 +19,10 @@ ENV_FILE=/etc/netpulse-agent.env
 BIN=/usr/sbin/netpulse-agent
 [ -x "$BIN" ] || BIN=/tmp/netpulse-agent
 
-# Self-heal: un sysupgrade solo conserva /etc, así que si el binario falta
-# al arrancar se descarga del server con el env (mismo criterio que el
+# Self-heal: un sysupgrade NO conserva los ficheros sueltos (solo conffiles
+# de paquetes, /etc/sysupgrade.conf y keep.d), por eso el instalador añade
+# binario, init y env a /etc/sysupgrade.conf (#1476). Si aun así falta el
+# binario al arrancar se descarga del server con el env (mismo criterio que el
 # reinstall del server; #851 retiró el watchdog cron, esto cubre el boot).
 selfheal_binary() {
     [ -x "$BIN" ] && return 0
