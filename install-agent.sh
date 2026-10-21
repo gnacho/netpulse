@@ -160,8 +160,15 @@ case "$SERVER" in
         ;;
 esac
 
-ssh -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true \
-    || fatal 13 "no hay SSH a $SSH (¿dropbear + clave autorizada?)"
+# Preflight con la MISMA identidad que el resto del script: sin
+# $SSH_IDENT_ARGS el chequeo caía a ~/.ssh/id_* y fallaba aunque --ssh-key
+# fuera la válida (#1472). BatchMode=yes a propósito: el instalador es no
+# interactivo y la contraseña NUNCA basta; hay que autorizar la clave
+# pública en el router (dropbear: /etc/dropbear/authorized_keys).
+ssh $SSH_IDENT_ARGS -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true || {
+    PUB="${SSH_KEY:-~/.ssh/id_ed25519.pub}"
+    fatal 13 "sin SSH por clave a $SSH (el instalador es no interactivo: la contraseña no vale). Autoriza la clave pública en el router y repite: ssh-copy-id -i $PUB $SSH"
+}
 
 # ----------------------------------------------------- netgrip handoff --
 # Si el router ya corre NetGrip, su agente EMBEBIDO cubre el sondeo: no se
