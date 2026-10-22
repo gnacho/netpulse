@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
@@ -424,9 +425,22 @@ func snmpFdbMap(fdb []npsnmp.FdbEntry, portIdxToName map[int]string) map[string]
 		if name == "" {
 			name = fmt.Sprintf("port-%d", e.IfIndex)
 		}
+		if snmpInternalPort(name) {
+			continue
+		}
 		out[e.MAC] = name
 	}
 	return out
+}
+
+// snmpInternalPort: puerto interno del propio switch (CPU/stack/mgmt). La MAC
+// que aparece ahí es del equipo, no de un cliente: un NETGEAR aprende su
+// propio CPU MAC en su puerto interno y lo publicaba como cliente fantasma
+// (#1489). Heurística sobre el nombre del puerto, que es lo único que expone
+// la ifTable de estos switches para esa interfaz.
+func snmpInternalPort(name string) bool {
+	u := strings.ToUpper(name)
+	return strings.Contains(u, "CPU") || strings.Contains(u, "INTERNAL")
 }
 
 // snmpLldpNeighbors convierte los vecinos LLDP-MIB del switch al contrato

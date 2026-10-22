@@ -251,3 +251,24 @@ func TestSnmpPollHealthNoAlertWhenPingFails(t *testing.T) {
 		t.Fatalf("contadores con ping caído = %+v, want consec=3 fail=3", st)
 	}
 }
+
+// #1489: la MAC que el switch aprende en su propio puerto interno/CPU es del
+// equipo, no de un cliente. Antes salía como cliente fantasma "CPU node".
+func TestSnmpFdbMapDropsInternalCPUPort(t *testing.T) {
+	fdb := []npsnmp.FdbEntry{
+		{MAC: "AA:BB:CC:00:00:01", IfIndex: 1},
+		{MAC: "08:BD:43:75:50:CD", IfIndex: 9}, // CPU MAC del propio switch
+		{MAC: "AA:BB:CC:00:00:02", IfIndex: 10},
+	}
+	names := map[int]string{1: "1/0/1", 9: "CPU Interface:  3/1", 10: "Internal stack"}
+	m := snmpFdbMap(fdb, names)
+	if _, ok := m["08:BD:43:75:50:CD"]; ok {
+		t.Fatalf("la MAC del puerto CPU no debe entrar en el FDB: %v", m)
+	}
+	if _, ok := m["AA:BB:CC:00:00:02"]; ok {
+		t.Fatalf("la MAC del puerto interno no debe entrar en el FDB: %v", m)
+	}
+	if m["AA:BB:CC:00:00:01"] != "1/0/1" {
+		t.Fatalf("el puerto normal se perdió: %v", m)
+	}
+}

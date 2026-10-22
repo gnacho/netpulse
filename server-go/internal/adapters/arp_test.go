@@ -338,3 +338,29 @@ func TestBuildDevicesWanSideArp(t *testing.T) {
 		}
 	}
 }
+
+// #1489: la MAC que responde por la IP de gestión de una unidad de flota es la
+// propia unidad (pila de mgmt del switch), no un cliente: se absorbe como las
+// MACs de bridge aunque el FDB vecino la aprenda en su br-lan.
+func TestBuildDevicesAbsorbsSwitchMgmtMac(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	l.routers = []RouterConfig{{ID: "xs708t", Host: "192.168.2.6", Type: "managed-switch"}}
+	polled := map[string]*routerPolled{
+		"gw": {
+			cfg: RouterConfig{ID: "gw", Host: "192.168.1.1", IsGateway: true},
+			arp: map[string]string{
+				"08:BD:43:75:50:CD": "192.168.2.6", // el propio switch
+				"AA:BB:CC:00:00:09": "192.168.2.9", // cliente normal
+			},
+		},
+	}
+	devs := l.buildDevices(polled, "")
+	for _, d := range devs {
+		if d.MAC == "08:BD:43:75:50:CD" {
+			t.Fatalf("la MAC de gestión del switch no es un cliente: %+v", d)
+		}
+	}
+	if len(devs) != 1 || devs[0].MAC != "AA:BB:CC:00:00:09" {
+		t.Fatalf("devices: %+v, want solo el cliente normal", devs)
+	}
+}

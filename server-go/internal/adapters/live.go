@@ -3162,6 +3162,33 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			routerMacs[p.brMac] = true
 		}
 	}
+	// #1489: la MAC que responde por la IP de gestion de una unidad de flota es
+	// la propia unidad (pila de mgmt del switch), no un cliente: su FDB la ve en
+	// el puerto interno y las FDB vecinas la aprenden al gestionarla. Se absorbe
+	// junto a las MACs de bridge. Si el Host es un nombre, no casa con ninguna IP
+	// de ARP y no absorbe nada.
+	mgmtHosts := map[string]bool{}
+	for _, p := range polled {
+		if p.cfg.Host != "" {
+			mgmtHosts[p.cfg.Host] = true
+		}
+	}
+	l.mu.Lock()
+	for _, rc := range l.routers {
+		if rc.Host != "" {
+			mgmtHosts[rc.Host] = true
+		}
+	}
+	l.mu.Unlock()
+	if len(mgmtHosts) > 0 {
+		for _, p := range polled {
+			for mac, ip := range p.arp {
+				if mgmtHosts[ip] {
+					routerMacs[strings.ToUpper(mac)] = true
+				}
+			}
+		}
+	}
 	// issue #196: allowlist de dispositivos confiables (mac → alias).
 	knownMacs := map[string]string{}
 	if l.db != nil {
