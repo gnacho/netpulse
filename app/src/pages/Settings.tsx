@@ -357,7 +357,7 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
 // Gestión de routers (modo live): CRUD contra /api/config/routers
 // ---------------------------------------------------------------------------
 
-type RouterType = 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external' | 'asuswrt'
+type RouterType = 'glinet' | 'openwrt' | 'routeros' | 'bbox' | 'managed-switch' | 'external' | 'asuswrt'
 
 interface ConfigRouter {
   id: string
@@ -380,6 +380,7 @@ interface ConfigRouter {
   // campo en blanco en el form de edición conserva la password existente.
   routeros_user?: string
   routeros_insecure?: boolean
+  bbox_insecure?: boolean
 }
 
 interface DiscoverCandidate {
@@ -407,6 +408,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [addSnmpCommunity, setAddSnmpCommunity] = useState('')
   const [addSnmpPort, setAddSnmpPort] = useState(161)
   const [addSnmpPollInterval, setAddSnmpPollInterval] = useState(60)
+  const [addBboxPassword, setAddBboxPassword] = useState('')
+  const [addBboxInsecure, setAddBboxInsecure] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
   const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
@@ -435,6 +438,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editRouterOSUser, setEditRouterOSUser] = useState('')
   const [editRouterOSPassword, setEditRouterOSPassword] = useState('')
   const [editRouterOSInsecure, setEditRouterOSInsecure] = useState(false)
+  const [editBboxPassword, setEditBboxPassword] = useState('')
+  const [editBboxInsecure, setEditBboxInsecure] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [pubkey, setPubkey] = useState<{ publicKey: string; fingerprint: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -585,6 +590,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           snmp_community: addSnmpCommunity.trim() || undefined,
           snmp_port: addSnmpPort,
           snmp_poll_interval: addSnmpPollInterval,
+          bbox_password: type === 'bbox' ? addBboxPassword : undefined,
+          bbox_insecure: type === 'bbox' ? addBboxInsecure : undefined,
         }),
       })
       if (res.status === 409) {
@@ -602,6 +609,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setAddSnmpCommunity('')
       setAddSnmpPort(161)
       setAddSnmpPollInterval(60)
+      setAddBboxPassword('')
+      setAddBboxInsecure(false)
       setShowAddForm(false)
       await load()
       refresh()
@@ -632,6 +641,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditRouterOSUser(r.routeros_user ?? '')
     setEditRouterOSPassword('') // blank = conservar la password existente
     setEditRouterOSInsecure(r.routeros_insecure ?? false)
+    setEditBboxPassword('')
+    setEditBboxInsecure(r.bbox_insecure ?? false)
     setError(null)
   }
 
@@ -662,6 +673,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           routeros_user: editType === 'routeros' ? editRouterOSUser.trim() : undefined,
           routeros_password: editRouterOSPassword || undefined,
           routeros_insecure: editType === 'routeros' ? editRouterOSInsecure : undefined,
+          bbox_password: editType === 'bbox' ? editBboxPassword || undefined : undefined,
+          bbox_insecure: editType === 'bbox' ? editBboxInsecure : undefined,
         }),
       })
       if (res.status === 409) {
@@ -995,6 +1008,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               { value: 'glinet', label: 'GL.iNet' },
               { value: 'routeros', label: 'RouterOS' },
               { value: 'asuswrt', label: 'Asuswrt' },
+              { value: 'bbox', label: 'Bouygues Bbox' },
               { value: 'managed-switch', label: t('settings.routers.typeManaged') },
               { value: 'external', label: t('settings.routers.typeExternal') },
             ]}
@@ -1074,6 +1088,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {type === 'bbox' && (
+          <div className="mt-2.5 space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
+            <label htmlFor="add-bbox-password" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">{t('settings.routers.bboxPassword')}</label>
+            <input id="add-bbox-password" type="password" required value={addBboxPassword} onChange={(e) => setAddBboxPassword(e.target.value)} placeholder={t('settings.routers.bboxPasswordPlaceholder')} className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary" />
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary"><Switch checked={addBboxInsecure} onCheckedChange={setAddBboxInsecure} />{t('settings.routers.bboxInsecure')}</label>
           </div>
         )}
         {error && <p className="mt-2 text-caption text-danger">{error}</p>}
@@ -1165,7 +1186,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     { value: 'openwrt', label: 'OpenWrt' },
                     { value: 'glinet', label: 'GL.iNet' },
                     { value: 'routeros', label: 'RouterOS' },
-              { value: 'asuswrt', label: 'Asuswrt' },
+                    { value: 'asuswrt', label: 'Asuswrt' },
+                    { value: 'bbox', label: 'Bouygues Bbox' },
                     { value: 'managed-switch', label: t('settings.routers.typeManaged') },
                     { value: 'external', label: t('settings.routers.typeExternal') },
                   ]}
@@ -1308,6 +1330,13 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     <Switch checked={editRouterOSInsecure} onCheckedChange={setEditRouterOSInsecure} />
                     {t('settings.routers.routerosInsecure')}
                   </label>
+                </div>
+              )}
+              {editType === 'bbox' && (
+                <div className="space-y-2.5 rounded-lg border border-border bg-canvas/50 p-3">
+                  <label htmlFor="bbox-password" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">{t('settings.routers.bboxPassword')}</label>
+                  <input id="bbox-password" type="password" value={editBboxPassword} onChange={(e) => setEditBboxPassword(e.target.value)} placeholder={t('settings.routers.bboxPasswordPlaceholder')} className="w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary" />
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary"><Switch checked={editBboxInsecure} onCheckedChange={setEditBboxInsecure} />{t('settings.routers.bboxInsecure')}</label>
                 </div>
               )}
               {error && <p className="text-caption text-danger">{error}</p>}

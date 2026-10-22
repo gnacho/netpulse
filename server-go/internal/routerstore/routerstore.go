@@ -27,7 +27,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold, console_polling, routeros_user, routeros_password, routeros_insecure, disabled FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold, console_polling, routeros_user, routeros_password, routeros_insecure, bbox_password, bbox_insecure, disabled FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -35,10 +35,10 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort, consolePoll, roInsecure, disabled int
-		var name, ft, snmpComm, roUser, roPass sql.NullString
+		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort, consolePoll, roInsecure, bboxInsecure, disabled int
+		var name, ft, snmpComm, roUser, roPass, bboxPass sql.NullString
 		var tt sql.NullInt64
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt, &consolePoll, &roUser, &roPass, &roInsecure, &disabled); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt, &consolePoll, &roUser, &roPass, &roInsecure, &bboxPass, &bboxInsecure, &disabled); err != nil {
 			continue
 		}
 		// DEFAULT 1 de la migración, pero una fila insertada antes de la
@@ -62,6 +62,8 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		r.RouterOSUser = roUser.String
 		r.RouterOSPassword = roPass.String
 		r.RouterOSInsecure = roInsecure == 1
+		r.BboxPassword = bboxPass.String
+		r.BboxInsecure = bboxInsecure == 1
 		out = append(out, r)
 	}
 	return out
@@ -155,6 +157,8 @@ type AddInput struct {
 	RouterOSUser     string
 	RouterOSPassword string
 	RouterOSInsecure bool
+	BboxPassword string
+	BboxInsecure bool
 }
 
 // AddRouter inserta un router (si IsGateway, el resto pierde el flag —
@@ -211,9 +215,11 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if in.RouterOSInsecure {
 		roInsecure = 1
 	}
+	bboxInsecure := 0
+	if in.BboxInsecure { bboxInsecure = 1 }
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, console_polling, routeros_user, routeros_password, routeros_insecure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort, consolePoll, in.RouterOSUser, in.RouterOSPassword, roInsecure,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, console_polling, routeros_user, routeros_password, routeros_insecure, bbox_password, bbox_insecure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort, consolePoll, in.RouterOSUser, in.RouterOSPassword, roInsecure, in.BboxPassword, bboxInsecure,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -270,6 +276,8 @@ type UpdateInput struct {
 	RouterOSUser     *string
 	RouterOSPassword *string
 	RouterOSInsecure *bool
+	BboxPassword *string
+	BboxInsecure *bool
 }
 
 // UpdateRouter actualiza un router existente por id. Si IsGateway pasa a true,
@@ -398,6 +406,16 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 			v = 1
 		}
 		sets = append(sets, "routeros_insecure = ?")
+		args = append(args, v)
+	}
+	if in.BboxPassword != nil && *in.BboxPassword != "" {
+		sets = append(sets, "bbox_password = ?")
+		args = append(args, *in.BboxPassword)
+	}
+	if in.BboxInsecure != nil {
+		v := 0
+		if *in.BboxInsecure { v = 1 }
+		sets = append(sets, "bbox_insecure = ?")
 		args = append(args, v)
 	}
 	if len(sets) > 0 {

@@ -294,8 +294,8 @@ export default function RouterDetail() {
       {isGateway ? (
         <>
           {/* AdGuard Home y WireGuard (vía ubus OpenWrt); no aplican a RouterOS. */}
-          {router.type !== 'routeros' && <AdGuardPanel />}
-          {router.type !== 'routeros' && <WireGuardPanel />}
+          {router.type !== 'routeros' && router.type !== 'bbox' && <AdGuardPanel />}
+          {router.type !== 'routeros' && router.type !== 'bbox' && <WireGuardPanel />}
           <PortPanel router={router} extras={detail?.extras} snmpStats={snmpStats} className="lg:col-span-12" />
         </>
       ) : (

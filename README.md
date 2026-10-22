@@ -244,6 +244,8 @@ is in [docs/ROADMAP.md](docs/ROADMAP.md).
 - **[User manual](docs/manual.en.md)** (also in
   [Spanish](docs/manual.es.md)): every screen explained, menu by menu, with
   step-by-step procedures.
+- **[Bouygues Telecom Bbox](docs/bbox.md)**: local API setup, supported data and
+  firmware/API limitations.
 - **[Website](https://netpulse.cloudless.club)**: the project in five
   minutes, with a [feature tour](https://netpulse.cloudless.club/features),
   FAQ and screenshots.

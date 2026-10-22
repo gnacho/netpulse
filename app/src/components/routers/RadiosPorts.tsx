@@ -9,6 +9,7 @@ import { getRouterExtras } from '@/components/routers/routerExtras'
 import type { RouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
+import { fmtBytes } from '@/data/mock'
 
 /** ⑤⑥ variante OpenWrt — Radios WiFi (7) + Puertos (5) (router-detail.md §Variante). */
 export function RadiosPorts({ router, extras, snmpStats }: {
@@ -60,12 +61,14 @@ export function RadiosPorts({ router, extras, snmpStats }: {
                 {[
                   [t('routerDetail.radios.channel'), String(radio.channel)],
                   [t('routerDetail.radios.width'), `${radio.widthMhz} MHz`],
-                  [t('routerDetail.radios.power'), `${radio.powerDbm} dBm`],
-                  [t('routers.colClients'), String(radio.clients)],
+                  ...(radio.powerKnown !== false ? [[t('routerDetail.radios.power'), `${radio.powerDbm} dBm`]] : []),
+                  ...(radio.clientsKnown !== false ? [[t('routers.colClients'), String(radio.clients)]] : []),
                   // #1213: el ruido solo se muestra si el driver lo reporta
                   ...(radio.noiseDbm != null ? [[t('routerDetail.radios.noise'), `${radio.noiseDbm} dBm`]] : []),
                   // #1206: el BSSID de la interfaz (la MAC que antes asomaba como cliente)
                   ...(radio.bssid ? [[t('routerDetail.radios.bssid'), radio.bssid]] : []),
+                  ...(radio.rxBytes != null ? [[t('routerDetail.radios.rxTotal'), fmtBytes(radio.rxBytes)]] : []),
+                  ...(radio.txBytes != null ? [[t('routerDetail.radios.txTotal'), fmtBytes(radio.txBytes)]] : []),
                 ].map(([k, v]) => (
                   <div key={k}>
                     <dt className="text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{k}</dt>

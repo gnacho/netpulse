@@ -54,6 +54,23 @@ func TestEnrichOverviewPlanNotClobbered(t *testing.T) {
 	}
 }
 
+func TestEnrichOverviewPrefersRouterReportedContract(t *testing.T) {
+	db := newTestKV(t)
+	_ = kvSetFloat(db, wanSpeedDownKey, 600)
+	_ = kvSetFloat(db, wanSpeedUpKey, 100)
+	down, up := 8000.0, 1000.0
+	out := &adapters.Overview{WAN: adapters.WAN{
+		Plan: "—", ContractDownMbps: &down, ContractUpMbps: &up,
+	}}
+	EnrichOverview(db, nil, out)
+	if out.WAN.ContractDownMbps == nil || *out.WAN.ContractDownMbps != 8000 || out.WAN.ContractUpMbps == nil || *out.WAN.ContractUpMbps != 1000 {
+		t.Fatalf("router contract was overwritten: down=%v up=%v", out.WAN.ContractDownMbps, out.WAN.ContractUpMbps)
+	}
+	if out.WAN.Plan != "8000/1000 Mbps" {
+		t.Fatalf("plan = %q", out.WAN.Plan)
+	}
+}
+
 // TestEnrichOverviewPlanSinContrato: sin velocidad contratada configurada,
 // el plan se queda como estaba.
 func TestEnrichOverviewPlanSinContrato(t *testing.T) {

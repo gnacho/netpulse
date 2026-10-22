@@ -29,11 +29,23 @@ export interface RadioInfo {
   widthMhz: number
   powerDbm: number
   clients: number
+  /** false when the router API does not report this measurement */
+  powerKnown?: boolean
+  clientsKnown?: boolean
   congested?: boolean
   /** #1213: suelo de ruido en dBm (iwinfo); ausente si el driver no lo da */
   noiseDbm?: number
   /** #1206: BSSID de la interfaz AP - "el sitio donde viven" esas MACs */
   bssid?: string
+  /** Cumulative radio/band counters, when provided by the router. */
+  rxBytes?: number
+  txBytes?: number
+  rxPackets?: number
+  txPackets?: number
+  rxErrors?: number
+  txErrors?: number
+  rxDiscards?: number
+  txDiscards?: number
 }
 
 export interface PortInfo {
@@ -158,6 +170,8 @@ export interface BackhaulInfo {
 
 export interface RouterExtras {
   mac: string
+  /** Router's LAN address as reported by its local management API. */
+  lanIp?: string
   firmware: string
   firmwareBase?: string
   firmwareUpdated: boolean

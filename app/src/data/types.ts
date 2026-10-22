@@ -36,7 +36,7 @@ export interface Router {
   agentOnly?: boolean
   /** #1085: unidad pausada (no se sondea ni alerta; insignia "paused"). */
   disabled?: boolean
-  /** Tipo de dispositivo: "glinet"|"openwrt"|"managed-switch"|"external". */
+  /** Tipo de dispositivo: "glinet"|"openwrt"|"routeros"|"bbox"|"managed-switch"|"external". */
   type?: string
   status: Status
   /** Salud 0–100 */
@@ -115,6 +115,18 @@ export interface WanInfo {
   proto?: string
   gateway?: string
   dns?: string[]
+  ftth?: {
+    mode?: string
+    moduleClass?: string
+    state?: string
+    sfpStatus?: string
+    accessMode?: string
+    accessState?: string
+    receivePowerDbm?: number
+    transmitPowerDbm?: number
+    temperatureC?: number
+    voltageV?: number
+  }
   /** Velocidad contratada declarada por el admin (Mbps, issue #151). Ausente si no configurada. */
   contractDownMbps?: number
   contractUpMbps?: number
