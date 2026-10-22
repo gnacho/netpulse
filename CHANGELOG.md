@@ -21,7 +21,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - **Temperatura de CPU en x86 (#1484)**: se elige la zona térmica por tipo (`x86_pkg_temp`, `cpu-thermal`…) en vez de la primera legible, que era el ambiente ACPI; los equipos sin zonas caen a hwmon (`k10temp`/`coretemp`).
 - **Velocidad de uplink desde la boca del hijo en enlaces LLDP (#1471)**: cuando el padre no determina la velocidad, manda la tabla del extremo hijo; enlaces sw1↔sw2 dejan de salir "—".
 - **Refresco de releases con backoff y aviso de fallo (#1478)**: los fallos consecutivos esperan 5 min doblando hasta 1 h, el índice no se pisa con basura y la tarjeta distingue el último chequeo bueno del último intento fallido.
-- **RAM legible y zona horaria en la ficha (#1501)**: la RAM total se muestra en MiB (2048, como el chip) y la zona horaria deja de estar siempre vacía. (Pendiente de merge: figura de usada calculada en el server.)
+- **RAM legible y zona horaria en la ficha (#1501)**: la RAM total se muestra en MiB (2048, como el chip), la figura de usada la calcula el server desde los mismos bytes (deja de derivarse del porcentaje redondeado) y la zona horaria deja de estar siempre vacía.
 - **README con colaboradores (#1499)**: quienes reportan y envían PRs están nombrados en los dos READMEs.
 
 ### Fixed
