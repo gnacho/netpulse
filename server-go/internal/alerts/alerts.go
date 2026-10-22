@@ -848,12 +848,18 @@ func (e *Engine) List() []AlertEvent {
 		byID[e.list[i].ID] = &e.list[i]
 	}
 	out := make([]AlertEvent, 0, len(e.list))
+	// #1518: con el ajuste activo, los cierres informativos (severity ok) no
+	// se sirven; los avisos resueltos (resolvedTs, otra severidad) siguen.
+	hideOK := e.hideRecoveryLocked()
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 		if e.isSilencedLocked(key) {
+			continue
+		}
+		if hideOK && ev.Severity == "ok" {
 			continue
 		}
 		ev.Read = e.readSet[ev.ID]
@@ -881,12 +887,17 @@ func (e *Engine) UnreadCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	n := 0
+	// #1518: los eventos ocultos por el ajuste de recuperación no cuentan.
+	hideOK := e.hideRecoveryLocked()
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 		if e.isSilencedLocked(key) {
+			continue
+		}
+		if hideOK && ev.Severity == "ok" {
 			continue
 		}
 		if !e.readSet[ev.ID] {

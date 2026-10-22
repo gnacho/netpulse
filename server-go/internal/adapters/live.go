@@ -3763,25 +3763,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 				wasOpen := l.engine.Has(resolveID)
 				l.engine.Resolve(resolveID)
 				if wasOpen {
-					recSignal := ""
-					if d.SignalDbm != nil {
-						recSignal = strconv.Itoa(*d.SignalDbm)
-					}
-					durMin := int((weakNow - episodeStart) / 60000)
-					dur := "<1 min"
-					if durMin >= 1 {
-						dur = fmt.Sprintf("%d min", durMin)
-					}
-					l.engine.Emit(AlertEvent{
-						ID:       fmt.Sprintf("alert-weak-%s-ok-%d", d.MAC, weakNow),
-						Category: alerts.CatSignal, Urgent: false,
-						Severity: "ok", Title: "Weak signal resolved on " + d.Name,
-						Description: fmt.Sprintf("back to %s dBm on %s after %s", recSignal, routerName, dur),
-						Type:        alerts.TypeWifiWeakRecovered,
-						Vars:        map[string]string{"device": d.Name, "signal": recSignal, "router": routerName, "duration": dur},
-						Resolves:    []string{resolveID},
-						Time:        "just now", RouterID: d.RouterID,
-					})
+					l.emitWeakRecovered(d, routerName, resolveID, episodeStart, weakNow)
 				}
 			}
 		}
@@ -3928,6 +3910,36 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
+}
+
+// emitWeakRecovered emite el cierre del episodio de señal débil (#1452).
+// El cierre lleva ID ESTABLE por MAC (alert-weak-<mac>-ok) y va con
+// EmitOrUpdate (#1518): un episodio nuevo del mismo dispositivo REEMPLAZA la
+// entrada anterior en el log en vez de apilar otra "resuelta" idéntica (un
+// cliente que oscila de cobertura dejaba dos cierres iguales a los 27 min).
+// El histórico de episodios no se pierde: queda en los avisos originales
+// (warn), marcados como resueltos por #1349. Se llama con l.mu tomado, igual
+// que el resto de emisiones del bucle de dispositivos.
+func (l *Live) emitWeakRecovered(d *Device, routerName, resolveID string, episodeStart, weakNow int64) {
+	recSignal := ""
+	if d.SignalDbm != nil {
+		recSignal = strconv.Itoa(*d.SignalDbm)
+	}
+	durMin := int((weakNow - episodeStart) / 60000)
+	dur := "<1 min"
+	if durMin >= 1 {
+		dur = fmt.Sprintf("%d min", durMin)
+	}
+	l.engine.EmitOrUpdate(AlertEvent{
+		ID:       fmt.Sprintf("alert-weak-%s-ok", d.MAC),
+		Category: alerts.CatSignal, Urgent: false,
+		Severity: "ok", Title: "Weak signal resolved on " + d.Name,
+		Description: fmt.Sprintf("back to %s dBm on %s after %s", recSignal, routerName, dur),
+		Type:        alerts.TypeWifiWeakRecovered,
+		Vars:        map[string]string{"device": d.Name, "signal": recSignal, "router": routerName, "duration": dur},
+		Resolves:    []string{resolveID},
+		Time:        "just now", RouterID: d.RouterID,
+	})
 }
 
 // classifyRoamingDaemon decide que daemon de roaming esta activo en la red a
