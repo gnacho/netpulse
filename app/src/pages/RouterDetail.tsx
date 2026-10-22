@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams } from 'react-router'
-import { AlertTriangle, ArrowLeft, Gauge, Router as RouterIcon, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Gauge, KeyRound, Router as RouterIcon, ShieldAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { alertRelTime } from '@/i18n'
 import { fmtTemp, useTempUnit } from '@/lib/temperature'
@@ -21,6 +21,7 @@ import { MultiWanPanel } from '@/components/routers/MultiWanPanel'
 import { WanLatency } from '@/components/routers/WanLatency'
 import { VlanPanel } from '@/components/routers/VlanPanel'
 import { WireGuardPanel } from '@/components/routers/WireGuardPanel'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 
 /** Página `/routers/:id` — plantilla de detalle (router-detail.md) */
 export default function RouterDetail() {
@@ -34,21 +35,37 @@ export default function RouterDetail() {
   const [tempUnit] = useTempUnit()
   const router = routers.find((r) => r.id === id)
   const isGateway = router?.roleBadge === 'Principal'
+  // #1477: la acción de olvidar la host key solo tiene sentido en unidades que
+  // NetPulse sondea por SSH (OpenWrt/GL.iNet/RouterOS). Los agentes-only y los
+  // scrapers (beacon/external) no hablan SSH con el servidor.
+  const sshPolled = !!router && !router.agentOnly &&
+    (router.type === 'openwrt' || router.type === 'glinet' || router.type === 'routeros')
   const [detail, setDetail] = useState<RouterDetailData | null>(null)
   const [hkBusy, setHkBusy] = useState(false)
   const [hkDone, setHkDone] = useState(false)
+  const [hkErr, setHkErr] = useState('')
+  const [forgetOpen, setForgetOpen] = useState(false)
   // #930: resumen de salud SNMP del switch (solo routers sondeados por SNMP).
   const snmpStats = detail?.snmpOk !== undefined
     ? { ok: detail.snmpOk, fail: detail.snmpFail, lastErr: detail.lastSnmpErr }
     : undefined
 
   // #603: confirmación explícita del re-onboard tras una host key cambiada.
+  // #1477: la misma llamada sirve como acción proactiva ("olvidar la clave").
   async function handleAcceptHostKey() {
     if (hkBusy) return
     setHkBusy(true)
+    setHkErr('')
+    setHkDone(false)
     try {
       const res = await fetch(`/api/routers/${encodeURIComponent(id)}/accept-host-key`, { method: 'POST' })
-      if (res.status === 202 || res.status === 200) setHkDone(true)
+      if (res.status === 202 || res.status === 200) {
+        setHkDone(true)
+      } else {
+        setHkErr(t('routerDetail.hostKeyForgetError', { status: res.status }))
+      }
+    } catch {
+      setHkErr(t('routerDetail.hostKeyForgetError', { status: 'network' }))
     } finally {
       setHkBusy(false)
     }
@@ -117,6 +134,57 @@ export default function RouterDetail() {
       <div className="lg:col-span-12">
         <RouterDetailHeader router={router} />
       </div>
+
+      {/* #1477: acción proactiva de admin para olvidar la host key SSH. Los
+          casos que la necesitan (firmware que regenera las claves, reflash,
+          unidad sustituida en la misma IP) rompen el SSH antes de que el
+          sondeo pueda marcar hostKeyChanged, así que el aviso reactivo de
+          #603 no basta: aquí está la salida con confirmación explícita. */}
+      {isAdmin && sshPolled && (
+        <div className="lg:col-span-12">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-border bg-surface px-5 py-3">
+            <KeyRound className="h-4 w-4 shrink-0 text-text-muted" strokeWidth={1.75} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-text-primary">{t('routerDetail.hostKeyForgetTitle')}</div>
+              <p className="mt-0.5 text-sm text-text-secondary">{t('routerDetail.hostKeyForgetBody')}</p>
+              {hkDone && <p className="mt-1 text-sm font-medium text-ok">{t('routerDetail.hostKeyForgetDone')}</p>}
+              {hkErr && <p role="alert" className="mt-1 text-sm font-medium text-danger">{hkErr}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => setForgetOpen(true)}
+              disabled={hkBusy}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-canvas px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-danger/50 hover:text-danger disabled:opacity-50"
+            >
+              {t('routerDetail.hostKeyForgetAction')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog open={forgetOpen} onOpenChange={setForgetOpen}>
+        <AlertDialogContent className="border-danger/40 bg-surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('routerDetail.hostKeyForgetDialogTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('routerDetail.hostKeyForgetDialogDesc', { name: router.name || router.id })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20"
+              onClick={(e) => {
+                e.preventDefault()
+                setForgetOpen(false)
+                void handleAcceptHostKey()
+              }}
+            >
+              {t('routerDetail.hostKeyForgetConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* #603: host key cambiada → requiere re-onboard explícito (MITM) */}
       {router.hostKeyChanged && (
