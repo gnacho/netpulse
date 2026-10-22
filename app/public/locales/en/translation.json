@@ -564,7 +564,8 @@
       "switch": "switch",
       "tablet": "tablet",
       "tv": "TV",
-      "videoportero": "video doorbell"
+      "videoportero": "video doorbell",
+      "modem": "Modem/ONT"
     },
     "wiredConnection": "Wired connection",
     "weakChip": "{{count}} with weak signal (< {{dbm}} dBm)",

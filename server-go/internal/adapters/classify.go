@@ -20,6 +20,10 @@ var typeRules = []struct {
 	typ  string
 	subs []string
 }{
+	// #1495: ONT/módem en bridge. Patrones de FAMILIA concreta (ZXHN de ZTE,
+	// HG/F/G de Huawei, HGU/ONU genéricos): son nombres de equipo de ISP que
+	// no los usa nadie más, así que no se adivina por fabricante en la LAN.
+	{"modem", []string{"zxhn", "f660", "f670", "f680", "hgu", "onu", "g7615", "eg8145", "hg8245", "hg612", "g-140w"}},
 	// Videoportero antes que camara: "doorbell"/"timbre" son cámaras para
 	// el resto de reglas, pero el usuario distingue el timbre con cámara
 	// (#1327). Aspirador antes que iot: los nombres de robots aspiradores
@@ -121,6 +125,7 @@ func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldp
 // devolver (y las claves devices.types.* del frontend). El override manual de
 // tipo (#797) valida contra esta lista.
 var ValidDeviceTypes = map[string]bool{
+	"modem": true, // #1495: ONT/módem en bridge (primer salto del enlace WAN)
 	"consola": true, "tv": true, "camara": true, "altavoz": true,
 	"tablet": true, "movil": true, "portatil": true, "servidor": true,
 	"ordenador": true, "switch": true, "iot": true, "desconocido": true,

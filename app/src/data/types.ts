@@ -214,6 +214,7 @@ export type DeviceType =
   | 'servidor'
   | 'tablet'
   | 'switch'
+  | 'modem'
   | 'desconocido'
 
 export type Band = '6 GHz' | '5 GHz' | '2.4 GHz' | '60 GHz' | 'cable' | '—'

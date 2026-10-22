@@ -49,7 +49,7 @@ export interface DeviceEditSheetProps {
 // y las claves devices.types.* de los locales).
 const DEVICE_TYPES = [
   'movil', 'portatil', 'ordenador', 'tablet', 'tv', 'consola',
-  'camara', 'aspirador', 'videoportero', 'clima', 'caldera', 'placa', 'altavoz', 'servidor', 'iot', 'switch', 'desconocido',
+  'camara', 'aspirador', 'videoportero', 'clima', 'caldera', 'placa', 'altavoz', 'servidor', 'iot', 'switch', 'modem', 'desconocido',
 ] as const
 
 export function DeviceEditSheet({

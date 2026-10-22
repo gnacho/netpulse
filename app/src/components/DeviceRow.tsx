@@ -13,6 +13,7 @@ import {
   Lightbulb,
   Monitor,
   Network,
+  Router,
   Plug,
   Printer,
   Server,
@@ -55,6 +56,7 @@ export const DEVICE_ICONS: Record<DeviceType, LucideIcon> = {
   altavoz: Speaker,
   servidor: Server,
   switch: Network,
+  modem: Router,
   desconocido: CircuitBoard,
 }
 

@@ -564,7 +564,8 @@
       "switch": "switch",
       "tablet": "tablet",
       "tv": "TV",
-      "videoportero": "videoportero"
+      "videoportero": "videoportero",
+      "modem": "Módem/ONT"
     },
     "wiredConnection": "Conexión por cable",
     "weakChip": "{{count}} con señal débil (< {{dbm}} dBm)",

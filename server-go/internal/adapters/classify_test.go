@@ -108,3 +108,18 @@ func TestGuessDeviceTypeOnTheGapsFoundLive(t *testing.T) {
 		}
 	}
 }
+
+// #1495: las familias de hostname de ONT se clasifican como modem; nombres
+// normales de la LAN no (sin adivinar por fabricante a secas).
+func TestGuessDeviceTypeModem(t *testing.T) {
+	for _, h := range []string{"ZXHN-G7615V2", "f660-v6", "EG8145V5", "onu-router"} {
+		if got := GuessDeviceType(h, "", "", "", ""); got != "modem" {
+			t.Errorf("%s: got %q, want modem", h, got)
+		}
+	}
+	for _, h := range []string{"desktop-front", "webcam", "iphone-de-nacho"} {
+		if got := GuessDeviceType(h, "", "", "", ""); got == "modem" {
+			t.Errorf("%s: no debe clasificarse como modem", h)
+		}
+	}
+}
