@@ -19,7 +19,8 @@ interface AgentBadgeProps {
 
 function isOpenWrtDevice(t?: string): boolean {
   if (!t) return true
-  return t === 'glinet' || t === 'openwrt'
+  // #1481: asuswrt lleva agente nativo como openwrt/glinet.
+  return t === 'glinet' || t === 'openwrt' || t === 'asuswrt'
 }
 
 /**

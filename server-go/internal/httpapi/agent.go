@@ -447,7 +447,8 @@ func (s *server) rotateTokenHot(slug, token string) string {
 			break
 		}
 	}
-	if host == "" || !s.routerUpgradeable(slug) {
+	// #1481: asuswrt no tiene SSH para rotar el token en caliente.
+	if host == "" || !s.routerUpgradeable(slug) || s.routerTypeOf(slug) == "asuswrt" {
 		return "no_router"
 	}
 	if _, err := s.pool.Run(host, reinstall.TokenPushScript(slug, token), 60*time.Second); err != nil {
@@ -576,7 +577,22 @@ type agentUpgradeInfo struct {
 // actualizable; los de type managed-switch/external NO (son scrapers que no
 // usan el agente nativo y no entienden el comando "upgrade").
 func agentUpgradeable(typ string) bool {
-	return typ == "" || typ == "openwrt" || typ == "glinet"
+	// #1481: asuswrt se actualiza con el comando "upgrade" del agente (baja el
+	// binario y se lo cambia él mismo, sin procd); el REINSTALL por SSH sigue
+	// prohibido (handleAgentReinstall lo excluye aparte).
+	return typ == "" || typ == "openwrt" || typ == "glinet" || typ == "asuswrt"
+}
+
+// routerTypeOf: tipo de la fila routers para el slug ("" si no existe).
+func (s *server) routerTypeOf(slug string) string {
+	if s.db == nil {
+		return ""
+	}
+	var typ string
+	if err := s.db.QueryRow("SELECT type FROM routers WHERE id = ?", slug).Scan(&typ); err != nil {
+		return ""
+	}
+	return typ
 }
 
 // routerUpgradeable: variante por slug que consulta la tabla routers. NO usar
@@ -872,6 +888,14 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	if !s.routerUpgradeable(slug) {
 		writeError(w, http.StatusConflict, "not_openwrt",
 			"este dispositivo no usa el agente nativo OpenWrt (scraper); reinstálalo con su propio mecanismo")
+		return
+	}
+	// #1481: asuswrt no tiene SSH/procd para un reinstall por el servidor; el
+	// agente se actualiza con el comando "upgrade" (o copiando el binario a
+	// mano), no reinstalando.
+	if s.routerTypeOf(slug) == "asuswrt" {
+		writeError(w, http.StatusConflict, "no_reinstall_asuswrt",
+			"en Asuswrt el agente se actualiza con el botón Actualizar (o copiando el binario); el reinstall por SSH no aplica")
 		return
 	}
 

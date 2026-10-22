@@ -357,7 +357,7 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
 // Gestión de routers (modo live): CRUD contra /api/config/routers
 // ---------------------------------------------------------------------------
 
-type RouterType = 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external'
+type RouterType = 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external' | 'asuswrt'
 
 interface ConfigRouter {
   id: string
@@ -994,6 +994,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               { value: 'openwrt', label: 'OpenWrt' },
               { value: 'glinet', label: 'GL.iNet' },
               { value: 'routeros', label: 'RouterOS' },
+              { value: 'asuswrt', label: 'Asuswrt' },
               { value: 'managed-switch', label: t('settings.routers.typeManaged') },
               { value: 'external', label: t('settings.routers.typeExternal') },
             ]}
@@ -1164,6 +1165,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     { value: 'openwrt', label: 'OpenWrt' },
                     { value: 'glinet', label: 'GL.iNet' },
                     { value: 'routeros', label: 'RouterOS' },
+              { value: 'asuswrt', label: 'Asuswrt' },
                     { value: 'managed-switch', label: t('settings.routers.typeManaged') },
                     { value: 'external', label: t('settings.routers.typeExternal') },
                   ]}

@@ -707,8 +707,9 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	l.clients = map[string]*OpenWrtClient{}
 	for _, c := range l.routers {
 		// RouterOS no habla SSH/ubus: se sondea por su REST API (routeros_live.go),
-		// sin cliente SSH.
-		if !c.AgentOnly && c.Type != "routeros" {
+		// sin cliente SSH. Asuswrt tampoco se sondea por SSH (no hay ubus): su
+		// única fuente es el agente (#1481); sin agente la unidad cae a offline.
+		if !c.AgentOnly && c.Type != "routeros" && c.Type != "asuswrt" {
 			l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
 		}
 	}
@@ -1691,6 +1692,8 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		switch cfg.Type {
 		case "glinet":
 			model = "GL.iNet"
+		case "asuswrt":
+			model = "Asuswrt"
 		case "routeros":
 			model = "RouterOS"
 		case "managed-switch":

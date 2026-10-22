@@ -92,7 +92,7 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const inStartupGrace = (serverUptimeSec ?? Number.MAX_SAFE_INTEGER) < STARTUP_GRACE_SEC
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
-  const isOpenWrt = !router.type || router.type === 'glinet' || router.type === 'openwrt'
+  const isOpenWrt = !router.type || router.type === 'glinet' || router.type === 'openwrt' || router.type === 'asuswrt'
   const agentDown = isOpenWrt && agent !== undefined && !agent.fresh
   const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
