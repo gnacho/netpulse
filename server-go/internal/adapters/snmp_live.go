@@ -172,6 +172,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	// nombre generado para no perder MACs (el conteo de clientes solo necesita
 	// la clave; el nombre es secundario).
 	fdbMap := snmpFdbMap(fdb, portIdxToName)
+	selfMacs := snmpSelfMacs(fdb, portIdxToName)
 
 	l.portMon.Observe(cfg.ID, ethPorts, l.engine)
 
@@ -192,6 +193,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		net:       netPtr,
 		ports:     ethPorts,
 		fdb:       fdbMap,
+		selfMacs:  selfMacs,
 		brMac:     brMac,
 		lldp:      snmpLldpNeighbors(lldpRem, portIdxToName),
 		polledAt:  now.UnixMilli(),
@@ -429,6 +431,27 @@ func snmpFdbMap(fdb []npsnmp.FdbEntry, portIdxToName map[int]string) map[string]
 			continue
 		}
 		out[e.MAC] = name
+	}
+	return out
+}
+
+// snmpSelfMacs: MACs aprendidas en los puertos internos de la unidad (CPU,
+// stack, mgmt). Son identidades del propio equipo, no clientes: sirven para
+// absorberlas también donde las aprenda un vecino (p.ej. la br-lan del
+// gateway al gestionarlo), que es el segundo fantasma de #1489.
+func snmpSelfMacs(fdb []npsnmp.FdbEntry, portIdxToName map[int]string) []string {
+	out := []string{}
+	for _, e := range fdb {
+		name := ""
+		if n, ok := portIdxToName[e.IfIndex]; ok {
+			name = n
+		} else if n, ok := portIdxToName[e.BridgePortIndex]; ok {
+			name = n
+		}
+		if name == "" || !snmpInternalPort(name) {
+			continue
+		}
+		out = append(out, e.MAC)
 	}
 	return out
 }

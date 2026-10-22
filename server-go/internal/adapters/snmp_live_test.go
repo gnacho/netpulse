@@ -272,3 +272,36 @@ func TestSnmpFdbMapDropsInternalCPUPort(t *testing.T) {
 		t.Fatalf("el puerto normal se perdió: %v", m)
 	}
 }
+
+// #1489: las MACs aprendidas en los puertos internos son identidad del propio
+// switch; se absorben también cuando las ve un vecino (br-lan del gateway).
+func TestSnmpSelfMacs(t *testing.T) {
+	fdb := []npsnmp.FdbEntry{
+		{MAC: "AA:BB:CC:00:00:01", IfIndex: 1},
+		{MAC: "08:BD:43:75:50:CD", IfIndex: 9},
+		{MAC: "08:BD:43:75:50:CF", IfIndex: 9},
+	}
+	names := map[int]string{1: "1/0/1", 9: "CPU Interface:  3/1"}
+	got := snmpSelfMacs(fdb, names)
+	if len(got) != 2 {
+		t.Fatalf("selfMacs %v, want las dos del puerto CPU", got)
+	}
+	for _, mac := range got {
+		if mac == "AA:BB:CC:00:00:01" {
+			t.Fatalf("una MAC de puerto normal no es identidad: %v", got)
+		}
+	}
+	// Esa identidad se absorbe aunque otro miembro (el gateway) la aprenda.
+	l := NewLive(nil, nil, nil, nil)
+	polled := map[string]*routerPolled{
+		"sw": {cfg: RouterConfig{ID: "sw", Type: "managed-switch"}, selfMacs: []string{"08:BD:43:75:50:CF"}},
+		"gw": {cfg: RouterConfig{ID: "gw", IsGateway: true}, fdb: map[string]string{
+			"08:BD:43:75:50:CF": "br-lan",
+			"AA:BB:CC:00:00:09": "br-lan",
+		}},
+	}
+	devs := l.buildDevices(polled, "")
+	if len(devs) != 1 || devs[0].MAC != "AA:BB:CC:00:00:09" {
+		t.Fatalf("devices: %+v, want solo el cliente real", devs)
+	}
+}

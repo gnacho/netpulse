@@ -125,6 +125,10 @@ type routerPolled struct {
 	// arpDevs: MAC→interfaz de la tabla ARP (#1485). Permite distinguir el
 	// ARP aprendido en el puerto WAN (primer salto del enlace) del de la LAN.
 	arpDevs map[string]string
+	// selfMacs: MACs de identidad del propio equipo aprendidas en sus puertos
+	// internos/CPU (#1489). No son clientes y se absorben aunque las vea otro
+	// miembro de la flota.
+	selfMacs []string
 	// arpStale: the subset of `arp` the kernel remembers without having
 	// confirmed (STALE/FAILED/INCOMPLETE). Good enough to resolve an IP,
 	// never enough to claim the host is connected -- an entry outlives the
@@ -3160,6 +3164,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	for _, p := range polled {
 		if p.brMac != "" {
 			routerMacs[p.brMac] = true
+		}
+		// #1489: identidades del propio switch (MACs de su puerto interno/CPU).
+		// Un vecino las aprende al gestionarlo y sin esto salen como clientes.
+		for _, mac := range p.selfMacs {
+			routerMacs[strings.ToUpper(mac)] = true
 		}
 	}
 	// #1489: la MAC que responde por la IP de gestion de una unidad de flota es
