@@ -286,11 +286,13 @@ func fleetOverrideEvidence(overrides []TopologyOverride, routers []Router) map[s
 	}
 	routerByMac := map[string]string{}
 	routerByID := map[string]bool{}
+	routerIDByLower := map[string]string{}
 	for _, r := range routers {
 		if r.MAC != "" {
 			routerByMac[NormalizeMAC(r.MAC)] = r.ID
 		}
 		routerByID[r.ID] = true
+		routerIDByLower[strings.ToLower(r.ID)] = r.ID
 	}
 	out := map[string]topoParent{}
 	for _, o := range overrides {
@@ -299,7 +301,14 @@ func fleetOverrideEvidence(overrides []TopologyOverride, routers []Router) map[s
 		}
 		rid, ok := routerByMac[NormalizeMAC(o.MAC)]
 		if !ok {
-			continue
+			// #1485: una unidad de flota sin MAC de bridge (ONT/módem dado de
+			// alta como external sin MAC) no se puede fijar por MAC. El target
+			// puede ser su id de router: así la intención del admin siempre se
+			// puede expresar, sea cual sea la forma en que se registró.
+			rid, ok = routerIDByLower[NormalizeMAC(o.MAC)]
+			if !ok {
+				continue
+			}
 		}
 		p := strings.TrimSpace(o.Parent)
 		if p == "" {

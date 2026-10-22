@@ -353,3 +353,32 @@ func TestFillWiredSpeeds(t *testing.T) {
 		t.Fatalf("wired sin puerto: %d, want 0", links[5].SpeedMbps)
 	}
 }
+
+// #1485: una unidad de flota sin MAC de bridge (ONT/módem registrado como
+// external sin MAC) no se puede fijar por MAC. El target del override puede
+// ser su id de router, así la intención del admin siempre se puede expresar
+// (la comparación es insensible a mayúsculas, como el resto de MACs).
+func TestFleetOverrideEvidenceTargetByRouterID(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "g7615v2", Name: "ONT", MAC: ""}, // sin MAC de bridge
+	}
+	overrides := []TopologyOverride{
+		{Kind: "attach", MAC: "G7615V2", Parent: "gw:eth2", Enabled: true},
+	}
+	ev := fleetOverrideEvidence(overrides, routers)
+	got, ok := ev["g7615v2"]
+	if !ok {
+		t.Fatalf("la unidad sin MAC no se fijó por id: %+v", ev)
+	}
+	if got.parent != "gw" || got.port != "eth2" {
+		t.Fatalf("got %+v, want gw/eth2", got)
+	}
+	// Un id que no existe sigue sin generar evidencia.
+	ev = fleetOverrideEvidence([]TopologyOverride{
+		{Kind: "attach", MAC: "no-existe", Parent: "gw", Enabled: true},
+	}, routers)
+	if len(ev) != 0 {
+		t.Fatalf("un target desconocido no debe generar evidencia: %+v", ev)
+	}
+}
