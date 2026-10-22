@@ -69,6 +69,7 @@ The Overview aggregates everything the server has already collected: health is c
 ### Design decisions
 
 - Health is not a magic number: it is a score computed from thresholds that you can adjust under **Settings > Data & thresholds** (temperature 65 C by default, signal -70 dBm, latency 50 ms). Changing a threshold changes the score.
+- **The Overview score and the per-unit health are different calculations.** The global one starts at 100 and subtracts fleet-level conditions: a unit offline (-30), temperature above its threshold (-8 per unit), AdGuard inactive (-5), a WireGuard interface down (-10) or important WireGuard peers down (-6 each, capped at -12). A single unit's health is computed only from its own metrics (temperature, signal, latency) against those thresholds. That is why the global score can drop (say, to 94 because urgent peers are down) while the gateway itself stays at 100: peers live in the global score, not in the unit's.
 - The ring updates in real time over SSE; the server polls the routers every 5 seconds and pushes a snapshot to all connected clients.
 - In demo there is no real data, and the collector/SLE cards do not appear (they depend on the backend).
 

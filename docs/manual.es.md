@@ -69,6 +69,7 @@ El Resumen es un agregado de todo lo que el servidor ya ha recogido: la salud se
 ### Decisiones de diseño
 
 - La salud no es un número mágico: es una nota calculada a partir de umbrales que tú puedes ajustar en **Ajustes > Datos y umbrales** (temperatura 65 °C por defecto, señal -70 dBm, latencia 50 ms). Cambiar un umbral cambia la nota.
+- **La nota global y la salud de cada unidad son cálculos distintos.** La global parte de 100 y resta condiciones de flota: una unidad offline (-30), temperatura por encima de su umbral (-8 por unidad), AdGuard inactivo (-5), una interfaz WireGuard caída (-10) o peers WireGuard importantes caídos (-6 por peer, con un tope de -12). La salud de una unidad concreta se calcula solo con sus métricas propias (temperatura, señal, latencia) contra esos umbrales. Por eso la nota global puede bajar (por ejemplo a 94 por peers urgentes caídos) mientras la del gateway se mantiene en 100: los peers viven en la nota global, no en la de la unidad.
 - El anillo se actualiza en tiempo real por SSE; el servidor sondea los routers cada 5 segundos y empuja una instantánea a todos los clientes conectados.
 - En demo no hay datos reales y las tarjetas de collector/SLE no aparecen (dependen del backend).
 
