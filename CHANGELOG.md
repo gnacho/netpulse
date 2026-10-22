@@ -32,6 +32,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - **Alertas resueltas con su propio título (#1466)**: los cierres narran qué se resolvió aunque el evento original haya salido del feed, y sobreviven al reinicio del server.
 - **Preflight SSH del one-liner con la identidad del server (#1473)**: el chequeo usa la llave que pasas con `--ssh-key`, no la por defecto.
 
+Gracias a **Bann-DEV** por ocho issues (#1481, #1482, #1484, #1485, #1489, #1500, #1501, #1502) y dos PRs (#1490, #1491), con mediciones en hardware real (ASUS GT-BE98 Pro, Synology DS1821+); a **sweetlazyboy** por #1493; y a **crowedavid**, **pl-komuch** y **juflo** por sus informes y pruebas (#1430, #1410, #1325, #1475, #1474).
+
 ## [2.46.0] - 2026-10-20
 
 ### Added

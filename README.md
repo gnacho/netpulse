@@ -259,26 +259,10 @@ instead of depending on a vendor's closed firmware, only works because
 OpenWrt exists. If NetPulse is useful to you, the real credit goes to the
 OpenWrt community.
 
-### Contributors
-
-The project is shaped almost as much by its reporters as by its code. Huge
-thanks to everyone who opens issues, sends PRs and tests against real hardware:
-
-- [@Bann-DEV](https://github.com/Bann-DEV) - agent and topology bug reports
-  (#1481, #1482, #1484, #1485, #1489) and PRs [#1490](https://github.com/gnacho/netpulse/pull/1490),
-  [#1491](https://github.com/gnacho/netpulse/pull/1491): CPU thermal zones, the
-  WAN-port ARP evidence and Asuswrt support all came from their hardware.
-- [@crowedavid](https://github.com/crowedavid) - WireGuard, firmware-upgrade and
-  topology deep-dives across more than twenty issues.
-- [@pl-komuch](https://github.com/pl-komuch) - install and HTTPS feedback
-  (#1475), which became the forget-host-key action.
-- [@sweetlazyboy](https://github.com/sweetlazyboy) - the per-client presence
-  timeline on the Reports page (#1493).
-- [@juflo](https://github.com/juflo) - the BBox router integration (#1474).
-- [@TheBox193](https://github.com/TheBox193), [@Coll147](https://github.com/Coll147),
-  [@gnulan](https://github.com/gnulan) and
-  [@ChaitanyaPramod](https://github.com/ChaitanyaPramod) - early issues and
-  feedback that shaped the first releases.
+This project is also shaped by its community: every issue, pull request and
+real-hardware test makes it better. Thanks to everyone who has contributed so
+far - the people and the work behind each release are named in the
+[CHANGELOG](CHANGELOG.md) and in every release's notes.
 
 ## Star history
 
