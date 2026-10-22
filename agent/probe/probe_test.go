@@ -486,6 +486,40 @@ func TestParseFdbBridgeFdb(t *testing.T) {
 	}
 }
 
+// TestParseBridgeFdbSplit — las MACs aprendidas en puertos del lado
+// inalámbrico no son clientes cableados, pero tampoco deben tirarse: el
+// hint WirelessSide es lo único que evita que el server las reclasifique
+// como cableadas vía el FDB de tránsito del gateway (#rotMAC).
+func TestParseBridgeFdbSplit(t *testing.T) {
+	wired, ws := ParseBridgeFdbSplit("==PORTS==\n0x1 eth0\n0x5 wl0.1\n0x6 wlan0\n0x8 phy0-ap0\n0x9 veth1\n==MACS==\n1 aa:bb:cc:dd:ee:01\n5 12:7c:61:8f:37:ec\n6 bb:bb:bb:bb:bb:01\n8 cc:cc:cc:cc:cc:01\n9 dd:dd:dd:dd:dd:01\n")
+	if len(wired) != 1 || wired["AA:BB:CC:DD:EE:01"] != "eth0" {
+		t.Fatalf("wired: %+v", wired)
+	}
+	if len(ws) != 3 {
+		t.Fatalf("wireless-side: %+v", ws)
+	}
+	if ws["12:7C:61:8F:37:EC"] != "wl0.1" || ws["BB:BB:BB:BB:BB:01"] != "wlan0" || ws["CC:CC:CC:CC:CC:01"] != "phy0-ap0" {
+		t.Fatalf("wireless-side puertos: %+v", ws)
+	}
+	if _, ok := ws["DD:DD:DD:DD:DD:01"]; ok {
+		t.Fatalf("veth no es lado inalámbrico: %+v", ws)
+	}
+}
+
+// TestCmdBridgeFdbSinBuiltinCommand — el ash de busybox en Merlin/Asuswrt no
+// tiene el builtin `command`: con la guarda antigua `if command -v brctl` el
+// test fallaba en esos equipos con "sh: command: not found" y la sección MACS
+// salía vacía (el FDB del AP entero desaparecía del server). La sonda debe
+// probar brctl y bridge sin depender de builtins opcionales.
+func TestCmdBridgeFdbSinBuiltinCommand(t *testing.T) {
+	if strings.Contains(CmdBridgeFDB, "command -v") {
+		t.Fatalf("CmdBridgeFDB depende del builtin `command`, ausente en ash de Merlin: %s", CmdBridgeFDB)
+	}
+	if !strings.Contains(CmdBridgeFDB, "brctl showmacs") || !strings.Contains(CmdBridgeFDB, "bridge fdb show") {
+		t.Fatalf("CmdBridgeFDB debe probar brctl y bridge fdb: %s", CmdBridgeFDB)
+	}
+}
+
 // TestParseFdbExcluyeWireless — #253: los puertos inalámbricos (phy*-ap*,
 // wlan*, bat*) no deben entrar como clientes cableados.
 func TestParseLuCILabels(t *testing.T) {
@@ -517,9 +551,17 @@ config language 'main'
 }
 
 func TestParseFdbExcluyeWireless(t *testing.T) {
-	fdb := ParseBridgeFdb("==PORTS==\n0x1 lan1\n0x5 phy0-ap0\n==MACS==\n1 aa:bb:cc:dd:ee:01\n5 ff:ee:dd:cc:bb:aa\n")
+	fdb := ParseBridgeFdb("==PORTS==\n0x1 lan1\n0x5 phy0-ap0\n0x6 wl0\n0x7 wl3\n==MACS==\n1 aa:bb:cc:dd:ee:01\n5 ff:ee:dd:cc:bb:aa\n6 12:7c:61:8f:37:ec\n7 12:7c:61:8f:37:e8\n")
 	if _, ok := fdb["FF:EE:DD:CC:BB:AA"]; ok {
 		t.Fatalf("phy0-ap0 no debería contar como cableado: %+v", fdb)
+	}
+	// Merlin: las MACs propias de cada radio Broadcom (bit LAA volteado) se
+	// aprenden en wl0..wl3 y no son clientes cableados.
+	if _, ok := fdb["12:7C:61:8F:37:EC"]; ok {
+		t.Fatalf("wl0 no debería contar como cableado: %+v", fdb)
+	}
+	if _, ok := fdb["12:7C:61:8F:37:E8"]; ok {
+		t.Fatalf("wl3 no debería contar como cableado: %+v", fdb)
 	}
 	if fdb["AA:BB:CC:DD:EE:01"] != "lan1" {
 		t.Fatalf("lan1 debería seguir: %+v", fdb)

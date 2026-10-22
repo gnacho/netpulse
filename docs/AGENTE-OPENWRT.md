@@ -117,6 +117,23 @@ push, escalado y resultado), para poder seguir la recuperación sin mirar
 código. Los agentes NetGrip embebidos y los rearmes manuales desde la UI
 siguen el mismo camino y también quedan registrados.
 
+## FDB wireless-side (`data.fdb.wirelessSide`)
+
+El agente reporta además, dentro de la sección `fdb`, un mapa
+`wirelessSide` MAC→banda con las MACs que el bridge aprende en sus propios
+puertos de radio (`wl0.1`, `wlan0`, `phy0-ap0`…) pero que la tabla de
+estaciones no lista: MACs rotadas/aleatorias que siguen emitiendo y clientes
+en backhaul 4-address. Sin ese hint, la única evidencia de esas MACs es el
+FDB de tránsito del gateway y el fallback las dibuja como clientes cableados.
+El agente excluye del hint sus propias MACs de radio (BSSID y direcciones de
+interfaz, con su variante de bit LAA volteado) y solo emite bandas que puede
+casar con una radio sondeada en el mismo ciclo.
+
+**Versión mínima del agente: 3.0.24.** Agentes anteriores simplemente omiten
+el campo (`omitempty`) y el server degrada al comportamiento previo sin
+error; un push sin sección `fdb` no limpia el último hint bueno (anti-flakeo),
+mientras que una sección `fdb` fresca sin hint sí lo limpia.
+
 ## lldpd en puertos físicos (#1369)
 
 La sonda LLDP del agente lee vecinos de `lldpd`. OJO con el binding: en

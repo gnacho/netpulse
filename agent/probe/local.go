@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -302,7 +304,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 			}
 		}
 	}
-	pl.Data.FDB = p.probeFDB(ctx, lldpPorts)
+	pl.Data.FDB = p.probeFDB(ctx, lldpPorts, pl.Data.Wireless.GetRadios())
 	pl.Data.Arp, pl.Data.ArpStale, pl.Data.ArpDevs = p.probeArp(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.Usteer = p.probeUsteer(ctx)
@@ -680,11 +682,12 @@ func (p *Prober) probeWan(ctx context.Context) *WanInfo {
 }
 
 // probeFDB: MACs aprendidas (brctl) + puertos ethernet (layout + /sys).
-func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool) *FDBData {
+func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool, radios []Radio) *FDBData {
 	fd := &FDBData{}
 	any := false
 	if out := p.runBest(ctx, CmdBridgeFDB, 0); out != "" {
-		fd.MACs = ParseBridgeFdb(out)
+		fd.MACs, fd.WirelessSide = ParseBridgeFdbSplit(out)
+		fd.WirelessSide = bandTagWirelessSide(fd.WirelessSide, radios)
 		any = true
 	}
 	statesOut := p.runBest(ctx, CmdPortStates, 0)
@@ -745,6 +748,105 @@ func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool) *FDBDa
 		fd.Ports = []EthPort{}
 	}
 	return fd
+}
+
+// bandTagWirelessSide convierte el mapa MAC→puerto inalámbrico del FDB en
+// MAC→banda, casando la MAC de la interfaz del puerto (o la del padre para
+// subinterfaces VLAN como wl0.1) con el BSSID de una radio sondeada en el
+// mismo ciclo. Sin radio que casar, la MAC se descarta: mejor no decir nada
+// que inventarse una banda. Es el hint que evita que el server clasifique
+// como cableado un MAC que solo vive detrás de una radio propia.
+func bandTagWirelessSide(side map[string]string, radios []Radio) map[string]string {
+	if len(side) == 0 {
+		return nil
+	}
+	bandByBSSID := make(map[string]string, len(radios))
+	for _, r := range radios {
+		if r.BSSID != "" {
+			bandByBSSID[strings.ToUpper(r.BSSID)] = r.Name
+		}
+	}
+	addrOf := func(iface string) string {
+		raw, err := os.ReadFile("/sys/class/net/" + iface + "/address")
+		if err != nil {
+			return ""
+		}
+		return strings.ToUpper(strings.TrimSpace(string(raw)))
+	}
+	baseOf := func(port string) string {
+		if i := strings.IndexAny(port, ".@"); i >= 0 {
+			return port[:i]
+		}
+		return port
+	}
+	// Pasada 1: MACs propias del equipo (BSSID de cada radio + dirección de
+	// cada interfaz de puerto inalámbrico, ambas con su variante de bit LAA
+	// volteado: el bridge las aprende como si fueran estaciones externas).
+	// Lo que cae en este conjunto es identidad, no cliente.
+	self := map[string]bool{}
+	addSelf := func(mac string) {
+		if mac == "" {
+			return
+		}
+		self[mac] = true
+		if flipped, err := hexFlipLAA(mac); err == nil {
+			self[flipped] = true
+		}
+	}
+	for bssid := range bandByBSSID {
+		addSelf(bssid)
+	}
+	addrs := map[string]string{}
+	for _, port := range side {
+		for _, iface := range []string{port, baseOf(port)} {
+			if iface == "" {
+				continue
+			}
+			if _, done := addrs[iface]; !done {
+				addrs[iface] = addrOf(iface)
+			}
+		}
+	}
+	for _, addr := range addrs {
+		addSelf(addr)
+	}
+	// Pasada 2: banda por MAC casando la dirección del puerto con un BSSID
+	// sondeado; sin radio que casar (o MAC propia) la MAC se descarta: mejor
+	// no decir nada que inventarse una banda.
+	out := make(map[string]string, len(side))
+	for mac, port := range side {
+		um := strings.ToUpper(mac)
+		if self[um] {
+			continue
+		}
+		band := ""
+		for _, iface := range []string{port, baseOf(port)} {
+			if a := addrs[iface]; a != "" {
+				if b, ok := bandByBSSID[a]; ok {
+					band = b
+					break
+				}
+			}
+		}
+		if band != "" {
+			out[um] = band
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// hexFlipLAA devuelve la MAC con el bit localmente-administrada (0x02 del
+// primer octeto) volteado, en formato colon-upper como el resto del FDB.
+func hexFlipLAA(mac string) (string, error) {
+	b, err := net.ParseMAC(mac)
+	if err != nil || len(b) == 0 {
+		return "", err
+	}
+	b[0] ^= 0x02
+	return strings.ToUpper(b.String()), nil
 }
 
 // probeLldp: vecinos LLDP de lldpd (#489). Contrato: Available=false cuando

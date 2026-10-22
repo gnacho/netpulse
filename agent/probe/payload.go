@@ -138,6 +138,16 @@ type WirelessData struct {
 	UciWirelessRaw string `json:"uciWirelessRaw,omitempty"`
 }
 
+// GetRadios devuelve las radios agregadas tolerando un receptor nil (sección
+// wireless ausente): el hint WirelessSide del FDB las usa para etiquetar la
+// banda y no debe obligar a que la sonda de estaciones haya ido bien.
+func (w *WirelessData) GetRadios() []Radio {
+	if w == nil {
+		return nil
+	}
+	return w.Radios
+}
+
 // OwnBSSID: una interfaz AP local con su BSSID y SSID (#1087).
 type OwnBSSID struct {
 	Iface string `json:"iface"`
@@ -176,6 +186,14 @@ type DHCPData struct {
 type FDBData struct {
 	MACs  map[string]string `json:"macs"` // {} = sin entradas; ausente = sonda fallida
 	Ports []EthPort         `json:"ports"`
+	// WirelessSide (#rotMAC): MACs que el bridge aprende en puertos del lado
+	// inalámbrico (wl0.1, wlan0, phy0-ap0…) pero que la tabla de estaciones NO
+	// lista: MACs rotadas/aleatorias que siguen emitiendo tramas, clientes en
+	// backhaul 4-address… Sin este hint el server solo las ve en el FDB del
+	// gateway (tránsito bridged) y su fallback los dibuja como clientes
+	// cableados. Valor = banda de la radio cuyo BSSID es la MAC del puerto
+	// ("2.4 GHz"|"5 GHz"|"6 GHz"); sin radio que casar, la MAC se omite.
+	WirelessSide map[string]string `json:"wirelessSide,omitempty"`
 }
 
 // DawnData: estado de DAWN (roaming/band-steering, Fase 14). Solo si DAWN

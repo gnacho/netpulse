@@ -133,14 +133,20 @@ type routerPolled struct {
 	// confirmed (STALE/FAILED/INCOMPLETE). Good enough to resolve an IP,
 	// never enough to claim the host is connected -- an entry outlives the
 	// device by minutes. Empty when the source could not report states.
-	arpStale  map[string]bool
-	wireless  map[string]WirelessClient
-	ports     []EthPort
-	radios    []Radio
-	fdb       map[string]string
-	brMac     string
-	latencyMs *float64
-	lossPct   *float64
+	arpStale map[string]bool
+	wireless map[string]WirelessClient
+	ports    []EthPort
+	radios   []Radio
+	fdb      map[string]string
+	// wirelessSide: MACs que el bridge del router aprende en sus propios
+	// puertos de radio (wl0.1, wlan0…) pero que la tabla de estaciones no
+	// lista (MACs rotadas que siguen emitiendo, backhaul 4-address). El
+	// agente las etiqueta con la banda de la radio; aquí mandan sobre el
+	// fallback del FDB del gateway, que si no las dibuja como cableadas.
+	wirelessSide map[string]string
+	brMac        string
+	latencyMs    *float64
+	lossPct      *float64
 	// backhaul: "cable"|"wifi"|"" (desconocido → se omite en el contrato).
 	backhaul string
 	// lldp: vecinos LLDP del tier lento (nil = sin lldpd o sonda fallida).
@@ -195,8 +201,11 @@ type extrasSnapshot struct {
 	radios   []Radio
 	wireless map[string]WirelessClient
 	fdb      map[string]string
-	luci     *probe.LuCILabels
-	vlans    []VlanPort
+	// wirelessSide: último hint bueno de MACs detrás de radios propias
+	// (ver routerPolled.wirelessSide). Mismo anti-parpadeo que fdb.
+	wirelessSide map[string]string
+	luci         *probe.LuCILabels
+	vlans        []VlanPort
 	// multiWan: last good multi-WAN section. The event-driven pushes carry
 	// no such section, and without keeping it the panel would blink out of
 	// the page every time a device associates. Unlike wanInfo, which is a
@@ -1238,6 +1247,14 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if fdb != nil {
 		fdbGood = fdb
 	}
+	// wirelessSide solo nace del payload del agente: en la vía SSH una sonda
+	// FDB exitosa lo LIMPIA (nadie lo refresca por este camino y un hint
+	// huérfano seguiría atribuyendo MACs rotadas como wireless para siempre);
+	// una sonda fallida conserva el cache, mismo anti-parpadeo que fdbGood.
+	wsGood := cached.wirelessSide
+	if fdb != nil {
+		wsGood = nil
+	}
 	luciGood := cached.luci
 	if luci := client.GetLuCILabels(); luci != nil {
 		luciGood = luci
@@ -1297,7 +1314,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		cpu: cpuV, ram: ramPct, temp: tempV,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, arpDevs: arpDevs, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
-		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
+		fdb: fdbGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
 		polledAt: l.now().UnixMilli(),
@@ -2946,6 +2963,44 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 					`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)
 					 ON CONFLICT(mac) DO UPDATE SET router_id=excluded.router_id, band=excluded.band, signal_dbm=excluded.signal_dbm, last_seen=excluded.last_seen`,
 					mac, routerID, w.Band, w.SignalDbm, now)
+			}
+		}
+	}
+	// (1b) hint wireless-side del FDB (#rotMAC): MACs que el bridge de un
+	// router aprende en sus propios puertos de radio pero que la tabla de
+	// estaciones no lista (MACs rotadas/aleatorias que siguen emitiendo,
+	// clientes en backhaul 4-address). Sin esto la única evidencia que queda
+	// es el FDB de tránsito del gateway y su fallback las dibuja como
+	// cableadas colgadas del switch. Mandan sobre (2)/(3) pero NO sobre (1):
+	// una asociación real de iw es siempre mejor evidencia que un FDB.
+	// Orden determinista para MACs vistas por varios routers: ids ordenados y
+	// first-wins (cada mapa wirelessSide clavea MACs distintas dentro de un
+	// mismo router, así que el único empate posible es entre routers).
+	{
+		ids := make([]string, 0, len(polled))
+		for routerID := range polled {
+			ids = append(ids, routerID)
+		}
+		sort.Strings(ids)
+		for _, routerID := range ids {
+			p := polled[routerID]
+			if p == nil {
+				continue
+			}
+			for mac, band := range p.wirelessSide {
+				if _, ok := seen[mac]; ok {
+					continue
+				}
+				seen[mac] = seenInfo{routerID, band, nil}
+				if l.db != nil {
+					// Sin signal_dbm en el DO UPDATE: el hint no trae RSSI y
+					// pisar con NULL el último bueno de una asociación real
+					// rompería la serie de señal del dispositivo.
+					_, _ = l.db.Exec(
+						`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)
+						 ON CONFLICT(mac) DO UPDATE SET router_id=excluded.router_id, band=excluded.band, last_seen=excluded.last_seen`,
+						mac, routerID, band, nil, now)
+				}
 			}
 		}
 	}
