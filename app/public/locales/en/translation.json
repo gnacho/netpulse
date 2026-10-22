@@ -1649,7 +1649,7 @@
       "add": "Add",
       "adding": "Adding…",
       "addDevice": "Tag another device",
-      "mac": "MAC address",
+      "mac": "MAC or unit id (when it has no MAC)",
       "name": "Name (optional)",
       "kind": {
         "hypervisor": "Hypervisor",

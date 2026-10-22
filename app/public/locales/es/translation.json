@@ -1649,7 +1649,7 @@
       "add": "Añadir",
       "adding": "Añadiendo…",
       "addDevice": "Etiquetar otro equipo",
-      "mac": "Dirección MAC",
+      "mac": "MAC o id de la unidad (si no tiene MAC)",
       "name": "Nombre (opcional)",
       "kind": {
         "hypervisor": "Hipervisor",
