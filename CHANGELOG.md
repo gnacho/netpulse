@@ -5,6 +5,33 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [2.47.0] - 2026-10-23
+
+### Added
+
+- **El agente sale de OpenWrt (#1481, #1500, #1501)**: sysinfo portable sin ubus (uptime, RAM desde `/proc/meminfo` con campos en crudo, zona horaria IANA desde `/etc/localtime`), clientes WiFi vía `iw station dump`, vecinos LLDP en texto cuando el JSON no existe, temperatura vía hwmon como último recurso y uplink resuelto por ruta default/LLDP. Tipo de router **asuswrt** con rol AP, badge de agente y actualización desde la UI (sin SSH ni procd). Probado en ASUS GT-BE98 Pro y Synology DS1821+.
+- **Historial de presencia por cliente en Informes (#1493)**: tramos online de un cliente en 7/30 días, tiempo total, número de tramos, conexiones en 24 h y el router donde estuvo. El cálculo arrastra el tramo abierto si el cliente ya estaba online antes de la ventana (los equipos fijos ya no salen vacíos).
+- **Acción "olvidar clave SSH" en la ficha de la unidad (#1477)**: tras un reflash o un upgrade que regenere las claves, el admin borra la clave registrada desde la UI con confirmación explícita; el siguiente sondeo re-registra con TOFU. Los errores del botón ya no se tragaban en silencio.
+- **Tipo de dispositivo Módem/ONT (#1495)**: familia de hostnames de ONT clasificada automáticamente y disponible en el editor de dispositivos.
+- **Evidencia ARP del puerto WAN (#1485)**: un ONT/módem en bridge tras PPPoE se dibuja como peer WAN bajo Internet en vez de fantasma u "otro cliente"; el agente y el poller SSH reportan la interfaz de cada entrada ARP y las unidades de flota sin MAC de bridge se fijan por id de router.
+- **Copia de configuración standalone desde la tarjeta (#1462)**: el agente (3.0.19+) sube un snapshot de `sysupgrade -b` bajo demanda, descargable desde la propia unidad.
+
+### Changed
+
+- **Temperatura de CPU en x86 (#1484)**: se elige la zona térmica por tipo (`x86_pkg_temp`, `cpu-thermal`…) en vez de la primera legible, que era el ambiente ACPI; los equipos sin zonas caen a hwmon (`k10temp`/`coretemp`).
+- **Velocidad de uplink desde la boca del hijo en enlaces LLDP (#1471)**: cuando el padre no determina la velocidad, manda la tabla del extremo hijo; enlaces sw1↔sw2 dejan de salir "—".
+- **Refresco de releases con backoff y aviso de fallo (#1478)**: los fallos consecutivos esperan 5 min doblando hasta 1 h, el índice no se pisa con basura y la tarjeta distingue el último chequeo bueno del último intento fallido.
+- **RAM legible y zona horaria en la ficha (#1501)**: la RAM total se muestra en MiB (2048, como el chip) y la zona horaria deja de estar siempre vacía. (Pendiente de merge: figura de usada calculada en el server.)
+- **README con colaboradores (#1499)**: quienes reportan y envían PRs están nombrados en los dos READMEs.
+
+### Fixed
+
+- **El agente sobrevive a sysupgrade (#1476)**: binario, env, init y symlinks de `/etc/rc.d` se añaden a `/etc/sysupgrade.conf` al instalar y reinstalar (el self-heal necesitaba su punto de entrada); el desinstalado limpia sus entradas. Vía API y one-liner.
+- **Los switches ya no se listan a sí mismos como clientes (#1489)**: las MAC aprendidas en su puerto interno/CPU salen del FDB y se absorben como identidad propia, aunque las aprenda un vecino.
+- **Uplink runtime manda sobre board.json (#1482)**: cuando netifd dice otra boca, la WAN se re-etiqueta y la del layout vuelve a su netdev (management en eth0, PPPoE en eth2 → WAN en eth2).
+- **Alertas resueltas con su propio título (#1466)**: los cierres narran qué se resolvió aunque el evento original haya salido del feed, y sobreviven al reinicio del server.
+- **Preflight SSH del one-liner con la identidad del server (#1473)**: el chequeo usa la llave que pasas con `--ssh-key`, no la por defecto.
+
 ## [2.46.0] - 2026-10-20
 
 ### Added
