@@ -269,6 +269,28 @@ del proyecto, que el hardware de tu red sea realmente tuyo y no dependa del
 firmware cerrado de un fabricante, solo es posible porque OpenWrt existe. Si
 NetPulse te sirve, el mérito real es de la comunidad de OpenWrt.
 
+### Colaboradores
+
+El proyecto lo moldean casi tanto quienes reportan como quienes programan.
+Gracias enormes a todos los que abren issues, mandan PRs y prueban con
+hardware real:
+
+- [@Bann-DEV](https://github.com/Bann-DEV) - informes precisos del agente y la
+  topología (#1481, #1482, #1484, #1485, #1489) y PRs [#1490](https://github.com/gnacho/netpulse/pull/1490),
+  [#1491](https://github.com/gnacho/netpulse/pull/1491): las zonas térmicas de CPU,
+  la evidencia ARP del puerto WAN y el soporte Asuswrt salieron de su hardware.
+- [@crowedavid](https://github.com/crowedavid) - análisis en profundidad de
+  WireGuard, actualizaciones de firmware y topología, en más de veinte issues.
+- [@pl-komuch](https://github.com/pl-komuch) - fricción de instalación y HTTPS
+  (#1475), que se convirtió en la acción de olvidar la host key.
+- [@sweetlazyboy](https://github.com/sweetlazyboy) - la línea temporal de
+  presencia por cliente en Informes (#1493).
+- [@juflo](https://github.com/juflo) - la integración del router BBox (#1474).
+- [@TheBox193](https://github.com/TheBox193), [@Coll147](https://github.com/Coll147),
+  [@gnulan](https://github.com/gnulan) y
+  [@ChaitanyaPramod](https://github.com/ChaitanyaPramod) - los primeros issues y
+  comentarios que dieron forma a los primeros releases.
+
 ## Historial de estrellas
 
 [![Star History Chart](https://api.star-history.com/svg?repos=gnacho/netpulse&type=date)](https://www.star-history.com/#gnacho/netpulse&date)
