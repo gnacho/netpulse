@@ -22,7 +22,7 @@ func TestBuildDevicesArpFallback(t *testing.T) {
 			},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 1 {
 		t.Fatalf("esperado 1 dispositivo, got %d: %+v", len(devs), devs)
 	}
@@ -45,7 +45,7 @@ func TestBuildDevicesArpDiscovery(t *testing.T) {
 			},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 1 {
 		t.Fatalf("esperado 1 dispositivo, got %d: %+v", len(devs), devs)
 	}
@@ -80,7 +80,7 @@ func TestBuildDevicesArpRouterExcluded(t *testing.T) {
 			},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 0 {
 		t.Fatalf("esperado 0 dispositivos (bridge MAC excluida), got %d: %+v", len(devs), devs)
 	}
@@ -115,7 +115,7 @@ func TestBuildDevicesIgnoresStaleArpOnlyHosts(t *testing.T) {
 			arpStale: map[string]bool{"02:00:00:00:00:11": true},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 1 || devs[0].MAC != "02:00:00:00:00:10" {
 		t.Fatalf("only the confirmed host is a device: %+v", devs)
 	}
@@ -133,7 +133,7 @@ func TestBuildDevicesStaleArpStillResolvesIPs(t *testing.T) {
 			arpStale: map[string]bool{"02:00:00:00:00:11": true},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 1 || devs[0].IP != "192.0.2.61" {
 		t.Fatalf("an associated client keeps its address: %+v", devs)
 	}
@@ -153,7 +153,7 @@ func TestBuildDevicesStaleOnOneRouterOnly(t *testing.T) {
 			arp: map[string]string{"02:00:00:00:00:10": "192.0.2.60"},
 		},
 	}
-	if devs := l.buildDevices(polled); len(devs) != 1 {
+	if devs := l.buildDevices(polled, ""); len(devs) != 1 {
 		t.Fatalf("confirmed by one router is enough: %+v", devs)
 	}
 }
@@ -207,7 +207,7 @@ func TestBuildDevicesReattributesDeletedRouters(t *testing.T) {
 		},
 	}
 	byMAC := map[string]Device{}
-	for _, dev := range l.buildDevices(polled) {
+	for _, dev := range l.buildDevices(polled, "") {
 		byMAC[dev.MAC] = dev
 	}
 	if len(byMAC) != 2 {
@@ -287,5 +287,54 @@ func TestGetRoutersCountsClientsNotLeases(t *testing.T) {
 	}
 	if online != routers[0].Clients {
 		t.Fatalf("routers endpoint says %d, attribution says %d", routers[0].Clients, online)
+	}
+}
+
+// #1485: el ARP aprendido en el puerto WAN del gateway cuenta como presencia
+// para el primer salto del enlace (ONT/modem en bridge tras PPPoE), que no
+// está en ninguna FDB. Solo en la boca WAN: el ARP de una boca LAN no se marca.
+func TestBuildDevicesWanSideArp(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	l.gatewayCfg = &RouterConfig{ID: "gw", Name: "Gateway", IsGateway: true}
+	polled := map[string]*routerPolled{
+		"gw": {
+			cfg: RouterConfig{ID: "gw", Name: "Gateway", IsGateway: true},
+			arp: map[string]string{
+				"C0:49:43:A3:D1:34": "192.168.1.1",  // ONT en el puerto WAN
+				"AA:BB:CC:00:00:01": "192.168.1.60", // cliente visto por LAN
+			},
+			arpDevs: map[string]string{
+				"C0:49:43:A3:D1:34": "eth2",
+				"AA:BB:CC:00:00:01": "br-lan",
+			},
+		},
+	}
+	devs := l.buildDevices(polled, "eth2")
+	byMAC := map[string]Device{}
+	for _, d := range devs {
+		byMAC[d.MAC] = d
+	}
+	ont, ok := byMAC["C0:49:43:A3:D1:34"]
+	if !ok {
+		t.Fatalf("el ONT no aparece en devices: %+v", devs)
+	}
+	if !ont.WanSide {
+		t.Fatalf("ONT: %+v, want WanSide (ARP en el puerto WAN)", ont)
+	}
+	if !ont.Online {
+		t.Fatalf("ONT: %+v, want online (el ARP del puerto WAN es presencia)", ont)
+	}
+	lan, ok := byMAC["AA:BB:CC:00:00:01"]
+	if !ok {
+		t.Fatalf("el cliente LAN no aparece: %+v", devs)
+	}
+	if lan.WanSide {
+		t.Fatalf("un ARP de boca LAN no puede ser WanSide: %+v", lan)
+	}
+	// Sin boca WAN (p.ej. rutas que no la pasan) no se marca nada.
+	for _, d := range l.buildDevices(polled, "") {
+		if d.WanSide {
+			t.Fatalf("sin wanPort no debe haber WanSide: %+v", d)
+		}
 	}
 }

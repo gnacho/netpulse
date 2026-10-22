@@ -583,12 +583,12 @@ func TestProberWirelessWithoutClients(t *testing.T) {
 		CmdNetDev:          "  eth0: 1000000 0 0 0 0 0 0 0 500000 0\n",
 		CmdBridgeMAC:       "94:83:c4:00:00:09\n",
 		// Sin clientes: ningún comando de assoclist/ubus hostapd.
-		CmdRadios:   "2.4|6|HT20|20|0\n",
-		CmdDhcpFile: "1700000000 ec:71:db:44:12:8a 192.168.8.71 movil *\n",
-		CmdBridgeFDB: "==PORTS==\n0x1 lan1\n==MACS==\n1 ec:71:db:44:12:8a\n",
-		CmdPortStates: "lan1 up 1000\nwan down -1\n",
+		CmdRadios:       "2.4|6|HT20|20|0\n",
+		CmdDhcpFile:     "1700000000 ec:71:db:44:12:8a 192.168.8.71 movil *\n",
+		CmdBridgeFDB:    "==PORTS==\n0x1 lan1\n==MACS==\n1 ec:71:db:44:12:8a\n",
+		CmdPortStates:   "lan1 up 1000\nwan down -1\n",
 		CmdUbusWireless: `{"radio0":{"up":true,"interfaces":[{"ifname":"wlan0","config":{"mode":"ap"}}]}}`,
-		CmdIwDev: "phy#0\n\tInterface wlan0\n\t\taddr 62:e5:56:b6:94:bd\n\t\tssid temiscira\n\t\ttype AP\n",
+		CmdIwDev:        "phy#0\n\tInterface wlan0\n\t\taddr 62:e5:56:b6:94:bd\n\t\tssid temiscira\n\t\ttype AP\n",
 	}}
 	p := NewProber(run, Options{GwPingTarget: "192.168.8.1", ScanInterval: ScanDisabled})
 
@@ -1622,5 +1622,47 @@ func TestParseMdnsHosts(t *testing.T) {
 	}
 	if got := ParseMdnsHosts([]byte("not json")); len(got) != 0 {
 		t.Fatalf("broken json must not panic: %+v", got)
+	}
+}
+
+// #1485: la interfaz de cada entrada ARP. Con ella el servidor distingue el
+// ARP aprendido en el puerto WAN (primer salto del enlace, ONT en bridge tras
+// PPPoE) del de la LAN.
+func TestParseIPNeighDevs(t *testing.T) {
+	out := `192.168.1.1 dev eth2 lladdr C0:49:43:A3:D1:34 REACHABLE
+192.168.1.60 dev br-lan lladdr AA:BB:CC:00:00:01 STALE
+192.168.1.61 dev br-lan lladdr AA:BB:CC:00:00:02 DELAY
+192.168.1.70 dev br-lan  FAILED`
+	devs := ParseIPNeighDevs(out)
+	if got := devs["C0:49:43:A3:D1:34"]; got != "eth2" {
+		t.Fatalf("ONT dev %q, want eth2", got)
+	}
+	// DELAY/REACHABLE cuentan como confirmadas; STALE no prueba presencia.
+	if got := devs["AA:BB:CC:00:00:02"]; got != "br-lan" {
+		t.Fatalf("DELAY dev %q, want br-lan", got)
+	}
+	if _, ok := devs["AA:BB:CC:00:00:01"]; ok {
+		t.Fatalf("una entrada STALE no debe aportar interfaz")
+	}
+	if len(devs) != 2 {
+		t.Fatalf("devs %v, want 2 entradas", devs)
+	}
+}
+
+// Fallback /proc/net/arp: misma idea con las columnas del fichero.
+func TestParseArpDevs(t *testing.T) {
+	out := `IP address       HW type     Flags       HW address            Mask     Device
+192.168.1.1      0x1         0x2         c0:49:43:a3:d1:34     *        eth2
+192.168.1.60     0x1         0x2         aa:bb:cc:00:00:01     *        br-lan
+192.168.1.61     0x1         0x0         00:00:00:00:00:00     *        br-lan`
+	devs := ParseArpDevs(out)
+	if devs["C0:49:43:A3:D1:34"] != "eth2" {
+		t.Fatalf("ONT dev %q, want eth2", devs["C0:49:43:A3:D1:34"])
+	}
+	if devs["AA:BB:CC:00:00:01"] != "br-lan" {
+		t.Fatalf("cliente dev %q, want br-lan", devs["AA:BB:CC:00:00:01"])
+	}
+	if len(devs) != 2 {
+		t.Fatalf("devs %v, want 2 (la incompleta se descarta)", devs)
 	}
 }

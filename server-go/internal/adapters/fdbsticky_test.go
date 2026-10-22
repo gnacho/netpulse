@@ -150,7 +150,7 @@ func TestBuildDevicesStickySatelliteAttribution(t *testing.T) {
 		"ap": {cfg: RouterConfig{ID: "ap", Name: "Luizjana2"}, brMac: "AA:AA:AA:AA:AA:AA",
 			fdb: map[string]string{"AA:AA:AA:AA:AA:AA": "lan1"}},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if d := mustDevice(t, devs, "44:44:44:44:44:44"); d.RouterID != "ap" {
 		t.Fatalf("RouterID=%q (want ap por la memo sticky)", d.RouterID)
 	}
@@ -171,7 +171,7 @@ func TestBuildDevicesGatewayLocalWinsOverSticky(t *testing.T) {
 		"ap": {cfg: RouterConfig{ID: "ap"}, brMac: "AA:AA:AA:AA:AA:AA",
 			fdb: map[string]string{"AA:AA:AA:AA:AA:AA": "lan1"}},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if d := mustDevice(t, devs, "44:44:44:44:44:44"); d.RouterID != "gateway" {
 		t.Fatalf("RouterID=%q (want gateway: boca local fresca manda)", d.RouterID)
 	}

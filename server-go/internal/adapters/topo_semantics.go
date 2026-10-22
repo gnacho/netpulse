@@ -560,15 +560,31 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 				break
 			}
 		}
-		if wanPeerID != "" {
-			filtered := online[:0]
-			for _, d := range online {
-				if d.ID != wanPeerID {
-					filtered = append(filtered, d)
-				}
+	}
+	if wanPeerID == "" {
+		// #1485: con PPPoE la puerta de enlace WAN es el BRAS, así que el
+		// ONT/módem del primer salto nunca casa por IP. Su evidencia es el ARP
+		// aprendido en el puerto WAN del gateway (Device.WanSide); si hay
+		// varios, gana la MAC más baja para que el resultado sea estable.
+		bestMac := ""
+		for _, d := range online {
+			if !d.WanSide {
+				continue
 			}
-			online = filtered
+			m := strings.ToLower(d.MAC)
+			if wanPeerID == "" || m < bestMac {
+				wanPeerID, bestMac = d.ID, m
+			}
 		}
+	}
+	if wanPeerID != "" {
+		filtered := online[:0]
+		for _, d := range online {
+			if d.ID != wanPeerID {
+				filtered = append(filtered, d)
+			}
+		}
+		online = filtered
 	}
 	deviceByID := map[string]Device{}
 	for _, d := range online {

@@ -51,7 +51,7 @@ func TestBuildDevicesDumbAPWiredClient(t *testing.T) {
 			},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 2 {
 		t.Fatalf("esperado 2 dispositivos, got %d: %+v", len(devs), devs)
 	}
@@ -78,7 +78,7 @@ func TestBuildDevicesOwnBridgeExcluded(t *testing.T) {
 		"dumbap": {cfg: RouterConfig{ID: "dumbap"}, brMac: "AA:AA:AA:AA:AA:AA",
 			fdb: map[string]string{"GG:GG:GG:GG:GG:GG": "lan2", "AA:AA:AA:AA:AA:AA": "lan2"}},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 0 {
 		t.Fatalf("esperado 0 dispositivos (todas las MACs son de bridge), got %d: %+v", len(devs), devs)
 	}
@@ -111,7 +111,7 @@ func TestBuildDevicesAgentOnlySpecific(t *testing.T) {
 			},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 1 {
 		t.Fatalf("esperado 1 dispositivo, got %d: %+v", len(devs), devs)
 	}
@@ -137,7 +137,7 @@ func TestBuildDevicesStableOrder(t *testing.T) {
 			},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 3 {
 		t.Fatalf("esperado 3 dispositivos, got %d: %+v", len(devs), devs)
 	}

@@ -693,15 +693,17 @@ func radiosToAdapter(in []probe.Radio) []Radio {
 // MACs the kernel remembers without confirming (stale): their address is
 // still usable, but they are not evidence that the host is connected. Falls
 // back to /proc/net/arp, where no state is available and nothing is stale.
-func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool) {
+// GetArp devuelve además MAC -> interfaz (#1485): con esa columna el poller
+// distingue el ARP del puerto WAN (primer salto del enlace) del de la LAN.
+func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, devs map[string]string) {
 	if out, err := c.pool.Run(c.Host, probe.CmdIpNeigh, 0); err == nil {
 		if m, st := probe.ParseIPNeigh(out); len(m) > 0 {
-			return m, st
+			return m, st, probe.ParseIPNeighDevs(out)
 		}
 	}
 	out, err := c.pool.Run(c.Host, probe.CmdProcArp, 0)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return probe.ParseArp(out), nil
+	return probe.ParseArp(out), nil, probe.ParseArpDevs(out)
 }

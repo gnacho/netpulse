@@ -2122,6 +2122,55 @@ func ParseIPNeigh(out string) (arp map[string]string, stale map[string]bool) {
 	return arp, stale
 }
 
+// ParseIPNeighDevs devuelve MAC -> interfaz de `ip neigh show` (#1485). Solo
+// entradas confirmadas, con la misma regla que ParseIPNeigh: una entrada STALE
+// no prueba presencia y su interfaz tampoco sirve para atribuir el lado WAN.
+func ParseIPNeighDevs(out string) map[string]string {
+	devs := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 6 || net.ParseIP(f[0]) == nil {
+			continue
+		}
+		var mac, dev string
+		for i := 1; i+1 < len(f); i++ {
+			switch f[i] {
+			case "lladdr":
+				mac = strings.ToUpper(f[i+1])
+			case "dev":
+				dev = f[i+1]
+			}
+		}
+		if mac == "" || mac == "00:00:00:00:00:00" || dev == "" {
+			continue
+		}
+		if !neighConfirmed[f[len(f)-1]] {
+			continue
+		}
+		devs[mac] = dev
+	}
+	return devs
+}
+
+// ParseArpDevs devuelve MAC -> interfaz de /proc/net/arp (#1485), con el mismo
+// filtro de entradas incompletas que ParseArp. Es el fallback cuando el equipo
+// no tiene `ip`.
+func ParseArpDevs(out string) map[string]string {
+	devs := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 6 || f[0] == "IP" {
+			continue
+		}
+		mac := strings.ToUpper(f[3])
+		if mac == "" || mac == "00:00:00:00:00:00" || f[2] == "0x0" || net.ParseIP(f[0]) == nil {
+			continue
+		}
+		devs[mac] = f[5]
+	}
+	return devs
+}
+
 // sumProcRSS returns the total VmRSS (bytes) of every user-space process
 // (/proc/<pid>/status): the memory actually held by processes, excluding the
 // kernel page cache that inflates (total-available) on ubifs/overlay routers.

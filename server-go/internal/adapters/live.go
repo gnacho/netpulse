@@ -122,6 +122,9 @@ type routerPolled struct {
 	// arp: MAC→IP de /proc/net/arp (#377). Último recurso de resolución de
 	// IP cuando ni el lease ni gl-clients la tienen (DHCP en otro equipo).
 	arp map[string]string
+	// arpDevs: MAC→interfaz de la tabla ARP (#1485). Permite distinguir el
+	// ARP aprendido en el puerto WAN (primer salto del enlace) del de la LAN.
+	arpDevs map[string]string
 	// arpStale: the subset of `arp` the kernel remembers without having
 	// confirmed (STALE/FAILED/INCOMPLETE). Good enough to resolve an IP,
 	// never enough to claim the host is connected -- an entry outlives the
@@ -1185,7 +1188,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	}
 	leases := client.GetDhcpLeases()
 	reservations := client.GetDhcpReservations()
-	arp, arpStale := client.GetArp()
+	arp, arpStale, arpDevs := client.GetArp()
 	// gl-clients (GL.iNet): complementa la resolución de IP donde dnsmasq no
 	// tiene lease (issue #5 bug 1). En routers sin el objeto ubus sale vacío
 	// — coste: una llamada ubus local por poll.
@@ -1287,7 +1290,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
-		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, glClients: glClients,
+		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, arpDevs: arpDevs, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
@@ -2842,7 +2845,7 @@ func wgDuration(d time.Duration) string {
 
 // buildDevices: unión de leases + MACs vistas (wireless > FDB satélites >
 // FDB gateway si no hay memoria) + device_attrib (index.js:396-460).
-func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
+func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []Device {
 	leasesByMac := map[string]DhcpLease{}
 	leaseRouter := map[string]string{}
 	arpByMac := map[string]string{}
@@ -3037,6 +3040,27 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 	// for the entry to age out. A source that cannot report states (old
 	// agent, /proc/net/arp fallback) marks nothing stale and keeps the old
 	// behaviour.
+	// #1485: el ARP aprendido en el puerto WAN del gateway identifica al
+	// primer salto del enlace (ONT/módem en bridge tras PPPoE). Va antes del
+	// paso ARP general para que ese MAC no se atribuya como cliente LAN: se
+	// marca WanSide y lo dibuja el mapa como peer WAN bajo Internet. Solo si
+	// no tiene ya evidencia LAN (la LAN manda) y solo en la boca WAN del
+	// gateway, nunca en sus bocas LAN.
+	wanSide := map[string]bool{}
+	if gwID != "" && wanPort != "" {
+		if gwP := polled[gwID]; gwP != nil {
+			for mac, dev := range gwP.arpDevs {
+				if dev != wanPort {
+					continue
+				}
+				if _, ok := seen[mac]; ok {
+					continue
+				}
+				seen[mac] = seenInfo{gwID, "cable", nil}
+				wanSide[mac] = true
+			}
+		}
+	}
 	arpConfirmed := map[string]bool{}
 	for _, p := range polled {
 		for mac := range p.arp {
@@ -3207,7 +3231,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled) []Device {
 			MAC: mac, Manufacturer: manufacturer,
 			TrafficMbps: 0, Sparkline: []float64{},
 			RouterID: defaultRouterID, Band: "—",
-			Online: isSeen,
+			Online: isSeen, WanSide: wanSide[mac],
 		}
 		res, hasRes := resByMac[mac]
 		if hasLease {
@@ -3616,7 +3640,15 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// como overlay de inferTopology (puerto/attachTo).
 	nowMs := time.Now().UnixMilli()
 	memo := l.updateFdbMemo(polled, nowMs)
-	devices := l.buildDevices(polled)
+	// #1485: buildDevices necesita la boca WAN (ARP del primer salto del
+	// enlace); sale del estado WAN del propio sondeo del gateway.
+	wanPort := ""
+	if gw != nil {
+		if gp := polled[gw.ID]; gp != nil {
+			wanPort = gp.wanInfo.Port
+		}
+	}
+	devices := l.buildDevices(polled, wanPort)
 	stickyPolled := overlayStickyFdb(polled, memo, nowMs)
 	devices, distNodes := inferTopology(stickyPolled, devices)
 	// Capa 2 manual (issue #142): overrides de topología tras el autodiscover.
@@ -4124,7 +4156,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		return out
 	}
 	clients := []Device{}
-	detDevices, _ := inferTopology(polledAll, l.buildDevices(polledAll))
+	detDevices, _ := inferTopology(polledAll, l.buildDevices(polledAll, ""))
 	// #954: first/last seen también en los clientes del detalle del router.
 	l.applyDeviceSeen(detDevices)
 	for _, d := range detDevices {
@@ -4292,7 +4324,7 @@ func (l *Live) attributedDevices() []Device {
 	detailMemo := l.updateFdbMemo(polled, detailNowMs)
 	devices, _ := inferTopology(
 		overlayStickyFdb(polled, detailMemo, detailNowMs),
-		l.buildDevices(polled),
+		l.buildDevices(polled, ""),
 	)
 	// #1292: lápidas fuera de la lista del detalle (la fuente viva puede
 	// seguir emitiendo la MAC borrada).

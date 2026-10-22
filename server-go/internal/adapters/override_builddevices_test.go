@@ -26,7 +26,7 @@ func TestBuildDevicesNameTypeIconOverride(t *testing.T) {
 			wireless: map[string]WirelessClient{mac: {SignalDbm: -55, Band: "5 GHz"}},
 		},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if len(devs) != 1 {
 		t.Fatalf("esperado 1 dispositivo, got %d", len(devs))
 	}

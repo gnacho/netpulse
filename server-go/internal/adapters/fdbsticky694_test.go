@@ -41,7 +41,7 @@ func TestUpdateFdbMemoGatewayUplinkWithoutApBrMac(t *testing.T) {
 	if m, ok := memo["44:44:44:44:44:44"]; !ok || m.routerID != "ap" || m.port != "lan3" {
 		t.Fatalf("la memo debe quedar en el AP (lan3), got %+v", memo["44:44:44:44:44:44"])
 	}
-	devs := l.buildDevices(polled2)
+	devs := l.buildDevices(polled2, "")
 	if d := mustDevice(t, devs, "44:44:44:44:44:44"); d.RouterID != "ap" {
 		t.Fatalf("buildDevices debería atribuir al AP, got %q", d.RouterID)
 	}
@@ -58,7 +58,7 @@ func TestBuildDevicesKeepsApWhenApPollFails(t *testing.T) {
 			fdb: map[string]string{"GG:GG:GG:GG:GG:GG": "lan1"},
 			arp: map[string]string{"44:44:44:44:44:44": "192.168.13.123"}},
 	}
-	devs := l.buildDevices(polled)
+	devs := l.buildDevices(polled, "")
 	if d := mustDevice(t, devs, "44:44:44:44:44:44"); d.RouterID != "ap" {
 		t.Fatalf("RouterID=%q (want ap por la memo, aunque el AP falló el sondeo)", d.RouterID)
 	}

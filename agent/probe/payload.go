@@ -38,6 +38,11 @@ type PayloadData struct {
 	// con el dnsmasq en otro router): cualquier router de la flota que
 	// enrute la LAN conoce el mapa completo.
 	Arp map[string]string `json:"arp,omitempty"`
+	// ArpDevs: MAC -> interfaz donde el kernel tiene la entrada ARP (#1485).
+	// Permite al servidor distinguir el ARP aprendido en el puerto WAN (el
+	// primer salto del enlace, ONT/modem en bridge) del de la LAN. Un agente
+	// antiguo lo omite y el servidor no atribuye nada al lado WAN.
+	ArpDevs map[string]string `json:"arpDevs,omitempty"`
 	// ArpStale: the MACs of Arp whose neighbour entries are all unconfirmed
 	// (STALE/FAILED/INCOMPLETE). Their address is still the best one known
 	// for the host, but their presence in the table proves nothing: the

@@ -273,6 +273,10 @@ type Device struct {
 	PortLabel string `json:"portLabel,omitempty"`
 	// Lldp: identificación del vecino cuando se anuncia por LLDP.
 	Lldp *LldpInfo `json:"lldp,omitempty"`
+	// WanSide (#1485): la única evidencia de este equipo es una entrada ARP en
+	// el puerto WAN del gateway (ONT/módem en bridge tras PPPoE, fuera de toda
+	// FDB). Lo dibuja como peer WAN bajo Internet, no como cliente LAN.
+	WanSide bool `json:"wanSide,omitempty"`
 	// AttachTo: hub del que cuelga en el mapa (router por defecto; id de
 	// DistributionNode inferido o de otro Device — hipervisor/switch).
 	AttachTo string `json:"attachTo,omitempty"`

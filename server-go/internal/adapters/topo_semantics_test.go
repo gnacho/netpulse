@@ -782,3 +782,39 @@ func TestTopoSemanticsAbsorbeDistnodeSombra(t *testing.T) {
 		t.Fatalf("AbsorbedDists: %+v", sem.AbsorbedDists)
 	}
 }
+
+// #1485: con PPPoE la puerta de enlace WAN es el BRAS, así que el ONT/módem
+// del primer salto no casa por IP. Su evidencia es el ARP del puerto WAN
+// (Device.WanSide): debe dibujarse como peer WAN bajo Internet y no como
+// cliente cableado del gateway.
+func TestTopoSemanticsWanPeerByWanSide(t *testing.T) {
+	routers := []Router{{ID: "gw", Name: "Gateway", RoleBadge: "Principal"}}
+	devices := []Device{
+		{ID: "ont", MAC: "c0-49-43-a3-d1-34", IP: "192.168.1.1", Online: true, WanSide: true, Band: "cable", RouterID: "gw"},
+		{ID: "pc", MAC: "aa-bb-cc-00-00-01", Online: true, Band: "cable", RouterID: "gw"},
+	}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "123.113.96.1", nil, nil, nil)
+	if sem.WanPeer != "ont" {
+		t.Fatalf("WanPeer %q, want ont", sem.WanPeer)
+	}
+	// Se dibuja como nodo WAN (enlace wan-peer desde Internet), no como
+	// cliente cableado del gateway.
+	for _, l := range sem.Links {
+		if l.To == "ont" && l.Kind != "wan-peer" {
+			t.Fatalf("el peer WAN no debe tener enlace LAN: %+v", l)
+		}
+	}
+}
+
+// El match por IP de siempre (#1042) sigue mandando cuando existe.
+func TestTopoSemanticsWanPeerByIPWins(t *testing.T) {
+	routers := []Router{{ID: "gw", Name: "Gateway", RoleBadge: "Principal"}}
+	devices := []Device{
+		{ID: "brasa", MAC: "00-00-00-00-00-aa", IP: "123.113.96.1", Online: true, Band: "cable", RouterID: "gw"},
+		{ID: "ont", MAC: "c0-49-43-a3-d1-34", IP: "192.168.1.1", Online: true, WanSide: true, Band: "cable", RouterID: "gw"},
+	}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "123.113.96.1", nil, nil, nil)
+	if sem.WanPeer != "brasa" {
+		t.Fatalf("WanPeer %q, want brasa (el match por IP manda)", sem.WanPeer)
+	}
+}

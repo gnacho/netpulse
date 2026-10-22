@@ -732,6 +732,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	}
 	if p.Data.Arp != nil {
 		out.arp = p.Data.Arp
+		out.arpDevs = p.Data.ArpDevs
 		// An agent old enough not to send arpStale leaves this empty, and
 		// the whole table counts as presence, exactly as it used to.
 		out.arpStale = make(map[string]bool, len(p.Data.ArpStale))
