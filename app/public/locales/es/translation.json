@@ -1225,7 +1225,24 @@
     "totalDown": "Tiempo sin datos total",
     "windowDay": "los últimos {{n}} días",
     "windowHour": "las últimas {{n}} horas",
-    "worstRouter": "Router con más huecos"
+    "worstRouter": "Router con más huecos",
+    "presence": {
+      "title": "Presencia de clientes",
+      "caption": "Tramos online de un cliente en el rango elegido, con el router donde estuvo. Histórico de device_events con la retención configurada en Ajustes.",
+      "range": "Rango",
+      "days": "{{n}} días",
+      "search": "Buscar cliente…",
+      "noMatch": "Sin coincidencias",
+      "pick": "Elige un cliente para ver su histórico.",
+      "loading": "Cargando histórico…",
+      "error": "No se pudo cargar el histórico.",
+      "noapi": "La demo estática no sirve el histórico; en tu instancia verás los tramos reales.",
+      "online": "Tiempo online",
+      "sessions": "Tramos",
+      "connects24h": "Conexiones (24 h)",
+      "empty": "Sin presencia registrada en el rango.",
+      "lastSeen": "Última vez visto {{when}}."
+    }
   },
   "topology": {
     "animateFlow": "Animar flujo de paquetes",

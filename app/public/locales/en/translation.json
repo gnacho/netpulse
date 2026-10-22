@@ -1225,7 +1225,24 @@
     "totalDown": "Total time without data",
     "windowDay": "the last {{n}} days",
     "windowHour": "the last {{n}} hours",
-    "worstRouter": "Router with most gaps"
+    "worstRouter": "Router with most gaps",
+    "presence": {
+      "title": "Client presence",
+      "caption": "Online spans of one client in the selected range, with the router it was on. device_events history, with the retention configured in Settings.",
+      "range": "Range",
+      "days": "{{n}} days",
+      "search": "Search client…",
+      "noMatch": "No matches",
+      "pick": "Pick a client to see its history.",
+      "loading": "Loading history…",
+      "error": "Could not load the history.",
+      "noapi": "The static demo does not serve the history; your instance will show the real spans.",
+      "online": "Online time",
+      "sessions": "Spans",
+      "connects24h": "Connections (24 h)",
+      "empty": "No presence recorded in the range.",
+      "lastSeen": "Last seen {{when}}."
+    }
   },
   "topology": {
     "animateFlow": "Animate packet flow",

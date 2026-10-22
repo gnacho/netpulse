@@ -101,6 +101,15 @@ func Intervals(db *sql.DB, mac string, sinceMs int64) ([]Interval, error) {
 	}
 	out := []Interval{}
 	curIdx := -1 // índice del tramo abierto en out (-1 = ninguno)
+	// #1493: un cliente que ya estaba online ANTES de la ventana no tiene
+	// eventos dentro de ella, así que su timeline salía vacío aunque llevara
+	// días conectado (la mayoría de equipos fijos). Si su último estado previo
+	// es online, el tramo entra abierto en sinceMs y los eventos de dentro lo
+	// cierran o lo parten con normalidad.
+	if st, router, ok := lastStateBefore(db, mac, sinceMs); ok && st == StateOnline {
+		out = append(out, Interval{RouterID: router, StartMs: sinceMs})
+		curIdx = 0
+	}
 	closeAt := func(ts int64) {
 		if curIdx >= 0 {
 			out[curIdx].EndMs = &ts
@@ -135,6 +144,19 @@ func Intervals(db *sql.DB, mac string, sinceMs int64) ([]Interval, error) {
 		}
 	}
 	return out, nil
+}
+
+// lastStateBefore: último estado de presencia del cliente ANTES de sinceMs
+// (#1493). Sirve para saber si el tramo abierto viene de antes de la ventana.
+func lastStateBefore(db *sql.DB, mac string, sinceMs int64) (state, routerID string, ok bool) {
+	err := db.QueryRow(
+		`SELECT state, COALESCE(router_id,'') FROM device_events
+		 WHERE mac = ? AND ts_ms < ? ORDER BY ts_ms DESC LIMIT 1`,
+		mac, sinceMs).Scan(&state, &routerID)
+	if err != nil {
+		return "", "", false
+	}
+	return state, routerID, true
 }
 
 // listEventsAsc devuelve los device_events de la MAC en ascendente.

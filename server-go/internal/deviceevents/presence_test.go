@@ -152,3 +152,35 @@ func TestRoamCountsAndPrune(t *testing.T) {
 		t.Fatalf("tras poda RoamCounts = %+v", rc)
 	}
 }
+
+// #1493: un cliente online desde ANTES de la ventana no tiene eventos dentro
+// de ella; su tramo debe entrar abierto en sinceMs (si no, el timeline sale
+// vacío para casi todos los equipos fijos).
+func TestIntervalsCarriesOpenSpanFromBeforeWindow(t *testing.T) {
+	db := openTestDB(t)
+	now := time.Now()
+	mac := "AA:BB:CC:00:00:01"
+	// Se conectó hace 3 días y siguió online; la ventana es de 1 día.
+	insertDev(t, db, now.Add(-72*time.Hour).UnixMilli(), mac, "gw", StateOnline)
+	since := now.Add(-24 * time.Hour).UnixMilli()
+	got, err := Intervals(db, mac, since)
+	if err != nil {
+		t.Fatalf("intervals: %v", err)
+	}
+	if len(got) != 1 || got[0].StartMs != since || got[0].EndMs != nil {
+		t.Fatalf("tramos %+v, want uno abierto desde since", got)
+	}
+	// Y un offline dentro de la ventana lo cierra.
+	off := now.Add(-2 * time.Hour).UnixMilli()
+	insertDev(t, db, off, mac, "gw", StateOffline)
+	got, _ = Intervals(db, mac, since)
+	if len(got) != 1 || got[0].EndMs == nil || *got[0].EndMs != off {
+		t.Fatalf("tramos tras offline %+v, want cerrado en %d", got, off)
+	}
+	// Si el último estado previo era offline, no se arrastra nada.
+	mac2 := "AA:BB:CC:00:00:02"
+	insertDev(t, db, now.Add(-72*time.Hour).UnixMilli(), mac2, "gw", StateOffline)
+	if got, _ := Intervals(db, mac2, since); len(got) != 0 {
+		t.Fatalf("tramos %+v, want vacío (venía offline)", got)
+	}
+}

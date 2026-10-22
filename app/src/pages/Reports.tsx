@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Activity, AlertTriangle, CalendarDays, Clock, Download, RefreshCw } from 'lucide-react'
+import { Activity, AlertTriangle, CalendarDays, Clock, Download, RefreshCw, Users } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
+import { relTimeFromTs } from '@/i18n'
 import { routerName } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -526,9 +527,241 @@ export default function Reports() {
             </ul>
             <p className="mt-4 text-caption text-text-muted">{t('reports.footnote')}</p>
           </section>
+
+          {/* #1493: histórico de presencia por cliente (datos ya capturados) */}
+          <ClientPresenceSection />
         </>
       )}
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// #1493: histórico de presencia por cliente. La captura nunca se dejó de hacer
+// (device_events #184 + roam_events #771) y el endpoint sigue vivo
+// (GET /api/devices/{mac}/presence); #985 solo retiró esta vista.
+// ---------------------------------------------------------------------------
+interface PresenceInterval {
+  routerId: string
+  startMs: number
+  endMs: number | null
+}
+
+interface PresenceData {
+  mac: string
+  days: number
+  nowMs: number
+  intervals: PresenceInterval[]
+  connects24h: number
+}
+
+/** Inicio del día local de un instante (ms). */
+function startOfDayMs(ms: number): number {
+  const d = new Date(ms)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+function fmtSpan(ms: number): string {
+  const min = Math.round(ms / 60000)
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m} min`
+  return m === 0 ? `${h} h` : `${h} h ${m} min`
+}
+
+function ClientPresenceSection() {
+  const { t, i18n } = useTranslation()
+  const { devices } = useNetPulse()
+  const [days, setDays] = useState(7)
+  const [mac, setMac] = useState('')
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [data, setData] = useState<PresenceData | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'noapi'>('idle')
+
+  const clients = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return devices
+      .filter((d) => d.mac)
+      .filter((d) => !q || `${d.name ?? ''} ${d.ip ?? ''} ${d.mac}`.toLowerCase().includes(q))
+      .sort((a, b) => (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac))
+      .slice(0, 50)
+  }, [devices, query])
+
+  const label = (d: { name?: string; ip?: string; mac: string }) => d.name || d.ip || d.mac
+  const selected = devices.find((d) => d.mac === mac)
+
+  useEffect(() => {
+    if (!mac) {
+      setData(null)
+      setStatus('idle')
+      return
+    }
+    let cancelled = false
+    setStatus('loading')
+    fetchJson<PresenceData>(`/api/devices/${encodeURIComponent(mac)}/presence?days=${days}`)
+      .then((res) => {
+        if (cancelled) return
+        if (res.ok) {
+          setData(res.data)
+          setStatus('idle')
+        } else if (res.kind === 'no-api') {
+          setData(null)
+          setStatus('noapi')
+        } else {
+          setData(null)
+          setStatus('error')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null)
+          setStatus('error')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mac, days])
+
+  const now = data?.nowMs ?? Date.now()
+  const dayStarts = Array.from({ length: days }, (_, i) => startOfDayMs(now) - (days - 1 - i) * 86_400_000)
+  const rangeStart = dayStarts[0] ?? startOfDayMs(now) - (days - 1) * 86_400_000
+  const spans = (data?.intervals ?? [])
+    .map((iv) => ({ routerId: iv.routerId, s: Math.max(iv.startMs, rangeStart), e: Math.min(iv.endMs ?? now, now) }))
+    .filter((iv) => iv.e > iv.s)
+  const totalMs = spans.reduce((acc, iv) => acc + (iv.e - iv.s), 0)
+
+  const lang = i18n.language || 'es'
+  const dayFmt = new Intl.DateTimeFormat(lang, { day: '2-digit', month: '2-digit' })
+  const timeFmt = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
+      <div className="mb-4 flex flex-wrap items-start gap-3">
+        <Users className="mt-1 h-4 w-4 text-accent" strokeWidth={1.75} />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-h2 text-text-primary">{t('reports.presence.title')}</h2>
+          <p className="mt-1 text-caption text-text-muted">{t('reports.presence.caption')}</p>
+        </div>
+        <label className="flex items-center gap-2 text-caption text-text-muted">
+          {t('reports.presence.range')}
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="h-9 rounded-lg border border-border bg-canvas px-2 text-sm text-text-primary"
+          >
+            <option value={7}>{t('reports.presence.days', { n: 7 })}</option>
+            <option value={30}>{t('reports.presence.days', { n: 30 })}</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="relative max-w-md">
+        <input
+          type="search"
+          value={query}
+          placeholder={t('reports.presence.search')}
+          aria-label={t('reports.presence.search')}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+            setMac('')
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          className="h-9 w-full rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary placeholder:text-text-muted"
+        />
+        {open && (
+          <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-lg">
+            {clients.length === 0 && <li className="px-3 py-2 text-sm text-text-muted">{t('reports.presence.noMatch')}</li>}
+            {clients.map((d) => (
+              <li key={d.mac}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setMac(d.mac)
+                    setQuery(label(d))
+                    setOpen(false)
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-text-primary hover:bg-elevated"
+                >
+                  <span className="truncate">{label(d)}</span>
+                  <span className="shrink-0 text-caption text-text-muted">{d.ip || d.mac}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {!mac && <p className="mt-4 text-sm text-text-muted">{t('reports.presence.pick')}</p>}
+      {mac && status === 'loading' && <p className="mt-4 text-sm text-text-muted">{t('reports.presence.loading')}</p>}
+      {mac && status === 'error' && <p className="mt-4 text-sm text-danger">{t('reports.presence.error')}</p>}
+      {mac && status === 'noapi' && <p className="mt-4 text-sm text-text-muted">{t('reports.presence.noapi')}</p>}
+
+      {mac && status === 'idle' && data && (
+        <>
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-text-secondary">
+            <span>
+              {t('reports.presence.online')}: <span className="text-text-primary">{fmtSpan(totalMs)}</span>
+            </span>
+            <span>
+              {t('reports.presence.sessions')}: <span className="text-text-primary">{spans.length}</span>
+            </span>
+            <span>
+              {t('reports.presence.connects24h')}: <span className="text-text-primary">{data.connects24h}</span>
+            </span>
+          </div>
+
+          {spans.length === 0 ? (
+            <p className="mt-4 text-sm text-text-muted">
+              {t('reports.presence.empty')}
+              {selected?.lastSeenMs
+                ? ` ${t('reports.presence.lastSeen', { when: relTimeFromTs(Math.floor((selected.lastSeenMs ?? 0) / 1000)) ?? '' })}`
+                : ''}
+            </p>
+          ) : (
+            <div className="mt-4 space-y-1">
+              {dayStarts.map((dayStart) => {
+                const dayEnd = dayStart + 86_400_000
+                const daySpans = spans
+                  .map((iv) => ({ ...iv, s: Math.max(iv.s, dayStart), e: Math.min(iv.e, dayEnd) }))
+                  .filter((iv) => iv.e > iv.s)
+                return (
+                  <div key={dayStart} className="flex items-center gap-3">
+                    <span className="w-12 shrink-0 text-caption tabular-nums text-text-muted">{dayFmt.format(dayStart)}</span>
+                    <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-elevated">
+                      {daySpans.map((iv, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-0 h-full bg-accent/80"
+                          style={{
+                            left: `${((iv.s - dayStart) / 86_400_000) * 100}%`,
+                            width: `${((iv.e - iv.s) / 86_400_000) * 100}%`,
+                          }}
+                          title={`${timeFmt.format(iv.s)} - ${timeFmt.format(iv.e)}${iv.routerId ? ` · ${iv.routerId}` : ''}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="w-20 shrink-0 text-right text-caption tabular-nums text-text-muted">
+                      {daySpans.length > 0 ? fmtSpan(daySpans.reduce((a, iv) => a + (iv.e - iv.s), 0)) : '—'}
+                    </span>
+                  </div>
+                )
+              })}
+              <div className="flex items-center justify-between pt-1 text-caption text-text-muted">
+                <span>00:00</span>
+                <span>12:00</span>
+                <span>24:00</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   )
 }
