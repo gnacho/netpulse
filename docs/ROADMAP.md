@@ -1,5 +1,20 @@
 # NetPulse — Hoja de ruta
 
+> Actualizada: 2026-10-23 (v2.46.0 publicado el 20-Oct; main acumula 2.47.0:
+> portabilidad del agente más allá de OpenWrt, ONT tras PPPoE, temperatura de
+> CPU en x86, presencia por cliente en Informes, host key desde la UI).
+
+### Siguientes (backlog corto)
+
+- **Pareo de disconnect→reconnect de peers WireGuard no urgentes en el log de
+  alertas (#1505)**: hoy son dos líneas sueltas (`WireGuard disconnect` +
+  `WireGuard handshake`); la mejora es marcar la desconexión con su
+  reconexión usando el mecanismo de detalles resueltos de #1466. Los urgentes
+  ya notifican por su cuenta.
+- **Auto-clasificar ONT cuando el peer WAN lo evidencie (#1495 follow-up)**:
+  si un equipo es el peer WAN (evidencia ARP de #1485) y su OUI es de
+  fabricante de ONT, proponer tipo `modem` sin esperar el hostname.
+
 > Actualizada: 2026-09-02 (**v2.25.0** publicado: acciones de router en tabla, vitales condicionales, timeline compacta de upgrades, comparación de builds; **v2.26.0** planificado: #448 bugfix, #451 apply seguro con ownership UCI, #452 channel planning, #453 firmware upgrades).
 
 ## Estado actual ✅
