@@ -46,6 +46,17 @@ type ReleasesState struct {
 	Ts int64 `json:"ts"`
 	// Versions son las versiones ordenadas de más nueva a más vieja.
 	Versions []string `json:"versions"`
+	// LastAttemptTs es el instante (unix) del último INTENTO de refresco, haya
+	// ido bien o mal (#1478). Permite que la UI distinga "último chequeo bueno"
+	// de "último intento".
+	LastAttemptTs int64 `json:"lastAttemptTs,omitempty"`
+	// LastError es el mensaje del último intento fallido; vacío si el último
+	// intento salió bien. No pisa la lista ni su Ts: el gating sigue usando la
+	// última lista buena mientras el índice no esté disponible.
+	LastError string `json:"lastError,omitempty"`
+	// FailCount son los fallos consecutivos, base del backoff exponencial
+	// (#1478). Se reinicia a 0 en el primer éxito.
+	FailCount int `json:"failCount,omitempty"`
 }
 
 var releaseDirRe = regexp.MustCompile(`<a href="([0-9]+\.[0-9]+(\.[0-9]+)?(-rc[0-9]+)?)/"`)
@@ -157,21 +168,37 @@ func FetchReleases(ctx context.Context, client *http.Client, base string) ([]str
 	return versions, nil
 }
 
-// LoadReleases lee la lista cacheada de kv. ok=false si nunca se guardó.
-func LoadReleases(db *sql.DB) (ReleasesState, bool) {
+// loadReleasesRaw lee el registro tal cual, aunque todavía no tenga versiones
+// (tras un primer intento fallido solo hay datos del intento). LoadReleases
+// mantiene la semántica histórica (ok solo con lista utilizable).
+func loadReleasesRaw(db *sql.DB) (ReleasesState, bool) {
 	var st ReleasesState
 	if db == nil {
 		return st, false
 	}
 	var raw string
 	if err := db.QueryRow("SELECT value FROM kv WHERE key = ?", releasesKey).Scan(&raw); err != nil {
-		return st, false
+		return ReleasesState{}, false
 	}
-	if err := json.Unmarshal([]byte(raw), &st); err != nil || len(st.Versions) == 0 {
+	if err := json.Unmarshal([]byte(raw), &st); err != nil {
 		return ReleasesState{}, false
 	}
 	return st, true
 }
+
+// LoadReleases lee la lista cacheada de kv. ok=false si nunca se guardó.
+func LoadReleases(db *sql.DB) (ReleasesState, bool) {
+	st, ok := loadReleasesRaw(db)
+	if !ok || len(st.Versions) == 0 {
+		return ReleasesState{}, false
+	}
+	return st, true
+}
+
+// LoadReleasesRecord lee el registro completo (lista + estado de los intentos)
+// aunque todavía no haya versiones: lo usa la API para enseñar el último
+// intento fallido (#1478).
+func LoadReleasesRecord(db *sql.DB) (ReleasesState, bool) { return loadReleasesRaw(db) }
 
 // SaveReleases persiste la lista cacheada en kv.
 func SaveReleases(db *sql.DB, st ReleasesState) error {
@@ -218,6 +245,31 @@ func SetReleasesIntervalHours(db *sql.DB, h int) error {
 		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
 		releasesIntervalKey, strconv.Itoa(h))
 	return err
+}
+
+// Backoff del refresco de releases tras fallos consecutivos (#1478): el índice
+// de descargas puede estar caído (o ASU en mantenimiento durante un build) y
+// reintentar en cada tick de 30 s no aporta nada. Base 5 min doblando hasta 1 h;
+// el primer éxito lo reinicia.
+const (
+	ReleasesBackoffBase = 5 * time.Minute
+	ReleasesBackoffMax  = time.Hour
+)
+
+// ReleasesBackoff devuelve la espera mínima entre intentos tras `fails` fallos
+// consecutivos (0 = sin espera, se puede intentar ya).
+func ReleasesBackoff(fails int) time.Duration {
+	if fails <= 0 {
+		return 0
+	}
+	d := ReleasesBackoffBase
+	for i := 1; i < fails && d < ReleasesBackoffMax; i++ {
+		d *= 2
+	}
+	if d > ReleasesBackoffMax {
+		d = ReleasesBackoffMax
+	}
+	return d
 }
 
 // ReleasesRefresher es el daemon que mantiene la lista al día: tick corto
@@ -301,9 +353,18 @@ func (r *ReleasesRefresher) Stop() {
 
 func (r *ReleasesRefresher) tick() {
 	interval := time.Duration(ReleasesIntervalHours(r.db)) * time.Hour
-	if st, ok := LoadReleases(r.db); ok {
-		if r.now().Sub(time.Unix(st.Ts, 0)) < interval {
-			return // caché fresca
+	now := r.now()
+	if st, ok := loadReleasesRaw(r.db); ok {
+		due := time.Unix(st.Ts, 0).Add(interval)
+		// #1478: tras un fallo se respeta el backoff aunque la caché ya esté
+		// vieja; si nunca hubo éxito, Ts es 0 y manda el backoff.
+		if st.LastAttemptTs > 0 {
+			if at := time.Unix(st.LastAttemptTs, 0).Add(ReleasesBackoff(st.FailCount)); at.After(due) {
+				due = at
+			}
+		}
+		if now.Before(due) {
+			return // caché fresca o backoff en curso
 		}
 	}
 	if err := r.RunNow(context.Background()); err != nil {
@@ -328,11 +389,21 @@ func (r *ReleasesRefresher) RunNow(ctx context.Context) error {
 		r.mu.Unlock()
 	}()
 
+	now := r.now()
 	versions, err := FetchReleases(ctx, r.client, r.base)
+	prev, _ := loadReleasesRaw(r.db)
 	if err != nil {
+		// #1478: el fallo no toca la lista ni su Ts (el gating sigue con la
+		// última buena); solo deja constancia del intento y suma al backoff.
+		prev.LastAttemptTs = now.Unix()
+		prev.LastError = err.Error()
+		prev.FailCount++
+		if sErr := SaveReleases(r.db, prev); sErr != nil {
+			r.logf("releases: no pude guardar el fallo del refresco: %v", sErr)
+		}
 		return err
 	}
-	st := ReleasesState{Ts: r.now().Unix(), Versions: versions}
+	st := ReleasesState{Ts: now.Unix(), Versions: versions, LastAttemptTs: now.Unix()}
 	if err := SaveReleases(r.db, st); err != nil {
 		return err
 	}

@@ -2334,6 +2334,8 @@
     "releasesCheckNow": "Check now",
     "releasesInterval": "Every",
     "releasesHours": "h",
+    "releasesAttemptFailed": "The last attempt failed {{when}}: {{error}}. The last good list is still in use.",
+    "releasesRetryIn": "next retry in {{mins}} min",
     "uploadExpected": "Expected SHA256 (optional)",
     "uploadExpectedPlaceholder": "from the image release",
     "uploadChecksumMatch": "The SHA256 matches the one computed by the server.",

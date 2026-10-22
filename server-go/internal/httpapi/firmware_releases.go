@@ -24,16 +24,22 @@ func (s *server) registerFirmwareReleasesRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusServiceUnavailable, "no_db")
 			return
 		}
-		st, ok := firmware.LoadReleases(s.db.DB)
+		st, ok := firmware.LoadReleasesRecord(s.db.DB)
 		versions := []string{}
-		if ok {
+		if len(st.Versions) > 0 {
 			versions = st.Versions
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"versions":      versions,
 			"ts":            st.Ts,
-			"available":     ok,
+			"available":     ok && len(st.Versions) > 0,
 			"intervalHours": firmware.ReleasesIntervalHours(s.db.DB),
+			// #1478: el último intento puede haber fallado sin tirar la lista
+			// buena; la tarjeta lo distingue del último chequeo exitoso.
+			"lastAttemptTs":    st.LastAttemptTs,
+			"lastError":        st.LastError,
+			"failCount":        st.FailCount,
+			"nextRetrySeconds": int(firmware.ReleasesBackoff(st.FailCount).Seconds()),
 		})
 	})))
 

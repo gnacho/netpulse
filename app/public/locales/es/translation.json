@@ -2334,6 +2334,8 @@
     "releasesCheckNow": "Comprobar ahora",
     "releasesInterval": "Cada",
     "releasesHours": "h",
+    "releasesAttemptFailed": "El último intento falló {{when}}: {{error}}. Se mantiene la última lista buena.",
+    "releasesRetryIn": "próximo reintento en {{mins}} min",
     "uploadExpected": "SHA256 esperado (opcional)",
     "uploadExpectedPlaceholder": "de la publicación de la imagen",
     "uploadChecksumMatch": "El SHA256 coincide con el calculado por el servidor.",

@@ -1608,8 +1608,20 @@ function ReleasesCheckCard() {
     ts: number
     available: boolean
     intervalHours: number
+    // #1478: último intento (puede fallar sin tirar la lista buena).
+    lastAttemptTs?: number
+    lastError?: string
+    nextRetrySeconds?: number
   } | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const loadState = () =>
+    fetch('/api/firmware/releases')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j) setState(j)
+      })
+      .catch(() => {})
 
   useEffect(() => {
     if (isDemo) return
@@ -1632,8 +1644,17 @@ function ReleasesCheckCard() {
     fetch('/api/firmware/releases/refresh', { method: 'POST' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!j) return
-        setState((prev) => (prev ? { ...prev, ts: j.ts ?? 0, available: true } : prev))
+        if (!j) {
+          // #1478: el fallo deja lastError/lastAttemptTs en el server; releer
+          // el estado para que la tarjeta lo enseñe sin recargar la página.
+          void loadState()
+          return
+        }
+        setState((prev) =>
+          prev
+            ? { ...prev, ts: j.ts ?? 0, available: true, lastAttemptTs: j.ts ?? prev.lastAttemptTs, lastError: '', nextRetrySeconds: 0 }
+            : prev,
+        )
       })
       .catch(() => {})
       .finally(() => setBusy(false))
@@ -1653,6 +1674,20 @@ function ReleasesCheckCard() {
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-text-primary">{t('firmwareUpgrades.releasesTitle')}</div>
           <div className="mt-0.5 text-caption text-text-muted">{t('firmwareUpgrades.releasesCaption')}</div>
+          {state?.lastError && (
+            <div className="mt-1 flex items-start gap-1.5 text-caption text-warn">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+              <span>
+                {t('firmwareUpgrades.releasesAttemptFailed', {
+                  when: relTimeFromTs(state.lastAttemptTs) ?? '',
+                  error: state.lastError,
+                })}
+                {state.nextRetrySeconds && state.nextRetrySeconds > 0
+                  ? ` · ${t('firmwareUpgrades.releasesRetryIn', { mins: Math.max(1, Math.ceil(state.nextRetrySeconds / 60)) })}`
+                  : ''}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-text-secondary">
           <span>
