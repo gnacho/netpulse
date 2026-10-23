@@ -103,3 +103,51 @@ func TestNotifyChangeFires(t *testing.T) {
 		t.Fatalf("NotifyChange: esperaba 2 disparos, hubo %d", fired)
 	}
 }
+
+// Purga one-shot (#1518): los cierres de señal débil del formato ANTIGUO
+// (alert-weak-<mac>-ok-<ts>) se borran de alert_log al arrancar; el ID
+// estable nuevo (alert-weak-<mac>-ok) y los avisos originales (con o sin
+// resolved_ts) se conservan.
+func TestPurgeSupersededWeakClosures(t *testing.T) {
+	dir := t.TempDir()
+	d, err := db.Open(dir)
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	now := time.Now().Unix()
+	seed := []AlertEvent{
+		{ID: "alert-weak-aa:bb-ok-1790000000", Category: CatSignal, Severity: "ok", Title: "viejo 1", Ts: now - 60},
+		{ID: "alert-weak-aa:bb-ok-1790000300", Category: CatSignal, Severity: "ok", Title: "viejo 2", Ts: now - 30},
+		{ID: "alert-weak-aa:bb-ok", Category: CatSignal, Severity: "ok", Title: "ID estable", Ts: now},
+		{ID: "alert-weak-aa:bb-1790000100", Category: CatSignal, Severity: "warn", Title: "aviso original", Ts: now - 20, ResolvedTs: now - 10},
+	}
+	for _, ev := range seed {
+		if !e1emit(t, d, ev) {
+			t.Fatalf("no se insertó %s", ev.ID)
+		}
+	}
+
+	e2 := New(d, nil)
+	got := map[string]bool{}
+	for _, ev := range e2.List() {
+		got[ev.ID] = true
+	}
+	if got["alert-weak-aa:bb-ok-1790000000"] || got["alert-weak-aa:bb-ok-1790000300"] {
+		t.Error("los cierres del formato antiguo siguen en el log tras la purga")
+	}
+	if !got["alert-weak-aa:bb-ok"] || !got["alert-weak-aa:bb-1790000100"] {
+		t.Errorf("la purga borró entradas válidas: %v", got)
+	}
+}
+
+// e1emit inserta un evento directo en alert_log (formato de fila real, sin
+// pasar por el engine que ya purga).
+func e1emit(t *testing.T, d *db.DB, ev AlertEvent) bool {
+	t.Helper()
+	_, err := d.Exec(
+		`INSERT INTO alert_log (id, ts, category, type, severity, urgent, title, description, router_id, resolved_ts)
+		 VALUES (?, ?, ?, ?, ?, 0, ?, '', '', ?)`,
+		ev.ID, ev.Ts, ev.Category, ev.Type, ev.Severity, ev.Title, ev.ResolvedTs)
+	return err == nil
+}

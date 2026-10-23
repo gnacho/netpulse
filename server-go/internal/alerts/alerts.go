@@ -333,6 +333,7 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 			}
 		}
 		e.purgeVolatileHistoryLocked()
+		e.purgeSupersededWeakClosures()
 		e.loadPersistedLocked()
 		// #1034: poda por antigüedad al arrancar (además de la horaria de
 		// main): una retención bajada mientras el daemon estaba parado se
@@ -354,6 +355,18 @@ func (e *Engine) purgeVolatileHistoryLocked() {
 	_, _ = e.db.Exec(
 		`DELETE FROM alert_log WHERE id LIKE 'alert-agent-down-%'
 		   OR type IN ('agent-down', 'agent-down-ssh')`)
+}
+
+// purgeSupersededWeakClosures: purga one-shot al arrancar (#1518). Los
+// cierres de señal débil ANTERIORES al ID estable llevaban timestamp en el ID
+// (alert-weak-<mac>-ok-<ts>): cada episodio dejaba una "resuelta" idéntica en
+// el log. Se borran de alert_log ANTES de cargar (el ID estable nuevo las
+// reemplaza en adelante); los avisos originales resueltos no se tocan.
+func (e *Engine) purgeSupersededWeakClosures() {
+	if e.db == nil || !e.persistLog {
+		return
+	}
+	_, _ = e.db.Exec(`DELETE FROM alert_log WHERE id LIKE 'alert-weak-%-ok-%'`)
 }
 
 // loadPersistedLocked restaura el log desde alert_log (issue #798): los
