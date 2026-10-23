@@ -93,8 +93,11 @@ func WeakSignalResolveSamples(db *sql.DB) int {
 }
 
 // weakRefireGapMs es el guarda mínimo entre episodios: mientras una alerta
-// está abierta no hay re-disparo (una alerta = un episodio), y tras cerrarse
-// el throttle se reinicia para que un nuevo episodio real alerte de inmediato.
+// está abierta no hay re-disparo (una alerta = un episodio) y, tras cerrarse,
+// LastFire se conserva (#1521): un cliente que oscila entre señal débil y
+// buena no vuelve a alertar hasta 24 h después del último disparo. Sin esto,
+// cada ciclo débil->bueno->débil abría un episodio nuevo cada pocos minutos y
+// el log se llenaba de "Señal débil" del mismo dispositivo.
 const weakRefireGapMs = int64(24 * 3600 * 1000)
 
 // WeakSignalState es el estado del ciclo de vida por MAC.
@@ -107,6 +110,7 @@ type WeakSignalState struct {
 	// Good es la racha de muestras buenas consecutivas.
 	Good int
 	// LastFire es el último disparo (ms) para el guarda entre episodios.
+	// Se conserva al cerrar el episodio (#1521): el guarda es entre EPISODIOS.
 	LastFire int64
 }
 
@@ -144,7 +148,9 @@ func WeakSignalStep(st *WeakSignalState, mac string, signal *int, online bool, t
 			st.OpenID = ""
 			st.OpenTs = 0
 			st.Good = 0
-			st.LastFire = 0
+			// LastFire NO se toca (#1521): el guarda de 24 h cuenta desde el
+			// último disparo REAL, no desde la última resolución. Resetearlo
+			// aquí anulaba el guarda para cualquier cliente oscilando.
 			return "", id, start
 		}
 		return "", "", 0
